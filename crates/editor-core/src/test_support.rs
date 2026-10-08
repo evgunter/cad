@@ -51,13 +51,16 @@ pub fn ang(radians: f64) -> Formula {
     Formula::literal(radians, Dimension::Angle).expect("a finite angle")
 }
 
-/// A dimensionless literal — a direction component, a bulge, a ratio.
+/// A written dimensionless value ([`Formula::scalar`]) — a direction
+/// component, a bulge, a ratio: a variable the edit door mints, at a
+/// slot's root and inside a formula alike. The exact constant is
+/// [`Formula::ratio`].
 ///
 /// # Panics
 ///
 /// If `value` is not finite.
 pub fn scl(value: f64) -> Formula {
-    Formula::literal(value, Dimension::Scalar).expect("a finite scalar")
+    Formula::scalar(value).expect("a finite scalar")
 }
 
 /// Two length literals — a point in a sketch frame's own coordinates.
@@ -71,19 +74,52 @@ pub fn len2(v: [f64; 2]) -> [Formula; 2] {
 
 // --- the stored form ------------------------------------------------
 
-/// The stored node `node` lowers to where no name is held: what the
-/// edit door would write for it, for a row that places a node in a
-/// document by hand.
+/// **A document to lower into and throw away**, for a row that asks a
+/// stored form something its variables' values do not answer.
+pub fn scratch(tol: geom_core::Tol) -> ProfileDoc {
+    ProfileDoc::empty_derived("scratch", tol)
+}
+
+/// The stored node `node` lowers to in `doc`: what the edit door would
+/// write for it, every variable it mints minted into `doc`, for a row
+/// that places a node in a document by hand.
 ///
 /// # Panics
 ///
-/// If `node` reads a variable by name.
-pub fn stored(node: &crate::AuthoredNode) -> Node<ProfileProgram> {
+/// If `node` does not lower in `doc`.
+pub fn stored(doc: &mut ProfileDoc, node: &crate::AuthoredNode) -> Node<ProfileProgram> {
     use crate::ProfilePayload;
     node.try_map_slots(|p, f| ProfileProgram::lower(p, f), &mut |f| {
-        Expr::try_from(f)
+        crate::edit::lower_slot_into(doc, f)
     })
-    .expect("a node with no name leaf lowers in any scope")
+    .expect("a node the document can answer lowers")
+}
+
+/// **A live node as it was written**: each slot the formula its
+/// variable was written as ([`crate::Doc::written`]) — an anonymous
+/// variable's value or definition, a named one's reader — for a row
+/// that rebuilds a document by re-inserting its nodes, minting their
+/// anonymous variables afresh, as the original inserts did.
+///
+/// # Panics
+///
+/// If `node` reads an anonymous variable a written re-insert would not
+/// reproduce ([`crate::Doc::written_would_not_reproduce`]): the rebuilt
+/// document would not be this one. A value edited after its insert is
+/// the caller's to rule out, by comparing the rebuilt ids.
+pub fn as_written(doc: &ProfileDoc, node: &Node<ProfileProgram>) -> crate::AuthoredNode {
+    let lost = doc.written_would_not_reproduce();
+    let read: Vec<crate::VarId> = node
+        .exprs()
+        .into_iter()
+        .copied()
+        .filter(|var| lost.contains(var))
+        .collect();
+    assert!(
+        read.is_empty(),
+        "a written re-insert would not reproduce {read:?}: shared, or toleranced"
+    );
+    node.written(doc)
 }
 
 /// The stored expression `formula` lowers to where no name is held.
@@ -95,37 +131,40 @@ pub fn stored_expr(formula: &Formula) -> Expr {
     Expr::try_from(formula).expect("a formula with no name leaf lowers in any scope")
 }
 
-/// The stored program `program` lowers to where no name is held.
+/// The stored program `program` lowers to in `doc` ([`stored`]).
 ///
 /// # Panics
 ///
-/// If `program` reads a variable by name.
-pub fn stored_program(program: &ProfileProgram<Formula>) -> ProfileProgram {
+/// If `program` does not lower in `doc`.
+pub fn stored_program(doc: &mut ProfileDoc, program: &ProfileProgram<Formula>) -> ProfileProgram {
     program
-        .try_map_slots(&mut |f| Expr::try_from(f))
-        .expect("a program with no name leaf lowers in any scope")
+        .try_map_slots(&mut |f| crate::edit::lower_slot_into(doc, f))
+        .expect("a program the document can answer lowers")
 }
 
-/// The stored loop `program` lowers to where no name is held.
+/// The stored loop `program` lowers to in `doc` ([`stored`]).
 ///
 /// # Panics
 ///
-/// If `program` reads a variable by name.
-pub fn stored_loop(program: &LoopProgram<Formula>) -> LoopProgram {
+/// If `program` does not lower in `doc`.
+pub fn stored_loop(doc: &mut ProfileDoc, program: &LoopProgram<Formula>) -> LoopProgram {
     program
-        .try_map_slots(&mut |f| Expr::try_from(f))
-        .expect("a loop with no name leaf lowers in any scope")
+        .try_map_slots(&mut |f| crate::edit::lower_slot_into(doc, f))
+        .expect("a loop the document can answer lowers")
 }
 
-/// The stored placement `placement` lowers to where no name is held.
+/// The stored placement `placement` lowers to in `doc` ([`stored`]).
 ///
 /// # Panics
 ///
-/// If `placement` reads a variable by name.
-pub fn stored_placement(placement: &crate::Placement<Formula>) -> crate::Placement {
+/// If `placement` does not lower in `doc`.
+pub fn stored_placement(
+    doc: &mut ProfileDoc,
+    placement: &crate::Placement<Formula>,
+) -> crate::Placement {
     placement
-        .try_map_slots(&mut |f| Expr::try_from(f))
-        .expect("a placement with no name leaf lowers in any scope")
+        .try_map_slots(&mut |f| crate::edit::lower_slot_into(doc, f))
+        .expect("a placement the document can answer lowers")
 }
 
 // --- the frame a sketch is drawn on ---------------------------------
@@ -168,6 +207,7 @@ pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 3]) 
             &doc,
             &DocEdit::InsertNode {
                 node: Box::new(node),
+                fresh: Vec::new(),
             },
             tol,
             &RefusingReach,
@@ -356,17 +396,18 @@ pub fn bracket_depth(text: &str) -> usize {
 
 // --- the mint's preimage --------------------------------------------
 
-/// **The node id an insert of `node` draws from an empty document's
-/// mint**: `Mint::insert`, lifted out of the crate so a row can pin the
+/// **The node id an insert of `node` draws in an empty document**:
+/// the node lowered as the door lowers it, its variables minted first,
+/// then `Mint::insert`, lifted out of the crate so a row can pin the
 /// preimage node shape by node shape
 /// (`tests/switch_slots.rs`, `every_node_shapes_mint_is_pinned`).
 ///
-/// Carries no oracle: it IS the mint's draw, with no document around
-/// it, so a shape whose inputs name no live node still draws.
-pub fn first_node_id(node: &crate::AuthoredNode) -> RecipeNodeId {
-    crate::Mint::empty()
-        .insert(&stored(node))
-        .expect("an empty log holds no id")
+/// Carries no oracle: it IS the mint's draw, with no door around it, so
+/// a shape whose inputs name no live node still draws.
+pub fn first_node_id(node: &crate::AuthoredNode, tol: geom_core::Tol) -> RecipeNodeId {
+    let mut doc = ProfileDoc::empty_derived("first_node_id", tol);
+    let node = stored(&mut doc, node);
+    doc.mint.insert(&node)
 }
 
 /// **A spoken node built by hand**: what a document holding `id` as a

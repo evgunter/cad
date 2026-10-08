@@ -18,7 +18,7 @@ use crate::doc::{
 };
 use crate::expr::Unlowered;
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
-use crate::formula::{Formula, NameFault};
+use crate::formula::{Formula, FreshFault, LowerFault, NameFault, SlotRoot};
 use crate::mate::reach::MateReach;
 use crate::meta::{MetaValue, MetaVersionError};
 use crate::names::{EntityKind, ProfileEdgeRef};
@@ -29,7 +29,7 @@ use crate::node::{
 use crate::placement::{FrameFault, FrameSite};
 use crate::roots::RootFault;
 use crate::spoken::{SpokenName, SpokenNode, SpokenVar};
-use crate::var::{Var, VarDecl, VarDef, VarId, VarKind, VarRef};
+use crate::var::{Var, VarDecl, VarDef, VarId, VarKind, VarRef, WrittenDef};
 use crate::witness::{BranchCertification, WitnessDatum};
 use geom_core::Tol;
 
@@ -76,6 +76,12 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// a mate's two frames included, is many times every other
         /// arm, and a history is a `Vec` of edits.
         node: Box<Node<P::Authored, Formula>>,
+        /// The edit's fresh table (VR6): the variables it mints for its
+        /// formulas to read as [`Formula::fresh`], entry by entry and
+        /// before anything else it mints. An entry's definition may
+        /// read the entries before it.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        fresh: Vec<VarDecl>,
     },
     /// Delete a node. Refused while any live node holds it as an
     /// INPUT (typed, spec D3/D6); the id is never reused afterwards.
@@ -194,8 +200,8 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// ```compile_fail,E0560
     /// let _: editor_core::DocEdit<editor_core::ProfileProgram> =
     ///     editor_core::DocEdit::SetProgram {
-    ///         node: editor_core::RecipeNodeId(1),
-    ///         plane: editor_core::RecipeNodeId(0),
+    ///         node: editor_core::RecipeNodeId::new(0, 1),
+    ///         plane: editor_core::RecipeNodeId::new(0, 0),
     ///         loops: Vec::new(),
     ///         ids: Vec::new(),
     ///     };
@@ -209,6 +215,12 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// Per new loop, per step in program order: the id of the old
         /// step it keeps, or `None` for a new step.
         ids: Vec<Vec<Option<StepId>>>,
+        /// The edit's fresh table (VR6): the variables it mints for its
+        /// formulas to read as [`Formula::fresh`], entry by entry and
+        /// before anything else it mints. An entry's definition may
+        /// read the entries before it.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        fresh: Vec<VarDecl>,
     },
     /// Replace a CONTINUOUS slot's expression (Length/Angle/Scalar
     /// slots; spec D3's continuous parameters).
@@ -219,6 +231,12 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         slot: SlotId,
         /// The replacement expression (dimension re-checked).
         expr: Formula,
+        /// The edit's fresh table (VR6): the variables it mints for its
+        /// formulas to read as [`Formula::fresh`], entry by entry and
+        /// before anything else it mints. An entry's definition may
+        /// read the entries before it.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        fresh: Vec<VarDecl>,
     },
     /// Replace a STRUCTURAL (Count-typed) slot's expression — a
     /// DISTINCT arm from [`DocEdit::SetParam`] so the structural/
@@ -231,6 +249,12 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         slot: SlotId,
         /// The replacement Count expression.
         expr: Formula,
+        /// The edit's fresh table (VR6): the variables it mints for its
+        /// formulas to read as [`Formula::fresh`], entry by entry and
+        /// before anything else it mints. An entry's definition may
+        /// read the entries before it.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        fresh: Vec<VarDecl>,
     },
     /// Set which side of its sketch plane an extrude goes toward — the
     /// one structural choice on a [`Node::Extrude`] that is not an
@@ -257,8 +281,7 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// Structural when the kind is `Count`.
     ///
     /// Refuses a name the document already holds
-    /// ([`EditError::VarNameTaken`], naming the holder), an id the mint
-    /// log already holds ([`EditError::VarIdCollides`]), and a
+    /// ([`EditError::VarNameTaken`], naming the holder), and a
     /// definition no door may write (the checks every door that writes
     /// a definition runs: [`EditError::NonFiniteVar`],
     /// [`EditError::InvalidDistribution`],
@@ -282,6 +305,12 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         var: VarRef,
         /// The new definition.
         def: VarDecl,
+        /// The edit's fresh table (VR6): the variables it mints for its
+        /// formulas to read as [`Formula::fresh`], entry by entry and
+        /// before anything else it mints. An entry's definition may
+        /// read the entries before it.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        fresh: Vec<VarDecl>,
     },
     /// Write a NEW VALUE into a free variable, keeping its definition:
     /// its kind, its notation and its optional distribution ride
@@ -494,6 +523,12 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         instance: RecipeNodeId,
         /// Its new offset, `None` for none.
         offset: Option<crate::placement::Placement<Formula>>,
+        /// The edit's fresh table (VR6): the variables it mints for its
+        /// formulas to read as [`Formula::fresh`], entry by entry and
+        /// before anything else it mints. An entry's definition may
+        /// read the entries before it.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        fresh: Vec<VarDecl>,
     },
     /// Set the gauge a node sits on (A11 (2)): an instance's gauge or
     /// a gauge's parent, `None` for the world. The gauge must be live
@@ -630,7 +665,7 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
     /// datum past the admission.
     pub(crate) fn writes_a_mates_datum(&self) -> bool {
         match self {
-            Self::InsertNode { node } => matches!(&**node, Node::Mate { .. }),
+            Self::InsertNode { node, .. } => matches!(&**node, Node::Mate { .. }),
             Self::SetParam { slot, .. } => slot.is_mate_frame_step(),
             Self::SetExpression { path, .. } => path.slot.is_mate_frame_step(),
             // A reshaping rewrites no name and never touches a datum;
@@ -703,53 +738,321 @@ fn name_refusal<P>(doc: &Doc<P>, node: SpokenNode, site: ExprSite, fault: NameFa
     }
 }
 
-/// **One authored formula as the door writes it** (VR6's lowering, for
-/// the one authored leaf this build has): every name a reader of the
-/// variable `doc` names so, at the kind the leaf reads it at. A name
-/// that does not lower refuses at the formula's address
-/// ([`name_refusal`]).
-fn lower_at<P>(
+/// **A formula that does not lower, as this door refuses it**, at its
+/// address: a name in [`name_refusal`]'s words, a fresh-table read in
+/// its own.
+fn lower_refusal<P>(
     doc: &Doc<P>,
-    node: impl FnOnce() -> SpokenNode,
+    node: SpokenNode,
     site: ExprSite,
-    formula: &Formula,
-) -> Result<Expr, EditError> {
+    fault: LowerFault,
+) -> EditError {
+    match fault {
+        LowerFault::Name(fault) => name_refusal(doc, node, site, fault),
+        LowerFault::Fresh(fault) => fresh_refusal(fault),
+        LowerFault::Quantity { dim } => quantity_unminted(dim),
+    }
+}
+
+/// D2 addendum row 4: the door mints a variable for every written
+/// quantity before it lowers the formula holding it.
+fn quantity_unminted(dim: Dimension) -> EditError {
+    unreachable!("the door lowered a written {dim} it minted no variable for")
+}
+
+/// **The variables minted for `formula`'s written quantities**, one
+/// anonymous free variable each, in pre-order (VR6): what
+/// [`Formula::lower_with`] reads them as.
+///
+/// **Where they fall in the mint order is the one place two doors
+/// differ, and for one reason: an id is minted from what the door
+/// knows when it mints it.** An anonymous variable's id hashes what it
+/// holds ([`crate::mint::Held`]), and a definition holds its
+/// quantities' readers, so a slot's definition and a fresh entry's mint
+/// their quantities first and the variable they define after them. A
+/// declared variable's id hashes its kind alone, which the refusals of
+/// a declare speak before its definition lowers
+/// ([`crate::Doc::spoken_declare`]), so `DeclareVar` mints the declared
+/// id first and its definition's quantities after it.
+fn mint_quantities<P>(new: &mut Doc<P>, formula: &Formula) -> Result<Vec<VarId>, EditError> {
     formula
-        .lower(&|name| doc.lowering_scope(name))
-        .map_err(|fault| name_refusal(doc, node(), site, fault))
+        .quantities()
+        .into_iter()
+        .map(|free| mint_anonymous(new, WrittenDef::Free(free)))
+        .collect()
+}
+
+/// **A fresh-table read that does not resolve**, as this door refuses it.
+fn fresh_refusal(FreshFault { index, dim, held }: FreshFault) -> EditError {
+    match held {
+        None => EditError::FreshUnheld {
+            index,
+            referenced: dim,
+        },
+        Some(held) => EditError::FreshKind {
+            index,
+            held,
+            referenced: dim,
+        },
+    }
+}
+
+/// **Why one slot formula did not lower**, as the walk that lowers it
+/// answers ([`Lowering::slot`]). The address is not the walk's to know:
+/// [`lower_value`] finds it.
+#[derive(Debug)]
+enum SlotFault {
+    /// A name or a fresh read that does not lower.
+    Lower(LowerFault),
+    /// A lowered read the document cannot answer.
+    Read(VarReadFault),
+    /// The mint's own refusal, which names a variable, not an address.
+    Mint(EditError),
+}
+
+impl SlotFault {
+    /// This fault refused at `site`.
+    fn at<P>(self, doc: &Doc<P>, node: SpokenNode, site: ExprSite) -> EditError {
+        match self {
+            Self::Lower(fault) => lower_refusal(doc, node, site, fault),
+            Self::Read(fault) => read_refusal(doc, node, site, fault),
+            Self::Mint(refusal) => refusal,
+        }
+    }
+}
+
+/// **The door's lowering of one edit** (VARIABLES-DESIGN VR4, VR6):
+/// the edit's fresh table, minted first, entry by entry, then every
+/// formula it writes at a slot lowered to the one variable the slot
+/// stores ([`Lowering::slot`]).
+struct Lowering {
+    /// The variables the fresh table minted, by entry, with each one's
+    /// dimension.
+    fresh: Vec<(VarId, Dimension)>,
+    /// Whether the edit minted a defined variable, whose expansion the
+    /// bound is asked of when the lowering closes.
+    defined: core::cell::Cell<bool>,
+}
+
+impl Lowering {
+    /// The lowering of an edit with no fresh table.
+    fn none() -> Self {
+        Self {
+            fresh: Vec::new(),
+            defined: core::cell::Cell::new(false),
+        }
+    }
+
+    /// Mints the edit's fresh table into `new`: each entry an anonymous
+    /// variable, its definition lowered in the document's names and
+    /// the entries before it.
+    fn start<P>(new: &mut Doc<P>, fresh: &[VarDecl]) -> Result<Self, EditError> {
+        let mut minted = Self::none();
+        for decl in fresh {
+            let def = match decl {
+                VarDecl::Free(free) => WrittenDef::Free(free.clone()),
+                VarDecl::Defined(formula) => {
+                    // A definition that does not lower draws no id (the
+                    // anonymous draw reads what it holds), so a refusal
+                    // of it speaks the entry by its kind's draw.
+                    let spoken = SpokenVar::new(new.mint.would_declare(decl.kind()), None);
+                    WrittenDef::Defined(minted.lower_definition(new, &spoken, formula)?)
+                }
+            };
+            let dim = decl.dim();
+            minted
+                .defined
+                .set(minted.defined.get() | matches!(def, WrittenDef::Defined(_)));
+            let var = mint_anonymous(new, def)?;
+            minted.fresh.push((var, dim));
+        }
+        Ok(minted)
+    }
+
+    /// A definition's formula lowered in `new`'s names and this edit's
+    /// fresh table, each written quantity minted as an anonymous free
+    /// variable first, a name that does not lower refusing in the words
+    /// a faulty read of `var`'s definition takes.
+    fn lower_definition<P>(
+        &self,
+        new: &mut Doc<P>,
+        var: &SpokenVar,
+        formula: &Formula,
+    ) -> Result<Expr, EditError> {
+        let refuse = |new: &Doc<P>, fault| match fault {
+            LowerFault::Fresh(fault) => fresh_refusal(fault),
+            LowerFault::Name(fault) => definition_name_refusal(new, var, fault),
+            LowerFault::Quantity { dim } => quantity_unminted(dim),
+        };
+        if let Some(fault) = formula.unresolved(&|name| new.lowering_scope(name), &self.fresh) {
+            return Err(refuse(new, fault));
+        }
+        let minted = mint_quantities(new, formula)?;
+        formula
+            .lower_with(&|name| new.lowering_scope(name), &self.fresh, &minted)
+            .map_err(|fault| refuse(new, fault))
+    }
+
+    /// **Why a slot formula would not lower**, asked of nothing but the
+    /// formula and the document: a name or a fresh read that does not
+    /// lower, or a lowered read the document cannot answer. `None`
+    /// where it lowers and every read holds. What [`lower_value`] asks
+    /// of each addressed formula to find the one a walk refused.
+    fn fault<P>(&self, doc: &Doc<P>, formula: &Formula) -> Option<SlotFault> {
+        if let Some(fault) = formula.unresolved(&|name| doc.lowering_scope(name), &self.fresh) {
+            return Some(SlotFault::Lower(fault));
+        }
+        doc.var_read_faults_of(formula.lowered_reads(&|name| doc.lowering_scope(name), &self.fresh))
+            .into_iter()
+            .next()
+            .map(SlotFault::Read)
+    }
+
+    /// **The variable a slot formula lowers to** (spec §1's slot-root
+    /// table): a lone variable, by id, name or fresh entry, is itself;
+    /// a lone written value mints an anonymous free variable holding
+    /// it; anything else mints an anonymous variable defined by the
+    /// formula, lowered. A formula that does not lower, or reads what
+    /// the document cannot answer, is refused before anything is
+    /// minted for it.
+    fn slot<P>(&self, new: &mut Doc<P>, formula: &Formula) -> Result<VarId, SlotFault> {
+        let root = formula.slot_root();
+        if let SlotRoot::Value(free) = root {
+            return mint_anonymous(new, WrittenDef::Free(free)).map_err(SlotFault::Mint);
+        }
+        // Every fault is asked before anything is minted for the
+        // formula's quantities: a formula that does not lower, or reads
+        // what the document cannot answer, mints nothing.
+        if let Some(fault) = self.fault(new, formula) {
+            return Err(fault);
+        }
+        let minted = mint_quantities(new, formula).map_err(SlotFault::Mint)?;
+        let expr = formula
+            .lower_with(&|name| new.lowering_scope(name), &self.fresh, &minted)
+            .map_err(SlotFault::Lower)?;
+        match (root, expr.as_var()) {
+            (SlotRoot::Value(_), _) => unreachable!("a value is minted above"),
+            (SlotRoot::Formula, _) => {
+                self.defined.set(true);
+                mint_anonymous(new, WrittenDef::Defined(expr)).map_err(SlotFault::Mint)
+            }
+            // A lone variable leaf, by id, name or fresh entry, lowers
+            // to a lone reader: the variable itself.
+            (SlotRoot::Var(_) | SlotRoot::Name(..) | SlotRoot::Fresh(..), Some(var)) => Ok(var),
+            (SlotRoot::Var(_) | SlotRoot::Name(..) | SlotRoot::Fresh(..), None) => {
+                self.defined.set(true);
+                mint_anonymous(new, WrittenDef::Defined(expr)).map_err(SlotFault::Mint)
+            }
+        }
+    }
+
+    /// **The edit's lowering, closed**, once what it wrote stands in
+    /// `new`: every fresh entry is read ([`EditError::FreshUnread`]),
+    /// and no definition it minted outgrows the expansion bound. The
+    /// answer is the variables the fresh table minted, entry by entry.
+    fn finish<P: crate::ProfilePayload>(self, new: &Doc<P>) -> Result<Vec<VarId>, EditError> {
+        if !self.fresh.is_empty() {
+            let unread = new.unread_anonymous_vars();
+            if let Some(index) = self.fresh.iter().position(|(var, _)| unread.contains(var)) {
+                return Err(EditError::FreshUnread {
+                    index: u16::try_from(index).unwrap_or(u16::MAX),
+                });
+            }
+        }
+        // Nothing reads a variable minted here but this edit's own
+        // formulas, so only a definition it minted can be the one that
+        // outgrows the bound.
+        if self.defined.get() {
+            expansion_refusal(new)?;
+        }
+        Ok(self.fresh.into_iter().map(|(var, _)| var).collect())
+    }
+}
+
+/// **An anonymous variable minted into `new`** (VR6): the id drawn
+/// from the mint chain by its kind and what it holds
+/// ([`crate::Mint`]'s anonymous draw), the definition checked as a
+/// declare's is.
+fn mint_anonymous<P>(new: &mut Doc<P>, def: WrittenDef) -> Result<VarId, EditError> {
+    check_var_def(
+        &SpokenVar::new(new.mint.would_declare_anonymous(&def), None),
+        &def,
+    )?;
+    let id = new.mint.declare_anonymous(&def);
+    new.vars.insert(id, Var::written(def));
+    Ok(id)
 }
 
 /// **An authored value lowered in one walk**: `walk` maps every formula
-/// the value holds through `doc`'s lowering, and its answer is the
-/// lowered value. Where a formula does not lower, the fault the refusal
-/// names is the first of `rows` — the value's slot table, in table
-/// order — that does not, with its address; `None` for the address
-/// where no row holds the fault, a formula the walk maps and the table
+/// the value holds to the variable its slot stores
+/// ([`Lowering::slot`]), and its answer is the stored value. Where a
+/// formula does not lower, the fault the refusal names is the first of
+/// `rows` — the value's addressed formulas, in table order — that does
+/// not ([`Lowering::fault`]), with its address; `None` for the address
+/// where no row holds a fault, a formula the walk maps and the table
 /// does not address (a count beside a listed placement rule, the one
-/// such field: [`Node::exprs`]' edge). The caller refuses that typed.
+/// such field: [`Node::exprs`]' edge), and the walk's own fault is
+/// handed back for the caller to refuse typed. A refusal of the mint's
+/// names a variable, not an address, and is the refusal as it stands.
 fn lower_value<P, K: Copy, U>(
-    doc: &Doc<P>,
+    new: &mut Doc<P>,
+    lowering: &Lowering,
     rows: &[(K, &Formula)],
-    walk: impl FnOnce(&mut dyn FnMut(&Formula) -> Result<Expr, NameFault>) -> Result<U, NameFault>,
-) -> Result<U, (Option<K>, NameFault)> {
-    let scope = |name: &crate::doc::VarName| doc.lowering_scope(name);
-    walk(&mut |formula| formula.lower(&scope)).map_err(|fault| {
-        rows.iter()
-            .find_map(|(key, formula)| Some((Some(*key), formula.lower(&scope).err()?)))
-            .unwrap_or((None, fault))
-    })
+    walk: impl FnOnce(&mut dyn FnMut(&Formula) -> Result<VarId, SlotFault>) -> Result<U, SlotFault>,
+) -> Result<U, WalkFault<K>> {
+    match walk(&mut |formula| lowering.slot(new, formula)) {
+        Ok(value) => Ok(value),
+        Err(SlotFault::Mint(refusal)) => Err(WalkFault::Refused(refusal)),
+        Err(fault) => Err(rows
+            .iter()
+            .find_map(|&(key, formula)| Some((key, lowering.fault(new, formula)?)))
+            .map_or(WalkFault::Unaddressed(fault), |(key, fault)| {
+                WalkFault::At(key, fault)
+            })),
+    }
+}
+
+/// **Why [`lower_value`] did not lower a value**, with the address
+/// where it has one.
+enum WalkFault<K> {
+    /// The first addressed formula that does not lower, and why.
+    At(K, SlotFault),
+    /// A fault in a formula no row addresses.
+    Unaddressed(SlotFault),
+    /// The mint's refusal, as it stands.
+    Refused(EditError),
+}
+
+impl<K> WalkFault<K> {
+    /// This refusal, an addressed fault refused at `site(key)` and an
+    /// unaddressed one by `unaddressed`.
+    fn refuse<P>(
+        self,
+        doc: &Doc<P>,
+        node: impl FnOnce() -> SpokenNode,
+        site: impl FnOnce(K) -> ExprSite,
+        unaddressed: impl FnOnce(SlotFault) -> EditError,
+    ) -> EditError {
+        match self {
+            Self::At(key, fault) => fault.at(doc, node(), site(key)),
+            Self::Unaddressed(fault) => unaddressed(fault),
+            Self::Refused(refusal) => refusal,
+        }
+    }
 }
 
 /// **An authored node as the door writes it**: every slot, every payload
-/// expression and every other formula field lowered in one walk
-/// ([`lower_value`]), a fault refusing at its address, slots before
-/// payload in their table order. A formula no address names is the
-/// count of a node whose placement rule takes none, and the refusal is
-/// the rule's own ([`EditError::PlacementRuleMismatch`]), the one the
-/// door gives that node whatever its count holds. `spoken` speaks the
-/// node a refusal names.
+/// expression and every other formula field lowered to the variable it
+/// stores in one walk ([`lower_value`]), a fault refusing at its
+/// address, slots before payload in their table order. A formula no
+/// address names is the count of a node whose placement rule takes
+/// none, and the refusal is the rule's own
+/// ([`EditError::PlacementRuleMismatch`]), the one the door gives that
+/// node whatever its count holds. `spoken` speaks the node a refusal
+/// names.
 fn lower_node<P: crate::ProfilePayload>(
-    doc: &Doc<P>,
+    new: &mut Doc<P>,
+    lowering: &Lowering,
     node: &Node<P::Authored, Formula>,
     tol: Tol,
     spoken: impl Fn() -> SpokenNode,
@@ -765,83 +1068,123 @@ fn lower_node<P: crate::ProfilePayload>(
                 .map(|formula| (ExprSite::Payload, formula)),
         )
         .collect();
-    lower_value(doc, &rows, |f| {
+    lower_value(new, lowering, &rows, |f| {
         node.try_map_slots(|p, g| P::lower(p, g), &mut |e| f(e))
     })
-    .map_err(
-        |(site, fault)| match (site, node.placement_rule_fault(tol)) {
-            (Some(site), _) => name_refusal(doc, spoken(), site, fault),
-            (None, Some(PlacementRuleFault::CountSpelling { shape })) => {
-                EditError::PlacementRuleMismatch {
-                    node: spoken(),
-                    shape,
+    .map_err(|unlowered| {
+        unlowered.refuse(
+            new,
+            &spoken,
+            |site| site,
+            |fault| match node.placement_rule_fault(tol) {
+                Some(PlacementRuleFault::CountSpelling { shape }) => {
+                    EditError::PlacementRuleMismatch {
+                        node: spoken(),
+                        shape,
+                    }
                 }
-            }
-            (None, _) => name_refusal(doc, spoken(), ExprSite::Payload, fault),
-        },
-    )
+                _ => fault.at(new, spoken(), ExprSite::Payload),
+            },
+        )
+    })
 }
 
-/// **A declared definition as the door writes it**: a free one as
-/// handed, a defined one lowered, a name that does not lower refusing
-/// in the words [`check_definition`] gives a faulty read of `var`'s
-/// definition.
-fn lower_decl<P>(doc: &Doc<P>, var: &SpokenVar, decl: &VarDecl) -> Result<VarDef, EditError> {
-    match decl {
-        VarDecl::Free(free) => Ok(VarDef::Free(free.clone())),
-        VarDecl::Defined(formula) => formula
-            .lower(&|name| doc.lowering_scope(name))
-            .map(VarDef::Defined)
-            .map_err(|NameFault { name, dim, why }| match why {
-                Unlowered::Unheld => EditError::DefinitionUnknownVarName {
-                    var: var.clone(),
-                    name,
-                },
-                Unlowered::Kind {
-                    var: read,
-                    declared,
-                } => EditError::DefinitionVarKind {
-                    var: var.clone(),
-                    read: doc.spoken_var(read),
-                    declared,
-                    referenced: dim,
-                },
-            }),
+/// **One formula lowered into `doc` as a slot's**, outside any edit:
+/// the variable the door would store for it, minted into `doc` where
+/// the door would mint one. The test support's stored forms are built
+/// through it, so a row that places a node by hand holds what the door
+/// writes.
+///
+/// # Errors
+///
+/// A formula that does not lower, or reads what `doc` cannot answer.
+#[doc(hidden)]
+pub fn lower_slot_into<P>(doc: &mut Doc<P>, formula: &Formula) -> Result<VarId, EditError> {
+    Lowering::none().slot(doc, formula).map_err(|fault| {
+        fault.at(
+            doc,
+            SpokenNode::absent(RecipeNodeId::new(0, 0)),
+            ExprSite::Payload,
+        )
+    })
+}
+
+/// **A name a definition reads that does not lower**, as the doors
+/// refuse it of `var`'s definition.
+fn definition_name_refusal<P>(
+    doc: &Doc<P>,
+    var: &SpokenVar,
+    NameFault { name, dim, why }: NameFault,
+) -> EditError {
+    match why {
+        Unlowered::Unheld => EditError::DefinitionUnknownVarName {
+            var: var.clone(),
+            name,
+        },
+        Unlowered::Kind {
+            var: read,
+            declared,
+        } => EditError::DefinitionVarKind {
+            var: var.clone(),
+            read: doc.spoken_var(read),
+            declared,
+            referenced: dim,
+        },
     }
 }
 
-/// **A `SetProgram`'s loops as the door writes them**, lowered in one
-/// walk each ([`lower_value`]); the first that does not lower refuses
+/// **A declared definition as the door writes it**: a free one as
+/// handed, a defined one lowered in the document's names and the
+/// edit's fresh table, a name that does not lower refusing in the words
+/// [`check_definition`] gives a faulty read of `var`'s definition.
+fn lower_decl<P>(
+    doc: &mut Doc<P>,
+    lowering: &Lowering,
+    var: &SpokenVar,
+    decl: &VarDecl,
+) -> Result<WrittenDef, EditError> {
+    match decl {
+        VarDecl::Free(free) => Ok(WrittenDef::Free(free.clone())),
+        VarDecl::Defined(formula) => lowering
+            .lower_definition(doc, var, formula)
+            .map(WrittenDef::Defined),
+    }
+}
+
+/// **A `SetProgram`'s loops as the door writes them**, each lowered in
+/// one walk ([`lower_value`]); the first that does not lower refuses
 /// at the profile's address of its first argument, in program order,
 /// that does not. An argument no row addresses refuses at the
 /// profile's payload.
 fn lower_loops<P>(
-    doc: &Doc<P>,
-    node: RecipeNodeId,
+    new: &mut Doc<P>,
+    lowering: &Lowering,
+    node: SpokenNode,
     loops: &[crate::LoopProgram<Formula>],
 ) -> Result<Vec<crate::LoopProgram>, EditError> {
-    loops
-        .iter()
-        .enumerate()
-        .map(|(li, lp)| {
-            let rows: Vec<(SlotId, &Formula)> = lp
-                .rows()
-                .into_iter()
-                .map(|((step, arg), formula)| {
-                    let slot = SlotId::Profile {
-                        loop_: crate::program::program_index(li),
-                        step,
-                        arg,
-                    };
-                    (slot, formula)
-                })
-                .collect();
-            lower_value(doc, &rows, |f| lp.try_map_slots(&mut |e| f(e))).map_err(|(slot, fault)| {
-                let site = slot.map_or(ExprSite::Payload, ExprSite::Slot);
-                name_refusal(doc, doc.spoken(node), site, fault)
+    let mut lowered = Vec::with_capacity(loops.len());
+    for (li, lp) in loops.iter().enumerate() {
+        let rows: Vec<(SlotId, &Formula)> = lp
+            .rows()
+            .into_iter()
+            .map(|((step, arg), formula)| {
+                let loop_ = crate::program::program_index(li);
+                (SlotId::Profile { loop_, step, arg }, formula)
             })
-        })
-        .collect()
+            .collect();
+        let lp = lower_value(new, lowering, &rows, |f| lp.try_map_slots(&mut |e| f(e))).map_err(
+            |unlowered| {
+                unlowered.refuse(
+                    new,
+                    || node.clone(),
+                    ExprSite::Slot,
+                    |fault| fault.at(new, node.clone(), ExprSite::Payload),
+                )
+            },
+        )?;
+        lowered.push(lp);
+    }
+    Ok(lowered)
 }
 
 /// **The reads of one expression an edit writes**, against the
@@ -891,7 +1234,7 @@ fn read_refusal<P>(
                 referenced,
             },
         ) => EditError::SlotVarKind {
-            var: doc.spoken_var(var),
+            var: Box::new(doc.spoken_var(var)),
             node,
             slot,
             declared,
@@ -966,7 +1309,7 @@ impl core::fmt::Display for CarryForwardDoor {
 /// variable the document no longer holds reaches a carry-forward edit,
 /// which refuses [`EditError::UnknownVar`]; dragging that variable's
 /// row is a lookup with no edit behind it, and the viewer refuses
-/// `Refusal::NoSuchParam` (`crates/viewer/src/session/refuse.rs`, the
+/// `Refusal::NoSuchVariable` (`crates/viewer/src/session/refuse.rs`, the
 /// second reader of this const and the only one outside this crate).
 /// The two are converged on the RECOURSE and not on the sentence,
 /// because a drag has no refused edit to report and a sentence that
@@ -1030,7 +1373,7 @@ impl core::fmt::Display for DefinitionTooLargeSentence<'_> {
 pub(crate) struct DefinitionVarKindSentence<'a> {
     pub(crate) var: &'a SpokenVar,
     pub(crate) read: &'a SpokenVar,
-    pub(crate) declared: Dimension,
+    pub(crate) declared: VarKind,
     pub(crate) referenced: Dimension,
 }
 
@@ -1244,14 +1587,6 @@ pub enum EditError {
         /// What is wrong with the ids.
         fault: crate::program::StepIdFault,
     },
-    /// The id an `InsertNode` drew from the document's mint chain is
-    /// one the mint log already holds (`names/README.md`, N1). An
-    /// honest log cannot reach it short of a 64-bit digest collision;
-    /// a log a file was edited to hold can.
-    NodeIdCollides {
-        /// The id drawn.
-        id: SpokenNode,
-    },
     /// A list input left with fewer than two entries. A union of one
     /// body is that body and a loft through one section is not a skin:
     /// either is a node whose meaning is its own input, spelled as an
@@ -1313,14 +1648,14 @@ pub enum EditError {
     /// dimension than its kind — by a name, or by a reader whose cached
     /// kind disagrees with the table.
     SlotVarKind {
-        /// The variable.
-        var: SpokenVar,
+        /// The variable, boxed so the refusal stays a small `Err`.
+        var: Box<SpokenVar>,
         /// The reading node.
         node: SpokenNode,
         /// The reading slot.
         slot: SlotId,
         /// The dimension the variable's kind reads at.
-        declared: Dimension,
+        declared: VarKind,
         /// The dimension the expression reads it at.
         referenced: Dimension,
     },
@@ -1353,7 +1688,7 @@ pub enum EditError {
         /// The reading node.
         node: SpokenNode,
         /// The dimension the variable's kind reads at.
-        declared: Dimension,
+        declared: VarKind,
         /// The dimension the expression reads it at.
         referenced: Dimension,
     },
@@ -1446,11 +1781,29 @@ pub enum EditError {
         /// The variable.
         var: SpokenVar,
     },
-    /// A [`DocEdit::DeclareVar`] drew an id the mint log already holds
-    /// (N1's collision refusal, at the variable tag).
-    VarIdCollides {
-        /// The id drawn.
-        id: VarId,
+    /// A formula the edit writes reads an entry of the edit's fresh
+    /// table that the table does not hold.
+    FreshUnheld {
+        /// The index read.
+        index: u16,
+        /// The dimension the formula reads it at.
+        referenced: Dimension,
+    },
+    /// A formula the edit writes reads an entry of the edit's fresh
+    /// table at another dimension than the entry's kind.
+    FreshKind {
+        /// The index read.
+        index: u16,
+        /// The dimension the entry's kind reads at.
+        held: Dimension,
+        /// The dimension the formula reads it at.
+        referenced: Dimension,
+    },
+    /// An entry of the edit's fresh table that nothing the edit writes
+    /// reads: the variable it would mint has no reader (VR7).
+    FreshUnread {
+        /// The entry's index.
+        index: u16,
     },
     /// A [`DocEdit::DefineVar`] offered a definition of another kind
     /// than the variable's. A kind is fixed at minting (VR3): a new
@@ -1470,6 +1823,18 @@ pub enum EditError {
     NotAFreeVar {
         /// The variable.
         var: SpokenVar,
+        /// Which edit was refused.
+        door: CarryForwardDoor,
+    },
+    /// A door that writes or deletes a variable's definition named an
+    /// operation's output ([`VarDef::Output`]). Its operation defines
+    /// it, and it lives exactly as long as that node; only a rename
+    /// reaches it.
+    VarIsAnOutput {
+        /// The variable.
+        var: SpokenVar,
+        /// The operation defining it.
+        node: SpokenNode,
         /// Which edit was refused.
         door: CarryForwardDoor,
     },
@@ -1516,7 +1881,7 @@ pub enum EditError {
         /// The variable read.
         read: SpokenVar,
         /// The read variable's dimension.
-        declared: Dimension,
+        declared: VarKind,
         /// The dimension the definition reads it at.
         referenced: Dimension,
     },
@@ -2192,8 +2557,8 @@ impl EditError {
 }
 
 /// [`EditError::StepIdsRefused`]'s recourse, by the fault. `InsertNode`
-/// raises `Preminted`, `SetProgram` the shape and keep arms, and both
-/// `Collides`; `NotMinted` is the load door's, which an edit door
+/// raises `Preminted`, `SetProgram` the shape and keep arms;
+/// `NotMinted` is the load door's, which an edit door
 /// spells [`EditError::NameStepNeverMinted`].
 fn step_ids_recourse(
     f: &mut core::fmt::Formatter<'_>,
@@ -2221,10 +2586,6 @@ fn step_ids_recourse(
             f,
             format_args!("keep the id on one of the two steps, and give the other none"),
         ),
-        // The mint draws from a SHA-256 chain over the document's own
-        // edits, so a draw the log already holds is a chain or log the
-        // file was damaged in, or a defect.
-        F::Collides { .. } => tail.ending(f, geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
         F::NotMinted { .. } => tail.ending(f, geom_core::KERNEL_DEFECT_ENDING),
     }
 }
@@ -2274,9 +2635,7 @@ impl EditError {
     /// as raised**: [`EditError::LabelUnchanged`] (about the label the
     /// node held, which said with a later one would claim a label the
     /// refused edit never offered), [`EditError::VarNameUnchanged`]
-    /// (the same, of a variable's name), [`EditError::NodeIdCollides`]
-    /// (about an id the log already held, which spoken from a version
-    /// holding it would name that node as the insert's), and the arms
+    /// (the same, of a variable's name), and the arms
     /// that say a node is not live — said from a version that holds it
     /// again, `X "plate" is not live` would contradict itself.
     #[must_use]
@@ -2342,8 +2701,15 @@ impl EditError {
                 slot: _,
                 declared: _,
                 referenced: _,
+            } => {
+                *node = node.respoken(doc);
+                **var = var.respoken(doc);
             }
-            | Self::SlotUnresolvedVar { node, var, slot: _ }
+            Self::VarIsAnOutput { var, node, door: _ } => {
+                *node = node.respoken(doc);
+                *var = var.respoken(doc);
+            }
+            Self::SlotUnresolvedVar { node, var, slot: _ }
             | Self::PayloadVarKind {
                 node,
                 var,
@@ -2484,7 +2850,6 @@ impl EditError {
             Self::Roots(fault) => *fault = fault.respoken(doc),
             Self::LabelUnchanged { node: _ }
             | Self::VarNameUnchanged { var: _ }
-            | Self::NodeIdCollides { id: _ }
             | Self::UnknownNode { id: _ }
             | Self::UnresolvedInput { input: _ }
             | Self::ReadSiteMissingNode { at: _ }
@@ -2499,7 +2864,16 @@ impl EditError {
             | Self::StructuralSlotNeedsStructuralEdit { slot: _ }
             | Self::NotStructuralSlot { slot: _ }
             | Self::UnknownVar { var: _, door: _ }
-            | Self::VarIdCollides { id: _ }
+            | Self::FreshUnheld {
+                index: _,
+                referenced: _,
+            }
+            | Self::FreshKind {
+                index: _,
+                held: _,
+                referenced: _,
+            }
+            | Self::FreshUnread { index: _ }
             | Self::Dimension(_)
             | Self::RebindKindMismatch { from: _, to: _ }
             | Self::EmptyWitnessBulk
@@ -2633,14 +3007,6 @@ impl EditError {
                     "{node}'s program cannot take the step ids given: {fault}"
                 )?;
                 step_ids_recourse(f, tail, fault)
-            }
-            Self::NodeIdCollides { id } => {
-                write!(
-                    f,
-                    "{id}, the node this insert mints, draws an id the document's mint log \
-                     already holds"
-                )?;
-                tail.ending(f, geom_core::KERNEL_OR_FILE_DEFECT_ENDING)
             }
             Self::TooFewMembers { found, .. } => {
                 write!(
@@ -2844,7 +3210,7 @@ impl EditError {
                 )
             }
             // The recourse is `UNKNOWN_VAR_RECOURSE`, which the
-            // viewer's `Refusal::NoSuchParam` renders too; the const's
+            // viewer's `Refusal::NoSuchVariable` renders too; the const's
             // own doc says why the two doors converge there.
             Self::UnknownVar { var, door } => {
                 write!(
@@ -2853,6 +3219,13 @@ impl EditError {
                      act on"
                 )?;
                 tail.recourse(f, format_args!("{UNKNOWN_VAR_RECOURSE}"))
+            }
+            Self::VarIsAnOutput { var, node, door } => {
+                write!(
+                    f,
+                    "{var} is an output of {node}, which defines it, so {door} cannot reach it"
+                )?;
+                tail.recourse(f, format_args!("edit or delete {node}"))
             }
             Self::NotAFreeVar { var, door } => {
                 write!(
@@ -2957,13 +3330,42 @@ impl EditError {
                     format_args!("replace the expressions that read it, or name it first"),
                 )
             }
-            Self::VarIdCollides { id } => {
+            Self::FreshUnheld { index, referenced } => {
                 write!(
                     f,
-                    "the declare drew the variable id {id}, which this document's mint log \
-                     already holds"
+                    "a formula reads entry {index} of the edit's fresh table as {} {referenced}, \
+                     and the table holds no entry {index}",
+                    referenced.article()
                 )?;
-                tail.ending(f, geom_core::KERNEL_DEFECT_ENDING)
+                tail.recourse(
+                    f,
+                    format_args!("add the entry to the table, or read an entry it holds"),
+                )
+            }
+            Self::FreshKind {
+                index,
+                held,
+                referenced,
+            } => {
+                write!(
+                    f,
+                    "a formula reads entry {index} of the edit's fresh table as {} {referenced}, \
+                     and the entry is {} {held}",
+                    referenced.article(),
+                    held.article()
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("read the entry as {} {held}", held.article()),
+                )
+            }
+            Self::FreshUnread { index } => {
+                write!(
+                    f,
+                    "entry {index} of the edit's fresh table is read by nothing the edit \
+                     writes, and a variable with no name goes when nothing reads it"
+                )?;
+                tail.recourse(f, format_args!("read the entry, or drop it from the table"))
             }
             Self::VarKindFixed { var, kind, offered } => {
                 write!(
@@ -3519,6 +3921,13 @@ pub struct EditRecord {
     pub minted: Option<RecipeNodeId>,
     /// The variable a `DeclareVar` minted, `None` otherwise.
     pub minted_var: Option<VarId>,
+    /// The variables the edit's fresh table minted, entry by entry
+    /// ([`DocEdit::InsertNode`]'s `fresh`); empty for an edit with none.
+    pub fresh: Vec<VarId>,
+    /// The variables an `InsertNode`'s node defines, one per port of
+    /// its signature in port order ([`crate::Node::outputs`]); empty
+    /// for any other edit.
+    pub outputs: Vec<VarId>,
     /// Whether the edit was STRUCTURAL (spec D3/D6): it can change
     /// the result's combinatorial shape — insert/delete, a
     /// Count-slot expression edit, an edit of a Count variable, or an edit
@@ -3623,6 +4032,11 @@ pub enum Maintenance {
     AnonymousVarRemoved {
         /// The variable, spoken from the document the edit entered.
         var: SpokenVar,
+        /// The tolerance it carried, which went with it: an analysis
+        /// axis the document no longer has (VR8). `None` for one that
+        /// carried none, whose retirement loses nothing a reader of
+        /// the document is shown ([`Maintenance::is_silent_retirement`]).
+        distribution: Option<Distribution>,
     },
     /// **A label a fold dropped** ([`DocEdit::Fold`]): the gauge went
     /// and no single unlabelled node took its place — it had several
@@ -3634,6 +4048,25 @@ pub enum Maintenance {
         /// The label it carried.
         label: crate::Label,
     },
+}
+
+impl Maintenance {
+    /// **A retirement nothing a reader of the document is shown went
+    /// with**: an anonymous variable that carried no tolerance. Its
+    /// removal is what rewriting or deleting the slot it was written at
+    /// means — a typed value retires one on almost every edit — so a
+    /// surface that tells the person what an edit cost leaves it out.
+    /// One that carried a tolerance is not silent: the analysis axis it
+    /// was went with it.
+    pub fn is_silent_retirement(&self) -> bool {
+        matches!(
+            self,
+            Self::AnonymousVarRemoved {
+                distribution: None,
+                ..
+            }
+        )
+    }
 }
 
 /// **What an edit took from a name it stranded** ([`Maintenance::Strand`],
@@ -3715,11 +4148,17 @@ impl core::fmt::Display for Maintenance {
                  in for it, so its label \"{}\" went with it",
                 gauge, label
             ),
-            Self::AnonymousVarRemoved { var } => write!(
-                f,
-                "the edit left nothing reading {var}, which had no name, so it went with \
-                 its last reader"
-            ),
+            Self::AnonymousVarRemoved { var, distribution } => {
+                write!(
+                    f,
+                    "the edit left nothing reading {var}, which had no name, so it went with \
+                     its last reader"
+                )?;
+                if distribution.is_some() {
+                    f.write_str(", and the tolerance it carried went with it")?;
+                }
+                Ok(())
+            }
         }
     }
 }
@@ -3835,7 +4274,7 @@ fn settle_step_ids(
             }
         }
     }
-    let minted = mint.set_program(node.id(), new, ids).map_err(refuse)?;
+    let minted = mint.set_program(node.id(), new, ids);
     Ok((minted, dropped))
 }
 
@@ -3857,6 +4296,7 @@ fn settle_step_ids(
 /// no name spells a kept step's piece.
 fn undrawn_kept_pieces<P: crate::ProfilePayload>(
     doc: &Doc<P>,
+    written: &Doc<P>,
     node: RecipeNodeId,
     old: &P,
     new: &P,
@@ -3890,7 +4330,11 @@ fn undrawn_kept_pieces<P: crate::ProfilePayload>(
         Err(refusal @ crate::ProgramRefusal::Pieces(_)) => return Err(refused(refusal)),
         Err(_) => None,
     };
-    let after = new.drawn_pieces(&env, tol).map_err(refused)?;
+    // The new program reads the variables its lowering minted, which
+    // the document it is written into holds.
+    let after = new
+        .drawn_pieces(&written.var_env::<f64>(), tol)
+        .map_err(refused)?;
     Ok(named
         .into_iter()
         .filter(|p| before.as_ref().is_none_or(|b| b.contains(p)) && !after.contains(p))
@@ -4177,9 +4621,21 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
     /// once an earlier edit has ended it, that edit's refusal. Nothing
     /// is recorded on that arm.
     pub fn apply(&mut self, edit: DocEdit<P>) -> Result<Option<RecipeNodeId>, EditError> {
+        self.apply_recorded(edit).map(|record| record.minted)
+    }
+
+    /// [`Self::apply`], answering the edit's whole record: what it
+    /// minted, its fresh table's variables among it.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::apply`]'s.
+    pub fn apply_recorded(&mut self, edit: DocEdit<P>) -> Result<EditRecord, EditError> {
         self.open()?;
         let applied = apply(self.doc(), &edit, self.tol, self.reach).map_err(|e| self.end(e))?;
-        Ok(self.take(edit, applied))
+        let record = applied.record.clone();
+        self.take(edit, applied);
+        Ok(record)
     }
 
     /// Insert `node` and record the insert — [`Self::apply`] of its
@@ -4195,6 +4651,7 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
         self.take(
             DocEdit::InsertNode {
                 node: Box::new(node),
+                fresh: Vec::new(),
             },
             applied,
         );
@@ -4371,10 +4828,10 @@ fn distribution_fault_error(var: &SpokenVar, fault: DistributionFault) -> EditEr
 /// because no unit in the table measures a count. Both refuse the same
 /// definitions; only this door can name the structural/continuous
 /// divide as the reason.
-fn check_var_def(var: &SpokenVar, def: &VarDef) -> Result<(), EditError> {
-    // A definition's floats are its expression's literals, finite by
-    // construction; what it reads is `check_definition`'s.
-    let VarDef::Free(value) = def else {
+fn check_var_def(var: &SpokenVar, def: &WrittenDef) -> Result<(), EditError> {
+    // A definition holds no float; what it reads is
+    // `check_definition`'s.
+    let WrittenDef::Free(value) = def else {
         return Ok(());
     };
     // Ruled door 1 (non-finite policy): recipe data never carries
@@ -4430,21 +4887,44 @@ fn write_free<P>(
     var: &SpokenVar,
     value: FreeVar,
 ) -> Result<EditRecord, EditError> {
-    let def = VarDef::Free(value);
+    let def = WrittenDef::Free(value);
     check_var_def(var, &def)?;
     let structural = def.kind() == VarKind::Count;
-    new.vars.insert(id, Var::new(def));
+    new.vars.insert(id, Var::written(def));
     Ok(EditRecord {
         minted: None,
         minted_var: None,
         structural,
+        fresh: Vec::new(),
+        outputs: Vec::new(),
     })
 }
 
+impl EditError {
+    /// **[`EditError::VarIsAnOutput`] for `var` at `door`**, where `var`
+    /// is an operation's output in `doc`, and `None` otherwise: the one
+    /// spelling of the refusal, which every door that writes or deletes
+    /// a variable asks, and a client opening such an edit asks first.
+    #[must_use]
+    pub fn output_refusal<P>(doc: &Doc<P>, var: VarId, door: CarryForwardDoor) -> Option<Self> {
+        let (node, _) = doc.var(var)?.def().output()?;
+        Some(Self::VarIsAnOutput {
+            var: doc.spoken_var(var),
+            node: doc.spoken(node),
+            door,
+        })
+    }
+}
+
+/// [`EditError::output_refusal`], as a door's early return.
+fn refuse_output<P>(doc: &Doc<P>, id: VarId, door: CarryForwardDoor) -> Result<(), EditError> {
+    EditError::output_refusal(doc, id, door).map_or(Ok(()), Err)
+}
+
 /// The live FREE variable an edit of a standing variable addresses, or
-/// that door's refusal: a variable the document does not hold, or a
-/// defined one, which holds no value, notation or distribution of its
-/// own.
+/// that door's refusal: a variable the document does not hold, an
+/// output, or a defined one, which holds no value, notation or
+/// distribution of its own.
 fn standing_var<P>(
     doc: &Doc<P>,
     var: &VarRef,
@@ -4461,6 +4941,8 @@ fn standing_var<P>(
     };
     match def {
         VarDef::Free(free) => Ok((id, doc.spoken_var(id), free.clone())),
+        VarDef::Output { .. } => Err(EditError::output_refusal(doc, id, door)
+            .unwrap_or_else(|| unreachable!("an output's refusal is the output's"))),
         VarDef::Defined(_) => Err(EditError::NotAFreeVar {
             var: doc.spoken_var(id),
             door,
@@ -4501,6 +4983,13 @@ fn check_definition<P>(new: &Doc<P>, id: VarId) -> Result<(), EditError> {
     // A redefinition can close a cycle or grow every expansion that
     // reads it, so the whole document is asked, by the search the load
     // walk asks too.
+    expansion_refusal(new)
+}
+
+/// **The expansion search's answer as this door refuses it**: a
+/// definition cycle, or an expansion past the bound
+/// ([`DEFINITION_NODE_BOUND`]).
+fn expansion_refusal<P>(new: &Doc<P>) -> Result<(), EditError> {
     match new.expansion_fault() {
         None => Ok(()),
         Some(ExpansionFault::Cycle { var, through }) => Err(EditError::DefinitionCycle {
@@ -4522,39 +5011,24 @@ fn check_node_slots<P: crate::ProfilePayload>(
     id: RecipeNodeId,
     node: &Node<P>,
 ) -> Result<(), EditError> {
-    // D6's slot rule, from the ONE home the load door reads it from
-    // too (`Node::slot_dimension_fault`); this is the door's name for
-    // its answer.
-    //
-    // It is a walk over ALL the node's slots, and it runs before the
-    // param-table walk below rather than interleaved with it slot by
-    // slot: a node broken in both ways at once names the dimension its
-    // address fixes, which is the answer the load door gives for the
-    // same node (`persist::check`'s walk order).
-    if let Some(SlotDimensionFault {
-        slot,
-        expected,
-        found,
-    }) = node.slot_dimension_fault()
-    {
-        return Err(EditError::SlotDimensionMismatch {
-            slot,
-            expected,
-            found,
-        });
+    // The variable each slot reads, against the table, at the
+    // dimension its address fixes (VR4): a variable of another kind is
+    // the read's kind fault. The formulas' own dimensions are the
+    // lowering's question, asked before it.
+    for (slot, &var) in node.rows() {
+        let reader = Expr::var(var, slot.dimension());
+        check_reads(
+            doc,
+            &written(before, id, node),
+            ExprSite::Slot(slot),
+            &reader,
+        )?;
     }
-    // The variable table, against the slot expressions the rule above has
-    // just established are all readable.
-    for (slot, expr) in node.rows() {
-        check_reads(doc, &written(before, id, node), ExprSite::Slot(slot), expr)?;
-    }
-    // The expressions no slot addresses (E3/E10). Their DIMENSIONS are
-    // already fixed by construction — a `MeasureExpr` runs the F1
-    // checker at every constructor, and an assertion's bound is checked
-    // against its measure below — so what is left here is the same
-    // parameter-table re-check every slot expression gets.
-    for expr in crate::node::payload_exprs(node).into_iter().flatten() {
-        check_reads(doc, &written(before, id, node), ExprSite::Payload, expr)?;
+    // The variables the expressions no slot addresses read (E3/E10),
+    // each at the dimension its leaf, or its bound's measure, reads it.
+    for (var, dim) in node.payload_reads(doc).into_iter().flatten() {
+        let reader = Expr::var(var, dim);
+        check_reads(doc, &written(before, id, node), ExprSite::Payload, &reader)?;
     }
     // A measured expression's reference indices, at the edit door as
     // well as the construction and load doors: `Node::Measure` is a
@@ -4666,8 +5140,7 @@ fn check_payload_refs<P: crate::ProfilePayload>(
 
 /// [`crate::node::declared_side_fault`] asked of the pairs `pairs` a
 /// door writes onto `node`, refused typed. `carrier` speaks the node
-/// and `at` is its place in `new`'s order (`None` for a node being
-/// inserted): every door that writes a pair asks this, so a pair no
+/// and `at` is its id (`None` for a node being inserted): every door that writes a pair asks this, so a pair no
 /// door admits is one no document holds.
 fn check_declared_sides<'p, P: crate::ProfilePayload>(
     doc: &Doc<P>,
@@ -4675,12 +5148,11 @@ fn check_declared_sides<'p, P: crate::ProfilePayload>(
     node: &Node<P>,
     pairs: impl IntoIterator<Item = &'p crate::DeclaredPair>,
     carrier: impl Fn() -> SpokenNode,
-    at: Option<usize>,
+    at: Option<RecipeNodeId>,
 ) -> Result<(), EditError> {
-    let placed = new.positions();
     let operands = node.inputs();
     match crate::node::declared_side_fault(pairs, Some(&operands), at, |id| {
-        placed.get(&id).copied()
+        new.nodes.contains_key(&id)
     }) {
         None => Ok(()),
         Some((side, crate::node::DeclaredSideFault::SiteNotAnOperand)) => {
@@ -4711,8 +5183,8 @@ fn check_acyclic<P: crate::ProfilePayload>(doc: &Doc<P>) -> Result<(), EditError
         Black,
     }
     let mut color: BTreeMap<RecipeNodeId, Color> =
-        doc.order().iter().map(|&id| (id, Color::White)).collect();
-    for &root in doc.order() {
+        doc.ids().iter().map(|&id| (id, Color::White)).collect();
+    for root in doc.ids() {
         if color.get(&root) != Some(&Color::White) {
             continue;
         }
@@ -4880,10 +5352,14 @@ fn regauges_for<P: Clone + crate::ProfilePayload>(
 /// that wants the refusal asks [`apply`] for it, so the typed verdict
 /// has one home.
 ///
-/// One forward pass suffices because [`Doc::order`] is insertion
-/// order and an insertion's inputs must already be live, making the
-/// list topological: a consumer is always seen after every input it
-/// could inherit doom from.
+/// One forward pass suffices because id order ([`Doc::ids`]) is
+/// insertion order and an insertion's inputs must already be live,
+/// making the list topological: a consumer is always seen after every input it
+/// could inherit doom from. **Except** where [`DocEdit::SetMembers`]
+/// gave a union a member minted after it: that union is seen before the
+/// member, so the pass misses it and the first delete refuses
+/// [`EditError::DeleteWouldDangle`]
+/// (`work/doors/a-member-set-after-its-union-points-forward-so-save-and-cascade-delete-break.md`).
 pub fn cascade_delete_order<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     id: RecipeNodeId,
@@ -4893,7 +5369,7 @@ pub fn cascade_delete_order<P: crate::ProfilePayload>(
         return Vec::new();
     }
     let mut doomed: BTreeSet<RecipeNodeId> = BTreeSet::from([id]);
-    for &n in doc.order() {
+    for n in doc.ids() {
         let doomed_by_input = doc
             .node(n)
             .is_some_and(|node| node.inputs().iter().any(|input| doomed.contains(input)));
@@ -4901,7 +5377,7 @@ pub fn cascade_delete_order<P: crate::ProfilePayload>(
             doomed.insert(n);
         }
     }
-    doc.order()
+    doc.ids()
         .iter()
         .rev()
         .copied()
@@ -4972,12 +5448,13 @@ pub(crate) fn apply_insert<P: Clone + crate::ProfilePayload>(
     tol: Tol,
     reach: &dyn MateReach,
 ) -> Result<(Applied<P>, RecipeNodeId), EditError> {
-    let (doc, id, maintenance) = door(doc, tol, |new, reported| {
-        insert_into(doc, new, reported, node, tol, Some(reach))
+    let (doc, minted, maintenance) = door(doc, tol, |new, reported| {
+        insert_into(doc, new, reported, node, &[], tol, Some(reach))
     })?;
+    let id = minted.0;
     let applied = Applied {
         doc,
-        record: inserted(id),
+        record: inserted(minted),
         maintenance,
     };
     Ok((applied, id))
@@ -5004,9 +5481,9 @@ fn door<P: Clone + crate::ProfilePayload, T>(
     // keeps its id.
     for var in new.unread_anonymous_vars() {
         new.vars.remove(&var);
-        new.var_order.retain(|&held| held != var);
         reported.push(Maintenance::AnonymousVarRemoved {
             var: doc.spoken_var(var),
+            distribution: doc.free(var).and_then(FreeVar::distribution).copied(),
         });
     }
     // The D-2 backstop, on EVERY arm: the maintenance rules make the
@@ -5022,14 +5499,10 @@ fn door<P: Clone + crate::ProfilePayload, T>(
     // A rule's shape and its listed frames are written only by the
     // insert that authors its node, but a listed frame is admitted at
     // the `tol` this edit is applied at, which need not be the one its
-    // insert was; so the whole document is checked, in document order,
-    // and where one edit breaks two nodes the refusal names the one
-    // placed first.
-    for (&node, n) in new
-        .order
-        .iter()
-        .filter_map(|id| Some((id, new.nodes.get(id)?)))
-    {
+    // insert was; so the whole document is checked, in id order, and
+    // where one edit breaks two nodes the refusal names the one placed
+    // first.
+    for (&node, n) in &new.nodes {
         let listed = |index| FrameSite::Listed { index };
         match n.placement_rule_fault(tol) {
             None => {}
@@ -5076,11 +5549,13 @@ fn door<P: Clone + crate::ProfilePayload, T>(
 }
 
 /// The record of an accepted insert that minted `id`.
-fn inserted(id: RecipeNodeId) -> EditRecord {
+fn inserted((id, fresh, outputs): (RecipeNodeId, Vec<VarId>, Vec<VarId>)) -> EditRecord {
     EditRecord {
         minted: Some(id),
         minted_var: None,
         structural: true,
+        fresh,
+        outputs,
     }
 }
 
@@ -5091,27 +5566,45 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
     new: &mut Doc<P>,
     reported: &mut Vec<Maintenance>,
     authored: &Node<P::Authored, Formula>,
+    fresh: &[VarDecl],
     tol: Tol,
     reach: Option<&dyn MateReach>,
-) -> Result<RecipeNodeId, EditError> {
-    // The node as the door writes it, lowered before anything else is
-    // asked of it: its id is minted from the lowered node, so a node
-    // authored by name and the same node authored by id mint one id.
+) -> Result<(RecipeNodeId, Vec<VarId>, Vec<VarId>), EditError> {
     // A refusal speaks the node by the id drawn from it with every name
-    // the document holds lowered, so the two spellings speak one id
-    // even where some other name does not lower.
-    let node = &lower_node(doc, authored, tol, || {
+    // the document holds lowered, so a node authored by name and the
+    // same node authored by id speak one id even where some other name
+    // does not lower.
+    let before_lowering = new.mint.clone();
+    let would = || {
         let mut held = authored.clone();
         for formula in held.exprs_mut() {
             *formula = formula.lower_held(&|name| doc.lowering_scope(name));
         }
-        let would = new
-            .mint
-            .clone()
-            .insert(&held)
-            .unwrap_or_else(|crate::NodeIdCollides { id }| id);
+        let would = before_lowering.clone().insert(&held);
         SpokenNode::entering(would, &held)
-    })?;
+    };
+    // The node as the door writes it, lowered before anything else is
+    // asked of it (VR4): the fresh table minted, then every slot the
+    // variable it stores. Its id is minted from the lowered node, so a
+    // node authored by name and the same node authored by id mint one
+    // id.
+    let lowering = Lowering::start(new, fresh)?;
+    let node = &lower_node(new, &lowering, authored, tol, would)?;
+    // D6's slot rule, of the formulas as written, asked after the names
+    // as the door has always asked it: each carries the
+    // dimension its address fixes (`Node::formula_dimension_fault`).
+    if let Some(SlotDimensionFault {
+        slot,
+        expected,
+        found,
+    }) = authored.formula_dimension_fault()
+    {
+        return Err(EditError::SlotDimensionMismatch {
+            slot,
+            expected,
+            found,
+        });
+    }
     // Liveness, and it stays spelled here rather than moving to
     // a shared home: the rule IS the node map's own lookup, so
     // the load door's `DanglingInput` walk and this loop share
@@ -5132,11 +5625,7 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
     // extends a mint held aside, so a refusal further down
     // leaves the document's untouched.
     let mut mint = new.mint.clone();
-    let id =
-        mint.insert(node)
-            .map_err(|crate::NodeIdCollides { id }| EditError::NodeIdCollides {
-                id: SpokenNode::entering(id, node),
-            })?;
+    let id = mint.insert(node);
     check_node_inputs(doc, id, node)?;
     check_declared_sides(
         doc,
@@ -5189,9 +5678,21 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
                 fault,
             })?;
     }
+    // D10: the node defines one variable per port of its signature,
+    // minted after its steps. Its inputs are live (above), so every
+    // port's kind resolves.
+    let Some(signature) = new.signature_of(&node) else {
+        unreachable!("a node whose inputs are live has a signature")
+    };
+    let ports = u8::try_from(signature.len())
+        .unwrap_or_else(|_| unreachable!("a signature is a handful of ports"));
+    let outputs = mint.outputs_of_insert(ports);
     new.mint = mint;
+    for ((port, (_, kind)), &var) in (0u8..).zip(&signature).zip(&outputs) {
+        new.vars.insert(var, Var::output(*kind, id, port));
+    }
     new.nodes.insert(id, node.clone());
-    new.order.push(id);
+    let fresh = lowering.finish(new)?;
     check_acyclic(new)?;
     crate::roots::on_insert(new, id, &node.inputs());
     // The solve's own per-mate admission (A11 rule 1), asked
@@ -5208,7 +5709,7 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
         admit_written_mate(new, id, tol, reach)?;
         reported.extend(clear_joined_offsets(doc, new, &node));
     }
-    Ok(id)
+    Ok((id, fresh, outputs))
 }
 
 /// **The solve's per-mate admission of a mate an edit just wrote**
@@ -5247,9 +5748,9 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
     reach: Option<&dyn MateReach>,
 ) -> Result<EditRecord, EditError> {
     Ok(match edit {
-        DocEdit::InsertNode { node } => {
+        DocEdit::InsertNode { node, fresh } => {
             debug_assert!(edit.writes_a_mates_datum() == matches!(**node, Node::Mate { .. }));
-            inserted(insert_into(doc, new, reported, node, tol, reach)?)
+            inserted(insert_into(doc, new, reported, node, fresh, tol, reach)?)
         }
         DocEdit::DeleteNode { id } => {
             if !new.nodes.contains_key(id) {
@@ -5270,6 +5771,8 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted: None,
                 minted_var: None,
                 structural: true,
+                fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::SetMembers { node, members } => {
@@ -5317,6 +5820,8 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted: None,
                 minted_var: None,
                 structural: true,
+                fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::SetDeclare { node, pairs } => {
@@ -5345,40 +5850,76 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 &rewritten,
                 pairs,
                 || doc.spoken(*node),
-                new.positions().get(node).copied(),
+                Some(*node),
             )?;
             new.nodes.insert(*node, rewritten);
             EditRecord {
                 minted: None,
                 minted_var: None,
                 structural: true,
+                fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
-        DocEdit::SetProgram { node, loops, ids } => {
+        DocEdit::SetProgram {
+            node,
+            loops,
+            ids,
+            fresh,
+        } => {
             let payload = match new.nodes.get(node) {
                 None => {
                     return Err(EditError::UnknownNode {
                         id: SpokenNode::absent(*node),
                     });
                 }
-                Some(Node::Profile(p)) => p,
+                Some(Node::Profile(p)) => p.clone(),
                 Some(_) => {
                     return Err(EditError::SetProgramOnNonProfile {
                         node: doc.spoken(*node),
                     });
                 }
             };
+            let payload = &payload;
             let Some(old_ids) = payload.step_ids() else {
                 return Err(EditError::SetProgramOnNonProfile {
                     node: doc.spoken(*node),
                 });
             };
+            // Every argument as written, in program order, at its
+            // address: its lowering and its reads, then its dimension
+            // (D6) — the first argument that does not hold refuses.
+            let rows: Vec<(SlotId, &Formula)> = loops
+                .iter()
+                .enumerate()
+                .flat_map(|(li, lp)| {
+                    lp.rows().into_iter().map(move |((step, arg), formula)| {
+                        let loop_ = crate::program::program_index(li);
+                        (SlotId::Profile { loop_, step, arg }, formula)
+                    })
+                })
+                .collect();
+            let lowering = Lowering::start(new, fresh)?;
+            let loops = lower_loops(new, &lowering, doc.spoken(*node), loops)?;
+            if let Some(SlotDimensionFault {
+                slot,
+                expected,
+                found,
+            }) = rows
+                .iter()
+                .find_map(|&(slot, formula)| slot.dimension_fault(formula))
+            {
+                return Err(EditError::SlotDimensionMismatch {
+                    slot,
+                    expected,
+                    found,
+                });
+            }
             // The ids FIRST: ids the door could not honour make the
             // replay below moot, and the caller mends the field named
             // rather than the program. Minting extends a mint held
             // aside, so a refusal further down leaves the document's
             // untouched.
-            let loops = lower_loops(doc, *node, loops)?;
             let mut mint = new.mint.clone();
             let (minted, dropped) =
                 settle_step_ids(&doc.spoken(*node), old_ids, &loops, ids, &mut mint)?;
@@ -5402,9 +5943,10 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     node: doc.spoken(*node),
                     refusal: Box::new(refusal),
                 })?;
-            let undrawn = undrawn_kept_pieces(doc, *node, payload, rewritten, &dropped, tol)?;
+            let undrawn = undrawn_kept_pieces(doc, new, *node, payload, rewritten, &dropped, tol)?;
             new.nodes.insert(*node, probe);
             new.mint = mint;
+            let fresh = lowering.finish(new)?;
             *reported = stranded_steps(doc, new, &dropped, &undrawn);
             // Structural whatever moved: the edit's class is a
             // rewrite of program structure — verbs, order, count —
@@ -5416,13 +5958,20 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted: None,
                 minted_var: None,
                 structural: true,
+                fresh,
+                outputs: Vec::new(),
             }
         }
-        DocEdit::SetParam { node, slot, expr } => {
+        DocEdit::SetParam {
+            node,
+            slot,
+            expr,
+            fresh,
+        } => {
             if slot.is_structural() {
                 return Err(EditError::StructuralSlotNeedsStructuralEdit { slot: *slot });
             }
-            set_slot(new, doc, *node, *slot, expr)?;
+            let fresh = set_slot(new, doc, *node, *slot, expr, fresh)?;
             check_profile_after_slot_edit(new, doc, *node, *slot, tol)?;
             if edit.writes_a_mates_datum() {
                 admit_written_mate(new, *node, tol, reach)?;
@@ -5431,17 +5980,26 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted: None,
                 minted_var: None,
                 structural: false,
+                fresh,
+                outputs: Vec::new(),
             }
         }
-        DocEdit::SetStructuralParam { node, slot, expr } => {
+        DocEdit::SetStructuralParam {
+            node,
+            slot,
+            expr,
+            fresh,
+        } => {
             if !slot.is_structural() {
                 return Err(EditError::NotStructuralSlot { slot: *slot });
             }
-            set_slot(new, doc, *node, *slot, expr)?;
+            let fresh = set_slot(new, doc, *node, *slot, expr, fresh)?;
             EditRecord {
                 minted: None,
                 minted_var: None,
                 structural: true,
+                fresh,
+                outputs: Vec::new(),
             }
         }
         DocEdit::SetExtrudeSide { node, side } => {
@@ -5462,30 +6020,47 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted: None,
                 minted_var: None,
                 structural: true,
+                fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::SetExpression { path, expr } => {
-            let Some(node) = new.nodes.get(&path.node) else {
+            if !new.nodes.contains_key(&path.node) {
                 return Err(EditError::UnknownNode {
                     id: SpokenNode::absent(path.node),
                 });
-            };
-            let Some(root) = node.expr(path.slot) else {
+            }
+            // The path addresses the slot as written
+            // (`Doc::slot_expansion`). The slot is expanded only along
+            // it (`Doc::expansion_along`), the subtree it names replaced,
+            // and the slot re-lowered from the whole, so every variable
+            // the rest of it reads — an anonymous one included — is read
+            // again by id.
+            let Some(var) = new.slot(path.node, path.slot) else {
                 return Err(EditError::UnknownSlot {
                     id: doc.spoken(path.node),
                     slot: path.slot,
                 });
             };
-            let rebuilt = Formula::from(root)
+            let dim = new
+                .vars
+                .get(&var)
+                .and_then(|v| v.kind().dimension())
+                .unwrap_or(path.slot.dimension());
+            let off_tree = || EditError::PathOffTree {
+                node: doc.spoken(path.node),
+                slot: path.slot,
+                path: path.path.clone(),
+            };
+            let root = new
+                .expansion_along(&Expr::var(var, dim), &path.path)
+                .ok_or_else(off_tree)?;
+            let rebuilt = Formula::from(&root)
                 .with_replaced(&path.path, expr.clone())
-                .ok_or_else(|| EditError::PathOffTree {
-                    node: doc.spoken(path.node),
-                    slot: path.slot,
-                    path: path.path.clone(),
-                })?
+                .ok_or_else(off_tree)?
                 .map_err(EditError::Dimension)?;
             let structural = path.slot.is_structural();
-            set_slot(new, doc, path.node, path.slot, &rebuilt)?;
+            set_slot(new, doc, path.node, path.slot, &rebuilt, &[])?;
             check_profile_after_slot_edit(new, doc, path.node, path.slot, tol)?;
             if edit.writes_a_mates_datum() {
                 admit_written_mate(new, path.node, tol, reach)?;
@@ -5494,6 +6069,8 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted: None,
                 minted_var: None,
                 structural,
+                fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::DeclareVar { name, def } => {
@@ -5503,31 +6080,31 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     holder: doc.spoken_var(holder),
                 });
             }
-            // A free definition is checked BEFORE anything is minted: a
-            // definition fault outranks a collision, and a refused
-            // declare speaks the id it would have minted. What a defined
-            // one reads is asked after, with the rest of its checks.
+            // A free definition is checked BEFORE anything is minted, and
+            // a refused declare speaks the id it would have minted. What
+            // a defined one reads is asked after, with the rest of its
+            // checks.
             let spoken = SpokenVar::new(new.mint.would_declare(def.kind()), Some(name.clone()));
             if let VarDecl::Free(free) = def {
-                check_var_def(&spoken, &VarDef::Free(free.clone()))?;
+                check_var_def(&spoken, &WrittenDef::Free(free.clone()))?;
             }
-            let mut mint = new.mint.clone();
-            let id = mint
-                .declare(def.kind())
-                .map_err(|collides| EditError::VarIdCollides { id: collides.id })?;
-            let def = lower_decl(doc, &spoken, def)?;
-            new.mint = mint;
-            new.vars.insert(id, Var::new(def.clone()));
+            let id = new.mint.declare(def.kind());
+            // The declared variable mints first, its definition's
+            // written quantities after it (`mint_quantities` says why
+            // the slot door's order is the other way round).
+            let def = lower_decl(new, &Lowering::none(), &spoken, def)?;
+            new.vars.insert(id, Var::written(def.clone()));
             new.var_names.insert(id, name.clone());
-            new.var_order.push(id);
             check_definition(new, id)?;
             EditRecord {
                 minted: None,
                 minted_var: Some(id),
                 structural: def.kind() == VarKind::Count,
+                fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
-        DocEdit::DefineVar { var, def } => {
+        DocEdit::DefineVar { var, def, fresh } => {
             let Some(id) = doc.resolve_var(var) else {
                 return Err(EditError::UnknownVar {
                     var: var.clone(),
@@ -5535,6 +6112,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 });
             };
             let spoken = doc.spoken_var(id);
+            refuse_output(doc, id, CarryForwardDoor::Definition)?;
             // The kind first: a definition of another kind is refused
             // whatever it reads, and what it reads is asked after.
             let kind = doc.var(id).map_or(def.kind(), Var::kind);
@@ -5545,19 +6123,26 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     offered: def.kind(),
                 });
             }
-            let def = lower_decl(doc, &spoken, def)?;
-            match def {
-                VarDef::Free(value) => write_free(new, id, &spoken, value)?,
-                VarDef::Defined(_) => {
+            let lowering = Lowering::start(new, fresh)?;
+            let def = lower_decl(new, &lowering, &spoken, def)?;
+            let record = match def {
+                WrittenDef::Free(value) => write_free(new, id, &spoken, value)?,
+                WrittenDef::Defined(_) => {
                     check_var_def(&spoken, &def)?;
-                    new.vars.insert(id, Var::new(def));
+                    new.vars.insert(id, Var::written(def));
                     check_definition(new, id)?;
                     EditRecord {
                         minted: None,
                         minted_var: None,
                         structural: kind == VarKind::Count,
+                        fresh: Vec::new(),
+                        outputs: Vec::new(),
                     }
                 }
+            };
+            EditRecord {
+                fresh: lowering.finish(new)?,
+                ..record
             }
         }
         DocEdit::SetVarValue { var, value } => {
@@ -5605,6 +6190,9 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     DistributionRefusal::Invalid { fault } => {
                         distribution_fault_error(&spoken, fault)
                     }
+                    DistributionRefusal::NotAWrittenValue => {
+                        unreachable!("a free variable's own distribution is a written value's")
+                    }
                 })?;
             write_free(new, id, &spoken, written)?
         }
@@ -5644,6 +6232,8 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted: None,
                 minted_var: None,
                 structural: false,
+                fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::DeleteVar { var } => {
@@ -5653,6 +6243,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     door: CarryForwardDoor::Delete,
                 });
             };
+            refuse_output(doc, id, CarryForwardDoor::Delete)?;
             if doc.var_name(id).is_none() {
                 return Err(EditError::DeleteAnonymousVar {
                     var: doc.spoken_var(id),
@@ -5660,7 +6251,6 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             }
             new.vars.remove(&id);
             new.var_names.remove(&id);
-            new.var_order.retain(|&held| held != id);
             // The readers stay, unresolved: each now refuses at
             // evaluation, which is structural; a variable nothing read
             // moves nothing evaluated.
@@ -5668,6 +6258,8 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted: None,
                 minted_var: None,
                 structural: !doc.var_readers(id).is_empty(),
+                fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::Rebind { from, to } => {
@@ -5727,14 +6319,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     .declared_pairs()
                     .iter()
                     .filter(|pair| !before.contains(pair));
-                check_declared_sides(
-                    doc,
-                    new,
-                    node,
-                    moved,
-                    || doc.spoken(id),
-                    new.positions().get(&id).copied(),
-                )?;
+                check_declared_sides(doc, new, node, moved, || doc.spoken(id), Some(id))?;
             }
             // Appearance keys are rebind sites (the attribute rides
             // the name — PR 7's store; also the spec D9 banked
@@ -5761,6 +6346,8 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 // presentation motion: no content key moves, nothing
                 // recomputes.
                 structural: declare_sites > 0,
+                fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::ReWitness { node, witness } => {
@@ -5770,6 +6357,8 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted: None,
                 minted_var: None,
                 structural: false,
+                fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::SetAppearance { name, attr } => {
@@ -5799,6 +6388,8 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted: None,
                 minted_var: None,
                 structural: false,
+                fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::ReWitnessBulk {
@@ -5827,6 +6418,8 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted: None,
                 minted_var: None,
                 structural: false,
+                fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::ClearAppearance { name, kind } => {
@@ -5847,6 +6440,8 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted: None,
                 minted_var: None,
                 structural: false,
+                fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::SetTolerance { eps } => {
@@ -5863,6 +6458,8 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 // ε parameterizes every content key (and every
                 // predicate band): the whole cone recomputes.
                 structural: true,
+                fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::SetAppearanceMeta { name, key, value } => {
@@ -5908,6 +6505,8 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted: None,
                 minted_var: None,
                 structural: false,
+                fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::ClearAppearanceMeta { name, key } => {
@@ -5928,6 +6527,8 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted: None,
                 minted_var: None,
                 structural: false,
+                fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::SetRoots { roots } => {
@@ -5939,31 +6540,62 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted: None,
                 minted_var: None,
                 structural: true,
+                fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
-        DocEdit::SetOffset { instance, offset } => {
-            let Some(target) = new.nodes.get_mut(instance) else {
-                return Err(EditError::UnknownNode {
-                    id: SpokenNode::absent(*instance),
-                });
-            };
-            let Node::InstantiatePart { offset: held, .. } = target else {
-                return Err(EditError::OffsetOnNonInstance {
-                    node: doc.spoken(*instance),
-                });
-            };
-            *held = match offset {
+        DocEdit::SetOffset {
+            instance,
+            offset,
+            fresh,
+        } => {
+            match new.nodes.get(instance) {
+                None => {
+                    return Err(EditError::UnknownNode {
+                        id: SpokenNode::absent(*instance),
+                    });
+                }
+                Some(Node::InstantiatePart { .. }) => {}
+                Some(_) => {
+                    return Err(EditError::OffsetOnNonInstance {
+                        node: doc.spoken(*instance),
+                    });
+                }
+            }
+            let lowering = Lowering::start(new, fresh)?;
+            let lowered = match offset {
                 None => None,
                 Some(offset) => {
                     let rows = offset.rows();
-                    let lowered = lower_value(doc, &rows, |f| offset.try_map_slots(&mut |e| f(e)))
-                        .map_err(|(slot, fault)| {
-                            let site = slot.map_or(ExprSite::Payload, ExprSite::Slot);
-                            name_refusal(doc, doc.spoken(*instance), site, fault)
-                        })?;
+                    let spoken = || doc.spoken(*instance);
+                    let lowered = lower_value(new, &lowering, &rows, |f| {
+                        offset.try_map_slots(&mut |e| f(e))
+                    })
+                    .map_err(|unlowered| {
+                        unlowered.refuse(new, spoken, ExprSite::Slot, |fault| {
+                            fault.at(new, spoken(), ExprSite::Payload)
+                        })
+                    })?;
+                    if let Some(SlotDimensionFault {
+                        slot,
+                        expected,
+                        found,
+                    }) = rows
+                        .iter()
+                        .find_map(|&(slot, formula)| slot.dimension_fault(formula))
+                    {
+                        return Err(EditError::SlotDimensionMismatch {
+                            slot,
+                            expected,
+                            found,
+                        });
+                    }
                     Some(lowered)
                 }
             };
+            if let Some(Node::InstantiatePart { offset: held, .. }) = new.nodes.get_mut(instance) {
+                *held = lowered;
+            }
             // The offset's rigid steps are the instance's slots, held
             // to the insert door's own checks: dimensions and parameter
             // references. Its literal steps meet the frame rule in the
@@ -5971,12 +6603,15 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             // placement's.
             let probe = new.nodes[instance].clone();
             check_node_slots(new, doc, *instance, &probe)?;
+            let fresh = lowering.finish(new)?;
             // Structural: where an instance sits is recipe shape, and it
             // moves the document's content pin.
             EditRecord {
                 minted: None,
                 minted_var: None,
                 structural: true,
+                fresh,
+                outputs: Vec::new(),
             }
         }
         DocEdit::SetGauge { node, gauge } => {
@@ -6006,6 +6641,8 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted: None,
                 minted_var: None,
                 structural: true,
+                fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::Promote { instance } => {
@@ -6016,17 +6653,12 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             } = promote_plan(doc, *instance)?;
             let promoted: Node<P> = Node::gauge(parent, offset);
             let mut mint = new.mint.clone();
-            let id = mint
-                .insert(&promoted)
-                .map_err(|crate::NodeIdCollides { id }| EditError::NodeIdCollides {
-                    id: SpokenNode::entering(id, &promoted),
-                })?;
+            let id = mint.insert(&promoted);
             // The gauge's parent is the instance's gauge, which a live
             // group's root may name dangling: the insert door's check.
             check_gauge_ref(new, id, parent, || SpokenNode::entering(id, &promoted))?;
             new.mint = mint;
             new.nodes.insert(id, promoted);
-            new.order.push(id);
             match new.roots.iter().position(|r| r == instance) {
                 Some(at) => new.roots.insert(at, id),
                 None => new.roots.push(id),
@@ -6045,6 +6677,8 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted: Some(id),
                 minted_var: None,
                 structural: true,
+                fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::Fold { gauge } => {
@@ -6069,7 +6703,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 });
             }
             let dependents: Vec<RecipeNodeId> = doc
-                .order()
+                .ids()
                 .iter()
                 .copied()
                 .filter(|&id| doc.node(id).and_then(Node::gauge_ref) == Some(*gauge))
@@ -6117,6 +6751,8 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted: None,
                 minted_var: None,
                 structural: true,
+                fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::SetLabel { node, label } => {
@@ -6138,6 +6774,8 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted: None,
                 minted_var: None,
                 structural: false,
+                fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::UpdateReference { node, new_pin } => {
@@ -6170,6 +6808,8 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted: None,
                 minted_var: None,
                 structural: true,
+                fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
     })
@@ -6189,7 +6829,7 @@ fn mate_that_would_start_placing<P>(
     doc: &Doc<P>,
     gauge_after: impl Fn(RecipeNodeId) -> Option<RecipeNodeId>,
 ) -> Option<RecipeNodeId> {
-    doc.order().iter().copied().find(|&id| {
+    doc.ids().iter().copied().find(|&id| {
         let Some(Node::Mate { a, b, .. }) = doc.node(id) else {
             return false;
         };
@@ -6230,11 +6870,16 @@ fn remove_unread<P: crate::ProfilePayload>(
         unreachable!("node {} is removed only while live", id)
     };
     let inputs = node.inputs();
-    new.order.retain(|&n| n != id);
     let reported = stranded_references(before, new, id);
     crate::roots::on_delete(new, id, &inputs);
     new.witnesses.remove(&id);
     new.labels.remove(&id);
+    // Its outputs go with it (D10): nothing reads one yet, so nothing
+    // is stranded.
+    for var in new.outputs(id) {
+        new.vars.remove(&var);
+        new.var_names.remove(&var);
+    }
     Ok(reported)
 }
 
@@ -6438,14 +7083,17 @@ fn check_profile_after_slot_edit<P: crate::ProfilePayload>(
 }
 
 /// Shared slot-write path: node exists, slot exists, dimension
-/// matches, param refs valid — then write.
+/// matches, the formula lowers and its reads hold — then the slot
+/// stores the variable it lowers to (VR4), its fresh table minted
+/// first.
 fn set_slot<P: Clone + crate::ProfilePayload>(
     new: &mut Doc<P>,
     before: &Doc<P>,
     id: RecipeNodeId,
     slot: SlotId,
     formula: &Formula,
-) -> Result<(), EditError> {
+    fresh: &[VarDecl],
+) -> Result<Vec<VarId>, EditError> {
     let Some(node) = new.nodes.get(&id) else {
         return Err(EditError::UnknownNode {
             id: SpokenNode::absent(id),
@@ -6455,12 +7103,12 @@ fn set_slot<P: Clone + crate::ProfilePayload>(
     // Whether the node HAS the slot is this door's own question: the
     // subject is an address a caller named, and `SetParam` aimed at a
     // radius on an extrude is a reachable mistake rather than the
-    // node-layer invariant `Node::slot_dimension_fault` asserts.
+    // node-layer invariant `Node::formula_dimension_fault` asserts.
     if node.expr(slot).is_none() {
         return Err(EditError::UnknownSlot { id: spoken, slot });
     }
     // D6's comparison, from its one home (`SlotId::dimension_fault`) —
-    // the same rule the node-wide walk asks, of an expression the node
+    // the same rule the node-wide walk asks, of a formula the node
     // does not hold yet.
     if let Some(SlotDimensionFault {
         slot,
@@ -6474,14 +7122,17 @@ fn set_slot<P: Clone + crate::ProfilePayload>(
             found,
         });
     }
-    let expr = &lower_at(before, || spoken.clone(), ExprSite::Slot(slot), formula)?;
-    check_reads(new, &spoken, ExprSite::Slot(slot), expr)?;
-    if let Some(target) = new.nodes.get_mut(&id).and_then(|n| n.expr_mut(slot)) {
-        *target = expr.clone();
-        Ok(())
-    } else {
-        Err(EditError::UnknownSlot { id: spoken, slot })
-    }
+    let lowering = Lowering::start(new, fresh)?;
+    let var = lowering
+        .slot(new, formula)
+        .map_err(|fault| fault.at(new, spoken.clone(), ExprSite::Slot(slot)))?;
+    let reader = Expr::var(var, slot.dimension());
+    check_reads(new, &spoken, ExprSite::Slot(slot), &reader)?;
+    let Some(target) = new.nodes.get_mut(&id).and_then(|n| n.expr_mut(slot)) else {
+        return Err(EditError::UnknownSlot { id: spoken, slot });
+    };
+    *target = var;
+    lowering.finish(new)
 }
 
 impl<P: Clone + crate::ProfilePayload> Doc<P> {
@@ -6549,7 +7200,7 @@ mod tests {
     /// admission is asked at exactly the edits this answers `true` for.
     #[test]
     fn exactly_the_mate_insert_writes_a_mates_datum() {
-        let id = crate::node::RecipeNodeId(1);
+        let id = crate::node::RecipeNodeId::new(0, 1);
         let name = |node| crate::names::StableName {
             kind: crate::names::EntityKind::Face,
             node,
@@ -6562,7 +7213,7 @@ mod tests {
                     crate::names::FaceName::new(name(id)).expect("a face"),
                 ),
                 b: crate::node::SitedFace::at_mint(
-                    crate::names::FaceName::new(name(crate::node::RecipeNodeId(2)))
+                    crate::names::FaceName::new(name(crate::node::RecipeNodeId::new(0, 2)))
                         .expect("a face"),
                 ),
                 class: crate::mate::ContactClass::Rest,
@@ -6574,6 +7225,7 @@ mod tests {
                     clocking: None,
                 },
             }),
+            fresh: Vec::new(),
         };
         assert!(mate.writes_a_mates_datum());
         let step = crate::node::SlotId::MateFrameStep {
@@ -6586,6 +7238,7 @@ mod tests {
                 node: id,
                 slot: step,
                 expr: crate::test_support::ang(0.5),
+                fresh: Vec::new(),
             },
             DocEdit::SetExpression {
                 path: crate::expr::ExprPath {
@@ -6604,20 +7257,23 @@ mod tests {
                 node: Box::new(crate::node::Node::Datum(crate::node::Datum::Point {
                     position: [len(0.0), len(0.0), len(0.0)],
                 })),
+                fresh: Vec::new(),
             },
             DocEdit::Rebind {
                 from: name(id),
-                to: name(crate::node::RecipeNodeId(2)),
+                to: name(crate::node::RecipeNodeId::new(0, 2)),
             },
             DocEdit::SetStructuralParam {
                 node: id,
                 slot: crate::node::SlotId::Count,
                 expr: crate::Formula::count(1),
+                fresh: Vec::new(),
             },
             DocEdit::SetParam {
                 node: id,
                 slot: crate::node::SlotId::RotationAngle,
                 expr: crate::test_support::ang(0.5),
+                fresh: Vec::new(),
             },
         ];
         for edit in &others {

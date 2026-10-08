@@ -99,7 +99,7 @@ pub fn corners(b: &Aabb) -> Vec<Point3<f64>> {
 // --- document fixtures for the panel suites ------------------------
 //
 // Authored through the ordinary document doors, in the order a user
-// would: parameters before the expressions that read them, nodes
+// would: variables before the expressions that read them, nodes
 // before the nodes that consume them. A fixture that reached past
 // `apply` would be testing a document the edit vocabulary cannot
 // produce.
@@ -137,7 +137,7 @@ pub fn shape(template: &ProfileShape) -> LoopProgram<Formula> {
     viewer::sketch::loop_program(template, Notation::CANONICAL).expect("a finite template")
 }
 
-/// The name of the parametric fixture's driving parameter.
+/// The name of the parametric fixture's driving variable.
 pub fn thickness_param() -> VarName {
     VarName::from_static("thickness")
 }
@@ -149,13 +149,13 @@ pub fn var_of(doc: &Doc<ProfileProgram>, name: &str) -> pncad::document::VarId {
         .unwrap_or_else(|| panic!("the document names a variable {name}"))
 }
 
-/// The parametric fixture's driving parameter, by its id in `doc`.
+/// The parametric fixture's driving variable, by its id in `doc`.
 pub fn thickness_var(doc: &Doc<ProfileProgram>) -> pncad::document::VarId {
     var_of(doc, thickness_param().as_str())
 }
 
 /// A document whose extrude distance is DRIVEN by a document
-/// parameter — the expression-driven-dimension fixture.
+/// variable — the expression-driven-dimension fixture.
 ///
 /// Answers the document, the profile node and the extrude node.
 pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
@@ -174,7 +174,7 @@ pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeN
         Node::Extrude {
             profile,
             // `thickness / 2` — a composed expression over a
-            // parameter, which is the shape the refusal affordance
+            // variable, which is the shape the refusal affordance
             // exists for.
             distance: Formula::div(
                 Formula::named(thickness_param(), Dimension::Length),
@@ -317,7 +317,7 @@ pub fn session_insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
     ));
     *session
         .committed_doc()
-        .order()
+        .ids()
         .last()
         .expect("the insert landed")
 }

@@ -52,6 +52,13 @@ from pncad import (
 from spoken import tag
 
 
+def strands(doc):
+    """The last edit's maintenance without the anonymous variables it
+    retired: a rewrite retires the variables its old values were
+    written in (VR7), which a row about names does not ask about."""
+    return [row for row in doc.last_maintenance if row.variant != "anonymous_var_removed"]
+
+
 def unit_box(doc, width, depth, height):
     """Insert a rectangular prism rooted at the origin."""
     return slab(doc, (0 * m, width), (0 * m, depth), (0 * m, height))
@@ -823,16 +830,17 @@ class TestPersistence(unittest.TestCase):
         `ParseError.kind` uses — rather than a sentence a caller would
         have to parse.
         """
-        length = {"Literal": {"value": 1.0, "dim": "Length", "unit": "m"}}
-        angle = {"Literal": {"value": 1.0, "dim": "Angle", "unit": "rad"}}
+        # A stored expression holds no float: its leaves read variables
+        # by id (whose ids the rebuild reads after the dimensions) or
+        # are exact constants.
+        length = {"Var": {"var": "1:0000000000000001", "dim": "Length"}}
+        angle = {"Var": {"var": "1:0000000000000001", "dim": "Angle"}}
         cases = {
             "mismatch": {"Add": [length, angle]},
             "mul_needs_scalar": {"Mul": [length, length]},
             "div_needs_scalar_divisor": {"Div": [length, length]},
             "trig_needs_angle": {"Sin": length},
-            "unknown_display_unit": {
-                "Literal": {"value": 1.0, "dim": "Length", "unit": "furlong"}
-            },
+            "ratio_not_reduced": {"Ratio": {"num": 2, "den": 4}},
         }
         for inner, wire in cases.items():
             with self.subTest(refusal=inner):
@@ -856,8 +864,8 @@ class TestPersistence(unittest.TestCase):
         bad = self._save_with_distance(
             {
                 "Add": [
-                    {"Literal": {"value": 1.0, "dim": "Length", "unit": "m"}},
-                    {"Literal": {"value": 1.0, "dim": "Angle", "unit": "rad"}},
+                    {"Var": {"var": "1:0000000000000001", "dim": "Length"}},
+                    {"Var": {"var": "1:0000000000000001", "dim": "Angle"}},
                 ]
             }
         )
@@ -871,23 +879,48 @@ class TestPersistence(unittest.TestCase):
         """A unit box's save text with the extrude's distance expression
         replaced by `wire`.
 
+        A slot holds a variable's id, so a saved expression lives in a
+        definition: the distance is written as a formula, which the edit
+        door lowers to an anonymous defined variable, and that
+        variable's definition is what is swapped.
+
         Structural rather than a string substitution: an expression's
         spelling carries whatever fields the wire form has today, so a
         needle written out in full would stop matching without failing,
         and an assertion nothing reaches asserts nothing. This one fails
-        the test if the slot it aims at is gone.
+        the test if the definition it aims at is gone.
         """
         doc = Doc()
-        unit_box(doc, 1 * m, 1 * m, 1 * m)
+        box = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        doc.apply(DocEdit.set_param(box, "distance", doc.parse_formula("0.5 m + 0.5 m")))
+        var = doc.slot(box, "distance")
         header, body_text = doc.save().split("\n", 1)
         body = json.loads(body_text)
-        swapped = 0
-        for node in body["snapshot"]["nodes"].values():
-            if "Extrude" in node:
-                node["Extrude"]["distance"] = wire
-                swapped += 1
-        self.assertEqual(swapped, 1, "the fixture has one extrude to tamper")
+        held = body["snapshot"]["vars"][var.hex]
+        self.assertIn("Defined", held["def"], "the distance is a defined variable to tamper")
+        held["def"]["Defined"] = wire
         return header + "\n" + json.dumps(body)
+
+    def test_an_operation_defines_its_output_variable(self):
+        """An inserted operation defines one variable per port of its
+        signature, saved in the variable table as an output of its node:
+        an extrude defines one, at port 0, and no port 1."""
+        doc = Doc()
+        box = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        body = doc.output(box)
+        self.assertIsNotNone(body)
+        self.assertEqual(doc.output(box, 0), body)
+        self.assertEqual(body.kind, "body")
+        self.assertEqual(doc.slot(box, "distance").kind, "length")
+        with self.assertRaises(ValueError) as caught:
+            doc.output(box, 1)
+        self.assertIn("no port 1", str(caught.exception))
+        _, body_text = doc.save().split("\n", 1)
+        snapshot = json.loads(body_text)["snapshot"]
+        held = snapshot["vars"][body.hex]
+        self.assertEqual(held["kind"], "Body")
+        self.assertEqual(held["def"]["Output"]["port"], 0)
+        self.assertIn("Extrude", snapshot["nodes"][held["def"]["Output"]["node"]])
 
     def test_a_header_that_disagrees_with_the_snapshot_names_both_ids(self):
         """A tampered or hand-assembled file: the save door writes the
@@ -911,12 +944,13 @@ class TestPersistence(unittest.TestCase):
         doc = Doc()
         unit_box(doc, 1 * m, 1 * m, 1 * m)
         text = doc.save()
-        # Take a node the document holds out of its mint log.
+        # Log a node the document holds as a step's instead, so the log
+        # still counts up from one and holds no node entry for it.
         header, body = text.split("\n", 1)
         wire = json.loads(body)
         log = wire["snapshot"]["mint"]["log"]
-        held = wire["snapshot"]["order"][-1]
-        log.remove({"node": held})
+        held = [entry for entry in log if "node" in entry][-1]
+        held["step"] = held.pop("node")
         with self.assertRaises(pncad.PersistError) as caught:
             load(f"{header}\n{json.dumps(wire)}")
         refusal = caught.exception
@@ -1744,7 +1778,9 @@ class TestTheWholeProgramEdit(unittest.TestCase):
         reshaped, new = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
         keep = {new[0]: s[0], new[1]: s[1], new[3]: s[2], new[4]: s[3], new[5]: s[4]}
         doc.apply(DocEdit.set_program(profile, reshaped, [keep]))
-        self.assertEqual(doc.last_maintenance, [])
+        # The reshaped program's values are variables of its own: the
+        # old ones' retirement is all the edit reports.
+        self.assertEqual(strands(doc), [])
         self.assertEqual(evaluate(doc).resolve(rim).status, "resolved")
         self.assertEqual(doc.step(profile, 0, new[4]), s[3], "the kept step keeps its id")
         self.assertNotIn(doc.step(profile, 0, new[2]), s, "the new leg mints fresh")
@@ -1769,7 +1805,7 @@ class TestTheWholeProgramEdit(unittest.TestCase):
         reshaped, new = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
         keep = {new[0]: s[0], new[1]: s[1], new[3]: s[2], new[5]: s[4]}
         doc.apply(DocEdit.set_program(profile, reshaped, [keep]))
-        (row,) = doc.last_maintenance
+        (row,) = strands(doc)
         self.assertEqual(row.variant, "strand")
         self.assertEqual(row.node, fillet)
         self.assertEqual(row.name, rim)

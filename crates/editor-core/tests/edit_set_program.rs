@@ -154,7 +154,12 @@ fn set_program(
 ) -> Result<editor_core::Applied<ProfileProgram>, EditError> {
     apply(
         doc,
-        &DocEdit::SetProgram { node, loops, ids },
+        &DocEdit::SetProgram {
+            node,
+            loops,
+            ids,
+            fresh: Vec::new(),
+        },
         tol(),
         &editor_core::RefusingReach,
     )
@@ -319,7 +324,7 @@ fn a_fillet_on_a_crease_survives_a_leg_inserted_before_it() {
     let ids = bump_ids(&r.doc, r.profile);
     let applied = accepted(&r.doc, r.profile, vec![rod_loop(true)], ids);
     assert_eq!(
-        applied.maintenance,
+        crate::fixture::without_anonymous(&applied.maintenance),
         Vec::new(),
         "a reshaping that keeps the step has nothing to report"
     );
@@ -385,7 +390,10 @@ fn a_vertex_is_named_by_the_piece_starting_at_it() {
 
     let ids = bump_ids(&r.doc, r.profile);
     let applied = accepted(&r.doc, r.profile, vec![rod_loop(true)], ids);
-    assert_eq!(applied.maintenance, Vec::new());
+    assert_eq!(
+        crate::fixture::without_anonymous(&applied.maintenance),
+        Vec::new()
+    );
     assert!(near(strut_at(&applied.doc, r.rod, &one), BUMP));
     assert!(near(strut_at(&applied.doc, r.rod, &two), (1.0, 0.0)));
     assert!(
@@ -418,7 +426,10 @@ fn a_leg_inserted_into_a_square_keeps_every_walls_name() {
     let leg =
         LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (3.0, 1.0), (2.0, 2.0), (0.0, 2.0)]).unwrap();
     let applied = accepted(&painted, profile, vec![leg], ids);
-    assert_eq!(applied.maintenance, Vec::new());
+    assert_eq!(
+        crate::fixture::without_anonymous(&applied.maintenance),
+        Vec::new()
+    );
     let right = corners_of(&applied.doc, ext, &walls[1]);
     assert!(
         has_corner3(&right, (3.0, 1.0, 0.0)) && has_corner3(&right, (2.0, 2.0, 0.0)),
@@ -439,13 +450,18 @@ fn a_leg_inserted_into_a_square_keeps_every_walls_name() {
 }
 
 /// **The identity edit is accepted, reports nothing, and is
-/// structural.** The program the node holds, every step kept.
+/// structural.** The program the node holds, re-authored from the node
+/// ([`Node::authored`]: every argument a reader of the variable it
+/// holds), every step kept.
 #[test]
 fn the_identity_edit_is_accepted_and_reports_nothing() {
     let r = rod("set-program-identity", &[CREASE]);
     let ids = keep_all(&r.doc, r.profile);
-    let applied = accepted(&r.doc, r.profile, vec![rod_loop(false)], ids);
-    assert!(applied.maintenance.is_empty());
+    let Some(Node::Profile(held)) = r.doc.node(r.profile).map(|n| n.authored(&r.doc)) else {
+        panic!("the rod's profile is a profile")
+    };
+    let applied = accepted(&r.doc, r.profile, held.loops, ids);
+    assert!(applied.maintenance.is_empty(), "{:?}", applied.maintenance);
     assert!(applied.record.structural);
     assert!(applied.doc.bit_eq(&r.doc), "nothing moved");
 }
@@ -474,7 +490,7 @@ fn a_dropped_step_strands_the_names_on_its_pieces_and_they_never_alias() {
     ids[0][7] = None;
     let applied = accepted(&r.doc, r.profile, vec![rod_loop(true)], ids);
     assert_eq!(
-        applied.maintenance,
+        crate::fixture::without_anonymous(&applied.maintenance),
         vec![Maintenance::Strand {
             node: r.doc.spoken(fillet),
             name: r.doc.spoken_name(&crease).steps_respoken(&applied.doc),
@@ -571,7 +587,7 @@ fn a_segment_after_a_fillet_on_another_carrier_is_its_own_steps_piece() {
     ]);
     let applied = accepted(&doc, profile, vec![straight_after], keep);
     assert_eq!(
-        applied.maintenance,
+        crate::fixture::without_anonymous(&applied.maintenance),
         vec![Maintenance::StrandedAppearance {
             name: doc.spoken_name(&arc).steps_respoken(&applied.doc),
             took: editor_core::Took::Step
@@ -590,12 +606,12 @@ fn a_segment_after_a_fillet_on_another_carrier_is_its_own_steps_piece() {
     );
 }
 
-/// The least step id `doc`'s mint log does not hold.
+/// A step id `doc`'s mint log does not hold: ordinal 0, which no mint
+/// draws.
 fn never_minted(doc: &ProfileDoc) -> StepId {
-    (0..)
-        .map(StepId)
-        .find(|s| !doc.mint().has_step(*s))
-        .expect("a u64 the log does not hold")
+    let step = StepId::new(0, 0);
+    assert!(!doc.mint().has_step(step), "no mint draws ordinal 0");
+    step
 }
 
 /// **A name may spell a step a `SetProgram` dropped, never one the
@@ -613,7 +629,7 @@ fn a_name_on_a_dropped_step_inserts_and_one_on_a_never_minted_step_refuses() {
     let reshaped = accepted(&r.doc, r.profile, vec![rod_loop(true)], ids).doc;
     let dropped = wall_by(r.rod, old[5], PieceRole::Leg);
     let (_, frame) = frame_on(reshaped.clone(), r.rod, dropped.clone());
-    assert!(frame.0 > 0, "a name on a dropped step inserts");
+    assert!(frame.0.ordinal() > 0, "a name on a dropped step inserts");
 
     let next = never_minted(&reshaped);
     let unminted = wall_by(r.rod, next, PieceRole::Leg);
@@ -634,6 +650,7 @@ fn a_name_on_a_dropped_step_inserts_and_one_on_a_never_minted_step_refuses() {
             face: unminted.clone(),
             spin: fixture::ang(0.0),
         })),
+        fresh: Vec::new(),
     });
     let painted = paint(&reshaped, &dropped);
     never(DocEdit::SetAppearance {
@@ -669,7 +686,7 @@ fn a_reshaping_reports_its_strands_then_its_stranded_keys() {
     ids[0][2] = None;
     let applied = accepted(&doc, profile, vec![square], ids);
     assert_eq!(
-        applied.maintenance,
+        crate::fixture::without_anonymous(&applied.maintenance),
         vec![
             Maintenance::Strand {
                 node: doc.spoken(frame),
@@ -791,6 +808,7 @@ fn the_insert_door_mints_every_step_and_refuses_ids_of_the_callers() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(preminted)),
+            fresh: Vec::new(),
         },
         tol(),
         &editor_core::RefusingReach,
@@ -820,9 +838,9 @@ fn a_node_that_holds_no_program_refuses() {
         })
     );
     assert_eq!(
-        set_program(&r.doc, RecipeNodeId(99), vec![rod_loop(false)], ids).err(),
+        set_program(&r.doc, RecipeNodeId::new(0, 99), vec![rod_loop(false)], ids).err(),
         Some(EditError::UnknownNode {
-            id: editor_core::SpokenNode::absent(RecipeNodeId(99))
+            id: editor_core::SpokenNode::absent(RecipeNodeId::new(0, 99))
         })
     );
 }
@@ -851,6 +869,7 @@ fn a_program_naming_an_undeclared_parameter_refuses_the_slot_doors_own_arm() {
             node: profile,
             slot,
             expr: nope,
+            fresh: Vec::new(),
         },
         tol(),
         &editor_core::RefusingReach,
@@ -913,10 +932,11 @@ fn rod_log() -> (ProfileDoc, Vec<editor_core::DocEdit<ProfileProgram>>) {
     let empty = ProfileDoc::empty_derived("set-program-log", tol());
     let r = rod("set-program-log", &[CREASE]);
     // The log is the edits `rod` applied, so it mints the same ids.
-    let (plane, profile_node, rod_node) = (r.doc.order()[0], r.profile, r.rod);
+    let (plane, profile_node, rod_node) = (r.doc.ids()[0], r.profile, r.rod);
     let edits = [
         DocEdit::InsertNode {
             node: Box::new(fixture::xy_frame()),
+            fresh: Vec::new(),
         },
         DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
@@ -924,6 +944,7 @@ fn rod_log() -> (ProfileDoc, Vec<editor_core::DocEdit<ProfileProgram>>) {
                 loops: vec![rod_loop(false)],
                 ids: Vec::new(),
             })),
+            fresh: Vec::new(),
         },
         DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
@@ -931,6 +952,7 @@ fn rod_log() -> (ProfileDoc, Vec<editor_core::DocEdit<ProfileProgram>>) {
                 distance: len(ROD_L),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
         DocEdit::InsertNode {
             node: Box::new(Node::fillet(
@@ -938,11 +960,13 @@ fn rod_log() -> (ProfileDoc, Vec<editor_core::DocEdit<ProfileProgram>>) {
                 len(ROD_FILLET),
                 vec![lateral_edge(&r.doc, rod_node, CREASE)],
             )),
+            fresh: Vec::new(),
         },
         DocEdit::SetProgram {
             node: profile_node,
             loops: vec![rod_loop(true)],
             ids: bump_ids(&r.doc, profile_node),
+            fresh: Vec::new(),
         },
     ];
     (empty, edits.to_vec())
@@ -991,14 +1015,15 @@ fn a_log_holding_a_set_program_saves_loads_and_replays_identically() {
 #[test]
 fn the_persisted_spelling_is_pinned_and_an_old_file_refuses_typed() {
     let edit: DocEdit<ProfileProgram> = DocEdit::SetProgram {
-        node: RecipeNodeId(1),
+        node: RecipeNodeId::new(0, 1),
         loops: vec![LoopProgram::circle(0.0, 0.0, 1.0).unwrap()],
         ids: vec![vec![None]],
+        fresh: Vec::new(),
     };
     let wire = serde_json::to_string(&edit).expect("serializes");
     assert_eq!(
         wire,
-        r#"{"SetProgram":{"node":1,"loops":[{"Circle":{"centre":[{"Literal":{"value":0.0,"dim":"Length","unit":"m"}},{"Literal":{"value":0.0,"dim":"Length","unit":"m"}}],"radius":{"Literal":{"value":1.0,"dim":"Length","unit":"m"}}}}],"ids":[[null]]}}"#
+        r#"{"SetProgram":{"node":"0:0000000000000001","loops":[{"Circle":{"centre":[{"Quantity":{"value":0.0,"dim":"Length","unit":"m"}},{"Quantity":{"value":0.0,"dim":"Length","unit":"m"}}],"radius":{"Quantity":{"value":1.0,"dim":"Length","unit":"m"}}}}],"ids":[[null]]}}"#
     );
 
     let r = rod("set-program-old-file", &[CREASE]);
@@ -1028,6 +1053,13 @@ fn the_persisted_spelling_is_pinned_and_an_old_file_refuses_typed() {
     );
     let no_ids = format!("{header}\n{v}\n");
     unreadable(&no_ids, "ids");
+    // A step id spelled as one integer, as a file from before ids were
+    // a pair spells it.
+    let mut v: serde_json::Value = serde_json::from_str(body).expect("the body is JSON");
+    let step = &mut v["snapshot"]["nodes"][r.profile.0.to_string()]["Profile"]["ids"][0][0];
+    assert!(step.is_string(), "a step id is spelled as a string: {step}");
+    *step = serde_json::json!(5);
+    unreadable(&format!("{header}\n{v}\n"), "an id: its mint ordinal");
     // A positional locator in a name, written compact so the piece is
     // one run of bytes.
     let compact: serde_json::Value = serde_json::from_str(body).expect("the body is JSON");
@@ -1073,8 +1105,8 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
         edit(&mut v);
         format!("{header}\n{v}\n")
     };
-    let ids = |v: &mut serde_json::Value, node: RecipeNodeId, k: usize, to: u64| {
-        v["snapshot"]["nodes"][node.0.to_string()]["Profile"]["ids"][0][k] = to.into();
+    let ids = |v: &mut serde_json::Value, node: RecipeNodeId, k: usize, to: editor_core::MintId| {
+        v["snapshot"]["nodes"][node.0.to_string()]["Profile"]["ids"][0][k] = to.to_string().into();
     };
     let refused = |text: String| match load(&text, tol()) {
         Err(PersistError::Snapshot(e)) => e,
@@ -1092,8 +1124,7 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
 
     // Two profiles share an id: the later profile in id order holds
     // the repeat. That pins the load door's current walk (the node map,
-    // in id order), not a contract; `persist::check`'s
-    // `rv_the_name_pass_refuses_in_document_order` is its sibling.
+    // in id order), not a contract.
     let shared = edited(&|v| ids(v, other, 0, mine[0].0));
     assert_eq!(
         step_fault(shared, profile.max(other)),
@@ -1137,18 +1168,24 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
         }
         other => panic!("a name on a never-minted step refuses, got {other:?}"),
     }
-    // A program id the log does not hold, taken out of the log.
+    // A program id the log does not hold as a step's: its entry
+    // retagged a node's, so the log still counts up from one.
     let unlogged = edited(&|v| {
         let log = v["snapshot"]["mint"]["log"]
             .as_array_mut()
             .expect("the file carries its mint log");
-        log.retain(|entry| entry["step"].as_u64() != Some(theirs[1].0));
+        let spelled = serde_json::Value::from(theirs[1].0.to_string());
+        for entry in log.iter_mut() {
+            if entry["step"] == spelled {
+                *entry = serde_json::json!({ "node": spelled.clone() });
+            }
+        }
     });
     assert_eq!(
         step_fault(unlogged, other),
         StepIdFault::NotMinted { step: theirs[1] }
     );
-    // A log entry twice, and a log out of order: a snapshot fault the
+    // A log entry twice, out of order or missing: a snapshot fault the
     // load door names, not a vocabulary this build lacks.
     let log_of = |v: &serde_json::Value| -> Vec<serde_json::Value> {
         v["snapshot"]["mint"]["log"]
@@ -1160,19 +1197,37 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
     let set_log = |log: Vec<serde_json::Value>| {
         edited(&|v| v["snapshot"]["mint"]["log"] = log.clone().into())
     };
+    // Aimed at the first node entry and the entry after it: the
+    // variables the slots mint are logged too.
+    let nodes: Vec<usize> = (0..written.len())
+        .filter(|&i| written[i].get("node").is_some())
+        .collect();
+    let (i, j) = (nodes[0], nodes[0] + 1);
     let mut twice = written.clone();
-    twice.insert(1, written[0].clone());
+    twice.insert(i + 1, written[i].clone());
     let mut swapped = written.clone();
-    swapped.swap(0, 1);
-    let first: editor_core::Minted =
-        serde_json::from_value(written[0].clone()).expect("a log entry");
-    for (label, log) in [
-        ("an entry twice", twice),
-        ("two entries out of order", swapped),
+    swapped.swap(i, j);
+    let mut gap = written.clone();
+    gap.remove(j);
+    let entry = |at: usize| -> editor_core::Minted {
+        serde_json::from_value(written[at].clone()).expect("a log entry")
+    };
+    for (label, log, names) in [
+        ("an entry twice", twice, entry(i)),
+        ("two entries out of order", swapped, entry(j)),
+        ("an entry missing", gap, entry(j + 1)),
     ] {
         match refused(set_log(log)) {
-            editor_core::SnapshotError::MintLogOrder { entry } => {
-                assert_eq!(entry, first, "{label}");
+            refusal @ editor_core::SnapshotError::MintLogOrder { entry } => {
+                assert_eq!(entry, names, "{label}");
+                // The sentence says what the door checks: the ordinals
+                // count up from one, so a gap refuses as a repeat does.
+                let said = refusal.to_string();
+                assert!(
+                    said.contains(&format!("does not count up from one at {names}"))
+                        && said.contains("a repeat, a step down or a gap"),
+                    "{label}: {said}"
+                );
             }
             other => panic!("{label} refuses as a snapshot fault, got {other:?}"),
         }
@@ -1190,55 +1245,6 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
             assert!(detail.contains("missing field `mint`"), "{detail}");
         }
         other => panic!("a file without a mint is unreadable, got {other:?}"),
-    }
-}
-
-/// **An insert whose draw the log already holds refuses**, typed as
-/// `NodeIdCollides`, and moves nothing. An honest log cannot reach it
-/// short of a 64-bit digest collision, so the log is doctored: the id
-/// the next insert would mint is written into it under a step's tag,
-/// which the load door admits (the log keeps dropped steps' ids), and
-/// one log means the tag does not let the draw through. The refusal
-/// ends as every mint-log fault does, a damaged file or a defect.
-#[test]
-fn an_insert_whose_draw_the_log_holds_refuses_node_id_collides() {
-    let doc = ProfileDoc::empty_derived("node-id-collides", tol());
-    let (doc, plane) = insert(doc, fixture::xy_frame());
-    let next = Node::Profile(fixture::desc(plane, vec![fixture::square(0.0, 0.0, 1.0)]));
-    let (_, drawn) = insert(doc.clone(), next.clone());
-    let text = save(&doc, &[], tol()).expect("saves");
-    let (header, body) = text.split_once('\n').expect("an id line, then the body");
-    let mut body: serde_json::Value = serde_json::from_str(body).expect("the body is JSON");
-    let log = body["snapshot"]["mint"]["log"]
-        .as_array_mut()
-        .expect("the file carries its mint log");
-    let at = log
-        .iter()
-        .position(|entry| {
-            let bits = entry["node"].as_u64().or(entry["step"].as_u64());
-            bits.expect("a tagged entry") > drawn.0
-        })
-        .unwrap_or(log.len());
-    log.insert(at, serde_json::json!({ "step": drawn.0 }));
-    let doctored = load(&format!("{header}\n{body}\n"), tol())
-        .expect("a log holding a step id no program holds loads")
-        .doc;
-    match doctored.apply(
-        &DocEdit::InsertNode {
-            node: Box::new(next),
-        },
-        tol(),
-        &editor_core::RefusingReach,
-    ) {
-        Err(ref e @ EditError::NodeIdCollides { ref id }) => {
-            assert_eq!(id.id(), drawn, "the refusal names the id the insert drew");
-            let text = e.to_string();
-            assert!(
-                text.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
-                "a mint-log fault ends as a damaged file or a defect: {text}"
-            );
-        }
-        other => panic!("the draw the log holds refuses, got {other:?}"),
     }
 }
 
@@ -1285,6 +1291,7 @@ fn set_radius(
                 arg: StepArg::Radius,
             },
             expr: len(r),
+            fresh: Vec::new(),
         },
         tol(),
         &editor_core::RefusingReach,
@@ -1311,7 +1318,11 @@ fn a_slot_edit_through_a_zero_fit_keeps_a_live_name_and_reports_nothing() {
         "the held wall is the left edge at r = 2: {before:?}"
     );
     let grown = set_radius(&doc, profile, 0.3);
-    assert_eq!(grown.maintenance, vec![], "the slot edit reports nothing");
+    assert_eq!(
+        crate::fixture::without_anonymous(&grown.maintenance),
+        vec![],
+        "the slot edit reports nothing"
+    );
     assert_eq!(fixture::pieces(&grown.doc, profile).edges[0].len(), 5);
     let ev = fixture::run(&grown.doc, &EvalOptions::default());
     assert!(
@@ -1409,7 +1420,10 @@ fn a_value_edit_moves_no_name() {
     let top = wall_of(&doc, ext, 0, 2);
     let (doc, frame) = frame_on(doc, ext, top.clone());
     let applied = set_value(&doc, "hole_r", 0.4);
-    assert_eq!(applied.maintenance, Vec::new());
+    assert_eq!(
+        crate::fixture::without_anonymous(&applied.maintenance),
+        Vec::new()
+    );
     assert_eq!(frame_face(&applied.doc, frame), top);
     assert_eq!(wall_of(&applied.doc, ext, 0, 2), top);
 }
@@ -1429,7 +1443,11 @@ fn an_outer_and_hole_swap_moves_no_name() {
     let (doc, _) = frame_on(doc, ext, side.clone());
     let doc = paint(&doc, &half);
     let applied = set_value(&doc, "hole_r", 1.5);
-    assert_eq!(applied.maintenance, Vec::new(), "nothing is reported");
+    assert_eq!(
+        crate::fixture::without_anonymous(&applied.maintenance),
+        Vec::new(),
+        "nothing is reported"
+    );
     let (before, after) = (
         fixture::pieces(&doc, fixture::swept(&doc, ext)),
         fixture::pieces(&applied.doc, fixture::swept(&applied.doc, ext)),
@@ -1479,12 +1497,16 @@ fn a_sense_flip_moves_no_name() {
                 arg: StepArg::TargetY,
             },
             expr: len(-1.0),
+            fresh: Vec::new(),
         },
         tol(),
         &editor_core::RefusingReach,
     )
     .expect("the apex moves");
-    assert_eq!(applied.maintenance, Vec::new());
+    assert_eq!(
+        crate::fixture::without_anonymous(&applied.maintenance),
+        Vec::new()
+    );
     assert_eq!(
         wall_of(&applied.doc, ext, 0, 2),
         base,
@@ -1508,14 +1530,20 @@ fn a_parameter_through_a_state_that_does_not_replay_moves_no_name() {
     let half = wall_of(&doc, ext, 1, 0);
     let doc = paint(&doc, &half);
     let mid = set_value(&doc, "hole_r", 0.0);
-    assert_eq!(mid.maintenance, Vec::new());
+    assert_eq!(
+        crate::fixture::without_anonymous(&mid.maintenance),
+        Vec::new()
+    );
     let ev = fixture::run(&mid.doc, &EvalOptions::default());
     assert!(
         ev.value(ext).is_none(),
         "the parked profile does not evaluate"
     );
     let end = set_value(&mid.doc, "hole_r", 0.3);
-    assert_eq!(end.maintenance, Vec::new());
+    assert_eq!(
+        crate::fixture::without_anonymous(&end.maintenance),
+        Vec::new()
+    );
     assert!(end.doc.appearance().contains_key(&half));
     assert!(
         end.doc.bit_eq(&doc),
@@ -1563,7 +1591,10 @@ fn a_zero_fit_piece_vanishes_and_comes_back() {
     );
     let (doc, frame) = frame_on(doc, ext, run_out.clone());
     let tight = set_radius(&doc, profile, 2.0);
-    assert_eq!(tight.maintenance, Vec::new());
+    assert_eq!(
+        crate::fixture::without_anonymous(&tight.maintenance),
+        Vec::new()
+    );
     frame_refuses_vanished(&tight.doc, frame, &run_out);
     let back = set_radius(&tight.doc, profile, 0.3);
     let ev = fixture::run(&back.doc, &EvalOptions::default());
@@ -1691,7 +1722,7 @@ fn a_fillet_inserted_before_a_kept_leg_strands_the_names_on_it() {
     let applied = accepted(&doc, profile, vec![corner(true)], keep);
     let said = doc.spoken_name(&up).steps_respoken(&applied.doc);
     assert_eq!(
-        applied.maintenance,
+        crate::fixture::without_anonymous(&applied.maintenance),
         vec![
             Maintenance::Strand {
                 node: doc.spoken(frame),
@@ -1715,7 +1746,9 @@ fn a_fillet_inserted_before_a_kept_leg_strands_the_names_on_it() {
             .expect("the reshaping keeps the leg's step"),
     );
     assert_ne!(new[was], old[4], "the leg's old row is another step's now");
-    for row in &applied.maintenance {
+    // The rows that say a name: the anonymous variables the reshaping
+    // retired say none.
+    for row in &crate::fixture::without_anonymous(&applied.maintenance) {
         let row = row.to_string();
         assert!(
             row.contains(&format!("loop 0 step {is} "))
@@ -1743,7 +1776,7 @@ fn a_fillet_inserted_before_a_kept_leg_strands_the_names_on_it() {
         keep_all(&doc, profile),
     );
     assert_eq!(
-        back.maintenance,
+        crate::fixture::without_anonymous(&back.maintenance),
         Vec::new(),
         "a piece the edit draws again is not reported, and the fillet carried no name"
     );
@@ -1783,7 +1816,7 @@ fn a_reshaping_from_a_parked_program_strands_a_kept_leg_it_stops_drawing() {
 
     let replaying = accepted(&doc, profile, vec![corner(true)], keep());
     assert_eq!(
-        replaying.maintenance,
+        crate::fixture::without_anonymous(&replaying.maintenance),
         strand(&replaying.doc),
         "from the replaying state the leg's frame strands"
     );
@@ -1796,7 +1829,7 @@ fn a_reshaping_from_a_parked_program_strands_a_kept_leg_it_stops_drawing() {
     );
     let applied = accepted(&parked, profile, vec![corner(true)], keep());
     assert_eq!(
-        applied.maintenance,
+        crate::fixture::without_anonymous(&applied.maintenance),
         strand(&applied.doc),
         "from the parked state the same frame strands"
     );
@@ -1827,11 +1860,11 @@ fn a_reshapings_values_strand_what_a_slot_edit_of_them_would_not() {
     );
     let via_slot = set_radius(&doc, profile, 2.0);
     assert!(
-        via_program.doc.bit_eq(&via_slot.doc),
-        "the two edits land the same document"
+        crate::fixture::same_as_written(&via_program.doc, &via_slot.doc),
+        "the two edits land the same document, up to the variables each mints"
     );
     assert_eq!(
-        via_program.maintenance,
+        crate::fixture::without_anonymous(&via_program.maintenance),
         vec![Maintenance::Strand {
             node: doc.spoken(frame),
             name: doc.spoken_name(&run_out),
@@ -1840,7 +1873,7 @@ fn a_reshapings_values_strand_what_a_slot_edit_of_them_would_not() {
         "the reshaping strands the run its value leaves undrawn"
     );
     assert_eq!(
-        via_slot.maintenance,
+        crate::fixture::without_anonymous(&via_slot.maintenance),
         vec![],
         "the slot edit reports nothing"
     );
@@ -1851,7 +1884,7 @@ fn a_reshapings_values_strand_what_a_slot_edit_of_them_would_not() {
         keep_all(&via_program.doc, profile),
     );
     assert_eq!(
-        back.maintenance,
+        crate::fixture::without_anonymous(&back.maintenance),
         vec![],
         "redrawing the run reports nothing"
     );
@@ -1877,7 +1910,7 @@ fn a_reshapings_values_strand_what_a_slot_edit_of_them_would_not() {
         keep_all(&doc, profile),
     );
     assert_eq!(
-        fewer.maintenance,
+        crate::fixture::without_anonymous(&fewer.maintenance),
         vec![Maintenance::StrandedAppearance {
             name: doc.spoken_name(&wall_by(ext, hole, PieceRole::Piece(3))),
             took: editor_core::Took::Piece
@@ -1891,6 +1924,7 @@ fn a_reshapings_values_strand_what_a_slot_edit_of_them_would_not() {
                 node: profile,
                 slot: SlotId::Count,
                 expr: Formula::count(3),
+                fresh: Vec::new(),
             },
             tol(),
             &editor_core::RefusingReach,
@@ -2015,12 +2049,21 @@ fn report_matches_resolution(
     let applied = set_program(&doc, profile, new, ids)
         .unwrap_or_else(|e| panic!("{label}: the reshaping is accepted: {e:?}"));
     let after = resolves(&applied.doc);
+    // Beside its strands, a reshaping retires the anonymous variables
+    // the arguments it rewrote were written in, which names nothing.
     let reported: std::collections::BTreeSet<StableName> = applied
         .maintenance
         .iter()
-        .map(|m| match m {
+        .filter_map(|m| match m {
             Maintenance::Strand { name, .. } | Maintenance::StrandedAppearance { name, .. } => {
-                name.name().clone()
+                Some(name.name().clone())
+            }
+            Maintenance::AnonymousVarRemoved { var, .. } => {
+                assert!(
+                    var.name().is_none(),
+                    "{label}: an anonymous variable: {var:?}"
+                );
+                None
             }
             other => panic!("{label}: a reshaping reports only strands, got {other:?}"),
         })
@@ -2264,7 +2307,10 @@ fn both_sweeps_of_a_profile_name_by_its_pieces() {
         fname(b, RoleSeg::Lateral(piece.into()))
     );
     let applied = set_value(&doc, "p", 0.75);
-    assert_eq!(applied.maintenance, Vec::new());
+    assert_eq!(
+        crate::fixture::without_anonymous(&applied.maintenance),
+        Vec::new()
+    );
     for ext in [a, b] {
         let side = corners_of(
             &applied.doc,
@@ -2398,7 +2444,11 @@ fn a_loft_wall_whose_pairing_changes_vanishes() {
     let mut ids1 = keep_all(&doc, sec1);
     ids1[0].insert(3, None);
     let applied = accepted(&doc, sec1, vec![leg_at(1.5, 3, (1.5, 4.0))], ids1);
-    assert_eq!(applied.maintenance, Vec::new(), "no step was dropped");
+    assert_eq!(
+        crate::fixture::without_anonymous(&applied.maintenance),
+        Vec::new(),
+        "no step was dropped"
+    );
     let ev = fixture::run(&applied.doc, &EvalOptions::default());
     assert!(ev.value(loft).is_some(), "{:?}", corpus::failures(&ev));
     assert!(
@@ -2487,7 +2537,11 @@ fn a_later_sections_reshaping_moves_a_loft_name_only_where_it_drops_a_step() {
 
     // Every step kept, every point moved: no name moves.
     let kept = accepted(&doc, sec1, vec![square_of(1.25)], keep_all(&doc, sec1));
-    assert_eq!(kept.maintenance, Vec::new(), "no step was dropped");
+    assert_eq!(
+        crate::fixture::without_anonymous(&kept.maintenance),
+        Vec::new(),
+        "no step was dropped"
+    );
     let is_live = live(&kept.doc);
     for n in names.iter().flatten() {
         assert!(is_live(n), "{n:?} still denotes its entity");
@@ -2508,7 +2562,8 @@ fn a_later_sections_reshaping_moves_a_loft_name_only_where_it_drops_a_step() {
     let is_live = live(&applied.doc);
     for (k, group) in names.iter().enumerate() {
         for n in group {
-            let reported = applied.maintenance.contains(&report(n, &applied.doc));
+            let reported = crate::fixture::without_anonymous(&applied.maintenance)
+                .contains(&report(n, &applied.doc));
             assert_eq!(
                 reported,
                 k == 1,
@@ -2521,5 +2576,10 @@ fn a_later_sections_reshaping_moves_a_loft_name_only_where_it_drops_a_step() {
             );
         }
     }
-    assert_eq!(applied.maintenance.len(), 3, "{:?}", applied.maintenance);
+    assert_eq!(
+        crate::fixture::without_anonymous(&applied.maintenance).len(),
+        3,
+        "{:?}",
+        crate::fixture::without_anonymous(&applied.maintenance)
+    );
 }

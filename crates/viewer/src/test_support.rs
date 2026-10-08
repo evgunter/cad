@@ -139,6 +139,7 @@ pub fn try_inserted(
         doc,
         DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         tol,
     )?;
@@ -195,7 +196,7 @@ pub fn square(plane: RecipeNodeId, side: f64) -> AuthoredNode {
 
 // --- documents built from the doors above ---------------------------
 
-/// **A document holding one declared parameter and nothing else** —
+/// **A document holding one declared variable and nothing else** —
 /// the fixture both panel suites build their parameter rows on.
 ///
 /// `label` is the document's derived name, so two fixtures in one

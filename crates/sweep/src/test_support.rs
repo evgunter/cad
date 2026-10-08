@@ -132,6 +132,7 @@ use topo::{Body, BooleanDeclarations, EdgeKey, FaceKey, LoopBoundary};
 use crate::blend::BlendKind;
 use crate::blend::battery::{BlendRequest, Chain, Link, resolve_link, run_battery, walk_chains};
 use crate::blend::build::Blended;
+pub use crate::blend::reach::band_reach_for_tests as band_reach;
 pub use crate::blend::surgery::ring_clearance_for_tests as ring_clearance;
 use crate::skin::{Section, segment_curve};
 use crate::{Extrusion, Lofted, SketchSegment, extrude, sweep_body};
@@ -232,6 +233,22 @@ pub fn assert_legal_operand(what: &str, body: &Body<f64>, tol: Tol) {
 }
 
 pub use topo::test_support::finished;
+
+/// `body`, cloned and finished ([`finished`]): the operand of ONE blend
+/// door call on a fixture held by reference. Each call clones and pays
+/// tier 3, so a body handed to several doors is finished once with
+/// [`finished`] and that operand reused.
+///
+/// # Panics
+///
+/// As [`finished`], where the gate refuses the body, naming the
+/// caller's line.
+#[must_use]
+#[track_caller]
+pub fn at_rest<T: topo::AtRestPolicy>(body: &Body<T>, tol: Tol) -> topo::AtRestBody<T> {
+    let caller = core::panic::Location::caller();
+    finished(&format!("the blend operand at {caller}"), body.clone(), tol)
+}
 
 /// The square of side `l` with a corner at the origin, counter-clockwise
 /// from that corner, as profile vertices — the one spelling of the block
@@ -1104,6 +1121,7 @@ pub fn assert_naming_totality<T: Real>(
         .chain(rec.slits.iter().map(|(e, _, _)| *e))
         .chain(rec.trims.iter().map(|(e, _, _)| *e))
         .chain(rec.arcs.iter().map(|(e, _, _)| *e))
+        .chain(rec.mitres.iter().map(|(e, _)| *e))
         .collect();
     let mut minted_vertices: Vec<topo::VertexKey> = rec
         .rim_feet
@@ -1111,6 +1129,7 @@ pub fn assert_naming_totality<T: Real>(
         .map(|(v, _)| *v)
         .chain(rec.meridian_splits.iter().map(|(v, _, _)| *v))
         .chain(rec.feet.iter().map(|(v, _, _)| *v))
+        .chain(rec.turn_feet.iter().map(|(v, _)| *v))
         .collect();
     // (e) recorded once each.
     fn once<K: Ord + Copy>(v: &mut Vec<K>, what: &str, kind: &str) {

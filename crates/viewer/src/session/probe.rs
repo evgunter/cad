@@ -53,7 +53,7 @@ pub struct BoundsReading {
 impl BoundsReading {
     /// The reading as one line, in the unit the search used — the one
     /// place a probe's result becomes a sentence, for a slot field and
-    /// a document parameter's alike.
+    /// a document variable's alike.
     pub fn wording(&self) -> String {
         self.bounds.wording(self.unit)
     }
@@ -62,8 +62,8 @@ impl BoundsReading {
 /// The field a locally-valid-range probe was taken for.
 ///
 /// Two arms rather than one with an `Option`, for the reason
-/// `BeginGesture` and `BeginParamGesture` are two doors: a slot and a
-/// document parameter are addressed differently, and collapsing them
+/// `BeginGesture` and `BeginVariableGesture` are two doors: a slot and a
+/// document variable are addressed differently, and collapsing them
 /// puts an `Option` in every arm that reads one.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BoundsTarget {
@@ -74,9 +74,9 @@ pub enum BoundsTarget {
         /// The slot.
         slot: SlotId,
     },
-    /// A document parameter.
-    Param {
-        /// The parameter.
+    /// A document variable.
+    Variable {
+        /// The variable.
         var: VarId,
     },
 }
@@ -142,7 +142,7 @@ pub(super) fn probe_bounds(
 
 /// One written `unit`, in canonical terms — the probe's step, and
 /// the one place that arithmetic is spelled, so a slot's seed and a
-/// parameter's seed are the same answer to the same question.
+/// variable's seed are the same answer to the same question.
 /// `None` is the field that names no unit at all (a count, a bare
 /// scalar), whose step is 1.
 fn probe_seed(unit: Option<UnitDef>) -> f64 {
@@ -198,19 +198,22 @@ fn probe_scale(
             // A count remembers none and steps by 1.
             Ok((value.as_f64(), unit, dimension == Dimension::Count))
         }
-        BoundsTarget::Param { var } => {
-            let Some(param) = doc.free(*var) else {
-                return Err(Refusal::NoSuchParam(*var));
+        BoundsTarget::Variable { var } => {
+            let Some(held) = doc.var(*var) else {
+                return Err(Refusal::NoSuchVariable(*var));
+            };
+            let Some(free) = held.free() else {
+                return Err(Refusal::VariableIsDefined(doc.spoken_var(*var)));
             };
             // Same rule as a slot's: one of whatever unit the
-            // field is WRITTEN in. A continuous parameter names the
+            // field is WRITTEN in. A continuous variable names the
             // notation it was authored in
             // (`FreeVar::Continuous::display_unit`, which rides
             // with the declaration and no value edit disturbs), so
-            // a millimetre parameter is searched in millimetres. A
+            // a millimetre variable is searched in millimetres. A
             // `Count` is a number rather than a quantity, has no
             // unit to name, and steps by 1.
-            let (value, unit) = match param {
+            let (value, unit) = match free {
                 FreeVar::Continuous {
                     value,
                     display_unit,
@@ -218,7 +221,7 @@ fn probe_scale(
                 } => (*value, Some(display_unit.def())),
                 FreeVar::Count { value } => (*value as f64, None),
             };
-            Ok((value, unit, param.dim() == Dimension::Count))
+            Ok((value, unit, free.dim() == Dimension::Count))
         }
     }
 }
@@ -232,6 +235,7 @@ fn probe_edit(
 ) -> Option<DocEdit<ProfileProgram>> {
     match target {
         BoundsTarget::Slot { node, slot } => props::slot_edit(
+            doc,
             *node,
             *slot,
             // A sample the slot's dimension cannot carry is a sample
@@ -241,14 +245,14 @@ fn probe_edit(
             props::slot_unit(doc, *node, *slot),
         )
         .ok(),
-        BoundsTarget::Param { var } => {
+        BoundsTarget::Variable { var } => {
             // The dimension is read off the DECLARATION only to
             // decide which `SlotValue` arm the sample becomes; the
             // edit itself carries a value and nothing else, so a
-            // probe cannot disturb the parameter's declaration
-            // (`props::param_edit`'s door).
-            let dimension = doc.free(*var)?.dim();
-            Some(props::param_edit(
+            // probe cannot disturb the variable's declaration
+            // (`props::variable_edit`'s door).
+            let dimension = doc.var(*var)?.kind().dimension()?;
+            Some(props::variable_edit(
                 *var,
                 SlotValue::of(dimension, value).ok()?,
             ))

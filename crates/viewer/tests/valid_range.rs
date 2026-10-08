@@ -245,8 +245,8 @@ fn the_search_terminates_within_its_advertised_cost() {
 /// existing failure is not a boundary.
 #[test]
 fn a_value_that_fixes_a_failure_is_not_a_boundary() {
-    let a = pncad::document::RecipeNodeId(1);
-    let b = pncad::document::RecipeNodeId(2);
+    let a = pncad::document::RecipeNodeId::new(0, 1);
+    let b = pncad::document::RecipeNodeId::new(0, 2);
     let baseline = Verdict::from_nodes([a]);
     assert!(Verdict::from_nodes([a]).no_worse_than(&baseline));
     assert!(
@@ -397,17 +397,17 @@ fn probing_a_field_that_is_not_there_refuses_typed() {
     assert!(session.bounds().is_none());
 
     let outcome = session.perform(SessionOp::ProbeBounds {
-        target: BoundsTarget::Param {
-            var: pncad::document::VarId(0x6e6f_7065),
+        target: BoundsTarget::Variable {
+            var: pncad::document::VarId::new(0, 0x6e6f_7065),
         },
     });
-    assert!(matches!(outcome.refusal, Some(Refusal::NoSuchParam(_))));
+    assert!(matches!(outcome.refusal, Some(Refusal::NoSuchVariable(_))));
 }
 
 /// **A driven slot is refused, with the affordance.** The probe's
 /// answer would be a range of numbers for a field that takes no
 /// number, so the door refuses it exactly as the numeric write and the
-/// drag do — and the payload names the parameter to probe instead.
+/// drag do — and the payload names the variable to probe instead.
 #[test]
 fn probing_an_expression_driven_slot_refuses_with_the_affordance() {
     let tol = Tol::witness();
@@ -424,14 +424,14 @@ fn probing_an_expression_driven_slot_refuses_with_the_affordance() {
         Some(Refusal::DrivenByExpression {
             node,
             slot,
-            ref params,
+            ref variables,
             current,
             ..
         }) => {
             assert_eq!(node, extrude);
             assert_eq!(slot, SlotId::Distance);
             assert_eq!(
-                params,
+                variables,
                 &vec![
                     session
                         .committed_doc()
@@ -453,18 +453,18 @@ fn probing_an_expression_driven_slot_refuses_with_the_affordance() {
     );
     assert!(outcome.committed.is_empty(), "a refusal commits nothing");
 
-    // The parameter DRIVING it has no driver of its own and is probed
+    // The variable DRIVING it has no driver of its own and is probed
     // freely — which is what the refusal above sends a user to.
     let outcome = session.perform(SessionOp::ProbeBounds {
-        target: BoundsTarget::Param {
+        target: BoundsTarget::Variable {
             var: common::thickness_var(session.committed_doc()),
         },
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert!(session.bounds().is_some(), "the parameter door answers");
+    assert!(session.bounds().is_some(), "the variable door answers");
 }
 
-/// **A parameter is searched at the scale it was written in.** A
+/// **A variable is searched at the scale it was written in.** A
 /// millimetre-authored length seeds at one millimetre, not at one
 /// canonical metre, so the search spends its budget on the decades the
 /// part lives in.
@@ -491,7 +491,7 @@ fn a_millimetre_parameter_is_probed_at_millimetre_scale() {
     let mut session = DocSession::inline(doc, tol);
     session.pump();
     let outcome = session.perform(SessionOp::ProbeBounds {
-        target: BoundsTarget::Param {
+        target: BoundsTarget::Variable {
             var: common::thickness_var(session.committed_doc()),
         },
     });
@@ -550,7 +550,7 @@ fn a_millimetre_parameter_is_probed_at_millimetre_scale() {
     );
 }
 
-/// One millimetre-authored `thickness` parameter, 8 mm, driving the
+/// One millimetre-authored `thickness` variable, 8 mm, driving the
 /// depth of a 40 mm square's extrude.
 fn thickness_document(tol: Tol) -> Doc<ProfileProgram> {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("valid-range-mm", tol);

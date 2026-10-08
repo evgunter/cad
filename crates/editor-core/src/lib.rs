@@ -62,6 +62,7 @@ pub mod program;
 /// a [`mod@drive`]'s leaves, and a query that fell back to `f64` would
 /// be the sampler it exists to improve on.
 pub mod range;
+mod ratio;
 pub mod refactor;
 pub mod refusal;
 /// The E10/E11.6 reporting layer: the goldening and human forms every
@@ -96,7 +97,7 @@ pub mod witness;
 pub use analysis::{
     AnalysisPolicy, AnalysisPolicyError, AnalyzedBox, AnalyzedParam, AxisScalar, BoxAxis,
     DEFAULT_QUANTILE_MASS, MeasureUnavailable, OffsetInterval, ParamBox, ParamBoxError, SeedError,
-    SeedScalar, analyzed_box, box_mass, sample_offset, seed_env, std_deviation, tail_mass,
+    SeedScalar, analyzed_box, box_mass, is_axis, sample_offset, seed_env, std_deviation, tail_mass,
     var_env_over,
 };
 pub use appearance::{
@@ -148,19 +149,20 @@ pub use spoken::{
 pub use eval::entity_door::Found;
 pub use expr::{
     AuthoredLeaf, Dimension, DimensionError, EvalError, Expr, ExprPath, ExprTree, LeafSet,
-    ParamValue, Slot, StoredLeaf, UnitSym, Unlowered, VarEnv, eval, eval_count, unparse,
+    ParamValue, Quantity, Ratio, Slot, StoredLeaf, UnitSym, Unlowered, VarEnv, eval, eval_count,
+    eval_var, eval_var_count, unparse,
 };
-pub use formula::{Formula, NameFault};
+pub use formula::{Formula, FreshFault, LowerFault, NameFault};
 pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use label::{Label, LabelFault};
 pub use mate::{
     Alignment, AxisSense, CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, Clash, ClassAdmission, Coset,
     FacePoseRefusal, FaceRefusal, FrameBase, Lever, LeverRefusal, MateFault, MateFrame,
     MatePrimitive, MateReach, MateRole, MateSide, Member, NO_AT_REST_RECORD_RECOURSE,
-    OFFSET_RECOURSE, OffsetCheck, PlacerRow, Placing, PoseRefusal, ReachRefusal, RefusingReach,
-    SolvedPoses, Space, Subgroup, UNDER_RECOURSE, UNPLACED_RECOURSE, Unplaced, class_admission,
-    gauge_chain, groups, head_face, member_of, member_reading, places, reading_edges,
-    relative_freedom_components, root_of, solve_document, table_gap,
+    OFFSET_RECOURSE, OffsetCheck, PlacerRow, Placing, PoseRefusal, PoseSymmetry, ReachRefusal,
+    RefusingReach, SolvedPoses, Space, Subgroup, SubgroupFamily, UNDER_RECOURSE, UNPLACED_RECOURSE,
+    Unplaced, class_admission, gauge_chain, groups, head_face, member_of, member_reading, places,
+    reading_edges, relative_freedom_components, root_of, solve_document, table_gap,
 };
 pub use mc::{
     DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport,
@@ -172,8 +174,7 @@ pub use measure::{
     WINDOW_TIGHTENING,
 };
 pub use meta::{MetaError, MetaInt, MetaValue, MetaVersionError, from_value, to_value};
-pub(crate) use mint::NodeIdCollides;
-pub use mint::{Mint, Minted};
+pub use mint::{Mint, MintId, Minted};
 pub use names::{
     BooleanCoincidence, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal,
     ContactVerdict, CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation,
@@ -190,9 +191,9 @@ pub use names::{
 };
 pub use node::{
     AuthoredNode, Axis3, BooleanOp, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault,
-    InterfaceCrossing, InterfaceRecord, ListFault, MeasureNodeFault, Node, PartSelect, PatternKind,
-    PlacementRuleFault, RecipeNodeId, RigidArg, SitedFace, SitedRef, SlotId, StepArg, StepId,
-    TubeWindow, VectorSlot, declare_continuation, declare_rest,
+    InterfaceCrossing, InterfaceRecord, ListFault, MeasureNodeFault, Node, OutputPort, PartSelect,
+    PatternKind, PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SitedFace, SitedRef, SlotId,
+    StepArg, StepId, TubeWindow, VectorSlot, declare_continuation, declare_rest,
 };
 pub use parse::{ParseError, VarNameFault, VarNameReason, parse_formula};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
@@ -200,7 +201,7 @@ pub use persist::{
     Loaded, PersistError, REGENERATE_RECOURSE, canonical_bytes, content_pin, header_document_id,
     load, save,
 };
-pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
+pub use persist::{NonFiniteSite, OutputFault, ProgramFault, SnapshotError};
 pub use placement::{AxisRefusal, Frame, FrameFault, FrameSite, Placement, Step};
 #[cfg(debug_assertions)]
 pub use product::gathers_on_this_thread;
@@ -211,14 +212,14 @@ pub use product::{
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,
     ProgramStep, ProgramTarget, RecordedNotation, RecordedProgramError, SlotPayload, StepIdFault,
-    StepSegmentsError, resolve_loops,
+    StepSegmentsError, WrittenLoopFault, resolve_loops, resolve_written_loops,
 };
 pub use range::{
     CertifiedRange, DerivedRange, RangeField, RangeRefusal, RangeSeed, RangeSide, certified_range,
 };
 pub use refactor::{
-    InlineError, InlineOutcome, NodeMap, SplitError, SplitOutcome, StepMap, Unmapped, inline,
-    remap_name, split,
+    InlineError, InlineOutcome, NodeMap, SplitError, SplitOutcome, StepMap, Uncarried, Unmapped,
+    inline, remap_name, split,
 };
 pub use report::{
     HistogramRow, LeafHistogram, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,
@@ -239,7 +240,7 @@ pub use resolve::{
 pub use step_handle::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
 };
-pub use var::{Var, VarDecl, VarDef, VarId, VarKind, VarRef};
+pub use var::{Var, VarDecl, VarDef, VarId, VarKind, VarRef, WrittenDef};
 // GUI-1: the hit-test service (G1 `ray → stable ref`), with the ray
 // vocabulary re-exported from `bvh` so a layer-3 consumer needs no
 // direct bvh dependency.

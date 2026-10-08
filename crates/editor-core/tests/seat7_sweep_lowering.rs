@@ -307,14 +307,31 @@ fn both_sweeps_evaluate_in_one_document() {
 /// edge-edge kinds: the digest feeds the records' `Debug`, which now
 /// prints empty `ve` and `ee` lists; with those fields stripped every
 /// constant here held.
+///
+/// RE-BLESSED for INTENT-LITERALS PR C (a slot holds a variable): every
+/// node is minted from slots holding variable ids, so every id moved
+/// and this digest feeds ids. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held untouched.
+///
+/// RE-BLESSED, `cut_cylinder` and `boss_union` only, when a chart
+/// image's flag became `wrap` (the wrap edge, D1): the digest feeds each
+/// curve's `Debug`, whose field name moved; with `wrap: ` read back as
+/// `seam: ` the feed reproduces every old constant, so no evaluation
+/// moved.
+///
+/// RE-BLESSED for INTENT-LITERALS PR D (`Expr` holds no float):
+/// `kitchen_sink` alone, whose formulas hold written quantities that
+/// now mint variables of their own, so its ids moved. No outcome or
+/// point moved (the id-free fence held).
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0xfa04_f1a7_d1c4_847d),
-        ("corner_table", 0x9eac_7a27_8532_4700),
-        ("cut_cylinder", 0xbad2_4a97_64d1_ce35),
-        ("boss_union", 0x5e2d_5400_8255_ea04),
-        ("kitchen_sink", 0x0de0_b3b7_9cde_affd),
+        ("die", 0x75fa_b29e_bd61_ff55),
+        ("corner_table", 0x2051_6917_f360_a869),
+        ("cut_cylinder", 0x1dcb_d2be_97b6_5546),
+        ("boss_union", 0x829f_3b09_3668_192e),
+        ("kitchen_sink", 0x4baa_5973_ef17_d5a2),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
@@ -920,6 +937,7 @@ fn the_memo_never_serves_a_stale_sweep_token() {
                 arg: StepArg::Radius,
             },
             expr: len(R),
+            fresh: Vec::new(),
         },
     );
     let ev2 = memo_eval(&doc, Some(&ev1));
@@ -941,6 +959,7 @@ fn the_memo_never_serves_a_stale_sweep_token() {
         DocEdit::DefineVar {
             var: VarName::from_static("r").into(),
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 2.0 * R)),
+            fresh: Vec::new(),
         },
     );
     let ev3 = memo_eval(&doc, Some(&ev2));
@@ -1104,6 +1123,7 @@ fn a_chain_arcs_radius_reaches_its_wall_and_its_spelling_moves_the_key() {
                 arg: StepArg::CarrierRadius,
             },
             expr: len(R),
+            fresh: Vec::new(),
         },
     );
     let ev2 = memo_eval(&doc, Some(&ev1));

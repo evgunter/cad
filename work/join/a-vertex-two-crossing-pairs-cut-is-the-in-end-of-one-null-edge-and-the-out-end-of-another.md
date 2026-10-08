@@ -2,12 +2,13 @@
 id: a-vertex-two-crossing-pairs-cut-is-the-in-end-of-one-null-edge-and-the-out-end-of-another
 kind: issue
 title: A vertex two crossing pairs cut refuses ClassificationInvariant: the In end of one null edge and the Out end of another
-status: open
+status: closed
 opened: 2026-10-05
 priority: P1
 cost: M
-design: true
-blocked_on: [a-pinch-no-kept-face-can-cross-refuses]
+branch: join/pinch-cones-split-at-insertion
+pr: 4249
+closed: 2026-10-07
 ---
 
 
@@ -104,3 +105,110 @@ a shared point is the In end of one null edge and the Out end of
 another". Option 2 for this row would split the shared vertex per cone
 at insertion, where the two plans meet. That is not what the unit built,
 so the row stays open on its own question.
+
+## 2026-10-07 — the ruling settles the fork
+
+Ev's ruling on PR 4057 (one vertex per cone) is option 2 of PR 4059's
+question, so the design question is closed: split the shared vertex per
+cone at insertion, where the two plans meet. Flip
+`a_nested_pairing_at_a_shared_vertex_refuses_typed` when the 217 build.
+
+## Built (branch `join/pinch-cones-split-at-insertion`)
+
+**Where the two plans met.** Traced at `i=0 j=2 k=2 ab U`. The
+notch's corner `v` holds two plans:
+- plan 0 has four survivors and Out runs `1→3` and `3→0`;
+- plan 1 has two survivors and one strut at entry 2.
+
+`reconcile_pass` turns `1→3`, which holds the strut, onto its
+complement `3→1`. That complement holds plan 0's own run `3→0` whole,
+but `3→0` still minted at `v`. So `v` was the Out end of plan 1's strut
+and the In end of `3→0`.
+
+**The vertex per cone.** `insert::hang_in_turned` runs once the
+reconcile settles. At each shared vertex, a run that a turned run of its
+own plan holds whole is marked `Held` by that fan. `mint_plans` then
+mints it after the fan, at the fan's copy: the existing machinery for B's
+nested pairings, now reached by A's runs too. As a result:
+- the shared vertex keeps what lies outside the turned run, with the
+  other plans' ends;
+- the turned run's copy is the vertex its own plan's other runs hang on.
+
+No vertex then takes ends from both sides. `zip::split_cones` leaves
+one vertex per result cone, as before. Refusals, typed
+`SharedVertexCrossings`:
+- two turned runs of one plan;
+- a run whose cuts a sibling holds only one of;
+- a holder that is itself held.
+
+No battery line reaches any of them.
+
+**Why this route.** It reuses the turn the reconcile already makes,
+and it changes nothing at any vertex where no turned run holds another
+of its plan. The other route nests the held plan's strut under the
+four-survivor plan's unturned run, across plans. By its construction it
+should give the same tree of vertices and null edges at `v`, with `v`'s
+key on a different node, but that is unmeasured.
+
+## Measured (release, PR 4207's head `fb8c7cbb` vs this branch)
+
+- `pinch_runs_battery`: the 217 lines (`ab U` 76, `ab S` 76, `ba U`
+  23, `ba I` 19, `ba S` 23) go `ClassificationInvariant` → `SOUND`.
+  - Each one's volume equals the oracle's at the printed 9 decimals, and
+    tier 2, tier 3′, the certificate and the operand check all pass.
+  - Each one holds one vertex per cone at `v` on one point key (175 with
+    two vertices there, 42 with one), and tessellates at δ = 0.05 and
+    passes `check_mesh` (`pierce_point_finding`).
+  - The other 2 807 lines are byte-identical.
+- Byte-identical: `pierce_runs_battery` (4 536), `corner_pairs_battery`
+  (16 380), `join1_r1_reflex_battery` and `j3r2_r1_reflex_battery`
+  (1 152 each), and `rc_wide_battery` ×84 shards (40 320).
+- SOUND → refusal 0, refusal → BAD 0.
+- `a_nested_pairing_at_a_shared_vertex_refuses_typed`: `ab U` and `ab S`
+  flip to `SOUND`. The `ba` runs still refuse `SharedVertexCrossings`,
+  filed as `a-nested-pairing-at-a-shared-vertex-refuses-shared-vertex-crossings`.
+
+## Fix pass (PR 4249's dual review)
+
+**Three pairs at one vertex refuse typed.** Both reviews found unions
+of `notch343` against three cubes touching at its corner going
+refusal → `OK BAD`: the cones on two point keys, and tier 3′
+`CensusUndecidable`. That is the parked class
+`a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys`.
+- The insertion now returns each hang. `zip::refuse_split_hung_points`,
+  run after `share_points`, refuses `PinchConesOnSeparateKeys` where a
+  hung point's live vertices sit on several keys.
+- The point is read structurally: the vertex-vertex contacts' component
+  through the hung vertex gives the keys (in result keys through
+  `GraftMap::points`), and the seams' point classes extend them. No
+  position is read.
+- The moved lines and base's 18 lines of the same signature are in that
+  row's `## Measured`.
+
+**Re-measured** (release, main `875e049a` vs the fix head, the
+reviews' probes ported). Moves from base, none to `BAD`:
+
+| probe | refusal → SOUND | refusal → refusal | → BAD |
+|---|---|---|---|
+| `pinch_runs_battery` | 217 | 0 | 0 |
+| r1 three cubes | 101 | 33 (`PinchConesOnSeparateKeys`) | 0 |
+| r2 tripod | 321 | 55 (`PinchConesOnSeparateKeys`) | 0 |
+| four pairs (second review's count) | 353 | 167 (`PinchConesOnSeparateKeys`) | 0 |
+| r1 wedge pinches | 261 | 0 | 0 |
+| r2 skew | 386 | 0 | 0 |
+| r2 fine (72 spins) | 2 586 | 0 | 0 |
+| r1 near-tangent (19 poses × 27 nudges) | 1 377 | 0 | 0 |
+| r1 curved notch | 4 | 4 (`JoinDesync`) | 98 |
+
+- **Every body moved to `SOUND`** holds one vertex per cone on one key
+  and meshes.
+- **The 98 curved lines** fail only the census (`CensusUndecidable`),
+  the reuse union (`VolumeUncertified`) or the mesher (`Triangulation`,
+  2). Their volume matches the oracle (4 lines off by 1.98e-7, the
+  oracle's: `ab I` at that pose is off by as much on main), t2 and the
+  certificate pass, and they have
+  one key. That is main's own population of 873 curved `BAD` lines;
+  none is a definite tier-3′ failure. Filed as
+  `a-curved-face-at-a-shared-pinch-vertex-builds-bodies-the-census-and-the-reuse-check-refuse`.
+- **Byte-identical:** r1's two pinches and r2's `both`; `pierce_runs`,
+  `corner_pairs`, both reflex batteries and `rc_wide` ×84.

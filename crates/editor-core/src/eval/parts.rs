@@ -725,7 +725,7 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
         // to it, read off the evaluation rather than the product so a
         // group below an instance no root gathers is named too.
         let unplaced = evaluation
-            .unplaced_groups(doc)
+            .unplaced_groups()
             .into_iter()
             .map(|(group, cause)| {
                 PartRow::own(
@@ -865,7 +865,7 @@ impl<T: Decide> Entered<T> {
                 message: e.message,
             })?;
         let refs = if super::recorded_at_process_eps(&doc, tol) {
-            doc.order()
+            doc.ids()
                 .iter()
                 .filter_map(|&id| instantiated(&doc, id))
                 .collect()

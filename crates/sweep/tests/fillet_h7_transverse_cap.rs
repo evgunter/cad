@@ -88,8 +88,13 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
     let (v0, e0, f0) = census(source);
     let vol0 = volume(source);
 
-    let out = fillet_edges(source, &creases, R, tol())
-        .unwrap_or_else(|e| panic!("{what}: both creases carve, got {e}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(source, tol()),
+        &creases,
+        R,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("{what}: both creases carve, got {e}"));
     assert_eq!(out.blend_faces.len(), 2, "{what}: one band per crease");
     assert!(
         out.corner_faces.is_empty() && out.band_faces.is_empty(),
@@ -306,8 +311,8 @@ fn the_rod_with_a_flat_fillets_both_creases_at_the_prism_closed_form() {
     let source = rod_with_flat(tol());
     assert_eq!(
         census(&source),
-        (6, 8, 4),
-        "the boolean's rod: seam-split cap arcs"
+        (4, 6, 4),
+        "the boolean's rod: each cap one arc and one chord"
     );
     let bracket = Bracket::open();
     let _ = carve_and_check(&source, "rod ∖ box");
@@ -327,12 +332,12 @@ fn the_rod_with_a_flat_fillets_both_creases_at_the_prism_closed_form() {
 /// crease survives untouched.
 #[test]
 fn one_crease_alone_carves_at_half_the_prism() {
-    let source = rod_with_flat(tol());
+    let source = sweep::test_support::finished("source", rod_with_flat(tol()), tol());
     let creases = rod_creases(&source);
     let vol0 = volume(&source);
     for &e in &creases {
         let out = fillet_edges(&source, &[e], R, tol()).expect("one crease carves");
-        assert_eq!(census(&out.body), (8, 11, 5));
+        assert_eq!(census(&out.body), (6, 9, 5));
         validate_geometric(&out.body, tol()).expect("tier 3");
         let cut = rod_section_cut(ROD_R, ROD_FLAT, R) * ROD_L;
         assert!(
@@ -452,8 +457,13 @@ fn an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse() {
             (vec![creases[1]], two),
             (creases.clone(), one + two),
         ] {
-            let out = fillet_edges(below, &request, R, tol())
-                .unwrap_or_else(|e| panic!("{what}: the oblique cap cuts off, got {e}"));
+            let out = fillet_edges(
+                &sweep::test_support::at_rest(below, tol()),
+                &request,
+                R,
+                tol(),
+            )
+            .unwrap_or_else(|e| panic!("{what}: the oblique cap cuts off, got {e}"));
             validate_geometric(&out.body, tol())
                 .unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
             assert_naming_totality(below, &out, &request, &what);
@@ -702,7 +712,8 @@ fn the_parallel_cylinder_union_still_refuses_and_a_box_edge_is_cut_off() {
 
     let body = cube(1.0, tol());
     let e = query::all_edges(&body)[0];
-    fillet_edges(&body, &[e], R, tol()).expect("one box edge is cut off at its end faces");
+    fillet_edges(&sweep::test_support::at_rest(&body, tol()), &[e], R, tol())
+        .expect("one box edge is cut off at its end faces");
 }
 
 /// **The lever `corner_at` hands `fillet3_cap_transverse` is the link's
@@ -747,7 +758,12 @@ fn the_cap_lever_is_the_links_extent() {
         let creases = rod_creases(below);
         assert_eq!(creases.len(), 2, "L = {len}: two creases");
         for e in creases {
-            match fillet_edges(below, &[e], ROD_FILLET, tol()) {
+            match fillet_edges(
+                &sweep::test_support::at_rest(below, tol()),
+                &[e],
+                ROD_FILLET,
+                tol(),
+            ) {
                 Ok(out) if axes_apart > door.escalate() => {
                     validate_geometric(&out.body, tol()).expect("tier 3");
                 }
@@ -803,14 +819,18 @@ fn the_cap_lever_is_the_links_extent() {
 /// upper end.
 #[test]
 fn a_curved_end_face_refuses_typed_before_metering() {
-    let body = revolved_about_y(
-        vec![
-            (Point2::new(0.5, 0.0), 0.0),
-            (Point2::new(1.0, 0.0), 0.0),
-            (Point2::new(1.0, 1.0), 0.3),
-            (Point2::new(0.5, 1.0), 0.0),
-        ],
-        sweep::Revolution::Partial(core::f64::consts::FRAC_PI_2),
+    let body = sweep::test_support::finished(
+        "body",
+        revolved_about_y(
+            vec![
+                (Point2::new(0.5, 0.0), 0.0),
+                (Point2::new(1.0, 0.0), 0.0),
+                (Point2::new(1.0, 1.0), 0.3),
+                (Point2::new(0.5, 1.0), 0.0),
+            ],
+            sweep::Revolution::Partial(core::f64::consts::FRAC_PI_2),
+            tol(),
+        ),
         tol(),
     );
     validate_geometric(&body, tol()).expect("the wedge is tier-3 valid");

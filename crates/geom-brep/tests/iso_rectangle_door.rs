@@ -318,40 +318,49 @@ fn a_meridian_in_pieces_folds_by_lineage_into_the_edge_it_came_from() {
 
 /// **Identity is the whole test: pieces from distinct edges never
 /// fold, however their stored circles compare.** Bit-identical arcs
-/// stamped with two identities, or with none, stay two meridians —
-/// the anchor then reads one piece's span, the far rim is not at an
-/// extreme, and every consumer refuses `props_rim_level` as it does
-/// on any non-rectangle. So does a genuine corner: two arcs on
-/// different minor circles from two edges. Reds under a fold that
-/// keys on anything but the lineage. The stamp itself is the body's
-/// record and is trusted as such — a loop that stamps two circles
-/// with one identity lies the way lying tags lie, and its author owns
-/// that (the `LoopEdge` contract).
+/// stamped with two identities, or with none, stay two meridians at the
+/// shape door — the anchor then reads one piece's span, the far rim is
+/// not at an extreme, and the door refuses `props_rim_level` as it
+/// does on any non-rectangle. Reds under a fold that keys on anything
+/// but the lineage. The stamp itself is the body's record and is
+/// trusted as such — a loop that stamps two circles with one identity
+/// lies the way lying tags lie, and its author owns that (the
+/// `LoopEdge` contract).
+///
+/// The flux lane and the material side need no fold: the torus's chart
+/// Green form reads each piece's own span, so the unfolded rectangle
+/// measures as the control does and encodes its side. A genuine corner
+/// — two arcs on different minor circles from two edges — leaves the
+/// loop open, and both refuse it as that (`props_loop_closed`).
 #[test]
 fn pieces_from_distinct_edges_never_fold() {
     let s = torus();
-    let refuses = |name: &str, loop_: &[LoopEdge<f64>]| {
-        let rim_level = PropsError::NotIsoRectangle {
-            what: "props_rim_level",
-        };
+    let rim_level = PropsError::NotIsoRectangle {
+        what: "props_rim_level",
+    };
+    let ctl = curved_face(&s, &control(), true, band()).expect("the control rectangle");
+    let side = boundary_material_sign(&s, &control(), band()).expect("the control's side");
+    let measures = |name: &str, loop_: &[LoopEdge<f64>]| {
         assert_eq!(
             require_iso_rectangle(&s, loop_, band()),
             Err(rim_level.clone()),
             "{name}: door"
         );
-        assert_eq!(
-            curved_face(&s, loop_, true, band()).map(|_| ()),
-            Err(rim_level.clone()),
-            "{name}: flux lane"
+        let c = curved_face(&s, loop_, true, band())
+            .unwrap_or_else(|e| panic!("{name}: flux lane refused {e:?}"));
+        assert!(
+            (c.flux - ctl.flux).abs() <= 1e-12 * ctl.flux.abs()
+                && (c.area - ctl.area).abs() <= 1e-12 * ctl.area,
+            "{name}: flux lane {c:?} vs the control {ctl:?}"
         );
         assert_eq!(
             boundary_material_sign(&s, loop_, band()),
-            Err(rim_level),
+            Ok(side),
             "{name}: side"
         );
     };
     // The same values, distinct identities on one meridian's pieces.
-    refuses(
+    measures(
         "distinct ids",
         &pieced(Some(1), Some(2))
             .into_iter()
@@ -365,11 +374,28 @@ fn pieces_from_distinct_edges_never_fold() {
             .collect::<Vec<_>>(),
     );
     // No identity at all.
-    refuses("no ids", &pieced(None, None));
+    measures("no ids", &pieced(None, None));
     // A corner: arcs on two minor circles from two edges.
     let mut corner = pieced(Some(1), Some(2));
     corner[2] = tmer(0.5, 0.7, V1, 2, 3, Some(9));
-    refuses("corner", &corner);
+    let open = PropsError::NotIsoRectangle {
+        what: "props_loop_closed",
+    };
+    assert_eq!(
+        require_iso_rectangle(&s, &corner, band()),
+        Err(rim_level),
+        "corner: door"
+    );
+    assert_eq!(
+        curved_face(&s, &corner, true, band()).map(|_| ()),
+        Err(open.clone()),
+        "corner: flux lane"
+    );
+    assert_eq!(
+        boundary_material_sign(&s, &corner, band()),
+        Err(open),
+        "corner: side"
+    );
 }
 
 // ---------------------------------------------------------------------

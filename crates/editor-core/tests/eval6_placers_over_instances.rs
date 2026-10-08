@@ -585,7 +585,7 @@ fn placement_stamps_are_pairwise_distinct_across_a_values_bodies() {
         // it at all.
         for (k, stamp) in stamps.iter().enumerate() {
             match stamp {
-                Some((by, ordinal)) if *by == node.0 => {
+                Some((by, ordinal)) if *by == node.0.digest() => {
                     assert_eq!(*ordinal as usize, k, "{what}: body {k}'s ordinal")
                 }
                 _ => assert!(

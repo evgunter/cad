@@ -116,13 +116,32 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// same fold takes four of `pcurve_loop_continuity`'s door decisions to
 /// theorems as well, on both tables.
 ///
+/// **PCERT's chart-angle unit** retires the loop's chart-space angle
+/// comparisons and check 5: `pcurve_loop_continuity` (16/0/0/8; the
+/// boss's 16/0/2/6), `pcurve_trim_containment` (24/0/0/24; 0/24/0/24)
+/// and `pcurve_loop_pole_joint` (0/0/0/12 on both) leave both tables. A
+/// joint's element is decided as integers with its 3-D coincidence
+/// following from the rows' envelopes, the certificate tests no row
+/// against a window, and a cylinder has no singular set, so no joint of
+/// it decides one.
+///
 /// **`cap_plane_orientation` is new, 0/0/0/4**: each extrude's two caps
 /// decide once whether Newell's normal agrees with the profile's
 /// winding, definite and numeric, on this table and on the boss's.
+///
+/// **Validation reads a missed contact candidate's segment ends.** Where
+/// a span definitely misses a tangency or crossing candidate, each
+/// segment end is asked whether it touches the other segment, and its
+/// span only where it is not definitely off the carrier: `circle_side`
+/// is new, 0/0/2/2, its registered rows the ends the arc shares with
+/// its neighbours, whose rim (`Arc2::rim`) the arc registers; `chord_side`
+/// 4/0/0/10 -> 6/0/0/12, `line_span` 4/0/0/4 -> 6/0/0/4, `arc_span`
+/// 4/0/0/4 -> 4/0/2/4 and `contact_at_shared_vertex` 8/0/0/4 ->
+/// 12/0/0/4.
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("arc_apex_identity", [0, 0, 0, 1]),
     ("arc_diameter_clearance", [0, 0, 0, 6]),
-    ("arc_span", [4, 0, 0, 4]),
+    ("arc_span", [4, 0, 2, 4]),
     ("assert_bound", [0, 0, 0, 1]),
     ("cap_plane_orientation", [0, 0, 0, 4]),
     ("carrier_circles_identity", [3, 0, 0, 0]),
@@ -132,8 +151,9 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("carrier_line_circle", [0, 0, 0, 5]),
     ("carrier_on_surface_1", [135, 0, 0, 9]),
     ("carrier_on_surface_2", [117, 0, 0, 27]),
-    ("chord_side", [4, 0, 0, 10]),
-    ("contact_at_shared_vertex", [8, 0, 0, 4]),
+    ("chord_side", [6, 0, 0, 12]),
+    ("circle_side", [0, 0, 2, 2]),
+    ("contact_at_shared_vertex", [12, 0, 0, 4]),
     ("datum_unit_norm", [0, 0, 0, 2]),
     ("dihedral_arm", [0, 0, 0, 128]),
     ("dihedral_wedge", [0, 0, 0, 128]),
@@ -141,7 +161,7 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("extrusion_normal_component", [0, 0, 0, 2]),
     ("interval_span_forward", [0, 0, 0, 36]),
     ("interval_span_winding", [0, 0, 0, 12]),
-    ("line_span", [4, 0, 0, 4]),
+    ("line_span", [6, 0, 0, 4]),
     ("newell_plane_residual", [30, 0, 0, 0]),
     ("path_circle_radius", [0, 0, 0, 1]),
     ("path_junction_turn", [0, 0, 0, 4]),
@@ -155,10 +175,7 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("pcurve_fidelity_branch", [0, 0, 0, 24]),
     ("pcurve_interval_forward", [0, 0, 0, 12]),
     ("pcurve_loop_branch", [0, 0, 0, 25]),
-    ("pcurve_loop_continuity", [16, 0, 0, 8]),
-    ("pcurve_loop_pole_joint", [0, 0, 0, 12]),
     ("pcurve_map_residual", [18, 0, 0, 0]),
-    ("pcurve_trim_containment", [24, 0, 0, 24]),
     ("segment_straightness", [6, 0, 0, 6]),
     ("side_cylinders_cosurface", [2, 0, 0, 0]),
     ("side_planes_cosurface", [0, 0, 0, 2]),
@@ -228,6 +245,12 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
 /// factor alone), merged in after PR 3812, makes the six gated
 /// `pcurve_envelope` decisions theorems: 6/6/0/0 -> 12/0/0/0. They are
 /// the six `sym_9` counts on the boss (`sign_gated` 26 -> 20).
+///
+/// **INTENT-LITERALS PR C** (a slot holds a variable): a formula
+/// written at a slot — the boss's `−chord_half` — lowers to an
+/// anonymous defined variable, which the environment binds through the
+/// non-finite door like every definition, so `expr_non_finite` gains
+/// those bindings' theorems: 29/0/0/0 -> 33/0/0/0. Nothing else moves.
 #[test]
 fn m10_bulge_the_bosss_split_at_the_nominal() {
     let tol = Tol::witness();
@@ -253,7 +276,7 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("datum_unit_norm", [0, 0, 0, 2]),
             ("dihedral_arm", [0, 0, 0, 80]),
             ("dihedral_wedge", [0, 0, 0, 80]),
-            ("expr_non_finite", [29, 0, 0, 0]),
+            ("expr_non_finite", [33, 0, 0, 0]),
             ("extrusion_normal_component", [0, 0, 0, 2]),
             ("interval_span_forward", [0, 0, 0, 24]),
             ("interval_span_winding", [0, 0, 0, 12]),
@@ -271,10 +294,7 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("pcurve_fidelity_branch", [0, 0, 0, 24]),
             ("pcurve_interval_forward", [0, 0, 0, 12]),
             ("pcurve_loop_branch", [0, 0, 0, 25]),
-            ("pcurve_loop_continuity", [16, 0, 2, 6]),
-            ("pcurve_loop_pole_joint", [0, 0, 0, 12]),
             ("pcurve_map_residual", [18, 0, 0, 0]),
-            ("pcurve_trim_containment", [0, 24, 0, 24]),
             ("segment_straightness", [2, 0, 0, 6]),
             ("side_cylinders_cosurface", [2, 0, 0, 0]),
             ("vertex_separation", [0, 0, 0, 8]),

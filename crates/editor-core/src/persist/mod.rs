@@ -24,7 +24,11 @@
 //! of growth follow from that one door. An OLDER document lacking
 //! vocabulary this build has since grown (a new node arm, a new
 //! optional field) never names it, so it loads — additive growth
-//! invalidates nothing. A NEWER document carrying a field this build
+//! invalidates nothing. Growth that adds a rule every document must
+//! meet is a break instead, and refuses at the structural walk that
+//! states the rule rather than at this door: a document written before
+//! each operation defined its outputs holds none of them, and refuses
+//! [`SnapshotError::OutputSignature`] with the same recourse. A NEWER document carrying a field this build
 //! lacks refuses **where the wire type owning the field carries
 //! `deny_unknown_fields`**: a stale reader must not silently drop
 //! data. The precondition is the ATTRIBUTE and not the field — a
@@ -165,7 +169,7 @@ use crate::sentence::{Labelled, Labels, Staged};
 use geom_core::Tol;
 
 pub use canon::{canonical_bytes, content_pin};
-pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
+pub use check::{NonFiniteSite, OutputFault, ProgramFault, SnapshotError};
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -384,8 +388,9 @@ pub enum PersistError {
     EditReplay {
         /// The refusing edit's index in the log.
         index: usize,
-        /// The typed refusal.
-        error: EditError,
+        /// The typed refusal, boxed so the load door's refusal stays a
+        /// small `Err`.
+        error: Box<EditError>,
     },
     /// The document's recorded ε conflicts with the ε this process
     /// already committed (D4: one process = one ε; refuse loudly).
@@ -521,7 +526,10 @@ pub fn save(
     let mut replay = snapshot.clone();
     for (index, edit) in edits.iter().enumerate() {
         replay = apply_replayed(&replay, edit, tol)
-            .map_err(|error| PersistError::EditReplay { index, error })?
+            .map_err(|error| PersistError::EditReplay {
+                index,
+                error: Box::new(error),
+            })?
             .doc;
     }
     let body = SerBody { snapshot, edits };
@@ -580,8 +588,11 @@ pub fn load(text: &str, tol: Tol) -> Result<Loaded, PersistError> {
     let mut doc = body.snapshot.clone();
     let mut records = Vec::with_capacity(body.edits.len());
     for (index, edit) in body.edits.iter().enumerate() {
-        let applied = apply_replayed(&doc, edit, tol)
-            .map_err(|error| PersistError::EditReplay { index, error })?;
+        let applied =
+            apply_replayed(&doc, edit, tol).map_err(|error| PersistError::EditReplay {
+                index,
+                error: Box::new(error),
+            })?;
         doc = applied.doc;
         records.push(applied.record);
     }

@@ -307,19 +307,20 @@ where
         Node::Transform { input, placement } => {
             wire_transform(id, *input, placement, results, vals, tol)
         }
-        Node::Pattern { input, kind, .. } => wire_pattern(id, *input, kind, results, vals, tol),
+        Node::Pattern { input, kind, .. } => {
+            wire_pattern(id, *input, kind, &written(doc, id), results, vals, tol)
+        }
         // No `id`: the projection mints no description and no name, so
         // nothing it produces is stamped or keyed by this node.
         Node::Part { of, select } => wire_part(*of, select, results, vals),
-        Node::PlacedUnion { input, kind, .. } => wire_placed_union(
-            id,
-            *input,
-            kind,
-            node.placement_rule_fault(tol),
-            results,
-            vals,
-            tol,
-        ),
+        // The rule gate, FIRST, through the node's own door (the one
+        // `apply` reads): a bad placement list refuses with its own
+        // name rather than downstream as a separation or rigidity
+        // refusal. Hand-built-document backstop.
+        Node::PlacedUnion { input, kind, .. } => match node.placement_rule_fault(tol) {
+            Some(fault) => Err(NodeErrorKind::PlacementRule(fault)),
+            None => wire_placed_union(id, *input, kind, &written(doc, id), results, vals, tol),
+        },
         Node::Measure { expr, refs } => {
             wire_measure(node, expr, refs, payload_values, doc, results, tol)
         }
@@ -336,9 +337,13 @@ where
                 Some(Node::Measure { expr, .. }) => expr.certified(),
                 _ => crate::measure::Certified::Enclosure,
             };
+            let bound_dim = node
+                .payload_reads(doc)
+                .and_then(|reads| reads.first().map(|&(_, dim)| dim))
+                .unwrap_or_else(|| unreachable!("an assertion reads its bound, {bound}"));
             wire_assertion(
                 *measure,
-                bound,
+                bound_dim,
                 *dir,
                 certified,
                 payload_values,
@@ -554,7 +559,7 @@ fn stamp_minted_from<T: Decide>(body: &mut Body<T>, node: RecipeNodeId, first: u
         .collect();
     for k in surfaces {
         // Stamping a just-enumerated live key cannot fail.
-        let _ = body.set_surface_source(k, GeomSource::minted(node.0, idx));
+        let _ = body.set_surface_source(k, GeomSource::minted(node.0.digest(), idx));
         idx += 1;
     }
     let curves: Vec<_> = body
@@ -563,7 +568,7 @@ fn stamp_minted_from<T: Decide>(body: &mut Body<T>, node: RecipeNodeId, first: u
         .filter(|&k| body.curve_source(k).is_none())
         .collect();
     for k in curves {
-        let _ = body.set_curve_source(k, GeomSource::minted(node.0, idx));
+        let _ = body.set_curve_source(k, GeomSource::minted(node.0.digest(), idx));
         idx += 1;
     }
     let points: Vec<_> = body
@@ -572,7 +577,7 @@ fn stamp_minted_from<T: Decide>(body: &mut Body<T>, node: RecipeNodeId, first: u
         .filter(|&k| body.point_source(k).is_none())
         .collect();
     for k in points {
-        let _ = body.set_point_source(k, GeomSource::minted(node.0, idx));
+        let _ = body.set_point_source(k, GeomSource::minted(node.0.digest(), idx));
         idx += 1;
     }
     idx
@@ -622,7 +627,7 @@ impl Placing {
 /// and an axis row the input held `Cleared` stays so: there is no
 /// source left to place.
 fn compose_placed<T: Decide>(input: &Body<T>, placed: &mut Body<T>, at: Placing) {
-    let by = at.by.0;
+    let by = at.by.0.digest();
     for (k, _) in input.surfaces() {
         if let Some(src) = input.surface_source(k) {
             let _ = placed.set_surface_source(k, src.placed(by, at.body));
@@ -822,7 +827,7 @@ fn body_operand<T: Decide>(
 }
 
 /// **A body operand, finished** for a door that takes finished bodies
-/// (the Boolean's, the split's and the shell's): [`body_operand`]'s
+/// (the Boolean's, the split's, the shell's and the blends'): [`body_operand`]'s
 /// body through the at-rest gate
 /// ([`topo::AtRestPolicy::gate_at_rest_kept`]), once per operand of the
 /// node. The evaluator holds the bodies its nodes built with no verdict
@@ -1614,7 +1619,7 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
 /// document can reach one and no caller can repair it. It is a kernel
 /// bug observed in a branch — `unreachable!`'s job (D9's D2 addendum),
 /// as in `ProfileProgram::profile_edges_of`.
-fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crate::expr::Expr>>> {
+fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crate::var::VarId>>> {
     pre.naming
         .loops
         .iter()
@@ -1646,7 +1651,7 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
                     by_program_segment
                         .iter()
                         .find(|(e, _)| *e == want)
-                        .map(|(_, expr)| (*expr).clone())
+                        .map(|(_, var)| **var)
                 })
                 .collect()
         })
@@ -2022,7 +2027,7 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let body = body_operand(results, target)?;
+    let body = finished_operand(results, target, tol)?;
     let size = need_scalar(vals, verb.slots.size_slot)?;
     let target_table = Arc::clone(&value_of(results, target)?.name_table);
     let edges = resolve_selection(verb.selection_label, selection, doc, &target_table)?;
@@ -2052,7 +2057,11 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             &mut body,
             flow,
             verb.slots.size_param,
-            &crate::param_source::lower(scope, &crate::param_source::definitions_of(doc), expr),
+            &crate::param_source::lower_var(
+                scope,
+                &crate::param_source::definitions_of(doc),
+                *expr,
+            ),
             &rec,
         )
         .map_err(NodeErrorKind::ParamSourceAttach)?;
@@ -2123,7 +2132,11 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             &mut body,
             flow,
             verb.slots.size_param,
-            &crate::param_source::lower(scope, &crate::param_source::definitions_of(doc), expr),
+            &crate::param_source::lower_var(
+                scope,
+                &crate::param_source::definitions_of(doc),
+                *expr,
+            ),
             &rec,
         )
         .map_err(NodeErrorKind::ParamSourceAttach)?;
@@ -2591,7 +2604,7 @@ fn wire_measure<T: Decide + crate::measure::MinClearanceLane>(
 /// touches the measure's value or the document.
 fn wire_assertion<T: Decide>(
     measure: RecipeNodeId,
-    bound_expr: &crate::expr::Expr,
+    bound_dim: crate::expr::Dimension,
     dir: crate::measure::AssertionDir,
     certified: crate::measure::Certified,
     payload_values: Option<&[T]>,
@@ -2617,10 +2630,10 @@ fn wire_assertion<T: Decide>(
     // The bound's DECLARED dimension must agree (units erase at the
     // evaluation boundary), through the same rule the document doors
     // ask via `Node::assertion_bound_fault`.
-    if crate::node::AssertionBoundFault::against(measure, *dim, bound_expr.dim()).is_some() {
+    if crate::node::AssertionBoundFault::against(measure, *dim, bound_dim).is_some() {
         return Err(NodeErrorKind::AssertionDimension {
             measured: *dim,
-            bound: bound_expr.dim(),
+            bound: bound_dim,
         });
     }
     // A miss means `payload_exprs` and this arm disagree: a kernel bug.
@@ -4221,6 +4234,20 @@ fn wire_transform<T: Decide + topo::AtRestPolicy>(
     Ok(OpOut::plain(payload, Arc::clone(&value.name_table)).carrying(value.parts))
 }
 
+/// **What `node`'s slots read as written** ([`crate::Doc::slot_expansion`]),
+/// for a refusal that proposes a re-spelling of one: a slot the node
+/// does not carry reads as nothing a proposal could build on.
+pub(crate) fn written<P: crate::ProfilePayload>(
+    doc: &crate::doc::Doc<P>,
+    node: RecipeNodeId,
+) -> impl Fn(SlotId) -> crate::Formula + '_ {
+    move |slot| {
+        doc.slot_expansion(node, slot).unwrap_or_else(|| {
+            unreachable!("a refusal proposes a re-spelling of {slot:?}, a slot {node} carries")
+        })
+    }
+}
+
 mod stepped;
 pub(crate) use stepped::{
     PATTERN_SPACING, PATTERN_STEP, PATTERN_STEP_TURN, SteppedOperands, stepped_rule_map,
@@ -4254,6 +4281,7 @@ fn escalated(predicate: &'static str) -> impl FnOnce(geom_core::Indeterminate) -
 /// refuses as `listed`, the mismatch it is on the caller's node.
 fn stepped_map<T: Decide>(
     kind: &PatternKind,
+    written: &dyn Fn(SlotId) -> crate::Formula,
     listed: crate::node::CountMismatch,
     i: i64,
     results: &Results<T>,
@@ -4268,13 +4296,13 @@ fn stepped_map<T: Decide>(
             ));
         }
         _ if i == 0 => return Ok(Affine3::identity()),
-        PatternKind::Linear { direction, .. } => SteppedOperands::linear(
+        PatternKind::Linear { .. } => SteppedOperands::linear(
             need_vec3(vals, SlotId::Direction)?,
             need_scalar(vals, SlotId::Spacing)?,
-            direction,
+            &crate::node::Axis3::ALL.map(|axis| written(SlotId::Direction(axis))),
             band(tol)?,
         )?,
-        PatternKind::Circular { axis, step } => {
+        PatternKind::Circular { axis, .. } => {
             let (origin, dir) = operand(results, *axis, super::phrase::DATUM_AXIS, |v| {
                 match &v.payload {
                     ValuePayload::Datum(DatumValue::Axis { origin, dir }) => Some((origin, dir)),
@@ -4285,7 +4313,7 @@ fn stepped_map<T: Decide>(
                 *origin,
                 *dir,
                 need_scalar(vals, SlotId::Step)?,
-                step,
+                &written(SlotId::Step),
                 band(tol)?,
             )?
         }
@@ -4306,6 +4334,7 @@ fn wire_pattern<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     kind: &PatternKind,
+    written: &dyn Fn(SlotId) -> crate::Formula,
     results: &Results<T>,
     vals: &SlotValues<T>,
     tol: Tol,
@@ -4333,6 +4362,7 @@ fn wire_pattern<T: Decide + topo::AtRestPolicy>(
     for j in 1..n {
         let map = stepped_map(
             kind,
+            written,
             crate::node::CountMismatch::ListedOnPattern,
             j,
             results,
@@ -4370,18 +4400,11 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     kind: &PatternKind,
-    fault: Option<crate::node::PlacementRuleFault>,
+    written: &dyn Fn(SlotId) -> crate::Formula,
     results: &Results<T>,
     vals: &SlotValues<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    // The rule gate, FIRST, through the node's own door (the one
-    // `apply` reads): a bad placement list refuses with its own name
-    // rather than downstream as a separation or rigidity refusal.
-    // Hand-built-document backstop.
-    if let Some(fault) = fault {
-        return Err(NodeErrorKind::PlacementRule(fault));
-    }
     let body = body_operand(results, input)?;
     let maps: Vec<Affine3<T>> = match kind.placements() {
         Some(frames) => frames.iter().map(|f| f.affine::<T>()).collect(),
@@ -4396,6 +4419,7 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 .map(|i| {
                     stepped_map(
                         kind,
+                        written,
                         crate::node::CountMismatch::ListedWithCount,
                         i,
                         results,
@@ -4696,6 +4720,7 @@ mod route_tests {
                             origin: [0.0; 3].map(crate::test_support::len),
                             normal: [0.0, 0.0, 1.0].map(crate::test_support::scl),
                         })),
+                        fresh: Vec::new(),
                     },
                     Tol::witness(),
                     &crate::mate::RefusingReach,
@@ -5000,7 +5025,7 @@ mod route_tests {
         set.sort();
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(0),
+            node: RecipeNodeId::new(0, 0),
             path: vec![RoleSeg::Merged(set)],
         }
     }
@@ -5506,7 +5531,7 @@ mod place_tests {
         let (b, stamped, pending, axis) = fixture(0.0);
         let map = Affine3::translation(Vec3::new(0.0, 5.0, 0.0));
         for m in [Some(&map), None] {
-            let at = Placing::of(RecipeNodeId(41), 2, 1, 0).unwrap();
+            let at = Placing::of(RecipeNodeId::new(0, 41), 2, 1, 0).unwrap();
             let placed = place(&b, m, at, Tol::witness()).unwrap();
             assert_eq!(
                 placed.surface_axis_source(stamped),
@@ -5534,7 +5559,7 @@ mod place_tests {
         let (b, _, _, _) = fixture(3.0);
         let axis = |body: &Body<f64>| body.surface_axis_source(wall).cloned().unwrap();
         let geom = |body: &Body<f64>| body.surface_source(wall).cloned().unwrap();
-        let transform = RecipeNodeId(9);
+        let transform = RecipeNodeId::new(0, 9);
 
         // Row 1, neither placed: equal.
         assert_eq!(axis(&a), axis(&b), "row 1: neither placed");
@@ -5579,7 +5604,7 @@ mod place_tests {
         let other = place(
             &b,
             Some(&lift(5.0)),
-            Placing::of(RecipeNodeId(10), 0, 1, 0).unwrap(),
+            Placing::of(RecipeNodeId::new(0, 10), 0, 1, 0).unwrap(),
             tol,
         )
         .unwrap();
@@ -5598,7 +5623,7 @@ mod place_tests {
         let (b, _, _, _) = fixture(3.0);
         let master = vec![Arc::new(a), Arc::new(b)];
         let axis = |body: &Body<f64>| body.surface_axis_source(wall).cloned().unwrap();
-        let pattern = RecipeNodeId(12);
+        let pattern = RecipeNodeId::new(0, 12);
 
         // Placement 0 is the master verbatim.
         assert_eq!(axis(&master[0]), axis(&master[1]), "placement 0");
@@ -5633,18 +5658,19 @@ mod stepped_operand_tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::{NodeErrorKind, PATTERN_DIRECTION_ROLE, SteppedOperands, stepped_rule_map, unit};
-    use crate::expr::{Dimension, Expr, VarEnv, eval};
+    use crate::Formula;
+    use crate::expr::{VarEnv, eval};
     use geom_core::{Affine3, Band, Tol, Vec3};
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
     }
 
-    fn scalar(v: f64) -> Expr {
-        Expr::literal(v, Dimension::Scalar).unwrap()
+    fn scalar(v: f64) -> Formula {
+        Formula::scalar(v).unwrap()
     }
 
-    fn value(e: &Expr) -> f64 {
+    fn value(e: &Formula) -> f64 {
         eval::<f64>(e, &VarEnv::default()).unwrap()
     }
 
@@ -5656,7 +5682,7 @@ mod stepped_operand_tests {
     /// `p + 0.0` is `p + -0.0` for every coordinate but `-0.0`).
     #[test]
     fn the_reversed_direction_steps_where_the_negative_spacing_did() {
-        let sum = Expr::add(scalar(0.1), scalar(0.2)).unwrap();
+        let sum = Formula::add(scalar(0.1), scalar(0.2)).unwrap();
         for authored in [
             [scalar(1.0), scalar(0.0), scalar(0.0)],
             [scalar(3.0), scalar(4.0), scalar(0.0)],
@@ -5674,11 +5700,9 @@ mod stepped_operand_tests {
             };
             let unit_dir = unit(direction, PATTERN_DIRECTION_ROLE, band()).unwrap();
             let mirrored = |i: i64| Affine3::translation(unit_dir.get() * (-4.25 * i as f64));
-            let written = reversed.clone().map(|e| {
-                crate::test_support::stored_expr(
-                    &e.expect("the negation is within the expression bound"),
-                )
-            });
+            let written = reversed
+                .clone()
+                .map(|e| e.expect("the negation is within the expression bound"));
             let back = Vec3::new(value(&written[0]), value(&written[1]), value(&written[2]));
             let followed =
                 SteppedOperands::linear(back, 4.25, &written, band()).expect("the recourse builds");

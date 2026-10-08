@@ -2376,10 +2376,10 @@ fn pcurve_entry<T: Decide + Bounds>(
         // cap can enter it, which is the props/tessellation frontier,
         // not a missing arm here.
         Pcurve::Spiric { .. } => Err("Spiric image is not a straight segment"),
-        // The tilted cone section's image is a genuine chart curve (its
-        // slant is a sinusoid, its azimuth a Kepler anomaly) — the
-        // cone's twin of the cylinder's tilted-cut sinusoid above.
-        Pcurve::ConeSection { .. } => Err("ConeSection image is not a straight segment"),
+        // A focal section's image is a genuine chart curve (its azimuth
+        // a Kepler anomaly) — the cone's and torus's twin of the
+        // cylinder's tilted-cut sinusoid above.
+        Pcurve::FocalSection(_) => Err("FocalSection image is not a straight segment"),
     }
 }
 
@@ -4392,13 +4392,11 @@ mod tests {
             "the tilted section's v channel is a live cosine — the class the gate excludes"
         );
         let (t0, t1) = (0.2, 1.6);
-        let window = pcurve.chart_box(t0, t1);
-        let cache =
-            geom_brep::PcurveCache::certify(pcurve, t0, t1, &ellipse, &surface, window, band())
-                .expect(
-                    "the sinusoid image itself certifies (C5 row) — the exclusion is the \
+        let cache = geom_brep::PcurveCache::certify(pcurve, t0, t1, &ellipse, &surface, band())
+            .expect(
+                "the sinusoid image itself certifies (C5 row) — the exclusion is the \
                          REGION machinery's, not the cache's",
-                );
+            );
         // Plant it on the wall's bottom rim: the region query must
         // refuse typed at the inventory gate.
         let bottom_he = {

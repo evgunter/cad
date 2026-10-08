@@ -183,10 +183,10 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    AssertionDir, AssertionVerdict, BooleanValue, CarriedIn, Datum, Doc, Evaluation, Expr, Label,
-    MateFault, MateRole, MeasureUnavailableAt, Node, NodeError, NodeErrorKind, NodeResult,
-    NodeStanding, ProfileProgram, RecipeNodeId, SplitSide, SpokenNode, ValuePayload,
-    node_kind_noun,
+    AssertionDir, AssertionVerdict, BooleanValue, CarriedIn, Datum, Dimension, Doc, Evaluation,
+    Expr, Formula, Label, MateFault, MateRole, MeasureUnavailableAt, Node, NodeError,
+    NodeErrorKind, NodeResult, NodeStanding, ProfileProgram, RecipeNodeId, SplitSide, SpokenNode,
+    ValuePayload, VarId, node_kind_noun,
 };
 use pncad::quantity::UnitDef;
 use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate, SplitHalf};
@@ -569,13 +569,13 @@ pub fn headline(spoken: &SpokenNode, pose: Option<&str>) -> Headline {
 #[must_use]
 pub fn proposed_label(doc: &Doc<ProfileProgram>, noun: &str) -> Option<Label> {
     let of_kind = || {
-        doc.order().iter().filter(|id| {
-            doc.node(**id)
+        doc.ids().into_iter().filter(|&id| {
+            doc.node(id)
                 .is_some_and(|node| node_kind_noun(node) == noun)
         })
     };
     let taken: Vec<&str> = of_kind()
-        .filter_map(|id| doc.label(*id))
+        .filter_map(|id| doc.label(id))
         .map(Label::as_str)
         .collect();
     let text = (of_kind().count() + 1..)
@@ -604,7 +604,13 @@ pub fn proposed_label(doc: &Doc<ProfileProgram>, noun: &str) -> Option<Label> {
 pub fn frame_pose(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Option<String> {
     match node {
         Node::Datum(Datum::Frame { origin, u, v }) => {
-            Some(match (plane_name(u, v), written_point(origin)) {
+            let written = |xs: &[VarId; 3], dim| xs.map(|var| doc.written(&Expr::var(var, dim)));
+            let (origin, u, v) = (
+                written(origin, Dimension::Length),
+                written(u, Dimension::Scalar),
+                written(v, Dimension::Scalar),
+            );
+            Some(match (plane_name(&u, &v), written_point(&origin)) {
                 (Some(plane), Some(at)) => format!("{plane} at {at}"),
                 (Some(plane), None) => format!("{plane}, origin driven"),
                 (None, Some(at)) => format!("at {at}"),
@@ -651,7 +657,7 @@ pub fn frame_pose(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Opt
 /// rather than one that says something else: the origin still
 /// separates two frames, and a spelling for the oblique case would be
 /// a matrix, not a name.
-fn plane_name(u: &[Expr; 3], v: &[Expr; 3]) -> Option<&'static str> {
+fn plane_name(u: &[Formula; 3], v: &[Formula; 3]) -> Option<&'static str> {
     let (u, v) = (axis_name(u)?, axis_name(v)?);
     match (u, v) {
         ('x', 'y') => Some("xy"),
@@ -674,7 +680,7 @@ fn plane_name(u: &[Expr; 3], v: &[Expr; 3]) -> Option<&'static str> {
 /// that they typed the axis. A near-miss is a frame a shade off
 /// square, which is the case a person most needs the label not to
 /// paper over; evaluation normalizes it and this does not.
-fn axis_name(v: &[Expr; 3]) -> Option<char> {
+fn axis_name(v: &[Formula; 3]) -> Option<char> {
     let mut components = [0.0_f64; 3];
     for (slot, expr) in components.iter_mut().zip(v) {
         *slot = expr.literal_value()?;
@@ -699,7 +705,7 @@ fn axis_name(v: &[Expr; 3]) -> Option<char> {
 /// and against each number when they do not — a frame whose origin was
 /// typed in three notations is rare, and printing one of its units for
 /// all three would be wrong rather than terse.
-fn written_point(origin: &[Expr; 3]) -> Option<String> {
+fn written_point(origin: &[Formula; 3]) -> Option<String> {
     let mut written: Vec<(f64, UnitDef)> = Vec::with_capacity(origin.len());
     for expr in origin {
         let unit = expr.display_unit()?;
@@ -741,7 +747,7 @@ pub fn rows(
 ) -> Vec<TreeRow> {
     let order: Vec<RecipeNodeId> = match evaluation {
         Some(ev) => ev.order.clone(),
-        None => doc.order().to_vec(),
+        None => doc.ids().to_vec(),
     };
     let mut depths: BTreeMap<RecipeNodeId, usize> = BTreeMap::new();
     let roots = doc.roots();
@@ -1169,8 +1175,8 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::AxisInDifferentPlane { .. } => None,
         // Names an id no live node holds, so there is no row to go to.
         NodeErrorKind::MissingInput { .. } => None,
-        // The input's door shipped a body its gate should have refused:
-        // a kernel defect, and no author's slot refused.
+        // The input's door shipped a body that does not finish: a
+        // kernel defect, and no author's slot refused.
         NodeErrorKind::UnfinishedOperand { .. } => None,
         // The lane cannot carry what the named nodes hold; neither
         // node is wrong, and the f64 lane builds them.

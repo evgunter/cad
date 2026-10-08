@@ -349,9 +349,7 @@ impl Pass<'_> {
 
     /// The side's curve ([`side_row`]).
     fn curve(&self, side: ChartSide) -> Result<geom::NurbsCurve3<f64>, SsiError> {
-        side_row(self.wall, side).map_err(|_| SsiError::UnsupportedCertificate {
-            what: "a NURBS wall's boundary row is not valid spline structure",
-        })
+        side_row(self.wall, side).map_err(|source| SsiError::ChartRow { source })
     }
 
     /// The certified speed along a side: the chart speed of the

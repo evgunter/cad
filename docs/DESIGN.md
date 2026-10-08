@@ -41,7 +41,7 @@ is the board and `work/README.md` its contract.
 | `docs/MIRROR-DESIGN.md` | Ratified (#909); unbuilt | Patterns & mirror P1–P6: the chart-handedness convention (u ↦ −u), mirror's own door beside rigid transform, the boundary of A6's equivariance audit |
 | `docs/DRAFT-DESIGN.md` | Ratified (#908); unbuilt | Draft DR1–DR6: plane walls only at v1, a certified re-geom pass, the pull-direction selector as a SELECT-DESIGN amendment, survivor naming |
 | `docs/SELECT-DESIGN.md` | Ratified | Selection: filters, heterogeneous sets, vanishing entities; the contact-site recourse (§3d) |
-| `docs/VARIABLES-DESIGN.md` | Settled under D10 (designer pair, converged); unbuilt | Variables, VARIABLES-DESIGN VR1–VR9: minted identity with a separate unique optional name, a slot holds a `VarId`, `Expr` holds no float (rationals and `turn`), `Formula` authored and lowered at the edit door, lifecycle, id-keyed tokens and analysis seeds |
+| `docs/VARIABLES-DESIGN.md` | Settled under D10 (designer pair, converged); built (stage 1) | Variables, VARIABLES-DESIGN VR1–VR9: minted identity with a separate unique optional name, a slot holds a `VarId`, `Expr` holds no float (rationals and `turn`), `Formula` authored and lowered at the edit door, lifecycle, id-keyed tokens and analysis seeds |
 | `docs/AXIS-DECLARATION-DESIGN.md` | Ratified (Ev, 2026-09-12, #2404); unbuilt | Axis-flavoured declarations (coaxial, structural-parallel) have no identity channel: `ParamSource` carries stored scalar fields only. Axis-shaped declarations invalidated structurally by placement-chain comparison, so no numerical check decides whether a rotation happened; absence of provenance refuses |
 | `crates/verbs/README.md` | Ratified (#1388; S3 corrected #1983, VS-Q4 revised #1870); SEAT closed, walk ratified #1997 | The kernel query seat, one verb vocabulary, lowered parameter identity, VERB-SEAT-DESIGN S1–S4, V1–V4, P1–P3: §1 query doors at `topo`; §2 the per-verb kernel `Verb` declaration; §3 the opaque per-field `ParamSource` channel |
 | `docs/MATE-7-TANGENCY-DESIGN.md` | Ratified | Torus×torus rim tangency; the kissing arm banks on it |
@@ -268,7 +268,12 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    coincident-distinct-edges class, each edge classifying separately.
    Consumers with no wedge-0/2π answer (fillet, offset, mesh sizing,
    sector classification) refuse typed at the consumer.
-   Also at tier 3: **prefer-intrinsic enforcement** (D2) and the
+   Also at tier 3: **maximal edges** (a joinable vertex at rest is a
+   construction that stopped half-way, `JoinableVertexAtRest`; a
+   vertex whose regularity reading lands in the sliver band, so that
+   whether it is joinable is undecided, refuses too, with the
+   tighten-the-tolerance recourse: a size the run's ε cannot tell from
+   a pole or apex), **prefer-intrinsic enforcement** (D2) and the
    **positive-volume orientation invariant** (exact-B-rep signed volume
    definitely-negative ⇒ invalid; margin V/A_total, a length; zero and
    escalated exempt — an orientation probe, not a thinness gate, so
@@ -402,8 +407,8 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   body is any number of solids, so a disjoint union is a body of
   several solids. Booleans, `shell` and `split` take bodies and return
   bodies, and each sorts its result into solids, so every output is an
-  operand. A product (an explicit list of `Body` variables, D10) is not
-  a boolean operand: the editor refuses it, naming the explicit union
+  operand. A product (the copies its world placements define, D10) is
+  not a boolean operand: the editor refuses it, naming the explicit union
   of the copies that makes them one body
   (`crates/editor-core/ASSEMBLY.md`, A2). Which solids are one part stays recipe
   structure, never body state (`crates/editor-core/ASSEMBLY.md`, A2).
@@ -521,13 +526,33 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   is a legal boolean operand; only a curved group's skip is recorded
   and shipped. Every op's output also has **maximal edges**: no
   *joinable* vertex, meaning valence 2 with two distinct edges on one
-  carrier — shared, or decided Zero between the carriers (D10) —
-  between the same two faces. A sweep builds one rim
+  structural carrier between the same two faces. Two edges are on one
+  structural carrier when both lie on one locus of the faces' surface
+  pair, or on one iso family of one surface's chart, and that locus is
+  one regular curve at their shared vertex: the surfaces are transverse
+  there (tangent arms one order up), or the chart is regular there.
+  Distinct components of one locus never share a point, so the vertex
+  decides the branch, and nothing is compared between the two edges. A
+  pole, a cone's apex or any point where the locus is not one curve is
+  never joinable; a reading of the vertex in the margin band refuses
+  typed. A closed edge the join makes keeps one *conventional vertex*:
+  a vertex whose only edge is that one closed edge, at both its ends.
+  Its position, and the edge's parameter origin and witness that hang
+  on it, are conventional data the kernel owns, like a seam's place.
+  The vertex has no identity of its own. It mints no name a reference
+  binds to; a reference or a pick there resolves to the edge, and a
+  record, census reading or later cut at its point reads the edge's
+  interior. A sweep builds one rim
   edge per run, as it builds one wall, and a boolean's output stage joins
   every joinable vertex after the merge, whatever drew it. A body is then
   the unique complex with maximal faces and maximal edges over its face
-  partition, so a union's body does not depend on its member order, and
-  the form is checked at tier 2 on the result alone, with no history.
+  partition, up to the position of each closed edge's conventional
+  vertex, so a union's body does not depend on its member order, and
+  the form is checked at rest on the result alone, with no history, by
+  the one predicate the join takes a vertex by: every door that
+  finishes a body, import included, ends with the join, and a vertex
+  whose regularity reading lands in the sliver band refuses at rest,
+  naming the tolerance below which it would be decided.
   Load-bearing dependency: `merge_coplanar_faces` **never fuses two
   vertices into one**. A contact record is a pair of cells, one from each
   touching shell (vertex, edge or face), whose interiors meet, plus its
@@ -554,17 +579,16 @@ READMEs, and its schedule is the tracker. The lettered entries below
 are the ones other documents cite by letter ((a) composition surgery
 and (b) the SSI generic-`T` lift are discharged and keep no entry):
 
-- **(c) the oblique analytic-chart classes** — a sphere's general
-  circle mints through the fitted route
-  (`FittedLane::sphere_circle_image`, certified by `certify_fitted`'s
-  Circle-carrier arm), so the oblique-trihedron octant faces store
-  their rows; the cone/torus oblique classes have no ring-computable
-  meters composite and refuse with the class named, their faces left
-  uncached, excused by C4's exemption until each class's route lands.
-  The same exemption covers a spline carrier at the closed-form door
-  and the mirror-torus spiric and no-fitted classes. Each class has
-  its own PCERT row: the torus general circle, the cone section, the
-  spline carrier, and the spiric and no-fitted classes together.
+- **(c) the oblique analytic-chart classes** — a carrier with no
+  closed-form image on an analytic chart (a spline carrier, a sphere's
+  general circle) stores its projected image (C4), so the
+  oblique-trihedron octant faces store their rows; a torus's
+  Villarceau circle and a cone's tilted section mint their exact image
+  (`Pcurve::FocalSection`), and a circle within the band of a cone or
+  torus that is none of its circles refuses as a defect
+  (`CarrierGrazesChart`). C4's exemption, a face left uncached until
+  its class's route lands, covers the mirror-torus spiric and
+  no-fitted classes, on their PCERT row.
 - **(d) cyl×sphere germ chords** — a fitted carrier's chart image
   exists as `Pcurve::Fitted` and certifies at rest, and a chord takes
   its arc from the germs it joins, reading no window; what is missing
@@ -623,7 +647,7 @@ EdgeDescription =
   | TangentIntersection { s1, s2, witness }  -- tangential contact locus; same
                                              -- shape, margin one order up
   | Chart(ChartCurve)                        -- a curve the surface UNDER-determines:
-                                             -- (surface, Pcurve) with a `seam` flag
+                                             -- (surface, Pcurve) with a `wrap` flag
                                              -- (iso-lines, seams, user splits)
   | Scaffold(MappedCurve)                    -- construction-time pushforward of a
                                              -- lower-dim entity; never at rest
@@ -1195,24 +1219,54 @@ intent.
 **Variables.** Every slot that admits more than one value holds a
 variable whose type suits the slot. The types are the scalars (`Length`,
 `Angle`, `Scalar`, `Count`), the discrete kinds (a side, a half, a
-sense), the geometric values (`Point`, `Direction`, `Axis`, `Plane`,
-`Frame`) and the references (`Face`, `Edge`, `Body`). A variable is
+sense) and the poses (`Point`, `Direction`, `Axis`, `Plane`, `Frame`),
+which may be free or defined; the shapes (`Body`, `Bodies`,
+an ordered list of bodies whose length is a `Count`, and `Profile`),
+which only an operation defines; and the selections of a shape
+(`Face`, `Edge`, and their sets `Faces`, `Edges`). A variable is
 **free** — a value, its written unit (D6) and optionally a distribution
-— or **defined**, by an `Expr` over other variables or as an output of
-an operation. A dimensioned literal stands nowhere, neither in a slot
+— or **defined**, by an `Expr` over other variables, by a selection of a
+`Body` variable, or as an output of an operation. A dimensioned literal stands nowhere, neither in a slot
 nor inside a formula: the only constants are dimensionless rationals and
 rational fractions of a turn, which are the shape of a formula rather
 than a dimension. Typing a value in the GUI mints a free variable and
 offers an existing variable of equal value; declining the offer is what
-makes the two distinct.
+makes the two distinct. A variable without a name is read by exactly
+one slot or definition, which is how it is spoken; a variable two
+readers share has a name the person gave it; an output is spoken by
+its operation.
+
+A pose is a frame known up to its kind's symmetry, a subgroup of the
+rigid motions and the same `Subgroup` the mates fold (A11 (1)): a plane
+forgets in-plane motion, an axis slide and spin along itself; and the kinds are ordered by which determines which. A
+slot holds its own kind; a finer value is read through its projection,
+and an incidence between poses (an axis in a plane, a point on an axis)
+is a construction over one variable, never a check between two. A 2-D
+value (a profile's step, a revolve's axis line) lives in the node that
+holds its frame, as scalar slots, and is never a variable of a 2-D kind;
+its lift to a 3-D pose is how it leaves.
 
 **Operations.** A node is an operation: it reads variables and defines
-one or more. Reading is the only dependency; nothing consumes anything,
+the variables its signature states, a fixed list of named, typed ports
+set by its variant (a split defines two bodies; a revolve its body and its axis; an instance of a part
+defines one `Body` variable per world placement of the part), possibly none:
+an assertion or a mate defines none. Reading is the only dependency; nothing consumes anything,
 so an operand stays a first-class value after a boolean reads it. The
-product is an explicit list of `Body` variables. A `Face` or `Edge`
-variable is a selection of a `Body` variable by `StableName`, and the
-N5 resolution ladder lives there; deleting a variable leaves its
-readers unresolved, typed, never silently re-pointed.
+product is the world: every copy a world placement defines. A world
+placement is an operation reading one `Body` and defining its copy;
+building or combining bodies places nothing, and an operand appears
+only if a placement names it. A document whose world holds nothing has
+an empty product. A `Face` or `Edge`
+variable, or a set of them, is a selection of a `Body` variable by
+`StableName`: a definition, not a node, stating its body once, and the
+N5 resolution ladder lives there. A selection authored at two sites is
+two variables (the GUI offers the existing one), and a repair is
+addressed by body and name; deleting a variable leaves its
+readers unresolved, typed, never silently re-pointed. A `Measure`
+defines an *observed* variable, a function of the built geometry
+rather than of what was written; an observed variable, and any
+definition reading one, is read only by an assertion. A construction
+reads what was written.
 
 **Spaces and placement.** A part has no location. A **space** is a set
 of copies related to one another; a part is born in its own space. A
@@ -1222,7 +1276,8 @@ added to a pinned copy refuses as an overconstraint, decided by
 subgroup algebra (A11 (1)) without measuring. A mate places and never
 checks. The **world** is one undeletable frame that copies may be
 related to like a part; export reads its coordinates and nothing else
-does. The kernel computes each space in the frame of its earliest
+does. Construction never reads the world; a document builds in a frame
+of its own. The kernel computes each space in the frame of its earliest
 member, chosen from the recipe and never from values or from the world,
 so an unrelated edit moves no bit (D9).
 
@@ -1237,13 +1292,15 @@ is `plane(frame, direction, depth)`, independent of the profile; a side
 wall is independent of where along the direction it sits), and carriers
 compare in a canonical form per kind: the frame modulo the kind's own
 symmetry (a plane forgets in-plane motion and folds a shift along its
-normal into its offset; an axis forgets slide and spin along itself),
+normal into its offset; an axis forgets slide and spin along itself;
+a projection of a construction reduces to what it was built from),
 with offsets summed as linear forms over the variables with exact
 rational coefficients and derived variables read as their formulas.
 Equality of canonical forms is an equivalence relation, so a chain of
 blocks each built on its neighbour's floor closes into a loop, and a
 brick laid across two of them sits on both, with nothing more said.
-Coaxiality is one `Axis` variable read twice; tangency is constructed (a
+Coaxiality is one `Axis` read twice, directly or as projections of
+one construction; tangency is constructed (a
 sketch may read another surface's trace in its plane and continue
 tangent to it).
 

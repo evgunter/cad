@@ -387,7 +387,7 @@ fn the_chords_are_reachable_one_by_one_through_the_selector_layer() {
         &[GeomPred::DatumDistance {
             datum,
             cmp: Cmp::Greater,
-            value: editor_core::test_support::stored_expr(&len(0.1)),
+            value: len(0.1),
         }],
         &params,
         Tol::witness(),
@@ -444,7 +444,7 @@ fn node_level_prose_carries_the_emitter_payload() {
     assert!(s.contains("edge") && s.contains('1'), "{s}");
 
     let s = carried(NamingError::MissingUpstream {
-        node: RecipeNodeId(tagged(7)),
+        node: RecipeNodeId::new(0, tagged(7)),
     });
     assert!(s.contains('7'), "{s}");
 

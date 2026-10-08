@@ -171,6 +171,8 @@ seg_tags! {
     TrimEdge,
     FootVertex,
     EndArc,
+    Mitre,
+    TurnFoot,
     BandFace,
     BandTrim,
     BandFoot,
@@ -267,6 +269,8 @@ impl SegTag {
             RoleSeg::TrimEdge { .. } => Self::TrimEdge,
             RoleSeg::FootVertex { .. } => Self::FootVertex,
             RoleSeg::EndArc { .. } => Self::EndArc,
+            RoleSeg::Mitre { .. } => Self::Mitre,
+            RoleSeg::TurnFoot { .. } => Self::TurnFoot,
             RoleSeg::BandFace(..) => Self::BandFace,
             RoleSeg::BandTrim { .. } => Self::BandTrim,
             RoleSeg::BandFoot(..) => Self::BandFoot,
@@ -324,6 +328,8 @@ impl SegTag {
             | Self::TrimEdge
             | Self::FootVertex
             | Self::EndArc
+            | Self::Mitre
+            | Self::TurnFoot
             | Self::BandFace
             | Self::BandTrim
             | Self::BandFoot
@@ -385,6 +391,8 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::TrimEdge { .. }
         | RoleSeg::FootVertex { .. }
         | RoleSeg::EndArc { .. }
+        | RoleSeg::Mitre { .. }
+        | RoleSeg::TurnFoot { .. }
         | RoleSeg::BandFace(_)
         | RoleSeg::BandFoot(_)
         | RoleSeg::BandCross { .. }
@@ -425,6 +433,8 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::FromTarget(n)
         | RoleSeg::BlendFace(n)
         | RoleSeg::CornerFace(n)
+        | RoleSeg::Mitre { vertex: n }
+        | RoleSeg::TurnFoot { vertex: n }
         | RoleSeg::BandFoot(n)
         | RoleSeg::BandCut(n)
         | RoleSeg::Inner(n)
@@ -881,7 +891,7 @@ pub fn select<T: Decide>(
 ///
 /// # `params`
 ///
-/// [`GeomPred::DatumDistance`] states its value as an [`Expr`](crate::Expr), which
+/// [`GeomPred::DatumDistance`] states its value as a [`Formula`](crate::Formula), which
 /// cannot be evaluated without the document's parameter bindings
 /// (`Doc::var_env`). The design's signature omits this argument; it
 /// is added here rather than degrading the value to a bare float,

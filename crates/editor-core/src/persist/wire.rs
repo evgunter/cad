@@ -6,8 +6,8 @@
 //!
 //! - [`Expr`] persists as a plain AST tree and is REBUILT through the
 //!   dimension-checking smart constructors on load — a corrupt or
-//!   hand-edited file can never smuggle an ill-dimensioned tree (or a
-//!   non-finite literal) past the construction door, and the
+//!   hand-edited file can never smuggle an ill-dimensioned tree (or an
+//!   unreduced constant) past the construction door, and the
 //!   checker's refusal reaches the caller WHOLE rather than as
 //!   prose — how a typed value leaves a `Deserialize` impl at all
 //!   is [`super::refusal`]'s subject. The cached
@@ -62,6 +62,7 @@ use crate::expr::{AuthoredLeaf, Dimension, DimensionError, Expr, ExprKind, Slot}
 use crate::formula::Formula;
 use crate::measure::{MeasureExpr, MeasureKind, MeasurePrimitive};
 use crate::node::RecipeNodeId;
+use crate::var::VarId;
 
 use super::nesting::Child;
 
@@ -89,24 +90,18 @@ macro_rules! wire_tree {
         #[derive(Debug, Serialize, Deserialize)]
         #[serde(deny_unknown_fields)]
         pub(crate) enum $wire {
-            /// A continuous literal with its dimension and the display
-            /// unit it was authored in (LIB-SWITCH §4g — presentation
-            /// metadata; the value stays canonical meters/radians).
-            Literal {
-                /// The exact value (D2: bit-exact round-trip), canonical units.
-                value: f64,
-                /// The literal's dimension.
-                dim: Dimension,
-                /// The display-unit symbol (quantity's closed table).
-                /// Always written, because every literal names the
-                /// notation it was authored in — the dimensionless
-                /// row's symbol is the empty string, which is what a
-                /// `Scalar` literal carries. An unknown symbol refuses
-                /// typed at rebuild.
-                unit: String,
+            /// An exact rational constant, in lowest terms (a ratio that
+            /// reduces refuses at rebuild).
+            Ratio {
+                /// The numerator, carrying the sign.
+                num: i64,
+                /// The denominator, at least 1.
+                den: u64,
             },
-            /// An exact integer Count literal.
-            Count(i64),
+            /// An exact integer constant (a count).
+            Integer(i64),
+            /// One full rotation.
+            Turn,
             /// A reader of a variable, by id, with the kind it caches.
             Var {
                 /// The variable read.
@@ -148,12 +143,12 @@ macro_rules! wire_tree {
             fn from(e: &$form) -> Self {
                 let b = |x: &$form| Child::new($wire::from(x));
                 match e.kind() {
-                    ExprKind::Literal(lit) => $wire::Literal {
-                        value: lit.value,
-                        dim: e.dim(),
-                        unit: lit.unit_def().symbol().to_string(),
+                    ExprKind::Ratio(r) => $wire::Ratio {
+                        num: r.num(),
+                        den: r.den(),
                     },
-                    ExprKind::CountLiteral(v) => $wire::Count(*v),
+                    ExprKind::Integer(v) => $wire::Integer(*v),
+                    ExprKind::Turn => $wire::Turn,
                     ExprKind::Var(var) => $wire::Var {
                         var: *var,
                         dim: e.dim(),
@@ -180,23 +175,16 @@ macro_rules! wire_tree {
 
         impl $wire {
             /// Rebuilds the checked tree, re-running every dimension
-            /// check and the non-finite-literal refusal (load door;
+            /// check and the constant's range and reduction (load door;
             /// module docs).
             pub(crate) fn rebuild(&self) -> Result<$form, DimensionError> {
                 let b = |x: &$wire| x.rebuild();
                 match self {
-                    // Strict door: the symbol must be in quantity's
-                    // closed table and its quantity must match the
-                    // dimension — both re-checked by the same
-                    // constructor authoring uses (never a
-                    // field-by-field trust).
-                    $wire::Literal { value, dim, unit } => match quantity::unit_by_symbol(unit) {
-                        None => Err(DimensionError::UnknownDisplayUnit {
-                            symbol: unit.clone(),
-                        }),
-                        Some(u) => <$form>::literal_leaf_with_unit(*value, *dim, u),
-                    },
-                    $wire::Count(v) => Ok(<$form>::count_leaf(*v)),
+                    $wire::Ratio { num, den } => {
+                        crate::expr::Ratio::reduced(*num, *den).map(<$form>::ratio_leaf)
+                    }
+                    $wire::Integer(v) => Ok(<$form>::integer_leaf(*v)),
+                    $wire::Turn => Ok(<$form>::turn_leaf()),
                     $wire::Var { var, dim } => Ok(<$form>::var(*var, *dim)),
                     $($rebuild)*
                     $wire::Add(x, y) => <$form>::add(b(x)?, b(y)?),
@@ -236,32 +224,50 @@ macro_rules! wire_tree {
 
         impl Wired for $form {
             type Wire = $wire;
+            fn to_wire(&self, _dim: Dimension) -> $wire {
+                $wire::from(self)
+            }
+            fn rebuild_leaf(wire: &$wire) -> Result<(Self, Dimension), DimensionError> {
+                let leaf = wire.rebuild()?;
+                let dim = leaf.dim();
+                Ok((leaf, dim))
+            }
         }
     };
 }
 
-/// **A persisted expression form and its wire vocabulary**: what a
-/// tree generic over its form ([`MeasureExpr`]) persists its leaves as.
+/// **A persisted slot form and its wire vocabulary**: what a tree
+/// generic over its form ([`MeasureExpr`]) persists its value leaves
+/// as. A leaf is written with the dimension the tree reads it at, and
+/// rebuilt with the dimension it holds: an expression holds its own,
+/// and a stored slot, a bare variable id, holds the one written beside
+/// it.
 pub(crate) trait Wired: Sized {
-    /// The form's wire enum.
-    type Wire: Serialize + for<'de> Deserialize<'de> + for<'a> From<&'a Self> + Rebuild<Self>;
+    /// The form's wire value.
+    type Wire: Serialize + for<'de> Deserialize<'de>;
+    /// The wire value of a leaf read at `dim`.
+    fn to_wire(&self, dim: Dimension) -> Self::Wire;
+    /// The leaf a wire value rebuilds, through its form's checking
+    /// constructors, and its dimension.
+    fn rebuild_leaf(wire: &Self::Wire) -> Result<(Self, Dimension), DimensionError>;
 }
 
-/// A wire value rebuilt through its form's checking constructors.
-pub(crate) trait Rebuild<T> {
-    /// The checked value.
-    fn rebuild_form(&self) -> Result<T, DimensionError>;
+/// **A stored value leaf on the wire**: the variable, and the
+/// dimension the measure reads it at.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct WireVarLeaf {
+    var: VarId,
+    dim: Dimension,
 }
 
-impl Rebuild<Expr> for WireExpr {
-    fn rebuild_form(&self) -> Result<Expr, DimensionError> {
-        self.rebuild()
+impl Wired for VarId {
+    type Wire = WireVarLeaf;
+    fn to_wire(&self, dim: Dimension) -> WireVarLeaf {
+        WireVarLeaf { var: *self, dim }
     }
-}
-
-impl Rebuild<Formula> for WireFormula {
-    fn rebuild_form(&self) -> Result<Formula, DimensionError> {
-        self.rebuild()
+    fn rebuild_leaf(wire: &WireVarLeaf) -> Result<(Self, Dimension), DimensionError> {
+        Ok((wire.var, wire.dim))
     }
 }
 
@@ -276,7 +282,8 @@ wire_tree! {
 
 wire_tree! {
     /// The persisted authored formula, as an edit log carries it: the
-    /// stored vocabulary plus a variable by name.
+    /// stored vocabulary plus a variable by name, a fresh-table read
+    /// and a written quantity.
     WireFormula for Formula {
         /// A variable by name, with the dimension it is read at.
         Name {
@@ -285,15 +292,70 @@ wire_tree! {
             /// The dimension it is read at.
             dim: Dimension,
         }
+        /// Entry `index` of the edit's fresh table, with the dimension
+        /// it is read at.
+        Fresh {
+            /// The table index.
+            index: u16,
+            /// The dimension it is read at.
+            dim: Dimension,
+        }
+        /// A written quantity with its dimension, the display unit it
+        /// was authored in (LIB-SWITCH §4g — presentation metadata;
+        /// the value stays canonical meters/radians) and its
+        /// distribution.
+        Quantity {
+            /// The exact value (D2: bit-exact round-trip), canonical units.
+            value: f64,
+            /// The quantity's dimension.
+            dim: Dimension,
+            /// The display-unit symbol (quantity's closed table).
+            /// Always written, because every quantity names the
+            /// notation it was authored in — the dimensionless row's
+            /// symbol is the empty string. An unknown symbol refuses
+            /// typed at rebuild.
+            unit: String,
+            /// Its distribution, if one was written.
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            distribution: Option<crate::distribution::Distribution>,
+        }
     }
     to_wire(leaf, dim) => match leaf {
         AuthoredLeaf::Name(name) => WireFormula::Name {
             name: name.clone(),
             dim,
         },
+        &AuthoredLeaf::Fresh(index) => WireFormula::Fresh { index, dim },
+        AuthoredLeaf::Quantity(q) => WireFormula::Quantity {
+            value: q.value(),
+            dim,
+            unit: q.unit().symbol().to_string(),
+            distribution: q.distribution().copied(),
+        },
     };
     rebuild {
         WireFormula::Name { name, dim } => Ok(Formula::named(name.clone(), *dim)),
+        WireFormula::Fresh { index, dim } => Ok(Formula::fresh(*index, *dim)),
+        // Strict door: the symbol must be in quantity's closed table
+        // and its quantity must match the dimension — re-checked by the
+        // same constructor authoring uses (never a field-by-field
+        // trust). The distribution is the variable's: the door that
+        // mints it refuses one breaking E2, as it does a declared one.
+        WireFormula::Quantity { value, dim, unit, distribution } => {
+            match quantity::unit_by_symbol(unit) {
+                None => Err(DimensionError::UnknownDisplayUnit {
+                    symbol: unit.clone(),
+                }),
+                // Always a written quantity — a dimensionless one too,
+                // never the constant its value spells — so the
+                // distribution has its leaf.
+                Some(u) => Formula::literal_with_unit(*value, *dim, u).map(|q| {
+                    q.carrying(*distribution).unwrap_or_else(|_| {
+                        unreachable!("literal_with_unit builds one written quantity")
+                    })
+                }),
+            }
+        }
     }
 }
 
@@ -412,11 +474,13 @@ pub(crate) fn plane_ref<'de, D: Deserializer<'de>>(de: D) -> Result<RecipeNodeId
                  here predates the frame node and cannot be read by this build)",
             )
         }
-        fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<RecipeNodeId, E> {
-            Ok(RecipeNodeId(v))
+        fn visit_str<E: serde::de::Error>(self, text: &str) -> Result<RecipeNodeId, E> {
+            crate::MintId::parse(text)
+                .map(RecipeNodeId)
+                .ok_or_else(|| E::invalid_value(serde::de::Unexpected::Str(text), &self))
         }
     }
-    de.deserialize_u64(PlaneRef)
+    de.deserialize_str(PlaneRef)
 }
 
 /// The persisted MEASUREMENT expression (ERROR-DESIGN E3): the same
@@ -456,7 +520,7 @@ impl<S: Slot + Wired> From<&MeasureExpr<S>> for WireMeasureExpr<S::Wire> {
         let b = |x: &MeasureExpr<S>| Child::new(WireMeasureExpr::from(x));
         match e.kind() {
             MeasureKind::Primitive(p) => WireMeasureExpr::Primitive(*p),
-            MeasureKind::Value(v) => WireMeasureExpr::Value(Box::new(S::Wire::from(v))),
+            MeasureKind::Value(v) => WireMeasureExpr::Value(Box::new(v.to_wire(e.dim()))),
             MeasureKind::Add(x, y) => WireMeasureExpr::Add(b(x), b(y)),
             MeasureKind::Sub(x, y) => WireMeasureExpr::Sub(b(x), b(y)),
             MeasureKind::Neg(x) => WireMeasureExpr::Neg(b(x)),
@@ -472,14 +536,14 @@ impl<W> WireMeasureExpr<W> {
     /// Rebuilds through the DIMENSION-CHECKING constructors — the load
     /// door is the construction door, so a file cannot carry a tree the
     /// authoring API refuses.
-    fn rebuild<S: Slot>(&self) -> Result<MeasureExpr<S>, DimensionError>
-    where
-        W: Rebuild<S>,
-    {
+    fn rebuild<S: Slot + Wired<Wire = W>>(&self) -> Result<MeasureExpr<S>, DimensionError> {
         let b = |x: &WireMeasureExpr<W>| x.rebuild();
         match self {
             WireMeasureExpr::Primitive(p) => Ok(MeasureExpr::primitive(*p)),
-            WireMeasureExpr::Value(v) => Ok(MeasureExpr::value(v.rebuild_form()?)),
+            WireMeasureExpr::Value(v) => {
+                let (leaf, dim) = S::rebuild_leaf(v)?;
+                Ok(MeasureExpr::value_at(leaf, dim))
+            }
             WireMeasureExpr::Add(x, y) => MeasureExpr::add(b(x)?, b(y)?),
             WireMeasureExpr::Sub(x, y) => MeasureExpr::sub(b(x)?, b(y)?),
             WireMeasureExpr::Neg(x) => MeasureExpr::neg(b(x)?),
@@ -512,4 +576,4 @@ macro_rules! measure_serde {
     )*};
 }
 
-measure_serde!(Expr, Formula);
+measure_serde!(VarId, Expr, Formula);

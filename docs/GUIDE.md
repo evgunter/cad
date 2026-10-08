@@ -1495,12 +1495,15 @@ is a cup. `Node.shell(target, thickness, open)` is the door, and
 names — carried, never read, frozen at authoring time.
 
 One thing the blend selection does not have: **`open` is ordered.** A
-chart's rim is its FIRST designated face (the chart's other faces
+chart's rim is its FIRST designated face (a plane chart's other faces
 merge onto it and the rim's name is that face's), so name first the
-face you want to carry the rim's identity. An empty list is the
+face you want to carry the rim's identity. A curved face opens too: a
+dome's cap, which wraps round its axis, keeps both of the faces a full
+revolve wears it on as the branches of one band, each named for its
+own designation. An empty list is the
 SEALED hollow — a closed thin solid with a cavity and no rim — which
 is legal and not a refusal. And a face is designated together with
-every face on its chart: where two faces share one plane, naming one
+every face on its chart: where two faces share one surface, naming one
 of them refuses (`shell`, the kernel's partial-chart gate) rather than
 silently opening both. (A full revolve's planar cap is ONE face — it
 sweeps a planar wall whole.)
@@ -1707,7 +1710,7 @@ let hole = LoopProgram::Circle {
 
 let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node) }, tol, &pncad::document::RefusingReach).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol, &pncad::document::RefusingReach).expect("the edit applies");
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 
@@ -1765,7 +1768,7 @@ use pncad::prelude::*;
 # let hole = LoopProgram::Circle { centre: [len(1.0), len(1.0)], radius: len(0.25) };
 # let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 # let mut insert = |doc: &Doc<ProfileProgram>, node| {
-#     let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node) }, tol, &pncad::document::RefusingReach).expect("applies");
+#     let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol, &pncad::document::RefusingReach).expect("applies");
 #     (applied.doc, applied.record.minted.expect("minted"))
 # };
 # let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("a scalar");
@@ -1781,6 +1784,7 @@ let thicker = apply(&doc, &DocEdit::SetParam {
     node: plate,
     slot: SlotId::Distance,
     expr: len(1.0),
+    fresh: Vec::new(),
 }, tol, &pncad::document::RefusingReach)?.doc;
 
 // Pass the PRIOR evaluation: the frame and the profile are
@@ -1868,7 +1872,7 @@ doc = apply(&doc, &DocEdit::DeclareVar {
 }, tol, &pncad::document::RefusingReach)?.doc;
 
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node) }, tol, &pncad::document::RefusingReach).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol, &pncad::document::RefusingReach).expect("the edit applies");
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 
@@ -1946,6 +1950,7 @@ assert!((volume(&ev, solid) - v(0.25)).abs() < 1e-6);
 let bigger = apply(&doc, &DocEdit::DefineVar {
     var: VarName::from_static("hole_r").into(),
     def: VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.4)),
+    fresh: Vec::new(),
 }, tol, &pncad::document::RefusingReach)?.doc;
 let ev2 = evaluate::<f64>(&bigger, Some(&ev), &CancelToken::new(), &EvalOptions::default(), tol);
 assert_eq!(ev2.recomputed, 3); // the profile, the plate, the union
@@ -2005,8 +2010,10 @@ them are claims, not conveniences:
 | `TruncatedNormal { sigma, lo, hi }` | that normal, restricted to `[lo, hi]` and renormalized |
 
 Annotating is opt-in and it means something: a continuous parameter
-with **no** distribution is FIXED — the analysis varies exactly what you
-declared variable, and never guesses a spread you did not state.
+with **no** distribution is FIXED — a constant of every analysis lane,
+read at its nominal, and no axis of the box — so the analysis varies
+exactly what you declared variable, and never guesses a spread you did
+not state.
 `Count` parameters cannot be annotated at all; there is no spelling for
 it, because a structural count is fixed under any error analysis.
 
@@ -2057,8 +2064,8 @@ assert!((tail - (1.0 - policy.quantile_mass())).abs() < 1e-12);
 // The band's box IS its support, so nothing escapes it...
 let plate = boxed.get(id("plate_t")).expect("an axis");
 assert_eq!(plate.offsets.lo, -1e-4);
-// ...and the unannotated parameter is a width-zero axis at its nominal.
-assert!(boxed.get(id("web_t")).expect("an axis").offsets.is_fixed());
+// ...and the unannotated parameter is no axis at all: a constant.
+assert!(boxed.get(id("web_t")).is_none());
 assert_eq!(boxed.varying().count(), 2);
 
 // The band refuses to price anything its shape would decide, and the
@@ -2126,7 +2133,7 @@ bore = boxed.get(VarName("bore_r"))
 assert abs(bore.offsets[1].in_unit(mm) / 0.001 - 3.0) < 0.01
 assert abs(boxed.tail_mass(VarName("bore_r")) - (1.0 - DEFAULT_QUANTILE_MASS)) < 1e-12
 assert boxed.get(VarName("plate_t")).offsets[0] == -0.1 * mm
-assert boxed.get(VarName("web_t")).is_fixed       # unannotated is FIXED
+assert boxed.get(VarName("web_t")) is None        # unannotated: a constant, no axis
 assert [n.name for n in boxed.varying] == ["bore_r", "plate_t"]  # declaration order
 
 # The band refuses to price anything its shape would decide, and the

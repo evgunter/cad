@@ -1479,6 +1479,68 @@ fn the_angular_advance_gate_escalates_in_band() {
     );
 }
 
+/// The LB10 route-3 loop: the radius-5 arc departing `(5, 0)` Ccw,
+/// filleted at `r` onto the westbound ray at height `h`, run out 3 and
+/// closed by the chord back to the start. Its segments are the arc,
+/// the fillet, the arrival side and the closing chord.
+fn straight_arrival_off_an_arc_departure(h: f64, r: f64) -> ProfileLoop<f64> {
+    pinned(
+        Open.arc_fillet(
+            Center {
+                c: Point2::new(0.0, 0.0),
+                winding: profile::ArcSweep::Ccw,
+                p: Point2::new(5.0, 0.0),
+            },
+            r,
+            Tol::witness(),
+        )
+        .unwrap()
+        .at(Point2::new(0.0, h), Tol::witness())
+        .unwrap()
+        .toward(-1.0, 0.0, Tol::witness())
+        .unwrap()
+        .line(3.0, Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap(),
+    )
+}
+
+/// The closing chord of the route-3 loop misses the fillet's CARRIER
+/// by 5.567e-6 at this `(h, r)` (the proptest's draw), at the carrier's
+/// point facing away from the fillet's own quarter: the two segments
+/// are 0.59 apart. An in-band carrier clearance whose touch point is
+/// off the arc is not a contact, so the loop validates at every ε.
+#[test]
+fn a_closing_chord_grazing_the_fillet_carrier_off_its_arc_validates() {
+    let (h, r) = (1.014505150367573, 0.47328623976475265);
+    let lowered = straight_arrival_off_an_arc_departure(h, r);
+    assert_eq!(lowered.vertices().len(), 4, "entry, t1, t2, far end");
+    validate_ok(&lowered);
+}
+
+/// At `h` just under 4 the arrival side's carrier crosses the radius-5
+/// circle just past the side's far end `(-3, h)`, in band of the side's
+/// span, but near 126.9° on the circle, where the departure arc (0° to
+/// about 53°) is not. A crossing definitely off one segment is no
+/// contact, so the loop validates. The proptest's draw puts the
+/// crossing 1.94e-6 past the end (in band at ε = 1e-6); the second
+/// height puts it in band at the running ε.
+#[test]
+fn an_arrival_whose_carrier_crosses_the_departure_circle_off_its_arc_validates() {
+    let t = Tol::witness().get();
+    let past = 3.0 + t.eps * ((1.0 + t.k) / 2.0);
+    for h in [3.9999985436786116, (25.0 - past * past).sqrt()] {
+        let lowered = straight_arrival_off_an_arc_departure(h, 0.1);
+        assert_eq!(
+            lowered.vertices().len(),
+            4,
+            "entry, t1, t2, far end at h = {h}"
+        );
+        validate_ok(&lowered);
+    }
+}
+
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
@@ -1497,26 +1559,7 @@ proptest! {
         h in 1.0f64..4.0,
         r in 0.1f64..0.6,
     ) {
-        let lowered = Open
-            .arc_fillet(
-                Center {
-                    c: Point2::new(0.0, 0.0),
-                    winding: profile::ArcSweep::Ccw,
-                    p: Point2::new(5.0, 0.0),
-                },
-                r,
-                Tol::witness(),
-            )
-            .unwrap()
-            .at(Point2::new(0.0, h), Tol::witness())
-            .unwrap()
-            .toward(-1.0, 0.0, Tol::witness())
-            .unwrap()
-            .line(3.0, Tol::witness())
-            .unwrap()
-            .line_to(Start, Tol::witness())
-            .unwrap();
-        let lowered = pinned(lowered);
+        let lowered = straight_arrival_off_an_arc_departure(h, r);
         // (5,0) the entry, t1 on the circle, t2 on the ray, (-3,h).
         prop_assert_eq!(lowered.vertices().len(), 4);
         let t2 = lowered.vertices()[2];

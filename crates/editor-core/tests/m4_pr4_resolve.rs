@@ -1,5 +1,5 @@
 //! M4 PR 4 spec D1/D3: the N5 resolution ladder end to end —
-//! Resolved / Ambiguous (direct tie and the order_along over-tie
+//! Resolved / Ambiguous (direct tie and the `rank_by` over-tie
 //! widening) / NodeGone / Vanished with the verdict-diff diagnosis
 //! (PredicateFlip, StructuralParam, Cascade) + tombstones / typed
 //! Indeterminate — plus N3 offers, the rebind suggestion ladder, and
@@ -70,6 +70,39 @@ fn block(
     )
 }
 
+/// **A twin of the block `extrude`** ([`block`]): its frame, profile and
+/// extrude inserted again, every slot reading the original's variable
+/// ([`Node::authored`]), so the two are one geometry by structure —
+/// equal values typed apart are two variables, which is no sharing.
+fn twin(doc: ProfileDoc, extrude: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
+    let Some(Node::Extrude { profile, .. }) = doc.node(extrude) else {
+        panic!("{extrude} is a block's extrude")
+    };
+    let profile = *profile;
+    let Some(Node::Profile(program)) = doc.node(profile) else {
+        panic!("{profile} is a block's profile")
+    };
+    let frame = program.plane;
+    let authored = |doc: &ProfileDoc, id: RecipeNodeId| {
+        doc.node(id)
+            .unwrap_or_else(|| panic!("{id} is in the document"))
+            .authored(doc)
+    };
+    let node = authored(&doc, frame);
+    let (doc, frame) = insert(doc, node);
+    let mut node = authored(&doc, profile);
+    if let Node::Profile(program) = &mut node {
+        program.plane = frame;
+        program.ids = Vec::new();
+    }
+    let (doc, profile) = insert(doc, node);
+    let mut node = authored(&doc, extrude);
+    if let Node::Extrude { profile: of, .. } = &mut node {
+        *of = profile;
+    }
+    insert(doc, node)
+}
+
 /// The sliding union: A fixed, B on a Transform knob, A ∪ B.
 struct Slide {
     doc: ProfileDoc,
@@ -123,6 +156,7 @@ fn slide_to(s: &Slide, tx: f64) -> ProfileDoc {
             node: s.transform,
             slot: SlotId::Translation(editor_core::Axis3::X),
             expr: len(tx),
+            fresh: Vec::new(),
         },
     );
     doc
@@ -269,7 +303,7 @@ fn tied_name_resolves_ambiguous_with_the_tie_witness() {
     }
 }
 
-// ---- Ambiguous: the order_along over-tie widening (hand-built
+// ---- Ambiguous: the `rank_by` over-tie widening (hand-built
 // table — the emitter's over-tie row is the widened BASE name; a
 // reference to a RANKED name must widen to it, never mis-bind) ----
 
@@ -303,7 +337,7 @@ fn ranked_reference_widens_to_the_tied_base_row() {
     let base = StableName {
         kind: EntityKind::Edge,
         node,
-        path: vec![RoleSeg::AxisEdge(crate::fixture::no_piece())],
+        path: vec![RoleSeg::AxisEdge(crate::fixture::no_piece().into())],
     };
     let mut table = NameTable::new();
     table.insert_tied(base.clone(), vec![e1, e2]).unwrap();
@@ -405,7 +439,7 @@ fn never_minted_node_reports_foreign_not_deleted() {
     let ev = run(&doc, None);
     let foreign = minted(
         EntityKind::Face,
-        RecipeNodeId(9999),
+        RecipeNodeId::new(0, 9999),
         RoleSeg::Cap(CapEnd::End),
     );
     match resolve(
@@ -422,7 +456,7 @@ fn never_minted_node_reports_foreign_not_deleted() {
             assert_eq!(
                 *edit,
                 RecipeEditRef::ForeignNode {
-                    node: RecipeNodeId(9999)
+                    node: RecipeNodeId::new(0, 9999)
                 },
                 "a never-minted id must not be blamed on a delete"
             );
@@ -542,6 +576,7 @@ fn pattern_count_shrink_diagnoses_structural_param() {
             node: pattern,
             slot: SlotId::Count,
             expr: editor_core::Formula::count(2),
+            fresh: Vec::new(),
         },
     );
     let ev2 = run(&doc2, Some(&ev1));
@@ -617,6 +652,7 @@ fn instance_of_vanished_master_name_diagnoses_cascade() {
             node: s.transform,
             slot: SlotId::Translation(editor_core::Axis3::X),
             expr: len(2.5),
+            fresh: Vec::new(),
         },
     );
     let ev2 = run(&doc2, Some(&ev1));
@@ -691,6 +727,7 @@ fn failed_and_poisoned_targets_resolve_indeterminate_not_vanished() {
             node: a,
             slot: SlotId::Distance,
             expr: len(0.0),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc2, None);
@@ -884,13 +921,14 @@ fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
     let rim = minted(
         EntityKind::Edge,
         a,
-        RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&doc, a, 0, 0)),
+        RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&doc, a, 0, 0).into()),
     );
     assert!(
         apply_with_names(
             &doc,
             &DocEdit::InsertNode {
-                node: Box::new(Node::fillet(a, len(0.1), vec![rim.clone()]))
+                node: Box::new(Node::fillet(a, len(0.1), vec![rim.clone()])),
+                fresh: Vec::new()
             },
             &ev,
             Tol::witness(),
@@ -902,12 +940,13 @@ fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
     let bogus = minted(
         EntityKind::Edge,
         a,
-        RoleSeg::RimEdge(CapEnd::End, crate::fixture::no_piece()),
+        RoleSeg::RimEdge(CapEnd::End, crate::fixture::no_piece().into()),
     );
     let err = apply_with_names(
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::fillet(a, len(0.1), vec![bogus.clone()])),
+            fresh: Vec::new(),
         },
         &ev,
         Tol::witness(),
@@ -969,6 +1008,8 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         | RoleSeg::FromTarget(x)
         | RoleSeg::BlendFace(x)
         | RoleSeg::CornerFace(x)
+        | RoleSeg::Mitre { vertex: x }
+        | RoleSeg::TurnFoot { vertex: x }
         | RoleSeg::BandTrim { edge: x, .. }
         | RoleSeg::BandFoot(x)
         | RoleSeg::BandCut(x)
@@ -1053,14 +1094,14 @@ fn only_wall_mention(hay: &StableName, needle: &StableName) -> bool {
 /// segment reports the opposite.
 #[test]
 fn the_phantom_detector_sees_through_the_whole_vocabulary() {
-    let needle = fixture::fname(RecipeNodeId(1), RoleSeg::Cap(CapEnd::End));
+    let needle = fixture::fname(RecipeNodeId::new(0, 1), RoleSeg::Cap(CapEnd::End));
     let partner_only = StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(2),
+        node: RecipeNodeId::new(0, 2),
         path: vec![RoleSeg::Fragment(Qualifier::Borders(vec![needle.clone()]))],
     };
     let blended = fixture::fname(
-        RecipeNodeId(3),
+        RecipeNodeId::new(0, 3),
         RoleSeg::BlendFace(partner_only.clone().into()),
     );
 
@@ -1076,7 +1117,10 @@ fn the_phantom_detector_sees_through_the_whole_vocabulary() {
     );
     // The same segment, carrying the needle structurally: a real
     // derivation, and the detector must not call it a phantom.
-    let derived = fixture::fname(RecipeNodeId(3), RoleSeg::BlendFace(needle.clone().into()));
+    let derived = fixture::fname(
+        RecipeNodeId::new(0, 3),
+        RoleSeg::BlendFace(needle.clone().into()),
+    );
     assert!(
         !only_wall_mention(&derived, &needle),
         "a blend OF the name is a derivation, not a phantom"
@@ -1174,7 +1218,10 @@ fn suggestions_never_offer_wall_phantoms_and_are_kind_filtered() {
 
 #[test]
 fn repointed_input_diagnoses_recipe_edit_on_path() {
-    // Two geometrically IDENTICAL operands b and c: re-pointing the
+    // Two geometrically IDENTICAL operands b and c — c reads b's own
+    // variables, which is how two operands are one geometry by
+    // structure (two separately typed equal values are two variables,
+    // whose content keys differ): re-pointing the
     // union's second member from b to c (`SetMembers`, the door that
     // re-points a node's inputs in place) changes NO verdict (the
     // computed geometry is bit-identical) and NO structural parameter
@@ -1185,7 +1232,15 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
     // General position (no coplanar planes with A): B pierces A's
     // slab, strictly inside in y, poking out above and below.
     let (doc, b) = block(doc, (1.0, 3.0), (0.5, 1.5), -0.5, 2.0);
-    let (doc, c) = block(doc, (1.0, 3.0), (0.5, 1.5), -0.5, 2.0);
+    // The fold's predicate population reads its members' faces in name
+    // order, and a member's names carry its node id: a twin minted on
+    // the other side of `a` from `b` runs the same geometry through
+    // other predicates (`point_in_loop_advance` flips, 8 of them). So
+    // the twin is minted until it sorts where `b` does.
+    let (mut doc, mut c) = twin(doc, b);
+    while (c < a) != (b < a) {
+        (doc, c) = twin(doc, b);
+    }
     let (doc1, bl) = insert(
         doc,
         Node::Union {

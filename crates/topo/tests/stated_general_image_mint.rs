@@ -9,7 +9,7 @@
 //! `Pcurve::General` image reaches the fitted-grade certification
 //! (`PcurveCache::certify_general`) with no derivation in front of it
 //! — at a dual too. What the mint then answers is the fitted lane's
-//! five checks in their fixed order, and the order decides the
+//! four checks in their fixed order, and the order decides the
 //! verdict, not only its text:
 //!
 //! - a LINE carrier fails check 1 (`UnsupportedCarrier`: a line on a

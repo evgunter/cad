@@ -148,6 +148,10 @@ mod fillet_select;
 pub mod lift;
 pub mod path;
 mod seg;
+// `seg`'s randomized pair sweep, in a module of its own so the per-file test
+// gate can skip it without skipping that file's deterministic pair rows.
+#[cfg(test)]
+mod seg_reach_fuzz;
 pub mod structure;
 mod sugar;
 #[cfg(any(test, feature = "test-support"))]

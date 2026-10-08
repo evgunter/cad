@@ -42,7 +42,7 @@ use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, MeridianEnd, RoleSeg, StableName, fillet_edges, query};
 use pncad::profile::ArcSweep;
 use pncad::select::{ProfilePieces, band_rim, band_rim_pi, edge_name};
-use pncad::topo::{Body, EdgeKey};
+use pncad::topo::{AtRestBody, Body, EdgeKey};
 
 // ---- the lid's stations, from `src/teapot.rs` ----
 const R_NECK: f64 = 3.0 / 64.0;
@@ -100,6 +100,7 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> Recipe
         doc,
         &DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         tol,
         &pncad::document::RefusingReach,
@@ -383,7 +384,7 @@ fn one_request_builds_the_kernels_body() {
                 .expect("each rolled half-arc's key, by its name")
         })
         .collect();
-    let kernel = fillet_edges(&sharp, &keys, ROLL, tol)
+    let kernel = fillet_edges(&finished("sharp", sharp.clone(), tol), &keys, ROLL, tol)
         .expect("the kernel door rolls all three in one request")
         .body;
 
@@ -442,6 +443,7 @@ fn the_rolled_names_are_one_set_at_two_radii() {
                 node: rolled,
                 slot: pncad::document::SlotId::Radius,
                 expr: len(roll),
+                fresh: Vec::new(),
             },
             tol,
             &pncad::document::RefusingReach,
@@ -695,7 +697,7 @@ fn a_split_carries_a_held_slits_band() {
     );
 
     let cut: std::collections::BTreeSet<RecipeNodeId> =
-        doc.order().iter().copied().filter(|&n| n != lead).collect();
+        doc.ids().iter().copied().filter(|&n| n != lead).collect();
     let out = split(&doc, &cut, DocumentId::derive("teapot-lid-part"), tol, None)
         .expect("the lid splits out whole");
     let (part_rolled, part_holder) = (out.node_map[&rolled], out.node_map[&holder]);
@@ -719,4 +721,10 @@ fn a_split_carries_a_held_slits_band() {
         Some(&before[&slit]),
         "the held slit names the same edge in the part"
     );
+}
+
+/// `body` finished for a blend door, which takes finished bodies only.
+fn finished(what: &str, body: Body<f64>, tol: Tol) -> AtRestBody<f64> {
+    AtRestBody::validate(body, tol)
+        .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
 }

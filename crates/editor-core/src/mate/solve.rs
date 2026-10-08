@@ -44,7 +44,7 @@ use geom_core::linalg::{Affine3, Mat3, OrthoFrame, Point3, UnitVec3, UnitVec3Err
 use geom_core::predicate::Band;
 use geom_core::{Decide, Real, Tol};
 
-use super::coset::{Arm, Coset, FoldStop, Measured, Subgroup};
+use super::coset::{Arm, Coset, FoldStop, Measured, PoseSymmetry, Subgroup};
 use super::member::{Member, Placing, Walk, check_reference, derived_offset, walk_of};
 use super::reach::MateReach;
 use super::{
@@ -693,7 +693,7 @@ pub(crate) fn spaces_with<P: crate::ProfilePayload>(
     space_of: impl Fn(RecipeNodeId) -> Space,
 ) -> Spaces {
     let mut out = Spaces::default();
-    for &id in doc.order() {
+    for id in doc.ids() {
         let Some(node) = doc.node(id) else { continue };
         let here = match node {
             Node::Gauge { .. } | Node::Mate { .. } => continue,
@@ -841,7 +841,7 @@ pub(crate) fn group_frame<P, T: geom_core::Decide>(
 pub fn reading_edges<P>(doc: &Doc<P>) -> Vec<(RecipeNodeId, RecipeNodeId)> {
     let mut out = Vec::new();
     let live_gauge = |g: RecipeNodeId| matches!(doc.node(g), Some(Node::Gauge { .. }));
-    for &id in doc.order() {
+    for id in doc.ids() {
         match doc.node(id) {
             Some(Node::Mate { a, b, .. }) => {
                 for (side, name) in [(MateSide::A, a), (MateSide::B, b)] {
@@ -879,7 +879,7 @@ pub fn relative_freedom_components<P: crate::ProfilePayload>(
 ) -> Vec<Vec<RecipeNodeId>> {
     let mut adjacency: BTreeMap<RecipeNodeId, BTreeSet<RecipeNodeId>> = BTreeMap::new();
     let mut edges: Vec<(RecipeNodeId, RecipeNodeId)> = Vec::new();
-    for &id in doc.order() {
+    for id in doc.ids() {
         adjacency.entry(id).or_default();
         if let Some(node) = doc.node(id) {
             edges.extend(node.inputs().into_iter().map(|input| (id, input)));
@@ -890,7 +890,7 @@ pub fn relative_freedom_components<P: crate::ProfilePayload>(
         adjacency.entry(x).or_default().insert(y);
         adjacency.entry(y).or_default().insert(x);
     }
-    components(doc.order(), &adjacency)
+    components(&doc.ids(), &adjacency)
 }
 
 /// Connected components over `adjacency`, seeded in `order` so both the
@@ -994,7 +994,7 @@ type ReadMate<'d> = Result<(Walk<'d>, Walk<'d>), MateFault>;
 /// them.
 fn read_mates<P>(doc: &Doc<P>) -> Vec<(RecipeNodeId, ReadMate<'_>)> {
     let mut out = Vec::new();
-    for &id in doc.order() {
+    for id in doc.ids() {
         let Some(Node::Mate { a, b, .. }) = doc.node(id) else {
             continue;
         };
@@ -1027,7 +1027,7 @@ fn groups_welded_by<P>(
     welds: &[(RecipeNodeId, RecipeNodeId)],
 ) -> Vec<Vec<RecipeNodeId>> {
     let instances: Vec<RecipeNodeId> = doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .filter(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. })))
@@ -1228,7 +1228,13 @@ fn mate_coset<T: SolveScalar>(
                     }));
                 }
             }
-            (fa, Subgroup::Trivial)
+            (
+                fa,
+                side_symmetry(&SideFrame {
+                    placement: fa,
+                    axis,
+                }),
+            )
         }
         MatePrimitive::Coaxial => match alignment.clocking {
             // The rider cuts the cylindrical residual to translation
@@ -1238,14 +1244,11 @@ fn mate_coset<T: SolveScalar>(
                 (target, Subgroup::Prismatic { direction: axis })
             }
             None => {
-                let point = Point3::origin() + fa.translation;
-                (
-                    fa,
-                    Subgroup::Cylindrical {
-                        point,
-                        direction: axis,
-                    },
-                )
+                let axis = topo::query::DatumValue::Axis {
+                    origin: Point3::origin() + fa.translation,
+                    dir: axis,
+                };
+                (fa, side_symmetry(&axis))
             }
         },
         MatePrimitive::PlanarRest { offset } => {
@@ -1256,7 +1259,11 @@ fn mate_coset<T: SolveScalar>(
                 return Err(Box::new(MateFault::TableLacks { mate, what }));
             }
             let target = fa * Affine3::translation(local_z * T::from_f64(offset));
-            (target, Subgroup::Planar { normal: axis })
+            let plane = topo::query::DatumValue::Plane {
+                origin: Point3::origin() + fa.translation,
+                normal: axis,
+            };
+            (target, side_symmetry(&plane))
         }
         MatePrimitive::Clocking => {
             // The table's other static gap, from the same home
@@ -1379,12 +1386,27 @@ pub(crate) fn part_of<P>(
 /// composed with its offset denotes, in the side's part coordinates,
 /// and its local +Z as a witness the coset table reads — at the solve's
 /// scalar.
+/// **The subgroup a mate side's pose folds** ([`PoseSymmetry`]): the
+/// side read as the pose its primitive pins — a frame, an axis or a
+/// plane, each of which has one.
+fn side_symmetry<T: Real>(pose: &impl PoseSymmetry<T>) -> Subgroup<T> {
+    pose.symmetry()
+        .unwrap_or_else(|| unreachable!("a frame, an axis and a plane each have a subgroup"))
+}
+
 #[derive(Debug, Clone, Copy)]
 struct SideFrame<T: Real> {
     /// The frame's placement.
     placement: Affine3<T>,
     /// Its axis, local +Z.
     axis: UnitVec3<T>,
+}
+
+/// A resolved side is a frame: known outright.
+impl<T: Real> PoseSymmetry<T> for SideFrame<T> {
+    fn symmetry(&self) -> Option<Subgroup<T>> {
+        Some(Subgroup::Trivial)
+    }
 }
 
 impl<T: SolveScalar> SideFrame<T> {
@@ -1679,14 +1701,12 @@ pub(crate) fn admit_mate<P: crate::ProfilePayload>(
     let wb = walk_of(doc, mate, MateSide::B, b).map_err(Box::new)?;
     check_references(doc, env, mate, &wa, &wb).map_err(Box::new)?;
     admit_class(mate, *class)?;
-    // The two parts are asked in DOCUMENT order. The fold asks the
-    // tree's parent first, and the parent is wherever the root rule
-    // put the root, so where both parts are missing the two doors may
-    // name different ones; each names a part the mate needs.
-    // Document order is the order list's, not the ids': an id is a
-    // digest (N1), so comparing two says nothing about which came first.
-    let at = |id: RecipeNodeId| doc.order().iter().position(|&n| n == id);
-    let (first, second) = if at(wa.member.instance) <= at(wb.member.instance) {
+    // The two parts are asked in DOCUMENT order, which is id order (an
+    // id's mint ordinal leads it, N1). The fold asks the tree's parent
+    // first, and the parent is wherever the root rule put the root, so
+    // where both parts are missing the two doors may name different
+    // ones; each names a part the mate needs.
+    let (first, second) = if wa.member.instance <= wb.member.instance {
         (&wa.member, &wb.member)
     } else {
         (&wb.member, &wa.member)
@@ -1847,10 +1867,7 @@ fn fold_pair<P: crate::ProfilePayload, T: SolveScalar>(
                     }));
                 }
                 Err(FoldStop::Unleverable(refusal)) => {
-                    return Err(Box::new(MateFault::Unleverable {
-                        mate,
-                        refusal: Box::new(refusal),
-                    }));
+                    return Err(Box::new(MateFault::Unleverable { mate, refusal }));
                 }
                 Err(FoldStop::Clash { predicate, clash }) => {
                     return Err(Box::new(MateFault::Contradictory {
@@ -2073,7 +2090,7 @@ fn solve<P: crate::ProfilePayload, T: SolveScalar>(
             // with the same typed cause rather than any of them
             // guessing.
             let fault = MateFault::Band { error };
-            for &id in doc.order() {
+            for id in doc.ids() {
                 if matches!(
                     doc.node(id),
                     Some(Node::Mate { .. } | Node::InstantiatePart { .. })
@@ -2259,25 +2276,19 @@ fn solve_group<P: crate::ProfilePayload, T: SolveScalar>(
         group.iter().enumerate().map(|(i, &id)| (id, i)).collect();
     let mut neighbours: BTreeMap<RecipeNodeId, Vec<RecipeNodeId>> = BTreeMap::new();
     // The tree edge between two instances: the FIRST member pair
-    // relating them, in the order `Member`'s key states with every node
-    // read as its position in the document — so the members the author
-    // placed first win, whatever ids the mint gave them. Every other
-    // pair between the same two is a non-tree edge and stays
+    // relating them, in the order `Member`'s key states — ids order as
+    // inserted, so the members the author placed first win. Every
+    // other pair between the same two is a non-tree edge and stays
     // declaring.
-    let placed = s.doc.positions();
-    let at = |id: RecipeNodeId| placed.get(&id).copied().unwrap_or(usize::MAX);
     let rank = |m: &Member| {
         (
-            at(m.instance),
-            m.copy()
-                .iter()
-                .map(|&(node, index)| (at(node), index))
-                .collect::<Vec<_>>(),
+            m.instance,
+            m.copy(),
             m.chain
                 .iter()
                 .map(|p| match *p {
-                    Placing::Copy { pattern, index } => (at(pattern), Some(index)),
-                    Placing::Transform(node) => (at(node), None),
+                    Placing::Copy { pattern, index } => (pattern, Some(index)),
+                    Placing::Transform(node) => (node, None),
                 })
                 .collect::<Vec<_>>(),
         )
@@ -2497,7 +2508,7 @@ fn check_offsets<P: crate::ProfilePayload, T: SolveScalar>(
                     unchecked(instance, OffsetCheck::Indeterminate(diag))
                 }
                 FoldStop::Unleverable(refusal) => {
-                    unchecked(instance, OffsetCheck::Unleverable(refusal))
+                    unchecked(instance, OffsetCheck::Unleverable(*refusal))
                 }
                 FoldStop::OutOfRange => unchecked(instance, OffsetCheck::OutOfRange),
             })
@@ -2541,7 +2552,14 @@ mod tests {
         let fine = Band::linear_at(tol, 1e-3).expect("a band");
         let coarse = Band::linear_at(tol, 0.5).expect("a band");
         let compose = |offset: &crate::placement::Placement, band| {
-            compose_offset(RecipeNodeId(1), MateSide::A, None, offset, &env, band)
+            compose_offset(
+                RecipeNodeId::new(0, 1),
+                MateSide::A,
+                None,
+                offset,
+                &env,
+                band,
+            )
         };
         assert!(
             compose(&frame.offset, fine).is_ok(),
@@ -2632,7 +2650,7 @@ mod tests {
                                 panic!("{frame:?}: one literal step");
                             };
                             let side = compose_offset(
-                                RecipeNodeId(1),
+                                RecipeNodeId::new(0, 1),
                                 MateSide::A,
                                 None,
                                 &frame.offset,

@@ -45,3 +45,28 @@ A pose and its scaled copies stop at the same door (or build alike),
 whether by ranking only partners the walk leaves adjacent — where no
 tie can arise — or by a margin whose comparand is not an absolute
 length; pinned by a row at three scales.
+
+## 2026-10-07 — the ×1 and ×1e3 door moved (TANG, PR 4211)
+
+A ring on a sphere face now winds its island and re-homes its rings
+without a chart (`chord_join::path_island_winding`,
+`chord_join::path_ring_side`). `RingOffCylinderChart` is renamed
+`RingIslandUnread`, and a sphere reaches it only where a ring run
+reaches both sides of its section plane or is bounded by an edge that
+is not a circle. A bar through the unit ball at ×1, poles turned off
+every axis (`crates/sweep/tests/a_ring_on_a_sphere_face.rs`,
+`a_ring_beside_an_outer_loop_on_the_run_is_read_from_an_edge_midpoint`),
+builds ∩ in both orders and bar ∖ ball (two lumps) at the slice integral.
+∪ in both orders and ball ∖ bar keep the ring as a hole of the ball's
+face and refuse at the result gate
+(`work/flux/sphere-face-with-a-hole-has-no-closed-form.md`). The 3985
+reviewer's own poses are not re-measured here, and nor is ×1e-3.
+
+## 2026-10-07 — a run on both sides of its section plane reads (TANG)
+
+The sphere and cone ring lanes share one reading now: a path from an
+outer-loop point to the closing chord's midpoint, whose crossings and
+arrival side wind the island (`chord_join::path_island_winding`). It
+asks nothing of the section plane, so a run reaching both sides of it no
+longer refuses. On a sphere, `RingIslandUnread` is now reached only by a
+run edge that is not a circle.

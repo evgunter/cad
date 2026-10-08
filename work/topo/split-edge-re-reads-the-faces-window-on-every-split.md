@@ -2,8 +2,9 @@
 id: split-edge-re-reads-the-faces-window-on-every-split
 kind: issue
 title: split_edge re-reads its faces' whole window on every split, so N splits on one minted face cost O(N²) reads
-status: open
+status: closed
 opened: 2026-10-05
+closed: 2026-10-06
 priority: P3
 cost: M
 design: true
@@ -35,3 +36,13 @@ parent's. So the window cannot be a plain hull updated by insertion.
 That is the question
 `the-site-mints-plan-reads-the-rewired-loop-whole-on-every-op` holds,
 and this row is decided with it.
+
+## Closed
+
+Closed by the retirement of check 5 (PCERT's
+`pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`,
+ratified on [ev] PR 3919). The pcurve certificate tests no row against
+a window, so `split_cache` reads none: it certifies each restricted
+child against its carrier and chart and decides the joint between the
+two children at the split point, and reads nothing else of the face.
+One split's cost no longer depends on how many rows its faces hold.

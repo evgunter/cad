@@ -297,7 +297,15 @@ fn set_offset(
     instance: RecipeNodeId,
     offset: Option<Placement<Formula>>,
 ) -> ProfileDoc {
-    step(doc, DocEdit::SetOffset { instance, offset }).0
+    step(
+        doc,
+        DocEdit::SetOffset {
+            instance,
+            offset,
+            fresh: Vec::new(),
+        },
+    )
+    .0
 }
 
 /// The seat relation, read off a control solve (base at the world
@@ -495,6 +503,7 @@ fn a_member_the_tree_cannot_reach_faults_its_offset_naming_the_stranded_mate() {
             node: pat,
             slot: SlotId::Count,
             expr: Formula::count(2),
+            fresh: Vec::new(),
         },
     );
     let unstated = solve(&doc, &o, Tol::witness());
@@ -609,6 +618,7 @@ fn the_mate_door_clears_a_checked_offset_in_the_moving_group_too() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(seat(head(p.top_cap(pp)), head(p.base_cap(r)))),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -648,6 +658,7 @@ fn the_mate_door_clears_a_checked_offset_in_the_moving_group_too() {
         &doc_before_mate,
         &DocEdit::InsertNode {
             node: Box::new(seat(head(p.top_cap(pp)), head(p.base_cap(r)))),
+            fresh: Vec::new(),
         },
         Tol::witness(),
     )
@@ -853,8 +864,7 @@ fn a_cut_of_a_gauged_instance_and_plain_geometry_lands_on_two_anchors() {
     let (world_doc, x) = insert(doc, Node::instantiate_part(p.base));
     let gauged = set_gauge(world_doc.clone(), x, Some(g));
     let plain_cut = |doc: ProfileDoc| {
-        let before: std::collections::BTreeSet<RecipeNodeId> =
-            doc.order().iter().copied().collect();
+        let before: std::collections::BTreeSet<RecipeNodeId> = doc.ids().iter().copied().collect();
         let (doc, prof) = on_frame(
             doc,
             [50.0, 0.0, 0.0],
@@ -871,7 +881,7 @@ fn a_cut_of_a_gauged_instance_and_plain_geometry_lands_on_two_anchors() {
             },
         );
         let mut cut: std::collections::BTreeSet<RecipeNodeId> = doc
-            .order()
+            .ids()
             .iter()
             .copied()
             .filter(|id| !before.contains(id))
@@ -979,7 +989,7 @@ fn a_cut_group_unplaced_for_lack_of_an_offset_votes_its_gauge() {
     let (doc, x) = insert(doc, Node::instantiate_part(p.base));
     let doc = set_gauge(doc, x, Some(g));
     let doc = set_offset(doc, x, None);
-    let before: std::collections::BTreeSet<RecipeNodeId> = doc.order().iter().copied().collect();
+    let before: std::collections::BTreeSet<RecipeNodeId> = doc.ids().iter().copied().collect();
     let (doc, prof) = on_frame(
         doc,
         [50.0, 0.0, 0.0],
@@ -997,7 +1007,7 @@ fn a_cut_group_unplaced_for_lack_of_an_offset_votes_its_gauge() {
     );
     let o = p.opts();
     let mut cut: std::collections::BTreeSet<RecipeNodeId> = doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .filter(|id| !before.contains(id))
@@ -1157,7 +1167,8 @@ fn a_parametric_root_offset_moves_with_the_cut_and_promote_keeps_it_in_the_host(
     let k = k.expect("the promote mints its gauge");
     let out = split(&doc).expect("the promoted offset stays in the host");
     assert!(
-        matches!(out.remainder.node(k), Some(Node::Gauge { placement, .. }) if placement.bit_eq(&editor_core::test_support::stored_placement(&offset))),
+        matches!(out.remainder.node(k), Some(Node::Gauge { placement, .. })
+            if crate::fixture::written_placement(&out.remainder, placement) == offset),
         "the promoted gauge holds the parametric offset"
     );
     assert_eq!(
@@ -1170,8 +1181,11 @@ fn a_parametric_root_offset_moves_with_the_cut_and_promote_keeps_it_in_the_host(
         Some(Placement::IDENTITY)
     );
     assert!(
-        out.part.vars().is_empty(),
-        "the part copies no variable: {:?}",
+        out.part
+            .vars()
+            .values()
+            .all(|var| var.def().output().is_some()),
+        "the part copies no variable, holding only its nodes' outputs: {:?}",
         out.part.var_names().values().collect::<Vec<_>>()
     );
 }
@@ -1488,7 +1502,7 @@ fn the_minted_gauge_is_the_one_a_user_would_insert_and_moves_nothing() {
     let by_hand = editor_core::inline(&hand, h, &resolver, Tol::witness())
         .expect("at the empty offset the part's content lands on the gauge");
     let gauge_of = |d: &ProfileDoc| {
-        d.order()
+        d.ids()
             .iter()
             .copied()
             .find(|&id| matches!(d.node(id), Some(Node::Gauge { .. })))

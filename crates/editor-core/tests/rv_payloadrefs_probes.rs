@@ -199,6 +199,7 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
                 expr: leaf,
                 refs: Vec::new(),
             }),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -209,7 +210,7 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
             ..
         }) => assert_eq!(
             (declared, referenced),
-            (Dimension::Length, Dimension::Angle)
+            (editor_core::VarKind::Length, Dimension::Angle)
         ),
         other => panic!(
             "the EDIT door is the first door to see a payload reading a declared parameter at \
@@ -237,12 +238,12 @@ fn rv_the_payload_refusal_names_a_noun_that_covers_an_assertion_bound() {
     let rendered = format!(
         "{}",
         SnapshotError::PayloadVarKind {
-            node: editor_core::SpokenNode::absent(RecipeNodeId(7)),
+            node: editor_core::SpokenNode::absent(RecipeNodeId::new(0, 7)),
             var: editor_core::SpokenVar::new(
-                editor_core::VarId(3),
+                editor_core::VarId::new(0, 3),
                 Some(VarName::from_static("depth")),
             ),
-            declared: editor_core::Dimension::Angle,
+            declared: editor_core::VarKind::Angle,
             referenced: editor_core::Dimension::Length,
         }
     );
@@ -261,7 +262,7 @@ fn rv_the_payload_refusal_names_a_noun_that_covers_an_assertion_bound() {
         "{}",
         EditError::PayloadUnknownVarName {
             name: VarName::from_static("depth"),
-            node: editor_core::SpokenNode::absent(RecipeNodeId(7)),
+            node: editor_core::SpokenNode::absent(RecipeNodeId::new(0, 7)),
         }
     );
     assert!(

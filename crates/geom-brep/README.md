@@ -346,7 +346,9 @@ chart. Its home is the half-edge (`Body::pcurves`, a
 a function of the edge and the chart alone, plus the half-edge's
 **joint element**, the integer (whole periods, a torus's second period,
 a sphere's twin bit) that carries its image onto the end of the
-half-edge before it in its loop, or a reset marker at a pole or apex.
+half-edge before it in its loop, or a reset marker at a pole or apex
+(and on a spline chart where the net's own `u` stretch is not decided
+past the band).
 A loop's lift is derived by summing elements from its `first`, so no
 stored byte depends on which half-edge is `first`. A seam edge has both
 half-edges on one surface with one image and two joint elements, so no
@@ -372,32 +374,52 @@ f64 witness replay, the `Witness::Inexact` scalars) and as a property
 test of `chart_image_harmonic ∘
 chart_pcurve = carrier_harmonic` over the covered classes, not in a
 certificate over a parameter box. Where no closed form exists, the
-certificate falls back to the displacement at the shared schedule plus
-a between-samples envelope: hull-bounded for fitted images on NURBS
-charts, and only the carrier's incidence with the chart surface
-(`OnLocusHull`) for a fitted image over a rung-3 carrier on a periodic
-analytic chart, where `S ∘ P` is transcendental. A sphere's general
-circle (neither polar nor meridian) has no closed form either, but its
-envelope still bounds the whole span: its image is a piecewise quintic
-Hermite interpolant of the circle's chart image, and the envelope
-(`MapResidualHermite`) bounds `|S(P(t)) − C(t)|` as the circle's
-distance from the sphere, plus per span the image's control distance
-from the Hermite data and the Hermite remainder, through the chart
-map's derivative bound (`geom_brep::sphere_circle`); its schedule stays
-in the certified statement. No UV-space tolerance appears in
-any certified statement; the chart's stretch is the lever arm. A row
-certifies against its carrier and chart alone, on one branch (a τ jump
-is unrepresentable in `Harmonic`'s `α + β·t`); no caller's window enters
+image is the one the chart holds exactly. A fitted image on a NURBS
+chart is bounded between the shared schedule's samples by hull bounds.
+On an analytic chart, a carrier with no closed-form image (a spline
+carrier, a sphere's general circle) stores the *projected image*, the
+chart's own inverse applied to the carrier, `P(t) = ψ(C(t))`: the
+carrier's net in the chart frame, plus a partition of the span into
+pieces that each stay in one `atan2` sector. On the plane it is the
+carrier's net mapped through the affine chart; on the cone its second
+channel is the coordinate of the carrier point's foot on the
+generator. `S(ψ(x))` is the point of the chart nearest `x`, so the
+envelope bounds `|S(P(t)) − C(t)|` over the whole span as the
+carrier's distance from the chart (the composite of the chart's
+implicit form along the carrier, in metres through a per-span lever),
+plus the stored net's fidelity to the re-derived one through the
+projection's Lipschitz bound and the frame's defect; per span, the
+sector condition is decided, and a span reaching a pole or the apex
+refuses. The row reads no mate surface: an intersection carrier's
+uniqueness tube is the edge's certificate (C2), not the row's. No
+UV-space tolerance appears in any certified statement; the chart's
+stretch is the lever arm. A row certifies against its carrier and chart alone, on one branch (a τ jump
+is unrepresentable in `Harmonic`'s `α + β·t`, and the projected
+image's sector condition refuses one); no caller's window enters
 it. The face's rows lift its loops, and `topo::pcurves` certifies the
 loop: at each joint the walk decides the deck element (the whole number
-of periods, and on a sphere the involution twin) as an integer with
-half a period of room; the joint's 3-D coincidence is not decided again
-in the chart, since it follows from the two rows' envelopes and the
-edge certificate's pinning of each carrier's ends to the vertex. Each
-loop winds 0 or ±1 period, and a closed chart polygon is built only
-where it winds 0. A vertex on the chart's singular set (a sphere's pole,
-a cone's apex) is decided as 3-D incidence of the vertex on that set;
-a chart with no singular set decides nothing there. On a spline chart,
+of periods, and on a sphere the involution twin) as an integer, with
+half the step to the next point of the joint's orbit as room: half a
+period on a cylinder, cone or torus, and a quarter period on a sphere,
+whose twin sits half a period over in azimuth. Where two points as far
+from the axis as the joint's chart ends can be (the vertex's distance
+less the two ε that bound each end) and that half step apart in azimuth
+are farther apart than the joint bound, the integer names the joint's
+own orbit point; nearer a pole or a narrow cone's apex it may name
+another lift of the same point. The joint's
+3-D coincidence is not decided again in the chart, since it follows
+from the two rows' envelopes and the edge certificate's pinning of each
+carrier's ends to the vertex. A loop's winding is its elements composed
+once around, read off the invariants a change of starting half-edge
+leaves alone: off the twin, at most one period on each periodic
+channel; through the twin, an odd number of half turns of azimuth, at
+most three, and no bound on the second channel, whose periods are not
+such an invariant there; and no azimuth winding counted across a reset.
+A closed chart polygon is built only where the winding is zero and
+every joint's integer was decided with room past the joint bound. A
+vertex on the chart's singular set (a sphere's pole, a cone's apex) is
+decided as 3-D incidence of the vertex on that set; a chart with no
+singular set decides nothing there. On a spline chart,
 where a net can fold and a 3-D coincidence does not name the sheet, each
 joint also states its chart-space gap. Planar faces store nothing; `chart_pcurve` derives on
 demand. On every other chart the row is mandatory at rest: every
@@ -411,11 +433,15 @@ a chart can hold has a route into a certified row, and a face no route
 covers refuses at the producer rather than reaching rest uncached. The
 lanes: `Harmonic`, `IsoLine`, `IsoArc`, `Spiric` (the
 plane-cap and torus-wall images of a `Curve3::Spiric`, data-free and
-closed from the carrier's own parameter), `ConeSection` (a tilted
-plane×cone ellipse on its cone: the slant harmonic, the azimuth the
-Kepler true anomaly of the ellipse's projection, whose focus is the
-axis; its envelope is the harmonic closed form plus one remainder
-term), `Fitted`, `General`
+closed from the carrier's own parameter), `FocalSection` (a conic
+whose projection onto the plane normal to the chart's axis has its
+focus on the axis, in two instances: a tilted plane×cone ellipse on its
+cone, its second channel the harmonic slant, and a Villarceau circle on
+its torus, its second channel the tube angle, linear in the parameter;
+the azimuth is the projection's Kepler true anomaly, and, as for
+`Harmonic`, the envelope alone is the certified statement — the
+harmonic closed form of the Kepler decomposition plus its remainder,
+drift and frame terms — with the schedule its cross-check), `Fitted`, `General`
 (the general curve-in-UV at the honest fitted grade). Carrier-primary
 stands: the 3-D carrier is the authoritative machinery and the edge's
 parameter stays chart-neutral. The description form every conventional
@@ -489,10 +515,13 @@ contact census is CONTACT-DESIGN's, at `crates/topo/README.md`.
 construction; blends are analytic-first.** Implemented in
 `crates/sweep/src/blend/`; `crates/sweep/README.md` is the reference.
 What binds from here: the six named margined predicates over the inputs
-run in order before any ball exists (radius vs `1/κ_max` of each
-support, face clearance, spine regularity, chain G1, convexity-sign
-consistency, corner configuration), which is what lets an interval
-replay certify validity over a parameter box. Every constant-radius arm
+(radius vs `1/κ_max` of each support, face clearance, spine regularity,
+chain G1, convexity-sign consistency, corner configuration) all answer
+before anything is built, which is what lets an interval replay certify
+validity over a parameter box. They run in that order, except face
+clearance's reach arm (every band against every face of the body it
+does not blend), which needs the plan's feet: it runs in the surgery
+after predicate 6 and before any mutation. Every constant-radius arm
 mints a torus or a cylinder (the envelope of equal spheres over a circle
 or a line spine); a cone belongs to the variable-radius family.
 Trimlines are stored as `TangentIntersection`. Scope: a straight band

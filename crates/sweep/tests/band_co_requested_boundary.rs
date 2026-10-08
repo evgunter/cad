@@ -252,7 +252,7 @@ fn rod_request(
     let mut edges = rim_arcs_at(body, 1.0, 0.0);
     assert_eq!(edges.len(), 1, "the bore rim is one closed edge");
     edges.push(near_ruling(body, rod));
-    fillet_edges(body, &edges, r, tol()).map_err(|e| e.error)
+    fillet_edges(&sweep::test_support::at_rest(body, tol()), &edges, r, tol()).map_err(|e| e.error)
 }
 
 /// The carved bottom face's own clearance, read off the result: the
@@ -440,12 +440,11 @@ fn the_co_requested_rod_refuses_and_carves_on_its_closed_form_clearance() {
 /// **An open plane–plane link on an annulus rim's host closes on the
 /// host's outer cycle.** The squared washer's bottom face is ONE plane
 /// face: the square's bottom edges are its outer cycle and the bore rim
-/// its ring, with no seam meeting either. Every vertex of an open chain
-/// must be a joint or a corner whose three edges are all requested, so
-/// the bottom edges alone (a chain turning at an unrequested corner)
-/// refuse at a chain vertex before any meter runs, while every edge of
-/// the square closes its corners and carves beside the bore's band, the
-/// ring pass reading the bore's widened trim against each trimline.
+/// its ring, with no seam meeting either. The bottom edges alone turn
+/// at the square's corners, whose walls are square to the bottom, so
+/// they meet in four mitres; every edge of the square closes its
+/// corners in patches. Either carves beside the bore's band, the ring
+/// pass reading the bore's widened trim against each trimline.
 #[test]
 fn a_plane_link_on_an_annulus_hosts_outer_cycle_closes_at_the_squares_corners() {
     let washer = revolved_about_y(
@@ -464,7 +463,11 @@ fn a_plane_link_on_an_annulus_hosts_outer_cycle_closes_at_the_squares_corners() 
         (half * a.cos(), half * a.sin())
     };
     let square = upright(&[polar(67.5), polar(157.5), polar(247.5), polar(337.5)]);
-    let body = boolean(BooleanOp::Intersect, &washer, &square);
+    let body = sweep::test_support::finished(
+        "body",
+        boolean(BooleanOp::Intersect, &washer, &square),
+        tol(),
+    );
     validate_geometric(&body, tol()).expect("the fixture is tier-3 valid");
     let on_square = |p: Vec3<f64>| p.x.hypot(p.z) > 2.05;
     let request = |bottom_only: bool| {
@@ -475,17 +478,13 @@ fn a_plane_link_on_an_annulus_hosts_outer_cycle_closes_at_the_squares_corners() 
         }));
         edges
     };
-    let err = fillet_edges(&body, &request(true), 0.2, tol())
-        .expect_err("the bottom edges turn at unrequested corners")
-        .error;
-    assert!(
-        matches!(
-            err,
-            BlendError::UnsupportedCorner { .. }
-                | BlendError::UnsupportedRunOut { .. }
-                | BlendError::ChainNotG1 { .. }
-        ),
-        "the bottom edges alone: refused at a chain vertex, got {err:?}"
+    let bottom = fillet_edges(&body, &request(true), 0.2, tol())
+        .unwrap_or_else(|e| panic!("the bottom edges mitre at the square's corners, got {e:?}"));
+    validate_geometric(&bottom.body, tol()).expect("the mitred carve is tier-3 valid");
+    assert_eq!(
+        bottom.naming.as_ref().expect("births").mitres.len(),
+        4,
+        "a mitre at each of the square's corners"
     );
     let edges = request(false);
     assert_eq!(
@@ -558,7 +557,12 @@ fn a_ladder_hosts_co_requested_box_edge_is_metered_exactly_by_the_ring_arm() {
             })
             .collect();
         assert_eq!(edges.len(), 14, "two rim arcs and twelve box edges");
-        fillet_edges(&body, &edges, r, tol())
+        fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &edges,
+            r,
+            tol(),
+        )
     };
     let r = 0.26;
     let err = request(r).expect_err("the trims cross").error;
@@ -584,14 +588,18 @@ fn a_ladder_hosts_co_requested_box_edge_is_metered_exactly_by_the_ring_arm() {
 /// refusal at `r = 0.51` is `1 − 2r`; at `r = 0.49` both bands carve.
 #[test]
 fn two_coaxial_rims_on_a_shared_wall_are_read_exactly_by_the_screen() {
-    let washer = revolved_about_y(
-        vec![
-            (Point2::new(1.0, 0.0), 0.0),
-            (Point2::new(2.0, 0.0), 0.0),
-            (Point2::new(2.0, 1.0), 0.0),
-            (Point2::new(1.0, 1.0), 0.0),
-        ],
-        Revolution::Full,
+    let washer = sweep::test_support::finished(
+        "washer",
+        revolved_about_y(
+            vec![
+                (Point2::new(1.0, 0.0), 0.0),
+                (Point2::new(2.0, 0.0), 0.0),
+                (Point2::new(2.0, 1.0), 0.0),
+                (Point2::new(1.0, 1.0), 0.0),
+            ],
+            Revolution::Full,
+            tol(),
+        ),
         tol(),
     );
     let mut edges = rim_arcs_at(&washer, 1.0, 0.0);

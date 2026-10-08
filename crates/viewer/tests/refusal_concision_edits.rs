@@ -36,7 +36,7 @@ fn shown(e: EditError) -> String {
 fn stable_name() -> StableName {
     StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(tagged(3)),
+        node: RecipeNodeId::new(0, tagged(3)),
         path: Vec::new(),
     }
 }
@@ -57,11 +57,11 @@ fn param() -> VarName {
 
 /// `param()` as a refusal speaks it.
 fn spoken_var() -> pncad::document::SpokenVar {
-    pncad::document::SpokenVar::new(pncad::document::VarId(tagged(7)), Some(param()))
+    pncad::document::SpokenVar::new(pncad::document::VarId::new(0, tagged(7)), Some(param()))
 }
 
 fn n(id: u64) -> RecipeNodeId {
-    RecipeNodeId(tagged(id))
+    RecipeNodeId::new(0, tagged(id))
 }
 
 /// Node `id` as a refusal raised over a document holding it as a
@@ -107,7 +107,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
                 refusal: Box::new(ProgramRefusal::Resolve {
                     slot: SlotId::Distance,
                     source: EvalError::UnresolvedVar {
-                        var: pncad::document::VarId(tagged(7)),
+                        var: pncad::document::VarId::new(0, tagged(7)),
                     },
                 }),
             },
@@ -247,17 +247,20 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         (
             "SlotVarKind",
             EditError::SlotVarKind {
-                var: spoken_var(),
+                var: Box::new(spoken_var()),
                 node: s(5, "Extrude"),
                 slot: SlotId::Distance,
-                declared: Dimension::Angle,
+                declared: pncad::document::VarKind::Angle,
                 referenced: Dimension::Length,
             },
         ),
         (
             "SlotUnresolvedVar",
             EditError::SlotUnresolvedVar {
-                var: pncad::document::SpokenVar::new(pncad::document::VarId(tagged(7)), None),
+                var: pncad::document::SpokenVar::new(
+                    pncad::document::VarId::new(0, tagged(7)),
+                    None,
+                ),
                 node: s(5, "Extrude"),
                 slot: SlotId::Distance,
             },
@@ -274,14 +277,17 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             EditError::PayloadVarKind {
                 var: spoken_var(),
                 node: s(5, "Measure"),
-                declared: Dimension::Angle,
+                declared: pncad::document::VarKind::Angle,
                 referenced: Dimension::Length,
             },
         ),
         (
             "PayloadUnresolvedVar",
             EditError::PayloadUnresolvedVar {
-                var: pncad::document::SpokenVar::new(pncad::document::VarId(tagged(7)), None),
+                var: pncad::document::SpokenVar::new(
+                    pncad::document::VarId::new(0, tagged(7)),
+                    None,
+                ),
                 node: s(5, "Measure"),
             },
         ),
@@ -337,19 +343,19 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         (
             "AnonymousVarUnread",
             EditError::AnonymousVarUnread {
-                var: pncad::document::SpokenVar::new(pncad::document::VarId(tagged(7)), None),
+                var: pncad::document::SpokenVar::new(
+                    pncad::document::VarId::new(0, tagged(7)),
+                    None,
+                ),
             },
         ),
         (
             "DeleteAnonymousVar",
             EditError::DeleteAnonymousVar {
-                var: pncad::document::SpokenVar::new(pncad::document::VarId(tagged(7)), None),
-            },
-        ),
-        (
-            "VarIdCollides",
-            EditError::VarIdCollides {
-                id: pncad::document::VarId(tagged(7)),
+                var: pncad::document::SpokenVar::new(
+                    pncad::document::VarId::new(0, tagged(7)),
+                    None,
+                ),
             },
         ),
         (
@@ -374,7 +380,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
                 through: vec![
                     spoken_var(),
                     pncad::document::SpokenVar::new(
-                        pncad::document::VarId(tagged(8)),
+                        pncad::document::VarId::new(0, tagged(8)),
                         Some(VarName::from_static("height")),
                     ),
                 ],
@@ -398,7 +404,10 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             "DefinitionUnresolvedVar",
             EditError::DefinitionUnresolvedVar {
                 var: spoken_var(),
-                read: pncad::document::SpokenVar::new(pncad::document::VarId(tagged(8)), None),
+                read: pncad::document::SpokenVar::new(
+                    pncad::document::VarId::new(0, tagged(8)),
+                    None,
+                ),
             },
         ),
         (
@@ -406,10 +415,10 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             EditError::DefinitionVarKind {
                 var: spoken_var(),
                 read: pncad::document::SpokenVar::new(
-                    pncad::document::VarId(tagged(8)),
+                    pncad::document::VarId::new(0, tagged(8)),
                     Some(VarName::from_static("height")),
                 ),
-                declared: Dimension::Angle,
+                declared: pncad::document::VarKind::Angle,
                 referenced: Dimension::Length,
             },
         ),
@@ -467,14 +476,15 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
                         path: vec![editor_core::RoleSeg::RimEdge(
                             editor_core::CapEnd::End,
                             editor_core::ProfileEdgeRef::Piece {
-                                step: editor_core::StepId(tagged(9)),
+                                step: editor_core::StepId::new(0, tagged(9)),
                                 role: editor_core::PieceRole::Leg,
-                            },
+                            }
+                            .into(),
                         )],
                     },
                     s(3, "Extrude"),
                 ),
-                step: editor_core::StepId(tagged(9)),
+                step: editor_core::StepId::new(0, tagged(9)),
             },
         ),
         (
@@ -825,15 +835,12 @@ fn next_step_id_fault(fault: &StepIdFault) -> Option<StepIdFault> {
             given: 3,
         }),
         StepIdFault::Shape { .. } => Some(StepIdFault::NotThisProfiles {
-            step: StepId(tagged(7)),
+            step: StepId::new(0, tagged(7)),
         }),
         StepIdFault::NotThisProfiles { .. } => Some(StepIdFault::Repeated {
-            step: StepId(tagged(7)),
+            step: StepId::new(0, tagged(7)),
         }),
-        StepIdFault::Repeated { .. } => Some(StepIdFault::Collides {
-            step: StepId(tagged(7)),
-        }),
-        StepIdFault::Collides { .. } => None,
+        StepIdFault::Repeated { .. } => None,
         // No row: no edit door raises it. It is the load door's word,
         // and an edit that writes a name spelling a step the document
         // never minted refuses `NameStepNeverMinted`, which has its own.

@@ -4,8 +4,11 @@
 
 use core::num::NonZeroUsize;
 
-use crate::expr::{Dimension, Expr, Slot};
+use std::collections::BTreeMap;
+
+use crate::expr::{Dimension, Slot};
 use crate::names::SplitHalf;
+use crate::var::VarId;
 // The contact vocabulary is the KERNEL's (CONTACT-DESIGN C4, M9-1
 // PR-1). Imported, never redefined: the boolean's own refusals must
 // carry the same words this node authors, and `crate::names::flush`
@@ -56,23 +59,44 @@ macro_rules! name_free_node {
 
 /// A stable recipe-node identity (spec D3, NAMING-DESIGN N1's
 /// substrate): minted from the document's mint chain ([`crate::Mint`])
-/// at insertion, never reused (deletion does not free it), never
-/// positional. Its stability is a contract, pinned by test.
+/// at insertion, never reused (deletion does not free it). Of two
+/// nodes one document holds, the one inserted first has the lesser id
+/// ([`MintId`]). Its stability is a contract, pinned by test.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-pub struct RecipeNodeId(pub u64);
+pub struct RecipeNodeId(pub MintId);
 
 /// **A profile program step's identity** (`names/README.md`, "N1, the
 /// profile pieces"): minted from the document's mint chain
 /// ([`crate::Mint`]) when the step is authored — by `InsertNode`
 /// or `SetProgram` — never reused, never positional, and unique across
-/// the document. A profile piece's name spells it ([`crate::names::ProfileEdgeRef`]).
+/// the document, ordered as minted ([`MintId`]). A profile piece's name
+/// spells it ([`crate::names::ProfileEdgeRef`]).
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-pub struct StepId(pub u64);
+pub struct StepId(pub MintId);
 
+impl RecipeNodeId {
+    /// The node id with mint ordinal `ordinal` and digest head
+    /// `digest` ([`MintId::new`]).
+    #[must_use]
+    pub const fn new(ordinal: u32, digest: u64) -> Self {
+        Self(MintId::new(ordinal, digest))
+    }
+}
+
+impl StepId {
+    /// The step id with mint ordinal `ordinal` and digest head
+    /// `digest` ([`MintId::new`]).
+    #[must_use]
+    pub const fn new(ordinal: u32, digest: u64) -> Self {
+        Self(MintId::new(ordinal, digest))
+    }
+}
+
+pub use crate::mint::MintId;
 pub use crate::names::{EntityKind, FaceName, RoleSeg, StableName};
 
 /// A coordinate axis, naming vector components in slot identities
@@ -673,11 +697,14 @@ impl SlotId {
     /// it down.
     ///
     /// Every door that decides whether an expression may sit in a slot
-    /// asks this — [`Node::slot_dimension_fault`] per slot of a node
-    /// the document already holds, and `edit`'s `set_slot` of an
-    /// expression the node does not hold YET, which is why the subject
-    /// is a `(slot, expr)` pair rather than a node.
-    pub(crate) fn dimension_fault(self, expr: &impl Slot) -> Option<SlotDimensionFault> {
+    /// asks this — [`Node::formula_dimension_fault`] per slot of an
+    /// authored node, and `edit`'s `set_slot` of a formula the node
+    /// does not hold yet, which is why the subject is a `(slot, expr)`
+    /// pair rather than a node.
+    pub(crate) fn dimension_fault<L: crate::expr::LeafSet>(
+        self,
+        expr: &crate::expr::ExprTree<L>,
+    ) -> Option<SlotDimensionFault> {
         (expr.dim() != self.dimension()).then(|| SlotDimensionFault {
             slot: self,
             expected: self.dimension(),
@@ -847,7 +874,7 @@ impl SlotId {
 /// evaluation, never here.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub enum Datum<S = Expr> {
+pub enum Datum<S = crate::VarId> {
     /// A plane through `origin` with normal `normal` (unnormalized;
     /// PR 2 normalizes or refuses degenerate loudly).
     Plane {
@@ -1022,7 +1049,7 @@ pub enum Datum<S = Expr> {
 /// fn named(kind: editor_core::EntityKind) -> editor_core::StableName {
 ///     editor_core::StableName {
 ///         kind,
-///         node: editor_core::RecipeNodeId(0),
+///         node: editor_core::RecipeNodeId::new(0, 0),
 ///         path: Vec::new(),
 ///     }
 /// }
@@ -1048,7 +1075,7 @@ pub enum Datum<S = Expr> {
 /// fn named(kind: editor_core::EntityKind) -> editor_core::StableName {
 ///     editor_core::StableName {
 ///         kind,
-///         node: editor_core::RecipeNodeId(0),
+///         node: editor_core::RecipeNodeId::new(0, 0),
 ///         path: Vec::new(),
 ///     }
 /// }
@@ -1146,7 +1173,7 @@ impl InterfaceRecord {
 /// window's angle pair, and the paragraph above is why it must not.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub enum TubeWindow<S = Expr> {
+pub enum TubeWindow<S = crate::VarId> {
     /// The full ring — the donut.
     Full,
     /// The arc from `t0` to `t1`, radians about the spine axis from the
@@ -1215,7 +1242,7 @@ pub(crate) fn find_row<K: PartialEq, E>(rows: Vec<(K, E)>, key: K) -> Option<E> 
 /// the count lives on [`Node::Pattern`] as the structural slot).
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub enum PatternKind<S = Expr> {
+pub enum PatternKind<S = crate::VarId> {
     /// Instances stepped along a direction.
     Linear {
         /// Step direction components, Scalar ([`SlotId::Direction`]).
@@ -1258,7 +1285,7 @@ pub enum PatternKind<S = Expr> {
 /// well-typed: a half against a split, an index against a pattern's
 /// instances, and any other pairing refuses at evaluation.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-pub enum PartSelect<S = Expr> {
+pub enum PartSelect<S = crate::VarId> {
     /// The named half of a [`Node::Split`] value.
     SplitHalf(SplitHalf),
     /// The `i`-th instance of a [`Node::Pattern`] value — a
@@ -1445,7 +1472,7 @@ impl SitedRef {
 /// fn named(kind: editor_core::EntityKind) -> editor_core::StableName {
 ///     editor_core::StableName {
 ///         kind,
-///         node: editor_core::RecipeNodeId(0),
+///         node: editor_core::RecipeNodeId::new(0, 0),
 ///         path: Vec::new(),
 ///     }
 /// }
@@ -1494,7 +1521,7 @@ impl SitedRef {
 /// fn named(kind: editor_core::EntityKind) -> editor_core::StableName {
 ///     editor_core::StableName {
 ///         kind,
-///         node: editor_core::RecipeNodeId(0),
+///         node: editor_core::RecipeNodeId::new(0, 0),
 ///         path: Vec::new(),
 ///     }
 /// }
@@ -1518,7 +1545,7 @@ impl SitedRef {
 /// use editor_core::{EntityKind, FaceName, RecipeNodeId, StableName};
 /// let edge = StableName {
 ///     kind: EntityKind::Edge,
-///     node: RecipeNodeId(0),
+///     node: RecipeNodeId::new(0, 0),
 ///     path: Vec::new(),
 /// };
 /// assert_eq!(FaceName::new(edge).unwrap_err().found, EntityKind::Edge);
@@ -1762,20 +1789,20 @@ impl core::fmt::Display for MeasureNodeFault {
 
 impl core::error::Error for MeasureNodeFault {}
 
-/// **What makes a node's SLOT unusable** ([`Node::slot_dimension_fault`];
-/// spec D6) — one vocabulary for the edit doors and the load door, so
-/// the rule "a slot's expression carries the dimension the slot
-/// address fixes" has one definition rather than one per door.
+/// **What makes a formula unusable at a slot**
+/// ([`Node::formula_dimension_fault`]; spec D6) — the rule "a slot's
+/// formula carries the dimension the slot address fixes", asked by the
+/// edit doors before they lower. A stored slot holds a variable, and a
+/// variable of another kind is the read walks' fault (VR4).
 ///
 /// The domain is [`Node::slots`], which is EVERY node kind: a profile
 /// program's step arguments, an extrude's distance, a datum's
 /// coordinates and a pattern's count are the same question asked of
-/// different addresses, and a door that asks it of one kind admits
-/// files the other doors could not have produced.
+/// different addresses.
 /// ONE fact, so a struct: the dimensions disagree. A slot
 /// [`Node::slots`] names and [`Node::expr`] cannot answer for is not a
 /// property of the document at all — it is a disagreement between two
-/// matches in this module, which [`Node::slot_dimension_fault`]
+/// matches in this module, which [`Node::formula_dimension_fault`]
 /// asserts against at the site rather than routing to a door as a
 /// refusal.
 ///
@@ -1783,7 +1810,6 @@ impl core::error::Error for MeasureNodeFault {}
 /// which each door forwards into its own subject — the shape
 /// [`crate::placement::Frame::admission_fault`] carries for the frame
 /// rule. The sentence is written here and reaches a reader as
-/// "node 7: slot radius needs …" from the load door and as
 /// "slot radius needs …" from the edit door.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct SlotDimensionFault {
@@ -1998,7 +2024,7 @@ impl<S> PatternKind<S> {
     serialize = "P: serde::Serialize, crate::measure::MeasureExpr<S>: serde::Serialize",
     deserialize = "P: serde::Deserialize<'de>, crate::measure::MeasureExpr<S>: serde::Deserialize<'de>"
 ))]
-pub enum Node<P, S: Slot = Expr> {
+pub enum Node<P, S: Slot = crate::VarId> {
     /// A datum construction.
     Datum(Datum<S>),
     /// A programmatic sketch, carried opaquely (F4; never re-modeled).
@@ -3154,7 +3180,7 @@ macro_rules! node_rows {
 /// fn named() -> editor_core::StableName {
 ///     editor_core::StableName {
 ///         kind: editor_core::EntityKind::Face,
-///         node: editor_core::RecipeNodeId(0),
+///         node: editor_core::RecipeNodeId::new(0, 0),
 ///         path: Vec::new(),
 ///     }
 /// }
@@ -3173,13 +3199,13 @@ macro_rules! node_rows {
 ///     editor_core::declare_rest(vec![(sited(), sited())]);
 ///
 /// fn sited() -> editor_core::SitedRef {
-///     editor_core::SitedRef::new(editor_core::RecipeNodeId(0), named())
+///     editor_core::SitedRef::new(editor_core::RecipeNodeId::new(0, 0), named())
 /// }
 ///
 /// fn named() -> editor_core::StableName {
 ///     editor_core::StableName {
 ///         kind: editor_core::EntityKind::Face,
-///         node: editor_core::RecipeNodeId(0),
+///         node: editor_core::RecipeNodeId::new(0, 0),
 ///         path: Vec::new(),
 ///     }
 /// }
@@ -3199,8 +3225,8 @@ pub(crate) enum DeclaredSideFault {
     /// operands, so the carrier has no table to read its name in.
     SiteNotAnOperand,
     /// The side's name is minted by the carrier itself or by a node
-    /// after it in document order — an entity the carrier's operands
-    /// cannot hold.
+    /// inserted after it (a greater id) — an entity the carrier's
+    /// operands cannot hold.
     NameNotUpstream,
 }
 
@@ -3211,16 +3237,15 @@ pub(crate) enum DeclaredSideFault {
 /// `operands` are the carrier's operands, or `None` where the sites
 /// are not this caller's to judge — the load door's for a union, whose
 /// site a later `SetMembers` may have stranded. `at` is the carrier's
-/// place in document order, `None` for a node not yet inserted, which
-/// comes after every live one; `position` is a node's place, `None`
-/// for a node that is not live. A name whose minter is not live is a
-/// strand (DM7) and is not this rule's to judge: the doors that write
-/// a name refuse a dead minter before they ask this.
+/// id, `None` for a node not yet inserted, which comes after every
+/// live one; `live` says whether a node is live. A name whose minter
+/// is not live is a strand (DM7) and is not this rule's to judge: the
+/// doors that write a name refuse a dead minter before they ask this.
 pub(crate) fn declared_side_fault<'p>(
     pairs: impl IntoIterator<Item = &'p DeclaredPair>,
     operands: Option<&[RecipeNodeId]>,
-    at: Option<usize>,
-    position: impl Fn(RecipeNodeId) -> Option<usize>,
+    at: Option<RecipeNodeId>,
+    live: impl Fn(RecipeNodeId) -> bool,
 ) -> Option<(&'p SitedRef, DeclaredSideFault)> {
     pairs
         .into_iter()
@@ -3229,10 +3254,8 @@ pub(crate) fn declared_side_fault<'p>(
             if operands.is_some_and(|operands| !operands.contains(&side.at)) {
                 return Some((side, DeclaredSideFault::SiteNotAnOperand));
             }
-            let upstream = match (position(side.name.node), at) {
-                (None, _) | (Some(_), None) => true,
-                (Some(minter), Some(at)) => minter < at,
-            };
+            let minter = side.name.node;
+            let upstream = !live(minter) || at.is_none_or(|at| minter < at);
             (!upstream).then_some((side, DeclaredSideFault::NameNotUpstream))
         })
 }
@@ -3312,16 +3335,6 @@ impl<P: crate::program::SlotPayload<S>, S: Slot> Node<P, S> {
             .into_iter()
             .map(|(_, e)| e)
             .collect())
-    }
-
-    /// Reads every literal's display unit as its dimension's canonical
-    /// one, in the slots and in the expressions no slot addresses
-    /// ([`payload_exprs`]): what [`Node::bit_eq`] sees, as a value that
-    /// serializes (D6: the display unit is never identity).
-    pub(crate) fn erase_display_units(&mut self) {
-        for expr in self.exprs_mut() {
-            expr.erase_display_units();
-        }
     }
 }
 
@@ -3569,7 +3582,10 @@ impl<P> Node<P> {
         let Node::Assertion { measure, bound, .. } = self else {
             return None;
         };
-        let (measure, bound) = (*measure, bound.dim());
+        // The bound's dimension is its variable's kind; a bound reading
+        // a variable `doc` does not hold, or one no expression reads, is
+        // the read walks'.
+        let (measure, bound) = (*measure, doc.vars.get(bound)?.kind().dimension()?);
         match doc.nodes.get(&measure) {
             Some(Node::Measure { expr, .. }) => {
                 AssertionBoundFault::against(measure, expr.dim(), bound)
@@ -3970,23 +3986,19 @@ impl<P> Node<P> {
             | Node::Assertion { .. } => None,
         }
     }
+}
 
-    /// **The slot-dimension rule, asked of this node** (spec D6):
-    /// every expression the slot table pairs with a slot carries the
-    /// dimension [`SlotId::dimension`] fixes for that address. `None`
-    /// when the node carries no slot at all, which is most of the
-    /// assembly vocabulary.
-    ///
-    /// One home for the question, read by the edit doors
-    /// (`check_node_slots`) and by the load door's walk, each naming
-    /// the answer in its own vocabulary. The `pub` payloads are what
-    /// make a violation reachable: a hand-built node and a corrupt
-    /// file can both state one, and neither may reach a document the
-    /// edit doors could not have produced.
-    pub(crate) fn slot_dimension_fault(&self) -> Option<SlotDimensionFault>
-    where
-        P: crate::ProfilePayload,
-    {
+impl<P, L> Node<P, crate::expr::ExprTree<L>>
+where
+    P: crate::program::SlotPayload<crate::expr::ExprTree<L>>,
+    L: crate::expr::LeafSet,
+    crate::expr::ExprTree<L>: Slot,
+{
+    /// **The slot-dimension rule, asked of an authored node**: every
+    /// formula the slot table pairs with a slot carries the dimension
+    /// [`SlotId::dimension`] fixes for that address — the edit doors'
+    /// question before they lower the node.
+    pub(crate) fn formula_dimension_fault(&self) -> Option<SlotDimensionFault> {
         self.rows()
             .into_iter()
             .find_map(|(slot, expr)| slot.dimension_fault(expr))
@@ -4150,7 +4162,103 @@ impl<S> PartSelect<S> {
     }
 }
 
+/// **One port of an operation's output signature** (D10, Operations):
+/// the variable the operation defines there ([`crate::VarDef::Output`]),
+/// named and typed by the variant.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OutputPort {
+    /// The port's name, unique in its signature.
+    pub name: &'static str,
+    /// What decides its kind.
+    pub kind: PortKind,
+}
+
+/// **What decides a port's kind**: the variant alone, or, for a placer
+/// of its operand's shape, the operand.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PortKind {
+    /// This kind.
+    Of(crate::VarKind),
+    /// A [`Node::Transform`]'s value, which has its operand's shape:
+    /// `Bodies` when the operand's first port is `Bodies`, `Body`
+    /// otherwise. Evaluation refuses every operand that is neither
+    /// (`WrongOperand`).
+    ///
+    /// Read off the operand once, at the insert that mints the output;
+    /// from then on the output's stored kind is the fact (VR3: a kind
+    /// is fixed at minting), and the load door only checks the two
+    /// still agree. No door re-points a transform's operand.
+    PlacedFrom(RecipeNodeId),
+}
+
+impl OutputPort {
+    const fn of(name: &'static str, kind: crate::VarKind) -> Self {
+        Self {
+            name,
+            kind: PortKind::Of(kind),
+        }
+    }
+}
+
 impl<P, S: Slot> Node<P, S> {
+    /// **The operation's output signature** (D10, Operations): the
+    /// fixed list of named, typed ports its variant defines, in port
+    /// order, possibly none. The insert door mints one variable per
+    /// port ([`crate::Doc::output`]).
+    ///
+    /// A [`Node::Transform`]'s one port has its operand's shape:
+    /// `Bodies` when the operand's first port is `Bodies`, `Body`
+    /// otherwise ([`PortKind::PlacedFrom`]). An instance defines one
+    /// `body` until world placements give it one per placement.
+    ///
+    /// Exhaustive over the variants, so one added does not compile
+    /// until it states what it defines.
+    #[must_use]
+    pub fn outputs(&self) -> Vec<OutputPort> {
+        use crate::VarKind;
+        const BODY: OutputPort = OutputPort::of("body", VarKind::Body);
+        match self {
+            Self::Datum(datum) => vec![match datum {
+                Datum::Plane { .. } => OutputPort::of("plane", VarKind::Plane),
+                Datum::Axis { .. } | Datum::AxisInPlane { .. } => {
+                    OutputPort::of("axis", VarKind::Axis)
+                }
+                Datum::Point { .. } => OutputPort::of("point", VarKind::Point),
+                Datum::Frame { .. } | Datum::FaceFrame { .. } => {
+                    OutputPort::of("frame", VarKind::Frame)
+                }
+            }],
+            Self::Profile(_) => vec![OutputPort::of("profile", VarKind::Profile)],
+            Self::Revolve { .. } => vec![BODY, OutputPort::of("axis", VarKind::Axis)],
+            Self::Split { .. } => vec![
+                OutputPort::of("above", VarKind::Body),
+                OutputPort::of("below", VarKind::Body),
+            ],
+            Self::Pattern { .. } => vec![OutputPort::of("bodies", VarKind::Bodies)],
+            Self::Transform { input, .. } => vec![OutputPort {
+                name: "body",
+                kind: PortKind::PlacedFrom(*input),
+            }],
+            Self::Measure { expr, .. } => {
+                vec![OutputPort::of("value", VarKind::from(expr.dim()))]
+            }
+            Self::Extrude { .. }
+            | Self::Tube { .. }
+            | Self::HollowTube { .. }
+            | Self::Loft { .. }
+            | Self::Sweep { .. }
+            | Self::Fillet { .. }
+            | Self::Chamfer { .. }
+            | Self::Shell { .. }
+            | Self::Boolean { .. }
+            | Self::Union { .. }
+            | Self::Part { .. }
+            | Self::PlacedUnion { .. }
+            | Self::InstantiatePart { .. } => vec![BODY],
+            Self::Gauge { .. } | Self::Mate { .. } | Self::Assertion { .. } => Vec::new(),
+        }
+    }
+
     /// **This node in another slot form** — the one conversion between
     /// the authored and the stored node: every slot and every payload
     /// expression rewritten by `f`, the profile's payload by `payload`
@@ -4339,18 +4447,118 @@ pub type AuthoredNode<P = crate::ProfileProgram> =
     Node<<P as crate::ProfilePayload>::Authored, crate::Formula>;
 
 impl<P: crate::ProfilePayload> Node<P> {
-    /// **This node re-authored**: every slot a formula reading what it
-    /// read, by id ([`crate::Formula::from`]), its profile's payload
-    /// re-authored ([`crate::ProfilePayload::authored`]). The edit door
-    /// lowers it back to this node, bit for bit.
+    /// **This node re-authored**: every slot a formula reading its
+    /// variable by id ([`crate::Formula::var`]), at the dimension the
+    /// slot's address reads it at, its profile's payload re-authored
+    /// ([`crate::ProfilePayload::authored`]). The edit door lowers it
+    /// back to this node, bit for bit: a lone variable lowers to
+    /// itself, so every unchanged argument keeps its variable and
+    /// that variable's distribution.
+    ///
+    /// `doc` answers what no address fixes: an assertion's bound is
+    /// read at its measure's dimension.
     #[must_use]
-    pub fn authored(&self) -> Node<P::Authored, crate::Formula> {
+    pub fn authored(&self, doc: &crate::Doc<P>) -> Node<P::Authored, crate::Formula> {
+        self.authored_with(doc, &mut crate::Formula::var)
+    }
+
+    /// **This node as it was written**: each slot the formula its
+    /// variable was written as ([`crate::Doc::written`]) — an anonymous
+    /// variable's value or definition, a named one's reader. Inserting
+    /// it mints its anonymous variables afresh, as the insert that
+    /// wrote it did. RE-MINTS: where identity must survive, re-author
+    /// with [`Self::authored`].
+    ///
+    /// A document rebuilt by re-inserting its nodes in order is the
+    /// document, ids included, ONLY where no anonymous variable is read
+    /// more than once or carries a distribution
+    /// ([`crate::Doc::written_would_not_reproduce`]) and none was
+    /// value-edited after its insert (its mint read the old value). A
+    /// caller rebuilding a document checks the first and compares the
+    /// ids for the second.
+    #[must_use]
+    pub fn written(&self, doc: &crate::Doc<P>) -> Node<P::Authored, crate::Formula> {
+        self.authored_with(doc, &mut |var, dim| {
+            crate::Formula::from(doc.written(&crate::Expr::var(var, dim)))
+        })
+    }
+
+    /// [`Self::authored`], each slot's variable written by `reader`
+    /// (handed the variable and the dimension the slot reads it at).
+    /// A profile's arguments are written by the same `reader`.
+    pub(crate) fn authored_with(
+        &self,
+        doc: &crate::Doc<P>,
+        reader: &mut dyn FnMut(VarId, Dimension) -> crate::Formula,
+    ) -> Node<P::Authored, crate::Formula> {
+        let mut dims: BTreeMap<VarId, Dimension> = self
+            .rows()
+            .into_iter()
+            .map(|(slot, &var)| (var, slot.dimension()))
+            .collect();
+        match self {
+            Node::Measure { expr, .. } => {
+                let mut reads = Vec::new();
+                expr.var_reads(&mut reads);
+                dims.extend(reads);
+            }
+            Node::Assertion { .. } => dims.extend(self.payload_reads(doc).into_iter().flatten()),
+            _ => {}
+        }
+        let mut payload = None;
+        if let Node::Profile(p) = self {
+            payload = Some(p.authored_with(reader));
+        }
+        let mut read = |var: &VarId| {
+            let Some(&dim) = dims.get(var) else {
+                unreachable!(
+                    "every slot of a stored node has an address, a measured leaf or an \
+                     assertion's measure to read {var:?} at"
+                )
+            };
+            Ok::<_, core::convert::Infallible>(reader(*var, dim))
+        };
         let reauthored = self.try_map_slots(
-            |p, _| Ok::<_, core::convert::Infallible>(p.authored()),
-            &mut |e| Ok(crate::Formula::from(e)),
+            |_, _| {
+                Ok(payload
+                    .take()
+                    .unwrap_or_else(|| unreachable!("a profile's payload is re-authored once")))
+            },
+            &mut read,
         );
         let Ok(authored) = reauthored;
         authored
+    }
+}
+
+impl<P: crate::ProfilePayload> Node<P> {
+    /// **The variables the expressions no slot addresses read**, each
+    /// with the dimension it is read at ([`payload_exprs`]'s order): a
+    /// measured expression's value leaves at their leaves' dimensions,
+    /// an assertion's bound at its variable's kind — or, where `doc`
+    /// no longer holds the variable, at its measure's dimension. `None`
+    /// for a slot-only node.
+    pub(crate) fn payload_reads(&self, doc: &crate::Doc<P>) -> Option<Vec<(VarId, Dimension)>> {
+        match self {
+            Node::Measure { expr, .. } => {
+                let mut reads = Vec::new();
+                expr.var_reads(&mut reads);
+                Some(reads)
+            }
+            Node::Assertion { measure, bound, .. } => {
+                let dim = doc
+                    .vars
+                    .get(bound)
+                    .and_then(|v| v.kind().dimension())
+                    .or_else(|| match doc.nodes.get(measure) {
+                        Some(Node::Measure { expr, .. }) => Some(expr.dim()),
+                        _ => None,
+                    })
+                    .unwrap_or(Dimension::Scalar);
+                Some(vec![(*bound, dim)])
+            }
+            _ => None,
+        }
     }
 }
 
@@ -4900,12 +5108,11 @@ impl<P, S: Slot> Node<P, S> {
     }
 }
 
-impl<P, L> Node<P, crate::expr::ExprTree<L>>
+impl<P, S> Node<P, S>
 where
-    P: PartialEq + crate::program::SlotPayload<crate::expr::ExprTree<L>>,
-    L: crate::expr::LeafSet,
-    crate::expr::ExprTree<L>: Slot,
-    crate::measure::MeasureExpr<crate::expr::ExprTree<L>>: PartialEq,
+    P: PartialEq + crate::program::SlotPayload<S>,
+    S: Slot,
+    crate::measure::MeasureExpr<S>: PartialEq,
 {
     /// Bit-semantic payload equality (spec D7's comparison substrate):
     /// `PartialEq` for structure plus BIT comparison of every slot

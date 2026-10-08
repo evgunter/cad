@@ -55,6 +55,12 @@ mod common;
 mod mate2_common;
 mod revolve_common;
 
+#[path = "a_pole_and_an_apex_join_nothing.rs"]
+mod a_pole_and_an_apex_join_nothing;
+#[path = "a_ring_on_a_cone_face.rs"]
+mod a_ring_on_a_cone_face;
+#[path = "a_ring_on_a_sphere_face.rs"]
+mod a_ring_on_a_sphere_face;
 #[path = "a_ruling_lying_on_a_wall.rs"]
 mod a_ruling_lying_on_a_wall;
 #[path = "a_swept_cusp_is_legal_at_rest.rs"]
@@ -115,6 +121,10 @@ mod offset_restates_a_neighbour_chart_rim;
 mod one_door_for_coincident_sections;
 #[path = "one_segment_loop.rs"]
 mod one_segment_loop;
+#[path = "operand_gate_pose.rs"]
+mod operand_gate_pose;
+#[path = "operand_gate_support_plates.rs"]
+mod operand_gate_support_plates;
 #[path = "p1b_r1_probes.rs"]
 mod p1b_r1_probes;
 #[path = "parallel_cylinder_join.rs"]
@@ -151,6 +161,12 @@ mod r2_mate3_probes;
 mod r2_mesh1_donut_probes;
 #[path = "rehome_rings_lune.rs"]
 mod rehome_rings_lune;
+#[path = "review_r2_vv_probes.rs"]
+mod review_r2_vv_probes;
+#[path = "review_sixx_r2_probes.rs"]
+mod review_sixx_r2_probes;
+#[path = "scaffolding_on_a_blend_support_face_does_not_finish.rs"]
+mod scaffolding_on_a_blend_support_face_does_not_finish;
 #[path = "sf2a_r1.rs"]
 mod sf2a_r1;
 #[path = "sf2a_r1_head.rs"]
@@ -200,12 +216,12 @@ mod verbs_offd;
 #[path = "verbs_shell.rs"]
 mod verbs_shell;
 
+#[path = "a_thin_wall_bounds_the_band.rs"]
+mod a_thin_wall_bounds_the_band;
 #[path = "axis_lap.rs"]
 mod axis_lap;
 #[path = "band_annulus_host_boundary.rs"]
 mod band_annulus_host_boundary;
-#[path = "band_clearance_screen_reads_every_feature.rs"]
-mod band_clearance_screen_reads_every_feature;
 #[path = "band_co_requested_boundary.rs"]
 mod band_co_requested_boundary;
 #[path = "band_planar_cut_off.rs"]
@@ -216,12 +232,16 @@ mod band_planar_cut_off_interval;
 mod band_planar_cut_off_meters;
 #[path = "band_planar_cut_off_shapes.rs"]
 mod band_planar_cut_off_shapes;
+#[path = "band_planar_mitre.rs"]
+mod band_planar_mitre;
 #[path = "band_planar_oblique_fillet.rs"]
 mod band_planar_oblique_fillet;
 #[path = "band_ruled_cap_ring.rs"]
 mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]
 mod band_ruled_d_hole;
+#[path = "band_turn_overrun_probe.rs"]
+mod band_turn_overrun_probe;
 #[path = "bitdump.rs"]
 mod bitdump;
 #[path = "blend1_r1_probes.rs"]
@@ -240,12 +260,22 @@ mod blend4_r1_probes;
 mod blend6_verb_vocab;
 #[path = "blend_ball_side_bits.rs"]
 mod blend_ball_side_bits;
+#[path = "blend_band_reach.rs"]
+mod blend_band_reach;
+#[path = "blend_band_reach_chain_ends.rs"]
+mod blend_band_reach_chain_ends;
+#[path = "blend_band_reach_oracle.rs"]
+mod blend_band_reach_oracle;
+#[path = "blend_band_reach_rows.rs"]
+mod blend_band_reach_rows;
 #[path = "blend_bore_two_rims.rs"]
 mod blend_bore_two_rims;
 #[path = "blend_dual_tangent.rs"]
 mod blend_dual_tangent;
 #[path = "blend_margin_payload_interval.rs"]
 mod blend_margin_payload_interval;
+#[path = "blend_operand_gate.rs"]
+mod blend_operand_gate;
 #[path = "blend_seam_split_rim.rs"]
 mod blend_seam_split_rim;
 #[path = "blend_tworims.rs"]
@@ -296,6 +326,8 @@ mod ladder_split_key;
 mod lamina_annulus;
 #[path = "lib_u3_sections.rs"]
 mod lib_u3_sections;
+#[path = "loft_v_is_the_section_set.rs"]
+mod loft_v_is_the_section_set;
 #[path = "m3_pr5_extrude_booleans.rs"]
 mod m3_pr5_extrude_booleans;
 #[path = "m5_pr10_frontier.rs"]
@@ -384,10 +416,14 @@ mod must_carry_rule;
 mod r1_probes_issue1362_donut;
 #[path = "r2_sense_fold_probes.rs"]
 mod r2_sense_fold_probes;
+#[path = "radius_headroom_sides.rs"]
+mod radius_headroom_sides;
 #[path = "ray_wall_margin_twins.rs"]
 mod ray_wall_margin_twins;
 #[path = "reach_aligned_half_rods.rs"]
 mod reach_aligned_half_rods;
+#[path = "reach_cone_root_lane.rs"]
+mod reach_cone_root_lane;
 #[path = "reach_cone_split.rs"]
 mod reach_cone_split;
 #[path = "reach_continuation.rs"]
@@ -539,8 +575,8 @@ mod split_edge_loft_charts;
 mod split_section_rings;
 #[path = "split_tangent_edge_curved.rs"]
 mod split_tangent_edge_curved;
-#[path = "split_through_a_seam_ruling.rs"]
-mod split_through_a_seam_ruling;
+#[path = "split_through_a_ruling.rs"]
+mod split_through_a_ruling;
 #[path = "turning_orientation.rs"]
 mod turning_orientation;
 #[path = "verbs_1031b_arcwind.rs"]
@@ -710,6 +746,8 @@ mod pierce_tangent_off_face;
 mod snowman;
 #[path = "tang_circle_cylinder.rs"]
 mod tang_circle_cylinder;
+#[path = "torus_touch_off_faces.rs"]
+mod torus_touch_off_faces;
 
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;
@@ -967,3 +1005,5 @@ mod rest_zip_admission;
 
 #[path = "pole_ball_shells.rs"]
 mod pole_ball_shells;
+#[path = "shell_curved_mouth.rs"]
+mod shell_curved_mouth;

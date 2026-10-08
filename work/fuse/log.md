@@ -549,6 +549,32 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
 - 2026-10-06 — PR 3953 lands (two dangling null edges with one
   segment). Every one-arc lens case builds in every op and passes 3′.
   The P0 row closes.
+- 2026-10-06 — Dispatched `sweeps-build-one-rim-edge-per-segment-not-per-run`
+  (P1) on `fuse/sweep-runs`. It is the extrude half and partial
+  revolve's direct construction; the lane stops on anything that needs
+  a curved-join key.
+- 2026-10-06 — `curved-joinable-vertices-are-left-unjoined` is put to
+  a designer pair (blinding byte on
+  `analysis/design-fork/fuse-curved-join-key-2026-10-06`). PR 3881's
+  ruling says curved edges join where the carrier is structurally one,
+  "keyed by the surfaces and the intersection branch". The ratified
+  `EdgeDescription::Intersection` selects its branch by a witness
+  point, so the key the ruling names does not exist yet. Giving it one
+  would change ratified text, so the orchestrator treats it as a fork,
+  not a unit.
+- 2026-10-06 — The curved-join key is put to Ev as PR 4198 (`[ev]`,
+  fork-log row 78, `needs_ev: true` on
+  `curved-joinable-vertices-are-left-unjoined`). After three rounds the
+  designers converged on these points:
+  - the shared vertex decides the branch, with no new key;
+  - poles and apexes are never joinable (they are most of the counted
+    population);
+  - a joined closed edge keeps a canonical vertex at the curved face's
+    chart cut;
+  - the maximal-edges clause is restored to Ev's approved "structural
+    carrier". Its D10 rewording (adca520953, inside PR 4002) had no
+    sign-off.
+  Left to Ev: the same-kind tie-break's flavour.
 - 2026-10-06 — Steps 2 and 4 of the PR 3881 build land on main
   together. PR 4161 (merged-set edge names) merged into
   `fuse/join-every-stage`, then PR 4140 landed.
@@ -563,3 +589,101 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
     rows on 4140; a FULL review on 4161.
   - **Unit row:** stays open for the P1 rows (b) sweeps and (c)
     curved joins, then step 3.
+- 2026-10-07 — Ev ruled on PR 4198 (merged).
+  - **Accepted as written:** the vertex decides the branch; poles and
+    apexes are never joinable; the clause is restored to "structural
+    carrier".
+  - **Replaced:** the designers' canonical cut. A closed joined edge's
+    one vertex is conventional, like a seam, with no identity of its
+    own. Uniqueness holds up to its position, and PR 3881's C12.5
+    sentence retires.
+  - **Designers' round 4:** both found the rule sound and added the
+    structural definition and the edge-interior reading at that point.
+  - Fork-log row 78 is complete.
+  - `curved-joinable-vertices-are-left-unjoined` is dispatched on
+    `fuse/curved-join`.
+- 2026-10-07 — PR 4200 lands: sweeps build one rim edge per run,
+  the sweep half of step 2.
+  - **Review:** single FULL review, with 568 probe bodies clean and the
+    mutants killed. The fix pass added the coverage rows and the k-lint
+    correction, and gave `Collapsed` one home.
+  - **CI fixes on the way:** the guide doctest was this PR's own; the
+    bounds-roster line was main's red since #4173 and was ported in.
+  - **Rows:** `sweeps-build-one-rim-edge-per-segment-not-per-run`
+    closes. Step 3 waits only on the curved join (`fuse/curved-join`).
+- 2026-10-07 — Step 3 stops at a fork: where "no joinable vertex remains" is checked. It goes to Ev as an `[ev]` PR; the row is `a-finished-body-holds-no-joinable-vertex`.
+  - **Why it stopped.** The ratified clause says "checked at tier 2", but tier 2 (`validate_closed`) takes no band, is generic over `Real`, and gates construction state. The predicate's curved arms read margins and can come back undecided.
+  - **Measured by the lane** (main 8115891c9, a timer inside the at-rest gate over the full `ci` suite, 52067 bodies):
+    - `joinable_vertices` costs 1.29% of gate time: 39 µs at p50 and 315 µs at p99 per body.
+    - 344 at-rest bodies, in 149 tests over 80 files, hold joinable vertices; 2 read in band (`halfcap_pole`), and 11 already fail the gate.
+    - The heaviest files are `split_through_a_ruling` (26), `review_3701_probes` (17), `fillet_h5_hostless_rim` (15), `closed_chain_junctions` (13) and `props_sphere_cap_door` (11). Most are outputs of split, fillet/blend, shell and surgery, or hand-built fixtures. Boolean outputs are not among them.
+  - **Measured by the designers** (STEP fixtures):
+    - 13 of 61 imported solids hold joinable vertices: the band and washer fixtures, the split twins, two wild files, and `composed_die` with 21. Two more (`halfcap_eps6/7`) read in band.
+    - The band and washer cases are probably import-made: import's seam re-mint leaves the file's rim vertex at valence 2.
+  - **Designer pair (fork-log row 88).** Three rounds; the blinding byte was drawn late, at PR time.
+    - Round 1 split: at rest (tier 3) against op-door postconditions.
+    - Round 2 crossed.
+    - Round 3 converged on at rest, with every finisher, import included, joining and an in-band reading exempt. The question both named beneath: a joinable vertex is representation (a mark), not a cell, by the station and conventional-vertex rulings.
+  - **Defects named, to file when the unit runs:**
+    - `fillet_edges` (and split, shell and surgery) ship joinable vertices;
+    - `join_stage` is `pub(super)`;
+    - the public merge door doesn't join;
+    - import's band re-mint leaves a valence-2 rim vertex;
+    - `run_walls_built.rs`'s hand assertion becomes redundant.
+  - **The 344 classified by the lane** (attributed by test, signature and stack; kept locally):
+    - **(a) Door outputs with no join: 298.**
+      - Fillet/blend surgery: 204, mostly two `TangentIntersection` circles, i.e. blend rims left as arcs.
+      - Split: 56.
+      - Shell: 22, chart-seam rulings split at a vertex.
+      - Import: 15.
+      - The public merge door: 1.
+    - **(b) Hand-built construction-state fixtures: 46.** These include 11 that already fail tier 3.
+    - **(c) The predicate misreading: 0.** `composed_die`'s 21 vertices are real split blend rims, not a slit-seam end. The only in-band case is `halfcap_pole`'s 2 bodies.
+- 2026-10-07 — Curved-join lane: the naming half is split out.
+  - **Finding:** no editor-core document produces a closed join
+    today. The one construction that would (a sphere cut-in:
+    lens ∩ tilted brick) already fails emit on main with
+    `Naming(MissingUpstream)` at the cap node, with curved joins
+    disabled too, so the failure predates this lane.
+  - **Ruled (orchestrator):** the PR lands without the edge-derived
+    name. "No identity" holds by refusal instead: name minting at a
+    conventional vertex refuses typed and never mints a member- or
+    position-citing name. The ranking skips and the order-row helper
+    come along only if they need no new vocabulary.
+  - **Filed rows:** one FUSE row for the name, the new RoleSeg and the
+    six-order document witness, blocked on an EMIT issue row for the
+    `MissingUpstream` failure.
+- 2026-10-07 — PR 4233 lands: the curved join.
+  - **What it builds:** one joinable predicate; closed joins with a
+    conventional vertex; records and census at that vertex. Naming it
+    refuses typed, and the edge-derived name is filed behind EMIT's
+    `MissingUpstream` row.
+  - **Review:** dual. Lane A (ruling) found the curved name was a
+    second spelling of the flush rule and could read the vertex's
+    position. Lane B (correctness) found nothing blocking; two mutants
+    of the conventional predicate survived. Both were fixed, and a
+    delta re-review checked them.
+  - **Rulings:**
+    - later cuts reuse the vertex; lane B showed a literal
+      edge-interior split would refuse;
+    - the names README's closed-edge sentence lands as Ev's 4198 ruling
+      applied, quoted in the PR body for Ev.
+  - **Rows:** `curved-joinable-vertices-are-left-unjoined` closes, and
+    seven residue rows were filed. Step 3 (the tier-2 check) is next.
+- 2026-10-08 — Ev rules on PR 4251.
+  - **Decision 1, as recommended:** "no joinable vertex" is a tier-3 arm at rest, and every finisher, import included, joins.
+  - **Decision 2, overruled:** a sliver-band regularity reading refuses at rest, with the tighten-the-tolerance recourse, rather than being exempt.
+  - **Ev's two questions on the way:**
+    - Which band? The sliver band.
+    - Is the case a STEP import or broken geometry? A STEP import whose ε_in (1e-10 m) is finer than the run's ε, so ε_in snapping, once built, cannot resolve it.
+  - **Rows:** fork-log row 88 is filled in. The step-3 unit is dispatched.
+- 2026-10-08 — Step 3 is split into four PRs, approved by the orchestrator. Each gets a dual review.
+  - **A:** the public join door, one boolean finishing function, the merge door and offset joining, and the dual gate taking a band.
+  - **B:** split and shell join.
+  - **C:** blend surgery joins (the 204 bodies).
+  - **D:** import joins, the tier-3 `JoinableVertexAtRest` arm and the sliver refusal. It lands last.
+  - **Naming, ruled as the 3881 step-4 rule applied.** A door's joined edge is named over the door's **input** cells, never over transient pieces:
+    - covering one input edge whole, it takes that edge's name;
+    - lying within one input edge, it is a piece of it;
+    - spanning several input edges, it is their flat set.
+  - **When the lane stops instead.** A joined edge with no reading in input cells stops as a naming fork.

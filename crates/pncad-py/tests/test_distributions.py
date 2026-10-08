@@ -350,24 +350,20 @@ class TestTheAnalyzedBox(unittest.TestCase):
         self.assertTrue(math.isnan(ctx.exception.mass))
 
     def test_opt_in_means_an_unannotated_param_is_fixed(self):
-        """A parameter with NO distribution is FIXED, and a `Count`
-        parameter is not an axis at all: the analysis varies exactly
-        what the author declared variable."""
+        """A parameter with NO distribution is no axis at all — a
+        constant of the analysis (VR8) — and neither is a `Count`
+        parameter: the analysis varies exactly what the author declared
+        variable."""
         doc = declared(
             plain=FreeVar.length(2 * m),
             holes=FreeVar.count(4),
             varies=FreeVar.length(1 * m, Distribution.band(-0.1 * m, 0.1 * m)),
         )
         boxed = analyzed_box(doc)
-        self.assertEqual(len(boxed), 2, "Count is not a box axis")
-        self.assertIsNone(boxed.get(VarName("holes")))
-        self.assertEqual(
-            sorted(n.name for n in boxed.names), ["plain", "varies"]
-        )
-        fixed = boxed.get(VarName("plain"))
-        self.assertTrue(fixed.is_fixed)
-        self.assertEqual(fixed.absolute(), (2 * m, 2 * m), "width zero AT the nominal")
-        self.assertIsNone(fixed.distribution)
+        self.assertEqual(len(boxed), 1, "only the toleranced parameter is an axis")
+        self.assertIsNone(boxed.get(VarName("holes")), "Count is not a box axis")
+        self.assertIsNone(boxed.get(VarName("plain")), "an untoleranced one is a constant")
+        self.assertEqual(sorted(n.name for n in boxed.names), ["varies"])
         self.assertEqual(
             [n.name for n in boxed.varying], ["varies"], "only the declared axis varies"
         )
@@ -507,12 +503,13 @@ class TestTheMassColumns(unittest.TestCase):
         with self.assertRaises(MeasureUnavailable):
             boxed.box_mass(VarName("b"), *sub)
 
-    def test_a_fixed_axis_is_a_point_mass_at_its_nominal(self):
+    def test_an_untoleranced_parameter_is_no_axis(self):
+        """VR8: a parameter with no tolerance is a constant of the
+        analysis, so the box carries no axis for it to price."""
         doc = declared(fixed=FreeVar.length(1 * m))
         boxed = analyzed_box(doc)
-        self.assertEqual(boxed.tail_mass(VarName("fixed")), 0.0)
-        self.assertEqual(boxed.box_mass(VarName("fixed"), -1 * m, 1 * m), 1.0)
-        self.assertEqual(boxed.box_mass(VarName("fixed"), 0.5 * m, 1 * m), 0.0)
+        self.assertEqual(len(boxed), 0)
+        self.assertIsNone(boxed.get(VarName("fixed")))
 
     def test_the_leaf_interval_is_in_the_axis_own_dimension(self):
         """The mispairing the box-keyed door forecloses one rung out
@@ -552,9 +549,9 @@ class TestTheSharpEdge(unittest.TestCase):
             doc.params.get(VarName("bore_r")).distribution,
             "define_var replaced the whole definition",
         )
-        self.assertTrue(
-            analyzed_box(doc).get(VarName("bore_r")).is_fixed,
-            "and the analysis now varies nothing",
+        self.assertIsNone(
+            analyzed_box(doc).get(VarName("bore_r")),
+            "and the analysis now varies nothing: no axis, a constant",
         )
 
     def test_after_the_value_door_carries_the_declaration_forward(self):

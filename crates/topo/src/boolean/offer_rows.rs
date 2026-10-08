@@ -112,6 +112,9 @@ enum Because {
     /// where it is a defect, F3 where it offers no tolerance and nothing
     /// smaller passes.
     Refuses(&'static str),
+    /// It refuses as the join's invariant break with this `what`, so a
+    /// different desync turns the row red.
+    Desyncs(&'static str),
     /// It passes on this pose: the offer is withdrawn for a pose where it
     /// would be false, which the case's comment names.
     Passes,
@@ -202,6 +205,7 @@ cases! {
         sector_side(Vec3::new(1.0, 0.0, -D), Reach::Extent(1.0));
     pierce_curvature_short_of_its_bend: "PierceCurvature", D, SECTOR_SITE, Valued =>
         pierce_curvature(D);
+    joined_vertex_off_a_pole: "JoinUndecided", D, EDGE_JOIN_SITE, Valued => vertex_off_a_pole(D);
     tangent_side_in_band: "Coincidence(TangentSide)", -D, TANGENT_SITE, Valued =>
         tangent_side(false);
     lever_arm_sector_curving_in_band: "LeverArm(SectorCurving)", D, TANGENT_SITE, Valued =>
@@ -348,7 +352,7 @@ cases! {
     // a clear cylinder radius is a pair that does not meet: decided, it
     // is no section, which a real germ pair never is (the frame's defect).
     coaxial_tiny_sphere: "Radius(Sphere)", D, FRAME_SITE,
-        Withdrawn(Because::Refuses("JoinDesync")) =>
+        Withdrawn(Because::Desyncs("cylinder×sphere section is not a locus")) =>
         coaxial_frame(0.5, D);
     // The transverse frame's reach a band past and short of the walls'
     // tangency. The section's coincidence names its lever and no
@@ -525,6 +529,41 @@ fn pierce_curvature(margin: f64) -> Result<(), BooleanError> {
     let c = 2.0 * margin.sqrt();
     let dir = Vec3::new((1.0 - c * c).sqrt(), 0.0, c);
     side_code(dir, Reach::Bisector(0.5), n, 1.0, band()).map(|_| ())
+}
+
+// The join's regularity readings share one refusal. The pole distance
+// is rostered at its door below; the pair's wedge is reachable from
+// operands, and is not rostered: `classify_dihedral` is levered by the
+// shorter of the vertex's two edges, so a few-ε arc beside an
+// otherwise joinable vertex reads the wedge in the band and refuses
+// the whole boolean (`JoinUndecided`), where the boolean built before
+// the curved join (`work/fuse/a-sliver-arc-beside-a-joinable-vertex-refuses-the-boolean`).
+const EDGE_JOIN_SITE: Door = Door::Site(
+    "a valence-2 vertex's distance from its chart's pole is read inside the join's predicate, \
+     on a vertex an output stage leaves between two edges of one carrier, which no pair of \
+     operands places within the band of a pole by construction; the pair's wedge, read beside \
+     it, is reachable from operands",
+);
+
+/// A point of the unit sphere about `z` at distance `rho` from its
+/// axis: the join's regularity reading at a vertex that far off the
+/// pole.
+fn vertex_off_a_pole(rho: f64) -> Result<(), BooleanError> {
+    let sphere = geom::Surface::Sphere {
+        center: Point3::origin(),
+        radius: 1.0,
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let p = Point3::new(rho, 0.0, (1.0 - rho * rho).sqrt());
+    super::super::edge_join::singular_at(&sphere, p, band())
+        .map(|_| ())
+        .map_err(|diag| {
+            BooleanError::JoinUndecided(crate::JoinUndecided {
+                vertex: crate::entity::VertexKey::default(),
+                reading: crate::JoinReading::Regularity(diag),
+            })
+        })
 }
 
 /// A unit cylinder along `y` resting on a floor from the side `side`
@@ -1034,7 +1073,8 @@ fn parallel_radical_plane_at(offset: f64) -> Result<(), BooleanError> {
         radius,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    super::super::join::parallel_radical_plane(&wall(0.0, 0.5), &wall(offset, 0.3), band())
+    let reach = geom_brep::Reach::Ball(geom_brep::ExtentBall::point(Point3::origin()));
+    super::super::join::parallel_radical_plane(&wall(0.0, 0.5), &wall(offset, 0.3), &reach, band())
         .map(|_| ())
 }
 
@@ -1056,9 +1096,16 @@ fn transverse_frame(reach: f64) -> Result<(), BooleanError> {
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let face = crate::entity::FaceKey::default();
-    pair_section_frame(&c, &s, geom_brep::RadiusEvidence::None, None, band())
-        .map(|_| ())
-        .map_err(|e| frame_refusal(e, (face, &c), (face, &s)))
+    pair_section_frame(
+        &c,
+        &s,
+        geom_brep::RadiusEvidence::None,
+        Point3::new(0.0, 0.0, 0.0),
+        None,
+        band(),
+    )
+    .map(|_| ())
+    .map_err(|e| frame_refusal(e, (face, &c), (face, &s)))
 }
 
 /// The arc `[0, 1]` of the unit circle about `z` against the plane
@@ -1980,6 +2027,9 @@ fn every_withdrawn_tolerance_stays_withdrawn() {
         let below = run(&row(&case), eps);
         let met = match (&below, because) {
             (Outcome::Refused { key, .. }, Because::Refuses(want)) => key == want,
+            (Outcome::Refused { key, text, .. }, Because::Desyncs(what)) => {
+                key == "JoinDesync" && text.contains(what)
+            }
             (Outcome::Pass, Because::Passes) => true,
             _ => false,
         };
@@ -2040,6 +2090,15 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
                 verdict,
             })
             .collect(),
+        // Every regularity reading is a magnitude: a distance from a
+        // singularity, a wedge, a sagitta. It refuses on no negative.
+        BooleanErrorKind::JoinUndecided => [BooleanError::JoinUndecided(crate::JoinUndecided {
+            vertex: crate::entity::VertexKey::default(),
+            reading: crate::JoinReading::Regularity(diag),
+        })]
+        .into_iter()
+        .filter(|e| quoted_margin(&e.to_string()).is_some_and(|m| m >= 0.0))
+        .collect(),
         BooleanErrorKind::CurvedSectorSideUnsupported => refused()
             .into_iter()
             .map(|verdict| BooleanError::CurvedSectorSideUnsupported { verdict })
@@ -2066,6 +2125,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::Band
         | BooleanErrorKind::CurvedBooleanUnsupported
         | BooleanErrorKind::CurvedPierceUnsupported
+        | BooleanErrorKind::CrossingAtConeApex
         | BooleanErrorKind::CurvedEdgeUnsupported
         | BooleanErrorKind::CrossingCarrierUnsupported
         | BooleanErrorKind::PointSplitCarrierUnsupported
@@ -2087,7 +2147,9 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::InvalidDeclaration
         | BooleanErrorKind::PairingMismatch
         | BooleanErrorKind::SharedVertexCrossings
-        | BooleanErrorKind::PierceRunsUnordered
+        | BooleanErrorKind::PinchConesOnSeparateKeys
+        | BooleanErrorKind::PierceRunsNested
+        | BooleanErrorKind::VertexReadTwice
         | BooleanErrorKind::ClassificationInvariant
         | BooleanErrorKind::CurvedPairUnsupported
         | BooleanErrorKind::NurbsExtentUnsupported
@@ -2096,6 +2158,8 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::GermFrameCylinderPinch
         | BooleanErrorKind::RestZipUnsupported
         | BooleanErrorKind::JoinDesync
+        | BooleanErrorKind::JoinCarrierUnsupported
+        | BooleanErrorKind::CurvedRestUnrecorded
         | BooleanErrorKind::TornComponent
         | BooleanErrorKind::ShellWitnessExhausted
         | BooleanErrorKind::CoincidentShell
@@ -2422,6 +2486,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     (
         "conic_quadric/mod.rs",
+        "cone_roots",
+        "BooleanDecision::ArcConeRoots",
+        2,
+    ),
+    (
+        "conic_quadric/mod.rs",
         "conic_quadric_roots",
         "BooleanDecision::ArcCylinderRoots",
         1,
@@ -2615,6 +2685,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("reduce.rs", "esc", "BooleanDecision::Containment", 1),
     (
         "reduce.rs",
+        "line_cone_roots",
+        "BooleanDecision::ConeRoots",
+        1,
+    ),
+    (
+        "reduce.rs",
         "line_wall_roots_of",
         "BooleanDecision::SphereRoots",
         1,
@@ -2661,7 +2737,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "reduce.rs",
         "wall_crossing",
         "BooleanDecision::Containment",
-        1,
+        2,
     ),
     ("reduce.rs", "wall_crossing", "BooleanDecision::Crossing", 1),
     (

@@ -76,8 +76,9 @@ fn control() -> Vec<LoopEdge<f64>> {
 /// `[0.7, V1]`, tags chained as if adjacent) folding to `[V0, V1]`,
 /// the door admitting and the flux lane answering the control's
 /// numbers bitwise. Inverted: the pieces must meet exactly, and a gap
-/// or an overlap refuses `props_meridian_pieces_meet` at the door and
-/// at the flux lane.
+/// or an overlap refuses `props_meridian_pieces_meet` at the door, and
+/// the flux lane — a Green form over the pieces' geometry — refuses the
+/// loop that does not close.
 #[test]
 fn m10r2_a_gap_between_same_id_pieces_refuses_at_the_contiguity_test() {
     let s = torus();
@@ -99,7 +100,12 @@ fn m10r2_a_gap_between_same_id_pieces_refuses_at_the_contiguity_test() {
         what: "props_meridian_pieces_meet",
     };
     assert_eq!(door, Err(meet.clone()));
-    assert_eq!(flux.map(|_| ()), Err(meet.clone()));
+    assert_eq!(
+        flux.map(|_| ()),
+        Err(PropsError::NotIsoRectangle {
+            what: "props_loop_closed"
+        })
+    );
     // The same pieces OVERLAPPING (`[V0, 0.9]` then `[0.7, V1]`)
     // refuse the same way.
     let overlapped = vec![
@@ -135,6 +141,11 @@ fn m10r2_a_rimless_loop_of_one_meridians_pieces() {
     let closed = PropsError::NotIsoRectangle {
         what: "torus meridian pieces close a loop with no rim",
     };
-    assert_eq!(door, Err(closed.clone()));
-    assert_eq!(flux, Err(closed));
+    assert_eq!(door, Err(closed));
+    assert_eq!(
+        flux,
+        Err(PropsError::NotIsoRectangle {
+            what: "curved face without a rim (non-sphere)"
+        })
+    );
 }

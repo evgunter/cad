@@ -123,10 +123,12 @@ fn extrude_document(distance: Formula) -> (Recorder, RecipeNodeId) {
     (r, extrude)
 }
 
-/// [`extrude_document`] over a plain length, saved from its snapshot.
+/// [`extrude_document`] over a plain length, saved as its edit log over
+/// the empty document: the log carries the distance as the formula it
+/// was written as, where the snapshot's slot holds a variable's id.
 fn saved_extrude() -> String {
-    editor_core::persist::save(&extrude_document(len(0.5)).0.doc, &[], Tol::witness())
-        .expect("the document saves")
+    let [_, (_, log)] = both_saves(&extrude_document(len(0.5)).0);
+    log
 }
 
 /// `r` saved from its snapshot and from its edit log replayed over the
@@ -216,31 +218,24 @@ fn every_door_takes_an_expression_at_the_bound_on_the_smallest_stack() {
             ("a chain of negations", negations(0.5, BOUND), -0.5),
         ] {
             assert_eq!(
-                eval(&editor_core::test_support::stored_expr(&e), &env),
+                eval(&Clone::clone(&e), &env),
                 Ok(value),
                 "{label} evaluates at f64"
             );
             assert!(
-                eval(
-                    &editor_core::test_support::stored_expr(&e),
-                    &VarEnv::<Interval>::default()
-                )
-                .is_ok(),
+                eval(&Clone::clone(&e), &VarEnv::<Interval>::default()).is_ok(),
                 "{label} evaluates at Interval"
             );
             let copy = e.clone();
             assert!(copy.bit_eq(&e), "{label} clones bit for bit");
-            assert!(format!("{e:?}").contains("Literal"), "{label} prints");
+            assert!(format!("{e:?}").contains("Quantity"), "{label} prints");
             let text = unparse(&e, &|_| None);
             let back = parse_formula(&text, &BTreeMap::new())
                 .unwrap_or_else(|err| panic!("{label} reads back through the text door: {err}"));
             assert!(back.bit_eq(&e), "{label} round-trips through its text");
         }
         assert_eq!(
-            eval_count(
-                &editor_core::test_support::stored_expr(&deep_count(1, BOUND)),
-                &env
-            ),
+            eval_count(&Clone::clone(&deep_count(1, BOUND)), &env),
             Ok(i64::try_from(BOUND).unwrap()),
             "a count sum at the bound evaluates exactly"
         );
@@ -255,7 +250,7 @@ fn every_door_takes_an_expression_at_the_bound_on_the_smallest_stack() {
             let e = parse_formula(&text, &BTreeMap::new())
                 .unwrap_or_else(|err| panic!("{label} nested to the bound parse: {err}"));
             assert!(
-                eval_count(&editor_core::test_support::stored_expr(&e), &env).is_ok(),
+                eval_count(&Clone::clone(&e), &env).is_ok(),
                 "{label} evaluate"
             );
         }
@@ -381,8 +376,9 @@ fn one_past_the_bound_refuses_typed_at_every_door_that_mints_one() {
             other => panic!("the edit door refuses the deeper tree, got {other:?}"),
         }
 
-        // The load door: the saved distance wrapped in one more negation.
-        let text = editor_core::persist::save(&r.doc, &[], Tol::witness()).unwrap();
+        // The load door: the saved distance wrapped in one more negation,
+        // in the edit log that writes it as a formula.
+        let [_, (_, text)] = both_saves(&r);
         match editor_core::persist::load(&wrap_distance(&text, 1).0, Tol::witness()) {
             Err(PersistError::Dimension { error, .. }) => assert_eq!(refused_bound(&error), BOUND),
             other => panic!("the load door refuses the deeper tree, got {other:?}"),
@@ -643,13 +639,22 @@ fn loads_on_several_threads_keep_their_own_count() {
 /// Whether `v` is an expression on the wire: a tag object whose payload
 /// has the expression wire's shape all the way down.
 fn is_expression(v: &Value) -> bool {
+    if v.as_str() == Some("Turn") {
+        return true;
+    }
     let Some((tag, inner)) = tagged(v) else {
         return false;
     };
     match tag {
-        "Literal" => has_exactly(inner, &["value", "dim", "unit"]),
-        "Param" => has_exactly(inner, &["name", "dim"]),
-        "Count" => inner.is_i64(),
+        "Quantity" => {
+            has_exactly(inner, &["value", "dim", "unit"])
+                || has_exactly(inner, &["value", "dim", "unit", "distribution"])
+        }
+        "Ratio" => has_exactly(inner, &["num", "den"]),
+        "Var" => has_exactly(inner, &["var", "dim"]),
+        "Name" => has_exactly(inner, &["name", "dim"]),
+        "Fresh" => has_exactly(inner, &["index", "dim"]),
+        "Integer" => inner.is_i64(),
         "Neg" | "Sin" | "Cos" | "Tan" | "CountToScalar" => is_expression(inner),
         "Add" | "Sub" | "Mul" | "Div" | "Atan2" | "Min" | "Max" => inner
             .as_array()
@@ -665,7 +670,9 @@ fn is_measurement(v: &Value) -> bool {
     };
     match tag {
         "Primitive" => tagged(inner).is_some(),
-        "Value" => is_expression(inner),
+        // An authored value leaf is a formula; a stored one, the
+        // variable its value lowered to.
+        "Value" => is_expression(inner) || has_exactly(inner, &["var", "dim"]),
         "Neg" => is_measurement(inner),
         "Add" | "Sub" | "Mul" | "Div" | "Min" | "Max" => inner
             .as_array()
@@ -750,14 +757,18 @@ fn the_load_doors_limit_is_the_deepest_body_a_save_writes() {
     ));
     let (mut deepest, mut at) = (0, String::new());
     for (name, r) in &recorders {
+        // A snapshot whose slots all read free variables holds no
+        // expression; its edit log, written in formulas, does.
+        let mut found = 0;
         for (label, text) in both_saves(r) {
             let parsed: Value = serde_json::from_str(body(&text)).expect("a saved body is JSON");
             let (enclosing, roots) = envelope(&parsed);
-            assert!(roots > 0, "{name}'s {label} holds an expression");
+            found += roots;
             if enclosing > deepest {
                 (deepest, at) = (enclosing, format!("{name}'s {label}"));
             }
         }
+        assert!(found > 0, "{name}'s saves hold an expression");
     }
     assert_eq!(
         deepest + 2 * BOUND,

@@ -7,7 +7,7 @@
 //! the index the plain door ([`PickIndex::build`]) builds from the same
 //! landed run, whose meshes are `mesh::tessellate` of each root body.
 //! Every row here opens a document, indexes it through the seam, then
-//! runs a sequence of edits — change a parameter, change another,
+//! runs a sequence of edits — change a variable, change another,
 //! revert the first — and after every landing asserts that the seam's
 //! meshes are byte-identical to the plain door's (the D9 goldens'
 //! digest, over every position, patch and boundary) and that a fixed
@@ -108,10 +108,13 @@ impl Edit {
 /// The corpus document's own bump edit — every parametric corpus
 /// document carries one — and the text that reverts it.
 fn bump_of(c: &corpus::CorpusDoc) -> Option<(Edit, Edit)> {
-    let DocEdit::SetParam { node, slot, expr } = c.bump.clone() else {
+    let DocEdit::SetParam {
+        node, slot, expr, ..
+    } = c.bump.clone()
+    else {
         return None;
     };
-    let original = c.doc.node(node)?.expr(slot)?;
+    let original = c.doc.slot_expansion(node, slot)?;
     Some((
         Edit { node, slot, expr },
         Edit {
@@ -122,17 +125,19 @@ fn bump_of(c: &corpus::CorpusDoc) -> Option<(Edit, Edit)> {
     ))
 }
 
-/// A second parameter to change: the first literal length slot on a
+/// A second variable to change: the first literal length slot on a
 /// node other than `not`, scaled — "change another", when the document
 /// has another to change.
 fn another_length_slot(doc: &ProfileDoc, not: RecipeNodeId) -> Option<Edit> {
-    for &node in doc.order() {
+    for node in doc.ids() {
         if node == not {
             continue;
         }
         let n = doc.node(node)?;
         for slot in n.slots() {
-            let Some(expr) = n.expr(slot) else { continue };
+            let Some(expr) = doc.slot_expansion(node, slot) else {
+                continue;
+            };
             if expr.dim() != Dimension::Length {
                 continue;
             }
@@ -861,11 +866,7 @@ fn the_gallery_ring_indexes_the_same_through_the_seam_across_edits() {
     let loaded = pncad::document::load(&text, tol).expect("the gallery ring loads");
     let doc = loaded.snapshot;
     let (node, slot, expr) = ring_bump(&doc);
-    let original = doc
-        .node(node)
-        .expect("a node")
-        .expr(slot)
-        .expect("its slot");
+    let original = doc.slot_expansion(node, slot).expect("its slot");
     let bump = Edit { node, slot, expr };
     let revert = Edit {
         node,
@@ -1314,7 +1315,7 @@ const RING_WIDE_CANDIDATE_CONDITIONING: f64 = 7.19e-16;
 /// something.
 const REACH: f64 = 1.48;
 
-/// The ring probe's answer: the chord point's parameter as the
+/// The ring probe's answer: the chord point's variable as the
 /// winning triangle's exact test rounds it. Re-derive from the
 /// probe's failure message if the ring's tessellation changes.
 const RING_CORNER_T: f64 = 1.48;

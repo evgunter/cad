@@ -232,9 +232,14 @@ fn the_same_geometry_without_the_channel_refuses() {
         .expect("the kernel extrudes it")
         .body;
         let edges = topo::query::all_edges(&cube);
-        sweep::blend::build::fillet_edges(&cube, &edges, R, Tol::witness())
-            .expect("the kernel door blends the same cube")
-            .body
+        sweep::blend::build::fillet_edges(
+            &sweep::test_support::at_rest(&cube, Tol::witness()),
+            &edges,
+            R,
+            Tol::witness(),
+        )
+        .expect("the kernel door blends the same cube")
+        .body
     };
     assert_eq!(
         evidence(evaluated, &raw),
@@ -276,22 +281,24 @@ fn the_same_declared_offset_agrees_and_a_different_one_does_not() {
     );
 }
 
-/// **A literal is an expression too**, so two nodes spelling the same
-/// literal share a token — and two spelling different ones do not.
-/// This is the row that would go red if the lowering ever collapsed to
-/// "the parameter's name", which would make a literal channel-less.
+/// **A typed value is a variable of its own** (D10: equal values are
+/// not one variable). Two blends each typed `R` read two anonymous
+/// variables, so their radius tokens differ and the radii are NOT
+/// declared equal; a third typed `R / 2` is declared equal to neither.
+/// Sharing is said by reading one variable, which the `r` rows above
+/// pin. Goes red if the lowering ever merged typed values by value.
 #[test]
-fn equal_literals_declare_and_different_literals_do_not() {
+fn equal_typed_values_are_two_variables_and_do_not_declare() {
     let (doc, blends) = document(&[len(R), len(R), len(R * 0.5)]);
     let ev = eval::<f64>(&doc);
     let bad = failures(&ev);
-    assert!(bad.is_empty(), "literal document:\n{}", bad.join("\n"));
+    assert!(bad.is_empty(), "typed document:\n{}", bad.join("\n"));
     let (a, b, c) = (
         body_of(&ev, blends[0]),
         body_of(&ev, blends[1]),
         body_of(&ev, blends[2]),
     );
-    assert_eq!(evidence(a, b), RadiusEvidence::Declared);
+    assert_eq!(evidence(a, b), RadiusEvidence::None);
     assert_eq!(evidence(a, c), RadiusEvidence::None);
 }
 
@@ -695,6 +702,7 @@ fn the_memo_never_serves_a_stale_token() {
             node: a,
             slot: SlotId::Radius,
             expr: len(R),
+            fresh: Vec::new(),
         },
     );
     let ev2 = memo_eval(&doc2, Some(&ev1));
@@ -728,6 +736,7 @@ fn the_memo_never_serves_a_stale_token() {
         DocEdit::DefineVar {
             var: VarName::from_static("r").into(),
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 2.0 * R)),
+            fresh: Vec::new(),
         },
     );
     let ev3 = memo_eval(&doc3, Some(&ev2));
@@ -760,6 +769,7 @@ fn a_memo_served_body_compares_correctly_with_a_re_run_sibling() {
             node: blends[0],
             slot: SlotId::Radius,
             expr: Formula::add(param("r"), param("t")).unwrap(),
+            fresh: Vec::new(),
         },
     );
     let ev2 = memo_eval(&doc2, Some(&ev1));

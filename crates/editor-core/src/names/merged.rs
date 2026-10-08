@@ -6,8 +6,9 @@
 //! A merged face's name is a FLAT set of face names; a merge over a
 //! merged face lists the faces, never the merge. Two things follow
 //! for a reader. A name that is itself a merged face — read THROUGH
-//! its `FromA`/`FromB` descent wrappers, since a face carried through
-//! untouched booleans is still that face — stands for its
+//! its descent wrappers, a pair boolean's `FromA`/`FromB` and a
+//! union's `FromMember`, since a face carried through untouched
+//! booleans or into a union is still that face — stands for its
 //! constituents re-wrapped by that same chain
 //! ([`constituents_through_wrappers`]); and a merged row COVERS a name
 //! when the name is one of its constituents, or when the name is a
@@ -17,7 +18,7 @@
 //! use the second to read what was published. Neither flattens a
 //! name: the set is flat because the mint made it so.
 
-use super::role::{MeridianEnd, NameRef, PieceRun, RoleSeg, StableName};
+use super::role::{CapEnd, EntityKind, MeridianEnd, NameRef, PieceRun, RoleSeg, StableName};
 
 /// The emission bug a nested merged face is — a `Merged` constituent
 /// that is itself a merged face, through any wrapping — refused at
@@ -26,41 +27,82 @@ use super::role::{MeridianEnd, NameRef, PieceRun, RoleSeg, StableName};
 pub(crate) const NESTED_MERGED: &str =
     "a boolean table carries a merged face whose constituent is itself a merged face";
 
+/// One descent wrapper a set-holding name is read through: a pair
+/// boolean's `FromA`/`FromB`, or a union's `FromMember`, with the member
+/// it names. A face carried through any of them untouched is still that
+/// face, so its set is read through them and each constituent re-wrapped
+/// by the same chain.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Wrap {
+    A,
+    B,
+    Member(crate::node::RecipeNodeId),
+}
+
+impl Wrap {
+    /// This wrapper around `inner`, as the segment minted by `node`.
+    fn around(
+        self,
+        kind: EntityKind,
+        node: crate::node::RecipeNodeId,
+        inner: StableName,
+    ) -> StableName {
+        let inner = NameRef::new(inner);
+        StableName {
+            kind,
+            node,
+            path: vec![match self {
+                Self::A => RoleSeg::FromA(inner),
+                Self::B => RoleSeg::FromB(inner),
+                Self::Member(member) => RoleSeg::FromMember { member, of: inner },
+            }],
+        }
+    }
+}
+
+/// One descent wrapper peeled off `name`, with the name inside, or
+/// `None` when `name` is not one.
+fn peel(name: &StableName) -> Option<(Wrap, &StableName)> {
+    match name.path.as_slice() {
+        [RoleSeg::FromA(inner)] => Some((Wrap::A, inner)),
+        [RoleSeg::FromB(inner)] => Some((Wrap::B, inner)),
+        [RoleSeg::FromMember { member, of }] => Some((Wrap::Member(*member), of)),
+        _ => None,
+    }
+}
+
+/// `foot` re-wrapped by `wrappers`, which were peeled outermost first.
+fn rewrap(
+    kind: EntityKind,
+    wrappers: &[(Wrap, crate::node::RecipeNodeId)],
+    foot: StableName,
+) -> StableName {
+    wrappers
+        .iter()
+        .rev()
+        .fold(foot, |inner, &(wrap, node)| wrap.around(kind, node, inner))
+}
+
 /// The constituents of a merged face, or of an edge set, read through
-/// its descent wrappers, each re-wrapped by that same chain — or `None`
-/// when the name, peeled to its foot, is not a `Merged` set.
+/// its descent wrappers ([`Wrap`]), each re-wrapped by that same chain —
+/// or `None` when the name, peeled to its foot, is not a `Merged` set.
 ///
-/// Only a bare `FromA`/`FromB` chain is peeled: a foot that carries a
-/// tail (`[Merged(cs), Fragment(q)]`) is a FRAGMENT of a merged face,
-/// a face in its own right, and is left whole.
+/// Only a bare wrapper chain is peeled: a foot that carries a tail
+/// (`[Merged(cs), Fragment(q)]`) is a FRAGMENT of a merged face, a face
+/// in its own right, and is left whole.
 pub(crate) fn constituents_through_wrappers(name: &StableName) -> Option<Vec<StableName>> {
-    // The wrappers peeled, outermost first, each with its level's node;
-    // the foot's constituents are re-wrapped innermost first.
-    type Side = fn(NameRef) -> RoleSeg;
-    let mut wrappers: Vec<(Side, crate::node::RecipeNodeId)> = Vec::new();
+    let mut wrappers = Vec::new();
     let mut at = name;
-    let foot = loop {
-        let (side, inner): (Side, &NameRef) = match at.path.as_slice() {
-            [RoleSeg::Merged(cs)] => break cs,
-            [RoleSeg::FromA(inner)] => (RoleSeg::FromA, inner),
-            [RoleSeg::FromB(inner)] => (RoleSeg::FromB, inner),
-            _ => return None,
-        };
-        wrappers.push((side, at.node));
+    while let Some((wrap, inner)) = peel(at) {
+        wrappers.push((wrap, at.node));
         at = inner;
+    }
+    let [RoleSeg::Merged(foot)] = at.path.as_slice() else {
+        return None;
     };
     Some(
         foot.iter()
-            .map(|c| {
-                wrappers
-                    .iter()
-                    .rev()
-                    .fold(c.clone(), |inner, &(side, node)| StableName {
-                        kind: name.kind,
-                        node,
-                        path: vec![side(NameRef::new(inner))],
-                    })
-            })
+            .map(|c| rewrap(name.kind, &wrappers, c.clone()))
             .collect(),
     )
 }
@@ -92,14 +134,16 @@ pub(crate) fn edge_set(
 }
 
 /// The run-holding role of a name's foot: which sweep role holds the
-/// run (a meridian with its end), so two feet are the same role over
+/// run (a rim or a meridian with its end), so two feet are the same role over
 /// two runs exactly when their [`RunRole`]s are equal.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum RunRole {
     Lateral,
+    RimEdge(CapEnd),
     Band,
     BandPi,
     Meridian(MeridianEnd),
+    AxisEdge,
 }
 
 impl RunRole {
@@ -107,9 +151,11 @@ impl RunRole {
     fn seg(self, run: PieceRun) -> RoleSeg {
         match self {
             Self::Lateral => RoleSeg::Lateral(run),
+            Self::RimEdge(end) => RoleSeg::RimEdge(end, run),
             Self::Band => RoleSeg::Band(run),
             Self::BandPi => RoleSeg::BandPi(run),
             Self::Meridian(end) => RoleSeg::Meridian(end, run),
+            Self::AxisEdge => RoleSeg::AxisEdge(run),
         }
     }
 }
@@ -118,38 +164,29 @@ impl RunRole {
 fn run_foot(foot: &StableName) -> Option<(RunRole, &PieceRun)> {
     match foot.path.as_slice() {
         [RoleSeg::Lateral(run)] => Some((RunRole::Lateral, run)),
+        [RoleSeg::RimEdge(end, run)] => Some((RunRole::RimEdge(*end), run)),
         [RoleSeg::Band(run)] => Some((RunRole::Band, run)),
         [RoleSeg::BandPi(run)] => Some((RunRole::BandPi, run)),
         [RoleSeg::Meridian(end, run)] => Some((RunRole::Meridian(*end), run)),
+        [RoleSeg::AxisEdge(run)] => Some((RunRole::AxisEdge, run)),
         _ => None,
     }
 }
 
-/// One descent wrapper (`FromA`/`FromB`) peeled off `name`: which side,
-/// and the name inside, or `None` when `name` is not one.
-fn peel(name: &StableName) -> Option<(bool, &StableName)> {
-    match name.path.as_slice() {
-        [RoleSeg::FromA(inner)] => Some((true, inner)),
-        [RoleSeg::FromB(inner)] => Some((false, inner)),
-        _ => None,
-    }
-}
-
-/// The one-piece walls (or meridian edges) a run of two or more pieces
-/// stands for — its `Lateral`, `Band`, `BandPi` or `Meridian(end, ·)`
-/// segment spelled once per piece — read through its descent wrappers
+/// The one-piece walls (or rim or meridian edges) a run of two or more
+/// pieces stands for — its `Lateral`, `RimEdge(end, ·)`, `Band`,
+/// `BandPi`, `Meridian(end, ·)` or `AxisEdge` segment spelled once per
+/// piece — read through its descent wrappers
 /// and re-wrapped by that same chain, or `None` when the name, peeled
 /// to its foot, holds no such run. A run wall is not a merge: it holds
 /// its pieces' walls the way a merged face holds its constituents, and
 /// is read the same way, but nothing mints it as `Merged` and nothing
 /// flattens it.
 pub(crate) fn run_constituents(name: &StableName) -> Option<Vec<StableName>> {
-    type Side = fn(NameRef) -> RoleSeg;
-    let mut wrappers: Vec<(Side, crate::node::RecipeNodeId)> = Vec::new();
+    let mut wrappers = Vec::new();
     let mut at = name;
-    while let Some((a, inner)) = peel(at) {
-        let side: Side = if a { RoleSeg::FromA } else { RoleSeg::FromB };
-        wrappers.push((side, at.node));
+    while let Some((wrap, inner)) = peel(at) {
+        wrappers.push((wrap, at.node));
         at = inner;
     }
     let (role, run) = run_foot(at)?;
@@ -165,14 +202,7 @@ pub(crate) fn run_constituents(name: &StableName) -> Option<Vec<StableName>> {
                     node: at.node,
                     path: vec![role.seg(PieceRun::one(*p))],
                 };
-                wrappers
-                    .iter()
-                    .rev()
-                    .fold(foot, |inner, &(side, node)| StableName {
-                        kind: at.kind,
-                        node,
-                        path: vec![side(NameRef::new(inner))],
-                    })
+                rewrap(at.kind, &wrappers, foot)
             })
             .collect(),
     )
@@ -314,7 +344,7 @@ mod tests {
     fn face(node: u64, path: Vec<RoleSeg>) -> StableName {
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path,
         }
     }
@@ -382,6 +412,78 @@ mod tests {
         assert!(!covers(&outer_set, &fragment));
     }
 
+    fn from_member(union: u64, member: u64, inner: StableName) -> StableName {
+        face(
+            union,
+            vec![RoleSeg::FromMember {
+                member: RecipeNodeId::new(0, member),
+                of: inner.into(),
+            }],
+        )
+    }
+
+    /// **A union over a union reads the inner merge through its
+    /// `FromMember`** as a boolean over a boolean reads it through
+    /// `FromA`: the inner merged face stands for its constituents, each
+    /// keyed by the same member, and the outer flat row covers it. The
+    /// member id is part of the wrapper: the same face keyed by another
+    /// member is not covered.
+    #[test]
+    fn a_union_over_a_union_reads_the_inner_merge_through_from_member() {
+        let inner = merged(
+            7,
+            vec![from_member(7, 2, cap(2)), from_member(7, 5, cap(5))],
+        );
+        assert_eq!(
+            constituents_through_wrappers(&from_member(12, 7, inner.clone())).unwrap(),
+            vec![
+                from_member(12, 7, from_member(7, 2, cap(2))),
+                from_member(12, 7, from_member(7, 5, cap(5))),
+            ]
+        );
+        let outer_set = {
+            let mut s = vec![
+                from_member(12, 7, from_member(7, 2, cap(2))),
+                from_member(12, 7, from_member(7, 5, cap(5))),
+                from_member(12, 10, cap(10)),
+            ];
+            s.sort();
+            s
+        };
+        assert!(covers(&outer_set, &from_member(12, 7, inner.clone())));
+        assert!(!covers(&outer_set, &from_member(12, 8, inner)));
+        // The edge set the union mints over a nested joined edge lists
+        // its constituents.
+        let rim = |n: StableName| StableName {
+            kind: EntityKind::Edge,
+            node: n.node,
+            path: n.path.clone(),
+        };
+        let joined = rim(merged(
+            7,
+            vec![
+                rim(from_member(7, 2, cap(2))),
+                rim(from_member(7, 5, cap(5))),
+            ],
+        ));
+        let set = edge_set(
+            RecipeNodeId::new(0, 12),
+            [
+                rim(from_member(12, 7, joined)),
+                rim(from_member(12, 10, cap(10))),
+            ],
+        );
+        let [RoleSeg::Merged(listed)] = set.path.as_slice() else {
+            panic!("an edge set is one Merged segment: {set:?}");
+        };
+        assert_eq!(listed.len(), 3, "flat through FromMember: {listed:?}");
+        // A run wall a union carries covers its pieces' walls under the
+        // same member.
+        let run = from_member(12, 3, lateral(3, &[7, 8]));
+        assert!(row_covers(&run, &from_member(12, 3, lateral(3, &[8]))));
+        assert!(!row_covers(&run, &from_member(12, 4, lateral(3, &[8]))));
+    }
+
     fn lateral(node: u64, steps: &[u64]) -> StableName {
         face(
             node,
@@ -390,7 +492,7 @@ mod tests {
                     steps
                         .iter()
                         .map(|&s| ProfileEdgeRef::Piece {
-                            step: crate::node::StepId(s),
+                            step: crate::node::StepId::new(0, s),
                             role: crate::names::PieceRole::Leg,
                         })
                         .collect(),
@@ -433,6 +535,43 @@ mod tests {
         assert!(covers(&set, &from_a(12, lateral(3, &[7]))));
     }
 
+    /// **A cap's rim holds its run as the wall does.** A rim named for
+    /// one piece before the sweep carried the run as one edge (a
+    /// station's rim piece) is offered the run's rim on the same cap,
+    /// never the other cap's; the run rim covers each piece's rim.
+    #[test]
+    fn a_run_rim_is_offered_for_its_pieces_rims_on_its_own_cap() {
+        let rim = |end: CapEnd, steps: &[u64]| {
+            let run = PieceRun::new(
+                steps
+                    .iter()
+                    .map(|&s| ProfileEdgeRef::Piece {
+                        step: crate::node::StepId::new(0, s),
+                        role: crate::names::PieceRole::Leg,
+                    })
+                    .collect(),
+            )
+            .unwrap();
+            StableName {
+                kind: EntityKind::Edge,
+                node: RecipeNodeId::new(0, 3),
+                path: vec![RoleSeg::RimEdge(end, run)],
+            }
+        };
+        let run = rim(CapEnd::End, &[7, 8]);
+        assert_eq!(
+            run_constituents(&run).unwrap(),
+            vec![rim(CapEnd::End, &[7]), rim(CapEnd::End, &[8])]
+        );
+        assert!(row_covers(&run, &rim(CapEnd::End, &[8])));
+        assert!(
+            !row_covers(&run, &rim(CapEnd::Start, &[8])),
+            "the other cap"
+        );
+        let rows = [run.clone(), rim(CapEnd::Start, &[7, 8])];
+        assert_eq!(offers(&rim(CapEnd::End, &[7]), rows.iter()), vec![run]);
+    }
+
     /// **N3's offers over a run** (`names/README.md`, N1 "Swept walls
     /// over a run"): a selection made before a station was inserted is
     /// offered the run wall that now covers it, and a run an edit broke
@@ -465,7 +604,7 @@ mod tests {
             PieceRun::new(
                 ks.iter()
                     .map(|&k| ProfileEdgeRef::Piece {
-                        step: crate::node::StepId(k),
+                        step: crate::node::StepId::new(0, k),
                         role: crate::names::PieceRole::Leg,
                     })
                     .collect(),
@@ -474,7 +613,7 @@ mod tests {
         };
         let meridian = |end: MeridianEnd, ks: &[u64]| StableName {
             kind: EntityKind::Edge,
-            node: RecipeNodeId(3),
+            node: RecipeNodeId::new(0, 3),
             path: vec![RoleSeg::Meridian(end, pieces(ks))],
         };
         let run = meridian(MeridianEnd::Seam, &[7, 8]);
@@ -502,11 +641,11 @@ mod tests {
             3,
             vec![RoleSeg::LoftWall(vec![
                 ProfileEdgeRef::Piece {
-                    step: crate::node::StepId(1),
+                    step: crate::node::StepId::new(0, 1),
                     role: crate::names::PieceRole::Leg,
                 },
                 ProfileEdgeRef::Piece {
-                    step: crate::node::StepId(2),
+                    step: crate::node::StepId::new(0, 2),
                     role: crate::names::PieceRole::Leg,
                 },
             ])],

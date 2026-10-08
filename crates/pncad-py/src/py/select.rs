@@ -30,7 +30,7 @@ use pyo3::types::PyString;
 
 use crate::errors::{ErrorClass, dimension_tag};
 use crate::py::doc::{NodeId, name_from_text, name_text};
-use crate::py::expr::{Formula, name_fault_err};
+use crate::py::expr::{Formula, lower_fault_err};
 use crate::py::step::Piece;
 use crate::py::typed_err;
 use crate::tags::select_refusal_tag;
@@ -149,6 +149,8 @@ pub(crate) enum SegTag {
     TrimEdge,
     FootVertex,
     EndArc,
+    Mitre,
+    TurnFoot,
     BandFace,
     BandTrim,
     BandFoot,
@@ -205,6 +207,8 @@ impl SegTag {
             Self::TrimEdge => s::SegTag::TrimEdge,
             Self::FootVertex => s::SegTag::FootVertex,
             Self::EndArc => s::SegTag::EndArc,
+            Self::Mitre => s::SegTag::Mitre,
+            Self::TurnFoot => s::SegTag::TurnFoot,
             Self::BandFace => s::SegTag::BandFace,
             Self::BandTrim => s::SegTag::BandTrim,
             Self::BandFoot => s::SegTag::BandFoot,
@@ -705,17 +709,18 @@ impl GeomPred {
     /// `SelectRefusal` with reason `not_a_length`), where the
     /// predicate is prepared.
     ///
-    /// Nor is there a document to read a name against: the value is
-    /// lowered with none in scope, so a formula that writes a name
-    /// refuses here, `EvalError` with variant `unlowered_name`.
+    /// Nor is there a document to read a name against, so a formula
+    /// that writes a name refuses here, `EvalError` with variant
+    /// `unlowered_name`.
     #[staticmethod]
     fn datum_distance(py: Python<'_>, datum: &NodeId, cmp: Cmp, value: &Formula) -> PyResult<Self> {
-        let value = pncad::document::Expr::try_from(&value.0)
-            .map_err(|fault| name_fault_err(py, &fault))?;
+        if let Some(fault) = value.0.unresolvable() {
+            return Err(lower_fault_err(py, &fault));
+        }
         Ok(Self(s::GeomPred::DatumDistance {
             datum: datum.0,
             cmp: cmp.to_kernel(),
-            value,
+            value: value.0.clone(),
         }))
     }
 
@@ -995,6 +1000,8 @@ mod growth_tripwire {
             s::SegTag::TrimEdge => SegTag::TrimEdge,
             s::SegTag::FootVertex => SegTag::FootVertex,
             s::SegTag::EndArc => SegTag::EndArc,
+            s::SegTag::Mitre => SegTag::Mitre,
+            s::SegTag::TurnFoot => SegTag::TurnFoot,
             s::SegTag::BandFace => SegTag::BandFace,
             s::SegTag::BandTrim => SegTag::BandTrim,
             s::SegTag::BandFoot => SegTag::BandFoot,

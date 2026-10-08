@@ -107,8 +107,9 @@ pub use editor_core::cascade_delete_order;
 // `EditError::PlacementRuleMismatch` carry.
 pub use editor_core::{
     Axis3, BooleanOp, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault, ListFault,
-    MeasureNodeFault, Node, PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId, RigidArg,
-    SlotId, TubeWindow, VectorSlot, declare_continuation, declare_rest,
+    MeasureNodeFault, MintId, Node, OutputPort, PartSelect, PatternKind, PlacementRuleFault,
+    PortKind, RecipeNodeId, RigidArg, SlotId, TubeWindow, VectorSlot, declare_continuation,
+    declare_rest,
 };
 
 // How a sentence names a node: the kind noun and tag a person reads, the
@@ -160,9 +161,10 @@ pub use editor_core::{
 // Expressions and their text door.
 // `Formula` is what a caller writes (VARIABLES-DESIGN VR6) and `Expr`
 // what a document stores; the edit door lowers the one to the other, so
-// a node an edit carries is an `AuthoredNode`. `NameFault` is the
+// a node an edit carries is an `AuthoredNode`. `LowerFault` is the
 // lowering's refusal, for a caller that lowers a formula itself
-// (`Doc::lowered`), and `Unlowered` says why; `Slot` is the bound a
+// (`Doc::lowered`): a `NameFault` (`Unlowered` says why) or a
+// `FreshFault`, a read of an edit's fresh table outside that edit; `Slot` is the bound a
 // reader generic over the two node forms states, and `ExprTree` over
 // `LeafSet` (`StoredLeaf`, `AuthoredLeaf`) the tree both forms share.
 // `VarEnv` joins them because `select_where` takes one, so a
@@ -170,6 +172,9 @@ pub use editor_core::{
 // `DimensionError` is the refusal `Formula`'s constructor doors return
 // (`literal`, the operator builders) — re-exported so a caller can
 // MATCH on it rather than pre-check the conditions it refuses.
+// `Ratio` is the exact constant a formula holds (VR5) and `Quantity` a
+// written value (VR6), which `Formula::as_ratio` / `as_quantity` hand
+// back, so a caller reading a formula can name what it holds.
 // `unparse` is `parse_formula`'s inverse, the text door OUTWARD: the
 // source text an expression reads back from, which is what a panel
 // showing a stored expression needs and cannot otherwise derive.
@@ -178,13 +183,14 @@ pub use editor_core::{
 // which expression the edit replaces.
 pub use editor_core::{
     AuthoredLeaf, AuthoredNode, Dimension, DimensionError, Expr, ExprPath, ExprTree, Formula,
-    LeafSet, NameFault, ParseError, Slot, StoredLeaf, Unlowered, VarEnv, parse_formula, unparse,
+    FreshFault, LeafSet, LowerFault, NameFault, ParseError, Quantity, Ratio, Slot, StoredLeaf,
+    Unlowered, VarEnv, parse_formula, unparse,
 };
 
 // The expression READ side: an expression's current value under a
 // document's parameter environment (`Doc::var_env`). A panel that
-// shows a slot before editing it needs this — `Expr::literal_value`
-// answers only for a bare literal, and a slot driven by
+// shows a slot before editing it needs this — `Formula::literal_value`
+// answers only for a lone written quantity, and a slot driven by
 // `width/2 - margin` has a value the consumer otherwise cannot obtain
 // without re-implementing the evaluator. `EvalError` rides along so a
 // slot whose value cannot be computed says which parameter is missing
@@ -194,16 +200,18 @@ pub use editor_core::{
 // `editor_core::eval`, which names BOTH the evaluation module and this
 // function: a bare `pub use editor_core::eval` would re-export the
 // module too, opening a second door onto the layer this list exists to
-// curate.
-pub use editor_core::expr::{EvalError, eval, eval_count};
+// curate. `eval_var` / `eval_var_count` read one variable — what a slot
+// holds — at the dimension its slot reads it at.
+pub use editor_core::expr::{EvalError, eval, eval_count, eval_var, eval_var_count};
 
 // Document variables (VARIABLES-DESIGN VR1–VR3).
 // `VarId` is a variable's minted identity and `VarName` the unique name
 // held beside it — a string newtype admissible by construction (one
 // identifier an expression reads back), whose fallible constructor
 // answers `VarNameFault`. `Var` is the variable a document holds, of a
-// `VarKind` fixed at minting and defined by a `VarDef` (free, or defined
-// by an `Expr` over other variables); `VarDecl` is the definition as
+// `VarKind` fixed at minting and defined by a `VarDef` (free, defined
+// by an `Expr` over other variables, or an output of an operation,
+// which `Doc::output` reads); `VarDecl` is the definition as
 // an edit carries it, read by name before the door lowers it; `FreeVar`
 // is a free definition's dimension plus exact stored value. `VarRef` is how
 // an edit addresses a variable, by id or by name. Recipe vocabulary,
@@ -238,7 +246,7 @@ pub use editor_core::expr::{EvalError, eval, eval_count};
 // refusal's count can read what it was measured against.
 pub use editor_core::{
     DEFINITION_NODE_BOUND, DisplayUnitRefusal, DistributionRefusal, FreeValue, FreeVar, UnitSym,
-    Var, VarDecl, VarDef, VarId, VarKind, VarName, VarNameFault, VarNameReason, VarRef,
+    Var, VarDecl, VarDef, VarId, VarKind, VarName, VarNameFault, VarNameReason, VarRef, WrittenDef,
 };
 
 // A parameter's optional uncertainty (ERROR-DESIGN E1/E2), and the
@@ -322,8 +330,8 @@ pub use editor_core::{
 // schema version (the persist module docs say why), so there is no
 // version constant to carry either.
 pub use editor_core::{
-    Loaded, NonFiniteSite, PersistError, ProgramFault, REGENERATE_RECOURSE, SnapshotError, load,
-    save,
+    Loaded, NonFiniteSite, OutputFault, PersistError, ProgramFault, REGENERATE_RECOURSE,
+    SnapshotError, load, save,
 };
 
 // A refusal's two renderings: under its stage word (`Display`), and as
@@ -417,10 +425,10 @@ pub use editor_core::LeverRefusal;
 pub use editor_core::{
     Alignment, AxisSense, CONTRADICTORY_RECOURSE, Clash, FrameBase, Lever, MateFault, MateFrame,
     MatePrimitive, MateReach, MateRole, MateSide, Member, OFFSET_RECOURSE, OffsetCheck, PartReach,
-    PlacerRow, Placing, PoseRefusal, ReachRefusal, RefusingReach, SolvedPoses, Space, Subgroup,
-    UNDER_RECOURSE, UNPLACED_RECOURSE, Unplaced, gauge_chain, groups, head_face, mate_reach,
-    member_of, member_reading, places, reading_edges, relative_freedom_components, root_of,
-    solve_document,
+    PlacerRow, Placing, PoseRefusal, PoseSymmetry, ReachRefusal, RefusingReach, SolvedPoses, Space,
+    Subgroup, SubgroupFamily, UNDER_RECOURSE, UNPLACED_RECOURSE, Unplaced, gauge_chain, groups,
+    head_face, mate_reach, member_of, member_reading, places, reading_edges,
+    relative_freedom_components, root_of, solve_document,
 };
 /// Why a mate's face base did not resolve to a pose, which
 /// [`MateFault::FaceUnresolved`] carries — by the same payload rule.
@@ -501,7 +509,7 @@ pub use editor_core::{
 // `InterfaceCrossing::Mate`.
 pub use editor_core::{
     InlineError, InlineOutcome, InterfaceCrossing, InterfaceRecord, NodeMap, SplitError,
-    SplitOutcome, StepMap, inline, split,
+    SplitOutcome, StepMap, Uncarried, inline, split,
 };
 
 // The pin-update door. `DocEdit`'s
@@ -572,5 +580,5 @@ pub use topo::ShellClassifyError;
 pub use editor_core::{
     CanonicalSegment, LoopProgram, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
     ProgramTarget, RecordedNotation, RecordedProgramError, StepArg, StepSegmentsError,
-    resolve_loops,
+    WrittenLoopFault, resolve_loops, resolve_written_loops,
 };

@@ -123,6 +123,7 @@ pub fn document() -> CorpusDoc {
             node: slot1,
             slot: SlotId::Distance,
             expr: len(1.25),
+            fresh: Vec::new(),
         },
         bump_root: slot1,
     }

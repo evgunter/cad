@@ -131,7 +131,7 @@ fn worst_admitted_obliquity_on_a_tight_rim_reads_the_band() {
                 for r in smooth {
                     assert!(
                         matches!(&r.description, EdgeDescription::Chart(c)
-                            if !c.seam && c.surface == r.wall),
+                            if !c.wrap && c.surface == r.wall),
                         "f={f} K={k}: a smooth rim must be an image in its wall's chart, got {:?}",
                         r.description,
                     );

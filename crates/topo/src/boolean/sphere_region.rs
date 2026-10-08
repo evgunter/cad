@@ -368,8 +368,11 @@ impl<T: Decide> SphereFaceRegion<T> {
             let thetas = match self.ray_roots(arc, g, band).map_err(in_band)? {
                 CircleRoots::Miss => continue,
                 CircleRoots::Certified { count, thetas } => thetas[..count].to_vec(),
-                // The arc in the ray's plane, or a tangency.
-                CircleRoots::OnSurface | CircleRoots::Uncertain => return Err(RayFault::Graze),
+                // The arc in the ray's plane, or a tangency; a plane has no
+                // apex, so `AtApex` is the cone's and never reaches here.
+                CircleRoots::OnSurface | CircleRoots::Uncertain | CircleRoots::AtApex => {
+                    return Err(RayFault::Graze);
+                }
                 // Two computations of one count disagreeing is a broken
                 // invariant, not a ray's conditioning (D9); every caller of
                 // the root doors refuses on it.

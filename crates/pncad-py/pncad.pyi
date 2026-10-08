@@ -54,7 +54,8 @@ chooses to gate rather than having the kernel choose for it.
 A continuous parameter can say how much it VARIES: `Distribution`'s
 four forms annotate one, `analyzed_box` derives the interval the
 analysis varies each parameter over, and the box prices its tail and
-its leaves. Annotation is opt-in — a parameter with none is fixed —
+its leaves. Annotation is opt-in — a parameter with none is fixed, a
+constant of the analysis and no axis of it —
 and a `band` states limits with no shape, so it refuses to be priced
 rather than being read as a uniform.
 
@@ -298,9 +299,10 @@ class ValidationFinding:
       standing. `"vertex_on_edge"` and `"edge_edge"` are records an op
       wrote, never a declaration: a stale one is the op's defect, and
       there is nothing to withdraw.
-    - `ring_contact_kind` — how a ring meets its face's own outer loop
-      (`"vertex_vertex"`, `"vertex_on_edge"`, `"vertex_on_ring_edge"`,
-      `"edge_along_edge"`, `"edge_edge_point"`, `"circle_circle"`).
+    - `ring_contact_kind` — how a ring meets its face's own outer loop,
+      or another ring of that face (`"vertex_vertex"`,
+      `"vertex_on_edge"`, `"vertex_on_ring_edge"`, `"edge_along_edge"`,
+      `"edge_edge_point"`, `"circle_circle"`).
       The word says where the ring has to move: a shared position one
       vertex clears, a shared arc no single vertex move separates, or
       a crossing or touching point no vertex carries.
@@ -752,6 +754,11 @@ class SplitError(PncadError):
     no gauge, `gauge` the gauge the cut anchors on. `mate_frame_crosses`:
     `node` is the mate, and `root` the cut root a promote would land at
     the empty chain, where that is the recourse."""
+    moving: Optional[str]
+    staying: Optional[str]
+    """`definition_straddles_cut`: `param` is the tied variable, `moving`
+    a variable it reads that the cut moves, `staying` one that stays or
+    that the document no longer holds."""
 
 class InlineError(PncadError):
     """The `inline` refactoring refused.
@@ -1878,7 +1885,7 @@ class TubeWindow:
     @staticmethod
     def full() -> TubeWindow: ...
     @staticmethod
-    def arc(t0: Formula, t1: Formula) -> TubeWindow: ...
+    def arc(t0: _AngleArg, t1: _AngleArg) -> TubeWindow: ...
     def __repr__(self) -> str: ...
 
 class SketchPlane:
@@ -2022,9 +2029,9 @@ class Placement:
     @staticmethod
     def rigid(
         *,
-        translation: tuple[Formula, Formula, Formula],
-        axis: tuple[Formula, Formula, Formula],
-        angle: Formula,
+        translation: tuple[_LengthArg, _LengthArg, _LengthArg],
+        axis: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
+        angle: _AngleArg,
     ) -> Placement:
         """One rigid step: rotate by `angle` about the axis through the
         origin with direction `axis`, then translate — `Node.transform`'s
@@ -2080,7 +2087,7 @@ class PatternKind:
 
     @staticmethod
     def linear(
-        direction: tuple[Formula, Formula, Formula], spacing: Formula
+        direction: tuple[_ScalarArg, _ScalarArg, _ScalarArg], spacing: _LengthArg
     ) -> PatternKind:
         """Stepped along `direction`, `spacing` apart. The spacing is
         a size: the direction says which way the copies step, so a
@@ -2090,7 +2097,7 @@ class PatternKind:
         it."""
 
     @staticmethod
-    def circular(axis: NodeId, step: Formula) -> PatternKind:
+    def circular(axis: NodeId, step: _AngleArg) -> PatternKind:
         """Stepped around `axis`, an upstream `datum_axis` node. The
         step is signed by the right-hand rule about the axis and lies
         within a turn: zero raises EvaluationError (`degenerate_step`),
@@ -2119,7 +2126,7 @@ class PartSelect:
         with no material refuses at `evaluate` (`empty_half`)."""
 
     @staticmethod
-    def instance(index: Formula) -> PartSelect:
+    def instance(index: _CountArg) -> PartSelect:
         """The `index`-th instance of a `Node.pattern` value, from
         zero. A count `Formula` — `Formula.count(3)` — and the node's
         `Instance` slot, which `DocEdit.bind_instance_param` binds to a
@@ -2289,7 +2296,7 @@ class Node:
     @staticmethod
     def sketch_frame(
         plane: Optional[SketchPlane] = None,
-        elevation: Optional[Formula] = None,
+        elevation: Optional[_LengthArg] = None,
     ) -> Node:
         """The sketch frame a profile is drawn on, as a node.
 
@@ -2300,7 +2307,7 @@ class Node:
 
     @staticmethod
     def polygon(
-        points: list[tuple[Formula, Formula]],
+        points: list[tuple[_LengthArg, _LengthArg]],
         plane: NodeId,
     ) -> Node: ...
     @overload
@@ -2311,7 +2318,7 @@ class Node:
     def profile(outline: list[ClosedLoop], plane: NodeId) -> Node: ...
     @staticmethod
     def extrude(
-        profile: NodeId, distance: Formula, side: ExtrudeSide = ExtrudeSide.Along
+        profile: NodeId, distance: _LengthArg, side: ExtrudeSide = ExtrudeSide.Along
     ) -> Node:
         """Extrude a profile to one side of its sketch plane.
 
@@ -2325,17 +2332,17 @@ class Node:
         `set_var_value` per value."""
 
     @staticmethod
-    def revolve(profile: NodeId, axis: NodeId, angle: Formula) -> Node:
+    def revolve(profile: NodeId, axis: NodeId, angle: _AngleArg) -> Node:
         """Revolve a profile about a datum axis. `angle` mints a
         literal in the node's `revolve_angle` slot, driven afterwards
         by `DocEdit.set_param` as an extrude's `distance` is."""
     @staticmethod
     def tube(
         spine: NodeId,
-        u_ref: tuple[Formula, Formula, Formula],
-        major_radius: Formula,
+        u_ref: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
+        major_radius: _LengthArg,
         window: TubeWindow,
-        minor_radius: Formula,
+        minor_radius: _LengthArg,
     ) -> Node:
         """A solid ring torus, or an elbow of one, from its intent parameters.
 
@@ -2352,11 +2359,11 @@ class Node:
     @staticmethod
     def hollow_tube(
         spine: NodeId,
-        u_ref: tuple[Formula, Formula, Formula],
-        major_radius: Formula,
+        u_ref: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
+        major_radius: _LengthArg,
         window: TubeWindow,
-        minor_radius: Formula,
-        wall: Formula,
+        minor_radius: _LengthArg,
+        wall: _LengthArg,
     ) -> Node:
         """`Node.tube`'s sibling with a WALL, which is REQUIRED.
 
@@ -2370,9 +2377,9 @@ class Node:
         """
 
     @staticmethod
-    def loft(profiles: list[NodeId], v_degree: Formula) -> Node: ...
+    def loft(profiles: list[NodeId], v_degree: _CountArg) -> Node: ...
     @staticmethod
-    def chamfer(target: NodeId, distance: Formula, selection: list[str]) -> Node:
+    def chamfer(target: NodeId, distance: _LengthArg, selection: list[str]) -> Node:
         """Equal-setback flat chamfers on named edges of `target`.
 
         `Node.fillet`'s twin: `selection` is edge names as TEXT and the
@@ -2385,7 +2392,7 @@ class Node:
         """
 
     @staticmethod
-    def shell(target: NodeId, thickness: Formula, open: list[str]) -> Node:
+    def shell(target: NodeId, thickness: _LengthArg, open: list[str]) -> Node:
         """Hollow `target` to a wall of `thickness`, opening the faces in
         `open` into rims.
 
@@ -2405,14 +2412,14 @@ class Node:
 
     @staticmethod
     def datum_axis(
-        origin: tuple[Formula, Formula, Formula],
-        direction: tuple[Formula, Formula, Formula],
+        origin: tuple[_LengthArg, _LengthArg, _LengthArg],
+        direction: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
     ) -> Node: ...
     @staticmethod
     def datum_axis_in_plane(
         plane: NodeId,
-        origin: tuple[Formula, Formula],
-        direction: tuple[Formula, Formula],
+        origin: tuple[_LengthArg, _LengthArg],
+        direction: tuple[_ScalarArg, _ScalarArg],
     ) -> Node:
         """An axis written IN a sketch frame — a revolve's axis.
 
@@ -2422,11 +2429,11 @@ class Node:
         """
     @staticmethod
     def datum_plane(
-        origin: tuple[Formula, Formula, Formula],
-        normal: tuple[Formula, Formula, Formula],
+        origin: tuple[_LengthArg, _LengthArg, _LengthArg],
+        normal: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
     ) -> Node: ...
     @staticmethod
-    def datum_point(position: tuple[Formula, Formula, Formula]) -> Node:
+    def datum_point(position: tuple[_LengthArg, _LengthArg, _LengthArg]) -> Node:
         """A datum point: a position, and nothing else.
 
         There is no direction, because a point has none —
@@ -2437,7 +2444,7 @@ class Node:
         non-finite coordinate raises `LiteralError` here.
         """
     @staticmethod
-    def datum_face_frame(at: NodeId, face: str, spin: Formula) -> Node:
+    def datum_face_frame(at: NodeId, face: str, spin: _AngleArg) -> Node:
         """A sketch frame DERIVED from a face — "sketch on this face".
 
         `at` is the body-denoting node the face is read out of, and a
@@ -2459,9 +2466,9 @@ class Node:
 
     @staticmethod
     def datum_frame(
-        origin: tuple[Formula, Formula, Formula],
-        u: tuple[Formula, Formula, Formula],
-        v: tuple[Formula, Formula, Formula],
+        origin: tuple[_LengthArg, _LengthArg, _LengthArg],
+        u: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
+        v: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
     ) -> Node:
         """An oriented plane — a sketch frame, written as its origin
         and its two in-plane directions.
@@ -2484,7 +2491,7 @@ class Node:
         """
 
     @staticmethod
-    def fillet(target: NodeId, radius: Formula, selection: list[str]) -> Node:
+    def fillet(target: NodeId, radius: _LengthArg, selection: list[str]) -> Node:
         """Constant-radius blends on named edges of `target`.
 
         `selection` is edge names as TEXT — the strings
@@ -2506,9 +2513,9 @@ class Node:
     @staticmethod
     def transform(
         input: NodeId,
-        translation: tuple[Formula, Formula, Formula],
-        rotation_axis: tuple[Formula, Formula, Formula],
-        rotation_angle: Formula,
+        translation: tuple[_LengthArg, _LengthArg, _LengthArg],
+        rotation_axis: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
+        rotation_angle: _AngleArg,
     ) -> Node:
         """A rigid placement: rotate about `rotation_axis` through the
         WORLD ORIGIN by `rotation_angle`, then translate. A pure
@@ -2565,7 +2572,7 @@ class Node:
         question at `evaluate`."""
 
     @staticmethod
-    def pattern(input: NodeId, count: Formula, kind: PatternKind) -> Node:
+    def pattern(input: NodeId, count: _CountArg, kind: PatternKind) -> Node:
         """One prototype, `count` placements stepped by `kind`, N
         BODIES OUT — the replicated family with nothing fused.
 
@@ -2596,7 +2603,7 @@ class Node:
         `instance_out_of_range`."""
 
     @staticmethod
-    def placed_union(input: NodeId, count: Formula, kind: PatternKind) -> Node:
+    def placed_union(input: NodeId, count: _CountArg, kind: PatternKind) -> Node:
         """The group boolean over a PARAMETRIC rule: one prototype,
         `count` placements stepped by `kind`, ONE body out.
 
@@ -2773,6 +2780,20 @@ class Node:
         declaration, and nothing downstream changes shape because one
         is `Violated`. Read it with `Value.assertion`."""
 
+_SlotArg: TypeAlias = Var | Formula | WrittenLength | WrittenAngle | Length | Angle | float | int
+"""What a slot takes: a variable the document holds (every slot handed
+it reads that one variable), a `Formula`, or a value — written, keeping
+its unit, or bare (canonical units; a `float` is dimensionless, an `int`
+a count). A value or a formula mints the slot's own anonymous variable.
+A door whose slot's dimension is fixed takes the one row of it that
+measures that dimension, so a bare number at a length slot is a type
+error rather than a refusal; `DocEdit.set_param`, whose slot is a
+word, takes them all and refuses at the edit door."""
+_LengthArg: TypeAlias = Var | Formula | WrittenLength | Length
+_AngleArg: TypeAlias = Var | Formula | WrittenAngle | Angle
+_ScalarArg: TypeAlias = Var | Formula | float
+_CountArg: TypeAlias = Var | Formula | int
+
 class Formula:
     """A dimension-checked expression — the recipe's arithmetic, as a
     value.
@@ -2846,8 +2867,21 @@ class Formula:
         `Formula.written_angle(WrittenAngle.in_unit(value, unit))`."""
     @staticmethod
     def count(value: int) -> Formula:
-        """A `Count` literal — the exact integer a structural slot
-        takes. Total: every integer is a count."""
+        """An exact integer: a constant inside a formula, and at a
+        structural slot's root the count it takes. Total: every integer
+        is a count."""
+    @staticmethod
+    def ratio(num: int, den: int) -> Formula:
+        """The exact rational constant `num / den`: a constant inside a
+        formula, a written dimensionless value at a slot's root.
+        `LiteralError` (`kind` `"constant_out_of_range"`) for a
+        denominator that is not positive, or a reduced numerator or
+        denominator past 2^53, however wide the int; its `value` is the
+        quotient, or the numerator where there is none."""
+    @staticmethod
+    def turn() -> Formula:
+        """One full rotation, the exact angle constant: a right angle is
+        `turn / 4`."""
     @property
     def dimension(self) -> str:
         """`"length"`, `"angle"`, `"count"` or `"scalar"`."""
@@ -2856,10 +2890,10 @@ class Formula:
         """The source text this reads back as (`unparse`)."""
     @property
     def literal_value(self) -> Optional[float]:
-        """The number a BARE literal carries, in canonical kernel
-        units, or None for anything else — including a count literal,
-        since handing a count back as a float is the implicit
-        promotion the expression language refuses."""
+        """The number a lone written value or dimensionless number
+        carries, in canonical kernel units, or None for anything else —
+        including a count, since handing a count back as a float is
+        the implicit promotion the expression language refuses."""
     @property
     def params(self) -> list[VarName]:
         """The variable names this reads, sorted and without
@@ -2881,12 +2915,8 @@ class Expr:
     @property
     def text(self) -> str:
         """The source text this reads back as, a variable written as
-        its full id, `#<16 hex>`; `Doc.unparse` writes the names a
+        its full id, `#<ordinal>:<16 hex>`; `Doc.unparse` writes the names a
         document holds."""
-    @property
-    def literal_value(self) -> Optional[float]:
-        """The number a BARE literal carries, in canonical kernel
-        units, or None for anything else."""
     def __eq__(self, other: object) -> bool: ...
 
 class VarName:
@@ -2915,7 +2945,17 @@ class Var:
 
     @property
     def hex(self) -> str:
-        """The id with every bit shown: sixteen lowercase hex digits."""
+        """The whole id: its mint ordinal, a colon, and its digest as
+        sixteen lowercase hex digits — the key a saved file's variable
+        table holds it under. (Named for when an id was its hex digest
+        alone.)"""
+    @property
+    def kind(self) -> str | None:
+        """What the variable holds, fixed at minting: a scalar's
+        dimension word ("length", "angle", "scalar", "count"), a
+        pose's ("point", "direction", "axis", "plane", "frame") or a
+        shape's ("body", "bodies", "profile"). None for a handle read
+        where the document held no such variable."""
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
@@ -3022,9 +3062,8 @@ class AnalyzedParam:
     offset interval the analysis varies it over, and the distribution
     that interval came from.
 
-    An unannotated continuous parameter is still an axis — a
-    width-zero one at its nominal, with `distribution` `None`. That is
-    the typed spelling of FIXED."""
+    A parameter with no tolerance is no axis: the analysis reads it as
+    a constant at its nominal (VR8)."""
 
     @property
     def dimension(self) -> str: ...
@@ -3059,10 +3098,11 @@ class AnalyzedBox:
     def tail_mass(self, name: VarName) -> Optional[float]:
         """What this box's interval for `name` leaves OUTSIDE.
 
-        `None` when the document declares no such continuous
-        parameter; `0.0` for an unannotated axis, which is fixed and
-        leaves nothing out. Raises MeasureUnavailable when the axis
-        carries a band whose support escapes the interval.
+        `None` when the box carries no such axis — a name the
+        document does not declare, or a parameter with no tolerance,
+        a constant of the analysis (VR8). Raises MeasureUnavailable
+        when the axis carries a band whose support escapes the
+        interval.
 
         The three inputs — the name, the distribution and the interval
         — come from ONE axis of one box, so they cannot disagree. The
@@ -3076,10 +3116,9 @@ class AnalyzedBox:
         `(lo, hi)` — the leaf-pricing door.
 
         The offsets are quantities in the axis's own dimension; another
-        dimension is a QuantityOpMismatch. `None` when the document
-        declares no such continuous parameter. An unannotated axis is a
-        point mass at its nominal, so it answers `1.0` for any interval
-        containing offset zero and `0.0` otherwise. A band raises
+        dimension is a QuantityOpMismatch. `None` when the box carries
+        no such axis — a name the document does not declare, or a
+        parameter with no tolerance (VR8). A band raises
         MeasureUnavailable unless the interval covers its whole support
         or misses it entirely."""
     def __len__(self) -> int: ...
@@ -3395,7 +3434,7 @@ class DocEdit:
         for a name not minted before `node`."""
 
     @staticmethod
-    def set_param(node: NodeId, slot: str, expr: Formula) -> DocEdit:
+    def set_param(node: NodeId, slot: str, expr: _SlotArg) -> DocEdit:
         """Replace a CONTINUOUS slot's expression on a live node — an
         extrude's `distance`, a fillet's `radius`, a revolve's
         `revolve_angle` — after the constructor that minted it.
@@ -3634,8 +3673,7 @@ class DocEdit:
 
         Refuses `step_ids_refused` before the program is replayed
         (`inner_variant`: `loop_count`, `shape`, `not_this_profiles`,
-        `repeated`, or `collides` for a new id the document's mint log
-        already holds; `not_minted`, an id the log lacks, is the load
+        or `repeated`; `not_minted`, an id the log lacks, is the load
         door's word for the same family),
         `set_program_on_non_profile`, and then everything an insert
         refuses of a profile: `slot_unknown_var_name` and its
@@ -3952,7 +3990,7 @@ class Doc:
     def sketch_frame(
         self,
         plane: Optional[SketchPlane] = None,
-        elevation: Optional[Formula] = None,
+        elevation: Optional[_LengthArg] = None,
         *,
         label: Optional[str] = None,
     ) -> NodeId:
@@ -4011,13 +4049,23 @@ class Doc:
         hold."""
     def var(self, name: VarName) -> Var | None:
         """The variable this document names `name`, or None."""
+    def output(self, node: NodeId, port: int = 0) -> Var | None:
+        """The variable port `port` of `node` defines: an operation's
+        output, which lives exactly as long as its node. None for a
+        node the document does not hold; a port the live node's
+        signature does not have raises ValueError."""
+    def slot(self, node: NodeId, slot: str) -> Var | None:
+        """The variable a node's slot reads, or None for a node or a
+        slot the document does not hold. Every slot reads one: a value
+        written there is its own anonymous variable, and passing the
+        handle to another slot is how two slots share it."""
     def var_name(self, var: Var) -> VarName | None:
         """The name this document holds for `var`, or None — for an
         anonymous variable, or one the document no longer holds."""
     def unparse(self, expr: Formula | Expr) -> str:
         """The text of `expr`, each variable it reads written by the
         name this document holds for it; one with no name here writes
-        its full id, `#<16 hex>`."""
+        its full id, `#<ordinal>:<16 hex>`."""
     @property
     def epsilon(self) -> float: ...
     def bit_eq(self, other: Doc) -> bool: ...
@@ -4050,9 +4098,11 @@ class Doc:
         Raises ParseError, carrying `variant` and the byte offset
         `pos`."""
 
-    def eval(self, expr: Formula) -> Length | Angle | float:
+    def eval(self, expr: Formula | Var) -> Length | Angle | float:
         """This expression's value under the document's current
-        parameter values (`eval`).
+        parameter values (`eval`). A `Var` evaluates as the lone reader
+        of it at its own dimension (`eval_var`): how a slot's value is
+        read off `Doc.slot`'s handle.
 
         A Length for a length expression, an Angle for an angle, a
         bare float for a dimensionless one.
@@ -4070,8 +4120,9 @@ class Doc:
         at another) are that lowering's refusals. Other refusals:
         `unresolved_var`, `non_finite_result`."""
 
-    def eval_count(self, expr: Formula) -> int:
-        """This count expression's exact value (`eval_count`).
+    def eval_count(self, expr: Formula | Var) -> int:
+        """This count expression's exact value (`eval_count`); a count
+        `Var`'s, as its lone reader (`eval_var_count`).
 
         Exact integer arithmetic: an overflow raises EvalError
         (`count_overflow`) rather than wrapping, because a wrapped
@@ -4359,6 +4410,8 @@ class SegTag:
     TrimEdge: Final[SegTag]
     FootVertex: Final[SegTag]
     EndArc: Final[SegTag]
+    Mitre: Final[SegTag]
+    TurnFoot: Final[SegTag]
     BandFace: Final[SegTag]
     BandTrim: Final[SegTag]
     BandFoot: Final[SegTag]

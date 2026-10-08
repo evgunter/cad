@@ -81,8 +81,13 @@ fn oblique_clip() -> Body<Dual64> {
 fn the_oblique_trihedron_fillets_at_the_dual_scalar() {
     let clipped = oblique_clip();
     let edges = query::all_edges(&clipped);
-    let f = fillet_edges(&clipped, &edges, Dual::constant(0.08), Tol::witness())
-        .expect("the oblique trihedron fillets at a dual");
+    let f = fillet_edges(
+        &sweep::test_support::at_rest(&clipped, Tol::witness()),
+        &edges,
+        Dual::constant(0.08),
+        Tol::witness(),
+    )
+    .expect("the oblique trihedron fillets at a dual");
     let rowless = f
         .corner_faces
         .iter()

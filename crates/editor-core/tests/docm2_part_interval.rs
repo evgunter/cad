@@ -73,6 +73,7 @@ fn widened_document(width: f64) -> ProfileDoc {
                     hi: width,
                 }),
             }),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -83,7 +84,7 @@ fn widened_document(width: f64) -> ProfileDoc {
 
 /// Every Part of `doc` with the node it reads and its selector.
 fn parts(doc: &ProfileDoc) -> Vec<(RecipeNodeId, RecipeNodeId, PartSelect)> {
-    doc.order()
+    doc.ids()
         .iter()
         .filter_map(|&id| match doc.node(id) {
             Some(Node::Part { of, select }) => Some((id, *of, select.clone())),
@@ -140,7 +141,7 @@ fn node_where(
     doc: &ProfileDoc,
     pick: impl Fn(&editor_core::Node<editor_core::ProfileProgram>) -> bool,
 ) -> RecipeNodeId {
-    *doc.order()
+    *doc.ids()
         .iter()
         .find(|id| doc.node(**id).is_some_and(&pick))
         .expect("the document carries the node")
@@ -266,7 +267,7 @@ fn a7_the_corpus_document_evaluates_at_interval_with_a_widened_height() {
     // The widened box reaches the halves: the above half's top cap
     // carries the width.
     let split = *doc
-        .order()
+        .ids()
         .iter()
         .find(|id| matches!(doc.node(**id), Some(Node::Split { .. })))
         .expect("the split");

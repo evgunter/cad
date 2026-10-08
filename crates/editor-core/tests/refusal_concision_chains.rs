@@ -30,7 +30,7 @@ use test_utils::refusal::tagged;
 /// A `NodeErrorKind` as the feature tree's fault line draws it.
 pub(crate) fn as_the_viewer_shows_it(kind: NodeErrorKind) -> String {
     NodeError {
-        node: RecipeNodeId(tagged(5)),
+        node: RecipeNodeId::new(0, tagged(5)),
         kind,
         escalations: std::sync::Arc::new(Vec::new()),
     }
@@ -65,6 +65,8 @@ const KERNEL_KEYED: &[&str] = &[
     "Split/Pcurves",
     "Transform/Pcurve",
     "Transform/NullScaffold",
+    "UnfinishedOperand/ScaffoldingEmptyLoop",
+    "UnfinishedOperand/ScaffoldingStrutVertex",
     "Loft/Pcurve",
     "Blend/BodyNotIntact",
     "Blend/SurgeryInvariant",
@@ -214,6 +216,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Expr/CountOverflow",
     "Expr/CountToScalarOutOfRange",
     "Expr/NonFiniteResult",
+    "Expr/Unlowered",
     "Expr/UnresolvedVar",
     "Expr/VarKindMismatch",
     "FaceFrameKind",
@@ -711,7 +714,7 @@ fn every_node_refusal_renders_within_the_budget() {
 /// ([`NodeErrorKind::carried_chain`]).
 fn drawn_lines(kind: NodeErrorKind) -> Vec<String> {
     let error = NodeError {
-        node: RecipeNodeId(tagged(5)),
+        node: RecipeNodeId::new(0, tagged(5)),
         kind,
         escalations: std::sync::Arc::new(Vec::new()),
     };
@@ -760,7 +763,7 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
         doc_ref: doc_ref(),
         fault: PartFault::PartRootFailed {
             held: Default::default(),
-            node: RecipeNodeId(tagged(node)),
+            node: RecipeNodeId::new(0, tagged(node)),
             refusal: refusal.into(),
         },
     };
@@ -775,9 +778,9 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
             "Carried/PlacerRefused",
             1,
             NodeErrorKind::Mate(Box::new(MateFault::PlacerRefused {
-                mate: RecipeNodeId(tagged(9)),
+                mate: RecipeNodeId::new(0, tagged(9)),
                 side: MateSide::B,
-                placer: RecipeNodeId(tagged(4)),
+                placer: RecipeNodeId::new(0, tagged(4)),
                 error: inner().into(),
                 placer_row: editor_core::PlacerRow::Silent,
             })),
@@ -812,9 +815,9 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
     // carried: the refusal is drawn once, on the placer's row.
     let placer = |placer_row| {
         NodeErrorKind::Mate(Box::new(MateFault::PlacerRefused {
-            mate: RecipeNodeId(tagged(9)),
+            mate: RecipeNodeId::new(0, tagged(9)),
             side: MateSide::B,
-            placer: RecipeNodeId(tagged(4)),
+            placer: RecipeNodeId::new(0, tagged(4)),
             error: inner().into(),
             placer_row,
         }))
@@ -835,8 +838,8 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
     assert_eq!(
         documents,
         vec![
-            (Some(&part_ref), RecipeNodeId(tagged(7))),
-            (Some(&part_ref), RecipeNodeId(tagged(4))),
+            (Some(&part_ref), RecipeNodeId::new(0, tagged(7))),
+            (Some(&part_ref), RecipeNodeId::new(0, tagged(4))),
         ],
         "the placer's level is in the part the mate is in"
     );
@@ -945,7 +948,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             NodeErrorKind::Expr {
                 slot: SlotId::Distance,
                 source: EvalError::UnresolvedVar {
-                    var: editor_core::VarId(tagged(7)),
+                    var: editor_core::VarId::new(0, tagged(7)),
                 },
             },
         ),
@@ -977,7 +980,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "MissingInput",
             NodeErrorKind::MissingInput {
-                input: RecipeNodeId(tagged(3)),
+                input: RecipeNodeId::new(0, tagged(3)),
             },
         ),
         row(
@@ -990,7 +993,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "WrongOperand",
             NodeErrorKind::WrongOperand {
-                input: RecipeNodeId(tagged(3)),
+                input: RecipeNodeId::new(0, tagged(3)),
                 expected: "body",
                 found: "profile",
             },
@@ -998,20 +1001,65 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "EmptyOperand",
             NodeErrorKind::EmptyOperand {
-                input: RecipeNodeId(tagged(3)),
+                input: RecipeNodeId::new(0, tagged(3)),
+            },
+        ),
+        row(
+            "UnfinishedOperand/NegativeVolume",
+            NodeErrorKind::UnfinishedOperand {
+                input: RecipeNodeId::new(0, tagged(3)),
+                errors: vec![topo::ValidationError::NegativeVolume {
+                    solid: topo::SolidKey::default(),
+                }],
+            },
+        ),
+        row(
+            "UnfinishedOperand/ScaffoldAtRest",
+            NodeErrorKind::UnfinishedOperand {
+                input: RecipeNodeId::new(0, tagged(3)),
+                errors: vec![topo::ValidationError::ScaffoldAtRest {
+                    edge: topo::EdgeKey::default(),
+                }],
+            },
+        ),
+        row(
+            "UnfinishedOperand/ScaffoldingEmptyLoop",
+            NodeErrorKind::UnfinishedOperand {
+                input: RecipeNodeId::new(0, tagged(3)),
+                errors: vec![topo::ValidationError::ScaffoldingEmptyLoop {
+                    loop_: topo::LoopKey::default(),
+                }],
+            },
+        ),
+        row(
+            "UnfinishedOperand/ScaffoldingStrutVertex",
+            NodeErrorKind::UnfinishedOperand {
+                input: RecipeNodeId::new(0, tagged(3)),
+                errors: vec![topo::ValidationError::ScaffoldingStrutVertex {
+                    vertex: topo::VertexKey::default(),
+                }],
+            },
+        ),
+        row(
+            "UnfinishedOperand/DescriptionNotAdjacent",
+            NodeErrorKind::UnfinishedOperand {
+                input: RecipeNodeId::new(0, tagged(3)),
+                errors: vec![topo::ValidationError::DescriptionNotAdjacent {
+                    edge: topo::EdgeKey::default(),
+                }],
             },
         ),
         row(
             "EmptyHalf",
             NodeErrorKind::EmptyHalf {
-                input: RecipeNodeId(tagged(3)),
+                input: RecipeNodeId::new(0, tagged(3)),
                 half: editor_core::SplitHalf::Above,
             },
         ),
         row(
             "InstanceOutOfRange",
             NodeErrorKind::InstanceOutOfRange {
-                input: RecipeNodeId(tagged(3)),
+                input: RecipeNodeId::new(0, tagged(3)),
                 index: 7,
                 count: 4,
             },
@@ -1058,9 +1106,9 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "AxisInDifferentPlane",
             NodeErrorKind::AxisInDifferentPlane {
-                axis: RecipeNodeId(tagged(3)),
-                axis_plane: Some(RecipeNodeId(tagged(1))),
-                profile_plane: Some(RecipeNodeId(tagged(2))),
+                axis: RecipeNodeId::new(0, tagged(3)),
+                axis_plane: Some(RecipeNodeId::new(0, tagged(1))),
+                profile_plane: Some(RecipeNodeId::new(0, tagged(2))),
             },
         ),
         row(
@@ -1079,7 +1127,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(whole)",
             NodeErrorKind::FullRangeStep {
-                step: stored("360 deg"),
+                step: formula("360 deg"),
                 evaluated: None,
                 turns: StepTurns::Whole,
             },
@@ -1087,7 +1135,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(whole, evaluated)",
             NodeErrorKind::FullRangeStep {
-                step: stored("720 deg * scalar(blades)"),
+                step: formula("720 deg * scalar(blades)"),
                 evaluated: Some(geom_core::MarginDiag::value(12.566370614359172)),
                 turns: StepTurns::Whole,
             },
@@ -1095,7 +1143,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(within)",
             NodeErrorKind::FullRangeStep {
-                step: stored("760 deg"),
+                step: formula("760 deg"),
                 evaluated: None,
                 turns: StepTurns::Within(formula("40 deg")),
             },
@@ -1103,7 +1151,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(within, evaluated)",
             NodeErrorKind::FullRangeStep {
-                step: stored("360 deg / scalar(blades) - 400 deg"),
+                step: formula("360 deg / scalar(blades) - 400 deg"),
                 evaluated: Some(geom_core::MarginDiag::value(-6.632251157578452)),
                 turns: StepTurns::Within(formula("360 deg / scalar(blades) - 400 deg + 360 deg")),
             },
@@ -1111,7 +1159,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(unresolved)",
             NodeErrorKind::FullRangeStep {
-                step: stored("1e20 rad"),
+                step: formula("1e20 rad"),
                 evaluated: None,
                 turns: StepTurns::Unresolved,
             },
@@ -1124,14 +1172,14 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "SeedPinnedSection",
             NodeErrorKind::SeedPinnedSection {
-                section: RecipeNodeId(tagged(3)),
-                param: editor_core::VarId(tagged(7)),
+                section: RecipeNodeId::new(0, tagged(3)),
+                param: editor_core::VarId::new(0, tagged(7)),
             },
         ),
         row(
             "DeclareSiteNotAnOperand",
             NodeErrorKind::DeclareSiteNotAnOperand {
-                at: RecipeNodeId(tagged(3)),
+                at: RecipeNodeId::new(0, tagged(3)),
             },
         ),
         row(
@@ -1163,8 +1211,8 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "DerivedFrameSection",
             NodeErrorKind::DerivedFrameSection {
-                profile: RecipeNodeId(tagged(3)),
-                frame: RecipeNodeId(tagged(2)),
+                profile: RecipeNodeId::new(0, tagged(3)),
+                frame: RecipeNodeId::new(0, tagged(2)),
             },
         ),
         row(
@@ -1604,10 +1652,10 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 },
             ),
             (
-                "RingOffCylinderChart",
-                J::RingOffCylinderChart {
+                "RingIslandUnread",
+                J::RingIslandUnread {
                     face,
-                    kind: geom::SurfaceKind::Sphere,
+                    kind: geom::SurfaceKind::Cone,
                 },
             ),
             (
@@ -2258,6 +2306,24 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "FaceClearance",
+            E::FaceClearance {
+                at: topo::EntityId::Face(face),
+                chain: sweep::blend::Convexity::Concave,
+                margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
+                bounded: false,
+            },
+        ),
+        (
+            "FaceClearance(bounded, another band)",
+            E::FaceClearance {
+                at: topo::EntityId::Edge(edge),
+                chain: sweep::blend::Convexity::Convex,
+                margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
+                bounded: true,
+            },
+        ),
+        (
             "TangentialEdge",
             E::TangentialEdge {
                 edge,
@@ -2422,6 +2488,20 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
                 chain: sweep::blend::Convexity::Convex,
                 margin: decided("fillet3_ring_clearance", -1e-3, Sign::Negative),
                 bounded: false,
+            },
+        ),
+        (
+            "ScaffoldingOperand",
+            E::ScaffoldingOperand {
+                errors: vec![topo::ValidationError::ScaffoldingStrutVertex { vertex }],
+            },
+        ),
+        (
+            "InsideOutOperand",
+            E::InsideOutOperand {
+                errors: vec![topo::ValidationError::NegativeVolume {
+                    solid: topo::SolidKey::default(),
+                }],
             },
         ),
         (
@@ -2945,20 +3025,20 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     use payloads::*;
     let name = || StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(tagged(3)),
+        node: RecipeNodeId::new(0, tagged(3)),
         path: Vec::new(),
     };
     let eval: Vec<(&str, EvalError)> = vec![
         (
             "UnresolvedVar",
             EvalError::UnresolvedVar {
-                var: editor_core::VarId(tagged(7)),
+                var: editor_core::VarId::new(0, tagged(7)),
             },
         ),
         (
             "VarKindMismatch",
             EvalError::VarKindMismatch {
-                var: editor_core::VarId(tagged(7)),
+                var: editor_core::VarId::new(0, tagged(7)),
                 bound: Dimension::Angle,
                 read: Dimension::Length,
             },
@@ -2979,13 +3059,23 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             EvalError::CountToScalarOutOfRange(1 << 60),
         ),
         ("NonFiniteResult", EvalError::NonFiniteResult),
+        // No node raises it — a lowered document holds no authored
+        // leaf, so a node's expression never reaches it — but a formula
+        // evaluated outside a document does, and it renders through the
+        // same `Display` within the same budget.
+        (
+            "Unlowered",
+            EvalError::Unlowered(editor_core::LowerFault::Quantity {
+                dim: Dimension::Length,
+            }),
+        ),
     ];
     let param_box = [
         (
             "UnknownParam",
             ParamBoxError::UnknownParam {
                 param: editor_core::SpokenVar::new(
-                    editor_core::VarId(tagged(7)),
+                    editor_core::VarId::new(0, tagged(7)),
                     Some(VarName::from_static("width")),
                 ),
             },
@@ -2994,7 +3084,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             "AxisUnrepresentable",
             ParamBoxError::AxisUnrepresentable {
                 param: editor_core::SpokenVar::new(
-                    editor_core::VarId(tagged(7)),
+                    editor_core::VarId::new(0, tagged(7)),
                     Some(VarName::from_static("width")),
                 ),
                 lo: 1.0,
@@ -3007,7 +3097,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             "UnknownVar",
             SeedError::UnknownVar {
                 var: editor_core::SpokenVar::new(
-                    editor_core::VarId(tagged(7)),
+                    editor_core::VarId::new(0, tagged(7)),
                     Some(VarName::from_static("width")),
                 ),
             },
@@ -3016,7 +3106,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             "CountVar",
             SeedError::CountVar {
                 var: editor_core::SpokenVar::new(
-                    editor_core::VarId(tagged(7)),
+                    editor_core::VarId::new(0, tagged(7)),
                     Some(VarName::from_static("n")),
                 ),
             },
@@ -3025,7 +3115,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             "TangentUnrepresentable",
             SeedError::TangentUnrepresentable {
                 var: editor_core::SpokenVar::new(
-                    editor_core::VarId(tagged(7)),
+                    editor_core::VarId::new(0, tagged(7)),
                     Some(VarName::from_static("width")),
                 ),
             },
@@ -3068,7 +3158,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         (
             "MissingUpstream",
             NamingError::MissingUpstream {
-                node: RecipeNodeId(tagged(3)),
+                node: RecipeNodeId::new(0, tagged(3)),
             },
         ),
         (
@@ -3098,7 +3188,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         (
             "SharedRim",
             NamingError::SharedRim {
-                node: RecipeNodeId(tagged(3)),
+                node: RecipeNodeId::new(0, tagged(3)),
                 face: topo::FaceKey::default(),
                 other: topo::FaceKey::default(),
                 found: RimShare::Several,
@@ -3133,7 +3223,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                     name: name(),
                     candidates: vec![name(), name()],
                     tie: TieWitness {
-                        node: RecipeNodeId(tagged(4)),
+                        node: RecipeNodeId::new(0, tagged(4)),
                         at: name(),
                         width: 2,
                     },
@@ -3144,7 +3234,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                 ResolveError::NodeGone {
                     name: name(),
                     edit: RecipeEditRef::NodeDeleted {
-                        node: RecipeNodeId(tagged(3)),
+                        node: RecipeNodeId::new(0, tagged(3)),
                     },
                 },
             ),
@@ -3232,7 +3322,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
 fn stable(kind: editor_core::EntityKind, node: u64) -> editor_core::StableName {
     editor_core::StableName {
         kind,
-        node: RecipeNodeId(tagged(node)),
+        node: RecipeNodeId::new(0, tagged(node)),
         path: Vec::new(),
     }
 }
@@ -3257,7 +3347,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
     use topo::{EntityId, FaceKey, ReadbackError};
     let face = || stable(EntityKind::Face, 3);
     let sited = |node| SitedRef {
-        at: RecipeNodeId(tagged(node)),
+        at: RecipeNodeId::new(0, tagged(node)),
         name: stable(EntityKind::Face, node),
     };
     let finding = |relation| FlushFinding {
@@ -3311,25 +3401,25 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "Unplaced/NoOffset",
             NodeErrorKind::Unplaced {
-                group: RecipeNodeId(6),
+                group: RecipeNodeId::new(0, 6),
                 cause: editor_core::Unplaced::NoOffset,
             },
         ),
         row(
             "Unplaced/DeadGauge",
             NodeErrorKind::Unplaced {
-                group: RecipeNodeId(6),
+                group: RecipeNodeId::new(0, 6),
                 cause: editor_core::Unplaced::DeadGauge {
-                    gauge: RecipeNodeId(2),
+                    gauge: RecipeNodeId::new(0, 2),
                 },
             },
         ),
         row(
             "PlacementRefused",
             NodeErrorKind::PlacementRefused {
-                node: RecipeNodeId(2),
+                node: RecipeNodeId::new(0, 2),
                 error: NodeErrorKind::EmptyOperand {
-                    input: RecipeNodeId(1),
+                    input: RecipeNodeId::new(0, 1),
                 }
                 .into(),
             },
@@ -3337,7 +3427,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "CrossingUnverified",
             NodeErrorKind::CrossingUnverified {
-                instance: RecipeNodeId(tagged(6)),
+                instance: RecipeNodeId::new(0, tagged(6)),
                 outer: Box::new(FaceName::new(face()).unwrap()),
                 name: Box::new(stable(EntityKind::Edge, 3)),
             },
@@ -3393,8 +3483,8 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         rows.push(row(
             &format!("FrameDirection/{n}"),
             NodeErrorKind::FrameDirection {
-                profile: RecipeNodeId(tagged(4)),
-                frame: RecipeNodeId(tagged(2)),
+                profile: RecipeNodeId::new(0, tagged(4)),
+                frame: RecipeNodeId::new(0, tagged(2)),
                 refusal: DirectionRefusal {
                     role: "frame normal",
                     error,
@@ -3406,20 +3496,20 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         (
             "NodeNotEvaluated",
             InterrogateError::Standing(NodeStanding::NotEvaluated {
-                node: RecipeNodeId(tagged(3)),
+                node: RecipeNodeId::new(0, tagged(3)),
             }),
         ),
         (
             "NodeFailed",
             InterrogateError::Standing(NodeStanding::Failed {
-                node: RecipeNodeId(tagged(3)),
+                node: RecipeNodeId::new(0, tagged(3)),
             }),
         ),
         (
             "NodePoisoned",
             InterrogateError::Standing(NodeStanding::Poisoned {
-                node: RecipeNodeId(tagged(3)),
-                through: RecipeNodeId(tagged(2)),
+                node: RecipeNodeId::new(0, tagged(3)),
+                through: RecipeNodeId::new(0, tagged(2)),
             }),
         ),
         ("NoSuchName", InterrogateError::NoSuchName),
@@ -3465,7 +3555,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             "PartRootFailed",
             PartFault::PartRootFailed {
                 held: Default::default(),
-                node: RecipeNodeId(tagged(7)),
+                node: RecipeNodeId::new(0, tagged(7)),
                 refusal: NodeErrorKind::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
             },
         ),
@@ -3473,7 +3563,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             "PartRootFailed(part)",
             PartFault::PartRootFailed {
                 held: Default::default(),
-                node: RecipeNodeId(tagged(7)),
+                node: RecipeNodeId::new(0, tagged(7)),
                 refusal: NodeErrorKind::Part {
                     doc_ref: doc_ref(),
                     fault: PartFault::DepthExceeded,
@@ -3485,8 +3575,8 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             "PartRootPoisoned",
             PartFault::PartRootPoisoned {
                 held: Default::default(),
-                root: RecipeNodeId(tagged(8)),
-                through: RecipeNodeId(tagged(7)),
+                root: RecipeNodeId::new(0, tagged(8)),
+                through: RecipeNodeId::new(0, tagged(7)),
                 refusal: NodeErrorKind::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
             },
         ),
@@ -3494,7 +3584,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             "RootFailureUnrecorded",
             PartFault::RootFailureUnrecorded {
                 held: Default::default(),
-                node: RecipeNodeId(tagged(7)),
+                node: RecipeNodeId::new(0, tagged(7)),
             },
         ),
         (
@@ -3656,7 +3746,7 @@ fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
             "Part/PartProduct(RootInvalid)",
             ProductError::RootInvalid {
                 findings: vec![SourceFinding {
-                    node: RecipeNodeId(tagged(3)),
+                    node: RecipeNodeId::new(0, tagged(3)),
                     output: 0,
                     errors: vec![inside_out()],
                 }],
@@ -3671,7 +3761,7 @@ fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
         (
             "Part/PartProduct(Graft)",
             ProductError::Graft {
-                node: RecipeNodeId(tagged(5)),
+                node: RecipeNodeId::new(0, tagged(5)),
                 source: Box::new(topo::BooleanError::Band(geom_core::BandError::Empty {
                     zero: 1.0,
                     escalate: 0.5,
@@ -3699,7 +3789,7 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
     use editor_core::{Clash, DocumentId, LeverRefusal, MateFault as M, MateSide, Subgroup};
     use geom_core::{FrameError, FrameInput};
     use payloads::*;
-    let n = |id| RecipeNodeId(tagged(id));
+    let n = |id| RecipeNodeId::new(0, tagged(id));
     [
         (
             "PosesOfAnotherDocument",
@@ -3973,13 +4063,6 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
                 S::OpenFacesDisconnect {
                     shell,
                     components: 2,
-                },
-            ),
-            (
-                "OpenFaceRingUnsupported",
-                S::OpenFaceRingUnsupported {
-                    face,
-                    kind: geom::SurfaceKind::Torus,
                 },
             ),
             (
@@ -4486,7 +4569,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
     let render = |source| {
         CheckFinding {
             check: CheckId::Connectedness,
-            root: RecipeNodeId(tagged(4)),
+            root: RecipeNodeId::new(0, tagged(4)),
             output_ix: 0,
             evidence: CheckEvidence::Escalated { source },
         }
@@ -4610,7 +4693,7 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
     let shell = ShellKey::default();
     let finding = |check, evidence| CheckFinding {
         check,
-        root: RecipeNodeId(tagged(4)),
+        root: RecipeNodeId::new(0, tagged(4)),
         output_ix: 0,
         evidence,
     };
@@ -4708,7 +4791,7 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             finding(
                 CheckId::Separation,
                 E::NotSeparated {
-                    other_root: RecipeNodeId(tagged(7)),
+                    other_root: RecipeNodeId::new(0, tagged(7)),
                     other_output: 0,
                 },
             ),
@@ -5081,14 +5164,4 @@ fn formula(text: &str) -> editor_core::Formula {
         editor_core::Dimension::Count,
     )]);
     editor_core::parse_formula(text, &names).expect("the formula parses")
-}
-
-/// [`formula`] as a document stores it, `blades` a count variable.
-fn stored(text: &str) -> editor_core::Expr {
-    formula(text)
-        .lower(&|name| {
-            (name.as_str() == "blades")
-                .then_some((editor_core::VarId(tagged(9)), editor_core::Dimension::Count))
-        })
-        .expect("the formula lowers")
 }
