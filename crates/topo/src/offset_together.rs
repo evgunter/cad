@@ -45,6 +45,18 @@
 //! given. Every entity it reads and every entity it writes lies on a
 //! solid the moves name; the rest of the body is bitwise untouched.
 //!
+//! # Charts, not material
+//!
+//! Each move's distance is along its chart's stored normal, and no
+//! face's sense decides the move: its argument is stated against charts
+//! alone, so it takes construction state, a [`Body`] tier 2 in and
+//! tier 2 out, where a door whose argument means something about
+//! material takes an [`crate::AtRestBody`] (`crates/topo/README.md`,
+//! "Shell and offset surgery"). Its result becomes finished only
+//! through [`crate::AtRestBody::validate`]: on an inside-out solid the
+//! charts move as they would on any other, and the result refuses
+//! there as the operand would, `NegativeVolume`.
+//!
 //! # What every step is, exactly
 //!
 //! Two planes translate, so their intersection line keeps its direction

@@ -4416,25 +4416,33 @@ fn every_ring_contact_arm_projects_the_payload_it_carries() {
 /// someone has to remember to extend.
 #[test]
 fn every_slot_word_reads_back_to_the_slot_it_names() {
-    let entry = TAG_INVENTORY
-        .iter()
-        .find(|entry| entry.function == "slot_id_tag")
-        .expect("the inventory carries the slot alphabet");
-    for word in entry.values {
+    let words = |function: &str| {
+        TAG_INVENTORY
+            .iter()
+            .find(|entry| entry.function == function)
+            .unwrap_or_else(|| panic!("the inventory carries `{function}`"))
+            .values
+    };
+    // The operands' words are the slot alphabet's too, forwarded from
+    // `operand_slot_tag` (D10: an operand is a slot).
+    for word in words("slot_id_tag").iter().chain(words("operand_slot_tag")) {
         match crate::slot_word::slot_from_word(word) {
             Some(slot) => assert_eq!(
                 crate::tags::slot_id_tag(&slot),
                 *word,
                 "`{word}` reads back as a slot the forward map spells otherwise"
             ),
-            // The three words an address is not completed by: a
-            // profile program's expression is reached by a loop index,
-            // a step index and an argument role, a later placement
-            // step's by a step index and a component, and a mate
-            // offset's by a side, a step index and a component, none
-            // of which the word carries.
+            // The words an address is not completed by: a profile
+            // program's expression is reached by a loop index, a step
+            // index and an argument role, a later placement step's by a
+            // step index and a component, a mate offset's by a side, a
+            // step index and a component, and a list's entry by its
+            // position, none of which the word carries.
             None => assert!(
-                matches!(*word, "profile" | "placement_step" | "mate_frame_step"),
+                matches!(
+                    *word,
+                    "program" | "placement_step" | "mate_frame_step" | "section" | "member"
+                ),
                 "`{word}` is a slot a caller can read off a refusal and cannot write back at"
             ),
         }
@@ -4935,7 +4943,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "pairing_mismatch",
             "pcurves",
             "pieces",
-            "pierce_runs_nested",
             "pinch_cones_on_separate_keys",
             "point_in_face_refused",
             "point_split_carrier_unsupported",
@@ -5394,6 +5401,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "wrong_kind",
         ],
         delegates: &["node_standing_tag", "readback_error_tag"],
+    },
+    TagEntry {
+        function: "join_refusal_tag",
+        values: &["join_carrier_unsupported", "join_undecided"],
+        delegates: &["boolean_error_tag"],
     },
     TagEntry {
         function: "label_fault_tag",
@@ -6079,16 +6091,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "open_face_stale",
             "open_faces_disconnect",
             "open_faces_exhaust_shell",
-            "operand_outer_shells",
             "partition",
             "pcurve",
-            "pieces",
             "rim",
             "roles",
             "thickness",
             "wall_clearance",
         ],
-        delegates: &[],
+        delegates: &["join_refusal_tag"],
     },
     TagEntry {
         function: "skin_error_tag",
@@ -6125,7 +6135,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "origin_y",
             "origin_z",
             "placement_step",
-            "profile",
+            "program",
             "radius",
             "revolve_angle",
             "rotation_angle",
@@ -6153,7 +6163,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "v_y",
             "v_z",
         ],
-        delegates: &[],
+        delegates: &["operand_slot_tag"],
     },
     TagEntry {
         function: "snapshot_error_tag",
@@ -6237,7 +6247,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "split_op_error_tag",
         values: &["finish", "join", "pcurves", "pieces", "reduce"],
-        delegates: &[],
+        delegates: &["join_refusal_tag"],
     },
     TagEntry {
         function: "stale_declaration_tag",
@@ -6650,6 +6660,12 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("instance", 2),
     ("io", 2),
     ("join", 2),
+    // One fact: the edge join's refusal (`topo::JoinRefusal`), spelled
+    // as the boolean spells it whichever door ends with the join
+    // (`join_refusal_tag`), pinned by
+    // `the_edge_joins_refusal_is_spelled_alike_at_every_door`.
+    ("join_carrier_unsupported", 2),
+    ("join_undecided", 2),
     // One rule (A4's frame rule) refused in both directions across the
     // seam: a split's kept mate and an inline's host mate.
     ("mate_frame_crosses", 2),
@@ -6684,10 +6700,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("payload_var_kind", 2),
     ("pcurve", 6),
     ("pcurves", 3),
-    // One fact for the boolean, the shell and the split: the result sort
+    // One fact for the boolean and the split: the result sort
     // (`topo::PieceSortError`) could not read a shell's piece, carried
     // whole by each verb. The profile program's word is a coincidence.
-    ("pieces", 4),
+    ("pieces", 3),
     // One fact: a placement on an instance's frame did not evaluate —
     // the instance's own row, and why its checked offset went unchecked.
     ("placement_refused", 2),
@@ -6696,9 +6712,11 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // gauge's kind.
     ("plane", 2),
     ("poisoned", 2),
-    // The profile operand, the profile slot and the profile node's own
-    // evaluation class: one word for the one node kind.
-    ("profile", 3),
+    // The profile operand and the profile node's own evaluation class:
+    // one word for the one node kind. The profile PROGRAM's slot says
+    // `program`, which leaves `profile` to the operand the slot
+    // alphabet forwards.
+    ("profile", 2),
     ("revolve", 2),
     // One fact, as `inside_out_operand`: `topo::Unfinished::Scaffolding`.
     ("scaffolding_operand", 2),
@@ -6832,6 +6850,44 @@ fn ring_pair_words_are_the_outer_contact_words() {
             "{outer:?} and {pair:?}"
         );
     }
+}
+
+/// **The edge join's refusal is spelled alike at every door** that ends
+/// with the join: the split's and the shell's (`join_refusal_tag`) say
+/// what the boolean says for the same arm (`boolean_error_tag`).
+#[test]
+fn the_edge_joins_refusal_is_spelled_alike_at_every_door() {
+    use crate::tags::{boolean_error_tag, join_refusal_tag};
+    use pncad::geom_core::{Band, Indeterminate, MarginDiag};
+    use pncad::topo::{BooleanErrorKind, JoinReading, JoinRefusal, JoinUndecided};
+    let undecided = JoinRefusal::Undecided(JoinUndecided {
+        vertex: VertexKey::default(),
+        reading: JoinReading::Regularity(Indeterminate {
+            margin: MarginDiag::value(3.0e-10),
+            band: Band::linear(Tol::witness()).expect("the witness band"),
+            predicate: Some("join_regular_point"),
+            terminal_sliver: false,
+        }),
+    });
+    let carrier = JoinRefusal::CarrierUnsupported {
+        carrier: pncad::geom::CurveKind::Nurbs,
+        closed: false,
+    };
+    let kernel = JoinRefusal::Kernel {
+        kind: BooleanErrorKind::Euler,
+    };
+    assert_eq!(
+        join_refusal_tag(&undecided),
+        boolean_error_tag(BooleanErrorKind::JoinUndecided)
+    );
+    assert_eq!(
+        join_refusal_tag(&carrier),
+        boolean_error_tag(BooleanErrorKind::JoinCarrierUnsupported)
+    );
+    assert_eq!(
+        join_refusal_tag(&kernel),
+        boolean_error_tag(BooleanErrorKind::Euler)
+    );
 }
 
 #[test]
@@ -8352,19 +8408,19 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
         }],
     },
     MintingItem {
-        owner: "slot_kind_tag",
-        literals: 1,
-        held_by: &[Holder::Test {
-            name: "slot_kind_tags_are_stable",
-            holds: "its own word, and a kind's word as `var_kind_tag`'s",
-        }],
-    },
-    MintingItem {
         owner: "reads_as_prose",
         literals: 1,
         held_by: &[Holder::Test {
             name: "the_prose_rule_separates_a_display_from_a_debug_dump",
             holds: "the predicate over both fingerprints",
+        }],
+    },
+    MintingItem {
+        owner: "slot_kind_tag",
+        literals: 1,
+        held_by: &[Holder::Test {
+            name: "slot_kind_tags_are_stable",
+            holds: "its own word, and a kind's word as `var_kind_tag`'s",
         }],
     },
     MintingItem {

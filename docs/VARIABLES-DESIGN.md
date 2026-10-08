@@ -46,7 +46,9 @@ one home: definitions, arithmetic over measured values included.
 
 **VR5 — `Expr` holds no float.** Its leaves are `Var(VarId)` (caching
 the kind, which cannot change), exact rational constants (`Scalar`,
-reduced; integers for `Count`) and `turn` (`Angle`, one full rotation).
+reduced; integers for `Count`), `turn` (`Angle`, one full rotation) and
+`0`, the one constant that takes any dimension (it is the same in every
+unit, so `gap = 0` states contact rather than naming a value).
 A right angle is `turn/4`. The dimension lattice, the operators and the
 nesting bound stay; the `Literal` leaf and every literal constructor
 go.
@@ -61,7 +63,9 @@ belongs to that definition. The spelling decides
 the meaning: `90 deg` is a value from a continuous family and becomes a
 variable; `turn/4` is the exact constant. The document's types cannot
 hold a written quantity. A lone number at a slot's root is a typed value too:
-`3` in a count slot mints a free `Count`, `0.5` a free `Scalar`. A
+`3` in a count slot mints a free `Count`, `0.5` a free `Scalar`;
+only a lone `0` is the constant zero of the slot's dimension, while a
+written `0 mm` mints a free `Length` like any written quantity. A
 number inside an operator tree is a constant, and `turn/4` alone is a
 formula, so a constant.
 
