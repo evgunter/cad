@@ -28,7 +28,7 @@ Tier 2 (`validate_closed`) cannot make this check:
 The fork is where the check lives, and whether a finished body that
 is not an op's output (an import, a hand-built body) must meet it.
 
-The designer pair (fork-log row 85) ended agreeing. The check is a
+The designer pair (fork-log row 88) ended agreeing. The check is a
 tier-3 arm at rest, and every finisher, import included, ends with
 the join. A vertex whose reading lands in band is exempt at rest.
 

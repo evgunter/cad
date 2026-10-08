@@ -620,7 +620,7 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - **Measured by the designers** (STEP fixtures):
     - 13 of 61 imported solids hold joinable vertices: the band and washer fixtures, the split twins, two wild files, and `composed_die` with 21. Two more (`halfcap_eps6/7`) read in band.
     - The band and washer cases are probably import-made: import's seam re-mint leaves the file's rim vertex at valence 2.
-  - **Designer pair (fork-log row 85).** Three rounds; the blinding byte was drawn late, at PR time.
+  - **Designer pair (fork-log row 88).** Three rounds; the blinding byte was drawn late, at PR time.
     - Round 1 split: at rest (tier 3) against op-door postconditions.
     - Round 2 crossed.
     - Round 3 converged on at rest, with every finisher, import included, joining and an in-band reading exempt. The question both named beneath: a joinable vertex is representation (a mark), not a cell, by the station and conventional-vertex rulings.
@@ -676,4 +676,4 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - **Ev's two questions on the way:**
     - Which band? The sliver band.
     - Is the case a STEP import or broken geometry? A STEP import whose ε_in (1e-10 m) is finer than the run's ε, so ε_in snapping, once built, cannot resolve it.
-  - **Rows:** fork-log row 85 is filled in. The step-3 unit is dispatched.
+  - **Rows:** fork-log row 88 is filled in. The step-3 unit is dispatched.
