@@ -75,7 +75,7 @@ fn lift() -> VarName {
 }
 
 fn turn() -> VarName {
-    VarName::from_static("turn")
+    VarName::from_static("spin")
 }
 
 /// A `w x w x h` block from the origin, as a whole part document, and

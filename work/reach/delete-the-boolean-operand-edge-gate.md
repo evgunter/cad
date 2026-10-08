@@ -64,3 +64,12 @@ That attempt was never reviewed; re-derive it, do not merge it.
 `nurbs-edge-crossing-rung-is-the-ring-composite` (parked on frontier
 (d)) and `spiric-operand-edges-reopen-with-their-first-producer`
 (deferred).
+
+## Note from emit (2026-10-07)
+
+Retiring this gate, or the spline crossing-root arm it waits on, owes an
+end-to-end row: a face crossing one NURBS edge twice with one sense,
+named through the boolean. Today only unit rows reach
+`emit_topo::chord_along`, which orders the two crossings
+(`emit_topo`'s `nurbs_crossings_rank_by_parameter`,
+`work/emit/a-crossing-of-a-nurbs-edge-ties-for-want-of-its-parameter.md`).

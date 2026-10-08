@@ -2244,7 +2244,7 @@ id: 7ddec231df0049f879136a2f7624647d
         "node": "28:e56d563d63c37941",
         "slot": "Distance",
         "expr": {
-          "Literal": {
+          "Quantity": {
             "value": 0.5,
             "dim": "Length",
             "unit": "mm"
