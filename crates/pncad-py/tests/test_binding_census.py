@@ -589,6 +589,17 @@ def audit_gap_ids():
 #:   next one.)
 BOUND_AS = {
     "CM": "cm",
+    # The coincidence door's row and its verdict (D10) cross as ONE
+    # value, `Coincidence`: its cells as `(node, name)` pairs, the
+    # door's proof as `rung` (`None` unproven) beside `residual`.
+    "NamedCoincidence": "Coincidence",
+    "NamedCell": "Coincidence.cells",
+    "Proof": "Coincidence.rung",
+    "Rung": "Coincidence.rung",
+    "Residual": "Coincidence.residual",
+    # The door's module: its one question, asked of a node, is
+    # `Evaluation.coincidences`.
+    "coincide": "Evaluation.coincidences",
     # A variable's identity is Python's `Var`, the handle `Doc.var`
     # and `Doc.vars` answer.
     "VarId": "Var",
@@ -2671,6 +2682,11 @@ NOT_BOUND = {
     # spelling of these questions is the document door, already bound:
     # `Evaluation.find_flush_candidates` and `Doc.declare`.
     "flush": SHAPE,
+    # The kernel's coincidence record (`topo::coincidence`): rows keyed
+    # by arena keys, which Python does not name. Its two words cross as
+    # `Coincidence.relation` and `Coincidence.site`, read off the
+    # document's named rows.
+    "coincidence": SHAPE,
     "real": SHAPE,
     # The loops-only resolution door the sketch frame created: a caller
     # with loops in hand and no document — a form previewing what it is
@@ -3583,6 +3599,7 @@ MEMBERS_BOUND_AS = {
     "CheckEvidence::ChartCoherence": "CheckEvidence.variant",
     "CheckEvidence::ChartCoherenceUnexamined": "CheckEvidence.variant",
     "CheckEvidence::ChartCoherenceUnavailable": "CheckEvidence.variant",
+    "CheckEvidence::UnprovenCoincidence": "CheckEvidence.variant",
     "ChecksError::Root": "ChecksError.variant",
     "ChecksError::Band": "ChecksError.variant",
     "ChecksError::EvaluationOfAnotherDocument": "ChecksError.variant",
