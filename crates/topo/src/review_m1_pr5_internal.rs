@@ -585,13 +585,21 @@ fn every_public_mutation_path_preserves_tier1() {
     // scope sits one call down, in `merge_coplanar_faces_unjoined`,
     // which the walk (public doors only) does not visit, so the pin
     // reads that body's source directly.
-    let merge_src = include_str!("merge_faces.rs");
-    let unjoined = merge_src
-        .split_once("fn merge_coplanar_faces_unjoined")
-        .and_then(|(_, rest)| rest.split_once("\n    }\n"))
-        .map(|(body, _)| body);
+    let merge_file = crate::source_walk::crate_sources()
+        .into_iter()
+        .find(|f| f.ends_with("merge_faces.rs"))
+        .expect("merge_faces.rs is a crate source");
+    let merge_text = std::fs::read_to_string(&merge_file).expect("a readable source file");
+    let merge_code = crate::source_walk::CodeOnly::of(&merge_text);
+    let unjoined = merge_code
+        .fns()
+        .into_iter()
+        .find(|f| f.name == "merge_coplanar_faces_unjoined")
+        .map(|f| f.own_body().to_owned());
     assert!(
-        unjoined.is_some_and(|b| b.contains("begin_surgery") && b.contains("sweep_and_close")),
+        unjoined
+            .as_deref()
+            .is_some_and(|b| b.contains("begin_surgery") && b.contains("sweep_and_close")),
         "`merge_coplanar_faces_unjoined` no longer reads as opening and closing a surgery \
          scope. Either the door stopped scoping — a finding, it composes tens of ring \
          surgeries — or the source read lost the calls.",
