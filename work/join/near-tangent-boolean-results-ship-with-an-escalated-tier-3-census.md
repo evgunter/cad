@@ -8,6 +8,7 @@ priority: P0
 cost: H
 refs: [3987, two-copies-of-a-pierce-carry-edges-that-run-within-the-band]
 branch: join/near-tangent-census-measure
+needs_ev: true
 ---
 
 
@@ -312,3 +313,18 @@ the design pass:
 - ENCL: `the-role-reads-certified-volume-enclosure-straddles-zero-on-a-sliver-shell`.
 - CLEAVE: `near-tangent-pierce-poses-reach-three-classification-invariants`
   (345 runs, outside this row's question).
+
+## The shape to give
+
+No door ships a body its census cannot certify. Each question has one owner. The three DESIGN.md additions on this branch state them: Q1's conditioning premise, tier 3′'s census clause, and D10's "Booleans" clause.
+
+- **The census (CONTACT), one unit.** Each pair predicate decides the gap between the two closed cells beyond what they share structurally, through formulas whose f64 error is a few ulp at the model's extent. That retires every b-arith and b-proxy escalation above, along with the 845 definite false `EdgeEdgeCross` findings at ε = 1e-12. Two edges leaving one vertex are told apart by their angle levered at the shorter edge, so a thin corner passes when its far ends are definitely apart: the witness `notch307 nt e0 a3 d1e-8 pc S` has its far ends 8.9e-8 apart, about 9 Kε. The five class-b CONTACT rows, `pair_edge_edge`'s missing shared-point rung, and `ee_cross_spans`' unguarded division are one re-posing.
+- **The split (JOIN).** Every reading is a Q1 trilean and refuses `Escalated` in band. The w345 vertex 9.55e-9 off a face is a reading that built where it should have refused (`a-near-tangent-vertex-lands-within-the-band-of-a-face-and-ships-unrecorded`).
+- **The door.** The finished-body gate decides "no in-band pair or shell" on the result alone, because definite readings can compose into an in-band quantity no reading compared. The sliver lump is the witness: every cut is definite, and its V/A is in band. A finding born of an in-band margin refuses as the operands' ill-conditioning (`Escalated`); a definite finding is a kernel defect (`ResultInvalid`). The lump's `ShellRoleUndecided` takes the first typing now. Census escalations take it when the parked `boolean-door-runs-the-census-over-its-result` lands. This class does not join that row's blockers.
+- **Nothing is glued.** No "certified sliver" state and no shipped-uncertified state exist.
+- **What it rests on.** The typing is honest only where every margin the gate reads meets the conditioning premise. ENCL's world-origin volume (`the-role-reads-certified-volume-enclosure-straddles-zero-on-a-sliver-shell`) is a conditioning defect under it.
+
+**Re-dispositions once this lands.**
+- **`a-near-tangent-split-leaves-a-face-corner-that-runs-within-the-band`:** a legal needle under the lever rule, unless a pair's far-end gap is itself in band. Count the 478 pairs by sin α × the shorter length.
+- **The lump row:** closes as `Escalated` at the gate.
+- **The vertex-on-face row:** stays a JOIN reading defect.

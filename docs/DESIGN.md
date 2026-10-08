@@ -317,6 +317,14 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      typed `CensusUnsupported`, never samples. Every comparison is a
      named Q1 trilean; indeterminates surface as typed
      `CensusEscalated`, never a silent skip.
+   - A census finding is a decision between two cells, levered at
+     their extent. Each pair predicate decides the gap between the two
+     closed cells beyond what they share structurally, never between
+     their carriers; only a Zero gap is then classified (crossing,
+     overlap, on-face) and backed. Two cells sharing a vertex or a
+     point key are told apart by their angle at that point, levered at
+     the shorter cell: the in-band neighbourhood every corner has is not
+     a coincidence.
    - Certification runs **both directions and never scans-to-bless in
      either**: a census finding with no backing record is never
      silently blessed ((iii) below); a record with no geometric witness
@@ -1335,7 +1343,11 @@ against it, never written by hand.
 otherwise it refuses. It glues what its verdicts decide Zero where an
 arm exists for the carrier pair (D1's frontier), keeping one fixed
 operand's description for a merged face, and refuses what falls in the
-sliver band.
+sliver band. Its result holds no in-band pair or shell: the door's
+finished-body gate decides this on the result alone and refuses it as
+the operands' ill-conditioning (`Escalated`, recourse: tighten ε or move
+the geometry), never silently; a definite finding there is a kernel
+defect (`ResultInvalid`).
 
 **Assertions.** `Assert { measure, relation, bound }` (`≤`, `≥`, `=`,
 the bound a variable) checks and never places. At rest the census
@@ -1700,6 +1712,12 @@ Cross-milestone commitments; each binds at the layer named.
   — not a correctness parameter: soundness rests on
   escalate-never-guess, D4 ¶2 certification and interval replay, for
   any K > 1. K = 10, per-run configuration like ε (`Tolerance.k`).
+  K's noise headroom presumes every margin's f64 error is a few ulp at
+  the model's extent: a formula whose error is amplified by a vanishing
+  quantity (a division by sin θ, |n|², a near-zero determinant) is a
+  defect, re-posed or certified, never covered by K. Interval replay
+  does not rescue it: its enclosure lands in the band, which is
+  terminal.
 - At `T = Interval` an indeterminate predicate aborts the operation:
   predicates return `Result<Sign, Indeterminate>` (the trichotomy is
   the primitive; bool predicates are projections) and construction code
