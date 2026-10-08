@@ -137,7 +137,14 @@ is 1.0 Kε from its leg along a quarter turn, which is inside
   at effort 10 at all three ε, against 122 to 171 for the no-guard
   mutant.
 
-**Moved.** The sym11 past-the-ceiling receipts for the bracket and the
-pad now replay past validation. This closes
+**Moved.**
+- The sym11 past-the-ceiling receipts for the bracket and the pad now
+  replay past validation.
+- `fillet_stored_tangency`'s 1e-6 golden: `arc x arc c=0.3 r=0.05` now
+  validates.
+- `review_m2_pr5`'s near-tangent join now refuses at the joint pass
+  (`UndeclaredTangency`, a 3ε turn) instead of at simplicity.
+- At 1e-12, one shallow-arc grid cell now refuses at the extrude's
+  attachment gate instead of at validation. This closes
 `the-past-the-ceiling-row-replays-only-validation-on-the-bracket-and-pad`
 (SYM). D10's hold did not bind.
