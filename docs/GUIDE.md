@@ -1733,13 +1733,13 @@ doc = next;
 let (next, profile) = insert(
     &doc,
     Node::Profile(ProfileProgram {
-        plane: frame,
+        plane: frame.into(),
         loops: vec![outline, hole],
         ids: Vec::new(),
     }),
 );
 doc = next;
-let (next, plate) = insert(&doc, Node::Extrude { profile, distance: len(0.5), side: ExtrudeSide::Along });
+let (next, plate) = insert(&doc, Node::Extrude { profile: profile.into(), distance: len(0.5), side: ExtrudeSide::Along });
 doc = next;
 
 let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
@@ -1778,9 +1778,9 @@ use pncad::prelude::*;
 # let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("a scalar");
 # let (next, frame) = insert(&doc, Node::Datum(Datum::Frame { origin: [len(0.0), len(0.0), len(0.0)], u: [scl(1.0), scl(0.0), scl(0.0)], v: [scl(0.0), scl(1.0), scl(0.0)] }));
 # doc = next;
-# let (next, profile) = insert(&doc, Node::Profile(ProfileProgram { plane: frame, loops: vec![outline, hole], ids: Vec::new() }));
+# let (next, profile) = insert(&doc, Node::Profile(ProfileProgram { plane: frame.into(), loops: vec![outline, hole], ids: Vec::new() }));
 # doc = next;
-# let (next, plate) = insert(&doc, Node::Extrude { profile, distance: len(0.5), side: ExtrudeSide::Along });
+# let (next, plate) = insert(&doc, Node::Extrude { profile: profile.into(), distance: len(0.5), side: ExtrudeSide::Along });
 # doc = next;
 # let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
 // Make the plate twice as thick.
@@ -1894,12 +1894,12 @@ let (next, base_frame) = insert(&doc, Node::Datum(Datum::Frame {
 }));
 doc = next;
 let (next, profile) = insert(&doc, Node::Profile(ProfileProgram {
-    plane: base_frame,
+    plane: base_frame.into(),
     loops: vec![outline, hole(1.0, 1.0), hole(2.2, 1.0)],
     ids: Vec::new(),
 }));
 doc = next;
-let (next, plate) = insert(&doc, Node::Extrude { profile, distance: lit(0.5), side: ExtrudeSide::Along });
+let (next, plate) = insert(&doc, Node::Extrude { profile: profile.into(), distance: lit(0.5), side: ExtrudeSide::Along });
 doc = next;
 
 // A plain tab on its own branch — parametrically inert, there so the
@@ -1911,7 +1911,7 @@ let (next, tab_frame) = insert(&doc, Node::Datum(Datum::Frame {
 }));
 doc = next;
 let (next, tab_p) = insert(&doc, Node::Profile(ProfileProgram {
-    plane: tab_frame,
+    plane: tab_frame.into(),
     loops: vec![
         LoopProgram::polygon([(3.5, 1.75), (4.5, 1.75), (4.5, 2.5), (3.5, 2.5)])
             .expect("finite corners"),
@@ -1919,12 +1919,12 @@ let (next, tab_p) = insert(&doc, Node::Profile(ProfileProgram {
     ids: Vec::new(),
 }));
 doc = next;
-let (next, tab) = insert(&doc, Node::Extrude { profile: tab_p, distance: lit(0.25), side: ExtrudeSide::Along });
+let (next, tab) = insert(&doc, Node::Extrude { profile: tab_p.into(), distance: lit(0.25), side: ExtrudeSide::Along });
 doc = next;
 let (next, solid) = insert(&doc, Node::Boolean {
     op: BooleanOp::Union,
-    a: plate,
-    b: tab,
+    a: plate.into(),
+    b: tab.into(),
     declare: Vec::new(),
 });
 doc = next;
