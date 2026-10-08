@@ -79,7 +79,7 @@ use crate::contact::BooleanCoincidence;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::euler::{MevSite, RunSite};
 use crate::live::{Proven, linked, proven};
-use crate::null::{NewVertexSide, NullEdge};
+use crate::null::NewVertexSide;
 
 /// Output of one vertex-pair insertion.
 #[derive(Debug)]
@@ -2292,8 +2292,7 @@ fn mint_run<T: Decide>(
             (MevSite::Fan { he1: he, he2: he }, true)
         }
     };
-    // The copy takes the run; its side is the run's side (F3-derived).
-    let new_side = match run_side {
+    let run_side = match run_side {
         SideCode::In => NewVertexSide::Below,
         SideCode::Out => NewVertexSide::Above,
         SideCode::On => {
@@ -2302,32 +2301,13 @@ fn mint_run<T: Decide>(
             });
         }
     };
-    // Side attributes per the PR 5.5 sense theorem (join module docs):
-    // the half FACING a germ is UP (starts at `below_end`) iff that
-    // germ's own forward-wedge code is Out. Non-dangling: he_plus
-    // (old → new) faces the from-germ whose forward code is the run
-    // side, so `created` is the below end exactly for In-runs. A
-    // dangling strut whose he_minus faces the from-germ
-    // (`spike_from_first` false) swaps the SIDE with the facing. The
-    // attribute is derived sense data, never a mint-slot
-    // echo; the mint side follows so the body's scaffold attribute and
-    // the pipeline record stay one datum.
-    let attr_side = match (new_side, dangling && !spike_from_first) {
-        (side, false) => side,
-        (NewVertexSide::Below, true) => NewVertexSide::Above,
-        (NewVertexSide::Above, true) => NewVertexSide::Below,
-    };
-    let created = body.mev_null(site, attr_side)?;
-    let attr = match attr_side {
-        NewVertexSide::Below => NullEdge {
-            below_end: created.vertex,
-            above_end: vertex,
-        },
-        NewVertexSide::Above => NullEdge {
-            below_end: vertex,
-            above_end: created.vertex,
-        },
-    };
+    // A fan puts he_plus at the from-germ cut and he_minus at the
+    // to-germ cut; a strut's spike splices [he_plus, he_minus] into one
+    // corner, and which germ he_plus faces is decided at the mint site
+    // ([`strut_faces_first`]).
+    let plus_faces_start = !dangling || spike_from_first;
+    let mint = body.mev_null_run(site, vertex, run_side, plus_faces_start)?;
+    let (created, attr, [start_he, end_he]) = (mint.created, mint.attr, mint.halves);
     let germ = |i: usize, he: crate::entity::HalfEdgeKey| {
         let (((a_face, b_face), (a_locus, b_locus)), dir) = germ_meta[i];
         super::HalfGerm {
@@ -2339,16 +2319,7 @@ fn mint_run<T: Decide>(
             dir,
         }
     };
-    // Germ ↔ half facing: for a fan the mev splice puts he_plus at the
-    // from-germ cut and he_minus at the to-germ cut; a strut's spike
-    // splices [he_plus, he_minus] into one corner, and which germ the
-    // loop-first half (he_plus) faces is decided at the mint site
-    // ([`strut_faces_first`]).
-    let germs = if dangling && !spike_from_first {
-        [germ(0, created.he_minus), germ(1, created.he_plus)]
-    } else {
-        [germ(0, created.he_plus), germ(1, created.he_minus)]
-    };
+    let germs = [germ(0, start_he), germ(1, end_he)];
     let rec = BoolNullEdgeRecord {
         operand,
         at_vertex: vertex,
