@@ -564,9 +564,8 @@ fn vanished_names_the_consumer_that_lost_the_face_not_a_reading_datum() {
             declare: Vec::new(),
         },
     );
-    let positions = doc.positions();
     assert!(
-        positions[&datum] < positions[&empty],
+        datum < empty,
         "the premise: the datum is the earlier consumer"
     );
     let ev = run(&doc, &s.opts);

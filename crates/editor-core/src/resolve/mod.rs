@@ -16,7 +16,7 @@
 //!   combinatorially indistinguishable — that is what a tie means — so
 //!   the tied set expressed in names is the tie row itself, and the
 //!   [`TieWitness`] carries the multiplicity and site).
-//! - The documented `order_along` over-tie widens: a reference to a
+//! - The documented `rank_by` over-tie widens: a reference to a
 //!   RANKED fragment name whose group over-tied resolves `Ambiguous`
 //!   with the WIDENED base name as the candidate — never a mis-bind.
 //! - N3's offered candidates (a retired constituent's merged name; a
@@ -120,7 +120,7 @@ pub enum ResolveError {
         name: StableName,
         /// The distinct names the tied set answers to (module docs:
         /// the tie row itself, or the widened base on an
-        /// `order_along` over-tie).
+        /// `rank_by` over-tie).
         candidates: Vec<StableName>,
         /// The recorded tie's site and width.
         tie: TieWitness,
@@ -300,7 +300,7 @@ impl ResolveError {
     /// The tie row IS the ambiguity (N5), so the candidates are that
     /// row expressed in names and are derived from the witness here
     /// rather than restated per door. `at` is the referenced name
-    /// itself, except on an `order_along` over-tie, where it is the
+    /// itself, except on an `rank_by` over-tie, where it is the
     /// widened base row the reference actually tied against.
     pub(crate) fn ambiguous(
         name: &StableName,
@@ -916,7 +916,7 @@ pub struct TieWitness {
     /// The node whose table records the tie.
     pub node: RecipeNodeId,
     /// The tied table row (the referenced name itself, or the widened
-    /// base name on an `order_along` over-tie).
+    /// base name on an `rank_by` over-tie).
     pub at: StableName,
     /// How many equally-admissible candidates tie there.
     pub width: usize,
@@ -1240,9 +1240,7 @@ impl<U: Decide> Prior<'_, U> {
         flips: &FlipSet,
         nodes: &BTreeSet<RecipeNodeId>,
     ) -> Option<Evidence> {
-        if let Some((node, f)) =
-            in_document_order(self.doc(), new.doc, flips.flips_on_nodes(nodes)).first()
-        {
+        if let Some((node, f)) = in_id_order(flips.flips_on_nodes(nodes)).first() {
             return Some(Evidence::Flip(*node, *f));
         }
         let ddiff = self.doc().diff(new.doc);
@@ -1255,20 +1253,12 @@ impl<U: Decide> Prior<'_, U> {
     }
 }
 
-/// `found` in the order the lanes read evidence: by where its node
-/// stands in the current document, then in the last-good one — the
-/// node the author placed first answers first, whatever its id. Stable,
-/// so one node's flips keep their own order.
-fn in_document_order<V>(
-    old: &Doc<ProfileProgram>,
-    new: &Doc<ProfileProgram>,
-    mut found: Vec<(RecipeNodeId, V)>,
-) -> Vec<(RecipeNodeId, V)> {
-    let (in_new, in_old) = (new.positions(), old.positions());
-    let at = |positions: &BTreeMap<RecipeNodeId, usize>, id| {
-        positions.get(&id).copied().unwrap_or(usize::MAX)
-    };
-    found.sort_by_key(|&(id, _)| (at(&in_new, id), at(&in_old, id)));
+/// `found` in the order the lanes read evidence: by its node's id, so
+/// the node the author placed first answers first — the current and
+/// the last-good document are one history, whose ids order as they
+/// were minted. Stable, so one node's flips keep their own order.
+fn in_id_order<V>(mut found: Vec<(RecipeNodeId, V)>) -> Vec<(RecipeNodeId, V)> {
+    found.sort_by_key(|&(id, _)| id);
     found
 }
 
@@ -1304,7 +1294,7 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
         path: &BTreeSet<RecipeNodeId>,
     ) -> Option<Diagnosis> {
         let flips = diff_verdicts(self.ctx.eval, new.eval);
-        let family = in_document_order(self.doc(), new.doc, flips.flips_on_nodes(path))
+        let family = in_id_order(flips.flips_on_nodes(path))
             .into_iter()
             .find(|(_, f)| f.predicate.starts_with(crate::names::FAMILY));
         let flip = |f: VerdictFlip| Diagnosis::PredicateFlip {
@@ -1418,7 +1408,7 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
         None => {}
     }
 
-    // 3. The order_along over-tie widening (spec D1): a ranked
+    // 3. The `rank_by` over-tie widening (spec D1): a ranked
     //    fragment reference whose group over-tied resolves Ambiguous
     //    against the WIDENED base row — never a mis-bind.
     let mut offers = Vec::new();
@@ -2549,7 +2539,7 @@ fn structural_param_change(
     let changed_vars = &ddiff.vars;
     // In document order: a node both runs hold is in `new`'s order.
     let candidates: Vec<RecipeNodeId> = new
-        .order()
+        .ids()
         .iter()
         .copied()
         .filter(|id| path.is_none_or(|p| p.contains(id)))
@@ -2639,15 +2629,15 @@ mod tests {
     use crate::names::{CapEnd, FragmentGroups, NameRef, NameTable, ProfileEdgeRef};
     use topo::{EdgeKey, FaceKey, VertexKey};
 
-    const NODE: RecipeNodeId = RecipeNodeId(7);
+    const NODE: RecipeNodeId = RecipeNodeId::new(0, 7);
 
     fn face(node: u64, seg: u32) -> StableName {
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![RoleSeg::Lateral(
                 ProfileEdgeRef::Piece {
-                    step: crate::node::StepId(u64::from(seg)),
+                    step: crate::node::StepId::new(0, u64::from(seg)),
                     role: crate::names::PieceRole::Leg,
                 }
                 .into(),
@@ -2659,7 +2649,7 @@ mod tests {
     fn top() -> StableName {
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(2),
+            node: RecipeNodeId::new(0, 2),
             path: vec![RoleSeg::Cap(CapEnd::End)],
         }
     }
@@ -2679,7 +2669,7 @@ mod tests {
             kind: inner.kind,
             node: NODE,
             path: core::iter::once(RoleSeg::FromMember {
-                member: RecipeNodeId(member),
+                member: RecipeNodeId::new(0, member),
                 of: NameRef::new(inner),
             })
             .chain(tail.iter().cloned())
@@ -2877,7 +2867,7 @@ mod walk_tests {
     fn leaf(node: u64) -> StableName {
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![RoleSeg::Cap(CapEnd::End)],
         }
     }
@@ -2886,7 +2876,7 @@ mod walk_tests {
     fn over(inner: StableName, node: u64) -> StableName {
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![
                 RoleSeg::FromA(NameRef::new(inner)),
                 RoleSeg::Fragment(Qualifier::Borders(vec![leaf(node + 1000)])),
@@ -2898,10 +2888,12 @@ mod walk_tests {
     fn a_walk_visits_depth_first_in_path_order() {
         let name = over(over(leaf(1), 2), 3);
         let mut seen = Vec::new();
-        walk_names(&name, Partners::Include, &mut |n| seen.push(n.node.0));
+        walk_names(&name, Partners::Include, &mut |n| {
+            seen.push(n.node.0.digest())
+        });
         assert_eq!(seen, [2, 1, 1002, 1003], "partners included");
         seen.clear();
-        walk_names(&name, Partners::Skip, &mut |n| seen.push(n.node.0));
+        walk_names(&name, Partners::Skip, &mut |n| seen.push(n.node.0.digest()));
         assert_eq!(seen, [2, 1], "partners skipped");
     }
 

@@ -559,7 +559,7 @@ fn stamp_minted_from<T: Decide>(body: &mut Body<T>, node: RecipeNodeId, first: u
         .collect();
     for k in surfaces {
         // Stamping a just-enumerated live key cannot fail.
-        let _ = body.set_surface_source(k, GeomSource::minted(node.0, idx));
+        let _ = body.set_surface_source(k, GeomSource::minted(node.0.digest(), idx));
         idx += 1;
     }
     let curves: Vec<_> = body
@@ -568,7 +568,7 @@ fn stamp_minted_from<T: Decide>(body: &mut Body<T>, node: RecipeNodeId, first: u
         .filter(|&k| body.curve_source(k).is_none())
         .collect();
     for k in curves {
-        let _ = body.set_curve_source(k, GeomSource::minted(node.0, idx));
+        let _ = body.set_curve_source(k, GeomSource::minted(node.0.digest(), idx));
         idx += 1;
     }
     let points: Vec<_> = body
@@ -577,7 +577,7 @@ fn stamp_minted_from<T: Decide>(body: &mut Body<T>, node: RecipeNodeId, first: u
         .filter(|&k| body.point_source(k).is_none())
         .collect();
     for k in points {
-        let _ = body.set_point_source(k, GeomSource::minted(node.0, idx));
+        let _ = body.set_point_source(k, GeomSource::minted(node.0.digest(), idx));
         idx += 1;
     }
     idx
@@ -627,7 +627,7 @@ impl Placing {
 /// and an axis row the input held `Cleared` stays so: there is no
 /// source left to place.
 fn compose_placed<T: Decide>(input: &Body<T>, placed: &mut Body<T>, at: Placing) {
-    let by = at.by.0;
+    let by = at.by.0.digest();
     for (k, _) in input.surfaces() {
         if let Some(src) = input.surface_source(k) {
             let _ = placed.set_surface_source(k, src.placed(by, at.body));
@@ -827,7 +827,7 @@ fn body_operand<T: Decide>(
 }
 
 /// **A body operand, finished** for a door that takes finished bodies
-/// (the Boolean's, the split's and the shell's): [`body_operand`]'s
+/// (the Boolean's, the split's, the shell's and the blends'): [`body_operand`]'s
 /// body through the at-rest gate
 /// ([`topo::AtRestPolicy::gate_at_rest_kept`]), once per operand of the
 /// node. The evaluator holds the bodies its nodes built with no verdict
@@ -2027,7 +2027,7 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let body = body_operand(results, target)?;
+    let body = finished_operand(results, target, tol)?;
     let size = need_scalar(vals, verb.slots.size_slot)?;
     let target_table = Arc::clone(&value_of(results, target)?.name_table);
     let edges = resolve_selection(verb.selection_label, selection, doc, &target_table)?;
@@ -4240,7 +4240,7 @@ fn wire_transform<T: Decide + topo::AtRestPolicy>(
 pub(crate) fn written<P: crate::ProfilePayload>(
     doc: &crate::doc::Doc<P>,
     node: RecipeNodeId,
-) -> impl Fn(SlotId) -> crate::expr::Expr + '_ {
+) -> impl Fn(SlotId) -> crate::Formula + '_ {
     move |slot| {
         doc.slot_expansion(node, slot).unwrap_or_else(|| {
             unreachable!("a refusal proposes a re-spelling of {slot:?}, a slot {node} carries")
@@ -4281,7 +4281,7 @@ fn escalated(predicate: &'static str) -> impl FnOnce(geom_core::Indeterminate) -
 /// refuses as `listed`, the mismatch it is on the caller's node.
 fn stepped_map<T: Decide>(
     kind: &PatternKind,
-    written: &dyn Fn(SlotId) -> crate::expr::Expr,
+    written: &dyn Fn(SlotId) -> crate::Formula,
     listed: crate::node::CountMismatch,
     i: i64,
     results: &Results<T>,
@@ -4334,7 +4334,7 @@ fn wire_pattern<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     kind: &PatternKind,
-    written: &dyn Fn(SlotId) -> crate::expr::Expr,
+    written: &dyn Fn(SlotId) -> crate::Formula,
     results: &Results<T>,
     vals: &SlotValues<T>,
     tol: Tol,
@@ -4400,7 +4400,7 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     kind: &PatternKind,
-    written: &dyn Fn(SlotId) -> crate::expr::Expr,
+    written: &dyn Fn(SlotId) -> crate::Formula,
     results: &Results<T>,
     vals: &SlotValues<T>,
     tol: Tol,
@@ -5025,7 +5025,7 @@ mod route_tests {
         set.sort();
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(0),
+            node: RecipeNodeId::new(0, 0),
             path: vec![RoleSeg::Merged(set)],
         }
     }
@@ -5531,7 +5531,7 @@ mod place_tests {
         let (b, stamped, pending, axis) = fixture(0.0);
         let map = Affine3::translation(Vec3::new(0.0, 5.0, 0.0));
         for m in [Some(&map), None] {
-            let at = Placing::of(RecipeNodeId(41), 2, 1, 0).unwrap();
+            let at = Placing::of(RecipeNodeId::new(0, 41), 2, 1, 0).unwrap();
             let placed = place(&b, m, at, Tol::witness()).unwrap();
             assert_eq!(
                 placed.surface_axis_source(stamped),
@@ -5559,7 +5559,7 @@ mod place_tests {
         let (b, _, _, _) = fixture(3.0);
         let axis = |body: &Body<f64>| body.surface_axis_source(wall).cloned().unwrap();
         let geom = |body: &Body<f64>| body.surface_source(wall).cloned().unwrap();
-        let transform = RecipeNodeId(9);
+        let transform = RecipeNodeId::new(0, 9);
 
         // Row 1, neither placed: equal.
         assert_eq!(axis(&a), axis(&b), "row 1: neither placed");
@@ -5604,7 +5604,7 @@ mod place_tests {
         let other = place(
             &b,
             Some(&lift(5.0)),
-            Placing::of(RecipeNodeId(10), 0, 1, 0).unwrap(),
+            Placing::of(RecipeNodeId::new(0, 10), 0, 1, 0).unwrap(),
             tol,
         )
         .unwrap();
@@ -5623,7 +5623,7 @@ mod place_tests {
         let (b, _, _, _) = fixture(3.0);
         let master = vec![Arc::new(a), Arc::new(b)];
         let axis = |body: &Body<f64>| body.surface_axis_source(wall).cloned().unwrap();
-        let pattern = RecipeNodeId(12);
+        let pattern = RecipeNodeId::new(0, 12);
 
         // Placement 0 is the master verbatim.
         assert_eq!(axis(&master[0]), axis(&master[1]), "placement 0");
@@ -5658,18 +5658,19 @@ mod stepped_operand_tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::{NodeErrorKind, PATTERN_DIRECTION_ROLE, SteppedOperands, stepped_rule_map, unit};
-    use crate::expr::{Dimension, Expr, VarEnv, eval};
+    use crate::Formula;
+    use crate::expr::{VarEnv, eval};
     use geom_core::{Affine3, Band, Tol, Vec3};
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
     }
 
-    fn scalar(v: f64) -> Expr {
-        Expr::literal(v, Dimension::Scalar).unwrap()
+    fn scalar(v: f64) -> Formula {
+        Formula::scalar(v).unwrap()
     }
 
-    fn value(e: &Expr) -> f64 {
+    fn value(e: &Formula) -> f64 {
         eval::<f64>(e, &VarEnv::default()).unwrap()
     }
 
@@ -5681,7 +5682,7 @@ mod stepped_operand_tests {
     /// `p + 0.0` is `p + -0.0` for every coordinate but `-0.0`).
     #[test]
     fn the_reversed_direction_steps_where_the_negative_spacing_did() {
-        let sum = Expr::add(scalar(0.1), scalar(0.2)).unwrap();
+        let sum = Formula::add(scalar(0.1), scalar(0.2)).unwrap();
         for authored in [
             [scalar(1.0), scalar(0.0), scalar(0.0)],
             [scalar(3.0), scalar(4.0), scalar(0.0)],
@@ -5699,11 +5700,9 @@ mod stepped_operand_tests {
             };
             let unit_dir = unit(direction, PATTERN_DIRECTION_ROLE, band()).unwrap();
             let mirrored = |i: i64| Affine3::translation(unit_dir.get() * (-4.25 * i as f64));
-            let written = reversed.clone().map(|e| {
-                crate::test_support::stored_expr(
-                    &e.expect("the negation is within the expression bound"),
-                )
-            });
+            let written = reversed
+                .clone()
+                .map(|e| e.expect("the negation is within the expression bound"));
             let back = Vec3::new(value(&written[0]), value(&written[1]), value(&written[2]));
             let followed =
                 SteppedOperands::linear(back, 4.25, &written, band()).expect("the recourse builds");

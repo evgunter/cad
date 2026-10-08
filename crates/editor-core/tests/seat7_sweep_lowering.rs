@@ -319,14 +319,19 @@ fn both_sweeps_evaluate_in_one_document() {
 /// curve's `Debug`, whose field name moved; with `wrap: ` read back as
 /// `seam: ` the feed reproduces every old constant, so no evaluation
 /// moved.
+///
+/// RE-BLESSED for INTENT-LITERALS PR D (`Expr` holds no float):
+/// `kitchen_sink` alone, whose formulas hold written quantities that
+/// now mint variables of their own, so its ids moved. No outcome or
+/// point moved (the id-free fence held).
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0xbad8_3e67_947d_3484),
-        ("corner_table", 0xa3ad_d45d_6fdf_8bc0),
-        ("cut_cylinder", 0x66cc_96b0_a9c3_a570),
-        ("boss_union", 0x2c30_5ade_2025_a47c),
-        ("kitchen_sink", 0x60c7_ea2e_6afc_e782),
+        ("die", 0xe38c_9822_0a11_ac9e),
+        ("corner_table", 0x3b9e_3bde_7566_1e38),
+        ("cut_cylinder", 0x8588_4d29_fcc5_c898),
+        ("boss_union", 0xc07b_0be3_bbef_ce81),
+        ("kitchen_sink", 0xe7d9_59ee_982e_fc27),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

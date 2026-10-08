@@ -10,7 +10,7 @@
 //! the subject one thing. The sugar that carries no oracle is shared
 //! from `tests/common`: `ang`, `edited`, `inserted`, `len`,
 //! `rectangle`, `scl`, `tempdir`, `xy_frame`. This file's own slab
-//! dimensions and parameter name stay here, where the expectations
+//! dimensions and variable name stay here, where the expectations
 //! that read them are; the profile's shape is not an oracle here, so
 //! it is drawn with the shared rectangle.
 //!
@@ -508,7 +508,7 @@ fn a_save_taken_mid_gesture_writes_the_committed_document_not_the_preview() {
 /// literal accepts a number today, and once an expression is written
 /// into it through `parse_formula` it starts REFUSING numbers with the
 /// affordance. The unit's rows walk driven → expression; this walks
-/// literal → driven → refusal → navigate → parameter edit → the slot
+/// literal → driven → refusal → navigate → variable edit → the slot
 /// follows.
 #[test]
 fn a_literal_slot_becomes_driven_through_the_text_door_and_then_refuses_numbers() {
@@ -538,7 +538,7 @@ fn a_literal_slot_becomes_driven_through_the_text_door_and_then_refuses_numbers(
         "a literal slot takes a number"
     );
 
-    // Write an expression over the document parameter into it.
+    // Write an expression over the document variable into it.
     let width = session.committed_doc().spoken_var(crate::common::var_of(
         session.committed_doc(),
         width_param().as_str(),
@@ -553,7 +553,7 @@ fn a_literal_slot_becomes_driven_through_the_text_door_and_then_refuses_numbers(
     assert_eq!(
         driver(&session),
         SlotDriver::Expression {
-            params: vec![width.clone()]
+            variables: vec![width.clone()]
         },
         "the slot is now driven, and says by what"
     );
@@ -575,12 +575,12 @@ fn a_literal_slot_becomes_driven_through_the_text_door_and_then_refuses_numbers(
         Some(Refusal::DrivenByExpression {
             node,
             slot,
-            params,
+            variables,
             current,
             ..
         }) => {
             assert_eq!((node, slot), (extrude, SlotId::Distance));
-            assert_eq!(params, vec![width.clone()]);
+            assert_eq!(variables, vec![width.clone()]);
             assert_eq!(current, Some(SlotValue::Continuous(0.015)));
         }
         other => panic!("expected the driven refusal, got {other:?}"),
@@ -588,10 +588,10 @@ fn a_literal_slot_becomes_driven_through_the_text_door_and_then_refuses_numbers(
     assert_eq!(session.history().len(), states, "a refusal mints nothing");
 
     // And the navigation half closes the loop.
-    session.perform(SessionOp::Select(Selection::Param(width.id())));
+    session.perform(SessionOp::Select(Selection::Variable(width.id())));
     assert!(
         session
-            .perform(SessionOp::SetParam {
+            .perform(SessionOp::SetVariable {
                 var: width.id(),
                 value: SlotValue::Continuous(0.010),
             })
@@ -601,11 +601,11 @@ fn a_literal_slot_becomes_driven_through_the_text_door_and_then_refuses_numbers(
     assert_eq!(
         distance_of(session.committed_doc(), extrude),
         SlotValue::Continuous(0.030),
-        "the driven slot followed its parameter"
+        "the driven slot followed its variable"
     );
 }
 
-/// A slot driven by arithmetic over NO parameter is still refused —
+/// A slot driven by arithmetic over NO variable is still refused —
 /// the branch-free case the unit's `parametric_plate` fixture (whose
 /// driven slot always references `thickness`) cannot reach. The
 /// affordance then names no navigation target, which is the honest
@@ -618,7 +618,7 @@ fn a_parameterless_expression_is_driven_and_offers_no_navigation_target() {
     let outcome = session.perform(SessionOp::SetSlotExpression {
         node: extrude,
         slot: SlotId::Distance,
-        // No parameter anywhere: pure arithmetic over literals.
+        // No variable anywhere: pure arithmetic over literals.
         text: "0.004 m + 0.003 m".to_owned(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -630,7 +630,7 @@ fn a_parameterless_expression_is_driven_and_offers_no_navigation_target() {
         .expect("the extrude carries a distance");
     assert_eq!(
         row.driver,
-        SlotDriver::Expression { params: vec![] },
+        SlotDriver::Expression { variables: vec![] },
         "arithmetic over literals is driven, with nothing to navigate to"
     );
     assert!(matches!(
@@ -641,7 +641,7 @@ fn a_parameterless_expression_is_driven_and_offers_no_navigation_target() {
                 value: SlotValue::Continuous(0.001),
             })
             .refusal,
-        Some(Refusal::DrivenByExpression { params, .. }) if params.is_empty()
+        Some(Refusal::DrivenByExpression { variables, .. }) if variables.is_empty()
     ));
 }
 
@@ -712,7 +712,7 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
                 Some(
                     format!(
                         "upstream failure at Extrude {} — that row carries the cause",
-                        test_utils::refusal::tag(bad.0)
+                        test_utils::refusal::tag(bad.0.digest())
                     )
                     .as_str()
                 ),

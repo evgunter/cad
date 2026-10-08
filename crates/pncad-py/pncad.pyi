@@ -299,9 +299,10 @@ class ValidationFinding:
       standing. `"vertex_on_edge"` and `"edge_edge"` are records an op
       wrote, never a declaration: a stale one is the op's defect, and
       there is nothing to withdraw.
-    - `ring_contact_kind` — how a ring meets its face's own outer loop
-      (`"vertex_vertex"`, `"vertex_on_edge"`, `"vertex_on_ring_edge"`,
-      `"edge_along_edge"`, `"edge_edge_point"`, `"circle_circle"`).
+    - `ring_contact_kind` — how a ring meets its face's own outer loop,
+      or another ring of that face (`"vertex_vertex"`,
+      `"vertex_on_edge"`, `"vertex_on_ring_edge"`, `"edge_along_edge"`,
+      `"edge_edge_point"`, `"circle_circle"`).
       The word says where the ring has to move: a shared position one
       vertex clears, a shared arc no single vertex move separates, or
       a crossing or touching point no vertex carries.
@@ -2866,8 +2867,21 @@ class Formula:
         `Formula.written_angle(WrittenAngle.in_unit(value, unit))`."""
     @staticmethod
     def count(value: int) -> Formula:
-        """A `Count` literal — the exact integer a structural slot
-        takes. Total: every integer is a count."""
+        """An exact integer: a constant inside a formula, and at a
+        structural slot's root the count it takes. Total: every integer
+        is a count."""
+    @staticmethod
+    def ratio(num: int, den: int) -> Formula:
+        """The exact rational constant `num / den`: a constant inside a
+        formula, a written dimensionless value at a slot's root.
+        `LiteralError` (`kind` `"constant_out_of_range"`) for a
+        denominator that is not positive, or a reduced numerator or
+        denominator past 2^53, however wide the int; its `value` is the
+        quotient, or the numerator where there is none."""
+    @staticmethod
+    def turn() -> Formula:
+        """One full rotation, the exact angle constant: a right angle is
+        `turn / 4`."""
     @property
     def dimension(self) -> str:
         """`"length"`, `"angle"`, `"count"` or `"scalar"`."""
@@ -2876,10 +2890,10 @@ class Formula:
         """The source text this reads back as (`unparse`)."""
     @property
     def literal_value(self) -> Optional[float]:
-        """The number a BARE literal carries, in canonical kernel
-        units, or None for anything else — including a count literal,
-        since handing a count back as a float is the implicit
-        promotion the expression language refuses."""
+        """The number a lone written value or dimensionless number
+        carries, in canonical kernel units, or None for anything else —
+        including a count, since handing a count back as a float is
+        the implicit promotion the expression language refuses."""
     @property
     def params(self) -> list[VarName]:
         """The variable names this reads, sorted and without
@@ -2901,12 +2915,8 @@ class Expr:
     @property
     def text(self) -> str:
         """The source text this reads back as, a variable written as
-        its full id, `#<16 hex>`; `Doc.unparse` writes the names a
+        its full id, `#<ordinal>:<16 hex>`; `Doc.unparse` writes the names a
         document holds."""
-    @property
-    def literal_value(self) -> Optional[float]:
-        """The number a BARE literal carries, in canonical kernel
-        units, or None for anything else."""
     def __eq__(self, other: object) -> bool: ...
 
 class VarName:
@@ -2935,7 +2945,10 @@ class Var:
 
     @property
     def hex(self) -> str:
-        """The id with every bit shown: sixteen lowercase hex digits."""
+        """The whole id: its mint ordinal, a colon, and its digest as
+        sixteen lowercase hex digits — the key a saved file's variable
+        table holds it under. (Named for when an id was its hex digest
+        alone.)"""
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
@@ -3653,8 +3666,7 @@ class DocEdit:
 
         Refuses `step_ids_refused` before the program is replayed
         (`inner_variant`: `loop_count`, `shape`, `not_this_profiles`,
-        `repeated`, or `collides` for a new id the document's mint log
-        already holds; `not_minted`, an id the log lacks, is the load
+        or `repeated`; `not_minted`, an id the log lacks, is the load
         door's word for the same family),
         `set_program_on_non_profile`, and then everything an insert
         refuses of a profile: `slot_unknown_var_name` and its
@@ -4041,7 +4053,7 @@ class Doc:
     def unparse(self, expr: Formula | Expr) -> str:
         """The text of `expr`, each variable it reads written by the
         name this document holds for it; one with no name here writes
-        its full id, `#<16 hex>`."""
+        its full id, `#<ordinal>:<16 hex>`."""
     @property
     def epsilon(self) -> float: ...
     def bit_eq(self, other: Doc) -> bool: ...

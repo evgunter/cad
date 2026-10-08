@@ -7,7 +7,7 @@
 //! the index the plain door ([`PickIndex::build`]) builds from the same
 //! landed run, whose meshes are `mesh::tessellate` of each root body.
 //! Every row here opens a document, indexes it through the seam, then
-//! runs a sequence of edits — change a parameter, change another,
+//! runs a sequence of edits — change a variable, change another,
 //! revert the first — and after every landing asserts that the seam's
 //! meshes are byte-identical to the plain door's (the D9 goldens'
 //! digest, over every position, patch and boundary) and that a fixed
@@ -125,11 +125,11 @@ fn bump_of(c: &corpus::CorpusDoc) -> Option<(Edit, Edit)> {
     ))
 }
 
-/// A second parameter to change: the first literal length slot on a
+/// A second variable to change: the first literal length slot on a
 /// node other than `not`, scaled — "change another", when the document
 /// has another to change.
 fn another_length_slot(doc: &ProfileDoc, not: RecipeNodeId) -> Option<Edit> {
-    for &node in doc.order() {
+    for node in doc.ids() {
         if node == not {
             continue;
         }
@@ -1315,7 +1315,7 @@ const RING_WIDE_CANDIDATE_CONDITIONING: f64 = 7.19e-16;
 /// something.
 const REACH: f64 = 1.48;
 
-/// The ring probe's answer: the chord point's parameter as the
+/// The ring probe's answer: the chord point's variable as the
 /// winning triangle's exact test rounds it. Re-derive from the
 /// probe's failure message if the ring's tessellation changes.
 const RING_CORNER_T: f64 = 1.48;

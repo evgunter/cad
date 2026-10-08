@@ -197,6 +197,16 @@
 //! [`the_corpus_geometry_is_bit_identical_with_ids_masked`], which
 //! masks every id, held its number across the change untouched.
 //!
+//! RE-BLESSED FOR AN `Expr` THAT HOLDS NO FLOAT (INTENT-LITERALS PR D),
+//! all three rows, for ids alone: a written quantity inside a formula
+//! mints an anonymous variable of its own, so `kitchen_sink`, the one
+//! document whose formulas hold one, mints other ids
+//! (`lib_g16_corpus_name_digests` moved on that row alone). No outcome or point moved: the id-free
+//! row held, and an id-free dump of every outcome and point at `f64`
+//! AND at `Interval`, taken on PR C's head and on this one, is
+//! byte-identical — no constant the corpus's geometry reads is
+//! non-dyadic, so no enclosure widened.
+//!
 //! RE-BLESSED ONCE FOR THE SKETCH FRAME, and this one could NOT be
 //! measured by the removal procedure below — which is why it is written
 //! out here rather than folded in with the roster moves.
@@ -540,13 +550,13 @@ pub(crate) enum Seen<'a, T: geom_core::Real> {
     /// Node `id` of document `doc` and its outcome.
     Node {
         doc: &'a str,
-        id: u64,
+        id: editor_core::MintId,
         outcome: Outcome,
     },
     /// Point `i` of the body node `id` carries, in arena order.
     Point {
         doc: &'a str,
-        id: u64,
+        id: editor_core::MintId,
         i: usize,
         key: topo::PointKey,
         p: &'a geom_core::Point3<T>,
@@ -555,7 +565,7 @@ pub(crate) enum Seen<'a, T: geom_core::Real> {
 
 /// A node's outcome as the fence observes it.
 pub(crate) enum Outcome {
-    Poisoned { through: u64 },
+    Poisoned { through: editor_core::MintId },
     Failed,
     Ok { kind: &'static str },
 }
@@ -648,11 +658,13 @@ where
         Seen::FixtureRefused(_) => d.text("refused"),
         Seen::Document(name) => d.text(name),
         Seen::Node { id, outcome, .. } => {
-            d.u64(id);
+            d.u64(u64::from(id.ordinal()));
+            d.u64(id.digest());
             match outcome {
                 Outcome::Poisoned { through } => {
                     d.text("poisoned");
-                    d.u64(through);
+                    d.u64(u64::from(through.ordinal()));
+                    d.u64(through.digest());
                 }
                 Outcome::Failed => d.text("failed"),
                 Outcome::Ok { kind } => d.text(kind),
@@ -769,7 +781,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x71a0_ec4a_f2dc_5759, 0x3543_1b6f_a4f8_31ad),
+        (0x8363_82b0_6caf_3199, 0x3c1b_5af7_58d4_b215),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -795,7 +807,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x08b0_7030_4ba2_d22a, 0x0072_4762_032d_27de),
+        (0x357b_bc23_1c34_4f4a, 0x5e86_3780_5099_2656),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -819,7 +831,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x71a0_ec4a_f2dc_5759, 0x3543_1b6f_a4f8_31ad),
+        (0x8363_82b0_6caf_3199, 0x3c1b_5af7_58d4_b215),
         "the corpus's Probe evaluation moved"
     );
 }
@@ -835,7 +847,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
 /// preimages, and this number — taken on main before the change and on
 /// the branch after it — did not.
 fn id_free_corpus_digest() -> (u64, u64) {
-    type Nodes = std::collections::BTreeMap<u64, (String, Vec<[u64; 3]>)>;
+    type Nodes = std::collections::BTreeMap<editor_core::MintId, (String, Vec<[u64; 3]>)>;
     let mut docs: Vec<(String, Nodes)> = Vec::new();
     let mut fixture = Digest::new();
     walk::<f64>(|seen| match seen {

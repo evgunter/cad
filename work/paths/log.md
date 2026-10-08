@@ -660,3 +660,19 @@ Signed: (CARVE orchestrator)
 - 2026-10-07 — `profile-fillet-radius-off-at-eps-1e-6` (P0) closes on `claude/clever-bardeen-4itqb3`. The seed's corner has no exact fillet: its offset circles miss tangency by 5.27e-7, inside the 1e-6 band. The decided centre was the radical-line foot, which carried that gap amplified by (ρ₁ + ρ₂)/d (1.117x here, unbounded on near-equal carriers).
   - The centre now sits midway between the offset circles' nearest points, so each arc×arc rim carries half the gap: the floor where the circles are separated, a bound where they cross. The oracle pins each rim at half the gap, and a pinned sweep draws the decided class at both scalars.
   - The D10 hold did not bind: no joint's recording or verification changed. The sibling sites are filed as `decided-tangent-point-is-the-radical-foot`.
+
+- 2026-10-07 — The fillet-radius P0 merged (#4259, `4aadf5b72`; DR-103, no MAJOR from either reviewer). On a decided offset tangency the fillet centre is the link midpoint: the floor on the separated side, a bound on the crossing side. The oracle now pins each rim at gap/2, and a seeded sweep of decided tangencies runs in the fast set.
+- 2026-10-07 — `a-straight-arrival-off-an-arc-departure-escalates-in-carrier-line-circle` (P0, M) is dispatched on `claude/clever-bardeen-4itqb3`.
+  - D10 check: it is a validation-pair escalation on a drawn path. It touches no intent, placement or declared contact, so it may start under the hold.
+  - Review tier: single. It is one predicate's verdict on one drawn family.
+- 2026-10-07 — `a-straight-arrival-off-an-arc-departure-escalates-in-carrier-line-circle` closed on `claude/clever-bardeen-4itqb3`. The path placed nothing in error: validation escalated on carrier readings whose contact lies off a segment. `seg::line_arc` now asks the arc's span before an in-band `carrier_line_circle` escalates, and `seg::joint` answers on either span's definite miss of a secant candidate; the tangent arms still escalate on an in-band span reading. The siblings are filed as `validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc` (P2). The review measured a pre-existing silent miss in the tangent arms, filed as `validate-settles-a-tangent-pair-on-one-candidate-and-misses-a-touch-within-eps` (P0).
+
+- 2026-10-07 — The path_property 1e-6 P0 merged (#4264, `f2e995806`, single review). Validation asks the segments' spans before an in-band secant carrier escalates. The tangent arms keep main's escalation, so the PR does not widen the hole the review found; that hole is filed as its own P0.
+- 2026-10-07 — `validate-settles-a-tangent-pair-on-one-candidate-and-misses-a-touch-within-eps` (P0, M) is dispatched on `claude/clever-bardeen-4itqb3`.
+  - D10 check: it is validation's contact reading. It records and verifies no declared contact, so it may start under the hold; the lane stops if the fix needs that.
+  - Review tier: dual. Difficulty letter M. The arm is drawn by `/dev/urandom` byte 208 (mod 3 = 1): SEQUENTIAL.
+- 2026-10-07 — `validate-settles-a-tangent-pair-on-one-candidate-and-misses-a-touch-within-eps` (P0) closed on `claude/clever-bardeen-4itqb3`.
+  - A whole profile reaches the hole: two holes touching at a vertex whose two arcs each miss their own tangency with the other edge. It validated on `main` at both scalars and three ε.
+  - A candidate that a span definitely misses now leaves the pair's segment ends to read (`seg::end_touches`, new predicate `circle_side`). This applies in the tangent arms and in the secant arms; the widened sweep showed that a shallow crossing has the same hole.
+  - D10's hold did not bind.
+

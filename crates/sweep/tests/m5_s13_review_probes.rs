@@ -139,7 +139,7 @@ fn probe_exact_tangency_from_inside_refuses_typed() {
 /// the edge first: the line × sphere roots pierce it, the pierce
 /// point's sector side certifies, and the section passes through the
 /// ball's face as a ring, whose island the join winds without a chart
-/// (`chord_join::sphere_island_winding`). The union keeps that ring as a
+/// (`chord_join::path_island_winding`). The union keeps that ring as a
 /// hole of the ball's face, which the result gate refuses typed
 /// (`VolumeUncomputable { RingOnCurvedFace }`,
 /// `work/flux/sphere-face-with-a-hole-has-no-closed-form.md`); the pose's

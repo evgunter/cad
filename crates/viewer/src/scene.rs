@@ -239,8 +239,8 @@ pub enum SceneError {
     /// any of the gather's reasons (`ProductErrorKind::means_no_body`
     /// says which of them is an absence rather than a fault), beside
     /// the nodes its sentence names as the gathered document held them
-    /// ([`held_by`]).
-    NoProduct(ProductError, HeldNodes),
+    /// ([`held_by`]). Boxed so the refusal stays a small `Err`.
+    NoProduct(Box<ProductError>, HeldNodes),
     /// The body did not tessellate at this δ.
     NotTessellated(TessellateError),
     /// The tessellation was empty, or its positions gave no usable
@@ -317,7 +317,9 @@ impl core::fmt::Display for SceneError {
                  its value in millimetres is not a finite number",
                 unit.symbol()
             ),
-            Self::NoProduct(error, held) => write!(f, "{}", Said(error, Speaker::held(held))),
+            Self::NoProduct(error, held) => {
+                write!(f, "{}", Said(error.as_ref(), Speaker::held(held)))
+            }
             Self::NotTessellated(error) => {
                 write!(
                     f,
@@ -895,7 +897,7 @@ impl core::error::Error for SceneDocError {}
 /// The gather's refusal of `doc`, its nodes said as `doc` holds them.
 fn no_product(error: ProductError, doc: &Doc<ProfileProgram>) -> SceneError {
     let held = held_by(&error, doc);
-    SceneError::NoProduct(error, held)
+    SceneError::NoProduct(Box::new(error), held)
 }
 
 /// Evaluate a document and gather its product body.

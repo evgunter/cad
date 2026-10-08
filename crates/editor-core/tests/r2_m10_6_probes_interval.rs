@@ -78,7 +78,7 @@ use fixture::{Recorder, ang, len, scl};
 /// A variable as the free mass doors' refusals speak it.
 fn sp(name: &'static str) -> editor_core::SpokenVar {
     editor_core::SpokenVar::new(
-        editor_core::VarId(0),
+        editor_core::VarId::new(0, 0),
         Some(editor_core::VarName::from_static(name)),
     )
 }

@@ -217,7 +217,7 @@ fn distinct_patches_never_share_an_id_across_bodies() {
 #[test]
 fn nothing_is_reserved_and_a_repeated_patch_is_refused() {
     let key = PatchId {
-        node: RecipeNodeId(1),
+        node: RecipeNodeId::new(0, 1),
         body: 0,
         patch: 0,
     };
@@ -724,7 +724,7 @@ fn a_structural_edit_that_consumes_the_selected_face_leaves_it_unresolved() {
     session.perform(SessionOp::Select(Selection::Face(face.clone())));
     assert!(session.standing().live());
 
-    // The parameter edit that consumes it: two instances, no third.
+    // The variable edit that consumes it: two instances, no third.
     let outcome = session.perform(SessionOp::SetSlot {
         node: pattern,
         slot: SlotId::Count,
@@ -1051,6 +1051,6 @@ fn two_coincident_faces_across_groups_refuse_with_both() {
     );
     assert_eq!(
         hits[0].t, hits[1].t,
-        "the two faces are coincident, so they answer one parameter: {hits:?}"
+        "the two faces are coincident, so they answer one variable: {hits:?}"
     );
 }

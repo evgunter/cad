@@ -126,12 +126,12 @@ assert!(select_where(
 // POSITION — and it is the same face the role path names.
 let top = select_where(
     &ev, cube, &faces,
-    // The comparand is a query's, not a slot's: stored, so a written
-    // formula lowers to it with no document in scope.
+    // The comparand is a query's, not a slot's: a formula, evaluated
+    // with no document in scope, so it reads no name.
     &[GeomPred::DatumDistance {
         datum: ground,
         cmp: Cmp::Approx,
-        value: Expr::try_from(len(1.0)).expect("a literal reads no name"),
+        value: len(1.0),
     }],
     &params,
     tol,
@@ -151,8 +151,7 @@ assert!(matches!(
         &[GeomPred::DatumDistance {
             datum: ground,
             cmp: Cmp::Approx,
-            value: Expr::try_from(Formula::literal(1.0, Dimension::Angle).expect("an angle"))
-                .expect("a literal reads no name"),
+            value: Formula::literal(1.0, Dimension::Angle).expect("an angle"),
         }],
         &params,
         tol,
@@ -235,11 +234,11 @@ forms can be shown against a name built by hand.
 ```
 use pncad::prelude::*;
 
-let node = RecipeNodeId(7);
+let node = RecipeNodeId::new(0, 7);
 let rim = |end| StableName {
     kind: EntityKind::Edge,
     node,
-    path: vec![RoleSeg::RimEdge(end, ProfileEdgeRef::Piece { step: StepId(3), role: PieceRole::Leg }.into())],
+    path: vec![RoleSeg::RimEdge(end, ProfileEdgeRef::Piece { step: StepId::new(0, 3), role: PieceRole::Leg }.into())],
 };
 
 // `SegPat::tag` — the variant, arguments free.
@@ -260,7 +259,7 @@ assert!(Selector::of(swept).matches(&rim(CapEnd::End)));
 // `NamePat::node` — restrict to one recipe node; `SegPat::any` and
 // `NamePat::any` are the wildcards.
 assert!(Selector::of(NamePat::any().node(node).seg(SegPat::any())).matches(&rim(CapEnd::End)));
-assert!(!Selector::of(NamePat::any().node(RecipeNodeId(8))).matches(&rim(CapEnd::End)));
+assert!(!Selector::of(NamePat::any().node(RecipeNodeId::new(0, 8))).matches(&rim(CapEnd::End)));
 
 // A constrained path matches length for length.
 assert!(!Selector::of(NamePat::any().path([SegPat::any(), SegPat::any()]))
@@ -276,7 +275,7 @@ arguments are patterns too, positionally, as a prefix.
 ```
 use pncad::prelude::*;
 
-let node = RecipeNodeId(3);
+let node = RecipeNodeId::new(0, 3);
 let face = |path| StableName { kind: EntityKind::Face, node, path };
 // A boolean seam edge: the end cap of one operand crossing a
 // revolve band of the other.
@@ -285,7 +284,7 @@ let seam = StableName {
     node,
     path: vec![RoleSeg::Seam {
         a: face(vec![RoleSeg::Cap(CapEnd::End)]).into(),
-        b: face(vec![RoleSeg::Band(ProfileEdgeRef::Piece { step: StepId(1), role: PieceRole::Leg }.into())]).into(),
+        b: face(vec![RoleSeg::Band(ProfileEdgeRef::Piece { step: StepId::new(0, 1), role: PieceRole::Leg }.into())]).into(),
     }],
 };
 

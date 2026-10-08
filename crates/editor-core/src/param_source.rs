@@ -9,15 +9,16 @@
 //! **canonical prefix encoding of the expression tree** under the
 //! identity of the parameter table it was lowered against: a scope
 //! prefix ([`ParamScope`]), then one tag byte per AST node, operands in
-//! [`Expr::child`] order, literals as their `f64` BITS, variable readers
-//! as their minted ids (a name is not identity, VR8). It is injective — every distinct (scope, expression)
+//! [`Expr::child`] order, constants exactly (a ratio as its reduced
+//! numerator and denominator, an integer, `turn`), variable readers as
+//! their minted ids (a name is not identity, VR8). It is injective — every distinct (scope, expression)
 //! pair has a distinct byte string — so token equality IS expression
 //! equality within one parameter table rather than a claim about it,
 //! and [`invert`] reads a token back to a slot address holding it.
 //!
-//! **Bit-semantic, matching [`Expr::bit_eq`]**: `0.0` and `-0.0` are
-//! different expressions here, and the display unit a literal was
-//! authored in is not part of identity at all (D7).
+//! **Matching [`Expr::bit_eq`]**: a stored expression holds no float,
+//! so a written value enters a token as the id of the variable it was
+//! minted as, never as its bits (VR8: two typed `5 mm` lower distinct).
 //!
 //! # The scope
 //!
@@ -107,7 +108,7 @@ use topo::{Body, FaceKey, ParamAttachError, ParamSource, ShellNaming, SurfaceFie
 use verbs::{FieldRole, FlowSource, ParamFlow, RoleFamily, ScalarParam};
 
 use crate::eval::KeyHasher;
-use crate::expr::{Dimension, Expr, ExprKind};
+use crate::expr::{Expr, ExprKind};
 use crate::ident::{DocRef, DocumentId};
 use crate::var::VarId;
 
@@ -118,9 +119,10 @@ use crate::var::VarId;
 // refuses two with one value, and the decoder there parses the encoding
 // back with its own arity table, so a tag that wrote a different number
 // of operands than it claims cannot round-trip.
-const T_LITERAL: u8 = 0x01;
-const T_COUNT_LITERAL: u8 = 0x02;
 const T_VAR: u8 = 0x04;
+const T_RATIO: u8 = 0x05;
+const T_INTEGER: u8 = 0x06;
+const T_TURN: u8 = 0x07;
 const T_ADD: u8 = 0x10;
 const T_SUB: u8 = 0x11;
 const T_NEG: u8 = 0x12;
@@ -177,17 +179,6 @@ impl ParamScope {
     }
 }
 
-/// The dimension byte carried by the two leaves that are not
-/// determined by their own tag.
-fn dim_code(dim: Dimension) -> u8 {
-    match dim {
-        Dimension::Length => 0,
-        Dimension::Angle => 1,
-        Dimension::Count => 2,
-        Dimension::Scalar => 3,
-    }
-}
-
 /// **A document's definitions, as the encoding reads them**: the
 /// defining expression of a defined variable, `None` for a free one or
 /// one the table does not hold.
@@ -205,15 +196,18 @@ fn encode(expr: &Expr, defs: Definitions<'_, '_>, out: &mut Vec<u8>) {
     // new expression node cannot reach the kernel as an unlabelled
     // token, it breaks this match first.
     match expr.kind() {
-        ExprKind::Literal(lit) => {
-            out.push(T_LITERAL);
-            out.extend_from_slice(&lit.value.to_bits().to_be_bytes());
-            out.push(dim_code(expr.dim()));
+        // A constant's dimension is its tag's: a ratio is a scalar, an
+        // integer a count, `turn` an angle.
+        ExprKind::Ratio(r) => {
+            out.push(T_RATIO);
+            out.extend_from_slice(&r.num().to_be_bytes());
+            out.extend_from_slice(&r.den().to_be_bytes());
         }
-        ExprKind::CountLiteral(n) => {
-            out.push(T_COUNT_LITERAL);
+        ExprKind::Integer(n) => {
+            out.push(T_INTEGER);
             out.extend_from_slice(&n.to_be_bytes());
         }
+        ExprKind::Turn => out.push(T_TURN),
         // A defined variable is its definition, expanded (VR8): a
         // reader of `h := 2·w` and a slot spelling `2·w` lower equal.
         // The doors bound each VARIABLE's expansion
@@ -226,7 +220,8 @@ fn encode(expr: &Expr, defs: Definitions<'_, '_>, out: &mut Vec<u8>) {
         // and a name is not identity (VR8: a rename moves no token).
         ExprKind::Var(var) => {
             out.push(T_VAR);
-            out.extend_from_slice(&var.0.to_be_bytes());
+            out.extend_from_slice(&var.0.ordinal().to_be_bytes());
+            out.extend_from_slice(&var.0.digest().to_be_bytes());
         }
         ExprKind::Leaf(own) => match *own {},
         ExprKind::Add(a, b) => binary(T_ADD, a, b, defs, out),
@@ -343,7 +338,7 @@ pub(crate) fn operand_flow_bearing(source: FlowSource) -> bool {
 /// meant to; here the document is in hand, so the answer is a real
 /// address: the first slot of the first node whose expression lowers to
 /// `token` under this document's ROOT scope, scanned in the document's
-/// own deterministic node order ([`Doc::order`](crate::doc::Doc::order)).
+/// own deterministic node order ([`Doc::ids`](crate::doc::Doc::ids)).
 ///
 /// **What the answer is, precisely.** A token is the identity of an
 /// expression, not of a slot: every slot holding that expression lowers
@@ -370,7 +365,7 @@ pub fn invert<P: crate::ProfilePayload>(
 ) -> Option<crate::expr::ExprPath> {
     let scope = ParamScope::Root(doc.id());
     let defs = definitions_of(doc);
-    for &node in doc.order() {
+    for node in doc.ids() {
         let Some(n) = doc.node(node) else { continue };
         for slot in n.slots() {
             let Some(&var) = n.expr(slot) else { continue };
@@ -729,9 +724,11 @@ mod tests {
 
     use super::*;
 
-    /// A stored length literal, in metres.
-    fn len(metres: f64) -> Expr {
-        Expr::literal(metres, Dimension::Length).expect("a finite length")
+    use crate::expr::Dimension;
+
+    /// The rational constant `num / den`.
+    fn ratio(num: i64, den: u64) -> Expr {
+        Expr::ratio(num, den).expect("a constant in range")
     }
 
     /// A table of free variables only: every reader lowers as its id.
@@ -741,7 +738,7 @@ mod tests {
 
     /// A reader of the length variable `id`.
     fn p(id: u64) -> Expr {
-        Expr::var(VarId(id), Dimension::Length)
+        Expr::var(VarId::new(0, id), Dimension::Length)
     }
 
     fn root() -> ParamScope {
@@ -760,9 +757,10 @@ mod tests {
 
     /// EVERY tag constant, by name, with the shape the encoder gives it.
     const ALPHABET: &[(&str, u8, Shape)] = &[
-        ("T_LITERAL", T_LITERAL, Shape::Leaf(9)),
-        ("T_COUNT_LITERAL", T_COUNT_LITERAL, Shape::Leaf(8)),
-        ("T_VAR", T_VAR, Shape::Leaf(8)),
+        ("T_VAR", T_VAR, Shape::Leaf(12)),
+        ("T_RATIO", T_RATIO, Shape::Leaf(16)),
+        ("T_INTEGER", T_INTEGER, Shape::Leaf(8)),
+        ("T_TURN", T_TURN, Shape::Leaf(0)),
         ("T_ADD", T_ADD, Shape::Binary),
         ("T_SUB", T_SUB, Shape::Binary),
         ("T_NEG", T_NEG, Shape::Unary),
@@ -779,10 +777,18 @@ mod tests {
         ("T_SCOPE_PART", T_SCOPE_PART, Shape::Leaf(16 + 32)),
     ];
 
+    /// **Retired tags**: the bytes earlier encodings gave a leaf the
+    /// stored expression no longer has (a float literal and a count
+    /// literal). A token is a memo key, never persisted, so nothing
+    /// decodes them; they are kept out of reuse so that no byte means
+    /// two things across builds a reader might compare.
+    const RETIRED: &[(&str, u8)] = &[("T_LITERAL", 0x01), ("T_COUNT_LITERAL", 0x02)];
+
     /// **Every tag is distinct** — the injectivity argument's first
     /// premise, executed over the constants by NAME so that two
     /// constants sharing a value (`T_SUB = T_ADD`) red here rather than
-    /// silently encoding `r + t` and `r - t` alike.
+    /// silently encoding `r + t` and `r - t` alike — and none reuses a
+    /// retired byte.
     #[test]
     fn every_tag_is_distinct() {
         for (i, (name, tag, _)) in ALPHABET.iter().enumerate() {
@@ -791,6 +797,9 @@ mod tests {
                     tag, tag2,
                     "{name} and {other} share the tag byte {tag:#04x}"
                 );
+            }
+            for (retired, byte) in RETIRED {
+                assert_ne!(tag, byte, "{name} reuses the retired {retired}'s byte");
             }
         }
     }
@@ -801,9 +810,10 @@ mod tests {
     /// naming its row.
     #[test]
     fn the_alphabet_covers_the_encoder() {
-        let arms = match ExprKind::Neg(Box::new(len(0.0))) {
-            ExprKind::Literal(_)
-            | ExprKind::CountLiteral(_)
+        let arms = match ExprKind::Neg(Box::new(ratio(0, 1))) {
+            ExprKind::Ratio(_)
+            | ExprKind::Integer(_)
+            | ExprKind::Turn
             | ExprKind::Var(_)
             | ExprKind::Add(..)
             | ExprKind::Sub(..)
@@ -816,7 +826,7 @@ mod tests {
             | ExprKind::Sin(_)
             | ExprKind::Cos(_)
             | ExprKind::Tan(_)
-            | ExprKind::CountToScalar(_) => 15,
+            | ExprKind::CountToScalar(_) => 16,
             // The stored form adds no leaf of its own.
             ExprKind::Leaf(own) => match own {},
         };
@@ -855,23 +865,26 @@ mod tests {
     }
 
     /// A small expression family: every leaf kind, every operator, two
-    /// levels deep, plus ids that differ only in high bytes and the
-    /// sign-of-zero pairs. Built
+    /// levels deep, plus ids that differ only in high bytes and
+    /// constants that differ only in sign or denominator. Built
     /// through the dimension-checked doors, so only well-typed
     /// combinations enter (a length plus an angle is not an expression).
     fn family() -> Vec<Expr> {
-        let count = Expr::count(3);
+        let count = Expr::integer(3);
         let leaves = vec![
             p(1),
             p(2),
             p(3),
             p(1 << 32),
             p(u64::MAX),
-            Expr::var(VarId(6), Dimension::Angle),
-            len(0.0),
-            len(-0.0),
-            len(1.0),
+            Expr::var(VarId::new(0, 6), Dimension::Angle),
+            ratio(0, 1),
+            ratio(1, 2),
+            ratio(-1, 2),
+            ratio(1, 3),
+            Expr::turn(),
             count.clone(),
+            Expr::integer(-3),
             Expr::count_to_scalar(count).unwrap(),
         ];
         let mut out = leaves.clone();
@@ -887,7 +900,7 @@ mod tests {
                 out.extend(Expr::atan2(x.clone(), y.clone()).ok());
             }
         }
-        let angle = Expr::var(VarId(7), Dimension::Angle);
+        let angle = Expr::var(VarId::new(0, 7), Dimension::Angle);
         out.extend(Expr::sin(angle.clone()).ok());
         out.extend(Expr::cos(angle.clone()).ok());
         out.extend(Expr::tan(angle).ok());
@@ -944,20 +957,18 @@ mod tests {
         }
     }
 
-    /// The display unit is not identity (D7), matching `bit_eq`.
+    /// **A constant is its value**: `2/4` and `1/2` are one constant
+    /// and lower to one token, where two typed values are two
+    /// variables.
     #[test]
-    fn a_display_unit_is_not_identity() {
-        let mm = quantity::unit_by_symbol("mm").unwrap();
-        let cm = quantity::unit_by_symbol("cm").unwrap();
-        let stored = |unit| {
-            Expr::try_from(
-                crate::Formula::literal_with_unit(0.125, Dimension::Length, unit).unwrap(),
-            )
-            .unwrap()
-        };
-        let (a, b) = (stored(mm), stored(cm));
+    fn equal_constants_lower_to_one_token() {
+        let (a, b) = (ratio(2, 4), ratio(1, 2));
         assert!(a.bit_eq(&b));
         assert_eq!(lower(root(), &free, &a), lower(root(), &free, &b));
+        assert_ne!(
+            lower(root(), &free, &ratio(1, 2)),
+            lower(root(), &free, &ratio(1, 3))
+        );
     }
 
     /// **Two scopes are two tokens for one expression**, and the part

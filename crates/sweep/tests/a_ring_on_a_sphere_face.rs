@@ -1,11 +1,11 @@
 //! **A ring on a sphere face winds its island without a chart.** A box
 //! edge that pierces a ball's face lands the section there as a ring,
-//! and the join's ring lane winds the island it walls off by the side
-//! of the section plane the run lies on, the arc's lean, and an
-//! outer-loop point read against the two caps
-//! (`chord_join::sphere_island_winding`). A bystander ring of a sphere
+//! and the join's ring lane winds the island it walls off by a
+//! great-circle path from an outer-loop point to the closing arc's
+//! midpoint: its crossings and the side it arrives from
+//! (`chord_join::path_island_winding`). A bystander ring of a sphere
 //! face is re-homed by the parity of a great-circle path
-//! (`chord_join::sphere_ring_side`).
+//! (`chord_join::path_ring_side`).
 //!
 //! Every pose runs every op in both member orders. A body is held to
 //! tier 3, to tier 3′ (or, for a result in two lumps, to the census
@@ -195,14 +195,14 @@ fn a_slab_edge_through_a_ball_face_winds_its_island() {
     }
 }
 
-/// **An outer-loop point on the island's side of the plane is read
-/// against the caps.** A `z`-poled ball at `(−0.3, 2, 1.2)`, its seam
-/// turned to `−y` and its poles tilted off `z`: the lower pole lies on
-/// the run's side of the top face's plane, so the great-circle path
-/// from it to the far cap's pole says, by its crossings, that it is
+/// **An outer-loop point on the run's side of the section plane winds
+/// the island.** A `z`-poled ball at `(−0.3, 2, 1.2)`, its seam turned to
+/// `−y` and its poles tilted off `z`: the lower pole lies on the run's
+/// side of the top face's plane, and the great-circle path from it to
+/// the closing arc says, by its crossings and its arrival, that it is
 /// outside the island.
 #[test]
-fn an_outer_point_on_the_runs_side_is_read_by_a_path() {
+fn an_outer_point_on_the_runs_side_of_the_section_winds_the_island() {
     let c = Vec3::new(-0.3, 2.0, 1.2);
     for tilt in [0.3, -0.3, 0.6] {
         let pose = format!("tilt {tilt}");
@@ -362,12 +362,12 @@ fn unit_ball(pole: Vec3<f64>, spin: f64, (tilt_axis, tilt): (Vec3<f64>, f64)) ->
 /// **An island that holds the far cap's pole.** A tool covering the
 /// unit ball but for the cap `x > 0.6`, widened by a notch, against the
 /// ball poled on `y` and spun so its seam meridian lies in `x = 0`, on
-/// the run's side of the section plane `x = 0.6`. The outer-loop point
-/// is read by the path to the far cap's pole and lies inside the inner
-/// region, so the island is the region holding that pole. Ball ∖ tool
-/// is the cap with the notch: it keeps no ring and builds.
+/// the run's side of the section plane `x = 0.6`. The island is the
+/// region holding the far cap's pole, and the outer-loop point lies
+/// beside the run, not across the section from it. Ball ∖ tool is the
+/// cap with the notch: it keeps no ring and builds.
 #[test]
-fn an_island_holding_the_far_pole_winds_by_an_inner_outer_point() {
+fn an_island_holding_the_far_caps_pole_winds() {
     let big: Bounds = [(-2.0, 0.6), (-2.0, 2.0), (-2.0, 2.0)];
     let o = Vec3::new(0.0, 0.0, 0.0);
     for (name, notch) in [
@@ -470,5 +470,77 @@ fn a_ring_beside_an_outer_loop_on_the_run_is_read_from_an_edge_midpoint() {
         &ball,
         box_ball(b, 1.0, o),
         [Gate, Gate, Lumps, Gate, Body, Body],
+    );
+}
+
+/// **A path that grazes a run arc in the escalation band says nothing,
+/// and the next one winds the island.** Two millimetre balls with poles
+/// turned off every axis (a review's random pair 82): the first
+/// outer-loop point's great circle crosses a run arc's plane in the
+/// escalation band, and the reading moves on to the next point rather
+/// than refusing the op. The small ball's ∖ and both ∩ build at the
+/// lens; the ops whose big ball keeps the ring as a hole refuse at the
+/// result gate. Above ε 1e-9 every op escalates first, certifying a
+/// pcurve on the sphere's chart, as on main.
+#[test]
+fn a_path_escalating_at_a_graze_hands_the_winding_to_the_next() {
+    let tol = Tol::witness();
+    let (r1, r2) = (6.098088671076322e-4, 1.4613194916300017e-3);
+    let c2 = Vec3::new(
+        -0.0018727710410726642,
+        -5.7762472824686515e-5,
+        -3.412205707271761e-5,
+    );
+    let p1 = Vec3::new(
+        -0.20107294329337744,
+        -0.891895479861727,
+        -0.4050828612488538,
+    );
+    let p2 = Vec3::new(
+        0.01866131486960719,
+        -0.9760726504487204,
+        -0.21664241591467578,
+    );
+    let a = finished(
+        "the small ball",
+        ball_poled(r1, Vec3::new(0.0, 0.0, 0.0), p1, tol),
+        tol,
+    );
+    let b = finished("the big ball", ball_poled(r2, c2, p2, tol), tol);
+    if tol.eps() > 1e-9 {
+        // The millimetre balls are within a few thousand coincidence
+        // widths here, and every op escalates certifying a pcurve on the
+        // sphere's chart (in the merge, or the pcurve pass) before any
+        // ring is read — on main too.
+        let none = BooleanDeclarations::none();
+        for (op, got) in [
+            ("a ∪ b", topo::union_with(&a, &b, &none, tol)),
+            ("b ∪ a", topo::union_with(&b, &a, &none, tol)),
+            ("a ∖ b", topo::subtract_with(&a, &b, &none, tol)),
+            ("b ∖ a", topo::subtract_with(&b, &a, &none, tol)),
+            ("a ∩ b", topo::intersect_with(&a, &b, &none, tol)),
+            ("b ∩ a", topo::intersect_with(&b, &a, &none, tol)),
+        ] {
+            let err = got.err().map(|e| format!("{e:?}"));
+            assert!(
+                err.as_ref()
+                    .is_some_and(|e| (e.starts_with("Merge(") || e.starts_with("Pcurves"))
+                        && e.contains("pcurve_sphere_chart_meridian")),
+                "pair 82, {op} at ε {:e}: {err:?}",
+                tol.eps()
+            );
+        }
+        return;
+    }
+    assert_six(
+        "pair 82",
+        &a,
+        &b,
+        (
+            ball_volume(r1),
+            ball_volume(r2),
+            lens_volume(r1, r2, c2.norm()),
+        ),
+        [Gate, Gate, Gate, Body, Body, Body],
     );
 }

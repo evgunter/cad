@@ -830,16 +830,17 @@ class TestPersistence(unittest.TestCase):
         `ParseError.kind` uses — rather than a sentence a caller would
         have to parse.
         """
-        length = {"Literal": {"value": 1.0, "dim": "Length", "unit": "m"}}
-        angle = {"Literal": {"value": 1.0, "dim": "Angle", "unit": "rad"}}
+        # A stored expression holds no float: its leaves read variables
+        # by id (whose ids the rebuild reads after the dimensions) or
+        # are exact constants.
+        length = {"Var": {"var": "1:0000000000000001", "dim": "Length"}}
+        angle = {"Var": {"var": "1:0000000000000001", "dim": "Angle"}}
         cases = {
             "mismatch": {"Add": [length, angle]},
             "mul_needs_scalar": {"Mul": [length, length]},
             "div_needs_scalar_divisor": {"Div": [length, length]},
             "trig_needs_angle": {"Sin": length},
-            "unknown_display_unit": {
-                "Literal": {"value": 1.0, "dim": "Length", "unit": "furlong"}
-            },
+            "ratio_not_reduced": {"Ratio": {"num": 2, "den": 4}},
         }
         for inner, wire in cases.items():
             with self.subTest(refusal=inner):
@@ -863,8 +864,8 @@ class TestPersistence(unittest.TestCase):
         bad = self._save_with_distance(
             {
                 "Add": [
-                    {"Literal": {"value": 1.0, "dim": "Length", "unit": "m"}},
-                    {"Literal": {"value": 1.0, "dim": "Angle", "unit": "rad"}},
+                    {"Var": {"var": "1:0000000000000001", "dim": "Length"}},
+                    {"Var": {"var": "1:0000000000000001", "dim": "Angle"}},
                 ]
             }
         )
@@ -895,7 +896,7 @@ class TestPersistence(unittest.TestCase):
         var = doc.slot(box, "distance")
         header, body_text = doc.save().split("\n", 1)
         body = json.loads(body_text)
-        held = body["snapshot"]["vars"][str(int(var.hex, 16))]
+        held = body["snapshot"]["vars"][var.hex]
         self.assertIn("Defined", held["def"], "the distance is a defined variable to tamper")
         held["def"]["Defined"] = wire
         return header + "\n" + json.dumps(body)
@@ -922,12 +923,13 @@ class TestPersistence(unittest.TestCase):
         doc = Doc()
         unit_box(doc, 1 * m, 1 * m, 1 * m)
         text = doc.save()
-        # Take a node the document holds out of its mint log.
+        # Log a node the document holds as a step's instead, so the log
+        # still counts up from one and holds no node entry for it.
         header, body = text.split("\n", 1)
         wire = json.loads(body)
         log = wire["snapshot"]["mint"]["log"]
-        held = wire["snapshot"]["order"][-1]
-        log.remove({"node": held})
+        held = [entry for entry in log if "node" in entry][-1]
+        held["step"] = held.pop("node")
         with self.assertRaises(pncad.PersistError) as caught:
             load(f"{header}\n{json.dumps(wire)}")
         refusal = caught.exception

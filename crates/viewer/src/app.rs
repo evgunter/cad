@@ -323,7 +323,7 @@ pub enum Pane {
     Viewport,
     /// The feature tree over the evaluation's result DAG.
     Features,
-    /// The selected node's (or parameter's) properties.
+    /// The selected node's (or variable's) properties.
     Properties,
     /// View settings: display δ and the camera's state.
     View,
@@ -1247,8 +1247,8 @@ impl ViewerApp {
         let verdict = frame::frame_status(&notices, &performed, refusal.as_ref());
         // The refuse-then-offer pair for a parse refusal: hold the
         // refused text in the field it was typed into so acting on the
-        // refusal does not cost it, and — for an unknown parameter
-        // name — prefill the add-parameter affordance with the name it
+        // refusal does not cost it, and — for an unknown variable
+        // name — prefill the add-variable affordance with the name it
         // offers to create (dimension deliberately left unpicked). An
         // expression edit that was NOT refused this way releases the
         // field back to the document, which is now what the user
@@ -1268,9 +1268,9 @@ impl ViewerApp {
             None => {}
         }
         if let Some(name) = frame::creation_offer(refusal.as_ref()) {
-            self.drafts.new_param_name = name.as_str().to_owned();
-            self.drafts.new_param_dimension = None;
-            self.drafts.new_param_offer = Some(name.clone());
+            self.drafts.new_variable_name = name.as_str().to_owned();
+            self.drafts.new_variable_dimension = None;
+            self.drafts.new_variable_offer = Some(name.clone());
         }
         if let Some(offer) = frame::declare_offer(refusal.as_ref()) {
             self.drafts.declare_offer = Some(offer);
@@ -3614,7 +3614,7 @@ mod properties_pane_tests {
             app_frame(&ctx, app, &mut frame, None, events)
         };
         // The startup document's last node is its body (`plate_with_hole`).
-        let body = *app.session.doc().order().last().expect("a startup body");
+        let body = *app.session.doc().ids().last().expect("a startup body");
         app.tools.open(tool);
         clicked(&mut app, picks(body));
         let mut landed = Vec::new();
@@ -3667,7 +3667,7 @@ mod properties_pane_tests {
         // The startup body is an extrude, spoken by its kind and tag.
         let line = format!(
             "first operand: Extrude {}; second operand: —",
-            test_utils::refusal::tag(body.0)
+            test_utils::refusal::tag(body.0.digest())
         );
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
     }
@@ -3682,7 +3682,7 @@ mod properties_pane_tests {
         });
         let line = format!(
             "pick a: face of Extrude {}; pick b: —",
-            test_utils::refusal::tag(body.0)
+            test_utils::refusal::tag(body.0.digest())
         );
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
     }
@@ -3692,7 +3692,7 @@ mod properties_pane_tests {
     /// there, which the `live()` gate on that line keeps unsaid.
     #[test]
     fn a_deleted_node_is_not_said_to_carry_no_parameters() {
-        let painted = painted_with(Selection::Node(RecipeNodeId(999)));
+        let painted = painted_with(Selection::Node(RecipeNodeId::new(0, 999)));
         assert!(painted.iter().any(|text| text == "deleted"), "{painted:?}");
         assert!(
             !painted
@@ -3702,14 +3702,14 @@ mod properties_pane_tests {
         );
     }
 
-    /// **An undeclared parameter is said once**: against the frame with
+    /// **An undeclared variable is said once**: against the frame with
     /// nothing selected, the pane gains the verdict line and loses the
     /// "select a feature" prompt, and nothing else.
     #[test]
-    fn an_undeclared_parameter_is_said_once_in_the_pane() {
-        let var = pncad::document::VarId(0x0123_4567_89ab_cdef);
+    fn an_undeclared_variable_is_said_once_in_the_pane() {
+        let var = pncad::document::VarId::new(0, 0x0123_4567_89ab_cdef);
         let verdict = format!("{var} is no longer declared");
-        let mut with = painted_with(Selection::Param(var));
+        let mut with = painted_with(Selection::Variable(var));
         let mut without = painted_with(Selection::None);
         assert!(
             without.iter().any(|text| text == "select a feature"),
@@ -3912,7 +3912,7 @@ mod properties_pane_tests {
     fn startup_node(at: usize) -> RecipeNodeId {
         let (doc, _) = crate::scene::plate_with_hole(pncad::tolerance::witness())
             .expect("the startup document");
-        doc.order()[at]
+        doc.ids()[at]
     }
 
     /// The startup plate's extrude, and its one slot.
@@ -3925,7 +3925,7 @@ mod properties_pane_tests {
         startup_node(0)
     }
 
-    /// An expression with no parameter in it: computed all the same,
+    /// An expression with no variable in it: computed all the same,
     /// so the slot it drives has no written unit.
     const COMPUTED: &str = "1 mm + 1 mm";
 
@@ -3945,6 +3945,209 @@ mod properties_pane_tests {
             .status
             .as_ref()
             .map(|message| message.text().to_owned())
+    }
+
+    /// The startup extrude's depth typed as `value`, after a length
+    /// variable `name` declared at the same value; the extrude selected.
+    fn typed_beside(name: &'static str, value: f64) -> Vec<SessionOp> {
+        vec![
+            SessionOp::DeclareVar {
+                name: pncad::document::VarName::from_static(name),
+                value: pncad::document::FreeVar::continuous(
+                    pncad::document::Dimension::Length,
+                    value,
+                ),
+            },
+            SessionOp::SetSlot {
+                node: extrude(),
+                slot: SlotId::Distance,
+                value: crate::props::SlotValue::Continuous(value),
+            },
+            SessionOp::Select(Selection::Node(extrude())),
+        ]
+    }
+
+    /// **The offer is drawn under the typed slot, and its button writes
+    /// the slot to read the variable** — the real pane, the click
+    /// reaching the session as `SetSlotVariable`. The variable list
+    /// says `beam` too, so the button is the run on the offer's line.
+    #[test]
+    fn the_offer_is_drawn_and_its_button_makes_the_slot_read_the_variable() {
+        let mut pane = Driven::with(typed_beside("beam", 0.004));
+        let painted = pane.quiet();
+        let line = Driven::only(&painted, "same value as");
+        let at = painted
+            .iter()
+            .filter(|(run, _)| run == "beam")
+            .map(|(_, rect)| rect.center())
+            .min_by(|p, q| (p.y - line.y).abs().total_cmp(&(q.y - line.y).abs()))
+            .expect("the offered variable is drawn");
+        assert!((at.y - line.y).abs() < 4.0, "on the offer's line");
+        let press = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::default(),
+        };
+        pane.frame(vec![egui::Event::PointerMoved(at)]);
+        pane.frame(vec![press(true), press(false)]);
+        pane.frame(Vec::new());
+        let doc = pane.app.session.committed_doc();
+        assert_eq!(
+            doc.slot(extrude(), SlotId::Distance),
+            doc.var_named("beam"),
+            "the slot reads the variable offered"
+        );
+        let after = pane.quiet();
+        assert!(
+            !after.iter().any(|(run, _)| run == "same value as"),
+            "an accepted offer is no longer drawn"
+        );
+    }
+
+    /// **Declining is a button too**, and it leaves the document where
+    /// it was: the slot keeps the variable its typed value minted.
+    #[test]
+    fn keep_separate_declines_the_offer_and_moves_no_document() {
+        let mut pane = Driven::with(typed_beside("beam", 0.004));
+        pane.quiet();
+        let minted = pane
+            .app
+            .session
+            .committed_doc()
+            .slot(extrude(), SlotId::Distance);
+        let steps = pane.app.session.history().len();
+        pane.click("keep separate");
+        let after = pane.quiet();
+        assert!(!after.iter().any(|(run, _)| run == "same value as"));
+        assert_eq!(pane.app.session.history().len(), steps, "no undo step");
+        assert_eq!(
+            pane.app
+                .session
+                .committed_doc()
+                .slot(extrude(), SlotId::Distance),
+            minted
+        );
+    }
+
+    /// **The naming field opens empty and stores nothing until a name
+    /// is committed** (VR2; Ev, PR 4247: no proposal): the field holds
+    /// no text, its commit is disabled while it names nothing, the
+    /// document holds no name while it is open, and the commit is one
+    /// `RenameVar` of the variable the slot reads.
+    #[test]
+    fn the_naming_field_opens_empty_and_stores_only_on_commit() {
+        let mut pane = Driven::with(vec![SessionOp::Select(Selection::Node(extrude()))]);
+        pane.quiet();
+        let var = pane
+            .app
+            .session
+            .committed_doc()
+            .slot(extrude(), SlotId::Distance)
+            .expect("the extrude reads its depth");
+        assert!(pane.app.session.committed_doc().var_name(var).is_none());
+        pane.click("name…");
+        assert_eq!(
+            pane.app.drafts.name_draft,
+            Some(crate::drafts::NameDraft {
+                node: extrude(),
+                slot: SlotId::Distance,
+                var,
+                text: String::new(),
+            }),
+            "the field opens empty, for the variable the slot reads"
+        );
+        pane.quiet();
+        pane.click("Name");
+        assert!(
+            pane.app.session.committed_doc().var_name(var).is_none(),
+            "an empty field names nothing"
+        );
+        pane.app
+            .drafts
+            .name_draft
+            .as_mut()
+            .expect("the field is still open")
+            .text = "distance".to_owned();
+        pane.quiet();
+        assert!(
+            pane.app.session.committed_doc().var_name(var).is_none(),
+            "typed text stores nothing until committed"
+        );
+        pane.click("Name");
+        let doc = pane.app.session.committed_doc();
+        assert_eq!(
+            doc.var_name(var).map(|name| name.as_str()),
+            Some("distance")
+        );
+        assert_eq!(doc.slot(extrude(), SlotId::Distance), Some(var));
+        assert!(pane.app.drafts.name_draft.is_none(), "the field closes");
+    }
+
+    /// **An open naming field names the variable it was opened for and
+    /// no other**: accepting an offer while the field is open makes the
+    /// slot read the named `beam`, and the field closes rather than
+    /// rename `beam` through the slot.
+    #[test]
+    fn a_naming_field_closes_when_its_slot_reads_another_variable() {
+        let mut pane = Driven::with(typed_beside("beam", 0.004));
+        pane.quiet();
+        pane.click("name\u{2026}");
+        assert!(pane.app.drafts.name_draft.is_some(), "the field is open");
+        let beam = pane
+            .app
+            .session
+            .committed_doc()
+            .var_named("beam")
+            .expect("beam is declared");
+        let accepted = pane.app.session.perform(SessionOp::SetSlotVariable {
+            node: extrude(),
+            slot: SlotId::Distance,
+            var: beam,
+        });
+        assert!(accepted.refusal.is_none(), "{:?}", accepted.refusal);
+        let painted = pane.quiet();
+        assert!(pane.app.drafts.name_draft.is_none(), "the field closes");
+        assert!(!painted.iter().any(|(run, _)| run == "Name"));
+        assert_eq!(
+            pane.app
+                .session
+                .committed_doc()
+                .var_name(beam)
+                .map(|name| name.as_str()),
+            Some("beam"),
+            "beam keeps its name"
+        );
+    }
+
+    /// **A name the door refuses leaves the field open with its text**:
+    /// `distance` is taken, so `RenameVar` refuses, the variable stays
+    /// unnamed, and the person's text is still there to amend.
+    #[test]
+    fn a_refused_name_keeps_the_field_and_its_text() {
+        let mut pane = Driven::with(typed_beside("distance", 0.009));
+        pane.quiet();
+        pane.click("name\u{2026}");
+        let draft = pane
+            .app
+            .drafts
+            .name_draft
+            .as_mut()
+            .expect("the field is open");
+        assert!(draft.text.is_empty(), "the field opens empty");
+        draft.text = "distance".to_owned();
+        let var = draft.var;
+        pane.click("Name");
+        assert!(pane.app.session.committed_doc().var_name(var).is_none());
+        assert_eq!(
+            pane.app
+                .drafts
+                .name_draft
+                .as_ref()
+                .map(|draft| draft.text.as_str()),
+            Some("distance"),
+            "the field and its text stay"
+        );
     }
 
     /// **A driven slot's unit picker is drawn, cannot be opened, and
@@ -4607,7 +4810,7 @@ mod properties_pane_tests {
 
         let doc = driven.app.session.doc();
         let instances: Vec<_> = doc
-            .order()
+            .ids()
             .iter()
             .filter(|id| {
                 doc.node(**id)
@@ -4807,11 +5010,11 @@ mod properties_pane_tests {
             said(&mut driven),
             "the form says why it withholds the button"
         );
-        let nodes = driven.app.session.doc().order().len();
+        let nodes = driven.app.session.doc().ids().len();
         driven.click(crate::pane::create::ADD_DATUM);
         driven.quiet();
         assert_eq!(
-            driven.app.session.doc().order().len(),
+            driven.app.session.doc().ids().len(),
             nodes,
             "the withheld button committed a datum"
         );
@@ -4860,7 +5063,7 @@ mod properties_pane_tests {
         };
         let plinth = format!(
             "Extrude \"plinth\" ({})",
-            test_utils::refusal::tag(extrude().0)
+            test_utils::refusal::tag(extrude().0.digest())
         );
 
         let mut driven = Driven::with(vec![SessionOp::SetLabel {
@@ -5319,7 +5522,7 @@ mod properties_pane_tests {
         let said = status(&driven).expect("the commit refused");
         let plinth = format!(
             "Extrude \"plinth\" ({})",
-            test_utils::refusal::tag(extrude().0)
+            test_utils::refusal::tag(extrude().0.digest())
         );
         assert!(
             said.contains(&format!("pick a is on {plinth}")),

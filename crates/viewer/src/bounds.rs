@@ -6,7 +6,7 @@
 //! A user about to change a dimension wants to know the room they have
 //! — "if I set any number between these two, nothing new goes wrong;
 //! immediately outside either, something does". This module answers
-//! that for one slot or one document parameter, as a value.
+//! that for one slot or one document variable, as a value.
 //!
 //! **"Nothing NEW"** is the load-bearing word. A document that is
 //! already failing somewhere does not have to be repaired before its

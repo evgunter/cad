@@ -43,13 +43,9 @@ fn named(name: &'static str) -> Formula {
     Formula::named(n(name), Dimension::Length)
 }
 
-fn scalar(value: f64) -> Formula {
-    Formula::literal(value, Dimension::Scalar).unwrap()
-}
-
 /// `k · name`.
-fn times(k: f64, name: &'static str) -> Formula {
-    Formula::mul(scalar(k), named(name)).unwrap()
+fn times(k: i64, name: &'static str) -> Formula {
+    Formula::mul(Formula::ratio(k, 1).unwrap(), named(name)).unwrap()
 }
 
 fn try_step(
@@ -79,7 +75,7 @@ fn id(doc: &ProfileDoc, name: &str) -> VarId {
 fn w_and_h(seed: &str) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(seed), Tol::witness());
     let doc = declare(&doc, "w", free(W));
-    declare(&doc, "h", VarDecl::defined(times(2.0, "w")))
+    declare(&doc, "h", VarDecl::defined(times(2, "w")))
 }
 
 /// A unit square at `cx` extruded by `depth`: the frame, the profile
@@ -92,7 +88,7 @@ fn block(doc: ProfileDoc, cx: f64, depth: Formula) -> (ProfileDoc, [RecipeNodeId
         [0.0, 1.0, 0.0],
         vec![square(cx, 0.0, 0.5)],
     );
-    let frame = doc.order()[doc.order().len() - 2];
+    let frame = doc.ids()[doc.ids().len() - 2];
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
@@ -323,8 +319,8 @@ fn an_input_edit_closes_the_diff_over_its_definitions() {
 fn a_reader_of_a_definition_lowers_as_the_definition() {
     let doc = w_and_h("intent-literals-a-token");
     let (doc, by_h) = filleted(doc, 0.0, named("h"));
-    let (doc, by_formula) = filleted(doc, 4.0, times(2.0, "w"));
-    let (doc, by_other) = filleted(doc, 8.0, times(3.0, "w"));
+    let (doc, by_formula) = filleted(doc, 4.0, times(2, "w"));
+    let (doc, by_other) = filleted(doc, 8.0, times(3, "w"));
     let ev = eval_after(&doc, None);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let token = |blend| radius_token(body_of(&ev, blend));
@@ -489,9 +485,9 @@ fn a_definition_reads_only_what_the_document_holds() {
         Err(EditError::DefinitionUnknownVarName { name, .. }) => assert_eq!(name, n("nope")),
         other => panic!("an unheld name, got {other:?}"),
     }
-    match declare_in(&doc, Formula::var(VarId(0x5eed), Dimension::Length)) {
+    match declare_in(&doc, Formula::var(VarId::new(0, 0x5eed), Dimension::Length)) {
         Err(EditError::DefinitionUnresolvedVar { read, .. }) => {
-            assert_eq!(read.id(), VarId(0x5eed))
+            assert_eq!(read.id(), VarId::new(0, 0x5eed))
         }
         other => panic!("an unminted id, got {other:?}"),
     }
@@ -668,13 +664,13 @@ fn definitions_bind_after_what_they_read() {
         &doc,
         DocEdit::DefineVar {
             var: n("h").into(),
-            def: VarDecl::defined(times(2.0, "w")),
+            def: VarDecl::defined(times(2, "w")),
             fresh: Vec::new(),
         },
     )
     .doc;
     let (w, h) = (id(&doc, "w"), id(&doc, "h"));
-    assert_eq!(doc.var_order(), &[h, w]);
+    assert_eq!(doc.var_ids(), &[h, w]);
     assert_eq!(doc.definition_order(), vec![w, h]);
     let env = doc.var_env::<f64>();
     assert_eq!(
@@ -737,7 +733,7 @@ fn split_and_inline_carry_definitions() {
         &doc,
         DocEdit::DefineVar {
             var: n("h").into(),
-            def: VarDecl::defined(times(2.0, "w")),
+            def: VarDecl::defined(times(2, "w")),
             fresh: Vec::new(),
         },
     )
@@ -757,7 +753,7 @@ fn split_and_inline_carry_definitions() {
         out.part.var(part_h).and_then(|v| v.def().defined()),
         Some(
             &editor_core::Expr::mul(
-                editor_core::test_support::stored_expr(&scalar(2.0)),
+                editor_core::Expr::ratio(2, 1).unwrap(),
                 editor_core::Expr::var(part_w, Dimension::Length)
             )
             .unwrap()
@@ -783,7 +779,7 @@ fn split_and_inline_carry_definitions() {
         inlined.doc.var(host_h).and_then(|v| v.def().defined()),
         Some(
             &editor_core::Expr::mul(
-                editor_core::test_support::stored_expr(&scalar(2.0)),
+                editor_core::Expr::ratio(2, 1).unwrap(),
                 editor_core::Expr::var(host_w, Dimension::Length)
             )
             .unwrap()
@@ -809,7 +805,7 @@ fn a_definition_round_trips_through_snapshot_and_log() {
     });
     r.push(DocEdit::DeclareVar {
         name: n("h"),
-        def: VarDecl::defined(times(2.0, "w")),
+        def: VarDecl::defined(times(2, "w")),
     });
     let empty = ProfileDoc::empty_derived("mod", Tol::witness());
     let text = save(&empty, &r.edits, Tol::witness()).unwrap();
@@ -839,10 +835,12 @@ fn a_definition_no_door_wrote_refuses_at_load() {
         matches!(&err, PersistError::Unreadable { detail, .. } if detail.contains("unknown variant `Name`")),
         "{err:?}"
     );
-    let err = load_doctored(&doc, |snap| def(snap, wire_var(VarId(0x5eed), "Length")));
+    let err = load_doctored(&doc, |snap| {
+        def(snap, wire_var(VarId::new(0, 0x5eed), "Length"))
+    });
     assert!(
         matches!(&err, PersistError::Snapshot(SnapshotError::DefinitionReadsUnmintedVar { var, read })
-            if var.id() == h && *read == VarId(0x5eed)),
+            if var.id() == h && *read == VarId::new(0, 0x5eed)),
         "{err:?}"
     );
     let err = load_doctored(&doc, |snap| {
@@ -931,7 +929,7 @@ fn a_nested_definition_lowers_as_its_whole_expansion() {
     let doc = w_and_h("intent-literals-a-nested-token");
     let doc = declare(&doc, "g", VarDecl::defined(named("h")));
     let (doc, by_g) = filleted(doc, 0.0, named("g"));
-    let (doc, by_formula) = filleted(doc, 4.0, times(2.0, "w"));
+    let (doc, by_formula) = filleted(doc, 4.0, times(2, "w"));
     let ev = eval_after(&doc, None);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     assert_eq!(
@@ -982,7 +980,7 @@ fn the_bound_counts_a_reader_declared_before_what_it_reads() {
     }
 }
 
-/// `g := h + 1 mm` declared first, `h := w + w`, and `w` deleted: `h`
+/// `g := 2·h` declared first, `h := w + w`, and `w` deleted: `h`
 /// is still ordered before `g` though its read is dead, so `g` refuses
 /// with the refusal it came through, not as a read of an unbound `h`.
 #[test]
@@ -999,7 +997,7 @@ fn a_refusal_through_a_dead_read_names_the_definition_it_came_through() {
         &doc,
         DocEdit::DefineVar {
             var: n("g").into(),
-            def: VarDecl::defined(Formula::add(named("h"), len(0.001)).unwrap()),
+            def: VarDecl::defined(times(2, "h")),
             fresh: Vec::new(),
         },
     )

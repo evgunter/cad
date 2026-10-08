@@ -78,7 +78,7 @@ fn clearing_a_live_declaration_is_not_served_from_the_memo() {
     );
     assert_eq!(
         (ev.recomputed, ev.reused),
-        (1, cleared.order().len() - 1),
+        (1, cleared.ids().len() - 1),
         "the union alone recomputes"
     );
 }
@@ -101,7 +101,7 @@ fn a_class_flip_on_a_live_union_recomputes_it_alone() {
     let ev = rerun(&flipped, &prior);
     assert_eq!(
         (ev.recomputed, ev.reused),
-        (1, flipped.order().len() - 1),
+        (1, flipped.ids().len() - 1),
         "the re-classed union was served from the memo, or a member moved"
     );
 }
@@ -158,7 +158,7 @@ fn declaring_each_refusals_finding_converges_on_a_union_that_builds() {
 fn a_declared_union_survives_a_split_and_an_inline() {
     let tol = Tol::witness();
     let (doc, union) = declared_overlap("declared-pairs-remap");
-    let whole: BTreeSet<RecipeNodeId> = doc.order().iter().copied().collect();
+    let whole: BTreeSet<RecipeNodeId> = doc.ids().iter().copied().collect();
     let out = split(
         &doc,
         &whole,
@@ -168,7 +168,7 @@ fn a_declared_union_survives_a_split_and_an_inline() {
     )
     .expect("the whole document splits");
     let sited_at_members = |doc: &ProfileDoc| {
-        doc.order().iter().any(|&id| match doc.node(id) {
+        doc.ids().iter().any(|&id| match doc.node(id) {
             Some(Node::Union { members, declare }) => {
                 !declare.is_empty()
                     && declare
@@ -185,7 +185,7 @@ fn a_declared_union_survives_a_split_and_an_inline() {
     );
     let instance = *out
         .remainder
-        .order()
+        .ids()
         .iter()
         .find(|&&id| matches!(out.remainder.node(id), Some(Node::InstantiatePart { .. })))
         .expect("the remainder holds the instance");
@@ -200,7 +200,7 @@ fn a_declared_union_survives_a_split_and_an_inline() {
     let ev = run(&back.doc);
     let spliced = *back
         .doc
-        .order()
+        .ids()
         .iter()
         .find(|&&id| matches!(back.doc.node(id), Some(Node::Union { .. })))
         .expect("the union is spliced back");

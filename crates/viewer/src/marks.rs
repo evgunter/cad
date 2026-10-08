@@ -22,7 +22,7 @@
 //!   the one value the viewport draws them from;
 //! - [`focus`] — **not a cursor question at all**: which drawn
 //!   patches the side panel's selection is RESPONSIBLE for, which for
-//!   a parameter means walking `doc.order()` for the nodes it drives.
+//!   a variable means walking `doc.ids()` for the nodes it drives.
 //!   It reaches for an index because that is where the ids live, not
 //!   because it is about a pick.
 //!
@@ -659,7 +659,7 @@ impl LegLane {
 /// `highlight` marks the ONE patch a pick landed on — an answer about
 /// the cursor. This marks the whole extent of the thing being EDITED,
 /// which for a feature is every face it made, and for a document
-/// parameter is every face of every feature that parameter drives.
+/// variable is every face of every feature that variable drives.
 /// Selecting an extrude in the feature tree lights its walls; clicking
 /// one of those walls lights the same set, with the picked patch
 /// additionally tinted by `highlight` — and that holds however many
@@ -722,11 +722,11 @@ pub fn focus(index: &PickIndex, doc: &Doc<ProfileProgram>, selection: &Selection
         // the same kind of picked entity a face is, and selecting one
         // shows the same feature's rows.
         Selection::Edge(edge) => vec![edge.feature()],
-        // Every node the parameter drives. A parameter is the one
+        // Every node the variable drives. A variable is the one
         // selection with no geometry of its own, and the useful
         // question about it is exactly "what does this number move".
-        Selection::Param(var) => doc
-            .order()
+        Selection::Variable(var) => doc
+            .ids()
             .iter()
             .copied()
             .filter(|&id| drives(doc, id, *var))
@@ -736,7 +736,7 @@ pub fn focus(index: &PickIndex, doc: &Doc<ProfileProgram>, selection: &Selection
         return BTreeSet::new();
     }
     // One walk of the names per call, not one per selected node: a
-    // parameter selection asks the same question of every node it
+    // variable selection asks the same question of every node it
     // drives.
     let made: Vec<(u32, NameOrigin)> = index
         .ids()

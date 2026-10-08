@@ -57,7 +57,8 @@
 //!   history;
 //! - an entity of the finished body that belongs to several members at
 //!   once (a flush stretch, a corner on another member's rim) is named
-//!   for the least member entity that holds it, every edge lying within
+//!   for the least member entity that holds it — the first minted, as
+//!   ids order ordinal first (`names/README.md`, N1) — every edge lying within
 //!   a member edge is named as a piece of it, and an edge lying within
 //!   none but along several that cover it (a flush rim the output stage
 //!   joined) is named for that set ([`Flush`], [`group_member_edges`])
@@ -384,10 +385,18 @@ fn put_entry(t: &mut NameTable, name: StableName, entry: &Entry) -> Result<(), N
 
 /// Member `member`'s edge `edge` in its own body, as its own table
 /// names it, a cited line read as the least row on it (N5), the least
-/// untied one where there is one: a tie
-/// there is [`NamingError::MemberEdgeTied`], and a member or name the
-/// union does not have is an emission bug (every member-keyed row came
-/// from that member's table).
+/// untied one where there is one: a tie there is
+/// [`NamingError::MemberEdgeTied`], and a member or name the union does
+/// not have is an emission bug (every member-keyed row came from that
+/// member's table).
+///
+/// A constituent of an edge set the member publishes (a nested union's
+/// joined edge, which a flat set of the fold lists by its constituents,
+/// N3) is read as AN edge on its line, not as the set the citing name
+/// means: the stretch it keeps outside every set where it keeps one,
+/// else the least set listing it. Every one of those lies on the
+/// constituent's line, which is all its one reader asks of it
+/// ([`Flush::way_of`] reads only whether it lies on another edge's line).
 fn member_edge<'a, T: geom_core::Decide>(
     members: &'a [Member<'a, T>],
     member: RecipeNodeId,
@@ -395,13 +404,16 @@ fn member_edge<'a, T: geom_core::Decide>(
 ) -> Result<(&'a topo::Body<T>, topo::EdgeKey), NamingError> {
     let bug = |what| NamingError::Emission { what };
     let m = member_of(members, member)?;
-    let entry = m.table.lookup(edge).or_else(|| {
-        let rows = m.table.on_line(edge);
-        rows.iter()
-            .filter_map(|row| m.table.lookup(row))
-            .find(|e| matches!(e, Entry::Unique(_)))
-            .or_else(|| rows.first().and_then(|row| m.table.lookup(row)))
-    });
+    let by_line = |edge: &StableName| {
+        m.table.lookup(edge).or_else(|| {
+            let rows = m.table.on_line(edge);
+            rows.iter()
+                .filter_map(|row| m.table.lookup(row))
+                .find(|e| matches!(e, Entry::Unique(_)))
+                .or_else(|| rows.first().and_then(|row| m.table.lookup(row)))
+        })
+    };
+    let entry = by_line(edge).or_else(|| by_line(m.table.sets_listing(edge).first()?.name()));
     match entry {
         Some(Entry::Unique(e)) => match e.key {
             EntityKey::Edge(k) => Ok((m.body, k)),
@@ -452,7 +464,9 @@ fn entity_name(union: RecipeNodeId, (member, of): &MemberEntity) -> StableName {
 /// its name for the stretch says which member was folded first. The
 /// union has no A and B; it names the stretch for the least member
 /// entity that holds it, in the order of the [`RoleSeg::FromMember`]
-/// names it publishes. A stretch the output stage joined across several
+/// names it publishes, which compares the member first: the member
+/// minted first holds the stretch, so a member added or re-drawn later
+/// never takes it. A stretch the output stage joined across several
 /// member edges lies within none of them, and is named for the set of
 /// those it runs along.
 ///
@@ -1635,6 +1649,8 @@ struct Parents {
     of_face: BTreeMap<topo::FaceKey, usize>,
     /// Member face, by name → the names of the parents it is linked
     /// into (several only for a tied name whose candidates went apart).
+    /// A merged member face's constituents are keyed too, each to its
+    /// face's parents.
     of_member: BTreeMap<MemberEntity, BTreeSet<StableName>>,
     all: Vec<Parent>,
 }
@@ -1726,12 +1742,17 @@ impl Parents {
                 from.insert((m, of));
             }
             let name = parent_name(union, &from);
-            for m in &from {
-                parents
-                    .of_member
-                    .entry(m.clone())
-                    .or_default()
-                    .insert(name.clone());
+            // A nested union's merged member face is cited by the fold
+            // through its constituents (N3's flat mint), each keyed by
+            // the member, so each cites the parent the face is in.
+            let constituents = from.iter().flat_map(|(m, of)| {
+                crate::names::merged::constituents_through_wrappers(of.name())
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|c| (*m, NameRef::new(c)))
+            });
+            for m in from.iter().cloned().chain(constituents) {
+                parents.of_member.entry(m).or_default().insert(name.clone());
             }
             index.insert(r, parents.all.len());
             parents.all.push(Parent {
@@ -1831,7 +1852,9 @@ struct ByParents {
     groups: Rederived,
 }
 
-/// A parent's name: its one member face, or `Merged` of all of them.
+/// A parent's name: its one member face, or `Merged` of all of them,
+/// flat (N3): a member face that is itself a merged face, a nested
+/// union's, stands for its constituents, each keyed by its member.
 fn parent_name(union: RecipeNodeId, from: &BTreeSet<MemberEntity>) -> StableName {
     match from.iter().collect::<Vec<_>>().as_slice() {
         [one] => entity_name(union, one),
@@ -1839,7 +1862,13 @@ fn parent_name(union: RecipeNodeId, from: &BTreeSet<MemberEntity>) -> StableName
             kind: EntityKind::Face,
             node: union,
             path: vec![RoleSeg::Merged(
-                many.iter().map(|m| entity_name(union, m)).collect(),
+                many.iter()
+                    .flat_map(|m| {
+                        let n = entity_name(union, m);
+                        crate::names::merged::constituents_through_wrappers(&n)
+                            .unwrap_or_else(|| vec![n])
+                    })
+                    .collect(),
             )],
         }),
     }
@@ -2365,7 +2394,8 @@ fn orient<'s>(
             // itself a bare merged face. The mint (`emit_topo`'s
             // merge-group loop) holds that at the first door; this is the
             // same rule read at the union's second door — a constituent
-            // that collapses to a bare merged face is refused as the
+            // that collapses to a merged face, bare or through any
+            // `FromA`/`FromB`/`FromMember` wrapping, is refused as the
             // emission bug it is, never flattened. A fragment of a merged
             // face is a fragment, not a merge (`RoleSeg::Merged`'s doc).
             //
@@ -2379,7 +2409,7 @@ fn orient<'s>(
                 let mut set = Vec::with_capacity(constituents.len());
                 for c in constituents {
                     let c = done.need(c)?.name().clone();
-                    if matches!(c.path.as_slice(), [RoleSeg::Merged(_)]) {
+                    if crate::names::merged::constituents_through_wrappers(&c).is_some() {
                         return Err(bug(NESTED_MERGED));
                     }
                     set.push(c);
@@ -2498,8 +2528,8 @@ mod tests {
         face(
             union,
             vec![RoleSeg::FromMember {
-                member: RecipeNodeId(m),
-                of: face(RecipeNodeId(m), vec![RoleSeg::Cap(CapEnd::Start)]).into(),
+                member: RecipeNodeId::new(0, m),
+                of: face(RecipeNodeId::new(0, m), vec![RoleSeg::Cap(CapEnd::Start)]).into(),
             }],
         )
     }
@@ -2514,7 +2544,7 @@ mod tests {
 
     #[test]
     fn a_flat_merged_face_collapses_to_its_member_space_set() {
-        let union = RecipeNodeId(9);
+        let union = RecipeNodeId::new(0, 9);
         // Step 2's merge of step 1's merge with a third member, as the
         // flat mint spells it: every constituent descends to a member.
         let folded = face(
@@ -2537,7 +2567,7 @@ mod tests {
 
     #[test]
     fn a_nested_merged_face_refuses_as_an_emission_bug() {
-        let union = RecipeNodeId(9);
+        let union = RecipeNodeId::new(0, 9);
         let inner = face(
             union,
             vec![RoleSeg::Merged(vec![
@@ -2576,7 +2606,7 @@ mod tests {
 
     #[test]
     fn a_seam_junction_collapses_to_its_sorted_member_space_lines() {
-        let union = RecipeNodeId(9);
+        let union = RecipeNodeId::new(0, 9);
         // Two lines of one junction, as the pair emitter spells them at
         // a step whose B operand is member 1: each line's A side is an
         // accumulation row (members 3 and 2, reached through the
@@ -2602,7 +2632,7 @@ mod tests {
 
     #[test]
     fn a_seam_after_a_fragment_is_foreign() {
-        let union = RecipeNodeId(9);
+        let union = RecipeNodeId::new(0, 9);
         let line = || seam(from_a(union, member_cap(union, 2)), member_cap(union, 1));
         let name = vertex(
             union,
@@ -2626,7 +2656,7 @@ mod tests {
 
     #[test]
     fn a_run_of_seams_is_admitted_only_as_a_whole_vertex_path() {
-        let union = RecipeNodeId(9);
+        let union = RecipeNodeId::new(0, 9);
         let lines = || {
             vec![
                 seam(from_a(union, member_cap(union, 3)), member_cap(union, 1)),
@@ -2657,13 +2687,13 @@ mod tests {
             kind: EntityKind::Edge,
             node: union,
             path: vec![RoleSeg::FromMember {
-                member: RecipeNodeId(m),
+                member: RecipeNodeId::new(0, m),
                 of: StableName {
                     kind: EntityKind::Edge,
-                    node: RecipeNodeId(m),
+                    node: RecipeNodeId::new(0, m),
                     path: vec![RoleSeg::LateralEdge(
                         crate::names::role::ProfileVertexRef::Piece {
-                            step: crate::node::StepId(0),
+                            step: crate::node::StepId::new(0, 0),
                             role: crate::names::PieceRole::Leg,
                         },
                     )],
@@ -2721,7 +2751,7 @@ mod tests {
     /// written, each end collapsed.
     #[test]
     fn a_swapped_seam_edge_piece_keeps_its_ends() {
-        let union = RecipeNodeId(9);
+        let union = RecipeNodeId::new(0, 9);
         let ends = vec![member_vertex(union, 3), member_vertex(union, 4)];
         let swapped = seam(through_a(member_cap(union, 5)), member_cap(union, 2));
         let kept = seam(through_a(member_cap(union, 2)), member_cap(union, 5));
@@ -2749,7 +2779,7 @@ mod tests {
     /// edge on either side, so the swap does not reorient it.
     #[test]
     fn a_swapped_edge_and_face_seam_vertex_keeps_its_rank() {
-        let union = RecipeNodeId(9);
+        let union = RecipeNodeId::new(0, 9);
         let line = seam(through_a(member_edge(union, 5)), member_cap(union, 2));
         let out = collapse(union, &ranked(EntityKind::Vertex, union, line, 0, 2)).unwrap();
         assert!(
@@ -2763,7 +2793,7 @@ mod tests {
     /// its carrier was chosen by side, so no rank survives a reorder.
     #[test]
     fn a_ranked_seam_vertex_between_two_edges_refuses() {
-        let union = RecipeNodeId(9);
+        let union = RecipeNodeId::new(0, 9);
         let line = seam(through_a(member_edge(union, 5)), member_edge(union, 2));
         let err = collapse(union, &ranked(EntityKind::Vertex, union, line, 1, 2)).unwrap_err();
         assert!(
@@ -2793,7 +2823,7 @@ mod tests {
     /// stands, whichever side the emitter wrote first.
     #[test]
     fn a_descent_through_a_swapped_seam_edge_keeps_its_ends() {
-        let union = RecipeNodeId(9);
+        let union = RecipeNodeId::new(0, 9);
         let ends = vec![member_vertex(union, 3), member_vertex(union, 4)];
         let mut out = Vec::new();
         for swap in [true, false] {
@@ -2820,7 +2850,7 @@ mod tests {
     /// rule**, not its own pair's: the group lies on the edge's line.
     #[test]
     fn a_seam_vertex_on_a_swapped_seam_edge_reads_its_rank_from_the_other_end() {
-        let union = RecipeNodeId(9);
+        let union = RecipeNodeId::new(0, 9);
         for (swap, want) in [(true, 1), (false, 0)] {
             let line = seam(through_a(seam_edge(union, swap)), member_cap(union, 7));
             let out = collapse(union, &ranked(EntityKind::Vertex, union, line, 0, 2)).unwrap();
@@ -2832,7 +2862,7 @@ mod tests {
     /// it has to be read from the other end.
     #[test]
     fn a_reversed_rank_outside_its_count_refuses() {
-        let union = RecipeNodeId(9);
+        let union = RecipeNodeId::new(0, 9);
         let line = seam(through_a(seam_edge(union, true)), member_cap(union, 7));
         for (rank, of) in [(2, 2), (0, 0)] {
             let err = collapse(
@@ -2849,7 +2879,7 @@ mod tests {
 
     #[test]
     fn two_junction_lines_collapsing_to_one_refuse() {
-        let union = RecipeNodeId(9);
+        let union = RecipeNodeId::new(0, 9);
         // Distinct in the fold's space — member 3's face reached as the
         // A operand's row and as the B operand's — and one line in the
         // union's.
@@ -2902,14 +2932,14 @@ mod tests {
     /// pick one edge, and the fold's qualifier is not carried.
     #[test]
     fn a_tied_member_edge_piece_is_grouped_under_its_member_edge() {
-        let (union, m) = (RecipeNodeId(9), RecipeNodeId(4));
+        let (union, m) = (RecipeNodeId::new(0, 9), RecipeNodeId::new(0, 4));
         let (body, k0, k1) = two_edge_body();
         let edge = StableName {
             kind: EntityKind::Edge,
             node: m,
             path: vec![RoleSeg::LateralEdge(
                 crate::names::role::ProfileVertexRef::Piece {
-                    step: crate::node::StepId(0),
+                    step: crate::node::StepId::new(0, 0),
                     role: crate::names::PieceRole::Leg,
                 },
             )],
@@ -2959,7 +2989,7 @@ mod tests {
 
     impl CitedGroup {
         fn new() -> Self {
-            let union = RecipeNodeId(9);
+            let union = RecipeNodeId::new(0, 9);
             let mut member_body = topo::Body::<f64>::new();
             let born = member_body
                 .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
@@ -3012,7 +3042,7 @@ mod tests {
 
         fn members(&self) -> [Member<'_, f64>; 1] {
             [Member {
-                node: RecipeNodeId(5),
+                node: RecipeNodeId::new(0, 5),
                 body: &self.member_body,
                 table: &self.member_table,
             }]
@@ -3194,7 +3224,7 @@ mod tests {
     fn a_rewrites_crossing_senses_are_reread_side_by_side_along_the_edges_it_cites() {
         use crate::names::role::Sense;
 
-        let union = RecipeNodeId(9);
+        let union = RecipeNodeId::new(0, 9);
         let line = |p: [f64; 3], q: [f64; 3]| {
             let mut body = topo::Body::<f64>::new();
             let born = body
@@ -3230,7 +3260,7 @@ mod tests {
             .into_iter()
             .zip(&tables)
             .map(|((m, body), table)| Member {
-                node: RecipeNodeId(m),
+                node: RecipeNodeId::new(0, m),
                 body,
                 table,
             })

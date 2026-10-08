@@ -945,11 +945,11 @@ fn the_resolution_payloads_are_matchable_through_the_select_list() {
     assert_eq!(
         upstream(ResolveIndeterminate {
             standing: NodeStanding::Poisoned {
-                node: RecipeNodeId(7),
-                through: RecipeNodeId(4)
+                node: RecipeNodeId::new(0, 7),
+                through: RecipeNodeId::new(0, 4)
             }
         }),
-        ("target_poisoned", RecipeNodeId(4))
+        ("target_poisoned", RecipeNodeId::new(0, 4))
     );
 }
 
@@ -2507,7 +2507,7 @@ fn the_export_door_refuses_typed_not_vaguely() {
         })
     ));
     assert!(matches!(
-        door(RecipeNodeId(u64::MAX)),
+        door(RecipeNodeId::new(0, u64::MAX)),
         Err(ExportError::Standing(NodeStanding::NotInDocument { .. }))
     ));
     assert!(matches!(
@@ -2525,7 +2525,7 @@ fn the_export_door_refuses_typed_not_vaguely() {
     // Each standing renders one way: the door's subject, then the
     // standing's own sentence (`editor-core`'s `node_standing` rows
     // hold the other doors to the same shape).
-    for node in [RecipeNodeId(u64::MAX), cut, downstream] {
+    for node in [RecipeNodeId::new(0, u64::MAX), cut, downstream] {
         let standing = ev.usable(node).expect_err("no value");
         let refusal = door(node).expect_err("refuses");
         assert_eq!(
@@ -3885,7 +3885,7 @@ fn asm_r2b_child_crossing_probe() {
         .iter()
         .copied()
         .chain(
-            doc.order()
+            doc.ids()
                 .iter()
                 .copied()
                 .filter(|&id| matches!(doc.node(id), Some(Node::Mate { .. }))),
@@ -4618,8 +4618,8 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   and were wrong to be.** They are not machinery behind
 ///   `evaluate` — they are the EXPRESSION read side, the only way to
 ///   answer "what does this slot say right now" for a slot driven by
-///   a parameter or by arithmetic. `Expr::literal_value` answers only
-///   for a bare literal, so without them a consumer holding the
+///   a parameter or by arithmetic. `Formula::literal_value` answers
+///   only for a lone written quantity, so without them a consumer holding the
 ///   curated `Expr` + `VarEnv` pair had no door from an expression
 ///   to its value and would have had to re-implement the evaluator to
 ///   display one. `crate::document` carries all three now.
@@ -6835,23 +6835,20 @@ fn asm2a_save(
     }
 }
 
-/// **Both unplaced refusals list in document order, not id order**: a
-/// sub-assembly whose instances after the first are unplaced lists them
-/// as it holds them, and an outer document instancing it several times
-/// lists the groups below by the instance each arrived through, in the
-/// outer document's order, and within one instance in the
-/// sub-assembly's. Each document takes instances until its ids do not
-/// run in document order, so a list in id order would differ.
+/// **Both unplaced refusals list in document order**, which is id
+/// order: a sub-assembly whose instances after the first are unplaced
+/// lists them as it holds them, and an outer document instancing it
+/// several times lists the groups below by the instance each arrived
+/// through, in the outer document's order, and within one instance in
+/// the sub-assembly's.
 #[test]
 fn step_export_lists_unplaced_parts_and_groups_below_in_document_order() {
     use pncad::document::{DocEdit, RecipeNodeId, Unplaced};
     let ascending = |ids: &[RecipeNodeId]| ids.windows(2).all(|w| w[0] < w[1]);
     let dir = WsDir::new("place-step-order");
     let (doc_ref, _) = asm2a_part_and_body(&dir, "part.pncad", "place-step-order-part");
-    let (mut sub, ids) = (3..12)
-        .map(|n| asm2a_assembly("place-step-order-sub", doc_ref, n))
-        .find(|(_, ids)| !ascending(&ids[1..]))
-        .expect("some instance count puts the unplaced ids out of document order");
+    let (mut sub, ids) = asm2a_assembly("place-step-order-sub", doc_ref, 4);
+    assert!(ascending(&ids), "ids run in document order");
     let unplaced = &ids[1..];
     for &instance in unplaced {
         sub = pncad::document::apply(
@@ -6875,10 +6872,8 @@ fn step_export_lists_unplaced_parts_and_groups_below_in_document_order() {
         id: sub.id(),
         pin: pncad::document::content_pin(&sub, Tol::witness()).expect("pin"),
     };
-    let (outer, outer_ids) = (2..12)
-        .map(|n| asm2a_assembly("place-step-order-outer", sub_ref, n))
-        .find(|(_, ids)| !ascending(ids))
-        .expect("some instance count puts the outer ids out of document order");
+    let (outer, outer_ids) = asm2a_assembly("place-step-order-outer", sub_ref, 3);
+    assert!(ascending(&outer_ids), "ids run in document order");
     let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
     let opts = StepOptions::default();
 
@@ -6915,12 +6910,11 @@ fn step_export_lists_unplaced_parts_and_groups_below_in_document_order() {
     }
 }
 
-/// **The product door reads unplaced groups in document order, not id
-/// order**: with every instance unplaced it refuses
+/// **The product door reads unplaced groups in document order**, which
+/// is id order: with every instance unplaced it refuses
 /// `ProductError::Unplaced` listing the groups as the document holds
 /// them, and with the first placed, the own spaces it gathers beside
-/// the world (what the at-rest gate walks) come in that order too. The
-/// instance count grows until the ids do not run in document order.
+/// the world (what the at-rest gate walks) come in that order too.
 #[test]
 fn the_product_reads_unplaced_groups_in_document_order() {
     use pncad::document::{DocEdit, ProductError, RecipeNodeId, Unplaced};
@@ -6928,10 +6922,8 @@ fn the_product_reads_unplaced_groups_in_document_order() {
     let dir = WsDir::new("place-product-order");
     let (doc_ref, _) = asm2a_part_and_body(&dir, "part.pncad", "place-product-order-part");
     let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
-    let (doc, ids) = (3..12)
-        .map(|n| asm2a_assembly("place-product-order", doc_ref, n))
-        .find(|(_, ids)| !ascending(&ids[1..]) && !ascending(ids))
-        .expect("some instance count puts the ids out of document order");
+    let (doc, ids) = asm2a_assembly("place-product-order", doc_ref, 4);
+    assert!(ascending(&ids), "ids run in document order");
     let unplace = |doc: pncad::document::ProfileDoc, instance| {
         pncad::document::apply(
             &doc,

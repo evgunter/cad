@@ -45,7 +45,10 @@ fn wall(
     segment: usize,
 ) -> StableName {
     let Some(Node::Extrude { profile, .. }) = doc.node(node) else {
-        panic!("node {} is an extrude", test_utils::refusal::tag(node.0));
+        panic!(
+            "node {} is an extrude",
+            test_utils::refusal::tag(node.0.digest())
+        );
     };
     let Some(Node::Profile(program)) = doc.node(*profile) else {
         panic!("an extrude's operand is a profile");
@@ -181,13 +184,13 @@ fn every_maintenance_row_rides_beside_a_refusal() {
     let face = |node: u64| {
         SpokenName::absent(StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(tagged(node)),
+            node: RecipeNodeId::new(0, tagged(node)),
             path: vec![],
         })
     };
     let rows = [
         Maintenance::Strand {
-            node: SpokenNode::absent(RecipeNodeId(tagged(3))),
+            node: SpokenNode::absent(RecipeNodeId::new(0, tagged(3))),
             name: face(7),
             took: pncad::document::Took::Node,
         },
@@ -335,7 +338,7 @@ fn a_slot_edit_that_flips_the_sense_reports_nothing() {
 }
 
 /// **The same flip, dragged**: the preview and the release both report
-/// nothing — the GUI user dragging a parameter past a sense change
+/// nothing — the GUI user dragging a variable past a sense change
 /// moves no name.
 #[test]
 fn a_dragged_flip_reports_nothing_at_the_release_or_before() {
@@ -481,12 +484,12 @@ fn a_fillet_inserted_before_a_framed_leg_is_counted_and_reported() {
     assert_line_words(&line_after(&outcome, op), &expected);
 }
 
-/// **A parameter edit through a state that draws nothing reports
+/// **A variable edit through a state that draws nothing reports
 /// nothing.** A driven circular hole at radius zero encloses nothing,
 /// so the profile does not validate and nothing is named — the frame
 /// on the hole's wall resolves to nothing until the radius comes back,
 /// and then to that wall again. No name was moved, so none is reported
-/// — written through the parameter panel's door.
+/// — written through the variable panel's door.
 #[test]
 fn a_parameter_edit_through_a_degenerate_hole_reports_nothing() {
     let tol = Tol::witness();
@@ -506,7 +509,7 @@ fn a_parameter_edit_through_a_degenerate_hole_reports_nothing() {
     let (doc, _) = frame_on(&doc, extrude, wall(&doc, extrude, 1, 0));
 
     let mut session = DocSession::inline(doc, tol);
-    let op = SessionOp::SetParam {
+    let op = SessionOp::SetVariable {
         var: common::var_of(session.committed_doc(), hole_r.as_str()),
         value: viewer::props::SlotValue::Continuous(0.0),
     };
@@ -550,20 +553,20 @@ fn an_edit_that_renumbers_nothing_leaves_the_line_to_its_verdict() {
 /// own sentence.
 #[test]
 fn an_offset_clear_is_carried_but_not_worded() {
-    let minter = RecipeNodeId(tagged(7));
+    let minter = RecipeNodeId::new(0, tagged(7));
     let act = Maintenance::OffsetCleared {
-        instance: SpokenNode::absent(RecipeNodeId(tagged(5))),
+        instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(5))),
         offset: pncad::document::Placement::IDENTITY,
     };
     assert_eq!(frame::maintenance_notice(&act), None);
     let strand = Maintenance::Strand {
-        node: SpokenNode::absent(RecipeNodeId(tagged(3))),
+        node: SpokenNode::absent(RecipeNodeId::new(0, tagged(3))),
         name: SpokenName::absent(StableName {
             kind: EntityKind::Face,
             node: minter,
             path: vec![RoleSeg::Lateral(
                 ProfileEdgeRef::Piece {
-                    step: StepId(tagged(1)),
+                    step: StepId::new(0, tagged(1)),
                     role: PieceRole::Leg,
                 }
                 .into(),

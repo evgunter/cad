@@ -5,7 +5,7 @@
 //! from, not what their fixture is made of.** Every row here asserts
 //! on history structure, refusals, landing generations or file bytes,
 //! written out from the PR's prose rather than read off the unit's
-//! rows. The profile's shape and the parameter's name are not oracles
+//! rows. The profile's shape and the variable's name are not oracles
 //! here — no row asserts on either — so a row added that DOES assert
 //! on geometry states that at its own site and brings its own fixture,
 //! because nothing below would catch it if it did not.
@@ -40,7 +40,7 @@ use viewer::session::{DocSession, Landing, Refusal, Selection, SessionOp};
 use viewer::tree::RowStatus;
 use viewer::{docio, props, tree};
 
-/// R1's own parameter name, so this suite's document reads apart from
+/// R1's own variable name, so this suite's document reads apart from
 /// the unit suites' in the aggregated binary. No row asserts on the
 /// name.
 fn depth_param() -> VarName {
@@ -60,7 +60,7 @@ fn triangle(plane: RecipeNodeId, side: f64) -> AuthoredNode {
 }
 
 /// A wedge whose extrude distance is `r1_depth * 3`: a driven slot
-/// over one parameter, R1's own derivation of the affordance fixture.
+/// over one variable, R1's own derivation of the affordance fixture.
 fn wedge(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("r1-wedge", tol);
     let (doc, _) = edited(
@@ -87,7 +87,7 @@ fn wedge(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
 }
 
 fn set_depth(session: &mut DocSession, metres: f64) {
-    let outcome = session.perform(SessionOp::SetParam {
+    let outcome = session.perform(SessionOp::SetVariable {
         var: crate::common::var_of(session.committed_doc(), depth_param().as_str()),
         value: SlotValue::Continuous(metres),
     });
@@ -95,7 +95,7 @@ fn set_depth(session: &mut DocSession, metres: f64) {
 }
 
 fn depth_of(doc: &Doc<ProfileProgram>) -> f64 {
-    match props::param_rows(doc)
+    match props::variable_rows(doc)
         .into_iter()
         .find(|row| row.label.name() == Some(&depth_param()))
         .expect("the fixture declares r1_depth")
@@ -487,7 +487,7 @@ fn r1_a_two_hop_poison_chain_reports_the_root_cause() {
                     Some(
                         format!(
                             "upstream failure at Extrude {} — that row carries the cause",
-                            test_utils::refusal::tag(extrude.0)
+                            test_utils::refusal::tag(extrude.0.digest())
                         )
                         .as_str()
                     ),

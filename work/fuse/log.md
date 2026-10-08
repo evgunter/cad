@@ -611,6 +611,34 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
     bounds-roster line was main's red since #4173 and was ported in.
   - **Rows:** `sweeps-build-one-rim-edge-per-segment-not-per-run`
     closes. Step 3 waits only on the curved join (`fuse/curved-join`).
+- 2026-10-07 — Step 3 stops at a fork: where "no joinable vertex remains" is checked. It goes to Ev as an `[ev]` PR; the row is `a-finished-body-holds-no-joinable-vertex`.
+  - **Why it stopped.** The ratified clause says "checked at tier 2", but tier 2 (`validate_closed`) takes no band, is generic over `Real`, and gates construction state. The predicate's curved arms read margins and can come back undecided.
+  - **Measured by the lane** (main 8115891c9, a timer inside the at-rest gate over the full `ci` suite, 52067 bodies):
+    - `joinable_vertices` costs 1.29% of gate time: 39 µs at p50 and 315 µs at p99 per body.
+    - 344 at-rest bodies, in 149 tests over 80 files, hold joinable vertices; 2 read in band (`halfcap_pole`), and 11 already fail the gate.
+    - The heaviest files are `split_through_a_ruling` (26), `review_3701_probes` (17), `fillet_h5_hostless_rim` (15), `closed_chain_junctions` (13) and `props_sphere_cap_door` (11). Most are outputs of split, fillet/blend, shell and surgery, or hand-built fixtures. Boolean outputs are not among them.
+  - **Measured by the designers** (STEP fixtures):
+    - 13 of 61 imported solids hold joinable vertices: the band and washer fixtures, the split twins, two wild files, and `composed_die` with 21. Two more (`halfcap_eps6/7`) read in band.
+    - The band and washer cases are probably import-made: import's seam re-mint leaves the file's rim vertex at valence 2.
+  - **Designer pair (fork-log row 88).** Three rounds; the blinding byte was drawn late, at PR time.
+    - Round 1 split: at rest (tier 3) against op-door postconditions.
+    - Round 2 crossed.
+    - Round 3 converged on at rest, with every finisher, import included, joining and an in-band reading exempt. The question both named beneath: a joinable vertex is representation (a mark), not a cell, by the station and conventional-vertex rulings.
+  - **Defects named, to file when the unit runs:**
+    - `fillet_edges` (and split, shell and surgery) ship joinable vertices;
+    - `join_stage` is `pub(super)`;
+    - the public merge door doesn't join;
+    - import's band re-mint leaves a valence-2 rim vertex;
+    - `run_walls_built.rs`'s hand assertion becomes redundant.
+  - **The 344 classified by the lane** (attributed by test, signature and stack; kept locally):
+    - **(a) Door outputs with no join: 298.**
+      - Fillet/blend surgery: 204, mostly two `TangentIntersection` circles, i.e. blend rims left as arcs.
+      - Split: 56.
+      - Shell: 22, chart-seam rulings split at a vertex.
+      - Import: 15.
+      - The public merge door: 1.
+    - **(b) Hand-built construction-state fixtures: 46.** These include 11 that already fail tier 3.
+    - **(c) The predicate misreading: 0.** `composed_die`'s 21 vertices are real split blend rims, not a slit-seam end. The only in-band case is `halfcap_pole`'s 2 bodies.
 - 2026-10-07 — Curved-join lane: the naming half is split out.
   - **Finding:** no editor-core document produces a closed join
     today. The one construction that would (a sphere cut-in:
@@ -642,3 +670,10 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
       applied, quoted in the PR body for Ev.
   - **Rows:** `curved-joinable-vertices-are-left-unjoined` closes, and
     seven residue rows were filed. Step 3 (the tier-2 check) is next.
+- 2026-10-08 — Ev rules on PR 4251.
+  - **Decision 1, as recommended:** "no joinable vertex" is a tier-3 arm at rest, and every finisher, import included, joins.
+  - **Decision 2, overruled:** a sliver-band regularity reading refuses at rest, with the tighten-the-tolerance recourse, rather than being exempt.
+  - **Ev's two questions on the way:**
+    - Which band? The sliver band.
+    - Is the case a STEP import or broken geometry? A STEP import whose ε_in (1e-10 m) is finer than the run's ε, so ε_in snapping, once built, cannot resolve it.
+  - **Rows:** fork-log row 88 is filled in. The step-3 unit is dispatched.
