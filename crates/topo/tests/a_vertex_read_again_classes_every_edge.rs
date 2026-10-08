@@ -12,10 +12,11 @@
 //! cones (`sectors::cone_read`): darts of four and five faces, whose
 //! apex is a reflex edge, on the plate, bare, and beside an arch; the
 //! apex of a pyramid over an L; a saddle, bare and under an arch; and
-//! near-flat quadrilateral voids, dented 1e-3 and 1e-8 either way,
-//! buried with an island and under the plate's top. Every scene builds
-//! in every op and classes every edge at `MEET`, none wrong, none
-//! missing and none doubled; the row prints each scene's tally.
+//! near-flat quadrilateral voids, dented 1e-3 and ten zero bands (1e-8
+//! at the default ε) either way, buried with an island and under the
+//! plate's top. Every scene builds in every op and classes every edge
+//! at `MEET`, none wrong, none missing and none doubled; the row prints
+//! each scene's tally.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
@@ -24,7 +25,7 @@ use common::meeting::{
     MEET, PLATE, Pose, apex_pyramid, at, bearing, corners, mix, near_flat, nest, nest_polygon,
     posed_box, posed_crown, poses,
 };
-use geom_core::{Tol, Vec3};
+use geom_core::{Band, Tol, Vec3};
 use std::collections::BTreeMap;
 use topo::{
     AtRestBody, BooleanError, BooleanResult, Operand, SideCode, intersect, readback, subtract,
@@ -431,15 +432,18 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
         let pentagonal = dd(G::All, G::Cone(pentagon.clone()));
         // Near-flat quadrilateral voids, buried in the block with an
         // island in each, and under the plate's top: a dent of -1e-3 or
-        // -1e-8 is a reflex edge at the void's apex, and +1e-3 or +1e-8
-        // a convex one (1e-8 is ten zero bands at the default ε).
-        let quads = [-1e-3, 1e-3, -1e-8, 1e-8].map(|dent| {
+        // ten zero bands in is a reflex edge at the void's apex, and one
+        // out a convex one. Ten zero bands is 1e-8 at the default ε, as
+        // near flat as the run can tell from flat; a dent within the
+        // band builds no pyramid.
+        let ten = 10.0 * Band::linear(t()).unwrap().zero();
+        let quads = [-1e-3, 1e-3, -ten, ten].map(|dent| {
             let q = near_flat(dent);
             let q_b = apex_pyramid(&q, &pose, t());
             // The review's island, a quadrilateral nested in the void,
-            // whose own corner a 1e-8 dent leaves in band at the default
-            // ε, so that void takes a triangle.
-            let isle = if dent.abs() < 1e-6 {
+            // whose own corner ten zero bands leaves in band, so that
+            // void takes a triangle.
+            let isle = if dent.abs() < 1e-4 {
                 nest([q[0], q[1], q[3]], 0.7).to_vec()
             } else {
                 nest_polygon(&q, 0.6)
@@ -704,7 +708,7 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
                 (&arch_saddle_b, &arch_saddle),
             ),
         ];
-        let dents = ["-1e-3", "+1e-3", "-1e-8", "+1e-8"];
+        let dents = ["-1e-3", "+1e-3", "-ten zero bands", "+ten zero bands"];
         let labels: Vec<_> = dents
             .iter()
             .flat_map(|d| {

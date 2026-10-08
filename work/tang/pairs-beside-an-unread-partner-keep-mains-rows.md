@@ -65,7 +65,7 @@ below the top, now builds.
 The germ oracle
 (`crates/topo/tests/a_vertex_read_again_classes_every_edge.rs`, 69
 scenes × 5 poses × 6 ops) reads 0 wrong, 0 missing and 0 doubled at
-ε 1e-9 and 1e-6; main read 375 wrong and 690 missing over the same
+ε 1e-9 and 1e-6; main read 270 wrong and 855 missing over the same
 scenes and refused 180 cells. Both witnesses name through editor-core
 (`names::emit_topo::touch_reread_rows`).
 
