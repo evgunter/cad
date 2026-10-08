@@ -658,12 +658,11 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                  need {needed:?} m, so the cavity would self-intersect. Recourse: use a \
                  thinner wall"
             ),
-            Self::OffsetsCross { thickness, .. } => write!(
+            Self::OffsetsCross { .. } => write!(
                 f,
-                "two faces that meet at an angle have material between them thinner than two \
-                 walls of {thickness:?} m somewhere along their overlap, so their inward \
-                 offsets cross and the cavity would self-intersect. Recourse: use a thinner \
-                 wall"
+                "two faces that meet at an angle have less material between them than two \
+                 walls somewhere along their overlap, so their inward offsets cross and the \
+                 cavity would self-intersect. Recourse: use a thinner wall"
             ),
             Self::ChartSenseMixed { .. } => write!(
                 f,
