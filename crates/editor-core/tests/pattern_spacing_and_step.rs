@@ -353,7 +353,10 @@ fn a_driven_step_past_a_turn_says_what_it_evaluated_to() {
 
 /// A circular rule about the block's axis at `step`.
 fn circular(step: Formula) -> impl FnOnce(RecipeNodeId) -> PatternKind<Formula> {
-    move |axis| PatternKind::Circular { axis: axis.into(), step }
+    move |axis| PatternKind::Circular {
+        axis: axis.into(),
+        step,
+    }
 }
 
 /// `text` parsed as a parameter-free expression.

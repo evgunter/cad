@@ -881,8 +881,8 @@ fn r1_ops_refuse_measurement_operands_typed() {
             dir: AssertionDir::AtLeast,
         },
     );
-    // Boolean over the ASSERTION's id.
-    let (doc, bool_over_verdict) = insert(
+    // Boolean over the ASSERTION: an assertion defines nothing.
+    let refusal = crate::fixture::insert_refused(
         &doc,
         Node::Boolean {
             op: editor_core::BooleanOp::Subtract,
@@ -891,8 +891,12 @@ fn r1_ops_refuse_measurement_operands_typed() {
             declare: Vec::new(),
         },
     );
-    // Transform of the MEASURE's id.
-    let (doc, moved_measure) = insert(
+    assert!(
+        matches!(&refusal, editor_core::EditError::DefinesNothing { input, .. } if input.id() == a),
+        "{refusal:?}"
+    );
+    // Transform of the MEASURE: a measured length is not placeable.
+    let refusal = crate::fixture::insert_refused(
         &doc,
         Node::transform(
             m,
@@ -903,13 +907,17 @@ fn r1_ops_refuse_measurement_operands_typed() {
             },
         ),
     );
-    let ev = eval(&doc);
-    for id in [bool_over_verdict, moved_measure] {
-        match ev.nodes.get(&id) {
-            Some(NodeResult::Failed(_)) => {}
-            other => panic!("an op over a measurement value must fail typed, got {other:?}"),
-        }
-    }
+    assert!(
+        matches!(
+            &refusal,
+            editor_core::EditError::OperandVarKind {
+                found: editor_core::VarKind::Length,
+                expected: editor_core::OperandKind::Placeable,
+                ..
+            }
+        ),
+        "{refusal:?}"
+    );
 }
 
 // ---- deviation 3: what a reference to a MOVED entity reads ----
@@ -1056,16 +1064,20 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
     let [frame, _, extrude, measure] = doc.ids()[..4] else {
         panic!("a slab and its measure");
     };
-    let target = format!("\"measure\": \"{}\"", measure.0);
+    let read = |node| doc.output(node, 0).expect("the node defines a value");
+    let target = format!("\"measure\": \"{}\"", read(measure).0);
     assert_eq!(
         text.matches(&target).count(),
         1,
         "{target:?} must be unique"
     );
-    let corrupt = text.replace(&target, &format!("\"measure\": \"{}\"", frame.0));
+    let corrupt = text.replace(&target, &format!("\"measure\": \"{}\"", read(frame).0));
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::AssertionTarget { .. })) => {}
-        other => panic!("a non-measure target must refuse AssertionTarget, got {other:?}"),
+        Err(PersistError::Snapshot(SnapshotError::OperandVarKind {
+            expected: editor_core::OperandKind::Measured,
+            ..
+        })) => {}
+        other => panic!("a non-measure target must refuse by kind, got {other:?}"),
     }
 
     // (c) A reference whose minting node does not exist. The refs are

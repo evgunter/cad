@@ -68,11 +68,18 @@ fn every_operation_defines_its_signature_at_insert() {
             angle: ang(1.0),
         },
     );
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(editor_core::Datum::Plane {
+            origin: [len(0.0), len(0.0), len(0.5)],
+            normal: [scl(0.0), scl(0.0), scl(1.0)],
+        }),
+    );
     let (doc, split) = insert(
         doc,
         Node::Split {
             target: extrude.into(),
-            tool: frame.into(),
+            tool: plane.into(),
         },
     );
     let (doc, pattern) = insert(
@@ -94,6 +101,7 @@ fn every_operation_defines_its_signature_at_insert() {
     );
     for (node, want) in [
         (frame, vec![VarKind::Frame]),
+        (plane, vec![VarKind::Plane]),
         (profile, vec![VarKind::Profile]),
         (extrude, vec![VarKind::Body]),
         (axis, vec![VarKind::Axis]),
@@ -759,7 +767,9 @@ fn a_placer_on_a_deleted_operand_loads_and_refuses_its_read() {
     let read = doc.output(extrude, 0).expect("the extrude's body");
     let (doc, _) = fixture::step(doc, DocEdit::DeleteNode { id: extrude });
     let text = save(&doc, &[], Tol::witness()).expect("saves");
-    let loaded = load(&text, Tol::witness()).expect("a stranded read loads").doc;
+    let loaded = load(&text, Tol::witness())
+        .expect("a stranded read loads")
+        .doc;
     let ev = crate::corpus::eval::<f64>(&loaded);
     match ev.nodes.get(&moved) {
         Some(editor_core::NodeResult::Failed(error)) => assert!(

@@ -356,19 +356,19 @@ fn a_document_broken_in_a_slot_and_in_a_payload_reads_the_slot_refusal() {
 /// **The walk order again, at the other edge**: a node broken in a
 /// PAYLOAD expression and STRUCTURALLY at once reads the PAYLOAD
 /// refusal, because both param-ref walks run before
-/// `persist::check::Walk::Snapshot`.
+/// `persist::check::Walk::OperandRead` and `Walk::Snapshot`.
 ///
 /// The fixture is an assertion whose bound reads `depth` and whose
-/// target is the EXTRUDE — a node that is not a measure, which
-/// `Node::assertion_bound_fault` refuses as
-/// `SnapshotError::AssertionTarget` — with `depth` undeclared in the
-/// same file. Both faults are real and only one sentence comes back;
+/// target is the EXTRUDE's body — not a measured value, which the
+/// operand walk refuses by kind as `SnapshotError::OperandVarKind` —
+/// with `depth` undeclared in the same file. Both faults are real and only one sentence comes back;
 /// this row says which, so moving the payload walk behind the
 /// structural walk changes a diagnosis with a row on it rather than
 /// silently.
 ///
 /// It also says the edit door could not have produced the file: the
-/// same assertion offered to `InsertNode` is refused, at the target.
+/// same assertion offered to `InsertNode` is refused, at the target's
+/// kind.
 #[test]
 fn an_assertion_bound_on_a_non_measure_reads_the_payload_refusal() {
     let (doc, name, extrude) = with_depth_and_extrude();
@@ -402,7 +402,10 @@ fn an_assertion_bound_on_a_non_measure_reads_the_payload_refusal() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::AssertionTarget { .. }) => {}
+        Err(EditError::OperandVarKind {
+            expected: editor_core::OperandKind::Measured,
+            ..
+        }) => {}
         other => panic!("the edit door must refuse an assertion on a non-measure, got {other:?}"),
     }
 
@@ -411,10 +414,14 @@ fn an_assertion_bound_on_a_non_measure_reads_the_payload_refusal() {
         let field = &mut wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["measure"];
         assert_eq!(
             *field,
-            serde_json::json!(measure.0),
+            serde_json::json!(
+                doc.output(measure, 0)
+                    .expect("a measure defines its value")
+                    .0
+            ),
             "the surgery is aimed at the assertion's target"
         );
-        *field = serde_json::json!(extrude.0);
+        *field = serde_json::json!(doc.output(extrude, 0).expect("a body").0);
         crate::wire::wire_unmint(wire, name.as_str());
     });
 
@@ -424,7 +431,7 @@ fn an_assertion_bound_on_a_non_measure_reads_the_payload_refusal() {
         }
         other => panic!(
             "a node broken in a payload AND structurally must read the PAYLOAD walk's refusal — \
-             both read walks run before `Walk::Snapshot`. Got {other:?}"
+             both read walks run before the operand and structural walks. Got {other:?}"
         ),
     }
 }

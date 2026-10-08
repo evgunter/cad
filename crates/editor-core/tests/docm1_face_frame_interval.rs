@@ -104,7 +104,9 @@ fn a_section_on_a_derived_frame_refuses_derived_frame_section_at_interval() {
     let Some(Node::Loft { profiles, .. }) = doc.node(loft) else {
         panic!("the loft");
     };
-    let section = doc.operation_of(profiles[0]).expect("the section read is live");
+    let section = doc
+        .operation_of(profiles[0])
+        .expect("the section read is live");
     match ev.nodes.get(&loft) {
         Some(NodeResult::Failed(NodeError {
             kind:

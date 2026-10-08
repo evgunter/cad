@@ -24,7 +24,10 @@ impl editor_core::ProfilePayload for Fake {
     fn lower<E>(
         authored: &Self,
         _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::VarId, E>,
-        _: &mut dyn FnMut(editor_core::OperandSlot, &editor_core::Operand) -> Result<editor_core::VarId, E>,
+        _: &mut dyn FnMut(
+            editor_core::OperandSlot,
+            &editor_core::Operand,
+        ) -> Result<editor_core::VarId, E>,
     ) -> Result<Self, E> {
         Ok(*authored)
     }
@@ -54,6 +57,30 @@ fn point_edit(x: Formula) -> Edit {
         })),
         fresh: Vec::new(),
     }
+}
+
+/// Insert a body: an extrude of a stand-in profile, for a row whose
+/// operand slot reads a body.
+fn body(doc: Doc) -> (Doc, RecipeNodeId) {
+    let (doc, ids) = apply_all(
+        doc,
+        &[DocEdit::InsertNode {
+            node: Box::new(editor_core::Node::Profile(Fake("profile"))),
+            fresh: Vec::new(),
+        }],
+    );
+    let (doc, ids) = apply_all(
+        doc,
+        &[DocEdit::InsertNode {
+            node: Box::new(editor_core::Node::Extrude {
+                profile: ids[0].into(),
+                distance: len(1.0),
+                side: ExtrudeSide::Along,
+            }),
+            fresh: Vec::new(),
+        }],
+    );
+    (doc, ids[0])
 }
 
 fn apply_all(doc: Doc, edits: &[Edit]) -> (Doc, Vec<RecipeNodeId>) {
@@ -494,13 +521,12 @@ fn r4_stablename_node_refs_escape_ref_validation() {
     use editor_core::{BooleanOp, EntityKind, Node, StableName};
     let (doc, ids) = apply_all(
         Doc::empty_derived("review_m4_pr1", Tol::witness()),
-        &[
-            point_edit(len(1.0)), // the node the name will denote
-            point_edit(len(2.0)),
-            point_edit(len(3.0)),
-        ],
+        // The node the name will denote.
+        &[point_edit(len(1.0))],
     );
-    let (target, a, b) = (ids[0], ids[1], ids[2]);
+    let (doc, a) = body(doc);
+    let (doc, b) = body(doc);
+    let target = ids[0];
     // Each side is read at an operand; the name is `node`'s.
     let pairs = |node| {
         let name = StableName {
@@ -933,10 +959,10 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
         )
         .unwrap()
         .doc;
-    let (doc, ids) = apply_all(doc, &[point_edit(len(0.0))]);
+    let (doc, input) = body(doc);
     let pattern = |count: Formula| Edit::InsertNode {
         node: Box::new(Node::Pattern {
-            input: ids[0].into(),
+            input: input.into(),
             count,
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -1002,13 +1028,14 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     // FALSE POSITIVE witness: `SetDeclare` re-setting a boolean's empty
     // declared-pair list (no geometry, no slots, no inputs move) is
     // flagged structural under the wide reading.
+    let (doc, other) = body(a2.doc);
     let (doc, boolean) = apply_all(
-        a2.doc,
+        doc,
         &[Edit::InsertNode {
             node: Box::new(Node::Boolean {
                 op: editor_core::BooleanOp::Union,
-                a: ids[0].into(),
-                b: pat_id.into(),
+                a: input.into(),
+                b: other.into(),
                 declare: Vec::new(),
             }),
             fresh: Vec::new(),

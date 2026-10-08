@@ -78,11 +78,15 @@ fn twin(doc: ProfileDoc, extrude: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
     let Some(Node::Extrude { profile, .. }) = doc.node(extrude) else {
         panic!("{extrude} is a block's extrude")
     };
-    let profile = doc.operation_of(*profile).expect("the profile read is live");
+    let profile = doc
+        .operation_of(*profile)
+        .expect("the profile read is live");
     let Some(Node::Profile(program)) = doc.node(profile) else {
         panic!("{profile} is a block's profile")
     };
-    let frame = doc.operation_of(program.plane).expect("the plane read is live");
+    let frame = doc
+        .operation_of(program.plane)
+        .expect("the plane read is live");
     let authored = |doc: &ProfileDoc, id: RecipeNodeId| {
         doc.node(id)
             .unwrap_or_else(|| panic!("{id} is in the document"))

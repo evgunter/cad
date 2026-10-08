@@ -280,7 +280,13 @@ fn a_split_that_stops_dividing_a_face_leaves_a_group_of_one() {
             normal: [scl(1.0), scl(1.0), scl(0.0)],
         }),
     );
-    let (doc, split) = insert(doc, Node::Split { target: ext.into(), tool: tool.into() });
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: ext.into(),
+            tool: tool.into(),
+        },
+    );
     let ev1 = run(&doc, None);
     let mut doc2 = doc.clone();
     for (slot, to) in [

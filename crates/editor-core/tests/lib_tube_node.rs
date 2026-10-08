@@ -264,13 +264,12 @@ fn the_tube_slots_carry_their_dimensions_and_labels() {
         assert!(!slot.is_structural(), "{label} is a continuous parameter");
         assert!(slot.component().is_none(), "{label} is not a vector part");
     }
-    // The reference direction rides the EXISTING vector family, so it
-    // reads as a direction everywhere a direction is read.
-    assert_eq!(SlotId::Direction(Axis3::X).dimension(), Dimension::Scalar);
+    // The reference direction is the frame's, read whole: the tube
+    // carries no direction slot of its own.
     assert!(
         solid_node(2.0, TubeWindow::Full, 0.5)
             .expr(SlotId::Direction(Axis3::X))
-            .is_some()
+            .is_none()
     );
 }
 
@@ -686,11 +685,8 @@ fn the_three_wall_arms_are_reachable_and_only_through_the_hollow_kind() {
     // onto `minor_radius` at every point in the matrix, while the wall
     // stays a thousand ε above the positivity threshold at every one.
     let wall_over_eps = Tol::witness().eps() * 1e3;
-    let collapsed = tube_refusal(
-        hollow_node(1e18, TubeWindow::Full, 1e16, wall_over_eps),
-        z,
-    )
-    .expect("a wall under the outer radius's own ulp collapses the stored gap");
+    let collapsed = tube_refusal(hollow_node(1e18, TubeWindow::Full, 1e16, wall_over_eps), z)
+        .expect("a wall under the outer radius's own ulp collapses the stored gap");
     assert!(
         collapsed.contains("inner and outer radii would be stored as one value"),
         "{collapsed}"

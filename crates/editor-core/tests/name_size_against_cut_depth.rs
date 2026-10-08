@@ -120,7 +120,13 @@ fn split_chain() -> (ProfileDoc, Vec<RecipeNodeId>) {
                 normal: [scl(1.0), scl(0.0), scl(0.0)],
             }),
         );
-        let (d, split) = insert(d, Node::Split { target: body.into(), tool: tool.into() });
+        let (d, split) = insert(
+            d,
+            Node::Split {
+                target: body.into(),
+                tool: tool.into(),
+            },
+        );
         let half = if keep_below {
             SplitHalf::Below
         } else {

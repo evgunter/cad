@@ -140,7 +140,13 @@ fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 fn split_over_a_tied_operand_names_and_keeps_the_tie() {
     let (doc, _, sub) = u_cutter_tie(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
     let (doc, tool) = plane(doc, [0.0, 0.0, 3.5], [0.0, 0.0, 1.0]);
-    let (doc, split) = insert(doc, Node::Split { target: sub.into(), tool: tool.into() });
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: sub.into(),
+            tool: tool.into(),
+        },
+    );
     let ev = run(&doc);
     let up = table(&ev, sub);
     assert!(!ties(up).is_empty(), "fixture lost its operand tie");
@@ -265,7 +271,13 @@ fn tied_and_end_qualified_name_tables_are_identical_across_evaluations() {
         || {
             let (doc, _, sub) = u_cutter_tie(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
             let (doc, tool) = plane(doc, [0.0, 0.0, 3.5], [0.0, 0.0, 1.0]);
-            let (doc, split) = insert(doc, Node::Split { target: sub.into(), tool: tool.into() });
+            let (doc, split) = insert(
+                doc,
+                Node::Split {
+                    target: sub.into(),
+                    tool: tool.into(),
+                },
+            );
             (doc, split)
         },
     ];
@@ -302,7 +314,13 @@ fn l_split(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     // x + y = 2.5: two DISJOINT chords per cap — one across the
     // horizontal leg, one across the vertical leg.
     let (doc, tool) = plane(doc, [2.5, 0.0, 0.0], [1.0, 1.0, 0.0]);
-    let (doc, split) = insert(doc, Node::Split { target: ext.into(), tool: tool.into() });
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: ext.into(),
+            tool: tool.into(),
+        },
+    );
     (doc, ext, split)
 }
 

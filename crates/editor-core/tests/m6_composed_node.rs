@@ -87,7 +87,10 @@ fn fillet_and_target(
 ) -> (editor_core::RecipeNodeId, editor_core::RecipeNodeId) {
     for id in doc.ids() {
         if let Some(Node::Fillet { target, .. }) = doc.node(id) {
-            return (id, doc.operation_of(*target).expect("the target read is live"));
+            return (
+                id,
+                doc.operation_of(*target).expect("the target read is live"),
+            );
         }
     }
     panic!("the composed die has a fillet node")

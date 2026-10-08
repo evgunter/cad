@@ -321,8 +321,8 @@ fn an_unusable_v_degree_refuses_typed() {
     });
 }
 
-/// An input that is not a profile node refuses typed at the operand
-/// door (`Loft`'s refs resolve to existing nodes only, spec §1).
+/// An input that is not a profile refuses typed at the edit door: a
+/// section reads a `Profile` variable.
 #[test]
 fn a_non_profile_input_refuses_typed() {
     let (doc, _, profiles) = loft_doc();
@@ -332,17 +332,24 @@ fn a_non_profile_input_refuses_typed() {
             position: [fixture::len(0.0), fixture::len(0.0), fixture::len(0.0)],
         }),
     );
-    let (doc, loft) = insert(
-        doc,
+    let refusal = fixture::insert_refused(
+        &doc,
         Node::Loft {
             profiles: vec![profiles[0].into(), datum.into()],
             v_degree: count(1),
         },
     );
-    with_failure(&doc, loft, |kind| match kind {
-        NodeErrorKind::WrongOperand { input, .. } => assert_eq!(*input, datum),
-        other => panic!("expected WrongOperand, got {other:?}"),
-    });
+    assert!(
+        matches!(
+            &refusal,
+            editor_core::EditError::OperandVarKind {
+                slot: editor_core::OperandSlot::Section(1),
+                found: editor_core::VarKind::Point,
+                ..
+            }
+        ),
+        "a section reads a profile: {refusal:?}"
+    );
 }
 
 /// **F1**: the Sweep node's frontier is its OWN arm — since M6-3 the

@@ -297,7 +297,8 @@ fn pattern_of_split_output_refuses_typed_never_misnames() {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: sp.into(),
+            // One half, by its port: a split named alone is either.
+            input: editor_core::Operand::Output { node: sp, port: 0 },
             count: editor_core::Formula::count(2),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],

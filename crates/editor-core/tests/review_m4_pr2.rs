@@ -789,15 +789,17 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
     );
 }
 
-/// R6: the refusal doors — every wrong wiring is a TYPED per-node
-/// failure, never a panic and never a silent guess.
+/// R6: the refusal doors — every wrong wiring is a TYPED refusal, at
+/// the edit door where the read's kind decides it and per node where
+/// its value does, never a panic and never a silent guess.
 #[test]
 fn wire_doors_refuse_typed() {
     let (doc, ids) = rich_doc();
     let (p, base, u, ax, pat) = (ids[0], ids[1], ids[4], ids[5], ids[6]);
-    // Instances fed to a boolean: WrongOperand (their flag #5).
-    let (d, bad_bool) = insert(
-        doc.clone(),
+    // Instances fed to a boolean (their flag #5): a boolean reads one
+    // body, so the door refuses the kind.
+    let refusal = crate::fixture::insert_refused(
+        &doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a: u.into(),
@@ -805,18 +807,16 @@ fn wire_doors_refuse_typed() {
             declare: Vec::new(),
         },
     );
-    let ev = run(&d, None, false);
-    match ev.nodes.get(&bad_bool) {
-        Some(NodeResult::Failed(e)) => match &e.kind {
-            NodeErrorKind::WrongOperand {
-                expected, found, ..
-            } => {
-                assert_eq!((*expected, *found), ("body", "instances"));
+    assert!(
+        matches!(
+            refusal,
+            editor_core::EditError::OperandVarKind {
+                found: editor_core::VarKind::Bodies,
+                ..
             }
-            other => panic!("expected WrongOperand, got {other:?}"),
-        },
-        other => panic!("expected Failed, got {other:?}"),
-    }
+        ),
+        "{refusal:?}"
+    );
     // Revolve about the rich doc's `ax` — a 3-D z-axis datum. This
     // asserted `AxisNotInSketchPlane`, a decided projection finding the
     // direction out of plane. A revolve seats an axis written IN a
@@ -842,25 +842,25 @@ fn wire_doors_refuse_typed() {
         }
         other => panic!("expected Failed, got {other:?}"),
     }
-    // Split by an axis datum: WrongOperand (needs a plane).
-    let (d, bad_split) = insert(
-        doc.clone(),
+    // Split by an axis datum: the tool reads a plane, so the door
+    // refuses the kind.
+    let refusal = crate::fixture::insert_refused(
+        &doc,
         Node::Split {
             target: u.into(),
             tool: ax.into(),
         },
     );
-    let ev = run(&d, None, false);
-    match ev.nodes.get(&bad_split) {
-        Some(NodeResult::Failed(e)) => {
-            assert!(
-                matches!(e.kind, NodeErrorKind::WrongOperand { .. }),
-                "got {:?}",
-                e.kind
-            );
-        }
-        other => panic!("expected Failed, got {other:?}"),
-    }
+    assert!(
+        matches!(
+            refusal,
+            editor_core::EditError::OperandVarKind {
+                found: editor_core::VarKind::Axis,
+                ..
+            }
+        ),
+        "{refusal:?}"
+    );
     // Pattern count 0: NonPositiveCount.
     let (d, bad_pat) = insert(
         doc.clone(),

@@ -221,8 +221,9 @@ fn the_fold_and_the_pairwise_chain_are_the_same_body() {
 // ---------------------------------------------------------------------
 
 /// **A node's inputs are pairwise distinct**, refused at the INSERT
-/// door for every shape that can repeat one: the pair boolean, the
-/// n-ary union's list, and the split.
+/// door for every shape that can repeat one: the pair boolean and the
+/// n-ary union's list. (A split's target and tool read different
+/// kinds, so one read in both is refused by kind first.)
 #[test]
 fn insert_refuses_a_node_that_takes_one_input_twice() {
     let (doc, boxes, _) = three_boxes([0, 1, 2]);
@@ -238,7 +239,6 @@ fn insert_refuses_a_node_that_takes_one_input_twice() {
             members: vec![x.into(), x.into()],
             declare: Vec::new(),
         },
-        Node::Split { target: x.into(), tool: x.into() },
     ];
     for node in shapes {
         let err = doc
@@ -305,9 +305,12 @@ fn a_snapshot_carrying_a_refused_node_does_not_load() {
         editor_core::persist::load(&tampered, tol)
     };
     // A repeated member in the union's list.
+    let read = |node| doc.output(node, 0).expect("a box defines its body").0;
     let err = corrupt(format!(
         "\"{}\",\"{}\",\"{}\"",
-        boxes[0].0, boxes[1].0, boxes[0].0
+        read(boxes[0]),
+        read(boxes[1]),
+        read(boxes[0])
     ))
     .expect_err("a duplicate member must refuse");
     let said = format!("{err}");
@@ -329,7 +332,8 @@ fn a_snapshot_carrying_a_refused_node_does_not_load() {
         "{said}"
     );
     // And a list left under two.
-    let err = corrupt(format!("\"{}\"", boxes[0].0)).expect_err("a one-member union must refuse");
+    let err =
+        corrupt(format!("\"{}\"", read(boxes[0]))).expect_err("a one-member union must refuse");
     let said = format!("{err}");
     assert!(said.contains("two or more"), "{said}");
 }
@@ -480,7 +484,12 @@ fn a_union_and_a_set_members_replay_bit_identically() {
     };
     let members: Vec<RecipeNodeId> = members
         .iter()
-        .map(|&m| loaded.doc.operation_of(m).expect("a member reads a live output"))
+        .map(|&m| {
+            loaded
+                .doc
+                .operation_of(m)
+                .expect("a member reads a live output")
+        })
         .collect();
     assert_eq!(members, vec![boxes[2], boxes[0]]);
 }
@@ -1209,7 +1218,11 @@ fn list_input_and_set_list_input_agree_on_every_node_kind() {
             let outcome = doc.apply(
                 &DocEdit::SetMembers {
                     node: id,
-                    members: members.unwrap_or_else(|| doc.ids()[..2].to_vec()).into_iter().map(Into::into).collect(),
+                    members: members
+                        .unwrap_or_else(|| doc.ids()[..2].to_vec())
+                        .into_iter()
+                        .map(Into::into)
+                        .collect(),
                 },
                 tol,
                 &editor_core::RefusingReach,

@@ -561,7 +561,10 @@ fn own_document_builds_at_dual64_with_f64_value_channel() {
             fixture::scl(0.25f64.cos()),
         ],
     }));
-    let _split = r.insert(Node::Split { target: puck.into(), tool: tool.into() });
+    let _split = r.insert(Node::Split {
+        target: puck.into(),
+        tool: tool.into(),
+    });
     let doc = r.doc;
 
     let ev_f = eval::<f64>(&doc);

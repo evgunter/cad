@@ -124,7 +124,10 @@ fn the_lifted_form_is_the_revalidated_form<T: EvalScalar>(channels: &[Channel<T>
             // `f64` placement lifted (the `f64` run's plane, which at
             // `f64` IS that placement); a derived frame at the lane's
             // own frame value.
-            let frame = d.doc.operation_of(program.plane).expect("the plane read is live");
+            let frame = d
+                .doc
+                .operation_of(program.plane)
+                .expect("the plane read is live");
             let plane: SketchPlane<T> = match d.doc.node(frame) {
                 Some(Node::Datum(Datum::Frame { .. })) => {
                     let ValuePayload::Profile(p) = &at_f64.value(id).expect("evaluates").payload
@@ -134,10 +137,8 @@ fn the_lifted_form_is_the_revalidated_form<T: EvalScalar>(channels: &[Channel<T>
                     p.validated.plane().map(T::from_f64)
                 }
                 _ => {
-                    let ValuePayload::Datum(DatumValue::Frame(f)) = &ev
-                        .value(frame)
-                        .expect("the frame evaluates")
-                        .payload
+                    let ValuePayload::Datum(DatumValue::Frame(f)) =
+                        &ev.value(frame).expect("the frame evaluates").payload
                     else {
                         panic!("{}: {:?} is a frame", d.name, program.plane);
                     };

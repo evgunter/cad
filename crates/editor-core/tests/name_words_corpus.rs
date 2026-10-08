@@ -604,7 +604,10 @@ fn documents_outside_the_corpus_read_apart_too() {
         origin: [len(0.0), len(0.5), len(0.0)],
         normal: [scl(0.0), scl(1.0), scl(0.0)],
     }));
-    r.insert(Node::Split { target: cut.into(), tool: tool.into() });
+    r.insert(Node::Split {
+        target: cut.into(),
+        tool: tool.into(),
+    });
     docs.push(("pattern and split".to_owned(), r.doc.clone()));
 
     let mut r = Recorder::new();

@@ -443,157 +443,67 @@ fn a1_two_faults_on_one_placer_pick_the_same_winner() {
     );
 }
 
-/// **A circular rule whose `axis` operand is a PLANE datum.** The
-/// operand-kind question belongs to the pattern's own wiring, so the
-/// refusal is the pattern's and its `found` word is the value family
-/// the evaluation would report — compared against the twin, so the
-/// recipe-side reading of that family cannot drift from the payload
-/// one.
+/// **A circular rule whose `axis` reads no axis is refused at the
+/// door.** The axis slot reads an `Axis` variable, so a plane datum, a
+/// body, or a transform of a body or of a pattern is refused by kind
+/// before any evaluation or solve runs: no mate can reach a placer so
+/// wired, and the evaluation's operand refusal is a defence behind the
+/// door.
 #[test]
-fn a1_a_circular_rule_over_a_plane_datum_refuses_the_operand() {
-    let (scene, _) = build("msolve3-circular-plane", |doc, legs, leg_body| {
-        let (doc, plane) = insert(
-            doc,
-            Node::Datum(Datum::Plane {
-                origin: [len(0.0), len(0.0), len(0.0)],
-                normal: [scl(0.0), scl(0.0), scl(1.0)],
-            }),
-        );
-        let (doc, pattern) = insert(
-            doc,
-            Node::Pattern {
-                input: legs.into(),
-                count: Formula::count(4),
-                kind: PatternKind::Circular {
-                    axis: plane.into(),
-                    step: ang(0.5),
-                },
-            },
-        );
-        let name = in_copy(pattern, 1, in_part(legs, leg_body, CapEnd::End));
-        (doc, pattern, name, vec![plane])
-    });
-    let f = scene.fault();
-    let (placer, kind) = carried(&f);
-    assert_eq!(placer, scene.placer, "the pattern's wiring refuses: {f:?}");
-    assert_eq!(kind, scene.own_refusal(), "word for word with the twin's");
-    assert!(
-        carried_class(&f) == NodeErrorClass::WrongOperand
-            && kind.contains("datum axis")
-            && kind.contains("\"datum\""),
-        "{kind}"
+fn a1_a_circular_rule_over_a_non_axis_is_refused_at_the_door() {
+    use editor_core::{EditError, OperandKind, OperandSlot, VarKind};
+    let (doc, body) = block("msolve3-circular");
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(Datum::Plane {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            normal: [scl(0.0), scl(0.0), scl(1.0)],
+        }),
     );
-}
-
-/// The same operand question over a BODY — the second value family a
-/// circular rule's axis is authored as by mistake. It is here so the
-/// recipe-side family word is pinned against the evaluation's for
-/// more than one answer.
-#[test]
-fn a1_a_circular_rule_over_a_body_refuses_the_operand() {
-    let (scene, _) = build("msolve3-circular-body", |doc, legs, leg_body| {
-        // A body where an axis datum belongs — a second node, because
-        // one input may not be the same node twice.
-        let (doc, body) = insert(doc, xform(legs, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
-        let (doc, pattern) = insert(
-            doc,
-            Node::Pattern {
-                input: legs.into(),
-                count: Formula::count(4),
-                kind: PatternKind::Circular {
-                    axis: body.into(),
-                    step: ang(0.5),
-                },
+    let (doc, array) = insert(
+        doc,
+        Node::Pattern {
+            input: body.into(),
+            count: Formula::count(2),
+            kind: PatternKind::Linear {
+                direction: [scl(1.0), scl(0.0), scl(0.0)],
+                spacing: len(2.0),
             },
-        );
-        let name = in_copy(pattern, 1, in_part(legs, leg_body, CapEnd::End));
-        (doc, pattern, name, Vec::new())
-    });
-    let f = scene.fault();
-    let (_, kind) = carried(&f);
-    assert_eq!(kind, scene.own_refusal(), "word for word with the twin's");
-    assert!(
-        carried_class(&f) == NodeErrorClass::WrongOperand && kind.contains("\"body\""),
-        "{kind}"
-    );
-}
-
-/// **A TRANSFORM of a pattern** — the family the placers carry through
-/// unchanged. A transform is shape-preserving over its input's value,
-/// so a transform of a pattern evaluates to `Instances`, and the
-/// recipe-side word has to read through the transform to the pattern
-/// below it to say the same: `"instances"` on both roads, never the
-/// one-body word a reader holding only the transform node would give.
-#[test]
-fn a1_a_circular_rule_over_a_transform_of_a_pattern_refuses_the_operand() {
-    let (scene, _) = build(
-        "msolve3-circular-transform-of-pattern",
-        |doc, legs, leg_body| {
-            let (doc, array) = insert(
-                doc,
-                Node::Pattern {
-                    input: legs.into(),
-                    count: Formula::count(2),
-                    kind: PatternKind::Linear {
-                        direction: [scl(1.0), scl(0.0), scl(0.0)],
-                        spacing: len(2.0),
-                    },
-                },
-            );
-            let (doc, moved) = insert(doc, xform(array, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
-            let (doc, pattern) = insert(
-                doc,
-                Node::Pattern {
-                    input: legs.into(),
-                    count: Formula::count(4),
-                    kind: PatternKind::Circular {
-                        axis: moved.into(),
-                        step: ang(0.5),
-                    },
-                },
-            );
-            let name = in_copy(pattern, 1, in_part(legs, leg_body, CapEnd::End));
-            (doc, pattern, name, Vec::new())
         },
     );
-    let f = scene.fault();
-    let (placer, kind) = carried(&f);
-    assert_eq!(placer, scene.placer, "the pattern's wiring refuses: {f:?}");
-    assert_eq!(kind, scene.own_refusal(), "word for word with the twin's");
-    assert!(
-        carried_class(&f) == NodeErrorClass::WrongOperand && kind.contains("\"instances\""),
-        "{kind}"
-    );
-}
-
-/// The read-through's other end: a transform of a transform of a
-/// BODY is a body on both roads, through two placers.
-#[test]
-fn a1_a_circular_rule_over_a_transform_of_a_transform_of_a_body_refuses_the_operand() {
-    let (scene, _) = build("msolve3-circular-transform-twice", |doc, legs, leg_body| {
-        let (doc, moved) = insert(doc, xform(legs, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
-        let (doc, again) = insert(doc, xform(moved, [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
-        let (doc, pattern) = insert(
-            doc,
+    let (doc, moved) = insert(doc, xform(body, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
+    let (doc, again) = insert(doc, xform(moved, [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
+    let (doc, moved_array) = insert(doc, xform(array, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
+    for (axis, found) in [
+        (plane, VarKind::Plane),
+        (body, VarKind::Body),
+        (again, VarKind::Body),
+        (moved_array, VarKind::Bodies),
+    ] {
+        let refusal = fixture::insert_refused(
+            &doc,
             Node::Pattern {
-                input: legs.into(),
+                input: body.into(),
                 count: Formula::count(4),
                 kind: PatternKind::Circular {
-                    axis: again.into(),
+                    axis: axis.into(),
                     step: ang(0.5),
                 },
             },
         );
-        let name = in_copy(pattern, 1, in_part(legs, leg_body, CapEnd::End));
-        (doc, pattern, name, Vec::new())
-    });
-    let f = scene.fault();
-    let (_, kind) = carried(&f);
-    assert_eq!(kind, scene.own_refusal(), "word for word with the twin's");
-    assert!(
-        carried_class(&f) == NodeErrorClass::WrongOperand && kind.contains("\"body\""),
-        "{kind}"
-    );
+        assert!(
+            matches!(
+                &refusal,
+                EditError::OperandVarKind {
+                    slot: OperandSlot::Axis,
+                    found: f,
+                    expected: OperandKind::Is(VarKind::Axis),
+                    ..
+                } if *f == found
+            ),
+            "{found:?}: {refusal:?}"
+        );
+    }
 }
 
 /// **A slot of the axis DATUM is reported at the datum.** The pattern

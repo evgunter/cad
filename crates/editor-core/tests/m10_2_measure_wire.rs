@@ -394,7 +394,13 @@ fn an_assertion_over_a_non_measure_refuses() {
     )
     .expect_err("an assertion constrains a measurement");
     assert!(
-        matches!(err, EditError::AssertionTarget { .. }),
-        "got {err:?}"
+        matches!(
+            err,
+            EditError::DefinesNothing {
+                slot: editor_core::OperandSlot::Measure,
+                ..
+            }
+        ),
+        "an assertion defines nothing to read: {err:?}"
     );
 }

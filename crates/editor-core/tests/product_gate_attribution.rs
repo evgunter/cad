@@ -351,7 +351,13 @@ fn a_split_root_names_its_below_half_as_output_1() {
             normal: [scl(0.0), scl(0.0), scl(1.0)],
         }),
     );
-    let (doc, split) = insert(doc, Node::Split { target: a.into(), tool: tool.into() });
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: a.into(),
+            tool: tool.into(),
+        },
+    );
     assert_eq!(doc.roots(), &[split][..]);
     let mut ev = run(&doc);
     let Some(NodeResult::Ok(value)) = ev.nodes.get_mut(&split) else {

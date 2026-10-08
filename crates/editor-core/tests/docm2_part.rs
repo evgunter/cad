@@ -66,7 +66,10 @@ fn plane_z(r: &mut Recorder, z: f64) -> RecipeNodeId {
 }
 
 fn part(r: &mut Recorder, of: RecipeNodeId, select: PartSelect<Formula>) -> RecipeNodeId {
-    r.insert(Node::Part { of: of.into(), select })
+    r.insert(Node::Part {
+        of: of.into(),
+        select,
+    })
 }
 
 fn half(h: SplitHalf) -> PartSelect<Formula> {
@@ -237,7 +240,10 @@ fn a1_the_half_is_the_half_through_a_transform_a_boolean_and_a_fillet() {
         let cube = unit_box(&mut r, 0.0);
         let other = unit_box(&mut r, 3.0);
         let tool = plane_z(&mut r, 0.5);
-        let split = r.insert(Node::Split { target: cube.into(), tool: tool.into() });
+        let split = r.insert(Node::Split {
+            target: cube.into(),
+            tool: tool.into(),
+        });
         let p = part(&mut r, split, half(h));
         let moved = lift(&mut r, p, LIFT);
         let first = eval(&r.doc);
@@ -379,7 +385,10 @@ fn a3_names_pass_through_and_only_the_selected_bodys() {
     let mut r = Recorder::new();
     let cube = unit_box(&mut r, 0.0);
     let tool = plane_z(&mut r, 0.5);
-    let split = r.insert(Node::Split { target: cube.into(), tool: tool.into() });
+    let split = r.insert(Node::Split {
+        target: cube.into(),
+        tool: tool.into(),
+    });
     let above = part(&mut r, split, half(SplitHalf::Above));
     let base = eval(&r.doc);
     let spelled = edges_of_body(&base, split, SplitHalf::Above.output_body());
@@ -470,7 +479,10 @@ fn a4_every_refusal_is_typed() {
     let mut r = Recorder::new();
     let cube = unit_box(&mut r, 0.0);
     let tool = plane_z(&mut r, 2.0);
-    let split = r.insert(Node::Split { target: cube.into(), tool: tool.into() });
+    let split = r.insert(Node::Split {
+        target: cube.into(),
+        tool: tool.into(),
+    });
     let above = part(&mut r, split, half(SplitHalf::Above));
     let below = part(&mut r, split, half(SplitHalf::Below));
     let ev = eval(&r.doc);
@@ -555,16 +567,40 @@ fn a4_every_refusal_is_typed() {
     let mut r = Recorder::new();
     let cube = unit_box(&mut r, 0.0);
     let tool = plane_z(&mut r, 0.5);
-    let split = r.insert(Node::Split { target: cube.into(), tool: tool.into() });
+    let split = r.insert(Node::Split {
+        target: cube.into(),
+        tool: tool.into(),
+    });
     let pat = pattern3(&mut r, cube);
     let half_of_pattern = part(&mut r, pat, half(SplitHalf::Above));
-    let index_of_split = part(&mut r, split, instance(0));
     let half_of_body = part(&mut r, cube, half(SplitHalf::Below));
     let index_of_body = part(&mut r, cube, instance(0));
+    // A split named alone is either of its two halves, so an index
+    // over it is refused at the door before any evaluation: the read
+    // names a port, and a half is one body.
+    let index_of_split = apply(
+        &r.doc,
+        &DocEdit::InsertNode {
+            node: Box::new(Node::Part {
+                of: split.into(),
+                select: instance(0),
+            }),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    );
+    assert!(
+        matches!(
+            &index_of_split,
+            Err(EditError::AmbiguousOutput { input, slot: editor_core::OperandSlot::Of })
+                if input.id() == split
+        ),
+        "{index_of_split:?}"
+    );
     let ev = eval(&r.doc);
     for (node, expected, found) in [
         (half_of_pattern, "split", "instances"),
-        (index_of_split, "instances", "split"),
         (half_of_body, "split", "body"),
         (index_of_body, "instances", "body"),
     ] {
@@ -582,7 +618,7 @@ fn a4_every_refusal_is_typed() {
     let refused = apply(
         &r.doc,
         &DocEdit::SetParam {
-            node: index_of_split,
+            node: index_of_body,
             slot: SlotId::Instance,
             expr: Formula::count(1),
             fresh: Vec::new(),
@@ -610,7 +646,10 @@ fn a5_the_content_key_separates_the_halves_and_the_instances() {
     let mut r = Recorder::new();
     let cube = unit_box(&mut r, 0.0);
     let tool = plane_z(&mut r, 0.5);
-    let split = r.insert(Node::Split { target: cube.into(), tool: tool.into() });
+    let split = r.insert(Node::Split {
+        target: cube.into(),
+        tool: tool.into(),
+    });
     let above = part(&mut r, split, half(SplitHalf::Above));
     let below = part(&mut r, split, half(SplitHalf::Below));
     let pat = pattern3(&mut r, cube);
@@ -657,7 +696,10 @@ fn a7_the_product_of_a_lone_part_root_is_that_half() {
     let mut r = Recorder::new();
     let cube = unit_box(&mut r, 0.0);
     let tool = plane_z(&mut r, 0.5);
-    let split = r.insert(Node::Split { target: cube.into(), tool: tool.into() });
+    let split = r.insert(Node::Split {
+        target: cube.into(),
+        tool: tool.into(),
+    });
     let above = part(&mut r, split, half(SplitHalf::Above));
     assert_eq!(r.doc.roots(), &[above], "the Part is the only sink");
     let ev = eval(&r.doc);
@@ -812,7 +854,10 @@ fn a_tie_the_split_separates_is_unique_in_each_parts_table() {
         origin: [len(0.0), len(2.0), len(0.0)],
         normal: [scl(0.0), scl(1.0), scl(0.0)],
     }));
-    let split = r.insert(Node::Split { target: sub.into(), tool: tool.into() });
+    let split = r.insert(Node::Split {
+        target: sub.into(),
+        tool: tool.into(),
+    });
     let above = part(&mut r, split, half(SplitHalf::Above));
     let below = part(&mut r, split, half(SplitHalf::Below));
     let ev = eval(&r.doc);

@@ -1402,17 +1402,21 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
             &mut wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["measure"];
         assert_eq!(
             *target,
-            serde_json::json!(measure.0),
+            serde_json::json!(
+                doc.output(measure, 0)
+                    .expect("a measure defines its value")
+                    .0
+            ),
             "the surgery is aimed at the assertion's target"
         );
-        *target = serde_json::json!(b.0);
+        *target = serde_json::json!(doc.output(b, 0).expect("a body").0);
     });
     match editor_core::load(&tgt_corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::AssertionTarget {
-            measure,
-            bound: Dimension::Length,
+        Err(PersistError::Snapshot(SnapshotError::OperandVarKind {
+            found: editor_core::VarKind::Body,
+            expected: editor_core::OperandKind::Measured,
             ..
-        })) => assert_eq!(measure.id(), b),
+        })) => {}
         other => panic!("an assertion over a non-measure must refuse typed, got {other:?}"),
     }
 }

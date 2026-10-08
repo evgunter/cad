@@ -486,6 +486,27 @@ pub fn insert(doc: ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId)
     (doc, minted.unwrap())
 }
 
+/// **The refusal inserting `node` into `doc` meets**, for a row about
+/// what the insert door refuses.
+///
+/// # Panics
+///
+/// If the insert is accepted.
+pub fn insert_refused(doc: &ProfileDoc, node: AuthoredNode) -> editor_core::EditError {
+    match editor_core::apply(
+        doc,
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    ) {
+        Ok(_) => panic!("the insert door accepted a node this row expects it to refuse"),
+        Err(refusal) => refusal,
+    }
+}
+
 /// `name` as the node `to` would mint it where `from` did: the same
 /// role path at another minting node. Two inserts that differ only in
 /// what a row varies are two nodes under two ids (N1), and a row that
@@ -1422,9 +1443,9 @@ pub fn pieces(doc: &editor_core::ProfileDoc, profile: RecipeNodeId) -> ProfilePi
 /// inputs.
 pub fn swept(doc: &ProfileDoc, node: RecipeNodeId) -> RecipeNodeId {
     match doc.node(node) {
-        Some(Node::Extrude { profile, .. } | Node::Revolve { profile, .. }) => {
-            doc.operation_of(*profile).expect("the profile read is live")
-        }
+        Some(Node::Extrude { profile, .. } | Node::Revolve { profile, .. }) => doc
+            .operation_of(*profile)
+            .expect("the profile read is live"),
         Some(Node::Profile(_)) => node,
         Some(_) => match doc.upstream(node).first() {
             Some(&input) => swept(doc, input),

@@ -116,7 +116,10 @@ fn two_parts_of_one_half(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
         origin: [len(0.0), len(0.0), len(0.25)],
         normal: [scl(0.0), scl(0.0), scl(1.0)],
     }));
-    let split = r.insert(Node::Split { target: cube.into(), tool: tool.into() });
+    let split = r.insert(Node::Split {
+        target: cube.into(),
+        tool: tool.into(),
+    });
     let above = PartSelect::SplitHalf(SplitHalf::Above);
     let p = r.insert(Node::Part {
         of: split.into(),

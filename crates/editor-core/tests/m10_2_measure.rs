@@ -1504,7 +1504,13 @@ fn a_split_half_of_a_cusp_extrude_gathers() {
             normal: [scl(0.0), scl(0.0), scl(1.0)],
         }),
     );
-    let (doc, split) = mint(&doc, Node::Split { target: ex.into(), tool: tool.into() });
+    let (doc, split) = mint(
+        &doc,
+        Node::Split {
+            target: ex.into(),
+            tool: tool.into(),
+        },
+    );
     let (doc, above) = mint(
         &doc,
         Node::Part {

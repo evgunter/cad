@@ -185,7 +185,13 @@ fn a_second_crossing_by_the_same_face_keeps_the_first_crossing_and_its_pieces_na
             normal: [scl(nx), scl(ny), scl(0.0)],
         }),
     );
-    let (doc, cut) = insert(doc, Node::Split { target: rod.into(), tool: tool.into() });
+    let (doc, cut) = insert(
+        doc,
+        Node::Split {
+            target: rod.into(),
+            tool: tool.into(),
+        },
+    );
     let (nx, ny) = normal(30.0);
     let (doc2, _) = step(
         doc.clone(),

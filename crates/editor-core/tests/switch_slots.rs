@@ -1015,9 +1015,10 @@ fn every_node_shapes_slot_table_is_pinned() {
     use std::fmt::Write as _;
     let mut text = String::new();
     for node in one_of_every_node_shape() {
-        let node = editor_core::test_support::stored(
+        let node = editor_core::test_support::stored_reading(
             &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
             &node,
+            |id, _| editor_core::VarId(id.0),
         );
         let slots = node.slots();
         let tags: Vec<editor_core::VarId> = (0..slots.len())
@@ -1029,7 +1030,27 @@ fn every_node_shapes_slot_table_is_pinned() {
                 .expr_mut(slot)
                 .expect("a listed slot answers `expr_mut`") = *tag;
         }
+        // The operands join the table: each read written a tag of its
+        // own, named `@j` in the field it lands in.
+        let operands: Vec<editor_core::OperandSlot> = node
+            .operand_rows()
+            .into_iter()
+            .map(|(slot, _)| slot)
+            .collect();
+        let reads: Vec<editor_core::VarId> = (0..operands.len())
+            .map(|j| editor_core::VarId::new(0, 2000 + j as u64))
+            .collect();
+        tag_operands(&mut tagged, &reads);
         let mut fields = format!("{tagged:?}");
+        for (j, read) in reads.iter().enumerate() {
+            let rendered = format!("{read:?}");
+            assert_eq!(
+                fields.matches(&rendered).count(),
+                1,
+                "{node:?}: the tag written through operand {j} is not in exactly one field"
+            );
+            fields = fields.replace(&rendered, &format!("@{j}"));
+        }
         for (i, (&slot, tag)) in slots.iter().zip(&tags).enumerate() {
             assert_eq!(
                 tagged.expr(slot),
@@ -1050,6 +1071,9 @@ fn every_node_shapes_slot_table_is_pinned() {
         for (i, slot) in slots.iter().enumerate() {
             writeln!(text, "  #{i} {slot:?}").unwrap();
         }
+        for (j, slot) in operands.iter().enumerate() {
+            writeln!(text, "  @{j} Operand({slot:?})").unwrap();
+        }
     }
     let path =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/slot_tables.txt");
@@ -1065,4 +1089,21 @@ fn every_node_shapes_slot_table_is_pinned() {
          meant (regenerate: PNCAD_BLESS=1 cargo test -p editor-core --test all \
          every_node_shapes_slot_table_is_pinned)"
     );
+}
+
+/// Writes `reads` into `node`'s operands, in field order — the order
+/// [`editor_core::Node::operand_rows`] lists them — through the one
+/// door a row outside the crate has to them, a re-lowering.
+fn tag_operands(
+    node: &mut editor_core::Node<editor_core::ProfileProgram>,
+    reads: &[editor_core::VarId],
+) {
+    let mut next = reads.iter().copied();
+    let retagged = node.try_map_slots(
+        |p, f, r| p.try_map_slots(&mut |e| f(e), &mut |at, read| r(at, read)),
+        &mut |e: &editor_core::VarId| Ok::<_, core::convert::Infallible>(*e),
+        &mut |_, _| Ok(next.next().expect("one tag per operand")),
+    );
+    let Ok(retagged) = retagged;
+    *node = retagged;
 }

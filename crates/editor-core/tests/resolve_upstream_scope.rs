@@ -168,7 +168,9 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
     let Some(Node::Transform { input: bar1, .. }) = doc.node(tr1) else {
         panic!("slot() places the bar behind a transform");
     };
-    let bar1 = &doc.operation_of(*bar1).expect("the transform reads a live bar");
+    let bar1 = &doc
+        .operation_of(*bar1)
+        .expect("the transform reads a live bar");
     let wall = |segment| StableName {
         kind: EntityKind::Face,
         node: *bar1,
@@ -304,7 +306,14 @@ fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
 }
 
 fn set_members(doc: ProfileDoc, node: RecipeNodeId, members: Vec<RecipeNodeId>) -> ProfileDoc {
-    step(doc, DocEdit::SetMembers { node, members: members.into_iter().map(Into::into).collect() }).0
+    step(
+        doc,
+        DocEdit::SetMembers {
+            node,
+            members: members.into_iter().map(Into::into).collect(),
+        },
+    )
+    .0
 }
 
 /// The strict ancestors of `node` in ONE document — the test's own

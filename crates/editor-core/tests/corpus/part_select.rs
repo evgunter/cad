@@ -95,7 +95,10 @@ pub fn document() -> CorpusDoc {
         origin: [len(0.0), len(0.0), len(CUT_Z)],
         normal: [scl(0.0), scl(0.0), scl(1.0)],
     }));
-    let split = r.insert(Node::Split { target: cube.into(), tool: tool.into() });
+    let split = r.insert(Node::Split {
+        target: cube.into(),
+        tool: tool.into(),
+    });
     let above = r.insert(Node::Part {
         of: split.into(),
         select: PartSelect::SplitHalf(SplitHalf::Above),

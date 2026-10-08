@@ -250,7 +250,9 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
     // document, so this is the plane the evaluator would build too.
     let plane = fixture::plane_of(
         &doc.doc,
-        doc.doc.operation_of(program.plane).expect("the plane read is live"),
+        doc.doc
+            .operation_of(program.plane)
+            .expect("the plane read is live"),
     );
     let (_, canonical) = profile::ConstructedProfile::new(plane, nominal_loops(&nominal))
         .validate_recording(Tol::witness())

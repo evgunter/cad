@@ -30,8 +30,8 @@ use crate::fixture::resolver::PartStore;
 use editor_core::Formula;
 use editor_core::{
     Alignment, Attr, AttrKind, AxisSense, BooleanOp, CapEnd, ContactClass, Datum, DocEdit,
-    DocumentId, EntityKind, Maintenance, MateFrame, MatePrimitive, MeasureExpr,
-    MeasurePrimitive, Node, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SitedRef, StableName, apply,
+    DocumentId, EntityKind, Maintenance, MateFrame, MatePrimitive, MeasureExpr, MeasurePrimitive,
+    Node, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SitedRef, StableName, apply,
     cascade_delete_order,
 };
 use fixture::{ang, flush_pairs, fname, insert, len, wall};
@@ -127,20 +127,36 @@ fn union_released_from_a_declared_member(
         &editor_core::RefusingReach,
     )
     .expect("the member list is replaceable");
+    // The re-point is accepted and reports, never refuses (DM6): each
+    // pair side minted by `b` is now out of the union's reach.
+    let reached: Vec<(RecipeNodeId, RecipeNodeId)> =
+        crate::fixture::without_anonymous(&released.maintenance)
+            .iter()
+            .map(|row| match row {
+                Maintenance::Strand {
+                    node,
+                    name,
+                    took: editor_core::Took::Reach,
+                } => (node.id(), name.name().node),
+                other => panic!(
+                    "a member re-point reports only the names it takes out of reach, got {other}"
+                ),
+            })
+            .collect();
     assert_eq!(
-        crate::fixture::without_anonymous(&released.maintenance),
-        Vec::new(),
-        "a rewire strands nothing: the declared pairs are names, not inputs"
+        reached,
+        vec![(union, b); 4],
+        "one strand per pair side minted by the dropped member, on the union"
     );
     (declared, released.doc, union, b)
 }
 
 /// **A strand per NAME and none per site**, on a declared union.
 ///
-/// A member is the union's DAG input, so deleting it while the union
-/// consumes it is refused typed. What the declared pairs NAME is not
-/// an edge: once `SetMembers` has dropped the member, the delete is
-/// legal and strands the names minted there, one row per name, on the
+/// A member is a read, so deleting it while the union reads it is
+/// accepted and reports the stranded read. What the declared pairs
+/// NAME is not a read: once `SetMembers` has dropped the member, the
+/// delete strands the names minted there, one row per name, on the
 /// union that still carries them. The SITE is reported by no delete: a
 /// site is a reading edge, and a deleted one is N5's dangling case
 /// refused at the next evaluation (`Node::payload_read_sites`, DM7's

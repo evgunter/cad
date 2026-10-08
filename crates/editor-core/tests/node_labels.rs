@@ -368,12 +368,11 @@ fn an_edit_refusal_names_each_node_as_the_document_holds_it() {
     assert_eq!(node.id(), extrude);
     assert_eq!(Some(var.id()), doc.output(extrude, 0));
     assert!(
-        wrong.to_string().starts_with(&format!(
-            "Extrude \"base plate\" ({e})'s profile reads"
-        )),
+        wrong
+            .to_string()
+            .starts_with(&format!("Extrude \"base plate\" ({e})'s profile reads")),
         "{wrong}"
     );
-
 
     let twice = refusal(
         &doc,
@@ -1359,12 +1358,19 @@ fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
 #[test]
 fn an_edit_refusal_respoken_from_a_later_version_says_its_labels_now() {
     let doc = ProfileDoc::empty_derived("node-labels-respoken", Tol::witness());
-    let (doc, [_, profile, extrude]) = block(doc, 0.0);
+    let (doc, [frame, profile, extrude]) = block(doc, 0.0);
     let doc = set_label(doc, profile, Some("sketch"));
     let doc = set_label(doc, extrude, Some("base plate"));
-    let (p, e) = (tag(profile.0.digest()), tag(extrude.0.digest()));
+    let e = tag(extrude.0.digest());
 
-    let dangle = refusal(&doc, DocEdit::DeleteNode { id: profile });
+    let kind = refusal(
+        &doc,
+        DocEdit::SetOperand {
+            node: extrude,
+            slot: editor_core::OperandSlot::Profile,
+            read: frame.into(),
+        },
+    );
     let twice = refusal(
         &doc,
         DocEdit::InsertNode {
@@ -1400,12 +1406,10 @@ fn an_edit_refusal_respoken_from_a_later_version_says_its_labels_now() {
     let later = set_label(doc, profile, Some("pad"));
     let later = set_label(later, extrude, Some("slab"));
 
-    let said = dangle.respoken(&later).to_string();
+    let said = kind.respoken(&later).to_string();
     assert!(
-        said.starts_with(&format!(
-            "Profile \"pad\" ({p}) is still an input to Extrude \"slab\" ({e})"
-        )),
-        "a node arm says both nodes' new labels: {said}"
+        said.starts_with(&format!("Extrude \"slab\" ({e})'s profile reads ")),
+        "a node arm says its node's new label: {said}"
     );
     let EditError::DuplicateInput { node, input } = twice.respoken(&later) else {
         panic!("respoken keeps the arm, got {twice:?}");
@@ -1441,11 +1445,9 @@ fn an_edit_refusal_respoken_from_a_later_version_says_its_labels_now() {
     );
 
     let (deleted, _) = step(later.clone(), DocEdit::DeleteNode { id: extrude });
-    let said = dangle.respoken(&deleted).to_string();
+    let said = kind.respoken(&deleted).to_string();
     assert!(
-        said.starts_with(&format!(
-            "Profile \"pad\" ({p}) is still an input to Extrude \"base plate\" ({e})"
-        )),
+        said.starts_with(&format!("Extrude \"base plate\" ({e})'s profile reads ")),
         "a node deleted since is said as the door said it: {said}"
     );
 

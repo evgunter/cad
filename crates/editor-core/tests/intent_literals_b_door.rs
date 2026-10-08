@@ -279,11 +279,22 @@ fn kind_of(node: &AuthoredNode) -> String {
 #[test]
 fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
     let (edge_doc, b) = body();
+    // The block's own sketch frame and profile, for the slots that read
+    // those kinds.
+    let held = |is: fn(&Node<ProfileProgram>) -> bool| {
+        edge_doc
+            .ids()
+            .into_iter()
+            .find(|&id| edge_doc.node(id).is_some_and(is))
+            .expect("the block holds it")
+    };
+    let frame = held(|n| matches!(n, Node::Datum(editor_core::Datum::Frame { .. })));
+    let profile = held(|n| matches!(n, Node::Profile(_)));
     // The listed-rule counts no slot addresses (p1/p2), and the slot
     // types no corpus document holds: a shell, a sweep, a windowed
     // tube, a gauge's and an instance's placements, a mate's frame
-    // offsets. The door lowers before it reads an input, so the inputs
-    // here need only be ids.
+    // offsets. Each operand reads a live output of the kind its slot
+    // admits, so the refusal is the formula's.
     let edges: Vec<AuthoredNode> = vec![
         Node::Pattern {
             input: b.into(),
@@ -297,13 +308,13 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
         },
         Node::shell(b, len(0.01), Vec::new()),
         Node::Sweep {
-            profile: b.into(),
-            path: b.into(),
+            profile: profile.into(),
+            path: profile.into(),
             stations: Formula::count(4),
             v_degree: Formula::count(3),
         },
         Node::Tube {
-            frame: b.into(),
+            frame: frame.into(),
             major_radius: len(0.5),
             minor_radius: len(0.1),
             window: TubeWindow::Arc {
@@ -486,7 +497,10 @@ impl editor_core::ProfilePayload for Unlisted<editor_core::VarId> {
     fn lower<E>(
         authored: &Unlisted<Formula>,
         f: &mut dyn FnMut(&Formula) -> Result<editor_core::VarId, E>,
-        _read: &mut dyn FnMut(editor_core::OperandSlot, &editor_core::Operand) -> Result<editor_core::VarId, E>,
+        _read: &mut dyn FnMut(
+            editor_core::OperandSlot,
+            &editor_core::Operand,
+        ) -> Result<editor_core::VarId, E>,
     ) -> Result<Self, E> {
         Ok(Unlisted {
             hidden: f(&authored.hidden)?,

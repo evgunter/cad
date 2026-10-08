@@ -569,9 +569,9 @@ fn arc_run_names_agree_across_scalars() {
 /// The profile a sweep node sweeps.
 fn profile_of(doc: &ProfileDoc, sweep: RecipeNodeId) -> RecipeNodeId {
     match doc.node(sweep) {
-        Some(Node::Extrude { profile, .. } | Node::Revolve { profile, .. }) => {
-            doc.operation_of(*profile).expect("the profile read is live")
-        }
+        Some(Node::Extrude { profile, .. } | Node::Revolve { profile, .. }) => doc
+            .operation_of(*profile)
+            .expect("the profile read is live"),
         other => panic!("not a sweep: {other:?}"),
     }
 }

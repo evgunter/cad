@@ -235,11 +235,12 @@ fn linear_pattern_evaluates_instances_as_data() {
             .fold(f64::INFINITY, f64::min);
         assert_eq!(min_x, 2.0 * i as f64);
     }
-    // Patterns do NOT implicitly union: consuming one as a boolean
-    // operand is a typed refusal (part selection is PR 3 naming).
+    // Patterns do NOT implicitly union: a boolean operand reads one
+    // body, so reading a pattern's instances is refused by kind at the
+    // door (part selection is PR 3 naming).
     let (doc2, other) = unit_cube(doc.clone(), 10.0, 10.0);
-    let (doc2, boolean) = insert(
-        doc2,
+    let refusal = crate::fixture::insert_refused(
+        &doc2,
         Node::Boolean {
             op: BooleanOp::Union,
             a: pat.into(),
@@ -247,18 +248,17 @@ fn linear_pattern_evaluates_instances_as_data() {
             declare: Vec::new(),
         },
     );
-    let ev2 = run(&doc2);
-    match ev2.nodes.get(&boolean) {
-        Some(NodeResult::Failed(e)) => assert!(matches!(
-            e.kind,
-            NodeErrorKind::WrongOperand {
-                expected: "body",
-                found: "instances",
+    assert!(
+        matches!(
+            refusal,
+            editor_core::EditError::OperandVarKind {
+                found: editor_core::VarKind::Bodies,
+                expected: editor_core::OperandKind::Is(editor_core::VarKind::Body),
                 ..
             }
-        )),
-        other => panic!("expected Failed, got {other:?}"),
-    }
+        ),
+        "{refusal:?}"
+    );
 }
 
 #[test]
@@ -424,7 +424,8 @@ fn typed_refusal_doors() {
         other => panic!("expected Failed, got {other:?}"),
     }
 
-    // A Split value as a boolean operand (needs PR 3 naming).
+    // A split named alone as a boolean operand is either of its two
+    // halves: the door refuses it, and the read names a port.
     let (doc, tool) = insert(
         doc,
         Node::Datum(Datum::Plane {
@@ -432,10 +433,16 @@ fn typed_refusal_doors() {
             normal: [scl(0.0), scl(0.0), scl(1.0)],
         }),
     );
-    let (doc, split_node) = insert(doc, Node::Split { target: cube.into(), tool: tool.into() });
-    let (doc, second) = unit_cube(doc, 5.0, 5.0);
-    let (doc, boolean) = insert(
+    let (doc, split_node) = insert(
         doc,
+        Node::Split {
+            target: cube.into(),
+            tool: tool.into(),
+        },
+    );
+    let (doc, second) = unit_cube(doc, 5.0, 5.0);
+    let refusal = crate::fixture::insert_refused(
+        &doc,
         Node::Boolean {
             op: BooleanOp::Intersect,
             a: split_node.into(),
@@ -443,18 +450,13 @@ fn typed_refusal_doors() {
             declare: Vec::new(),
         },
     );
-    let ev = run(&doc);
-    match ev.nodes.get(&boolean) {
-        Some(NodeResult::Failed(e)) => assert!(matches!(
-            e.kind,
-            NodeErrorKind::WrongOperand {
-                expected: "body",
-                found: "split",
-                ..
-            }
-        )),
-        other => panic!("expected Failed, got {other:?}"),
-    }
+    assert!(
+        matches!(
+            &refusal,
+            editor_core::EditError::AmbiguousOutput { input, .. } if input.id() == split_node
+        ),
+        "{refusal:?}"
+    );
 }
 
 /// **A linear pattern's direction, with a length that is not a finite

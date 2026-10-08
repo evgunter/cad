@@ -684,7 +684,10 @@ fn a_resolve_row_names_the_slot_that_failed() {
     let union = r.insert(Node::Boolean {
         op: BooleanOp::Union,
         a: block.into(),
-        b: split.into(),
+        b: editor_core::Operand::Output {
+            node: split,
+            port: 0,
+        },
         declare: vec![(
             (
                 SitedRef::new(block, cap.clone()),

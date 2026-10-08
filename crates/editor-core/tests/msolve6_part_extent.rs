@@ -73,7 +73,9 @@ fn resized(part: ProfileDoc, half: f64, height: f64) -> ProfileDoc {
         unreachable!("found as a profile")
     };
     let ids = program.kept_in_place();
-    let plane = part.operation_of(program.plane).expect("the plane read is live");
+    let plane = part
+        .operation_of(program.plane)
+        .expect("the plane read is live");
     let loops = fixture::desc(plane, vec![fixture::square(0.0, 0.0, half)]).loops;
     let body = body_node(&part);
     let (part, _) = fixture::step(
