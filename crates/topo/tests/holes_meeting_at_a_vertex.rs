@@ -344,16 +344,18 @@ fn every_op(
     ]
 }
 
-/// Whether `q` is inside `body`, `None` on its boundary or within the
-/// band of a face's plane.
+/// Whether `q` is inside `body`, `None` on its boundary or where its
+/// reading escalates in band.
 fn inside_of(body: &AtRestBody<f64>, q: Point3<f64>) -> Option<bool> {
     let band = geom_core::Band::linear(t()).unwrap();
     match topo::point_in_solid(body, q, band, t()) {
         Ok(topo::SolidContainment::In) => Some(true),
         Ok(topo::SolidContainment::Out) => Some(false),
-        Ok(topo::SolidContainment::OnBoundary) | Err(topo::PointInSolidError::Escalated { .. }) => {
-            None
-        }
+        Ok(topo::SolidContainment::OnBoundary)
+        | Err(
+            topo::PointInSolidError::Escalated { .. }
+            | topo::PointInSolidError::Loop(topo::PointInLoopError::Escalated { .. }),
+        ) => None,
         Err(e) => panic!("point in solid at {q:?}: {e:?}"),
     }
 }
