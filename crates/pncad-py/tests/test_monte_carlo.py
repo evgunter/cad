@@ -42,7 +42,6 @@ from pncad import (
     McAssertion,
     McConfig,
     McMeasure,
-    MeasureExpr,
     MeasurePrimitive,
     Node,
     VarName,
@@ -106,13 +105,7 @@ def height_measure(doc, prism, nominal=NOMINAL):
     caps — the height, in the document's own vocabulary."""
     ev = evaluate(doc)
     return doc.insert(
-        Node.measure(
-            MeasureExpr.primitive(MeasurePrimitive.distance(0, 1)),
-            [
-                (prism, face_at_height(ev, prism, 0.0)),
-                (prism, face_at_height(ev, prism, nominal)),
-            ],
-        )
+        Node.measure(MeasurePrimitive.distance((prism, face_at_height(ev, prism, 0.0)), (prism, face_at_height(ev, prism, nominal))))
     )
 
 
@@ -200,6 +193,29 @@ class TestTheEstimateIsTheAuthoring(unittest.TestCase):
         self.assertLessEqual(row.min, row.mean)
         self.assertLessEqual(row.mean, row.max)
 
+    def test_an_asserted_formula_has_its_own_population(self):
+        """The value an assertion reads is summarized whatever it is: a
+        formula over the measure's output (the height less a millimetre)
+        has a row of its own, each sample the measured row's less the
+        millimetre."""
+        doc, _box, measure, _a = scene(Distribution.normal(SIGMA * m))
+        doc.apply(DocEdit.rename_var(doc.output(measure), VarName("height")))
+        doc.insert(
+            Node.assertion(
+                doc.parse_formula("height - 1 mm"),
+                AssertionDir.AtLeast,
+                doc.parse_formula("0 m"),
+            )
+        )
+        report = monte_carlo(doc, analyzed_box(doc), McConfig(samples=64))
+        self.assertEqual(len(report.values), 1)
+        value = report.values[0]
+        height = report.measures[0]
+        self.assertEqual((value.measured, value.unmeasured), (64, 0))
+        self.assertAlmostEqual(value.mean, height.mean - 0.001, places=12)
+        self.assertAlmostEqual(value.min, height.min - 0.001, places=12)
+        self.assertAlmostEqual(value.max, height.max - 0.001, places=12)
+
     def test_a_fixed_document_has_no_spread_at_all(self):
         """An unannotated parameter is FIXED, so every draw is the
         nominal and the estimator says so exactly."""
@@ -260,13 +276,7 @@ class TestTheAssertionRowsAreEmpirical(unittest.TestCase):
         prism = slab(doc, Distribution.normal(SIGMA * m))
         ev = evaluate(doc)
         clearance = doc.insert(
-            Node.measure(
-                MeasureExpr.primitive(MeasurePrimitive.min_clearance(0, 1)),
-                [
-                    (prism, face_at_height(ev, prism, 0.0)),
-                    (prism, face_at_height(ev, prism, NOMINAL)),
-                ],
-            )
+            Node.measure(MeasurePrimitive.min_clearance((prism, face_at_height(ev, prism, 0.0)), (prism, face_at_height(ev, prism, NOMINAL))))
         )
         assertion = doc.insert(
             Node.assertion(doc.output(clearance), AssertionDir.AtLeast, doc.parse_formula("1 mm"))

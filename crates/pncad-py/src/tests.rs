@@ -5075,7 +5075,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "invalid_tolerance",
             "label_unchanged",
             "mate_refused",
-            "measure_malformed",
             "meta_non_finite",
             "meta_not_set",
             "meta_unversioned",
@@ -5153,7 +5152,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "distribution_fault_tag",
             "expr_dimension_error_tag",
             "mate_fault_tag",
-            "measure_node_fault_tag",
             "meta_version_error_tag",
             "node_error_tag",
             "program_refusal_tag",
@@ -5418,11 +5416,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "mc_refusal_tag",
         values: &["no_samples", "nominal_does_not_build"],
         delegates: &["measure_unavailable_tag"],
-    },
-    TagEntry {
-        function: "measure_node_fault_tag",
-        values: &["ref_index_out_of_range"],
-        delegates: &[],
     },
     TagEntry {
         function: "measure_unavailable_at_tag",
@@ -8239,7 +8232,7 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
     },
     MintingItem {
         owner: "ErrorClass::class_name",
-        literals: 36,
+        literals: 35,
         held_by: &[Holder::Test {
             name: "error_classes_name_the_python_hierarchy",
             holds: "the 36 class names, against a SECOND exhaustive match, so a new \

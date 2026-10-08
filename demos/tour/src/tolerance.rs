@@ -988,11 +988,9 @@ certifiable: nominal Holds Holds { measured: 4558673246493684320, bound: 4558673
             tol,
         );
         let nominal = match ev.value(p.assertion).map(|v| &v.payload) {
-            Some(ValuePayload::Assertion(v)) => format!(
-                "{} {:?}",
-                v.label(),
-                v.clone().map(f64::to_bits)
-            ),
+            Some(ValuePayload::Assertion(v)) => {
+                format!("{} {:?}", v.label(), v.clone().map(f64::to_bits))
+            }
             other => panic!("{name}: the assertion has a verdict, got {other:?}"),
         };
         let analyzed = analyzed_box(&p.doc, &AnalysisPolicy::default());

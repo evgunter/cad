@@ -1445,8 +1445,9 @@ impl Doc {
     /// per primitive, in order, as one action — all land or none does.
     /// Answers a `Measured`: the measures and their outputs, the
     /// observed values an assertion reads. Arithmetic over them is an
-    /// ordinary `Formula` (`Formula.var(m.outputs[0]) - …`), which an
-    /// assertion reads or `DocEdit.define_var` names.
+    /// ordinary `Formula`: name an output (`DocEdit.rename_var`) and
+    /// write the arithmetic with `Doc.parse_formula`; an assertion reads
+    /// the formula, or `DocEdit.declare_var` names it.
     ///
     /// Exactly `insert(Node.measure(p))` per primitive, recorded as one
     /// action and answered with the outputs, as `sketch_frame` is

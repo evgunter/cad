@@ -4509,11 +4509,9 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         #
         # "An expression goes in through no door at all" was the
         # sentence here, and LIB-B-MEASURES made it false without
-        # touching this row's claim: `MeasureExpr.value` and
-        # `Node.assertion`'s bound both take a `Formula` INTO a document,
-        # because the measurement sublanguage's leaves and an
-        # assertion's bound are the two slots whose dimension an
-        # ADDRESS cannot fix. What this row is about is the profile
+        # touching this row's claim: an assertion's value and its bound
+        # both take a `Formula` INTO a document, because they are the
+        # two expressions whose dimension an ADDRESS cannot fix. What this row is about is the profile
         # authoring lattice, where the two doors below still refuse —
         # the residue is narrower than it was, and it is still there.
         #

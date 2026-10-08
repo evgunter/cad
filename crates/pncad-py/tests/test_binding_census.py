@@ -3284,7 +3284,10 @@ NOT_BOUND = {
     #     `MeasureExpr`, `MeasurePrimitive` and `AssertionDir` as the
     #     authoring vocabulary, and `MeasureNodeFault` and
     #     `MeasureUnavailableAt` as exception classes keeping their
-    #     Rust types' own names.
+    #     Rust types' own names. (INTENT stage 2 PR D retires
+    #     `MeasureExpr` and `MeasureNodeFault`: a measure holds one
+    #     primitive over its own references, and its arithmetic is a
+    #     formula.)
     #   - TWO stay here and are RETAGGED `SHAPE` — `SitedRef` and
     #     `MinClearanceRefusal`, each argued at its own entry above.
     #     Neither is a debt any more and neither is reach: one is a
@@ -3658,7 +3661,6 @@ MEMBERS_BOUND_AS = {
     "EditError::NotStructuralSlot": "EditError.variant",
     "EditError::PayloadUnknownVarName": "EditError.variant",
     "EditError::PayloadVarKind": "EditError.variant",
-    "EditError::MeasureMalformed": "EditError.variant",
     "EditError::ConstructionReadsObserved": "EditError.variant",
     "EditError::AssertionDimension": "EditError.variant",
     "EditError::SlotUnknownVarName": "EditError.variant",
@@ -3794,7 +3796,6 @@ MEMBERS_BOUND_AS = {
     "MateFault::Unleverable": "MateFault.variant",
     "MateFault::OffsetDisagrees": "MateFault.variant",
     "MateFault::OffsetUnchecked": "MateFault.variant",
-    "MeasureNodeFault::RefIndexOutOfRange": "MeasureNodeFault.variant",
     "MeasureUnavailableAt::NeedsEnclosure": "MeasureUnavailableAt.variant",
     "NodePickError::Standing": "NodePickError.variant",
     "NodePickError::NotABody": "NodePickError.variant",

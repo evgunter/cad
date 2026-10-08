@@ -300,17 +300,12 @@ pub enum ErrorClass {
     /// kernel type refusing at the same layer, because that language
     /// asks `Formula`'s own constructors for its dimensions rather than
     /// restating the F1 table. The full roster is on
-    /// [`DIMENSION_DOORS`] — SIX doors under four class names, each
+    /// [`DIMENSION_DOORS`] — FIVE doors under four class names, each
     /// naming the DOOR — and every one of them carries the failing
     /// check's own tag beside it, from one map
     /// (`crate::tags::expr_dimension_error_tag`). Nothing anywhere is
     /// routed to [`ErrorClass::QuantityOp`], which is the quantity
     /// boundary's own check and a different type.
-    ///
-    /// So `value` is the offending number where the refusing door had
-    /// one in hand and `None` where it did not: a measurement
-    /// constructor refuses over two operands' DIMENSIONS, and there is
-    /// no single float to name.
     Literal,
     /// The expression TEXT door refused: `parse_formula` could not read
     /// the source as an expression. The Python class keeps the Rust
@@ -531,7 +526,7 @@ pub enum ErrorClass {
     StepHandle,
 }
 
-/// **Six doors, four classes.** The document layer's `DimensionError`
+/// **Five doors, four classes.** The document layer's `DimensionError`
 /// is not a one-door refusal, and the roster is mechanical — it is the
 /// set of sites that mint [`crate::tags::expr_dimension_error_tag`]'s
 /// word into a Python attribute, directly or through the two helpers
@@ -540,7 +535,6 @@ pub enum ErrorClass {
 /// | door | class | attribute |
 /// |---|---|---|
 /// | literal construction | `LiteralError` | `kind` |
-/// | measurement arithmetic | `LiteralError` | `kind` |
 /// | the recorded-program lift | `LiteralError` | `variant` |
 /// | `Doc.parse_formula` | `ParseError` | `kind` |
 /// | `Doc.apply` | `EditError` | `inner_variant` |

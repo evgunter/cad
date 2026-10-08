@@ -7,7 +7,6 @@ declares unrepresentable, plus the typed-quantity boundary.
 
 from pncad import (
     MeasurePrimitive,
-    MeasureExpr,
     AssertionDir,
     AnalysisPolicy,
     analyzed_box,
@@ -624,23 +623,17 @@ assert _value is not None
 Node.assertion(_value, doc.parse_formula("1 m"), AssertionDir.AtLeast)  # ty: error
 Node.assertion(_value, AssertionDir.AtLeast, AssertionDir.AtMost)  # ty: error
 
-# A MEASUREMENT IS NOT A VALUE. The expression is what measures are
-# recorded FROM (`Doc.measure`); handing it where the value it measures
-# belongs confuses the two halves the measurement vocabulary keeps
-# apart.
-_span = MeasureExpr.primitive(MeasurePrimitive.distance(0, 1))
+# A PRIMITIVE IS NOT A VALUE. It is what a measure is built FROM;
+# handing it where the value it measures belongs confuses the two
+# halves the measurement vocabulary keeps apart.
+_span = MeasurePrimitive.distance((solid, "a face"), (solid, "another"))
 Node.assertion(_span, AssertionDir.AtLeast, doc.parse_formula("1 m"))  # ty: error
-doc.insert(MeasureExpr.primitive(MeasurePrimitive.distance(0, 1)))  # ty: error
-
-# A PRIMITIVE IS NOT AN EXPRESSION either: the leaf has to be lifted
-# through `MeasureExpr.primitive`, which is where the dimension is
-# read off the verb.
-MeasureExpr.add(MeasurePrimitive.distance(0, 1), _span)  # ty: error
+doc.insert(_span)  # ty: error
 
 # A reference is a PAIR — the name alone does not say where its
 # carrier is read, which is the half that makes a measure report
 # placed geometry.
-Node.measure(_span, ["a face", "another"])  # ty: error
+MeasurePrimitive.distance("a face", "another")  # ty: error
 
 # The bound takes the expression door and not the quantity one: a
 # typed length cannot be an angle bound, and the whole point of the
