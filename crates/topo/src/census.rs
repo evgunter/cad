@@ -10160,7 +10160,7 @@ mod tests {
             let (w, phi) = (0.02, 12.0 * band.zero());
             let mut read_past_the_first = false;
             for upright_at_start in [true, false] {
-                let (floor, plate): (Vec<(f64, f64)>, Vec<(f64, f64)>) = if upright_at_start {
+                let (floor, plate) = if upright_at_start {
                     (
                         vec![
                             (-1.0, -1.0),
