@@ -1550,6 +1550,9 @@ pub(super) fn cone_read<T: Decide>(
     other: &[BoolSector<T>],
     band: Band,
 ) -> Result<Option<WedgeRead>, BooleanError> {
+    if std::env::var("RV_NOCONE").is_ok() {
+        return Ok(None);
+    }
     let mut rows = Vec::new();
     for s in own.iter().filter(|s| s.end_edge()) {
         match cone_side(s.end, s.end_reach, other, band)? {
@@ -1628,10 +1631,18 @@ fn cone_side<T: Decide>(
             Err(_) => None,
         });
     }
+    let tr = RV_TR.load(std::sync::atomic::Ordering::Relaxed);
+    if tr {
+        eprintln!("codes {codes:?}");
+    }
     let mut escalation = None;
     'reference: for (s0, base) in other.iter().zip(&codes) {
         let Some(base) = *base else { continue };
+        if tr {
+            eprintln!(" ref {:?} base {base:?}", s0.he);
+        }
         let (p, p_reach) = (s0.start + s0.end, Reach::Bisector(s0.arm));
+        let _ = tr;
         let mut held = base == SideCode::In;
         for (s, code) in other.iter().zip(&codes) {
             let Some(code) = *code else { continue };
@@ -1645,6 +1656,12 @@ fn cone_side<T: Decide>(
                     continue 'reference;
                 }
             };
+            if side == SideCode::On
+                && std::env::var("RV_GUARD").is_ok()
+                && within(s, p, false, DeclarationRead::Moot, band).unwrap_or(true)
+            {
+                continue 'reference;
+            }
             if side == SideCode::On || side == code {
                 continue;
             }
@@ -1658,6 +1675,9 @@ fn cone_side<T: Decide>(
                         continue 'reference;
                     }
                 }
+            }
+            if tr {
+                eprintln!("  vs {:?} p-side {side:?} d-code {code:?} crosses {crosses}", s.he);
             }
             held ^= crosses;
         }
@@ -2716,3 +2736,9 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "rv_probe_4289.rs"]
+mod rv_probe_4289;
+
+pub(super) static RV_TR: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);

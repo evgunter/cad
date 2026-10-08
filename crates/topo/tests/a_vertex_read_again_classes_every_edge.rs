@@ -708,6 +708,42 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
                 (&arch_saddle_b, &arch_saddle),
             ),
         ];
+        // rv4289 review probes: a crown with a thin fin (two faces folded
+        // at a short edge), bare and as a buried void.
+        let rv = std::env::var("RV_SCENES").is_ok();
+        let sph = |az: f64, el: f64, l: f64| {
+            let (sa, ca) = az.to_radians().sin_cos();
+            let (se, ce) = el.to_radians().sin_cos();
+            [l * ca * ce, l * sa * ce, l * se]
+        };
+        let rv_g: f64 = std::env::var("RV_FIN").ok().map_or(1e-5, |s| s.parse().unwrap());
+        let rv_lb: f64 = std::env::var("RV_LB").ok().map_or(1e-3, |s| s.parse().unwrap());
+        let fin_ring = vec![
+            sph(0.0, 0.0, 0.5),
+            sph(rv_g / 2.0, std::env::var("RV_EL").ok().map_or(80.0, |s| s.parse().unwrap()), rv_lb),
+            sph(rv_g, 0.0, 0.5),
+            sph(120.0, -15.0, 0.5),
+            sph(240.0, 10.0, 0.5),
+        ];
+        let fin_b = if rv { Some(posed_crown(&fin_ring, [0.0, 0.3, -1.0], &pose, t())) } else { None };
+        let fin_g = G::Crown(fin_ring.clone());
+        let fin_void_b = fin_b.as_ref().map(|f| built("a fin void buried", subtract(&block_b, f, t())));
+        let fin_void_g = dd(G::All, fin_g.clone());
+        let rv_probes: Vec<_> = [10.0, 70.0, 130.0, 190.0, 250.0, 310.0]
+            .iter()
+            .flat_map(|&b| [pyr(corners(b, 0.3, 0.5)), pyr(corners(b, -0.3, 0.5)), pyr(corners(b, 0.05, 0.5))])
+            .collect();
+        let rv_labels: Vec<&'static str> = (0..rv_probes.len())
+            .flat_map(|k| [format!("rv fin, probe {k}"), format!("rv fin void, probe {k}")])
+            .map(|l| &*Box::leak(l.into_boxed_str()))
+            .collect();
+        if let (Some(fb), Some(fv)) = (&fin_b, &fin_void_b) {
+            for (k, pr) in rv_probes.iter().enumerate() {
+                scenes.push((rv_labels[2 * k], pick(pr), (fb, &fin_g)));
+                scenes.push((rv_labels[2 * k + 1], pick(pr), (fv, &fin_void_g)));
+            }
+            scenes.retain(|s| s.0.starts_with("rv "));
+        }
         let dents = ["-1e-3", "+1e-3", "-ten zero bands", "+ten zero bands"];
         let labels: Vec<_> = dents
             .iter()
@@ -732,6 +768,7 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
                 (l[4], pick(&hang_over), (under, under_g)),
             ]);
         }
+        if rv { scenes.retain(|s| s.0.starts_with("rv ")); }
         for (label, x, y) in scenes {
             if !tallies.contains_key(label) {
                 order.push(label);
