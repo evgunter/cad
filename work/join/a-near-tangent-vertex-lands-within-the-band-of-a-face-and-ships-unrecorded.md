@@ -2,12 +2,12 @@
 id: a-near-tangent-vertex-lands-within-the-band-of-a-face-and-ships-unrecorded
 kind: issue
 title: A wedge's vertical edge tilted 3e-8 off a cube's face leaves its far vertex 9.6e-9 from the face and a 3.7e-8 edge: the boolean neither records nor refuses the in-band vertex-face pair
-status: open
+status: parked
 opened: 2026-10-08
 priority: P0
 cost: M
 refs: [near-tangent-boolean-results-ship-with-an-escalated-tier-3-census]
-branch: join/near-tangent-vertex-in-band
+blocked_on: [4335]
 ---
 
 ## What
