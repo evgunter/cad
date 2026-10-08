@@ -13,7 +13,7 @@ needs_ev: true
 
 INTENT stage 3, PR C. Spec: `docs/INTENT-STAGE3-SPEC.md` §4.
 
-`Place { body, mates }` defines a copy, and its mates are its bundle (FORK-S3-2). The world is the one undeletable node; the product is the bodies it names, which lie in one space that one `Place` relates to it. Retired here:
+`Place { body, mates }` defines a copy, and its mates are its bundle (FORK-S3-2). The world is one frame among many that cannot be deleted; the product is every copy whose space reaches it. Retired here:
 
 - `PlaceInWorld`, `Node::Gauge`, `InstantiatePart.gauge`/`offset`;
 - `SetOffset`/`SetGauge`/`Promote`/`Fold`/`regauge_then_mate`;
@@ -35,17 +35,18 @@ each use becoming a `Place`, and a profile reused at several positions
 is several constructions reading it through frames off geometry, not
 copies (the die's pips are revolves of the ball's profile on frames off
 the die's faces). `Pattern` is a `Place` of several copies over a pose
-family read off geometry. The world names bodies for the product and
-defines no copy; the named bodies lie in one space, and one `Place` of
-its own relates that space to the world, read by export alone. An
+family read off geometry. The world is one frame among many that cannot be deleted, read by
+placements and export alone; the product is every copy whose space
+reaches it (Ev: one relation for the whole product is a style, placing
+one body against the world and the rest against it, not a rule). An
 instance defines no `frame` port. Ev chooses between two shapes, and
 this unit builds the recommended one meanwhile: `Place { shapes, mates
 }` reads a list of shapes of one space, and the instance keeps FORK-1's
-one `Body` port per body the part's world names, all in one space of
-the instance's own; a re-pin that names another body mints a port no
+one `Body` port per copy in the part's world, all in one space of
+the instance's own; a re-pin that adds a world copy mints a port no
 `Place` reads yet, and the maintenance report names it. The alternative
 is `Place` reading one shape, with the instance defining `bodies:
-Bodies` whose members are named by the part's world. Stage 2 C ships
+Bodies` whose members are named by the part's world placements. Stage 2 C ships
 one whole-world `body` port in the meantime
 (`an-instance-defines-one-body-per-part-placement`). A10's rewrite
 lands with this unit.

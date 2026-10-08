@@ -1251,23 +1251,24 @@ its lift to a 3-D pose is how it leaves.
 **Operations.** A node is an operation: it reads variables and defines
 the variables its signature states, a fixed list of named, typed ports
 set by its variant (a split defines two bodies; a revolve its body and its axis; an instance of a part
-defines one `Body` variable per body the part's world names, all in
-one space of the instance's own), possibly none: an assertion defines
+defines one `Body` variable per copy in the part's world, all in one
+space of the instance's own), possibly none: an assertion defines
 none, and a mate is a clause of a placement, not an operation. Reading is the only dependency; nothing consumes anything,
 so an operand stays a first-class value after a boolean reads it. The
-product is the bodies the world names, in the order named: naming
-defines no copy, the named bodies lie in one space, and one placement
-of its own relates that space to the world. A placement is an operation reading shapes of one
+product is every copy whose space reaches the world, in placement
+order; the world is one frame among many that cannot be deleted, and a
+body enters the product by a placement of a copy against it or against
+what is related to it. A placement is an operation reading shapes of one
 space and a bundle of mates, and defining a copy of each shape under
 the one rigid motion its mates pin; building, combining or placing
-shapes adds nothing to the product, and a body appears only if the
-world names it. Nothing
+shapes adds nothing to the product, and a body appears only as a copy
+whose space reaches the world. Nothing
 moves a body: a copy is defined by its one placement and never moved
 after, and an operation that would move one (today's `Transform`) is a
 placement. A placement copies a finished body; one profile read
 through several frames is several constructions, not copies. `Pattern`
 is a placement of several copies, one per member of a pose family read
-off geometry. A document whose world names nothing has
+off geometry. A document with nothing related to its world has
 an empty product. A `Face` or `Edge`
 variable, or a set of them, is a selection of a `Body` variable by
 `StableName`: a definition, not a node, stating its body once, and the
