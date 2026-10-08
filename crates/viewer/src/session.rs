@@ -2043,7 +2043,7 @@ impl DocSession {
             return self.commit(props::param_edit(var, value));
         };
         let kind = held.kind();
-        let defined = held.def().defined().is_some();
+        let defined = held.def().defined().map(pncad::document::Expr::dim);
         let notation = match (value, expr.display_unit()) {
             (SlotValue::Continuous(_), Some(unit)) => Some(props::param_unit_edit(var, unit)),
             _ => None,
@@ -2054,10 +2054,10 @@ impl DocSession {
         // writes the value through the same doors a free variable's
         // field does — one action, so a value of another kind refuses
         // in the value door's words and leaves the definition standing.
-        if defined {
-            let freed = match kind {
-                pncad::document::VarKind::Count => FreeVar::Count { value: 0 },
-                _ => FreeVar::continuous(kind.dimension(), 0.0),
+        if let Some(dim) = defined {
+            let freed = match dim {
+                Dimension::Count => FreeVar::Count { value: 0 },
+                dim => FreeVar::continuous(dim, 0.0),
             };
             let free_again = DocEdit::DefineVar {
                 var: var.into(),
@@ -2125,10 +2125,19 @@ impl DocSession {
     /// ([`pncad::document::EditError::NotAFreeVar`]).
     fn begin_param_gesture(&mut self, var: VarId) -> OpOutcome {
         self.start(move |doc| {
-            let dimension = doc
-                .var(var)
-                .map(|held| held.kind().dimension())
-                .ok_or(Refusal::NoSuchParam(var))?;
+            let held = doc.var(var).ok_or(Refusal::NoSuchParam(var))?;
+            // An operation's output is no parameter: the value door
+            // refuses it in its words.
+            if let Some((node, _)) = held.def().output() {
+                return Err(Refusal::Edit(Box::new(EditError::VarIsAnOutput {
+                    var: doc.spoken_var(var),
+                    node: doc.spoken(node),
+                    door: pncad::document::CarryForwardDoor::Value,
+                })));
+            }
+            let Some(dimension) = held.kind().dimension() else {
+                unreachable!("a free or defined variable is a scalar")
+            };
             Ok(GestureTarget::Param { var, dimension })
         })
     }

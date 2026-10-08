@@ -312,7 +312,7 @@ fn the_load_door_refuses_a_count_literal_in_a_continuous_slot() {
         )) => {
             assert_eq!(node.id(), extrude);
             assert_eq!(slot, SlotId::Distance);
-            assert_eq!(declared, Dimension::Count);
+            assert_eq!(declared, pncad::document::VarKind::Count);
             assert_eq!(referenced, Dimension::Length);
         }
         other => panic!("the load door must refuse a Count distance, got {other:?}"),

@@ -222,7 +222,7 @@ const OLDER_SHAPED: &str = concat!(
 );
 
 #[test]
-fn an_older_shaped_document_lacking_newer_vocabulary_loads() {
+fn an_older_shaped_document_lacking_its_outputs_refuses_with_the_regenerate_recourse() {
     for newer in [
         "Mate",
         "Measure",
@@ -243,13 +243,24 @@ fn an_older_shaped_document_lacking_newer_vocabulary_loads() {
     let eps = Tol::witness().eps();
     let text = OLDER_SHAPED.replacen("\"epsilon\":1e-09", &format!("\"epsilon\":{eps:?}"), 1);
     assert_ne!(text, OLDER_SHAPED, "the ε rewrite must land");
-    let loaded = load(&text, Tol::witness()).expect("an older-shaped document loads");
-    assert_eq!(
-        loaded.doc.ids().len(),
-        3,
-        "frame, profile and extrude, as written"
+    // Every vocabulary it lacks is additive, but it also predates the
+    // outputs its three nodes define, which only a current build mints:
+    // it refuses typed, with the regenerate recourse.
+    let err = load(&text, Tol::witness()).unwrap_err();
+    assert!(
+        matches!(
+            &err,
+            PersistError::Snapshot(editor_core::SnapshotError::OutputSignature {
+                fault: editor_core::OutputFault::Missing { .. },
+                ..
+            })
+        ),
+        "{err:?}"
     );
-    assert_eq!(loaded.doc.epsilon().to_bits(), eps.to_bits());
+    assert!(
+        err.to_string().contains(editor_core::REGENERATE_RECOURSE),
+        "{err}"
+    );
 }
 
 /// The seam's other side, so the split is pinned from both directions:

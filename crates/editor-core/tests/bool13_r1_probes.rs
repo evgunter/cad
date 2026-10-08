@@ -455,7 +455,7 @@ const OLDER_SHAPED: &str = concat!(
 /// vocabulary is exactly {Profile, Extrude}, rather than only that six
 /// named newer arms are absent.
 #[test]
-fn the_older_shaped_document_loads_at_the_ambient_eps() {
+fn the_older_shaped_document_refuses_at_the_ambient_eps_for_want_of_its_outputs() {
     let eps = Tol::witness().eps();
     let text = OLDER_SHAPED.replacen("\"epsilon\":1e-09", &format!("\"epsilon\":{eps:?}"), 1);
     assert_ne!(text, OLDER_SHAPED);
@@ -473,7 +473,20 @@ fn the_older_shaped_document_loads_at_the_ambient_eps() {
         .map(|(_, node)| node.as_object().unwrap().keys().next().unwrap())
         .collect();
     assert_eq!(tags, ["Datum", "Profile", "Extrude"]);
-    let loaded = load(&text, Tol::witness()).expect("a minimal-vocabulary document loads");
-    assert_eq!(loaded.doc.ids().len(), 3);
-    assert_eq!(loaded.doc.epsilon().to_bits(), eps.to_bits());
+    // Written before an operation defined variables, so its table holds
+    // none of the three nodes' outputs: the first node's port refuses,
+    // with the regenerate recourse, at the ambient ε rather than through
+    // the tolerance door.
+    let err = load(&text, Tol::witness()).unwrap_err();
+    assert!(
+        matches!(
+            &err,
+            PersistError::Snapshot(editor_core::SnapshotError::OutputSignature {
+                fault: editor_core::OutputFault::Missing { port: "frame" },
+                ..
+            })
+        ),
+        "{err:?}"
+    );
+    assert!(err.to_string().contains(REGENERATE_RECOURSE), "{err}");
 }

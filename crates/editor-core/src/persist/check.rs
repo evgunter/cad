@@ -1504,12 +1504,13 @@ impl core::fmt::Display for SnapshotError {
                     f,
                     "{first} and {second} are both stored as the {port} port of {node}"
                 ),
-                OutputFault::Missing { port } => {
-                    write!(
-                        f,
-                        "{node} defines a {port} port and no variable is stored for it"
-                    )
-                }
+                // A file written before operations defined variables lacks
+                // every output, and only a current build can mint them.
+                OutputFault::Missing { port } => write!(
+                    f,
+                    "{node} defines a {port} port and no variable is stored for it. {}",
+                    crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+                ),
             },
             Self::AnonymousVarUnread { var } => write!(
                 f,

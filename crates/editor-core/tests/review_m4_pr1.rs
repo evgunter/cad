@@ -1042,6 +1042,11 @@ fn assert_bit_identical(a: &Doc, b: &Doc) {
     assert_eq!(a.var_names(), b.var_names(), "variable names");
     for (name, var) in pa {
         let theirs = pb.get(name).expect("variable present");
+        // An operation's output holds no value: the two are one port.
+        if var.def().output().is_some() {
+            assert_eq!(var, theirs, "output {name:?}");
+            continue;
+        }
         match (var.free().expect("free"), theirs.free().expect("free")) {
             (
                 FreeVar::Continuous { dim, value, .. },
