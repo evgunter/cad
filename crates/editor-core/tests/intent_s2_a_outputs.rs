@@ -428,3 +428,141 @@ fn the_re_blessed_documents_equal_their_pre_outputs_selves_up_to_ids() {
         println!("{file}: equal up to ids");
     }
 }
+
+/// One shape's signature as the table below spells it: its variant (a
+/// datum's own), then each port as `name:kind`, a placer's kind as
+/// `placed`.
+fn signature_row(node: &editor_core::AuthoredNode) -> String {
+    let variant = match node {
+        Node::Datum(datum) => format!("Datum::{}", test_utils::f6::variant_identifier(datum)),
+        other => test_utils::f6::variant_identifier(other),
+    };
+    let ports: Vec<String> = node
+        .outputs()
+        .into_iter()
+        .map(|port| match port.kind {
+            editor_core::PortKind::Of(kind) => format!("{}:{kind:?}", port.name),
+            editor_core::PortKind::PlacedFrom(_) => format!("{}:placed", port.name),
+        })
+        .collect();
+    format!("{variant} -> [{}]", ports.join(", "))
+}
+
+/// **Every operation's signature, kind for kind** (D10, Operations;
+/// FORK-1, FORK-1b): one row per node shape the slot census walks, the
+/// ones that define nothing included.
+#[test]
+fn every_node_shape_states_its_signature() {
+    let got: Vec<String> = crate::switch_slots::one_of_every_node_shape()
+        .iter()
+        .map(signature_row)
+        .collect();
+    let want = [
+        "Datum::Plane -> [plane:Plane]",
+        "Datum::Axis -> [axis:Axis]",
+        "Datum::Point -> [point:Point]",
+        "Datum::AxisInPlane -> [axis:Axis]",
+        "Datum::Frame -> [frame:Frame]",
+        "Datum::FaceFrame -> [frame:Frame]",
+        "Profile -> [profile:Profile]",
+        "Extrude -> [body:Body]",
+        "Revolve -> [body:Body, axis:Axis]",
+        "Tube -> [body:Body]",
+        "Tube -> [body:Body]",
+        "HollowTube -> [body:Body]",
+        "Loft -> [body:Body]",
+        "Sweep -> [body:Body]",
+        "Fillet -> [body:Body]",
+        "Chamfer -> [body:Body]",
+        "Shell -> [body:Body]",
+        "Split -> [above:Body, below:Body]",
+        "Boolean -> [body:Body]",
+        "Union -> [body:Body]",
+        "Transform -> [body:placed]",
+        "Transform -> [body:placed]",
+        "Transform -> [body:placed]",
+        "Pattern -> [bodies:Bodies]",
+        "PlacedUnion -> [body:Body]",
+        "PlacedUnion -> [body:Body]",
+        "Pattern -> [bodies:Bodies]",
+        "PlacedUnion -> [body:Body]",
+        "PlacedUnion -> [body:Body]",
+        "Pattern -> [bodies:Bodies]",
+        "PlacedUnion -> [body:Body]",
+        "PlacedUnion -> [body:Body]",
+        "Part -> [body:Body]",
+        "Part -> [body:Body]",
+        "InstantiatePart -> [body:Body]",
+        "Gauge -> []",
+        "Mate -> []",
+        "Measure -> [value:Length]",
+        "Assertion -> []",
+    ];
+    assert_eq!(got, want, "a node shape's signature moved");
+}
+
+/// **A pose kind's symmetry** (D10, A11 (1)): a frame is known
+/// outright, a plane up to in-plane motion, an axis up to slide and
+/// spin; a point's and a direction's subgroups are not in the family,
+/// and a scalar or a shape is no pose.
+#[test]
+fn a_pose_kind_names_its_subgroup_family() {
+    use editor_core::SubgroupFamily;
+    let want = [
+        (VarKind::Frame, Some(SubgroupFamily::Trivial)),
+        (VarKind::Plane, Some(SubgroupFamily::Planar)),
+        (VarKind::Axis, Some(SubgroupFamily::Cylindrical)),
+        (VarKind::Point, None),
+        (VarKind::Direction, None),
+        (VarKind::Length, None),
+        (VarKind::Angle, None),
+        (VarKind::Scalar, None),
+        (VarKind::Count, None),
+        (VarKind::Body, None),
+        (VarKind::Bodies, None),
+        (VarKind::Profile, None),
+    ];
+    for (kind, family) in want {
+        assert_eq!(kind.symmetry(), family, "{kind:?}");
+    }
+}
+
+/// **A datum's value folds the subgroup its kind names**: each datum of
+/// [`block`]'s kinds, evaluated, gives the subgroup ([`PoseSymmetry`])
+/// whose family is its output kind's symmetry, so the mates, which fold
+/// the same values' subgroups, and the kinds share one vocabulary.
+#[test]
+fn a_datums_value_folds_the_subgroup_its_kind_names() {
+    use editor_core::PoseSymmetry;
+    let (doc, frame, ..) = block("s2a-pose-symmetry");
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(editor_core::Datum::Plane {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            normal: [scl(0.0), scl(0.0), scl(1.0)],
+        }),
+    );
+    let (doc, axis) = insert(doc, axis_in_plane(frame, (0.0, 0.0), (0.0, 1.0)));
+    let (doc, point) = insert(
+        doc,
+        Node::Datum(editor_core::Datum::Point {
+            position: [len(0.0), len(0.0), len(0.0)],
+        }),
+    );
+    let ev = crate::corpus::eval::<f64>(&doc);
+    for node in [frame, plane, axis, point] {
+        let editor_core::ValuePayload::Datum(value) = &ev.value(node).expect("evaluates").payload
+        else {
+            panic!("a datum evaluates to a datum value")
+        };
+        let kind = doc
+            .var(doc.output(node, 0).expect("a datum defines its pose"))
+            .unwrap()
+            .kind();
+        assert_eq!(
+            value.symmetry().and_then(|subgroup| subgroup.family()),
+            kind.symmetry(),
+            "{kind:?}"
+        );
+    }
+}

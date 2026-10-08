@@ -2269,6 +2269,9 @@ NOT_BOUND = {
     "OutputPort": SHAPE,
     "PortKind": SHAPE,
     "SubgroupFamily": SHAPE,
+    # A pose value's subgroup, which the mate solve folds: Python holds
+    # no pose value to ask it of.
+    "PoseSymmetry": SHAPE,
     "Affine3": SHAPE,
     "Applied": SHAPE,
     "Axis3": SHAPE,

@@ -159,9 +159,9 @@ pub use mate::{
     Alignment, AxisSense, CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, Clash, ClassAdmission, Coset,
     FacePoseRefusal, FaceRefusal, FrameBase, Lever, LeverRefusal, MateFault, MateFrame,
     MatePrimitive, MateReach, MateRole, MateSide, Member, NO_AT_REST_RECORD_RECOURSE,
-    OFFSET_RECOURSE, OffsetCheck, PlacerRow, Placing, PoseRefusal, ReachRefusal, RefusingReach,
-    SolvedPoses, Space, Subgroup, SubgroupFamily, UNDER_RECOURSE, UNPLACED_RECOURSE, Unplaced,
-    class_admission, gauge_chain, groups, head_face, member_of, member_reading, places,
+    OFFSET_RECOURSE, OffsetCheck, PlacerRow, Placing, PoseRefusal, PoseSymmetry, ReachRefusal,
+    RefusingReach, SolvedPoses, Space, Subgroup, SubgroupFamily, UNDER_RECOURSE, UNPLACED_RECOURSE,
+    Unplaced, class_admission, gauge_chain, groups, head_face, member_of, member_reading, places,
     reading_edges, relative_freedom_components, root_of, solve_document, table_gap,
 };
 pub use mc::{

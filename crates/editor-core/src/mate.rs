@@ -77,7 +77,7 @@ pub mod member;
 pub mod reach;
 pub mod solve;
 
-pub use coset::{Coset, Subgroup, SubgroupFamily};
+pub use coset::{Coset, PoseSymmetry, Subgroup, SubgroupFamily};
 pub use member::{Member, Placing, head_face, member_of, member_reading};
 pub use reach::{
     FacePoseRefusal, MateReach, ReachRefusal, RefusingReach, SurfaceKind, body_reach, part_reach,

@@ -227,6 +227,38 @@ impl SubgroupFamily {
     }
 }
 
+/// **A pose value's symmetry** (D10, A11 (1)): the subgroup of rigid
+/// motions the value is a frame known up to, the one a mate on it
+/// folds. A plane forgets in-plane motion about its normal, an axis
+/// slide and spin along its line, and a frame nothing; `None` for a
+/// pose whose subgroup the table does not hold (a point's rotations
+/// about itself).
+///
+/// The mate solve reads each side's symmetry here, so a mate folds the
+/// poses' own subgroups ([`crate::VarKind::symmetry`] names their
+/// families).
+pub trait PoseSymmetry<T: Real> {
+    /// The subgroup, `None` where the table holds none.
+    fn symmetry(&self) -> Option<Subgroup<T>>;
+}
+
+impl<T: Real> PoseSymmetry<T> for topo::query::DatumValue<T> {
+    fn symmetry(&self) -> Option<Subgroup<T>> {
+        use topo::query::DatumValue;
+        match *self {
+            DatumValue::Plane { normal, .. } => Some(Subgroup::Planar { normal }),
+            DatumValue::Axis { origin, dir } | DatumValue::AxisInPlane { origin, dir, .. } => {
+                Some(Subgroup::Cylindrical {
+                    point: origin,
+                    direction: dir,
+                })
+            }
+            DatumValue::Frame(_) => Some(Subgroup::Trivial),
+            DatumValue::Point { .. } => None,
+        }
+    }
+}
+
 impl<T: Real> Subgroup<T> {
     /// The subgroup's family, `None` for [`Subgroup::Empty`] (which is
     /// not a subgroup at all).
