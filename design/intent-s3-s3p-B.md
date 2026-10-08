@@ -280,3 +280,63 @@ operation's own inputs so an edit that does not reach them invalidates nothing. 
 depend on the choice beyond rounding, and nothing computes in the world's. The current rule:
 constructions compute in the document's coordinates, an operation over copies in its first listed
 operand's, and D9 makes each the same on every build."
+
+## Round 5
+
+**1. Read literally, relation is reachability through reads.** If raw numbers are never compared
+with raw numbers, then the numbers of a pose that reads nothing say nothing. A plane "at z = 5"
+that relates to nothing is just *a plane*. So a pose or body is related to exactly what it
+reaches through reads (definitions, operations, selections) and through placements (a copy and
+what its bundle reads). A **root** is where reads stop: an operation that starts a frame from
+nothing. A **space** is a connected component of read-reachability plus placement. Anything
+whose reads reach two roots refuses, the same refusal at every door:
+a definition (`Offset`, `Meet`, a projection mixing two roots), a boolean or union, a pattern
+or `Place` whose bundle reads two unrelated spaces, or any construction.
+
+The refusal names the two roots, and its recourse is "define one from the other, or place a copy".
+
+**2. The corpus shapes.**
+- **A plate with holes from separately typed datums.** It refuses as written: each hole datum is
+  its own root. The author writes the holes as `Offset { plate frame, (x, y) }`, or as sketch
+  points on the plate's face. Either is the intent the numbers only implied. The GUI's "new
+  datum" offers *relative to* a selected frame or face by default, and "a new space" is an
+  explicit, different command. The cost is real but small, and it is the point: today's implicit
+  relation is a coincidence of numbers.
+- **A sketch on a face of an existing body.** `FaceFrame` reads the face: related, unchanged.
+- **The die.** The box is sketched on a root. The ball is sketched on its own root, or on the box's
+  frame; either works. Each pip is a copy `Place { ball, [Frame: BodyFrame(ball) ≅ Offset {
+  FaceFrame(box face k), chain }] }`, placed against the box's poses, so the union and the
+  subtraction are admissible. Nothing moves anything. This matches FORK-S3M's proposal, with
+  `Pattern` as the many-copy `Place`.
+- **Two blocks on separately typed datums, unioned.** It refuses: two roots. The author either
+  defines block 2's datum from block 1's frame, or places a copy of block 2 against block 1. That
+  is the explicit "relate these two roots" step. Today's implicit version is exactly what Ev
+  wants gone.
+
+**3. The final state.**
+- **No pose is free, and no 3-D pose is written in raw coordinates.** Raw numbers exist only
+  inside a node that holds its own frame: a profile's 2-D steps, or a revolve's axis line (D10's
+  2-D rule). Every 3-D pose is defined from a frame: `Offset`, a projection, a combination,
+  `FaceFrame`, `OfCopy`.
+- **A root is an operation, not a blank variable.** A "new space" operation reads nothing and
+  defines one `Frame` output. A sketch whose frame slot is empty is sugar for that operation plus
+  the sketch. This is the one irreducible thing: something must start each space. Spelling it as
+  an operation answers Ev's "no blank ones", because no frame sits in a document unattached.
+  Round 1's free frame was the same thing spelled as a variable.
+- **The world** is the one undeletable root operation. No construction reads it; only placements
+  and export do.
+- **`BodyFrame(body)`** survives as a projection: the frame of the one root a body reaches, read
+  through the body (and through a copy, as the copy carries it).
+- **Computing frame:** a function of the operation's reads, chosen for numerics. Constructions
+  compute in their root's frame, the only member they reach. Operations over copies follow round
+  4's principle, with stated order as the tie-break.
+- **Migration:** one root per document; absolute datums become `Offset`s of it over the same
+  scalars, bit-equal, keeping today's relations.
+
+**Proposed D10 text.**
+- *Variables:* "the poses (…), which are always defined, from a frame".
+- *Spaces:* "A part has no location: raw coordinates are arbitrary and are never compared with
+  each other. A 3-D pose is defined from a frame, and a frame starts at a **root**, an operation
+  that reads nothing. A **space** is what one root reaches through reads and placements, and
+  anything reading two spaces refuses. The **world** is one undeletable root that only placements
+  and export read."
