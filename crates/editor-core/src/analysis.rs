@@ -664,9 +664,9 @@ impl core::fmt::Display for SeedError {
             ),
             Self::SeedOnNonFreeVar { var } => write!(
                 f,
-                "the seed names {var}, a variable that is not free, whose derivative is its \
-                 inputs' pushforward rather than an axis of its own; seed a free variable \
-                 it is a function of"
+                "the seed names {var}, which is not a free variable and so is no axis of its \
+                 own: a defined variable's derivative is its inputs' pushforward, and an \
+                 operation's output is a value its operation gives; seed a free variable"
             ),
             Self::TangentUnrepresentable { var } => write!(
                 f,

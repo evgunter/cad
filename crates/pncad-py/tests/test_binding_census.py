@@ -592,6 +592,8 @@ BOUND_AS = {
     # A variable's identity is Python's `Var`, the handle `Doc.var`
     # and `Doc.vars` answer.
     "VarId": "Var",
+    # A variable's kind crosses as the word `Var.kind` answers.
+    "VarKind": "Var.kind",
     # The authored node is what Python's `Node` holds: every
     # constructor builds one, and the edit door lowers it.
     "AuthoredNode": "Node",
@@ -2349,7 +2351,6 @@ NOT_BOUND = {
     # message and payload carry.
     "SpokenVar": SHAPE,
     "VarDef": f"{GAP}: B-VAR-ID a variable's minted identity",
-    "VarKind": f"{GAP}: B-VAR-ID a variable's minted identity",
     "VarRef": f"{GAP}: B-VAR-ID a variable's minted identity",
     "node_kind_noun": SHAPE,
     # `FramePlacement::Unreadable`'s payload: which axis the kernel's

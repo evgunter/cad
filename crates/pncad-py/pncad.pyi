@@ -2949,6 +2949,13 @@ class Var:
         sixteen lowercase hex digits — the key a saved file's variable
         table holds it under. (Named for when an id was its hex digest
         alone.)"""
+    @property
+    def kind(self) -> str | None:
+        """What the variable holds, fixed at minting: a scalar's
+        dimension word ("length", "angle", "scalar", "count"), a
+        pose's ("point", "direction", "axis", "plane", "frame") or a
+        shape's ("body", "bodies", "profile"). None for a handle read
+        where the document held no such variable."""
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
@@ -4045,8 +4052,8 @@ class Doc:
     def output(self, node: NodeId, port: int = 0) -> Var | None:
         """The variable port `port` of `node` defines: an operation's
         output, which lives exactly as long as its node. None for a
-        node the document does not hold, or a port its signature does
-        not have."""
+        node the document does not hold; a port the live node's
+        signature does not have raises ValueError."""
     def slot(self, node: NodeId, slot: str) -> Var | None:
         """The variable a node's slot reads, or None for a node or a
         slot the document does not hold. Every slot reads one: a value

@@ -910,7 +910,11 @@ class TestPersistence(unittest.TestCase):
         body = doc.output(box)
         self.assertIsNotNone(body)
         self.assertEqual(doc.output(box, 0), body)
-        self.assertIsNone(doc.output(box, 1))
+        self.assertEqual(body.kind, "body")
+        self.assertEqual(doc.slot(box, "distance").kind, "length")
+        with self.assertRaises(ValueError) as caught:
+            doc.output(box, 1)
+        self.assertIn("no port 1", str(caught.exception))
         _, body_text = doc.save().split("\n", 1)
         snapshot = json.loads(body_text)["snapshot"]
         held = snapshot["vars"][body.hex]
