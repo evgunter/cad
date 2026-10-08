@@ -1292,3 +1292,15 @@ All seven units of the cut are merged:
 - 4191, curved designated face.
 
 `plan.md` now carries the next cut as units 8–12. Two items are P1: the tilted planar walls (a silent wrong body) and the lofted oblique corner.
+
+## 2026-10-08 — next cut dispatched (units 8–10)
+
+Ev said go.
+
+- **Unit 8, tilted planar walls** (P1, M): implementer dispatched on `shell/tilted-walls`, session `session_01WTRinsGsb2d1yVCkEEazRW`.
+  - Direction decided here: the gate stays a measured clearance. A facing pair outside the existing windows has the least distance between its offset footprints decided against the band. This is not a dihedral-threshold refusal, which would refuse sound wedges.
+  - Review tier: single full review.
+- **Unit 9, the lofted oblique corner** (P1, H): a design fork, weighed by a designer pair (one Opus, one Fable) on where a moved chart meets an unmoved non-plane neighbour.
+  - Blinding byte 172, Opus=A (`analysis/design-fork/shell-lofted-oblique-corner`).
+- **Unit 10, the face door at rest** (P2, M, with its P3 rider): a design fork, weighed by a designer pair on the public posture of the three offset doors toward an operand that is not at rest.
+  - Blinding byte 188, Opus=A (`analysis/design-fork/shell-face-door-at-rest`).
