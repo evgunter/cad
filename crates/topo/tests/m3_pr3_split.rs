@@ -381,6 +381,63 @@ fn notched_block_halves_pass_the_pseudomanifold_door_with_no_records() {
     assert_eq!(pseudomanifold_door(below), Ok(()), "below");
 }
 
+/// **The split records its pinch, and nothing where it only cuts**
+/// (D10; INTENT stage 4 spec §11 row 6). The notch's tip lies ON
+/// `y = 1` with both its neighbours above, so the two wedges above
+/// touch along it: one `OnCarrier` row per tip vertex, the operand's
+/// vertex on the tool, at the Zero margin its side verdict read. The
+/// floor's vertices are ON too and leave one run each, so they record
+/// nothing; a block cut through its middle records nothing at all.
+#[test]
+fn a_split_records_its_pinch_and_nothing_where_it_only_cuts() {
+    let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+    let result = split(&operand, &plane_y(1.0), Tol::witness()).unwrap();
+    let tips: Vec<topo::VertexKey> = [0.0, 1.0]
+        .into_iter()
+        .flat_map(|z| vertices_at(&fx.body, 4.0, 1.0, z))
+        .collect();
+    assert_eq!(tips.len(), 2, "the operand's tip vertices");
+    let pinched: Vec<topo::RowCell> = result.coincidences.iter().map(|row| row.cells[0]).collect();
+    assert_eq!(
+        pinched.len(),
+        2,
+        "one row per tip vertex: {:?}",
+        result.coincidences
+    );
+    for row in &result.coincidences {
+        assert_eq!(
+            (row.relation, row.site, row.cells[1]),
+            (
+                topo::Relation::OnCarrier,
+                topo::DecisionSite::SplitOn,
+                topo::RowCell::Tool
+            )
+        );
+        let topo::RowCell::Input {
+            input: topo::Operand::A,
+            cell: topo::Cell::Vertex(v),
+        } = row.cells[0]
+        else {
+            panic!("a pinch is an operand vertex: {row:?}")
+        };
+        assert!(tips.contains(&v), "{v:?} is a tip vertex of the operand");
+        assert_eq!(
+            row.margin.kind(),
+            geom_core::MarginKind::Value,
+            "the side verdict's own margin"
+        );
+    }
+    let block = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness());
+    let operand = topo::test_support::finished("the block", block, Tol::witness());
+    let cut = split(&operand, &plane_y(1.0), Tol::witness()).unwrap();
+    assert!(
+        cut.coincidences.is_empty(),
+        "a transversal cut is no pinch: {:?}",
+        cut.coincidences
+    );
+}
+
 /// **Moving one copy parts it from its twin**: offsetting the middle
 /// wedge's tip-side flank inward moves that wedge's tip copies through
 /// the door that mints a fresh point for every moved vertex, so the
