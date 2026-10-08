@@ -1810,6 +1810,7 @@ pub fn shell_error_tag(err: &ShellError<f64>) -> &'static str {
         ShellError::Rim { .. } => "rim",
         ShellError::Escalated { .. } => "escalated",
         ShellError::Pcurve { .. } => "pcurve",
+        ShellError::Join { .. } => "join",
         ShellError::NotValid { .. } => "not_valid",
     }
 }

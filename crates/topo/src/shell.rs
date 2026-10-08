@@ -586,6 +586,12 @@ pub enum ShellError<T: Real> {
         /// The mint's typed refusal, verbatim.
         source: PcurveMintError,
     },
+    /// The join the shell ends with ([`crate::Body::join_edges`])
+    /// refused on the assembled body.
+    Join {
+        /// Why the join refused, typed and keyless.
+        refusal: crate::boolean::JoinRefusal,
+    },
     /// The assembled result does not validate, so it is discarded.
     NotValid {
         /// The validator's report.
@@ -700,6 +706,7 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                 "the finished thin solid's edges could not be parametrized on its faces. \
                  {KERNEL_DEFECT_ENDING}"
             ),
+            Self::Join { refusal } => write!(f, "the assembled thin solid: {refusal}"),
             Self::NotValid { errors } => write!(
                 f,
                 "the assembled thin solid is not valid ({}) and is discarded. \
@@ -848,6 +855,11 @@ pub struct ShellNaming {
     pub thickened: Vec<(SolidKey, ShellKey)>,
     /// What the construction retired, result keys.
     pub dead: ShellRetired,
+    /// The joins the shell ended with ([`crate::Body::join_edges`]), in
+    /// the order made. Every row above stays as the construction wrote
+    /// it: a join's `vertex` and `gone` are then dead, and its `kept`
+    /// covers what `gone` did besides its own.
+    pub edge_joins: Vec<crate::EdgeJoin>,
 }
 
 impl ShellNaming {
@@ -1922,8 +1934,17 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
     // cap row and `verbs_shell`'s revolved cups).
     mint_pcurves(&mut out, tol).map_err(|source| ShellError::Pcurve { source })?;
 
-    // ---- One validation. ----
+    // ---- One validation, after the join. ----
     out.sweep_and_close();
+    // Every finisher ends with the join (`docs/DESIGN.md`, maximal
+    // edges): the chart merge of a designated window can leave a vertex
+    // between two edges of one carrier on its ring, and on the cavity
+    // twin of it. The door re-derives the pcurve rows its kills moved.
+    naming.edge_joins = out_body
+        .join_edges(band, tol)
+        .map_err(|refusal| ShellError::Join {
+            refusal: crate::boolean::JoinRefusal::of(&refusal),
+        })?;
     validate_geometric(&out_body, tol).map_err(|errors| ShellError::NotValid { errors })?;
     Ok(Shelled {
         body: out_body,

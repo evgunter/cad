@@ -4097,6 +4097,12 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
             ("Escalated", S::Escalated { source: diag() }),
             ("Pcurve", S::Pcurve { source: pcurve() }),
             (
+                "Join",
+                S::Join {
+                    refusal: join_refusal(),
+                },
+            ),
+            (
                 "NotValid",
                 S::NotValid {
                     errors: vec![topo::ValidationError::ShellDisconnected {

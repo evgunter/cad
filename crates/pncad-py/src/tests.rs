@@ -5966,6 +5966,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "escalated",
             "face",
             "insert",
+            "join",
             "lift",
             "no_solid",
             "not_valid",
