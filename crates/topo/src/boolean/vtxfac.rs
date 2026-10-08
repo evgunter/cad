@@ -1694,7 +1694,9 @@ mod tests {
         // third germ's shorter one: both insertion orders refuse, and with
         // every arm long it is ordered.
         let at = |deg: f64, arm: f64| (germ_at(deg).0, arm);
-        let d = 2e-8f64.to_degrees();
+        // Twice the escalation threshold at an arm of 1, a fifth of the
+        // zero band at an arm of 0.01.
+        let d = (2.0 * band.escalate()).to_degrees();
         for (what, germs) in [
             (
                 "short third arm, after",
