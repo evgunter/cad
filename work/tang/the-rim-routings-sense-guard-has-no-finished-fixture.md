@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-03
 priority: P3
 cost: M
-refs: [boolean-door-adopts-the-finished-body-type]
+refs: [3987]
 blocked_on: [intent-stage4-is-built]
 ---
 

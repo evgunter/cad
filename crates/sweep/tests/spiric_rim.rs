@@ -1081,7 +1081,7 @@ mod interval_rows {
         let mut cavity = body.clone();
         let band = Band::linear(tol).expect("band");
         match topo::offset_charts_together(&mut cavity, &moves, band, tol) {
-            Ok(()) => {}
+            Ok(_) => {}
             Err(topo::ReplaceFaceError::Escalated { source })
                 if tol.eps() < geom_core::tolerance::DEFAULT_EPS =>
             {

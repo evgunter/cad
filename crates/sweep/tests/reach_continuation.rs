@@ -1210,7 +1210,7 @@ fn three_bricks_with_a_reflex_step_fold_in_every_order() {
 /// each, the sunk subtract as two plates of a quarter unit (twenty
 /// faces). A ∪ B refuses `FallbackExtentUnsupported`: no crossing
 /// event exists, and that pass exempts no continuation
-/// (`work/reach/rounded-stack-subtract-and-intersect-refuse-fallback-extent.md`).
+/// (`work/reachhold/rounded-stack-subtract-and-intersect-refuse-fallback-extent.md`).
 /// With the declarations keyed for (B, A), B ∖ A, empty (the thin
 /// plate lies inside the thick one), refuses as A ∪ B does, while B ∪ A
 /// builds the thick plate, its walls left split where the thin plate's

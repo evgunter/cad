@@ -23,9 +23,19 @@
 //! [`crate::AtRestPolicy::gate_at_rest_kept`] keeps, and this door is
 //! bounded on the certification right a dual does not hold.
 //!
-//! [`crate::replace_faces_offset`] keeps its `&mut Body`: it is also
-//! this verb's chart-by-chart step over a clone that is mid-construction
-//! between charts, so it cannot be the place a verdict is read.
+//! **The offset doors this verb steps through take construction state.**
+//! A door whose argument means something about material — this verb's
+//! thickness, into the solid — takes a finished body; a door whose
+//! argument is stated against charts alone takes a [`Body`], tier 2 in
+//! and tier 2 out. [`crate::replace_faces_offset`],
+//! [`crate::offset_planes_together`] and
+//! [`crate::offset_charts_together`] are the second kind: each reads
+//! `d` along a chart's stored normal, no face's sense deciding the
+//! move, and this verb runs
+//! them over a clone that is mid-construction between charts, where no
+//! verdict can be read. What turns a face's material side into that
+//! chart-normal number is `inward`, here; what finishes the result is
+//! the closing validation below.
 //!
 //! # The sealed arm, and what it deliberately does not run
 //!
@@ -364,8 +374,8 @@
 
 use geom_core::k_stats::{decide, gate_measured};
 use geom_core::{
-    Band, BandError, Decide, Indeterminate, KERNEL_DEFECT_ENDING, KERNEL_OR_FILE_DEFECT_ENDING,
-    Margin, NOT_YET_ENDING, Real, Sign, Tol,
+    Band, BandError, Decide, Indeterminate, KERNEL_DEFECT_ENDING, Margin, NOT_YET_ENDING, Real,
+    Sign, Tol,
 };
 use slotmap::SecondaryMap;
 
@@ -415,27 +425,6 @@ pub enum ShellError<T: Real> {
     Roles {
         /// The classifier's typed refusal, verbatim.
         error: crate::props::ShellClassifyError,
-    },
-    /// The operand could not be sorted into pieces ([`crate::pieces`])
-    /// before it is thickened: the verb takes a body, and a solid
-    /// holding several pieces is sorted first, so the piece a shell
-    /// belongs to has to be readable.
-    Pieces {
-        /// The sort's typed refusal, verbatim.
-        error: crate::pieces::PieceSortError,
-    },
-    /// One of the operand's solids, once sorted into pieces, has no
-    /// outer shell: only cavities, which bound no material. Not a shape
-    /// this verb thickens. More than one cannot reach here: the sort
-    /// reads roles through [`crate::props::shell_role`], and this verb
-    /// classifies through the same lane at the reporting target, which
-    /// reads a role only where that walk read the same one
-    /// (`props::role_at_target`). So the sort leaves no solid with a
-    /// second decided `Outer`, and a shell the sort left undecided
-    /// refuses [`Self::Roles`].
-    OperandOuterShells {
-        /// The solid with no outer shell.
-        solid: SolidKey,
     },
     /// The re-partition of an operand void and its dilated twin into a
     /// solid of their own refused. The keys are the shell op's own —
@@ -611,15 +600,6 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                 f,
                 "the body's shells could not be sorted into one outer boundary and its \
                  voids: {error}"
-            ),
-            Self::Pieces { error } => write!(
-                f,
-                "the body could not be sorted into solids before it is thickened: {error}"
-            ),
-            Self::OperandOuterShells { .. } => write!(
-                f,
-                "a solid of the body has no outer shell, only cavities, which bound no \
-                 material to thicken. {KERNEL_OR_FILE_DEFECT_ENDING}"
             ),
             Self::Partition { shell, error } => write!(
                 f,
@@ -1094,27 +1074,6 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         _ => return Err(ShellError::Thickness { thickness }),
     }
 
-    // ---- Decide: one piece of material per solid. ----
-    //
-    // A finished operand is already one piece per solid (tier 3's check
-    // 10 refuses two `Outer` shells under one solid), so no operand that
-    // can reach this door is changed by the sort below; whether it and
-    // `ShellError::Pieces` are reachable at all is
-    // `work/shell/shell-operand-shape-arms-behind-the-at-rest-gate.md`.
-    // It runs on a clone, so every key the caller holds still names the
-    // same face, edge and vertex; a body whose every solid has one shell
-    // is not read.
-    let sorted;
-    let body = if body.solids().any(|(_, s)| s.shells.len() > 1) {
-        let mut clone = body.clone();
-        crate::pieces::sort_into_pieces(&mut clone, band, tol, T::quad_lane(), None)
-            .map_err(|error| ShellError::Pieces { error })?;
-        sorted = clone;
-        &sorted
-    } else {
-        body
-    };
-
     // ---- Decide: there is a solid to thicken. ----
     let solids: Vec<SolidKey> = body.solids().map(|(k, _)| k).collect();
     if solids.is_empty() {
@@ -1152,13 +1111,20 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         }
         let roles = crate::props::classify_shells_through(body, shells, tol, T::quad_lane())
             .map_err(|error| ShellError::Roles { error })?;
-        match roles.iter().filter(|c| c.role == ShellRole::Outer).count() {
-            0 => return Err(ShellError::OperandOuterShells { solid }),
-            1 => {}
-            outer => unreachable!(
-                "{outer} decided outer shells under one solid after the sort, whose \
-                 sign walk reads every role the classification reads"
-            ),
+        // The gate read these roles through the same sign walk at the
+        // same band: check 10 finished the operand only with every one
+        // decided and at most one `Outer` (two is its
+        // `SolidOuterShells`), and check 7 only with the solid's volume
+        // positive, which shells each decided negative cannot sum to.
+        // The classification reads a role only where that walk read the
+        // same one (`props::role_at_target`), so it cannot count
+        // otherwise.
+        let outer = roles.iter().filter(|c| c.role == ShellRole::Outer).count();
+        if outer != 1 {
+            unreachable!(
+                "{outer} decided outer shells under one solid of a finished operand, whose \
+                 checks 7 and 10 read every role the classification reads"
+            );
         }
         voids.extend(
             roles
@@ -1299,9 +1265,21 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
                 // refusals carry a face, a vertex or an edge; the last two are
                 // resolved to a face they touch.
                 let outcome = if door == OffsetDoor::ChartsTogether {
-                    crate::offset_charts_together(&mut cavity, &moves, band, tol)
+                    crate::offset_axial::offset_charts_together_staged(
+                        &mut cavity,
+                        &moves,
+                        band,
+                        tol,
+                        false,
+                    )
                 } else {
-                    crate::offset_planes_together(&mut cavity, &moves, band, tol)
+                    crate::offset_together::offset_planes_together_staged(
+                        &mut cavity,
+                        &moves,
+                        band,
+                        tol,
+                        false,
+                    )
                 };
                 outcome.map_err(|error| ShellError::Face {
                     face: offending_face(&cavity, &error).unwrap_or(fallback),
@@ -1312,11 +1290,16 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
                 for group in &mine {
                     let face = group[0];
                     let d = inward(&cavity, face, thickness);
-                    crate::replace_faces_offset(&mut cavity, group, d, tol).map_err(|error| {
-                        ShellError::Face {
-                            face,
-                            error: Box::new(error),
-                        }
+                    crate::replace_face::replace_faces_offset_staged(
+                        &mut cavity,
+                        group,
+                        d,
+                        tol,
+                        false,
+                    )
+                    .map_err(|error| ShellError::Face {
+                        face,
+                        error: Box::new(error),
                     })?;
                 }
             }
@@ -1573,10 +1556,18 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
                         },
                     })
                     .collect();
-                crate::offset_charts_together(&mut out, &moves, band, tol)
+                crate::offset_axial::offset_charts_together_staged(
+                    &mut out, &moves, band, tol, false,
+                )
             }
             OffsetDoor::PlanesTogether | OffsetDoor::PerChart => {
-                crate::replace_faces_offset(&mut out, lift_charts.of(counterpart_chart), back, tol)
+                crate::replace_face::replace_faces_offset_staged(
+                    &mut out,
+                    lift_charts.of(counterpart_chart),
+                    back,
+                    tol,
+                    false,
+                )
             }
         };
         outcome.map_err(|error| ShellError::Lift {

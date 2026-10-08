@@ -179,13 +179,100 @@ pub fn ell_and_wedges() -> Vec<Hole> {
 
 /// Three wedges leant across one another ([`leaned`]): the first two
 /// turned 60° and 240° off their bisectors. Their prisms' union meets
-/// the top at [`MEET`] with three Out runs that nest about its normal.
+/// the top at [`MEET`] with three Out runs, one with the others on
+/// either side of it about the top's normal.
 pub fn arch() -> Vec<Hole> {
     vec![
         leaned(0.0, 30.0, 0, 75.0),
         leaned(120.0, 150.0, 1, 375.0),
         wedge(240.0, 270.0, 2),
     ]
+}
+
+/// A pyramid's base corners in the plane half a unit along +x from
+/// [`MEET`], from `(y, z)` on a grid of unit steps, `y` from 0 to its
+/// largest: `y` centred and scaled to span 0.75, `z` scaled by 0.2.
+/// Each crossing of `z = 0` is a germ of [`apex_pyramid`]'s apex on the
+/// plate's top, in order along `y`.
+fn meander(path: &[(f64, f64)]) -> Vec<[f64; 3]> {
+    let top = path.iter().map(|&(y, _)| y).fold(0.0, f64::max);
+    path.iter()
+        .map(|&(y, z)| [0.5, (y - top / 2.0) * (0.75 / top), z * 0.2])
+        .collect()
+}
+
+/// [`apex_pyramid`]'s base for three runs nested under one: above the
+/// top one wide arch over two narrow ones, which cut notches into it,
+/// and three legs below. Each run's two germs are neighbours along the
+/// top, the wide arch's across the ends. The pyramid holds 0.055, 0.015
+/// of it below the top.
+#[must_use]
+pub fn comb() -> Vec<[f64; 3]> {
+    meander(&[
+        (0.0, 2.0),
+        (5.0, 2.0),
+        (5.0, -1.0),
+        (4.0, -1.0),
+        (4.0, 1.0),
+        (3.0, 1.0),
+        (3.0, -1.0),
+        (2.0, -1.0),
+        (2.0, 1.0),
+        (1.0, 1.0),
+        (1.0, -1.0),
+        (0.0, -1.0),
+    ])
+}
+
+/// [`apex_pyramid`]'s base for three runs one inside another above the
+/// top, the arch cone: the middle run has the outer on one side and the
+/// inner on the other, so its two germs are not neighbours along the
+/// top, and the ring's struts form a path.
+#[must_use]
+pub fn arch_cone() -> Vec<[f64; 3]> {
+    meander(&[
+        (0.0, 3.0),
+        (5.0, 3.0),
+        (5.0, -2.0),
+        (2.0, -2.0),
+        (2.0, 1.0),
+        (3.0, 1.0),
+        (3.0, -1.0),
+        (4.0, -1.0),
+        (4.0, 2.0),
+        (1.0, 2.0),
+        (1.0, -1.0),
+        (0.0, -1.0),
+    ])
+}
+
+/// [`apex_pyramid`]'s base for five runs above the top: one over two,
+/// each over one more. The ring's struts form a tree with a node of
+/// three struts and two of two, deeper than a path.
+#[must_use]
+pub fn branching_cone() -> Vec<[f64; 3]> {
+    meander(&[
+        (0.0, 3.0),
+        (9.0, 3.0),
+        (9.0, -2.0),
+        (6.0, -2.0),
+        (6.0, 1.0),
+        (7.0, 1.0),
+        (7.0, -1.0),
+        (8.0, -1.0),
+        (8.0, 2.0),
+        (5.0, 2.0),
+        (5.0, -2.0),
+        (2.0, -2.0),
+        (2.0, 1.0),
+        (3.0, 1.0),
+        (3.0, -1.0),
+        (4.0, -1.0),
+        (4.0, 2.0),
+        (1.0, 2.0),
+        (1.0, -1.0),
+        (0.0, -1.0),
+    ])
 }
 
 /// The holes inside the top, labelled: [`two_wedges`] and the four

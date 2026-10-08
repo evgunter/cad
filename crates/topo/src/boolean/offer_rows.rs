@@ -2148,7 +2148,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::PairingMismatch
         | BooleanErrorKind::SharedVertexCrossings
         | BooleanErrorKind::PinchConesOnSeparateKeys
-        | BooleanErrorKind::PierceRunsNested
         | BooleanErrorKind::VertexReadTwice
         | BooleanErrorKind::ClassificationInvariant
         | BooleanErrorKind::CurvedPairUnsupported
@@ -2784,6 +2783,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "Coincide::TangentSide",
         1,
     ),
+    ("vtxfac.rs", "germ_order", "Coincide::Sectors", 1),
     ("vtxfac.rs", "pierce_germ_dir", "Coincide::Sectors", 1),
 ];
 

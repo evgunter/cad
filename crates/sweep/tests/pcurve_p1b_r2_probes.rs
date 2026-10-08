@@ -327,7 +327,7 @@ fn r2_no_face_offset_flips_is_declared_silently() {
                 Err(e) => {
                     println!("[R2-S2] face {f:?} at d = {d}: refused loudly — {e:?}");
                 }
-                Ok(()) => {
+                Ok(_) => {
                     let after = declared_map(&body);
                     for (edge, was) in &before {
                         if let Some((_, now)) = after.iter().find(|(k, _)| k == edge)

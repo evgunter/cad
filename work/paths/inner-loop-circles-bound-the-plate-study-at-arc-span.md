@@ -19,7 +19,7 @@ loops (centres `∓half_spacing`, radii `hole_a_r`/`hole_b_r` — the
 study's three parameters), the web measure reading the two bore walls
 of that extrude. This spelling needs no boolean, so it never meets the
 subtract's volume tie
-(`work/reach/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`).
+(`work/tally/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`).
 
 Whole-box drive (one leaf), default ε, fraction of the real study
 (±0.05 mm spacing, σ = 0.01 mm radii):

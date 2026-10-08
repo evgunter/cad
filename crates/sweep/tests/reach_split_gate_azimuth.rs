@@ -520,7 +520,7 @@ fn cuts(f: &Fixture, sigma: f64, s: f64, clear: bool) -> Vec<(Vec3<f64>, f64)> {
 /// (`work/quad/quadrature-convergence-test-escalates-instead-of-refining.md`),
 /// and the split's sector decision at a vertex a cut passes within
 /// `10²` ε of, on a body under `10⁷` ε across
-/// (`work/reach/split-bisector-side-in-band-off-a-corner-at-millimetre-scale.md`).
+/// (`work/tally/split-bisector-side-in-band-off-a-corner-at-millimetre-scale.md`).
 /// Both are typed, and neither is the gate's.
 #[test]
 fn every_cut_clear_of_a_partial_turn_sphere_face_splits() {
