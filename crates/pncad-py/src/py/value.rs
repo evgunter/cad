@@ -1855,7 +1855,7 @@ fn export_err(
             fields[3] = ("kind", PyString::new(py, kind).unbind().into_any());
         }
         // `Product` is the WHOLE-DOCUMENT door's refusal: it names
-        // product roots, not this call's node, so it adds no field
+        // the world's placements, not this call's node, so it adds no field
         // here. The arm is spelled out because the match
         // is exhaustive on purpose — the tripwire, not a wildcard.
         E::EmptyBoolean { .. } | E::Step(_) | E::Product(_) => {}

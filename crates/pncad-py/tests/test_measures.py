@@ -878,15 +878,15 @@ class TestTheDocumentCarriesIt(unittest.TestCase):
         self.assertEqual(ev.value(measure).kind, "measure")
         self.assertEqual(ev.value(assertion).kind, "assertion")
 
-    def test_a_measure_over_a_non_root_leaves_the_product_alone(self):
+    def test_a_measure_over_an_unplaced_body_leaves_the_product_alone(self):
         """The ordinary case, and the one the worked example is in:
-        the measure's references sit UNDER something else, so the
-        measure is a fresh sink, the product root above them is
-        untouched, and the gathered solid is the same one."""
+        the measure's references sit UNDER the placed union, the
+        measure places nothing, and the gathered solid is the same
+        one."""
         doc = Doc()
         left = cylinder(doc, -0.30, 0.2)
         right = cylinder(doc, 0.30, 0.2)
-        union = doc.insert(Node.boolean(pncad.BooleanOp.Union, left, right))
+        placed = doc.place(doc.insert(Node.boolean(pncad.BooleanOp.Union, left, right)))
         before = pncad.product(doc, evaluate(doc)).mass_properties().volume
         ev = evaluate(doc)
         doc.insert(
@@ -895,57 +895,34 @@ class TestTheDocumentCarriesIt(unittest.TestCase):
                 [(left, wall(ev, left)), (right, wall(ev, right))],
             )
         )
-        self.assertIn(union, doc.roots)
+        self.assertEqual(doc.placements(), [placed])
         self.assertAlmostEqual(
             pncad.product(doc, evaluate(doc)).mass_properties().volume,
             before,
             places=12,
         )
 
-    def test_a_measure_over_the_product_roots_takes_them(self):
-        """**Measured, and reported as a finding rather than asserted
-        to be right.**
-
-        A measure's references are recipe EDGES, so a measure over the
-        nodes that are currently product roots is a sink consuming
-        them: D-3's tip transfer moves the root onto the measure, and
-        a measure denotes no body — so the document that had a solid
-        product now has none. `DocEdit.set_roots` cannot restore one:
-        listing the bodies alone leaves the measure uncovered, and
-        listing the measure beside them is an ancestor pair.
-
-        This row exists so the behaviour is visible and so a kernel
-        change to it goes red HERE with the argument in hand, not so
-        the behaviour is preserved.
-        """
+    def test_a_measure_over_the_placed_bodies_takes_nothing(self):
+        """A measure reads the bodies it measures and places nothing,
+        so measuring the two placed bodies leaves the world as it was:
+        the product is still both, whatever reads them."""
         doc = Doc()
         left = cylinder(doc, -0.30, 0.2)
         right = cylinder(doc, 0.30, 0.2)
-        self.assertEqual(doc.roots, [left, right])
-        self.assertGreater(
-            pncad.product(doc, evaluate(doc)).mass_properties().volume, 0.0
-        )
+        placed = [doc.place(left), doc.place(right)]
+        before = pncad.product(doc, evaluate(doc)).mass_properties().volume
+        self.assertGreater(before, 0.0)
         ev = evaluate(doc)
-        measure = doc.insert(
+        doc.insert(
             Node.measure(
                 MeasureExpr.primitive(MeasurePrimitive.distance(0, 1)),
                 [(left, wall(ev, left)), (right, wall(ev, right))],
             )
         )
-        self.assertEqual(doc.roots, [measure])
-        with self.assertRaises(pncad.ProductError) as caught:
-            pncad.product(doc, evaluate(doc))
-        self.assertEqual(caught.exception.variant, "no_body_roots")
-        # And neither root list D-2 would accept puts a body back.
-        for roots, refusal in (
-            ([left, right], "root_uncovered"),
-            ([left, right, measure], "root_ancestor"),
-        ):
-            with self.subTest(roots=roots):
-                fresh = load(doc.save()).doc
-                with self.assertRaises(EditError) as caught:
-                    fresh.apply(DocEdit.set_roots(roots))
-                self.assertEqual(caught.exception.variant, refusal)
+        self.assertEqual(doc.placements(), placed)
+        self.assertEqual(
+            pncad.product(doc, evaluate(doc)).mass_properties().volume, before
+        )
 
 
 if __name__ == "__main__":

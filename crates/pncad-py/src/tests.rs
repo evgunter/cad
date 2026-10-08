@@ -97,7 +97,8 @@ fn insert(
 }
 
 /// A one-box document under the id `label` derives: square(2)
-/// extruded 1.5, volume exactly 6.0. Returns (doc, profile id, body
+/// extruded 1.5, volume exactly 6.0, the box placed once in the world
+/// at the identity. Returns (doc, profile id, body
 /// id) — the MINTED ids, so no caller couples to mint order.
 fn box_doc(
     label: &str,
@@ -106,7 +107,7 @@ fn box_doc(
     pncad::document::RecipeNodeId,
     pncad::document::RecipeNodeId,
 ) {
-    use pncad::document::{Node, ProfileDoc};
+    use pncad::document::{Node, Placement, ProfileDoc};
     let doc = ProfileDoc::empty_derived(label, pncad::tolerance::Tol::witness());
     let (doc, plane) = insert(doc, xy_frame());
     let (doc, profile) = insert(doc, square(plane, 2.0));
@@ -118,6 +119,7 @@ fn box_doc(
             side: ExtrudeSide::Along,
         },
     );
+    let (doc, _) = insert(doc, Node::place_in_world(body, Placement::IDENTITY));
     (doc, profile, body)
 }
 // END box-document fixture twin
@@ -2713,7 +2715,7 @@ fn a_carried_frame_direction_refusal_keeps_the_frames_own_tag() {
 #[test]
 fn edit_inner_variant_tags_are_stable() {
     use crate::tags::{edit_error_tag, edit_inner_variant_tag};
-    use pncad::document::{Distribution, EditError, MetaVersionError, RecipeNodeId, RootFault};
+    use pncad::document::{Distribution, EditError, MetaVersionError, RecipeNodeId};
     use pncad::prelude::StableName;
     use pncad::select::{EntityKind, RoleSeg};
 
@@ -2747,21 +2749,13 @@ fn edit_inner_variant_tags_are_stable() {
         }),
         ("meta_unversioned", Some("version_not_int"))
     );
-    // `Roots` reads its word off the fault already, the way
-    // `PlacementRule` does one carrier over.
-    assert_eq!(
-        pair(&EditError::Roots(RootFault::Duplicate {
-            root: pncad::document::SpokenNode::absent(RecipeNodeId::new(0, 1))
-        })),
-        ("root_duplicate", None)
-    );
 }
 
 /// **Every `EditError` arm's payload, constructed and read.**
 ///
 /// The arm table, executable. `crate::edit_payload::edit_payload` is
 /// the projection Python reads its attributes off, and this pin says
-/// what each of the 71 arms puts on the wire: the exact set of
+/// what each arm puts on the wire: the exact set of
 /// attributes it CARRIES, in publication order, with the rest `None`.
 ///
 /// It is here rather than in `tests/*.py` because most of these arms
@@ -2772,7 +2766,7 @@ fn edit_inner_variant_tags_are_stable() {
 /// can provoke it, so it is pinned where it can be provoked: by
 /// construction, on the row with no interpreter.
 ///
-/// The pin is TOTAL over the enum: all 71 arms are built here, so an
+/// The pin is TOTAL over the enum: every arm is built here, so an
 /// arm whose projection is dropped shows up as a changed set rather
 /// than as an absence nobody counted. Totality of the PROJECTION is a
 /// different guarantee and a stronger one: `edit_payload`'s match is
@@ -2783,8 +2777,8 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     use crate::edit_payload::edit_payload;
     use pncad::document::{
         AttrKind, Axis3, ContentPin, Dimension, DimensionError, Distribution, DocumentId,
-        EditError as E, Frame, FreeValue, MeasureNodeFault, MetaVersionError, RecipeNodeId,
-        RootFault, SlotId, StepId, StepIdFault, VarName,
+        EditError as E, Frame, FreeValue, MeasureNodeFault, MetaVersionError, RecipeNodeId, SlotId,
+        StepId, StepIdFault, VarName,
     };
     use pncad::prelude::StableName;
     use pncad::select::{EntityKind, RoleSeg};
@@ -3304,22 +3298,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     assert_eq!(payload.node, Some(id(5)));
     assert_eq!(payload.slot, Some("distance"));
     assert_eq!(payload.path, Some(&[0u8, 1][..]));
-
-    // ---- the product-root invariants ----
-    carries(&E::Roots(RootFault::NotLive { root: sp(1) }), &["node"]);
-    carries(&E::Roots(RootFault::Duplicate { root: sp(1) }), &["node"]);
-    carries(&E::Roots(RootFault::Uncovered { node: sp(1) }), &["node"]);
-    let ancestor = E::Roots(RootFault::Ancestor {
-        ancestor: sp(1),
-        descendant: sp(2),
-    });
-    carries(&ancestor, &["node", "referenced_by"]);
-    let payload = edit_payload(&ancestor);
-    assert_eq!(
-        (payload.node, payload.referenced_by),
-        (Some(id(1)), Some(id(2))),
-        "the machine channel carries the spoken nodes' ids"
-    );
 
     // ---- the arms that carry a nested refusal, and the empty one ----
     //
@@ -3859,7 +3837,12 @@ fn check_registry_tags_are_stable() {
     );
     assert_eq!(
         checks_error_tag(&ChecksError::Product {
-            refusal: Some(pncad::document::ProductError::NoBodyRoots.into())
+            refusal: Some(
+                pncad::document::ProductError::EmptyProduct {
+                    unplaced: Vec::new()
+                }
+                .into()
+            )
         }),
         "product_unavailable"
     );
@@ -4801,9 +4784,9 @@ struct TagEntry {
     values: &'static [&'static str],
     /// Every tag function it hands an arm to, sorted. Delegation is
     /// part of the shape and not an implementation detail: flattening
-    /// `Roots(fault) => root_fault_tag(fault)` into a bare `"roots"`
-    /// swaps four Python-visible words for one, and would otherwise
-    /// read here as four values quietly leaving the table.
+    /// `Product(inner) => product_error_tag(inner)` into a bare
+    /// `"product"` swaps every gather word for one, and would otherwise
+    /// read here as those values quietly leaving the table.
     delegates: &'static [&'static str],
 }
 
@@ -5194,7 +5177,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "would_cycle",
             "would_start_placing",
         ],
-        delegates: &["root_fault_tag"],
+        delegates: &[],
     },
     TagEntry {
         function: "edit_inner_variant_tag",
@@ -5366,8 +5349,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "foreign_instance_name",
             "inline_edit",
             "instance_body_name_referenced",
-            "instance_consumed",
             "instance_output_uncarried",
+            "instance_read_uncarried",
             "mate_frame_crosses",
             "mate_pair_splits",
             "mate_placed",
@@ -5376,6 +5359,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_an_instance",
             "part_carries_metadata",
             "part_dead_gauge",
+            "placement_pose_crosses",
             "stranded_part_name",
             "unknown_node",
             "unplaceable_frame",
@@ -5722,8 +5706,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "operand_slot_tag",
         values: &[
-            "a", "at", "axis", "b", "frame", "input", "measure", "member", "of", "path", "plane",
-            "profile", "section", "target", "tool",
+            "a", "at", "axis", "b", "body", "frame", "input", "measure", "member", "of", "path",
+            "plane", "profile", "section", "target", "tool",
         ],
         delegates: &[],
     },
@@ -5846,15 +5830,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "product_error_tag",
         values: &[
             "contact_lineage",
+            "empty_product",
             "evaluation_of_another_document",
             "graft_refused",
-            "no_body_roots",
-            "placed_under_two_roots",
             "product_invalid",
-            "product_naming",
             "root_failed",
             "root_invalid",
             "root_poisoned",
+            "stranded_placement",
             "unknown_node",
             "unplaced",
         ],
@@ -6030,16 +6013,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "root_fault_tag",
-        values: &[
-            "root_ancestor",
-            "root_duplicate",
-            "root_not_live",
-            "root_uncovered",
-        ],
-        delegates: &[],
-    },
-    TagEntry {
         function: "seed_error_tag",
         values: &[
             "count_param",
@@ -6207,7 +6180,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "witness_on_missing_node",
             "witness_site",
         ],
-        delegates: &["root_fault_tag"],
+        delegates: &[],
     },
     TagEntry {
         function: "solid_name_error_tag",
@@ -6223,6 +6196,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "empty_cut",
             "mate_frame_crosses",
             "name_on_dropped_step",
+            "name_outside_part_world",
             "name_straddles_cut",
             "no_material",
             "operand_severed_from_mate",
@@ -6584,6 +6558,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("assertion_dimension", 2),
     ("assertion_target", 2),
     ("band", 16),
+    ("body", 2),
     ("cap_plane", 3),
     ("certify", 2),
     // One fact: a ring meeting its outer loop and a ring meeting
@@ -10425,6 +10400,7 @@ const NODE_KIND_ROSTER: &[&str] = &[
     "measure",
     "part",
     "pattern",
+    "place_in_world",
     "placed_union",
     "profile",
     "revolve",
@@ -10702,8 +10678,11 @@ mod product_memo_rows {
         let count = gathers(|| {
             for _ in 0..2 {
                 let refusal = product_memo::body(&memo, &doc, &ev, tol)
-                    .expect_err("a document with no body root has no product");
-                assert!(matches!(refusal, d::ProductError::NoBodyRoots));
+                    .expect_err("a document with nothing placed has no product");
+                assert!(
+                    matches!(&refusal, d::ProductError::EmptyProduct { unplaced } if unplaced.is_empty()),
+                    "a sketch places nothing and defines no body: {refusal:?}"
+                );
             }
         });
         assert_eq!(count, 2);
@@ -10724,7 +10703,7 @@ mod product_memo_rows {
             &d::ChecksConfig::default(),
             Tol::witness(),
         )
-        .expect("no body roots is a subject, not a refusal");
+        .expect("an empty world is a subject, not a refusal");
         assert!(report.findings.is_empty());
     }
 
@@ -10803,28 +10782,28 @@ fn a_split_node_map_reaches_python_in_target_id_order() {
         })
     };
     let ascending = |ids: &[RecipeNodeId]| ids.windows(2).all(|w| w[0] < w[1]);
-    // One instance gives the cut its material (a cut of frames alone
-    // refuses `no_material`); the frames give it its many ids.
+    // One placed instance gives the cut its material (a cut of frames
+    // alone refuses `no_material`, and so does one of unplaced
+    // material); the frames give it its many ids.
     let material = || {
-        insert(
+        let (doc, instance) = insert(
             ProfileDoc::empty_derived("place-node-map", Tol::witness()),
             Node::instantiate_part(pncad::document::DocRef {
                 id: DocumentId::derive("place-node-map-ref"),
                 pin: pncad::document::ContentPin([0u8; 32]),
             }),
-        )
+        );
+        let (doc, placement) = insert(
+            doc,
+            Node::place_in_world(instance, pncad::document::Placement::IDENTITY),
+        );
+        (doc, vec![instance, placement])
     };
-    let (doc, cut) = (0..4u32).fold(
-        {
-            let (doc, instance) = material();
-            (doc, vec![instance])
-        },
-        |(doc, mut cut), i| {
-            let (doc, id) = insert(doc, frame(f64::from(i)));
-            cut.push(id);
-            (doc, cut)
-        },
-    );
+    let (doc, cut) = (0..4u32).fold(material(), |(doc, mut cut), i| {
+        let (doc, id) = insert(doc, frame(f64::from(i)));
+        cut.push(id);
+        (doc, cut)
+    });
     assert!(ascending(&cut), "ids run in document order");
     let out = split(
         &doc,

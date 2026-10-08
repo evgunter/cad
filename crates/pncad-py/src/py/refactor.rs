@@ -364,6 +364,7 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
         ),
         E::NameStraddlesCut { name, .. }
         | E::BodyNameCrossesCut { name }
+        | E::NameOutsidePartWorld { name }
         | E::NameOnDroppedStep { name, .. } => (
             none(),
             none(),
@@ -630,9 +631,29 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
             none(),
         ),
-        E::InstanceConsumed { node: n, by: b } => {
-            (id(n), id(b), none(), none(), none(), none(), none(), none())
-        }
+        // A host placement of the instance at a pose of its own.
+        E::PlacementPoseCrosses { placement: n } => (
+            id(n),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        // The host node reading the instance rides `by`; why no one
+        // body takes its read is in the message.
+        E::InstanceReadUncarried { reader, why: _ } => (
+            none(),
+            id(reader),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
         E::Unresolved { failure } => (
             none(),
             none(),
