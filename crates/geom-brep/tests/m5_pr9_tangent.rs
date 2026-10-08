@@ -559,16 +559,22 @@ fn a_small_angle_false_tangency_is_decided_at_the_parallelism_band_edge() {
         "a defect inside the band escalates at the parallelism check"
     );
     let refusal = certify_at(2.0 * escalate).unwrap_err();
+    let CertifyError::ResidualExceeded {
+        check: geom_brep::CertCheck::TangentParallel,
+        sample: 1,
+        margin,
+    } = refusal
+    else {
+        panic!("a definite defect refuses at the parallelism check: {refusal:?}");
+    };
+    // The refusal carries the reading it was decided on: a point margin
+    // past the band's far edge, which the import door reads as the miss.
+    let geom_core::ErrorTextReading::Value(m) = margin.diagnostic_f64_for_error_text() else {
+        panic!("an f64 classification reports a point margin: {margin:?}");
+    };
     assert!(
-        matches!(
-            refusal,
-            CertifyError::ResidualExceeded {
-                check: geom_brep::CertCheck::TangentParallel,
-                sample: 1,
-                ..
-            }
-        ),
-        "{refusal:?}"
+        m.abs() >= escalate,
+        "the carried miss {m:e} lies past the band's far edge {escalate:e}"
     );
 }
 

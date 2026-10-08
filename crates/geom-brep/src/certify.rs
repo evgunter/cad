@@ -5087,13 +5087,14 @@ mod tests {
     /// **The import door reads certification as at rest, with its ε_in
     /// words** (D4 ¶1), over every check and every arm: the door's ending
     /// is the at-rest one, except that a band-decided arm of a sized
-    /// decision whose size lies at or below ε_in offers no tolerance
-    /// alone — an undecided size names declaring the file's uncertainty
-    /// below it and tightening, together, and a zero one says the file
-    /// states the coincidence and quotes no value — and a residual's miss
-    /// within ε_in but beyond ε names setting ε to ε_in as a stopgap. An
-    /// ε_in below every margin leaves every ending at rest. No ending at
-    /// the door blames the kernel alone, or carries a second recourse.
+    /// decision whose margin's nearer end lies at or below ε_in ends in
+    /// one sentence, whichever arm the run's band placed it on: the file
+    /// does not state the size, and keeping it takes declaring the file's
+    /// uncertainty below it and tightening, together — and a residual's
+    /// miss within ε_in but beyond ε names setting ε to ε_in as a
+    /// stopgap. An ε_in below every margin leaves every ending at rest
+    /// but a reading at zero's. No ending at the door blames the kernel
+    /// alone, or carries a second recourse.
     #[test]
     fn the_import_door_reads_at_rest_with_its_eps_in_words() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -5134,11 +5135,27 @@ mod tests {
             }
             for (arm, miss) in arms {
                 let at_rest = recourse(check, arm, Reading::AtRest);
-                assert_eq!(
-                    recourse_in_file(check, arm, narrow),
-                    at_rest,
-                    "{check:?} {arm:?}: an ε_in below every margin picks no other words"
-                );
+                let banded = match arm {
+                    RefusedArm::Undecided(cause) => Some(cause.margin),
+                    RefusedArm::Zero(Classified { margin, .. }) => Some(margin),
+                    RefusedArm::SignCertain => None,
+                };
+                // A reading at or across zero has no nearer end any ε_in
+                // lies below.
+                let reaches_zero = match banded.map(MarginDiag::diagnostic_f64_for_error_text) {
+                    Some(geom_core::ErrorTextReading::Value(m)) => m == 0.0,
+                    Some(geom_core::ErrorTextReading::Enclosure { lo, hi }) => {
+                        lo <= 0.0 && hi >= 0.0
+                    }
+                    _ => false,
+                };
+                if !(reaches_zero && matches!(check.ending(), Ending::Sized(_))) {
+                    assert_eq!(
+                        recourse_in_file(check, arm, narrow),
+                        at_rest,
+                        "{check:?} {arm:?}: an ε_in below every margin picks no other words"
+                    );
+                }
                 let door = recourse_in_file(check, arm, wide);
                 assert_ne!(door, KERNEL_DEFECT_ENDING, "{check:?} {arm:?}");
                 assert_eq!(
@@ -5146,29 +5163,33 @@ mod tests {
                     1,
                     "{check:?} {arm:?}: {door}"
                 );
-                match (check.ending(), arm) {
-                    (Ending::Sized(_), RefusedArm::Undecided(_)) if at_rest.contains("tighten") => {
+                match (check.ending(), banded) {
+                    (Ending::Sized(sized), Some(margin))
+                        if margin != MarginDiag::INVALID
+                            && !(sized.passes.passes_zero()
+                                && matches!(arm, RefusedArm::Zero(_))) =>
+                    {
+                        // One sentence for every band-decided arm, the
+                        // run's placement of it picking no other words.
                         assert!(
-                            door.contains("so the file does not state it. Recourse: move")
-                                && door.contains(
+                            door.starts_with(&format!("This {} is below the file's", sized.size))
+                                && door.contains("so the file does not state it. Recourse: "),
+                            "{check:?} {arm:?}: {door}"
+                        );
+                        if at_rest.contains("tighten") {
+                            assert!(
+                                door.contains(
                                     " is intended, re-export the file with its uncertainty \
                                      declared below"
-                                )
-                                && door.contains(" m and tighten the tolerance below "),
-                            "{check:?} {arm:?}: {door}"
-                        );
-                    }
-                    (Ending::Sized(_), RefusedArm::Zero(_)) if at_rest.contains("tighten") => {
-                        assert!(
-                            door.starts_with("The file and this run both read this ")
-                                && door.contains(" as zero, so the file states the coincidence.")
-                                && !door.contains("tighten")
-                                && !door.chars().any(|c| c.is_ascii_digit()),
-                            "{check:?} {arm:?}: {door}"
-                        );
+                                ) && door.contains(" m and tighten the tolerance below "),
+                                "{check:?} {arm:?}: {door}"
+                            );
+                        } else {
+                            assert!(door.ends_with(&at_rest), "{check:?} {arm:?}: {door}");
+                        }
                     }
                     (Ending::Residual(_), _) if miss => assert!(
-                        door.contains("or, as a stopgap, set the tolerance to ε_in"),
+                        door.contains("as a stopgap, set the tolerance to ε_in"),
                         "{check:?} {arm:?}: {door}"
                     ),
                     _ => assert_eq!(door, at_rest, "{check:?} {arm:?}"),
@@ -5205,12 +5226,28 @@ mod tests {
         let fit = exceeded(CertCheck::Surface2Residual, 5e-7)
             .ending_in_file(file)
             .unwrap();
+        assert_eq!(
+            fit,
+            "This miss lies beyond the tolerance and within the file's declared coincidence \
+             distance ε_in = 1e-6 m, and may be the kernel's own approximation. Recourse: as a \
+             stopgap, set the tolerance to ε_in = 1e-6 m; this refusal may indicate a kernel bug \
+             worth reporting",
+            "a fit's miss names no re-export and vouches for no file data"
+        );
+        // An enclosure across ε_in may lie within it, so the stopgap is
+        // named with the defect it leaves if the miss persists.
+        let across = CertifyError::ResidualExceeded {
+            check: CertCheck::EndpointStart,
+            sample: 0,
+            margin: MarginDiag::enclosure(5e-7, 2e-6),
+        }
+        .ending_in_file(file)
+        .unwrap();
         assert!(
-            fit.contains("may be the kernel's own approximation")
-                && fit.contains(stopgap)
-                && fit.ends_with("this refusal may indicate a kernel bug worth reporting")
-                && !fit.contains("the file's data"),
-            "{fit}"
+            across.contains("and may lie within the file's declared")
+                && across.contains(stopgap)
+                && across.ends_with("a kernel defect or a damaged file, worth reporting"),
+            "{across}"
         );
         for check in [CertCheck::EndpointStart, CertCheck::Surface2Residual] {
             let past = exceeded(check, 2e-6);

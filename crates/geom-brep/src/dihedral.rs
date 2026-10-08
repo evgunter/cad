@@ -149,8 +149,10 @@ pub(crate) fn decide<T: Decide>(
 }
 
 /// [`decide`], keeping the reporting margin
-/// ([`geom_core::k_stats::decide_reported`]): for a sized decision
-/// whose refusal quotes the tolerance that would decide it.
+/// ([`geom_core::k_stats::decide_reported`]) on every outcome: for a
+/// refusal whose words read it — a sized decision's quoting the
+/// tolerance that would decide it, and a residual's definite miss read
+/// against the file's ε_in at the import door.
 pub(crate) fn decide_reported<T: Decide>(
     name: &'static str,
     margin: Margin<T>,

@@ -152,16 +152,20 @@ test_support_mounts() {
 
 # check_list WHAT RE ENTRY... — the hits of RE over production code,
 # outside the definition home, against the `path count why` entries.
-# Prints the offending records and returns 1 (outside) or 2 (a moved
-# count); 0 when every hit is on the list at its count.
+# Prints the offending records, cut to 200 columns, and returns 1
+# (outside) or 2 (a moved count); 0 when every hit is on the list at
+# its count. On 1, CHECK_LIST_FIRED holds the names RE matched in the
+# offending records, read before the cut, so a call past column 200
+# is still named.
 check_list() {
   local what=$1 re=$2
   shift 2
-  local hits
-  hits=$(gate_rust_code --skip-cfg-test "${GATE_SCAN[@]}" \
+  local full hits
+  full=$(gate_rust_code --skip-cfg-test "${GATE_SCAN[@]}" \
     | gate_grep -E "$re" \
-    | gate_grep -vE "$(gate_record_anchor_any "${DEFINITION_HOMES[@]}")" \
-    | cut -c1-200)
+    | gate_grep -vE "$(gate_record_anchor_any "${DEFINITION_HOMES[@]}")")
+  hits=$(printf '%s\n' "$full" | cut -c1-200)
+  CHECK_LIST_FIRED=
   local entry path want why have bad=
   local -a listed=()
   for entry in ${@+"$@"}; do
@@ -173,14 +177,18 @@ check_list() {
       bad+="  [$path]: $have $what(s), the entry pins $want ($why)"$'\n'
     fi
   done
-  local outside
+  local outside full_outside
   if [ "${#listed[@]}" -gt 0 ]; then
     outside=$(printf '%s\n' "$hits" | gate_grep -vE "$(gate_record_anchor_any "${listed[@]}")" || true)
+    full_outside=$(printf '%s\n' "$full" | gate_grep -vE "$(gate_record_anchor_any "${listed[@]}")" || true)
   else
     outside=$hits
+    full_outside=$full
   fi
   if [ -n "$outside" ]; then
     printf '%s\n' "$outside"
+    CHECK_LIST_FIRED=$(printf '%s\n' "$full_outside" | gate_grep -oE "$re" \
+      | sed -E 's/[^A-Za-z0-9_]$//' | sort -u | paste -sd, - | sed 's/,/, /g')
     return 1
   fi
   if [ -n "$bad" ]; then
@@ -224,14 +232,9 @@ gate() {
     1) gate_error "$(gate_name): terminal_sliver: true written outside the classifier (this file's header says why). Whether subdivision is futile is the interval classifier's verdict, recorded when it mints the escalation; an escalation minted anywhere else carries false"
        exit 1 ;;
   esac
-  local sentences
-  sentences=$(check_list sentence "$SIZED_RE" "${SIZED_ALLOWLIST[@]}") || rc=$?
-  [ -z "$sentences" ] || printf '%s\n' "$sentences"
+  check_list sentence "$SIZED_RE" "${SIZED_ALLOWLIST[@]}" || rc=$?
   case $rc in
-    1) local fired
-       fired=$(printf '%s\n' "$sentences" | gate_grep -oE "$SIZED_RE" \
-         | sed -E 's/[^A-Za-z0-9_]$//' | sort -u | paste -sd, - | sed 's/,/, /g')
-       gate_error "$(gate_name): $fired asked outside the allowlisted sites (this file's header says what a site owes). Its sentence is chosen from the number, so reading it is reading the margin; end a sized decision through geom_brep::recourse::SizedDecision instead, or add the site here with its reason"
+    1) gate_error "$(gate_name): $CHECK_LIST_FIRED asked outside the allowlisted sites (this file's header says what a site owes). Its sentence is chosen from the number, so reading it is reading the margin; end a sized decision through geom_brep::recourse::SizedDecision instead, or add the site here with its reason"
        exit 1 ;;
     2) gate_error "$(gate_name): an allowlisted sentence site's count moved. Move the pin in the change that carries the argument"
        exit 1 ;;
@@ -357,7 +360,15 @@ plant_in_file_oracle_outside() {
 # The door's sized sentence used as an ε_in oracle.
 plant_sized_in_file_oracle_outside() {
   mkdir -p "$1/crates/step-import/src"
-  printf 'fn f(d: MarginDiag, b: Band, w: SizedWords, a: BandArm, e: FileCoincidence) -> bool { d.sized_recourse_in_file(b, w, a, e).contains("re-export") }\n' \
+  printf 'fn f(d: MarginDiag, b: Band, w: SizedWords, e: FileCoincidence) -> bool { d.sized_recourse_in_file(b, w, e).contains("re-export") }\n' \
+    > "$1/crates/step-import/src/error.rs"
+}
+
+# The door's sized sentence asked past column 200, where the printed
+# record is cut: the gate still names it.
+plant_long_in_file_oracle_outside() {
+  mkdir -p "$1/crates/step-import/src"
+  printf 'fn f(d: MarginDiag, b: Band, w: SizedWords, e: FileCoincidence) -> bool { let padding_that_pushes_the_call_past_the_two_hundredth_column_of_the_record_the_gate_prints_and_then_some_more_padding = 0; d.sized_recourse_in_file(b, w, e).contains("re-export") }\n' \
     > "$1/crates/step-import/src/error.rs"
 }
 
@@ -391,6 +402,7 @@ gate_selftest() {
   gate_selftest_case "sized_recourse asked outside the allowlisted sites" plant_sentence_oracle_outside
   gate_selftest_case "miss_recourse_in_file asked outside the allowlisted sites" plant_in_file_oracle_outside
   gate_selftest_case "sized_recourse_in_file asked outside the allowlisted sites" plant_sized_in_file_oracle_outside
+  gate_selftest_case ": sized_recourse_in_file asked outside the allowlisted sites" plant_long_in_file_oracle_outside
   gate_selftest_case "terminal_sliver: true written outside the classifier" plant_forged_sliver
   gate_selftest_passes "the definition, the allowlisted calls and mints, a test module's, the poison constant and prose" gate_plant_clean
   gate_selftest_homes --narrowed --subject "$DEFINITION_SUBJECT" "${DEFINITION_HOMES[@]}"

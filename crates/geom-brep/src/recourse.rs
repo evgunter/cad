@@ -12,9 +12,9 @@
 //! A decision with no size the user chose ([`Unsized`]) ends here too.
 
 use geom_core::{
-    Band, BandArm, Decided, FileCoincidence, Indeterminate, KERNEL_DEFECT_ENDING,
-    KERNEL_LIMIT_RECOURSE, KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag, MissReading, MissSource,
-    NOT_YET_ENDING, Sign, SizedWords,
+    Band, Decided, FileCoincidence, Indeterminate, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE,
+    KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag, MissReading, MissSource, NOT_YET_ENDING, Sign,
+    SizedWords,
 };
 pub use geom_core::{SizedPass, UNREADABLE_MARGIN_NOTE};
 
@@ -315,10 +315,10 @@ impl SizedDecision {
 
     /// The ending a refusal of this decision carries on `arm` at the
     /// import door (D4 ¶1): read at rest, except that a band-decided arm
-    /// whose size the margin's nearer end puts at or below the file's
-    /// declared coincidence distance offers no tolerance to keep it alone
-    /// ([`MarginDiag::sized_recourse_in_file`]): an undecided size is one
-    /// the file does not state, and a zero one a coincidence it does.
+    /// whose margin's nearer end lies at or below the file's declared
+    /// coincidence distance ends in the door's one sentence for a size the
+    /// file does not state ([`MarginDiag::sized_recourse_in_file`]),
+    /// whichever arm the run's band placed it on.
     #[must_use]
     pub fn recourse_in_file(self, arm: RefusedArm<'_>, file: FileCoincidence) -> String {
         match arm {
@@ -326,15 +326,13 @@ impl SizedDecision {
             RefusedArm::Zero(Classified { margin, band }) => margin.sized_recourse_in_file(
                 band,
                 self.words(self.at_zero.map(|note| note.stored)),
-                BandArm::Zero,
                 file,
             ),
-            RefusedArm::Undecided(cause) => cause.margin.sized_recourse_in_file(
-                cause.band,
-                self.words(None),
-                BandArm::Undecided,
-                file,
-            ),
+            RefusedArm::Undecided(cause) => {
+                cause
+                    .margin
+                    .sized_recourse_in_file(cause.band, self.words(None), file)
+            }
             RefusedArm::SignCertain => self.recourse(arm, Reading::AtRest),
         }
     }
@@ -547,22 +545,34 @@ mod tests {
                 eps_in,
             )
         };
+        let unstated = "This thickness is below the file's declared coincidence distance \
+                        ε_in = 1e-8 m, so the file does not state it. Recourse: L, or, if this \
+                        thickness is intended, re-export the file with its uncertainty declared \
+                        below 5e-9 m and tighten the tolerance below 5e-10 m";
         assert_eq!(
             zero_in_file(1e-8),
-            "The file and this run both read this thickness as zero, so the file states the \
-             coincidence. Recourse: L; at rest",
-            "a zero within ε_in quotes no value at the import door"
+            unstated,
+            "a zero within ε_in reads as the in-band arm does at the import door"
         );
         assert_eq!(
             in_file(
                 RefusedArm::Undecided(&cause(MarginDiag::value(-5e-9))),
                 1e-8
             ),
-            "This thickness is below the file's declared coincidence distance ε_in = 1e-8 m, so \
-             the file does not state it. Recourse: L, or, if this thickness is intended, \
-             re-export the file with its uncertainty declared below 5e-9 m and tighten the \
-             tolerance below 5e-10 m",
+            unstated,
             "an undecided size within ε_in names both steps that keep it"
+        );
+        assert_eq!(
+            in_file(
+                RefusedArm::Zero(Classified {
+                    margin: MarginDiag::value(0.0),
+                    band: band(),
+                }),
+                1e-8
+            ),
+            "This thickness is below the file's declared coincidence distance ε_in = 1e-8 m, so \
+             the file does not state it. Recourse: L; at rest",
+            "a zero of no size names the lever and the decision's note"
         );
         assert_eq!(
             zero_in_file(1e-9),

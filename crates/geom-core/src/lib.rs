@@ -41,8 +41,8 @@ pub use linalg::{
     decide_unit_direction,
 };
 pub use predicate::{
-    Band, BandArm, BandError, BandField, COINCIDENCE_RECOURSE, DEFAULT_K, DIRECTION_LENGTH_SUBJECT,
-    Decide, Decided, ErrorTextReading, FileCoincidence, Indeterminate, IndeterminatePayload,
+    Band, BandError, BandField, COINCIDENCE_RECOURSE, DEFAULT_K, DIRECTION_LENGTH_SUBJECT, Decide,
+    Decided, ErrorTextReading, FileCoincidence, Indeterminate, IndeterminatePayload,
     IndeterminateUnder, InfSpeed, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_LAST_RESORT,
     KERNEL_LIMIT_RECOURSE, KERNEL_OR_FILE_DEFECT_ENDING, Margin, MarginDiag, MarginKind,
     MissReading, MissSource, MissingRecourse, NO_DECLARATION_RECOURSE, NOT_YET_ENDING,

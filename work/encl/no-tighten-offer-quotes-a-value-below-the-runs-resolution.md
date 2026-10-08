@@ -10,7 +10,7 @@ design: true
 ---
 
 
-(Filed by the ENCL fix-pass implementer on PR 4331, `encl/adoption-at-rest-eps-in`. That PR's import door stops quoting such values for a size within the file's ε_in. The class below is base behaviour at every other reading, and out of its scope.)
+(Filed by the ENCL fix-pass implementer on PR 4331, `encl/adoption-at-rest-eps-in`. At that PR's import door a size within the file's ε_in is offered only together with declaring the file's uncertainty below it, so the same tiny value can appear there too. The class below is base behaviour at every other reading, and out of its scope.)
 
 ## What
 
@@ -21,7 +21,7 @@ No run can take that offer:
 - D4 ¶1 sizes the default ε at about 1e-9 m for micron-to-kilometre coverage with "~4 orders of f64 headroom at km scale" (`docs/DESIGN.md`, D4 ¶1).
 - An ε nineteen decades below that resolves nothing inside the session box: f64 spacing at 1 m is about 2.2e-16 m.
 
-So the offer is a number, not a recourse. The margin is rounding noise of an exact coincidence, and the honest Zero-arm ending is the lever alone, perhaps with the decision's `at_zero` note.
+So the offer is a number, not a recourse. The margin is rounding noise of an exact coincidence, and the honest Zero-arm ending is the lever alone. The decision's `at_zero` note is not the repair: it is written for a margin of no size, where no smaller tolerance decides it (`SizedWords::otherwise`'s contract), and a nonzero margin is not that case.
 
 ## Where
 

@@ -340,13 +340,13 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
         POLEBAND12,
         1e-9,
         "file",
-        Refused(INTERVAL_ZERO_SPAN_COINCIDENT),
+        Refused(INTERVAL_ZERO_SPAN_UNSTATED),
     ),
     (
         POLEBAND12,
         1e-6,
         "file",
-        Refused(INTERVAL_ZERO_SPAN_COINCIDENT),
+        Refused(INTERVAL_ZERO_SPAN_UNSTATED),
     ),
     (
         POLEBAND12,
@@ -406,35 +406,37 @@ const POLEFRUSTUM_ZERO_SPAN_STATED: &str = "the stored parameter interval spans 
      this tolerance — a degenerate zero-span interval, which the forward gate refuses. Recourse: \
      move the geometry so this edge is not vanishingly short, or, if this length is intended, \
      tighten the tolerance below 1.799999999166981e-10 m";
-/// The ε-relative sibling's coarse-band cells: its span lies within the
-/// file's ε_in (1e-10 m) and reads as zero at the run's tolerance too,
-/// so the file states a zero-length edge, and the import door quotes no
-/// value (D4 ¶1): the lever, and the span's note on an edge of no
-/// length.
-const INTERVAL_ZERO_SPAN_COINCIDENT: &str = "a degenerate zero-span interval, which the forward \
-     gate refuses. The file and this run both read this length as zero, so the file states the \
-     coincidence. Recourse: move the geometry so this edge is not vanishingly short; an edge of \
-     no length";
-/// The ε-relative sibling at the fine band: its span escalates, and lies
-/// within the file's ε_in (1e-10 m), so the file does not state it. The
-/// import door names keeping it as two steps together (D4 ¶1): declare
-/// the file's uncertainty below the span, and tighten below the span
-/// over K. The values pin the span.
-const PARAM_SPAN_UNSTATED: &str = "This length is below the file's declared coincidence distance \
-     ε_in = 1e-10 m, so the file does not state it. Recourse: move the geometry so this edge is \
-     not vanishingly short, or, if this length is intended, re-export the file with its \
-     uncertainty declared below 5.65487109168879e-12 m and tighten the tolerance below \
-     5.65487109168879e-13 m";
+/// The ε-relative sibling at every band: its span lies within the
+/// file's ε_in (1e-10 m), so the file does not state it, and the import
+/// door ends it in one sentence whether the run's band reads it as zero
+/// (the coarse bands, this fragment) or in band (the fine one,
+/// [`PARAM_SPAN_UNSTATED`]): the lever, or both steps that keep the
+/// span together — declare the file's uncertainty below it, and tighten
+/// below it over K (D4 ¶1). The values pin the span.
+const INTERVAL_ZERO_SPAN_UNSTATED: &str = "a degenerate zero-span interval, which the forward gate \
+     refuses. This length is below the file's declared coincidence distance ε_in = 1e-10 m, so the \
+     file does not state it. Recourse: move the geometry so this edge is not vanishingly short, or, \
+     if this length is intended, re-export the file with its uncertainty declared below \
+     5.65487109168879e-12 m and tighten the tolerance below 5.65487109168879e-13 m";
+/// [`INTERVAL_ZERO_SPAN_UNSTATED`]'s sentence on the fine band's
+/// escalation of the same span.
+const PARAM_SPAN_UNSTATED: &str = "lies inside the ambiguity band (1e-12, 1e-11). This length is \
+     below the file's declared coincidence distance ε_in = 1e-10 m, so the file does not state it. \
+     Recourse: move the geometry so this edge is not vanishingly short, or, if this length is \
+     intended, re-export the file with its uncertainty declared below 5.65487109168879e-12 m and \
+     tighten the tolerance below 5.65487109168879e-13 m";
 /// Their fine-band sub-reason: with the spans certified, adoption
 /// refuses the rim/sphere near-tangency — the second-order arm's own
 /// verdict, so a regression that moves the refusal to another door
 /// fails these cells. Band-decided, like the tangent-plane zero, and
-/// zero at both the file's ε_in and the run's tolerance: the import
-/// door quotes no value, and the decision has no note at zero.
+/// within the files' ε_in: the import door's one sentence for a size the
+/// file does not state, the values pinning the margin.
 const TANGENT_SECOND_ORDER_ZERO: &str = "the faces agree to second order at sample 1, so they do \
-     not fix where the edge runs, which its description says they do. The file and this run both \
-     read this curvature difference as zero, so the file states the coincidence. Recourse: move \
-     the geometry so the faces curve apart more clearly where they touch";
+     not fix where the edge runs, which its description says they do. This curvature difference \
+     is below the file's declared coincidence distance ε_in = 1e-10 m, so the file does not state \
+     it. Recourse: move the geometry so the faces curve apart more clearly where they touch, or, \
+     if this curvature difference is intended, re-export the file with its uncertainty declared \
+     below 1.6199999985005657e-16 m and tighten the tolerance below 1.6199999985005656e-17 m";
 /// dm1's former coarse-band sub-reason: the convergence predicate
 /// declines to decide, by name. **No cell reaches it any more** — the
 /// gate stops on a definite SIGN before the round whose width lands in
@@ -465,13 +467,14 @@ const NIST09: &str = "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp";
 /// transversality precondition fails, and the ladder says which. A zero
 /// verdict is band-decided — at a finer ambient band the coincidence
 /// predicates no longer fire here, and the file imports — but the angle
-/// reads as zero at both ε_in overrides and at the run's tolerance, so
-/// the import door quotes no value (D4 ¶1): its decision's lever alone,
-/// and the attempt ends there (the `;` before the next rung).
-const TANGENT_PLANES_COINCIDE: &str = "the faces meet tangentially at sample 1, where the edge's \
-     description says they cross. The file and this run both read this angle as zero, so the \
-     file states the coincidence. Recourse: move the geometry so the surfaces cross at a clearer \
-     angle;";
+/// lies within both ε_in overrides, so the import door ends it in its
+/// one sentence for a size the file does not state (D4 ¶1), and the
+/// attempt ends there (the `;` before the next rung). The fragment
+/// starts after the override's own ε_in, which differs per cell.
+const TANGENT_PLANES_COINCIDE: &str = " m, so the file does not state it. Recourse: move the \
+     geometry so the surfaces cross at a clearer angle, or, if this angle is intended, re-export \
+     the file with its uncertainty declared below 2.7105054300843824e-27 m and tighten the \
+     tolerance below 2.7105054300843823e-28 m;";
 /// At ambient 1e-6 the file's own span decision is in-band too, and it
 /// is reached first — at assembly, before any edge is adopted.
 const PARAM_SPAN_ESCALATED: (&str, &str) = (
@@ -1157,16 +1160,15 @@ fn assert_adoption_reading(who: &str, e: &StepImportError, exposure: &mut Exposu
     }
     exposure.add(
         WITHHELD,
-        msg.matches("so the file does not state it").count()
-            + msg.matches("so the file states the coincidence").count(),
+        msg.matches("so the file does not state it").count(),
     );
 }
 
 /// [`assert_adoption_reading`]'s tally: offers to tighten it parsed.
 const OFFERS: &str = "offers to tighten parsed";
 /// [`assert_adoption_reading`]'s tally: readings at the import door that
-/// withheld the offer, for a size the file does not state or a
-/// coincidence it does.
+/// withheld the offer to tighten alone, for a size the file does not
+/// state.
 const WITHHELD: &str = "readings that withheld the offer";
 
 /// The reader touches the kernel's at-rest validators at exactly TWO
