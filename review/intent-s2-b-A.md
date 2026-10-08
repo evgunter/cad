@@ -172,9 +172,13 @@ position. No constraint falls back to an assertion; no new ceremony. likely.
 ## Test runs
 
 - `cargo nextest run -p editor-core --profile default` (slow set) on the
-  frozen head: (running at the time of this commit; result in the follow-up commit)
-- `cargo nextest run -p pncad-py`: (same)
-- Stage-2 A and B rows: 21/21. One-shot vs merge base: 5/5 files equal.
+  frozen head, `--no-fail-fast`: **2913 / 2913 passed, 109 skipped** with one
+  row set aside: `name_words_rows::a_large_table_of_names_alike_at_no_citation_is_said_in_bounded_time`
+  fails on this box (13.5 s against its bound) and fails identically on the
+  merge base's tree (13.9 s), so it is this environment's, not the PR's.
+- `cargo nextest run -p pncad-py` (tag inventory and census rows): 134 / 134.
+- Stage-2 A and B rows: 21 / 21. One-shot vs merge base: 5 / 5 files equal.
+- Not run: the Python wheel suite, viewer, tour.
 
 ## Style
 
