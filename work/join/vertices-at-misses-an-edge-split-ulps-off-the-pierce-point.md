@@ -7,6 +7,7 @@ opened: 2026-10-07
 priority: P3
 cost: E
 refs: [a-near-tangent-pierce-reads-two-cones-where-its-link-holds-one]
+branch: join/battery-hygiene
 ---
 
 

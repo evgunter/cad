@@ -5,7 +5,7 @@ title: The census's cross-solid backstop answers CensusUndecidable for curved so
 status: open
 opened: 2026-10-03
 priority: P2
-refs: [boolean-door-tier-3-waits-on-the-description-gap]
+refs: [3870]
 ---
 
 
@@ -66,7 +66,7 @@ torus's hole), and single rows of `germ_torus_doors`,
 `germ_interior_oval`, `m5_s10_face_sense`, `m5_s11_concave_sense_interval`,
 `offer_rows`, `verbs_cylcyl_*` and `verbs_pierce*`. So the boolean door
 cannot run the census over its result until this lane lands
-(`work/reach/boolean-door-runs-the-census-over-its-result.md`).
+(`work/reachhold/boolean-door-runs-the-census-over-its-result.md`).
 
 ## 2026-10-03 — a row reaches it on main (JOIN-2, PR 3880)
 

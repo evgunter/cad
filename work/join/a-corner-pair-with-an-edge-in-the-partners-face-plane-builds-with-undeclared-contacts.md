@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-05
 priority: P0
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -44,6 +44,10 @@ coincidence ground, so the row waits on D10.
 --ignored --nocapture | grep t3p=false`. Read each body's
 `topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol)` errors
 for the kinds.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: the volume is right; the fault is tier 3′ UndeclaredContact/StaleContactDeclaration on the contact records, which stage 4 replaces with one-door records and unproven-coincidence findings. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
 
 ## Also in `join1_delta_arc_battery` (2026-10-08)
 

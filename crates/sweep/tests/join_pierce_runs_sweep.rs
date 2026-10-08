@@ -2354,6 +2354,52 @@ fn a_pinchs_cones_share_one_point_key() {
     assert!(rebound > 0, "no union rebound a class");
 }
 
+/// **A pinch's unions build from every root of the pierce ring but the
+/// one that mints run 1's strut first**
+/// (`topo::test_support::with_ring_root`): [`a_pinchs_cones_share_one_point_key`]'s
+/// poses, each of the two-run ring's three regions taken as its ring
+/// vertex, in both operand orders. The ring's corners are one cyclic
+/// order whichever region roots it, and every root builds `SOUND` at the
+/// clipped volume except, on the four `Ltop asym` poses, the leaf region
+/// inside run 1's chord: there run 1's strut is minted first, with run 0's
+/// hung off its far end, and the pinch weld refuses `JoinDesync`, as
+/// where the hub mints run 1 first
+/// (`work/join/a-pierce-pinch-weld-reads-which-ring-strut-was-minted-first.md`,
+/// whose flip-back row this is).
+#[test]
+fn a_pinchs_unions_from_every_root_of_the_ring() {
+    for (names, (a, b), seed, fib) in [
+        ("Ltop asym", (ltop(), asym()), 2296, 21),
+        ("Ltop asym", (ltop(), asym()), 2296, 3),
+        ("Ltop asym", (ltop(), asym()), 2296, 8),
+        ("Ltop asym", (ltop(), asym()), 2959, 3),
+        ("asym asym", (asym(), asym()), 15, 6),
+        ("asym asym", (asym(), asym()), 225, 6),
+    ] {
+        let d = dbl((&a, &b), seed, fib);
+        let want = d.volume + SIDE.powi(3) - d.common;
+        for root in 0..3 {
+            let pose = format!("{names} seed={seed} fib{fib}, rooted at region {root}");
+            for (order, x, y) in [("xy", &d.pinched, &d.cube), ("yx", &d.cube, &d.pinched)] {
+                let r = fixtures::with_ring_root(root, || {
+                    topo::union_with(x, y, &BooleanDeclarations::default(), tol())
+                });
+                let line = outcome(r, want, tol());
+                if names == "Ltop asym" && root == 2 {
+                    assert!(
+                        line.starts_with(
+                            "ERR JoinDesync { what: \"a pinch face runs through a pierce vertex twice\" }"
+                        ),
+                        "{pose} {order} U: {line}"
+                    );
+                } else {
+                    assert!(line.starts_with("OK SOUND"), "{pose} {order} U: {line}");
+                }
+            }
+        }
+    }
+}
+
 /// The near-tangent corners: the L-prism's, review r1's `vee300` and
 /// `asym` notches, and the 345° and 60° wedges.
 fn near_tangent_corners() -> [(&'static str, Corner); 5] {

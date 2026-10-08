@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-03
 priority: P1
 cost: M
-refs: [tier-3-passes-a-curved-wall-touching-a-plane-face-interior-along-a-line, boolean-door-adopts-the-finished-body-type]
+refs: [tier-3-passes-a-curved-wall-touching-a-plane-face-interior-along-a-line, 3987]
 ---
 
 
@@ -53,7 +53,7 @@ and pinning today's answer.
   face × face arm for a curved wall on a planar face. The
   cross-solid backstop (`sweep_cross_solid_backstop`) is the only arm
   that pairs faces, and it pairs faces of different solids.
-- The finished-body gate (`work/reach/boolean-door-adopts-the-finished-body-type.md`)
+- The finished-body gate (`boolean-door-adopts-the-finished-body-type` (REACH, closed by PR 3987))
   would refuse the plain variant (its result carries no records) and
   pass the carried one.
 

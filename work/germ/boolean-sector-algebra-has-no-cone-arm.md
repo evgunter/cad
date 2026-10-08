@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-06
 priority: P1
 cost: H
-refs: [VERBS-CONE, an-edge-crossing-a-cone-face-has-no-root-lane]
+refs: [VERBS-CONE, 4135]
 ---
 
 

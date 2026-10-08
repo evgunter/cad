@@ -497,7 +497,7 @@ pub(super) fn gate_unverdicted_operand<T: Decide + crate::props::AtRestPolicy>(
 /// - the continuation scan ([`refuse_undeclared_continuations`]), which
 ///   cannot bound a face a spline edge bounds (`ClassificationInvariant`).
 ///
-/// Retiring it is `work/reach/delete-the-boolean-operand-edge-gate.md`.
+/// Retiring it is `work/orbit/delete-the-boolean-operand-edge-gate.md`.
 fn gate_operand_edges<T: Decide>(body: &Body<T>, operand: Operand) -> Result<(), BooleanError> {
     for (edge_key, edge) in body.edges() {
         match certified(body.get_curve_geom(edge.curve))?.carrier() {
@@ -5014,7 +5014,7 @@ mod declaration_order_rows {
     /// neither reaches the declared-REST zip). Standing
     /// tilted UP, the union's residue crosses `vol(A) + vol(B)` and the
     /// volume backstop refuses it
-    /// (`work/reach/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`,
+    /// (`work/reachhold/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`,
     /// pinned in `topo/tests/door_backstop_settled_residue.rs`). Undeclared,
     /// the sector offers the class the senses make the pair; following
     /// the offer, the union builds at the volume box arithmetic gives,
