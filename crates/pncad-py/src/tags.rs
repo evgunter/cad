@@ -2605,6 +2605,7 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::EpsilonSeam { .. } => "epsilon_seam",
         InlineError::PartCarriesMetadata { .. } => "part_carries_metadata",
         InlineError::VarNameConflict { .. } => "var_name_conflict",
+        InlineError::InstanceOutputUncarried { .. } => "instance_output_uncarried",
         InlineError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
         InlineError::UnplaceableFrame { .. } => "unplaceable_frame",
         InlineError::MatePlaced { .. } => "mate_placed",

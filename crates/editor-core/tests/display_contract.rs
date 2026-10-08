@@ -3529,6 +3529,22 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
             InlineError::VarNameConflict { name: name.clone() }.to_string(),
         ),
         (
+            "InlineError::InstanceOutputUncarried (bodies)",
+            InlineError::InstanceOutputUncarried {
+                name: name.clone(),
+                why: editor_core::Uncarried::Bodies { count: 2 },
+            }
+            .to_string(),
+        ),
+        (
+            "InlineError::InstanceOutputUncarried (named heir)",
+            InlineError::InstanceOutputUncarried {
+                name: name.clone(),
+                why: editor_core::Uncarried::HeirNamed { held: name.clone() },
+            }
+            .to_string(),
+        ),
+        (
             "SeedError::UnknownVar",
             SeedError::UnknownVar {
                 var: spoken.clone(),

@@ -1116,6 +1116,22 @@ fn cut_and_kept(first_is_cut: bool) -> (&'static str, &'static str) {
     }
 }
 
+/// **Why the referenced document has no one output to carry the
+/// instance's named body onto** ([`InlineError::InstanceOutputUncarried`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Uncarried {
+    /// It has this many body roots, not one.
+    Bodies {
+        /// How many.
+        count: usize,
+    },
+    /// Its one body root's output is named already.
+    HeirNamed {
+        /// That name.
+        held: crate::doc::VarName,
+    },
+}
+
 /// Why [`inline`] refused (spec D-3). Typed and specific.
 ///
 /// **Which document a node is spoken from** ([`SpokenNode`]): the
@@ -1185,6 +1201,15 @@ pub enum InlineError {
     VarNameConflict {
         /// The name.
         name: crate::doc::VarName,
+    },
+    /// The instance's output carries a name (VR2) and the referenced
+    /// document has no one output to carry it onto: inline neither drops
+    /// a name nor gives a variable two.
+    InstanceOutputUncarried {
+        /// The name.
+        name: crate::doc::VarName,
+        /// Why no output takes it.
+        why: Uncarried,
     },
     /// The referenced document's spliced recipe reads a variable that
     /// document no longer holds (a deleted one, legal there by VR7):
@@ -1368,6 +1393,26 @@ impl core::fmt::Display for InlineError {
                      that version (UpdateReference), then inline"
                 ))
             ),
+            Self::InstanceOutputUncarried { name, why } => {
+                write!(f, "inline: the instance's body is named {name}, and ")?;
+                match why {
+                    Uncarried::Bodies { count } => write!(
+                        f,
+                        "the referenced document has {count} body roots, so no one body of it \
+                         stands where the instance's did"
+                    )?,
+                    Uncarried::HeirNamed { held } => write!(
+                        f,
+                        "the body standing where it did is already named {held}, and a \
+                         variable holds one name"
+                    )?,
+                }
+                write!(
+                    f,
+                    ". {}",
+                    Recourse(&format!("clear the name {name} (RenameVar), then inline"))
+                )
+            }
             Self::VarNameConflict { name } => write!(
                 f,
                 "inline: both documents hold a variable named {name}, and the referenced \
@@ -3793,6 +3838,35 @@ pub fn inline(
         vars.declare(&mut current, id, name.clone())
             .map_err(refused)?;
     }
+    // A name on the instance's own body moves onto the one body of the
+    // part that stands where it did, once the instance is gone: asked
+    // after the carried names, so one the host holds refuses as theirs do.
+    let instance_name = match doc.output(instance, 0).and_then(|body| doc.var_name(body)) {
+        None => None,
+        Some(name) => {
+            let bodies: Vec<RecipeNodeId> = part
+                .roots()
+                .iter()
+                .copied()
+                .filter(|&root| part.node(root).is_some_and(denotes_a_body))
+                .collect();
+            let [root] = bodies[..] else {
+                return Err(InlineError::InstanceOutputUncarried {
+                    name: name.clone(),
+                    why: Uncarried::Bodies {
+                        count: bodies.len(),
+                    },
+                });
+            };
+            if let Some(held) = part.output(root, 0).and_then(|body| part.var_name(body)) {
+                return Err(InlineError::InstanceOutputUncarried {
+                    name: name.clone(),
+                    why: Uncarried::HeirNamed { held: held.clone() },
+                });
+            }
+            Some((name.clone(), root))
+        }
+    };
     // The promoted gauge, under the instance's gauge holding its
     // offset, takes the instance's label: it stands in for the instance,
     // which the inline deletes.
@@ -3919,6 +3993,21 @@ pub fn inline(
             .map_err(|missing| InlineError::stranded(&part, inner, missing))?;
     }
     step(&mut current, DocEdit::DeleteNode { id: instance })?;
+    if let Some((name, root)) = instance_name {
+        let Some(body) = node_map
+            .get(&root)
+            .and_then(|&heir| current.doc().output(heir, 0))
+        else {
+            unreachable!("the part's body root is carried, and defines its body")
+        };
+        step(
+            &mut current,
+            DocEdit::RenameVar {
+                var: body.into(),
+                name: Some(name),
+            },
+        )?;
+    }
     // A10: the spliced roots take the instance's list position, in the
     // part's own root order, after the minted gauge, which no node
     // consumes and so is a root of its own.

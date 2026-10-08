@@ -566,3 +566,125 @@ fn a_datums_value_folds_the_subgroup_its_kind_names() {
         );
     }
 }
+
+/// `doc` with the variable `var` named `name`.
+fn named(doc: ProfileDoc, var: editor_core::VarId, name: &str) -> ProfileDoc {
+    fixture::step(
+        doc,
+        DocEdit::RenameVar {
+            var: var.into(),
+            name: Some(VarName::new(name).expect("a name")),
+        },
+    )
+    .0
+}
+
+/// [`block`] split whole into a part, the remainder's instance's body
+/// named `bracket`, and the part's extrude's body named `heir` first
+/// when given one; returns the remainder, the instance, the store
+/// holding the part, and the part's extrude.
+fn instance_named_bracket(
+    seed: &str,
+    heir: Option<&str>,
+    second_body: bool,
+) -> (
+    ProfileDoc,
+    RecipeNodeId,
+    std::sync::Arc<dyn editor_core::PartResolver>,
+    RecipeNodeId,
+) {
+    let (mut doc, _, profile, extrude) = block(seed);
+    if let Some(heir) = heir {
+        let body = doc.output(extrude, 0).expect("an extrude defines its body");
+        doc = named(doc, body, heir);
+    }
+    if second_body {
+        doc = insert(
+            doc,
+            Node::Extrude {
+                profile,
+                distance: len(2.0),
+                side: editor_core::ExtrudeSide::Along,
+            },
+        )
+        .0;
+    }
+    let cut: std::collections::BTreeSet<_> = doc.ids().iter().copied().collect();
+    let out = editor_core::split(
+        &doc,
+        &cut,
+        editor_core::DocumentId::derive(&format!("{seed}-part")),
+        Tol::witness(),
+        None,
+    )
+    .expect("splits");
+    let mut store = fixture::resolver::PartStore::default();
+    store.insert(out.part.clone(), Tol::witness());
+    let body = out
+        .remainder
+        .output(out.instance, 0)
+        .expect("an instance defines its body");
+    let remainder = named(out.remainder, body, "bracket");
+    (
+        remainder,
+        out.instance,
+        std::sync::Arc::new(store),
+        out.node_map[&extrude],
+    )
+}
+
+/// **Inline carries the name on an instance's body** onto the one body
+/// of the part that stands where it did (VR2: the kernel drops no name),
+/// and refuses typed where the part has no one such body, or where that
+/// body's own name would make a variable hold two.
+#[test]
+fn inline_carries_the_name_on_an_instances_body() {
+    let (host, instance, store, _) = instance_named_bracket("s2a-inline", None, false);
+    let out = editor_core::inline(&host, instance, &store, Tol::witness()).expect("inlines");
+    let bracket = out.doc.var_named("bracket").expect("the name crossed");
+    let (node, port) = out
+        .doc
+        .var(bracket)
+        .unwrap()
+        .def()
+        .output()
+        .expect("onto an output");
+    assert!(
+        matches!(out.doc.node(node), Some(Node::Extrude { .. })),
+        "{node:?}"
+    );
+    assert_eq!(port, 0);
+
+    let (host, instance, store, _) = instance_named_bracket("s2a-inline-two", None, true);
+    match editor_core::inline(&host, instance, &store, Tol::witness()) {
+        Err(editor_core::InlineError::InstanceOutputUncarried { name, why }) => {
+            assert_eq!(name.as_str(), "bracket");
+            assert_eq!(why, editor_core::Uncarried::Bodies { count: 2 });
+        }
+        other => panic!("two body roots have no one heir, got {other:?}"),
+    }
+
+    let (host, instance, store, _) =
+        instance_named_bracket("s2a-inline-held", Some("plate"), false);
+    match editor_core::inline(&host, instance, &store, Tol::witness()) {
+        Err(editor_core::InlineError::InstanceOutputUncarried { name, why }) => {
+            assert_eq!(name.as_str(), "bracket");
+            assert_eq!(
+                why,
+                editor_core::Uncarried::HeirNamed {
+                    held: VarName::new("plate").unwrap()
+                }
+            );
+        }
+        other => panic!("a named heir would hold two names, got {other:?}"),
+    }
+
+    let (host, instance, store, _) =
+        instance_named_bracket("s2a-inline-taken", Some("bracket"), false);
+    match editor_core::inline(&host, instance, &store, Tol::witness()) {
+        Err(editor_core::InlineError::VarNameConflict { name }) => {
+            assert_eq!(name.as_str(), "bracket");
+        }
+        other => panic!("a carried name the host holds refuses VarNameConflict, got {other:?}"),
+    }
+}
