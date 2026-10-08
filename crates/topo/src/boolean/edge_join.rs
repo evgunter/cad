@@ -636,8 +636,10 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
     }
 
     /// [`Body::join_edges`] over the vertices `within` holds, on a body
-    /// the caller has staged: the offset doors' join, which owes no
-    /// write outside the entities its call writes. Not staged itself —
+    /// the caller has staged: the join of a door that owes no write
+    /// outside the entities its call writes (the offset doors, and the
+    /// blend over the shells it carved), or of one that joins its own
+    /// fresh output in place (the split's halves, the shell). Not staged itself —
     /// a refusal past the first kill leaves `self` part-joined, for the
     /// caller to discard with its staging — and no reading outside
     /// `within` is taken, so a vertex the call does not hold can neither
@@ -649,7 +651,7 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
     /// # Errors
     ///
     /// As [`Body::join_edges`], for the vertices `within` holds.
-    pub(crate) fn join_edges_within(
+    pub fn join_edges_within(
         &mut self,
         band: Band,
         tol: Tol,

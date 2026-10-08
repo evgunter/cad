@@ -4837,7 +4837,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unsupported_geometry",
             "unsupported_run_out",
         ],
-        delegates: &[],
+        delegates: &["join_refusal_tag"],
     },
     TagEntry {
         function: "boolean_error_tag",

@@ -1590,6 +1590,7 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::RingClearance { .. } => "ring_clearance",
         BlendError::Certify { .. } => "certify",
         BlendError::Op { .. } => "op",
+        BlendError::Join { refusal } => join_refusal_tag(refusal),
     }
 }
 

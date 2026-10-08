@@ -261,6 +261,67 @@ pub(super) fn name_blend<T: geom_core::Real>(
         )?;
     }
 
+    // ---- The joins (`BlendNaming::edge_joins`). ----
+    // The blend ends with the join, so an edge it made is named by the
+    // edges its cover lies along (`topo::join_covers`), each read by the
+    // rows above: trims of input edges on one support (`TrimEdge`), rim
+    // trims on one support (`BandTrim`), or surviving input edges
+    // (`FromTarget`). One covered name is the edge's own; several of one
+    // kind are the flat `Merged` set of them. A cover with an edge the
+    // blend minted outright (an arc, a mitre, a band cut or slit), or of
+    // mixed kinds, has no input-cell reading and refuses.
+    let mut joined: BTreeMap<EntityKey, (RoleSeg, bool)> = BTreeMap::new();
+    for (kept, members) in topo::join_covers(&rec.edge_joins) {
+        if body.get_edge(kept).is_none() {
+            return Err(NamingError::Emission {
+                what: "the blend recorded a join whose kept edge is not in its body",
+            });
+        }
+        let mut names = BTreeSet::new();
+        let mut kinds = BTreeSet::new();
+        let mut tied = false;
+        for m in members {
+            let (seg, t) = match minted.get(&EntityKey::Edge(m)) {
+                Some((seg, t)) => (seg.clone(), *t),
+                None => {
+                    let u = up_e(m)?;
+                    (RoleSeg::FromTarget(u.name), u.tied)
+                }
+            };
+            kinds.insert(match &seg {
+                RoleSeg::TrimEdge { .. } => "trim",
+                RoleSeg::BandTrim { .. } => "rim trim",
+                RoleSeg::FromTarget(_) => "survivor",
+                _ => {
+                    return Err(NamingError::Emission {
+                        what: "the blend joined an edge it minted outright, which no input \
+                               cell reads",
+                    });
+                }
+            });
+            tied |= t;
+            names.insert(name1(EntityKind::Edge, node, seg));
+        }
+        if kinds.len() > 1 {
+            return Err(NamingError::Emission {
+                what: "the blend joined edges of different kinds, which no input cell reads",
+            });
+        }
+        let name = if names.len() == 1 {
+            names.pop_first()
+        } else {
+            Some(super::merged::edge_set(node, names))
+        };
+        let Some([seg]) = name.as_ref().map(|n| n.path.as_slice()) else {
+            return Err(NamingError::Emission {
+                what: "a blend join's name is not one segment",
+            });
+        };
+        joined.insert(EntityKey::Edge(kept), (seg.clone(), tied));
+    }
+    // The joined names replace whatever the rows gave the kept edge.
+    minted.extend(joined);
+
     // ---- The table: the body row, then every output entity. ----
     let mut t = NameTable::new();
     let mut tie = TieRows::default();
