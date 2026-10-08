@@ -2,10 +2,11 @@
 id: intent-stage3-is-built
 kind: issue
 title: INTENT stage 3 (spaces and placement) is built: frames as variables, placements as mates, the world frame, the per-space computing frame, overconstraint refuses
-status: open
+status: parked
 opened: 2026-10-08
 priority: P0
 cost: H
+blocked_on: [poses-are-variables, a-mate-relates-two-poses, a-placement-is-the-bundle-of-mates, transform-retires-into-a-placement, each-space-computes-in-its-earliest-members-frame, a-mate-on-a-pinned-copy-refuses]
 ---
 
 
