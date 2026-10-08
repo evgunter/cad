@@ -22,9 +22,9 @@ Re-filed from `whole-turn-conic-reach-over-states-a-rim-faces-lever` (its N-1), 
 They peak at different points of the face. Both are sound, but the sum serves a conic where the exact offset of the real plane from the rulings' plane over the face is in the band.
 
 **Evidence.** `crates/geom-brep/tests/span_reach_differential.rs`, 10,000 cylinder patches per caller:
-- head serves a conic against an in-band truth 12 times (chord_join) and 11 times (germ), every one shared with main;
-- 13 still serve with the exact reach across the wall from the hinge (the two maxima);
-- 10 serve on the Euclidean reach standing in for the cross-wall component.
+- head serves a conic against an in-band truth 16 times (chord_join) and 9 times (germ), every one shared with main;
+- 16 still serve with the exact reach across the wall from the hinge (the two maxima);
+- 9 serve on the Euclidean reach standing in for the cross-wall component.
 
 ## The shape of a fix
 

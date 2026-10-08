@@ -27,6 +27,7 @@
 
 #![allow(clippy::panic, clippy::too_many_lines, clippy::cast_precision_loss)]
 
+
 use crate::shared::tol::band;
 use geom::{Curve3, Surface};
 use geom_brep::intersect::{PlaneCylinderSection, plane_cylinder_section};
@@ -34,6 +35,7 @@ use geom_brep::{Reach, SectionError, WallBend};
 use geom_core::k_stats::decide;
 use geom_core::{Margin, Point3, Sign, Vec3};
 use std::collections::BTreeMap;
+use test_utils::fuzz;
 
 struct Rng(u64);
 impl Rng {
@@ -419,193 +421,40 @@ fn span_reach_differential() {
                 *t.buckets.entry(format!("  band conic by {k}")).or_default() += 1;
             }
         }
-        // ---------------- cylinder wall under the split lane's rule (a):
-        // a plane near-tangent at a corner, the coplanarity row, then the
-        // osculation and bend rows of a grazed wall, each levered at the
-        // face extent from the corner.
-        {
-            let sense = rng.u() < 0.5;
-            let base = face.corners[(rng.u() * 4.0) as usize % 4];
-            let radial = {
-                let w = base - o;
-                (w - a * w.dot(a)).normalize()
-            };
-            let reach = face.sampled_reach(base).max(1e-300);
-            let sin_t = if rng.u() < 0.15 {
-                rng.r(0.0, 1.0)
-            } else {
-                (rng.log(0.05, 3.0 * kk) * z / reach).min(1.0)
-            };
-            let t = perp(radial, &mut rng);
-            let nsp = radial * (1.0 - sin_t * sin_t).max(0.0).sqrt() + t * sin_t;
-            let outward = geom_brep::OutwardNormal::from_chart(radial, sense);
-            let kappa = geom_brep::implicit_max_normal_curvature(&cyl, base);
-            // Rule (a)'s tree at a lever: the verdict, or "esc".
-            let tree = |arm: f64| -> &'static str {
-                match decide(
-                    "split_sector_coplanar",
-                    Margin::levered(radial.cross(nsp).norm(), arm),
-                    b,
-                ) {
-                    Ok(Sign::Positive | Sign::Negative) => return "silent",
-                    Err(_) => return "esc",
-                    Ok(Sign::Zero) => {}
+        for (family, case) in [
+            ("split_cyl", split_cyl_case(&mut rng, b, s)),
+            ("split", split_plane_case(&mut rng, b, s)),
+        ] {
+            let t = tallies.entry(family).or_default();
+            *t.buckets
+                .entry(format!(
+                    "{:<11} {:<11} -> {}",
+                    case.truth, case.main, case.head
+                ))
+                .or_default() += 1;
+            for (k, v) in [case.main, case.head].into_iter().enumerate() {
+                if case.against(v) {
+                    t.against[k] += 1;
                 }
-                match decide("tangent_sector_osculation", Margin::sagitta(kappa, arm), b) {
-                    Ok(Sign::Positive) => {}
-                    Ok(_) => return "unsupported",
-                    Err(_) => return "esc",
+                if v == "esc" && case.truth != "band" {
+                    t.good_esc[k] += 1;
                 }
-                match geom_brep::bends_into_material(&cyl, base, outward, arm, b) {
-                    Ok(WallBend::IntoMaterial) => "graze",
-                    Ok(WallBend::OutOfMaterial) => "knife",
-                    Ok(WallBend::Flat) => "unsupported",
-                    Err(_) => "esc",
-                }
-            };
-            // The same tree's truth: each row's margin at the sampled
-            // reach, Zero within the zero band, definite past the
-            // escalation band, owed an escalation between.
-            let truth = {
-                let cls = |m: f64| {
-                    if m.abs() <= z {
-                        "Zero"
-                    } else if m.abs() >= b.escalate() {
-                        "definite"
+            }
+            if case.main != case.head && case.head != "esc" {
+                t.served_where_main_escalated.push(format!(
+                    "{i} r={s:e} truth={} main={} -> {}{}",
+                    case.truth,
+                    case.main,
+                    case.head,
+                    if case.against(case.head) {
+                        " AGAINST"
                     } else {
-                        "band"
+                        ""
                     }
-                };
-                match cls(radial.cross(nsp).norm() * reach) {
-                    "definite" => "silent",
-                    "band" => "band",
-                    _ => match cls(0.5 * kappa * reach * reach) {
-                        "definite" => match cls(0.25 * kappa * reach * reach) {
-                            "definite" => {
-                                if sense {
-                                    "graze"
-                                } else {
-                                    "knife"
-                                }
-                            }
-                            "band" => "band",
-                            _ => "unsupported",
-                        },
-                        "band" => "band",
-                        _ => "unsupported",
-                    },
-                }
-            };
-            let across = |whole: bool| face.across(base, whole);
-            let (vm, vh) = (tree(across(true)), tree(across(false)));
-            if vh != "esc" && vh != truth {
-                println!(
-                    "AGAINST split_cyl {i} truth={truth} main={vm} head={vh} reach={reach:e} head_arm={:e} main_arm={:e} tilt*reach={:.4}z tilt*head={:.4}z tilt*main={:.4}z r={s:e} du={du:e} h={h:e}",
-                    across(false),
-                    across(true),
-                    radial.cross(nsp).norm() * reach / z,
-                    radial.cross(nsp).norm() * across(false) / z,
-                    radial.cross(nsp).norm() * across(true) / z,
-                );
-            }
-            let t = tallies.entry("split_cyl").or_default();
-            *t.buckets
-                .entry(format!("{truth:<11} {vm:<11} -> {vh}"))
-                .or_default() += 1;
-            let against = |v: &str| v != "esc" && v != truth;
-            for (k, v) in [vm, vh].into_iter().enumerate() {
-                if against(v) {
-                    t.against[k] += 1;
-                }
-                if v == "esc" && truth != "band" {
-                    t.good_esc[k] += 1;
-                }
-            }
-            if vm != vh && vh != "esc" {
-                t.served_where_main_escalated.push(format!(
-                    "{i} r={s:e} du={du:.3e} h={h:.3e} truth={truth} main={vm} -> {vh}{}",
-                    if against(vh) { " AGAINST" } else { "" }
                 ));
             }
-            let across_head = across(false);
-            if across_head < face.sampled_reach(base) - ulps(base, face.sampled_reach(base)) {
-                t.short_lever += 1;
-            }
-            if across_head > across(true) {
-                t.longer_than_main += 1;
-            }
-        }
-        // ---------------- plane sector under the split lane's coplanarity row
-        {
-            let c = Point3::origin() + rng.unit() * 1e3;
-            let nf = rng.unit();
-            let x = perp(nf, &mut rng);
-            let y = nf.cross(x);
-            let r2 = s * rng.r(0.5, 2.0);
-            let r1 = r2 * rng.r(0.0, 0.999);
-            let dt = rng.log(1e-6, 3.0);
-            let face = sector(c, (x, y), (r1, r2), (rng.r(-3.0, 3.0), dt));
-            let base = face.corners[(rng.u() * 4.0) as usize % 4];
-            let reach = face.sampled_reach(base).max(1e-300);
-            let sin_t = if rng.u() < 0.15 {
-                rng.r(0.0, 1.0)
-            } else {
-                (rng.log(0.05, 3.0 * kk) * z / reach).min(1.0)
-            };
-            let hinge = perp(nf, &mut rng);
-            let side = nf.cross(hinge);
-            let nsp = nf * (1.0 - sin_t * sin_t).max(0.0).sqrt() + side * sin_t;
-            let off = face
-                .grid
-                .iter()
-                .map(|p| (*p - base).dot(nsp).abs())
-                .fold(0.0_f64, f64::max);
-            let truth = if off <= z {
-                "Zero"
-            } else if off >= b.escalate() {
-                "definite"
-            } else {
-                "band"
-            };
-            let read = |whole: bool| {
-                let m = Margin::levered(nf.cross(nsp).norm(), face.across(base, whole));
-                match decide("split_sector_coplanar", m, b) {
-                    Ok(Sign::Zero) => "coplanar",
-                    Ok(_) => "tilted",
-                    Err(_) => "esc",
-                }
-            };
-            let (vm, vh) = (read(true), read(false));
-            let t = tallies.entry("split").or_default();
-            *t.buckets
-                .entry(format!("{truth:<8} {vm:<8} -> {vh}"))
-                .or_default() += 1;
-            let against = |v: &str| match v {
-                "coplanar" => truth != "Zero",
-                "tilted" => truth != "definite",
-                _ => false,
-            };
-            for (k, v) in [vm, vh].into_iter().enumerate() {
-                if against(v) {
-                    t.against[k] += 1;
-                }
-                if v == "esc" && truth != "band" {
-                    t.good_esc[k] += 1;
-                }
-            }
-            if vm == "esc" && vh != "esc" {
-                t.served_where_main_escalated.push(format!(
-                    "{i} r={s:e} dt={dt:.3e} truth={truth} -> {vh}{}",
-                    if against(vh) { " AGAINST" } else { "" }
-                ));
-            }
-            let across_head = face.across(base, false);
-            if across_head < face.sampled_reach(base) - ulps(base, face.sampled_reach(base)) {
-                t.short_lever += 1;
-            }
-            if across_head > face.across(base, true) {
-                t.longer_than_main += 1;
-            }
+            t.short_lever += usize::from(case.short);
+            t.longer_than_main += usize::from(case.longer);
         }
     }
     for (caller, t) in &tallies {
@@ -627,7 +476,7 @@ fn span_reach_differential() {
             t.good_esc[0], t.good_esc[1]
         );
         println!(
-            "  served where main escalated (split_cyl: served differently from main): {}",
+            "  served where main escalated (split families: served differently from main): {}",
             t.served_where_main_escalated.len()
         );
         println!(
@@ -639,6 +488,271 @@ fn span_reach_differential() {
         );
         for l in t.served_where_main_escalated.iter().take(12) {
             println!("    {l}");
+        }
+    }
+}
+
+/// One split-row sample: the truth, main's and head's verdicts ("esc"
+/// for an escalation), and whether head's lever fell short of the
+/// sampled region or past main's.
+struct Case {
+    truth: &'static str,
+    main: &'static str,
+    head: &'static str,
+    short: bool,
+    longer: bool,
+}
+
+impl Case {
+    /// A served verdict is against the truth where it is not the truth's
+    /// own; "tilted" and "coplanar" stand for the plane row's definite
+    /// and Zero.
+    fn against(&self, v: &str) -> bool {
+        match v {
+            "esc" => false,
+            "coplanar" => self.truth != "Zero",
+            "tilted" => self.truth != "definite",
+            v => v != self.truth,
+        }
+    }
+}
+
+fn classify(m: f64, b: geom_core::Band) -> &'static str {
+    if m.abs() <= b.zero() {
+        "Zero"
+    } else if m.abs() >= b.escalate() {
+        "definite"
+    } else {
+        "band"
+    }
+}
+
+/// The cylinder patch between rulings `u0` and `u0 + du`, bounded by the
+/// wall's sections with two planes, each through the axis point at
+/// height `vᵢ` and tilted by `φᵢ` toward `x`: `φ = 0` is a rim circle,
+/// any other an ellipse of semi-axes `r/cos φ` and `r` about that point,
+/// the major along `(x − a·tan φ)·cos φ`.
+fn oblique_patch(
+    (o, a, x, r): (Point3<f64>, Vec3<f64>, Vec3<f64>, f64),
+    (u0, du): (f64, f64),
+    [(v0, f0), (v1, f1)]: [(f64, f64); 2],
+) -> Face {
+    let y = a.cross(x);
+    let height = |v: f64, f: f64, u: f64| v - r * f.tan() * u.cos();
+    let at = |u: f64, v: f64| o + (x * u.cos() + y * u.sin()) * r + a * v;
+    let cut = |v: f64, f: f64| {
+        let u_ref = (x - a * f.tan()) * f.cos();
+        let carrier = if f == 0.0 {
+            Curve3::Circle {
+                center: o + a * v,
+                axis: a,
+                radius: r,
+                u_ref: x,
+            }
+        } else {
+            Curve3::Ellipse {
+                center: o + a * v,
+                axis: u_ref.cross(y),
+                major: r / f.cos(),
+                minor: r,
+                u_ref,
+            }
+        };
+        Reach::Span {
+            carrier,
+            t0: u0,
+            t1: u0 + du,
+        }
+    };
+    let c = [
+        at(u0, height(v0, f0, u0)),
+        at(u0 + du, height(v0, f0, u0 + du)),
+        at(u0 + du, height(v1, f1, u0 + du)),
+        at(u0, height(v1, f1, u0)),
+    ];
+    let n = 48;
+    let grid = (0..=n)
+        .flat_map(|i| (0..=n).map(move |j| (i, j)))
+        .map(|(i, j)| {
+            let u = u0 + du * f64::from(i) / f64::from(n);
+            let (lo, hi) = (height(v0, f0, u), height(v1, f1, u));
+            at(u, lo + (hi - lo) * f64::from(j) / f64::from(n))
+        })
+        .collect();
+    Face {
+        corners: c.to_vec(),
+        edges: vec![cut(v0, f0), cut(v1, f1), line(c[1], c[2]), line(c[3], c[0])],
+        grid,
+    }
+}
+
+/// **A cylinder wall under the split lane's rule (a)**: a plane
+/// near-tangent at a corner of a patch (rim circles or, half the time,
+/// oblique ellipses), the coplanarity row, then the osculation and bend
+/// rows of a grazed wall, each levered at the face extent from the
+/// corner, against the same tree with each row's margin at the sampled
+/// reach.
+fn split_cyl_case(rng: &mut Rng, b: geom_core::Band, s: f64) -> Case {
+    let z = b.zero();
+    let kk = b.escalate() / z;
+    let o = Point3::origin() + rng.unit() * 1e3;
+    let a = rng.unit();
+    let x = perp(a, rng);
+    let du = rng.log(1e-6, 3.0);
+    let h = s * rng.log(1e-6, 10.0);
+    let u0 = rng.r(-3.0, 3.0);
+    let v0 = rng.r(-1.0, 1.0) * s;
+    let (f0, f1) = if rng.u() < 0.5 {
+        (0.0, 0.0)
+    } else {
+        (rng.r(-1.2, 1.2), rng.r(-1.2, 1.2))
+    };
+    // The top cut clears the bottom one at every azimuth.
+    let v1 = v0 + h + s * (f0.tan().abs() + f1.tan().abs());
+    let face = oblique_patch((o, a, x, s), (u0, du), [(v0, f0), (v1, f1)]);
+    let cyl = Surface::Cylinder {
+        origin: o,
+        axis: a,
+        radius: s,
+        u_ref: x,
+    };
+    let sense = rng.u() < 0.5;
+    let base = face.corners[(rng.u() * 4.0) as usize % 4];
+    let radial = {
+        let w = base - o;
+        (w - a * w.dot(a)).normalize()
+    };
+    let reach = face.sampled_reach(base).max(1e-300);
+    let sin_t = if rng.u() < 0.15 {
+        rng.r(0.0, 1.0)
+    } else {
+        (rng.log(0.05, 3.0 * kk) * z / reach).min(1.0)
+    };
+    let t = perp(radial, rng);
+    let nsp = radial * (1.0 - sin_t * sin_t).max(0.0).sqrt() + t * sin_t;
+    let outward = geom_brep::OutwardNormal::from_chart(radial, sense);
+    let kappa = geom_brep::implicit_max_normal_curvature(&cyl, base);
+    let tilt = radial.cross(nsp).norm();
+    // Rule (a)'s tree at a lever: the verdict, or "esc".
+    let tree = |arm: f64| -> &'static str {
+        match decide("split_sector_coplanar", Margin::levered(tilt, arm), b) {
+            Ok(Sign::Positive | Sign::Negative) => return "silent",
+            Err(_) => return "esc",
+            Ok(Sign::Zero) => {}
+        }
+        match decide("tangent_sector_osculation", Margin::sagitta(kappa, arm), b) {
+            Ok(Sign::Positive) => {}
+            Ok(_) => return "unsupported",
+            Err(_) => return "esc",
+        }
+        match geom_brep::bends_into_material(&cyl, base, outward, arm, b) {
+            Ok(WallBend::IntoMaterial) => "graze",
+            Ok(WallBend::OutOfMaterial) => "knife",
+            Ok(WallBend::Flat) => "unsupported",
+            Err(_) => "esc",
+        }
+    };
+    let truth = match classify(tilt * reach, b) {
+        "definite" => "silent",
+        "band" => "band",
+        _ => match classify(0.5 * kappa * reach * reach, b) {
+            "definite" => match classify(0.25 * kappa * reach * reach, b) {
+                "definite" if sense => "graze",
+                "definite" => "knife",
+                "band" => "band",
+                _ => "unsupported",
+            },
+            "band" => "band",
+            _ => "unsupported",
+        },
+    };
+    let (head_arm, main_arm) = (face.across(base, false), face.across(base, true));
+    Case {
+        truth,
+        main: tree(main_arm),
+        head: tree(head_arm),
+        short: head_arm < reach - ulps(base, reach),
+        longer: head_arm > main_arm,
+    }
+}
+
+/// **A plane sector under the split lane's coplanarity row**: an annular
+/// sector tilted about a line through a corner, the row levered at the
+/// face extent from the corner, against the grid's farthest distance off
+/// the tilted plane.
+fn split_plane_case(rng: &mut Rng, b: geom_core::Band, s: f64) -> Case {
+    let z = b.zero();
+    let kk = b.escalate() / z;
+    let c = Point3::origin() + rng.unit() * 1e3;
+    let nf = rng.unit();
+    let x = perp(nf, rng);
+    let y = nf.cross(x);
+    let r2 = s * rng.r(0.5, 2.0);
+    let r1 = r2 * rng.r(0.0, 0.999);
+    let dt = rng.log(1e-6, 3.0);
+    let face = sector(c, (x, y), (r1, r2), (rng.r(-3.0, 3.0), dt));
+    let base = face.corners[(rng.u() * 4.0) as usize % 4];
+    let reach = face.sampled_reach(base).max(1e-300);
+    let sin_t = if rng.u() < 0.15 {
+        rng.r(0.0, 1.0)
+    } else {
+        (rng.log(0.05, 3.0 * kk) * z / reach).min(1.0)
+    };
+    let hinge = perp(nf, rng);
+    let nsp = nf * (1.0 - sin_t * sin_t).max(0.0).sqrt() + nf.cross(hinge) * sin_t;
+    let off = face
+        .grid
+        .iter()
+        .map(|p| (*p - base).dot(nsp).abs())
+        .fold(0.0_f64, f64::max);
+    let read = |arm: f64| match decide(
+        "split_sector_coplanar",
+        Margin::levered(nf.cross(nsp).norm(), arm),
+        b,
+    ) {
+        Ok(Sign::Zero) => "coplanar",
+        Ok(_) => "tilted",
+        Err(_) => "esc",
+    };
+    let (head_arm, main_arm) = (face.across(base, false), face.across(base, true));
+    Case {
+        truth: classify(off, b),
+        main: read(main_arm),
+        head: read(head_arm),
+        short: head_arm < reach - ulps(base, reach),
+        longer: head_arm > main_arm,
+    }
+}
+
+/// **The split's rows serve where main escalated only on their truth**,
+/// and never on a lever short of the face: a few hundred seeded samples
+/// of each split family (rim and oblique cylinder patches under rule
+/// (a), plane sectors under the coplanarity row), at scales 1e-3, 1 and
+/// 1e3 and 1e3 off the origin. The full families are
+/// [`span_reach_differential`]'s.
+#[test]
+fn the_split_rows_serve_where_main_escalated_only_on_their_truth() {
+    let b = band();
+    let mut g = fuzz::start("split_rows_served_where_main_escalated");
+    let mut rng = Rng(g.next_u64());
+    for i in 0..fuzz::scaled(300) {
+        let s = [1e-3, 1.0, 1e3][i % 3];
+        for (family, case) in [
+            ("split_cyl", split_cyl_case(&mut rng, b, s)),
+            ("split", split_plane_case(&mut rng, b, s)),
+        ] {
+            assert!(
+                !case.short,
+                "{family} #{i}: head's lever falls short of the face; {}",
+                fuzz::replay()
+            );
+            assert!(
+                !(case.main == "esc" && case.head != "esc" && case.against(case.head)),
+                "{family} #{i}: head serves {} where main escalated, against the truth {}; {}",
+                case.head,
+                case.truth,
+                fuzz::replay()
+            );
         }
     }
 }

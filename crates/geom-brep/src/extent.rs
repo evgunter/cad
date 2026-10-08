@@ -821,6 +821,49 @@ mod tests {
         best
     }
 
+    /// **A circle stored with a negative radius reaches what its points
+    /// reach.** The mint refuses `r < 0`, but the reach reads the carrier
+    /// it is handed, whose points are `c − |r|·e(t)`: the crest that binds
+    /// is opposite where a positive radius would put it, at
+    /// `√(h² + (|r| + ρ)²)`. Arcs of 0.3 and 2 rad and a whole turn, read
+    /// from their start, from the far side of the centre opposite a point
+    /// of the arc (near and far), and from off the plane: the reach is the
+    /// sampled farthest point, to rounding. Reading the crest at `r + ρ`,
+    /// or the crest test without `r`'s sign, misses it.
+    #[test]
+    fn a_negative_radius_circles_reach_is_its_farthest_point() {
+        let axis = Vec3::new(0.6, 0.0, 0.8);
+        let carrier = Curve3::Circle {
+            center: Point3::new(0.5, -2.0, 1.0),
+            axis,
+            radius: -1.5,
+            u_ref: Vec3::new(0.0, 1.0, 0.0),
+        };
+        let c = Point3::new(0.5, -2.0, 1.0);
+        for (t0, t1) in [(0.4, 0.7), (1.0, 3.0), (0.2, 0.2 + core::f64::consts::TAU)] {
+            let at = carrier.eval(t0 + 0.375 * (t1 - t0));
+            for pivot in [
+                carrier.eval(t0),
+                c - (at - c) * 3.0,
+                c - (at - c) * 1e3,
+                carrier.eval(t0) + axis * 2.0,
+            ] {
+                let reach = Reach::Span {
+                    carrier: carrier.clone(),
+                    t0,
+                    t1,
+                };
+                let got = reach.span_reach_from(pivot);
+                let far = farthest_over(&carrier, (t0, t1), pivot);
+                let ulps = 1e-14 * ((pivot - Point3::origin()).norm() + 4.0);
+                assert!(
+                    (got - far).abs() <= ulps,
+                    "over [{t0}, {t1}] from {pivot:?}: the reach {got}, the farthest point {far}"
+                );
+            }
+        }
+    }
+
     /// **A conic arc's reach from a point is its farthest point over the
     /// span, within a quarter's bulge.** Circles and an ellipse of scale
     /// `r ∈ {1e-3, 1, 1e3}` (offset `1e3` from the origin), arcs of span

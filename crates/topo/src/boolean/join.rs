@@ -3642,18 +3642,21 @@ mod frame_dispatch_tests {
         }
     }
 
-    /// **On the declared-tangency path head serves nothing main does
-    /// not.** Rim patches of walls of radius 1e-3, 1 and 1e3 (axes at
-    /// random, 1e3 off the origin; both capped at `1e12·ε`; arcs of 1e-6 to 3 rad, heights to ten
-    /// radii) cut by a plane through a corner, tilted off a radial (or off
-    /// its normal, through the axis) by a tilt near the band. Head's
-    /// reading through chord_join's [`crate::chord_join::wall_section`] at
-    /// the corner, and through the germ frame at the corners' centre,
-    /// serves only what main's whole-turn reading at the same point
-    /// serves, of the same class: the span-bounded reach never widens
-    /// either.
+    /// **The agreement gate never serves on the span alone.** On the
+    /// declared-tangency path a plane×cylinder section serves only what
+    /// the face's whole-turn reach serves too
+    /// ([`crate::chord_join::agreed_section`]). Rim patches of walls of
+    /// radius 1e-3, 1 and 1e3 (axes at random, 1e3 off the origin, both
+    /// capped at `1e12·ε`; arcs of 1e-6 to 3 rad, heights to ten radii) are
+    /// cut by a plane through a corner, tilted off a radial (or off its
+    /// normal, through the axis) by a tilt near the band. What chord_join's
+    /// [`crate::chord_join::wall_section`] serves at the corner, and the
+    /// germ frame at the corners' centre, is what the whole-turn reading
+    /// (`face_reach_round_from`, main's measure) serves at the same point,
+    /// of the same class. Either lane reading the span alone serves rulings
+    /// that reading escalates.
     #[test]
-    fn head_serves_nothing_main_does_not_on_a_rim_patch() {
+    fn the_agreement_gate_never_serves_on_the_span_alone() {
         use crate::chord_join::{SectionCase, WallSection, wall_section};
         use geom_brep::PlaneCylinderSection as S;
         use test_utils::fuzz;

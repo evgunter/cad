@@ -15,7 +15,7 @@ Found by TANG's span-bounded conic reach (PR 4292's differential).
 `splitting::rules::apply_rule_a` decides `split_sector_coplanar` on `Margin::levered(|n_face × n_SP|, face_extent)`, the tilt levered at the face's Euclidean reach from the base vertex. A tilt about a hinge line through the vertex moves a point of the face by the tilt times the point's distance from that HINGE, not from the vertex. Every point's distance from the hinge is at most its distance from the vertex, so the margin is sound but loose, by up to the whole reach for a face lying along the hinge.
 
 **Evidence.** `crates/geom-brep/tests/span_reach_differential.rs`, plane sector family (10,000 annular sectors, each tilted about a random line through a corner):
-- "tilted" (definitely not coplanar) is served where the face's farthest displacement off the tilted plane is in the band 517 times on head and 2,367 on main;
+- "tilted" (definitely not coplanar) is served where the face's farthest displacement off the tilted plane is in the band 572 times on head and 2,320 on main;
 - every head serving is one main also serves;
 - what head gave up is main's whole-turn conic over-statement; what is left is this row's own measure.
 

@@ -24,8 +24,10 @@ Both sit on the declared-tangency path, which D10 (ratified on #3990) does not l
 `face_reach_round_from` and `agreed_section` duplicate the whole-turn measure on purpose; they go together when this item lands.
 
 **Evidence.** `crates/geom-brep/tests/span_reach_differential.rs`:
-- germ column: 92 poses where main serves a conic against a Zero truth now escalate on the split; 131 stay escalated where the span-bounded reach alone would serve the rulings, every one against a Zero truth;
-- chord_join column: 76 conics against a Zero truth now escalate on the split; 140 stay escalated where the span alone would serve the rulings (offsets 0.06–0.96 zero).
+- germ column: 88 poses where main serves a conic against a Zero truth now escalate on the split, and 155 stay escalated against a Zero truth;
+- chord_join column: 71 and 116 the same way.
+
+Before chord_join took the agreed reading, the span alone served the rulings in 140 chord_join poses where main escalated, every one against a Zero truth (offsets 0.06–0.96 zero).
 
 ## The shape of a fix
 

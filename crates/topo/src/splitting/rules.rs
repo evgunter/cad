@@ -163,6 +163,11 @@ use crate::validate::decide;
 /// into its material), which rule (b) reads rather than deciding the
 /// tangency again. A wall that bends away from its material is a knife
 /// edge, refused here ([`SplitReduceError::KnifeEdge`]).
+///
+/// A wall's rows read its face extent over its edges' spans alone,
+/// while the split's chords through the same wall read the agreed
+/// section (`chord_join::agreed_section`), so a sector read grazed here
+/// can still escalate at its chord.
 pub(super) fn apply_rule_a<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
