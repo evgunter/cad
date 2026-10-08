@@ -4230,9 +4230,23 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                 R::VertexDisagreement { vertex, gap: 0.01 },
             ),
             (
-                "ReanchorOffCarrier",
-                R::ReanchorOffCarrier { edge, gap: 0.01 },
+                "EdgeSection",
+                R::EdgeSection {
+                    edge,
+                    kind: geom::SurfaceKind::Plane,
+                    other_kind: geom::SurfaceKind::Nurbs,
+                    verdict: topo::SectionVerdict::NoBranch,
+                },
             ),
+            (
+                "CornerSection",
+                R::CornerSection {
+                    vertex,
+                    edge,
+                    verdict: topo::CornerVerdict::NoRoot,
+                },
+            ),
+            ("DeclaredEdgeTilted", R::DeclaredEdgeTilted { edge }),
             (
                 "ReanchorPastCarrierEnd",
                 R::ReanchorPastCarrierEnd { edge, gap: 0.25 },
@@ -4378,7 +4392,9 @@ fn replace_face_arm(error: &topo::ReplaceFaceError<f64>) -> &'static str {
         R::IsoRow { .. } => "IsoRow",
         R::Structure { .. } => "Structure",
         R::VertexDisagreement { .. } => "VertexDisagreement",
-        R::ReanchorOffCarrier { .. } => "ReanchorOffCarrier",
+        R::EdgeSection { .. } => "EdgeSection",
+        R::CornerSection { .. } => "CornerSection",
+        R::DeclaredEdgeTilted { .. } => "DeclaredEdgeTilted",
         R::ReanchorPastCarrierEnd { .. } => "ReanchorPastCarrierEnd",
         R::ReanchorCollapse { .. } => "ReanchorCollapse",
         R::ReanchorInconclusive { .. } => "ReanchorInconclusive",
@@ -4402,7 +4418,7 @@ fn replace_face_arm(error: &topo::ReplaceFaceError<f64>) -> &'static str {
 
 /// Every `ReplaceFaceError` variant, in declaration order: the names
 /// [`replace_face_arm`] answers.
-const REPLACE_FACE_ARMS: [&str; 38] = [
+const REPLACE_FACE_ARMS: [&str; 40] = [
     "Band",
     "StaleFace",
     "Offset",
@@ -4422,7 +4438,9 @@ const REPLACE_FACE_ARMS: [&str; 38] = [
     "IsoRow",
     "Structure",
     "VertexDisagreement",
-    "ReanchorOffCarrier",
+    "EdgeSection",
+    "CornerSection",
+    "DeclaredEdgeTilted",
     "ReanchorPastCarrierEnd",
     "ReanchorCollapse",
     "ReanchorInconclusive",

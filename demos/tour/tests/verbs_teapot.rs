@@ -478,9 +478,13 @@ fn the_not_a_rigid_translation_door_is_unreachable_at_rest() {
 fn offset_refusal(e: &ShellError<f64>) -> String {
     match e {
         ShellError::Face { error, .. } => match &**error {
-            ReplaceFaceError::ReanchorOffCarrier { gap, .. } => {
+            ReplaceFaceError::VertexDisagreement { gap, .. } => {
                 assert!(*gap > 0.0, "the gap is a distance in meters, got {gap}");
-                "ReanchorOffCarrier".to_string()
+                "VertexDisagreement".to_string()
+            }
+            ReplaceFaceError::EdgeSection { verdict, .. } => format!("EdgeSection({verdict})"),
+            ReplaceFaceError::CornerSection { verdict, .. } => {
+                format!("CornerSection({verdict})")
             }
             // The STRING as well as the variant: this door has more than
             // one `what`, and which one fires IS the finding — "the

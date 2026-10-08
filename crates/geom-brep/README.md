@@ -439,9 +439,10 @@ stands: the 3-D carrier is the authoritative machinery and the edge's
 parameter stays chart-neutral. The description form every conventional
 edge takes is `EdgeDescription::Chart { surface, pcurve, seam }`, with
 `EdgeAuthority` recording who declared the locus; that collapse and its
-fence are `docs/PCURVE-UNIFY-DESIGN.md`, not restated here. Volume, area
-and tessellation still refuse typed on a face carrying a `General`
-pcurve.
+fence are `docs/PCURVE-UNIFY-DESIGN.md`, not restated here. Volume and
+area read a face carrying a `General` pcurve through the trimmed
+quadrature lane (`props/quad.rs`), and tessellation through the
+mesher's trimmed path; a rational `General` image refuses typed there.
 
 ### Dispatch
 
@@ -728,8 +729,9 @@ moved to its inward offset (all-planar bodies through
 `offset_planes_together`, which solves each corner against all moved
 planes at once; planes meeting revolved walls through
 `offset_charts_together`; anything else chart by chart through
-`replace_faces_offset`, whose oblique corners refuse
-`ReanchorOffCarrier`), then inserted through the shared void-insertion
+`replace_faces_offset`, which derives each edge between a moved and a
+held surface as their section and each moved corner as a root of the
+surfaces meeting it), then inserted through the shared void-insertion
 door `boolean::voids::insert_void` with the construction's own
 d-vs-reach margins carried as `VoidContainment::Carried` evidence; the
 door never derives containment. The result is a two-shell solid, and the

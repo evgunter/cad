@@ -20,15 +20,29 @@
 //! **The neighbours' surfaces are untouched.** Only the named face's
 //! surface is replaced; every other face keeps the chart it had.
 //!
-//! **That premise is this door's, not the verb's**, and it is what
-//! bounds the door: composing it over a whole boundary transports each
-//! corner once per chart, which is the offset body's corner only where
-//! the normals are mutually perpendicular. At an OBLIQUE junction it is
-//! not, and [`ReplaceFaceError::ReanchorOffCarrier`] is what refuses to
-//! build the difference (#1081). A body whose faces are ALL PLANES has
-//! another route — [`crate::offset_planes_together`], which moves every
-//! chart at once and solves each corner simultaneously; this door is
-//! what everything else still takes.
+//! **What the move does to an edge depends on the neighbour.** An edge
+//! between the moved surface and a held one is their SECTION
+//! ([`crate::offset_derive`]): the C5 arm's closed form, or for a plane
+//! against a spline wall the wall's exact row or the march's certified
+//! branch, nearest the old edge and running with it. Rigid transport
+//! (the carrier lanes below) is the section only where the held surface
+//! is carried onto itself by the move — a plane cap moved along its
+//! normal beside a wall that contains it — and the door transports
+//! there and nowhere else between distinct surfaces. Two sides of one
+//! chart (a seam, a wrap, an iso image) move with the chart. An edge so
+//! derived is stated as the two surfaces' `Intersection`, its sketch
+//! record dropped: it is not a curve the sketch drew.
+//!
+//! **A moved corner is solved, not transported.** Where every held
+//! surface around a corner holds the move, the transports put it where
+//! it is. Anywhere else it is a root: of the moved surface along each
+//! untouched edge meeting the corner, of each held surface along each
+//! moved edge — the corner slides along a slanted seam rather than
+//! along the moved surface's normal — and every candidate must agree
+//! with every other ([`ReplaceFaceError::VertexDisagreement`]). A
+//! surface grazing the edge, or meeting it nowhere near the corner,
+//! refuses by the root's own verdict
+//! ([`ReplaceFaceError::CornerSection`]).
 //!
 //! What must then be re-derived is everything the replaced chart
 //! carries:
@@ -40,19 +54,19 @@
 //!   unchanged, because the surfaces holding it did not move; only
 //!   where the edge stops did.
 //!
-//! That parameter is read per carrier kind: an analytic carrier's
+//! That parameter is the root the corner was solved by, or, at a
+//! transported corner, read per carrier kind: an analytic carrier's
 //! closed-form inverse anchored at the endpoint's old parameter
 //! (`Curve3::param_near` — line, circle, ellipse, spiric), and a spline
 //! carrier's Newton foot from the same anchor
 //! (`geom_brep::NurbsLane::carrier_foot`, read off
-//! [`crate::AtRestPolicy::nurbs_lane`]). The new point must then be on
-//! the carrier within ε; what refuses is
-//! [`ReplaceFaceError::ReanchorOffCarrier`] (the point the read names
-//! is not the vertex), [`ReplaceFaceError::ReanchorPastCarrierEnd`] (a
-//! spline foot clamped at the carrier's end),
+//! [`crate::AtRestPolicy::nurbs_lane`]). What refuses is
+//! [`ReplaceFaceError::VertexDisagreement`] (the point the read names
+//! is not the corner), [`ReplaceFaceError::ReanchorPastCarrierEnd`] (the
+//! corner lies past the carrier's end),
 //! [`ReplaceFaceError::ReanchorInconclusive`] (Newton did not converge)
 //! and [`ReplaceFaceError::NurbsLaneUnsupported`] (the scalar holds no
-//! lane).
+//! lane, or no section lane for a spline edge's section or root).
 //!
 //! # The carrier lanes
 //!
@@ -96,11 +110,7 @@
 //! **The translating lanes accept a spline carrier**, not only a line:
 //! a translated control net is exact structure, so a `Curve3::Nurbs`
 //! on a plane, a cylinder ruling, a cone generator or a fitted chart
-//! transports with everything else. What the lane does NOT claim is
-//! that the transported spline still lies on the untouched surface its
-//! description may name — the attach layer's certification is the net
-//! for that, and it is the honest one, because the residual it measures
-//! is exactly the quantity in question.
+//! transports with everything else.
 //!
 //! An `IsoCurve` on a NURBS chart takes a different, exact route: its
 //! carrier is the FIT's own boundary row (`geom_brep::nurbs_iso`), which
@@ -119,9 +129,13 @@
 //! of the configuration its arm serves — a wedge cap through a cone's
 //! apex, moved off it, cuts a hyperbola — so the door refuses that
 //! pose by the arm's own grounds rather than admitting it on the kind
-//! pair's. `Approx × anything` has no arm, so a
-//! fitted face's intrinsically-described boundary is exactly where this
-//! door stops.
+//! pair's. A served pose whose section the door does not derive, has
+//! no branch near the edge or is a tangency there refuses by the
+//! section's own verdict ([`ReplaceFaceError::EdgeSection`]), and a
+//! sketch-declared edge the move tilts against a distinct neighbour
+//! refuses by name ([`ReplaceFaceError::DeclaredEdgeTilted`]).
+//! `Approx × anything` has no arm, so a fitted face's
+//! intrinsically-described boundary is exactly where this door stops.
 //!
 //! # The apex window
 //!
@@ -460,10 +474,8 @@ pub enum ReplaceFaceError<T: Real> {
     },
     /// **The simultaneous door's scope gate**: a face it was asked to
     /// move is not a plane. Its corner solve is three plane equations,
-    /// and a curved face has no such equation — the C5-table work that
-    /// follows this unit is where those corners land. Until then they
-    /// refuse where they always did, at
-    /// [`ReplaceFaceError::ReanchorOffCarrier`].
+    /// and a curved face has no such equation; the per-chart door
+    /// solves those corners one chart at a time.
     TogetherNonPlanar {
         /// The face that is not a plane.
         face: FaceKey,
@@ -513,10 +525,9 @@ pub enum ReplaceFaceError<T: Real> {
     },
     /// **The simultaneous door: an edge's re-derived geometry
     /// disagrees with a moved surface or carrier by `gap`.** Distinct
-    /// from [`ReplaceFaceError::ReanchorOffCarrier`], which is the
-    /// per-face door's finding about a moved vertex leaving an UNMOVED
-    /// neighbour's carrier. This one is the simultaneous door's
-    /// verification net over every edge it re-derives, and THREE
+    /// from [`ReplaceFaceError::VertexDisagreement`], which is the
+    /// per-face door's finding about one corner's candidates. This one
+    /// is the simultaneous door's verification net over every edge it re-derives, and THREE
     /// meters raise it — two about an endpoint, one about the carrier
     /// itself:
     ///
@@ -3154,8 +3165,23 @@ fn read_ends<T: Decide>(
     }
     plan.spec.param_start = t0;
     plan.spec.param_end = t1;
-    if let EdgeDescriptionSpec::Intersection { witness, .. } = &mut plan.spec.description {
-        *witness = carrier.mid_point(t0, t1);
+    // A sketch record beside the edge ends where the edge now does.
+    let restate = |m, point, is_start| {
+        move_mapped_endpoint(m, point, is_start).ok_or(ReplaceFaceError::CarrierLaneUnsupported {
+            edge,
+            what: "it is drawn from a sketch arc or sweep, which the offset cannot redraw",
+        })
+    };
+    let restated = |m| restate(restate(m, p_start, true)?, p_end, false);
+    match &mut plan.spec.description {
+        EdgeDescriptionSpec::Intersection { witness, .. } => {
+            *witness = plan.spec.carrier.mid_point(t0, t1);
+        }
+        EdgeDescriptionSpec::Chart {
+            declared: Some(mc), ..
+        } => *mc = restated(mc.clone())?,
+        EdgeDescriptionSpec::Scaffold(mc) => *mc = restated(mc.clone())?,
+        _ => {}
     }
     plan.ends = Some((p_start, p_end));
     Ok(())

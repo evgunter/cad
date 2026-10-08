@@ -141,8 +141,12 @@ fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
 fn offset_refusal(e: &ShellError<f64>) -> String {
     match e {
         ShellError::Face { error, .. } => match &**error {
-            ReplaceFaceError::ReanchorOffCarrier { gap, .. } => {
-                format!("ReanchorOffCarrier(gap={gap})")
+            ReplaceFaceError::VertexDisagreement { gap, .. } => {
+                format!("VertexDisagreement(gap={gap})")
+            }
+            ReplaceFaceError::EdgeSection { verdict, .. } => format!("EdgeSection({verdict})"),
+            ReplaceFaceError::CornerSection { verdict, .. } => {
+                format!("CornerSection({verdict})")
             }
             ReplaceFaceError::CarrierLaneUnsupported { what, .. } => {
                 format!("CarrierLaneUnsupported({what})")

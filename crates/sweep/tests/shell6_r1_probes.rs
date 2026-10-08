@@ -206,8 +206,8 @@ fn r1_e2e_hollow_both_frustums_from_the_consumers_seat() {
                 Err(e) => println!("[r1] {what} per-chart d={d}: {}: {e}", name(e)),
             }
             assert!(
-                crate::common::cone_nappe::rim_refusal_gap(&got).is_some(),
-                "{what} d={d}: {got:?}"
+                got.is_ok(),
+                "{what} d={d}: the per-chart door builds: {got:?}"
             );
         }
         // A single band of the two-band chart: the door names the sharer.
