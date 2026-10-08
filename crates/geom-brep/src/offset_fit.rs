@@ -226,6 +226,7 @@ use geom::curves::fit::{FitError, interpolate_columns};
 use geom::surfaces::{NurbsSurface, Surface};
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
+use geom_core::interval::max_bound;
 use geom_core::spline::algebra::equal_split_points;
 use geom_core::spline::compose::patch::PatchSpans;
 use geom_core::spline::{KnotAlgebraError, KnotVector, SplineError};
@@ -1774,7 +1775,7 @@ fn measure(
             let (ub, vb) = comp.cell_box(su, sv);
             let cell = comp.cell_bound(su, sv, floor, d);
             hull_sup = hull_sup.max(cell);
-            on_locus_max = on_locus_max.max(on_locus_cell(base, fit, d, ub, vb));
+            on_locus_max = max_bound(on_locus_max, on_locus_cell(base, fit, d, ub, vb));
             bounds.push((ub, vb, cell));
         }
     }
@@ -1994,8 +1995,9 @@ fn mark(params: &[f64], ranges: impl Iterator<Item = (f64, f64)>) -> Vec<bool> {
 }
 
 /// Limb 1 inside one cell: the fixed [`OFFSET_CERT_SAMPLES`]²
-/// schedule, exact residual in metres. A non-finite sample answers
-/// `f64::INFINITY`, which fails every classification.
+/// schedule, exact residual in metres. A target `offset_point` cannot
+/// answer gives `f64::INFINITY` and a NaN residual folds to NaN; both
+/// fail every classification.
 fn on_locus_cell(
     base: &NurbsSurface<f64>,
     fit: &NurbsSurface<f64>,
@@ -2013,7 +2015,7 @@ fn on_locus_cell(
             let Some(target) = offset_point(base, d, u, v) else {
                 return f64::INFINITY;
             };
-            m = m.max((fit.eval(u, v) - target).norm());
+            m = max_bound(m, (fit.eval(u, v) - target).norm());
         }
     }
     m
@@ -2505,7 +2507,7 @@ mod tests {
     use super::{Composite, Refine, directional_mark, stall_verdict};
     use geom_core::Bounds;
     use geom_core::interval::certification::Certification;
-    use geom_core::interval::norm_sup;
+    use geom_core::interval::{max_bound, min_bound, norm_sup};
     use geom_core::spline::KnotVector;
     use geom_core::{Band, Interval, Point3, Tol};
 
@@ -2973,8 +2975,8 @@ mod tests {
                         let m = jet.du.cross(jet.dv) * w.powi(3);
                         let e = (fit.eval(u, v) - base.eval(u, v)) * (w * weight_at(&fit, u, v));
                         let y = e.cross(m);
-                        worst_m = worst_m.max(m.norm() / m_sup);
-                        worst_y = worst_y.max(y.norm() / y_sup);
+                        worst_m = max_bound(worst_m, m.norm() / m_sup);
+                        worst_y = max_bound(worst_y, y.norm() / y_sup);
                     }
                 }
             }
@@ -3039,12 +3041,12 @@ mod tests {
                     for b in 0..N {
                         #[allow(clippy::cast_precision_loss)]
                         let v = vb.0 + (vb.1 - vb.0) * (b as f64) / ((N - 1) as f64);
-                        min_norm = min_norm.min((fit.eval(u, v) - base.eval(u, v)).norm());
+                        min_norm = min_bound(min_norm, (fit.eval(u, v) - base.eval(u, v)).norm());
                     }
                 }
                 checked += 1;
                 let ratio = e_lo / min_norm;
-                if ratio > worst {
+                if !(ratio <= worst) {
                     worst = ratio;
                     worst_at = (su, sv);
                 }

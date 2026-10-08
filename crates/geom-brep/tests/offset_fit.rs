@@ -446,6 +446,39 @@ fn a_degraded_fit_fails_the_certificate_and_names_the_limb() {
     assert!(cert.hull_sup <= 1e-3);
 }
 
+/// **A NaN sample reaches limb 1's guard.** The exact offset of the
+/// quarter cylinder certifies (`approx_surface.rs`); one NaN control
+/// point poisons its samples. A fold that dropped them would report
+/// the max over the samples that answered, pass limb 1, and leave the
+/// refusal to limb 2. Limb 1 must refuse, with the poison as its
+/// bound.
+#[test]
+fn a_nan_sample_refuses_at_the_on_locus_limb() {
+    let base = quarter_cylinder(1.0, 1.0);
+    let d = 0.3;
+    let exact = quarter_cylinder(1.0 + d, 1.0);
+    assert!(
+        certify_offset_at(&base, &exact, d, 1e-3, band()).is_ok(),
+        "FIXTURE: the unpoisoned exact offset certifies"
+    );
+    let mut control = exact.control().to_vec();
+    control[0] = Point3::new(f64::NAN, 0.0, 0.0);
+    let poisoned = NurbsSurface::new(
+        exact.knots_u().clone(),
+        exact.knots_v().clone(),
+        control,
+        exact.weights().to_vec(),
+    )
+    .unwrap();
+    match certify_offset_at(&base, &poisoned, d, 1e-3, band()) {
+        Err(OffsetFitError::Limb { limb, bound, .. }) => {
+            assert_eq!(limb, OffsetLimb::OnLocus, "the NaN sample was dropped");
+            assert!(bound.is_nan(), "limb 1 reported {bound:e}, not the poison");
+        }
+        other => panic!("a fit with a NaN control point certified: {other:?}"),
+    }
+}
+
 #[test]
 fn a_collapsed_control_row_refuses_at_the_regularity_floor() {
     // The sphere-pole shape: one control row collapsed onto the axis,

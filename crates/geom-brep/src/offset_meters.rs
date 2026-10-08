@@ -144,7 +144,7 @@
 use geom_core::Bounds;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::{div_down, norm_sq, norm_sup};
+use geom_core::interval::{div_down, max_bound, norm_sq, norm_sup};
 use geom_core::{Band, Indeterminate, Margin, SupSpeed};
 
 use crate::dihedral::decide_reported;
@@ -595,17 +595,13 @@ pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
         // `cell_normal` never answers a NaN floor — its assemblies
         // clamp at zero, which is the conservative reading of a
         // refused cell — so a plain `<` is the whole fold. The sup
-        // CAN be NaN (it reads `mag`), and the explicit refusal step
-        // below is what keeps that from being dropped by `max`.
+        // CAN be NaN, and `max_bound` carries it to the end.
         if n.floor < floor {
             floor = n.floor;
         }
-        sup = sup.max(n.sup);
+        sup = max_bound(sup, n.sup);
         speed_u = speed_u.max(SupSpeed::new(cell.s_u_sup));
         speed_v = speed_v.max(SupSpeed::new(cell.s_v_sup));
-        if n.sup.is_nan() {
-            sup = f64::NAN;
-        }
     }
     if cells.is_empty() {
         floor = 0.0;
@@ -1195,8 +1191,9 @@ mod tests {
 
     /// **A refused cell refuses the patch's chart speed.** One cell
     /// whose `S_u` enclosure is refused, beside a healthy one, in both
-    /// orders: the fold answers NaN for `sup ‖S_u‖`, the lever NaN with
-    /// it, and the predicate escalates. Red under the inherent
+    /// orders: the fold answers NaN for `sup ‖S_u‖` and for
+    /// `sup ‖S_u × S_v‖`, the lever NaN with them, and the predicate
+    /// escalates. Red under the inherent
     /// `f64::max`, which returns the healthy cell's speed and so
     /// certifies a lever over the cells it could read.
     #[test]
@@ -1237,6 +1234,11 @@ mod tests {
             assert!(
                 reg.speed_v.get().is_finite(),
                 "{order}: the healthy axis must stay readable"
+            );
+            assert!(
+                reg.sup.is_nan(),
+                "{order}: sup ‖S_u × S_v‖ = {:e} dropped the refused cell",
+                reg.sup
             );
             assert!(
                 reg.speed_lever().get().is_nan(),
