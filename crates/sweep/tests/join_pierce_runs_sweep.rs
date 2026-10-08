@@ -2797,3 +2797,81 @@ fn review_4346_every_root_lines() {
         }
     }
 }
+
+/// Review probe 2 (PR 4346): the eight rebaselined lines against an
+/// independent membership oracle (the operands' own point_in_solid),
+/// and their vertex count at the pinch.
+#[test]
+#[ignore = "probe"]
+fn review_4346_rebaselined_lines_membership() {
+    let band = geom_core::Band::linear(tol()).unwrap();
+    let pin = |b: &AtRestBody<f64>, q: Point3<f64>| match topo::point_in_solid(b, q, band, tol()) {
+        Ok(topo::SolidContainment::In) => Some(true),
+        Ok(topo::SolidContainment::Out) => Some(false),
+        _ => None,
+    };
+    for (seed, fib) in [(2296, 21), (2296, 3), (2296, 8), (2959, 3)] {
+        let (a, b) = (ltop(), asym());
+        let d = dbl((&a, &b), seed, fib);
+        let v = a.v;
+        for (order, x, y) in [("xy", &d.pinched, &d.cube), ("yx", &d.cube, &d.pinched)] {
+            let r = fixtures::with_ring_root(2, || topo::union_with(x, y, &BooleanDeclarations::default(), tol()));
+            let body = r.unwrap().body().unwrap().body.clone();
+            let at_v = vertices_at(&body, v).len();
+            let mut s = seed * 7 + fib as u64;
+            let mut rnd = || {
+                s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+                ((s >> 11) as f64) / ((1u64 << 53) as f64) - 0.5
+            };
+            let (mut read, mut dis) = (0, 0);
+            for i in 0..3000 {
+                let rad = if i % 2 == 0 { 0.2 } else { 1.5 };
+                let q = Point3::new(v[0] + rad * rnd(), v[1] + rad * rnd(), v[2] + rad * rnd());
+                let want = match (pin(&d.pinched, q), pin(&d.cube, q)) {
+                    (Some(p), Some(c)) => p || c,
+                    _ => continue,
+                };
+                if let Some(got) = pin(&body, q) {
+                    read += 1;
+                    if got != want {
+                        dis += 1;
+                    }
+                }
+            }
+            eprintln!("REB seed={seed} fib{fib} {order}: vertices at v {at_v}, probes read {read}, disagree {dis}, vol {}", mass_properties(&body, tol()).unwrap().volume);
+        }
+    }
+}
+
+/// Review probe 2b (PR 4346): root 2's body against root 0's, by
+/// geometry (vertex points rounded to 1e-9, faces by sorted points).
+#[test]
+#[ignore = "probe"]
+fn review_4346_roots_same_body() {
+    let key = |b: &AtRestBody<f64>| {
+        let s = fixtures::meeting::shape(b);
+        (s, b.vertices().count(), b.edges().count())
+    };
+    for (names, (a, b), seed, fib) in [
+        ("Ltop asym", (ltop(), asym()), 2296, 21),
+        ("Ltop asym", (ltop(), asym()), 2296, 3),
+        ("Ltop asym", (ltop(), asym()), 2296, 8),
+        ("Ltop asym", (ltop(), asym()), 2959, 3),
+    ] {
+        let d = dbl((&a, &b), seed, fib);
+        for (order, x, y) in [("xy", &d.pinched, &d.cube), ("yx", &d.cube, &d.pinched)] {
+            let ks: Vec<_> = (0..3)
+                .map(|root| {
+                    let r = fixtures::with_ring_root(root, || topo::union_with(x, y, &BooleanDeclarations::default(), tol()));
+                    key(&r.unwrap().body().unwrap().body.clone())
+                })
+                .collect();
+            eprintln!(
+                "ROOTS {names} seed={seed} fib{fib} {order}: counts {:?}, root2==root0 {}, root1==root0 {}",
+                ks.iter().map(|k| (k.0 .0.len(), k.2, k.1)).collect::<Vec<_>>(),
+                ks[2] == ks[0],
+                ks[1] == ks[0]
+            );
+        }
+    }
+}

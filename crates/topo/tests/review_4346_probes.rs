@@ -723,3 +723,299 @@ fn probe_tilt_within_zero() {
         }
     }
 }
+
+/// Second review: a hunt for the leave-apart arm. Random prisms through
+/// the plate's top at MEET: some upright on the line (sharing it), some
+/// leaning about MEET (meeting there at a point), random sectors, radii
+/// and staggers. Every union order and plate − union; checks tier 3,
+/// per-vertex corners, the analytic oracle at probes near MEET, a Monte
+/// Carlo volume, and that every built order is one body.
+fn hunt_one(seed: u64, k: usize) -> Vec<String> {
+    let mut s = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+    let mut rnd = move || {
+        s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        ((s >> 11) as f64) / ((1u64 << 53) as f64)
+    };
+    // disjoint sectors round the circle
+    let mut gens = Vec::new();
+    let mut a = rnd() * 360.0;
+    let slot = 360.0 / k as f64;
+    for i in 0..k {
+        let overlap = std::env::var("HUNT_OVERLAP").is_ok();
+        let w = if overlap { 25.0 + 100.0 * rnd() } else { slot * (0.3 + 0.5 * rnd()) };
+        let start = if overlap { rnd() * 360.0 } else { a + slot * i as f64 + (slot - w) * rnd() * 0.5 };
+        let lean = rnd() < 0.5;
+        let toward = if rnd() < 0.7 { start + w / 2.0 } else { rnd() * 360.0 };
+        gens.push(Gen {
+            r: 0.25 + 0.3 * rnd(),
+            a0: start,
+            a1: start + w,
+            z: (0.3 + 0.5 * rnd(), 1.4 + 0.6 * rnd()),
+            toward,
+            delta: if lean { 0.05 + 0.3 * rnd() } else { 0.0 },
+            pivot_z: 1.0,
+        });
+    }
+    let _ = &mut a;
+    let label = format!("seed {seed} k {k}");
+    let mut out = Vec::new();
+    let mut members = vec![plate_body()];
+    members.extend(gens.iter().map(Gen::body));
+    let holds = |q: [f64; 3]| in_plate(q) || gens.iter().any(|g| g.holds(q));
+    // probes near MEET, off the planes
+    let mut probes = Vec::new();
+    for i in 0..9 {
+        for j in 0..9 {
+            for kz in 0..9 {
+                let f = |n: i32, o: f64| 0.031f64.mul_add(f64::from(n) - 4.0, o);
+                probes.push([MEET[0] + f(i, 0.0037), MEET[1] + f(j, 0.0019), MEET[2] + f(kz, 0.0023)]);
+            }
+        }
+    }
+    // Monte Carlo volume above the top
+    let mc = {
+        let mut s2 = seed ^ 0x9e37_79b9_7f4a_7c15;
+        let mut r2 = move || {
+            s2 = s2.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            ((s2 >> 11) as f64) / ((1u64 << 53) as f64)
+        };
+        let n = 400_000;
+        let (x0, x1, y0, y1, z0, z1) = (0.6, 2.4, 0.1, 1.9, 1.0, 2.4);
+        let mut hit = 0;
+        for _ in 0..n {
+            let q = [x0 + (x1 - x0) * r2(), y0 + (y1 - y0) * r2(), z0 + (z1 - z0) * r2()];
+            if gens.iter().any(|g| g.holds(q)) {
+                hit += 1;
+            }
+        }
+        let bv = (x1 - x0) * (y1 - y0) * (z1 - z0);
+        let p = f64::from(hit) / f64::from(n);
+        (6.0 + bv * p, 4.0 * bv * (p * (1.0 - p) / f64::from(n)).sqrt() + 1e-6)
+    };
+    let check = |what: &str, b: &AtRestBody<f64>, vol: Option<(f64, f64)>, inside: &dyn Fn([f64; 3]) -> bool| -> (String, String) {
+        let counts = [b.faces().count(), b.edges().count(), b.vertices().count()];
+        let at_meet = b
+            .vertices()
+            .filter(|&(v, _)| {
+                let p = topo::readback::vertex_point(b, v).unwrap();
+                (p.x - MEET[0]).abs() < 1e-7 && (p.y - MEET[1]).abs() < 1e-7 && (p.z - MEET[2]).abs() < 1e-7
+            })
+            .count();
+        let mut bad = Vec::new();
+        if let Err(e) = validate_geometric(b, t()) {
+            bad.push(format!("tier3 {e:?}").chars().take(160).collect::<String>());
+        }
+        if let Err(e) = corners_fine(b) {
+            bad.push(format!("corners {e}"));
+        }
+        let dis = probes.iter().filter(|&&q| inside_of(b, q).is_some_and(|g| g != inside(q))).count();
+        if dis > 0 {
+            bad.push(format!("{dis} probes disagree"));
+        }
+        let v = topo::mass_properties(b, t()).unwrap().volume;
+        if let Some((want, tol)) = vol {
+            if (v - want).abs() > tol {
+                bad.push(format!("volume {v} vs MC {want}±{tol}"));
+            }
+        }
+        let tag = if bad.is_empty() { format!("{what} build {counts:?} meet{at_meet}") } else { format!("{what} WRONG {counts:?} meet{at_meet} {}", bad.join("; ")) };
+        (tag, format!("{:?}", shape(b)))
+    };
+    let mut hist: BTreeMap<String, usize> = BTreeMap::new();
+    let mut shapes = std::collections::BTreeSet::new();
+    for order in orders(members.len()) {
+        let (tag, sh) = match fold(&members, &order) {
+            Err((k, e)) => (format!("U refuse@{k} {}", err_kind(&e).chars().take(140).collect::<String>()), None),
+            Ok(r) => {
+                let (t, s) = check("U", &r.body, Some(mc), &holds);
+                (t, Some(s))
+            }
+        };
+        if tag.contains("WRONG") {
+            out.push(format!("{label} U {order:?}: {tag}"));
+        }
+        if let Some(s) = sh {
+            shapes.insert(s);
+        }
+        *hist.entry(tag).or_insert(0) += 1;
+    }
+    if shapes.len() > 1 {
+        out.push(format!("{label} U: DISTINCT BODIES {}", shapes.len()));
+    }
+    // plate minus the prisms' union, every order of the prisms
+    let prisms_only: Vec<AtRestBody<f64>> = members[1..].to_vec();
+    let minus = |q: [f64; 3]| in_plate(q) && !gens.iter().any(|g| g.holds(q));
+    let mut mshapes = std::collections::BTreeSet::new();
+    for order in orders(prisms_only.len()) {
+        let tag = match fold(&prisms_only, &order) {
+            Err((k, e)) => format!("pu refuse@{k} {}", err_kind(&e).chars().take(140).collect::<String>()),
+            Ok(u) => match topo::subtract(&members[0], &u.body, t()) {
+                Ok(BooleanResult::Body(r)) => {
+                    let (t, s) = check("P-U", &r.body, None, &minus);
+                    mshapes.insert(s);
+                    t
+                }
+                Ok(BooleanResult::Empty) => "P-U EMPTY".into(),
+                Err(e) => format!("P-U refuse {}", err_kind(&e).chars().take(140).collect::<String>()),
+            },
+        };
+        if tag.contains("WRONG") {
+            out.push(format!("{label} P-U {order:?}: {tag}"));
+        }
+        *hist.entry(tag).or_insert(0) += 1;
+    }
+    if mshapes.len() > 1 {
+        out.push(format!("{label} P-U: DISTINCT BODIES {}", mshapes.len()));
+    }
+    eprintln!("HUNT {label}: {hist:?}");
+    out
+}
+
+#[test]
+#[ignore = "probe"]
+fn probe_hunt() {
+    let n: u64 = std::env::var("HUNT_N").ok().and_then(|s| s.parse().ok()).unwrap_or(40);
+    let base: u64 = std::env::var("HUNT_BASE").ok().and_then(|s| s.parse().ok()).unwrap_or(0);
+    let all: Vec<String> = std::thread::scope(|sc| {
+        let hs: Vec<_> = (0..4u64)
+            .map(|c| {
+                sc.spawn(move || {
+                    let mut out = Vec::new();
+                    for i in (0..n).filter(|i| i % 4 == c) {
+                        let k = 3 + (i % 2) as usize;
+                        out.extend(hunt_one(base + i, k));
+                    }
+                    out
+                })
+            })
+            .collect();
+        hs.into_iter().flat_map(|h| h.join().unwrap()).collect()
+    });
+    for l in &all {
+        eprintln!("FLAG {l}");
+    }
+    eprintln!("HUNT FLAGS {}", all.len());
+}
+
+/// A contact line (two prisms touching along the vertical line) meeting
+/// a third solid's face that holds the line at one of its corners, the
+/// corner under 180°: the cap of a horizontal triangular prism, apex
+/// down on the line at z = `apex_z`, lying on y ≥ 1.
+fn cap_prism(apex_z: f64, half: f64, depth: f64) -> AtRestBody<f64> {
+    let mut body = topo::Body::<f64>::new();
+    // profile in (x, z), extruded along +y from y = 1
+    let profile = [(MEET[0], apex_z), (MEET[0] - half, apex_z + 0.4), (MEET[0] + half, apex_z + 0.4)];
+    common::prism_ops(
+        &mut body,
+        &profile,
+        (0.0, depth),
+        |u, v, w| Point3::new(u, MEET[1] + w, v),
+        common::FaceGeometry::Certified,
+        t(),
+    );
+    common::describe_as_intersections(&mut body, t());
+    finished("a cap prism", body, t())
+}
+
+#[test]
+#[ignore = "probe"]
+fn probe_line_in_face() {
+    for (apex_z, half) in [(0.8, 0.3), (1.3, 0.3), (0.8, 0.05)] {
+        let cap = std::panic::catch_unwind(|| cap_prism(apex_z, half, 0.5));
+        let Ok(cap) = cap else {
+            eprintln!("LIF cap {apex_z} {half}: the cap prism is not finished (orientation)");
+            continue;
+        };
+        let prisms = [Prism::on_line(200.0, 250.0, (0.5, 2.0)), Prism::on_line(290.0, 340.0, (0.47, 1.7))];
+        for plate in [false, true] {
+            let mut members = Vec::new();
+            if plate {
+                members.push(plate_body());
+            }
+            members.extend(prisms.iter().map(Prism::body));
+            members.push(cap.clone());
+            let mut hist: BTreeMap<String, usize> = BTreeMap::new();
+            for order in orders(members.len()) {
+                let tag = match fold(&members, &order) {
+                    Err((k, e)) => format!("refuse@{k} {}", err_kind(&e).chars().take(160).collect::<String>()),
+                    Ok(r) => {
+                        let b = &r.body;
+                        let mut bad = Vec::new();
+                        if validate_geometric(b, t()).is_err() {
+                            bad.push("tier3");
+                        }
+                        if corners_fine(b).is_err() {
+                            bad.push("corners");
+                        }
+                        format!("build {:?} {}", [b.faces().count(), b.edges().count(), b.vertices().count()], bad.join(","))
+                    }
+                };
+                *hist.entry(tag).or_insert(0) += 1;
+            }
+            eprintln!("LIF apex {apex_z} half {half} plate {plate}: {hist:?}");
+        }
+    }
+}
+
+fn hunt_gens(seed: u64, k: usize) -> Vec<Gen> {
+    let mut s = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+    let mut rnd = move || {
+        s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        ((s >> 11) as f64) / ((1u64 << 53) as f64)
+    };
+    let mut gens = Vec::new();
+    let a = rnd() * 360.0;
+    let slot = 360.0 / k as f64;
+    for i in 0..k {
+        let w = slot * (0.3 + 0.5 * rnd());
+        let start = a + slot * i as f64 + (slot - w) * rnd() * 0.5;
+        let lean = rnd() < 0.5;
+        let toward = if rnd() < 0.7 { start + w / 2.0 } else { rnd() * 360.0 };
+        gens.push(Gen { r: 0.25 + 0.3 * rnd(), a0: start, a1: start + w, z: (0.3 + 0.5 * rnd(), 1.4 + 0.6 * rnd()), toward, delta: if lean { 0.05 + 0.3 * rnd() } else { 0.0 }, pivot_z: 1.0 });
+    }
+    gens
+}
+
+/// D10 on the leave-apart fixtures: carrying each step's records back
+/// in serves the same body.
+#[test]
+#[ignore = "probe"]
+fn probe_d10_hunt() {
+    use topo::{CarriedContacts, CarriedVf, CarriedVv, ContactClass};
+    let mut hist: BTreeMap<String, usize> = BTreeMap::new();
+    for seed in 0..12u64 {
+        let k = 3 + (seed % 2) as usize;
+        let gens = hunt_gens(seed, k);
+        let mut members = vec![plate_body()];
+        members.extend(gens.iter().map(Gen::body));
+        for order in orders(members.len()).into_iter().step_by(3) {
+            let Ok(plain) = fold(&members, &order) else { continue };
+            let plain = shape(&plain.body);
+            for class in [ContactClass::Rest, ContactClass::Tangent] {
+                let mut body = members[order[0]].clone();
+                let mut carried = CarriedContacts::default();
+                let mut tag = None;
+                for &i in &order[1..] {
+                    let decls = BooleanDeclarations { carried_a: carried.clone(), ..BooleanDeclarations::none() };
+                    match union_with(&body, &members[i], &decls, t()) {
+                        Ok(BooleanResult::Body(r)) => {
+                            let c = &r.contacts;
+                            carried = CarriedContacts {
+                                vv: c.vv.iter().map(|&pair| CarriedVv { pair, class }).collect(),
+                                vf: c.a_on_b.iter().chain(&c.b_on_a).map(|&rest| CarriedVf { rest, class }).collect(),
+                                ve: c.ve.clone(),
+                                ee: c.ee.clone(),
+                            };
+                            body = r.body;
+                        }
+                        Ok(BooleanResult::Empty) => { tag = Some("EMPTY".to_string()); break; }
+                        Err(e) => { tag = Some(format!("refuse {}", err_kind(&e))); break; }
+                    }
+                }
+                let tag = tag.unwrap_or_else(|| if shape(&body) == plain { "same body".into() } else { format!("DIFFERENT BODY seed {seed} {order:?}") });
+                *hist.entry(format!("{class:?}: {tag}")).or_insert(0) += 1;
+            }
+        }
+    }
+    eprintln!("D10H {hist:?}");
+}
