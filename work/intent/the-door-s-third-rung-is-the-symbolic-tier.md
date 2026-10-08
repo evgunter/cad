@@ -2,11 +2,10 @@
 id: the-door-s-third-rung-is-the-symbolic-tier
 kind: issue
 title: D10 stage 4 PR D: rung 3 at the door: an unproven record is re-decided in the Sym lane with every variable a symbol; the box mitre measured
-status: parked
+status: open
 opened: 2026-10-08
 priority: P0
 cost: M
-blocked_on: [coincidences-are-recorded-at-one-door]
 ---
 
 INTENT stage 4, PR D. Spec: `docs/INTENT-STAGE4-SPEC.md` §5.

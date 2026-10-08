@@ -398,9 +398,8 @@ fn a_split_records_its_pinch_and_nothing_where_it_only_cuts() {
         .flat_map(|z| vertices_at(&fx.body, 4.0, 1.0, z))
         .collect();
     assert_eq!(tips.len(), 2, "the operand's tip vertices");
-    let pinched: Vec<topo::RowCell> = result.coincidences.iter().map(|row| row.cells[0]).collect();
     assert_eq!(
-        pinched.len(),
+        result.coincidences.len(),
         2,
         "one row per tip vertex: {:?}",
         result.coincidences
@@ -428,6 +427,16 @@ fn a_split_records_its_pinch_and_nothing_where_it_only_cuts() {
             "the side verdict's own margin"
         );
     }
+    // A plane that misses the tip by less than the band reads it ON all
+    // the same (D1 tier 3′ (i): a value coincidence however small), and
+    // the pinch it makes is recorded just as one at the tip is.
+    let near = split(&operand, &plane_y(1.0 + 1e-10), Tol::witness()).unwrap();
+    assert_eq!(
+        near.coincidences.len(),
+        2,
+        "the near pinch is recorded too: {:?}",
+        near.coincidences
+    );
     let block = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness());
     let operand = topo::test_support::finished("the block", block, Tol::witness());
     let cut = split(&operand, &plane_y(1.0), Tol::witness()).unwrap();

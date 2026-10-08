@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-08
 priority: P0
 cost: H
-blocked_on: [an-assertion-relates-by-equality, interference-at-rest-is-a-finding, value-decided-coincidences-have-no-recording-door, a-mate-on-a-pinned-copy-refuses]
+blocked_on: [an-assertion-relates-by-equality, interference-at-rest-is-a-finding, mates-declare-no-contact, a-mate-on-a-pinned-copy-refuses]
 ---
 
 
@@ -33,12 +33,12 @@ It waits on stages 3 and 4 as well as A and B:
   declared attribution that is the rest of today's gate;
 - the resident checks per space, which is stage 3's.
 
-The `blocked_on` names
-`value-decided-coincidences-have-no-recording-door` (stage 4's door) and
-`a-mate-on-a-pinned-copy-refuses` (stage 3's F, the unit that closes
+The `blocked_on` names `mates-declare-no-contact` (stage 4's last unit
+it needs, which records the at-rest contacts at the door; stage 4 spec
+§13) and `a-mate-on-a-pinned-copy-refuses` (stage 3's F, the unit that
+closes
 `mate-offset-verified-against-the-solve-is-a-constraint-falling-back-to-an-assertion`
-and A11 (4)'s declaring mates). Re-point the stage-4 trigger to stage 4's
-last unit it needs.
+and A11 (4)'s declaring mates).
 
 Design forks open: FORK-S5-4 and FORK-S5-5 (spec §11).
 

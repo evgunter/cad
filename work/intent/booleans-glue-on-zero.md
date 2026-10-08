@@ -7,7 +7,7 @@ opened: 2026-10-08
 priority: P0
 cost: H
 design: true
-blocked_on: [the-join-builds-what-the-rest-zip-builds, coincidences-are-recorded-at-one-door]
+blocked_on: [the-join-builds-what-the-rest-zip-builds]
 ---
 
 INTENT stage 4, PR E. Spec: `docs/INTENT-STAGE4-SPEC.md` §6. Design open: FORK-S4-1 for `GeomSource`'s remaining uses.
