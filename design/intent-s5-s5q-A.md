@@ -140,10 +140,11 @@ I adopt B's framing: a holding assertion quiets a finding when it **entails** it
 
 ### 1. Where one site splits into several regions, and what the converged rule does
 
-The census reports what it decides one pair of cells at a time, and never counts regions:
+The census decides one pair of cells at a time and never counts regions:
 - curved conformal contact is one `ConformalPatch` per face pair ("trim regions definitely overlap");
 - planar contact is vertex- and edge-level records;
 - interference is the first witness vertex, or a pierce.
+
 The intersection (point 4's localizer) gives one lump per connected overlap, with `FromA`/`FromB` face names.
 
 | Case | Census today | Intersection | Converged rule |
@@ -164,18 +165,21 @@ The intersection (point 4's localizer) gives one lump per connected overlap, wit
 **What a witness is.**
 - A witness is a `Point` variable, free or constructed, that the part of one of the two copies defines in its own frame. It is carried by that copy's placement.
 - "Unplaced" can only mean the frame of the copies' **space**, never the world (export alone reads the world, D10).
-- The space's frame is the kernel's internal choice (its earliest member), so a person cannot write a point in it. A point on one of the bodies is what a person can write, and it moves with the parts. Example: on the pin's axis at the lug's mid-depth.
+- The space's frame is the kernel's internal choice (its earliest member), so a person cannot write a point in it. A point on one of the bodies is what a person can write, and it moves with the parts.
+
 **What the predicate reads.**
 - The intersection of the two copies, computed in the space's frame.
 - An assertion with positive witnesses quiets only the components containing one of them, decided strictly inside, margined.
 - A negative witness turns loud any component that contains it.
 - **Default with no witness:** every component the assertion otherwise matches is quiet. "Required only when there are several components" would make an edit that splits one overlap into two suddenly invalidate an assertion. As a fail-loud warning that is acceptable, but it is a requirement that switches on with geometry.
+
 **How it interacts with the rest of the converged rule.**
-- **Points 1–2 (opposed `Gap`, stratum):** unchanged. The witness picks a component and does not replace the measure.
+- **Points 1–2 (opposed `Gap`, stratum) and point 5 (an overlap the kernel cannot intersect):** unchanged. The witness picks a component and does not replace the measure, and it needs components to test against, so a refused intersection is still loud.
 - **Point 4's carrier test:** still needed. The sunk flange lies in the *same* component as any witness of the press fit, so the witness cannot see it. A witness distinguishes components; the carrier test distinguishes within one.
-- **Point 5 (an overlap the kernel cannot intersect):** unchanged. A witness needs components to test against, so a refused intersection is still loud.
 - **Staleness:** a witness that leaves its overlap when dimensions change quiets nothing, and the assertion reports why. Fail-loud, but a free `Point` drifts across a parameter family where a constructed one tracks the geometry.
+
 **Cost.** One point-in-solid test per witness per lump, after the intersection that point 4 already needs. Cheap. The real cost is one more slot on `Assert`, and a third variable kind (`Point`) in a statement that has been purely scalar.
+
 **Weighed.**
 - For rows a–c, a witness narrows an assertion to one region of a single carrier relation. It says "the overlap should stop here" without saying it in geometry. That is a real intent, but it is an intent about extent, and the honest spelling of it is geometry: split the face, or assert the extent with a `Distance` requirement.
 - For row d, cells already separate the regions, at no cost to the user.
@@ -187,6 +191,7 @@ Keep points 3–4. Close row d by having point 4 require the asserted faces them
 Replacement for point 4:
 
 > An interference finding is one connected overlap of the two copies' material. An assertion quiets it when both of the assertion's faces bound the overlap and every face bounding it lies between the carriers of an asserted pair. Regions of one overlap that share both faces are one site: no current measure tells them apart.
+
 Point 3 stands as is (exactly the two cells the record names). It distinguishes everything except row a/b-style regions of one cell pair, which are one fact.
 If Ev wants per-region intent anyway, the coherent form is the witness sketched above: an optional positive point, defaulting to all components, with no negative witnesses. A negative witness only says "this component should not exist", which a component without a witness already reports as loud.
 
@@ -195,19 +200,19 @@ If Ev wants per-region intent anyway, the coherent form is the witness sketched 
 **Where a distinguished constant is needed today.**
 - **Mates** spell zero by absence: `MateFrame.offset: Option<Placement>` (`node.rs`), and `None` is the exact coincidence.
 - **Angles** already have an exact zero: `0·turn` is a rational fraction of a turn.
-- **Lengths** are the only dimension with no constant at all. A length zero is needed by:
-  - contact assertions (`Gap = 0`);
-  - coincidence requirements such as `Distance(p, q) = 0`;
-  - an occasional formula clamp (`max(x, 0)` refuses on dimensions today).
+- **Lengths** are the only dimension with no constant at all. A length zero is needed by contact assertions (`Gap = 0`), coincidence requirements such as `Distance(p, q) = 0`, and an occasional formula clamp (`max(x, 0)` refuses on dimensions today).
 - **The GUI** would offer every `0 mm` free variable to share with every other `0 mm`.
+
 So the problem is confined to length zeros, mostly in assertions. By Ev's own test, a change is worth making only if it is small and does not reshape `Assert`.
+
 **Ev's alternatives.**
 - **Every relation against zero** (`Gap ≤ 0` and so on): this loses requirements on magnitude (`MinClearance ≥ 2 mm`, a press fit's minimum interference). Adding a constant to `Gap` brings the bound back under another name.
 - **Disallowing `Gap ≤ −b` only:** a press fit could then state no minimum interference. To quiet one it would need `Gap < 0`, a new strict relation that is just a stratum assertion, and `≤ 0` is already ruled out.
+
 Neither avoids a zero anywhere else, so neither passes Ev's test.
+
 **Recommendation (likely): the exact constant `0` stands in a slot of any dimension.**
 - A lone `0` in a Length or Angle slot is the constant. `0 mm` stays a free variable, as `90 deg` does next to `turn/4` (VR6: the spelling decides).
-- It does not change `Assert`.
-- It fills the one dimension without a constant.
-- It covers formulas too.
+- It does not change `Assert`, fills the one dimension without a constant, and covers formulas too.
+
 A smaller alternative that does pass the test: make `bound` optional on `Assert`, with absence meaning exact zero, mirroring the mate offset. It is local to assertions, but it gives zero two spellings once formulas want one, so I prefer the constant.
