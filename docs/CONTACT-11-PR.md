@@ -121,8 +121,8 @@ torus/cone rows at each of the three ε.
 
 No boolean mints an L-shaped torus face today. A half donut less a bar
 over a quarter of its upper tube is refused first by `topo::subtract`,
-with `CurvedPairUnsupported { op: Subtract, site: RevertRoster, kind:
-Torus, other_kind: Plane }`, and
+with `GermFrameUnsupported { a_kind: Torus, b_kind: Plane }` (the germ
+frame has no torus × plane arm), and
 `crates/sweep/tests/contact11_torus_chart_l.rs` pins exactly that.
 
 **STEP import is a second door.** It adopts toroidal, conical and
@@ -175,23 +175,54 @@ The sweep is as of `f4e9aa68b`.
   its own level count.
 - The STEP issue is filed on EXCH's slate.
 
-## Verification (local; hosted CI is the verification of record)
+## The merge of main (2026-10-08)
 
-Every check ran on `989be02c1`. The commits after it change only this
-file.
+`origin/main` (`d00100e82`) is merged in `8d1ee0f87`.
 
-| check | result |
+- **`solid_contain.rs`.** The one conflict was the torus walk's
+  accumulators. Main's note on the walk's `CorruptFace` raises is kept,
+  above this branch's `sides`. Main added no caller of
+  `chart_box_defect` and no third chart-box check. The cone trim's
+  merged body still calls `chart_polygon_box`, so the one decision
+  serves both trims. Main's sphere and wall work (`bool_sphere_trim_*`,
+  `bool_wall_*`) decides levels, not a box, so it is not folded in.
+- **`chord_join.rs`.** It merged cleanly, and the deletion of
+  `chart_box_defect` and `ChartBox` stands.
+- **`section_cert_rows.rs`.** `chain_sheet` is rewritten on main's
+  Euler API: `mvfs(start, true)`, `FaceSurface::New { surface, sense }`,
+  `FaceSurface::Shared { key, sense }`, `readback::vertex_point`.
+- **Sweep.**
+  - `bar` moved to `common::operands`, in main's at-rest form
+    (`finished`, `Extrusion::Distance { depth, side }`).
+    `germ_torus_doors.rs` imports it alongside main's `framed_bar`.
+  - The refusal row now finishes the half donut at rest. Main moved the
+    refusal from `CurvedPairUnsupported` at `RevertRoster` to
+    `GermFrameUnsupported` (Torus × Plane), and the row now pins that.
+    The old pin went red on the merge, as it should have.
+- **`work/`.**
+  - REACH closed on main, so its log, and this branch's seam note in
+    it, are gone. The TANG note stands.
+  - `chart-window-walk-written-twice` keeps main's two new sections and
+    this branch's, re-dated. `run_azimuth_window` is gone on main, so
+    this branch's section now names `face_azimuth_window`.
+  - The STEP row on EXCH names the new refusal.
+
+On the merged head, the rows are green at ε 1e-9, 1e-6 and 1e-12: 110
+torus/cone tests at each. The mutants were re-run there:
+
+| mutant | result |
 |---|---|
-| `topo`, default ε / 1e-6 / 1e-12 | 1673 passed at each |
-| `sweep`, default ε / 1e-6 / 1e-12 | 1761 passed at each |
-| `editor-core`, all (slow set included) | 2274 passed |
-| `test-utils` | 79 passed |
-| Python suite (maturin wheel, unittest) | 857 OK |
-| `cargo fmt --all --check` | clean |
-| clippy `--workspace --exclude viewer --all-targets --all-features` | clean |
-| clippy `pncad-py --features python` | clean |
-| `scripts/gates/*.sh` + `payload-rung-sweep.py --check` | pass |
-| `work.py lint` | ok |
+| closure check off | killed: the gap row (edges 0 and 3) |
+| continuity check off | killed: the gap row (edges 1 and 2) |
+| box margin forced to Zero | killed: both L rows, both small-notch rows |
+| box margin squared | killed: both small-notch rows |
+
+The normalisation mutant patches the area code that no longer exists,
+so its result (killed, above) stands at `59eeeebb2` only.
+
+## Verification
+
+See the battery table in the hand-back for the final commit.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
