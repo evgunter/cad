@@ -1654,7 +1654,7 @@ pub enum NodeErrorKind {
     FullRangeStep {
         /// The step as authored, said as `NegativeSpacing::reversed`
         /// is.
-        step: crate::expr::Expr,
+        step: crate::Formula,
         /// What the step evaluated to, in radians, when it is not a
         /// literal (a literal's text already says), for the sentence
         /// only.
