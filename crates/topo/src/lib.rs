@@ -790,15 +790,14 @@ pub use boolean::{
     JoinReading, JoinRefusal, JoinUndecided, LeverArm, NeighbourOffset, NullEdgePairRecord,
     Operand, OperandKeys, PairFace, PairRefusalSite, PairSite, PairUnread, PatchContact,
     PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung,
-    PointInSolidError, SectorRead, SectorRung, SelfCheck, Settling,
-    ShellOrientation, SideCode, SolidContainment, SolidFaces, SphereQuestion, SweepStrategy,
-    SweepTrace, TorusConvention, VeContact, VfContact, VoidContainment, VoidEvidence,
-    VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce,
-    boolean_reduce_declared, carrier_eq, contfp, curved_face_containment, decision_words,
-    face_carrier, flush_pair_relation, insert_void, insert_voids, intersect, intersect_with,
-    is_conventional_vertex, joinable_vertices, lineage_root, oriented_plane_eq, point_in_solid,
-    point_in_solid_faces, point_in_solid_of, subtract, subtract_with, tangent_pair_relation, union,
-    union_with,
+    PointInSolidError, SectorRead, SectorRung, SelfCheck, Settling, ShellOrientation, SideCode,
+    SolidContainment, SolidFaces, SphereQuestion, SweepStrategy, SweepTrace, TorusConvention,
+    VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact,
+    WallRung, boolean_op_with, boolean_reduce, boolean_reduce_declared, carrier_eq, contfp,
+    curved_face_containment, decision_words, face_carrier, flush_pair_relation, insert_void,
+    insert_voids, intersect, intersect_with, is_conventional_vertex, joinable_vertices,
+    lineage_root, oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of,
+    subtract, subtract_with, tangent_pair_relation, union, union_with,
 };
 pub use joint::{Deck, JointElement};
 pub use surgery::Surgery;

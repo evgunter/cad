@@ -3573,9 +3573,8 @@ enum RingSide {
     Out,
     /// Every vertex is ON the run ([`ring_side`]'s decided verdict).
     OnRun,
-    /// No vertex was decided: on a chart, a vertex whose ray is
-    /// degenerate says nothing, whether or not it is on the run
-    /// ([`chart_ring_side`]).
+    /// No vertex was decided: on a chart, a vertex on the run says
+    /// nothing ([`chart_ring_side`]).
     Undecided,
 }
 
