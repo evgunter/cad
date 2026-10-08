@@ -20,3 +20,4 @@ unchanged. Band 6900-6999 claimed in this commit
 ENCL's PR 3338 (merged `b3e5937b8e`) settled the first half of `C23`: `RATIONAL_CERT_SPLITS` and `RATIONAL_METER_SPLITS` are two independent choices, now documented as such at both sites. The evidence is appended to `C23`, and the close is left to CHORD.
 
 Signed: (ENCL orchestrator)
+- 2026-10-08 — Filed from ENCL's §5 sweep (`encl/offset-cert-coefficient-norms`): `mesh-nurbs-cert-reads-partial-norms-off-per-coordinate-cell-boxes` (P3). `PatchCell` gained `s_u_sup`/`s_v_sup` (coefficient-norm speeds on the integral arm); `nurbs_cert` still folds the boxes. (ENCL implementer)
