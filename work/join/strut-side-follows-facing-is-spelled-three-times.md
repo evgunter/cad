@@ -2,12 +2,14 @@
 id: strut-side-follows-facing-is-spelled-three-times
 kind: issue
 title: A strut's mint side follows its facing, and that derivation is spelled three times (four with the ring struts)
-status: open
+status: closed
 opened: 2026-10-04
 priority: P2
 cost: M
 refs: [whole-orbit-fan-end-has-three-spellings, a-pierce-with-two-out-runs-at-one-vertex-refuses-every-op]
 branch: join/strut-side-one-rule
+pr: 4294
+closed: 2026-10-08
 ---
 
 
@@ -47,3 +49,19 @@ One function from `(run side, he_plus faces start germ)` to
 `(NewVertexSide, NullEdge, [start half, end half])`, called by every
 null-edge minter, so the attribute, the mint side and the record's
 germ halves come from one place.
+
+## Built
+
+`Body::mev_null_run` (`crates/topo/src/null.rs`) is the one function:
+from the run's side and whether `he_plus` faces the start germ it
+mints the null edge and returns the attribute and the
+`[start half, end half]` pair. `insert_null_edges`, `mint_run`, the
+pierce's run strut and its ring struts all call it.
+
+Measured (release, main `b1a70019` against head): `pierce_runs_battery`
+4538 lines, `pinch_runs_battery` 3026, `corner_pairs_battery` 16382 and
+`j3r2_r1_reflex_battery` 1154 are byte-identical, and the seven
+`join_pierce_strut_facing` rows pass on both. Negating the facing at
+each caller in turn reds rows at every former site (topo `ci` profile
+plus sweep's join/pierce/pinch/corner rows): splitting 35 + 6, `mint_run`
+60 + 38, the pierce strut 151 + 73, the ring struts 1 + 15.

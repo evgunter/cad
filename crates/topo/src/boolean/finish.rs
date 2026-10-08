@@ -949,7 +949,9 @@ mod torn_hop_rows {
         assert!(
             matches!(
                 section_boundary(&stale, face),
-                Err(BooleanError::JoinDesync { .. })
+                Err(BooleanError::JoinDesync {
+                    what: "a section face no longer resolves"
+                })
             ),
             "a section face that does not resolve refuses typed"
         );
