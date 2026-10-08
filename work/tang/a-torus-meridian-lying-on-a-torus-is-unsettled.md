@@ -5,6 +5,7 @@ title: A torus meridian lying on a torus is the F≡0 case the circle×torus roo
 status: closed
 opened: 2026-10-02
 closed: 2026-10-08
+pr: 4343
 branch: tang/torus-meridian-lies-on
 priority: P1
 cost: H
@@ -49,7 +50,7 @@ piece is `a-torus-seam-graze-needs-the-rim-root-deflated`.
 
 Nothing D10 changes gates this row, so it is open: pure geometry: an F≡0 meridian LiesOn rung in circle_torus_roots (reduce.rs); the (Zero,Zero) lying_on arm survives as a Zero-decided ON event. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
 
-## Closed (2026-10-08, TANG)
+## Closed (2026-10-08, TANG, PR 4343)
 
 A meridian lying on a torus now answers `OnSurface` from the circle ×
 torus door. The rung is `circle_torus::meridian_deviation`, decided
