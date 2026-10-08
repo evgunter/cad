@@ -1,7 +1,9 @@
 //! **The cone rows against a traced section** (a counterexample
-//! search, shape 1): random cone poses against every partner the cone
-//! arms classify, biased toward each classification margin's zero. The
-//! oracle traces the zero set of the partner's residual on the double
+//! search, shape 1): random cone poses at scales from 1 m to 1 km
+//! against every partner the cone arms classify, each pose built at a
+//! signed offset from one classification margin's zero, the offset
+//! log-uniform from `1e-12` of the scale up to half of it. The oracle
+//! for an offset the trace can resolve traces the zero set of the partner's residual on the double
 //! cone's chart — azimuth `u` periodic, signed slant `t` over a window
 //! holding every bounded component — counts its components by cell
 //! adjacency, and classes each: touching the window's edge, unbounded;
@@ -17,6 +19,15 @@
 //!   part's class — distinct components for distinct parts;
 //! - against a parallel-axis cylinder, every component traced on the
 //!   cylinder's chart essential there too.
+//!
+//! Below the trace's resolution (`0.03` of the scale) the class is not
+//! traced: an offset inside the band's Zero (a quarter of it) must
+//! refuse R-tan (the plane's aperture answers its Zero class, the
+//! parabola's); one between must answer — R-tan only within a few
+//! escalation widths — with every witness on both carriers. The class
+//! at small offsets is the closed form's, in the near-axis search
+//! below: a ball centred a hair off a tilted axis, at scales to 1 km,
+//! against the extreme generators' distances.
 
 #![allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
 
@@ -178,6 +189,8 @@ impl Traced {
 /// A cone's frame, and its chart on the double carrier: `(u, t)` is
 /// the point `t` along the generator at azimuth `u`.
 struct Frame {
+    /// The pose's length scale.
+    scale: f64,
     apex: Point3<f64>,
     a: Vec3<f64>,
     e1: Vec3<f64>,
@@ -198,7 +211,7 @@ impl Frame {
         let (s, c) = self.alpha.sin_cos();
         let d = q - self.apex;
         let t = d.dot(self.a) / c;
-        let r = (d - self.a * d.dot(self.a)) / (t * s);
+        let r = across(d, self.a) / (t * s);
         (r.dot(self.e2).atan2(r.dot(self.e1)), t)
     }
     fn surface(&self) -> Surface<f64> {
@@ -228,11 +241,13 @@ fn unit_vec(rng: &mut Rng) -> Vec3<f64> {
 fn random_cone(rng: &mut Rng) -> Frame {
     let a = unit_vec(rng);
     let (e1, e2) = a.orthonormal_basis();
+    let scale = rng.range(0.0, 1e3f64.ln()).exp();
     Frame {
+        scale,
         apex: Point3::new(
-            rng.range(-1.0, 1.0),
-            rng.range(-1.0, 1.0),
-            rng.range(-1.0, 1.0),
+            rng.range(-scale, scale),
+            rng.range(-scale, scale),
+            rng.range(-scale, scale),
         ),
         a,
         e1,
@@ -241,11 +256,27 @@ fn random_cone(rng: &mut Rng) -> Frame {
     }
 }
 
-/// An offset from a margin's zero: magnitude log-uniform in
-/// `[0.03, 0.5]`, either sign.
+/// An offset from a margin's zero, relative, either sign: half the
+/// draws log-uniform in `[0.03, 0.5]`, which the trace resolves, half
+/// in `[1e-12, 0.5]`, into the band and through it.
 fn offset(rng: &mut Rng) -> f64 {
-    let m = (rng.range(0.03f64.ln(), 0.5f64.ln())).exp();
+    let floor = if rng.unit() < 0.5 { 0.03f64 } else { 1e-12 };
+    let m = (rng.range(floor.ln(), 0.5f64.ln())).exp();
     if rng.unit() < 0.5 { m } else { -m }
+}
+
+/// `v`'s part square to the unit `a`, by the cross product (the oracle's
+/// own spelling, independent of the arm's).
+fn across(v: Vec3<f64>, a: Vec3<f64>) -> Vec3<f64> {
+    a.cross(v.cross(a))
+}
+
+/// The reach every search pose is classified with.
+fn reach_of(k: &Frame) -> Reach<f64> {
+    Reach {
+        centre: k.apex,
+        radius: 5.0 * k.scale,
+    }
 }
 
 /// What the arm promises of the traced count.
@@ -263,16 +294,19 @@ struct Pose {
     partner: Surface<f64>,
     window: f64,
     count: Count,
+    /// The value, in metres as the arm decides it, of the margin the
+    /// pose was built near; `None` for a pose built near none.
+    margin: Option<f64>,
 }
 
 fn plane_pose(rng: &mut Rng, k: &Frame) -> Option<Pose> {
-    let beta = (PI / 2.0 - k.alpha + offset(rng)).clamp(0.02, PI / 2.0);
+    let beta = (PI / 2.0 - k.alpha + offset(rng)).clamp(1e-3, PI / 2.0);
     let phi = rng.range(0.0, TAU);
     let mut n = k.a * beta.cos() + k.radial(phi) * beta.sin();
     if rng.unit() < 0.5 {
         n = -n;
     }
-    let m = rng.range(0.1, 1.5) * if rng.unit() < 0.5 { 1.0 } else { -1.0 };
+    let m = k.scale * rng.range(0.1, 1.5) * if rng.unit() < 0.5 { 1.0 } else { -1.0 };
     let p0 = k.apex - n * m;
     // Every generator's crossing with the plane: one sign throughout is
     // the ellipse, bounded by the farthest; else the branches' vertices.
@@ -293,7 +327,11 @@ fn plane_pose(rng: &mut Rng, k: &Frame) -> Option<Pose> {
         };
         3.0 * nearest(true).max(nearest(false))
     };
-    (window < 30.0).then(|| Pose {
+    let lever = (p0 - k.apex).dot(n).abs() + 2.0 * reach_of(k).radius;
+    let margin = (n.dot(k.a).abs() - s) * lever;
+    // Near the parabola the section runs far past any trace window; the
+    // check below the trace's resolution reads no window.
+    (window < 30.0 * k.scale || margin.abs() < 0.03 * k.scale).then(|| Pose {
         what: format!("plane p0 {p0:?} n {n:?} (β {beta})"),
         partner: Surface::Plane {
             origin: p0,
@@ -302,24 +340,28 @@ fn plane_pose(rng: &mut Rng, k: &Frame) -> Option<Pose> {
         },
         window,
         count: Count::Exact,
+        margin: Some(margin),
     })
 }
 
 fn sphere_pose(rng: &mut Rng, k: &Frame) -> Option<Pose> {
-    let centre =
-        k.apex + k.a * rng.range(-2.0, 2.0) + k.radial(rng.range(0.0, TAU)) * rng.range(0.0, 2.0);
+    let sc = k.scale;
+    let centre = k.apex
+        + k.a * (sc * rng.range(-2.0, 2.0))
+        + k.radial(rng.range(0.0, TAU)) * (sc * rng.range(0.0, 2.0));
     let delta = k.apex - centre;
-    let across = delta - k.a * delta.dot(k.a);
-    let r = if across.norm() > 1e-9 {
-        across / across.norm()
+    let off = across(delta, k.a);
+    let r = if off.norm() > 0.0 {
+        off / off.norm()
     } else {
         k.e1
     };
     let (s, c) = k.alpha.sin_cos();
-    let line = |w: Vec3<f64>| (delta - w * delta.dot(w)).norm();
+    let line = |w: Vec3<f64>| delta.cross(w).norm();
     let near = [delta.norm(), line(k.a * c + r * s), line(k.a * c - r * s)][rng.below(3)];
-    let rho = near + offset(rng);
-    (rho > 0.05).then(|| Pose {
+    let shift = sc * offset(rng);
+    let rho = near + shift;
+    (rho > 0.05 * sc).then(|| Pose {
         what: format!("sphere {centre:?} ρ {rho}"),
         partner: Surface::Sphere {
             center: centre,
@@ -327,28 +369,36 @@ fn sphere_pose(rng: &mut Rng, k: &Frame) -> Option<Pose> {
             axis: k.a,
             u_ref: k.e1,
         },
-        window: delta.norm() + rho + 0.1,
+        window: delta.norm() + rho + 0.1 * sc,
         count: Count::Exact,
+        margin: Some(shift),
     })
 }
 
 fn coaxial_cylinder_pose(rng: &mut Rng, k: &Frame) -> Option<Pose> {
-    let rc = rng.range(0.1, 1.5);
+    let rc = k.scale * rng.range(0.1, 1.5);
     Some(Pose {
         what: format!("coaxial cylinder r {rc}"),
         partner: Surface::Cylinder {
-            origin: k.apex + k.a * rng.range(-2.0, 2.0),
+            origin: k.apex + k.a * (k.scale * rng.range(-2.0, 2.0)),
             axis: if rng.unit() < 0.5 { k.a } else { -k.a },
             radius: rc,
             u_ref: k.e1,
         },
         window: 1.4 * rc / k.alpha.sin(),
         count: Count::Parallels(&[2]),
+        margin: None,
     })
 }
 
 fn coaxial_cone_pose(rng: &mut Rng, k: &Frame) -> Option<Pose> {
-    let d = rng.range(0.2, 1.5) * if rng.unit() < 0.5 { 1.0 } else { -1.0 };
+    let near_apex = rng.unit() < 0.3;
+    let d = k.scale
+        * if near_apex {
+            offset(rng)
+        } else {
+            rng.range(0.2, 1.5) * if rng.unit() < 0.5 { 1.0 } else { -1.0 }
+        };
     let alpha2 = rng.range(0.25, 1.2);
     let (t1, t2) = (k.alpha.tan(), alpha2.tan());
     if (t1 - t2).abs() < 0.15 {
@@ -357,7 +407,7 @@ fn coaxial_cone_pose(rng: &mut Rng, k: &Frame) -> Option<Pose> {
     let far = [d * t2 / (t1 + t2), d * t2 / (t2 - t1)]
         .iter()
         .fold(0.0f64, |w, h| w.max(h.abs() / k.alpha.cos()));
-    (far < 20.0).then(|| Pose {
+    (far < 20.0 * k.scale).then(|| Pose {
         what: format!("coaxial cone d {d} α₂ {alpha2}"),
         partner: Surface::Cone {
             apex: k.apex + k.a * d,
@@ -367,20 +417,23 @@ fn coaxial_cone_pose(rng: &mut Rng, k: &Frame) -> Option<Pose> {
         },
         window: 1.3 * far,
         count: Count::Parallels(&[2]),
+        margin: near_apex.then_some(d),
     })
 }
 
 fn coaxial_torus_pose(rng: &mut Rng, k: &Frame) -> Option<Pose> {
     let (s, c) = k.alpha.sin_cos();
-    let z = rng.range(-2.0, 2.0);
-    let r = rng.range(0.1, 0.5);
-    let big = if rng.unit() < 0.5 {
-        rng.range(r + 0.1, 2.5)
+    let sc = k.scale;
+    let z = sc * rng.range(-2.0, 2.0);
+    let r = sc * rng.range(0.1, 0.5);
+    let (big, margin) = if rng.unit() < 0.5 {
+        (rng.range(r + 0.1 * sc, 2.5 * sc), None)
     } else {
         let side = if rng.unit() < 0.5 { 1.0 } else { -1.0 };
-        (side * z * s + r + offset(rng)) / c
+        let shift = sc * offset(rng);
+        ((side * z * s + r + shift) / c, Some(shift))
     };
-    (big > r + 0.05).then(|| Pose {
+    (big > r + 0.05 * sc).then(|| Pose {
         what: format!("coaxial torus z {z} R {big} r {r}"),
         partner: Surface::Torus {
             center: k.apex + k.a * z,
@@ -389,24 +442,28 @@ fn coaxial_torus_pose(rng: &mut Rng, k: &Frame) -> Option<Pose> {
             minor_radius: r,
             u_ref: k.e1,
         },
-        window: z.abs() + big + r + 0.2,
+        window: z.abs() + big + r + 0.2 * sc,
         count: Count::Parallels(&[0, 2, 4]),
+        margin,
     })
 }
 
 fn parallel_cylinder_pose(rng: &mut Rng, k: &Frame) -> Option<Pose> {
-    let e = rng.range(0.2, 1.5);
-    let rc = e + offset(rng);
-    (rc > 0.05).then(|| Pose {
+    let sc = k.scale;
+    let e = sc * rng.range(0.2, 1.5);
+    let shift = sc * offset(rng);
+    let rc = e + shift;
+    (rc > 0.05 * sc).then(|| Pose {
         what: format!("parallel cylinder e {e} r {rc}"),
         partner: Surface::Cylinder {
-            origin: k.apex + k.e1 * e + k.a * rng.range(-2.0, 2.0),
+            origin: k.apex + k.e1 * e + k.a * (sc * rng.range(-2.0, 2.0)),
             axis: k.a,
             radius: rc,
             u_ref: k.e1,
         },
         window: 1.3 * (e + rc) / k.alpha.sin(),
         count: Count::Exact,
+        margin: Some(shift),
     })
 }
 
@@ -423,15 +480,31 @@ fn class_of(c: &Component<f64>) -> Class {
 /// The mismatches of one pose, as sentences.
 fn check(k: &Frame, pose: &Pose) -> Vec<String> {
     let cone = k.surface();
-    let reach = Reach {
-        centre: k.apex,
-        radius: 5.0,
-    };
-    let sec = classify(&cone, &pose.partner, reach, band());
-    let back = classify(&pose.partner, &cone, reach, band());
+    let reach = reach_of(k);
+    let b = band();
+    let sec = classify(&cone, &pose.partner, reach, b);
+    let back = classify(&pose.partner, &cone, reach, b);
+    let m = pose.margin.map_or(f64::INFINITY, f64::abs);
+    // In the band's Zero: R-tan is the answer, except at the plane's
+    // aperture, where Zero is the parabola's class — one part, essential,
+    // no witness, uncounted.
+    if m <= 0.25 * b.zero() {
+        let parabola = matches!(pose.partner, Surface::Plane { .. })
+            && matches!(&sec, Section::Components { parts, single: false }
+                if parts.len() == 1
+                    && parts[0].essential_f
+                    && !parts[0].unbounded
+                    && parts[0].witness.is_none());
+        return match &sec {
+            Section::Tangent(_) if !matches!(pose.partner, Surface::Plane { .. }) => Vec::new(),
+            _ if parabola => Vec::new(),
+            other => vec![format!("margin {m} in the band, answered {other:?}")],
+        };
+    }
     let (parts, single) = match &sec {
         Section::Components { parts, single } => (parts.clone(), *single),
-        other => return vec![format!("not classified: {other:?}")],
+        Section::Tangent(_) if m < 4.0 * b.escalate() => return Vec::new(),
+        other => return vec![format!("margin {m}: not classified: {other:?}")],
     };
     let mut bad = Vec::new();
     match &back {
@@ -445,6 +518,21 @@ fn check(k: &Frame, pose: &Pose) -> Vec<String> {
                     == (y.unbounded, y.essential_g, y.essential_f)
             }) => {}
         other => bad.push(format!("the swapped order disagrees: {other:?}")),
+    }
+    for c in &parts {
+        let Some(w) = c.witness else {
+            continue;
+        };
+        for surf in [&cone, &pose.partner] {
+            let r = geom_brep::implicit_residual(surf, w);
+            if r.abs() > 1e-9 * k.scale {
+                bad.push(format!("the witness {w:?} is {r} off {surf:?}"));
+            }
+        }
+    }
+    // Below the trace's resolution the class is the near-axis search's.
+    if m < 0.03 * k.scale {
+        return bad;
     }
     let partner = pose.partner.clone();
     let traced = trace(
@@ -483,12 +571,6 @@ fn check(k: &Frame, pose: &Pose) -> Vec<String> {
         let Some(w) = c.witness else {
             continue;
         };
-        for surf in [&cone, &pose.partner] {
-            let r = geom_brep::implicit_residual(surf, w);
-            if r.abs() > 1e-9 {
-                bad.push(format!("the witness {w:?} is {r} off {surf:?}"));
-            }
-        }
         let (u, t) = k.chart(w);
         let on: Vec<usize> = traced
             .near(u, t)
@@ -551,25 +633,20 @@ fn the_cone_arms_agree_with_the_traced_section() {
     for (name, poser) in arms {
         let mut tally = std::collections::BTreeMap::<String, usize>::new();
         let mut done = 0;
-        while done < fuzz::scaled(8) {
+        while done < fuzz::scaled(16) {
             let k = random_cone(&mut rng);
             let Some(pose) = poser(&mut rng, &k) else {
                 continue;
             };
             done += 1;
             let bad = check(&k, &pose);
-            if let Section::Components { parts, .. } = classify(
-                &k.surface(),
-                &pose.partner,
-                Reach {
-                    centre: k.apex,
-                    radius: 5.0,
-                },
-                band(),
-            ) {
-                let mut cs: Vec<Class> = parts.iter().map(class_of).collect();
-                cs.sort();
-                *tally.entry(format!("{cs:?}")).or_default() += 1;
+            match classify(&k.surface(), &pose.partner, reach_of(&k), band()) {
+                Section::Components { parts, .. } => {
+                    let mut cs: Vec<Class> = parts.iter().map(class_of).collect();
+                    cs.sort();
+                    *tally.entry(format!("{cs:?}")).or_default() += 1;
+                }
+                other => *tally.entry(format!("{other:?}")).or_default() += 1,
             }
             for b in bad {
                 failures.push(format!(
@@ -580,6 +657,99 @@ fn the_cone_arms_agree_with_the_traced_section() {
         }
         println!("[cone search] {name}: {tally:?}");
     }
+    assert!(
+        failures.is_empty(),
+        "{} mismatches ({}):\n{}",
+        failures.len(),
+        fuzz::replay(),
+        failures.join("\n")
+    );
+}
+
+/// **Near-axis balls against the closed form** (shape 1). A cone on a
+/// random axis at scale `L ∈ [1, 1e3]` m, a ball centred `h = L` up the
+/// axis and `e = f·L` off it, `f ∈ [1e-10, 1e-2]` log-uniform: the
+/// extreme generators stand `|e·cos α ∓ h·sin α|` from the centre, and a
+/// radius between them, beyond them or short of them is one null loop,
+/// two essential curves or nothing on the opening nappe. Every margin
+/// is half the generators' spread, `e·cos α`; where that is inside a
+/// few escalation widths (plus the rounding of an `L`-sized frame), R-tan
+/// is a correct answer, and anything else must be the closed form's
+/// class with every witness within `1e-11·L` of both carriers.
+#[test]
+fn near_axis_balls_agree_with_the_closed_form() {
+    let mut rng = fuzz::start("section_cert_cone_near_axis");
+    let b = band();
+    let mut failures = Vec::new();
+    let (mut answered, mut tangent) = (0usize, 0usize);
+    for _ in 0..fuzz::scaled(2000) {
+        let scale = rng.range(0.0, 1e3f64.ln()).exp();
+        let frac = rng.range(1e-10f64.ln(), 1e-2f64.ln()).exp();
+        let a = unit_vec(&mut rng);
+        let (b1, b2) = a.orthonormal_basis();
+        let phi = rng.range(0.0, TAU);
+        let u = b1 * phi.cos() + b2 * phi.sin();
+        let alpha = rng.range(0.25, 1.2);
+        let apex = Point3::new(
+            rng.range(-scale, scale),
+            rng.range(-scale, scale),
+            rng.range(-scale, scale),
+        );
+        let (h, e) = (scale, frac * scale);
+        let centre = apex + a * h + u * e;
+        let (s, c) = alpha.sin_cos();
+        let (near, far) = ((h * s - e * c).abs(), (h * s + e * c).abs());
+        let gap = 0.5 * (far - near);
+        let (rho, want): (f64, &[Class]) = match rng.below(3) {
+            0 => (near + gap, &[Class::Null]),
+            1 => (far + gap, &[Class::Essential, Class::Essential]),
+            _ => (near - gap, &[]),
+        };
+        let cone = Surface::Cone {
+            apex,
+            axis: a,
+            half_angle: alpha,
+            u_ref: b1,
+        };
+        let ball = Surface::Sphere {
+            center: centre,
+            radius: rho,
+            axis: a,
+            u_ref: b1,
+        };
+        let what = format!("L {scale}, e/L {frac}, α {alpha}, ρ {rho}, want {want:?}");
+        let reach = Reach {
+            centre: apex,
+            radius: 5.0 * scale,
+        };
+        match classify(&cone, &ball, reach, b) {
+            Section::Tangent(_) => {
+                tangent += 1;
+                if gap > 8.0 * b.escalate() + 64.0 * f64::EPSILON * scale {
+                    failures.push(format!("{what}: R-tan at a margin of {gap}"));
+                }
+            }
+            Section::Components { parts, single } => {
+                answered += 1;
+                let mut got: Vec<Class> = parts.iter().map(class_of).collect();
+                got.sort();
+                if got != want || single != (want.len() == 1) {
+                    failures.push(format!("{what}: classified {got:?}, single {single}"));
+                }
+                for p in &parts {
+                    let w = p.witness.expect("every sphere part carries a witness");
+                    for surf in [&cone, &ball] {
+                        let r = geom_brep::implicit_residual(surf, w);
+                        if r.abs() > 1e-11 * scale {
+                            failures.push(format!("{what}: the witness {w:?} is {r} off"));
+                        }
+                    }
+                }
+            }
+            other => failures.push(format!("{what}: {other:?}")),
+        }
+    }
+    println!("[cone near-axis] {answered} answered, {tangent} R-tan");
     assert!(
         failures.is_empty(),
         "{} mismatches ({}):\n{}",
