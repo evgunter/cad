@@ -72,10 +72,11 @@ fn cube_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 
 /// The same reading, one level deeper: `instance`'s part is ITSELF an
 /// assembly, and the face wanted is the cap of the cube inside the
-/// sub-instance `sub` of that assembly, `body` the cube part's body.
+/// sub-instance `sub` of that assembly, as the copy its world
+/// placement `copy` defines (A10), `body` the cube part's body.
 fn in_part_in_part(
     instance: RecipeNodeId,
-    sub: RecipeNodeId,
+    (sub, copy): (RecipeNodeId, RecipeNodeId),
     body: RecipeNodeId,
     cap: CapEnd,
 ) -> StableName {
@@ -83,7 +84,7 @@ fn in_part_in_part(
         kind: EntityKind::Face,
         node: instance,
         path: vec![RoleSeg::InPart {
-            of: in_part(sub, body, cap).into(),
+            of: in_part(sub, body, cap).in_copy(copy).into(),
         }],
     }
 }
@@ -158,6 +159,7 @@ fn stand(
         doc = next;
         ids.push(id);
     }
+    let doc = crate::fixture::place_all(doc, &ids);
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
@@ -202,6 +204,7 @@ fn row_of(
         }
         ids.push(id);
     }
+    let doc = crate::fixture::place_all(doc, &ids);
     (doc, ids)
 }
 
@@ -386,6 +389,7 @@ fn an_outer_mate_the_geometry_refutes_is_refuted_naming_its_mate() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("mate6-outer-cube"), Tol::witness());
     let (inner, subs, _) = stand("mate6-outer-stand", part, body, 1.0);
+    let copies = inner.placements();
     let inner_ref = store.insert(inner, Tol::witness());
 
     // Two stands, and an OUTER mate seating the second stand's lower
@@ -398,12 +402,13 @@ fn an_outer_mate_the_geometry_refutes_is_refuted_naming_its_mate() {
         doc = next;
         ids.push(id);
     }
+    let doc = crate::fixture::place_all(doc, &ids);
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
             node: Box::new(rest_mate(
-                in_part_in_part(ids[0], subs[1], body, CapEnd::End),
-                in_part_in_part(ids[1], subs[0], body, CapEnd::Start),
+                in_part_in_part(ids[0], (subs[1], copies[1]), body, CapEnd::End),
+                in_part_in_part(ids[1], (subs[0], copies[0]), body, CapEnd::Start),
                 2.5,
             )),
             fresh: Vec::new(),

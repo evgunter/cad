@@ -1075,17 +1075,30 @@ fn band_refuses_every_mate(doc: &editor_core::ProfileDoc, ids: &[RecipeNodeId]) 
         "the band must refuse for this row to measure anything"
     );
     // `band_document`'s instances pin a reference no store holds, so
-    // there is no part body for the heads to name: any id spells it.
-    let body = RecipeNodeId::new(0, 0);
+    // there is no part body for the heads to name: any id spells it,
+    // worn inside the instance's `InPart` wrapper.
+    let cap = |instance: RecipeNodeId| {
+        fixture::head(fixture::fname(
+            instance,
+            editor_core::RoleSeg::InPart {
+                of: fixture::fname(
+                    RecipeNodeId::new(0, 0),
+                    editor_core::RoleSeg::Cap(CapEnd::Start),
+                )
+                .into(),
+            },
+        ))
+    };
     let mut refused = 0_usize;
     for (x, y) in [(0, 1), (2, 3)] {
         let err = doc
             .apply(
                 &DocEdit::InsertNode {
-                    node: Box::new(mate(
-                        body,
-                        ids[x],
-                        ids[y],
+                    node: Box::new(Node::Mate {
+                        a: cap(ids[x]),
+                        b: cap(ids[y]),
+                        class: ContactClass::Rest,
+                        alignment: 
                         // A literal step: no band forms to author
                         // vectors through.
                         al(
@@ -1097,7 +1110,7 @@ fn band_refuses_every_mate(doc: &editor_core::ProfileDoc, ids: &[RecipeNodeId]) 
                             )),
                             None,
                         ),
-                    )),
+                    }),
                     fresh: Vec::new(),
                 },
                 tol,

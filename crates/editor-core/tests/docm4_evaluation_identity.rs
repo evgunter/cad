@@ -28,7 +28,7 @@ use geom_core::Tol;
 // ---- Fixtures ----
 
 /// A one-solid part document under `label`'s derived id: a `side`-wide
-/// square extruded 1 tall.
+/// square extruded 1 tall, placed in its world.
 fn part(label: &str, side: f64) -> ProfileDoc {
     part_of(DocumentId::derive(label), side)
 }
@@ -44,7 +44,7 @@ fn part_of(id: DocumentId, side: f64) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, side / 2.0)],
     );
-    let (doc, _) = insert(
+    let (doc, body) = insert(
         doc,
         Node::Extrude {
             profile: profile.into(),
@@ -52,11 +52,11 @@ fn part_of(id: DocumentId, side: f64) -> ProfileDoc {
             side: ExtrudeSide::Along,
         },
     );
-    doc
+    fixture::place(doc, body).0
 }
 
 /// An assembly-shaped document under `id`: two instances of `part_ref`,
-/// the second translated.
+/// the second translated, both placed in the world.
 fn assembly_of(id: DocumentId, part_ref: DocRef) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let doc = ProfileDoc::empty(id, Tol::witness());
     let (doc, a) = insert(doc, Node::instantiate_part(part_ref));
@@ -71,7 +71,7 @@ fn assembly_of(id: DocumentId, part_ref: DocRef) -> (ProfileDoc, Vec<RecipeNodeI
             fresh: Vec::new(),
         },
     );
-    (doc, vec![a, b])
+    (fixture::place_all(doc, &[a, b]), vec![a, b])
 }
 
 fn run(
@@ -480,6 +480,9 @@ fn the_memo_still_serves_a_same_document_re_evaluation() {
         },
     );
     let after = run(&moved, Some(&warm), &opts);
-    assert_eq!(after.recomputed, 1, "the moved instance re-keys");
-    assert_eq!(after.reused, moved.len() - 1, "and nothing else does");
+    assert_eq!(
+        after.recomputed, 2,
+        "the moved instance re-keys, and the world placement reading it"
+    );
+    assert_eq!(after.reused, moved.len() - 2, "and nothing else does");
 }

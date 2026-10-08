@@ -33,6 +33,22 @@ use geom_core::Tol;
 
 // ---- Documents ----
 
+/// **Each of `pattern`'s `count` copies placed in the world**, in
+/// instance order: a `Part` per copy, each placed at the identity —
+/// the world a pattern's copies are in the product by (A10).
+fn place_copies(doc: ProfileDoc, pattern: RecipeNodeId, count: i64) -> ProfileDoc {
+    (0..count).fold(doc, |doc, i| {
+        let (doc, copy) = insert(
+            doc,
+            Node::Part {
+                of: pattern.into(),
+                select: editor_core::PartSelect::Instance(Formula::count(i)),
+            },
+        );
+        fixture::place(doc, copy).0
+    })
+}
+
 fn block_part(
     label: &str,
     x: (f64, f64),
@@ -121,6 +137,8 @@ fn four_legs(
         },
     );
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
+    let doc = place_copies(doc, pattern, 4);
+    let doc = fixture::place(doc, top).0;
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
@@ -320,6 +338,8 @@ fn two_seats(
         },
     );
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
+    let doc = place_copies(doc, pattern, 2);
+    let doc = fixture::place(doc, top).0;
     let (doc, m0) = step(
         doc,
         DocEdit::InsertNode {
@@ -587,6 +607,8 @@ fn the_master_name_spelling_refuses_moved_above() {
         },
     );
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
+    let doc = place_copies(doc, pattern, 2);
+    let doc = fixture::place(doc, top).0;
     // The master's own name — the spelling the pattern consumed.
     let (doc, mate) = step(
         doc,

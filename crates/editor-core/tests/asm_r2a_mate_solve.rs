@@ -523,8 +523,8 @@ fn row4b_a_mate_delete_is_not_refused_and_unplaces_the_orphan() {
 }
 
 /// Row 4c — deleting the root is not refused either: DM7 reports the
-/// mate head it stranded, and the survivor's group, which no member
-/// places, is unplaced.
+/// world placement that read it and the mate head it stranded, and the
+/// survivor's group, which no member places, is unplaced.
 #[test]
 fn row4c_deleting_the_root_unplaces_the_survivor() {
     let (doc, ids, _, store, body) = stacked_pair("asm-r2a-row4c");
@@ -543,14 +543,24 @@ fn row4c_deleting_the_root_unplaces_the_survivor() {
         .copied()
         .find(|&id| matches!(applied.doc.node(id), Some(Node::Mate { .. })))
         .expect("the mate survives its member");
+    // The root's world placement is the first, `assembly` placing the
+    // instances in order.
+    let placement = doc.placements()[0];
     assert_eq!(
         applied.maintenance,
-        vec![Maintenance::Strand {
-            node: doc.spoken(mate_node),
-            name: doc.spoken_name(&in_part(ids[0], body, CapEnd::Start)),
-            took: editor_core::Took::Node
-        }],
-        "the strand is the whole report: no frame is recorded"
+        vec![
+            Maintenance::StrandedRead {
+                node: doc.spoken(placement),
+                slot: editor_core::OperandSlot::Body,
+                var: doc.spoken_var(doc.output(ids[0], 0).expect("the root's body")),
+            },
+            Maintenance::Strand {
+                node: doc.spoken(mate_node),
+                name: doc.spoken_name(&in_part(ids[0], body, CapEnd::Start)),
+                took: editor_core::Took::Node
+            }
+        ],
+        "the strands are the whole report: no frame is recorded"
     );
     let poses = solve(&applied.doc, &with_resolver(store), Tol::witness());
     assert_eq!(
@@ -653,8 +663,9 @@ fn two_groups() -> (ProfileDoc, Vec<RecipeNodeId>, Vec<RecipeNodeId>, PartStore)
     (doc, ids, mates, store)
 }
 
-/// Row 4e — a cut of ONE WHOLE placed group moves as selected (A4): the
-/// part's root keeps its offset, and the remainder instance sits at the
+/// Row 4e — a cut of ONE WHOLE placed group, with the world placements
+/// of what it moves, moves as selected (A4): the part's root keeps its
+/// offset, and the remainder instance sits at the
 /// empty chain.
 #[test]
 fn row4e_a_whole_group_cut_moves_as_selected() {
@@ -662,7 +673,7 @@ fn row4e_a_whole_group_cut_moves_as_selected() {
     let (doc, ids, mates, store) = two_groups();
     let o = with_resolver(store);
     let cut = BTreeSet::from([ids[0], ids[1], mates[0]]);
-    let out = editor_core::split(
+    let out = fixture::split_world(
         &doc,
         &cut,
         editor_core::DocumentId::derive("asm-r2a-4e"),
@@ -681,7 +692,10 @@ fn row4e_a_whole_group_cut_moves_as_selected() {
         .remainder
         .ids()
         .iter()
-        .find(|id| doc.node(**id).is_none())
+        .find(|id| {
+            doc.node(**id).is_none()
+                && matches!(out.remainder.node(**id), Some(Node::InstantiatePart { .. }))
+        })
         .expect("the remainder gained an instance");
     assert_eq!(
         fixture::offset_of(&out.remainder, instance),
@@ -709,7 +723,7 @@ fn row4f_a_torn_group_cut_refuses_typed_naming_both_sides() {
     let o = with_resolver(store);
     // One whole group PLUS one instance torn out of the other.
     let cut = BTreeSet::from([ids[0], ids[1], mates[0], ids[2]]);
-    match editor_core::split(
+    match fixture::split_world(
         &doc,
         &cut,
         editor_core::DocumentId::derive("asm-r2a-4f"),
@@ -728,7 +742,7 @@ fn row4f_a_torn_group_cut_refuses_typed_naming_both_sides() {
         other => panic!("expected TornGroup, got {other:?}"),
     }
     // The message names the group, both sides, and the repair.
-    let message = editor_core::split(
+    let message = fixture::split_world(
         &doc,
         &cut,
         editor_core::DocumentId::derive("asm-r2a-4f2"),
@@ -756,7 +770,7 @@ fn row4f_a_torn_group_cut_refuses_typed_naming_both_sides() {
     // The tear is refused in the OTHER direction too: keeping the
     // root and cutting the member is the same fault.
     let other_way = BTreeSet::from([ids[0], ids[1], mates[0], ids[3]]);
-    match editor_core::split(
+    match fixture::split_world(
         &doc,
         &other_way,
         editor_core::DocumentId::derive("asm-r2a-4f3"),

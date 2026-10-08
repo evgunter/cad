@@ -127,6 +127,7 @@ fn row_of(
         }
         ids.push(id);
     }
+    doc = crate::fixture::place_all(doc, &ids);
     (doc, ids)
 }
 
@@ -365,6 +366,7 @@ fn r1_false_carried_declaration_at_both_doors() {
         inner = next;
         sub.push(id);
     }
+    inner = crate::fixture::place_all(inner, &sub);
     let (inner, _) = step(
         inner,
         DocEdit::InsertNode {
@@ -407,6 +409,7 @@ fn r1_true_carried_declaration_at_both_doors() {
         inner = next;
         sub.push(id);
     }
+    inner = crate::fixture::place_all(inner, &sub);
     let (inner, _) = step(
         inner,
         DocEdit::InsertNode {
@@ -521,6 +524,7 @@ fn r1_three_stands_exact_counts() {
         inner = next;
         sub.push(id);
     }
+    inner = crate::fixture::place_all(inner, &sub);
     let (inner, _) = step(
         inner,
         DocEdit::InsertNode {
@@ -567,6 +571,7 @@ fn r1_overlapping_false_carried_declaration() {
         inner = next;
         sub.push(id);
     }
+    inner = crate::fixture::place_all(inner, &sub);
     // seat 0.5 on a unit cube: the two cubes INTERPENETRATE, and the
     // Rest declaration over their caps is a lie about that geometry.
     let (inner, _) = step(
@@ -616,6 +621,7 @@ fn r1_two_overlapping_false_stands() {
         inner = next;
         sub.push(id);
     }
+    inner = crate::fixture::place_all(inner, &sub);
     let (inner, _) = step(
         inner,
         DocEdit::InsertNode {

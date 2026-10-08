@@ -914,10 +914,15 @@ fn run_at<T: editor_core::EvalScalar>(
 /// with each id replaced by its document position measured equal on
 /// main and on the branch at all three ε, so no pose, role, fault or
 /// placement moved.
+///
+/// And again for INTENT stage 2 C (all three rows): each part places
+/// its body in its world, so every part's pin — and every instance id
+/// hashing it — moved, and the part's names reach an instance under its
+/// placement's copy. The id-free rows held.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x57b4_a2e4_d762_0b1a),
-    (1e-6, 0xbd6b_f017_664f_6841),
-    (1e-12, 0xe3ce_f81f_4ff6_d5aa),
+    (1e-9, 0x0949_4691_7776_8c93),
+    (1e-6, 0xd248_17ed_3993_bb6d),
+    (1e-12, 0x6667_3577_a606_0292),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, roles, faults and

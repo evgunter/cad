@@ -100,7 +100,7 @@ const U_OUTLINE: [(f64, f64); 8] = [
 /// middle (`z` from 1 to 3, clear of both caps): the cutter's tongue
 /// leaves a side face in two fragments under ONE name, so the part's
 /// product — and every table above it — holds a TIED face row. The
-/// box is the body its caps are named on.
+/// subtract is the body the part places in its world.
 fn slotted_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let (doc, body) = box_part(label, 4.0, 4.0);
     let (doc, p) = on_frame(
@@ -118,7 +118,7 @@ fn slotted_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
             side: ExtrudeSide::Along,
         },
     );
-    let (doc, _) = insert(
+    insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
@@ -126,13 +126,36 @@ fn slotted_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
             b: b.into(),
             declare: Vec::new(),
         },
-    );
-    (doc, body)
+    )
 }
 
 /// `base` (the slab) and `top` (the block), then `T(top)` lifted well
 /// clear of the slab and `P(T(top))`, a two-copy linear pattern of it;
 /// with each instance's part body.
+/// **The world the product is** (A10): each of `bodies` placed, then
+/// each `(pattern, count)`'s copies placed through a `Part` per copy —
+/// what the old product roots were, the sinks of each row's chains.
+fn world(
+    doc: ProfileDoc,
+    bodies: &[RecipeNodeId],
+    patterns: &[(RecipeNodeId, i64)],
+) -> ProfileDoc {
+    let doc = fixture::place_all(doc, bodies);
+    patterns.iter().fold(doc, |doc, &(pattern, count)| {
+        (0..count).fold(doc, |doc, i| {
+            let (doc, copy) = insert(
+                doc,
+                Node::Part {
+                    of: pattern.into(),
+                    select: editor_core::PartSelect::Instance(Formula::count(i)),
+                },
+            );
+            fixture::place(doc, copy).0
+        })
+    })
+}
+
+
 struct Scene {
     doc: ProfileDoc,
     opts: EvalOptions,
@@ -281,7 +304,8 @@ fn the_issues_document_refuses_moved_above_naming_the_transform_and_the_pattern(
     let s = scene("msolve5-a1");
     let a = crate::fixture::head(in_part(s.base, s.base_body, CapEnd::End));
     let b = crate::fixture::head_at(s.xf, in_part(s.top, s.top_body, CapEnd::Start));
-    let (doc, mate) = mated(s.doc, seat(a, b));
+    let doc = world(s.doc, &[s.base], &[(s.pattern, 2)]);
+    let (doc, mate) = mated(doc, seat(a, b));
 
     let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(
@@ -324,7 +348,8 @@ fn read_at_the_pattern_with_the_instance_spelling_the_gate_holds() {
         s.pattern,
         in_copy(s.pattern, 0, in_part(s.top, s.top_body, CapEnd::Start)),
     );
-    let (doc, mate) = mated(s.doc, seat(a, b));
+    let doc = world(s.doc, &[s.base], &[(s.pattern, 2)]);
+    let (doc, mate) = mated(doc, seat(a, b));
     let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(poses.fault(mate).is_none(), "{:?}", poses.fault(mate));
     let ev = run(&doc, &s.opts);
@@ -351,7 +376,7 @@ fn a_mate_read_at_a_part_root_over_the_pattern_holds() {
             select: PartSelect::Instance(Formula::count(0)),
         },
     );
-    let (doc, _) = crate::fixture::place(doc, part);
+    let doc = world(doc, &[s.base, part], &[]);
     let a = crate::fixture::head(in_part(s.base, s.base_body, CapEnd::End));
     let b = crate::fixture::head_at(
         part,
@@ -397,7 +422,8 @@ fn a_name_the_operand_does_not_spell_stays_vanished() {
     };
     let a = crate::fixture::head(in_part(s.base, s.base_body, CapEnd::End));
     let b = crate::fixture::head_at(s.xf, nowhere);
-    let (doc, mate) = mated(s.doc, seat(a, b));
+    let doc = world(s.doc, &[s.base], &[(s.pattern, 2)]);
+    let (doc, mate) = mated(doc, seat(a, b));
     let ev = run(&doc, &s.opts);
     let err = gate(&doc, &ev).expect_err("a name nothing answers to refuses");
     let (named, side, why) = reference_refusal(&err);
@@ -420,9 +446,10 @@ fn a_tied_face_below_a_placer_refuses_moved_above_and_at_the_root_ambiguous() {
     assert_eq!(tied.node, s.top, "the tie is worn by the instance");
     assert_eq!(width, 2);
     let a = crate::fixture::head(in_part(s.base, s.base_body, CapEnd::End));
+    let placed = world(s.doc, &[s.base], &[(s.pattern, 2)]);
 
     let b = crate::fixture::head_at(s.xf, tied.clone());
-    let (doc, mate) = mated(s.doc.clone(), seat(a.clone(), b));
+    let (doc, mate) = mated(placed.clone(), seat(a.clone(), b));
     let ev = run(&doc, &s.opts);
     assert!(
         product(&doc, &ev, Tol::witness()).is_ok(),
@@ -441,7 +468,7 @@ fn a_tied_face_below_a_placer_refuses_moved_above_and_at_the_root_ambiguous() {
     );
 
     let b = crate::fixture::head_at(s.pattern, in_copy(s.pattern, 0, tied));
-    let (doc, mate) = mated(s.doc, seat(a, b));
+    let (doc, mate) = mated(placed, seat(a, b));
     let ev = run(&doc, &s.opts);
     let err = gate(&doc, &ev).expect_err("a tie is never broken by picking");
     let (named, side, why) = reference_refusal(&err);
@@ -483,7 +510,7 @@ fn an_operand_under_an_empty_boolean_root_refuses_vanished_naming_the_boolean() 
             declare: Vec::new(),
         },
     );
-    let (doc, _) = crate::fixture::place(doc, empty);
+    let doc = world(doc, &[s.base, empty], &[]);
     let a = crate::fixture::head(in_part(s.base, s.base_body, CapEnd::End));
     let b = crate::fixture::head_at(s.xf, in_part(s.top, s.top_body, CapEnd::Start));
     let (doc, mate) = mated(doc, seat(a, b));
@@ -525,7 +552,7 @@ fn a_poisoned_operand_never_reaches_the_gate() {
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
     let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
     let (doc, xf) = insert(doc, xform(top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0));
-    let (doc, _) = insert(
+    let (doc, pattern) = insert(
         doc,
         Node::Pattern {
             input: xf.into(),
@@ -536,6 +563,7 @@ fn a_poisoned_operand_never_reaches_the_gate() {
             },
         },
     );
+    let doc = world(doc, &[base], &[(pattern, 2)]);
     let a = crate::fixture::head(in_part(base, base_body, CapEnd::End));
     let b = crate::fixture::head_at(xf, in_part(top, top_body, CapEnd::Start));
     let (doc, mate) = mated(doc, seat(a, b));
@@ -578,15 +606,18 @@ fn a_poisoned_operand_never_reaches_the_gate() {
         ev.result(mate)
     );
     // The mate fault reached the base instance — the group's other
-    // member, and the document's first root — so the gather refuses
-    // at THAT failed root, before the poisoned pattern root and before
-    // any reference is read.
+    // member, which the document's first placement reads — so the
+    // gather refuses at THAT placement, poisoned through the failed
+    // instance, before the poisoned pattern copies and before any
+    // reference is read.
     let err = gate(&doc, &ev).expect_err("the gather refuses");
+    let first = doc.placements()[0];
     assert!(
         matches!(
             &err,
             AssemblyError::Product(e)
-                if matches!(**e, ProductError::Root(NodeStanding::Failed { node }) if node == base)
+                if matches!(**e, ProductError::Root(NodeStanding::Poisoned { node, through })
+                    if (node, through) == (first, base))
         ),
         "the gather refuses at the failed root before any reference is read: {err:?}"
     );
