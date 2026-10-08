@@ -27,11 +27,11 @@ C4's one-sided cover needs the parent carrier to lie in one closed side
 of the target carrier. A torus × torus seam does not give that: past
 the rim, the two tube centrelines diverge quadratically (≈ 0.355 s² at
 arc length s), so each tube surface crosses the other's continuation
-before s ≈ 0.58. So `boolean::seam_certifies_side` withholds the cover
-for a torus with a cylinder or a torus. The crossing found there lies
-outside B's face trim, but the cover argues from carriers, not trims.
-Forcing the cover (a local experiment) still refuses, on the second
-piece (`a-torus-meridian-lying-on-a-torus-is-unsettled`).
+before s ≈ 0.58. So `boolean::tangency_certifies_side` withholds the
+cover for a torus with a cylinder or a torus. The crossing found there
+lies outside B's face trim, but the cover argues from carriers, not
+trims. Forcing the cover's kind row (a local experiment) changes
+neither order's refusal.
 
 ## What would build it
 
@@ -47,3 +47,13 @@ piece is `a-torus-meridian-lying-on-a-torus-is-unsettled`.
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: the proposed fix takes the verified declared Seam as the licence to deflate the rim root (seam_certifies_side); declared seams retire at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## 2026-10-08: the meridian piece is landed (TANG, `tang/torus-meridian-lies-on`)
+
+The rim semicircles now record as meridians lying on the partner torus.
+So this row's graze is the only door in both orders: A ∪ B stops at A's
+outer equator (radius 5.06), and B ∪ A at B's (radius 1.16), each
+against the partner's torus wall. Forcing the KIND table's cover for
+torus × torus (`boolean::tangency_certifies_side`, a local experiment)
+changes neither refusal, so the fix this row names, an edge-local
+deflation in the root lane, is still the route.

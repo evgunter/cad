@@ -576,6 +576,7 @@ fn the_rule_answers_one_pair_the_same_way_in_both_surface_orders() {
             MustCarryVerdict::InBand(MustCarryEscalation::FirstOrder(LeverEscalation {
                 rung,
                 diag,
+                ..
             })) => {
                 assert_eq!(
                     rung,
@@ -631,6 +632,7 @@ fn a_tangency_over_a_collapsed_arm_escalates_at_the_arm_in_both_orders() {
             let MustCarryVerdict::InBand(MustCarryEscalation::FirstOrder(LeverEscalation {
                 rung: LeverRung::Arm,
                 diag: source,
+                ..
             })) = verdict
             else {
                 panic!(
