@@ -34,13 +34,15 @@
 //!   typed [`super::BooleanError::PairingMismatch`] — fail-loud, never
 //!   a mis-joined seam.
 //!
-//! Run extraction: a germ in sector `k` transitions that sector's codes
-//! `end → start` walking the array forward (array order follows the
-//! orbit; the forward-crossed bound is the sector's START). The run
-//! from germ r to germ r′ therefore spans sectors `r.own+1 ..= r′.own`,
-//! whose orbit half-edges (deduplicated across subdivision twins) form
-//! the `mev_null` fan; an empty span (both germs in one sector) is the
-//! strut/dangling case (`Fan { he, he }` at the next sector's edge).
+//! Run extraction: walking the array forward (array order follows the
+//! orbit), an entry is entered across its END bound and left across its
+//! START ([`walks_after`]), so a germ in entry `k` transitions that
+//! entry's codes `end → start`. The run from germ r to germ r′ enters
+//! entries `r.own+1 ..= r′.own`, and the end bounds it crosses that are
+//! real edges (`end_edge`, not a subdivision twin's bisector) form the
+//! `mev_null` fan ([`run_fan`]). An empty fan (both germs in one entry,
+//! or in two twins of one physical sector) is the strut, dangling inside
+//! that physical sector ([`mint_run`]).
 //!
 //! **Plan, then mint.** [`plan_null_pairs`] takes every reading a
 //! pair's null edges need (codes, pairing, germ cells and directions,
@@ -630,13 +632,16 @@ enum ArcRefusal {
 /// innermost names the rest.
 fn arc_holders(n: usize, arcs: &[[usize; 2]]) -> Result<Vec<Option<usize>>, ArcRefusal> {
     let len = |[from, to]: [usize; 2]| (to + n - from) % n;
-    let before = |p: usize, q: usize| Ok::<_, ArcRefusal>((p != q).then_some(p < q));
-    let holds = |o: usize, k: usize| arc_holds(before, arcs[o], arcs[k]);
+    let before = |p: usize, q: usize| Ok::<_, std::convert::Infallible>((p != q).then_some(p < q));
+    let holds = |o: usize, k: usize| {
+        let Ok(held) = arc_holds(before, arcs[o], arcs[k]);
+        held
+    };
     let mut out = Vec::with_capacity(arcs.len());
     for k in 0..arcs.len() {
         let mut holders = Vec::new();
         for o in (0..arcs.len()).filter(|&o| o != k) {
-            match (holds(o, k)?, holds(k, o)?) {
+            match (holds(o, k), holds(k, o)) {
                 ([true, false] | [false, true], _) | (_, [true, false] | [false, true]) => {
                     return Err(ArcRefusal::Crossing);
                 }
@@ -649,7 +654,7 @@ fn arc_holders(n: usize, arcs: &[[usize; 2]]) -> Result<Vec<Option<usize>>, ArcR
         debug_assert!(
             inner.is_none_or(|i| holders
                 .iter()
-                .all(|&o| o == i || holds(o, i) == Ok([true, true]))),
+                .all(|&o| o == i || holds(o, i) == [true, true])),
             "the holders of run {k} nest: {arcs:?}"
         );
         out.push(inner);
@@ -1311,6 +1316,11 @@ fn held_cut<T: Decide>(
     let own = segment(secs, run, band)?;
     let (lo, hi, _) = own;
     let strut = is_strut(secs, lo.0, hi.0)?;
+    debug_assert!(
+        strut || lo.0 != hi.0,
+        "a fan's two ends share entry {}: on_arc would read it as the orbit less a sliver",
+        lo.0
+    );
     let before = |p: Cut<T>, q: Cut<T>| walks_before(secs, p, q, band);
     for &cut in cuts {
         let at = cut.at;
@@ -1411,8 +1421,9 @@ fn walks_before<T: Decide>(
 /// one total order `before` round an orbit (a cut's, [`walks_before`];
 /// a walk position's, `<`): `[past lo, short of hi]`, each `None` where
 /// `x` ties that end. An arc whose `hi` comes before its `lo` wraps
-/// past the order's origin, so a position before `lo` is past it and a
-/// position after `hi` short of it. The one interval reading round an
+/// past the order's origin: a position not before `lo` is short of
+/// `hi`, and one before `lo` is past `lo` and read against `hi`. The
+/// one interval reading round an
 /// orbit: what a run holds ([`held_cut`]), and whether it holds another
 /// whole ([`arc_holds`]).
 fn on_arc<P: Copy, E>(
