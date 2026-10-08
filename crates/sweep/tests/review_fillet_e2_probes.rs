@@ -10,14 +10,14 @@
 //!   than the true one, the screen passes, and the surgery's exact ring
 //!   check refuses `RingClearance`. The sentence is then followable:
 //!   the reduced size builds.
-//! - `FILLET3_GEOMETRY_RECOURSE` IS handed to a caller: a square
-//!   pocket leaves a ring of LINE carriers on the top face, and
-//!   `ring_circle` refuses every outer-edge fillet at every radius. As
-//!   filed this was also a dead recourse of issue 1278's class — the
-//!   sentence endorsed planar supports on line/circle carriers, which
-//!   the request already had. The sentence has since been rewritten to
-//!   name the ring and the order that answers it; this row keeps the
-//!   witness, and the followability suite executes the order.
+//! - A polygonal ring is metered edge by edge: a pocket turned off the
+//!   screen's sample lattice is cleared, crossed past the screen, and
+//!   brought into the sliver band, each answered by the exact meter.
+//! - `FILLET3_GEOMETRY_RECOURSE` IS handed to a caller: a tilted bore
+//!   leaves an ELLIPTICAL ring on the top face, which no ring meter
+//!   covers, and every outer-edge fillet refuses. The sentence names
+//!   the ring and the order that answers it; the followability suite
+//!   executes the order.
 //! - `CORNER_SUPPORT_NOT_PLANAR` stays unreachable for the reason the
 //!   chain gate states: an open chain's supports must be plane–plane at
 //!   every link, so no corner with a curved support is ever admitted.
@@ -26,19 +26,19 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use core::f64::consts::PI;
-
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{
     BlendError, FILLET3_ASSEMBLY_RECOURSE, FILLET3_GEOMETRY_RECOURSE, FILLET3_RING_RECOURSE,
 };
-use sweep::test_support::{arcs_at, cube, dome_profile, prism, revolved_about_y, rim_arcs_at};
+use sweep::test_support::{
+    arcs_at, cube, dome_profile, prism, realized, revolved_about_y, rim_arcs_at,
+};
 use sweep::{Revolution, RevolveAxis, revolve};
-use topo::RimError;
-use topo::boolean::{BooleanDeclarations, BooleanOp, SweepStrategy, boolean_op_with};
+use topo::boolean::BooleanOp;
 use topo::{Body, EdgeKey, query, validate_geometric};
+use topo::{RimBreak, RimError};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -49,19 +49,7 @@ fn v(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
 }
 
 fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
-    boolean_op_with(
-        BooleanOp::Subtract,
-        a,
-        b,
-        &BooleanDeclarations::none(),
-        SweepStrategy::Realized,
-        tol(),
-    )
-    .expect("the subtraction runs")
-    .body()
-    .expect("the subtraction leaves a body")
-    .body
-    .clone()
+    realized(BooleanOp::Subtract, a, b, tol())
 }
 
 /// A sphere of radius 0.3 centred at `c`.
@@ -93,7 +81,7 @@ fn line_edges(body: &Body<f64>) -> Vec<EdgeKey> {
 
 /// The refusal a request meets, or a panic naming what built instead.
 fn refusal(body: &Body<f64>, edges: &[EdgeKey], r: f64, what: &str) -> BlendError {
-    match fillet_edges(body, edges, r, tol()) {
+    match fillet_edges(&sweep::test_support::at_rest(body, tol()), edges, r, tol()) {
         Err(e) => e.error,
         Ok(_) => panic!("{what}: expected a refusal, the request built"),
     }
@@ -101,7 +89,7 @@ fn refusal(body: &Body<f64>, edges: &[EdgeKey], r: f64, what: &str) -> BlendErro
 
 /// The request builds and passes tier-3 validation.
 fn builds(body: &Body<f64>, edges: &[EdgeKey], r: f64, what: &str) {
-    let out = fillet_edges(body, edges, r, tol())
+    let out = fillet_edges(&sweep::test_support::at_rest(body, tol()), edges, r, tol())
         .unwrap_or_else(|e| panic!("{what}: the request must build, got {e:?}"));
     validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("{what}: and the result must be tier-3 valid, got {e:?}"));
@@ -244,33 +232,9 @@ fn the_ring_refusal_beside_a_concave_band_says_the_band_buries_the_ring() {
     );
 }
 
-/// **`FILLET3_GEOMETRY_RECOURSE` reaches the front door at a line
-/// ring.**
-///
-/// A square pocket protruding through the cube's top face leaves a
-/// ring of four LINE carriers. `ring_circle` reads circle rings only,
-/// so every outer-edge fillet refuses `UnsupportedGeometry` — at 0.05
-/// as at 0.3 — and no radius builds.
-///
-/// As filed this row was named `…_and_cannot_be_followed`, and it was
-/// right: the sentence endorsed planar supports on line and circle
-/// carriers, which is exactly what the twelve requested edges already
-/// were, so following it changed nothing. The sentence has since been
-/// rewritten to name the RING and the order that answers it, and
-/// `blend_recourse_followability::the_geometry_recourse_names_a_ring_and_an_order_that_builds`
-/// executes that order. This row keeps the witness — the refusal, at
-/// every radius, carrying the geometry recourse — which is what makes
-/// the other row's premise true.
-#[test]
-fn the_geometry_recourse_reaches_the_front_door_at_a_line_ring() {
-    let pocket = topo::transform_rigid(
-        &cube(0.3, tol()),
-        &Affine3::translation(Vec3::new(0.35, 0.35, 0.8)),
-        tol(),
-    )
-    .unwrap();
-    let body = subtract(&cube(1.0, tol()), &pocket);
-    validate_geometric(&body, tol()).expect("the pocketed cube is valid");
+/// The twelve box edges of a unit cube that has been cut into: the
+/// line edges whose midpoints lie on a side face.
+fn outer_box_edges(body: &Body<f64>) -> Vec<EdgeKey> {
     let mid = |k: EdgeKey| -> Point3<f64> {
         let e = body.get_edge(k).unwrap();
         let g = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
@@ -278,38 +242,238 @@ fn the_geometry_recourse_reaches_the_front_door_at_a_line_ring() {
         g.carrier().eval((t0 + t1) / 2.0)
     };
     let on = |c: f64| c.abs() < 1e-9 || (c - 1.0).abs() < 1e-9;
-    let outer: Vec<EdgeKey> = line_edges(&body)
+    line_edges(body)
         .into_iter()
         .filter(|k| {
             let m = mid(*k);
             on(m.x) || on(m.y)
         })
-        .collect();
+        .collect()
+}
+
+/// **A polygonal ring is metered edge by edge: clear, crossed, in
+/// band.**
+///
+/// A diamond pocket (a square turned 45°, half-diagonal 0.15, centred
+/// at `(0.45, 0.45)`) cut through a unit cube's top face leaves a ring
+/// of four LINE carriers. Its vertex `(0.45, 0.30)` comes 0.30 from the
+/// `y = 0` top edge (and `(0.30, 0.45)` as near the `x = 0` one), at an
+/// abscissa between the screen's 1/8 sample lattice, so the screen reads
+/// that gap as `√(0.30² + 0.05²) = 0.3041`. Setbacks between the two
+/// pass the screen and are decided by the exact ring meter.
+///
+/// - r = 0.1 clears the ring by 0.2: the twelve edges build, tier-3
+///   valid.
+/// - r = 0.302 crosses the vertex by 0.002: `RingClearance`, the
+///   margin the closed form `0.30 − r` gives.
+/// - r = 0.30 less five ε leaves the vertex inside the sliver band:
+///   `Escalated`, from `fillet3_ring_clearance`.
+#[test]
+fn a_polygonal_ring_is_metered_edge_by_edge_clear_crossed_and_in_band() {
+    let diamond = prism(
+        vec![
+            v(0.45, 0.30, 0.0),
+            v(0.60, 0.45, 0.0),
+            v(0.45, 0.60, 0.0),
+            v(0.30, 0.45, 0.0),
+        ],
+        0.3,
+        tol(),
+    );
+    let diamond = topo::transform_rigid(
+        &diamond,
+        &Affine3::translation(Vec3::new(0.0, 0.0, 0.8)),
+        tol(),
+    )
+    .unwrap();
+    let body = subtract(&cube(1.0, tol()), &diamond);
+    validate_geometric(&body, tol()).expect("the pocketed cube is valid");
+    let outer = outer_box_edges(&body);
     assert_eq!(outer.len(), 12, "the outer box's twelve edges");
 
-    for r in [0.05, 0.1, 0.3] {
-        let err = refusal(&body, &outer, r, "the outer edges of a pocketed box");
-        assert!(
-            matches!(err, BlendError::UnsupportedGeometry { .. }),
-            "r = {r}: the ring's line carriers are what refuse, got {err:?}"
+    builds(&body, &outer, 0.1, "a setback clear of the diamond ring");
+
+    let err = refusal(&body, &outer, 0.302, "a setback past the diamond's vertex");
+    let BlendError::RingClearance { margin, .. } = &err else {
+        panic!("the exact ring meter refuses past the screen, got {err:?}")
+    };
+    assert!(
+        margin
+            .reading
+            .diagnostic_f64_for_error_text()
+            .value()
+            .is_some_and(|m| (m - (0.30 - 0.302)).abs() < 1e-12),
+        "the vertex sits 0.30 from the edge and the setback is 0.302: {margin}"
+    );
+    assert!(
+        err.to_string().contains(FILLET3_RING_RECOURSE),
+        "the caller is handed the ring recourse: {err}"
+    );
+
+    let eps = tol().get().eps;
+    let err = refusal(
+        &body,
+        &outer,
+        0.30 - 5.0 * eps,
+        "a setback in the sliver band",
+    );
+    let BlendError::Escalated { source, .. } = &err else {
+        panic!("a margin of five eps escalates, got {err:?}")
+    };
+    assert_eq!(source.predicate, Some("fillet3_ring_clearance"));
+}
+
+/// **A polygonal ring beside a hole's rim is metered against the rim's
+/// trim circle, edge by edge.**
+///
+/// A unit cube bored through by a radius-0.15 hole at `(0.3, 0.5)`, and
+/// pocketed on its top face by a square whose nearest vertex lies 0.25
+/// from the hole's axis, 11.25° off the `x` axis — between the hole
+/// arcs' screen samples. The rim's trim circle on the top face has
+/// radius `0.15 + r`, so the ring clears it by `0.1 − r`, and the
+/// screen reads that gap as 0.107.
+///
+/// - r = 0.09 clears the ring: the rim builds, tier-3 valid.
+/// - r = 0.105 crosses the vertex by 0.005, past the screen:
+///   `RingClearance`, decided by the exact per-edge meter.
+#[test]
+fn a_polygonal_ring_beside_a_hole_rim_is_metered_against_its_trim_circle() {
+    let hole = prism(vec![v(0.15, 0.5, 1.0), v(0.45, 0.5, 1.0)], 1.4, tol());
+    let hole = topo::transform_rigid(
+        &hole,
+        &Affine3::translation(Vec3::new(0.0, 0.0, -0.2)),
+        tol(),
+    )
+    .unwrap();
+    let (a, h) = (11.25f64.to_radians(), 0.1);
+    let (ux, uy) = (a.cos(), a.sin());
+    let (px, py) = (0.3 + 0.25 * ux, 0.5 + 0.25 * uy);
+    let pocket = prism(
+        vec![
+            v(px, py, 0.0),
+            v(px + h * (ux + uy), py + h * (uy - ux), 0.0),
+            v(px + 2.0 * h * ux, py + 2.0 * h * uy, 0.0),
+            v(px + h * (ux - uy), py + h * (uy + ux), 0.0),
+        ],
+        0.3,
+        tol(),
+    );
+    let pocket = topo::transform_rigid(
+        &pocket,
+        &Affine3::translation(Vec3::new(0.0, 0.0, 0.8)),
+        tol(),
+    )
+    .unwrap();
+    let body = subtract(&subtract(&cube(1.0, tol()), &hole), &pocket);
+    validate_geometric(&body, tol()).expect("the bored, pocketed cube is valid");
+    let rim: Vec<EdgeKey> = query::all_edges(&body)
+        .into_iter()
+        .filter(|k| {
+            let e = body.get_edge(*k).unwrap();
+            let g = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
+            matches!(*g.carrier(), geom::Curve3::Circle { center, .. }
+                if (center.z - 1.0).abs() < 1e-9)
+        })
+        .collect();
+    assert!(!rim.is_empty(), "the hole's top rim");
+
+    builds(&body, &rim, 0.09, "a rim whose trim clears the square ring");
+    let err = refusal(
+        &body,
+        &rim,
+        0.105,
+        "a rim whose trim crosses the square ring",
+    );
+    let BlendError::RingClearance { margin, .. } = &err else {
+        panic!("the exact ring meter refuses past the screen, got {err:?}")
+    };
+    assert!(
+        margin
+            .reading
+            .diagnostic_f64_for_error_text()
+            .value()
+            .is_some_and(|m| (m - (0.25 - (0.15 + 0.105))).abs() < 1e-12),
+        "the vertex sits 0.25 from the axis and the trim at 0.255: {margin}"
+    );
+}
+
+/// **A ring of arcs of TWO circles is metered arc by arc, not read as
+/// its first arc's circle.**
+///
+/// Two radius-0.1 bores into a unit cube's top face, at `(0.5, 0.5)`
+/// and `(0.45, 0.35)`, overlap: their mouth is one ring of two arcs of
+/// different circles. The second bore comes 0.25 from the `y = 0` top
+/// edge, at an abscissa off the screen's lattice (sampled gap 0.255).
+/// Reading the whole ring as one circle adopted from whichever arc its
+/// cycle walk starts on read either bore's clearance, and in one of the
+/// two subtraction orders a setback of 0.252 carved through the second
+/// bore's arc into a body that failed tier-3 validation
+/// (`RingMeetsOuter`). In both orders now:
+///
+/// - r = 0.249 clears both arcs: the twelve edges build, tier-3 valid.
+/// - r = 0.252 crosses the second arc by 0.002: `RingClearance`.
+#[test]
+fn a_ring_of_arcs_of_two_circles_is_metered_arc_by_arc() {
+    let bore = |x: f64, y: f64, z: f64| {
+        let b = prism(vec![v(x - 0.1, y, 1.0), v(x + 0.1, y, 1.0)], 0.5, tol());
+        topo::transform_rigid(&b, &Affine3::translation(Vec3::new(0.0, 0.0, z)), tol()).unwrap()
+    };
+    for (first, second) in [((0.5, 0.5), (0.45, 0.35)), ((0.45, 0.35), (0.5, 0.5))] {
+        // Different floors, so the two bores share no face.
+        let body = subtract(
+            &subtract(&cube(1.0, tol()), &bore(first.0, first.1, 0.8)),
+            &bore(second.0, second.1, 0.7),
         );
-        let shown = err.to_string();
+        validate_geometric(&body, tol()).expect("the twice-bored cube is valid");
+        let outer = outer_box_edges(&body);
+        assert_eq!(outer.len(), 12, "the outer box's twelve edges");
+
+        builds(&body, &outer, 0.249, "a setback clear of both arcs");
+        let err = refusal(&body, &outer, 0.252, "a setback past the second bore's arc");
+        let BlendError::RingClearance { margin, .. } = &err else {
+            panic!("bored {first:?} first: the exact ring meter refuses, got {err:?}")
+        };
         assert!(
-            shown.contains("a ring edge's carrier is not a circle")
-                && shown.contains(FILLET3_GEOMETRY_RECOURSE),
-            "r = {r}: the caller reads the geometry recourse about a ring: {shown}"
+            margin
+                .reading
+                .diagnostic_f64_for_error_text()
+                .value()
+                .is_some_and(|m| (m - (0.25 - 0.252)).abs() < 1e-12),
+            "bored {first:?} first: the arc sits 0.25 from the edge: {margin}"
         );
     }
 }
 
-/// An edge's certified carrier-parameter interval — the fixture-side
-/// read the open-arc row measures its refusal's `gap` against.
-fn carrier_params(body: &Body<f64>, k: EdgeKey) -> (f64, f64) {
-    body.get_curve_geom(body.get_edge(k).unwrap().curve)
-        .unwrap()
-        .certified()
-        .unwrap()
-        .params()
+/// **`FILLET3_GEOMETRY_RECOURSE` reaches the front door at an
+/// elliptical ring.**
+///
+/// A bore tilted 0.4 rad off the vertical meets the cube's top face in
+/// an ellipse, which neither the one-circle reading nor the per-edge
+/// line and circle meters cover, so every outer-edge fillet refuses
+/// `UnsupportedGeometry` — at 0.05 as at 0.1 — carrying the geometry
+/// recourse.
+/// `blend_recourse_followability::the_geometry_recourse_names_a_ring_and_an_order_that_builds`
+/// executes the order that recourse names.
+#[test]
+fn the_geometry_recourse_reaches_the_front_door_at_an_elliptical_ring() {
+    let body = subtract(&cube(1.0, tol()), &crate::common::tilted_bore());
+    validate_geometric(&body, tol()).expect("the bored cube is valid");
+    let outer = outer_box_edges(&body);
+    assert_eq!(outer.len(), 12, "the outer box's twelve edges");
+
+    for r in [0.05, 0.1] {
+        let err = refusal(&body, &outer, r, "the outer edges of a bored box");
+        assert!(
+            matches!(err, BlendError::UnsupportedGeometry { .. }),
+            "r = {r}: the ring's ellipse carriers are what refuse, got {err:?}"
+        );
+        let shown = err.to_string();
+        assert!(
+            shown.contains("neither a line nor a circle")
+                && shown.contains(FILLET3_GEOMETRY_RECOURSE),
+            "r = {r}: the caller reads the geometry recourse about a ring: {shown}"
+        );
+    }
 }
 
 /// **The chain gate behind `CORNER_SUPPORT_NOT_PLANAR`, and the rim the
@@ -342,36 +506,31 @@ fn open_plane_sphere_arcs_meet_the_chain_gate_and_a_plane_cylinder_rim_carves() 
     assert!(!arcs.is_empty(), "the half dome keeps its equator arcs");
     for a in &arcs {
         // The arc is NOT a rim, and the rim door is what says so: a half
-        // revolve's arcs do not close, so `rim_of` names the matched set
-        // and the parameter it stops at rather than handing back a
-        // partial rim a fillet request would then stall on.
+        // revolve's arcs do not close, so `rim_of` names the vertex the
+        // chain dangles at rather than handing back a partial rim a
+        // fillet request would then stall on.
         match topo::query::rim_of(&half, *a) {
-            Err(RimError::NotOneRim { arcs: matched, gap }) => {
-                // The door matches on this arc's OWN circle and its OWN
-                // support pair, so it names FEWER arcs than the radius
-                // scan found — the scan's other hits at this radius sit
-                // between different surfaces. A door that matched across
-                // support pairs would fail here.
+            Err(RimError::NotOneRim { walked, at, how }) => {
+                assert_eq!(how, RimBreak::Dangles, "an open arc dangles");
+                // The walk follows this arc's OWN support pair, so it
+                // stays within the scan's arcs and stops at an end of
+                // the last one it walked.
                 assert!(
-                    matched.len() < arcs.len(),
-                    "the door is narrower than the radius scan: it named \
-                     {matched:?} of the scan's {arcs:?}"
+                    walked.len() < arcs.len(),
+                    "the door is narrower than the radius scan: it walked \
+                     {walked:?} of the scan's {arcs:?}"
                 );
-                // And the walk stops at one of THIS arc's own ends: an
-                // open arc dangles at the end it does not close onto.
-                let ends = carrier_params(&half, *a);
-                let wrapped = |t: f64| {
-                    let x = t.rem_euclid(core::f64::consts::TAU);
-                    if x > PI {
-                        x - core::f64::consts::TAU
-                    } else {
-                        x
-                    }
-                };
                 assert!(
-                    (gap - wrapped(ends.0)).abs() < 1e-9 || (gap - wrapped(ends.1)).abs() < 1e-9,
-                    "the gap is at one of the arc's own endpoints {ends:?}, got {gap}"
+                    walked.iter().all(|k| arcs.contains(k)),
+                    "the walk stays on the radius scan's arcs: {walked:?} of {arcs:?}"
                 );
+                let last = *walked.last().unwrap();
+                let e = half.get_edge(last).unwrap();
+                let ends = [
+                    half.get_half_edge(e.he_plus).unwrap().start,
+                    half.half_edge_end(e.he_plus).unwrap(),
+                ];
+                assert!(ends.contains(&at), "the walk stops at an end of {last:?}");
             }
             other => panic!("an open arc is not one rim, got {other:?}"),
         }

@@ -23,13 +23,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
-    Attr, CancelToken, Dimension, Distribution, DocEdit, DocParam, EntityKind, EvalOptions, Expr,
-    LoopProgram, MetaValue, Node, NodeResult, ParamName, PersistError, ProfileDoc, ProfileProgram,
-    ProgramArcData, ProgramStep, ProgramTarget, Rgba8, RoleSeg, StableName, WitnessDatum, apply,
-    evaluate, load, save,
+    Attr, CancelToken, Dimension, Distribution, DocEdit, EntityKind, EvalOptions, Formula, FreeVar,
+    LoopProgram, MetaValue, Node, NodeResult, PersistError, ProfileDoc, ProfileProgram,
+    ProgramArcData, ProgramStep, ProgramTarget, Rgba8, RoleSeg, StableName, VarName, WitnessDatum,
+    apply, evaluate, load, save,
 };
 use fixture::{ang, desc, len, len2, scl};
 use geom_core::Tol;
@@ -60,15 +61,15 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             .doc
     };
     // The node an insert just minted: the document's last.
-    let last = |d: &ProfileDoc| *d.order().last().expect("an insert landed");
+    let last = |d: &ProfileDoc| *d.ids().last().expect("an insert landed");
     doc = push(&doc, &DocEdit::SetTolerance { eps: 1e-9 });
     // v15: `depth` carries a distribution, so the frozen bytes pin the
     // populated `distribution` key rather than only its absence.
     doc = push(
         &doc,
-        &DocEdit::SetDocParam {
-            name: ParamName::from_static("depth"),
-            value: DocParam::Continuous {
+        &DocEdit::DeclareVar {
+            name: VarName::from_static("depth"),
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 0.75,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -77,16 +78,16 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                     lo: -0.005,
                     hi: 0.004,
                 }),
-            },
+            }),
         },
     );
     // A second parameter with NO distribution, so the same bytes also
     // pin the degenerate carry: an unannotated param writes no key.
     doc = push(
         &doc,
-        &DocEdit::SetDocParam {
-            name: ParamName::from_static("clearance"),
-            value: DocParam::continuous(Dimension::Length, 0.001),
+        &DocEdit::DeclareVar {
+            name: VarName::from_static("clearance"),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.001)),
         },
     );
     // Every sketch in this fixture is drawn on the world xy plane, so
@@ -96,7 +97,8 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: fixture::xy_frame(),
+            node: Box::new(fixture::xy_frame()),
+            fresh: Vec::new(),
         },
     );
     let plane = last(&doc);
@@ -117,17 +119,20 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Profile(d),
+            node: Box::new(Node::Profile(d)),
+            fresh: Vec::new(),
         },
     );
     let arc_profile = last(&doc);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: arc_profile,
-                distance: Expr::param(ParamName::from_static("depth"), Dimension::Length),
-            },
+                distance: Formula::named(VarName::from_static("depth"), Dimension::Length),
+                side: ExtrudeSide::Along,
+            }),
+            fresh: Vec::new(),
         },
     );
     let bulged = last(&doc);
@@ -161,11 +166,12 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram {
+            node: Box::new(Node::Profile(ProfileProgram {
                 plane,
                 loops: vec![bracket],
                 ids: Vec::new(),
-            }),
+            })),
+            fresh: Vec::new(),
         },
     );
     // v4: the constructed fillet authors as the chain fillet form
@@ -191,11 +197,12 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram {
+            node: Box::new(Node::Profile(ProfileProgram {
                 plane,
                 loops: vec![fillet_loop],
                 ids: Vec::new(),
-            }),
+            })),
+            fresh: Vec::new(),
         },
     );
     // v16's own wire shape, in the frozen bytes: a `Node::Chamfer`
@@ -209,13 +216,9 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     // profile carries an ARC, so its barrel is a cylinder; the
     // chamfer's v1 door is plane-plane, and every closed edge chain on
     // that body runs into the curved lateral and refuses
-    // `ChamferArmUnsupported`. A single edge does not work either — the
-    // assembly admits only a FULLY-REQUESTED chain set, so one lateral
-    // edge terminating at a trivalent corner refuses
-    // `UnsupportedRunOut`. A four-sided prism with all twelve edges
-    // requested is the smallest thing the door actually accepts, and a
-    // golden that froze a refusing node would be the sick-bytes failure
-    // #117/#120 named.
+    // `ChamferArmUnsupported`. A four-sided prism with all twelve edges
+    // requested is accepted by the door, and a golden that froze a
+    // refusing node would be the sick-bytes failure #117/#120 named.
     let square = desc(
         plane,
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
@@ -223,24 +226,32 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Profile(square),
+            node: Box::new(Node::Profile(square)),
+            fresh: Vec::new(),
         },
     );
     let square = last(&doc);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: square,
                 distance: len(0.5),
-            },
+                side: ExtrudeSide::Along,
+            }),
+            fresh: Vec::new(),
         },
     );
     let prism = last(&doc);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::chamfer(prism, len(0.1), fixture::prism_edges(&doc, prism, 4)),
+            node: Box::new(Node::chamfer(
+                prism,
+                len(0.1),
+                fixture::prism_edges(&doc, prism, 4),
+            )),
+            fresh: Vec::new(),
         },
     );
     doc = push(
@@ -266,19 +277,19 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         },
     );
     let mut m = std::collections::BTreeMap::new();
-    m.insert("v".into(), MetaValue::Int(1));
+    m.insert("v".into(), MetaValue::Int(1.into()));
     m.insert("neg_zero".into(), MetaValue::Float(-0.0));
     m.insert("blob".into(), MetaValue::Bytes(vec![0xde, 0xad]));
     m.insert(
         "list".into(),
-        MetaValue::List(vec![MetaValue::Null, MetaValue::Bool(true)]),
+        MetaValue::list(vec![MetaValue::Null, MetaValue::Bool(true)]).expect("a shallow value"),
     );
     doc = push(
         &doc,
         &DocEdit::SetAppearanceMeta {
             name: body.clone(),
             key: "tool.example/pin".into(),
-            value: MetaValue::Map(m),
+            value: MetaValue::map(m).expect("a shallow value"),
         },
     );
     // v17: the measurement vocabulary on the wire (E3/E10) — a
@@ -293,33 +304,37 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::measure(
-                editor_core::MeasureExpr::sub(
-                    editor_core::MeasureExpr::value(Expr::param(
-                        ParamName::from_static("depth"),
-                        Dimension::Length,
-                    )),
-                    editor_core::MeasureExpr::value(len(0.25)),
+            node: Box::new(
+                Node::measure(
+                    editor_core::MeasureExpr::sub(
+                        editor_core::MeasureExpr::value(Formula::named(
+                            VarName::from_static("depth"),
+                            Dimension::Length,
+                        )),
+                        editor_core::MeasureExpr::value(len(0.25)),
+                    )
+                    .expect("same-dimension subtraction"),
+                    // Read at the extrude that owns the body: the
+                    // reference is unindexed by this expression, so it is
+                    // carried data the measure never reads.
+                    vec![editor_core::SitedRef::new(bulged, body.clone())],
                 )
-                .expect("same-dimension subtraction"),
-                // Read at the extrude that owns the body: the
-                // reference is unindexed by this expression, so it is
-                // carried data the measure never reads.
-                vec![editor_core::SitedRef::new(bulged, body.clone())],
-            )
-            .expect("every index addresses a reference"),
+                .expect("every index addresses a reference"),
+            ),
+            fresh: Vec::new(),
         },
     );
     let measure = last(&doc);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Assertion {
+            node: Box::new(Node::Assertion {
                 // The `Measure` pushed immediately above.
                 measure,
                 bound: len(0.1),
                 dir: editor_core::AssertionDir::AtLeast,
-            },
+            }),
+            fresh: Vec::new(),
         },
     );
     // BOTH tube kinds, and both window spellings between them. Two
@@ -341,29 +356,31 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Datum(editor_core::Datum::Axis {
+            node: Box::new(Node::Datum(editor_core::Datum::Axis {
                 origin: [len0(), len0(), len0()],
                 direction: [scl(0.0), scl(0.0), scl(1.0)],
-            }),
+            })),
+            fresh: Vec::new(),
         },
     );
     let spine = last(&doc);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Tube {
+            node: Box::new(Node::Tube {
                 spine,
                 u_ref: [scl(1.0), scl(0.0), scl(0.0)],
                 major_radius: len(2.0),
                 window: editor_core::TubeWindow::Full,
                 minor_radius: len(0.5),
-            },
+            }),
+            fresh: Vec::new(),
         },
     );
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::HollowTube {
+            node: Box::new(Node::HollowTube {
                 spine,
                 u_ref: [scl(1.0), scl(0.0), scl(0.0)],
                 major_radius: len(2.0),
@@ -373,7 +390,8 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                 },
                 minor_radius: len(0.5),
                 wall: len(0.125),
-            },
+            }),
+            fresh: Vec::new(),
         },
     );
     // The shell's wire shape: an `open` list of face names in
@@ -388,27 +406,30 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Profile(desc(
+            node: Box::new(Node::Profile(desc(
                 plane,
                 vec![vec![(3.0, 0.0), (4.0, 0.0), (4.0, 1.0), (3.0, 1.0)]],
-            )),
+            ))),
+            fresh: Vec::new(),
         },
     );
     let box_profile = last(&doc);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: box_profile,
                 distance: len(0.5),
-            },
+                side: ExtrudeSide::Along,
+            }),
+            fresh: Vec::new(),
         },
     );
     let block = last(&doc);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::shell(
+            node: Box::new(Node::shell(
                 block,
                 len(0.0625),
                 vec![StableName {
@@ -416,7 +437,8 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                     node: block,
                     path: vec![RoleSeg::Cap(editor_core::CapEnd::End)],
                 }],
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     // The committed EDIT LOG half: one trailing continuous edit —
@@ -426,8 +448,9 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     let edits = vec![DocEdit::SetParam {
         node: bulged,
         slot: editor_core::SlotId::Distance,
-        expr: editor_core::parse_expr("500 mm", &std::collections::BTreeMap::new())
+        expr: editor_core::parse_formula("500 mm", &std::collections::BTreeMap::new())
             .expect("golden unit literal"),
+        fresh: Vec::new(),
     }];
     (doc, edits)
 }
@@ -435,12 +458,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
 #[test]
 fn golden_bytes_are_frozen() {
     let (doc, edits) = golden();
-    let text = save(
-        &doc,
-        &editor_core::LoggedEdit::bare_all(&edits),
-        Tol::witness(),
-    )
-    .expect("golden saves");
+    let text = save(&doc, &edits.to_vec(), Tol::witness()).expect("golden saves");
     if std::env::var("M4_PR6_BLESS_GOLDEN").is_ok() {
         std::fs::write(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(GOLDEN_PATH),
@@ -467,11 +485,7 @@ fn golden_bytes_load() {
             assert_eq!(ambient.to_bits(), 1e-9f64.to_bits());
             let (doc, edits) = golden();
             assert!(loaded.snapshot.bit_eq(&doc), "golden snapshot drifted");
-            assert_eq!(
-                loaded.edits,
-                editor_core::LoggedEdit::bare_all(&edits),
-                "golden edit log drifted"
-            );
+            assert_eq!(loaded.edits, edits.to_vec(), "golden edit log drifted");
         }
         Err(PersistError::ToleranceConflict { process, document }) => {
             // The ε door is the LAST load door, so this outcome still

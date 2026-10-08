@@ -14,13 +14,15 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, run};
+use crate::docm7_union_declare::{
+    block, declared_union, declared_union_classed, failure, flush_pairs, run,
+};
 use crate::docm8_flat_merged::split_fixture;
 use crate::fixture::{fname, wall};
 
 use editor_core::{
-    CapEnd, Diagnosis, FoldConsumption, NamingError, NodeErrorKind, ProfileDoc, RecipeNodeId,
-    ResolveError, RoleSeg, SitedRef,
+    BooleanCoincidence, CapEnd, Diagnosis, FoldConsumption, NamingError, NodeErrorKind, ProfileDoc,
+    RecipeNodeId, ResolveError, RoleSeg, SitedRef,
 };
 use geom_core::Tol;
 
@@ -69,7 +71,7 @@ fn a_merged_face_with_several_constituents_is_a_missing_rule_not_a_kernel_bug() 
 
     // The orders that fold `a` in last, and only those.
     for order in [vec![c, s, a], vec![s, c, a]] {
-        let (docx, union, _) = declared_union(doc.clone(), &order, pairs.clone());
+        let (docx, union) = declared_union(doc.clone(), &order, pairs.clone());
         let ev = run(&docx);
         let shown = match failure(&ev, union) {
             // Rendered at the NODE boundary, which is the only route by
@@ -98,7 +100,7 @@ fn a_merged_face_with_several_constituents_is_a_missing_rule_not_a_kernel_bug() 
     // The same three members, folded the other way round, build a body.
     // Without this the row above could be pinning a malformed recipe.
     for order in [vec![a, c, s], vec![c, a, s]] {
-        let (docx, union, _) = declared_union(doc.clone(), &order, pairs.clone());
+        let (docx, union) = declared_union(doc.clone(), &order, pairs.clone());
         let ev = run(&docx);
         assert!(
             failure(&ev, union).is_none(),
@@ -133,7 +135,7 @@ fn a_rim_in_several_pieces_is_named_not_refused() {
     let (doc, g) = block(doc, (0.7, 0.8), (-1.0, 2.0), 0.5, 3.0);
     let pairs = flush_pairs(&doc, (a, a), (b, b));
 
-    let (docx, union, _) = declared_union(doc, &[a, b, g], pairs);
+    let (docx, union) = declared_union(doc, &[a, b, g], pairs);
     let ev = run(&docx);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
     // a ∪ b is 1.5; g (z = 0.5..3.5) adds 0.1 × 3 × 3 less its
@@ -148,14 +150,10 @@ fn a_rim_in_several_pieces_is_named_not_refused() {
 enum Seen {
     /// One body, at the volume the geometry says.
     Fused,
-    /// `NamingError::SeamVertexParentage`: the seam-vertex pass has no
-    /// parentage rule for a vertex
-    /// (`work/wire/a-merged-face-with-several-same-side-constituents-has-no-chord-rule`).
-    SeamVertex,
     /// `NamingError::MergedChordConstituents`, the same row's chord rule.
     MergedChord,
     /// A declared face a later member split before its pair's step
-    /// (`work/gather/member-space-look-through-stops-at-splits-containment-and-fragmented-merges`).
+    /// (`work/emit/union-refuses-in-some-member-orders-and-publishes-in-others`).
     Split,
 }
 
@@ -175,6 +173,17 @@ fn orders(n: usize) -> Vec<Vec<usize>> {
     out
 }
 
+/// Each wall pair as the continuation it is: the fixtures' walls carry
+/// on into one another with aligned senses.
+fn continuations(
+    pairs: &[(SitedRef, SitedRef)],
+) -> Vec<((SitedRef, SitedRef), BooleanCoincidence)> {
+    pairs
+        .iter()
+        .map(|p| (p.clone(), BooleanCoincidence::Continuation))
+        .collect()
+}
+
 /// Runs the declared union of `members` in every order and checks the
 /// outcomes against `want`, one line per order: an order that fuses
 /// must reach `fused_volume`, and an order that refuses must refuse with a
@@ -187,7 +196,7 @@ fn orders(n: usize) -> Vec<Vec<usize>> {
 fn every_order(
     doc: &ProfileDoc,
     members: &[(&str, RecipeNodeId)],
-    pairs: &[(SitedRef, SitedRef)],
+    pairs: &[((SitedRef, SitedRef), BooleanCoincidence)],
     fused_volume: f64,
     want: &[(&str, Seen)],
 ) {
@@ -200,7 +209,7 @@ fn every_order(
                 .collect::<Vec<_>>()
                 .join(",");
             let order: Vec<RecipeNodeId> = o.iter().map(|&k| members[k].1).collect();
-            let (docx, union, _) = declared_union(doc.clone(), &order, pairs.to_vec());
+            let (docx, union) = declared_union_classed(doc.clone(), &order, pairs.to_vec());
             let ev = run(&docx);
             let outcome = match failure(&ev, union) {
                 None => {
@@ -211,13 +220,10 @@ fn every_order(
                     );
                     Seen::Fused
                 }
-                Some(NodeErrorKind::Naming(NamingError::SeamVertexParentage { .. })) => {
-                    Seen::SeamVertex
-                }
                 Some(NodeErrorKind::Naming(NamingError::MergedChordConstituents { .. })) => {
                     Seen::MergedChord
                 }
-                Some(NodeErrorKind::DeclareResolve { error })
+                Some(NodeErrorKind::DeclareResolve { error, .. })
                     if matches!(
                         &**error,
                         ResolveError::Vanished {
@@ -272,20 +278,22 @@ const AREA_OVERLAP_VOLUME: f64 = 13.4;
 
 #[test]
 fn no_order_of_an_area_overlap_declaration_under_a_covering_block_refuses_a_fold_contact() {
-    use Seen::{Fused, SeamVertex};
+    use Seen::Fused;
     let doc = ProfileDoc::empty_derived("wire_fold_contact_3", Tol::witness());
     let (doc, [a, s, big], pairs) = area_overlap_fixture(doc);
+    // Every order fuses: the vertex whose half-decided parentage refused
+    // two of them was a cut vertex the output stage now joins away.
     every_order(
         &doc,
         &[("a", a), ("s", s), ("big", big)],
-        &pairs,
+        &continuations(&pairs),
         AREA_OVERLAP_VOLUME,
         &[
             ("a,s,big", Fused),
-            ("a,big,s", SeamVertex),
+            ("a,big,s", Fused),
             ("s,a,big", Fused),
             ("s,big,a", Fused),
-            ("big,a,s", SeamVertex),
+            ("big,a,s", Fused),
             ("big,s,a", Fused),
         ],
     );
@@ -295,13 +303,19 @@ fn no_order_of_an_area_overlap_declaration_under_a_covering_block_refuses_a_fold
 /// declared against that cap.
 #[test]
 fn no_order_of_the_area_overlap_union_with_a_fourth_member_refuses_a_fold_contact() {
-    use Seen::{Fused, SeamVertex, Split};
+    use Seen::{Fused, Split};
     let doc = ProfileDoc::empty_derived("wire_fold_contact_4", Tol::witness());
-    let (doc, [a, s, big], mut pairs) = area_overlap_fixture(doc);
+    let (doc, [a, s, big], pairs) = area_overlap_fixture(doc);
     let (doc, p) = block(doc, (0.6, 0.9), (0.2, 0.8), 1.0, 0.2);
+    // `p` rests on `a`'s top cap: the two caps face each other, a
+    // `Rest` contact.
+    let mut pairs = continuations(&pairs);
     pairs.push((
-        SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
-        SitedRef::new(p, fname(p, RoleSeg::Cap(CapEnd::Start))),
+        (
+            SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
+            SitedRef::new(p, fname(p, RoleSeg::Cap(CapEnd::Start))),
+        ),
+        BooleanCoincidence::REST,
     ));
     every_order(
         &doc,
@@ -311,27 +325,27 @@ fn no_order_of_the_area_overlap_union_with_a_fourth_member_refuses_a_fold_contac
         &[
             ("a,s,big,p", Fused),
             ("a,s,p,big", Split),
-            ("a,big,s,p", SeamVertex),
-            ("a,big,p,s", SeamVertex),
+            ("a,big,s,p", Fused),
+            ("a,big,p,s", Fused),
             ("a,p,s,big", Fused),
-            ("a,p,big,s", SeamVertex),
+            ("a,p,big,s", Fused),
             ("s,a,big,p", Fused),
             ("s,a,p,big", Split),
             ("s,big,a,p", Fused),
             ("s,big,p,a", Fused),
             ("s,p,a,big", Fused),
             ("s,p,big,a", Fused),
-            ("big,a,s,p", SeamVertex),
-            ("big,a,p,s", SeamVertex),
+            ("big,a,s,p", Fused),
+            ("big,a,p,s", Fused),
             ("big,s,a,p", Fused),
             ("big,s,p,a", Fused),
-            ("big,p,a,s", SeamVertex),
+            ("big,p,a,s", Fused),
             ("big,p,s,a", Fused),
             ("p,a,s,big", Fused),
-            ("p,a,big,s", SeamVertex),
+            ("p,a,big,s", Fused),
             ("p,s,a,big", Fused),
             ("p,s,big,a", Fused),
-            ("p,big,a,s", SeamVertex),
+            ("p,big,a,s", Fused),
             ("p,big,s,a", Fused),
         ],
     );
@@ -342,7 +356,7 @@ fn no_order_of_the_area_overlap_union_with_a_fourth_member_refuses_a_fold_contac
 /// member over the same area-overlap declaration.
 #[test]
 fn no_order_of_the_split_fixture_under_a_covering_block_refuses_a_fold_contact() {
-    use Seen::{Fused, MergedChord, SeamVertex, Split};
+    use Seen::{Fused, MergedChord, Split};
     let doc = ProfileDoc::empty_derived("wire_fold_contact_split", Tol::witness());
     let (doc, [a, c, s], pairs) = split_fixture(doc);
     let (doc, big) = block(doc, (-0.5, 1.2), (-0.5, 1.5), 0.8, 1.2);
@@ -350,33 +364,33 @@ fn no_order_of_the_split_fixture_under_a_covering_block_refuses_a_fold_contact()
     every_order(
         &doc,
         &[("a", a), ("c", c), ("s", s), ("big", big)],
-        &pairs,
+        &continuations(&pairs),
         5.34,
         &[
             ("a,c,s,big", Fused),
-            ("a,c,big,s", SeamVertex),
+            ("a,c,big,s", Fused),
             ("a,s,c,big", Split),
-            ("a,s,big,c", SeamVertex),
-            ("a,big,c,s", SeamVertex),
-            ("a,big,s,c", SeamVertex),
+            ("a,s,big,c", Fused),
+            ("a,big,c,s", Fused),
+            ("a,big,s,c", Fused),
             ("c,a,s,big", Fused),
-            ("c,a,big,s", SeamVertex),
+            ("c,a,big,s", Fused),
             ("c,s,a,big", MergedChord),
-            ("c,s,big,a", SeamVertex),
-            ("c,big,a,s", SeamVertex),
-            ("c,big,s,a", SeamVertex),
+            ("c,s,big,a", Fused),
+            ("c,big,a,s", Fused),
+            ("c,big,s,a", Fused),
             ("s,a,c,big", Split),
-            ("s,a,big,c", SeamVertex),
+            ("s,a,big,c", Fused),
             ("s,c,a,big", MergedChord),
-            ("s,c,big,a", SeamVertex),
-            ("s,big,a,c", SeamVertex),
-            ("s,big,c,a", SeamVertex),
-            ("big,a,c,s", SeamVertex),
-            ("big,a,s,c", SeamVertex),
-            ("big,c,a,s", SeamVertex),
-            ("big,c,s,a", SeamVertex),
-            ("big,s,a,c", SeamVertex),
-            ("big,s,c,a", SeamVertex),
+            ("s,c,big,a", Fused),
+            ("s,big,a,c", Fused),
+            ("s,big,c,a", Fused),
+            ("big,a,c,s", Fused),
+            ("big,a,s,c", Fused),
+            ("big,c,a,s", Fused),
+            ("big,c,s,a", Fused),
+            ("big,s,a,c", Fused),
+            ("big,s,c,a", Fused),
         ],
     );
 }

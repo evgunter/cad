@@ -17,6 +17,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
+use editor_core::Formula;
 
 use editor_core::{
     Alignment, AssemblyError, Attribution, AxisSense, CapEnd, ContactClass, DocEdit, DocRef,
@@ -52,6 +55,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -84,26 +88,22 @@ fn in_part_in_part(
     }
 }
 
-fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
-    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0])
+fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
+    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
+        .expect("a definite frame")
 }
 
 /// A `Rest` mate declaring `a`'s TOP face against `b`'s BOTTOM face,
 /// seating `b` at height `seat` by frame coincidence. `seat = 1.0`
 /// puts `b`'s bottom exactly on `a`'s top (the unit cube is z ∈ [0,1]);
 /// anything larger leaves a definite gap and the declaration is FALSE.
-fn rest_mate(a: StableName, b: StableName, seat: f64) -> Node<editor_core::ProfileProgram> {
+fn rest_mate(a: StableName, b: StableName, seat: f64) -> AuthoredNode {
     classed_mate(a, b, seat, ContactClass::Rest)
 }
 
 /// [`rest_mate`]'s shape at an arbitrary class — the totality rows need
 /// a `Tangent` declaration, whose class mints no record at rest.
-fn classed_mate(
-    a: StableName,
-    b: StableName,
-    seat: f64,
-    class: ContactClass,
-) -> Node<editor_core::ProfileProgram> {
+fn classed_mate(a: StableName, b: StableName, seat: f64, class: ContactClass) -> AuthoredNode {
     Node::Mate {
         a: crate::fixture::head(a),
         b: crate::fixture::head(b),
@@ -130,7 +130,7 @@ fn dangling(instance: RecipeNodeId) -> StableName {
         path: vec![RoleSeg::InPart {
             of: StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(99),
+                node: RecipeNodeId::new(0, 99),
                 path: vec![RoleSeg::Cap(CapEnd::End)],
             }
             .into(),
@@ -161,11 +161,12 @@ fn stand(
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(
+            node: Box::new(rest_mate(
                 in_part(ids[0], body, CapEnd::End),
                 in_part(ids[1], body, CapEnd::Start),
                 seat,
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     (doc, ids, mate.expect("the mate mints"))
@@ -189,9 +190,12 @@ fn row_of(
             let dx = spacing * i as f64;
             let (next, _) = step(
                 doc,
-                DocEdit::SetPlacement {
-                    node: id,
-                    frame: Frame::translation([dx, 0.0, 0.0]),
+                DocEdit::SetOffset {
+                    instance: id,
+                    offset: Some(editor_core::Placement::literal(&Frame::translation([
+                        dx, 0.0, 0.0,
+                    ]))),
+                    fresh: Vec::new(),
                 },
             );
             doc = next;
@@ -356,6 +360,7 @@ fn a_carried_declaration_the_outer_geometry_refutes_is_refuted_loudly() {
                 route,
                 declaration,
                 relation: editor_core::Relation::Refuted,
+                ..
             } if route.through == instances[0]
                 && route.of == inner_id
                 && route.via.is_empty()
@@ -396,11 +401,12 @@ fn an_outer_mate_the_geometry_refutes_is_refuted_naming_its_mate() {
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(
+            node: Box::new(rest_mate(
                 in_part_in_part(ids[0], subs[1], body, CapEnd::End),
                 in_part_in_part(ids[1], subs[0], body, CapEnd::Start),
                 2.5,
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.expect("the outer mate mints");
@@ -496,21 +502,23 @@ fn mint_makes_distinct_face_patches_and_no_curve_records() {
     let (doc, _) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(
+            node: Box::new(rest_mate(
                 in_part(ids[0], body, CapEnd::End),
                 in_part(ids[1], body, CapEnd::Start),
                 1.0,
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(
+            node: Box::new(rest_mate(
                 in_part(ids[1], body, CapEnd::End),
                 in_part(ids[2], body, CapEnd::Start),
                 1.0,
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
 
@@ -554,7 +562,13 @@ fn a_class_with_no_at_rest_record_refuses_at_the_gate_not_at_the_gather() {
     }
     // Replace the stand's Rest mate with a Tangent one by authoring a
     // second document holding only the tangent declaration.
-    let (doc, tangent) = step(doc, DocEdit::InsertNode { node });
+    let (doc, tangent) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: Box::new(node),
+            fresh: Vec::new(),
+        },
+    );
     let tangent = tangent.expect("the tangent mate mints");
 
     let ev = run(&doc, &with_resolver(store));
@@ -608,18 +622,24 @@ fn a_dangling_reference_before_a_good_mate_does_not_swallow_it() {
     let (doc, bad) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(dangling(ids[0]), in_part(ids[1], body, CapEnd::Start), 1.0),
+            node: Box::new(rest_mate(
+                dangling(ids[0]),
+                in_part(ids[1], body, CapEnd::Start),
+                1.0,
+            )),
+            fresh: Vec::new(),
         },
     );
     let bad = bad.expect("the dangling mate is still a node");
     let (doc, good) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(
+            node: Box::new(rest_mate(
                 in_part(ids[1], body, CapEnd::End),
                 in_part(ids[2], body, CapEnd::Start),
                 1.0,
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     let good = good.expect("the good mate mints");
@@ -665,23 +685,25 @@ fn an_unmintable_class_before_a_good_mate_does_not_swallow_it() {
     let (doc, bad) = step(
         doc,
         DocEdit::InsertNode {
-            node: classed_mate(
+            node: Box::new(classed_mate(
                 in_part(ids[0], body, CapEnd::End),
                 in_part(ids[1], body, CapEnd::Start),
                 1.5,
                 ContactClass::Tangent,
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     let bad = bad.expect("the tangent mate is still a node");
     let (doc, good) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(
+            node: Box::new(rest_mate(
                 in_part(ids[1], body, CapEnd::End),
                 in_part(ids[2], body, CapEnd::Start),
                 1.0,
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     let good = good.expect("the good mate mints");
@@ -725,30 +747,37 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
     let (doc, first_bad) = step(
         doc,
         DocEdit::InsertNode {
-            node: classed_mate(
+            node: Box::new(classed_mate(
                 in_part(ids[0], body, CapEnd::End),
                 in_part(ids[1], body, CapEnd::Start),
                 1.5,
                 ContactClass::Tangent,
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     let first_bad = first_bad.expect("the tangent mate is a node");
     let (doc, good) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(
+            node: Box::new(rest_mate(
                 in_part(ids[1], body, CapEnd::End),
                 in_part(ids[2], body, CapEnd::Start),
                 1.0,
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     let good = good.expect("the good mate mints");
     let (doc, second_bad) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(dangling(ids[2]), in_part(ids[0], body, CapEnd::Start), 1.0),
+            node: Box::new(rest_mate(
+                dangling(ids[2]),
+                in_part(ids[0], body, CapEnd::Start),
+                1.0,
+            )),
+            fresh: Vec::new(),
         },
     );
     let second_bad = second_bad.expect("the dangling mate is a node");
@@ -793,9 +822,13 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
             );
             let rendered = AssemblyError::Mint { refusals }.to_string();
             assert!(
-                rendered.contains(&format!("mate {}", test_utils::refusal::tag(first_bad.0)))
-                    && rendered
-                        .contains(&format!("mate {}", test_utils::refusal::tag(second_bad.0))),
+                rendered.contains(&format!(
+                    "mate {}",
+                    test_utils::refusal::tag(first_bad.0.digest())
+                )) && rendered.contains(&format!(
+                    "mate {}",
+                    test_utils::refusal::tag(second_bad.0.digest())
+                )),
                 "and both are in the one message: {rendered:?}"
             );
         }

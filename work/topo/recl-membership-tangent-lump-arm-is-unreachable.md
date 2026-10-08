@@ -2,8 +2,9 @@
 id: recl-membership-tangent-lump-arm-is-unreachable
 kind: issue
 title: topo: recl's membership reads a declared-Tangent flank pair's lump, but the tangent-flank short-circuit has already skipped every such pair
-status: open
+status: parked
 opened: 2026-09-30
+blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -26,3 +27,7 @@ lump takes `require_same`.
 
 Remove the arm, or say why the short-circuit and the arm must both
 stand (a flanking set the two readings would disagree on), with a row.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: tangent_flank and the lump arm read declared-Tangent flank pairs in recl::resolve_edge_edge, declared-pair machinery stage 4 retires. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

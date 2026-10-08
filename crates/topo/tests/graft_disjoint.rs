@@ -384,12 +384,28 @@ fn the_n_solid_door_refuses_an_empty_source_and_the_single_door_still_refuses_n(
     let mut dst = geometric_cube::<f64>(Tol::witness()).body;
     let err = topo::graft_disjoint_all(&mut dst, &topo::Body::<f64>::new())
         .expect_err("no solid to graft");
-    assert!(format!("{err:?}").contains("JoinDesync"), "{err:?}");
+    assert!(
+        matches!(
+            err,
+            topo::BooleanError::JoinDesync {
+                what: "graft source holds no solid to graft"
+            }
+        ),
+        "{err:?}"
+    );
     assert_eq!(dst.solids().count(), 1, "and nothing was written");
 
     let multi = two_solid_source(10.0);
     let err = topo::graft_disjoint(&mut dst, &multi).expect_err("N solids at the single door");
-    assert!(format!("{err:?}").contains("JoinDesync"), "{err:?}");
+    assert!(
+        matches!(
+            err,
+            topo::BooleanError::JoinDesync {
+                what: "graft source does not hold exactly one solid"
+            }
+        ),
+        "{err:?}"
+    );
     assert_eq!(dst.solids().count(), 1, "and nothing was written");
     // The same source, at the door that is FOR it, succeeds.
     assert_eq!(
@@ -464,60 +480,8 @@ fn the_keyed_door_bridges_every_source_entity_into_the_destination() {
 }
 
 // ---------------------------------------------------------------------
-// LIB-PLACEDUNION: the fuse-onto door and the placement certificate
+// LIB-PLACEDUNION: the placement certificate
 // ---------------------------------------------------------------------
-
-/// **The `onto` door puts shells in an EXISTING solid.** Same
-/// transplant, same census, one solid — the representation a UNION of
-/// separated bodies already has in this kernel, and the one the seamed
-/// boolean path accepts as an operand.
-#[test]
-fn the_onto_door_fuses_into_one_solid_without_changing_the_census() {
-    let mut src = geometric_cube::<f64>(Tol::witness()).body;
-    describe_as_intersections(&mut src, Tol::witness());
-    let placed = topo::transform_rigid(
-        &src,
-        &Affine3::translation(Vec3::new(10.0, 0.0, 0.0)),
-        Tol::witness(),
-    )
-    .expect("a rigid map");
-
-    let mut separate = topo::Body::<f64>::new();
-    let first = topo::graft_disjoint_all_keyed(&mut separate, &src).expect("the first graft");
-    topo::graft_disjoint_all_keyed(&mut separate, &placed).expect("the second, as its own solid");
-
-    let mut fused = topo::Body::<f64>::new();
-    let keys = topo::graft_disjoint_all_keyed(&mut fused, &src).expect("the first graft");
-    let onto = topo::graft_disjoint_all_onto_keyed(&mut fused, keys.solids(), &placed)
-        .expect("the second, onto the first's solid");
-
-    assert_eq!(separate.solids().count(), 2, "the sibling door mints");
-    assert_eq!(fused.solids().count(), 1, "the onto door does not");
-    assert_eq!(fused.shells().count(), separate.shells().count());
-    assert_eq!(fused.faces().count(), separate.faces().count());
-    assert_eq!(fused.edges().count(), separate.edges().count());
-    assert_eq!(fused.vertices().count(), separate.vertices().count());
-    assert_eq!(onto.solids(), first.solids(), "the echo is positional");
-    // The bridge is still total over the source — the name carry does
-    // not care which door placed the shells.
-    for (k, _) in placed.faces() {
-        assert!(onto.face(k).is_some_and(|f| fused.get_face(f).is_some()));
-    }
-    assert_eq!(topo::validate_geometric(&fused, Tol::witness()), Ok(()));
-}
-
-/// **A dead destination refuses, typed** — the door never invents a
-/// solid to land in.
-#[test]
-fn the_onto_door_refuses_a_destination_that_is_not_there() {
-    let mut src = geometric_cube::<f64>(Tol::witness()).body;
-    describe_as_intersections(&mut src, Tol::witness());
-    let mut a = topo::Body::<f64>::new();
-    let keys = topo::graft_disjoint_all_keyed(&mut a, &src).expect("a graft");
-    // `keys`' solids belong to `a`, not to this fresh destination.
-    let mut b = topo::Body::<f64>::new();
-    assert!(topo::graft_disjoint_all_onto_keyed(&mut b, keys.solids(), &src).is_err());
-}
 
 /// **The certificate separates, and refuses when it cannot.** One
 /// prototype, three placements: two clear of each other certify, and
@@ -538,4 +502,64 @@ fn the_placement_certificate_certifies_and_refuses_by_pair() {
         sep.certify(&[at(0.0), at(10.0), at(10.25)]),
         Err(topo::PlacementsMeet { i: 1, j: 2 })
     );
+}
+
+/// **A destination solid that does not resolve is the caller's
+/// argument, refused before any write.** The void doors graft their
+/// cavity under caller-named destination solids; one that resolves
+/// nowhere in `dst` refuses [`topo::VoidInsertError::StaleSolid`]
+/// naming it, and `dst` is the same body, slot for slot, still tier-1
+/// valid. Both doors.
+#[test]
+fn a_void_under_a_dead_solid_refuses_with_the_destination_unchanged() {
+    type Door = fn(
+        &mut topo::Body<f64>,
+        topo::SolidKey,
+        topo::Body<f64>,
+        &topo::VoidEvidence,
+    ) -> Result<topo::VoidInserted, topo::VoidInsertError>;
+    let doors: [(&str, Door); 2] = [
+        ("insert_void", topo::insert_void),
+        ("insert_voids", |d, k, c, e| {
+            topo::insert_voids(d, &[k], c, e)
+        }),
+    ];
+    let tol = Tol::witness();
+    for (door, insert) in doors {
+        let mut dst = common::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let cavity = common::brick::<f64>((0.25, 0.75), (0.25, 0.75), (0.25, 0.75), tol);
+        let evidence = topo::VoidEvidence {
+            shells: cavity
+                .shells()
+                .map(|(s, _)| {
+                    let sign = geom_core::Sign::Positive;
+                    (s, topo::VoidContainment::Carried { sign })
+                })
+                .collect(),
+        };
+        // `Body`'s `Debug` prints every arena slot by slot, free list
+        // and versions included.
+        let before = format!("{dst:?}");
+        let err = insert(&mut dst, topo::SolidKey::default(), cavity, &evidence)
+            .expect_err("no solid of `dst` has the null key");
+        assert_eq!(
+            err,
+            topo::VoidInsertError::StaleSolid {
+                solid: topo::SolidKey::default()
+            },
+            "{door}"
+        );
+        let said = err.to_string();
+        assert!(
+            said.contains("does not resolve in the destination body"),
+            "{door}: {said}"
+        );
+        assert_eq!(
+            format!("{dst:?}"),
+            before,
+            "{door}: the refused insertion wrote the destination (tier 1 now: {:?})",
+            topo::validate(&dst)
+        );
+        assert_eq!(topo::validate(&dst), Ok(()), "{door}");
+    }
 }

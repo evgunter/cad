@@ -33,11 +33,10 @@
 //!   every wall is the **angle-0 meridian half-plane**, which is where
 //!   the profile sits. A full revolve's surviving meridian edges are
 //!   therefore exactly the `u = 0` iso-curves: they re-describe as
-//!   the seam image `{ surface }` — except meridians
+//!   their walls' wrap edges (D1) — except meridians
 //!   of **plane** walls (a segment ⊥ axis sweeps a plane annulus; a
-//!   plane chart is not periodic, so `Seam` is malformed on it and the
-//!   edge is described where it rests, as an ordinary image in that
-//!   wall's chart). What exempts it from an intrinsic description is
+//!   plane chart closes in no direction, so the edge is described
+//!   where it rests, as an ordinary image in that wall's chart). What exempts it from an intrinsic description is
 //!   UNDER-DETERMINATION, not prefer-intrinsic: one surface on both
 //!   sides determines no locus, which is D2's conventional split, and
 //!   prefer-intrinsic has nothing to demand where there is no
@@ -59,7 +58,8 @@
 //!   wall). Full revolves OMIT on-axis edges (they sweep to nothing):
 //!   a profile whose axis contact is one contiguous run of on-axis
 //!   line segments opens into a **wire** whose tips become poles/
-//!   apexes; contact at an isolated vertex, or in two or more runs,
+//!   apexes (a tip where a plane wall meets the axis is a disc's
+//!   centre, built whole, and no vertex); contact at an isolated vertex, or in two or more runs,
 //!   revolves to a non-manifold solid and is refused (D1). Holes are
 //!   supported for partial revolves (extrude-shaped) AND for full
 //!   revolves: a full revolve of a holed profile is DEFINED as
@@ -92,15 +92,26 @@
 //! that is the start point's antipode), a partial revolve's on-axis
 //! edges upgrade to `Intersection { start cap, end cap }` when the caps
 //! are definitely transverse (θ ≠ π), and a full revolve's meridians
-//! become `Seam` on periodic walls and images at rest in the wall's
-//! chart on plane ones. No edge KEEPS its `MappedCurve` past this
+//! become wrap edges on periodic walls and images at rest in the wall's
+//! chart on a lamina's plane annulus (a wire's plane walls carry no
+//! meridian at all). No edge KEEPS its `MappedCurve` past this
 //! pass: the mint's scaffolding is for edges whose surfaces do not
 //! exist yet (D3's transience fence), and by here they all do — a
 //! conventional description at rest is a chart image, which owes the
-//! one meter `|C(t) − S(P(t))| ≤ ε`. Cosurface runs (collinear segments,
-//! same-carrier tangent arcs) share one surface key, decided for the
-//! whole loop — including the wrap pair — before any wall is minted
-//! (the PR 4 SHOULD-1 lesson).
+//! one meter `|C(t) − S(P(t))| ≤ ε`. Cosurface verdicts are decided for
+//! the whole loop — including the wrap pair — before any wall is minted
+//! (the PR 4 SHOULD-1 lesson): a run of segments on one carrier is ONE
+//! wall (crate README, "Walls: one per run"): both cases collapse the
+//! run to one segment before they build (`runs::Collapsed`), so a
+//! station inside a run has no entity — a wedge cap carries the run as
+//! one meridian edge, and a run of on-axis segments is one axis edge.
+//!
+//! **A one-segment loop** (D1's full turn) is swept whole, far end
+//! first (`turn::sweep_turn`): one torus wall whose strut, the latitude
+//! circle through the loop's one vertex, is its wrap edge in `v`. A full
+//! revolve then closes the wall on itself in `u` as well — one face,
+//! its meridian and its latitude circle each a wrap edge at one vertex
+//! (`full::build_turn_lamina`).
 //!
 //! # K-telemetry
 //!
@@ -112,13 +123,15 @@ mod axis;
 mod chain;
 mod full;
 mod partial;
+mod runs;
 mod surfaces;
 pub mod tube;
+mod turn;
 mod upgrade;
 
 use core::fmt;
 
-use geom_brep::NewellError;
+use crate::swept::CapPlaneError;
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol, Vec2};
 use profile::ValidatedProfile;
 use topo::readback::{Pose, ReadbackError, face_pose};
@@ -153,7 +166,8 @@ pub enum Revolution<T: Real> {
     /// The full revolution: sweeps exactly +2π (no wedge caps). A
     /// closed off-axis profile closes its seam through same-shell
     /// `kfmrh` plus the loopglue zip; an axis-touching profile sweeps
-    /// as a two-band wire (see [`RevolvedKind::Full`]).
+    /// as a two-band wire. Either way its plane walls are made whole
+    /// (see [`RevolvedKind::Full`]).
     Full,
     /// A partial revolution by the **signed** angle θ (radians,
     /// right-hand rule about the placed axis direction);
@@ -165,12 +179,13 @@ pub enum Revolution<T: Real> {
 /// shape): the body plus the handles downstream passes address it by.
 ///
 /// Indexing convention: outer Vecs are per **canonical** loop (loop 0
-/// the outer, then holes); inner Vecs are per canonical segment
-/// (`walls`) or canonical vertex (`rims`).
-/// `None` marks the axis-contact special classes: an on-axis segment
-/// has no wall (partial: the edge is shared by the wedge caps; full:
-/// omitted entirely), an on-axis vertex has no latitude edge (partial:
-/// fixed point; full: pole/apex).
+/// the outer, then holes); inner Vecs are per wall run (`bands`),
+/// canonical segment ([`Revolved::walls`]) or canonical vertex
+/// (`rims`). `None` marks the axis-contact special classes: an on-axis
+/// segment has no wall (partial: the edge is shared by the wedge caps;
+/// full: omitted entirely), an on-axis vertex has no latitude edge
+/// (partial: fixed point; full: pole/apex) — and a station inside a
+/// run has none either.
 #[derive(Debug)]
 pub struct Revolved<T: Real> {
     /// The built body — a closed solid passing tiers 1–3. A declared
@@ -188,19 +203,25 @@ pub struct Revolved<T: Real> {
     /// there are extrude-shaped tunnels in the one shell) and for
     /// unholed profiles.
     pub cavities: Vec<ShellKey>,
-    /// Wall faces, per loop, per canonical segment (`None`: on-axis).
-    pub walls: Vec<Vec<Option<FaceKey>>>,
+    /// Wall faces, per loop, one per run of segments on one carrier
+    /// (crate README, "Walls: one per run"), in swept order of their
+    /// first segment. The per-segment view is [`Revolved::walls`].
+    pub bands: Vec<Vec<BandWall>>,
     /// Latitude edges (partial: wedge arcs; full: full-period rims,
     /// self-loops at the surviving meridian vertices), per loop, per
-    /// canonical vertex (`None`: on-axis vertex).
+    /// canonical vertex (`None`: on-axis vertex, or a station inside a
+    /// run, which has no entity).
     pub rims: Vec<Vec<Option<EdgeKey>>>,
     /// Pole vertices, per loop, per canonical vertex: the ONE body
     /// vertex an on-axis profile vertex revolves to (the rotation
     /// fixes it, so every meridian chain meets there). `None` at
     /// off-axis vertices — those have one copy per chain, addressed
-    /// through `rims` and the meridian chains — and at vertices
-    /// strictly INTERIOR to a full revolve's omitted axis run, which
-    /// that case deletes outright (no body entity exists to name).
+    /// through `rims` and the meridian chains — at vertices strictly
+    /// INTERIOR to an axis run, which a full revolve deletes outright
+    /// and a partial revolve collapses into the run's one axis edge
+    /// (either way no body entity exists to name), and at a full
+    /// revolve's tip where a plane wall meets the axis (the disc is
+    /// built whole, its centre no vertex).
     /// A multi-segment axis run authors through the recipe layer as
     /// well as through this API — its continuation verbs declare the
     /// collinear join as a tangent joint — so that last case is
@@ -209,6 +230,55 @@ pub struct Revolved<T: Real> {
     pub poles: Vec<Vec<Option<VertexKey>>>,
     /// The wedge caps and meridian edges — shaped by the case split.
     pub kind: RevolvedKind,
+}
+
+/// One wall of a revolve: the run of profile segments it sweeps.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BandWall {
+    /// The wall face.
+    pub face: FaceKey,
+    /// The canonical segments the wall sweeps, in swept-traversal order
+    /// (wrapping through the loop's start where the run does).
+    pub segments: Vec<usize>,
+}
+
+impl<T: Real> Revolved<T> {
+    /// The wall face of every segment, per loop, per canonical segment
+    /// (`None`: on-axis): a run's segments read its one wall.
+    #[must_use]
+    pub fn walls(&self) -> Vec<Vec<Option<FaceKey>>> {
+        self.bands
+            .iter()
+            .zip(&self.rims)
+            .map(|(bands, rims)| {
+                let mut out = vec![None; rims.len()];
+                for band in bands {
+                    for &s in &band.segments {
+                        out[s] = Some(band.face);
+                    }
+                }
+                out
+            })
+            .collect()
+    }
+}
+
+/// The bands of one loop, from its canonical per-segment walls and its
+/// runs (canonical segments in swept order; a run of an on-axis
+/// segment has no wall and no band).
+pub(super) fn bands_of(walls: &[Option<FaceKey>], runs: &[Vec<usize>]) -> Vec<BandWall> {
+    runs.iter()
+        .filter_map(|run| {
+            let Some(&first) = run.first() else {
+                unreachable!("a run holds at least one segment")
+            };
+            let face = walls[first]?;
+            Some(BandWall {
+                face,
+                segments: run.clone(),
+            })
+        })
+        .collect()
 }
 
 /// The per-case keys of a [`Revolved`] (see the ratified case split in
@@ -222,9 +292,10 @@ pub enum RevolvedKind {
         start_cap: FaceKey,
         /// The end cap — on the sketch plane rotated by θ.
         end_cap: FaceKey,
-        /// Start-chain meridian edges, per loop, per canonical segment.
-        /// For an on-axis segment this is the shared axis edge (the
-        /// same key appears in `end_meridians`).
+        /// Start-chain meridian edges, per loop, per canonical segment:
+        /// a run's segments read its one meridian. For an on-axis
+        /// segment this is the shared axis edge of its run (the same
+        /// key appears in `end_meridians`).
         start_meridians: Vec<Vec<EdgeKey>>,
         /// End-chain meridian edges, per loop, per canonical segment.
         end_meridians: Vec<Vec<EdgeKey>>,
@@ -237,13 +308,20 @@ pub enum RevolvedKind {
     /// holes are strictly off-axis by validated containment) sweeps
     /// two π-bands so poles/apexes keep valence 2 (tier 2's strut
     /// ban): `walls`/`rims` are the angle-0…π band, the `pi_*` fields
-    /// the π…2π band. Hole loops are always lamina-shaped: their
+    /// the π…2π band. In either case a PLANE wall is one face with no
+    /// meridian — an annulus whose inner circle is a ring, or (wire
+    /// case only) a disc whose centre is no vertex — so its `meridians`
+    /// and `pi_*` entries are `None`. Hole loops are always
+    /// lamina-shaped: their
     /// `meridians` entries are their cavity seam chains, and the
     /// `pi_*` fields (outer-loop shaped) never name hole entities.
     Full {
+        /// The outer loop touches the axis: the wire case.
+        wire: bool,
         /// Angle-0 meridian edges (the `u = 0` seam chain), per
         /// canonical loop, per canonical segment (`None`: omitted
-        /// on-axis segment of the outer loop).
+        /// on-axis segment of the outer loop, or a plane wall; a run's
+        /// segments read its one meridian).
         meridians: Vec<Vec<Option<EdgeKey>>>,
         /// Wire case: the π…2π band's wall faces, per canonical
         /// segment of the OUTER loop.
@@ -469,10 +547,11 @@ pub enum RevolveError {
         loop_index: usize,
     },
     /// The void-insertion door refused a hole cavity's insertion
-    /// ([`topo::insert_void`]). The evidence arms are unreachable from
-    /// this construction (every hole shell is certified from the
-    /// profile's own validation before the call); the revert/graft
-    /// arms surface kernel-level corruption typed.
+    /// ([`topo::insert_void`]). The evidence and destination arms are
+    /// unreachable from this construction (every hole shell is
+    /// certified from the profile's own validation before the call, into
+    /// the solid the build minted); the revert arm surfaces a torn
+    /// cavity typed.
     VoidInsertion {
         /// Canonical index of the hole loop whose insertion refused.
         loop_index: usize,
@@ -528,11 +607,22 @@ pub enum RevolveError {
         /// The edge whose station refuted the smooth premise.
         edge: EdgeKey,
     },
-    /// A cap plane failed Newell certification (unreachable for
+    /// A station INSIDE a run of walls (two segments one carrier
+    /// holds) sits pinned on the axis (defense-in-depth, the `CapPlane`
+    /// posture: a wall through an on-axis station carries on past the
+    /// axis, which the half-plane checks refuse first for every
+    /// validated profile).
+    PinnedRunStation {
+        /// Canonical index of the loop.
+        loop_index: usize,
+        /// Canonical index of the station vertex.
+        vertex_index: usize,
+    },
+    /// A cap plane could not be certified or oriented (unreachable for
     /// validated profiles — surfaced rather than trusted).
     CapPlane {
-        /// The Newell failure.
-        source: NewellError,
+        /// The cap-plane failure.
+        source: CapPlaneError,
     },
     /// An Euler operator or attachment gate refused — including every
     /// D4 ¶2 certification failure
@@ -695,7 +785,15 @@ impl fmt::Display for RevolveError {
                  definitely a corner at a certification station, so the construction \
                  refuses rather than choose a description for it"
             ),
-            Self::CapPlane { source } => write!(f, "a cap is not planar: {source}"),
+            Self::PinnedRunStation {
+                loop_index,
+                vertex_index,
+            } => write!(
+                f,
+                "loop {loop_index} vertex {vertex_index} joins two walls of one run but lies \
+                 on the axis, so the run's wall has no strut there"
+            ),
+            Self::CapPlane { source } => write!(f, "{source}"),
             Self::Op { source } => write!(f, "an Euler operation refused: {source}"),
             Self::Pcurve(source) => write!(f, "{source}"),
         }
@@ -706,7 +804,9 @@ impl std::error::Error for RevolveError {}
 
 impl From<EulerOpError> for RevolveError {
     fn from(source: EulerOpError) -> Self {
-        Self::Op { source }
+        Self::Op {
+            source: source.from_driver(),
+        }
     }
 }
 
@@ -788,7 +888,6 @@ pub fn revolve<T: Decide + topo::AtRestPolicy>(
     for (li, segs) in loops.iter().enumerate() {
         classes.push(axis::classify_loop(segs, &frame, li, reverse, band)?);
     }
-
     let mut out = if full {
         full::build_full(&frame, &loops, &classes, theta, band, tol)
     } else {

@@ -32,6 +32,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::revolve_common;
+use sweep::ExtrudeSide;
 
 use crate::common::approx::band;
 use geom_core::Tol;
@@ -39,6 +40,7 @@ use geom_core::{Point2, Point3};
 use profile::RawLoop;
 use profile::{ProfileLoop, test_support::bulge_loop};
 use revolve_common::*;
+use sweep::test_support::finished;
 use sweep::{Revolution, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
 
@@ -215,7 +217,7 @@ fn curved_revert_reverts_the_ball_instead_of_refusing() {
     let before: Vec<bool> = body.faces().map(|(_, f)| f.sense).collect();
     let v = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
 
-    let rev = body.revert().expect("M5 S12 wired the curved arm");
+    let rev = body.revert();
     let after: Vec<bool> = rev.faces().map(|(_, f)| f.sense).collect();
     assert_eq!(after, before.iter().map(|s| !s).collect::<Vec<_>>());
     // The sphere CHART is untouched — no negative radius anywhere near
@@ -247,7 +249,7 @@ fn curved_revert_reverts_the_ball_instead_of_refusing() {
             .to_bits(),
         (-v).to_bits()
     );
-    assert_eq!(format!("{:?}", rev.revert().unwrap()), format!("{body:?}"));
+    assert_eq!(format!("{:?}", rev.revert()), format!("{body:?}"));
 }
 
 /// **PR 9c's own smoke shape** — the unit ball at the origin bitten
@@ -256,27 +258,39 @@ fn curved_revert_reverts_the_ball_instead_of_refusing() {
 /// face's carrier plane, poles and all, so the sweep records both poles
 /// on that face (a conic lying in a plane face's plane takes the line
 /// lane's endpoint posture). With those events the reduction takes the
-/// crossings path, and the join refuses the section it meets there —
-/// the great circle `z = 0`, tilted against the ball's `y` polar axis —
-/// as a typed frontier. The ball is also exactly TANGENT to the top
+/// crossings path, and the join chords the section it meets there —
+/// the great circle `z = 0`, along the ball's seam edges — then cannot
+/// read which section loop bounds the result: every witness of both
+/// hemispheres lies on the slab's bottom face
+/// (`work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior.md`),
+/// a typed frontier. The ball is also exactly TANGENT to the top
 /// face's carrier (`z = 1`), which the extent scan refused when the
 /// sweep did not see the poles. (Nudge the ball off both coincidences
-/// and the S13 lanes cut it — the pips suite.)
+/// and the S13 lanes cut it — the pips suite.) The row pins that door,
+/// not an arc: the role read stops the op whichever arc a chord takes.
 #[test]
-fn the_die_pips_shape_stops_typed_at_its_tilted_section() {
+fn the_die_pips_shape_stops_typed_at_its_section_roles() {
     let slab = validated(vec![profile::ProfileLoop::polygon([
         Point2::new(-2.0, -2.0),
         Point2::new(2.0, -2.0),
         Point2::new(2.0, 2.0),
         Point2::new(-2.0, 2.0),
     ])]);
-    let a = sweep::extrude(&slab, sweep::Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body;
-    let b = ball();
+    let a = sweep::extrude(
+        &slab,
+        sweep::Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
+    let a = finished("the slab", a, Tol::witness());
+    let b = finished("the ball", ball(), Tol::witness());
     let err = topo::boolean::subtract(&a, &b, Tol::witness()).unwrap_err();
-    let topo::BooleanError::Join(topo::SplitJoinError::SectionNotPolar { .. }) = &err else {
-        panic!("expected the join's tilted-section frontier, got {err:?}");
+    let topo::BooleanError::Join(topo::SplitJoinError::SectionLoopUndecided { .. }) = &err else {
+        panic!("expected the undecided section loop, got {err:?}");
     };
     // The retired claims must be GONE from the surfaced text: revert is
     // wired, the gate is not wholesale, and the sphere class is no
@@ -318,13 +332,14 @@ fn tangent_schedule_ray_grazes_and_the_retry_answers() {
 /// boolean's own containment fallback, not just a direct query.
 #[test]
 fn two_ball_body_classifies_each_shell_independently() {
-    let a = ball();
+    let a = finished("the ball", ball(), Tol::witness());
     let b = topo::transform_rigid(
         &a,
         &geom_core::Affine3::translation(geom_core::Vec3::new(4.0, 0.0, 0.0)),
         Tol::witness(),
     )
     .unwrap();
+    let b = finished("the moved ball", b, Tol::witness());
     let result = topo::boolean::union(&a, &b, Tol::witness()).unwrap();
     let topo::BooleanResult::Body(bb) = result else {
         panic!("two disjoint balls union to a real body");

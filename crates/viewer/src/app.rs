@@ -156,12 +156,21 @@ fn container_kind_title(kind: ContainerKind) -> &'static str {
 /// The status line for a referent the resolution machinery cannot
 /// place right now.
 ///
-/// The cause is rendered through its OWN `Display`: the layer that
-/// raised the indeterminacy names it, and this one contributes only
-/// the noun it is talking about. Named rather than composed inside the
-/// render pass so the wording has one home and can be asserted on.
-pub fn indeterminate_wording(noun: &str, cause: &editor_core::ResolveIndeterminate) -> String {
-    format!("this {noun} cannot be resolved right now: {cause}")
+/// The cause is said in its OWN words: the layer that raised the
+/// indeterminacy names it, and this one contributes only the noun it
+/// is talking about. Its node is said by `by`, which speaks for the
+/// document the cause's ids are spelled in. Named rather than composed
+/// inside the render pass so the wording has one home and can be
+/// asserted on.
+pub fn indeterminate_wording(
+    noun: &str,
+    cause: &editor_core::ResolveIndeterminate,
+    by: pncad::document::Speaker<'_>,
+) -> String {
+    format!(
+        "this {noun} cannot be resolved right now: {}",
+        pncad::document::Said(cause, by)
+    )
 }
 
 /// The most of the Features/Properties stack the feature tree is
@@ -314,7 +323,7 @@ pub enum Pane {
     Viewport,
     /// The feature tree over the evaluation's result DAG.
     Features,
-    /// The selected node's (or parameter's) properties.
+    /// The selected node's (or variable's) properties.
     Properties,
     /// View settings: display δ and the camera's state.
     View,
@@ -404,7 +413,7 @@ pub struct ViewerApp {
     /// held_refused`), read by [`crate::frame::held_edges_badge`].
     /// Zeroed and assigned back every frame as
     /// [`Self::datums_vanished`] is.
-    held_edges_refused: Option<EdgeNamesRefused>,
+    held_edges_refused: Option<frame::Spelled<EdgeNamesRefused>>,
     /// Whether the next scene to land should have its δ CHOSEN by the
     /// triangle budget, rather than drawn at the δ already in force.
     ///
@@ -942,7 +951,12 @@ impl ViewerApp {
         // it did not survive, so the act that accepts the next one is
         // what retires it; `frame::tool_notice` reads from the event
         // whether the pick is lost for good.
-        self.notices.extend(dropped.iter().map(frame::tool_notice));
+        let landed = self.session.landed_pair();
+        self.notices.extend(
+            dropped
+                .iter()
+                .map(|notice| frame::tool_notice(notice, landed)),
+        );
         // **The budget picks the δ a document opens at**, once, before
         // anything is built at the δ in force — so the un-budgeted
         // build is never paid for, only avoided. `scene::fit_delta`
@@ -1126,7 +1140,22 @@ impl ViewerApp {
         }
     }
 
-    /// Perform one operation and record what it refused.
+    /// **Every held node, spoken again from the shown document** after
+    /// an operation (`SpokenNode::respoken`'s rule): the form's held face
+    /// and the open tool's picks, each saying a node the document no
+    /// longer holds by the last label it had.
+    fn respeak_held(&mut self) {
+        let doc = self.session.doc();
+        self.drafts.respeak(doc);
+        self.tools.respeak(doc);
+    }
+
+    /// **A document replaced this one**: what held its ids lets them go.
+    fn document_replaced(&mut self) {
+        self.drafts.document_replaced();
+        self.tools.document_replaced();
+    }
+
     /// Perform one frame's whole batch of operations, keeping the
     /// refusal worth showing.
     ///
@@ -1150,9 +1179,8 @@ impl ViewerApp {
         }
         let mut refusal: Option<Refusal> = None;
         // The VERDICTS are `frame`'s, computed from the ops and the
-        // refusal; this loop only performs and collects. The rules
-        // used to live inline here, in app-gated code no row could
-        // reach — see `frame`'s module docs.
+        // refusal; this loop only performs and collects (`frame`'s
+        // module docs).
         let mut performed: Vec<SessionOp> = Vec::with_capacity(ops.len());
         for op in ops {
             performed.push(op.clone());
@@ -1167,11 +1195,9 @@ impl ViewerApp {
             // asked for by name, onto the frame's notices like every
             // other one (`frame::frame_status` carries the argument).
             //
-            // ONE call. This code is `app`-gated, so no row can
-            // execute it and a kind dropped here is invisible until a
-            // user misses a sentence; `frame::outcome_notices`
-            // destructures the outcome, so a row can run the whole
-            // fan-out and a new field reds there.
+            // ONE call: `frame::outcome_notices` destructures the
+            // outcome, so a new field reds there rather than going
+            // unsaid here.
             notices.extend(frame::outcome_notices(&outcome));
             // Read before the match below moves the refusal out: a
             // form that just committed a node it will go on referring
@@ -1189,9 +1215,9 @@ impl ViewerApp {
                     self.fit_on_scene = true;
                     self.fit_delta_on_scene = true;
                     self.budget_delta = None;
-                    self.drafts.document_replaced();
+                    self.document_replaced();
                 }
-                None if replaced => self.drafts.document_replaced(),
+                None if replaced => self.document_replaced(),
                 // A modal tool closes when its edit actually
                 // COMMITS, not when its button is clicked — a refusal
                 // leaves the tool open with its picks held, to be
@@ -1213,12 +1239,16 @@ impl ViewerApp {
                         .creation_landed(self.session.committed_doc(), &minted);
                 }
             }
+            // After the match, so a replaced document's held picks are
+            // dropped before anything is spoken from it.
+            self.respeak_held();
         }
+        let refusal = frame::batch_refusal(refusal, &performed, self.session.committed_doc());
         let verdict = frame::frame_status(&notices, &performed, refusal.as_ref());
         // The refuse-then-offer pair for a parse refusal: hold the
         // refused text in the field it was typed into so acting on the
-        // refusal does not cost it, and — for an unknown parameter
-        // name — prefill the add-parameter affordance with the name it
+        // refusal does not cost it, and — for an unknown variable
+        // name — prefill the add-variable affordance with the name it
         // offers to create (dimension deliberately left unpicked). An
         // expression edit that was NOT refused this way releases the
         // field back to the document, which is now what the user
@@ -1238,9 +1268,9 @@ impl ViewerApp {
             None => {}
         }
         if let Some(name) = frame::creation_offer(refusal.as_ref()) {
-            self.drafts.new_param_name = name.as_str().to_owned();
-            self.drafts.new_param_dimension = None;
-            self.drafts.new_param_offer = Some(name.clone());
+            self.drafts.new_variable_name = name.as_str().to_owned();
+            self.drafts.new_variable_dimension = None;
+            self.drafts.new_variable_offer = Some(name.clone());
         }
         if let Some(offer) = frame::declare_offer(refusal.as_ref()) {
             self.drafts.declare_offer = Some(offer);
@@ -1423,45 +1453,47 @@ impl ViewerApp {
         egui::Window::new("Checks")
             .open(&mut open)
             .default_width(420.0)
-            .show(ctx, |ui| match self.session.checks() {
-                None => {
-                    ui.label("nothing has been checked yet");
-                }
-                Some(report) => {
-                    if report.findings.is_empty() {
-                        ui.label("checks: no findings");
+            .show(ctx, |ui| {
+                match self.session.checks().zip(self.session.landed_pair()) {
+                    None => {
+                        ui.label("nothing has been checked yet");
                     }
-                    for finding in &report.findings {
-                        ui.horizontal_top(|ui| {
-                            if ui
-                                .button(self.session.doc().spoken(finding.root).to_string())
-                                .on_hover_text("select the root this finding is about")
-                                .clicked()
-                            {
-                                ops.push(SessionOp::Select(Selection::Node(finding.root)));
-                            }
-                            // A sentence, so `widgets::message`.
-                            crate::widgets::message(ui, finding.to_string());
-                        });
-                    }
-                    if !report.skipped.is_empty() {
-                        ui.separator();
-                        // A sentence too, and one whose length grows
-                        // with the number of checks turned off.
-                        crate::widgets::message_toned(
-                            ui,
-                            format!(
-                                "not run (severity Off): {}",
-                                report
-                                    .skipped
-                                    .iter()
-                                    .map(ToString::to_string)
-                                    .collect::<Vec<_>>()
-                                    .join(", ")
-                            ),
-                            &self.theme,
-                            frame::Tone::Advisory,
-                        );
+                    Some((report, (landed, _))) => {
+                        if report.findings.is_empty() {
+                            ui.label("checks: no findings");
+                        }
+                        for row in frame::check_rows(report, landed) {
+                            ui.horizontal_top(|ui| {
+                                if ui
+                                    .button(row.button)
+                                    .on_hover_text("select the root this finding is about")
+                                    .clicked()
+                                {
+                                    ops.push(SessionOp::Select(Selection::Node(row.root)));
+                                }
+                                // A sentence, so `widgets::message`.
+                                crate::widgets::message(ui, row.sentence);
+                            });
+                        }
+                        if !report.skipped.is_empty() {
+                            ui.separator();
+                            // A sentence too, and one whose length grows
+                            // with the number of checks turned off.
+                            crate::widgets::message_toned(
+                                ui,
+                                format!(
+                                    "not run (severity Off): {}",
+                                    report
+                                        .skipped
+                                        .iter()
+                                        .map(ToString::to_string)
+                                        .collect::<Vec<_>>()
+                                        .join(", ")
+                                ),
+                                &self.theme,
+                                frame::Tone::Advisory,
+                            );
+                        }
                     }
                 }
             });
@@ -1726,7 +1758,9 @@ impl ViewerApp {
             // gather" is true until another pair lands.
             //
             // Which faults reach it is `frame::badge_site`'s.
-            if let Some(badge) = frame::product_badge(self.session.product_fault()) {
+            if let Some((landed, _)) = self.session.landed_pair()
+                && let Some(badge) = frame::product_badge(self.session.product_fault(), landed)
+            {
                 draw_badge(ui, &self.theme, &badge);
             }
             // The display budget's: shown while the δ on screen is
@@ -1751,7 +1785,7 @@ impl ViewerApp {
                 frame::index_badge(
                     self.picks.error(),
                     self.session.doc(),
-                    self.session.evaluation(),
+                    self.session.landed_pair(),
                 ),
                 frame::projection_badge(self.projection_fault.as_ref()),
             ]
@@ -1778,7 +1812,10 @@ impl ViewerApp {
                 draw_badge(ui, &self.theme, &badge);
             }
             // And the held edges the mark could not tell held or not.
-            if let Some(badge) = frame::held_edges_badge(self.held_edges_refused.as_ref()) {
+            if let Some(badge) = frame::held_edges_badge(
+                self.held_edges_refused.as_ref(),
+                self.session.landed_pair().map(|(doc, _)| doc),
+            ) {
                 draw_badge(ui, &self.theme, &badge);
             }
             ui.separator();
@@ -1896,7 +1933,7 @@ impl eframe::App for ViewerApp {
         // the field last held.
         let mut datums_vanished = 0_usize;
         let mut profiles_undrawn = 0_usize;
-        let mut held_edges_refused: Option<EdgeNamesRefused> = None;
+        let mut held_edges_refused: Option<frame::Spelled<EdgeNamesRefused>> = None;
         let mut delta_request: Option<DisplayTolerance> = None;
         let mut features_content_height: Option<f32> = None;
         let mut split_dragged = self.split_dragged;
@@ -2011,7 +2048,12 @@ impl eframe::App for ViewerApp {
         // A declined pick answers an act the user aimed at the
         // document, like every other rank-2 notice this frame.
         let declined = self.tools.feed(self.session.doc(), &ops);
-        self.notices.extend(declined.iter().map(frame::tool_notice));
+        let landed = self.session.landed_pair();
+        self.notices.extend(
+            declined
+                .iter()
+                .map(|notice| frame::tool_notice(notice, landed)),
+        );
 
         self.perform_batch(ops);
     }
@@ -2119,7 +2161,7 @@ pub(crate) struct ViewerBehavior<'a> {
     /// What the index could not name on the held edge set's body
     /// ([`ViewerApp::held_edges_refused`]); zeroed by the frame entry
     /// point and written by the viewport, as `datums_vanished` is.
-    pub(crate) held_edges_refused: &'a mut Option<EdgeNamesRefused>,
+    pub(crate) held_edges_refused: &'a mut Option<frame::Spelled<EdgeNamesRefused>>,
     /// **What this frame's panes have to SAY**, joined and ranked by
     /// [`frame::frame_status`] with everything else the frame
     /// produced. A pane that assigned `status` instead had no way to
@@ -3488,7 +3530,7 @@ mod properties_pane_tests {
     #![allow(clippy::expect_used, clippy::panic)]
 
     use eframe::egui;
-    use pncad::document::{Axis3, ParamName, RecipeNodeId, SlotId};
+    use pncad::document::{Axis3, RecipeNodeId, SlotId};
 
     use super::ViewerApp;
     use crate::session::{Selection, SessionOp};
@@ -3572,7 +3614,7 @@ mod properties_pane_tests {
             app_frame(&ctx, app, &mut frame, None, events)
         };
         // The startup document's last node is its body (`plate_with_hole`).
-        let body = *app.session.doc().order().last().expect("a startup body");
+        let body = *app.session.doc().ids().last().expect("a startup body");
         app.tools.open(tool);
         clicked(&mut app, picks(body));
         let mut landed = Vec::new();
@@ -3625,7 +3667,7 @@ mod properties_pane_tests {
         // The startup body is an extrude, spoken by its kind and tag.
         let line = format!(
             "first operand: Extrude {}; second operand: —",
-            test_utils::refusal::tag(body.0)
+            test_utils::refusal::tag(body.0.digest())
         );
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
     }
@@ -3640,7 +3682,7 @@ mod properties_pane_tests {
         });
         let line = format!(
             "pick a: face of Extrude {}; pick b: —",
-            test_utils::refusal::tag(body.0)
+            test_utils::refusal::tag(body.0.digest())
         );
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
     }
@@ -3650,7 +3692,7 @@ mod properties_pane_tests {
     /// there, which the `live()` gate on that line keeps unsaid.
     #[test]
     fn a_deleted_node_is_not_said_to_carry_no_parameters() {
-        let painted = painted_with(Selection::Node(RecipeNodeId(999)));
+        let painted = painted_with(Selection::Node(RecipeNodeId::new(0, 999)));
         assert!(painted.iter().any(|text| text == "deleted"), "{painted:?}");
         assert!(
             !painted
@@ -3660,13 +3702,14 @@ mod properties_pane_tests {
         );
     }
 
-    /// **An undeclared parameter is said once**: against the frame with
+    /// **An undeclared variable is said once**: against the frame with
     /// nothing selected, the pane gains the verdict line and loses the
     /// "select a feature" prompt, and nothing else.
     #[test]
-    fn an_undeclared_parameter_is_said_once_in_the_pane() {
-        let verdict = "parameter nope is no longer declared";
-        let mut with = painted_with(Selection::Param(ParamName::from_static("nope")));
+    fn an_undeclared_variable_is_said_once_in_the_pane() {
+        let var = pncad::document::VarId::new(0, 0x0123_4567_89ab_cdef);
+        let verdict = format!("{var} is no longer declared");
+        let mut with = painted_with(Selection::Variable(var));
         let mut without = painted_with(Selection::None);
         assert!(
             without.iter().any(|text| text == "select a feature"),
@@ -3869,7 +3912,7 @@ mod properties_pane_tests {
     fn startup_node(at: usize) -> RecipeNodeId {
         let (doc, _) = crate::scene::plate_with_hole(pncad::tolerance::witness())
             .expect("the startup document");
-        doc.order()[at]
+        doc.ids()[at]
     }
 
     /// The startup plate's extrude, and its one slot.
@@ -3882,7 +3925,7 @@ mod properties_pane_tests {
         startup_node(0)
     }
 
-    /// An expression with no parameter in it: computed all the same,
+    /// An expression with no variable in it: computed all the same,
     /// so the slot it drives has no written unit.
     const COMPUTED: &str = "1 mm + 1 mm";
 
@@ -3902,6 +3945,209 @@ mod properties_pane_tests {
             .status
             .as_ref()
             .map(|message| message.text().to_owned())
+    }
+
+    /// The startup extrude's depth typed as `value`, after a length
+    /// variable `name` declared at the same value; the extrude selected.
+    fn typed_beside(name: &'static str, value: f64) -> Vec<SessionOp> {
+        vec![
+            SessionOp::DeclareVar {
+                name: pncad::document::VarName::from_static(name),
+                value: pncad::document::FreeVar::continuous(
+                    pncad::document::Dimension::Length,
+                    value,
+                ),
+            },
+            SessionOp::SetSlot {
+                node: extrude(),
+                slot: SlotId::Distance,
+                value: crate::props::SlotValue::Continuous(value),
+            },
+            SessionOp::Select(Selection::Node(extrude())),
+        ]
+    }
+
+    /// **The offer is drawn under the typed slot, and its button writes
+    /// the slot to read the variable** — the real pane, the click
+    /// reaching the session as `SetSlotVariable`. The variable list
+    /// says `beam` too, so the button is the run on the offer's line.
+    #[test]
+    fn the_offer_is_drawn_and_its_button_makes_the_slot_read_the_variable() {
+        let mut pane = Driven::with(typed_beside("beam", 0.004));
+        let painted = pane.quiet();
+        let line = Driven::only(&painted, "same value as");
+        let at = painted
+            .iter()
+            .filter(|(run, _)| run == "beam")
+            .map(|(_, rect)| rect.center())
+            .min_by(|p, q| (p.y - line.y).abs().total_cmp(&(q.y - line.y).abs()))
+            .expect("the offered variable is drawn");
+        assert!((at.y - line.y).abs() < 4.0, "on the offer's line");
+        let press = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::default(),
+        };
+        pane.frame(vec![egui::Event::PointerMoved(at)]);
+        pane.frame(vec![press(true), press(false)]);
+        pane.frame(Vec::new());
+        let doc = pane.app.session.committed_doc();
+        assert_eq!(
+            doc.slot(extrude(), SlotId::Distance),
+            doc.var_named("beam"),
+            "the slot reads the variable offered"
+        );
+        let after = pane.quiet();
+        assert!(
+            !after.iter().any(|(run, _)| run == "same value as"),
+            "an accepted offer is no longer drawn"
+        );
+    }
+
+    /// **Declining is a button too**, and it leaves the document where
+    /// it was: the slot keeps the variable its typed value minted.
+    #[test]
+    fn keep_separate_declines_the_offer_and_moves_no_document() {
+        let mut pane = Driven::with(typed_beside("beam", 0.004));
+        pane.quiet();
+        let minted = pane
+            .app
+            .session
+            .committed_doc()
+            .slot(extrude(), SlotId::Distance);
+        let steps = pane.app.session.history().len();
+        pane.click("keep separate");
+        let after = pane.quiet();
+        assert!(!after.iter().any(|(run, _)| run == "same value as"));
+        assert_eq!(pane.app.session.history().len(), steps, "no undo step");
+        assert_eq!(
+            pane.app
+                .session
+                .committed_doc()
+                .slot(extrude(), SlotId::Distance),
+            minted
+        );
+    }
+
+    /// **The naming field opens empty and stores nothing until a name
+    /// is committed** (VR2; Ev, PR 4247: no proposal): the field holds
+    /// no text, its commit is disabled while it names nothing, the
+    /// document holds no name while it is open, and the commit is one
+    /// `RenameVar` of the variable the slot reads.
+    #[test]
+    fn the_naming_field_opens_empty_and_stores_only_on_commit() {
+        let mut pane = Driven::with(vec![SessionOp::Select(Selection::Node(extrude()))]);
+        pane.quiet();
+        let var = pane
+            .app
+            .session
+            .committed_doc()
+            .slot(extrude(), SlotId::Distance)
+            .expect("the extrude reads its depth");
+        assert!(pane.app.session.committed_doc().var_name(var).is_none());
+        pane.click("name…");
+        assert_eq!(
+            pane.app.drafts.name_draft,
+            Some(crate::drafts::NameDraft {
+                node: extrude(),
+                slot: SlotId::Distance,
+                var,
+                text: String::new(),
+            }),
+            "the field opens empty, for the variable the slot reads"
+        );
+        pane.quiet();
+        pane.click("Name");
+        assert!(
+            pane.app.session.committed_doc().var_name(var).is_none(),
+            "an empty field names nothing"
+        );
+        pane.app
+            .drafts
+            .name_draft
+            .as_mut()
+            .expect("the field is still open")
+            .text = "distance".to_owned();
+        pane.quiet();
+        assert!(
+            pane.app.session.committed_doc().var_name(var).is_none(),
+            "typed text stores nothing until committed"
+        );
+        pane.click("Name");
+        let doc = pane.app.session.committed_doc();
+        assert_eq!(
+            doc.var_name(var).map(|name| name.as_str()),
+            Some("distance")
+        );
+        assert_eq!(doc.slot(extrude(), SlotId::Distance), Some(var));
+        assert!(pane.app.drafts.name_draft.is_none(), "the field closes");
+    }
+
+    /// **An open naming field names the variable it was opened for and
+    /// no other**: accepting an offer while the field is open makes the
+    /// slot read the named `beam`, and the field closes rather than
+    /// rename `beam` through the slot.
+    #[test]
+    fn a_naming_field_closes_when_its_slot_reads_another_variable() {
+        let mut pane = Driven::with(typed_beside("beam", 0.004));
+        pane.quiet();
+        pane.click("name\u{2026}");
+        assert!(pane.app.drafts.name_draft.is_some(), "the field is open");
+        let beam = pane
+            .app
+            .session
+            .committed_doc()
+            .var_named("beam")
+            .expect("beam is declared");
+        let accepted = pane.app.session.perform(SessionOp::SetSlotVariable {
+            node: extrude(),
+            slot: SlotId::Distance,
+            var: beam,
+        });
+        assert!(accepted.refusal.is_none(), "{:?}", accepted.refusal);
+        let painted = pane.quiet();
+        assert!(pane.app.drafts.name_draft.is_none(), "the field closes");
+        assert!(!painted.iter().any(|(run, _)| run == "Name"));
+        assert_eq!(
+            pane.app
+                .session
+                .committed_doc()
+                .var_name(beam)
+                .map(|name| name.as_str()),
+            Some("beam"),
+            "beam keeps its name"
+        );
+    }
+
+    /// **A name the door refuses leaves the field open with its text**:
+    /// `distance` is taken, so `RenameVar` refuses, the variable stays
+    /// unnamed, and the person's text is still there to amend.
+    #[test]
+    fn a_refused_name_keeps_the_field_and_its_text() {
+        let mut pane = Driven::with(typed_beside("distance", 0.009));
+        pane.quiet();
+        pane.click("name\u{2026}");
+        let draft = pane
+            .app
+            .drafts
+            .name_draft
+            .as_mut()
+            .expect("the field is open");
+        assert!(draft.text.is_empty(), "the field opens empty");
+        draft.text = "distance".to_owned();
+        let var = draft.var;
+        pane.click("Name");
+        assert!(pane.app.session.committed_doc().var_name(var).is_none());
+        assert_eq!(
+            pane.app
+                .drafts
+                .name_draft
+                .as_ref()
+                .map(|draft| draft.text.as_str()),
+            Some("distance"),
+            "the field and its text stay"
+        );
     }
 
     /// **A driven slot's unit picker is drawn, cannot be opened, and
@@ -3938,7 +4184,7 @@ mod properties_pane_tests {
         assert_eq!(
             said,
             format!(
-                "the distance slot on node {} is computed, so it has no written unit to change \
+                "the distance slot on Extrude {} is computed, so it has no written unit to change \
                  — set an expression to change what it says",
                 extrude()
             )
@@ -4125,8 +4371,8 @@ mod properties_pane_tests {
         assert_eq!(
             said,
             format!(
-                "the origin z slot on node {} is computed, so it has no written unit to change \
-                 — set an expression to change what it says",
+                "the origin z slot on Datum frame {} is computed, so it has no written unit to \
+                 change — set an expression to change what it says",
                 frame_datum()
             )
         );
@@ -4275,9 +4521,13 @@ mod properties_pane_tests {
         let node = frame_datum();
         assert!(
             gained[0].starts_with(&format!(
-                "the origin x slot on node {node} is computed, so it has no written unit to change"
-            )) && gained[0].contains(&format!("\nthe origin y slot on node {node} is computed"))
-                && gained[0].contains(&format!("\nthe origin z slot on node {node} is computed")),
+                "the origin x slot on Datum frame {node} is computed, so it has no written unit \
+                 to change"
+            )) && gained[0].contains(&format!(
+                "\nthe origin y slot on Datum frame {node} is computed"
+            )) && gained[0].contains(&format!(
+                "\nthe origin z slot on Datum frame {node} is computed"
+            )),
             "{gained:?}"
         );
         pane.click("computed");
@@ -4474,6 +4724,117 @@ mod properties_pane_tests {
         );
     }
 
+    /// **An instance from the part chooser takes the label its field
+    /// holds**: the chooser proposes `InstantiatePart N` above its
+    /// listing, a text typed over the proposal is kept in the field, and
+    /// a pick inserts the instance with that label, spending the draft.
+    #[test]
+    fn the_part_chooser_labels_the_instance_it_inserts() {
+        use crate::pane::create::{ADD_PART, INSTANCE_NOUN};
+        let tol = pncad::tolerance::witness();
+        let dir = std::env::temp_dir().join(format!("part chooser label {}", std::process::id()));
+        if dir.exists() {
+            std::fs::remove_dir_all(&dir).expect("clear the fixture directory");
+        }
+        std::fs::create_dir_all(&dir).expect("create the fixture directory");
+        let (part, _, _) = crate::test_support::boss_on_block("part-chooser-label-part", tol);
+        let part_file = pncad::workspace::Workspace::open(&dir)
+            .expect("the empty workspace opens")
+            .create(&part, tol)
+            .expect("the part stores");
+        let part_name = part_file
+            .file_name()
+            .expect("a stored part has a file name")
+            .to_string_lossy()
+            .into_owned();
+        let mut driven = Driven::with(vec![SessionOp::Save(dir.join("assembly.pncad"))]);
+        driven.settle();
+        driven.click(ADD_PART);
+
+        let painted = driven.frame(Vec::new());
+        let proposal = Driven::only(&painted, &format!("{INSTANCE_NOUN} 1"));
+        let label_at = Driven::only(&painted, "label");
+        let part_at = Driven::only(&painted, &part_name);
+        assert!(
+            label_at.y < part_at.y,
+            "the label row stands above the listing: {painted:?}"
+        );
+
+        // Typed over the proposal: focus the field, select it all,
+        // type.
+        let press = |pressed| egui::Event::PointerButton {
+            pos: proposal,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::default(),
+        };
+        driven.frame(vec![egui::Event::PointerMoved(proposal)]);
+        driven.frame(vec![press(true), press(false)]);
+        driven.frame(vec![egui::Event::Key {
+            key: egui::Key::A,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::COMMAND,
+        }]);
+        driven.frame(vec![egui::Event::Text("left post".to_owned())]);
+        assert_eq!(
+            driven
+                .app
+                .drafts
+                .creation_labels
+                .get(INSTANCE_NOUN)
+                .map(String::as_str),
+            Some("left post"),
+            "the field keeps what was typed"
+        );
+
+        // The part's own `add`, on the row its file name is on.
+        let painted = driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        let part_at = Driven::only(&painted, &part_name);
+        let add = painted
+            .iter()
+            .filter(|(run, rect)| run == "add" && (rect.center().y - part_at.y).abs() < 1.0)
+            .map(|(_, rect)| rect.center())
+            .next()
+            .unwrap_or_else(|| panic!("the part's row has an add button: {painted:?}"));
+        let press = |pressed| egui::Event::PointerButton {
+            pos: add,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::default(),
+        };
+        driven.frame(vec![egui::Event::PointerMoved(add)]);
+        driven.frame(vec![press(true), press(false)]);
+        driven.quiet();
+
+        let doc = driven.app.session.doc();
+        let instances: Vec<_> = doc
+            .ids()
+            .iter()
+            .filter(|id| {
+                doc.node(**id)
+                    .is_some_and(|node| pncad::document::node_kind_noun(node) == INSTANCE_NOUN)
+            })
+            .map(|id| doc.label(*id).map(|label| label.as_str().to_owned()))
+            .collect();
+        assert_eq!(
+            instances,
+            [Some("left post".to_owned())],
+            "one instance, labelled as typed"
+        );
+        assert!(
+            driven.app.part_chooser.is_none(),
+            "the pick closes the chooser"
+        );
+        assert_eq!(
+            driven.app.drafts.creation_labels.get(INSTANCE_NOUN),
+            None,
+            "the landed instance spends the draft"
+        );
+        std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+    }
+
     /// A cap of `node`'s one body, as a face pick on it.
     fn cap_of(node: RecipeNodeId, end: pncad::prelude::CapEnd) -> crate::session::FaceSelection {
         crate::session::FaceSelection {
@@ -4649,11 +5010,11 @@ mod properties_pane_tests {
             said(&mut driven),
             "the form says why it withholds the button"
         );
-        let nodes = driven.app.session.doc().order().len();
+        let nodes = driven.app.session.doc().ids().len();
         driven.click(crate::pane::create::ADD_DATUM);
         driven.quiet();
         assert_eq!(
-            driven.app.session.doc().order().len(),
+            driven.app.session.doc().ids().len(),
             nodes,
             "the withheld button committed a datum"
         );
@@ -4682,6 +5043,111 @@ mod properties_pane_tests {
         driven.perform(SessionOp::Open(path.clone()));
         let removed = std::fs::remove_file(&path);
         assert_eq!(driven.app.drafts.datum_face, None, "open");
+        removed.expect("the row removes the document it saved");
+    }
+
+    /// **The op loop re-speaks what outlives the op that made it**
+    /// (`ViewerApp::respeak_held`): picked, renamed, then deleted, the
+    /// open tool's drop and the face-frame form's held face both name the
+    /// extrude by its last label, through `perform_batch` itself.
+    #[test]
+    fn the_op_loop_says_a_held_node_by_its_last_label() {
+        let rename_and_delete = |driven: &mut Driven| {
+            driven.perform(SessionOp::SetLabel {
+                node: extrude(),
+                label: label("plinth"),
+            });
+            driven
+                .app
+                .perform_batch(vec![SessionOp::DeleteNode { node: extrude() }]);
+        };
+        let plinth = format!(
+            "Extrude \"plinth\" ({})",
+            test_utils::refusal::tag(extrude().0.digest())
+        );
+
+        let mut driven = Driven::with(vec![SessionOp::SetLabel {
+            node: extrude(),
+            label: label("base"),
+        }]);
+        driven.settle();
+        driven.app.tools.open(crate::tools::ToolKind::Transform);
+        driven.select(Selection::Node(extrude()));
+        rename_and_delete(&mut driven);
+        let drawn = driven.quiet();
+        let dropped = drawn
+            .iter()
+            .map(|(run, _)| run)
+            .find(|run| run.contains("no longer in the document"))
+            .unwrap_or_else(|| panic!("the drop is said: {drawn:?}"));
+        assert!(
+            dropped.contains(&plinth),
+            "the tool's drop says the last label: {dropped}"
+        );
+
+        let (mut driven, _top) = Driven::holding_the_top_cap();
+        rename_and_delete(&mut driven);
+        assert_eq!(
+            driven
+                .app
+                .drafts
+                .datum_face_said()
+                .spoken(extrude())
+                .to_string(),
+            plinth,
+            "the form's held face says the last label"
+        );
+    }
+
+    /// **A document that replaces this one starts the open tool over**:
+    /// it stays open and holds nothing, since its picks are ids of the
+    /// document they were made in. Both doors that replace a document;
+    /// the reopened copy holds the same ids, so its pick would survive.
+    #[test]
+    fn a_replaced_document_drops_the_open_tools_picks() {
+        let picked = || {
+            let mut driven = Driven::with(Vec::new());
+            driven.settle();
+            driven.app.tools.open(crate::tools::ToolKind::Transform);
+            driven.select(Selection::Node(extrude()));
+            assert_eq!(
+                driven.app.tools.transform().and_then(|tool| tool.input()),
+                Some(extrude()),
+                "the pick is held"
+            );
+            driven
+        };
+        let held = |driven: &Driven| {
+            (
+                driven.app.tools.open_kind(),
+                driven.app.tools.transform().and_then(|tool| tool.input()),
+            )
+        };
+        let mut driven = picked();
+        driven.app.perform_batch(vec![SessionOp::NewDocument {
+            name: "fresh".to_owned(),
+        }]);
+        assert_eq!(
+            held(&driven),
+            (Some(crate::tools::ToolKind::Transform), None),
+            "new document"
+        );
+
+        let mut driven = picked();
+        let path = std::env::temp_dir().join(format!(
+            "tool picks across open {}.pncad",
+            std::process::id()
+        ));
+        driven
+            .app
+            .perform_batch(vec![SessionOp::Save(path.clone())]);
+        driven.perform(SessionOp::Open(path.clone()));
+        let removed = std::fs::remove_file(&path);
+        assert_eq!(
+            held(&driven),
+            (Some(crate::tools::ToolKind::Transform), None),
+            "open"
+        );
         removed.expect("the row removes the document it saved");
     }
 
@@ -4791,7 +5257,16 @@ mod properties_pane_tests {
             named: drawn.len() - 1,
             refused: 1,
         };
-        let badge = crate::frame::held_edges_badge(Some(&refused)).expect("a refusal badges");
+        let (landed, _) = driven.app.session.landed_pair().expect("the plate lands");
+        let refused_said =
+            pncad::document::Said(&refused, pncad::document::Speaker::of(landed)).to_string();
+        assert!(
+            refused_said.contains("of Extrude"),
+            "the refusal's node is said as the landed document holds it: {refused_said}"
+        );
+        let spelled = crate::frame::Spelled::in_landed(refused.clone(), Some(landed));
+        let badge =
+            crate::frame::held_edges_badge(Some(&spelled), Some(landed)).expect("a refusal badges");
         let badged = driven.quiet();
         assert!(
             badged.iter().any(|(run, _)| run == badge.label()),
@@ -4826,7 +5301,7 @@ mod properties_pane_tests {
             .map(|(run, _)| run)
             .find(|run| run.contains("the tool loaded no edges:"))
             .unwrap_or_else(|| panic!("the refused load is on the line: {said:?}"));
-        assert!(line.contains(&refused.to_string()), "{line}");
+        assert!(line.contains(&refused_said), "{line}");
         assert!(!line.contains("has no edges to select"), "{line}");
         assert_eq!(
             driven.app.tools.blend().map(crate::blend::BlendTool::count),
@@ -4849,6 +5324,242 @@ mod properties_pane_tests {
                 .iter()
                 .any(|(run, _)| run.starts_with("held edges:")),
             "a badge with nothing held is gone: {cleared:?}"
+        );
+    }
+
+    /// A seam that lands a request only while `open` is set: a run held
+    /// back for as long as a row wants the landed document behind the
+    /// shown one.
+    struct Gated {
+        inner: crate::evalseam::InlineEvaluator,
+        open: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    }
+
+    impl crate::evalseam::EvalService for Gated {
+        fn submit(&mut self, request: crate::evalseam::EvalRequest) {
+            self.inner.submit(request);
+        }
+
+        fn cancel(&mut self) {
+            self.inner.cancel();
+        }
+
+        fn poll(&mut self) -> Option<crate::evalseam::EvalDone> {
+            if self.open.load(std::sync::atomic::Ordering::SeqCst) {
+                self.inner.poll()
+            } else {
+                None
+            }
+        }
+
+        fn busy(&self) -> bool {
+            self.inner.busy()
+        }
+    }
+
+    /// The startup app over a [`Gated`] seam, open, and the gate.
+    fn gated() -> (Driven, std::sync::Arc<std::sync::atomic::AtomicBool>) {
+        let open = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let gate = std::sync::Arc::clone(&open);
+        let driven = Driven::with_seams(Vec::new(), |app| {
+            app.session = crate::session::DocSession::new(
+                app.session.doc().clone(),
+                pncad::tolerance::witness(),
+                Box::new(Gated {
+                    inner: crate::evalseam::InlineEvaluator::new(),
+                    open: gate,
+                }),
+            );
+        });
+        (driven, open)
+    }
+
+    /// `text` as a node's label.
+    fn label(text: &str) -> Option<pncad::document::Label> {
+        Some(pncad::document::Label::new(text).expect("a label"))
+    }
+
+    /// **The rename `shown plate` committed and held behind `gate`**,
+    /// two frames drawn after it: what they painted, and the extrude
+    /// as the landed document still says it.
+    fn renamed_behind(
+        driven: &mut Driven,
+        gate: &std::sync::atomic::AtomicBool,
+    ) -> (Vec<(String, egui::Rect)>, String) {
+        gate.store(false, std::sync::atomic::Ordering::SeqCst);
+        driven.app.perform_batch(vec![SessionOp::SetLabel {
+            node: extrude(),
+            label: label("shown plate"),
+        }]);
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        let drawn = driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        assert!(
+            driven
+                .app
+                .session
+                .doc()
+                .spoken(extrude())
+                .to_string()
+                .contains("shown plate"),
+            "the shown document is ahead of the landed one"
+        );
+        let landed = driven
+            .app
+            .session
+            .landed_pair()
+            .expect("the earlier run stays landed")
+            .0
+            .spoken(extrude())
+            .to_string();
+        assert!(landed.contains("landed plate"), "{landed}");
+        (drawn, landed)
+    }
+
+    /// **The pick path speaks from the landed document, not the shown
+    /// one.** A rename committed while its run is held leaves the shown
+    /// document ahead of the landed one; the blend panel's target line
+    /// and the held mark's badge say the label the landed run's ids
+    /// were read in, which is the label the picture they describe was
+    /// drawn under.
+    #[test]
+    fn the_pick_path_says_the_landed_label_while_a_rename_has_not_landed() {
+        let (mut driven, open) = gated();
+        driven.app.perform_batch(vec![SessionOp::SetLabel {
+            node: extrude(),
+            label: label("landed plate"),
+        }]);
+        driven.settle();
+        let (edge, unnamed) = {
+            let index = driven.on_screen();
+            let drawn = index.edges_in(extrude(), 0).to_vec();
+            let edge = crate::session::EdgeSelection {
+                name: index
+                    .edge_name_of(drawn[0])
+                    .expect("a drawn edge is named")
+                    .clone(),
+                node: extrude(),
+                body: 0,
+            };
+            (edge, drawn[1])
+        };
+        driven.app.tools.open(crate::tools::ToolKind::Blend);
+        driven.click_through(vec![Selection::Edge(edge)]);
+        driven
+            .app
+            .picks
+            .index_mut()
+            .expect("the settled app holds an index")
+            .unname_edge(unnamed);
+        driven.quiet();
+        driven.click(crate::pane::create::BLEND_EDGES);
+        driven.quiet();
+
+        let (drawn, landed) = renamed_behind(&mut driven, &open);
+        for prefix in ["1 edges picked on ", "held edges:"] {
+            let line = drawn
+                .iter()
+                .map(|(run, _)| run)
+                .find(|run| run.starts_with(prefix))
+                .unwrap_or_else(|| panic!("{prefix:?} is drawn: {drawn:?}"));
+            assert!(
+                line.contains(&landed) && !line.contains("shown plate"),
+                "{prefix:?} says the landed label: {line}"
+            );
+        }
+    }
+
+    /// **The mate tool's instance-pick refusal says the kept label
+    /// while the landed document is behind**: the run that would land
+    /// the rename and the delete is held, so the landed document still
+    /// says the extrude by its old label and the survival step keeps the
+    /// picks; the commit's refusal says the last label the shown
+    /// document gave it.
+    #[test]
+    fn the_mate_refusal_says_the_kept_label_while_a_delete_has_not_landed() {
+        let (mut driven, open) = gated();
+        driven.app.perform_batch(vec![SessionOp::SetLabel {
+            node: extrude(),
+            label: label("base"),
+        }]);
+        driven.settle();
+        driven.app.tools.open(crate::tools::ToolKind::Mate);
+        driven.click_through(vec![
+            Selection::Face(cap_of(extrude(), pncad::prelude::CapEnd::End)),
+            Selection::Face(cap_of(extrude(), pncad::prelude::CapEnd::Start)),
+            Selection::None,
+        ]);
+        open.store(false, std::sync::atomic::Ordering::SeqCst);
+        driven.app.perform_batch(vec![SessionOp::SetLabel {
+            node: extrude(),
+            label: label("plinth"),
+        }]);
+        driven
+            .app
+            .perform_batch(vec![SessionOp::DeleteNode { node: extrude() }]);
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        let landed = driven
+            .app
+            .session
+            .landed_pair()
+            .expect("the earlier run stays landed")
+            .0
+            .spoken(extrude())
+            .to_string();
+        assert!(
+            landed.contains("base"),
+            "the landed document is behind: {landed}"
+        );
+        assert!(
+            driven
+                .app
+                .tools
+                .mate()
+                .is_some_and(|tool| tool.state().picks()[0].is_some()),
+            "the survival step kept the pick"
+        );
+        driven.click(&crate::tools::ToolKind::Mate.commit());
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        let said = status(&driven).expect("the commit refused");
+        let plinth = format!(
+            "Extrude \"plinth\" ({})",
+            test_utils::refusal::tag(extrude().0.digest())
+        );
+        assert!(
+            said.contains(&format!("pick a is on {plinth}")),
+            "the refusal says the kept label: {said}"
+        );
+    }
+
+    /// **The selection's verdict speaks from the landed document, not
+    /// the shown one**: the standing is asked of the landed run, so a
+    /// picked face that no longer resolves names its minting node by
+    /// the label that run's ids were read in while a rename is held.
+    #[test]
+    fn the_selections_verdict_says_the_landed_label_while_a_rename_has_not_landed() {
+        let (mut driven, open) = gated();
+        driven.app.perform_batch(vec![SessionOp::SetLabel {
+            node: extrude(),
+            label: label("landed plate"),
+        }]);
+        driven.settle();
+        let mut gone = cap_of(extrude(), pncad::prelude::CapEnd::End);
+        gone.name
+            .path
+            .push(pncad::prelude::RoleSeg::Cap(pncad::prelude::CapEnd::End));
+        driven
+            .app
+            .perform_batch(vec![SessionOp::Select(Selection::Face(gone))]);
+        driven.quiet();
+
+        let (drawn, landed) = renamed_behind(&mut driven, &open);
+        let line = drawn
+            .iter()
+            .map(|(run, _)| run)
+            .find(|run| run.starts_with("this face no longer resolves in this evaluation: "))
+            .unwrap_or_else(|| panic!("the verdict is drawn: {drawn:?}"));
+        assert!(
+            line.contains(&landed) && !line.contains("shown plate"),
+            "the verdict says the landed label: {line}"
         );
     }
 }

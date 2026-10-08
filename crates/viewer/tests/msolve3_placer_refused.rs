@@ -13,10 +13,11 @@
 
 use crate::common;
 use crate::fixture;
+use pncad::document::ExtrudeSide;
 
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use pncad::document::{
-    Alignment, AxisSense, CancelToken, Doc, DocEdit, DocumentId, EvalOptions, Evaluation, Expr,
+    Alignment, AxisSense, CancelToken, Doc, DocEdit, DocumentId, EvalOptions, Evaluation, Formula,
     MateFault, MateFrame, MatePrimitive, Node, NodeErrorKind, NodeResult, PartSelect, PatternKind,
     ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, evaluate,
 };
@@ -35,6 +36,7 @@ fn block(label: &str, tol: Tol) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: common::len(0.02),
+            side: ExtrudeSide::Along,
         },
         tol,
     )
@@ -57,7 +59,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
         &doc,
         Node::Pattern {
             input: legs,
-            count: Expr::count(4),
+            count: Formula::count(4),
             kind: PatternKind::Linear {
                 direction: [common::scl(1e200), common::scl(0.0), common::scl(0.0)],
                 spacing: common::len(0.05),
@@ -66,8 +68,10 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
         tol,
     );
     let (doc, cap) = common::inserted(&doc, Node::instantiate_part(top), tol);
-    let frame =
-        |origin: [f64; 3], axis: [f64; 3]| MateFrame::authored(origin, axis, [1.0, 0.0, 0.0]);
+    let frame = |origin: [f64; 3], axis: [f64; 3]| {
+        MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
+            .expect("a definite frame")
+    };
     let (doc, mate) = common::inserted(
         &doc,
         Node::Mate {
@@ -95,10 +99,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     let opts = with_resolver(store);
     let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &opts, tol);
     let rows = tree::rows(&doc, Some(&ev), &viewer::parts::PartFiles::default());
-    let row = rows
-        .iter()
-        .find(|r| r.id == mate)
-        .expect("the mate has a row");
+    let row = common::row_of(&rows, mate);
     let message = row
         .status
         .message()
@@ -116,12 +117,11 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     assert_eq!(
         message,
         format!(
-            "node {} failed: the mate solve refused: mate {}'s a reference has no \
-             derived pose: node {p}, on its derivation, refuses. Recourse: repair node \
-             {p}",
-            test_utils::refusal::tag(mate.0),
-            test_utils::refusal::tag(mate.0),
-            p = test_utils::refusal::tag(pattern.0),
+            "Mate {} failed: the mate solve refused: this mate's a reference has no \
+             derived pose: Pattern {p}, on its derivation, refuses. Recourse: repair \
+             Pattern {p}",
+            test_utils::refusal::tag(mate.0.digest()),
+            p = test_utils::refusal::tag(pattern.0.digest()),
         ),
         "the row names the placer the evaluation typed"
     );
@@ -133,9 +133,9 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
         &vec![viewer::tree::CarriedLine {
             document: viewer::tree::THIS_DOCUMENT.to_owned(),
             line: format!(
-                "node {} failed: the pattern direction has no finite length (a component \
+                "Pattern {} failed: the pattern direction has no finite length (a component \
                  overflows the norm or is not a number). Recourse: {}",
-                test_utils::refusal::tag(pattern.0),
+                test_utils::refusal::tag(pattern.0.digest()),
                 geom_core::RANGE_RECOURSE
             ),
         }],
@@ -145,10 +145,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     // The compensation the old design rested on, measured: the
     // pattern's own row cannot state the cause, because the mate
     // fault poisoned it.
-    let placer = rows
-        .iter()
-        .find(|r| r.id == pattern)
-        .expect("the pattern has a row");
+    let placer = common::row_of(&rows, pattern);
     assert!(
         matches!(placer.status, RowStatus::Poisoned { through, .. } if through == mate),
         "the pattern is poisoned through the mate: {:?}",
@@ -202,7 +199,7 @@ fn copies(label: &str, copy: u32, part_selects: Option<i64>, tol: Tol) -> Copies
         &doc,
         Node::Pattern {
             input: legs,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
                 spacing: common::len(0.05),
@@ -216,7 +213,7 @@ fn copies(label: &str, copy: u32, part_selects: Option<i64>, tol: Tol) -> Copies
                 &doc,
                 Node::Part {
                     of: pattern,
-                    select: PartSelect::Instance(Expr::count(i)),
+                    select: PartSelect::Instance(Formula::count(i)),
                 },
                 tol,
             );
@@ -237,8 +234,10 @@ fn copies(label: &str, copy: u32, part_selects: Option<i64>, tol: Tol) -> Copies
         Some(part) => common::head_at(part, named),
         None => common::head(named),
     };
-    let frame =
-        |origin: [f64; 3], axis: [f64; 3]| MateFrame::authored(origin, axis, [1.0, 0.0, 0.0]);
+    let frame = |origin: [f64; 3], axis: [f64; 3]| {
+        MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
+            .expect("a definite frame")
+    };
     // The mate must MINT while its copy is there: a refusal here would
     // be a broken fixture, not the fault the rows below read once a
     // later edit to the named node strands it.
@@ -311,7 +310,7 @@ fn assert_the_mate_is_blamed(
     assert_eq!(
         mate_row,
         RowStatus::Failed {
-            message: error.to_string(),
+            message: error.spoken(doc, ev),
             carried: Vec::new(),
         },
         "the mate's row is the cause and carries the payload's own words"
@@ -347,7 +346,8 @@ fn a_stranded_copy_blames_the_mate_and_not_the_pattern_it_stopped_at() {
         DocEdit::SetStructuralParam {
             node: s.pattern,
             slot: SlotId::Count,
-            expr: Expr::count(2),
+            expr: Formula::count(2),
+            fresh: Vec::new(),
         },
         tol,
     );
@@ -376,7 +376,8 @@ fn a_part_selecting_another_copy_blames_the_mate_and_not_the_part() {
         DocEdit::SetStructuralParam {
             node: part,
             slot: SlotId::Instance,
-            expr: Expr::count(2),
+            expr: Formula::count(2),
+            fresh: Vec::new(),
         },
         tol,
     );
@@ -410,7 +411,7 @@ fn assert_both_loud(
         assert_eq!(
             common::status_of(&rows, id),
             RowStatus::Failed {
-                message: error.to_string(),
+                message: error.spoken(doc, ev),
                 carried: Vec::new(),
             },
             "{id:?} carries its own words"
@@ -444,7 +445,8 @@ fn a_part_past_its_patterns_count_fails_beside_the_mate() {
         DocEdit::SetStructuralParam {
             node: part,
             slot: SlotId::Instance,
-            expr: Expr::count(5),
+            expr: Formula::count(5),
+            fresh: Vec::new(),
         },
         tol,
     );
@@ -485,7 +487,8 @@ fn a_pattern_of_no_copies_fails_beside_the_mate() {
         DocEdit::SetStructuralParam {
             node: s.pattern,
             slot: SlotId::Count,
-            expr: Expr::count(0),
+            expr: Formula::count(0),
+            fresh: Vec::new(),
         },
         tol,
     );
@@ -507,14 +510,15 @@ fn a_pattern_of_no_copies_fails_beside_the_mate() {
 fn a_pattern_count_that_does_not_evaluate_links_the_mate_to_the_pattern() {
     let tol = Tol::witness();
     let s = copies("msolve3-view-count-overflow", 1, None, tol);
-    let overflowing =
-        Expr::mul(Expr::count(i64::MAX), Expr::count(2)).expect("a count times a count is a count");
+    let overflowing = Formula::mul(Formula::count(i64::MAX), Formula::count(2))
+        .expect("a count times a count is a count");
     let (doc, _) = common::edited(
         &s.doc,
         DocEdit::SetStructuralParam {
             node: s.pattern,
             slot: SlotId::Count,
             expr: overflowing,
+            fresh: Vec::new(),
         },
         tol,
     );

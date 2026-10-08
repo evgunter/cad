@@ -49,9 +49,9 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, LoopProgram, Node, ParamEnv,
-    ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId, StepId,
-    ValuePayload, resolve_loops, unparse,
+    DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, Expr, Formula, LoopProgram,
+    Node, ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId, SpokenNode,
+    StepId, ValuePayload, WrittenLoopFault, resolve_loops, resolve_written_loops,
 };
 use pncad::geom_core::{Arc2, Point2, Tol};
 use pncad::profile::{
@@ -234,7 +234,7 @@ pub fn fresh_target(kind: TargetKind) -> Target<f64> {
 /// come to be minted without its unit.
 fn recorded_notation(
     notation: Notation,
-    program: &LoopProgram,
+    program: &LoopProgram<Formula>,
 ) -> Result<RecordedNotation, DimensionError> {
     let mut recorded = RecordedNotation::new();
     for (step, arg) in program.step_args() {
@@ -273,7 +273,7 @@ fn recorded_notation(
 pub fn loop_program(
     shape: &ProfileShape,
     notation: Notation,
-) -> Result<LoopProgram, RecordedProgramError> {
+) -> Result<LoopProgram<Formula>, RecordedProgramError> {
     match shape {
         ProfileShape::Circle { centre, radius } => loop_program(
             &ProfileShape::Path {
@@ -337,7 +337,7 @@ pub fn authors_same_loops(a: &[ProfileShape], b: &[ProfileShape]) -> bool {
 pub fn loop_programs(
     shapes: &[ProfileShape],
     notation: Notation,
-) -> Result<Vec<LoopProgram>, RecordedProgramError> {
+) -> Result<Vec<LoopProgram<Formula>>, RecordedProgramError> {
     shapes
         .iter()
         .map(|shape| loop_program(shape, notation))
@@ -386,22 +386,27 @@ pub fn held_loops(
     node: RecipeNodeId,
 ) -> Result<Vec<Vec<Step<f64>>>, HeldRefusal> {
     let Some(Node::Profile(program)) = doc.node(node) else {
-        return Err(HeldRefusal::NotAProfile { node });
+        return Err(HeldRefusal::NotAProfile {
+            node: doc.spoken(node),
+        });
     };
-    held_program(node, program, &doc.param_env::<f64>())
+    held_program(doc.spoken(node), program, doc)
 }
 
 /// [`held_loops`] of a program in hand — `node` only names it in a
-/// refusal, and `env` is the parameter environment it resolves under.
+/// refusal, spoken by the caller from the document that holds it, and
+/// `doc` is the document whose variables it reads: they resolve under
+/// its environment, and a driven argument's source is written by its
+/// names.
 ///
 /// # Errors
 ///
 /// [`HeldRefusal::Driven`] or [`HeldRefusal::Resolve`], as
 /// [`held_loops`].
 pub fn held_program(
-    node: RecipeNodeId,
+    node: SpokenNode,
     program: &ProfileProgram,
-    env: &ParamEnv<f64>,
+    doc: &Doc<ProfileProgram>,
 ) -> Result<Vec<Vec<Step<f64>>>, HeldRefusal> {
     let held = Node::Profile(program.clone());
     // Every argument, asked of the node's own slot walk. An address
@@ -412,8 +417,11 @@ pub fn held_program(
         .slots()
         .into_iter()
         .filter_map(|slot| match held.expr(slot) {
-            Some(expr) if expr.literal_value().is_some() => None,
-            Some(expr) => Some((slot, unparse(expr))),
+            Some(&var) if doc.is_typed_value(var) => None,
+            Some(&var) => Some((
+                slot,
+                doc.unparse(&doc.written(&Expr::var(var, slot.dimension()))),
+            )),
             None => Some((slot, String::new())),
         })
         .collect();
@@ -423,32 +431,41 @@ pub fn held_program(
             slots: driven,
         });
     }
-    resolve_loops(&program.loops, env)
+    resolve_loops(&program.loops, &doc.var_env::<f64>())
         .map_err(|(slot, source)| HeldRefusal::Resolve { slot, source })
 }
 
-/// **Every step of `program` kept where it is** — the `ids` of a
-/// `DocEdit::SetProgram` (and a `SessionOp::EditProfile`) that moves
-/// numbers and nothing else.
+/// **`program` as it was written** ([`Node::written`]): each argument
+/// the formula its variable was written as — an anonymous variable's
+/// value, a named one's reader. It is what the path editor loads from
+/// and compares against: a value moved since the load (a `SetVarValue`
+/// on an argument's anonymous variable) moves it, where the stored
+/// program, which reads that variable by id, stays put.
 #[must_use]
-pub fn kept_in_place(program: &ProfileProgram) -> Vec<Vec<Option<StepId>>> {
-    program
-        .ids
-        .iter()
-        .map(|ids| ids.iter().copied().map(Some).collect())
-        .collect()
+pub fn written_program(
+    doc: &Doc<ProfileProgram>,
+    program: &ProfileProgram,
+) -> ProfileProgram<Formula> {
+    let Node::Profile(written) = Node::Profile(program.clone()).written(doc) else {
+        unreachable!("a profile node is written as a profile node")
+    };
+    written
 }
 
 /// **Whether `loops` under `ids` is `base` itself** — every step kept
 /// in place and the program bit-equal to `base`, blind to notation: a
-/// `DocEdit::SetProgram` of them would write nothing.
+/// `DocEdit::SetProgram` of them would write nothing. `base` is the
+/// program as written ([`written_program`]) for loops the editor holds,
+/// or as re-authored ([`Node::authored`]) for loops whose unmoved
+/// arguments carry their variables.
 #[must_use]
 pub fn is_committed(
-    base: &ProfileProgram,
-    loops: &[LoopProgram],
+    base: &ProfileProgram<Formula>,
+    loops: &[LoopProgram<Formula>],
     ids: &[Vec<Option<StepId>>],
 ) -> bool {
-    ids == kept_in_place(base).as_slice()
+    ids == base.kept_in_place().as_slice()
+        && base.loops.len() == loops.len()
         && *base
             == ProfileProgram {
                 plane: base.plane,
@@ -462,16 +479,16 @@ pub fn is_committed(
 pub enum HeldRefusal {
     /// The node is not a profile.
     NotAProfile {
-        /// The node named.
-        node: RecipeNodeId,
+        /// The node named, as the document held it.
+        node: SpokenNode,
     },
     /// One or more arguments are expressions, which the editor's
     /// plain-number steps cannot hold. Each is named with its source
     /// text; an empty source is an address the node lists and carries
     /// no expression for.
     Driven {
-        /// The profile node.
-        node: RecipeNodeId,
+        /// The profile node, as the document held it.
+        node: SpokenNode,
         /// Every driven argument, in slot order.
         slots: Vec<(SlotId, String)>,
     },
@@ -488,13 +505,12 @@ pub enum HeldRefusal {
 impl core::fmt::Display for HeldRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NotAProfile { node } => write!(f, "node {} is not a profile", node),
+            Self::NotAProfile { node } => write!(f, "{node} is not a profile"),
             Self::Driven { node, slots } => {
                 write!(
                     f,
-                    "node {}'s program is driven by expressions, which the editor's \
-                     number fields cannot hold — edit those in the slot rows: ",
-                    node
+                    "{node}'s program is driven by expressions, which the editor's number \
+                     fields cannot hold — edit those in the slot rows: "
                 )?;
                 for (index, (slot, source)) in slots.iter().enumerate() {
                     if index > 0 {
@@ -563,7 +579,7 @@ pub fn frame_placement(
 /// tree lists nodes that way, so the picker and the tree name the
 /// document's frames in one order.
 pub fn frames(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
-    doc.order()
+    doc.ids()
         .iter()
         .copied()
         .filter(|id| admits(doc.node(*id), NodeKindWanted::Frame))
@@ -1075,18 +1091,21 @@ pub fn preview(
         // CANONICAL, and it makes no difference which: a display unit
         // is presentation metadata that no evaluation reads, and this
         // program is built to be replayed and drawn, never committed.
-        programs.push(loop_program(shape, Notation::CANONICAL).map_err(PreviewError::Lowering)?);
+        let program = loop_program(shape, Notation::CANONICAL).map_err(PreviewError::Lowering)?;
+        programs.push(program);
     }
-    // Literals only reach this door, so an empty environment binds
-    // everything it can be asked about. It is passed rather than
-    // assumed because resolution is the document layer's one door and
-    // a form is not a special case of it. The LOOPS resolve, not a
-    // program: a preview has no plane node and does not need one — the
-    // plane it draws on arrives as a placement, from the frame the
-    // form is pointed at.
-    let env = ParamEnv::default();
-    let resolved = resolve_loops(&programs, &env)
-        .map_err(|(slot, source)| PreviewError::Resolve { slot, source })?;
+    // The LOOPS resolve, not a program: a preview has no plane node and
+    // does not need one — the plane it draws on arrives as a placement,
+    // from the frame the form is pointed at. Nor a document: each
+    // number the form wrote is the variable the insert door would mint
+    // for it, in a scratch document of the resolver's own.
+    let resolved = resolve_written_loops(&programs, tol).map_err(|fault| match fault {
+        WrittenLoopFault::Resolve { slot, source } => PreviewError::Resolve { slot, source },
+        // A form writes numbers, never a name.
+        WrittenLoopFault::Refused(refusal) => {
+            unreachable!("a form's program reads no name, yet {refusal}")
+        }
+    })?;
     let mut loops: Vec<ConstructedLoop<f64>> = Vec::with_capacity(resolved.len());
     let mut ends: Vec<LoopEnd> = Vec::with_capacity(resolved.len());
     // Every refusal met, in loop order: the refused loops' and the
@@ -1451,7 +1470,7 @@ pub fn committed(
     except: Option<RecipeNodeId>,
 ) -> CommittedProfiles {
     let mut out = CommittedProfiles::default();
-    for &node in doc.order() {
+    for node in doc.ids() {
         if Some(node) == except || !admits(doc.node(node), NodeKindWanted::Profile) {
             continue;
         }
@@ -1736,14 +1755,14 @@ fn flatten(
         // orders of magnitude from the origin and a radius to match sum
         // past the top of the range on the far side of the arc, with
         // every value here finite.
-        let Some(count) = arc_points(arc.radius, arc.sweep, chord)
-            .filter(|_| drawable([arc.centre.x, arc.centre.y]))
+        let Some(count) =
+            arc_points(arc.radius, arc.sweep, chord).filter(|_| drawable(arc.centre.to_array()))
         else {
             return Err(index);
         };
         for ordinal in 1..count {
             let p = arc.point_from(from, ordinal as f64 / count as f64);
-            let place = [p.x, p.y];
+            let place = p.to_array();
             if !drawable(place) {
                 return Err(index);
             }
@@ -2243,6 +2262,53 @@ mod tests {
         }
     }
 
+    /// **A path whose last corner is a fillet closes from the form.**
+    /// The rounded square from mid-side anchors, each corner a
+    /// `fillet`, the last one closed by `to Start (close)`: the form
+    /// admits every step at the tip it lands on, and the preview draws
+    /// the loop closed and valid, all four corners rounded.
+    ///
+    /// Red if the table drops `to Start (close)` after a fillet, or if
+    /// the seam fillet stops closing or validating.
+    #[test]
+    fn a_final_fillet_closes_from_the_form() {
+        use core::f64::consts::{FRAC_PI_2, PI};
+        let side = |x: f64, y: f64, theta: f64| {
+            [
+                Step::At(Point2::new(x, y)),
+                Step::Angle(theta),
+                Step::Fillet { radius: 0.004 },
+            ]
+        };
+        let mut steps: Vec<Step<f64>> = [
+            side(0.01, 0.0, 0.0),
+            side(0.02, 0.01, FRAC_PI_2),
+            side(0.01, 0.02, PI),
+            side(0.0, 0.01, -FRAC_PI_2),
+        ]
+        .concat();
+        steps.push(Step::CloseTo);
+        for (at, step) in steps.iter().enumerate() {
+            let state = super::tip_state_at(&steps, at, Tol::witness());
+            assert!(
+                super::admits_at(state, step.verb()).is_ok(),
+                "step {at} ({}) at {state:?}",
+                step.verb()
+            );
+        }
+        let drawn = previewed(vec![steps]).expect("the seam fillet draws");
+        assert!(
+            drawn.hold().is_none(),
+            "closed and valid: {:?}",
+            drawn.hold()
+        );
+        let [only] = drawn.loops.as_slice() else {
+            panic!("one loop: {drawn:?}")
+        };
+        assert!(only.end.closes(), "the fillet's close is the loop's");
+        assert_eq!(only.vertices.len(), 8, "four trimmed sides, four arcs");
+    }
+
     /// **A refused loop blanks no other loop, and outranks an
     /// unfinished one.** Four loops: unfinished, refused, closed,
     /// refused. All four draw, and the sentence is the FIRST refused
@@ -2449,7 +2515,7 @@ mod tests {
     ///
     /// No replay of the steps written holds that leg, so the chain is
     /// drawn short of it. Filed as
-    /// `work/author/a-last-leg-no-close-can-follow-is-dropped`; this is
+    /// `work/authtail/a-last-leg-no-close-can-follow-is-dropped`; this is
     /// the row to re-pin when it is fixed.
     ///
     /// Red if any of those legs is drawn.

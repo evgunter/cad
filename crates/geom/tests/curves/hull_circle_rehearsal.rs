@@ -142,7 +142,7 @@ fn arc_bounds(curve: &NurbsCurve3<f64>) -> Vec<ArcBound> {
     let sphere = compose::implicit_composite(
         &data,
         &ImplicitSurface::Sphere {
-            center: [c.x, c.y, c.z],
+            center: c.to_array(),
             radius: RADIUS,
         },
     )
@@ -150,8 +150,8 @@ fn arc_bounds(curve: &NurbsCurve3<f64>) -> Vec<ArcBound> {
     let plane = compose::implicit_composite(
         &data,
         &ImplicitSurface::Plane {
-            point: [c.x, c.y, c.z],
-            normal: [n.x, n.y, n.z],
+            point: c.to_array(),
+            normal: n.to_array(),
         },
     )
     .unwrap();

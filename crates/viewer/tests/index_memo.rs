@@ -7,7 +7,7 @@
 //! the index the plain door ([`PickIndex::build`]) builds from the same
 //! landed run, whose meshes are `mesh::tessellate` of each root body.
 //! Every row here opens a document, indexes it through the seam, then
-//! runs a sequence of edits — change a parameter, change another,
+//! runs a sequence of edits — change a variable, change another,
 //! revert the first — and after every landing asserts that the seam's
 //! meshes are byte-identical to the plain door's (the D9 goldens'
 //! digest, over every position, patch and boundary) and that a fixed
@@ -25,8 +25,8 @@ use std::sync::Arc;
 use bvh::{Aabb, Ray};
 use editor_core::resolve::{TSpan, crossing, ray_triangle};
 use editor_core::{
-    Dimension, DocEdit, Evaluation, Expr, HitTestError, NodePick, ProfileDoc, RecipeNodeId, SlotId,
-    StableName, UnnamedEntity,
+    Dimension, DocEdit, Evaluation, Formula, HitTestError, NodePick, ProfileDoc, RecipeNodeId,
+    SlotId, StableName, UnnamedEntity,
 };
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::mesh::Mesh;
@@ -95,44 +95,49 @@ fn digest(m: &Mesh) -> u64 {
 struct Edit {
     node: RecipeNodeId,
     slot: SlotId,
-    expr: Expr,
+    expr: Formula,
 }
 
 impl Edit {
-    /// The write as the session's op spells it.
-    fn op(&self) -> SessionOp {
-        set_slot(self.node, self.slot, &self.expr)
+    /// The write as the session's op spells it, against `doc`'s names.
+    fn op(&self, doc: &ProfileDoc) -> SessionOp {
+        set_slot(doc, self.node, self.slot, &self.expr)
     }
 }
 
 /// The corpus document's own bump edit — every parametric corpus
 /// document carries one — and the text that reverts it.
 fn bump_of(c: &corpus::CorpusDoc) -> Option<(Edit, Edit)> {
-    let DocEdit::SetParam { node, slot, expr } = c.bump.clone() else {
+    let DocEdit::SetParam {
+        node, slot, expr, ..
+    } = c.bump.clone()
+    else {
         return None;
     };
-    let original = c.doc.node(node)?.expr(slot)?;
+    let original = c.doc.slot_expansion(node, slot)?;
     Some((
         Edit { node, slot, expr },
         Edit {
             node,
             slot,
-            expr: original.clone(),
+            expr: Formula::from(original),
         },
     ))
 }
 
-/// A second parameter to change: the first literal length slot on a
+/// A second variable to change: the first literal length slot on a
 /// node other than `not`, scaled — "change another", when the document
 /// has another to change.
 fn another_length_slot(doc: &ProfileDoc, not: RecipeNodeId) -> Option<Edit> {
-    for &node in doc.order() {
+    for node in doc.ids() {
         if node == not {
             continue;
         }
         let n = doc.node(node)?;
         for slot in n.slots() {
-            let Some(expr) = n.expr(slot) else { continue };
+            let Some(expr) = doc.slot_expansion(node, slot) else {
+                continue;
+            };
             if expr.dim() != Dimension::Length {
                 continue;
             }
@@ -142,7 +147,7 @@ fn another_length_slot(doc: &ProfileDoc, not: RecipeNodeId) -> Option<Edit> {
             if value == 0.0 {
                 continue;
             }
-            let scaled = Expr::literal(value * 1.015_625, Dimension::Length).ok()?;
+            let scaled = Formula::literal(value * 1.015_625, Dimension::Length).ok()?;
             return Some(Edit {
                 node,
                 slot,
@@ -682,7 +687,7 @@ fn drive(name: &str, doc: ProfileDoc, edits: &[(&str, Edit)], tol: Tol) -> Vec<S
     }
     steps.push(opened);
     for (step, edit) in edits {
-        let outcome = session.perform(edit.op());
+        let outcome = session.perform(edit.op(session.committed_doc()));
         assert!(
             outcome.refusal.is_none(),
             "{name}: edit {step} refused: {:?}",
@@ -810,7 +815,7 @@ fn the_worker_threads_memo_answers_across_landings_and_a_skipped_generation() {
         for (landing, ask) in asked.iter().enumerate() {
             if landing > 0 {
                 let op = ops[landing - 1].clone().expect("an edit");
-                let outcome = session.perform(op.op());
+                let outcome = session.perform(op.op(session.committed_doc()));
                 assert!(
                     outcome.refusal.is_none(),
                     "{name}: landing {landing} refused"
@@ -861,16 +866,12 @@ fn the_gallery_ring_indexes_the_same_through_the_seam_across_edits() {
     let loaded = pncad::document::load(&text, tol).expect("the gallery ring loads");
     let doc = loaded.snapshot;
     let (node, slot, expr) = ring_bump(&doc);
-    let original = doc
-        .node(node)
-        .expect("a node")
-        .expr(slot)
-        .expect("its slot");
+    let original = doc.slot_expansion(node, slot).expect("its slot");
     let bump = Edit { node, slot, expr };
     let revert = Edit {
         node,
         slot,
-        expr: original.clone(),
+        expr: Formula::from(original),
     };
     let edits = sequence(&doc, bump, revert);
     drive("gallery_ring", doc, &edits, tol);
@@ -905,7 +906,7 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
     let bump = Edit { node, slot, expr };
     let mut session = DocSession::inline(doc, tol);
     session.pump();
-    let outcome = session.perform(bump.op());
+    let outcome = session.perform(bump.op(session.committed_doc()));
     assert!(
         outcome.refusal.is_none(),
         "the bump lands: {:?}",
@@ -979,8 +980,8 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
     let picked = &picked[0];
     let expected_point = ray.origin + ray.dir * hit.t();
     assert_eq!(
-        [picked.point.x, picked.point.y, picked.point.z].map(f64::to_bits),
-        [expected_point.x, expected_point.y, expected_point.z].map(f64::to_bits),
+        picked.point.to_array().map(f64::to_bits),
+        expected_point.to_array().map(f64::to_bits),
         "the hit point is the chord point as the ray reaches it: {:?}",
         picked.point
     );
@@ -1028,7 +1029,7 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
     let bump = Edit { node, slot, expr };
     let mut session = DocSession::inline(doc, tol);
     session.pump();
-    let outcome = session.perform(bump.op());
+    let outcome = session.perform(bump.op(session.committed_doc()));
     assert!(
         outcome.refusal.is_none(),
         "the bump lands: {:?}",
@@ -1314,7 +1315,7 @@ const RING_WIDE_CANDIDATE_CONDITIONING: f64 = 7.19e-16;
 /// something.
 const REACH: f64 = 1.48;
 
-/// The ring probe's answer: the chord point's parameter as the
+/// The ring probe's answer: the chord point's variable as the
 /// winning triangle's exact test rounds it. Re-derive from the
 /// probe's failure message if the ring's tessellation changes.
 const RING_CORNER_T: f64 = 1.48;

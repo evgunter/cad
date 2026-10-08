@@ -15,13 +15,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::{
-    CancelToken, CarriedIn, ContentPin, DocEdit, DocRef, DocumentId, EditError, EvalOptions,
-    Evaluation, Frame, Node, NodeErrorKind, NodeResult, PartFault, PartResolver, PersistError,
+    CancelToken, ContentPin, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation,
+    Frame, Node, NodeErrorKind, NodeResult, PartFault, PartResolver, PersistError,
     ProductErrorKind, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg,
     SnapshotError, StableName, content_pin, evaluate, load, product, product_named, save,
 };
@@ -102,6 +103,7 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     doc
@@ -126,6 +128,7 @@ fn boolean_part(label: &str) -> ProfileDoc {
         Node::Extrude {
             profile: plate_p,
             distance: len(0.8),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, boss_p) = on_frame(
@@ -140,6 +143,7 @@ fn boolean_part(label: &str) -> ProfileDoc {
         Node::Extrude {
             profile: boss_p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, _) = insert(
@@ -148,7 +152,7 @@ fn boolean_part(label: &str) -> ProfileDoc {
             op: editor_core::BooleanOp::Union,
             a: plate,
             b: boss,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     doc
@@ -170,6 +174,7 @@ fn two_solid_part(label: &str) -> ProfileDoc {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     doc
@@ -207,8 +212,8 @@ fn part_fault(ev: &Evaluation<f64>, node: RecipeNodeId) -> PartFault {
 /// 4 need. Exact (no arithmetic beyond the comparison), so a rigid
 /// translation moves it by exactly the translation.
 fn min_x(body: &topo::Body<f64>) -> f64 {
-    body.vertices()
-        .filter_map(|(_, v)| body.get_point(v.point))
+    body.vertex_points()
+        .map(|(_, p)| p)
         .map(|p| p.x)
         .fold(f64::INFINITY, f64::min)
 }
@@ -227,9 +232,12 @@ fn row1_two_instances_gather_into_a_two_solid_product() {
     let (doc, ids) = assembly("asm2a-r1-asm", &[doc_ref, doc_ref]);
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[1],
-            frame: Frame::translation([5.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[1],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                5.0, 0.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
     );
 
@@ -276,9 +284,12 @@ fn row2_one_part_two_instances_one_evaluation() {
     let (doc, ids) = assembly("asm2a-r2-asm", &[doc_ref, doc_ref, doc_ref]);
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[2],
-            frame: Frame::translation([9.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[2],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                9.0, 0.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
     );
 
@@ -305,9 +316,12 @@ fn row2_one_part_two_instances_one_evaluation() {
     let (doc, ids) = assembly("asm2a-r2-two", &[a, b]);
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[1],
-            frame: Frame::translation([20.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[1],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                20.0, 0.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
     );
     assert_eq!(run(&doc, &opts).part_evaluations, 2);
@@ -341,16 +355,22 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
     // and an op that does nothing decides nothing.
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: Frame::translation([0.0, 9.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[0],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                0.0, 9.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[1],
-            frame: Frame::translation([9.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[1],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                9.0, 0.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc, &opts);
@@ -391,11 +411,11 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
     // The counts are literals on purpose: a row that only compares the
     // two instances passes when both lose the same decisions. 466 is
     // the placing op's own log on this part (placement + validation of
-    // the placed body); 726 is the part's, on its own nodes — its
+    // the placed body); 728 is the part's, on its own nodes — its
     // profile's pre-pass on the Profile node's log, decided once (the
     // pinned lift reuses the pre-pass's validated form).
     assert_eq!(first.len(), 466, "the instantiate op's own decisions");
-    assert_eq!(direct_total, 726, "the part's decisions on its own nodes");
+    assert_eq!(direct_total, 728, "the part's decisions on its own nodes");
 }
 
 // ---- Row 3: instance-qualified naming ----
@@ -421,9 +441,12 @@ fn row3_instance_qualified_names_are_distinct_and_resolve_to_their_own_copy() {
     let (doc, ids) = assembly("asm2a-r3-asm", &[doc_ref, doc_ref]);
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[1],
-            frame: Frame::translation([5.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[1],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                5.0, 0.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc, &opts);
@@ -516,14 +539,14 @@ fn row3_instance_qualified_names_round_trip_persistence() {
     assert!(loaded.bit_eq(&doc), "the whole document round-trips");
 }
 
-// ---- Row 4: SetPlacement ----
+// ---- Row 4: SetOffset ----
 
-/// Row 4 — the placement moves the copy without changing its volume;
+/// Row 4 — the offset moves the copy without changing its volume;
 /// the pre-edit document is untouched (undo = keeping the prior value);
 /// an improper frame refuses typed NAMING the R4 prerequisite; a
 /// non-instance target refuses typed.
 #[test]
-fn row4_set_placement_moves_undoes_and_refuses() {
+fn row4_set_offset_moves_undoes_and_refuses() {
     let mut store = StubStore::default();
     let doc_ref = store.insert(part("asm2a-r4-part", 0.0, 1.0), Tol::witness());
     let opts = with_resolver(store);
@@ -531,13 +554,20 @@ fn row4_set_placement_moves_undoes_and_refuses() {
 
     let before = run(&doc, &opts);
     let before_body = product(&doc, &before, Tol::witness()).expect("gathers");
-    assert!(doc.placement(ids[0]).is_identity_bits());
+    assert_eq!(
+        fixture::offset_of(&doc, ids[0]),
+        Some(editor_core::Placement::IDENTITY),
+        "an inserted instance sits at the empty offset on the world"
+    );
 
     let (moved, _) = step(
         doc.clone(),
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: Frame::translation([7.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[0],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                7.0, 0.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
     );
     let after = run(&moved, &opts);
@@ -553,8 +583,11 @@ fn row4_set_placement_moves_undoes_and_refuses() {
     );
 
     // Undo, as this layer offers it: the prior document is unchanged.
-    assert!(doc.placement(ids[0]).is_identity_bits(), "undo restores");
-    assert!(doc.placements().is_empty());
+    assert_eq!(
+        fixture::offset_of(&doc, ids[0]),
+        Some(editor_core::Placement::IDENTITY),
+        "undo restores"
+    );
 
     // An improper frame (a mirror) refuses, naming R4's prerequisite.
     let mirror = Frame {
@@ -563,19 +596,22 @@ fn row4_set_placement_moves_undoes_and_refuses() {
     };
     match editor_core::apply(
         &doc,
-        &DocEdit::SetPlacement {
-            node: ids[0],
-            frame: mirror,
+        &DocEdit::SetOffset {
+            instance: ids[0],
+            offset: Some(editor_core::Placement::literal(&mirror)),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
         Err(
-            e @ EditError::ImproperPlacement {
-                node, determinant, ..
+            ref e @ EditError::ImproperPlacement {
+                ref node,
+                determinant,
+                ..
             },
         ) => {
-            assert_eq!(node, ids[0]);
+            assert_eq!(node.id(), ids[0]);
             assert!(determinant < 0.0);
             let rendered = e.to_string();
             assert!(
@@ -588,42 +624,22 @@ fn row4_set_placement_moves_undoes_and_refuses() {
 
     // A non-instance target refuses typed.
     let part_doc = part("asm2a-r4-nontarget", 0.0, 1.0);
-    let target = part_doc.order()[0];
+    let target = part_doc.ids()[0];
     match editor_core::apply(
         &part_doc,
-        &DocEdit::SetPlacement {
-            node: target,
-            frame: Frame::translation([1.0, 0.0, 0.0]),
+        &DocEdit::SetOffset {
+            instance: target,
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                1.0, 0.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::PlacementOnNonInstance { node }) => assert_eq!(node, target),
+        Err(EditError::OffsetOnNonInstance { node }) => assert_eq!(node.id(), target),
         other => panic!("a non-instance target must refuse, got {other:?}"),
     }
-}
-
-/// Row 4 (registry hygiene) — deleting an instance takes its placement
-/// with it; the save validator would refuse a stranded row.
-#[test]
-fn row4_deleting_an_instance_clears_its_placement() {
-    let mut store = StubStore::default();
-    let doc_ref = store.insert(part("asm2a-r4d-part", 0.0, 1.0), Tol::witness());
-    let _ = with_resolver(store);
-    let (doc, ids) = assembly("asm2a-r4d-asm", &[doc_ref, doc_ref]);
-    let (doc, _) = step(
-        doc,
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: Frame::translation([3.0, 0.0, 0.0]),
-        },
-    );
-    assert_eq!(doc.placements().len(), 1);
-    let (doc, _) = step(doc, DocEdit::DeleteNode { id: ids[0] });
-    assert!(
-        doc.placements().is_empty(),
-        "the placement dies with its instance"
-    );
 }
 
 // ---- Row 5: the refusals, each its own row ----
@@ -731,7 +747,7 @@ fn row5d_multi_solid_part_instantiates_since_asm_2b() {
 
 // ---- Row 6: pin semantics ----
 
-/// Row 6 — the assembly's own pin moves on `SetPlacement` and on a
+/// Row 6 — the assembly's own pin moves on `SetOffset` and on a
 /// pin-bump of a reference, and an untouched-content re-save leaves it
 /// fixed.
 #[test]
@@ -751,9 +767,12 @@ fn row6_the_assembly_pin_moves_exactly_when_its_content_does() {
     // A placement moves it.
     let (moved, _) = step(
         doc.clone(),
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: Frame::translation([1.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[0],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                1.0, 0.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
     );
     assert_ne!(content_pin(&moved, Tol::witness()).expect("pins"), pin0);
@@ -780,9 +799,12 @@ fn row6_placement_is_part_of_the_content_key() {
 
     let (moved, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: Frame::translation([4.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[0],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                4.0, 0.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
     );
     let second = evaluate::<f64>(
@@ -827,24 +849,28 @@ fn row7_instantiate_and_placement_round_trip() {
     let (doc, ids) = assembly("asm2a-r7-asm", &[doc_ref, doc_ref]);
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[1],
-            frame: Frame::rotate_then_translate(
-                [0.0, 0.0, 1.0],
-                0.25,
-                [2.0, 3.0, 0.0],
-                fixture::band(),
-            )
-            .expect("a literal axis has a definite direction"),
+        DocEdit::SetOffset {
+            instance: ids[1],
+            offset: Some(editor_core::Placement::literal(
+                &Frame::rotate_then_translate(
+                    [0.0, 0.0, 1.0],
+                    0.25,
+                    [2.0, 3.0, 0.0],
+                    fixture::band(),
+                )
+                .expect("a literal axis has a definite direction"),
+            )),
+            fresh: Vec::new(),
         },
     );
 
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     let loaded = load(&text, Tol::witness()).expect("loads").doc;
-    assert!(loaded.bit_eq(&doc), "the placement round-trips bit for bit");
-    assert_eq!(loaded.placements().len(), 1);
+    assert!(loaded.bit_eq(&doc), "the offset round-trips bit for bit");
     assert!(
-        loaded.placement(ids[1]).bit_eq(&doc.placement(ids[1])),
+        fixture::offset_of(&loaded, ids[1])
+            .zip(fixture::offset_of(&doc, ids[1]))
+            .is_some_and(|(a, b)| a.bit_eq(&b)),
         "the frame's bits survive"
     );
     assert!(
@@ -857,17 +883,16 @@ fn row7_instantiate_and_placement_round_trip() {
     );
 }
 
-/// Row 7 (validator half) — a file whose placement names a
-/// non-instance, or carries an improper frame, refuses at the save
-/// door: the file can hold no placement state the edit doors could not
-/// have produced.
+/// Row 7 (validator half) — a file whose instance names a live node
+/// that is not a gauge as its gauge refuses at the load door: the file
+/// can hold no gauge state the edit doors could not have produced.
 #[test]
-fn row7_the_validator_refuses_placement_states_the_edits_cannot_produce() {
+fn row7_the_validator_refuses_gauge_states_the_edits_cannot_produce() {
     let mut store = StubStore::default();
     let doc_ref = store.insert(part("asm2a-r7v-part", 0.0, 1.0), Tol::witness());
     let (doc, ids) = assembly("asm2a-r7v-asm", &[doc_ref]);
-    // A second, NON-instance node, so the corrupted key below names a
-    // live node and the diagnosis is the placement rule rather than an
+    // A second, NON-gauge node, so the corrupted reference below names a
+    // live node and the diagnosis is the gauge rule rather than an
     // id-range fault.
     let (doc, other) = on_frame(
         doc,
@@ -878,25 +903,25 @@ fn row7_the_validator_refuses_placement_states_the_edits_cannot_produce() {
     );
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: Frame::translation([1.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[0],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                1.0, 0.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
     );
     let text = save(&doc, &[], Tol::witness()).expect("saves");
 
-    // Re-key the placement row onto the profile node — a state no edit
+    // Point the instance's gauge at the profile node — a state no edit
     // door can produce.
-    let corrupt = text.replace(
-        &format!("\"placements\": {{\n      \"{}\"", ids[0].0),
-        &format!("\"placements\": {{\n      \"{}\"", other.0),
-    );
+    let corrupt = text.replacen("\"gauge\": null", &format!("\"gauge\": \"{}\"", other.0), 1);
     assert_ne!(corrupt, text, "the corruption really landed");
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::PlacementSite { node })) => {
-            assert_eq!(node, other);
+        Err(PersistError::Snapshot(SnapshotError::NotAGauge { node, gauge })) => {
+            assert_eq!((node.id(), gauge.id()), (ids[0], other));
         }
-        other => panic!("a stranded placement must refuse, got {other:?}"),
+        other => panic!("a gauge reference to a non-gauge must refuse, got {other:?}"),
     }
 }
 
@@ -1033,7 +1058,7 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
         let (doc, _) = insert(doc, Node::instantiate_part(missing));
         doc
     };
-    let inner_root = broken.order()[0];
+    let inner_root = broken.ids()[0];
     let doc_ref = store.insert(broken, Tol::witness());
     let opts = with_resolver(store);
 
@@ -1041,7 +1066,7 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
     let ev = run(&doc, &opts);
     let fault = part_fault(&ev, ids[0]);
     match &fault {
-        PartFault::PartRootFailed { node, refusal } => {
+        PartFault::PartRootFailed { node, refusal, .. } => {
             assert_eq!(*node, inner_root, "the failing ROOT is named");
             assert!(
                 matches!(
@@ -1065,8 +1090,10 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
         "the message never points at an object the caller cannot reach: {rendered}"
     );
     assert!(
-        rendered.contains(&format!("node {}", test_utils::refusal::tag(inner_root.0)))
-            && !rendered.contains("did not resolve"),
+        rendered.contains(&format!(
+            "InstantiatePart {}",
+            test_utils::refusal::tag(inner_root.0.digest())
+        )) && !rendered.contains("did not resolve"),
         "it names the root and points, never quoting the root's own refusal: {rendered}"
     );
     assert!(
@@ -1098,11 +1125,13 @@ fn a_depth_three_chain_keeps_every_level_and_its_document() {
         p3,
         Node::Extrude {
             profile,
-            distance: editor_core::Expr::div(len(1.0), scl(0.0)).unwrap(),
+            distance: editor_core::Formula::div(len(1.0), scl(0.0)).unwrap(),
+            side: ExtrudeSide::Along,
         },
     );
-    let p3_own = match run(&p3, &EvalOptions::default()).result(p3_root) {
-        Some(NodeResult::Failed(e)) => e.to_string(),
+    let p3_ev = run(&p3, &EvalOptions::default());
+    let p3_own = match p3_ev.result(p3_root) {
+        Some(NodeResult::Failed(e)) => e.spoken(&p3, &p3_ev),
         other => panic!("p3's extrude refuses on its own: {other:?}"),
     };
     let r3 = store.insert(p3, tol);
@@ -1120,7 +1149,7 @@ fn a_depth_three_chain_keeps_every_level_and_its_document() {
     let ev = run(&asm, &with_resolver(store));
     let levels: Vec<_> = failure(&ev, instance)
         .carried_chain()
-        .map(|level| (level.document, level.node, level.line()))
+        .map(|level| (level.document.doc_ref(), level.node, level.line()))
         .collect();
     assert_eq!(
         levels
@@ -1128,9 +1157,9 @@ fn a_depth_three_chain_keeps_every_level_and_its_document() {
             .map(|(document, node, _)| (*document, *node))
             .collect::<Vec<_>>(),
         vec![
-            (CarriedIn::Part(&r1), p1_root),
-            (CarriedIn::Part(&r2), p2_root),
-            (CarriedIn::Part(&r3), p3_root),
+            (Some(&r1), p1_root),
+            (Some(&r2), p2_root),
+            (Some(&r3), p3_root),
         ],
         "one level per document, in order, each in the part it is numbered in"
     );
@@ -1158,6 +1187,7 @@ fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
         root,
         through,
         refusal,
+        ..
     } = &fault
     else {
         panic!("expected PartRootPoisoned, got {fault:?}");
@@ -1170,24 +1200,27 @@ fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
     let rendered = fault.to_string();
     assert!(
         rendered.contains(&format!(
-            "repair node {}",
-            test_utils::refusal::tag(extrude.0)
-        )) && rendered.contains(&format!("node {}", test_utils::refusal::tag(moved.0))),
+            "repair Extrude {}",
+            test_utils::refusal::tag(extrude.0.digest())
+        )) && rendered.contains(&format!(
+            "Transform {}",
+            test_utils::refusal::tag(moved.0.digest())
+        )),
         "the instance names the root and points at the failed node: {rendered}"
     );
     let levels: Vec<_> = failure(&ev, ids[0])
         .carried_chain()
-        .map(|level| (level.document, level.node, level.line()))
+        .map(|level| (level.document.doc_ref(), level.node, level.line()))
         .collect();
     assert_eq!(
         levels,
-        vec![(CarriedIn::Part(&part_ref), extrude, own.clone())],
+        vec![(Some(&part_ref), extrude, own.clone())],
         "the traceback ends at the failing node, drawn as the part draws it"
     );
     let refused = own
         .strip_prefix(&format!(
-            "node {} failed: ",
-            test_utils::refusal::tag(extrude.0)
+            "Extrude {} failed: ",
+            test_utils::refusal::tag(extrude.0.digest())
         ))
         .expect("a node line opens with its node");
     assert!(
@@ -1226,7 +1259,8 @@ fn poisoned_part(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         part,
         Node::Extrude {
             profile,
-            distance: editor_core::Expr::div(len(1.0), scl(0.0)).unwrap(),
+            distance: editor_core::Formula::div(len(1.0), scl(0.0)).unwrap(),
+            side: ExtrudeSide::Along,
         },
     );
     let (part, moved) = moved_over(part, extrude);
@@ -1238,13 +1272,14 @@ fn poisoned_part(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     (part, extrude, moved)
 }
 
-/// `node`'s own refusal line, as `doc`'s own evaluation draws it.
+/// `node`'s own refusal line, as `doc`'s own tree draws it.
 fn own_line(doc: &ProfileDoc, node: RecipeNodeId, opts: &EvalOptions) -> String {
-    match run(doc, opts).result(node) {
-        Some(NodeResult::Failed(e)) => e.to_string(),
+    let ev = run(doc, opts);
+    match ev.result(node) {
+        Some(NodeResult::Failed(e)) => e.spoken(doc, &ev),
         other => panic!(
             "node {} refuses on its own: {other:?}",
-            test_utils::refusal::tag(node.0)
+            test_utils::refusal::tag(node.0.digest())
         ),
     }
 }
@@ -1277,6 +1312,7 @@ fn a_poisoned_root_two_documents_down_chains_to_the_failing_node() {
         root,
         through,
         refusal,
+        ..
     } = &fault
     else {
         panic!("expected PartRootPoisoned, got {fault:?}");
@@ -1295,20 +1331,20 @@ fn a_poisoned_root_two_documents_down_chains_to_the_failing_node() {
     let bracket_line = own_line(&bracket, inner, &opts);
     let levels: Vec<_> = failure(&ev, ids[0])
         .carried_chain()
-        .map(|level| (level.document, level.node, level.line()))
+        .map(|level| (level.document.doc_ref(), level.node, level.line()))
         .collect();
     assert_eq!(
         levels,
         vec![
-            (CarriedIn::Part(&bracket_ref), inner, bracket_line),
-            (CarriedIn::Part(&part_ref), extrude, broken_line),
+            (Some(&bracket_ref), inner, bracket_line),
+            (Some(&part_ref), extrude, broken_line),
         ],
         "one level per document, ending at the failing node"
     );
 }
 
-/// The gather's OTHER refusals cross the seam as a CLASS beside their
-/// sentence, so a consumer branches instead of substring-matching.
+/// The gather's OTHER refusals cross the seam whole, so a consumer
+/// branches on their class instead of substring-matching.
 ///
 /// Two documents refuse the gather for two different reasons, and both
 /// arrive as [`PartFault::PartProduct`]: the prose differs, which is
@@ -1330,7 +1366,7 @@ fn a_gather_refusal_crosses_as_its_class_beside_its_sentence() {
     // above.
     let twice = {
         let doc = part("asm2a-class-twice", 0.0, 1.0);
-        let body = *doc.order().last().expect("the part has its extrude");
+        let body = *doc.ids().last().expect("the part has its extrude");
         let moved = |doc, dx| {
             insert(
                 doc,
@@ -1354,13 +1390,16 @@ fn a_gather_refusal_crosses_as_its_class_beside_its_sentence() {
     let ev = run(&doc, &opts);
 
     let kind_of = |fault: &PartFault| match fault {
-        PartFault::PartProduct { kind, message } => {
+        PartFault::PartProduct { refusal, .. } => {
+            let said = fault.to_string();
+            let sentence = said
+                .strip_prefix("the part has no product: ")
+                .unwrap_or_else(|| panic!("the part's own header: {said}"));
             assert!(
-                !message.starts_with("product"),
-                "the gather's own sentence travels beside the class, without the gather's \
-                 stage word: {message}"
+                !sentence.starts_with("product"),
+                "the part says the gather's sentence without the gather's stage word: {said}"
             );
-            *kind
+            refusal.kind()
         }
         other => panic!("expected PartProduct, got {other:?}"),
     };
@@ -1492,10 +1531,10 @@ fn r1_the_placement_frame_matches_the_transform_node_bit_for_bit() {
         // `eval::wire::wire_transform`'s own expression, verbatim: the
         // axis normalized (its `unit`), then `Mat3::rotation_about`,
         // then `Affine3::from_parts` with the translation.
-        let unit = geom_core::Vec3::new(axis[0], axis[1], axis[2]).normalize();
+        let unit = geom_core::Vec3::from_array(axis).normalize();
         let expected = geom_core::Affine3::from_parts(
             geom_core::Mat3::rotation_about(unit, angle),
-            geom_core::Vec3::new(translation[0], translation[1], translation[2]),
+            geom_core::Vec3::from_array(translation),
         );
         let got = frame.affine::<f64>();
         let cols = [

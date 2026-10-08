@@ -11,6 +11,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 
 use crate::fixture::len;
 use editor_core::resolve::{Diagnosis, RecipeEditRef, ResolveError};
@@ -37,7 +39,7 @@ fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
 /// the profile drawn on it, then the extrude whose body every rim name
 /// below is minted by — the document's third node.
 fn body(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()[2]
+    doc.ids()[2]
 }
 
 fn planted(selection: impl FnOnce(&ProfileDoc) -> Vec<StableName>) -> (ProfileDoc, RecipeNodeId) {
@@ -59,12 +61,14 @@ fn planted(selection: impl FnOnce(&ProfileDoc) -> Vec<StableName>) -> (ProfileDo
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let applied = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::fillet(body, len(0.125), selection(&doc)),
+            node: Box::new(Node::fillet(body, len(0.125), selection(&doc))),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -81,10 +85,13 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
     use editor_core::{BooleanOp, DocEdit, apply};
     use fixture::on_frame;
     let mut doc = ProfileDoc::empty_derived("m6_5_selection_refusals", Tol::witness());
-    let insert = |doc: &ProfileDoc, node: Node<editor_core::ProfileProgram>| {
+    let insert = |doc: &ProfileDoc, node: AuthoredNode| {
         let a = apply(
             doc,
-            &DocEdit::InsertNode { node },
+            &DocEdit::InsertNode {
+                node: Box::new(node),
+                fresh: Vec::new(),
+            },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
@@ -105,6 +112,7 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: bp,
             distance: len(4.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (d, up) = on_frame(
@@ -128,6 +136,7 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: up,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (d, us) = insert(
@@ -136,7 +145,7 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
             op: BooleanOp::Subtract,
             a: ua,
             b: ub,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     doc = d;
@@ -149,7 +158,7 @@ fn rim(doc: &editor_core::ProfileDoc, node: RecipeNodeId, seg: u32) -> StableNam
         node,
         path: vec![RoleSeg::RimEdge(
             editor_core::CapEnd::End,
-            crate::fixture::piece(doc, node, 0, seg as usize),
+            crate::fixture::piece(doc, node, 0, seg as usize).into(),
         )],
     }
 }
@@ -178,21 +187,22 @@ fn a_selection_naming_a_never_existed_node_refuses_at_edit_time() {
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::fillet(
+            node: Box::new(Node::fillet(
                 body(&doc),
                 len(0.125),
                 vec![{
                     let mut elsewhere = rim(&doc, body(&doc), 0);
-                    elsewhere.node = RecipeNodeId(99);
+                    elsewhere.node = RecipeNodeId::new(0, 99);
                     elsewhere
                 }],
-            ),
+            )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
         Err(EditError::DeclareNamesMissingNode { name }) => {
-            assert_eq!(name.node, RecipeNodeId(99));
+            assert_eq!(name.name().node, RecipeNodeId::new(0, 99));
         }
         other => panic!("a typo id must refuse at the edit door, got {other:?}"),
     }
@@ -211,10 +221,12 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
     let spare = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Extrude {
-                profile: doc.order()[1],
+            node: Box::new(Node::Extrude {
+                profile: doc.ids()[1],
                 distance: len(2.0),
-            },
+                side: ExtrudeSide::Along,
+            }),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -224,7 +236,12 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
     let with_fillet = apply(
         &spare.doc,
         &DocEdit::InsertNode {
-            node: Node::fillet(body(&doc), len(0.125), vec![rim(&spare.doc, spare_id, 0)]),
+            node: Box::new(Node::fillet(
+                body(&doc),
+                len(0.125),
+                vec![rim(&spare.doc, spare_id, 0)],
+            )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -267,7 +284,7 @@ fn a_selection_naming_an_absent_entity_is_vanished() {
             node: body(doc),
             path: vec![RoleSeg::RimEdge(
                 editor_core::CapEnd::End,
-                crate::fixture::no_piece_of(doc),
+                crate::fixture::no_piece_of(doc).into(),
             )],
         }]
     });
@@ -325,7 +342,8 @@ fn a_tied_selection_name_refuses_ambiguous_with_its_witness() {
     let applied = editor_core::apply(
         &doc,
         &editor_core::DocEdit::InsertNode {
-            node: Node::fillet(us, len(0.125), vec![tied.clone()]),
+            node: Box::new(Node::fillet(us, len(0.125), vec![tied.clone()])),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

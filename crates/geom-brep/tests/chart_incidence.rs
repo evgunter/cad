@@ -4,7 +4,8 @@
 //! and the cone's reads one (a rim: ⊥ the axis, centred on it). Every
 //! carrier failing them is decided by an incidence test
 //! (`pcurve_sphere_chart_incident`, `pcurve_cone_chart_incident`): on
-//! the chart, an uncovered class; off it, a carrier off the chart. A
+//! the chart, its image, an uncovered class or a grazing circle; off
+//! it, a carrier off the chart. A
 //! gate that reads a SECOND, amplified quantity after an in-band first
 //! one — or a first-order quantity for a second-order departure — must
 //! not decide off-chart on its own; these rows build on-chart carriers
@@ -14,7 +15,7 @@
 
 use crate::shared::tol::{band, eps};
 use geom::{Curve3, Surface};
-use geom_brep::{PcurveCertifyError, UncoveredClass, chart_pcurve};
+use geom_brep::{Grazer, Pcurve, PcurveCertifyError, UncoveredClass, chart_pcurve};
 use geom_core::{Point3, Tol, Vec3};
 
 /// The right circular cone of half-angle `alpha` about `+z` with its
@@ -54,12 +55,12 @@ fn section(alpha: f64, h: f64, theta: f64) -> (Point3<f64>, Vec3<f64>, Vec3<f64>
     (centre, Vec3::new(s, 0.0, c), u, k / a, k / a.sqrt())
 }
 
-/// A tilted plane section of a cone lies on it, and is uncovered; the
+/// A tilted plane section of a cone lies on it, and is imaged; the
 /// same ellipse moved off it by `2·K·ε` — just past the sliver, so a
 /// meter loose by more than a factor of two would excuse it — is a
 /// carrier off the chart.
 #[test]
-fn a_cone_section_is_uncovered_and_a_moved_one_is_off_the_chart() {
+fn a_cone_section_is_imaged_and_a_moved_one_is_off_the_chart() {
     let alpha = 0.5;
     let (centre, axis, u_ref, major, minor) = section(alpha, 2.0, 0.3);
     let on = Curve3::Ellipse {
@@ -73,14 +74,8 @@ fn a_cone_section_is_uncovered_and_a_moved_one_is_off_the_chart() {
     assert!(dist < 1e-14, "on the cone: {dist:e}");
     let got = chart_pcurve(&on, &cone(alpha), band());
     assert!(
-        matches!(
-            got,
-            Err(PcurveCertifyError::UnsupportedCarrier {
-                class: UncoveredClass::ConeSection,
-                ..
-            })
-        ),
-        "a cone section is uncovered: {got:?}"
+        matches!(got, Ok(Pcurve::FocalSection(_))),
+        "a cone section derives its section image: {got:?}"
     );
     let shift = 2.0 * Tol::witness().k() * eps();
     let moved = Curve3::Ellipse {
@@ -171,7 +166,8 @@ fn each_harmonic_group_of_the_cone_residual_decides_alone() {
 /// `≈ tan α · ε/2` off the axis: inside the centring band on a needle
 /// cone, where it is a rim and images in closed form, and past it on a
 /// wide one, where the centring gate fails. There the incidence test,
-/// not the gate, decides — and the circle is on the cone.
+/// not the gate, decides — and the circle is on the cone, grazing it:
+/// a cone holds no circle but its rims.
 #[test]
 fn a_near_rim_circle_tilted_inside_the_axial_band_is_on_the_cone() {
     let e = eps();
@@ -202,12 +198,13 @@ fn a_near_rim_circle_tilted_inside_the_axial_band_is_on_the_cone() {
             assert!(
                 matches!(
                     got,
-                    Err(PcurveCertifyError::UnsupportedCarrier {
-                        class: UncoveredClass::ConeSection,
+                    Err(PcurveCertifyError::CarrierGrazesChart {
+                        grazer: Grazer::ConeCircle,
                         ..
                     })
                 ),
-                "alpha = {alpha}: an on-cone circle is never off the chart: {got:?}"
+                "alpha = {alpha}: an on-cone circle that is no rim grazes the chart, never off \
+                 it: {got:?}"
             );
         }
     }
@@ -263,4 +260,52 @@ fn a_near_pole_small_circle_tilted_inside_the_axial_band_is_on_the_sphere() {
             "rho = {rho:e}: an on-sphere circle is an uncovered general circle: {got:?}"
         );
     }
+}
+
+/// **An in-band move is never read off the cone or the sphere** (the
+/// one-sided incidence test). A cone section moved along the cone's
+/// axis by half the band's zero half derives its image; a sphere's
+/// general circle moved by as much is the general circle the fitted
+/// route images, never a carrier off the chart.
+#[test]
+fn an_in_band_move_is_never_read_off_the_cone_or_the_sphere() {
+    let alpha = 0.5;
+    let (centre, axis, u_ref, major, minor) = section(alpha, 2.0, 0.3);
+    let moved = Curve3::Ellipse {
+        center: centre + Vec3::unit_z() * (0.5 * eps()),
+        axis,
+        major,
+        minor,
+        u_ref,
+    };
+    let got = chart_pcurve(&moved, &cone(alpha), band());
+    assert!(
+        matches!(got, Ok(Pcurve::FocalSection(_))),
+        "a cone section moved ε/2: {got:?}"
+    );
+    let sphere = Surface::Sphere {
+        center: Point3::origin(),
+        radius: 1.0,
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let n = Vec3::new(0.3, 0.0, 1.0).normalize();
+    let (h, rho) = (0.6_f64, 0.8_f64);
+    let circle = Curve3::Circle {
+        center: Point3::origin() + n * (h + 0.5 * eps()),
+        axis: n,
+        radius: rho,
+        u_ref: Vec3::unit_y(),
+    };
+    let got = chart_pcurve(&circle, &sphere, band());
+    assert!(
+        matches!(
+            got,
+            Err(PcurveCertifyError::UnsupportedCarrier {
+                class: UncoveredClass::SphereGeneralCircle,
+                ..
+            })
+        ),
+        "a general circle moved ε/2 off the sphere: {got:?}"
+    );
 }

@@ -157,7 +157,7 @@ fn r1_the_lifted_donut_oracle_is_stable_and_is_only_a_sign() {
     let RevolvedKind::Full { .. } = &t.kind else {
         panic!("full revolve")
     };
-    let (f0, f1) = (t.walls[0][0].unwrap(), t.walls[0][1].unwrap());
+    let (f0, f1) = (t.walls()[0][0].unwrap(), t.walls()[0][1].unwrap());
     let exact = 2.0 * core::f64::consts::PI.powi(2) * 1.5 * 0.25;
 
     // (a) sweep the lift azimuth around the torus, off the u = 0 seam.
@@ -231,7 +231,7 @@ fn r1_the_lifted_donut_oracle_is_stable_and_is_only_a_sign() {
 #[test]
 fn r1_the_lifted_donut_value_depends_only_on_the_lift_difference() {
     let t = donut();
-    let (f0, f1) = (t.walls[0][0].unwrap(), t.walls[0][1].unwrap());
+    let (f0, f1) = (t.walls()[0][0].unwrap(), t.walls()[0][1].unwrap());
     let base = signed_volume_lifted(
         &t.body,
         &[

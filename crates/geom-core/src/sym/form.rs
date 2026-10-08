@@ -601,8 +601,12 @@ pub(super) struct Form {
     /// **This form was built through a clause-3 fold** (rule C,
     /// [`super::signed`]): it is equal to the expression at every point of
     /// the leaf's box rather than identically in the parameters, so a zero
-    /// reached through it is `sign_gated`, not `symbolic_zero`. Sticky
-    /// through every combinator, like the poison flag.
+    /// reached through it is `sign_gated`, not `symbolic_zero`. Every
+    /// combinator here carries it into its result. The walk drops it
+    /// only where the result does not depend on the gated operand: a
+    /// product or `copysign` whose zero factors are all ungated
+    /// (`zero_factors_gate`, in the early walk's zero arm), and the arm
+    /// A0's `Select` does not take.
     pub(super) gated: bool,
 }
 

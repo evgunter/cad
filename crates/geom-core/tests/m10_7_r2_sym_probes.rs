@@ -28,9 +28,12 @@ fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
 
-/// A parameter bound over `[lo, hi]` — the shape `param_env_over` binds.
+/// A parameter bound over `[lo, hi]` — the shape `var_env_over` binds.
 fn p(name: &str, lo: f64, hi: f64) -> Sym<Interval> {
-    Sym::param(ParamSymbol::of(name), Interval::from_bounds(lo, hi))
+    Sym::param(
+        ParamSymbol::new(test_utils::symbol_id(name)),
+        Interval::from_bounds(lo, hi),
+    )
 }
 
 fn lit(x: f64) -> Sym<Interval> {
@@ -521,7 +524,7 @@ fn r2_outside_a_session_the_tier_is_wholly_off() {
 fn r2_a_symbolic_zero_retags_rather_than_double_counting() {
     start_recording();
     let (_, counts) = with_session(budget(), || {
-        let x = Sym::param(ParamSymbol::of("x"), Probe(1.5));
+        let x = Sym::param(ParamSymbol::new(test_utils::symbol_id("x")), Probe(1.5));
         let _ = decide("r2_identity", Margin::of(x - x), band());
         let _ = decide("r2_real", Margin::of(x), band());
     });

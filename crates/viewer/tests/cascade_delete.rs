@@ -19,6 +19,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::ExtrudeSide;
 
 use pncad::document::{
     BooleanOp, Doc, DocEdit, Node, ProfileProgram, RecipeNodeId, cascade_delete_order,
@@ -50,6 +51,7 @@ fn die_shaped(tol: Tol) -> Die {
         Node::Extrude {
             profile: blank_profile,
             distance: common::len(0.04),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -59,6 +61,7 @@ fn die_shaped(tol: Tol) -> Die {
         Node::Extrude {
             profile: pip_profile,
             distance: common::len(0.004),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -88,7 +91,7 @@ fn die_shaped(tol: Tol) -> Die {
                 op: BooleanOp::Subtract,
                 a: body,
                 b: placed,
-                declare: None,
+                declare: Vec::new(),
             },
             tol,
         );
@@ -125,7 +128,7 @@ fn die_shaped(tol: Tol) -> Die {
 
 /// The live node ids, sorted — a document's identity for these rows.
 fn live(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
-    let mut ids = doc.order().to_vec();
+    let mut ids = doc.ids().to_vec();
     ids.sort_unstable();
     ids
 }
@@ -177,7 +180,7 @@ fn a_mid_chain_delete_takes_exactly_the_downstream_cone() {
         );
     }
     assert_eq!(
-        after.order().len(),
+        after.ids().len(),
         before.len() - expected.len(),
         "nothing else moved"
     );
@@ -236,7 +239,7 @@ fn the_delete_affordance_names_the_count_and_the_kinds() {
         leaf.label,
         format!(
             "Delete Fillet {}",
-            test_utils::refusal::tag(die.fillets[1].0)
+            test_utils::refusal::tag(die.fillets[1].0.digest())
         )
     );
     assert_eq!(
@@ -249,7 +252,7 @@ fn the_delete_affordance_names_the_count_and_the_kinds() {
         mid.label,
         format!(
             "Delete Boolean {} and 12 dependent features",
-            test_utils::refusal::tag(die.booleans[10].0)
+            test_utils::refusal::tag(die.booleans[10].0.digest())
         )
     );
     assert_eq!(
@@ -265,7 +268,7 @@ fn the_delete_affordance_names_the_count_and_the_kinds() {
         blank_cascade.label,
         format!(
             "Delete Boolean {} and 22 dependent features",
-            test_utils::refusal::tag(die.booleans[0].0)
+            test_utils::refusal::tag(die.booleans[0].0.digest())
         )
     );
 
@@ -275,7 +278,7 @@ fn the_delete_affordance_names_the_count_and_the_kinds() {
         one.label,
         format!(
             "Delete Fillet {} and 1 dependent feature",
-            test_utils::refusal::tag(die.fillets[0].0)
+            test_utils::refusal::tag(die.fillets[0].0.digest())
         )
     );
     assert_eq!(

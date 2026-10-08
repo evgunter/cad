@@ -101,6 +101,7 @@ const COLOR_ISOARC: &str = "#6b2fa0";
 const COLOR_FITTED: &str = "#c1590a";
 const COLOR_GENERAL: &str = "#a01c3c";
 const COLOR_SPIRIC: &str = "#1d7a5f";
+const COLOR_FOCAL_SECTION: &str = "#8a6d0b";
 
 /// The pcurve form a half-edge's chart image was drawn from.
 ///
@@ -133,6 +134,10 @@ enum Form {
     /// and neither is a spline, so the sheet draws it under its own
     /// name — the sample spacing is the carrier's own minor angle.
     Spiric,
+    /// The exact focal-section chart image — a tilted plane×cone
+    /// ellipse on its cone, a Villarceau circle on its torus: a
+    /// Kepler-anomaly azimuth, so its samples are uneven in `u`.
+    FocalSection,
 }
 
 impl Form {
@@ -144,6 +149,7 @@ impl Form {
             Pcurve::Fitted(_) => Form::Fitted,
             Pcurve::General(_) => Form::General,
             Pcurve::Spiric { .. } => Form::Spiric,
+            Pcurve::FocalSection(_) => Form::FocalSection,
         }
     }
 
@@ -155,6 +161,7 @@ impl Form {
             Form::Fitted => "fitted",
             Form::General => "general",
             Form::Spiric => "spiric",
+            Form::FocalSection => "focalsection",
         }
     }
 
@@ -166,6 +173,7 @@ impl Form {
             Form::Fitted => COLOR_FITTED,
             Form::General => COLOR_GENERAL,
             Form::Spiric => COLOR_SPIRIC,
+            Form::FocalSection => COLOR_FOCAL_SECTION,
         }
     }
 
@@ -181,6 +189,7 @@ impl Form {
             Form::Fitted => 3,
             Form::General => 4,
             Form::Spiric => 5,
+            Form::FocalSection => 6,
         }
     }
 }
@@ -260,15 +269,27 @@ fn walk_loop(body: &Body<f64>, lk: LoopKey, band: Band) -> Result<Vec<Traversal>
         return Err("loop has no cycle (empty boundary)".to_string());
     };
     let cycle = body.loop_cycle(first).ok_or("loop cycle does not close")?;
+    // The stored rows where the loop's lift places them; a loop with no
+    // lift draws every half-edge from the derive.
+    let lifted: Vec<Option<Pcurve<f64>>> = match body.loop_lift(lk) {
+        Ok(rows) => rows.into_iter().map(|row| Some(row.pcurve)).collect(),
+        Err(_) => vec![None; cycle.len()],
+    };
     let mut out = Vec::with_capacity(cycle.len());
-    for hek in cycle {
-        out.push(traverse(body, hek, band)?);
+    for (hek, image) in cycle.into_iter().zip(lifted) {
+        out.push(traverse(body, hek, image, band)?);
     }
     Ok(out)
 }
 
-/// One half-edge's chart image, sampled in traversal order.
-fn traverse(body: &Body<f64>, hek: HalfEdgeKey, band: Band) -> Result<Traversal, String> {
+/// One half-edge's chart image, sampled in traversal order: `lifted`,
+/// the stored row as its loop's lift places it, or the derive.
+fn traverse(
+    body: &Body<f64>,
+    hek: HalfEdgeKey,
+    lifted: Option<Pcurve<f64>>,
+    band: Band,
+) -> Result<Traversal, String> {
     let he = body.get_half_edge(hek).ok_or("dangling half-edge key")?;
     let edge = body.get_edge(he.edge).ok_or("half-edge names no edge")?;
     let curve = body
@@ -284,8 +305,8 @@ fn traverse(body: &Body<f64>, hek: HalfEdgeKey, band: Band) -> Result<Traversal,
 
     // The stored cache is what the tessellator reads; the derive is the
     // fallback so that a cache-less face still draws (and says so).
-    let (pcurve, stored) = match body.pcurve(hek) {
-        Some(cache) => (cache.pcurve().clone(), true),
+    let (pcurve, stored) = match lifted {
+        Some(image) => (image, true),
         None => (
             pncad::topo::pcurve_of(body, hek, band)
                 .map_err(|e| format!("no stored pcurve and the derive refused: {e:?}"))?,

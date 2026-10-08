@@ -12,6 +12,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     CapEnd, DocEdit, EntityKind, EvalOptions, MetaValue, NameRef, Node, PatternKind, PersistError,
@@ -39,6 +40,7 @@ fn chain(label: &str, k: usize) -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>)
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let mut patterns = Vec::with_capacity(k);
@@ -48,7 +50,7 @@ fn chain(label: &str, k: usize) -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>)
             doc,
             Node::Pattern {
                 input,
-                count: editor_core::Expr::count(1),
+                count: editor_core::Formula::count(1),
                 kind: PatternKind::Linear {
                     direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],
                     spacing: len(2.0),
@@ -126,21 +128,23 @@ fn a_split_remaps_a_name_past_every_stack_on_the_smallest_stack() {
         let depth = 20_000;
         let leaf = StableName {
             kind: editor_core::EntityKind::Face,
-            node: RecipeNodeId(1),
+            node: RecipeNodeId::new(0, 1),
             path: vec![editor_core::RoleSeg::Cap(editor_core::CapEnd::End)],
         };
-        let name = (0..depth).fold(leaf, |n, level| in_copy(RecipeNodeId(2 + level % 3), 0, n));
+        let name = (0..depth).fold(leaf, |n, level| {
+            in_copy(RecipeNodeId::new(0, 2 + level % 3), 0, n)
+        });
         let map = (1..=4)
-            .map(|n| (RecipeNodeId(n), RecipeNodeId(n + 100)))
+            .map(|n| (RecipeNodeId::new(0, n), RecipeNodeId::new(0, n + 100)))
             .collect();
         let moved = remap_name(&name, &map, &Default::default()).expect("every id is mapped");
         let expect = (0..depth).fold(
             StableName {
                 kind: editor_core::EntityKind::Face,
-                node: RecipeNodeId(101),
+                node: RecipeNodeId::new(0, 101),
                 path: vec![editor_core::RoleSeg::Cap(editor_core::CapEnd::End)],
             },
-            |n, level| in_copy(RecipeNodeId(102 + level % 3), 0, n),
+            |n, level| in_copy(RecipeNodeId::new(0, 102 + level % 3), 0, n),
         );
         assert!(
             moved == expect,
@@ -165,6 +169,7 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId, StableName, StableName) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let rim = fixture::rim_edge(extrude, CapEnd::End, fixture::piece(&doc, extrude, 0, 0));
@@ -203,7 +208,8 @@ fn names_in_parts(levels: usize) -> (ProfileDoc, String) {
         DocEdit::SetAppearanceMeta {
             name: in_parts(cap, levels),
             key: "probe".to_owned(),
-            value: MetaValue::Map([("v".to_owned(), MetaValue::Int(1))].into()),
+            value: MetaValue::map([("v".to_owned(), MetaValue::Int(1.into()))].into())
+                .expect("a shallow value"),
         },
     );
     let text = save(&doc, &[], tol).expect("the document saves");
@@ -289,7 +295,7 @@ fn what_nests_outside_a_name_is_refused_past_the_limit_whatever_keys_sit_beside_
         doc,
         Node::Pattern {
             input: extrude,
-            count: editor_core::Expr::count(2),
+            count: editor_core::Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],
                 spacing: len(2.0),
@@ -301,13 +307,14 @@ fn what_nests_outside_a_name_is_refused_past_the_limit_whatever_keys_sit_beside_
         DocEdit::SetAppearanceMeta {
             name: cap,
             key: "probe".to_owned(),
-            value: MetaValue::Map(
+            value: MetaValue::map(
                 [
-                    ("v".to_owned(), MetaValue::Int(1)),
+                    ("v".to_owned(), MetaValue::Int(1.into())),
                     ("kind".to_owned(), MetaValue::Str("mine".to_owned())),
                 ]
                 .into(),
-            ),
+            )
+            .expect("a shallow value"),
         },
     );
     let text = save(&doc, &[], tol).expect("the document saves");

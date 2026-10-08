@@ -63,9 +63,10 @@
 //!   the reindexing and `reversed ∘ reversed` is the identity,
 //!   bit-exactly (negation is exact). Under test.
 //! - **|Δθ| < 2π in the bulge form**: b = tan(θ/4) is finite, so no
-//!   segment the bulge input form writes closes a full period, and
-//!   validation refuses a loop of fewer than **2 vertices**: the
-//!   minimal circle is two arcs.
+//!   segment the bulge input form writes closes a full period, and its
+//!   minimal circle is two arcs. The canonical form also holds D1's
+//!   full turn, one arc at one vertex ([`is_full_turn`]); validation
+//!   refuses only a loop with no vertex.
 //! - **Winding is invisible.** There is no direction concept in the
 //!   API: users write loops in either traversal; [`Profile::validate`]
 //!   derives nesting from containment and canonicalizes traversal
@@ -91,17 +92,16 @@
 //!   declare the zero-turn joints they mint, both by construction.
 //!   [`ProfileLoop::tangent_joints`] is the field that carries the
 //!   result, and a fixture's way of writing one by hand.
-//! - **The sketch plane is a placement, and validation never reads
-//!   it.** [`SketchPlane`] is profile (x, y) ↦ plane origin + x·u +
-//!   y·v, with u/v/normal the columns of the placement's linear part,
-//!   and validation is purely 2-D (the plane is passed through
-//!   untouched). Rigidity — u, v, normal orthonormal and right-handed
-//!   — is the frame witness's: [`SketchPlane::from_frame`] takes an
-//!   [`geom_core::OrthoFrame`], which was decided at its mint.
-//!   [`SketchPlane::new`] is the read-back door and holds whatever
-//!   [`geom_core::Affine3`] it is handed, so a placement that came
-//!   from somewhere other than a frame carries only what its own
-//!   source decided.
+//! - **The sketch plane is a frame, and validation never reads it.**
+//!   [`SketchPlane`] holds one [`geom_core::OrthoFrame`] and nothing
+//!   else: profile (x, y) ↦ origin + x·u + y·v, its placement map
+//!   derived from the frame, never stored. Rigidity — u, v, normal
+//!   orthonormal and right-handed — is the frame's type, so every
+//!   sweep door that takes the plane reads a witnessed normal. No door
+//!   takes a bare [`geom_core::Affine3`]; the plane crosses scalars only
+//!   through the frame's exact crossings (geom-core's
+//!   `linalg::ortho_frame`, "Crossing scalars"). Validation is purely
+//!   2-D (the plane is passed through untouched).
 //!
 //! # Validation and canonical form
 //!
@@ -148,6 +148,10 @@ mod fillet_select;
 pub mod lift;
 pub mod path;
 mod seg;
+// `seg`'s randomized pair sweep, in a module of its own so the per-file test
+// gate can skip it without skipping that file's deterministic pair rows.
+#[cfg(test)]
+mod seg_reach_fuzz;
 pub mod structure;
 mod sugar;
 #[cfg(any(test, feature = "test-support"))]
@@ -203,7 +207,7 @@ pub use validate::{
 pub use validate::{
     ArcCheck, BlendArc, ConstructedProfile, ContactKind, EscalationSite, FilletLeg,
     FilletLegCarrier, LoopRole, NoCornerReason, ProfileError, SegmentKind, SegmentRef,
-    ValidatedLoop, ValidatedProfile, ValidatedSegment, decision_subject,
+    ValidatedLoop, ValidatedProfile, ValidatedSegment, decision_subject, is_full_turn,
 };
 
 /// One segment of a loop in its canonical form: a carrier plus a signed
@@ -233,85 +237,125 @@ pub enum Segment<T: Real> {
 /// **The bulge mode's lowering rule**: the canonical segment that the
 /// segment leaving `start` with `bulge` and ending at `end` lowers to —
 /// a [`Segment::Line`] exactly when the bulge is exactly zero (either
-/// sign), and otherwise the arc [`lower_arc`] builds, registered at
-/// `tol` when there is one.
-pub(crate) fn lower_to<T: Real>(
-    start: Point2<T>,
-    bulge: T,
-    end: Point2<T>,
-    tol: Option<Tol>,
-) -> Segment<T> {
+/// sign), and otherwise the arc [`lower_arc`] builds.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn lower_to<T: Real>(start: Point2<T>, bulge: T, end: Point2<T>) -> Segment<T> {
     if is_exact_zero(bulge) {
         return Segment::Line;
     }
-    Segment::Arc(lower_arc(start, end, bulge, tol))
+    Segment::Arc(lower_arc(start, end, bulge))
+}
+
+/// **The bulge mode's one conversion** in the lattice: `None`, a line,
+/// exactly at a zero bulge (either sign), and otherwise the arc
+/// [`lower_arc`] builds with its endpoint facts,
+/// [`BuiltArc::lowered`].
+pub(crate) fn bulge_leg<T: Real>(
+    start: Point2<T>,
+    end: Point2<T>,
+    bulge: T,
+) -> Option<BuiltArc<T>> {
+    (!is_exact_zero(bulge)).then(|| BuiltArc::lowered(start, end, bulge))
 }
 
 /// The bulge mode's lowering over a whole chain: each (position,
 /// bulge) pair becomes its vertex and the [`lower_to`] segment on its
 /// chord to the next pair's position, the last one's closing back to
-/// the first.
-pub(crate) fn lower_chain<T: Real>(
-    chain: &[(Point2<T>, T)],
-    tol: Option<Tol>,
-) -> Vec<(Point2<T>, Segment<T>)> {
+/// the first. Registers nothing: it is the fixture door's lowering, and
+/// a fixture holds no witness.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn lower_chain<T: Real>(chain: &[(Point2<T>, T)]) -> Vec<(Point2<T>, Segment<T>)> {
     let n = chain.len();
     (0..n)
         .map(|k| {
             let ((start, bulge), end) = (chain[k], chain[(k + 1) % n].0);
-            (start, lower_to(start, bulge, end, tol))
+            (start, lower_to(start, bulge, end))
         })
         .collect()
 }
 
-/// **The arc lowering**: the carrier [`seg::arc_carrier`] puts on the
-/// chord `start → end` for `bulge`, and the sweep Δθ = 4·atan(b) — and,
-/// given the run's ε, the arc's endpoint facts registered on the
-/// values it built ([`Arc2::register_endpoints`]). Without one (a
-/// fixture holds no witness) nothing is registered and the arc is the
-/// same.
-///
-/// **The proof the registrations rest on.** With `L` the chord length,
-/// `mid` its midpoint and `n̂` its unit left normal, the carrier is
-/// `centre = mid + n̂·L(1 − b²)/(4b)` and `radius = |L(1 + b²)/(4b)|`.
-/// Each endpoint sits `L/2` from `mid` along the chord, so
-/// `‖q − centre‖² = (L/2)² + L²(1 − b²)²/(16b²) = L²(1 + b²)²/(16b²)
-/// = radius²`, an identity of rational functions at every `b ≠ 0`; both
-/// sides are non-negative, so the rim at each end IS the radius. The
-/// centre lies on the chord's perpendicular bisector, so the angle
-/// about it from `start` to `end` is the included angle θ whose
-/// quarter-tangent the bulge is by definition (crate docs), and
-/// `4·atan(b)` is that θ for every finite `b` (|θ| < 2π): turning
-/// `start` about the centre by the sweep lands on `end`, and turning
-/// `end` back by the negated sweep lands on `start`. Since each end is
-/// on the carrier, the carrier's own end from either one
-/// ([`Arc2::carrier_end`]) is that same landing. Each is a theorem
-/// of the reals at every value of `start`, `end` and a nonzero finite
-/// `b`, which is what the door's axiom asks of its registrant; a lie
-/// the exact witness disproves aborts here, live in release.
-///
+/// **The arc lowering from a chord**: [`Arc2::from_chord`], the carrier
+/// on the chord `start → end` for `bulge` and the sweep Δθ = 4·atan(b).
 /// Pure arithmetic over its inputs, so it is the same expression at
-/// every scalar. A bulge of exactly zero has no carrier (its centre is
-/// at infinity), and the lowering rule sends it to a line before it
-/// reaches here.
-pub(crate) fn lower_arc<T: Real>(
-    start: Point2<T>,
-    end: Point2<T>,
-    bulge: T,
-    tol: Option<Tol>,
-) -> Arc2<T> {
-    let carrier = seg::arc_carrier(&seg::ChordFrame::of(start, end), bulge);
-    let arc = Arc2 {
-        centre: carrier.center,
-        radius: carrier.radius,
-        sweep: T::from_f64(4.0) * bulge.atan(),
-    };
-    if let Some(tol) = tol {
-        for (fact, answer) in arc.register_endpoints(start, end, tol) {
-            answer.handle(fact);
+/// every scalar. A bulge of exactly zero has no carrier
+/// (its centre is at infinity), and the lowering rule sends it to a
+/// line before it reaches here.
+///
+/// **Its endpoint facts are theorems** ([`Facts::Registered`]). With
+/// `L` the chord length, `mid` its midpoint and `n̂` its unit left
+/// normal, the carrier is `centre = mid + n̂·L(1 − b²)/(4b)` and
+/// `radius = |L(1 + b²)/(4b)|`. Each endpoint sits `L/2` from `mid`
+/// along the chord, so `‖q − centre‖² = (L/2)² + L²(1 − b²)²/(16b²) =
+/// L²(1 + b²)²/(16b²) = radius²`, an identity of rational functions at
+/// every `b ≠ 0`; both sides are non-negative, so the rim at each end
+/// IS the radius. The centre lies on the chord's perpendicular
+/// bisector, so the angle about it from `start` to `end` is the
+/// included angle θ whose quarter-tangent the bulge is by definition
+/// (crate docs), and `4·atan(b)` is that θ for every finite `b`
+/// (|θ| < 2π).
+pub(crate) fn lower_arc<T: Real>(start: Point2<T>, end: Point2<T>, bulge: T) -> Arc2<T> {
+    Arc2::from_chord(start, end, bulge)
+}
+
+/// What a construction proved about the arc it built, beyond the arc
+/// itself (D1: an identity the algebra does not close is registered by
+/// the construction that proves it).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Facts {
+    /// Every endpoint fact [`Arc2::register_endpoints`] states is a
+    /// theorem of the reals at every value of the construction's
+    /// inputs, and the arc's builder carries the proof in its doc
+    /// comment; the chain registers them at its close, on the vertices
+    /// it closed with.
+    Registered,
+    /// The construction proves no endpoint identity: some endpoint is
+    /// on the carrier only to an ε-decision the path door made inline
+    /// (a `Center` arc's `path_arc_center_equidistant`, a fillet's
+    /// decided offset tangency or exact fit), and nothing is
+    /// registered.
+    Decided,
+}
+
+/// An arc as the construction that built it left it: the stored arc
+/// and what the construction proved about it.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct BuiltArc<T: Real> {
+    /// The stored arc.
+    pub(crate) arc: Arc2<T>,
+    /// What its construction proved.
+    pub(crate) facts: Facts,
+}
+
+impl<T: Real> BuiltArc<T> {
+    /// The arc [`lower_arc`] lowers from the chord `start → end` and
+    /// `x`, with its endpoint facts — theorems of that lowering.
+    pub(crate) fn lowered(start: Point2<T>, end: Point2<T>, x: T) -> Self {
+        Self {
+            arc: lower_arc(start, end, x),
+            facts: Facts::Registered,
         }
     }
-    arc
+
+    /// The same arc with its endpoint facts held only to a decision:
+    /// for a caller that stores it between vertices other than the ones
+    /// its construction proved them at.
+    pub(crate) fn decided(self) -> Self {
+        Self {
+            facts: Facts::Decided,
+            ..self
+        }
+    }
+
+    /// **Registers the endpoint facts** of this arc between `start` and
+    /// `end` at the run's `tol`, when its construction proved them; a
+    /// lie the exact witness disproves aborts here, live in release.
+    pub(crate) fn register(self, start: Point2<T>, end: Point2<T>, tol: Tol) {
+        if self.facts == Facts::Registered {
+            for (fact, answer) in self.arc.register_endpoints(start, end, tol) {
+                answer.handle(fact);
+            }
+        }
+    }
 }
 
 /// Whether a bulge is exactly zero, of either sign — the line of the
@@ -1011,7 +1055,6 @@ mod lowering_tests {
             Point2::new(T::zero(), T::zero()),
             b,
             Point2::new(T::one(), T::zero()),
-            Some(Tol::witness()),
         ) {
             Segment::Line => "line",
             Segment::Arc(..) => "arc",
@@ -1122,10 +1165,7 @@ mod lowering_tests {
     /// bit.
     #[test]
     fn reversal_negates_the_sweep_and_keeps_the_carrier() {
-        let lp = ProfileLoop::from_chain(
-            lower_chain(&discriminating(), Some(Tol::witness())),
-            Vec::new(),
-        );
+        let lp = ProfileLoop::from_chain(lower_chain(&discriminating()), Vec::new());
         let bits = |l: &ProfileLoop<f64>| format!("{:?}", (l.vertices(), l.segments()));
         check_reversal(&lp, &lp.reversed());
         assert_eq!(bits(&lp.reversed().reversed()), bits(&lp), "an involution");
@@ -1139,7 +1179,7 @@ mod lowering_tests {
     /// the stored value, not of a re-derived one.
     #[test]
     fn map_scalar_carries_the_stored_carrier() {
-        let chain = lower_chain(&discriminating(), Some(Tol::witness()));
+        let chain = lower_chain(&discriminating());
         let nudged: Vec<_> = chain
             .into_iter()
             .map(|(pos, segment)| match segment {

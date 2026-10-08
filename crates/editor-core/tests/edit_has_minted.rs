@@ -36,6 +36,7 @@ test_utils::gated_to![
 ];
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{DocEdit, DocumentId, Node, ProfileDoc, RecipeNodeId, load, save};
 use fixture::{desc, insert, len, next_mint, square, step, xy_frame};
@@ -59,7 +60,7 @@ fn a_fresh_document_has_minted_nothing() {
     );
     for raw in 0..4u64 {
         assert!(
-            !doc.has_minted(RecipeNodeId(raw)),
+            !doc.has_minted(RecipeNodeId::new(0, raw)),
             "the empty document has minted nothing, and {raw} is nothing"
         );
     }
@@ -139,6 +140,7 @@ fn the_answer_survives_a_save_load_round_trip() {
         Node::Extrude {
             profile,
             distance: len(0.5),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, scratch) = insert(doc, Node::Profile(desc(plane, vec![square(4.0, 4.0, 1.0)])));

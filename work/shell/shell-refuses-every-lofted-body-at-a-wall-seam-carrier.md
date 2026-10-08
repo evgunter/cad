@@ -2,8 +2,13 @@
 id: shell-refuses-every-lofted-body-at-a-wall-seam-carrier
 kind: issue
 title: topo::shell refuses every lofted body re-anchoring a spline wall seam at a cap corner, so no NURBS-walled body reaches the offset fit through shell
-status: open
+status: closed
 opened: 2026-09-25
+priority: P1
+cost: M
+branch: shell/lofted-wall-seam
+pr: 4117
+closed: 2026-10-06
 ---
 
 
@@ -54,3 +59,59 @@ body at the default ε, mint plus tier 3's per-call re-derivation) has
 no operand until this lane exists AND O4's fitted-boundary refusal is
 answered. `encl_curved_loft_shell.rs` pins both boundaries so that
 either moving reds and hands the next lane the operand.
+
+## Also measured (CLEAVE, `edge-mint-doors-read-the-nurbs-lane-from-the-policy`, PR 3720, 2026-10-01)
+
+The same site blocks the plane × NURBS (M7-8) class wherever a wall
+edge with a NURBS carrier must be re-anchored, and only there. Two
+bodies at `f64`, on the branch where the edge-mint doors read the lane
+off `AtRestPolicy`:
+
+**The M7-8 cube** (`crates/topo/tests/fixture/m7_8.rs`): all four wall
+edges, the vertical ones included, are plane × NURBS on degree-1
+NURBS carriers.
+
+| call | result |
+|---|---|
+| `replace_face_offset(top z = 1, +0.25)` / `(side x = 0, +0.25)` | `CarrierLaneUnsupported { what: "a re-anchored carrier that is neither a line nor a circle" }` |
+| `replace_face_offset(back y = 1, +0.25)` (not adjacent to the wall) | `Ok`, the class intact |
+| `shell(0.1)`, `shell_open(0.1, [top])` | `ShellError::Face { error: CarrierLaneUnsupported { .. } }` |
+
+**The imported, placed instance**
+(`crates/step-import/tests/placed_m7_8_instance.rs`): only the wall's
+two quadratic cap rims are of the class. Its vertical edges are not
+NURBS-carried, so offsetting a cap re-anchors nothing of the class and
+reaches the re-chart's mint.
+
+| call | on main | on PR 3720 |
+|---|---|---|
+| `replace_face_offset(cap, -0.25)` (both caps) | `RechartFalsifies { NurbsLaneNotSupplied }` | `Ok`, the class intact |
+| `replace_face_offset(cap, +0.25)` | `RechartFalsifies { NurbsLaneNotSupplied }` | `RechartFalsifies { PlaneNurbs(Limb { OnLocus, 0.25 }) }`: the wall's patch ends at the cap, so the moved plane misses it by exactly the offset, a correct refusal |
+| `replace_face_offset(a side face, +0.25)` | `CarrierLaneUnsupported` (re-anchoring a rim) | the same |
+| `shell(0.1)` | `Face { Op { RechartFalsifies { NurbsLaneNotSupplied } } }` | `Face { CarrierLaneUnsupported { .. } }` on a side face |
+
+So the re-anchoring lane is what still keeps offset and shell from the
+class on a body whose re-anchored edges are NURBS-carried; on the
+imported instance a cap offset already reaches it.
+
+## Closed (SHELL orchestrator, 2026-10-06, PR 4117)
+
+`replace_face::plan_reanchors` re-anchors a moved vertex on a NURBS
+carrier through a certified, seeded projection (`NurbsLane::foot` →
+`seeded_foot` → `project_from_seed`), and on an ellipse in closed
+form. It refuses typed where a move leaves the patch
+(`ReanchorPastCarrierEnd`) or the scalar holds no lane
+(`NurbsLaneUnsupported`). The single full review found the re-anchor
+sound: 26 361 on-carrier feet with none on the wrong branch, and line
+and circle carriers bit-for-bit unchanged. Its fix pass:
+- adds a seed-deciding row;
+- makes the analytic arms explicit;
+- re-measures the |δ| acceptance over the new kinds;
+- corrects the refusal docs.
+Lofted bodies now meet their next walls, each filed:
+- the oblique spline-seam corner:
+  `shell-of-a-lofted-body-meets-the-oblique-corner-on-a-slanted-spline-seam`;
+- the pcurve mint's interior row: `iso/nurbs-iso-derive-line-rim-arm-…`;
+- O4's `FittedBoundaryUnsupported` on M7-8.
+ENCL's `a-rigid-map-can-still-refuse-…` is re-parked on the oblique
+corner item.

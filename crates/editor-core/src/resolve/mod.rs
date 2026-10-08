@@ -16,7 +16,7 @@
 //!   combinatorially indistinguishable — that is what a tie means — so
 //!   the tied set expressed in names is the tie row itself, and the
 //!   [`TieWitness`] carries the multiplicity and site).
-//! - The documented `order_along` over-tie widens: a reference to a
+//! - The documented `rank_by` over-tie widens: a reference to a
 //!   RANKED fragment name whose group over-tied resolves `Ambiguous`
 //!   with the WIDENED base name as the candidate — never a mis-bind.
 //! - N3's offered candidates (a retired constituent's merged name; a
@@ -86,10 +86,12 @@ use crate::diff::NodeChange;
 use crate::doc::Doc;
 use crate::eval::{Evaluation, NodeStanding};
 use crate::names::{
-    EntityKey, EntityKind, EntityRef, Entry, Qualifier, RoleSeg, StableName, name_free_seg,
+    EntityKey, EntityKind, EntityRef, Entry, Qualifier, RoleSeg, StableName, fragment_tail_start,
+    name_free_seg,
 };
 use crate::node::{RecipeNodeId, SlotId};
 use crate::program::ProfileProgram;
+use crate::spoken::{Said, Speaker};
 use crate::witness::WitnessBifurcation;
 use geom_core::Tol;
 
@@ -118,7 +120,7 @@ pub enum ResolveError {
         name: StableName,
         /// The distinct names the tied set answers to (module docs:
         /// the tie row itself, or the widened base on an
-        /// `order_along` over-tie).
+        /// `rank_by` over-tie).
         candidates: Vec<StableName>,
         /// The recorded tie's site and width.
         tie: TieWitness,
@@ -136,37 +138,118 @@ pub enum ResolveError {
 }
 
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
-// the PROBLEM in prose — the name through `StableName`'s own
-// `Display` (its kind and minting node — the half a user can act on),
-// the WHY forwarded from the payload's own rendering. `NodeGone`
-// alone re-spells the name, because its sentence interleaves the
-// fields ("the name's minting node …"). Composing layers
-// (`NodeErrorKind`'s two resolve arms) FORWARD this rather than
-// re-stating it.
-impl core::fmt::Display for ResolveError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+// the PROBLEM in prose — the name said once, in full where no table
+// holds it, the WHY forwarded from the payload's own rendering.
+// `NodeGone` names the node that minted the name, and words its edit itself.
+// A sentence that already names the reference (a node's slot, a pane's
+// "this face") leads with that instead ([`AboutReference`]).
+impl crate::spoken::Say for ResolveError {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
+        self.say_about(f, by, None)
+    }
+}
+
+/// **A resolve refusal about a reference its sentence already names**:
+/// the reference leads (`this fillet's edge 2 is stranded: …`, `this
+/// face is stranded: …`) and the name is not said, so no line names its
+/// subject twice.
+pub struct AboutReference<'a, R>(pub &'a ResolveError, pub R);
+
+impl<R: core::fmt::Display> crate::spoken::Say for AboutReference<'_, R> {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
+        self.0.say_about(f, by, Some(&self.1))
+    }
+}
+
+impl ResolveError {
+    /// The name that did not resolve.
+    #[must_use]
+    pub fn name(&self) -> &StableName {
+        match self {
+            Self::Vanished { name, .. }
+            | Self::Ambiguous { name, .. }
+            | Self::NodeGone { name, .. } => name,
+        }
+    }
+
+    /// The sentence, led by `reference` where the enclosing sentence
+    /// names one, by the name otherwise.
+    fn say_about(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+        reference: Option<&dyn core::fmt::Display>,
+    ) -> core::fmt::Result {
+        let lead = |f: &mut core::fmt::Formatter<'_>, name: &StableName| match reference {
+            Some(reference) => write!(f, "{reference}"),
+            None => write!(f, "{}", by.name(name)),
+        };
         match self {
             Self::Vanished {
                 name, diagnosis, ..
-            } => write!(
-                f,
-                "the {name} no longer resolves in this evaluation: {diagnosis}"
-            ),
-            Self::Ambiguous { name, tie, .. } => write!(
-                f,
-                "the {name} is tie-marked: {} equally-admissible \
-                 candidates at its recorded site — a tie is never broken by picking; \
-                 refine the reference until one candidate remains",
-                tie.width
-            ),
-            Self::NodeGone { name, edit } => write!(
-                f,
-                "the {} name's minting node {} is no longer in the document ({edit}) — \
-                 the repair is an explicit rebind",
-                name.kind.noun(),
-                name.node
-            ),
+            } => {
+                lead(f, name)?;
+                write!(
+                    f,
+                    " no longer resolves in this evaluation: {}",
+                    Said(diagnosis, by)
+                )
+            }
+            Self::Ambiguous { name, tie, .. } => {
+                lead(f, name)?;
+                write!(
+                    f,
+                    " is tie-marked: {} equally-admissible candidates at its recorded site — a \
+                     tie is never broken by picking; refine the reference until one candidate \
+                     remains",
+                    tie.width
+                )
+            }
+            Self::NodeGone { name, edit } => {
+                lead(f, name)?;
+                write!(f, " is stranded: {} ", by.node(name.node))?;
+                match edit {
+                    RecipeEditRef::NodeDeleted { .. } => f.write_str("was deleted")?,
+                    RecipeEditRef::ForeignNode { .. } => {
+                        f.write_str("was never minted by this document")?;
+                    }
+                    other => write!(f, "is not in the document ({})", Said(other, by))?,
+                }
+                write!(f, ". {}", crate::sentence::Recourse("rebind it"))
+            }
         }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for ResolveError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl ResolveError {
+    /// **The refusal as the frame holding the resolved document says it**:
+    /// each node as `doc` holds it now ([`crate::Doc::spoken`]), a node it
+    /// does not hold (a deleted one) by its tag, and each name within
+    /// the table `evaluation` holds it in ([`crate::Speaker::within`]).
+    /// Speak it from the document and evaluation of the run the
+    /// resolution is about, never the prior run's.
+    #[must_use]
+    pub fn spoken<P: crate::ProfilePayload>(
+        &self,
+        doc: &crate::doc::Doc<P>,
+        evaluation: &dyn crate::NameTables,
+    ) -> String {
+        crate::spoken::spoken_within(self, doc, evaluation)
     }
 }
 
@@ -217,7 +300,7 @@ impl ResolveError {
     /// The tie row IS the ambiguity (N5), so the candidates are that
     /// row expressed in names and are derived from the witness here
     /// rather than restated per door. `at` is the referenced name
-    /// itself, except on an `order_along` over-tie, where it is the
+    /// itself, except on an `rank_by` over-tie, where it is the
     /// widened base row the reference actually tied against.
     pub(crate) fn ambiguous(
         name: &StableName,
@@ -461,168 +544,27 @@ pub enum GroupCutters {
     SeamUnread,
 }
 
-/// One cutter as [`GroupCutters`]' sentence names it: its name, and the
-/// role it has in the entity it denotes, in words — so two walls of one
-/// extrude read as two walls rather than as one name twice.
-struct Cutter<'a>(&'a StableName);
-
-impl core::fmt::Display for Cutter<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let leaf = descent_leaf(self.0);
-        write!(f, "the {} (", self.0)?;
-        match leaf.path.first() {
-            Some(seg) => role_words(f, seg)?,
-            None => write!(f, "no role")?,
-        }
-        if leaf.node != self.0.node {
-            write!(f, ", minted by node {}", leaf.node)?;
-        }
-        write!(f, ")")
-    }
-}
-
-/// The name a descent chain ends at: `name` with every `FromA`,
-/// `FromB`, `FromMember` and `FromTarget` wrapper looked through and
-/// every trailing `Fragment` dropped — the entity whose role the
-/// cutter's sentence spells.
-fn descent_leaf(name: &StableName) -> &StableName {
-    let mut n = name;
-    loop {
-        let head = &n.path[..fragment_tail_start(&n.path)];
-        n = match head {
-            [RoleSeg::FromA(i) | RoleSeg::FromB(i) | RoleSeg::FromTarget(i)]
-            | [RoleSeg::FromMember { of: i, .. }] => i,
-            _ => return n,
-        };
-    }
-}
-
-/// A profile piece in words: its role (the role's own `Display`) and
-/// the step that drew it, by the id it was minted with — spelled as an
-/// id (`#7`), never as a position, since a name holds no position — or,
-/// on a kernel-built section, which circle.
-fn piece_words(e: &crate::names::ProfileEdgeRef) -> String {
-    use crate::names::{ProfileEdgeRef, SectionCircle};
-    match e {
-        ProfileEdgeRef::Piece { step, role } => {
-            format!("the {role} of the profile step {}", step)
-        }
-        ProfileEdgeRef::Section { circle, role } => format!(
-            "the {role} of the {} circle",
-            match circle {
-                SectionCircle::Outer => "outer",
-                SectionCircle::Bore => "bore",
-            }
-        ),
-    }
-}
-
-/// A role segment in words. Exhaustive, so a new segment is given words
-/// here or the compile breaks.
-fn role_words(f: &mut core::fmt::Formatter<'_>, seg: &RoleSeg) -> core::fmt::Result {
-    use crate::names::{CapEnd, MeridianEnd};
-    let cap = |e: &CapEnd| match e {
-        CapEnd::Start => "start",
-        CapEnd::End => "end",
-    };
-    let meridian = |e: &MeridianEnd| match e {
-        MeridianEnd::Start => "start",
-        MeridianEnd::End => "end",
-        MeridianEnd::Seam => "seam",
-        MeridianEnd::Pi => "half-turn",
-    };
-    let seg_of = |e: &crate::names::ProfileEdgeRef| piece_words(e);
-    let vert_of = |v: &crate::names::ProfileVertexRef| {
-        use crate::names::{ProfileEdgeRef, ProfileVertexRef};
-        let piece = match *v {
-            ProfileVertexRef::Piece { step, role } => ProfileEdgeRef::Piece { step, role },
-            ProfileVertexRef::Section { circle, role } => ProfileEdgeRef::Section { circle, role },
-        };
-        format!("the start of {}", piece_words(&piece))
-    };
-    match seg {
-        RoleSeg::OutputBody => write!(f, "the output body"),
-        RoleSeg::Cap(e) => write!(f, "the {} cap", cap(e)),
-        RoleSeg::Lateral(e) => write!(f, "the side wall over {}", seg_of(e)),
-        RoleSeg::RimEdge(c, e) => write!(f, "the {} rim edge over {}", cap(c), seg_of(e)),
-        RoleSeg::LateralEdge(v) => write!(f, "the lateral edge over {}", vert_of(v)),
-        RoleSeg::CapVertex(c, v) => write!(f, "the {} cap vertex over {}", cap(c), vert_of(v)),
-        RoleSeg::LoftWall(pieces) => write!(
-            f,
-            "the loft wall over {}",
-            pieces
-                .iter()
-                .map(seg_of)
-                .collect::<Vec<_>>()
-                .join(", then ")
-        ),
-        RoleSeg::LoftSeam(vertices) => write!(
-            f,
-            "the loft seam over {}",
-            vertices
-                .iter()
-                .map(vert_of)
-                .collect::<Vec<_>>()
-                .join(", then ")
-        ),
-        RoleSeg::Band(e) => write!(f, "the band face over {}", seg_of(e)),
-        RoleSeg::BandRim(v) => write!(f, "the band rim over {}", vert_of(v)),
-        RoleSeg::BandRimPi(v) => write!(f, "the second band rim over {}", vert_of(v)),
-        RoleSeg::BandPi(e) => write!(f, "the second band face over {}", seg_of(e)),
-        RoleSeg::Meridian(m, e) => {
-            write!(f, "the {} meridian edge over {}", meridian(m), seg_of(e))
-        }
-        RoleSeg::MeridianVertex(m, v) => {
-            write!(f, "the {} meridian vertex over {}", meridian(m), vert_of(v))
-        }
-        RoleSeg::RevolveCap(m) => write!(f, "the {} wedge cap", meridian(m)),
-        RoleSeg::Pole(v) => write!(f, "the pole over {}", vert_of(v)),
-        RoleSeg::AxisEdge(e) => write!(f, "the axis edge over {}", seg_of(e)),
-        RoleSeg::FromA(_) | RoleSeg::FromB(_) | RoleSeg::FromTarget(_) => {
-            write!(f, "a carried entity")
-        }
-        RoleSeg::FromMember { .. } => write!(f, "a union member's entity"),
-        RoleSeg::Seam { .. } => write!(f, "a boolean seam"),
-        RoleSeg::Merged(_) => write!(f, "a merged face"),
-        RoleSeg::Fragment(_) => write!(f, "a fragment"),
-        RoleSeg::SplitBody(_) => write!(f, "a split body"),
-        RoleSeg::SectionFace { .. } => write!(f, "a split's section face"),
-        RoleSeg::SectionEdge { .. } => write!(f, "a split's section edge"),
-        RoleSeg::SplitFragment { .. } => write!(f, "a split face"),
-        RoleSeg::CrossingVertex { .. } => write!(f, "a split's crossing vertex"),
-        RoleSeg::OnToolVertex { .. } => write!(f, "a vertex on a split's tool"),
-        RoleSeg::BlendFace(_) => write!(f, "a blend face"),
-        RoleSeg::CornerFace(_) => write!(f, "a blend corner face"),
-        RoleSeg::TrimEdge { .. } => write!(f, "a blend trim edge"),
-        RoleSeg::FootVertex { .. } => write!(f, "a blend foot vertex"),
-        RoleSeg::EndArc { .. } => write!(f, "a blend end arc"),
-        RoleSeg::BandFace(_) => write!(f, "a band face"),
-        RoleSeg::BandTrim { .. } => write!(f, "a band trim edge"),
-        RoleSeg::BandFoot(_) => write!(f, "a band foot"),
-        RoleSeg::BandCross { .. } => write!(f, "a band crossing"),
-        RoleSeg::BandCut(_) => write!(f, "a band cut"),
-        RoleSeg::BandSlit { .. } => write!(f, "a band slit"),
-        RoleSeg::Inner(_) => write!(f, "an inner entity"),
-        RoleSeg::Rim(_) => write!(f, "a rim"),
-        RoleSeg::HoleRim { hole, .. } => write!(f, "the rim of hole {hole}"),
-        RoleSeg::InPart { .. } => write!(f, "an entity of a part"),
-        RoleSeg::Instance { i, .. } => write!(f, "an entity of instance {i}"),
-    }
-}
-
 // The cutter clause of [`Diagnosis::GroupResized`]'s sentence.
-impl core::fmt::Display for GroupCutters {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        fn list(f: &mut core::fmt::Formatter<'_>, names: &[StableName]) -> core::fmt::Result {
+impl crate::spoken::Say for GroupCutters {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
+        fn list(
+            f: &mut core::fmt::Formatter<'_>,
+            names: &[StableName],
+            by: Speaker<'_>,
+        ) -> core::fmt::Result {
             match names {
-                [one] => write!(f, "{}", Cutter(one)),
+                [one] => write!(f, "{}", by.name(one)),
                 many => {
                     write!(f, "{} cutters (", many.len())?;
                     for (i, n) in many.iter().enumerate() {
                         if i > 0 {
                             write!(f, "; ")?;
                         }
-                        write!(f, "{}", Cutter(n))?;
+                        write!(f, "{}", by.name(n))?;
                     }
                     write!(f, ")")
                 }
@@ -635,7 +577,7 @@ impl core::fmt::Display for GroupCutters {
             Self::Read { gone, new } => {
                 if !gone.is_empty() {
                     write!(f, "the parent's seams with ")?;
-                    list(f, gone)?;
+                    list(f, gone, by)?;
                     write!(f, " are gone")?;
                 }
                 if !new.is_empty() {
@@ -643,7 +585,7 @@ impl core::fmt::Display for GroupCutters {
                         write!(f, ", and ")?;
                     }
                     write!(f, "the parent has new seams with ")?;
-                    list(f, new)?;
+                    list(f, new, by)?;
                 }
                 Ok(())
             }
@@ -668,6 +610,13 @@ impl core::fmt::Display for GroupCutters {
                  spelled in a shape this reading does not follow"
             ),
         }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for GroupCutters {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
 }
 
@@ -720,8 +669,12 @@ impl core::fmt::Display for FlipSubject<'_> {
 
 // The CAUSE clause of [`Diagnosis::Upstream`]'s sentence; the arm adds
 // where it sits relative to the name.
-impl core::fmt::Display for UpstreamCause {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::spoken::Say for UpstreamCause {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         match self {
             Self::PredicateFlip {
                 predicate,
@@ -730,18 +683,25 @@ impl core::fmt::Display for UpstreamCause {
                 to,
             } => write!(
                 f,
-                "{} flipped from {from} to {to} at node {}",
+                "{} flipped from {from} to {to} at {}",
                 FlipSubject(predicate),
-                at
+                by.node(*at)
             ),
             Self::StructuralParam { node, param } => write!(
                 f,
-                "a structural parameter changed at node {} (slot {})",
-                node,
-                param.label()
+                "a structural parameter changed: slot {} of {}",
+                param.label(),
+                by.node(*node)
             ),
-            Self::RecipeEdit { edit } => write!(f, "the recipe changed ({edit})"),
+            Self::RecipeEdit { edit } => write!(f, "the recipe changed ({})", Said(edit, by)),
         }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for UpstreamCause {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
 }
 
@@ -773,8 +733,12 @@ impl Diagnosis {
 // Rendered as the WHY clause of [`ResolveError::Vanished`]'s message:
 // each arm states its cause; payload-holding arms forward the
 // payload's own rendering.
-impl core::fmt::Display for Diagnosis {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::spoken::Say for Diagnosis {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         match self {
             Self::PredicateFlip {
                 predicate,
@@ -787,11 +751,11 @@ impl core::fmt::Display for Diagnosis {
             ),
             Self::BorderDelta { node, gone, new } => write!(
                 f,
-                "at node {}, the piece of its face nearest it now no longer borders {} \
+                "at {}, the piece of its face nearest it now no longer borders {} \
                  and borders {} it did not",
-                node,
-                Walls(gone),
-                Walls(new)
+                by.node(*node),
+                Walls(gone, by),
+                Walls(new, by)
             ),
             Self::GroupResized {
                 node,
@@ -800,17 +764,17 @@ impl core::fmt::Display for Diagnosis {
                 cutters,
             } => write!(
                 f,
-                "at node {}, the group this fragment's parent was divided into held \
-                 {was} entities in the last-good run and holds {now} now; {cutters}; and \
+                "at {}, the group this fragment's parent was divided into held \
+                 {was} entities in the last-good run and holds {now} now; {}; and \
                  no verdict flip was found that explains the change",
-                node
+                by.node(*node),
+                Said(cutters, by)
             ),
             Self::StructuralParam { node, param } => write!(
                 f,
-                "a structural parameter changed on the derivation path (node {}, slot \
-                 {})",
-                node,
-                param.label()
+                "a structural parameter changed on the derivation path: slot {} of {}",
+                param.label(),
+                by.node(*node)
             ),
             // A SITE of difference, not a claim that an edit happened
             // (module docs: the total fallback arm reaches this on a
@@ -818,12 +782,16 @@ impl core::fmt::Display for Diagnosis {
             Self::RecipeEdit { edit } => write!(
                 f,
                 "the recorded reference disagrees with the recipe as it stands on the \
-                 derivation path ({edit})"
+                 derivation path ({})",
+                Said(edit, by)
             ),
+            // `through` is cited by the name this diagnoses, so it is
+            // said by its kind: the name was said already.
             Self::Cascade { through } => write!(
                 f,
-                "the upstream {through} vanished first; its own \
-                 resolution failure carries the root cause"
+                "{} {} it derives from vanished upstream first, and that is the root cause",
+                through.kind.article(),
+                through.kind.noun()
             ),
             Self::WitnessBifurcation(refusal) => {
                 write!(f, "{}", crate::witness::BranchSelectionRefused(refusal))
@@ -835,29 +803,45 @@ impl core::fmt::Display for Diagnosis {
             ),
             Self::Upstream { node, cause } => write!(
                 f,
-                "{cause}, upstream of node {}, the name's minting node, but not on its \
-                 derivation path",
-                node
+                "{}, upstream of {}, the name's minting node, but not on its derivation path",
+                Said(cause, by),
+                by.node(*node)
             ),
         }
     }
 }
 
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for Diagnosis {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl Diagnosis {
+    /// **The clause as the frame holding the resolved document says it**:
+    /// each node as `doc` holds it now ([`crate::Doc::spoken`]).
+    #[must_use]
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> String {
+        crate::spoken::spoken_by(self, doc)
+    }
+}
+
 /// A list of divider walls as a clause: `the X and the Y`, or
 /// `no wall`.
-struct Walls<'a>(&'a [StableName]);
+struct Walls<'a>(&'a [StableName], Speaker<'a>);
 
 impl core::fmt::Display for Walls<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self.0 {
             [] => write!(f, "no wall"),
-            [one] => write!(f, "the {one}"),
+            [one] => write!(f, "{}", self.1.name(one)),
             many => {
                 for (i, w) in many.iter().enumerate() {
                     match i {
-                        0 => write!(f, "the {w}")?,
-                        _ if i + 1 == many.len() => write!(f, " and the {w}")?,
-                        _ => write!(f, ", the {w}")?,
+                        0 => write!(f, "{}", self.1.name(w))?,
+                        _ if i + 1 == many.len() => write!(f, " and {}", self.1.name(w))?,
+                        _ => write!(f, ", {}", self.1.name(w))?,
                     }
                 }
                 Ok(())
@@ -900,18 +884,29 @@ pub enum RecipeEditRef {
 
 // Prose for the edit-reference parentheticals in [`ResolveError`]'s
 // and [`Diagnosis`]'s messages.
-impl core::fmt::Display for RecipeEditRef {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::spoken::Say for RecipeEditRef {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         match self {
-            Self::NodeDeleted { node } => write!(f, "node {} was deleted", node),
-            Self::NodeInserted { node } => write!(f, "node {} was inserted", node),
+            Self::NodeDeleted { node } => write!(f, "{} was deleted", by.node(*node)),
+            Self::NodeInserted { node } => write!(f, "{} was inserted", by.node(*node)),
             // A difference statement, not an edit claim — this arm is
             // the diff fallback's site vocabulary.
-            Self::NodeChanged { node } => write!(f, "node {}'s payload differs", node),
+            Self::NodeChanged { node } => write!(f, "{}'s payload differs", by.node(*node)),
             Self::ForeignNode { node } => {
-                write!(f, "node {} was never minted by this document", node)
+                write!(f, "{} was never minted by this document", by.node(*node))
             }
         }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for RecipeEditRef {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
 }
 
@@ -921,7 +916,7 @@ pub struct TieWitness {
     /// The node whose table records the tie.
     pub node: RecipeNodeId,
     /// The tied table row (the referenced name itself, or the widened
-    /// base name on an `order_along` over-tie).
+    /// base name on an `rank_by` over-tie).
     pub at: StableName,
     /// How many equally-admissible candidates tie there.
     pub width: usize,
@@ -994,13 +989,33 @@ pub struct ResolveIndeterminate {
 // is that the reference is indeterminate rather than vanished, so the
 // recourse is always to restore the node's value, never to rebind; the
 // standing supplies which node, what state and where the repair is.
-impl core::fmt::Display for ResolveIndeterminate {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::spoken::Say for ResolveIndeterminate {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         write!(
             f,
             "the reference is indeterminate until its minting node evaluates: {}",
-            self.standing
+            Said(&self.standing, by)
         )
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for ResolveIndeterminate {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl ResolveIndeterminate {
+    /// **The clause as the frame holding the resolved document says it**:
+    /// each node as `doc` holds it now ([`crate::Doc::spoken`]).
+    #[must_use]
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> String {
+        crate::spoken::spoken_by(self, doc)
     }
 }
 
@@ -1225,9 +1240,7 @@ impl<U: Decide> Prior<'_, U> {
         flips: &FlipSet,
         nodes: &BTreeSet<RecipeNodeId>,
     ) -> Option<Evidence> {
-        if let Some((node, f)) =
-            in_document_order(self.doc(), new.doc, flips.flips_on_nodes(nodes)).first()
-        {
+        if let Some((node, f)) = in_id_order(flips.flips_on_nodes(nodes)).first() {
             return Some(Evidence::Flip(*node, *f));
         }
         let ddiff = self.doc().diff(new.doc);
@@ -1240,20 +1253,12 @@ impl<U: Decide> Prior<'_, U> {
     }
 }
 
-/// `found` in the order the lanes read evidence: by where its node
-/// stands in the current document, then in the last-good one — the
-/// node the author placed first answers first, whatever its id. Stable,
-/// so one node's flips keep their own order.
-fn in_document_order<V>(
-    old: &Doc<ProfileProgram>,
-    new: &Doc<ProfileProgram>,
-    mut found: Vec<(RecipeNodeId, V)>,
-) -> Vec<(RecipeNodeId, V)> {
-    let (in_new, in_old) = (new.positions(), old.positions());
-    let at = |positions: &BTreeMap<RecipeNodeId, usize>, id| {
-        positions.get(&id).copied().unwrap_or(usize::MAX)
-    };
-    found.sort_by_key(|&(id, _)| (at(&in_new, id), at(&in_old, id)));
+/// `found` in the order the lanes read evidence: by its node's id, so
+/// the node the author placed first answers first — the current and
+/// the last-good document are one history, whose ids order as they
+/// were minted. Stable, so one node's flips keep their own order.
+fn in_id_order<V>(mut found: Vec<(RecipeNodeId, V)>) -> Vec<(RecipeNodeId, V)> {
+    found.sort_by_key(|&(id, _)| id);
     found
 }
 
@@ -1289,7 +1294,7 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
         path: &BTreeSet<RecipeNodeId>,
     ) -> Option<Diagnosis> {
         let flips = diff_verdicts(self.ctx.eval, new.eval);
-        let family = in_document_order(self.doc(), new.doc, flips.flips_on_nodes(path))
+        let family = in_id_order(flips.flips_on_nodes(path))
             .into_iter()
             .find(|(_, f)| f.predicate.starts_with(crate::names::FAMILY));
         let flip = |f: VerdictFlip| Diagnosis::PredicateFlip {
@@ -1339,7 +1344,13 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
     }
 
     fn tombstone<T: Decide>(&self, _new: RunCtx<'_, T>, name: &StableName) -> Option<Tombstone> {
-        let (node, entity) = lookup_unique(self.ctx.eval, name)?;
+        // A line is no row: its last-good entry is the least row on it,
+        // as a union reads a cited line (N5, "A cited line").
+        let (node, entity) = lookup_unique(self.ctx.eval, name).or_else(|| {
+            line_rows(self.ctx.eval, name)
+                .iter()
+                .find_map(|row| lookup_unique(self.ctx.eval, row))
+        })?;
         let table = &self.ctx.eval.value(node)?.name_table;
         let Some(body) = table.name_of(&EntityRef {
             body: entity.body,
@@ -1397,7 +1408,7 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
         None => {}
     }
 
-    // 3. The order_along over-tie widening (spec D1): a ranked
+    // 3. The `rank_by` over-tie widening (spec D1): a ranked
     //    fragment reference whose group over-tied resolves Ambiguous
     //    against the WIDENED base row — never a mis-bind.
     let mut offers = Vec::new();
@@ -1414,12 +1425,20 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
             Some((_, Entry::Unique(_))) => offers.push(base),
             None => {}
         }
+    } else if let Some(line) = piece_line(name) {
+        // An edge piece's base is its line, which no table publishes:
+        // the surviving pieces of the line are offered (N5, "A cited
+        // line"), the undivided edge among them where it is one row.
+        for row in line_rows(new.eval, &line) {
+            if matches!(lookup(new.eval, row), Some((_, Entry::Unique(_)))) {
+                offers.push((**row).clone());
+            }
+        }
     } else if let Some(base) = unqualified(name)
-        // The same collapse for a face or edge piece: the undivided
-        // survivor is offered for an explicit `Rebind`, never bound.
-        // There is no over-tie to widen to here — a `Borders`, `Keeps`
-        // or `Ends` tie is a row of the QUALIFIED name, which step 2
-        // already answered.
+        // The same collapse for a face piece: the undivided survivor is
+        // offered for an explicit `Rebind`, never bound. There is no
+        // over-tie to widen to here — a `Borders` or `Keeps` tie is a
+        // row of the QUALIFIED name, which step 2 already answered.
         && matches!(lookup(new.eval, &base), Some((_, Entry::Unique(_))))
     {
         offers.push(base);
@@ -1434,12 +1453,32 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
     // 5. Vanished. N3 structural offers first (merge/unmerge), then
     //    the diagnosis ladder.
     offers.extend(merge_offers(new.eval, name));
+    if name.kind == EntityKind::Edge
+        && let Some(base) = unqualified(name)
+    {
+        for offer in merge_offers(new.eval, &base) {
+            if !offers.contains(&offer) {
+                offers.push(offer);
+            }
+        }
+    }
 
     // Cascade dominates: an embedded operand name that itself fails
     // to resolve carries the root cause (its own diagnosis chains).
+    // A name cited by its line is present while any row lies on it, and
+    // so is the line a name resolved here is, when it is one: an edge
+    // spelled with no piece qualifier that neither run holds as a row.
+    let is_line = name.kind == EntityKind::Edge
+        && *crate::names::edge_line(&crate::names::NameRef::new(name.clone())) == *name
+        && !prior.carried(name);
+    let lines = cited_lines(name, is_line);
     let mut cascade: Option<StableName> = None;
     walk_names(name, Partners::Cascade, &mut |inner| {
-        if cascade.is_none() && lookup(new.eval, inner).is_none() {
+        if cascade.is_none()
+            && lookup(new.eval, inner).is_none()
+            && !(lines.iter().any(|l| core::ptr::eq(*l, inner))
+                && !line_rows(new.eval, inner).is_empty())
+        {
             cascade = Some(inner.clone());
         }
     });
@@ -1496,6 +1535,77 @@ fn fragment_base(name: &StableName) -> Option<StableName> {
     let mut base = name.clone();
     base.path.pop();
     (!base.path.is_empty()).then_some(base)
+}
+
+/// **The line an edge piece lies on**: its base, where its qualifier is
+/// `Ends` (N2).
+fn piece_line(name: &StableName) -> Option<StableName> {
+    (name.kind == EntityKind::Edge
+        && matches!(
+            name.path.last(),
+            Some(RoleSeg::Fragment(Qualifier::Ends(_)))
+        ))
+    .then(|| fragment_base(name))
+    .flatten()
+}
+
+/// **The rows that lie on `line`** (N5, "A cited line"): the edge rows
+/// of `line`'s node's table whose line it is, in key order. Empty where
+/// that node has no table in this run or no row lies on it.
+fn line_rows<'a, T: Decide>(
+    eval: &'a Evaluation<T>,
+    line: &StableName,
+) -> &'a [crate::names::NameRef] {
+    eval.value(line.node)
+        .map_or(&[], |v| v.name_table.on_line(line))
+}
+
+/// **Every name `name` cites by its line**, at every depth, `name`
+/// itself read as a line where `is_line`: a crossing's
+/// edges, a band crossing's, a seam vertex's, a `Keeps` entry, the parent an edge piece
+/// wraps, and the parent a line wraps in turn (`names::role::edge_line`).
+/// By address, so a reader can tell a name in a line position from an
+/// equal one elsewhere in the tree.
+fn cited_lines(name: &StableName, is_line: bool) -> Vec<&StableName> {
+    let mut out: Vec<&StableName> = Vec::new();
+    let mut stack: Vec<(&StableName, bool)> = vec![(name, is_line)];
+    while let Some((n, is_line)) = stack.pop() {
+        let mut lines: Vec<&StableName> = Vec::new();
+        let tail = n
+            .path
+            .iter()
+            .rposition(|s| !matches!(s, RoleSeg::Fragment(Qualifier::Ends(_))))
+            .map_or(0, |i| i + 1);
+        let piece = n.kind == EntityKind::Edge && tail < n.path.len();
+        if (piece || is_line) && tail == 1 {
+            lines.extend(crate::names::wrapped_edge(&n.path[0]).map(|w| &**w));
+        }
+        for seg in &n.path {
+            match seg {
+                RoleSeg::Crossing { edge, .. }
+                | RoleSeg::CrossingVertex { edge, .. }
+                | RoleSeg::BandCross { edge, .. } => {
+                    lines.push(edge);
+                }
+                RoleSeg::EdgeCrossing { a, b, .. } => lines.extend([&**a, &**b]),
+                RoleSeg::Seam { a, b } if n.kind == EntityKind::Vertex => {
+                    lines.extend([&**a, &**b]);
+                }
+                RoleSeg::Fragment(Qualifier::Keeps(kept)) => lines.extend(kept),
+                _ => {}
+            }
+        }
+        let mut children = Vec::new();
+        embedded(n, Partners::Include, &mut children);
+        for c in children {
+            let line = lines.iter().any(|l| core::ptr::eq(*l, c));
+            if line {
+                out.push(c);
+            }
+            stack.push((c, line));
+        }
+    }
+    out
 }
 
 /// A face or edge piece's base ([`fragment_base`]) — what the SAME
@@ -1584,21 +1694,23 @@ fn border_delta<T: Decide>(
 /// # Why a fragment name can vanish with no flip
 ///
 /// This is the one statement of it; the sites that need it point
-/// here. A fragment qualifier exists only while its group has two or
-/// more members (N2), and `OrderAlong` spells the group's size into
-/// the name as `of`. So a fragment name vanishes whenever its group
-/// stops being divided, and a ranked crossing's whenever its group
-/// changes size, and neither event need flip any discriminator: a
-/// `Borders` group that stops being divided leaves no piece whose walls
-/// could be compared — the walls still stand where they stood relative
-/// to the survivor — and an `OrderAlong` group ranks its members
-/// against EACH OTHER, so a group of one runs no pair. What remains in
-/// evidence is the count. An edge piece's `Ends` holds no count, so a
-/// cut elsewhere on its parent, by a face that does not already cross
-/// it, leaves its name as it was. A crossing keeps an ordinal, so a
-/// second crossing by a face that already crosses the parent renames
-/// the first, and every piece whose `Ends` cite it vanishes too; so do
-/// a piece whose own end moves and a group that collapses to one.
+/// here. A face fragment's qualifier exists only while its group has
+/// two or more members (N2), an edge piece's `Ends` while its parent is
+/// divided, and `OrderAlong` spells the size of a group of crossings of
+/// one sense into the name as `of`. So a fragment name vanishes
+/// whenever its group stops being divided, and a ranked crossing's
+/// whenever its group changes size, and neither event need flip any
+/// discriminator: a `Borders` group that stops being divided leaves no
+/// piece whose walls could be compared — the walls still stand where
+/// they stood relative to the survivor — and an `OrderAlong` group
+/// ranks its members against EACH OTHER, so a group of one runs no
+/// pair. What remains in evidence is the count. An edge piece's `Ends`
+/// holds no count and a crossing's sense is its own, so a cut elsewhere
+/// on its parent leaves the piece's name as it was, and so do the
+/// crossings it ends at; a second crossing of the same sense by a face
+/// that already crosses the parent ranks the first, and every piece
+/// whose `Ends` cite it vanishes too; so does a piece whose own end
+/// moves, which leaves its group's count as it was.
 ///
 /// # What is counted
 ///
@@ -1737,13 +1849,15 @@ fn group_reading(groups: &crate::names::FragmentGroups, base: &StableName) -> Op
 /// entities that made it (`names::emit_topo`, `name_boolean_edges` and
 /// `name_boolean_vertices`): a seam EDGE by two faces, so a face
 /// group's parent meets its cutters along seam edges; a seam VERTEX by
-/// an edge and the face, edge or vertex it met, so an edge group's
-/// parent meets them at seam vertices. So the rows read are the minting
-/// node's own rows of the kind one down from the group's — an edge for
-/// a face group, a vertex for an edge group — with a `Seam` segment one
-/// side of which is on the parent. Such a row is read when it is one
-/// `Seam { a, b }` with only `Fragment`s after it, however many (the
-/// pair is matched, not the row). Any other shape on the parent makes
+/// an edge and the face, edge or vertex it met (a `Crossing`, an
+/// `EdgeCrossing` or a `Seam`), so an edge group's parent meets them at
+/// seam vertices. So the rows read are the minting node's own rows of
+/// the kind one down from the group's — an edge for a face group, a
+/// vertex for an edge group — with such a segment one side of which is
+/// on the parent, a `Crossing`'s edge being its one side that can be.
+/// Such a row is read when it is one such segment with only
+/// `Fragment`s after it, however many (the pair is matched, not the
+/// row). Any other shape on the parent makes
 /// the whole reading [`GroupCutters::SeamUnread`]: a comparison that
 /// skipped it could name a cutter gone that was only not read. A face
 /// group's seam VERTICES (a cutter's edge piercing the face) are of the
@@ -1916,33 +2030,30 @@ impl<'a> SeamParent<'a> {
             if row.node != base.node || row.kind != seam_kind {
                 continue;
             }
-            let on_parent = row.path.iter().any(|seg| match seg {
-                RoleSeg::Seam { a, b } => self.across(base, a, b).is_some(),
-                _ => false,
-            });
+            let on_parent = row.path.iter().any(|seg| self.cut_by(base, seg).is_some());
             if !on_parent {
                 continue;
             }
-            let (RoleSeg::Seam { a, b }, tail) = row.path.split_first()? else {
-                return None;
-            };
+            let (head, tail) = row.path.split_first()?;
             if fragment_tail_start(tail) != 0 {
                 return None;
             }
-            out.insert(self.normalized(self.across(base, a, b)?));
+            out.insert(self.normalized(self.cut_by(base, head)?));
         }
         Some(out)
     }
-}
 
-/// Where the trailing run of `Fragment` segments of `path` starts: the
-/// length of what they qualify. The one reading of "a name with only
-/// fragments after it", for the parent side, the cutter side and a seam
-/// row alike ([`group_cutters`]).
-fn fragment_tail_start(path: &[RoleSeg]) -> usize {
-    path.iter()
-        .rposition(|s| !matches!(s, RoleSeg::Fragment(_)))
-        .map_or(0, |i| i + 1)
+    /// The cutter across seam segment `seg` from the parent: across a
+    /// `Seam`'s or an `EdgeCrossing`'s sides ([`SeamParent::across`]),
+    /// and a `Crossing`'s face where its edge is on the parent; `None`
+    /// for a segment of any other shape, or one not on the parent.
+    fn cut_by<'n>(&self, base: &StableName, seg: &'n RoleSeg) -> Option<&'n StableName> {
+        match seg {
+            RoleSeg::Seam { a, b } | RoleSeg::EdgeCrossing { a, b, .. } => self.across(base, a, b),
+            RoleSeg::Crossing { edge, face, .. } => self.holds(base, edge).then_some(&**face),
+            _ => None,
+        }
+    }
 }
 
 /// Every Ok table of an evaluation, with its node, in EVALUATION
@@ -2028,32 +2139,27 @@ fn widened_base(name: &StableName) -> Option<StableName> {
 ///   row is found whole and at its own depth; a candidate that merely
 ///   embeds it deeper (a seam across it) needs no separate offer, the
 ///   row itself still resolving at the node whose table minted it.
+///   An edge set covers its edges the same way, and a PIECE of one of
+///   them (a rim piece a join retired) is offered every set that lists
+///   the edge it was a piece of. A rim that only partly overlaps a set's
+///   edge is listed too, so the offers can include a set whose edge holds
+///   another stretch of the rim rather than this piece; the offer is a
+///   candidate for an explicit `Rebind`, never a binding.
+/// - **Runs.** A sweep's run wall holds its pieces' walls the same way
+///   (`names::merged::constituents`, the one view): a wall a station
+///   joined into a run is offered the run wall that covers it, and a
+///   run wall an edit broke is offered the live walls that cover its
+///   pieces.
 ///
 /// [`rebind_suggestions`] answers a different question — every
 /// derivation WRAPPING a name, so a paint can follow the entity
 /// forward — and every answer it gives is a whole table row, so
 /// depth costs it nothing.
 fn merge_offers<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Vec<StableName> {
-    let mut offers = Vec::new();
-    // Unmerge: the name IS a merged name — offer its constituents.
-    for seg in &name.path {
-        if let RoleSeg::Merged(constituents) = seg {
-            offers.extend(constituents.iter().cloned());
-        }
-    }
-    // Merge: a live Merged row covers `name`.
-    for (_, table) in tables(eval) {
-        for (candidate, _) in table.iter() {
-            let covers = candidate.path.iter().any(|seg| match seg {
-                RoleSeg::Merged(constituents) => crate::names::merged::covers(constituents, name),
-                _ => false,
-            });
-            if covers && !offers.contains(candidate) {
-                offers.push(candidate.clone());
-            }
-        }
-    }
-    offers
+    let rows: Vec<&StableName> = tables(eval)
+        .flat_map(|(_, table)| table.iter().map(|(candidate, _)| candidate))
+        .collect();
+    crate::names::merged::offers(name, rows.iter().copied())
 }
 
 /// Rebind suggestions for a vanished-or-gapped name (spec D9's
@@ -2087,14 +2193,12 @@ pub fn rebind_suggestions<T: Decide>(eval: &Evaluation<T>, name: &StableName) ->
                     wraps = true;
                 }
             });
-            // A merged row wraps every face it lists, and so wraps a
-            // merged face those faces came from: the flat set covers
-            // it (`names::merged::covers`) though no segment embeds
+            // A set-holding row wraps every face it holds, and so wraps
+            // a merged face those faces came from, or a wall of fewer
+            // of its pieces: its set covers it
+            // (`names::merged::row_covers`) though no segment embeds
             // it.
-            wraps |= candidate.path.iter().any(|seg| match seg {
-                RoleSeg::Merged(constituents) => crate::names::merged::covers(constituents, name),
-                _ => false,
-            });
+            wraps |= crate::names::merged::row_covers(candidate, name);
             if wraps {
                 out.push(candidate.clone());
             }
@@ -2156,8 +2260,11 @@ pub fn apply_with_names<T: Decide>(
     // unchecked group silently, which is the one outcome the split is
     // there to prevent.
     match edit {
-        DocEdit::InsertNode { node } => names.extend(node.payload_names()),
+        DocEdit::InsertNode { node, .. } => names.extend(node.payload_names()),
         DocEdit::Rebind { to, .. } => names.push(to),
+        DocEdit::SetDeclare { pairs, .. } => {
+            names.extend(pairs.iter().flat_map(|((a, b), _)| [&a.name, &b.name]));
+        }
         // Name-carrying and deliberately unchecked here: an appearance
         // name resolves at evaluation, where a miss is a typed
         // `AppearanceLoss` rather than a silent drop, and clearing is
@@ -2172,22 +2279,28 @@ pub fn apply_with_names<T: Decide>(
         DocEdit::DeleteNode { .. }
         // A list of node ids carries no name.
         | DocEdit::SetMembers { .. }
-        // A program and its provenance carry no name; the names a
-        // reshaping moves are the document's own, rewritten at the
-        // door.
+        // A program and its step ids carry no name, and the door
+        // rewrites none of the document's.
         | DocEdit::SetProgram { .. }
         | DocEdit::SetParam { .. }
         | DocEdit::SetStructuralParam { .. }
+        | DocEdit::SetExtrudeSide { .. }
         | DocEdit::SetExpression { .. }
-        | DocEdit::SetDocParam { .. }
-        | DocEdit::SetDocParamValue { .. }
-        | DocEdit::SetDocParamUnit { .. }
-        | DocEdit::SetDocParamDistribution { .. }
+        | DocEdit::DeclareVar { .. }
+        | DocEdit::DefineVar { .. }
+        | DocEdit::SetVarValue { .. }
+        | DocEdit::SetVarUnit { .. }
+        | DocEdit::SetVarDistribution { .. }
+        | DocEdit::RenameVar { .. }
+        | DocEdit::DeleteVar { .. }
         | DocEdit::ReWitness { .. }
         | DocEdit::ReWitnessBulk { .. }
         | DocEdit::SetTolerance { .. }
         | DocEdit::SetRoots { .. }
-        | DocEdit::SetPlacement { .. }
+        | DocEdit::SetOffset { .. }
+        | DocEdit::SetGauge { .. }
+        | DocEdit::Promote { .. }
+        | DocEdit::Fold { .. }
         | DocEdit::SetLabel { .. }
         | DocEdit::UpdateReference { .. } => {}
     }
@@ -2195,7 +2308,9 @@ pub fn apply_with_names<T: Decide>(
         // Checkable = the minting node evaluated Ok. (Node existence
         // itself is apply's own door.)
         if eval.value(name.node).is_some() && lookup(eval, name).is_none() {
-            return Err(EditError::NameUnresolvedInEvaluation { name: name.clone() });
+            return Err(EditError::NameUnresolvedInEvaluation {
+                name: doc.spoken_name(name),
+            });
         }
     }
     crate::edit::apply(doc, edit, tol, reach)
@@ -2321,6 +2436,8 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<&'a Stable
             | RoleSeg::FromTarget(n)
             | RoleSeg::BlendFace(n)
             | RoleSeg::CornerFace(n)
+            | RoleSeg::Mitre { vertex: n }
+            | RoleSeg::TurnFoot { vertex: n }
             | RoleSeg::BandTrim { edge: n, .. }
             | RoleSeg::BandFoot(n)
             | RoleSeg::BandCut(n)
@@ -2374,7 +2491,11 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<&'a Stable
                     }
                 }
             }
-            RoleSeg::Seam { a, b } => {
+            RoleSeg::Seam { a, b }
+            | RoleSeg::Crossing {
+                edge: a, face: b, ..
+            }
+            | RoleSeg::EdgeCrossing { a, b, .. } => {
                 visit(a, partners, f);
                 visit(b, partners, f);
             }
@@ -2415,10 +2536,10 @@ fn structural_param_change(
     ddiff: &crate::diff::DocDiff,
     path: Option<&BTreeSet<RecipeNodeId>>,
 ) -> Option<(RecipeNodeId, SlotId)> {
-    let changed_params: Vec<&crate::doc::ParamName> = ddiff.params.iter().collect();
+    let changed_vars = &ddiff.vars;
     // In document order: a node both runs hold is in `new`'s order.
     let candidates: Vec<RecipeNodeId> = new
-        .order()
+        .ids()
         .iter()
         .copied()
         .filter(|id| path.is_none_or(|p| p.contains(id)))
@@ -2432,21 +2553,13 @@ fn structural_param_change(
                 continue;
             }
             let (ea, eb) = (a.expr(slot), b.expr(slot));
-            let expr_changed = match (ea, eb) {
-                (Some(x), Some(y)) => !x.bit_eq(y),
-                (None, None) => false,
-                _ => true,
-            };
-            if expr_changed {
+            if ea != eb {
                 return Some((id, slot));
             }
-            // A changed Count doc-param the slot references.
-            if let Some(expr) = eb {
-                let mut refs = Vec::new();
-                expr.param_refs(&mut refs);
-                if refs.iter().any(|(name, _)| changed_params.contains(&name)) {
-                    return Some((id, slot));
-                }
+            // A changed Count variable the slot reads, directly or
+            // through a definition (`DocDiff::vars` closes over them).
+            if eb.is_some_and(|var| changed_vars.contains(var)) {
+                return Some((id, slot));
             }
         }
     }
@@ -2500,7 +2613,7 @@ fn continuous_only_change(
         let (Some(dst), Some(src)) = (patched.expr_mut(slot), new.expr(slot)) else {
             return false; // slot sets disagree: structural change
         };
-        *dst = src.clone();
+        *dst = *src;
     }
     patched.bit_eq(new)
 }
@@ -2516,16 +2629,19 @@ mod tests {
     use crate::names::{CapEnd, FragmentGroups, NameRef, NameTable, ProfileEdgeRef};
     use topo::{EdgeKey, FaceKey, VertexKey};
 
-    const NODE: RecipeNodeId = RecipeNodeId(7);
+    const NODE: RecipeNodeId = RecipeNodeId::new(0, 7);
 
     fn face(node: u64, seg: u32) -> StableName {
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(node),
-            path: vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
-                step: crate::node::StepId(u64::from(seg)),
-                role: crate::names::PieceRole::Leg,
-            })],
+            node: RecipeNodeId::new(0, node),
+            path: vec![RoleSeg::Lateral(
+                ProfileEdgeRef::Piece {
+                    step: crate::node::StepId::new(0, u64::from(seg)),
+                    role: crate::names::PieceRole::Leg,
+                }
+                .into(),
+            )],
         }
     }
 
@@ -2533,7 +2649,7 @@ mod tests {
     fn top() -> StableName {
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(2),
+            node: RecipeNodeId::new(0, 2),
             path: vec![RoleSeg::Cap(CapEnd::End)],
         }
     }
@@ -2553,7 +2669,7 @@ mod tests {
             kind: inner.kind,
             node: NODE,
             path: core::iter::once(RoleSeg::FromMember {
-                member: RecipeNodeId(member),
+                member: RecipeNodeId::new(0, member),
                 of: NameRef::new(inner),
             })
             .chain(tail.iter().cloned())
@@ -2751,7 +2867,7 @@ mod walk_tests {
     fn leaf(node: u64) -> StableName {
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![RoleSeg::Cap(CapEnd::End)],
         }
     }
@@ -2760,7 +2876,7 @@ mod walk_tests {
     fn over(inner: StableName, node: u64) -> StableName {
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![
                 RoleSeg::FromA(NameRef::new(inner)),
                 RoleSeg::Fragment(Qualifier::Borders(vec![leaf(node + 1000)])),
@@ -2772,10 +2888,12 @@ mod walk_tests {
     fn a_walk_visits_depth_first_in_path_order() {
         let name = over(over(leaf(1), 2), 3);
         let mut seen = Vec::new();
-        walk_names(&name, Partners::Include, &mut |n| seen.push(n.node.0));
+        walk_names(&name, Partners::Include, &mut |n| {
+            seen.push(n.node.0.digest())
+        });
         assert_eq!(seen, [2, 1, 1002, 1003], "partners included");
         seen.clear();
-        walk_names(&name, Partners::Skip, &mut |n| seen.push(n.node.0));
+        walk_names(&name, Partners::Skip, &mut |n| seen.push(n.node.0.digest()));
         assert_eq!(seen, [2, 1], "partners skipped");
     }
 

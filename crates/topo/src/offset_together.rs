@@ -65,11 +65,17 @@
 //!    moving too and slides them ALONG it. The old carrier's
 //!    conventional data survives that (a `t = 0` anchor on a line is
 //!    conventional, D2), which is what keeps an unmoved corner's edge
-//!    bit-identical; a seam between two faces of ONE chart is not an
-//!    intersection at all and translates with its own plane;
-//! 3. **the description** — an intrinsic one re-points at the new
-//!    surface keys and re-states its witness at the new mid-parameter;
-//!    a mapped one translates by the edge's own displacement, which is
+//!    carrier bit-identical; a seam between two faces of ONE chart is
+//!    not an intersection at all and translates with its own plane;
+//! 3. **the description** (`offset_restate::restate`) — an
+//!    intrinsic one re-points at the new surface keys and re-states its
+//!    witness at the new mid-parameter. A chart image in a plane that
+//!    holds while the edge's other side moves becomes the section of
+//!    the two; any other image is derived afresh from the moved carrier
+//!    where the edge slides within its chart (two distinct planes, one
+//!    moving), and kept where it does not (a seam, whose plane is
+//!    re-minted with the same in-plane frame, or two planes that both
+//!    hold). A declaration translates by the edge's own displacement,
 //!    the same rigid vector the carrier moved by.
 //!
 //! The conditioning of step 1 is metered, not assumed. A corner's
@@ -91,7 +97,7 @@
 //! reaches the word "singular" is one that is.
 
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeAuthority, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec};
+use geom_brep::EdgeCurveSpec;
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
 
@@ -99,8 +105,10 @@ use slotmap::SecondaryMap;
 
 use crate::attach::Rechart;
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, SolidKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, SolidKey, VertexKey};
 use crate::geometry::SurfaceKey;
+use crate::live::{NAMES_ONLY_LIVE, linked, proven};
+use crate::offset_restate::chart_moves;
 use crate::replace_face::ReplaceFaceError;
 
 /// One chart's move: the faces wearing it, and the signed distance
@@ -131,6 +139,8 @@ struct MovedPlane<T: Real> {
     c: T,
     /// The rigid displacement the plane itself underwent.
     delta: Vec3<T>,
+    /// The signed offset along the stored normal — the caller's number.
+    distance: T,
 }
 
 /// **Offset every chart of `body` at once** (module docs).
@@ -145,6 +155,10 @@ struct MovedPlane<T: Real> {
 /// linear in the body, and what that costs — is [`Scope`]'s, stated
 /// there once for both doors.
 ///
+/// The door **ends with the join** (`docs/DESIGN.md`, maximal edges):
+/// the moved body is joined on the clone before it is adopted, and the
+/// joins are returned ([`crate::replace_face::OffsetOutcome`]).
+///
 /// # Errors
 ///
 /// [`ReplaceFaceError`], the body untouched on every one: the whole
@@ -155,7 +169,22 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
     moves: &[ChartMove<T>],
     band: Band,
     tol: Tol,
-) -> Result<(), ReplaceFaceError<T>> {
+) -> Result<crate::replace_face::OffsetOutcome, ReplaceFaceError<T>> {
+    offset_planes_together_staged(body, moves, band, tol, true)
+        .map(|joins| crate::replace_face::OffsetOutcome { joins })
+}
+
+/// [`offset_planes_together`], ending with the join where `join` is set. Unset, the
+/// result is construction state a later step must join: the shell's
+/// cavity and lift offsets, which key their naming rows by the moved
+/// body's cells.
+pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    moves: &[ChartMove<T>],
+    band: Band,
+    tol: Tol,
+    join: bool,
+) -> Result<Vec<crate::boolean::EdgeJoin>, ReplaceFaceError<T>> {
     // ---- Decide: the chart moves are well formed. ----
     //
     // One surface key per chart and no face named twice: both are
@@ -199,13 +228,11 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
             let data = body
                 .get_face(face)
                 .ok_or(ReplaceFaceError::StaleFace { face })?;
-            let surface = body
-                .get_surface(data.surface)
-                .ok_or(ReplaceFaceError::Corrupt)?;
+            let surface = body.face_surface_linked(face, data);
             let Surface::Plane { origin, normal, .. } = surface else {
                 return Err(ReplaceFaceError::TogetherNonPlanar {
                     face,
-                    kind: geom_brep::SurfaceKind::of(surface),
+                    kind: surface.kind(),
                 });
             };
             let delta = *normal * m.distance;
@@ -216,6 +243,7 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
                     normal: *normal,
                     c: normal.dot(radius(*origin + delta)),
                     delta,
+                    distance: m.distance,
                 },
             ));
         }
@@ -228,26 +256,55 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
     let plane_of = |face: FaceKey| planes.iter().find(|(k, _)| *k == face).map(|(_, p)| p);
 
     // ---- Decide: every corner, before anything is written. ----
-    let mut moved: Vec<(VertexKey, Point3<T>)> = Vec::new();
+    //
+    // A corner whose planes the moves leave in place is not moved, and
+    // keeps its point. The moved corners on one point — an op's copies
+    // of one vertex — are solved ONCE, over every plane meeting any of
+    // them, and move together (`replace_face::group_by_point`): the
+    // copies stay on one point, or the solve refuses because their
+    // planes no longer concur.
+    let mut at_vertex = Vec::new();
     for (vertex, _) in body.vertices() {
         if !scope.holds_vertex(vertex) {
             continue;
         }
         let mut at: Vec<&MovedPlane<T>> = Vec::new();
-        for face in faces_at_vertex(body, vertex)? {
-            let p = plane_of(face).ok_or(ReplaceFaceError::Corrupt)?;
+        for face in body.faces_of_vertex_linked(vertex) {
+            let p = plane_of(face).unwrap_or_else(|| unmoved_in_scope(face));
             if !at.iter().any(|q| q.old_key == p.old_key) {
                 at.push(p);
             }
         }
-        let here = body
-            .get_vertex(vertex)
-            .and_then(|v| body.get_point(v.point).copied())
-            .ok_or(ReplaceFaceError::Corrupt)?;
-        let arms = corner_arms(body, vertex, here)?;
-        moved.push((vertex, solve_corner(vertex, here, &at, &arms, band)?));
+        let here = body.point_of(vertex, proven(&body.vertices, vertex, EntityId::Vertex));
+        at_vertex.push((vertex, here, at));
     }
-    let point_at = |v: VertexKey| moved.iter().find(|(k, _)| *k == v).map(|(_, p)| *p);
+    let mut position: Vec<(VertexKey, Point3<T>)> = Vec::new();
+    let mut asked: Vec<VertexKey> = Vec::new();
+    for (vertex, here, at) in &at_vertex {
+        if asked_to_move(at, band)? {
+            asked.push(*vertex);
+        } else {
+            position.push((*vertex, *here));
+        }
+    }
+    let mut moved: Vec<(Vec<VertexKey>, Point3<T>)> = Vec::new();
+    for group in crate::replace_face::group_by_point(body, asked) {
+        let mut at: Vec<&MovedPlane<T>> = Vec::new();
+        let mut arms: Vec<T> = Vec::new();
+        for (vertex, here, planes) in at_vertex.iter().filter(|(v, ..)| group.contains(v)) {
+            for p in planes {
+                if !at.iter().any(|q| q.old_key == p.old_key) {
+                    at.push(p);
+                }
+            }
+            arms.extend(corner_arms(body, *vertex, *here));
+        }
+        let planes: Vec<(Vec3<T>, T)> = at.iter().map(|p| (p.normal, p.c)).collect();
+        let point = solve_planar_corner(group[0], &planes, &arms, band)?;
+        position.extend(group.iter().map(|&v| (v, point)));
+        moved.push((group, point));
+    }
+    let point_at = |v: VertexKey| position.iter().find(|(k, _)| *k == v).map(|(_, p)| *p);
 
     // ---- Decide: every edge's carrier and description. ----
     let mut specs: Vec<(EdgeKey, EdgeCurveSpec<T>)> = Vec::new();
@@ -255,27 +312,30 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
         if !scope.holds_edge(edge) {
             continue;
         }
-        let (fa, fb) =
-            crate::replace_face::edge_faces(body, edge).ok_or(ReplaceFaceError::Corrupt)?;
+        let (fa, fb) = crate::readback::edge_sides_of(body, edge, edge_data).faces();
         let (pa, pb) = (
-            plane_of(fa).ok_or(ReplaceFaceError::Corrupt)?,
-            plane_of(fb).ok_or(ReplaceFaceError::Corrupt)?,
+            plane_of(fa).unwrap_or_else(|| unmoved_in_scope(fa)),
+            plane_of(fb).unwrap_or_else(|| unmoved_in_scope(fb)),
         );
-        let start = body
-            .get_half_edge(edge_data.he_plus)
-            .ok_or(ReplaceFaceError::Corrupt)?
-            .start;
-        let end = body
-            .half_edge_end(edge_data.he_plus)
-            .ok_or(ReplaceFaceError::Corrupt)?;
+        let start = linked(
+            &body.half_edges,
+            edge_data.he_plus,
+            EntityId::HalfEdge,
+            EntityId::Edge(edge),
+            "he_plus",
+        )
+        .start;
+        let end = body.proven_half_edge_end(edge_data.he_plus);
         let (p_start, p_end) = (
-            point_at(start).ok_or(ReplaceFaceError::Corrupt)?,
-            point_at(end).ok_or(ReplaceFaceError::Corrupt)?,
+            point_at(start).unwrap_or_else(|| unplaced_in_scope(start)),
+            point_at(end).unwrap_or_else(|| unplaced_in_scope(end)),
         );
-        let curve = body
-            .get_curve_geom(edge_data.curve)
-            .and_then(crate::null::CurveGeom::certified)
-            .ok_or(ReplaceFaceError::Corrupt)?;
+        let Some(curve) = body.edge_curve_linked(edge, edge_data).certified() else {
+            return Err(ReplaceFaceError::CarrierLaneUnsupported {
+                edge,
+                what: "it has no curve to move",
+            });
+        };
         let old_carrier = curve.carrier().clone();
         let (t0_old, t1_old) = curve.params();
         let description = curve.description().clone();
@@ -307,7 +367,7 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
             let Curve3::Line { origin, dir } = old_carrier else {
                 return Err(ReplaceFaceError::CarrierLaneUnsupported {
                     edge,
-                    what: "an edge between two distinct planes whose carrier is not a line",
+                    what: "it joins two flat faces but is not straight",
                 });
             };
             let shift = p_start - old_start;
@@ -331,10 +391,40 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
 
         let mid = carrier.mid_point(t0, t1);
         let displacement = p_start - old_start;
+        let sides = [
+            (pa.old_key, chart_moves(pa.distance, band)?),
+            (pb.old_key, chart_moves(pb.distance, band)?),
+        ];
+        // An image SLIDES within its chart exactly when the edge lies
+        // between two distinct planes and one of them moves: the
+        // section then moves within each plane. A seam's carrier
+        // translates rigidly with its one plane, which is re-minted
+        // with the same in-plane frame, so its image is still exact;
+        // an edge whose planes both hold does not move.
+        let slides = pa.old_key != pb.old_key && (sides[0].1 || sides[1].1);
+        // A declaration is 3-space sketch data, so it translates with
+        // the edge. The planes move rigidly by construction, so a
+        // displacement always exists and only the rotation-family
+        // refusal is reachable.
+        let carried = |mc: geom_brep::MappedCurve<T>| {
+            crate::replace_face::translate_mapped(mc, displacement).ok_or(
+                ReplaceFaceError::CarrierLaneUnsupported {
+                    edge,
+                    what: "it was swept by a rotation, and its sweep does not shift with the face",
+                },
+            )
+        };
         specs.push((
             edge,
             EdgeCurveSpec {
-                description: restate(description, authority, mid, displacement, edge)?,
+                description: crate::offset_restate::restate(
+                    description,
+                    authority,
+                    sides,
+                    slides,
+                    mid,
+                    carried,
+                )?,
                 carrier,
                 param_start: t0,
                 param_end: t1,
@@ -354,13 +444,11 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
         let Some(&first) = m.faces.first() else {
             return Err(ReplaceFaceError::EmptyGroup);
         };
-        let p = plane_of(first).ok_or(ReplaceFaceError::Corrupt)?;
-        let Some(Surface::Plane { origin, u_ref, .. }) = work
-            .get_face(first)
-            .and_then(|f| work.get_surface(f.surface))
-            .cloned()
+        let p = plane_of(first).unwrap_or_else(|| unmoved_in_scope(first));
+        let face = proven(&work.faces, first, EntityId::Face);
+        let Surface::Plane { origin, u_ref, .. } = work.face_surface_linked(first, face).clone()
         else {
-            return Err(ReplaceFaceError::Corrupt);
+            unreachable!("{first:?}'s chart was read a plane in this call's plan phase")
         };
         charts.push(crate::replace_face::offset_rechart(
             &work,
@@ -392,8 +480,11 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
     // posture (`Maintains`, by re-minting) is therefore honest now and
     // stays honest then.
     let minting = scope.faces_in_scope();
-    crate::pcurves::mint_pcurves_of(&mut work, &minting, tol)
-        .map_err(|source| ReplaceFaceError::Pcurve { source })?;
+    crate::pcurves::mint_pcurves_of(&mut work, &minting, tol).map_err(|source| {
+        ReplaceFaceError::Pcurve {
+            source: source.for_driver(),
+        }
+    })?;
     // Tier 2 over the WHOLE clone, deliberately, and one of the four
     // reads that stay linear in the body (`Scope`'s docs carry the
     // account and the reason for each).
@@ -401,108 +492,27 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
     if let Err(errors) = crate::validate::validate_closed(&staged) {
         return Err(ReplaceFaceError::ResultNotClosed { errors });
     }
+    let joins =
+        crate::replace_face::staged_join(&mut staged, join, tol, &|v| scope.holds_vertex(v))?;
     body.adopt(staged);
-    Ok(())
+    Ok(joins)
 }
 
-/// `description` re-stated for the moved edge: an intrinsic one keeps
-/// its (about to be remapped) surfaces with the witness at the new
-/// mid-parameter; a mapped one translates by the edge's own rigid
-/// displacement.
-///
-/// **A near-twin of `replace_face::plan_edge`'s description arm, and
-/// the difference is why it is not shared.** That one re-states a
-/// description in which exactly ONE named surface moved, so it must
-/// pick out the moved key and route the pair through the C5 table;
-/// here EVERY named surface moves, the pair is unchanged, and the
-/// remap is a bulk pass at the end. Sharing them would mean a
-/// parameter selecting which of two different obligations to
-/// discharge. The duplication is one `match` over five variants and
-/// this note is its disclosure.
-fn restate<T: Real>(
-    description: EdgeDescription<T>,
-    authority: EdgeAuthority<T>,
-    mid: Point3<T>,
-    displacement: Vec3<T>,
-    edge: EdgeKey,
-) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>> {
-    // **The pushforward is carried, wherever it lives** (PCURVE P-1b,
-    // at the merge). This function was written against the
-    // pre-collapse taxonomy, where a conventional locus WAS a
-    // `MappedCurve` and translating the description was the whole job.
-    // U2 restated such loci as chart images and moved the pushforward
-    // beside them as the authority record, so the job splits in two:
-    // the image is in the chart's own coordinates and a rigid
-    // displacement of the chart leaves it alone, while the declaration
-    // is 3-space sketch data and still has to be translated.
-    //
-    // Getting only the first half right is exactly the defect this
-    // unit shipped and had to fix in `replace_face`'s offset lane
-    // (`declared: None` silently destroying the record); the same
-    // question is answered the same way here rather than rediscovered.
-    // Unlike that lane, `offset_together` moves planes RIGIDLY by
-    // construction, so a displacement always exists and only the
-    // rotation-family refusal remains reachable.
-    let carried = |mc: geom_brep::MappedCurve<T>| {
-        crate::replace_face::translate_mapped(mc, displacement).ok_or(
-            ReplaceFaceError::CarrierLaneUnsupported {
-                edge,
-                what: "a rotation-family mapped description (its trajectory does not \
-                       translate)",
-            },
-        )
-    };
-    Ok(match description {
-        EdgeDescription::Intersection { s1, s2, .. } => EdgeDescriptionSpec::Intersection {
-            s1,
-            s2,
-            witness: mid,
-        },
-        EdgeDescription::TangentIntersection { s1, s2, .. } => {
-            EdgeDescriptionSpec::TangentIntersection {
-                s1,
-                s2,
-                witness: mid,
-            }
-        }
-        EdgeDescription::Chart(c) => EdgeDescriptionSpec::Chart {
-            surface: c.surface,
-            image: Some(c.pcurve),
-            seam: c.seam,
-            declared: match authority {
-                EdgeAuthority::Derived => None,
-                EdgeAuthority::Declared(mc) => Some(carried(mc)?),
-            },
-        },
-        EdgeDescription::Scaffold(m) => EdgeDescriptionSpec::Scaffold(carried(m)?),
-    })
-}
-
-/// The corner: `nᵢ·x = cᵢ` over the distinct moved planes at a vertex.
-fn solve_corner<T: Decide>(
-    vertex: VertexKey,
-    here: Point3<T>,
+/// Whether the moves ask the corner on `at`'s planes to move —
+/// decided from the request (how far its planes are offset), before
+/// any meter runs on the corner. Metering a motion of zero would call
+/// every corner of a stationary body singular, and the refusals' own
+/// words have to stay true.
+fn asked_to_move<T: Decide>(
     at: &[&MovedPlane<T>],
-    arms: &[T],
     band: Band,
-) -> Result<Point3<T>, ReplaceFaceError<T>> {
-    // **A corner that is not asked to move does not move**, and it is
-    // answered before any meter runs. Metering a motion of zero would
-    // classify every corner of a stationary body as unsolvable and say
-    // "singular" about geometry that is nothing of the kind — the
-    // refusal's own words have to stay true.
+) -> Result<bool, ReplaceFaceError<T>> {
     let requested = at.iter().fold(T::zero(), |acc, p| acc + p.delta.norm());
     match decide("offset_together_request", Margin::of(requested), band) {
-        Ok(Sign::Zero) => return Ok(here),
-        Ok(_) => {}
-        Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+        Ok(Sign::Zero) => Ok(false),
+        Ok(_) => Ok(true),
+        Err(source) => Err(ReplaceFaceError::Escalated { source }),
     }
-    solve_planar_corner(
-        vertex,
-        &at.iter().map(|p| (p.normal, p.c)).collect::<Vec<_>>(),
-        arms,
-        band,
-    )
 }
 
 /// The corner solve itself, over `(n̂, c)` plane equations — shared with
@@ -528,7 +538,7 @@ pub(crate) fn solve_planar_corner<T: Decide>(
         ));
     }
     // The first well-conditioned triple in ORBIT order (the order
-    // `faces_at_vertex` walks the vertex's own fan, which is what makes
+    // `Body::faces_of_vertex_linked` walks the vertex's own fan, which makes
     // the choice reproducible — not the face arena's).
     //
     // **The conditioning arm is the corner's OWN geometry, never the
@@ -607,7 +617,7 @@ fn radius<T: Real>(p: Point3<T>) -> Vec3<T> {
 }
 
 /// The chord length of every edge ending at a vertex — the lengths the
-/// corner's conditioning is levered by (see [`solve_corner`]).
+/// corner's conditioning is levered by (see [`solve_planar_corner`]).
 ///
 /// **The axial door keeps its own copy, levered by ARC LENGTH, and the
 /// difference is load-bearing rather than a duplication to collapse.**
@@ -617,42 +627,46 @@ fn radius<T: Real>(p: Point3<T>) -> Vec3<T> {
 /// with ONE seam closes on itself — and a zero arm makes every meter
 /// read `Zero` and call a perfectly transversal corner degenerate,
 /// which is what it measured on the revolved tube.
-fn corner_arms<T: Real>(
-    body: &Body<T>,
-    vertex: VertexKey,
-    here: Point3<T>,
-) -> Result<Vec<T>, ReplaceFaceError<T>> {
-    let Some(emanating) = body
-        .get_vertex(vertex)
-        .ok_or(ReplaceFaceError::Corrupt)?
-        .emanating
-    else {
-        return Ok(Vec::new());
-    };
-    let orbit = body
-        .vertex_orbit(emanating)
-        .ok_or(ReplaceFaceError::Corrupt)?;
-    let mut out = Vec::new();
-    for he in orbit {
-        let far = body.half_edge_end(he).ok_or(ReplaceFaceError::Corrupt)?;
-        let there = body
-            .get_vertex(far)
-            .and_then(|v| body.get_point(v.point).copied())
-            .ok_or(ReplaceFaceError::Corrupt)?;
-        out.push((there - here).norm());
-    }
-    Ok(out)
+fn corner_arms<T: Real>(body: &Body<T>, vertex: VertexKey, here: Point3<T>) -> Vec<T> {
+    body.vertex_orbit_linked(vertex)
+        .into_iter()
+        .map(|he| {
+            let next = proven(&body.half_edges, he, EntityId::HalfEdge).next;
+            let far = linked(
+                &body.half_edges,
+                next,
+                EntityId::HalfEdge,
+                EntityId::HalfEdge(he),
+                "next",
+            )
+            .start;
+            let there = body.linked_vertex_point(far, EntityId::HalfEdge(next), "start");
+            (there - here).norm()
+        })
+        .collect()
 }
 
-/// Every face incident to a vertex, in orbit order
-/// ([`Body::faces_of_vertex`]), with the door's `None` turned into this
-/// module's entity-agnostic [`ReplaceFaceError::Corrupt`].
-pub(crate) fn faces_at_vertex<T: Real>(
-    body: &Body<T>,
-    vertex: VertexKey,
-) -> Result<Vec<FaceKey>, ReplaceFaceError<T>> {
-    body.faces_of_vertex(vertex)
-        .ok_or(ReplaceFaceError::Corrupt)
+/// The panic for an in-scope face no move names: the scope gate
+/// refused every scoped face missing from the moves before this is
+/// asked, and a face meeting a scoped vertex or edge lies on the same
+/// solid on a tier-1-valid body.
+#[track_caller]
+pub(crate) fn unmoved_in_scope(face: FaceKey) -> ! {
+    unreachable!(
+        "{face:?} meets an entity of the scope and no move names it: the scope gate covers \
+         every face of a scoped solid, and {NAMES_ONLY_LIVE}"
+    )
+}
+
+/// The panic for an in-scope edge's endpoint the corner solve did not
+/// place: every vertex of a scoped edge is a scoped vertex, and each
+/// of those was solved or kept.
+#[track_caller]
+pub(crate) fn unplaced_in_scope(vertex: VertexKey) -> ! {
+    unreachable!(
+        "{vertex:?} ends an edge of the scope and the corner pass did not place it: every \
+         scoped vertex is solved or kept, and {NAMES_ONLY_LIVE}"
+    )
 }
 
 /// **The solids a simultaneous door works over.**
@@ -674,10 +688,8 @@ pub(crate) fn faces_at_vertex<T: Real>(
 ///
 /// **Narrowed to the scope, and only these two things.** (1) This
 /// partition: `of_solids` walks the named solids' shells and nothing
-/// else, so a shell, face, loop or half-edge that does not resolve
-/// refuses the construction only when it belongs to a solid the scope
-/// was asked about — a call about one solid is not refused for another
-/// solid's corruption. (2) The closing pcurve pass
+/// else, so another solid's shells, faces, loops and half-edges are
+/// not read at all. (2) The closing pcurve pass
 /// ([`crate::pcurves::mint_pcurves_of`], over
 /// [`Scope::faces_in_scope`]): the rows of the scope's faces are
 /// re-derived and no others are read or written.
@@ -735,16 +747,16 @@ pub(crate) fn faces_at_vertex<T: Real>(
 ///
 /// **The same owner index, as a public door, is
 /// [`SolidOwners`](crate::SolidOwners)**, and the two stay separate
-/// because they refuse differently: that one indexes every solid of
+/// because they answer differently: that one indexes every solid of
 /// the body and SKIPS what does not resolve, so an absent entry is its
-/// answer; this one walks only the solids it names and REFUSES on an
-/// unresolved entity of one of them, because a door must not solve
-/// over a scope it could only partly read. Nor is
+/// answer; this one walks only the solids it names and PANICS on an
+/// unresolved link of one of them, a torn body (D2 row 4), because a
+/// door must not solve over a scope it could only partly read. Nor is
 /// [`Body::faces_of_solid`] a home for either walk's face half: it
 /// reads the faces' own back-pointers where both walks read the
 /// solids' shell lists, answers for one solid per whole-arena scan,
 /// and drops a face whose shell does not resolve where this walk
-/// refuses. On a tier-1-valid body the two indices agree
+/// panics. On a tier-1-valid body the two indices agree
 /// about every face and vertex, lone vertices included, and
 /// `separation::owner_index` reds if they stop.
 #[derive(Clone)]
@@ -765,15 +777,18 @@ pub(crate) struct Scope {
 
 impl Scope {
     /// The whole body: every solid it holds, in slot order.
-    pub(crate) fn whole<T: Real>(body: &Body<T>) -> Option<Self> {
+    #[track_caller]
+    pub(crate) fn whole<T: Real>(body: &Body<T>) -> Self {
         let solids: Vec<SolidKey> = body.solids().map(|(k, _)| k).collect();
         Self::of_solids(body, &solids)
     }
 
-    /// The named solids. `None` when one of THEIR shells, faces, loops
-    /// or half-edges does not resolve; a solid not named is not walked
-    /// and its state cannot refuse this construction.
-    pub(crate) fn of_solids<T: Real>(body: &Body<T>, solids: &[SolidKey]) -> Option<Self> {
+    /// The named solids, each one this call resolved or read out of a
+    /// record. A solid not named is not walked, so its state is not
+    /// read; a named solid's records all resolve on a tier-1-valid
+    /// body, and a miss panics naming the record ([`Scope::walk`]).
+    #[track_caller]
+    pub(crate) fn of_solids<T: Real>(body: &Body<T>, solids: &[SolidKey]) -> Self {
         let mut scope = Self {
             solids: solids.to_vec(),
             built: Vec::new(),
@@ -781,30 +796,37 @@ impl Scope {
             edges: SecondaryMap::new(),
             vertices: SecondaryMap::new(),
         };
-        scope.walk(body, solids)?;
-        Some(scope)
+        scope.walk(body, solids);
+        scope
     }
 
     /// Walks the shells of every solid of `solids` the maps do not
     /// already hold, extending them. Idempotent: a solid already in
-    /// `built` costs nothing.
-    fn walk<T: Real>(&mut self, body: &Body<T>, solids: &[SolidKey]) -> Option<()> {
+    /// `built` costs nothing. Every hop is a link of the record before
+    /// it, so a miss is a kernel bug and panics naming the record.
+    #[track_caller]
+    fn walk<T: Real>(&mut self, body: &Body<T>, solids: &[SolidKey]) {
         for &solid in solids {
             if self.built.contains(&solid) {
                 continue;
             }
-            for &shell in body.shells_of_solid(solid)? {
-                for &face in &body.get_shell(shell)?.faces {
+            for &shell in &proven(&body.solids, solid, EntityId::Solid).shells {
+                let holder = EntityId::Solid(solid);
+                for &face in &linked(&body.shells, shell, EntityId::Shell, holder, "shells").faces {
                     self.faces.insert(face, solid);
-                    let f = body.get_face(face)?;
-                    for r#loop in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-                        match body.get_loop(r#loop)?.boundary {
+                    let holder = EntityId::Shell(shell);
+                    let f = linked(&body.faces, face, EntityId::Face, holder, "faces");
+                    let loops = core::iter::once(("outer", f.outer))
+                        .chain(f.rings.iter().map(|&ring| ("rings", ring)));
+                    for (field, r#loop) in loops {
+                        let holder = EntityId::Face(face);
+                        match linked(&body.loops, r#loop, EntityId::Loop, holder, field).boundary {
                             crate::entity::LoopBoundary::Empty { vertex } => {
                                 self.vertices.insert(vertex, solid);
                             }
                             crate::entity::LoopBoundary::Cycle { first } => {
-                                for he in body.loop_cycle(first)? {
-                                    let half = body.get_half_edge(he)?;
+                                for he in body.loop_walk(first).closed("loop", first) {
+                                    let half = proven(&body.half_edges, he, EntityId::HalfEdge);
                                     self.vertices.insert(half.start, solid);
                                     self.edges.insert(half.edge, solid);
                                 }
@@ -815,7 +837,6 @@ impl Scope {
             }
             self.built.push(solid);
         }
-        Some(())
     }
 
     /// Every face of every solid this scope names — the faces a door's
@@ -848,7 +869,7 @@ impl Scope {
     /// case, a scope built over every solid and then narrowed — is a
     /// swap of one `Vec`; re-scoping up to a solid never walked extends
     /// the maps rather than answering `false` about entities that are
-    /// in scope. `None` on a structural failure in what it had to walk.
+    /// in scope.
     ///
     /// **Extending rather than refusing, deliberately**: it makes "a
     /// scope whose maps do not cover its own solids" unrepresentable
@@ -856,14 +877,12 @@ impl Scope {
     /// Nothing in the crate re-scopes UP today — the verb only narrows
     /// from [`Scope::whole`] — so the arm is exercised by its pin
     /// alone, `scope_walks::a_re_scope_up_holds_the_solid_it_was_aimed_at`,
-    /// which reds if this becomes a bare `Vec` swap. The `None` the two
-    /// `shell.rs` callers map to `Corrupt` is likewise unreachable from
-    /// them by construction, and honest by type.
-    pub(crate) fn re_scope<T: Real>(&mut self, body: &Body<T>, solids: &[SolidKey]) -> Option<()> {
-        self.walk(body, solids)?;
+    /// which reds if this becomes a bare `Vec` swap.
+    #[track_caller]
+    pub(crate) fn re_scope<T: Real>(&mut self, body: &Body<T>, solids: &[SolidKey]) {
+        self.walk(body, solids);
         self.solids.clear();
         self.solids.extend_from_slice(solids);
-        Some(())
     }
 
     /// Is `face` on a solid this scope names?
@@ -899,11 +918,11 @@ pub(crate) fn scope_of_moves<T: Real>(
     // follows covers those solids alone.
     //
     // The two hops are spelled out rather than read through
-    // [`Body::solid_of_face`] because their refusals are not the same
-    // sentence: a key the caller handed over names ITSELF
-    // (`StaleFace`), while a back-pointer the body owns is the body's
-    // own corruption (`Corrupt`). `the_two_hops_refuse_differently`
-    // reds on a fold that collapses them.
+    // [`Body::solid_of_face`] because they answer differently: a key the
+    // caller handed over names ITSELF (`StaleFace`), while the face's
+    // `shell` is a link its record holds, so a miss there is a torn
+    // body and panics naming it. `the_two_hops_answer_differently` reds
+    // on a fold that collapses them.
     let mut solids: Vec<SolidKey> = Vec::new();
     for m in moves {
         for &face in &m.faces {
@@ -911,16 +930,27 @@ pub(crate) fn scope_of_moves<T: Real>(
                 .get_face(face)
                 .ok_or(ReplaceFaceError::StaleFace { face })?
                 .shell;
-            let solid = body
-                .get_shell(shell)
-                .ok_or(ReplaceFaceError::Corrupt)?
-                .solid;
+            let solid = linked(
+                &body.shells,
+                shell,
+                EntityId::Shell,
+                EntityId::Face(face),
+                "shell",
+            )
+            .solid;
+            linked(
+                &body.solids,
+                solid,
+                EntityId::Solid,
+                EntityId::Shell(shell),
+                "solid",
+            );
             if !solids.contains(&solid) {
                 solids.push(solid);
             }
         }
     }
-    Scope::of_solids(body, &solids).ok_or(ReplaceFaceError::Corrupt)
+    Ok(Scope::of_solids(body, &solids))
 }
 
 #[cfg(test)]
@@ -934,7 +964,7 @@ mod scope_walks {
 
     use super::{ChartMove, Scope, offset_planes_together, scope_of_moves};
     use crate::body::Body;
-    use crate::entity::{HalfEdgeKey, LoopBoundary, ShellKey, SolidKey};
+    use crate::entity::{EntityId, HalfEdgeKey, LoopBoundary, ShellKey, SolidKey};
     use crate::replace_face::ReplaceFaceError;
     use crate::splitting::reassembly::quad_prism;
     use crate::test_support_fixtures::UNIT_SQUARE;
@@ -994,7 +1024,7 @@ mod scope_walks {
     fn a_scope_holds_only_the_solids_it_names() {
         let (body, first, second) = two_boxes();
         let seconds = body.faces_of_solid(second).expect("a live solid");
-        let scope = Scope::of_solids(&body, &[first]).unwrap();
+        let scope = Scope::of_solids(&body, &[first]);
         for f in body.faces_of_solid(first).expect("a live solid") {
             assert_eq!(scope.solid_of(f), Some(first));
             assert!(scope.holds_face(f));
@@ -1004,7 +1034,7 @@ mod scope_walks {
             assert!(!scope.holds_face(f));
         }
         // The whole body, for contrast: one walk, both solids.
-        let whole = Scope::whole(&body).unwrap();
+        let whole = Scope::whole(&body);
         for &f in &seconds {
             assert_eq!(whole.solid_of(f), Some(second));
         }
@@ -1012,8 +1042,8 @@ mod scope_walks {
 
     /// **An out-of-scope solid's structural corruption is not this
     /// call's to find.** `Scope::whole` — the shell verb's walk —
-    /// refuses this body; the walk a move set naming the SOUND solid
-    /// takes accepts it.
+    /// panics on this body, naming the loop walk that does not close;
+    /// the walk a move set naming the SOUND solid takes never reads it.
     ///
     /// **The door as a whole is not** — and the row stops at the scope
     /// deliberately. A structurally corrupt body is refused by two
@@ -1030,9 +1060,12 @@ mod scope_walks {
         let (mut body, first, second) = two_boxes();
         break_a_loop(&mut body, second);
 
+        let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+            let _ = Scope::whole(&body);
+        }));
         assert!(
-            Scope::whole(&body).is_none(),
-            "the whole-body walk still refuses a corrupt solid"
+            report.contains("the loop walk from") && report.contains(crate::body::WALKS_CLOSE),
+            "the whole-body walk panics naming the walk the corrupt solid breaks: {report}"
         );
         let moves = moves_of(&body, first, 0.0);
         let scope = scope_of_moves(&body, &moves).expect("the sound solid's scope builds");
@@ -1089,29 +1122,16 @@ mod scope_walks {
             .expect("the door reads its scope, and its scope charts");
     }
 
-    /// The scope walk's two hops refuse DIFFERENTLY, and that is why it
+    /// The scope walk's two hops answer DIFFERENTLY, and that is why it
     /// is spelled out instead of read through [`Body::solid_of_face`].
     /// A face key the CALLER handed over is named back to it
     /// ([`ReplaceFaceError::StaleFace`]); a shell back-pointer the BODY
-    /// owns is the body's own incoherence
-    /// ([`ReplaceFaceError::Corrupt`]), and no key the caller holds is
-    /// wrong. An `Option` door raises one value for both, so a fold
-    /// onto it has to pick one of the two sentences and tell the other
-    /// caller something false. This row is the only thing in the tree
-    /// that reads the difference.
-    ///
-    /// **What arm 2 cannot separate.** `Corrupt` is also the refusal of
-    /// the terminal `Scope::of_solids(..).ok_or(Corrupt)`, so the
-    /// variant alone does not say WHICH of the two raised it. The arm
-    /// closes that by bracketing: the same face and the same body
-    /// build a scope before the back-pointer is broken and refuse
-    /// after, so the refusal is the corruption's and not the body's.
-    /// It still cannot tell hop 2 from an `of_solids` that the same
-    /// corruption also broke — what it guards is the flattening, and a
-    /// fold of hop 2 onto `StaleFace` changes the variant here either
-    /// way.
+    /// owns is a torn body, and the walk panics naming the face's
+    /// `shell` link (D2 row 4). An `Option` door raises one value for
+    /// both, so a fold onto it has to pick one of the two answers and
+    /// tell the other caller something false.
     #[test]
-    fn the_two_hops_refuse_differently() {
+    fn the_two_hops_answer_differently() {
         let (mut body, first, _second) = two_boxes();
 
         // Hop 1 — a key the caller handed over. The refusal names it,
@@ -1143,7 +1163,7 @@ mod scope_walks {
 
         // Hop 2 — a live face of that same body whose `shell`
         // back-pointer is not. Every key the caller holds is good, so
-        // the refusal names none of them.
+        // the panic names the record, not an argument.
         let live = body.faces_of_solid(first).expect("a live solid")[0];
         let moves = vec![ChartMove {
             faces: vec![live],
@@ -1154,12 +1174,17 @@ mod scope_walks {
             "the same face and the same body build a scope before the corruption"
         );
         body.get_face_mut(live).expect("the face is live").shell = ShellKey::default();
-        let Err(err) = scope_of_moves(&body, &moves) else {
-            panic!("a dangling shell back-pointer refuses the scope walk")
-        };
+        let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+            let _ = scope_of_moves(&body, &moves);
+        }));
+        let premise = format!(
+            "{}'s shell names {}, which does not resolve",
+            EntityId::Face(live),
+            EntityId::Shell(ShellKey::default())
+        );
         assert!(
-            matches!(err, ReplaceFaceError::Corrupt),
-            "hop 2 is the body's own incoherence, not a stale argument: {err:?}"
+            report.contains(&premise) && report.contains(crate::live::NAMES_ONLY_LIVE),
+            "hop 2 is a torn body and panics naming the face's shell link: {report}"
         );
     }
 
@@ -1199,14 +1224,12 @@ mod scope_walks {
         let (body, first, second) = two_boxes();
         let firsts = body.faces_of_solid(first).expect("a live solid");
         let seconds = body.faces_of_solid(second).expect("a live solid");
-        let mut scope = Scope::of_solids(&body, &[first]).unwrap();
+        let mut scope = Scope::of_solids(&body, &[first]);
         for &f in &seconds {
             assert!(!scope.holds_face(f));
             assert_eq!(scope.solid_of(f), None);
         }
-        scope
-            .re_scope(&body, &[second])
-            .expect("the walk of the difference");
+        scope.re_scope(&body, &[second]);
         for &f in &seconds {
             assert!(
                 scope.holds_face(f),

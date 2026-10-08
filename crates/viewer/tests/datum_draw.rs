@@ -14,6 +14,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::AuthoredNode;
 
 use common::{frame, inserted, len3, scl3, square, xy_frame};
 use pncad::document::{
@@ -25,7 +26,7 @@ use viewer::datums::{self, DatumKind, View, datum_view, grid_pitch};
 use viewer::input::ViewportSize;
 
 /// A document holding just the datums given.
-fn evaluated(nodes: Vec<Node<ProfileProgram>>) -> (Doc<ProfileProgram>, Tol) {
+fn evaluated(nodes: Vec<AuthoredNode>) -> (Doc<ProfileProgram>, Tol) {
     let tol = Tol::witness();
     let mut doc = Doc::empty(DocumentId::derive("datum-draw"), tol);
     for node in nodes {
@@ -50,8 +51,8 @@ fn view_at(eye: [f64; 3], look_at: [f64; 3]) -> View {
     let height = 800.0;
     let along_z = eye[0] == look_at[0] && eye[1] == look_at[1];
     View {
-        eye: Point3::new(eye[0], eye[1], eye[2]),
-        look_at: Point3::new(look_at[0], look_at[1], look_at[2]),
+        eye: Point3::from_array(eye),
+        look_at: Point3::from_array(look_at),
         metres_per_pixel_at_one_metre: 2.0 * (core::f64::consts::FRAC_PI_8).tan() / height,
         up: if along_z {
             Vec3::new(0.0, 1.0, 0.0)
@@ -111,21 +112,21 @@ fn segment_lengths(segments: &[[f64; 3]]) -> Vec<f64> {
 }
 
 /// A plane datum, a point datum and an axis datum.
-fn plane(origin: [f64; 3], normal: [f64; 3]) -> Node<ProfileProgram> {
+fn plane(origin: [f64; 3], normal: [f64; 3]) -> AuthoredNode {
     Node::Datum(Datum::Plane {
         origin: len3(origin),
         normal: scl3(normal),
     })
 }
 
-fn axis(origin: [f64; 3], direction: [f64; 3]) -> Node<ProfileProgram> {
+fn axis(origin: [f64; 3], direction: [f64; 3]) -> AuthoredNode {
     Node::Datum(Datum::Axis {
         origin: len3(origin),
         direction: scl3(direction),
     })
 }
 
-fn point(position: [f64; 3]) -> Node<ProfileProgram> {
+fn point(position: [f64; 3]) -> AuthoredNode {
     Node::Datum(Datum::Point {
         position: len3(position),
     })
@@ -369,7 +370,7 @@ fn only_datum_nodes_draw() {
     // The square's frame is a datum and DOES draw; the profile drawn
     // on it is the ordinary node this row is about.
     let (framed, tol) = evaluated(vec![common::xy_frame()]);
-    let frame = framed.order()[0];
+    let frame = framed.ids()[0];
     let (doc, _) = inserted(&framed, square(frame, 0.02), tol);
     let (doc, _) = inserted(&doc, point([0.0, 0.0, 0.0]), tol);
     let drawn = draws(&doc, tol, [0.0, -0.15, 0.1]);
@@ -874,7 +875,7 @@ fn drawn_under(doc: &Doc<ProfileProgram>, tol: Tol, view: View) -> Vec<datums::D
 
 /// One of each kind at the same origin, for the rows that ask what a
 /// whole picture does under a view that has gone wrong.
-fn one_of_each(origin: [f64; 3]) -> Vec<Node<ProfileProgram>> {
+fn one_of_each(origin: [f64; 3]) -> Vec<AuthoredNode> {
     vec![
         plane(origin, [0.0, 0.0, 1.0]),
         frame(origin, [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
@@ -1186,12 +1187,9 @@ fn datum_view_reports_the_camera_and_the_window_it_is_given() {
         assert_eq!(view.window_px, [width_px, height_px]);
         // Component-wise: the geometry types carry no `PartialEq`.
         let (eye, target, up) = (camera.eye(), camera.target(), camera.up());
-        assert_eq!([view.eye.x, view.eye.y, view.eye.z], [eye.x, eye.y, eye.z]);
-        assert_eq!(
-            [view.look_at.x, view.look_at.y, view.look_at.z],
-            [target.x, target.y, target.z],
-        );
-        assert_eq!([view.up.x, view.up.y, view.up.z], [up.x, up.y, up.z]);
+        assert_eq!(view.eye.to_array(), eye.to_array());
+        assert_eq!(view.look_at.to_array(), target.to_array(),);
+        assert_eq!(view.up.to_array(), up.to_array());
         let scale = 2.0 * (camera.fov_y() * 0.5).tan() / height_px;
         assert!(
             (view.metres_per_pixel_at_one_metre - scale).abs() <= scale * 1.0e-15,
@@ -1621,7 +1619,7 @@ const NORMALS: &[[f64; 3]] = &[
 /// equator members are chosen for is decided on `n.z`'s sign, which a
 /// re-spelling can move.
 fn kernel_basis(v: [f64; 3]) -> (Vec3<f64>, Vec3<f64>, Vec3<f64>) {
-    let n = Vec3::new(v[0], v[1], v[2]).normalize();
+    let n = Vec3::from_array(v).normalize();
     let (b1, b2) = n.orthonormal_basis();
     (n, b1, b2)
 }

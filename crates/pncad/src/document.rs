@@ -63,17 +63,20 @@
 // the key. Carrying the refusal is not carrying the value tree:
 // `MetaValue` and `MetaError` stay out, because the arm names neither.
 // `CarryForwardDoor` rides with `EditError` by that same rule at the
-// carry-forward arm: it is what `EditError::DocParamNotDeclared`
-// carries beside the name, and which of the two doors was refused is
-// the whole of what that arm says beyond the parameter.
+// unknown-variable arm: it is what `EditError::UnknownVar` carries
+// beside the address, and which door was refused is the whole of what
+// that arm says beyond the variable.
 // `Maintenance` rides with `Applied` by the same rule: it is what
-// `Applied::maintenance` answers in — the A11 cluster-record acts an
-// edit forced and the references a delete stranded (DM7) — and a
+// `Applied::maintenance` answers in — the offset the mate door cleared
+// (A11 (2)) and the references a delete stranded (DM7) — and a
 // consumer that can hold an `Applied` in a typed field must be able to
 // hold what it carries. `MaintenanceNet` rides with it: a consumer
 // that applies several edits as one action (a cascade delete) folds
 // their rows into what is true of the document the action ends at, and
-// that rule has one spelling.
+// that rule has one spelling. `Recording` and `Recorded` are that
+// action whole — the edits applied in order, their rows netted, the
+// ids they minted — so a consumer composing one does not re-write the
+// loop.
 // `StepId` is what `DocEdit::SetProgram` keeps a step by — a caller
 // who cannot spell it cannot author the edit — and `StepIdFault` is
 // what `EditError::StepIdsRefused` carries, so a consumer matching that
@@ -85,9 +88,9 @@
 // what those doors refuse with, and the shape types are what an
 // `AuthoredStep` is made of.
 pub use editor_core::{
-    Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, LoggedEdit,
-    Maintenance, MaintenanceNet, MetaVersionError, PiecesFault, ProgramRefusal, StepId,
-    StepIdFault, apply, apply_logged,
+    Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, Maintenance,
+    MaintenanceNet, MetaVersionError, PiecesFault, ProgramRefusal, Recorded, Recording,
+    RegaugeThenMateOutcome, StepId, StepIdFault, Took, apply, apply_replayed, regauge_then_mate,
 };
 pub use editor_core::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
@@ -99,15 +102,24 @@ pub use editor_core::cascade_delete_order;
 
 // Node vocabulary. `BooleanOp` is the KERNEL's, which the recipe node
 // carries directly; it is re-exported here so document-layer code can
-// spell the whole node vocabulary through one module.
+// spell the whole node vocabulary through one module. `CountMismatch`
+// rides with `PlacementRuleFault`: it is what that fault and
+// `EditError::PlacementRuleMismatch` carry.
 pub use editor_core::{
-    Axis3, BooleanOp, Datum, InputFault, MeasureNodeFault, Node, PartSelect, PatternKind,
-    PlacementRuleFault, RecipeNodeId, RigidArg, SlotId, TubeWindow, VectorSlot,
+    Axis3, BooleanOp, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault, ListFault,
+    MeasureNodeFault, MintId, Node, OutputPort, PartSelect, PatternKind, PlacementRuleFault,
+    PortKind, RecipeNodeId, RigidArg, SlotId, TubeWindow, VectorSlot, declare_continuation,
+    declare_rest,
 };
 
-// How a sentence names a node: the kind noun and tag a person reads, and
-// the full-width id a machine channel prints.
-pub use editor_core::{FullId, SpokenNode, node_kind_noun};
+// How a sentence names a node: the kind noun and tag a person reads, the
+// speaker a refusal holding bare ids is said by, the nodes a door kept
+// beside a refusal it carries whole, and the full-width id a machine
+// channel prints.
+pub use editor_core::{
+    FullId, HeldNodes, NameTables, Said, Say, Speaker, SpokenName, SpokenNode, SpokenVar, held_by,
+    node_kind_noun, spoken_by, spoken_within,
+};
 
 // A node's label (DESIGN.md Band 1, "Node labels"): document data the
 // kernel stores and speaks, never identity.
@@ -147,25 +159,38 @@ pub use editor_core::{
 };
 
 // Expressions and their text door.
-// `ParamEnv` joins them because `select_where` takes one, so a
+// `Formula` is what a caller writes (VARIABLES-DESIGN VR6) and `Expr`
+// what a document stores; the edit door lowers the one to the other, so
+// a node an edit carries is an `AuthoredNode`. `LowerFault` is the
+// lowering's refusal, for a caller that lowers a formula itself
+// (`Doc::lowered`): a `NameFault` (`Unlowered` says why) or a
+// `FreshFault`, a read of an edit's fresh table outside that edit; `Slot` is the bound a
+// reader generic over the two node forms states, and `ExprTree` over
+// `LeafSet` (`StoredLeaf`, `AuthoredLeaf`) the tree both forms share.
+// `VarEnv` joins them because `select_where` takes one, so a
 // caller who cannot spell the type cannot call the door.
-// `DimensionError` is the refusal `Expr`'s constructor doors return
+// `DimensionError` is the refusal `Formula`'s constructor doors return
 // (`literal`, the operator builders) — re-exported so a caller can
 // MATCH on it rather than pre-check the conditions it refuses.
-// `unparse` is `parse_expr`'s inverse, the text door OUTWARD: the
+// `Ratio` is the exact constant a formula holds (VR5) and `Quantity` a
+// written value (VR6), which `Formula::as_ratio` / `as_quantity` hand
+// back, so a caller reading a formula can name what it holds.
+// `unparse` is `parse_formula`'s inverse, the text door OUTWARD: the
 // source text an expression reads back from, which is what a panel
 // showing a stored expression needs and cannot otherwise derive.
 // `ExprPath` is here by the payload rule: it is the ADDRESS
-// `EditError::PathOffTree` names, so without it a consumer can match
-// the refusal and cannot say which expression the address ran off.
+// `DocEdit::SetExpression` takes, so without it a consumer cannot spell
+// which expression the edit replaces.
 pub use editor_core::{
-    Dimension, DimensionError, Expr, ExprPath, ParamEnv, ParseError, parse_expr, unparse,
+    AuthoredLeaf, AuthoredNode, Dimension, DimensionError, Expr, ExprPath, ExprTree, Formula,
+    FreshFault, LeafSet, LowerFault, NameFault, ParseError, Quantity, Ratio, Slot, StoredLeaf,
+    Unlowered, VarEnv, parse_formula, unparse,
 };
 
 // The expression READ side: an expression's current value under a
-// document's parameter environment (`Doc::param_env`). A panel that
-// shows a slot before editing it needs this — `Expr::literal_value`
-// answers only for a bare literal, and a slot driven by
+// document's parameter environment (`Doc::var_env`). A panel that
+// shows a slot before editing it needs this — `Formula::literal_value`
+// answers only for a lone written quantity, and a slot driven by
 // `width/2 - margin` has a value the consumer otherwise cannot obtain
 // without re-implementing the evaluator. `EvalError` rides along so a
 // slot whose value cannot be computed says which parameter is missing
@@ -175,47 +200,58 @@ pub use editor_core::{
 // `editor_core::eval`, which names BOTH the evaluation module and this
 // function: a bare `pub use editor_core::eval` would re-export the
 // module too, opening a second door onto the layer this list exists to
-// curate.
-pub use editor_core::expr::{EvalError, eval, eval_count};
+// curate. `eval_var` / `eval_var_count` read one variable — what a slot
+// holds — at the dimension its slot reads it at.
+pub use editor_core::expr::{EvalError, eval, eval_count, eval_var, eval_var_count};
 
-// Named document parameters.
-// `ParamName` is a parameter's name — a string newtype admissible by
-// construction (one identifier an expression reads back), whose
-// fallible constructor answers `ParamNameFault` — and
-// `DocParam` its declared dimension plus exact stored value: recipe
-// vocabulary, plain values, no arena key anywhere in either. They
-// complete doors this module already carried: `DocEdit::SetDocParam`
-// takes both and `Expr::param` takes a `ParamName`, so without them
-// the parametric flagship (`plate_param`, guide §3.2) could not be
-// authored façade-only.
-// `DocParamValue` is the value half of one, and the reason it is
-// curated is the door it opens: `DocEdit::SetDocParamValue` writes a
-// new number into an already-declared parameter and carries the whole
-// declaration — dimension AND distribution — forward. Rebuilding a
-// `DocParam` from `(dim, value)` to move a value is the natural
-// spelling and it silently DELETES an annotation, because
-// `SetDocParam` is create-or-replace; a façade that curated only the
-// deleting door would be handing every caller that trap.
-// `UnitSym` is the display-unit CODE a `DocParam::Continuous` carries
-// beside its dimension — the notation the parameter was authored in.
+// Document variables (VARIABLES-DESIGN VR1–VR3).
+// `VarId` is a variable's minted identity and `VarName` the unique name
+// held beside it — a string newtype admissible by construction (one
+// identifier an expression reads back), whose fallible constructor
+// answers `VarNameFault`. `Var` is the variable a document holds, of a
+// `VarKind` fixed at minting and defined by a `VarDef` (free, defined
+// by an `Expr` over other variables, or an output of an operation,
+// which `Doc::output` reads); `VarDecl` is the definition as
+// an edit carries it, read by name before the door lowers it; `FreeVar`
+// is a free definition's dimension plus exact stored value. `VarRef` is how
+// an edit addresses a variable, by id or by name. Recipe vocabulary,
+// plain values, no arena key anywhere: they complete doors this module
+// already carries — `DocEdit::DeclareVar` takes a name and a
+// `VarDecl`, the variable edits take a `VarRef`, and `Formula::named`
+// takes a `VarName` — so without them the parametric flagship
+// (`plate_param`, guide §3.2) could not be authored façade-only.
+// `SpokenVar` is a variable as a refusal speaks it.
+// `FreeValue` is the value half of a free variable, and the reason it is
+// curated is the door it opens: `DocEdit::SetVarValue` writes a new
+// number into a standing variable and carries the whole definition —
+// kind AND distribution — forward. Rebuilding a `FreeVar` from
+// `(dim, value)` for `DocEdit::DefineVar` is the natural spelling and it
+// silently DELETES an annotation, because a definition is replaced
+// whole; a façade that curated only the deleting door would be handing
+// every caller that trap.
+// `UnitSym` is the display-unit CODE a `FreeVar::Continuous` carries
+// beside its dimension — the notation the variable was authored in.
 // It rides here for `Distribution`'s reason: the field is `pub`, so a
 // façade that could not spell its TYPE could not build the struct at
 // all, and `UnitSym::canonical_for` is how a caller authoring in
 // metres says so.
-// `DisplayUnitRefusal` is what `DocParam::with_display_unit` answers
+// `DisplayUnitRefusal` is what `FreeVar::with_display_unit` answers
 // when a notation cannot be written — the same `VerbKind` rule: it is
-// that door's `Err`, and a consumer calling the door on a `DocParam`
+// that door's `Err`, and a consumer calling the door on a `FreeVar`
 // it holds could otherwise read the reason only out of prose.
 // `DistributionRefusal` is the same thing at the third field, for
-// `DocParam::with_distribution`.
+// `FreeVar::with_distribution`.
+// `DEFINITION_NODE_BOUND` is the expansion bound
+// `EditError::DefinitionTooLarge` refuses past, so a caller holding that
+// refusal's count can read what it was measured against.
 pub use editor_core::{
-    DisplayUnitRefusal, DistributionRefusal, DocParam, DocParamValue, ParamName, ParamNameFault,
-    ParamNameReason, UnitSym,
+    DEFINITION_NODE_BOUND, DisplayUnitRefusal, DistributionRefusal, FreeValue, FreeVar, UnitSym,
+    Var, VarDecl, VarDef, VarId, VarKind, VarName, VarNameFault, VarNameReason, VarRef, WrittenDef,
 };
 
 // A parameter's optional uncertainty (ERROR-DESIGN E1/E2), and the
 // typed refusals its invariants raise at the edit and persistence
-// doors. It rides on `DocParam::Continuous`, so a façade that can
+// doors. It rides on `FreeVar::Continuous`, so a façade that can
 // author a parameter but not annotate one could not express an
 // error-analysis document at all; `DistributionFault` is what
 // `EditError::InvalidDistribution` and `PersistError::Distribution`
@@ -225,7 +261,7 @@ pub use editor_core::{Distribution, DistributionFault, DistributionField};
 
 // WHICH float of a continuous parameter a non-finite refusal is about
 // — the nominal or one of the annotation's offsets. Both doors' typed
-// refusals carry it (`EditError::NonFiniteDocParam`,
+// refusals carry it (`EditError::NonFiniteVar`,
 // `NonFiniteSite::DocParam`), so a caller matching either needs to be
 // able to name it.
 pub use editor_core::DocParamField;
@@ -277,11 +313,13 @@ pub use editor_core::DocParamField;
 // exception `EntityKey` is — and it cannot be CONSTRUCTED from here,
 // which is the point of it: its field is private to the door that
 // mints it.
+// `StepTurns` rides with `NodeErrorKind`: it is `FullRangeStep`'s
+// `turns`, how the copies of a step a turn or more would land.
 pub use editor_core::{
     Arity, BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, DatumValue,
     DirectionRefusal, EvalOptions, EvalOutcome, Evaluation, Found, FramePlacement, Mispaired,
     NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue,
-    ProfileLift, SplitSide, ValuePayload, VerbKind, evaluate,
+    ProfileLift, SplitSide, StepTurns, ValuePayload, VerbKind, evaluate,
 };
 
 // Persistence: the doors, verbatim.
@@ -292,8 +330,8 @@ pub use editor_core::{
 // schema version (the persist module docs say why), so there is no
 // version constant to carry either.
 pub use editor_core::{
-    Loaded, NonFiniteSite, PersistError, ProgramFault, REGENERATE_RECOURSE, SnapshotError, load,
-    save,
+    Loaded, NonFiniteSite, OutputFault, PersistError, ProgramFault, REGENERATE_RECOURSE,
+    SnapshotError, load, save,
 };
 
 // A refusal's two renderings: under its stage word (`Display`), and as
@@ -323,9 +361,12 @@ pub use editor_core::ContentBits;
 // `Doc::roots` and set through
 // `DocEdit::SetRoots`; `product` is the whole-document gather those
 // roots name, and `RootFault` is the shared invariant refusal both
-// the edit and persistence doors carry.
+// the edit and persistence doors carry. `OwnSpace` is one unplaced
+// group's own space, which a `Product` carries beside the world for
+// the at-rest gate to check, and `own_spaces` gathers every one.
 pub use editor_core::{
-    Product, ProductError, ProductErrorKind, RootFault, SourceFinding, product, product_recorded,
+    OwnSpace, PlacedTwice, Product, ProductError, ProductErrorKind, ProductRefusal, Refusal,
+    RootFault, SourceFinding, own_spaces, product, product_recorded,
 };
 
 // The gather's own witness, and only where `debug_assertions` are on:
@@ -335,9 +376,8 @@ pub use editor_core::{
 #[cfg(debug_assertions)]
 pub use editor_core::gathers_on_this_thread;
 
-// Instantiated parts. `Frame` is the group placement a document
-// records per instantiate node
-// (read through `Doc::placement`, written by `DocEdit::SetPlacement`);
+// Instantiated parts. `Frame` is the rigid motion a gauge's or an
+// instance offset's `Placement` evaluates to;
 // `PartResolver` is the document seam evaluation crosses to reach a
 // referenced document, `ResolveFailure`/`ResolveFault` its classified
 // refusal, and `PartFault` the evaluation-side cause an
@@ -350,18 +390,19 @@ pub use editor_core::{
 };
 
 // Mates: the declaration node's
-// authored payload (`Alignment` over two `MateFrame`s — each an
-// `AuthoredFrame` or a `FaceFrame` — a `MatePrimitive`, an
+// authored payload (`Alignment` over two `MateFrame`s — each a
+// `FrameBase`, the part frame or the head's own face, composed with an
+// offset `Placement` — a `MatePrimitive`, an
 // `AxisSense`), the solve's per-node outcome
-// (`SolvedPoses`, `MateRole`, the residual `Subgroup`), the recorded
-// cluster-record maintenance (`ClusterMaintenance`, one arm of the
-// `Maintenance` row carried above), and `MateFault`
+// (`SolvedPoses`, `MateRole`, the residual `Subgroup`), and `MateFault`
 // — the typed refusal every door carries, the way `RootFault` is
 // carried above. `member_of` is A11's member vocabulary itself, which
 // an authoring door must gate on so it admits exactly the heads the
-// solve places (`Member` is its answer). `UNDER_RECOURSE` and
-// `CONTRADICTORY_RECOURSE` are the two recourse sentences the solve's
-// own refusals end on.
+// solve places (`Member` is its answer); `member_reading` is the same
+// walk with the name it reached at the member's instance, and
+// `head_face` the face of the member's part a head names, which a face
+// frame reads. `UNDER_RECOURSE` and `CONTRADICTORY_RECOURSE` are the
+// two recourse sentences the solve's own refusals end on.
 /// Why a mate could not form its lever, which
 /// [`MateFault::Unleverable`] carries — by the payload rule this list
 /// states at `VerbKind`.
@@ -382,23 +423,25 @@ pub use editor_core::{
 /// here rather than being spelled on a list that owns its vocabulary.
 pub use editor_core::LeverRefusal;
 pub use editor_core::{
-    Alignment, AuthoredFrame, AxisSense, CONTRADICTORY_RECOURSE, Clash, ClusterMaintenance,
-    FaceFrame, Lever, MateFault, MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member,
-    PartReach, PlacerRow, ReachRefusal, RefusingReach, SolvedPoses, Subgroup, UNDER_RECOURSE,
-    groups, mate_reach, member_of, reading_edges, relative_freedom_components, root_of,
-    solve_document,
+    Alignment, AxisSense, CONTRADICTORY_RECOURSE, Clash, FrameBase, Lever, MateFault, MateFrame,
+    MatePrimitive, MateReach, MateRole, MateSide, Member, OFFSET_RECOURSE, OffsetCheck, PartReach,
+    PlacerRow, Placing, PoseRefusal, PoseSymmetry, ReachRefusal, RefusingReach, SolvedPoses, Space,
+    Subgroup, SubgroupFamily, UNDER_RECOURSE, UNPLACED_RECOURSE, Unplaced, gauge_chain, groups,
+    head_face, mate_reach, member_of, member_reading, places, reading_edges,
+    relative_freedom_components, root_of, solve_document,
 };
-/// Why a mate's `FromFace` frame did not resolve to a pose, which
+/// Why a mate's face base did not resolve to a pose, which
 /// [`MateFault::FaceUnresolved`] carries — by the same payload rule.
 ///
-/// A `FromFace` frame ([`MateFrame::FromFace`], a [`FaceFrame`])
-/// names a face of the mated part and takes that face's canonical
-/// pose as the side's frame, read through the mated part's own
-/// evaluation (`MateReach::face_pose`, whose refusal is
-/// [`FacePoseRefusal`], carried beside the instance, its part and the
-/// face): the part does not resolve, the part's table has no row for
-/// the name or ties it, the readback refuses the carrier (no canonical
-/// frame), or the product's scalar pins no `f64`. A
+/// A face base ([`MateFrame::from_face`]) names no face: it
+/// takes the canonical pose of the face its side's head names in the
+/// mated part ([`head_face`]) as the side's frame, read through the
+/// mated part's own evaluation (`MateReach::face_pose`, whose refusal
+/// is [`FacePoseRefusal`], carried beside the instance, its part and
+/// the face): the part does not resolve, the part's table has no row
+/// for the name or ties it, the readback refuses the carrier (no
+/// canonical frame), or the product's scalar pins no `f64` — or the
+/// head names no face of the part at all. A
 /// consumer that could match `FaceUnresolved` and not name this type
 /// would read all of that out of the message prose.
 pub use editor_core::{FacePoseRefusal, FaceRefusal};
@@ -437,7 +480,9 @@ pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission, table_gap
 // own or a part's — and `CarriedDeclarations` is what an instantiated
 // value carries up. `AssemblyError::CarriedMintRefusal` is the
 // outermost gate's refusal over inner mates that could not be minted
-// at all, and `CarriedRefusal` is one of its rows; `MintRefusal` is one
+// at all, and `CarriedRefusal` is one of its rows; `CarriedUnplaced` is
+// an unplaced group below, which the part's world product leaves out
+// (`Evaluation::unplaced_below`); `MintRefusal` is one
 // row of the gate's refusal over this document's own mates. Both arms
 // raise EVERY row they hold, so the row types are what the gate's
 // answer is made of and a consumer matching that answer must name
@@ -447,8 +492,8 @@ pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission, table_gap
 // do it by re-typing the sentence.
 pub use editor_core::{
     Assembly, AssemblyError, AtRestFinding, Attribution, CarriedDeclaration, CarriedDeclarations,
-    CarriedRefusal, MintRefusal, MintedDeclaration, NO_AT_REST_RECORD_RECOURSE, RefusedRef,
-    Relation, Route, assemble, assemble_gathered,
+    CarriedRefusal, CarriedUnplaced, MintRefusal, MintedDeclaration, NO_AT_REST_RECORD_RECOURSE,
+    RefusedRef, Relation, Route, assemble, assemble_gathered,
 };
 
 // Split and inline: the first-class
@@ -464,7 +509,7 @@ pub use editor_core::{
 // `InterfaceCrossing::Mate`.
 pub use editor_core::{
     InlineError, InlineOutcome, InterfaceCrossing, InterfaceRecord, NodeMap, SplitError,
-    SplitOutcome, StepMap, inline, split,
+    SplitOutcome, StepMap, Uncarried, inline, split,
 };
 
 // The pin-update door. `DocEdit`'s
@@ -535,5 +580,5 @@ pub use topo::ShellClassifyError;
 pub use editor_core::{
     CanonicalSegment, LoopProgram, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
     ProgramTarget, RecordedNotation, RecordedProgramError, StepArg, StepSegmentsError,
-    resolve_loops,
+    WrittenLoopFault, resolve_loops, resolve_written_loops,
 };

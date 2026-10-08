@@ -2,11 +2,12 @@
 id: a-declaration-on-a-face-one-fold-step-cut-and-partly-merged-cannot-be-routed-by-names
 kind: issue
 title: A declaration on a face one fold step cut and partly merged cannot be routed by names, so its correct orders refuse beside orders that would bind the wrong face
-status: open
+status: parked
 priority: P2
 cost: M
 design: true
 opened: 2026-09-30
+blocked_on: [intent-stage4-is-built]
 refs: [union-refuses-in-some-member-orders-and-publishes-in-others, a-face-cut-and-merged-in-one-step-publishes-a-piece-under-the-name-its-merge-retires, 3526]
 ---
 
@@ -56,7 +57,7 @@ the designers should weigh:
 
 The refusal is pinned by the `KNOWN_MIXED` counts in
 `emit_union_rim_piece_ranks` (`r2endsg` DeclareResolve:12; `r4trig`
-Boolean:2/DeclareResolve:12) and by the "split and partly merged in one
+DeclareResolve:12 since `RayExhausted` left with PR 3655) and by the "split and partly merged in one
 step" case in `wire.rs`'s
 `a_member_face_consumed_other_than_by_a_merge_refuses_naming_the_composition`.
 
@@ -79,3 +80,24 @@ and did not change it. So a fold step can spell a cut-and-partly-merged
 face in a way the published union does not. The ratified text states
 the transitive reading only for the union. Whether the pair boolean
 should read it too is a design question for whoever takes this row.
+
+## Parked on the D10 hold (EMIT, 2026-10-06)
+
+The routing this row asks about is a declared pair's, which is ground
+the 2026-10-03 hold covers (`work/emit/log.md`), so the row is parked
+on `d10-one-way-to-say-intent-is-unbuilt`. INTENT's stage 4
+(`work/intent/plan.md`, "The coincidence door") retires declared pairs,
+and with them `route_declarations` and `look_through_fold`: there is
+then no declaration to route, and the question has no subject. Weigh
+it only if stage 4 changes course.
+
+Measured evidence for whoever builds stage 4 is in
+`union-refuses-in-some-member-orders-and-publishes-in-others`
+("Re-measured on main (2026-10-06)"). A scratch fan-out that fed the
+refused pair to every face descending from the name made `r4trig`
+1302 and 3102 fuse with no wrong binding, and all 22 mixed cases fuse
+in every order.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: route_declarations/look_through_fold route declared pairs, which stage 4 retires (booleans glue on Zero); the question then has no subject. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

@@ -18,14 +18,15 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 use test_utils::refusal::tagged;
 
 use std::collections::BTreeMap;
 
 use editor_core::{
     Advisory, BooleanOp, CancelToken, CheckEvidence, CheckFinding, CheckId, CheckKind,
-    ChecksConfig, ChecksReport, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, Severity,
-    enforce_checks, run_checks, subject_body,
+    ChecksConfig, ChecksError, ChecksReport, EvalOptions, Evaluation, Node, ProfileDoc,
+    RecipeNodeId, Severity, enforce_checks, run_checks, subject_body,
 };
 use fixture::{ang, insert, len, on_frame, scl, square};
 use geom_core::Tol;
@@ -56,6 +57,7 @@ fn slab(doc: ProfileDoc, cx: f64, h: f64, z0: f64, dz: f64) -> (ProfileDoc, Reci
         Node::Extrude {
             profile,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -72,7 +74,7 @@ fn disjoint_union() -> (ProfileDoc, RecipeNodeId) {
             op: BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     )
 }
@@ -89,7 +91,7 @@ fn voided() -> (ProfileDoc, RecipeNodeId) {
             op: BooleanOp::Subtract,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     )
 }
@@ -225,7 +227,7 @@ fn annihilated() -> (ProfileDoc, RecipeNodeId) {
             op: BooleanOp::Intersect,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     )
 }
@@ -269,7 +271,7 @@ fn stale_expectation_on_a_nonexistent_root() {
     // The key names no root output at all (wrong id): same staleness,
     // attributed at the entry's own key.
     let (doc, root) = disjoint_union();
-    let ghost = RecipeNodeId(root.0 + 999);
+    let ghost = RecipeNodeId::new(root.0.ordinal() + 999, root.0.digest());
     let cfg = ChecksConfig {
         expected_components: BTreeMap::from([((root, 0), 2), ((ghost, 0), 1)]),
         ..ChecksConfig::default()
@@ -335,8 +337,12 @@ fn in_band_shell_escalates_typed_never_guessed() {
 
 /// The void side of the same decision: a 3 m box holding a unit-square
 /// cavity `(1 + K)·ε` thick. The outer shell decides; the cavity's
-/// `V/A` is negative and in band, so the sign escalates, and a margin
-/// on a side the decision accepts ends valued at `|m|/K`.
+/// `V/A` is negative and in band, so its role does not read, and the
+/// Boolean door's result gate (tier 3) refuses the union naming that
+/// shell (check 10's `ShellRoleUndecided`): a solid whose shells cannot
+/// be wound is not built, so the checks run stops at the failed root.
+/// The refusal carries the escalation, and a margin on a side the
+/// decision accepts ends valued at `|m|/K`.
 ///
 /// The sheet is what a unit cube cavity leaves when a box filling all
 /// but its top `(1 + K)·ε` is united into it. Subtracting a thin tool
@@ -346,6 +352,7 @@ fn in_band_shell_escalates_typed_never_guessed() {
 #[test]
 fn in_band_void_shell_escalates_with_its_valued_ending() {
     use geom_core::{Band, ErrorTextReading};
+    use topo::ValidationError;
     let tol = Tol::witness();
     let t = (1.0 + tol.k()) * tol.eps();
     let doc = ProfileDoc::empty_derived("dsc-checks-thin-void", Tol::witness());
@@ -357,7 +364,7 @@ fn in_band_void_shell_escalates_with_its_valued_ending() {
             op: BooleanOp::Subtract,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let (doc, c) = slab(doc, 0.0, 0.8, 0.5, 1.5 - t);
@@ -367,27 +374,36 @@ fn in_band_void_shell_escalates_with_its_valued_ending() {
             op: BooleanOp::Union,
             a: hollow,
             b: c,
-            declare: None,
+            declare: Vec::new(),
         },
     );
-    let report = checks(&doc, &ChecksConfig::default());
-    assert_eq!(report.findings.len(), 1, "{report}");
-    let finding = &report.findings[0];
-    assert_eq!(
-        (finding.check, finding.root, finding.output_ix),
-        (CheckId::Connectedness, root, 0),
-        "{finding}"
+    let ev = run(&doc);
+    let refused = run_checks(&doc, &ev, &ChecksConfig::default(), tol)
+        .expect_err("the door refuses a solid whose cavity has no role");
+    assert!(
+        matches!(&refused, ChecksError::Root(editor_core::NodeStanding::Failed { node }) if *node == root),
+        "expected the failed root, got: {refused:?}"
     );
-    let CheckEvidence::Escalated {
-        source: ShellClassifyError::Escalated { source: ind, .. },
-    } = &finding.evidence
+    let failed = ev.node_error(root).expect("the root's refusal");
+    let editor_core::NodeErrorKind::Boolean(topo::BooleanError::ResultInvalid { errors }) =
+        &failed.kind
     else {
-        panic!("expected the typed in-band escalation, got: {finding}");
+        panic!("expected the door's result gate, got: {failed:?}");
     };
-    assert_eq!(ind.predicate, Some("chk_shell_volume_sign"), "{finding}");
+    let [
+        error @ ValidationError::ShellRoleUndecided {
+            error: ShellClassifyError::Escalated { source: ind, .. },
+            ..
+        },
+    ] = errors.as_slice()
+    else {
+        panic!("expected the cavity's undecided role, alone, got: {errors:?}");
+    };
+    // Check 10 reads a shell's role under check 7's names.
+    assert_eq!(ind.predicate, Some("positive_volume"), "{error}");
     assert_eq!(ind.band, Band::linear(tol).expect("the run's band"));
     let ErrorTextReading::Value(m) = ind.margin.diagnostic_f64_for_error_text() else {
-        panic!("expected a valued margin, got: {finding}");
+        panic!("expected a valued margin, got: {error}");
     };
     // The cavity's own V/A on the void side: a unit square `h` deep,
     // `h` the sheet as its two planes are represented.
@@ -402,7 +418,7 @@ fn in_band_void_shell_escalates_with_its_valued_ending() {
         "Recourse: thicken or remove the degenerate geometry, or, if this thickness is \
          intended, tighten the tolerance below {below:e} m"
     );
-    let rendered = finding.to_string();
+    let rendered = error.to_string();
     assert!(
         rendered.ends_with(&format!(
             "margin {m:e} lies inside the ambiguity band ({:e}, {:e}). {ending}",
@@ -430,7 +446,7 @@ fn a_findings_attribution_resolves_to_its_subject() {
     assert_eq!(body.shells().count(), 2);
     // The subject's DECLARATIONS travel with it, so the tier-3′ gate
     // reached through an attribution asks about the same body the
-    // producer minted. This union declares nothing (`declare: None`,
+    // producer minted. This union declares nothing (`declare: Vec::new()`,
     // and its operands are three metres apart), so the honest claim
     // here is that the empty set is what arrived — not that the pair
     // is populated. The case where a non-empty set is the difference
@@ -496,11 +512,11 @@ fn overlapping_roots_are_one_finding_naming_both() {
     // is about.
     let rendered = report.findings[0].to_string();
     assert!(
-        rendered.contains(&format!("root {}", test_utils::refusal::tag(a.0))),
+        rendered.contains(&format!("root {}", test_utils::refusal::tag(a.0.digest()))),
         "{rendered}"
     );
     assert!(
-        rendered.contains(&format!("root {}", test_utils::refusal::tag(b.0))),
+        rendered.contains(&format!("root {}", test_utils::refusal::tag(b.0.digest()))),
         "{rendered}"
     );
     // And it denies the CERTIFICATE — it never claims the two overlap,
@@ -622,6 +638,7 @@ fn separation_off_is_visibly_skipped_and_independent() {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let moved = |doc, dx: f64| {
@@ -882,9 +899,10 @@ fn chart_coherence_off_is_a_skipped_check_and_nothing_else() {
 #[test]
 fn an_unexamined_loop_is_a_finding_never_a_skipped_check() {
     let could_not_look = ChecksReport {
+        document: editor_core::DocumentId(1),
         findings: vec![CheckFinding {
             check: CheckId::ChartCoherence,
-            root: RecipeNodeId(tagged(3)),
+            root: RecipeNodeId::new(0, tagged(3)),
             output_ix: 0,
             evidence: CheckEvidence::ChartCoherenceUnexamined {
                 unexamined: topo::Unexamined {
@@ -899,6 +917,7 @@ fn an_unexamined_loop_is_a_finding_never_a_skipped_check() {
         skipped: Vec::new(),
     };
     let chose_not_to = ChecksReport {
+        document: editor_core::DocumentId(1),
         findings: Vec::new(),
         skipped: vec![CheckId::ChartCoherence],
     };
@@ -931,7 +950,7 @@ fn an_unexamined_loop_is_a_finding_never_a_skipped_check() {
 fn a_coherence_measurement_renders_its_length_and_its_band() {
     let finding = CheckFinding {
         check: CheckId::ChartCoherence,
-        root: RecipeNodeId(tagged(4)),
+        root: RecipeNodeId::new(0, tagged(4)),
         output_ix: 1,
         evidence: CheckEvidence::ChartCoherence {
             finding: topo::CoherenceFinding {

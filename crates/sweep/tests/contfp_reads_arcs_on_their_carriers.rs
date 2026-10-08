@@ -94,9 +94,14 @@ fn filleted_bored_d_rod() -> Body<f64> {
     ];
     let source = extruded(SketchPlane::xy(), loops, ROD_L, tol());
     let creases = rod_creases(&source);
-    fillet_edges(&source, &creases, ROD_FILLET, tol())
-        .expect("the D-rod's creases fillet")
-        .body
+    fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &creases,
+        ROD_FILLET,
+        tol(),
+    )
+    .expect("the D-rod's creases fillet")
+    .body
 }
 
 /// The lune point: in the rod, out of the bore, and on the far side of
@@ -406,14 +411,16 @@ fn the_census_reads_a_corner_on_an_ellipse_edge_without_a_minted_margin() {
 /// tilt` (14.1 at 1.5 rad, 19.7 at 1.52) and their ends at the MINOR
 /// vertices, where the edge's speed is `a`.
 fn steep_cut(tilt: f64) -> Body<f64> {
-    use topo::splitting::{SplitPart, SplitPlane, split};
+    use topo::splitting::{SplitPart, split};
     let h = 2.0 * tilt.tan() + 20.0;
     let tall =
         sweep::test_support::prism(vec![(p2(0.0, -1.0), 1.0), (p2(0.0, 1.0), 1.0)], h, tol());
-    let plane = SplitPlane {
-        origin: Point3::new(0.0, 0.0, h / 2.0),
-        normal: Vec3::new(tilt.sin(), 0.0, tilt.cos()),
-    };
+    let tall = sweep::test_support::finished("the tall", tall, tol());
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, h / 2.0),
+        Vec3::new(tilt.sin(), 0.0, tilt.cos()),
+        geom_core::Tol::witness(),
+    );
     let result = split(&tall, &plane, tol()).expect("the plane cuts the prism");
     let SplitPart::Body(above) = result.above else {
         panic!("the part above the cut is a body");
@@ -440,9 +447,9 @@ fn along_from_end(curve: &geom::Curve3<f64>, te: f64, into: f64, s: f64) -> Poin
 /// **A steep ellipse's end is the band's own width in metres.** At the
 /// minor vertex the edge's speed is `a`, so an end zone measured as a
 /// unit chord levered by `b` reached `(a/b)·ε` along the edge, past the
-/// vertex pass's own `10ε`: a legal body read `Corrupt`. Points `11ε`
+/// vertex pass's own `10ε`: a legal body refused as unwalkable. Points `11ε`
 /// to `18ε` inside each end, at `a/b` 14.1 and 19.7, read on the edge
-/// (or, in the band, escalate) and never `Corrupt`.
+/// (or, in the band, escalate) and never refuse otherwise.
 #[test]
 fn a_steep_ellipses_end_zone_is_the_bands_own_width() {
     for tilt in [1.5f64, 1.52] {
@@ -552,17 +559,19 @@ fn the_census_reads_a_corner_near_a_steep_ellipses_end() {
         errors.iter().all(|e| !matches!(
             e,
             ValidationError::CensusUnsupported {
-                cause: topo::CensusUnsupportedCause::Containment(topo::ContainError::Corrupt),
+                cause: topo::CensusUnsupportedCause::Containment(
+                    topo::ContainError::EmptyLoop(_) | topo::ContainError::LoopUnreadable(_)
+                ),
                 ..
             }
         )),
-        "a legal body reads Corrupt: {errors:?}"
+        "a legal body reads its boundary as unwalkable: {errors:?}"
     );
 }
 
 /// **The band sweep on the steep face** (`a/b` 19.7): rings of points
 /// around every vertex, and both normals of every edge, from `10.5ε` to
-/// `10⁴ε`. Nothing reads `Corrupt`; nothing off an edge's interior by
+/// `10⁴ε`. Nothing reads its boundary unwalkable; nothing off an edge's interior by
 /// more than the escalation band reads on the boundary, and none of the
 /// ring points reads `OnVertex`.
 #[test]
@@ -605,7 +614,7 @@ fn the_steep_face_sweeps_clean_from_the_band_out() {
                 asked += 1;
                 if matches!(
                     got,
-                    Ok(FaceContainment::OnVertex(_)) | Err(topo::ContainError::Corrupt)
+                    Ok(FaceContainment::OnVertex(_)) | Err(topo::ContainError::LoopUnreadable(_))
                 ) {
                     bad.push(format!("ring {k}ε: {got:?}"));
                 }
@@ -625,7 +634,7 @@ fn the_steep_face_sweeps_clean_from_the_band_out() {
                     if matches!(
                         got,
                         Ok(FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_))
-                            | Err(topo::ContainError::Corrupt)
+                            | Err(topo::ContainError::LoopUnreadable(_))
                     ) {
                         bad.push(format!("normal {s}·{k}ε at {fr:.3}: {got:?}"));
                     }
@@ -642,11 +651,11 @@ fn the_steep_face_sweeps_clean_from_the_band_out() {
     );
 }
 
-/// **An in-band clearance from an uncrossable edge's ball skips the ray,
-/// it does not escalate the walk.** Points just outside the ball a
-/// vessel cavity's spiric arc is held in, and 0.3 m or 1 m back from it
-/// along the face's plane, are outside the face: some rays graze the
-/// ball within the band and are abandoned, and the rest answer.
+/// **An in-band reading on a ray skips the ray, it does not escalate
+/// the walk.** Points just outside the ball a vessel cavity's spiric arc
+/// lies in, and 0.3 m or 1 m back from it along the face's plane, are
+/// outside the face: a ray whose crossing of a piece of the arc lands in
+/// the band is abandoned, and the rest answer.
 #[test]
 fn an_in_band_ball_clearance_skips_the_ray() {
     let (_, cavity) = crate::common::torus_walls::vessel_cavity(1.0 / 128.0);
@@ -674,7 +683,7 @@ fn an_in_band_ball_clearance_skips_the_ray() {
             };
             let (t0, t1) = c.params();
             let inner = rr - r;
-            let speed = r * inner / (inner * inner - offset * offset).sqrt();
+            let (speed, _) = geom::spiric_rate_bounds(r, offset, (inner, rr + r), 1.0);
             let center = c.carrier().eval(0.5 * (t0 + t1));
             let reach = speed * (t1 - t0).abs() * 0.5;
             let rv = Vec3::new(1.0, 0.0, 0.0);

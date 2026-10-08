@@ -2,12 +2,13 @@
 id: arc-aware-point-in-loop
 kind: issue
 title: Arc-aware point-in-loop - the polygon walk's remainder on arc-bearing planar faces
-status: open
+status: closed
 opened: 2026-08-27
 github: 1076
 refs: [1068, 1425, 1464]
 priority: P0
 cost: H
+closed: 2026-10-01
 ---
 
 ## From GitHub issue 1076
@@ -173,3 +174,103 @@ above).
 run through `point_in_carrier_loop` too, so no arc-bearing loop is left
 on the polygon walk among the sites this row lists. Whether this row
 can close is TANG's call.
+
+## 2026-10-01 — re-measured on main (TANG)
+
+Read at `origin/main` `6000ec92d`. **The row can close.** Every item is
+answered in the tree. The one remainder (spiric and spline edges) is a
+different capability, so it is filed as its own row:
+`work/cleave/carrier-walk-has-no-crossing-row-for-spiric-or-spline-edges.md`.
+
+### Callers of the polygon walk
+
+Sweep 1, by symbol, over `crates/`: `point_in_loop\b`, `polygon_walk(`,
+`loop_points(`, `ray_parity::`, `ray_crossings(`.
+
+| site | can it be handed an arc-bearing loop? |
+|---|---|
+| `splitting::containment::point_in_carrier_loop` → `point_in_loop` | **no**. Only when every `LoopEdge` is `Chord` (a line, or null scaffolding) |
+| `splitting::containment::carrier_loop_side` → `polygon_walk` | **no**. The same all-`Chord` gate |
+| `topo::point_in_loop` (the `pub` re-export in `lib.rs`) | **yes, by contract**. Its doc restricts the domain to "a planar polygon (line carriers)". In the workspace only tests call it: `topo/tests/review_m3_pr3_pil.rs` and `m3_pr3_split.rs` (box loops), and `validate.rs`'s test `an_arc_bearing_outer_loop_is_decided_on_its_own_region`, which calls it on the lune ON PURPOSE to show the polygon reads `Out`. An external caller can still hand it an arc loop and get the polygon's answer. Whether the export should stay `pub` is a contract question, not a defect on any path. |
+| `chart_region::point_in_polygon` / `loop_uv_polygon` | **no**. A non-straight chart image refuses `NonPlanarTrim` before any polygon is built |
+| `chart_bound::parity` | **no** wrong answer. Arcs carry `ChartEdge::Envelope` boxes, and its certified statement covers the lune between arc and chord with them (module docs) |
+| `shell::encloses` (`loop_points`, mean radius) | not a point-in-loop. It orders two loops that one offset made concentric (its doc), so it is outside this class |
+| `boolean::shell_witness::face_interior_point` (`face_loop_points`) | candidates only. Each is certified by `certified_in_face` → `point_in_face` → `point_in_carrier_loop` |
+| `profile::validate::point_in_loop` | **no**. It runs per `Seg` through `seg::ray_crossings`, which has an arc arm |
+
+**Blind spot of sweep 1**: a parity walk written by hand that calls none
+of those names. Sweep 2 aimed at that gap with `% 2 == 1`, `% 2 != 0`,
+`& 1 == 1` and `winding` over `crates/*/src`. Its hits were:
+
+- `solid_contain` (`below % 2 == 1`): a curved-wall chart parity over
+  azimuth pieces, not a planar polygon;
+- `mesh::planar::classify_faces`: combinatorial, over a CDT;
+- `profile::validate`: the per-`Seg` walk above;
+- the rest are unrelated (geom-core arithmetic, step-import fixtures,
+  pncad-py text scanning).
+
+Neither sweep can see a walk that computes parity some other way, such
+as a signed-area or winding sum over a vertex list.
+
+### The gate, `loop_shape` and the disc special case
+
+- **The `< 3`-vertex gate is gone as a refusal.** `contfp` reads every
+  loop through `carrier_loop_side` and consults no `loop_shape`. The two
+  names survive with a new meaning, the spiric or spline remainder below:
+  - `ContainError::ArcLoopUnsupported`, whose doc says "the name is older
+    than that meaning";
+  - `BooleanError::ArcLoopContainmentUnsupported`, raised in
+    `boolean::reduce` and `boolean::ops`.
+
+  No refusal anywhere is keyed on a vertex count.
+- **`boolean::contain::disc_side` no longer exists.** No hits in
+  `crates/`.
+- **`loop_shape` / `LoopShape` remain, with ONE production reader**:
+  check 9's `validate::ring_outer_meeting`, Arm 4, which reads only
+  `LoopShape::Disc`. It decides two whole-circle loops against each
+  other from their centres and radii (`circle_pair`). That question is
+  about a PAIR of loops, and no single point's walk answers it. Removing
+  the `Disc` class would therefore be wrong: the arc-aware walk does not
+  replace it.
+- **`LoopShape::{Polygon, ArcParity, NoWalk}` have no production
+  reader.** They are produced on every call and read only by test rows
+  that assert a fixture's class: `validate.rs`'s lune test, and
+  `contain.rs`'s `LoopShape::Polygon` row. Shrinking `loop_shape` to a
+  disc-class reader that returns `Option<LoopCircle>` would be correct.
+  The doc paragraphs that argue the polygon walk's domain would go with
+  it, and those test rows would have to name the class some other way.
+  That is a cleanup, not a defect, and was not made here.
+
+### Item 3: ellipse, spiric, spline
+
+- **Ellipse is answered.** `carrier_loop` reads circles and ellipses
+  alike as `ConicArc`, `carrier_walk` crosses them on their conic, and
+  `boundary_pre_pass` reads them through `LoopEdge::contact`. The
+  `UnrowedCarriers::Chord` mode the row cites no longer exists (no
+  hits).
+- **The remainder is a spiric or `Nurbs` edge.** It is held as
+  `LoopEdge::Unrowed`, a ball. A point that every scheduled ray could
+  carry into that ball gets `None`. Callers refuse it as
+  `ContainError::ArcLoopUnsupported` (contfp) or
+  `PointInSolidError::EdgeCarrierUnsupported` (`point_in_face`).
+  Tier 3's `certified_in_face` discards it. `point_in_solid` into the
+  join's role probe surfaces it as `BooleanError::Containment`.
+- **Is that door reachable?** The body class is: the shelled vessel's
+  cavity has a planar face bounded by a spiric, and
+  `pis_arc_capped_poses::a_spiric_bounded_face_refuses_only_within_its_reach`
+  pins the refusal there through `point_in_face`. Whether a public
+  boolean lands a probe inside the ball is unmeasured. The new row
+  carries it, and the naming of `None` is
+  `work/cleave/carrier-walk-none-is-answered-four-ways.md`.
+
+## Closed (2026-10-01, TANG)
+
+Every site this row named reads arc-bearing loops on their carriers
+(`splitting::containment::point_in_carrier_loop` and its walk), and no
+production caller hands an arc-bearing loop to the polygon walk (TANG
+re-measure, PR 3748). The `<3`-vertex gate and the disc special case
+are gone. Two residues have their own files:
+`work/cleave/carrier-walk-has-no-crossing-row-for-spiric-or-spline-edges.md`
+(the spiric/spline remainder) and
+`work/tang/loop-shape-keeps-three-classes-nothing-reads.md` (the
+`LoopShape` cleanup).

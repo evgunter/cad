@@ -2,10 +2,11 @@
 id: slit-zip-band-run-across-two-loops-is-reached-by-no-row
 kind: issue
 title: slit_zip's band-closure run that spans two loops of the folded face (mfkrh-then-kef) is reached by no row, so its transient promotion's sense is unexercised
-status: open
+status: parked
 opened: 2026-09-29
 priority: P3
 cost: M
+blocked_on: [intent-stage4-is-built]
 ---
 
 ## Finding
@@ -32,3 +33,11 @@ rest. If no reachable input produces the shape, say so in `slit_zip`'s
 doc and make the arm a typed refusal.
 
 Filed from PR 3467's fix pass (TOPO).
+
+## Parked on the D10 hold (2026-10-06)
+
+This row is on declared-contact ground, so it waits on `d10-one-way-to-say-intent-is-unbuilt` (`work/join/log.md`, the 2026-10-03 hold). D10 stage 4 retires the declared-REST zip: `work/intent/the-declared-rest-zip-retires-at-stage-4-and-the-join-needs-three-arms.md`. When the hold lifts, close this row if its code is gone, or move it to the join if its scene still refuses there.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: the band-closure arm of slit_zip in rest.rs is deleted at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

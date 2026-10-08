@@ -22,12 +22,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 use test_utils::refusal::tagged;
 
 use editor_core::{
     BooleanOp, CancelToken, Cmp, CurveKind, CurveKindSet, Datum, EntityKind, Entry, EvalOptions,
-    Evaluation, GeomPred, NamePat, NameTable, NamingError, Node, NodeErrorKind, ParamEnv,
-    ProfileDoc, RecipeNodeId, RoleSeg, SegPat, SegTag, Selector, StableName, evaluate, select,
+    Evaluation, GeomPred, NamePat, NameTable, NamingError, Node, NodeErrorKind, ProfileDoc,
+    RecipeNodeId, RoleSeg, SegPat, SegTag, Selector, StableName, VarEnv, evaluate, select,
     select_where,
 };
 
@@ -81,6 +82,7 @@ fn prism(doc: ProfileDoc, pts: Vec<(f64, f64)>, z0: f64, dz: f64) -> (ProfileDoc
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -122,7 +124,7 @@ fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             op: BooleanOp::Subtract,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     (doc, a, sub)
@@ -181,7 +183,7 @@ fn boolean_over_a_tied_operand_names_and_keeps_the_tie() {
             op: BooleanOp::Subtract,
             a: sub,
             b: c,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -218,7 +220,7 @@ fn a_tie_with_one_surviving_candidate_narrows_back_to_unique() {
             op: BooleanOp::Subtract,
             a: sub,
             b: c,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -348,7 +350,7 @@ fn l_shaped_extrude_cut_across_both_legs_names_its_chords_by_their_ends() {
 fn the_chords_are_reachable_one_by_one_through_the_selector_layer() {
     let (doc, _, split) = l_split(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
     let ev = run(&doc);
-    let params = ParamEnv::default();
+    let params = VarEnv::default();
     // The chords of a cap crossed twice: `[SectionEdge, Fragment(Ends)]`.
     let sel = Selector::of(NamePat::of_kind(EntityKind::Edge).path([
         SegPat::tag(SegTag::SectionEdge),
@@ -442,7 +444,7 @@ fn node_level_prose_carries_the_emitter_payload() {
     assert!(s.contains("edge") && s.contains('1'), "{s}");
 
     let s = carried(NamingError::MissingUpstream {
-        node: RecipeNodeId(tagged(7)),
+        node: RecipeNodeId::new(0, tagged(7)),
     });
     assert!(s.contains('7'), "{s}");
 

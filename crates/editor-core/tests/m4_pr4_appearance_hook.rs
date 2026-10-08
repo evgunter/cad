@@ -11,6 +11,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::NodeStanding;
 use editor_core::{
@@ -71,6 +72,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -101,6 +103,7 @@ fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, sub) = insert(
@@ -109,7 +112,7 @@ fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
             op: BooleanOp::Subtract,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     (doc, sub)
@@ -130,7 +133,7 @@ fn gap_fixture() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, StableName) {
             op: BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let cap = minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
@@ -192,11 +195,10 @@ fn ambiguous_loss_enriches_by_table_lookup_at_the_recorded_site() {
 }
 
 /// **A tie a pass-through table carries is reported at the table that
-/// defined it**, whatever the ids: `at` is the first carrying table in
-/// evaluation order. The fixture moves the defining node's copy of the
-/// name downstream through transforms until one of them draws an id
-/// that sorts before the defining node's, so a walk in id order would
-/// report the transform.
+/// defined it**: `at` is the first carrying table in evaluation order.
+/// The fixture moves the defining node's copy of the name downstream
+/// through a transform, which carries the tie too, so a walk that took
+/// the last carrying table would report the transform.
 #[test]
 fn a_carried_tie_is_reported_at_its_defining_table() {
     let (doc, sub) = tie_fixture();
@@ -210,22 +212,8 @@ fn a_carried_tie_is_reported_at_its_defining_table() {
             matches!(e, editor_core::Entry::Tied(c) if c.len() == 2).then(|| n.clone())
         })
         .expect("the U-cutter fixture ties");
-    let mut doc = doc;
-    let mut sorts_first = None;
-    for dx in 1..=64u32 {
-        let lift = editor_core::Step::Literal(editor_core::Frame::translation([
-            f64::from(dx) * 4.0,
-            0.0,
-            0.0,
-        ]));
-        let (next, moved) = insert(doc, Node::transform(sub, lift));
-        doc = next;
-        if moved < sub {
-            sorts_first = Some(moved);
-            break;
-        }
-    }
-    let moved = sorts_first.expect("a transform whose id sorts before the tie's defining node");
+    let lift = editor_core::Step::Literal(editor_core::Frame::translation([4.0, 0.0, 0.0]));
+    let (doc, moved) = insert(doc, Node::transform(sub, lift));
     let doc = set(doc, tied.clone(), red());
     let ev = run(&doc);
     assert!(
@@ -296,7 +284,7 @@ fn vanished_loss_with_prior_enriches_diagnosis_and_tombstone() {
         doc,
         Node::Pattern {
             input: ext,
-            count: editor_core::Expr::count(3),
+            count: editor_core::Formula::count(3),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -325,7 +313,8 @@ fn vanished_loss_with_prior_enriches_diagnosis_and_tombstone() {
         DocEdit::SetStructuralParam {
             node: pat,
             slot: SlotId::Count,
-            expr: editor_core::Expr::count(2),
+            expr: editor_core::Formula::count(2),
+            fresh: Vec::new(),
         },
     );
     let ev = rerun(&doc, &prior_ev);
@@ -393,7 +382,7 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
             op: BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -416,6 +405,7 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
             node: a,
             slot: SlotId::Distance,
             expr: len(0.0),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -582,7 +572,7 @@ fn rebind_appearance_collision_is_refused_typed() {
         )
         .unwrap_err(),
         EditError::RebindAppearanceCollision {
-            name: target.clone(),
+            name: doc.spoken_name(&target),
             kind: AttrKind::Color,
         }
     );

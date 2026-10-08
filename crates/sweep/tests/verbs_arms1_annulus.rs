@@ -82,18 +82,24 @@ fn the_dome_equator_fillets_to_a_tier_3_valid_solid_with_a_pinned_census() {
     let source = dome(1.0);
     assert_eq!(
         census(&source),
-        (4, 8, 4),
-        "the dome is four walls, four latitude rims and four seams"
+        (4, 6, 4),
+        "the dome is four walls, four latitude rims and its two curved walls' seams"
     );
     let rim = sweep::test_support::one_edge_rim_at(&source, 1.0, 0.0);
-    let out = fillet_edges(&source, &[rim], 0.05, tol())
-        .unwrap_or_else(|e| panic!("the dome's one-edge rim fillets, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &[rim],
+        0.05,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the dome's one-edge rim fillets, got {e:?}"));
     validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("the filleted dome must be tier-3 valid, got {e:?}"));
-    // Two feet minted, the rim vertex retired; two seam children and
-    // two trim circles minted, the rim and the plane seam's rim-side
-    // piece retired; two strips minted, one merged away.
-    assert_eq!(census(&out.body), (5, 10, 5));
+    // Two feet minted (a seam split on the sphere, a strut on the
+    // plane), the rim vertex retired; a seam child, a strut and two
+    // trim circles minted, the rim and the strut retired; two strips
+    // minted, one merged away.
+    assert_eq!(census(&out.body), (5, 8, 5));
     assert_eq!(out.band_faces.len(), 1);
     let surface = out
         .body
@@ -123,10 +129,12 @@ fn the_dome_equator_fillets_to_a_tier_3_valid_solid_with_a_pinned_census() {
 /// **Every output entity of an annulus band is a recorded mint or a
 /// survivor, both directions.** The ladder rim's totality identity has
 /// had this row since M6-5; the annulus mints a DIFFERENT record block
-/// (a rim foot from a seam split rather than a strut `mev`, two
-/// remnants rather than one, and a dead-edge push that is CONDITIONAL
-/// on which child of the plane-seam split carried the source key), and
-/// none of it had red-when-broken evidence.
+/// (a mate seam split beside the plane side's strut, its remnant, and a
+/// dead-edge push that is CONDITIONAL on which child of the seam split
+/// carried the source key), and none of it had red-when-broken
+/// evidence. The dome's equator rests on its plane annulus, whose side
+/// has no seam: the seam-split twin on BOTH sides, two curved walls,
+/// is `blend_tworims`' row.
 ///
 /// Red if a mint goes unrecorded, if a record names a key that already
 /// existed, if a source entity is destroyed without a retirement row,
@@ -136,12 +144,18 @@ fn the_dome_equator_fillets_to_a_tier_3_valid_solid_with_a_pinned_census() {
 fn every_annulus_output_entity_is_a_recorded_mint_or_a_survivor() {
     let source = dome(1.0);
     let rim = sweep::test_support::one_edge_rim_at(&source, 1.0, 0.0);
-    let out = fillet_edges(&source, &[rim], 0.05, tol()).unwrap();
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &[rim],
+        0.05,
+        tol(),
+    )
+    .unwrap();
     let rec = out.naming.as_ref().expect("the surgery keeps its records");
 
     // The annulus's own shape, pinned: one band over one source edge,
-    // one foot, one seam split, two remnants (one per support), two
-    // trims (one per side), one slit.
+    // one foot, one seam split, one remnant (the curved support's; the
+    // plane has no seam), two trims (one per side), one slit.
     assert_eq!(rec.bands.len(), 1);
     assert_eq!(
         rec.bands[0].1,
@@ -150,7 +164,11 @@ fn every_annulus_output_entity_is_a_recorded_mint_or_a_survivor() {
     );
     assert_eq!(rec.rim_feet.len(), 1);
     assert_eq!(rec.meridian_splits.len(), 1);
-    assert_eq!(rec.meridian_remnants.len(), 2, "one remnant per support");
+    assert_eq!(
+        rec.meridian_remnants.len(),
+        1,
+        "one remnant, the curved support's seam"
+    );
     assert_eq!(rec.rim_trims.len(), 2, "one trim circle per side");
     assert_eq!(rec.slits.len(), 1, "one slit per band");
     assert_eq!(
@@ -215,7 +233,13 @@ fn the_wrap_around_g1_is_vacuous_on_a_circle_and_live_on_a_kink() {
 fn the_annulus_band_carries_two_closed_circles_and_a_doubly_traversed_slit() {
     let source = dome(1.0);
     let rim = sweep::test_support::one_edge_rim_at(&source, 1.0, 0.0);
-    let out = fillet_edges(&source, &[rim], 0.05, tol()).unwrap();
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &[rim],
+        0.05,
+        tol(),
+    )
+    .unwrap();
     let band_face = out.band_faces[0];
     let fd = out.body.get_face(band_face).unwrap();
     assert!(fd.rings.is_empty(), "a curved face carries no ring");
@@ -254,7 +278,13 @@ fn the_filleted_dome_matches_its_closed_form_volume_with_no_quadrature_pad() {
     let r = 0.05f64;
     let source = dome(1.0);
     let rim = sweep::test_support::one_edge_rim_at(&source, 1.0, 0.0);
-    let out = fillet_edges(&source, &[rim], r, tol()).unwrap();
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &[rim],
+        r,
+        tol(),
+    )
+    .unwrap();
     let props = mass_properties(&out.body, tol()).expect("mass properties must compute");
     assert_eq!(
         props.volume_pad, 0.0,
@@ -321,7 +351,14 @@ fn the_partial_revolve_of_the_same_profile_still_refuses() {
         !arcs.is_empty(),
         "the partial revolve leaves open plane–sphere arcs"
     );
-    match fillet_edges(&body, &arcs[..1], 0.05, tol()).map_err(|r| r.error) {
+    match fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &arcs[..1],
+        0.05,
+        tol(),
+    )
+    .map_err(|r| r.error)
+    {
         Err(BlendError::UnsupportedChain { .. } | BlendError::UnsupportedCorner { .. }) => {}
         other => panic!("expected the open plane–sphere arc's own refusal, got {other:?}"),
     }
@@ -336,7 +373,13 @@ fn the_partial_revolve_of_the_same_profile_still_refuses() {
 fn a_planted_horn_torus_is_reported_by_tier_3() {
     let source = dome(1.0);
     let rim = sweep::test_support::one_edge_rim_at(&source, 1.0, 0.0);
-    let mut out = fillet_edges(&source, &[rim], 0.05, tol()).unwrap();
+    let mut out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &[rim],
+        0.05,
+        tol(),
+    )
+    .unwrap();
     validate_geometric(&out.body, tol()).expect("the filleted dome is tier-3 valid");
     let band_face = out.band_faces[0];
     let surface = out
@@ -354,9 +397,9 @@ fn a_planted_horn_torus_is_reported_by_tier_3() {
     else {
         panic!("the band's surface is a torus");
     };
-    // Lifts both refusals: the planted horn torus is what tier 3 must report.
+    // Lifts RechartStrandsDescriptions: the planted horn torus is what tier 3 must report.
     out.body
-        .set_face_surface_stranding_for_tests(
+        .set_face_surface_unvouched_for_tests(
             band_face,
             FaceSurface::New {
                 surface: Surface::Torus {

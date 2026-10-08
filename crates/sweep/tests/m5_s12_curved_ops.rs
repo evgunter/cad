@@ -40,13 +40,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use crate::common::operands::m5_boss;
 use geom::Surface;
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
-use sweep::test_support::ball_poled_y;
+use sweep::test_support::{ball_poled_y, finished};
 use sweep::{Extrusion, extrude};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations};
@@ -80,9 +81,16 @@ fn plate() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![rect(3.0, 3.0)])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(0.8), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 0.8,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 const R: f64 = 0.35;
@@ -102,9 +110,16 @@ fn notched() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// The notch's own volume debit: a half-disc of radius 0.5 through the
@@ -118,15 +133,17 @@ fn senses(body: &Body<f64>) -> Vec<bool> {
 
 /// Runs an op through BOTH sweep strategies and requires bit-identical
 /// results (the PERF-PLAN §4.4 idealized/realized door), returning the
-/// body.
+/// body. Each operand is finished once, before either lane reads it.
 fn both_lanes(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
+    let a = &finished("operand A", a.clone(), Tol::witness());
+    let b = &finished("operand B", b.clone(), Tol::witness());
     let decls = BooleanDeclarations::none();
     let realized = boolean_op_with(op, a, b, &decls, SweepStrategy::Realized, Tol::witness())
         .unwrap_or_else(|e| panic!("{op:?} (realized): {e}"));
     let idealized = boolean_op_with(op, a, b, &decls, SweepStrategy::Idealized, Tol::witness())
         .unwrap_or_else(|e| panic!("{op:?} (idealized): {e}"));
-    let rb = realized.body().expect("a body").body.clone();
-    let ib = idealized.body().expect("a body").body.clone();
+    let rb = realized.body().expect("a body").body.clone().into_body();
+    let ib = idealized.body().expect("a body").body.clone().into_body();
     assert_eq!(
         format!("{rb:?}"),
         format!("{ib:?}"),
@@ -168,7 +185,7 @@ fn revert_uses_the_plane_normal_for_planes_and_the_sense_bit_for_charts() {
     assert_eq!(planar.len(), 2, "two caps");
     assert_eq!(curved.len(), 3, "three cylinder wall segments");
 
-    let rev = body.revert().expect("S12: curved revert is wired");
+    let rev = body.revert();
     assert_eq!(format!("{body:?}"), before, "revert mutated its operand");
 
     // Planar faces: the BIT is untouched, the stored normal negates.
@@ -212,15 +229,12 @@ fn revert_uses_the_plane_normal_for_planes_and_the_sense_bit_for_charts() {
 fn curved_revert_is_a_bitwise_involution_and_deterministic() {
     for body in [m5_boss(3, 0.0, 1.0), m5_boss(2, 0.0, 1.0), notched()] {
         let original = format!("{body:?}");
-        let once = body.revert().unwrap();
-        assert_eq!(format!("{:?}", once.revert().unwrap()), original);
-        assert_eq!(
-            format!("{:?}", once.revert().unwrap().revert().unwrap()),
-            format!("{once:?}"),
-        );
+        let once = body.revert();
+        assert_eq!(format!("{:?}", once.revert()), original);
+        assert_eq!(format!("{:?}", once.revert().revert()), format!("{once:?}"));
         // Determinism: the same input maps to the same output, bit for
         // bit, on every call.
-        assert_eq!(format!("{:?}", body.revert().unwrap()), format!("{once:?}"));
+        assert_eq!(format!("{:?}", body.revert()), format!("{once:?}"));
     }
 }
 
@@ -237,7 +251,7 @@ fn revert_flips_a_mixed_sense_body_face_by_face() {
         before.contains(&false) && before.contains(&true),
         "the S11 notch fixture must carry MIXED bits, got {before:?}"
     );
-    let rev = body.revert().unwrap();
+    let rev = body.revert();
     let after = senses(&rev);
     // Only the CURVED face's bit is the one revert writes; the planar
     // faces keep theirs (their reversal is in the normal).
@@ -247,7 +261,7 @@ fn revert_flips_a_mixed_sense_body_face_by_face() {
         assert_eq!(now, if curved { !*was } else { *was }, "face {k:?}");
     }
     assert_ne!(after, before, "something must have moved");
-    assert_eq!(senses(&rev.revert().unwrap()), before, "involution on bits");
+    assert_eq!(senses(&rev.revert()), before, "involution on bits");
 }
 
 // =====================================================================
@@ -357,9 +371,16 @@ fn a_boolean_that_splits_a_reversed_wall_inherits_the_parent_bit() {
     let sp = Profile::new(plane, vec![sq])
         .validate(Tol::witness())
         .unwrap();
-    let b = extrude(&sp, Extrusion::Distance(0.4), Tol::witness())
-        .unwrap()
-        .body;
+    let b = extrude(
+        &sp,
+        Extrusion::Distance {
+            depth: 0.4,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
 
     let v_a = 9.0 - NOTCH; // the notched plate, height 1
     let v_b = 2.0 * 2.0 * 0.4;
@@ -419,9 +440,16 @@ fn the_die_pip_sphere_shape_now_cuts_at_the_opened_door() {
     let slab = Profile::new(SketchPlane::xy(), vec![rect(4.0, 4.0)])
         .validate(Tol::witness())
         .unwrap();
-    let a = extrude(&slab, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body;
+    let a = extrude(
+        &slab,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     let b = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 0.5), Tol::witness());
 
     let zone = 11.0 * PI / 12.0;
@@ -450,7 +478,12 @@ fn the_die_pip_sphere_shape_now_cuts_at_the_opened_door() {
     // And the CYLINDER class through the same entry point is still
     // live — S13 opens a class, it does not trade one for another.
     assert!(
-        topo::subtract(&plate(), &m5_boss(3, 0.3, 1.0), Tol::witness()).is_ok(),
+        topo::subtract(
+            &finished("the plate", plate(), Tol::witness()),
+            &finished("the boss", m5_boss(3, 0.3, 1.0), Tol::witness()),
+            Tol::witness()
+        )
+        .is_ok(),
         "the opened door must not re-gate the cylinder class"
     );
 }
@@ -496,9 +529,16 @@ fn finding_row_flipped_containment_fallback_now_sees_the_curved_extent() {
     let slab = Profile::new(SketchPlane::xy(), vec![rect(4.0, 4.0)])
         .validate(Tol::witness())
         .unwrap();
-    let a = extrude(&slab, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body;
+    let a = extrude(
+        &slab,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     let b = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 0.5), Tol::witness());
 
     // The ball genuinely leaves the slab: its equator reaches z = 1.5.

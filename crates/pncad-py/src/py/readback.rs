@@ -200,12 +200,17 @@ impl Denotation {
 /// Raise `ReadbackError` carrying the refusal's stable tag and the
 /// arm's payload.
 ///
-/// The message is the kernel's own `Display` — the read-back doors
+/// The message is the kernel's own sentence, its nodes spoken from the
+/// evaluated document — the read-back doors
 /// and the name doors both have one, and the wrapping arm forwards
 /// the kernel's words rather than paraphrasing a layer it does not
 /// own — and the machine payload is `variant` plus the fields, each
 /// present on every arm and `None` where that arm does not carry it.
-pub(crate) fn readback_err(py: Python<'_>, err: &s::InterrogateError) -> PyErr {
+pub(crate) fn readback_err(
+    py: Python<'_>,
+    err: &s::InterrogateError,
+    doc: &pncad::document::ProfileDoc,
+) -> PyErr {
     use s::{InterrogateError as E, ReadbackError as R};
 
     let none = || py.None();
@@ -316,7 +321,7 @@ pub(crate) fn readback_err(py: Python<'_>, err: &s::InterrogateError) -> PyErr {
         ("payload", payload),
         ("carrier", carrier),
     ];
-    typed_err(py, ErrorClass::Readback, err.to_string(), &fields)
+    typed_err(py, ErrorClass::Readback, err.spoken(doc), &fields)
 }
 
 /// Register the read-back vocabulary on the module.

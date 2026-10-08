@@ -2,10 +2,13 @@
 id: arc-window-membership-has-three-spellings
 kind: issue
 title: geom/sweep/topo: 'does this circle window hold angle phi' is spelled three times, and whole-circle ring metering has a home beside the per-piece one
-status: open
+status: closed
 opened: 2026-09-26
 priority: P1
-cost: D
+cost: M
+closed: 2026-10-01
+pr: 3700
+branch: band/arc-window-one-home
 ---
 
 
@@ -19,7 +22,8 @@ its own soundness direction:
   — a bracket read on the angle of `q` past the window's start, read in
   `(0, τ]` (`CircleFrame::past`), selecting between an arc's end values
   and the whole circle's extreme;
-- `geom`'s `angle_interval_in_span` (`crates/geom/src/curves/boxes.rs`)
+- `geom`'s `angle_interval_in_span` (`crates/geom/src/curves/boxes.rs`;
+  now `geom::periodic_window_may_hold`, `crates/geom/src/periodic.rs`)
   — an `f64` interval-translate test with `ANGLE_SLOP` widening,
   conservative-inclusive, for the curve boxes;
 - `topo`'s `point_on_arc` (`crates/topo/src/boolean/contain.rs`) — the
@@ -57,3 +61,27 @@ the shared one's. Retire `CircleMargins`/`ring_circle` in favour of
 metering a ring's pieces through `piece_distance`, if the containment
 reading (`other_inside_trim`) can be put as a per-piece question; if it
 cannot, say so beside `CircleMargins`.
+
+## Findings (band/arc-window-one-home)
+
+**The three sites are two questions, not one.**
+
+- *May this bracket lie in this periodic window?* — read by a caller
+  that SELECTS between two sound bounds, where an uncertain answer
+  must loosen. `sweep`'s `CircleFrame::misses`, `geom`'s curve boxes
+  (`axis_extremum`) and — a fourth spelling the review found —
+  `mesh`'s torus certificate (`cert.rs`'s `abs_radial_max`,
+  `abs_sin_max`, one of them at period π) ask it. One home now:
+  `geom::periodic_window_may_hold` (`crates/geom/src/periodic.rs`),
+  with the period an argument. `misses` asks it in its own relative
+  frame, which reproduces its former predicate exactly (pinned).
+- *Is this point inside, outside or in band of the window?* — a
+  DECIDED membership, held in `topo` by `splitting::containment::arc_trim`
+  and `boolean::solid_contain::chart_azimuth_margin`. The row's
+  `point_on_arc` citation was stale (`contain.rs` has
+  `point_on_circle`, the carrier half). Why it is a different
+  question is stated once, at `arc_trim`.
+
+**`CircleMargins`/`ring_circle` stay**; why is stated beside
+`CircleMargins` (`external` needs the trim's side of the ring, a
+property of the closed cycle and of no piece).

@@ -40,10 +40,8 @@
 //! boundary, not from the stored plane.
 //!
 //! The curved lane additionally reads the surface's fields (the chart),
-//! the face's `sense` (the pole-to-pole band's azimuth choice), each
-//! edge description's `seam` flag (`topo::chart_iso::classify_kind`
-//! reads it before the carrier) and the identity structure of the
-//! edges' split-lineage carriers (`geom_brep::props`' torus folding
+//! the face's `sense` (the pole-to-pole band's azimuth choice) and the
+//! identity structure of the edges' split-lineage carriers (`geom_brep::props`' torus folding
 //! asks whether two arcs are pieces of one original edge) — the last
 //! folded as a relabeling, like the chord ids, since a root edge key
 //! is an arena key.
@@ -90,7 +88,7 @@ use std::collections::HashMap;
 use geom::{
     Curve3, CurveData, DatumValue, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface, SurfaceData,
 };
-use geom_brep::{EdgeDescription, Pcurve, SpiricImage};
+use geom_brep::{FocalImage, Pcurve, SpiricImage};
 use geom_core::spline::KnotVector;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use topo::{Body, FaceKey};
@@ -701,9 +699,6 @@ pub(crate) struct EdgeInputs {
     pub(crate) chord_params: Vec<f64>,
     /// The half-edge's stored pcurve, if any (the trimmed lane's).
     pub(crate) pcurve: Option<Pcurve<f64>>,
-    /// Whether the edge's description marks it a chart seam (the
-    /// curved lane's classification reads this before the carrier).
-    pub(crate) seam: bool,
     /// The edge's split-lineage root, as an identity: `None` where the
     /// lineage does not resolve. Folded as a relabeling, never as the
     /// key it is.
@@ -754,6 +749,17 @@ impl FaceInputs {
         let mut roots: HashMap<topo::EdgeKey, u32> = HashMap::new();
         for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
             let walk = loop_half_edges(body, lk, fk)?;
+            // Each half-edge's image as the loop's lift places it — what
+            // the trimmed lane walks (`topo::Body::loop_lift`); none for
+            // a loop with no lift.
+            let mut lifted: HashMap<topo::HalfEdgeKey, Pcurve<f64>> = body
+                .loop_lift(lk)
+                .map(|rows| {
+                    rows.into_iter()
+                        .map(|row| (row.half_edge, row.pcurve))
+                        .collect()
+                })
+                .unwrap_or_default();
             let mut edges = Vec::with_capacity(walk.len());
             for (hek, ek, forward) in walk {
                 let edge = body
@@ -789,8 +795,7 @@ impl FaceInputs {
                     positions: ids.iter().map(|&id| positions[id as usize]).collect(),
                     ids,
                     chord_params,
-                    pcurve: body.pcurve(hek).map(|cache| cache.pcurve().clone()),
-                    seam: matches!(curve.description(), EdgeDescription::Chart(c) if c.seam),
+                    pcurve: lifted.remove(&hek),
                     lineage,
                 });
             }
@@ -888,7 +893,6 @@ impl FaceInputs {
                         w.p3(*p);
                     }
                     if curved {
-                        w.bool(e.seam);
                         match e.lineage {
                             None => w.u8(0),
                             Some(c) => {
@@ -1150,6 +1154,21 @@ impl KeyWriter {
                     }
                 }
             }
+            Pcurve::FocalSection(FocalImage {
+                u0,
+                t0,
+                v0,
+                va,
+                vb,
+                vl,
+                beta,
+                sense,
+            }) => {
+                self.u8(6);
+                for x in [u0, t0, v0, va, vb, vl, beta, sense] {
+                    self.f64(*x);
+                }
+            }
         }
     }
 }
@@ -1184,7 +1203,6 @@ mod tests {
                 p0: Point2::new(seed, 0.0),
                 pl: Vec2::new(0.0, 1.0),
             }),
-            seam: false,
             lineage: Some(ids[0]),
         }
     }
@@ -1362,11 +1380,6 @@ mod tests {
             "a pcurve's presence",
             |f| f.loops[0][1].pcurve = None,
             [false, false, true],
-        ),
-        (
-            "an edge's seam flag",
-            |f| f.loops[0][1].seam = true,
-            [false, true, false],
         ),
         (
             "the carriers' identity structure",

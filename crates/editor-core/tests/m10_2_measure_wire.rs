@@ -19,9 +19,9 @@ use crate::fixture::{ang, len, scl};
 use editor_core::UnitSym;
 use editor_core::expr::DimensionError;
 use editor_core::{
-    AssertionDir, Datum, Dimension, DocEdit, DocParam, DocumentId, EditError, EntityKind, Expr,
-    MeasureExpr, MeasureNodeFault, MeasurePrimitive, Node, ParamName, PersistError, ProfileDoc,
-    RecipeNodeId, RoleSeg, SitedRef, SnapshotError, StableName, apply, load, save,
+    AssertionDir, Datum, Dimension, DocEdit, DocumentId, EditError, EntityKind, Formula, FreeVar,
+    MeasureExpr, MeasureNodeFault, MeasurePrimitive, Node, PersistError, ProfileDoc, RecipeNodeId,
+    RoleSeg, SitedRef, SnapshotError, StableName, VarName, apply, load, save,
 };
 use geom_core::Tol;
 
@@ -35,9 +35,10 @@ fn two_named_nodes(doc: &ProfileDoc) -> ProfileDoc {
         doc = apply(
             &doc,
             &DocEdit::InsertNode {
-                node: Node::Datum(Datum::Point {
+                node: Box::new(Node::Datum(Datum::Point {
                     position: [len(x), len(0.0), len(0.0)],
-                }),
+                })),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -72,14 +73,14 @@ fn every_form() -> ProfileDoc {
     };
     doc = push(
         &doc,
-        &DocEdit::SetDocParam {
-            name: ParamName::from_static("pad"),
-            value: DocParam::Continuous {
+        &DocEdit::DeclareVar {
+            name: VarName::from_static("pad"),
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 0.001,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: None,
-            },
+            }),
         },
     );
     let prim = |p: MeasurePrimitive| MeasureExpr::primitive(p);
@@ -104,8 +105,8 @@ fn every_form() -> ProfileDoc {
                             prim(MeasurePrimitive::Gap { outer: 1, inner: 0 }),
                         )
                         .expect("Length - Length"),
-                        MeasureExpr::neg(MeasureExpr::value(Expr::param(
-                            ParamName::from_static("pad"),
+                        MeasureExpr::neg(MeasureExpr::value(Formula::named(
+                            VarName::from_static("pad"),
                             Dimension::Length,
                         )))
                         .expect("a shallow negation"),
@@ -127,18 +128,22 @@ fn every_form() -> ProfileDoc {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::measure(expr, vec![name(doc.order()[0]), name(doc.order()[1])])
-                .expect("indices in range"),
+            node: Box::new(
+                Node::measure(expr, vec![name(doc.ids()[0]), name(doc.ids()[1])])
+                    .expect("indices in range"),
+            ),
+            fresh: Vec::new(),
         },
     );
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Assertion {
+            node: Box::new(Node::Assertion {
                 measure: crate::fixture::newest(&doc),
                 bound: len(0.0005),
                 dir: AssertionDir::AtMost,
-            },
+            }),
+            fresh: Vec::new(),
         },
     );
     doc
@@ -147,11 +152,11 @@ fn every_form() -> ProfileDoc {
 /// Both fixtures put their measure third and its assertion fourth:
 /// two datum points come first so the references name live nodes.
 fn measure(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()[2]
+    doc.ids()[2]
 }
 
 fn assertion(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()[3]
+    doc.ids()[3]
 }
 
 /// The angular half, separately: an `angle` primitive is an `Angle`
@@ -168,21 +173,25 @@ fn angular() -> ProfileDoc {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::measure(
-                MeasureExpr::primitive(MeasurePrimitive::Angle { a: 0, b: 1 }),
-                vec![name(doc.order()[0]), name(doc.order()[1])],
-            )
-            .expect("indices in range"),
+            node: Box::new(
+                Node::measure(
+                    MeasureExpr::primitive(MeasurePrimitive::Angle { a: 0, b: 1 }),
+                    vec![name(doc.ids()[0]), name(doc.ids()[1])],
+                )
+                .expect("indices in range"),
+            ),
+            fresh: Vec::new(),
         },
     );
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Assertion {
+            node: Box::new(Node::Assertion {
                 measure: crate::fixture::newest(&doc),
                 bound: ang(0.5),
                 dir: AssertionDir::AtLeast,
-            },
+            }),
+            fresh: Vec::new(),
         },
     );
     doc
@@ -196,7 +205,7 @@ fn every_measure_form_round_trips() {
     for doc in [every_form(), angular()] {
         let text = save(&doc, &[], Tol::witness()).expect("the document saves");
         let back = load(&text, Tol::witness()).expect("its own bytes load").doc;
-        for &id in doc.order() {
+        for id in doc.ids() {
             let (mine, theirs) = (
                 doc.node(id).expect("live"),
                 back.node(id).expect("every node survives the round trip"),
@@ -241,7 +250,7 @@ fn a_measure_indexing_past_its_refs_refuses_at_the_load_door() {
     assert_ne!(corrupt, text, "the corruption must actually land");
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::MeasureRefs { node, fault })) => {
-            assert_eq!(node, measure(&doc));
+            assert_eq!(node.id(), measure(&doc));
             assert!(
                 matches!(
                     fault,
@@ -288,7 +297,7 @@ fn a_dimension_refusal_in_a_measure_crosses_the_load_door_whole() {
         measure["expr"] = serde_json::json!({
             "Add": [
                 inner,
-                { "Value": { "Literal": { "value": 1.0, "dim": "Length", "unit": "m" } } },
+                { "Value": { "var": "0:0000000000000001", "dim": "Length" } },
             ]
         });
         wrapped += 1;
@@ -306,7 +315,7 @@ fn a_dimension_refusal_in_a_measure_crosses_the_load_door_whole() {
                 left: Dimension::Angle,
                 right: Dimension::Length,
             },
-            "the measurement language asks `Expr`'s own constructors, so \
+            "the measurement language asks `Formula`'s own constructors, so \
              the refusal is the one an ordinary expression would raise"
         ),
         other => panic!("an ill-dimensioned measure must refuse typed, got {other:?}"),
@@ -316,10 +325,10 @@ fn a_dimension_refusal_in_a_measure_crosses_the_load_door_whole() {
 /// The same fault at the EDIT door, which is where an author meets it.
 #[test]
 fn a_measure_indexing_past_its_refs_refuses_at_the_edit_door() {
-    let err = Node::<editor_core::ProfileProgram>::measure(
+    let err = <editor_core::AuthoredNode>::measure(
         MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 3 }),
         // No document: the node is never looked up.
-        vec![name(RecipeNodeId(0))],
+        vec![name(RecipeNodeId::new(0, 0))],
     )
     .expect_err("index 3 addresses nothing");
     assert!(matches!(
@@ -341,11 +350,12 @@ fn a_dimension_mismatched_bound_refuses_at_the_edit_door() {
     let err = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Assertion {
+            node: Box::new(Node::Assertion {
                 measure: measure(&doc),
                 bound: len(0.5),
                 dir: AssertionDir::AtLeast,
-            },
+            }),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -371,12 +381,13 @@ fn an_assertion_over_a_non_measure_refuses() {
     let err = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Assertion {
+            node: Box::new(Node::Assertion {
                 // An assertion is not a measure.
                 measure: assertion(&doc),
                 bound: ang(0.5),
                 dir: AssertionDir::AtLeast,
-            },
+            }),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

@@ -30,7 +30,7 @@ fn a_face_cut_and_merged_in_one_pair_step_publishes_no_constituent() {
             op: BooleanOp::Union,
             a: b,
             b: g,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     // `b`'s faces, sited at the operand that holds them: `bg`'s A side.
@@ -46,14 +46,14 @@ fn a_face_cut_and_merged_in_one_pair_step_publishes_no_constituent() {
             (l, r)
         })
         .collect();
-    let (doc, decl) = insert(doc, Node::declare_rest(pairs));
+    let decl = editor_core::declare_continuation(pairs);
     let (doc, pair) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a: bg,
             b: a,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let ev = run(&doc);

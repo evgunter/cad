@@ -26,7 +26,7 @@ use bvh::test_support::ray;
 use geom_core::{Point3, Vec3};
 
 use crate::{
-    Datum, Dimension, DocEdit, Expr, HitTestError, LoopProgram, Node, PickHit, ProfileDoc,
+    Datum, Dimension, DocEdit, Expr, Formula, HitTestError, LoopProgram, Node, PickHit, ProfileDoc,
     ProfileProgram, RecipeNodeId, RefusingReach,
 };
 
@@ -36,10 +36,10 @@ use crate::{
 ///
 /// # Panics
 ///
-/// If `metres` is not finite — the refusal is `Expr::literal`'s, and a
+/// If `metres` is not finite — the refusal is `Formula::literal`'s, and a
 /// row about that refusal spells the call rather than reaching here.
-pub fn len(metres: f64) -> Expr {
-    Expr::literal(metres, Dimension::Length).expect("a finite length")
+pub fn len(metres: f64) -> Formula {
+    Formula::literal(metres, Dimension::Length).expect("a finite length")
 }
 
 /// An angle literal, in radians.
@@ -47,17 +47,20 @@ pub fn len(metres: f64) -> Expr {
 /// # Panics
 ///
 /// If `radians` is not finite.
-pub fn ang(radians: f64) -> Expr {
-    Expr::literal(radians, Dimension::Angle).expect("a finite angle")
+pub fn ang(radians: f64) -> Formula {
+    Formula::literal(radians, Dimension::Angle).expect("a finite angle")
 }
 
-/// A dimensionless literal — a direction component, a bulge, a ratio.
+/// A written dimensionless value ([`Formula::scalar`]) — a direction
+/// component, a bulge, a ratio: a variable the edit door mints, at a
+/// slot's root and inside a formula alike. The exact constant is
+/// [`Formula::ratio`].
 ///
 /// # Panics
 ///
 /// If `value` is not finite.
-pub fn scl(value: f64) -> Expr {
-    Expr::literal(value, Dimension::Scalar).expect("a finite scalar")
+pub fn scl(value: f64) -> Formula {
+    Formula::scalar(value).expect("a finite scalar")
 }
 
 /// Two length literals — a point in a sketch frame's own coordinates.
@@ -65,8 +68,103 @@ pub fn scl(value: f64) -> Expr {
 /// # Panics
 ///
 /// If either coordinate is not finite.
-pub fn len2(v: [f64; 2]) -> [Expr; 2] {
+pub fn len2(v: [f64; 2]) -> [Formula; 2] {
     [len(v[0]), len(v[1])]
+}
+
+// --- the stored form ------------------------------------------------
+
+/// **A document to lower into and throw away**, for a row that asks a
+/// stored form something its variables' values do not answer.
+pub fn scratch(tol: geom_core::Tol) -> ProfileDoc {
+    ProfileDoc::empty_derived("scratch", tol)
+}
+
+/// The stored node `node` lowers to in `doc`: what the edit door would
+/// write for it, every variable it mints minted into `doc`, for a row
+/// that places a node in a document by hand.
+///
+/// # Panics
+///
+/// If `node` does not lower in `doc`.
+pub fn stored(doc: &mut ProfileDoc, node: &crate::AuthoredNode) -> Node<ProfileProgram> {
+    use crate::ProfilePayload;
+    node.try_map_slots(|p, f| ProfileProgram::lower(p, f), &mut |f| {
+        crate::edit::lower_slot_into(doc, f)
+    })
+    .expect("a node the document can answer lowers")
+}
+
+/// **A live node as it was written**: each slot the formula its
+/// variable was written as ([`crate::Doc::written`]) — an anonymous
+/// variable's value or definition, a named one's reader — for a row
+/// that rebuilds a document by re-inserting its nodes, minting their
+/// anonymous variables afresh, as the original inserts did.
+///
+/// # Panics
+///
+/// If `node` reads an anonymous variable a written re-insert would not
+/// reproduce ([`crate::Doc::written_would_not_reproduce`]): the rebuilt
+/// document would not be this one. A value edited after its insert is
+/// the caller's to rule out, by comparing the rebuilt ids.
+pub fn as_written(doc: &ProfileDoc, node: &Node<ProfileProgram>) -> crate::AuthoredNode {
+    let lost = doc.written_would_not_reproduce();
+    let read: Vec<crate::VarId> = node
+        .exprs()
+        .into_iter()
+        .copied()
+        .filter(|var| lost.contains(var))
+        .collect();
+    assert!(
+        read.is_empty(),
+        "a written re-insert would not reproduce {read:?}: shared, or toleranced"
+    );
+    node.written(doc)
+}
+
+/// The stored expression `formula` lowers to where no name is held.
+///
+/// # Panics
+///
+/// If `formula` reads a variable by name.
+pub fn stored_expr(formula: &Formula) -> Expr {
+    Expr::try_from(formula).expect("a formula with no name leaf lowers in any scope")
+}
+
+/// The stored program `program` lowers to in `doc` ([`stored`]).
+///
+/// # Panics
+///
+/// If `program` does not lower in `doc`.
+pub fn stored_program(doc: &mut ProfileDoc, program: &ProfileProgram<Formula>) -> ProfileProgram {
+    program
+        .try_map_slots(&mut |f| crate::edit::lower_slot_into(doc, f))
+        .expect("a program the document can answer lowers")
+}
+
+/// The stored loop `program` lowers to in `doc` ([`stored`]).
+///
+/// # Panics
+///
+/// If `program` does not lower in `doc`.
+pub fn stored_loop(doc: &mut ProfileDoc, program: &LoopProgram<Formula>) -> LoopProgram {
+    program
+        .try_map_slots(&mut |f| crate::edit::lower_slot_into(doc, f))
+        .expect("a loop the document can answer lowers")
+}
+
+/// The stored placement `placement` lowers to in `doc` ([`stored`]).
+///
+/// # Panics
+///
+/// If `placement` does not lower in `doc`.
+pub fn stored_placement(
+    doc: &mut ProfileDoc,
+    placement: &crate::Placement<Formula>,
+) -> crate::Placement {
+    placement
+        .try_map_slots(&mut |f| crate::edit::lower_slot_into(doc, f))
+        .expect("a placement the document can answer lowers")
 }
 
 // --- the frame a sketch is drawn on ---------------------------------
@@ -77,7 +175,7 @@ pub fn len2(v: [f64; 2]) -> [Expr; 2] {
 /// # Panics
 ///
 /// If a component is not finite.
-pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> Node<ProfileProgram> {
+pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> crate::AuthoredNode {
     Node::Datum(Datum::Frame {
         origin: origin.map(len),
         u: u.map(scl),
@@ -87,7 +185,7 @@ pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> Node<ProfileProgram>
 
 /// The world xy frame as a node — origin at the world origin, sketch
 /// +x along world +x, sketch +y along world +y.
-pub fn xy_frame() -> Node<ProfileProgram> {
+pub fn xy_frame() -> crate::AuthoredNode {
     frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0])
 }
 
@@ -104,9 +202,17 @@ pub fn xy_frame() -> Node<ProfileProgram> {
 ///
 /// If a door refuses an insert.
 pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 3]) {
-    let ins = |doc: ProfileDoc, node: Node<ProfileProgram>| {
-        let a = crate::apply(&doc, &DocEdit::InsertNode { node }, tol, &RefusingReach)
-            .expect("the clipped cylinder's inserts apply");
+    let ins = |doc: ProfileDoc, node: crate::AuthoredNode| {
+        let a = crate::apply(
+            &doc,
+            &DocEdit::InsertNode {
+                node: Box::new(node),
+                fresh: Vec::new(),
+            },
+            tol,
+            &RefusingReach,
+        )
+        .expect("the clipped cylinder's inserts apply");
         (a.doc, a.record.minted.expect("an insert mints a node"))
     };
     let doc = ProfileDoc::empty_derived("clipped_cylinder", tol);
@@ -124,6 +230,7 @@ pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 3]) 
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: crate::ExtrudeSide::Along,
         },
     );
     let (doc, tool) = ins(
@@ -275,19 +382,32 @@ pub fn verbatim_kind<P>(node: &Node<P>) -> Option<VerbatimKind> {
 /// (`tests/expr_nesting_bound.rs`).
 pub const BODY_NESTING: usize = crate::persist::nesting::BODY_NESTING;
 
+/// **The deepest a body nests around a metadata value at its bound**,
+/// which [`BODY_NESTING`] covers (`tests/meta_nesting_bound.rs`).
+pub const META_BODY_NESTING: usize = crate::persist::nesting::META_BODY_NESTING;
+
+/// **How deep a saved `text` nests**, in JSON brackets outside strings
+/// (its header line holds none, so this is its body's depth):
+/// the load door's own scan, so a row measures a save as the door does.
+#[must_use]
+pub fn bracket_depth(text: &str) -> usize {
+    crate::persist::nesting::deepest(text)
+}
+
 // --- the mint's preimage --------------------------------------------
 
-/// **The node id an insert of `node` draws from an empty document's
-/// mint**: `Mint::insert`, lifted out of the crate so a row can pin the
+/// **The node id an insert of `node` draws in an empty document**:
+/// the node lowered as the door lowers it, its variables minted first,
+/// then `Mint::insert`, lifted out of the crate so a row can pin the
 /// preimage node shape by node shape
 /// (`tests/switch_slots.rs`, `every_node_shapes_mint_is_pinned`).
 ///
-/// Carries no oracle: it IS the mint's draw, with no document around
-/// it, so a shape whose inputs name no live node still draws.
-pub fn first_node_id(node: &Node<ProfileProgram>) -> RecipeNodeId {
-    crate::Mint::empty()
-        .insert(node)
-        .expect("an empty log holds no id")
+/// Carries no oracle: it IS the mint's draw, with no door around it, so
+/// a shape whose inputs name no live node still draws.
+pub fn first_node_id(node: &crate::AuthoredNode, tol: geom_core::Tol) -> RecipeNodeId {
+    let mut doc = ProfileDoc::empty_derived("first_node_id", tol);
+    let node = stored(&mut doc, node);
+    doc.mint.insert(&node)
 }
 
 /// **A spoken node built by hand**: what a document holding `id` as a
@@ -308,4 +428,12 @@ pub fn spoken_labelled(
     label: crate::Label,
 ) -> crate::SpokenNode {
     crate::SpokenNode::forged(id, Some(kind), Some(label))
+}
+
+/// `name` as a sentence speaks it with its minting node spoken as
+/// `minter` says, which must name the same node.
+#[must_use]
+pub fn spoken_name(name: crate::StableName, minter: crate::SpokenNode) -> crate::SpokenName {
+    assert_eq!(name.node, minter.id(), "the minter is the name's own node");
+    crate::SpokenName::forged(name, minter)
 }

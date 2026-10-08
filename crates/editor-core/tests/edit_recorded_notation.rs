@@ -49,6 +49,7 @@ test_utils::gated_to![
 ];
 
 use crate::fixture;
+use editor_core::Formula;
 
 use editor_core::{
     DocEdit, DocumentId, EvalOptions, ExprPath, LoopProgram, Node, ProfileDoc, ProfileProgram,
@@ -66,7 +67,7 @@ fn plane() -> RecipeNodeId {
 
 /// The profile of a document [`doc_of`] built: its second node.
 fn profile(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()[1]
+    doc.ids()[1]
 }
 
 fn empty() -> ProfileDoc {
@@ -130,7 +131,7 @@ fn in_millimetres() -> (Vec<Step<f64>>, RecordedNotation) {
 }
 
 /// The document a lifted program reaches: a frame, then the profile.
-fn doc_of(program: LoopProgram) -> ProfileDoc {
+fn doc_of(program: LoopProgram<Formula>) -> ProfileDoc {
     let mut doc = empty();
     for edit in edits_of(program) {
         doc = doc
@@ -142,17 +143,19 @@ fn doc_of(program: LoopProgram) -> ProfileDoc {
 }
 
 /// The same document as its edit log, for the save/load row.
-fn edits_of(program: LoopProgram) -> [DocEdit<ProfileProgram>; 2] {
+fn edits_of(program: LoopProgram<Formula>) -> [DocEdit<ProfileProgram>; 2] {
     [
         DocEdit::InsertNode {
-            node: fixture::xy_frame(),
+            node: Box::new(fixture::xy_frame()),
+            fresh: Vec::new(),
         },
         DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram {
+            node: Box::new(Node::Profile(ProfileProgram {
                 plane: plane(),
                 loops: vec![program],
                 ids: Vec::new(),
-            }),
+            })),
+            fresh: Vec::new(),
         },
     ]
 }
@@ -175,11 +178,16 @@ fn read_back(doc: &editor_core::ProfileDoc, step: u32, arg: StepArg) -> (f64, &'
     let Some(e) = doc.expr_at(&slot(doc, step, arg)) else {
         panic!("the document addresses ({step}, {arg:?})")
     };
+    // A dimensionless argument reads back as the bare number it is,
+    // whose notation is the dimensionless row's.
+    if let Some(r) = e.as_ratio() {
+        return (r.eval::<f64>(), "");
+    }
     let Some(v) = e.literal_value() else {
-        panic!("a recorded argument is a literal")
+        panic!("a recorded argument is a written value")
     };
     let Some(u) = e.display_unit() else {
-        panic!("a literal always names its notation")
+        panic!("a written value always names its notation")
     };
     (v, u.symbol())
 }
@@ -196,7 +204,9 @@ fn read_back(doc: &editor_core::ProfileDoc, step: u32, arg: StepArg) -> (f64, &'
 /// It also asserts what it enumerated: every address `step_args` hands
 /// back holds an expression, so a role the walk claims and the document
 /// cannot answer is a failure here rather than a silently shorter list.
-fn arg_bits(program: LoopProgram) -> Vec<(u32, StepArg, Option<f64>, Option<&'static str>)> {
+fn arg_bits(
+    program: LoopProgram<Formula>,
+) -> Vec<(u32, StepArg, Option<f64>, Option<&'static str>)> {
     let addresses = program.step_args();
     let doc = doc_of(program);
     addresses
@@ -364,12 +374,7 @@ fn a_recorded_notation_round_trips_through_save_and_load() {
     let program = LoopProgram::from_recorded_with_notation(&steps, &notation).expect("lifts");
     let base = ProfileDoc::empty(DocumentId::derive("edit-recorded-notation"), Tol::witness());
     let edits = edits_of(program.clone());
-    let text = save(
-        &base,
-        &editor_core::LoggedEdit::bare_all(&edits),
-        Tol::witness(),
-    )
-    .expect("the log saves");
+    let text = save(&base, edits.as_ref(), Tol::witness()).expect("the log saves");
     // The STORED FORM, before any load: a save that dropped the symbol
     // and a load that re-derived it from the dimension would satisfy
     // every assertion below, and would lose the notation the moment a
@@ -380,9 +385,7 @@ fn a_recorded_notation_round_trips_through_save_and_load() {
     );
     let plain = save(
         &base,
-        &editor_core::LoggedEdit::bare_all(&edits_of(
-            LoopProgram::from_recorded(&square(0.025)).expect("lifts"),
-        )),
+        edits_of(LoopProgram::from_recorded(&square(0.025)).expect("lifts")).as_ref(),
         Tol::witness(),
     )
     .expect("the log saves");

@@ -39,17 +39,18 @@
 use geom_core::{Decide, Point2, Point3, Tol};
 use profile::test_support::bulge_loop;
 use profile::{ProfileLoop, RawLoop};
+use sweep::ExtrudeSide;
 use sweep::test_support::{block, brick, extruded, prism, sketch_at};
-use topo::Body;
+use topo::{Body, EdgeKey};
 
 /// The 4 x 4 x 1 slab, `z in [0, 1]` — the plainest operand a boolean
 /// row puts something else against.
-pub fn slab<T: Decide>() -> Body<T> {
+pub fn slab<T: Decide + topo::AtRestPolicy>() -> Body<T> {
     block(4.0, 4.0, 1.0, Tol::witness())
 }
 
 /// The 6 x 4 plate, `z in [z0, z0 + 1]`.
-pub fn plate6<T: Decide>(z0: f64) -> Body<T> {
+pub fn plate6<T: Decide + topo::AtRestPolicy>(z0: f64) -> Body<T> {
     brick((0.0, 6.0), (0.0, 4.0), (z0, z0 + 1.0), Tol::witness())
 }
 
@@ -60,7 +61,7 @@ pub fn plate6<T: Decide>(z0: f64) -> Body<T> {
 /// `m5_s10_face_sense::mixed_turn_arcs`, and every point of it is
 /// genuinely OUTSIDE that body — the notch floor at `x = 1` is
 /// `y ~ 1.0858` — so the two solids are disjoint.
-pub fn pellet<T: Decide>() -> Body<T> {
+pub fn pellet<T: Decide + topo::AtRestPolicy>() -> Body<T> {
     brick((0.9, 1.1), (1.25, 1.35), (0.3, 0.7), Tol::witness())
 }
 
@@ -101,7 +102,12 @@ pub fn three_arc_cylinder(
 /// scalar the extrusion takes. Not [`three_arc_cylinder`] at `n = 3`:
 /// that door places its joints through `to_radians` from degrees, and
 /// the two spellings are different bits.
-pub fn n_arc_boss<T: Decide>(centre: Point2<f64>, n: usize, z0: f64, len: f64) -> Body<T> {
+pub fn n_arc_boss<T: Decide + topo::AtRestPolicy>(
+    centre: Point2<f64>,
+    n: usize,
+    z0: f64,
+    len: f64,
+) -> Body<T> {
     let theta = 2.0 * core::f64::consts::PI / n as f64;
     let bulge = T::from_f64((theta / 4.0).tan());
     let at = |i: usize| {
@@ -122,7 +128,7 @@ pub fn n_arc_boss<T: Decide>(centre: Point2<f64>, n: usize, z0: f64, len: f64) -
 /// [`n_arc_boss`] at `(1.2, 1.7)`: the boss the M5 curved-op suites
 /// (`m5_s12_curved_ops`, its interval twin, and the PR 9 boss review)
 /// cut from and union onto their 3 × 3 plate.
-pub fn m5_boss<T: Decide>(n: usize, z0: f64, len: f64) -> Body<T> {
+pub fn m5_boss<T: Decide + topo::AtRestPolicy>(n: usize, z0: f64, len: f64) -> Body<T> {
     n_arc_boss(Point2::new(1.2, 1.7), n, z0, len)
 }
 
@@ -210,7 +216,148 @@ pub fn framed_bar(o: Point3<f64>, d: geom_core::Vec3<f64>, t0: f64, t1: f64, w: 
     let vp = profile::Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .expect("the framed bar's profile validates");
-    sweep::extrude(&vp, sweep::Extrusion::Distance(t1 - t0), Tol::witness())
-        .expect("the framed bar extrudes")
-        .body
+    sweep::extrude(
+        &vp,
+        sweep::Extrusion::Distance {
+            depth: t1 - t0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the framed bar extrudes")
+    .body
+}
+
+/// **A prism whose right side is a half-round**, unit high, and the
+/// top front edge that ends there: the one plane–plane edge the blend
+/// suites reach whose end face is CURVED, a run-out both verbs refuse
+/// (`blend::battery::END_FACE_CURVED`).
+pub fn half_round_end() -> (Body<f64>, EdgeKey) {
+    let body = prism(
+        vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(2.0, 0.0), 0.5),
+            (Point2::new(2.0, 1.0), 0.0),
+            (Point2::new(0.0, 1.0), 0.0),
+        ],
+        1.0,
+        Tol::witness(),
+    );
+    let at = |v| {
+        let p = body
+            .get_point(body.get_vertex(v).expect("a vertex").point)
+            .expect("a point");
+        (p.x, p.y, p.z)
+    };
+    let edge = topo::query::all_edges(&body)
+        .into_iter()
+        .find(|&e| {
+            let he = body.get_edge(e).expect("an edge").he_plus;
+            let mut ends = [
+                at(body.get_half_edge(he).expect("a half").start),
+                at(body.half_edge_end(he).expect("an end")),
+            ];
+            ends.sort_by(|a, b| a.partial_cmp(b).expect("finite"));
+            ends == [(0.0, 0.0, 1.0), (2.0, 0.0, 1.0)]
+        })
+        .expect("the top front edge");
+    (body, edge)
+}
+
+/// **A prism whose top corner turns unsymmetrically**: extruded `1.5`
+/// along `−y` over the trapezoid `(0, 0), (2, 0), (2, 1), (s, 1)` in
+/// `xz`, its left wall leaning in by `s` and every other face square;
+/// and the two top edges that turn at `(s, 0, 1)` — along `x` over the
+/// square end face `y = 0`, and along `y` over the leaning wall. The
+/// turn is isosceles only at `s = 0`, so at a definite lean both verbs
+/// refuse it (`blend::battery::TURN_NOT_ISOSCELES`).
+pub fn leaning_turn(s: f64) -> (Body<f64>, [EdgeKey; 2]) {
+    let plane = sweep::test_support::sketch_from_axes(
+        Point3::new(0.0, 0.0, 0.0),
+        geom_core::Vec3::new(1.0, 0.0, 0.0),
+        geom_core::Vec3::new(0.0, 0.0, 1.0),
+        Tol::witness(),
+    );
+    let body = sweep::test_support::prism_on(
+        plane,
+        vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(2.0, 0.0), 0.0),
+            (Point2::new(2.0, 1.0), 0.0),
+            (Point2::new(s, 1.0), 0.0),
+        ],
+        1.5,
+        Tol::witness(),
+    );
+    let point = |v| {
+        *body
+            .get_point(body.get_vertex(v).expect("a vertex").point)
+            .expect("a point")
+    };
+    let between = |a: Point3<f64>, b: Point3<f64>| {
+        topo::query::all_edges(&body)
+            .into_iter()
+            .find(|&e| {
+                let he = body.get_edge(e).expect("an edge").he_plus;
+                let (p, q) = (
+                    point(body.get_half_edge(he).expect("a half").start),
+                    point(body.half_edge_end(he).expect("an end")),
+                );
+                let at = |x: Point3<f64>, y: Point3<f64>| (x - y).norm() < 1e-12;
+                (at(p, a) && at(q, b)) || (at(p, b) && at(q, a))
+            })
+            .unwrap_or_else(|| panic!("an edge between {a:?} and {b:?}"))
+    };
+    let corner = Point3::new(s, 0.0, 1.0);
+    let edges = [
+        between(corner, Point3::new(2.0, 0.0, 1.0)),
+        between(corner, Point3::new(s, -1.5, 1.0)),
+    ];
+    (body, edges)
+}
+
+/// **A box sheared along its diagonal**: the parallelepiped
+/// `{0 ≤ z ≤ 1, s z ≤ x ≤ 2 + s z, s z ≤ y ≤ 1.5 + s z}`, two
+/// parallelogram prisms intersected, its lateral edges along
+/// `(s, s, 1)`. Its top corners `(s, s, 1)` and `(2 + s, 1.5 + s, 1)`
+/// are isosceles turns about their lateral edge; at `(2 + s, s, 1)` and
+/// `(s, 1.5 + s, 1)` the two top edges make supplementary angles with
+/// it.
+pub fn parallelepiped(s: f64) -> Body<f64> {
+    let z = geom_core::Vec3::new(0.0, 0.0, 1.0);
+    let tol = Tol::witness();
+    let along_y = sweep::test_support::prism_on(
+        sweep::test_support::sketch_from_axes(
+            Point3::new(0.0, 3.5, 0.0),
+            geom_core::Vec3::new(1.0, 0.0, 0.0),
+            z,
+            tol,
+        ),
+        vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(2.0, 0.0), 0.0),
+            (Point2::new(2.0 + s, 1.0), 0.0),
+            (Point2::new(s, 1.0), 0.0),
+        ],
+        5.0,
+        tol,
+    );
+    let (z0, z1) = (-0.5, 1.5);
+    let along_x = sweep::test_support::prism_on(
+        sweep::test_support::sketch_from_axes(
+            Point3::new(3.5, 0.0, 0.0),
+            geom_core::Vec3::new(0.0, -1.0, 0.0),
+            z,
+            tol,
+        ),
+        vec![
+            (Point2::new(-1.5 - s * z0, z0), 0.0),
+            (Point2::new(-s * z0, z0), 0.0),
+            (Point2::new(-s * z1, z1), 0.0),
+            (Point2::new(-1.5 - s * z1, z1), 0.0),
+        ],
+        5.0,
+        tol,
+    );
+    sweep::test_support::realized(topo::boolean::BooleanOp::Intersect, &along_y, &along_x, tol)
 }

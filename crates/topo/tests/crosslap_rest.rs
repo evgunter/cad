@@ -29,7 +29,7 @@
 
 use crate::common;
 
-use common::{brick, flush_declarations};
+use common::{brick, finished, flush_declarations};
 use geom_core::Tol;
 use topo::{
     BooleanError, BooleanResult, mass_properties, subtract, union, union_with, validate_geometric,
@@ -39,14 +39,16 @@ use topo::{
 const NOTCH_VOL: f64 = 0.5 * 0.5 * 0.25;
 const BEAM_VOL: f64 = 4.0 * 0.5 * 0.5;
 
-fn notched_beams() -> (topo::Body<f64>, topo::Body<f64>) {
-    let beam_a = brick::<f64>((0.0, 4.0), (1.75, 2.25), (0.0, 0.5), Tol::witness());
-    let cut_a = brick::<f64>((1.75, 2.25), (1.5, 2.5), (0.25, 0.75), Tol::witness());
+fn notched_beams() -> (topo::AtRestBody<f64>, topo::AtRestBody<f64>) {
+    let block =
+        |what, x, y, z| finished(what, brick::<f64>(x, y, z, Tol::witness()), Tol::witness());
+    let beam_a = block("beam A", (0.0, 4.0), (1.75, 2.25), (0.0, 0.5));
+    let cut_a = block("cut A", (1.75, 2.25), (1.5, 2.5), (0.25, 0.75));
     let BooleanResult::Body(a) = subtract(&beam_a, &cut_a, Tol::witness()).expect("notch A") else {
         panic!("notch A yields a body");
     };
-    let beam_b = brick::<f64>((1.75, 2.25), (0.0, 4.0), (0.0, 0.5), Tol::witness());
-    let cut_b = brick::<f64>((1.5, 2.5), (1.75, 2.25), (-0.25, 0.25), Tol::witness());
+    let beam_b = block("beam B", (1.75, 2.25), (0.0, 4.0), (0.0, 0.5));
+    let cut_b = block("cut B", (1.5, 2.5), (1.75, 2.25), (-0.25, 0.25));
     let BooleanResult::Body(b) = subtract(&beam_b, &cut_b, Tol::witness()).expect("notch B") else {
         panic!("notch B yields a body");
     };
@@ -135,8 +137,12 @@ fn declared_crosslap_rest_union_builds() {
 #[test]
 fn declared_crosslap_records_both_contact_patches_as_discarded() {
     let glued = glued();
-    let seams: std::collections::BTreeSet<topo::EdgeKey> =
-        glued.naming.seam_edges.iter().copied().collect();
+    let seams: std::collections::BTreeSet<topo::EdgeKey> = glued
+        .naming
+        .seam_edges
+        .iter()
+        .map(|&e| glued.naming.joined_edge(e))
+        .collect();
     let edges = crate::boolean_discards::bordered_edges(&glued);
     for operand in [topo::Operand::A, topo::Operand::B] {
         let settled = glued

@@ -26,6 +26,7 @@ use topo::{Body, ShellError, transform_rigid};
 use crate::common::charts::hollow_moves;
 use crate::common::poses::torax_pose;
 use crate::common::torus_walls::{klein_elbow, props_door, vessel_cavity, vessel_quarter};
+use sweep::test_support::finished;
 
 fn tol() -> Tol {
     Tol::witness()
@@ -308,7 +309,8 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
 }
 
 /// **Row 11 — the census refusals reachable through public doors**,
-/// on the vessel's cavity: the boolean operand gate, the mesh's trimmed
+/// on the vessel's cavity: the at-rest gate a boolean operand is
+/// finished through (check 7's spiric cap, the props door below), the mesh's trimmed
 /// lane (its torus/plane roster is the MESH frontier,
 /// `work/issues/trimmed-tessellation-lacks-torus-and-plane-arms.md`),
 /// and the STEP writer, which now WRITES an export-only spline and
@@ -322,11 +324,20 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
 #[test]
 fn the_census_refusals_through_public_doors() {
     let (_, cavity) = vessel_cavity(1.0 / 128.0);
-    let other = klein_elbow_of_disc(0.1);
-    let e = topo::union(&cavity, &other, tol()).expect_err("the boolean fence refuses the kind");
+    let errors = topo::AtRestBody::validate(cavity.clone(), tol())
+        .expect_err("the cavity is not a finished body, so no boolean takes it");
     assert!(
-        matches!(e, topo::BooleanError::CurvedEdgeUnsupported { .. }),
-        "the operand gate names the spiric edge, got {e:?}"
+        matches!(
+            errors.as_slice(),
+            [topo::ValidationError::VolumeUncomputable {
+                source: topo::MassPropsError::Face {
+                    source: geom_brep::PropsError::Unimplemented,
+                    ..
+                },
+                ..
+            }]
+        ),
+        "the at-rest gate refuses the spiric cap's volume, as the props door does, got {errors:?}"
     );
     let e =
         mesh::tessellate(&cavity, 1e-3, tol()).expect_err("no trimmed lane for the torus chart");
@@ -364,7 +375,8 @@ fn the_census_refusals_through_public_doors() {
 #[test]
 fn the_elbow_stops_at_the_props_door() {
     let elbow = klein_elbow_of_disc(0.275);
-    let e = topo::shell(&elbow, 0.05, tol()).expect_err("check 7's volume");
+    let e = topo::shell(&finished("the operand", elbow.clone(), tol()), 0.05, tol())
+        .expect_err("check 7's volume");
     println!("[spiric] the elbow's door: {e:?}");
     let (_, source) = props_door(&e).unwrap_or_else(|| panic!("the props door, got {e:?}"));
     assert_eq!(
@@ -397,7 +409,12 @@ fn the_elbow_stops_at_the_props_door() {
 fn the_sectioned_vessel_stops_at_the_props_door() {
     let quarter = vessel_quarter();
     assert_eq!(topo::validate_geometric(&quarter, tol()), Ok(()));
-    let e = topo::shell(&quarter, 1.0 / 128.0, tol()).expect_err("tier 3's volume");
+    let e = topo::shell(
+        &finished("the operand", quarter.clone(), tol()),
+        1.0 / 128.0,
+        tol(),
+    )
+    .expect_err("tier 3's volume");
     println!("[spiric] the sectioned vessel's door: {e:?}");
     let ShellError::NotValid { errors } = e else {
         panic!("the hollow must reach tier 3, got {e:?}");
@@ -644,17 +661,15 @@ fn the_cavity_pcurves_certify_on_both_charts() {
                         .and_then(|g| g.certified())
                         .expect("certified")
                         .params();
-                    let window = derived.chart_box(t0, t1);
                     let carrier = cavity
                         .get_curve_geom(e.curve)
                         .and_then(|g| g.certified())
                         .expect("certified")
                         .carrier()
                         .clone();
-                    let cache = geom_brep::PcurveCache::certify(
-                        derived, t0, t1, &carrier, &surface, window, band,
-                    )
-                    .expect("the derived cap image certifies through the door");
+                    let cache =
+                        geom_brep::PcurveCache::certify(derived, t0, t1, &carrier, &surface, band)
+                            .expect("the derived cap image certifies through the door");
                     assert_eq!(
                         cache.certificate().statement,
                         geom_brep::EnvelopeStatement::MapResidualClosedForm
@@ -759,9 +774,8 @@ fn a_displaced_azimuth_constant_reds_at_every_sample() {
         worst >= floor,
         "every sample sees at least (R - r)*2|sin(d/2)|: {worst:e} < {floor:e}"
     );
-    let window = moved.chart_box(t0, t1);
     assert!(
-        geom_brep::PcurveCache::certify(moved, t0, t1, &carrier, &surface, window, band).is_err(),
+        geom_brep::PcurveCache::certify(moved, t0, t1, &carrier, &surface, band).is_err(),
         "the schedule refuses a displaced azimuth constant"
     );
 }
@@ -1067,7 +1081,7 @@ mod interval_rows {
         let mut cavity = body.clone();
         let band = Band::linear(tol).expect("band");
         match topo::offset_charts_together(&mut cavity, &moves, band, tol) {
-            Ok(()) => {}
+            Ok(_) => {}
             Err(topo::ReplaceFaceError::Escalated { source })
                 if tol.eps() < geom_core::tolerance::DEFAULT_EPS =>
             {

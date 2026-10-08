@@ -657,7 +657,7 @@ fn f4_compose_exactness_and_containment_all_surfaces() {
             for k in 0..=grid {
                 let t = k as f64 / grid as f64;
                 let p = curve.eval(t);
-                let direct = implicit_value(surface, &[p.x, p.y, p.z]);
+                let direct = implicit_value(surface, &p.to_array());
                 let composed = eval_form(&form, t.min(1.0 - 1e-12));
                 let scale = direct.abs().max(bound).max(1e-9);
                 let rel = (direct - composed).abs() / scale;

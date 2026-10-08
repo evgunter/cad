@@ -16,7 +16,7 @@ use geom_core::Tol;
 
 /// A document carrying a mate round-trips through the persistence
 /// door bit for bit, and the mate's class rides the same stable
-/// spelling a `Declare` pair's does.
+/// spelling a declared pair's does.
 #[test]
 fn a_mate_bearing_document_round_trips() {
     let doc_ref = DocRef {
@@ -29,7 +29,8 @@ fn a_mate_bearing_document_round_trips() {
         let applied = apply(
             &doc,
             &DocEdit::InsertNode {
-                node: Node::instantiate_part(doc_ref),
+                node: Box::new(Node::instantiate_part(doc_ref)),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -44,17 +45,23 @@ fn a_mate_bearing_document_round_trips() {
         path: vec![RoleSeg::InPart {
             of: StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
+                node: RecipeNodeId::new(0, 1),
                 path: vec![RoleSeg::Cap(CapEnd::Start)],
             }
             .into(),
         }],
     };
-    let f = MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
+    let f = MateFrame::authored(
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        geom_core::Tol::witness(),
+    )
+    .expect("a definite frame");
     let doc = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Mate {
+            node: Box::new(Node::Mate {
                 a: crate::fixture::head(name(ids[0])),
                 b: crate::fixture::head(name(ids[1])),
                 class: ContactClass::Rest,
@@ -65,7 +72,8 @@ fn a_mate_bearing_document_round_trips() {
                     sense: AxisSense::Opposed,
                     clocking: None,
                 },
-            },
+            }),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

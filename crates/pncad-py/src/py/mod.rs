@@ -53,7 +53,8 @@ pyo3::create_exception!(
      and the one it was offered), `kind`, `from_kind`, `to_kind`, \
      `count`, `first`, `again`, `value`, `offered`, `determinant`, \
      `index` (which of a node's placement frames: a transform's step \
-     or an explicit rule's listed placement), `path`, `value_path` and \
+     or an explicit rule's listed placement), `side` (the mate side \
+     whose frame offset holds that step), `path`, `value_path` and \
      `pin`.\n\n\
      ONE ATTRIBUTE PER CONCEPT. Where two arms name one concept \
      differently the concept's clearest word wins — `expected`/ \
@@ -114,7 +115,7 @@ pyo3::create_exception!(
      DOOR names rather than one type name: `LiteralError` from \
      literal construction, from the measurement constructors and from \
      the recorded-program lift; `ParseError` with `variant == \
-     \"dimension\"` from `Doc.parse_expr`; `EditError` from \
+     \"dimension\"` from `Doc.parse_formula`; `EditError` from \
      `Doc.apply`; and `PersistError` with `variant == \"dimension\"` \
      from `load`. Six doors, four classes — the roster with each \
      one's attribute is on `ErrorClass::DIMENSION_DOORS` in \
@@ -158,7 +159,7 @@ pyo3::create_exception!(
     pncad,
     ParseError,
     PncadError,
-    "`Doc.parse_expr` could not read the source as an expression. \
+    "`Doc.parse_formula` could not read the source as an expression. \
      Carries `variant`, the stable tag of the refusing arm, and \
      `pos`, the byte offset in the source — which for a parser is \
      the recourse, since it says WHERE to edit.\n\n\
@@ -350,6 +351,9 @@ pyo3::create_exception!(
     "The whole-document gather refused. Carries `variant`, the stable \
      tag of the refusing arm, plus `node`, `through` and `name` \
      (`None` where the arm does not carry them).\n\n\
+     Its message names each node as the evaluation's own document \
+     holds it (kind, label and tag): the document the gather was taken \
+     of. `node` and `through` carry the full ids.\n\n\
      A product is all of the roots or none of them — there are no \
      partial products."
 );
@@ -360,7 +364,7 @@ pyo3::create_exception!(
     "The `split` refactoring refused. Carries `variant`, the stable \
      tag of the refusing arm, plus its payload as attributes \
      (`node`, `consumer`, `input`, `root`, `instance`, `param`, \
-     `name`, `id`), `None` where inapplicable."
+     `name`, `id`, `gauge`), `None` where inapplicable."
 );
 pyo3::create_exception!(
     pncad,
@@ -369,7 +373,8 @@ pyo3::create_exception!(
     "The `inline` refactoring refused. Carries `variant`, the stable \
      tag of the refusing arm, plus its payload as attributes \
      (`node`, `by`, `name`, `param`, `key`, `root`, `host_epsilon`, \
-     `part_epsilon`), `None` where inapplicable.\n\n\
+     `part_epsilon`, `host_root`, `part_root`, `part_gauges`), `None` \
+     where inapplicable.\n\n\
      Inline crosses the SAME document seam evaluation does, so a \
      reference that will not resolve refuses under the seam's own \
      tags — `part_pin_mismatch`, `part_epsilon_seam`, \
@@ -403,11 +408,8 @@ pyo3::create_exception!(
      (`no_such_name`, `ambiguous`, `wrong_kind`, `whole_body`, the \
      node ladder); the GEOMETRY half reads the carrier and arrives \
      under its own tags, not a wrapper tag (`dangling_entity`, \
-     `dangling_geometry`, `no_canonical_frame`, `no_carrier`).\n\n\
-     The two dangling tags stay apart because they are different \
-     facts about the model: `dangling_entity` is a stale or foreign \
-     handle, `dangling_geometry` is a live entity naming geometry \
-     the body itself no longer has.\n\n\
+     `no_canonical_frame`, `no_carrier`). `dangling_entity` is a \
+     stale or foreign handle.\n\n\
      `ambiguous` is the one to read twice: a tie is a naming success \
      and a referencing failure, and the door refuses rather than \
      picking a candidate. `Evaluation.denotation` is how a caller \
@@ -481,7 +483,8 @@ pyo3::create_exception!(
     "The advisory-check registry could not RUN. Carries `variant`, the \
      stable tag of the refusing arm (`root_without_value`, `band`, \
      `product_unavailable`), and `node` — the root without a value, \
-     `None` on the other arms.\n\n\
+     `None` on the other arms. Its message names each node as the \
+     evaluation's own document holds it, the gather's included.\n\n\
      NOT a finding. A check that ran and disagreed is a value in the \
      report; this class means nothing was checked."
 );

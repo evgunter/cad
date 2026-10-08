@@ -42,10 +42,19 @@ the preferences file as `[notation] length` and `angle`, by unit
 symbol; it is never written into a document. A literal you wrote reads
 in the unit it was written in.
 
-In the Properties panel, the document-parameters list ends with an
-add-parameter row (name + dimension + value, written in the working
+A value typed at a slot — a number, or a written quantity like
+`5 mm` — gives the slot a new variable of its own, whatever it read
+before. When other variables of the same kind hold the same value, the
+slot's row says `same value as` and names each one: click one to make
+the slot read it (one undoable edit; the two then move together), or
+**keep separate** to keep the typed value distinct. A slot whose
+variable has no name has a **name…** button that opens an empty field;
+nothing is stored until you type a name and press **Name** or Enter.
+
+In the Properties panel, the document-variables list ends with an
+add-variable row (name + dimension + value, written in the working
 notation's unit, one undoable edit); an
-expression that names an undeclared parameter refuses typed, and the
+expression that names an undeclared variable refuses typed, and the
 refusal offers to create it — prefilled into that row, with the
 dimension left as your pick.
 
@@ -694,8 +703,8 @@ Fourteen censuses, none of them a dump:
 | `Display for Withdrawal` | a field joins a value whose whole job is to word itself and goes unworded |
 | `frame::outcome_notices` | a field of `OpOutcome` reaches the chrome and is never worded — an edit's consequence the door reported and the one client never shows, which is what DM7's report exists to end |
 | `Withdrawal::all` | a KIND of withdrawal reaches the chrome's notices and is never worded — the fan-out from a `PruneReport` that three hand-written `extend` calls in `app`-gated code used to do, where no row could execute it |
-| `Display for Disagreement` | the doc above it argues both halves are load-bearing; a third field left out would falsify that sentence silently |
-| `Display for BlendTarget` | a refusal names a scope narrower than the target it refused on |
+| `Say for Disagreement` | the doc above it argues both halves are load-bearing; a third field left out would falsify that sentence silently |
+| `Say for BlendTarget` | a refusal names a scope narrower than the target it refused on |
 | `PruneReport::is_empty` | a fourth kind of withdrawal leaves the revision where it was, which is the chrome not rebuilding a picture that changed |
 | `PickCache::forget` | a fourth thing describing the picture outlives the picture — a missed `attempt` is what lets a late build install an index of a document nobody is looking at |
 | `Display for Unusable` | the one sentence a refused preferences store shows says less than the value holds |
@@ -863,6 +872,79 @@ rebuild lands, `pane::viewport` clears `projection_fault` where a
 matrix forms); that is work about the seam, not about the chrome, and
 no writer decides the fate of anyone else's sentence.
 
+**A refusal on the line is a sentence made once, and the next accepted
+act retires it.** The nodes it names are spoken (DESIGN.md Band 1,
+"Node labels") when the batch that raised it ends: `frame::batch_refusal`
+speaks the batch's refusal again from the committed document the batch
+leaves (`Refusal::respoken`), unless the batch replaced the document,
+so a rename later in the same batch is the label it says. After that
+the line holds text, and the label it says stays fresh only because
+every op that changes a label answers `frame::acts` true: the frame
+that renames a node is an acting batch, and its `RankedVerdict::Clear`
+retires the sentence that said the old label. An op that changed a
+label without acting would leave a stale label on the line.
+Every re-spoken refusal, `Refusal::Edit` (`EditError::respoken`)
+among them, follows one rule (`SpokenNode::respoken`): a node the
+batch's document holds is said as it holds it now; a node it does not
+hold (the one a refused insert was minting, one deleted since), or one
+the refusal said by its tag because it was not there then, is said as
+the refusal said it. A sentence about the state the refusal saw stays as
+raised: `EditError::LabelUnchanged` (the label the node had), the arms
+that say a node is not live, and `AdmissionFault::NoSuchNode`.
+
+**The pick path's refusals hold bare ids and are spoken where they are
+drawn.** The pick index, its edge names, the id pass and the blend
+tool's loads are built from the landed run alone, so `PickIndexError`,
+`IdMapError`, `EdgeNameFault`, `EdgeNamesRefused`, `PickError`,
+`BlendTarget`, `BlendEvent`, `idpass::IdAnswer` and
+`idpass::Disagreement` carry no document and implement `Say`; their
+`Display` says each node by its tag. The frame that draws one speaks
+it from the landed document (`DocSession::landed_pair`), the one whose
+ids it is spelled in: `frame::pick_refusal`, `frame::index_badge`'s
+tooltip, `frame::held_edges_badge`, `frame::tool_notice` (through
+`ToolNotice::said`), `Disagreement::notice`, the blend panel's target
+line and the datum form's face readout. A value carried past the frame
+that made it keeps the document it is spelled in (`frame::Spelled`),
+and is said by its tags from any other: the held-edge refusal the
+viewport leaves for the next frame's toolbar is one, since an `Open`
+between the two lands another document. `BlendEvent::TargetLost`
+names its node by the last label the document gave it, since no later
+document holds it.
+
+**The selection's verdict is spoken from the landed document too.**
+`DocSession::standing` asks a picked entity's resolution of the landed
+run every frame, so `pane::properties::standing_verdict` says its
+`ResolveError`, and its `ResolveIndeterminate` through
+`app::indeterminate_wording`, from that run's document. A node that
+document no longer holds is said as the last document that held it
+spoke it (`DocSession::selection_said`, through `Speaker::or_held`),
+and so is a selected node deleted since, in the pane's heading: the
+selection speaks its nodes when it is made and again from the shown
+document after every operation, so a deleted node keeps the last label
+it had. The face-frame form's held face keeps its own
+(`Drafts::datum_face_said`), since it outlives the selection, and so
+does the open tool for each node it holds (`ViewerApp::respeak_held`
+after every operation): a seat's drop, the blend tool's lost target,
+and the mate tool's drop say a node the document no longer holds by the
+last label it had. The mate tool's instance-pick refusal says the label
+the tool kept even while the landed document it is judged against
+still holds the node, since what the tool kept is never older. A
+document that replaces this one drops what both hold
+(`ViewerApp::document_replaced`): their ids are the old document's.
+So is the Checks window: its report is the landed run's, and
+`ViewerApp::checks_window` hands `frame::check_rows` that run's
+document, from which each finding's root is said on its button and in
+its sentence. The report refuses another document, but a document's id
+survives every edit, so handing it the committed version is the
+call site's mistake to avoid, and the window's test holds it.
+
+The landed document lags the committed one by a run. A sentence spoken
+from it says the label the landed run was read under, so a rename that
+has not landed yet reaches a badge at the next landing, and a line
+message (made once) at the next act or the next time it is said. The
+`frame::acts` argument above covers sentences spoken from the committed
+document only.
+
 **Seventeen of the eighteen writers that can put a sentence on the line
 now come through the ranking.** All eighteen used to reach the field
 without it —
@@ -1012,7 +1094,7 @@ is the same shape at the row rather than the toolbar.
 
 Notices — a tool's declined pick, a survival drop, a
 `frame::Withdrawal`, an accepted edit's `Maintenance` row (a name
-stranded or rewritten in place, a declaration left unconsumed) — are
+stranded or rewritten in place) — are
 typed values with `Display`, joined into rank
 2 by `frame_status` with one separator. None of them composes prose
 about another value's failure: the failure renders itself, and what the
@@ -1425,15 +1507,12 @@ a pattern, so each binding's scope is read in order instead.
   owns the failure and its wording. Layer 3 adds nothing but the
   ranking, so it stores the payload and forwards the text.
 - **A flat arm** exists where layer 3 is the only place the fact
-  exists: there is no gesture in flight, this instance is itself, this
-  name is already declared and CREATE is not REPLACE, the seat wanted a
-  different node kind.
+  exists: there is no gesture in flight, this instance is itself, the
+  seat wanted a different node kind.
 
 Each of those examples names a fact `apply` has been read for and does
-not hold — `edit.rs` has no self-instance arm, `write_doc_param` has no
-existence check because `DocEdit::SetDocParam` is create-or-replace,
-and `DocEdit::InsertNode` checks a seat's input for EXISTENCE and not
-for KIND. That reading is what puts an arm in this list; a fact that
+not hold — `edit.rs` has no self-instance arm, and `DocEdit::InsertNode`
+checks a seat's input for EXISTENCE and not for KIND. That reading is what puts an arm in this list; a fact that
 merely feels like layer 3's is how the list acquires a member the door
 already refuses.
 
@@ -1454,17 +1533,19 @@ typed refusal comes from the door rather than from here.* Pre-checking
 in layer 3 what `apply` refuses is two spellings of one rule, and the
 delegating arm exists to carry the door's answer unchanged.
 
-**A lookup is not a pre-check.** Opening a gesture on a parameter needs
+**A lookup is not a pre-check.** Opening a gesture on a variable needs
 its dimension, and the range probe needs its value and unit; both look
-the parameter up whether or not an edit ever follows, so a flat arm is
-the honest answer when the lookup fails. What separates the two cases
+the variable up whether or not an edit ever follows, so a flat arm is
+the honest answer when the lookup fails — `NoSuchVariable` for an id
+the document does not hold, and, for the probe, `VariableIsDefined`
+for one whose definition holds no value to move. What separates the two cases
 is whether an edit is about to be committed that would refuse on its
 own.
 
 ### The G1 machine is held once
 
 Two gestures implement G1's preview/commit shape — the value drag
-`DocSession` owns over a slot or a document parameter, and the
+`DocSession` owns over a slot or a document variable, and the
 free-move probe `DisplayState` owns over an instance's frame — and
 their three transition rules are one value, `g1::Slot`:
 
@@ -1483,7 +1564,7 @@ rigid-motion check on an unmated instance) and different side effects
 (a scratch `Doc` and an evaluation request against a display revision).
 What is shared is the transitions, and a generic over the rest would be
 a type nobody has a use for. DI5 changes what a probe's commit LANDS
-(`crates/editor-core/IDENTITY.md`: a `DocEdit::SetPlacement` rather
+(`crates/editor-core/IDENTITY.md`: a `DocEdit::SetOffset` rather
 than a `moves` entry) and changes none of the three rules, which is why
 holding them once did not wait for it — after DI5 the landing step that
 moves is the caller's, and the machine it must not break is one
@@ -1529,7 +1610,7 @@ place rather than inferred from every dispatch target.
 under an open gesture is refused by that gesture's own door —
 `g1::Slot::begin`, reached through `DocSession::start` for the value
 drag and `DisplayState::begin_free_move` for the probe — so
-`BeginGesture` and `BeginParamGesture` are permitted by this table and
+`BeginGesture` and `BeginVariableGesture` are permitted by this table and
 refused anyway, one layer down, with the same `GestureInFlight` a row
 here would raise off the same state. A row would be a second spelling
 of one answer and would leave the door's own arm unreachable through
@@ -1576,8 +1657,8 @@ question with its own item.
 
 ### A driving operation names its own gesture
 
-`PreviewGesture`, `CommitGesture`, `PreviewParamGesture`,
-`CommitParamGesture`, `PreviewFreeMove` and `CommitFreeMove` each carry
+`PreviewGesture`, `CommitGesture`, `PreviewVariableGesture`,
+`CommitVariableGesture`, `PreviewFreeMove` and `CommitFreeMove` each carry
 the target they are driving, and each is refused when that is not the
 gesture in flight — `Refusal::WrongGesture` for the value drag,
 `DisplayFault::WrongFreeMove` for the probe, raised where the gesture's
@@ -1745,7 +1826,7 @@ operation is a parameter of the mapping beside the commit — and a
 has a cancel and `every_gesture_cancel_has_a_chrome_door`, which names
 every `SessionOp`, keeps it so. Both drags the panel maps run
 through that one function, so both ends are the same rule at the slot
-field, the parameter field and the free-move probe; the stake is
+field, the variable field and the free-move probe; the stake is
 largest at the first two, where a commit reaches the document and costs
 an undo step.
 
@@ -2025,7 +2106,7 @@ way they are; the sites carry only their local reasons.
 
 **Where this crate decides something over an enum, the decision is a
 `match` with an arm for every variant and no `_`.** Which tool an
-operation closes, which refusal offers to create a parameter, which
+operation closes, which refusal offers to create a variable, which
 node a seat admits, whether a row is a fault. A subset pattern —
 `matches!(x, A | B)`, `!matches!(x, C)`, a `_ =>` arm, a bare binding
 standing for "the rest" — answers for every variant it does not name,
@@ -2093,7 +2174,7 @@ its shape is not one of these:
 - **A named `&'static str` owned by the layer the fact belongs to and
   spent by more than one door** — `refuse::NO_FACE_PICKED` (spent at
   `FaceFrameFault`'s `NoFace` arm and by `forms`), and
-  `editor_core::edit::UNDECLARED_PARAM_RECOURSE`,
+  `editor_core::edit::UNKNOWN_VAR_RECOURSE`,
   whose home is the crate that owns the fact.
 - **A literal at the chrome site, composed where it is drawn** —
   `pane::create`'s *add a frame datum first*, `pane::profile`'s *its
@@ -2181,8 +2262,8 @@ where, exhaustively:
   `VIEWER_TOOLKIT_SEEDS = {"viewer", "pncad", "bvh"}`), so every branch
   that can break one of those fourteen seeds the toolkit and takes the
   all-features pass. **The fifteenth does not.**
-  `session::refuse`'s `Refusal::NoSuchParam` doc links
-  `` [`editor_core::edit::UNDECLARED_PARAM_RECOURSE`] ``, and
+  `session::refuse`'s `Refusal::NoSuchVariable` doc links
+  `` [`editor_core::edit::UNKNOWN_VAR_RECOURSE`] ``, and
   `editor-core` is not in the seed set — so a branch that renames or
   deletes that constant reaches `viewer` through the closure, takes
   skip mode, and nothing anywhere reports the break. **The hole this

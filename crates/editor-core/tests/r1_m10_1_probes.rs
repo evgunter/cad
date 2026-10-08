@@ -29,14 +29,27 @@ use crate::corpus;
 use test_utils::fuzz;
 
 use editor_core::{
-    AnalysisPolicy, CancelToken, DEFAULT_QUANTILE_MASS, Dimension, Distribution, DocEdit, DocParam,
-    DocumentId, EvalOptions, MeasureUnavailable, OffsetInterval, ParamName, ProfileDoc,
+    AnalysisPolicy, CancelToken, DEFAULT_QUANTILE_MASS, Dimension, Distribution, DocEdit,
+    DocumentId, EvalOptions, FreeVar, MeasureUnavailable, OffsetInterval, ProfileDoc, VarName,
     analyzed_box, apply, box_mass, evaluate, tail_mass,
 };
 use geom_core::Tol;
 
-fn p(name: &'static str) -> ParamName {
-    ParamName::from_static(name)
+/// A variable as the free mass doors' refusals speak it.
+/// The variable `doc` declares as `name`, or an id it never minted.
+fn v(doc: &editor_core::ProfileDoc, name: &str) -> editor_core::VarId {
+    doc.var_named(name).unwrap_or(editor_core::VarId::new(0, 0))
+}
+
+fn sp(name: &'static str) -> editor_core::SpokenVar {
+    editor_core::SpokenVar::new(
+        editor_core::VarId::new(0, 0),
+        Some(editor_core::VarName::from_static(name)),
+    )
+}
+
+fn p(name: &'static str) -> VarName {
+    VarName::from_static(name)
 }
 
 /// An independent oracle for `P(lo <= X <= hi)`, X ~ N(0, sigma²):
@@ -89,7 +102,7 @@ fn sampled_masses_match_an_independent_integration_oracle() {
         };
 
         // Normal against the oracle.
-        let got = box_mass(&p("x"), &Distribution::Normal { sigma }, (a, b)).expect("priceable");
+        let got = box_mass(&sp("x"), &Distribution::Normal { sigma }, (a, b)).expect("priceable");
         let want = normal_mass_oracle(sigma, a, b);
         assert!(
             (got - want).abs() < 1e-9,
@@ -104,7 +117,7 @@ fn sampled_masses_match_an_independent_integration_oracle() {
             hi: shi,
         };
         if shi > slo {
-            let got = box_mass(&p("x"), &t, (a, b)).expect("priceable");
+            let got = box_mass(&sp("x"), &t, (a, b)).expect("priceable");
             let denom = normal_mass_oracle(sigma, slo, shi);
             let numer = normal_mass_oracle(sigma, a.max(slo), b.min(shi)).max(0.0);
             let want = if a.max(slo) < b.min(shi) {
@@ -122,7 +135,7 @@ fn sampled_masses_match_an_independent_integration_oracle() {
         // Uniform against the exact ratio.
         let u = Distribution::Uniform { lo: slo, hi: shi };
         if shi > slo {
-            let got = box_mass(&p("x"), &u, (a, b)).expect("priceable");
+            let got = box_mass(&sp("x"), &u, (a, b)).expect("priceable");
             let overlap = (b.min(shi) - a.max(slo)).max(0.0);
             let want = overlap / (shi - slo);
             assert!(
@@ -148,9 +161,9 @@ fn sampled_masses_match_an_independent_integration_oracle() {
             ) {
                 continue;
             }
-            let inside = box_mass(&p("x"), &dist, (a, b)).expect("priceable");
-            let left = box_mass(&p("x"), &dist, (-BIG, a)).expect("priceable");
-            let right = box_mass(&p("x"), &dist, (b, BIG)).expect("priceable");
+            let inside = box_mass(&sp("x"), &dist, (a, b)).expect("priceable");
+            let left = box_mass(&sp("x"), &dist, (-BIG, a)).expect("priceable");
+            let right = box_mass(&sp("x"), &dist, (b, BIG)).expect("priceable");
             // The seam points a and b are each counted twice by the
             // three closed intervals; a continuous density puts zero
             // mass on a point, so the sum is still 1.
@@ -174,7 +187,7 @@ fn truncated_normal_tail_is_exactly_zero_on_its_own_support() {
         let hi = rng.range(f64::MIN_POSITIVE, 5.0 * sigma);
         let dist = Distribution::TruncatedNormal { sigma, lo, hi };
         assert_eq!(
-            tail_mass(&p("t"), &dist, &OffsetInterval { lo, hi }),
+            tail_mass(&sp("t"), &dist, &OffsetInterval { lo, hi }),
             Ok(0.0),
             "round {round}: sigma {sigma} support ({lo}, {hi}) ({})",
             fuzz::replay()
@@ -200,19 +213,19 @@ fn band_answers_are_exactly_the_measure_free_ones() {
         (-0.5, 0.5, None),       // strictly inside
     ];
     for (a, b, expected) in cases {
-        let got = box_mass(&p("bore"), &band, (a, b));
+        let got = box_mass(&sp("bore"), &band, (a, b));
         match expected {
             Some(v) => assert_eq!(got, Ok(v), "({a}, {b})"),
             None => assert_eq!(
                 got,
-                Err(MeasureUnavailable::BandHasNoMeasure { param: p("bore") }),
+                Err(MeasureUnavailable::BandHasNoMeasure { param: sp("bore") }),
                 "({a}, {b}) is shape-dependent and must refuse"
             ),
         }
         // tail_mass agrees door-for-door where the interval is one an
         // analyzed box can be (lo <= 0 <= hi).
         if a <= 0.0 && b >= 0.0 {
-            let tail = tail_mass(&p("bore"), &band, &OffsetInterval { lo: a, hi: b });
+            let tail = tail_mass(&sp("bore"), &band, &OffsetInterval { lo: a, hi: b });
             match expected {
                 Some(v) => assert_eq!(tail, Ok(1.0 - v), "tail over ({a}, {b})"),
                 None => assert!(tail.is_err(), "tail over ({a}, {b}) must refuse"),
@@ -232,9 +245,13 @@ fn the_quantile_box_is_deterministic_monotone_and_covers_its_mass() {
         let doc = ProfileDoc::empty(DocumentId::derive("r1-quantile"), Tol::witness());
         apply(
             &doc,
-            &DocEdit::SetDocParam {
+            &DocEdit::DeclareVar {
                 name: p("n"),
-                value: DocParam::continuous_with(Dimension::Length, 0.0, dist),
+                def: editor_core::VarDecl::Free(FreeVar::continuous_with(
+                    Dimension::Length,
+                    0.0,
+                    dist,
+                )),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -245,7 +262,7 @@ fn the_quantile_box_is_deterministic_monotone_and_covers_its_mass() {
     let hi_for = |mass: f64| {
         let policy = AnalysisPolicy::new(mass).expect("valid mass");
         analyzed_box(&doc, &policy)
-            .get(&p("n"))
+            .get(v(&doc, "n"))
             .expect("axis")
             .offsets
             .hi
@@ -265,7 +282,7 @@ fn the_quantile_box_is_deterministic_monotone_and_covers_its_mass() {
             "same request, same box, bit for bit (mass {mass}) ({})",
             fuzz::replay()
         );
-        let covered = box_mass(&p("n"), &dist, (-z1, z1)).expect("priced");
+        let covered = box_mass(&sp("n"), &dist, (-z1, z1)).expect("priced");
         assert!(
             covered >= mass - 1e-12,
             "box for mass {mass} covers only {covered} ({})",
@@ -304,14 +321,14 @@ fn every_annotation_pair_is_visible_to_bit_eq_and_diff() {
     let doc_for = |ann: Option<Distribution>| {
         let doc = ProfileDoc::empty(DocumentId::derive("r1-bit-eq"), Tol::witness());
         let value = match ann {
-            None => DocParam::continuous(Dimension::Length, 1.0),
-            Some(d) => DocParam::continuous_with(Dimension::Length, 1.0, d),
+            None => FreeVar::continuous(Dimension::Length, 1.0),
+            Some(d) => FreeVar::continuous_with(Dimension::Length, 1.0, d),
         };
         apply(
             &doc,
-            &DocEdit::SetDocParam {
+            &DocEdit::DeclareVar {
                 name: p("q"),
-                value,
+                def: editor_core::VarDecl::Free(value),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -329,9 +346,13 @@ fn every_annotation_pair_is_visible_to_bit_eq_and_diff() {
                 "annotations {a:?} vs {b:?}: bit_eq must be {same}"
             );
             let diff = da.diff(&db);
+            // A declare mints from the variable's kind alone, so both
+            // documents hold ONE variable `q`, and its definition moved.
+            let q = da.var_named("q").expect("declared");
+            assert_eq!(db.var_named("q"), Some(q), "one identity either way");
             assert_eq!(
-                diff.params,
-                if same { vec![] } else { vec![p("q")] },
+                diff.vars,
+                if same { vec![] } else { vec![q] },
                 "annotations {a:?} vs {b:?}: diff"
             );
         }
@@ -348,13 +369,14 @@ fn a_distribution_only_edit_invalidates_no_memoized_evaluation() {
     assert!(corpus::failures(&full).is_empty(), "corpus doc is green");
     let annotated = apply(
         &d.doc,
-        &DocEdit::SetDocParam {
-            name: p(corpus::plate_param::HOLE_R),
-            value: DocParam::continuous_with(
+        &DocEdit::DefineVar {
+            var: p(corpus::plate_param::HOLE_R).into(),
+            def: editor_core::VarDecl::Free(FreeVar::continuous_with(
                 Dimension::Length,
                 corpus::plate_param::HOLE_R_VALUE,
                 Distribution::Normal { sigma: 1e-4 },
-            ),
+            )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -392,14 +414,14 @@ fn a_distribution_only_edit_invalidates_no_memoized_evaluation() {
 /// param env never differs, and a distribution-only edit round-tripped
 /// through persistence still evaluates to the same environment.
 #[test]
-fn the_param_env_is_blind_to_annotations_even_after_a_round_trip() {
+fn the_var_env_is_blind_to_annotations_even_after_a_round_trip() {
     let plain = {
         let doc = ProfileDoc::empty(DocumentId::derive("r1-env"), Tol::witness());
         apply(
             &doc,
-            &DocEdit::SetDocParam {
+            &DocEdit::DeclareVar {
                 name: p("d"),
-                value: DocParam::continuous(Dimension::Angle, 0.25),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Angle, 0.25)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -411,16 +433,16 @@ fn the_param_env_is_blind_to_annotations_even_after_a_round_trip() {
         let doc = ProfileDoc::empty(DocumentId::derive("r1-env"), Tol::witness());
         apply(
             &doc,
-            &DocEdit::SetDocParam {
+            &DocEdit::DeclareVar {
                 name: p("d"),
-                value: DocParam::continuous_with(
+                def: editor_core::VarDecl::Free(FreeVar::continuous_with(
                     Dimension::Angle,
                     0.25,
                     Distribution::Uniform {
                         lo: -0.01,
                         hi: 0.02,
                     },
-                ),
+                )),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -429,14 +451,14 @@ fn the_param_env_is_blind_to_annotations_even_after_a_round_trip() {
         .doc
     };
     assert_eq!(
-        plain.param_env::<f64>().bindings,
-        annotated.param_env::<f64>().bindings
+        plain.var_env::<f64>().bindings,
+        annotated.var_env::<f64>().bindings
     );
     let text = editor_core::save(&annotated, &[], Tol::witness()).expect("saves");
     let back = editor_core::load(&text, Tol::witness()).expect("loads").doc;
     assert_eq!(
-        plain.param_env::<f64>().bindings,
-        back.param_env::<f64>().bindings,
+        plain.var_env::<f64>().bindings,
+        back.var_env::<f64>().bindings,
         "the annotation survives the file, the environment never sees it"
     );
 }
@@ -448,10 +470,10 @@ fn the_param_env_is_blind_to_annotations_even_after_a_round_trip() {
 #[test]
 fn a_mixed_document_analyzes_end_to_end() {
     let mut doc = ProfileDoc::empty(DocumentId::derive("r1-mixed"), Tol::witness());
-    let sets: [(&str, DocParam); 6] = [
+    let sets: [(&str, FreeVar); 6] = [
         (
             "band",
-            DocParam::continuous_with(
+            FreeVar::continuous_with(
                 Dimension::Length,
                 1.0,
                 Distribution::Band { lo: -0.1, hi: 0.1 },
@@ -459,7 +481,7 @@ fn a_mixed_document_analyzes_end_to_end() {
         ),
         (
             "uniform",
-            DocParam::continuous_with(
+            FreeVar::continuous_with(
                 Dimension::Length,
                 2.0,
                 Distribution::Uniform { lo: -0.2, hi: 0.05 },
@@ -467,11 +489,11 @@ fn a_mixed_document_analyzes_end_to_end() {
         ),
         (
             "normal",
-            DocParam::continuous_with(Dimension::Scalar, 0.5, Distribution::Normal { sigma: 0.01 }),
+            FreeVar::continuous_with(Dimension::Scalar, 0.5, Distribution::Normal { sigma: 0.01 }),
         ),
         (
             "truncated",
-            DocParam::continuous_with(
+            FreeVar::continuous_with(
                 Dimension::Angle,
                 0.1,
                 Distribution::TruncatedNormal {
@@ -481,15 +503,15 @@ fn a_mixed_document_analyzes_end_to_end() {
                 },
             ),
         ),
-        ("fixed", DocParam::continuous(Dimension::Length, 3.0)),
-        ("count", DocParam::Count { value: 6 }),
+        ("fixed", FreeVar::continuous(Dimension::Length, 3.0)),
+        ("count", FreeVar::Count { value: 6 }),
     ];
     for (name, value) in sets {
         doc = apply(
             &doc,
-            &DocEdit::SetDocParam {
+            &DocEdit::DeclareVar {
                 name: p(name),
-                value,
+                def: editor_core::VarDecl::Free(value),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -498,14 +520,19 @@ fn a_mixed_document_analyzes_end_to_end() {
         .doc;
     }
     let b = analyzed_box(&doc, &AnalysisPolicy::default());
-    assert_eq!(b.params().len(), 5, "five continuous axes, no count");
+    assert_eq!(
+        b.params().len(),
+        4,
+        "four toleranced axes; the untoleranced length and the count are constants"
+    );
     assert_eq!(b.varying().count(), 4, "four declared variable");
     for (name, axis) in b.params() {
         let Some(dist) = axis.distribution else {
             assert!(axis.offsets.is_fixed());
             continue;
         };
-        let tail = tail_mass(name, &dist, &axis.offsets).expect("every analyzed box is priceable");
+        let tail = tail_mass(&b.spoken(*name), &dist, &axis.offsets)
+            .expect("every analyzed box is priceable");
         match dist {
             Distribution::Normal { .. } => assert!(tail > 0.0 && tail < 0.005),
             _ => assert_eq!(tail, 0.0, "{name:?}: bounded forms leave nothing out"),

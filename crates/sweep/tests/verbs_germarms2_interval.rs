@@ -4,18 +4,16 @@
 //! **What this file pins, and what it does NOT.** Every row here drives
 //! whole BODIES through the public union door, so a row reaches a
 //! predicate only if the layers ahead of it admit the pose. The
-//! meeting-axes pose does reach the join and stops at the pinch door.
-//! The skew pose does not: skew walls carry no declared cover, so it
-//! stops at a CROSSING-layer door with the germ pair never minted, and
-//! this file's skew row asserts exactly that and nothing about the
-//! frame dispatch.
+//! meeting-axes pose does reach the join and stops at the pinch door,
+//! and the skew pose reaches the frame dispatch's no-arm door.
 //!
-//! So the new predicate's two-arm pin is NOT here. It is
+//! The new predicate's two-arm pin is still not here. It is
 //! `topo::boolean::join`'s `frame_dispatch_interval_tests`, which calls
 //! `pair_section_frame` at `Interval` directly and reaches both arms —
 //! meeting axes to `Zero`/pinch, skew axes to a definite sign/`NoArm`.
-//! That is the certified-scalar statement about
-//! `bool_germ_frame_axes_coplanar`; what this file adds is that the
+//! That is the certified-scalar statement about the frame's coplanarity
+//! row (`cc_axes_coplanar`, the section table's, which the frame asks);
+//! what this file adds is that the
 //! BODY-level poses behave at `Interval` as they do at `f64`.
 //!
 //! The poses are the `f64` suite's, built through the same public
@@ -40,10 +38,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use crate::common::interval::{iv, p2, p3, v3};
 use geom_core::{Affine3, Interval, Tol, Vec3};
 use profile::{Profile, SketchPlane};
+use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
 
@@ -54,9 +54,16 @@ fn cyl(r: f64, h: f64) -> Body<Interval> {
     let lp = profile::circle(p2(0.0, 0.0), iv(r), tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(v3(0.0, 0.0, -h)));
     let vp = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
-    extrude(&vp, Extrusion::Distance(iv(2.0 * h)), tol)
-        .unwrap()
-        .body
+    extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: iv(2.0 * h),
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body
 }
 
 fn spin(b: &Body<Interval>, axis: Vec3<Interval>, angle: f64) -> Body<Interval> {
@@ -91,7 +98,12 @@ fn repose(b: &Body<Interval>) -> Body<Interval> {
 }
 
 fn union_err(a: &Body<Interval>, b: &Body<Interval>) -> BooleanError {
-    topo::union(a, b, Tol::witness()).expect_err("this family has no join arm")
+    let tol = Tol::witness();
+    let (a, b) = (
+        finished("operand A", a.clone(), tol),
+        finished("operand B", b.clone(), tol),
+    );
+    topo::union(&a, &b, tol).expect_err("this family has no join arm")
 }
 
 /// **The re-posed twin's obligation at the CERTIFIED scalar**, which is
@@ -128,7 +140,7 @@ fn union_err(a: &Body<Interval>, b: &Body<Interval>) -> BooleanError {
 ///   `carrier_matches_mapped_source` — and it explicitly refuses an
 ///   escalation of either germ-frame predicate, because those are the
 ///   very predicates this unit's rows exist to pin: a substring test
-///   would have greened a `bool_germ_frame_axes_coplanar` escalation,
+///   would have greened a `cc_axes_coplanar` escalation,
 ///   i.e. the arm going indeterminate, as if it were noise.
 fn same_door_or_escalated(direct: &BooleanError, reposed: &BooleanError, what: &str) {
     if crate::common::germ_pair::same_door(direct, reposed) {
@@ -154,7 +166,10 @@ fn same_door_or_escalated(direct: &BooleanError, reposed: &BooleanError, what: &
     assert!(
         !matches!(
             cause.predicate,
-            Some("bool_germ_frame_axes_coplanar" | "bool_germ_frame_axes_parallel")
+            // The frame asks the section table's own rows,
+            // `cc_axes_coplanar` and `cc_axes_parallel`
+            // (`geom_brep::cylinder_axes_coplanar` / `_parallel`).
+            Some("cc_axes_coplanar" | "cc_axes_parallel")
         ),
         "{what}: a germ-frame predicate going indeterminate is the defect this unit \
          pins, never an accepted escape; direct {d}, re-posed {r}"
@@ -188,17 +203,13 @@ fn the_pinch_door_is_reached_at_the_certified_scalar() {
     );
 }
 
-/// **The skew pose at the BODY level**, which is a weaker statement
-/// than its name once suggested and is written as the weaker one.
-///
-/// Slide the pair along the common perpendicular `â₁ × â₂` by the
-/// dyadic `0.375` and the pose stops at a CROSSING-layer door: skew
-/// walls carry no declared cover, so the germ pair is never minted and
-/// `bool_germ_frame_axes_coplanar` is never reached from here. What
-/// this row asserts is therefore the LAYER — the pose stays off every
-/// join door, the pinch door included — and not the dispatch's skew
-/// arm, which is pinned at the certified scalar in
-/// `topo::boolean::join`'s `frame_dispatch_interval_tests` instead.
+/// **The skew pose at the BODY level, at the certified scalar.** Slide
+/// the pair along the common perpendicular `â₁ × â₂` by the dyadic
+/// `0.375`: the crossings are found, the germ pair is minted, and the
+/// frame dispatch's skew arm answers it — no arm, not the pinch door.
+/// The dispatch's verdict itself is pinned at the certified scalar in
+/// `topo::boolean::join`'s `frame_dispatch_interval_tests`; this row
+/// says a body reaches it there.
 #[test]
 fn a_skew_pair_stays_off_the_pinch_door_at_the_certified_scalar() {
     let a = cyl(1.0, 2.0);
@@ -212,10 +223,13 @@ fn a_skew_pair_stays_off_the_pinch_door_at_the_certified_scalar() {
     assert!(
         matches!(
             err,
-            BooleanError::CurvedPierceUnsupported { .. }
-                | BooleanError::CurvedSectorSideUnsupported { .. }
+            BooleanError::GermFrameUnsupported {
+                a_kind: geom::SurfaceKind::Cylinder,
+                b_kind: geom::SurfaceKind::Cylinder,
+                ..
+            }
         ),
-        "a skew pair must stop at a crossing-layer door, never a join one: {err:?}"
+        "a skew pair must reach the frame dispatch's no-arm door, never the pinch: {err:?}"
     );
     // The re-posed twin, on the same obligation as every other row
     // here: a rigid motion moves no contact, so a pose whose direct and

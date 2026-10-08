@@ -4,7 +4,6 @@ kind: issue
 title: design: what a refused fused step (arc_fillet_arc and kin) hands back, so the path preview can draw the carriers it did bind
 status: open
 opened: 2026-09-18
-refs: [path-preview-draws-nothing-for-a-refused-step]
 priority: P1
 cost: M
 design: true

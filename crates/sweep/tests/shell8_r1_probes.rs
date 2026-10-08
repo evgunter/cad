@@ -22,6 +22,7 @@ use crate::common::charts::{charts_of, moves_by};
 use crate::common::oracles::box_volume;
 use crate::common::shell_operands::{hollow_box, vessel};
 use crate::shell8_common::{beside, deep_dump, faces_of, solid_of, tol, volume};
+use sweep::test_support::finished;
 
 // ---------------------------------------------------------------------
 // Claim 1 — the AXIAL door, scoped
@@ -69,11 +70,15 @@ fn r1_axial_door_leaves_the_other_solid_deep_identical() {
 fn r1_a_distant_box_does_not_lever_the_vessels_margins() {
     let t = 0.05;
     let (r, h) = (1.0, 2.0);
-    let alone = topo::shell(&vessel(r, h), t, tol())
+    let alone = topo::shell(&finished("the operand", vessel(r, h), tol()), t, tol())
         .expect("the vessel alone")
         .body;
     let far = topo::shell(
-        &beside(&vessel(r, h), &block(2.0, 3.0, 4.0, Tol::witness()), 1.0e6),
+        &finished(
+            "the operand",
+            beside(&vessel(r, h), &block(2.0, 3.0, 4.0, Tol::witness()), 1.0e6),
+            tol(),
+        ),
         t,
         tol(),
     )
@@ -148,7 +153,7 @@ fn r1_the_roles_read_is_per_hollow_solid() {
     use geom_core::k_stats::Bracket;
     let count = |body: &Body<f64>| -> usize {
         let bracket = Bracket::open();
-        let _ = topo::shell(body, 0.02, tol());
+        let _ = topo::shell(&finished("the operand", body.clone(), tol()), 0.02, tol());
         bracket
             .finish()
             .verdicts
@@ -193,7 +198,7 @@ fn r1_the_roles_read_is_per_hollow_solid() {
 fn r1_a_hollow_and_a_plain_solid_shell_together() {
     let t = 0.02;
     let body = beside(&hollow_box(), &block(2.0, 3.0, 4.0, Tol::witness()), 10.0);
-    let out = topo::shell(&body, t, tol())
+    let out = topo::shell(&finished("the operand", body.clone(), tol()), t, tol())
         .expect("the mixed body shells")
         .body;
     println!(
@@ -239,7 +244,7 @@ fn r1_a_part_inside_another_solids_void() {
         body.solids().count(),
         body.shells().count()
     );
-    match topo::shell(&body, t, tol()) {
+    match topo::shell(&finished("the operand", body.clone(), tol()), t, tol()) {
         Ok(s) => {
             let vol = volume(&s.body);
             let cav = box_volume(1.5, 2.5, 3.5) - box_volume(1.46, 2.46, 3.46);
@@ -272,14 +277,14 @@ fn r1_a_part_inside_another_solids_void() {
 #[test]
 fn r1_the_lift_door_is_the_designated_faces_solids() {
     let (r, h, t1, t2) = (1.0, 2.0, 0.2, 0.05);
-    let hollow_vessel = topo::shell(&vessel(r, h), t1, tol())
+    let hollow_vessel = topo::shell(&finished("the operand", vessel(r, h), tol()), t1, tol())
         .expect("the vessel hollows")
         .body;
     let pair = beside(&hollow_vessel, &block(2.0, 3.0, 4.0, Tol::witness()), 10.0);
     // The void's ceiling: the z = h - t1 plane on the vessel's solid.
     let ves = pair.solids().map(|(k, _)| k).next().unwrap();
     // `vessel` revolves about +y, so the void's CEILING is the plane at
-    // `y = h - t1` — a chart of two faces, split by the revolve's seam.
+    // `y = h - t1` — one face, the revolve building its cap whole.
     let ceiling: Vec<FaceKey> = faces_of(&pair, ves)
         .into_iter()
         .filter(|&f| {
@@ -292,14 +297,15 @@ fn r1_the_lift_door_is_the_designated_faces_solids() {
             )
         })
         .collect();
-    assert_eq!(
-        ceiling.len(),
-        2,
-        "the void ceiling chart, two faces at the seam"
-    );
-    let opened = topo::shell_open(&pair, t2, &ceiling, tol())
-        .expect("the vessel's void ceiling opens beside a box")
-        .body;
+    assert_eq!(ceiling.len(), 1, "the void ceiling chart is one face");
+    let opened = topo::shell_open(
+        &finished("the operand", pair.clone(), tol()),
+        t2,
+        &ceiling,
+        tol(),
+    )
+    .expect("the vessel's void ceiling opens beside a box")
+    .body;
     println!(
         "[r1] lift beside a box: solids={} shells={} volume={:.12}",
         opened.solids().count(),
@@ -318,8 +324,8 @@ fn r1_the_lift_door_is_the_designated_faces_solids() {
 // ---------------------------------------------------------------------
 
 /// **Can the clone's solid order differ from the operand's?** The verb
-/// asserts `cavity_solids == solids == out_solids` and refuses
-/// `Corrupt`. Both are `body.clone()`, and a `SlotMap` clone preserves
+/// asserts `cavity_solids == solids == out_solids` (a `debug_assert!`).
+/// Both are `body.clone()`, and a `SlotMap` clone preserves
 /// slots and versions — so the assertion is a tautology on every body
 /// the verb can reach. Measured over a body whose solid arena has been
 /// churned: solids grafted in, one killed by the partition, more
@@ -335,7 +341,13 @@ fn r1_the_solid_order_assertion_is_a_tautology_on_a_clone() {
     let b: Vec<SolidKey> = churned.clone().solids().map(|(k, _)| k).collect();
     assert_eq!(a, b, "a clone's solid arena is the operand's, key for key");
     // And after the verb's own partition, which MINTS solids:
-    let out = topo::shell(&churned, 0.02, tol()).expect("it shells").body;
+    let out = topo::shell(
+        &finished("the operand", churned.clone(), tol()),
+        0.02,
+        tol(),
+    )
+    .expect("it shells")
+    .body;
     let c: Vec<SolidKey> = out.solids().map(|(k, _)| k).collect();
     let d: Vec<SolidKey> = out.clone().solids().map(|(k, _)| k).collect();
     assert_eq!(c, d, "so is a minted-solid body's");
@@ -369,7 +381,7 @@ fn r1_e2e_two_parts_one_body() {
         Ok(()),
         "the assembly is valid"
     );
-    let hollow = topo::shell(&assembly, t, tol())
+    let hollow = topo::shell(&finished("the operand", assembly.clone(), tol()), t, tol())
         .expect("both parts hollow in one call")
         .body;
     let wall_box = box_volume(2.0, 3.0, 4.0) - box_volume(1.9, 2.9, 3.9);
@@ -406,13 +418,23 @@ fn r1_e2e_two_parts_one_body() {
     // left a 0.05 wall and the second needs `2t` of it. The consumer
     // has to know the wall it just built to pick the next thickness;
     // nothing in the verb's vocabulary tells them.
-    let e = topo::shell_open(&hollow, t, &lid, tol())
-        .expect_err("the same thickness twice does not fit the wall it just built");
+    let e = topo::shell_open(
+        &finished("the operand", hollow.clone(), tol()),
+        t,
+        &lid,
+        tol(),
+    )
+    .expect_err("the same thickness twice does not fit the wall it just built");
     println!("[r1] e2e friction: a second hollow at the same t refuses — {e}");
     let t2 = 0.02;
-    let opened = topo::shell_open(&hollow, t2, &lid, tol())
-        .expect("a thinner second wall opens the box and leaves the vessel sealed")
-        .body;
+    let opened = topo::shell_open(
+        &finished("the operand", hollow.clone(), tol()),
+        t2,
+        &lid,
+        tol(),
+    )
+    .expect("a thinner second wall opens the box and leaves the vessel sealed")
+    .body;
     let pi = core::f64::consts::PI;
     let closed = (box_volume(2.0, 3.0, 4.0) - box_volume(1.96, 2.96, 3.96))
         + (box_volume(1.94, 2.94, 3.94) - box_volume(1.9, 2.9, 3.9))
@@ -459,7 +481,9 @@ fn r1_e2e_two_parts_one_body() {
 #[test]
 fn r1_naming_the_inner_wall_after_two_hollowings() {
     let once = hollow_box();
-    let twice = topo::shell(&once, 0.05, tol()).expect("second hollow").body;
+    let twice = topo::shell(&finished("the operand", once.clone(), tol()), 0.05, tol())
+        .expect("second hollow")
+        .body;
     println!(
         "[r1] after two hollowings: solids={} shells={} faces={}",
         twice.solids().count(),

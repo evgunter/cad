@@ -5,12 +5,28 @@
 //! # The ordering contract, structurally
 //!
 //! [`fillet_edges`] runs [`run_battery`] before any construction and
-//! propagates its refusal unchanged: what precedes it is the request
-//! preamble ([`nonpositive_size_gate`], [`repeated_edge_gate`]), which
-//! reads the REQUEST and never the body. Nothing here mints a surface,
-//! a point, or a topology entity before a verdict exists — the C8 claim
-//! ("if the battery returns `Ok`, construction cannot fail for a
-//! geometric reason") is kept by construction order, not by hope.
+//! propagates its refusal unchanged. What precedes it reads and builds
+//! nothing of the request's geometry: the operand gate
+//! ([`operand_gate`], below), which reads the body for its finish, and
+//! the request preamble ([`nonpositive_size_gate`],
+//! [`repeated_edge_gate`]), which reads only the request.
+//! Nothing here mints a surface,
+//! a point, or a topology entity before a verdict exists, and the one
+//! predicate arm that answers after the battery (predicate 2's reach,
+//! which needs the plan's feet) answers in the surgery before any
+//! mutation — so every C8 predicate answers before anything is built,
+//! kept by construction order, not by hope.
+//!
+//! # The operand is at rest
+//!
+//! Both doors take a finished body ([`AtRestBody`]), the Boolean's,
+//! the split's and the shell's operand type. The blend answers for the
+//! material the operand bounds, so an inside-out solid (check 7) or
+//! shell (check 10) would be blended as its complement. A body tier 3
+//! passed has neither; one that carries no verdict (a dual's scalar
+//! runs no at-rest gate) is read at the door
+//! ([`AtRestBody::gate_unverdicted`]) before anything else, refusing
+//! [`BlendError::ScaffoldingOperand`] or [`BlendError::InsideOutOperand`].
 //!
 //! # The assembly front door
 //!
@@ -41,28 +57,20 @@
 //! decided each mint — never recovered afterwards by matching
 //! geometry, which is what N4 forbids.
 //!
-//! # KNOWN LIMITATION — the octant's chart, and oblique trihedra
+//! # The result carries no verdict
 //!
 //! The result is a tier-1/2 valid closed shell for every input the
-//! front door admits. Tier **3** additionally needs the sphere
-//! octant's three contact circles to be an iso-parameter rectangle in
-//! its chart, because check 7's `+V` invariant runs the closed-form
-//! mass properties, whose curved-face inventory is rims and meridians
-//! (`geom_brep::props::curved_face`). The chart [`octant_chart`]
-//! picks — aimed along one incident edge — achieves that exactly when
-//! the THIRD support's normal is parallel to that edge, i.e. at a
-//! RIGHT trihedron (every vertex of a box). At an oblique trihedron no
-//! chart makes a spherical triangle an iso-rectangle, so
-//! `topo::mass_properties` refuses `NotIsoRectangle` and tier 3
-//! reports `VolumeUncomputable` — a gap in the props inventory (a
-//! spherical-triangle closed form, or the certified-quadrature lane
-//! extended to sphere faces), not in the body. The assembly does not
-//! pretend otherwise: it neither gates on it nor asserts tier 3.
+//! front door admits; the door neither runs tier 3 on it nor asserts
+//! it, so a consumer that takes finished bodies pays the at-rest gate
+//! on it. An oblique trihedron is no exception to finishing: no chart
+//! [`octant_chart`] picks makes its sphere patch an iso-rectangle, and
+//! check 7 meters that spherical triangle through the sphere flux arm
+//! (`m5_pr12_fix_pass::f4_an_oblique_trihedron_builds_and_passes_tier_3`).
 
 use geom::Surface;
 use geom_brep::OutwardNormal;
 use geom_core::{Band, Bounds, Decide, Real, Vec3};
-use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, SolidKey};
+use topo::{AtRestBody, Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey};
 
 use super::admit::{CornerFaces, CornerLinks};
 use super::battery::{BlendRequest, Link, run_battery};
@@ -71,19 +79,21 @@ use super::{BlendError, BlendKind, BlendRefusal};
 use geom_core::Tol;
 
 /// A blended body — the one result type both verbs return: the
-/// carved solid plus the keys of the faces the blend introduced.
+/// carved body plus the keys of the faces the blend introduced.
 /// [`Filleted`] and [`Chamfered`] alias it for call-site readability.
 #[derive(Clone, Debug)]
 pub struct Blended<T: Real> {
-    /// The blended solid.
+    /// The blended body: every solid and shell of the source, with the
+    /// requested chains carved into the shells they lie in.
     pub body: Body<T>,
-    /// Its (only) solid.
-    pub solid: SolidKey,
-    /// Its (only) shell.
-    pub shell: ShellKey,
+    /// The shells the blend carved, ascending, each one a shell of the
+    /// source under its own key. Every other shell is the source's,
+    /// entity for entity.
+    pub shells: Vec<ShellKey>,
     /// The blend faces — the fillet's quarter-cylinder patches or
-    /// the chamfer's flat strips, one per original edge, in
-    /// original-edge order.
+    /// the chamfer's flat strips, one per open chain (one per original
+    /// edge, save where a chain joins several links on one support
+    /// pair into one band), in lowest-original-edge order.
     pub blend_faces: Vec<FaceKey>,
     /// The corner faces — the fillet's sphere patches or the
     /// chamfer's planar patches, one per original vertex, in
@@ -111,7 +121,8 @@ pub struct Blended<T: Real> {
 
 /// **Fillet a set of a body's edges** at constant radius `radius`.
 ///
-/// The battery runs FIRST (module docs): a refusal from
+/// The battery runs before any construction (module docs), behind
+/// only the operand gate and the request preamble: a refusal from
 /// [`run_battery`] propagates unchanged, and no entity is minted
 /// before its verdict. Only then is the verdict handed to the
 /// assembly, and only then is anything built.
@@ -122,16 +133,19 @@ pub struct Blended<T: Real> {
 /// crosses HERE, once, and the inner [`BlendError`] stays
 /// verb-neutral — around: [`BlendError::Band`] when the committed
 /// tolerance admits no ambiguity band;
+/// [`BlendError::ScaffoldingOperand`] or
+/// [`BlendError::InsideOutOperand`] when the operand carries no
+/// verdict and is not finished (module docs);
 /// [`BlendError::NonpositiveSize`] when `radius` is not definitely
 /// positive; any refusal the battery produces;
 /// [`BlendError::RepeatedEdge`] when the request names one edge
-/// twice; [`BlendError::UnsupportedBody`],
-/// [`BlendError::UnsupportedChain`], [`BlendError::UnsupportedRunOut`],
+/// twice; [`BlendError::UnsupportedChain`], [`BlendError::UnsupportedRunOut`],
 /// [`BlendError::UnsupportedGeometry`] or
 /// [`BlendError::UnsupportedCorner`] when the request is outside
 /// the assembly's front door ([`super::surgery`] names each case);
 /// [`BlendError::BodyNotIntact`] when the body does not hold together
-/// where the plan reads it;
+/// where the plan reads it, among them a requested chain or corner
+/// bounded by faces of two shells;
 /// [`BlendError::RingClearance`] when a carried-through ring does not
 /// clear a trimline, or a cap cycle does not clear the sliver a ruled
 /// cut-off removes; [`BlendError::Op`], carrying the operator's own
@@ -139,7 +153,7 @@ pub struct Blended<T: Real> {
 /// [`BlendError::Certify`], carrying the pass's own typed refusal,
 /// when the result's pcurve caches cannot be re-minted.
 pub fn fillet_edges<T: Decide + Bounds + topo::AtRestPolicy>(
-    body: &Body<T>,
+    body: &AtRestBody<T>,
     edges: &[EdgeKey],
     radius: T,
     tol: Tol,
@@ -154,12 +168,12 @@ pub fn fillet_edges<T: Decide + Bounds + topo::AtRestPolicy>(
 /// through the shared verb-neutral vocabulary. The door above is the
 /// one place the fillet's verb is attached.
 fn fillet_edges_inner<T: Decide + Bounds + topo::AtRestPolicy>(
-    body: &Body<T>,
+    body: &AtRestBody<T>,
     edges: &[EdgeKey],
     radius: T,
     tol: Tol,
 ) -> Result<Filleted<T>, BlendError> {
-    let band = Band::linear(tol)?;
+    let (body, band) = operand_gate(body, BlendKind::Fillet, tol)?;
     nonpositive_size_gate(radius)?;
     repeated_edge_gate(edges)?;
 
@@ -173,6 +187,20 @@ fn fillet_edges_inner<T: Decide + Bounds + topo::AtRestPolicy>(
 
     // ---- Then the assembly, which is the composition surgery. ----
     super::surgery::blend_surgery(body, &verdict, band, tol)
+}
+
+/// **Both doors' operand gate** (module docs): the band the request is
+/// read at, and the operand read through
+/// [`AtRestBody::gate_unverdicted`] where it carries no verdict. One
+/// home, for the reason the preamble below gives.
+fn operand_gate<T: Decide + topo::AtRestPolicy>(
+    body: &AtRestBody<T>,
+    verb: BlendKind,
+    tol: Tol,
+) -> Result<(&Body<T>, Band), BlendError> {
+    let band = Band::linear(tol)?;
+    body.gate_unverdicted(format_args!("the {verb}'s operand"), band, tol)?;
+    Ok((body, band))
 }
 
 /// **Both doors' shared request preamble**: a repeated edge is
@@ -232,15 +260,25 @@ pub(super) fn face_cycle<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec
     body.loop_cycle(first)
 }
 
+/// The edges of a face's boundary cycle, in cycle order; `None` where
+/// [`face_cycle`] is, or where a member does not resolve, so a caller
+/// refuses one unreadable boundary rather than reading what is left.
+pub(super) fn face_cycle_edges<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<EdgeKey>> {
+    face_cycle(body, face)?
+        .into_iter()
+        .map(|he| body.get_half_edge(he).map(|h| h.edge))
+        .collect()
+}
+
 /// The octant's chart pick at one trivalent corner. The criterion:
 /// the octant is an iso-parameter
 /// rectangle exactly when the chart is aimed along an incident edge
 /// whose axis `n_a × n_b` the THIRD support's normal is parallel to,
 /// so the pick minimizes `|n_c × axis|` over the incident requested
 /// links, ORDER-FREE — it finds the admitting edge whenever one
-/// exists and degrades to "no chart admits this trihedron" (the
-/// genuinely oblique case, tier-3 `VolumeUncomputable`) only when
-/// none does. Returns `(u_ref, axis)`.
+/// exists and falls back to the best-scoring link (the genuinely
+/// oblique trihedron, whose octant is no iso rectangle and still
+/// passes tier 3) only when none does. Returns `(u_ref, axis)`.
 ///
 /// **The chart follows the corner's convexity, and the invariant it
 /// keeps is about the EQUATOR**: the seam meridian (`u_ref`) and its
@@ -368,8 +406,8 @@ pub type Chamfered<T> = Blended<T>;
 /// **Chamfer a set of a body's edges** at equal setback `distance`
 /// along both supports.
 ///
-/// The battery runs FIRST and its refusal propagates unchanged — the
-/// same ordering contract [`fillet_edges`] keeps,
+/// The battery runs before any construction and its refusal propagates
+/// unchanged — the same ordering contract [`fillet_edges`] keeps,
 /// for the same reason: nothing is minted before a verdict exists.
 ///
 /// # Errors
@@ -378,22 +416,26 @@ pub type Chamfered<T> = Blended<T>;
 /// crosses HERE, once, and the inner [`BlendError`] stays
 /// verb-neutral — around: [`BlendError::Band`] when the committed
 /// tolerance admits no ambiguity band;
+/// [`BlendError::ScaffoldingOperand`] or
+/// [`BlendError::InsideOutOperand`] when the operand carries no
+/// verdict and is not finished (module docs);
 /// [`BlendError::NonpositiveSize`] when `distance` is not definitely
 /// positive; [`BlendError::RepeatedEdge`] when the request names one
 /// edge twice; [`BlendError::ChamferArmUnsupported`] when a requested
 /// edge's supports are not both planes; any predicate refusal the
 /// battery raises, or [`BlendError::Escalated`] carrying the margin;
-/// [`BlendError::UnsupportedBody`], [`BlendError::UnsupportedChain`],
+/// [`BlendError::UnsupportedChain`],
 /// [`BlendError::UnsupportedRunOut`],
 /// [`BlendError::UnsupportedGeometry`] or
 /// [`BlendError::UnsupportedCorner`] when the request is outside
 /// the assembly's front door; [`BlendError::BodyNotIntact`] when the
-/// body does not hold together where the plan reads it;
+/// body does not hold together where the plan reads it, among them a
+/// requested chain or corner bounded by faces of two shells;
 /// [`BlendError::RingClearance`] when a carried-through ring does not
 /// clear a trimline; [`BlendError::Op`] / [`BlendError::Certify`]
 /// carrying an operator's or the pcurve pass's own typed refusal.
 pub fn chamfer_edges<T: Decide + Bounds + topo::AtRestPolicy>(
-    body: &Body<T>,
+    body: &AtRestBody<T>,
     edges: &[EdgeKey],
     distance: T,
     tol: Tol,
@@ -408,12 +450,12 @@ pub fn chamfer_edges<T: Decide + Bounds + topo::AtRestPolicy>(
 /// through the shared verb-neutral vocabulary. The door above is the
 /// one place the chamfer's verb is attached.
 fn chamfer_edges_inner<T: Decide + Bounds + topo::AtRestPolicy>(
-    body: &Body<T>,
+    body: &AtRestBody<T>,
     edges: &[EdgeKey],
     distance: T,
     tol: Tol,
 ) -> Result<Chamfered<T>, BlendError> {
-    let band = Band::linear(tol)?;
+    let (body, band) = operand_gate(body, BlendKind::Chamfer, tol)?;
     nonpositive_size_gate(distance)?;
     repeated_edge_gate(edges)?;
 
@@ -432,7 +474,7 @@ mod tests {
     use geom_core::Tol;
 
     use super::super::BlendError;
-    use super::super::admit::{AdmittedOpen, CornerFaces, CornerLinks};
+    use super::super::admit::{AdmittedOpen, CornerFaces, CornerLinks, OpenBand};
     use super::super::battery::{Chain, ChainClosure, Convexity, Link};
     use crate::test_support::{L, all_links, cube};
 
@@ -464,7 +506,11 @@ mod tests {
     fn cross_corner_drill(convexity: Convexity, chains: &[Chain<f64>], body: &topo::Body<f64>) {
         let admitted: Vec<AdmittedOpen<'_, f64>> = chains
             .iter()
-            .map(|c| AdmittedOpen::admit(c).expect("a cube's links are plane–plane"))
+            .map(|c| {
+                OpenBand::admit(body, c)
+                    .expect("a cube's links are plane–plane")
+                    .first()
+            })
             .collect();
         let here = *admitted.first().expect("a cube has requested links");
         let vertex = here.link().start;

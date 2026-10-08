@@ -2,7 +2,7 @@ use geom_brep::Pcurve;
 use geom_brep::props::quad::{
     self, FaceCutBounds, HarmChan, RoundOutcome, RoundWindow, TrimChord, TrimEdgeQ, TrimPiece,
 };
-use geom_brep::props::{LoopEdge, PropsError, loop_vector_area};
+use geom_brep::props::{FaceContribution, LoopEdge, PropsError, loop_vector_area};
 use geom_core::Tol;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
@@ -129,15 +129,280 @@ fn chan<T: Decide + Bounds + CertifiedEnclosure>(
     })
 }
 
+/// One face's flux about `centre` and its area, at the interval scalar.
+///
+/// A closed-form face (`quadrature` is `None`): its surface and loops
+/// lifted point for point (`map_scalar`, which does no arithmetic),
+/// carried by `−centre` ([`translated_surface`], [`translated_curve`]),
+/// and handed to the same closed form the face walk runs
+/// (`super::closed_form_of`), whose flux about the moved origin is the
+/// face's flux about `centre`. A plane is taken about `centre` directly
+/// ([`planar_face_about`]).
+///
+/// A quadrature face (`quadrature` is its lane's flux and area
+/// enclosures, about the world origin) arrives here only where its lane
+/// refused to measure it about `centre` (`rederive` asks
+/// [`cut_face_rounds`] first): the flux less `centre · A⃗`, with `A⃗` the
+/// face's vector area from its own loops — the same value, at the width
+/// the quadrature returned it with.
+///
+/// The second half says whether the face was RECENTRED, its width the
+/// body's own: `false` for such a quadrature face, and for a closed-form face
+/// whose geometry has no translated twin here, whose flux is then the
+/// closed form about the world origin less `centre · A⃗`.
+pub(super) fn closed_form<T: Decide + geom_core::CertifiedBounds>(
+    surface: &Surface<T>,
+    loops: &[Vec<LoopEdge<T>>],
+    sense: bool,
+    band: Band,
+    centre: Point3<Interval>,
+    quadrature: Option<(Interval, Interval)>,
+) -> Result<(FaceContribution<Interval>, bool), PropsError> {
+    let loops: Vec<Vec<LoopEdge<Interval>>> = loops
+        .iter()
+        .map(|edges| {
+            edges
+                .iter()
+                .map(|e| LoopEdge {
+                    carrier: e.carrier.map_scalar(Interval::from_certified),
+                    carrier_id: e.carrier_id,
+                    t0: Interval::from_certified(e.t0),
+                    t1: Interval::from_certified(e.t1),
+                    forward: e.forward,
+                    start: e.start,
+                    end: e.end,
+                })
+                .collect()
+        })
+        .collect();
+    let about_centre = |flux: Interval, area| -> Result<_, PropsError> {
+        let va = loops_vector_area(&loops)?;
+        Ok((
+            FaceContribution {
+                flux: flux - (centre - Point3::origin()).dot(va),
+                area,
+            },
+            false,
+        ))
+    };
+    if let Some((flux, area)) = quadrature {
+        return about_centre(flux, area);
+    }
+    let surface = surface.map_scalar(Interval::from_certified);
+    if let Surface::Plane { .. } = surface {
+        return Ok((planar_face_about(&loops, centre)?, true));
+    }
+    let moved_loops = loops
+        .iter()
+        .map(|edges| {
+            edges
+                .iter()
+                .map(|e| {
+                    translated_curve(&e.carrier, centre).map(|carrier| LoopEdge {
+                        carrier,
+                        ..e.clone()
+                    })
+                })
+                .collect::<Option<Vec<_>>>()
+        })
+        .collect::<Option<Vec<_>>>();
+    match translated_surface(&surface, centre).zip(moved_loops) {
+        Some((surface, moved_loops)) => Ok((
+            super::closed_form_of(&surface, &moved_loops, sense, band)?,
+            true,
+        )),
+        None => {
+            let about_origin = super::closed_form_of(&surface, &loops, sense, band)?;
+            about_centre(about_origin.flux, about_origin.area)
+        }
+    }
+}
+
+/// A face's vector area `A⃗ = ∫ n dA`, from its loops, each summed about
+/// a point of its own (a closed loop's does not depend on it).
+fn loops_vector_area(
+    loops: &[Vec<LoopEdge<Interval>>],
+) -> Result<geom_core::Vec3<Interval>, PropsError> {
+    let mut va = geom_core::Vec3::zero();
+    for edges in loops {
+        let Some(anchor) = edges.first().map(|e| e.carrier.eval(e.t0)) else {
+            return Err(PropsError::DegenerateFace);
+        };
+        va = va + loop_vector_area(edges, anchor)?;
+    }
+    Ok(va)
+}
+
+/// `surface` carried by `−by`: every point-valued datum moved, every
+/// direction and length kept. `None` for a kind with no analytic datum
+/// to move (a spline or fitted surface).
+fn translated_surface(
+    surface: &Surface<Interval>,
+    by: Point3<Interval>,
+) -> Option<Surface<Interval>> {
+    let shift = |p: Point3<Interval>| Point3::origin() + (p - by);
+    Some(match surface.clone() {
+        Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        } => Surface::Plane {
+            origin: shift(origin),
+            normal,
+            u_ref,
+        },
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        } => Surface::Cylinder {
+            origin: shift(origin),
+            axis,
+            radius,
+            u_ref,
+        },
+        Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            u_ref,
+        } => Surface::Cone {
+            apex: shift(apex),
+            axis,
+            half_angle,
+            u_ref,
+        },
+        Surface::Sphere {
+            center,
+            radius,
+            axis,
+            u_ref,
+        } => Surface::Sphere {
+            center: shift(center),
+            radius,
+            axis,
+            u_ref,
+        },
+        Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            u_ref,
+        } => Surface::Torus {
+            center: shift(center),
+            axis,
+            major_radius,
+            minor_radius,
+            u_ref,
+        },
+        _ => return None,
+    })
+}
+
+/// `curve` carried by `−by`: the analytic kinds' centre or origin moved,
+/// a spline's control net moved point for point (its net is stored
+/// Euclidean, so a translation is the curve's image).
+fn translated_curve(curve: &Curve3<Interval>, by: Point3<Interval>) -> Option<Curve3<Interval>> {
+    let shift = |p: Point3<Interval>| Point3::origin() + (p - by);
+    Some(match curve.clone() {
+        Curve3::Line { origin, dir } => Curve3::Line {
+            origin: shift(origin),
+            dir,
+        },
+        Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        } => Curve3::Circle {
+            center: shift(center),
+            axis,
+            radius,
+            u_ref,
+        },
+        Curve3::Ellipse {
+            center,
+            axis,
+            major,
+            minor,
+            u_ref,
+        } => Curve3::Ellipse {
+            center: shift(center),
+            axis,
+            major,
+            minor,
+            u_ref,
+        },
+        Curve3::Spiric {
+            center,
+            axis,
+            u_ref,
+            major_radius,
+            minor_radius,
+            offset,
+        } => Curve3::Spiric {
+            center: shift(center),
+            axis,
+            u_ref,
+            major_radius,
+            minor_radius,
+            offset,
+        },
+        Curve3::Nurbs(n) => Curve3::Nurbs(std::sync::Arc::new(n.map_points(shift))),
+    })
+}
+
+/// A planar face's flux about `centre` and its area, at the interval
+/// scalar: `(anchor − centre)·A⃗`, with `A⃗` the face's vector area summed
+/// about `anchor`, the first point of its loops.
+///
+/// It is the exact flux, about `centre`, of each loop fanned from
+/// `anchor` (a point `x` of the fan has `(x − anchor)` in its tangent
+/// plane, so `x·n` integrates to `anchor·A⃗`). The fans of neighbouring
+/// faces meet on their shared edges, so summed over a closed body they
+/// bound a closed surface, and the sum is that surface's volume wherever
+/// the loops' points stand off their stored planes. A flux taken off the
+/// stored plane instead (`((origin − centre)·n)(n·A⃗)/(n·n)`) is not a
+/// closed surface's: a glued face whose points stand `δ` off its carrier
+/// misses `δ` times its area, which crossed the oracle on the door's
+/// settled-residue fixture (`tests/door_backstop_settled_residue.rs`).
+/// `anchor` is a point of the face, so the width is the body's own size
+/// times `A⃗`'s; the product is as small as `centre` is near the face,
+/// which `rederive` arranges by taking a corner of the body's own loop
+/// points. The carrier's origin is never read.
+fn planar_face_about(
+    loops: &[Vec<LoopEdge<Interval>>],
+    centre: Point3<Interval>,
+) -> Result<FaceContribution<Interval>, PropsError> {
+    let Some(anchor) = loops
+        .first()
+        .and_then(|edges| edges.first())
+        .map(|e| e.carrier.eval(e.t0))
+    else {
+        return Err(PropsError::DegenerateFace);
+    };
+    let mut va = geom_core::Vec3::zero();
+    for edges in loops {
+        va = va + loop_vector_area(edges, anchor)?;
+    }
+    Ok(FaceContribution {
+        flux: (anchor - centre).dot(va),
+        area: va.norm(),
+    })
+}
+
 /// The certified flux/area enclosures of one curved-cut face
 /// (module docs of `geom_brep::props::quad`) over a [`RoundWindow`]
 /// — the cylinder chart's closed-form lane plus the described-NURBS
 /// patch lane (M6-3), entered and left where the window says (the
 /// quadrature module's two levels); [`super::QuadLane`] holds this
-/// and reads it at either level. Cone/sphere/torus charts MINT
-/// stored pcurves since M6-3 (walk row 4) but their chart-normal
-/// flux algebra is not written — they refuse typed naming that true
-/// blocker.
+/// and reads it at either level. A cone face never arrives: the face
+/// walk routes it to its closed form
+/// ([`geom_brep::props::cone_face_closed_form`]). Sphere and torus
+/// charts mint stored pcurves but have no flux lane here, and refuse
+/// typed.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
     body: &Body<T>,
@@ -147,6 +412,7 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
     band: Band,
     tol: Tol,
     window: RoundWindow,
+    centre: Option<Point3<Interval>>,
 ) -> Result<RoundOutcome, PropsError> {
     // The NURBS-patch lane (M6-3): a described NURBS face routes
     // to the patch engine over its stored iso-line pcurves.
@@ -157,44 +423,64 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
     // widen this quadrature (the same deliberate omission the
     // mesh tolerance makes).
     if let Some(payload) = surface.spline_chart() {
-        return nurbs_face(body, payload, outer, hes, band, tol, window);
+        return nurbs_face(body, payload, outer, hes, band, tol, window, centre);
     }
     let Surface::Cylinder { origin, radius, .. } = surface else {
         return Err(PropsError::QuadratureUnsupported {
-            what: "conic trim on a cone/sphere/torus chart — those charts mint stored \
-                   pcurves, but this lane's chart-normal flux algebra is the \
-                   cylinder chart's; the other analytic charts' closed-form flux \
-                   has no lane",
+            what: "conic trim on a cone/sphere/torus chart — a cone face takes its \
+                   closed form before this lane (`cone_face_closed_form`); sphere and \
+                   torus charts mint stored pcurves, but this lane's chart-normal flux \
+                   algebra is the cylinder's",
         });
     };
     let eps = tol.eps();
     let va = loop_vector_area(outer, *origin)?;
-    let o_dot_va = Interval::from_certified((*origin - Point3::origin()).dot(va));
+    // The flux about the chart's own origin, `r²·A_s`, is where the
+    // face is; only this term carries its position. Taken about a centre
+    // it is `(origin − centre)·A⃗` in interval arithmetic, a lever the
+    // size of the body rather than of its distance from the world origin.
+    let o_dot_va = match centre {
+        None => Interval::from_certified((*origin - Point3::origin()).dot(va)),
+        Some(c) => {
+            let lift = |p: Point3<T>| {
+                Point3::new(
+                    Interval::from_certified(p.x),
+                    Interval::from_certified(p.y),
+                    Interval::from_certified(p.z),
+                )
+            };
+            let va = geom_core::Vec3::new(
+                Interval::from_certified(va.x),
+                Interval::from_certified(va.y),
+                Interval::from_certified(va.z),
+            );
+            (lift(*origin) - c).dot(va)
+        }
+    };
     let mut edges = Vec::with_capacity(outer.len());
-    for (le, he) in outer.iter().zip(hes) {
-        let Some(cache) = body.pcurve(*he) else {
+    let lifted = crate::pcurves::lifted_images(body, hes);
+    for ((le, he), lifted) in outer.iter().zip(hes).zip(&lifted) {
+        let (Some(cache), Some(image)) = (body.pcurve(*he), lifted) else {
             return Err(PropsError::QuadratureUnsupported {
                 what: "curved-cut face half-edge carries no stored pcurve cache — \
                        caches mint in the split/boolean pipelines",
             });
         };
         // The certified quadrature lane reads a chart image
-        // CHANNEL BY CHANNEL out of its closed form; a fitted
-        // (rung-3) image has no such form on an ANALYTIC chart's
-        // Green reduction. Typed refusal — the TRUE remaining
-        // blocker (M6-3 stale-claims sweep): no at-rest body mints
-        // a fitted pcurve on a cylinder chart today (the marched
-        // join windows and the edge×NURBS-face boolean layer are
-        // both banked past M6), and the fitted-boundary Green lane
-        // (`quad::bspline_green_integral`'s remaining consumer)
-        // lands WITH whichever of those first produces one.
-        let Pcurve::Harmonic { p0, pa, pb, pl } = *cache.pcurve() else {
+        // CHANNEL BY CHANNEL out of its harmonic form; a fitted or
+        // focal-section image has none on an ANALYTIC chart's Green
+        // reduction.
+        // Typed refusal: the fitted-boundary Green lane
+        // (`quad::bspline_green_integral`'s remaining consumer) is not
+        // wired. A sphere's general circle mints one at rest (an
+        // oblique fillet corner's octant); the props door refuses that
+        // face's spherical triangle before this lane is asked.
+        let Pcurve::Harmonic { p0, pa, pb, pl } = *image else {
             return Err(PropsError::QuadratureUnsupported {
-                what: "curved-cut face half-edge carries a FITTED (rung-3) pcurve on an \
-                       analytic chart — its Green-form boundary integral \
-                       (bspline_green_integral) wires up with the construction that \
-                       first mints one at rest (the banked join-window/edge×NURBS-face \
-                       boolean layers); nothing does today",
+                what: "curved-cut face half-edge carries a pcurve with no harmonic form on \
+                       an analytic chart (a FITTED image, or a cone section's or Villarceau \
+                       circle's focal section) — its Green-form boundary integral is not \
+                       wired",
             });
         };
         let (t0, t1) = cache.params();
@@ -243,6 +529,7 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
     band: Band,
     tol: Tol,
     window: RoundWindow,
+    centre: Option<Point3<Interval>>,
 ) -> Result<RoundOutcome, PropsError> {
     if payload.is_placeholder() {
         return Err(PropsError::QuadratureUnsupported {
@@ -262,7 +549,7 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         .filter_map(|he| body.pcurve(*he))
         .any(|c| matches!(c.pcurve(), Pcurve::General(_)))
     {
-        return trimmed_face(body, payload, outer, hes, band, tol, window);
+        return trimmed_face(body, payload, outer, hes, band, tol, window, centre);
     }
     let eps = tol.eps();
     // Exact-structure read of a T scalar (point bracket required).
@@ -283,8 +570,9 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
     let mut polygon: Vec<(f64, f64)> = Vec::with_capacity(outer.len());
     let mut boundary_defect = 0.0f64;
     let mut perimeter = 0.0f64;
-    for (le, he) in outer.iter().zip(hes) {
-        let Some(cache) = body.pcurve(*he) else {
+    let lifted = crate::pcurves::lifted_images(body, hes);
+    for ((le, he), lifted) in outer.iter().zip(hes).zip(&lifted) {
+        let (Some(cache), Some(image)) = (body.pcurve(*he), lifted) else {
             return Err(PropsError::QuadratureUnsupported {
                 what: "NURBS face half-edge carries no stored pcurve cache — the \
                        loft assembly mints them; a body that lost its caches must \
@@ -307,8 +595,8 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
             });
         }
         let (t0, t1) = cache.params();
-        let a = cache.pcurve().eval(t0);
-        let b = cache.pcurve().eval(t1);
+        let a = image.eval(t0);
+        let b = image.eval(t1);
         let (ax, ay) = (
             exact(Interval::from_certified(a.x))?,
             exact(Interval::from_certified(a.y))?,
@@ -372,17 +660,20 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
                    region is outside the rectangle lane (the cut-loft unit's)",
         });
     };
-    let control: Vec<quad::RVec3> = payload
-        .control()
-        .iter()
-        .map(|p| {
-            [
-                Interval::from_certified(p.x),
-                Interval::from_certified(p.y),
-                Interval::from_certified(p.z),
-            ]
-        })
-        .collect();
+    let control = about(
+        payload
+            .control()
+            .iter()
+            .map(|p| {
+                [
+                    Interval::from_certified(p.x),
+                    Interval::from_certified(p.y),
+                    Interval::from_certified(p.z),
+                ]
+            })
+            .collect(),
+        centre,
+    );
     let out = quad::nurbs_patch_face_rounds::<T>(
         payload.knots_u(),
         payload.knots_v(),
@@ -464,11 +755,13 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
     band: Band,
     tol: Tol,
     window: RoundWindow,
+    centre: Option<Point3<Interval>>,
 ) -> Result<RoundOutcome, PropsError> {
     let ring = |x: T| Interval::from_certified(x);
     let mut chords: Vec<TrimChord> = Vec::with_capacity(outer.len());
-    for (le, he) in outer.iter().zip(hes) {
-        let Some(cache) = body.pcurve(*he) else {
+    let lifted = crate::pcurves::lifted_images(body, hes);
+    for ((le, he), lifted) in outer.iter().zip(hes).zip(&lifted) {
+        let (Some(cache), Some(image)) = (body.pcurve(*he), lifted) else {
             return Err(PropsError::QuadratureUnsupported {
                 what: "NURBS face half-edge carries no stored pcurve cache — the \
                        loft assembly mints them; a body that lost its caches must \
@@ -476,13 +769,13 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
             });
         };
         let (t0, t1) = cache.params();
-        let (pa, pb) = (cache.pcurve().eval(t0), cache.pcurve().eval(t1));
+        let (pa, pb) = (image.eval(t0), image.eval(t1));
         let (a, b) = if le.forward {
             ((ring(pa.x), ring(pa.y)), (ring(pb.x), ring(pb.y)))
         } else {
             ((ring(pb.x), ring(pb.y)), (ring(pa.x), ring(pa.y)))
         };
-        let piece = match cache.pcurve() {
+        let piece = match image {
             // An iso image is one exact chord: its endpoints are
             // structure, so there is no arc to bound.
             Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => None,
@@ -529,7 +822,7 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
             }
             Pcurve::Fitted(_) => {
                 return Err(PropsError::QuadratureUnsupported {
-                    what: "a NURBS-face half-edge carries a FITTED (rung-3) pcurve — \
+                    what: "a NURBS-face half-edge carries a FITTED pcurve — \
                            the trimmed lane certifies the General class, whose \
                            agreement with its carrier is a measurement; nothing \
                            ships that mints a Fitted image on a spline chart",
@@ -553,6 +846,13 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
                     what: "a NURBS-face half-edge carries a SPIRIC pcurve — a spiric's \
                            chart images live on its own cutting plane and its own \
                            torus, and this chart is a spline patch",
+                });
+            }
+            Pcurve::FocalSection(_) => {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: "a NURBS-face half-edge carries a FOCAL-SECTION pcurve — that \
+                           image certifies on a cone or torus chart only, and this chart \
+                           is a spline patch",
                 });
             }
         };
@@ -583,11 +883,14 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
         chords[i].b = merged;
         chords[j].a = merged;
     }
-    let control: Vec<quad::RVec3> = payload
-        .control()
-        .iter()
-        .map(|p| [ring(p.x), ring(p.y), ring(p.z)])
-        .collect();
+    let control = about(
+        payload
+            .control()
+            .iter()
+            .map(|p| [ring(p.x), ring(p.y), ring(p.z)])
+            .collect(),
+        centre,
+    );
     quad::trimmed_patch_face_rounds::<T>(
         payload.knots_u(),
         payload.knots_v(),
@@ -598,6 +901,21 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
         band,
         window,
     )
+}
+
+/// A patch's lifted control net carried by `−centre`, when the flux is
+/// taken about a centre. The net is stored Euclidean, weights apart, so
+/// the translated net is the translated patch, rational or not; and the
+/// flux pad's position bound, read off the net's hull, becomes the bound
+/// on `|x − centre|` it should be.
+fn about(control: Vec<quad::RVec3>, centre: Option<Point3<Interval>>) -> Vec<quad::RVec3> {
+    match centre {
+        None => control,
+        Some(c) => control
+            .into_iter()
+            .map(|x| [x[0] - c.x, x[1] - c.y, x[2] - c.z])
+            .collect(),
+    }
 }
 
 /// The vertex POINT at a half-edge's carrier-interval start (its

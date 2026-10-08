@@ -7,7 +7,7 @@ opened: 2026-09-20
 priority: P0
 cost: M
 design: true
-blocked_on: [3513]
+blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -179,3 +179,232 @@ not a one-line `decide_positive` — gating each member would log an
 escalation for every member a later one rescues — so it wants a
 decision at the site (log one gate escalation after the loop, through
 `k_stats`, rather than per member).
+
+## Re-taken against main (CLEAVE measurement lane, 2026-10-03, `82b9ceb2`)
+
+The full table is on branch `analysis/cleave/mints-retake`,
+`analysis/cleave-mints-retake.md`.
+
+Summary: of the item's 28 sites, 24 are still live on main. A sweep for the
+same shape found about 35 more.
+
+| class | live sites |
+|---|---|
+| (a) real indeterminacy off the funnel | 12 |
+| (b) definite contradiction dressed as `INVALID` | 28 (20 new; 17 of them are display-only contradiction labels in `boolean/mod.rs`) |
+| (c) impossible sign: no door fits, nothing admits `{Zero, Positive}` | 10 |
+| (c) disagreement or out of lane | 12 |
+| (c) broken invariant | 1 |
+
+What changed since this row was filed:
+- **Retired:** `bool_dir_same` and `data_rungs`' nonzero arm. `declared_rung` moved to `carrier_eq::declared_reading`, but `plane_eq.rs:269`'s `untyped()` turns its typed zero back into `INVALID` for every public caller.
+- **The four local `invalid` helpers** now share one crate helper, `invalid_margin::invalid`.
+- **PR 3513 retired none of this row's mints and added one:** `vtxfac.rs:232` `bool_sector_coplanar`, class b.
+
+User-visible, measured:
+- **pr4 sliding union.** At x = 0.5 and 0.99 it now succeeds. At x = 1.0 its text still says "margin is invalid (NaN …)", rendered by editor-core's `UndeclaredCoincidenceFinding::story` (`eval/mod.rs:2147`).
+- **`r2_p7`.** The margin no longer reaches the text since PR 3493, but `INVALID` survives in the public `margin` field.
+
+Cited, not run: `bool_wall_trim_period` refuses 567 of 729 `point_in_solid`
+probes on a revolved tube (`work/contact/revolved-tube-wall-...`).
+
+Six readers treat `is_invalid()` as "decided exactly zero":
+`carrier_eq.rs:315`, `flush.rs:302`, `boolean/mod.rs:2967`,
+`refusal_routes.rs:1337`, `refusal_routes.rs:1505` and `census.rs:7712`.
+
+Dangling links: `work/props/...` was deleted when PROPS closed.
+
+Next: a designer pair, on three questions:
+- what payload class (b) carries;
+- which door, if any, class (c)'s impossible signs need;
+- how the six `is_invalid()` readers change.
+
+## Designed (2026-10-03; designer pair converged, no ratified text changes)
+
+Labels and the rounds are on `analysis/design-fork/topo-mints` (byte 123).
+
+**The premise is one level too low.** The mints are forced by a field typed
+wrong. Every contradiction, finding and self-check error in `topo` carries
+"which predicate, what band, what it saw" in a slot typed `Indeterminate`.
+A site that holds a decided answer therefore has to forge an escalation.
+The funnel's own gate doors do the same: `decide_positive` and
+`decide_nonzero` reject a decided sign as `INVALID`. Routing classes (b) and
+(c) through the funnel would be wrong, because `drive::log_read` answers
+`Bisect` for a logged non-sliver. A definite verdict on an enclosure never
+flips under refinement, so the driver would split until its budget ran out.
+
+The final state:
+
+1. **Only the funnel builds an `Indeterminate`.** It becomes
+   `#[non_exhaustive]` (fields readable); `MarginDiag::INVALID` becomes
+   crate-private; fixtures use a `test-support` constructor. This deletes
+   `invalid_margin.rs` and `sectors.rs::invalid_escalation`, and makes the
+   `reporting-margin-door.sh` literal pin a compile error. Last step, once
+   every site has its home.
+2. **Gate rejections keep the decided margin.** The `_reported` doors fold
+   into the plain ones, and `MarginKind::Invalid` means poison and nothing
+   else. This closes
+   `work/verdict/decide-positive-synthesizes-invalid-for-a-decided-zero.md`.
+3. **Class (b) definite contradictions become typed facts, on no log.**
+   A new `geom_core::Definite { predicate, sign, margin, band }` is the
+   evidence type. Contradiction errors become
+   `Contradicted { fact: Contradiction, evidence: Option<Definite> }`, where
+   `None` means a structural finding (a sense bit, two kinds). The
+   predicate-name labels in `boolean/mod.rs` (`contact_tangent_rim_*`,
+   `seam_senses_aligned`, …) become `Contradiction` variants, and the tests
+   that pin those names re-pin by fact.
+4. **Coincidence is typed.** `Coincidence::{Decided(Definite),
+   InBand(Indeterminate)}` is the payload of `CarrierEqError::Undeclared`,
+   `BooleanError::UndeclaredCoincidence` and editor-core's twin. Three
+   existing types collapse onto it: `LadderRefusal::Coplanar`,
+   `NeighbourOffset` and geom-brep's `RefusedArm`. `untyped()` and
+   `reported()` go. The six `is_invalid()`-as-zero readers match the
+   variant, and `flush.rs`'s poison-read-as-coincident case becomes
+   `InBand`. The pr4 union at x = 1.0 then reads "decided zero", not "NaN".
+5. **Impossible signs go through a magnitude door.**
+   `k_stats::decide_magnitude(name, margin, band) -> Result<Magnitude,
+   Indeterminate>`, with `Magnitude::{Zero, Positive}`. A decided `Negative`
+   is `unreachable!` inside the door, with the predicate, band and margin in
+   the message (D9 row 4, Ev's `a0781edfa`). `unreachable!` is deliberately
+   outside the workspace's `clippy::panic` family (`49168e708`).
+   `decide_invariant`'s "never a panic" covers integral backstops, not
+   impossible branches. The door accepts only quantities nonnegative by
+   construction (a norm, a sqrt, a sum of those). A difference that is
+   nonnegative only mathematically can round negative, so it is reachable
+   and does not belong here.
+6. **Class (a) real indeterminacies** go through the gate doors. Two sound
+   bounds on ONE quantity that straddle the band are a real indeterminacy:
+   their margin is the enclosure `[lo, hi]`, and they go on the log
+   (`rows.straddle`, `bool_ray_torus_count`).
+7. **Two definite verdicts that disagree are never an escalation.**
+   - One fact decided twice (I8, the edge screen against the dihedral; N17):
+     decide once, so the second question takes the first verdict as typed
+     input.
+   - Independent honest measurements (N15; N18, a rim whose class changes
+     along its length): a typed finding carrying both `Definite`s, told with
+     its decision's story (D4 ¶1 (iv)), or a typed `Unsupported*` where the
+     state is a lane limit. Decide which per site, after reading it.
+   - Unreachable combinations (I2; N6 at K = 10): item 5's shape, a panic.
+   - I11 (a body certified at a coarser band) is a D4 ¶1 (iv) finding.
+
+Build order, one PR each:
+1. the geom-core doors (items 2, 5 and `Definite`);
+2. `Coincidence` and the six readers (item 4);
+3. contradiction typing (item 3);
+4. the remaining class (a)/(c) sites (items 6 and 7, per site);
+5. the seal (item 1).
+
+Also: `sweep/src/blend/battery.rs::short_arm` is the same shape, so it goes
+with step 4. `refusal_routes::NeighbourOffset::reported` goes with step 2.
+
+## Landed in PR 3974 (TOPO)
+
+The payload of `CarrierEqError::Undeclared` is now
+`topo::CoincidenceMeasure` (`boolean/carrier_eq.rs`), with three arms that
+every reader matches:
+
+- `Zero { predicate, decided: Classified }`: the datum the band decided
+  zero, with the margin it decided (the plane's `bool_plane_offset`; a
+  curved kind's first datum);
+- `Undecided(Indeterminate)`: a datum in band, or the pair door's
+  declared reading standing past the band;
+- `Unreadable(Indeterminate)`: a datum that is not finite (NaN or ±∞),
+  decided in one place (`CoincidenceMeasure::decide`, the ladders' datum
+  read).
+
+`LadderRefusal`, `untyped()` and `plane_eq_typed` are gone. The readers
+are `flush::pair_finding` (`Zero` is the finding), `pair_door_verdict`,
+the maximal-faces gate (`Zero` and `Undecided` become `NeighbourOffset`),
+the Boolean's raise sites and the conformal screen.
+`BooleanError::UndeclaredCoincidence` keeps `diag: Indeterminate`, built
+by `CoincidenceMeasure::reported()`, so editor-core's twin is unchanged.
+The `wire` row `refusal-menu-stamps-decided-coincident-on-an-in-band-coincidence`
+is the cost of that.
+
+**The one divergence from step 4.** Poison is not `InBand`. It is its own
+arm, `Unreadable`, and at the Boolean it ends as an operand defect:
+`BooleanError::PoisonedCarrierDatum`, `KERNEL_OR_FILE_DEFECT_ENDING`. Every
+Boolean door reaches it through `boolean::readable_coincidence`. At the
+flush detector it is `PairUndecided::Unreadable` /
+`FlushRefusal::PairUnreadable`. The reason is D4 ¶1 (i): the recourse
+follows from the decision, and an in-band arm's recourse offers the
+declaration and the move. A non-finite datum is not a coincidence the user
+can declare or move out of; it is a stored face that describes no shape,
+as tier 3's `PoisonedSurfaceDatum` says of the same datum.
+
+This is CLEAVE's to adopt or reshape when it builds step 2.
+## Step 1 landed (PR 3979, branch `cleave/mints-doors`)
+
+The geom-core doors. Gate rejections keep the decided margin. The
+`_reported` twins are folded into the plain doors, and
+`MarginKind::Invalid` now means poison only. The escalation text says
+"lies past the ambiguity band — a decided sign this decision cannot
+use" and offers no tolerance on a sign-certain reading.
+`k_stats::decide_magnitude` is the magnitude door.
+
+- **Migrated to the magnitude door:** I9, I10, I13, I23, I26 (×3) and
+  I27, plus four `chart_region` sites that the retake had filed as test
+  code (`carrier_tilt`, and `norm_gate`'s `cyl_tilt`, `cyl_offset` and
+  `cyl_transfer`).
+- **`sweep` `short_arm`:** now goes through `decide_positive`
+  (`blend::classify_positive`).
+- **`Definite`:** deferred to step 3, which has its first consumer.
+
+Not migrated, for step 4:
+
+- **I16** (`bool_plane_parallel`). The arm is
+  `ExtentBall::radius()`, and the public `oriented_plane_eq` /
+  `ConsumedExtent::unwitnessed(ExtentBall::new(c, r))` takes any
+  radius, so the margin can decide Negative from input.
+- **N5.** The Positive arm quotes the decided margin, and
+  `decide_magnitude` returns no margin.
+
+New step-4 sites, of the same gate shape, off the log:
+
+- `chart_region::definite_diag` ×3 (`cyl_band_area`, `cross_order`,
+  `area`). Each echoes `Value(lo)`, which collapses an enclosure.
+- `chart_region`'s `cyl_axis_sense` decided Zero (a disagreement with
+  the tilt gate).
+- `merge_faces`' LoopWinding decided zero.
+
+Filed on flux:
+`work/flux/a-gate-rejection-of-a-decided-enclosure-bisects-to-budget.md`.
+
+## Step 2 WIP, held by #3990 (2026-10-03)
+
+The step-2 lane was dispatched after the hold notice, then withdrawn. Its
+work is on branch `cleave/mints-coincidence` at `e138240de`, pushed as
+unreviewed WIP with no PR.
+
+**Done.** `topo::Coincidence::{Decided { predicate, margin }, InBand(Indeterminate)}`
+is the payload of `CarrierEqError::Undeclared`,
+`BooleanError::UndeclaredCoincidence`/`CoplanarNeighbours`, and
+editor-core's `UndeclaredCoincidence`/`UndeclarableContact`. Removed:
+- `LadderRefusal`/`untyped()`;
+- `NeighbourOffset`/`reported()`;
+- the dead `ContactRefusal::Undeclared`.
+
+**Not folded in.** `RefusedArm` is not folded, because it has a
+`SignCertain` arm; `Coincidence::arm()` converts to it.
+
+**Readers.** The `is_invalid()` readers in `carrier_eq`, `flush` and
+`boolean/mod.rs` now match on the variant. Poison reads as `InBand` and is
+never coincident. The two `refusal_routes` readers and the one `census`
+reader now see only poison, so they are left as they are.
+
+**Built only.** `cargo check` passes for the workspace and the demos. Not
+yet done:
+- tests, clippy, gates, and the ε rows;
+- the pins for pr4 at x = 1.0 and for `r2_p7`;
+- the sweep write-up.
+
+**Open doubts:**
+- `Coincidence::quoted()` rebuilds an `Indeterminate` from the decided margin for three arms: a step-3 residue and two unreachable arms.
+- `coincident_as_declared` still reads a past-band bound as `InBand`; that site belongs to step 4.
+- editor-core labels every coincidence `DecidedCoincident`.
+
+Weigh this against the #3990 ruling before reusing any of it.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: held step 2's payload sites (CarrierEqError::Undeclared, UndeclaredCoincidence) and contact_verify's declared-contact contradictions are what stage 4 retires; steps 4–5 could be split off as workable. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

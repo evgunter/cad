@@ -584,7 +584,7 @@ Six ways a name escapes the old pattern, all live today:
    and the witness live in `geom-core` now, so a crate below `topo`
    (`geom`, `geom-brep`, `sweep`, `profile`) can mint a name this way
    as readily as one above it; it used to be `topo`'s dependents only.
-5. **A struct field or a local table.** `ray_parity::ParityRows` (the
+5. **A struct field or a local table.** `ray_walk::ParityRows` (the
    one carrier this document already listed), `swept.rs`'s
    `CosurfaceNames`, and `transform.rs:129`'s seven-element
    `[(&'static str, T); 7]` array consumed by a loop variable.
@@ -817,7 +817,7 @@ inside it.
 
 **Roster addition (TRIM-3): the chart-boundary outside test.** Six
 names, in the crate scan's blind spot #4 — four of them are a
-`ray_parity::ParityRows` value, the carrier this document already
+`ray_walk::ParityRows` value, the carrier this document already
 lists, and `ParityRows`' own type docs say a new value is a roster
 change and belongs here. `topo/src/chart_bound.rs` decides:
 
@@ -838,9 +838,9 @@ population, which is exactly why the shared parity walk takes its row
 names from the caller.
 
 **Roster addition (ATREST-9): the arc-aware planar loop walk.** Eleven
-names from `topo/src/splitting/containment.rs`'s `point_in_carrier_loop`,
+names from `topo/src/splitting/containment.rs`'s `point_in_loop`,
 the in-face test `point_in_solid`'s planar arm reads a loop with circle
-or ellipse arcs through. Four are a new `ray_parity::ParityRows` value
+or ellipse arcs through. Four are a new `ray_walk::ParityRows` value
 (`ARC_LOOP_ROWS`), the rest bare literals at their `decide` sites:
 
 | name | carrier |
@@ -891,7 +891,7 @@ population.
 **Roster addition (CONTACT-4): an edge's boundary decided as distances.**
 `topo/src/splitting/containment.rs`'s `LoopEdge::contact` is the one
 boundary reading of a planar loop's edge. A straight edge is read as
-its distance to the closed segment (`ray_parity::on_segment`). A conic
+its distance to the closed segment (`ray_walk::on_segment`). A conic
 is read as its distance from the conic, then its distance to either end
 and a chordal-defect sum, neither compressed near an end. A circle is
 exact through one lever. An ellipse is bounded on both sides:
@@ -928,12 +928,65 @@ Notes on the neighbouring names:
 - `point_in_arc_loop_conic_window` decides only where a ray crosses an
   arc, as `arc_trim`'s trim row (ATREST-12's distance trim, the one home
   check 9's `ring_outer_arc_{end,trim}` also read).
-- `point_in_arc_loop_reach` is a ray's clearance from an uncrossable
-  edge's ball. A clearance in the band abandons the ray rather than
-  escalating.
+- `point_in_arc_loop_reach` is a ray's clearance from a ball: an
+  uncrossable (spline) edge's, where a clearance in the band abandons
+  the ray rather than escalating, and a spiric piece's, where it halves
+  the piece.
 
 Dimensions: `docs/predicate-dimension-audit.md`'s rows of the same
 names.
+
+**Roster addition (CLEAVE): the spiric edge's crossing row.** Eleven new
+names from `topo/src/splitting/spiric_arc.rs`, the row the carrier walk
+crosses a spiric edge by, halving the arc into pieces each held in a
+ball from the oval's speed bound. The boundary reading's are
+`SpiricRows` fields, one set per caller (`containment`'s `WALK_ROWS`,
+`contain`'s `ROWS`); the ray's are the walk's own, bare literals:
+
+| name | carrier |
+|---|---|
+| `point_in_arc_loop_spiric_end` | `SpiricRows` field (`WALK_ROWS`): the distance to an end of the arc |
+| `point_in_arc_loop_spiric_clear` | `SpiricRows` field (`WALK_ROWS`): a piece's ball's clearance from the point |
+| `point_in_arc_loop_spiric_on` | `SpiricRows` field (`WALK_ROWS`): the distance to a point of the arc |
+| `point_in_arc_loop_spiric_leaf` | `SpiricRows` field (`WALK_ROWS`): a piece's ball's radius, `Zero` ending the halving |
+| `bool_contact_spiric_end` | `SpiricRows` field (`contain`'s `ROWS`) |
+| `bool_contact_spiric_clear` | `SpiricRows` field (`ROWS`) |
+| `bool_contact_spiric` | `SpiricRows` field (`ROWS`): the distance to a point of the arc |
+| `bool_contact_spiric_leaf` | `SpiricRows` field (`ROWS`) |
+| `point_in_arc_loop_spiric_side` | a `const` in `spiric_arc`: a piece end's offset from the ray line |
+| `point_in_arc_loop_spiric_turn` | a `const` in `spiric_arc`: `|s(v_b) − s(v_a)| − 2·A·h²`, the piece's monotonicity across the ray line |
+| `point_in_arc_loop_spiric_advance` | a `const` in `spiric_arc`: a piece's ball's advance along the ray, less or plus its reach |
+| `point_in_arc_loop_reach` | (above) also a spiric piece's ball's clearance from the ray |
+
+**Roster addition (CLEAVE): a trimmed sphere face's region.** Fifteen
+names from `topo/src/boolean/sphere_region.rs`. Nine are its rays',
+which entered without an entry here: bare literals at their `decide`
+sites, and a `FirstHarmonicRows` value (`ROOT_ROWS`) for the
+first-harmonic root door. Five are its boundary pre-pass's, a
+`ConicRows` value (`BOUNDARY`) it reads each arc through on the arc's
+own circle:
+
+| name | carrier |
+|---|---|
+| `bool_sphere_region_arm` | a bare literal: a ray direction's share of the tangent plane, at the sphere's radius |
+| `bool_sphere_region_span` | a bare literal: a root's parameter against its arc's span ends, at the arc's radius |
+| `bool_sphere_region_at` | a bare literal: a crossing's place along the ray, at the sphere's radius |
+| `bool_sphere_region_order` | a bare literal: two crossings' places along the ray |
+| `bool_sphere_region_cross` | a bare literal: the ray's heading against the face side at the closest crossing |
+| `bool_sphere_region_roots_noise` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_sphere_region_roots_coaxial` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_sphere_region_roots_extreme` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_sphere_region_roots_slack` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_sphere_region_arc_span` | `ConicRows` field (`BOUNDARY`): the arc's gap to a whole turn |
+| `bool_sphere_region_arc_on` | `ConicRows` field (`BOUNDARY`): the point's distance from the arc's circle; in its band, the arc's own distance decides (its foot against the ends) |
+| `bool_sphere_region_arc_end` | `ConicRows` field (`BOUNDARY`): the distance to either end of the arc |
+| `bool_sphere_region_arc_trim` | `ConicRows` field (`BOUNDARY`): which side of the ends the point, or its foot, lies |
+| `bool_sphere_region_arc_straddle` | `ConicRows` field (`BOUNDARY`): an ellipse's straddle; a circle never mints it, and it never reaches the funnel |
+| `bool_sphere_region_roots_count` | a bare literal at an invalid-margin site: two computations of one root count disagree; a refusal of the query, never decided, and it never reaches the funnel |
+
+They pool with nothing: the region is read by the point-in-solid door
+at points on a sphere, a population apart from the planar walk's and
+the boolean's boundary pre-pass's.
 
 **Roster addition (TRIM-2 PR-1): the trim piece's monotonicity.** ONE
 name, carried by a bare literal at its `decide` site (blind spot #1 of
@@ -1006,8 +1059,14 @@ the value). The names that reach the funnel through them today:
 | `sketch_plane_frame_norm` | `crates/pncad-py/src/py/doc.rs`, the binding's own | no — the binding is not in the sweep's roster |
 | `mate_axes_parallel` | `crates/editor-core/src/mate/coset.rs`'s `parallel`, a name the mate solve already recorded by a bare `decide` | as before — the mate solve is not in the sweep's roster; see the MSOLVE-8 paragraph below |
 | `mate_coset_inverse` | `crates/editor-core/src/mate/solve.rs`'s `invert`, the solve's own | no — the mate solve is not in the sweep's roster |
+| `mate_residual_quote` | `crates/editor-core/src/mate/solve.rs`'s `quoted_residual`, the solve's own: an UNDER refusal's residual quoted at `f64` on an analysis lane, each direction re-minted | no — the mate solve is not in the sweep's roster, and the `f64` lane names its residual without re-minting it |
+| `mate_frame_offset_axis` | `crates/editor-core/src/mate/solve.rs`'s `compose_offset`: a mate side's axis re-minted from the frame its base and offset compose, once per side whose offset is not the identity — every authored side, which is the part base with one literal step | no — the mate solve is not in the sweep's roster |
 | `fixture_mate_axis` | `crates/editor-core/tests/fixture/mod.rs`, a const the mate suites own | no — a test-owned name, as `fixture_frame_axis` |
 | `pncad_py_test_normal` | `crates/pncad-py/src/tests.rs`, the bindings' own arm table | no — a test-owned name |
+| `bool_germ_plane_normal` | `crates/topo/src/boolean/join.rs`'s const, decided at the germ-plane read | yes — every germ pair with a plane side that a curved-capable boolean joins |
+| `bool_box_cylinder_axis` | `crates/topo/src/boolean/boxes.rs`'s const, decided where `face_box_rule` reads a cylinder carrier | yes — every cylinder face either box lane boxes (the sweep's face tree, separation, the census pre-filter and reach) |
+| `unit_direction_arm` | `geom-core`'s const, decided by `UnitVec3::levered` on the arm before the levered length | yes — once beside every `bool_germ_plane_normal`, `bool_box_cylinder_axis` and `props_torus_axis` sample |
+| `fixture_split_normal` | `crates/topo/src/test_support_fixtures.rs`'s `split_plane`, a const the fixtures own | no — a test-owned name, as `fixture_frame_axis` |
 
 **Roster change (MSOLVE-8, 2026-09-20): one mate-solve name RESPELLED,
 one added, two test-owned.** `mate_axes_parallel` was a bare `decide`
@@ -1040,6 +1099,85 @@ the two shapes a fix could take. The two names the sweep's corpus does
 NOT reach — `sketch_plane_frame_norm`, which is production code, and
 `fixture_frame_axis` — are filed at
 `work/instr/frame-mint-funnel-names-outside-every-sweep-corpus.md`.
+
+**Roster change (TQUERY, 2026-10-02): two names added, one widened.**
+`SplitPlane.normal` became a `UnitVec3`
+(`work/tquery/split-refuses-cylindrical-feature-box.md`): a non-unit
+split normal had reached the plane×cylinder section as direction
+cosines. The boolean's germ planes feed the same section lanes from
+plane carriers, so their normals are now decided at that read under
+`bool_germ_plane_normal` — a `Margin::norm3` of a carrier normal unit
+at rest, which decides positive at every committed ε and cannot land
+in the band for a carrier the at-rest rule admits. The split fixtures
+mint under the test-owned `fixture_split_normal`. The tour's two cut
+scenes (`cutaway`, `curvedcut`) mint their normals under
+`tour_frame_axis`, so that name gains two samples per tour run.
+
+**Roster change (TQUERY, 2026-10-02): one name added.** The face
+boxes' cylinder slab reads its axis as a unit direction, so
+`face_box_rule` decides a cylinder carrier's axis length at the read
+under `bool_box_cylinder_axis` — the `bool_germ_plane_normal` case: a
+`Margin::norm3` of a carrier axis unit at rest, positive at every
+committed ε. It samples once per cylinder face per box built, in both
+box lanes.
+
+**Margin change (REACH, 2026-10-02): three names re-levered, one
+name added.** `bool_germ_plane_normal`, `bool_box_cylinder_axis` and
+`props_torus_axis` decide the length of a carrier's unit-at-rest
+direction, a pure number, and read it against the length band through
+`Margin::norm3`, so their margins read 1 at every model scale. They
+now mint through `UnitVec3::levered`, the norm times an arm the
+direction is consumed over: a lower bound on the germ section's reach from the plane's
+origin, the cylinder's radius, the anchor meridian's reach from the
+torus centre. Each margin is now a length of the model's scale; none
+lands near the band for a carrier the at-rest rule admits. The door
+decides its arm first, a length, under `unit_direction_arm`, so that
+name gains one sample beside each of the three. Each name has a
+linearity twin that reds on the bare norm: `ray_wall_margin_twins`'s
+plane × cylinder bore pins the first two, `rim_dim_scale_twins` the
+third.
+
+**Roster change (CLEAVE, 2026-10-03): three names added.** The public
+`topo::point_in_loop` certifies its plane before it walks
+(`topo/src/splitting/containment.rs`'s `certify_plane`), each a bare
+literal at its `decide` site: `point_in_loop_normal` (`(|n| − 1)`
+levered by the loop's reach), `point_in_loop_plane` (a vertex, a conic
+centre or control point off the plane, or a conic's or spiric's tilt
+levered by its reach), and `point_in_loop_query` (the query off the
+plane). Each is `Zero` on a well-posed call, so on the shipped callers
+they sample zero-centred residues once per call (the plane row once per
+vertex and carrier datum). `boolean::solid_contain`'s in-face test does
+not certify (it reads a face's trim at its own surface plane) and adds
+no samples. Dimensions: `docs/predicate-dimension-audit.md`'s rows of
+the same names.
+
+**Roster change (CLEAVE, 2026-10-06): one name added.** An edge-edge
+site (`recl::resolve_edge_edge`) projects each solid's two flanking
+bounds perpendicular to the common line and reads membership off the
+projections. `bool_flank_offset` (a bare literal at `recl::flank_rep`)
+decides each projection's length times its bound's own reach
+(`decide_positive`): the bound's far end's distance off the line, in
+metres, four samples per site that reads membership (none at a
+declared-`Tangent` flank, which reads none). The common line is
+`sector_shape`'s unit direction of an edge chord and is read as it
+stands, with no decision of its own. Measured before the change over
+the `topo`, `sweep` and `editor-core` suites (29,744 readings at `f64`,
+`Interval`, `Dual` and the symbolic scalar): the smallest projection
+was 0.148, and the smallest margin through a public door, levered at
+the site's shorter sector arm, was 1.6e7 times the band's zero.
+Dimensions: `docs/predicate-dimension-audit.md`'s row of the same name.
+
+**Roster change (CARVE, 2026-10-06): one name added.** A sweep's cap
+plane (`sweep`'s `cap_plane`, read by `extrude`, `loft_body` and the
+partial `revolve`) keeps Newell's plane over the cap's vertices and
+arc apexes but orients it by the profile's validated winding: it
+decides `cap_plane_orientation`, the cosine between Newell's normal and
+the region's (the placed sketch normal, signed by the traversal and the
+cap's end), levered by the cap polygon's half-perimeter. It samples
+once per cap, two per body, and reads ±(half-perimeter) to within
+`O(ε/width)` on every certified cap, so it never lands near the band;
+a `Negative` sample is a cap whose inscribed polygon winds against its
+region (a large convex arc) and is flipped.
 
 **The three ladder names keep their names and lose a few samples.**
 The aiming ladders' roll offset used to be classified by a bare

@@ -176,7 +176,7 @@ impl StepShape {
         }
     }
 
-    fn of_program(step: &ProgramStep) -> Self {
+    fn of_program<S>(step: &ProgramStep<S>) -> Self {
         match step {
             ProgramStep::At(_) => Self::At,
             ProgramStep::Angle(_) => Self::Angle,
@@ -209,7 +209,7 @@ fn target_of_recorded<T: geom_core::Real>(t: &profile::Target<T>) -> TargetShape
     }
 }
 
-fn target_of_program(t: &ProgramTarget) -> TargetShape {
+fn target_of_program<S>(t: &ProgramTarget<S>) -> TargetShape {
     match t {
         ProgramTarget::Point(_) => TargetShape::Point,
         ProgramTarget::Start => TargetShape::Start,
@@ -230,7 +230,7 @@ fn arc_of_recorded<T: geom_core::Real>(spec: &profile::ArcData<T>) -> ArcShape {
     }
 }
 
-fn arc_of_program(spec: &ProgramArcData) -> ArcShape {
+fn arc_of_program<S>(spec: &ProgramArcData<S>) -> ArcShape {
     match spec {
         ProgramArcData::Radius { side, .. } => ArcShape::Radius(*side),
         ProgramArcData::Bulge { target, .. } => ArcShape::Bulge(target_of_program(target)),
@@ -243,7 +243,7 @@ fn arc_of_program(spec: &ProgramArcData) -> ArcShape {
     }
 }
 
-impl LoopProgram {
+impl<S> LoopProgram<S> {
     /// **This loop's program, values erased**: one [`StepShape`] per
     /// authored step, in program order.
     #[must_use]
@@ -285,7 +285,7 @@ impl AuthoredStep {
 
     /// Step `index` of `program`, or `None` past its end.
     #[must_use]
-    pub fn of_program(program: &LoopProgram, index: usize) -> Option<Self> {
+    pub fn of_program<S>(program: &LoopProgram<S>, index: usize) -> Option<Self> {
         let mut prefix = program.shape();
         if index >= prefix.len() {
             return None;
@@ -318,7 +318,7 @@ impl AuthoredStep {
     /// Whether this is an address in `program`: its prefix is
     /// `program`'s own.
     #[must_use]
-    pub fn is_in(&self, program: &LoopProgram) -> bool {
+    pub fn is_in<S>(&self, program: &LoopProgram<S>) -> bool {
         let shape = program.shape();
         shape.get(..self.prefix.len()) == Some(self.prefix.as_slice())
     }
@@ -364,11 +364,15 @@ impl core::fmt::Display for StepHandleRefusal {
                  bind the handle against the profile the document holds",
             ),
             Self::StepIds(fault) => write!(f, "this program's step ids are malformed: {fault}"),
-            Self::RoleNotDrawn { verb, role } => write!(
-                f,
-                "a `{verb}` step never draws a {role}; its roles are {}",
-                RoleWords(RoleList::of(*verb))
-            ),
+            Self::RoleNotDrawn { verb, role } => {
+                let role = role.to_string();
+                write!(
+                    f,
+                    "a `{verb}` step never draws {} {role}; its roles are {}",
+                    crate::sentence::article(&role),
+                    RoleWords(RoleList::of(*verb))
+                )
+            }
         }
     }
 }
@@ -467,8 +471,8 @@ impl ProfileProgram {
 ///
 /// [`StepHandleRefusal::OffProgram`] for an address that is not a step
 /// of its loop's new program.
-pub fn keep_grid(
-    loops: &[LoopProgram],
+pub fn keep_grid<S>(
+    loops: &[LoopProgram<S>],
     keep: &[Vec<(AuthoredStep, StepId)>],
 ) -> Result<Vec<Vec<Option<StepId>>>, StepHandleRefusal> {
     keep.iter()

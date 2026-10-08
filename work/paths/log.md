@@ -532,3 +532,147 @@ time, so it goes to designer round 6 and may go to Ev. #3527 waits.
 - 2026-09-30 — Seam note from AUTH-11 (`author/binder-prefix`, PR 3563). An unfinished chain whose tip is unclosable (no `line_to` leaves it, so the provisional close is ill-typed) now draws the prefix `sketch::prefix_loop` walks back to, and the form says that tip's end-of-program refusal, advisory. `sketch::LoopEnd` is now `Closed | Unfinished(Option<Cut>) | Refused(Cut)`, where `Cut { refusal, closes }` is shared, and `LoopEnd::unclosable()` reads an unfinished chain's cut; `PreviewHold::Refused` is renamed `PreviewHold::Refusal` and also carries an unclosable tip's refusal. `crates/profile/src/test_support.rs` gains `every_state`, `way_in` and `prefix`, moved from `tests/arc_spec_census.rs` so the viewer's census of unclosable tips reads the same ways in rather than a second copy. `crates/profile/tests/arc_spec_census.rs`: `prefix` and `every_state` moved to `profile::test_support` with every program byte-identical, `prefix` is now a lead plus the new `way_in(state)` (the steps that take a leg end into a state), and `every_prefix_reaches_its_state` also holds that every way in reaches its state from a leg end. (AUTH-11 implementer)
 
 - 2026-10-01 — 5a (#3527): Ev approved ("looks good!") D1's consistency sentence, rewritten as the principle at Ev's request: each condition is checked at validate or holds by construction, and none is decided twice. The specifics (tables against `ConstructedLoop`, scene resolution, exact and point scalars) live in `crates/profile/README.md`, "Where an arc's consistency is decided". Fork row 35 is filled (it was 21, then 33, then 34, as merges with main renumbered it; no row on main was renumbered). The dual review at `262f0d380` had one bilateral MAJOR (the copied-carrier abort), fixed; the DR row is the PR's last commit.
+
+- 2026-10-02 — 5a merged (#3527, merge `44b64db0b`) after five main merges. The main-red rows met on the way were left to their filed owners: `reach_volume_backstop` off the default ε, the `bounds_census` roster, and the ignored pad-at-both-dials row. 5b (`store-constructed-carriers`) dispatched on `claude/clever-bardeen-4itqb3`, restarted from main (Ev allowed the branch move).
+
+- 2026-10-02 — 5b forks (#3774), ruled by the orchestrator under #3453 ("the construction registers"):
+  - the fillet keeps its offset centre and registers the tangency facts it proves;
+  - the tangent arc keeps the algebraic X and registers what Sym cannot close;
+  - `sweep-arclen-legs-fold-an-over-full-angle` folds into 5b, so the authored angle is stored after its refusal.
+- 2026-10-01 — Seam note from PROPS (`props/recourse-grammar`, the last unit of that program): the D4 ¶1 (i) recourse GRAMMAR moved in `geom-core`, so refusal text changed across the tree. `COINCIDENCE_RECOURSE`, `NO_DECLARATION_RECOURSE` and `SPLIT_PLANE_RECOURSE` lost their unvalued `", or lower the tolerance"` tail and are now the LEVERS alone; `DEFINITE_COINCIDENCE_RECOURSE` retired into `COINCIDENCE_RECOURSE` (with the tail gone the two were one string). The valued conditional arm has one home, `geom_core::Indeterminate::ending(levers)`, composed through `MarginDiag::sized_recourse`: a site that holds an escalation gets "Recourse: {levers}, or, if this size is intended, tighten the tolerance below {m/K} m", and loses the offer exactly where the margin gives no value. `Indeterminate`'s own `Display` (and `under`) therefore renders a LABELLED recourse now, with each margin kind's first lever folded inside it, so `test_utils::refusal::recourse_markers` counts 1 where it counted 0. `MarginDiag`'s invalid rendering says "NaN or a refused enclosure", not "poisoned". Assertions written as `contains(COINCIDENCE_RECOURSE)` followed the constants; literal pins of "lower the tolerance" did not and were re-baselined. (PROPS implementer)
+- 2026-10-02 — The sketch plane is its frame (#3775): Ev approved ("sounds good! deleting SketchPlane and just using orthoframe directly could also work. either is fine"). Fork row 43 is filled. The implementation is `the-sketch-plane-is-its-frame`, parked on 5b. It keeps the newtype unless the wrapper turns out to earn nothing.
+
+- 2026-10-03 — Seam note from PCERT. M10-9's filleted bracket and pad refuse at `pcurve_envelope` since PRs 3759 and 3812 (extrude now mints rows). A designer pair traced it to the profile fillet's chord-and-bulge lowering: the fillet cylinder's Frame, Radius and FidelityU terms stand on `|L(1+b²)/4b|`, `sqrt 2` and `copysign`/`abs` atoms. Both designers found the fix is 5b (`store-constructed-carriers`) under D1 (PR 3453), with one line for the fillet arm: tangent points spelled from the centre and the authored radius (`t = centre ± r·n̂`), with the turn as a decided literal sign. `work/pcert/fillet-meridian-radius-term-is-registered-only` (P0) is parked on 5b and has the measurements. Please rank 5b to carry that loss (it is P1 today). PCERT will re-measure when it lands. (PCERT orchestrator)
+
+## 2026-10-03 — HOLD: a refactor of dependency, placement and intent is underway (Ev, `[ev]` PR #3990)
+
+Ev has opened a redesign of how a document says that one thing depends
+on another and that things are meant to coincide. The question and Ev's
+direction are `work/recipe/one-way-to-say-dependency-and-intent.md`;
+the design lands through `[ev]` PR #3990. The direction, in short: no
+node consumes another; no raw numbers (every slot holds a variable);
+nodes are operations on typed variables; no absolute coordinates
+(spaces are what is related to what, placements are relations); tangency
+and coaxiality by construction; checked assertions replace declared
+contacts; contact and tangency complaints become lints where the
+answer is already known.
+
+**Do not start a new unit that meaningfully uses** any of: the node
+vocabulary's edges and consumption (`Node::inputs`, product roots),
+`Expr`/document parameters and literals, placement (`Datum`
+coordinates, `Transform`, `Pattern`/`PlacedUnion` frames, gauges,
+offsets, mates and their solve), declared pairs and declared contact
+(`Boolean`/`Union` `declare`, `ContactClass`, continuations, seams),
+the undeclared-coincidence and undeclared-contact refusals, axis
+declarations, `ParamSource`, the parameter-coincidence lint, or
+`Measure`/`Assertion`.
+
+**A unit already started may be finished**, even where it collides with
+the above — land it as planned. Park each row the hold covers
+(`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
+so the row fires when the ruling closes). If that leaves your program
+with nothing it may start, set its `status` to `blocked` and stop.
+
+## 2026-10-03 — the intent refactor's hold now waits on the build, not the ruling (Ev ratified #3990)
+
+Ev ratified DESIGN.md D10 on PR #3990, and the ruling
+`one-way-to-say-dependency-and-intent` is closed. The hold announced in
+the entry before this one CONTINUES until D10 is built: it now waits on
+`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md`. Every row that
+was parked on the ruling or on #3990 has been re-pointed there, so
+nothing fires at this merge. Park any further held row with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Units already
+started may still finish. Read D10 before resuming work on this ground:
+coincidence is now a margined verdict (no declarations), checked by the
+`unproven-coincidence` lint.
+
+## 2026-10-06 — seam note from SHELL: demos red on main
+
+SHELL filed `demos-red-on-main-klein-pin-retired-and-certified-cells-moved` (P0, E) on this slate. `demo-tour`'s klein findings pin 10 says it retired, and the certified-cells header moved. #3774 is the likely cause. Every PR that runs the demos job inherits the red.
+## 2026-10-06 — the sketch plane waits on D10 too
+
+`the-sketch-plane-is-its-frame` now also waits on `d10-one-way-to-say-intent-is-unbuilt`, because a sketch plane is a placement and so falls under the D10 hold. It stays parked on `store-constructed-carriers` as well.
+
+- 2026-10-06 — D10 and the lattice's `.tangent()`. Ev: "the refactor is likely to change the details of how `.tangent()` works under the hood, but the api will likely stay similar".
+  - Read: units on how segments are stored (3, 4, 6) and the storage P0s may start under the hold.
+  - A unit that reworks how declared tangent joints are recorded or verified waits for D10's build, as the sketch plane does.
+
+- 2026-10-06 — 5b merged (#3774, `33e5000fb`; DR-88). Unit 3 (`one-segment-loop-through-builders`) dispatched on `claude/clever-bardeen-4itqb3`, restarted from main.
+  - D10 check: it changes how a closed loop is stored and swept, not intent or placement, so it may start under the hold.
+  - Review tier: dual. It is new topology (one periodic wall with a seam strut), where a wrong body ships silently.
+## 2026-10-06 — PR 3774 fired the klein tour's tripwire on main
+
+PR 3774 ("constructions store the carriers they build") retired the
+klein scene's findings entry 10, the outer-wall radius that drifted
+because the revolve rebuilt it from swept endpoints. The two
+outer-wall cylinders now carry the one authored radius.
+`demos/tour/src/klein.rs` pinned that drift and was written to panic
+when it retired. PR 3774's own CI skipped the demos job (change
+filter), so the tripwire fired on main instead, and every tour
+`eps_regression` row was red there. CLEAVE PR 4083, which seeds the
+demos job, met it and ported the retirement the tripwire prescribed:
+it deleted entry 10 and its pin, renumbered entries 11 and 12 and their
+citations, and noted under the "same cylinder, four ways" entry that the
+two outer walls share the authored radius. The scene itself was right
+and is unchanged. (CLEAVE orchestrator, via the ray-walk lane)
+- 2026-10-06 — From FUSE: demo-tour's Klein pin (`klein.rs:876`,
+  findings entry 10) fires on main at every `eps_regression` row since
+  PR 3774 (PATHS 5b). The FUSE 3953 lane bisected it. Filed as
+  `work/paths/a-klein-wall-radius-pin-fires-on-main-since-paths-5b.md`
+  (P0): the pin's own text says the entry has retired. Every PR that
+  merges main is red on the `demos` job until it is resolved.
+
+- 2026-10-06 — #4175: Ev approved the wrap edge ("sounds good!"). Fork row 75 is filled. Implementation is `one-segment-loop-revolves-and-lofts-to-one-wall`, parked on unit 3. Unit 4 is blocked on it and on the one-cut JOIN row.
+
+- 2026-10-06 — Unit 3 merged (#4169, `252db21ff`; DR-92, no MAJOR from either reviewer). The fix pass also fixed three things the review found:
+  - split's lever reading on a one-vertex cap;
+  - the tangent-plane split through the strut;
+  - contact near a full turn's vertex, now a crossing.
+
+  `one-segment-loop-revolves-and-lofts-to-one-wall` is dispatched on `claude/clever-bardeen-4itqb3`, restarted from main.
+  - D10 check: the unit changes how a face's chart closes (the wrap edge) and how closed walls are swept and read. It touches no intent, placement or declared contact, and `BooleanCoincidence::Seam` stays as it is, so it may start under the hold.
+  - Review tier: dual (H). It is new topology through every face reader, where a wrong body ships silently.
+- 2026-10-06 — `demos-red-on-main-klein-pin-retired-and-certified-cells-moved` (P0) closed: CLEAVE PR 4083 had already fixed both rows on main (`65b1b0a838`).
+- 2026-10-06 — Red on main at ε = 1e-6 since #4169 (`252db21ff`): `one_segment_loop::a_split_through_the_seam_builds_as_the_two_arc_form_does` held a curved-cut quadrature midpoint (7.3e-6 off, pad 1.3e-3) to a fixed 1e-9. #4205 checks the certified bracket instead. The sibling checks are filed as `work/quad/sweep-tests-hold-quadrature-midpoints-to-fixed-tolerances.md`.
+## 2026-10-06 — seam note from CARVE: main is red on a PATHS row at ε = 1e-6
+
+`crates/sweep/tests/one_segment_loop.rs`
+`a_split_through_the_seam_builds_as_the_two_arc_form_does` fails at
+`CAD_TOLERANCE_EPS=1e-6`, with volume `3.1415853098901643` against π.
+CARVE's surface-pair lane (PR 4189) found it, and it reproduces on
+`origin/main` `3f3378808`. It came with PR 4169 (`0aad1a1b9`,
+`3bfd6a9b0`). The per-PR gate runs the 1e-6 row only for a diff
+touching `sweep`. CARVE's open PRs touch `sweep`, so they will show it
+red until PATHS fixes it, and CARVE merges them over it with this as
+the reason.
+
+Signed: (CARVE orchestrator)
+
+- 2026-10-07 — The wrap-edge unit merged (#4226, `e1efb472c`; DR-100, no MAJOR from either reviewer). A one-segment loop now revolves and lofts to one wall, and the one-face full torus is adopted.
+  - The fix pass made tier 3 hold the wrap flag both ways. That exposed a STEP slit adopted unflagged (`dm1-id-214.stp`); step-import now flags it as the face's wrap edge.
+  - Two of main's reds were ported by merge, not caused here: the meeting fixture's gates (#4229/#4230), and `SectorRead`'s rung disposition (#4242).
+  - Main's new `boolean/edge_join.rs` (FUSE, #4233) still read the renamed field, so the merge renamed it there.
+
+  Unit 4 (`circle-lowers-to-one-segment`) now waits only on JOIN's `a-plane-across-a-one-face-wall-meets-its-wrap-edge-once`.
+- 2026-10-07 — `profile-fillet-radius-off-at-eps-1e-6` (P0) is dispatched on `claude/clever-bardeen-4itqb3`. The seed still reds on main `e1efb472c` with the same message.
+  - D10 check: it is fillet construction accuracy, the tangent point `t2` lying off its own circle by about ε/2. It does not rework how declared tangent joints are recorded or verified, so it may start under the hold, and the lane stops if the fix needs to.
+  - Review tier: dual (H). The fillet construction feeds every filleted profile.
+- 2026-10-07 — `profile-fillet-radius-off-at-eps-1e-6` (P0) closes on `claude/clever-bardeen-4itqb3`. The seed's corner has no exact fillet: its offset circles miss tangency by 5.27e-7, inside the 1e-6 band. The decided centre was the radical-line foot, which carried that gap amplified by (ρ₁ + ρ₂)/d (1.117x here, unbounded on near-equal carriers).
+  - The centre now sits midway between the offset circles' nearest points, so each arc×arc rim carries half the gap: the floor where the circles are separated, a bound where they cross. The oracle pins each rim at half the gap, and a pinned sweep draws the decided class at both scalars.
+  - The D10 hold did not bind: no joint's recording or verification changed. The sibling sites are filed as `decided-tangent-point-is-the-radical-foot`.
+
+- 2026-10-07 — The fillet-radius P0 merged (#4259, `4aadf5b72`; DR-103, no MAJOR from either reviewer). On a decided offset tangency the fillet centre is the link midpoint: the floor on the separated side, a bound on the crossing side. The oracle now pins each rim at gap/2, and a seeded sweep of decided tangencies runs in the fast set.
+- 2026-10-07 — `a-straight-arrival-off-an-arc-departure-escalates-in-carrier-line-circle` (P0, M) is dispatched on `claude/clever-bardeen-4itqb3`.
+  - D10 check: it is a validation-pair escalation on a drawn path. It touches no intent, placement or declared contact, so it may start under the hold.
+  - Review tier: single. It is one predicate's verdict on one drawn family.
+- 2026-10-07 — `a-straight-arrival-off-an-arc-departure-escalates-in-carrier-line-circle` closed on `claude/clever-bardeen-4itqb3`. The path placed nothing in error: validation escalated on carrier readings whose contact lies off a segment. `seg::line_arc` now asks the arc's span before an in-band `carrier_line_circle` escalates, and `seg::joint` answers on either span's definite miss of a secant candidate; the tangent arms still escalate on an in-band span reading. The siblings are filed as `validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc` (P2). The review measured a pre-existing silent miss in the tangent arms, filed as `validate-settles-a-tangent-pair-on-one-candidate-and-misses-a-touch-within-eps` (P0).
+
+- 2026-10-07 — The path_property 1e-6 P0 merged (#4264, `f2e995806`, single review). Validation asks the segments' spans before an in-band secant carrier escalates. The tangent arms keep main's escalation, so the PR does not widen the hole the review found; that hole is filed as its own P0.
+- 2026-10-07 — `validate-settles-a-tangent-pair-on-one-candidate-and-misses-a-touch-within-eps` (P0, M) is dispatched on `claude/clever-bardeen-4itqb3`.
+  - D10 check: it is validation's contact reading. It records and verifies no declared contact, so it may start under the hold; the lane stops if the fix needs that.
+  - Review tier: dual. Difficulty letter M. The arm is drawn by `/dev/urandom` byte 208 (mod 3 = 1): SEQUENTIAL.
+- 2026-10-07 — `validate-settles-a-tangent-pair-on-one-candidate-and-misses-a-touch-within-eps` (P0) closed on `claude/clever-bardeen-4itqb3`.
+  - A whole profile reaches the hole: two holes touching at a vertex whose two arcs each miss their own tangency with the other edge. It validated on `main` at both scalars and three ε.
+  - A candidate that a span definitely misses now leaves the pair's segment ends to read (`seg::end_touches`, new predicate `circle_side`). This applies in the tangent arms and in the secant arms; the widened sweep showed that a shallow crossing has the same hole.
+  - D10's hold did not bind.
+

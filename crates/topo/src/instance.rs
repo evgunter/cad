@@ -89,23 +89,31 @@ use crate::entity::SolidKey;
 ///
 /// # Errors
 ///
-/// [`BooleanError`] — the transplant's own refusals: `JoinDesync` when
-/// `src` is not a well-formed single-solid body, `GraftRecertify` when
-/// a transplanted edge description does not re-certify against the
-/// destination's surfaces.
+/// [`BooleanError::JoinDesync`] when `src` does not hold exactly one
+/// solid; [`graft_disjoint_all`]'s refusals otherwise, with `dst`
+/// deep-unchanged.
+///
+/// # Panics
+///
+/// As [`graft_disjoint_all`].
 pub fn graft_disjoint<T: geom_core::Decide>(
     dst: &mut Body<T>,
     src: &Body<T>,
 ) -> Result<SolidKey, BooleanError> {
     if src.solids().count() != 1 {
         return Err(BooleanError::JoinDesync {
-            what: "graft source is not a well-formed single-solid body",
+            what: "graft source does not hold exactly one solid",
         });
     }
-    let mut keys = graft_disjoint_all(dst, src)?;
-    keys.pop().ok_or(BooleanError::JoinDesync {
-        what: "graft source is not a well-formed single-solid body",
-    })
+    let keys = graft_disjoint_all(dst, src)?;
+    let [key] = keys[..] else {
+        unreachable!(
+            "a committed graft mints one solid per source solid, and the source was \
+             checked to hold exactly one; it minted {} (kernel bug)",
+            keys.len()
+        )
+    };
+    Ok(key)
 }
 
 /// Grafts EVERY solid of `src` into `dst`, each as a new solid,
@@ -133,20 +141,23 @@ pub fn graft_disjoint<T: geom_core::Decide>(
 ///
 /// # Errors
 ///
-/// [`BooleanError::JoinDesync`] — when `src` holds no solid, when a
-/// solid has no provenance, or when a source-internal reference does
-/// not resolve during the remap. **`GraftRecertify` is not among them
-/// at this door**, and the distinction is load-bearing rather than
-/// pedantic: this door bridges with `combine::Bridge::RemapKeys`, whose
-/// arm carries each certificate verbatim and never reaches the
-/// re-certification that is the only site raising that variant. Only
-/// the in-crate `Bridge::Recertify` path (the booleans') can.
+/// [`BooleanError::JoinDesync`] when `src` holds no solid. **That is
+/// the only refusal at this door**: it bridges with
+/// `combine::Bridge::RemapKeys`, whose arm carries each certificate
+/// verbatim and never reaches the re-certification that is the only
+/// site raising `GraftRecertify`. Only the in-crate `Bridge::Recertify`
+/// path (the booleans') can.
 ///
-/// The failure STATE is unchanged and is what a caller must plan for:
-/// the destination solids are minted before the transplant, and the
-/// remap writes as it goes, so a `JoinDesync` raised mid-transplant
-/// leaves `dst` partially written — a failed graft's destination is
-/// spent, never resumable.
+/// # Panics
+///
+/// Where a record of `src` names something `src` does not hold, or a
+/// solid of it carries no provenance, naming it (D2 row 4): `src` is a
+/// body every public door keeps tier-1-valid.
+///
+/// **Every refusal and every such panic leaves `dst` deep-unchanged.**
+/// The transplant runs into a fresh staging body and is committed into
+/// `dst` only once it has succeeded in full, so a caller keeps the
+/// destination it had and no refusal leaves a body tier-1-invalid.
 pub fn graft_disjoint_all<T: geom_core::Decide>(
     dst: &mut Body<T>,
     src: &Body<T>,
@@ -240,8 +251,8 @@ impl GraftKeys {
 ///
 /// # Errors
 ///
-/// Exactly [`graft_disjoint_all`]'s, including its spent-destination
-/// failure state.
+/// Exactly [`graft_disjoint_all`]'s, with `dst` deep-unchanged on
+/// every one. The returned keys name entities of `dst` as committed.
 pub fn graft_disjoint_all_keyed<T: geom_core::Decide>(
     dst: &mut Body<T>,
     src: &Body<T>,
@@ -251,77 +262,37 @@ pub fn graft_disjoint_all_keyed<T: geom_core::Decide>(
             what: "graft source holds no solid to graft",
         });
     }
+    #[cfg(debug_assertions)]
+    let before = dst.arena_counts();
     let (map, targets) = crate::boolean::combine::graft_solids_minted(
         dst,
         src,
         crate::boolean::combine::Bridge::RemapKeys,
     )?;
+    #[cfg(debug_assertions)]
+    dst.assert_euler_postcondition(before, graft_delta(src), "graft_disjoint_all_keyed");
     Ok(GraftKeys {
         solids: targets,
         map,
     })
 }
 
-/// Grafts every solid of `src` onto ALREADY-EXISTING destination
-/// solids, one target per source solid, so the source's shells join
-/// solids that are already there instead of minting new ones.
-///
-/// The same transplant as [`graft_disjoint_all_keyed`], with the one
-/// difference the caller's semantics ask for. Repeating a key in
-/// `targets` is legal and is the point: N placed copies of a
-/// single-solid prototype grafted onto the SAME target become one solid
-/// of N shells.
-///
-/// **Why this shape exists.** It is what a UNION of separated bodies
-/// already means in this kernel: the boolean pipeline's `combine` door
-/// transplants a disjoint operand's shells into the destination's
-/// EXISTING solid, so a chain of pairwise `Union`s over N separated
-/// bodies produces one solid of N shells — and the seamed boolean path
-/// accepts that result as an operand, while an N-SOLID body is refused
-/// (`setopfinish`'s single-solid gate). A group union that wants to
-/// feed a later boolean must therefore produce the representation the
-/// chain it replaces produced, entity for entity.
-///
-/// Validity remains the caller's, exactly as at the sibling doors: the
-/// shells must genuinely be disjoint, and nothing here checks it
-/// ([`crate::Separation`] is the door that certifies it). Touching or
-/// overlapping shells build a body the at-rest validator cannot catch
-/// (module docs, #382).
-///
-/// The returned bridge's `solids()` is `targets`, echoed — the same
-/// positional contract, so a caller re-keying per source solid needs no
-/// special case.
-///
-/// # Errors
-///
-/// Exactly [`graft_disjoint_all_keyed`]'s, plus `JoinDesync` when a
-/// target is not a live solid of `dst` or the arity does not match the
-/// source's solid count.
-pub fn graft_disjoint_all_onto_keyed<T: geom_core::Decide>(
-    dst: &mut Body<T>,
-    targets: &[SolidKey],
-    src: &Body<T>,
-) -> Result<GraftKeys, BooleanError> {
-    if targets.iter().any(|&k| dst.get_solid(k).is_none()) {
-        return Err(BooleanError::JoinDesync {
-            what: "graft destination solid is not live",
-        });
+/// A graft's arena shift: one fresh entity per live source entity, a
+/// minted solid per source solid included (the dead-on-arrival keys it
+/// mints for dead record payloads are removed at once).
+#[cfg(debug_assertions)]
+fn graft_delta<T: geom_core::Decide>(src: &Body<T>) -> crate::euler::ArenaDelta {
+    let c = src.arena_counts();
+    let n = |x: usize| isize::try_from(x).unwrap_or(isize::MAX);
+    crate::euler::ArenaDelta {
+        solids: n(c.solids),
+        shells: n(c.shells),
+        faces: n(c.faces),
+        loops: n(c.loops),
+        half_edges: n(c.half_edges),
+        edges: n(c.edges),
+        vertices: n(c.vertices),
     }
-    if src.solids().next().is_none() {
-        return Err(BooleanError::JoinDesync {
-            what: "graft source holds no solid to graft",
-        });
-    }
-    let map = crate::boolean::combine::graft_solids_with(
-        dst,
-        targets,
-        src,
-        crate::boolean::combine::Bridge::RemapKeys,
-    )?;
-    Ok(GraftKeys {
-        solids: targets.to_vec(),
-        map,
-    })
 }
 
 /// Direct rows for this door (R1 MINOR-2): the integration coverage
@@ -429,6 +400,93 @@ mod tests {
         }
     }
 
+    /// Sources torn so the transplant meets the tear only after it has
+    /// begun writing its stage: a half-edge whose `next` dangles, met in
+    /// the cross-reference pass after every arena has been copied; a
+    /// solid listing a dead shell, met at the shell attachment, the
+    /// transplant's last step, after the minted solids exist. A public
+    /// consumer cannot build either (every public door keeps tier 1, and
+    /// tier 1 vouches for both references), so the tear takes
+    /// `pub(crate)` reach: these stand for whatever a kernel bug
+    /// elsewhere leaves. Each comes with the record its panic names.
+    fn torn_sources() -> [(&'static str, Body<f64>, String); 2] {
+        use crate::entity::{EntityId, HalfEdgeKey, ShellKey};
+        let mut next = cube();
+        let he = next.half_edges.iter().next().unwrap().0;
+        next.get_half_edge_mut(he).unwrap().next = HalfEdgeKey::default();
+        let mut shell = cube();
+        let solid = shell.solids().next().unwrap().0;
+        shell
+            .get_solid_mut(solid)
+            .unwrap()
+            .shells
+            .push(ShellKey::default());
+        [
+            (
+                "a dangling `next` (cross-reference pass)",
+                next,
+                format!(
+                    "{}'s next names {}",
+                    EntityId::HalfEdge(he),
+                    EntityId::HalfEdge(HalfEdgeKey::default())
+                ),
+            ),
+            (
+                "a dead shell in the solid's list (attachment)",
+                shell,
+                format!(
+                    "{}'s shells names {}",
+                    EntityId::Solid(solid),
+                    EntityId::Shell(ShellKey::default())
+                ),
+            ),
+        ]
+    }
+
+    /// **A torn source panics naming the record, at every graft door,
+    /// and the destination is deep-unchanged** — every row, every
+    /// provenance record, every arena's next key — and so still tier-1
+    /// valid. The panic fires inside the stage, after the transplant has
+    /// begun writing it; a destination written before it would differ
+    /// from its snapshot and fail tier 1 (an empty minted solid is
+    /// `SolidWithoutShells`).
+    #[test]
+    fn a_torn_source_panics_with_the_destination_deep_unchanged() {
+        type Door = fn(&mut Body<f64>, &Body<f64>) -> Result<(), crate::boolean::BooleanError>;
+        let doors: [(&str, Door); 3] = [
+            ("graft_disjoint", |d, s| graft_disjoint(d, s).map(drop)),
+            ("graft_disjoint_all", |d, s| {
+                crate::instance::graft_disjoint_all(d, s).map(drop)
+            }),
+            ("graft_disjoint_all_keyed", |d, s| {
+                graft_disjoint_all_keyed(d, s).map(drop)
+            }),
+        ];
+        for (door, graft) in doors {
+            for (tear, src, names) in torn_sources() {
+                let mut dst = cube();
+                let before = deep_snapshot(&dst);
+                let report =
+                    crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+                        let _ = graft(&mut dst, &src);
+                    }));
+                for fragment in [names.as_str(), crate::live::NAMES_ONLY_LIVE] {
+                    assert!(
+                        report.contains(fragment),
+                        "{door}, {tear}: want {fragment:?} in: {report}"
+                    );
+                }
+                assert_eq!(
+                    deep_snapshot(&dst),
+                    before,
+                    "{door}, {tear}: the panicking graft wrote the destination (tier 1 now: {:?})",
+                    crate::validate(&dst),
+                );
+                assert_eq!(crate::validate(&dst), Ok(()), "{door}, {tear}");
+            }
+        }
+    }
+
     /// **A planted collision refuses LOUD.** The door's precondition is
     /// a single-solid source; a body that is not one is `JoinDesync`,
     /// never a partial transplant.
@@ -438,7 +496,15 @@ mod tests {
         let mut dst = cube();
         let before = deep_snapshot(&dst);
         let err = graft_disjoint(&mut dst, &Body::<f64>::new()).expect_err("no solid to graft");
-        assert!(format!("{err:?}").contains("JoinDesync"), "{err:?}");
+        assert!(
+            matches!(
+                err,
+                crate::BooleanError::JoinDesync {
+                    what: "graft source does not hold exactly one solid"
+                }
+            ),
+            "{err:?}"
+        );
         assert_eq!(
             deep_snapshot(&dst),
             before,
@@ -452,7 +518,15 @@ mod tests {
         let mut dst = cube();
         let before = deep_snapshot(&dst);
         let err = graft_disjoint(&mut dst, &two).expect_err("two solids in the source");
-        assert!(format!("{err:?}").contains("JoinDesync"), "{err:?}");
+        assert!(
+            matches!(
+                err,
+                crate::BooleanError::JoinDesync {
+                    what: "graft source does not hold exactly one solid"
+                }
+            ),
+            "{err:?}"
+        );
         assert_eq!(
             deep_snapshot(&dst),
             before,
@@ -516,6 +590,45 @@ mod tests {
         src.kev_describing(he0, &chords, tol)
             .expect("the first child dies");
         [e1, e2, e3]
+    }
+
+    /// **Staging moves no key.** A staged graft leaves `dst` exactly as
+    /// a transplant straight into it would, next keys included, and
+    /// returns the same bridge, onto minted and onto existing solids —
+    /// on a source whose records name dead
+    /// edges (so the dead-on-arrival keys are minted twice over) and a
+    /// destination with freed slots for the commit to reuse.
+    #[test]
+    fn a_staged_graft_is_key_for_key_the_unstaged_one() {
+        let mut src = cube();
+        let e0 = src.edges().next().unwrap().0;
+        split_thrice_and_kill_the_parent(&mut src, e0);
+        let mut dst = cube();
+        let d0 = dst.edges().nth(3).unwrap().0;
+        split_thrice_and_kill_the_parent(&mut dst, d0);
+        let mut unstaged = dst.clone();
+        let staged = graft_disjoint_all_keyed(&mut dst, &src).expect("the staged graft");
+        let (map, solids) = crate::boolean::combine::graft_unstaged(&mut unstaged, &[], &src)
+            .expect("the unstaged graft");
+        assert!(!map.dead_edges.is_empty(), "the source names a dead edge");
+        assert_eq!(deep_snapshot(&dst), deep_snapshot(&unstaged), "minted");
+        assert_eq!(staged.solids, solids);
+        assert_eq!(format!("{:?}", staged.map), format!("{map:?}"));
+
+        // Onto an existing solid (the void door's and the booleans' shape).
+        let target = dst.solids().next().unwrap().0;
+        let mut unstaged = dst.clone();
+        let staged = crate::boolean::combine::graft_solids_with(
+            &mut dst,
+            &[target],
+            &src,
+            crate::boolean::combine::Bridge::RemapKeys,
+        )
+        .expect("the staged graft");
+        let (map, _) = crate::boolean::combine::graft_unstaged(&mut unstaged, &[target], &src)
+            .expect("the unstaged graft");
+        assert_eq!(deep_snapshot(&dst), deep_snapshot(&unstaged), "existing");
+        assert_eq!(format!("{staged:?}"), format!("{map:?}"));
     }
 
     /// **A grafted split lineage chases inside the destination, to the
@@ -628,8 +741,8 @@ mod tests {
     fn a_minted_solids_record_names_the_destination_solid() {
         let mut src = cube();
         let first = src.solids().next().unwrap().0;
-        crate::instance::graft_disjoint_all_onto_keyed(&mut src, &[first], &cube())
-            .expect("a second shell under the first solid");
+        graft_disjoint_all_keyed(&mut src, &cube()).expect("a second cube");
+        src.merge_all_solids().unwrap();
         let moved = src.shells_of_solid(first).unwrap()[1];
         src.move_shells_to_new_solid(&[moved])
             .expect("a second solid");

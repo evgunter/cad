@@ -7,7 +7,7 @@
 //! * the three components of a 3-vector are ONE panel row
 //!   (`props::group_rows`),
 //! * a value is shown in the unit its literal — or, for a document
-//!   parameter, its DECLARATION — remembers, and authored back through
+//!   variable, its DECLARATION — remembers, and authored back through
 //!   the same factor (`rendering_unit` / `in_written` / `from_written`),
 //!   at a drag tick in that same unit (`app::FieldWriting`),
 //! * a range probe's reading is written in the unit the SEARCH ran in
@@ -27,9 +27,10 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::ExtrudeSide;
 
 use pncad::document::{
-    Axis3, Datum, Dimension, Doc, DocEdit, DocParam, Expr, Node, ParamName, ProfileProgram, SlotId,
+    Axis3, Datum, Dimension, Doc, DocEdit, Formula, FreeVar, Node, ProfileProgram, SlotId, VarName,
     VectorSlot,
 };
 use pncad::geom_core::Tol;
@@ -155,6 +156,7 @@ fn a_slot_is_written_in_the_unit_its_literal_remembers() {
         Node::Extrude {
             profile,
             distance: common::len_mm(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -177,6 +179,7 @@ fn a_slot_is_written_in_the_unit_its_literal_remembers() {
         Node::Extrude {
             profile,
             distance: common::len(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -223,7 +226,7 @@ fn a_slot_is_written_in_the_unit_its_literal_remembers() {
     // Half-turns are still a row a user can PICK — the notation this
     // editor says angles in, and the creation forms' angle default. It
     // is now named by the literal rather than supplied by the reader.
-    let turn = Expr::literal_with_unit(core::f64::consts::TAU, Dimension::Angle, PI.def())
+    let turn = Formula::literal_with_unit(core::f64::consts::TAU, Dimension::Angle, PI.def())
         .expect("a full turn in half-turns");
     let unit = turn.display_unit().expect("a literal names its unit");
     assert_eq!(unit.symbol(), "pi rad");
@@ -304,6 +307,7 @@ fn a_value_edit_keeps_the_slots_rendering_unit() {
         Node::Extrude {
             profile,
             distance: common::len_mm(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -362,6 +366,7 @@ fn changing_the_display_unit_leaves_the_value_bit_identical() {
         Node::Extrude {
             profile,
             distance: common::len(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -372,7 +377,7 @@ fn changing_the_display_unit_leaves_the_value_bit_identical() {
             pncad::document::Step::Rigid {
                 translation: [common::len(0.0), common::len(0.0), common::len(0.0)],
                 axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                angle: Expr::literal_with_unit(
+                angle: Formula::literal_with_unit(
                     core::f64::consts::FRAC_PI_2,
                     Dimension::Angle,
                     DEG.def(),
@@ -473,6 +478,7 @@ fn a_unit_change_refuses_typed_on_a_computed_slot_and_a_foreign_unit() {
         Node::Extrude {
             profile,
             distance: common::len(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -507,6 +513,7 @@ fn the_field_shows_a_bare_literals_number_without_its_unit() {
         Node::Extrude {
             profile,
             distance: common::len_mm(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -614,6 +621,7 @@ fn a_typed_literal_with_a_unit_authors_the_display_unit_too() {
         Node::Extrude {
             profile,
             distance: common::len_mm(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -665,12 +673,12 @@ fn a_typed_literal_with_a_unit_authors_the_display_unit_too() {
     assert_eq!(props::field_text(&row, Notation::DEFAULT), "2");
 }
 
-/// **A parameter declared in millimetres reads in millimetres**, and a
+/// **A variable declared in millimetres reads in millimetres**, and a
 /// number authored against that row lands as the millimetres it says.
 ///
-/// The row is the panel's whole account of a document parameter, so
+/// The row is the panel's whole account of a document variable, so
 /// this is the claim a canonical-unit row breaks: `50 mm` shown as
-/// `0.05` is the panel saying metres about a parameter nobody wrote in
+/// `0.05` is the panel saying metres about a variable nobody wrote in
 /// metres. The value that CROSSES `props` stays canonical either way —
 /// the conversion is the field's, the same one a slot's does.
 ///
@@ -683,26 +691,28 @@ fn a_typed_literal_with_a_unit_authors_the_display_unit_too() {
 fn a_millimetre_parameter_reads_and_authors_in_millimetres() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-param-unit", tol);
-    let name = ParamName::from_static("base_r");
+    let name = VarName::from_static("base_r");
     let (doc, _) = common::edited(
         &doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: name.clone(),
-            value: DocParam::written_length(WrittenLength::in_unit(50.0, MM)),
+            def: pncad::document::VarDecl::Free(FreeVar::written_length(WrittenLength::in_unit(
+                50.0, MM,
+            ))),
         },
         tol,
     );
     let mut session = DocSession::inline(doc, tol);
     let row = |session: &DocSession| {
-        props::param_rows(session.doc())
+        props::variable_rows(session.doc())
             .into_iter()
-            .find(|row| row.name == name)
-            .expect("the parameter row")
+            .find(|row| row.label.name() == Some(&name))
+            .expect("the variable row")
     };
 
     let before = row(&session);
     let unit = rendering_unit(before.dimension, before.unit, Notation::DEFAULT)
-        .expect("a length parameter");
+        .expect("a length variable");
     assert_eq!(
         unit.symbol(),
         "mm",
@@ -716,8 +726,8 @@ fn a_millimetre_parameter_reads_and_authors_in_millimetres() {
 
     // A value edit through the panel's own door: the number moves, the
     // notation beside it does not.
-    let outcome = session.perform(SessionOp::SetParam {
-        name: name.clone(),
+    let outcome = session.perform(SessionOp::SetVariable {
+        var: common::var_of(session.committed_doc(), name.as_str()),
         value: SlotValue::of(before.dimension, from_written(60.0, unit))
             .expect("a finite angle is a value"),
     });
@@ -731,25 +741,25 @@ fn a_millimetre_parameter_reads_and_authors_in_millimetres() {
     assert_eq!(after.value, SlotValue::Continuous(0.06));
 }
 
-/// A `Count` parameter names no unit — an instance count is a number,
+/// A `Count` variable names no unit — an instance count is a number,
 /// not a quantity — and the panel's rendering rule agrees.
 #[test]
 fn a_count_parameter_has_no_written_unit() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-param-count", tol);
-    let name = ParamName::from_static("holes");
+    let name = VarName::from_static("holes");
     let (doc, _) = common::edited(
         &doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: name.clone(),
-            value: DocParam::Count { value: 6 },
+            def: pncad::document::VarDecl::Free(FreeVar::Count { value: 6 }),
         },
         tol,
     );
-    let row = props::param_rows(&doc)
+    let row = props::variable_rows(&doc)
         .into_iter()
-        .find(|row| row.name == name)
-        .expect("the parameter row");
+        .find(|row| row.label.name() == Some(&name))
+        .expect("the variable row");
     assert_eq!(row.unit, None);
     assert_eq!(
         rendering_unit(row.dimension, row.unit, Notation::DEFAULT),
@@ -758,7 +768,7 @@ fn a_count_parameter_has_no_written_unit() {
     assert_eq!(row.value, SlotValue::Count(6));
 }
 
-/// **A parameter's range reading is written in the unit the search
+/// **A variable's range reading is written in the unit the search
 /// used**, and this row establishes that by RUNNING the search: it
 /// probes, then reads the sentence the panel would draw.
 ///
@@ -768,19 +778,19 @@ fn a_count_parameter_has_no_written_unit() {
 /// probe stores the unit it stepped by (`BoundsReading::unit`) and the
 /// reading is written in that stored unit, so a hand-built `Bounds`
 /// beside a hand-picked unit would assert nothing about the pairing.
-/// Both parameters below drive the same feature and differ only in the
+/// Both variables below drive the same feature and differ only in the
 /// notation they were DECLARED in.
 #[test]
 fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
-    let reading = |value: DocParam| {
+    let reading = |value: FreeVar| {
         let tol = Tol::witness();
         let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-param-range", tol);
-        let name = ParamName::from_static("thickness");
+        let name = VarName::from_static("thickness");
         let (doc, _) = common::edited(
             &doc,
-            DocEdit::SetDocParam {
+            DocEdit::DeclareVar {
                 name: name.clone(),
-                value,
+                def: pncad::document::VarDecl::Free(value),
             },
             tol,
         );
@@ -789,14 +799,17 @@ fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
             &doc,
             Node::Extrude {
                 profile,
-                distance: Expr::param(name.clone(), Dimension::Length),
+                distance: Formula::named(name.clone(), Dimension::Length),
+                side: ExtrudeSide::Along,
             },
             tol,
         );
         let mut session = DocSession::inline(doc, tol);
         session.pump();
         let outcome = session.perform(SessionOp::ProbeBounds {
-            target: BoundsTarget::Param { name },
+            target: BoundsTarget::Variable {
+                var: common::var_of(session.committed_doc(), name.as_str()),
+            },
         });
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
         let reading = session.bounds().expect("a probe landed").clone();
@@ -805,15 +818,15 @@ fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
 
     // Declared in millimetres: the search stepped by one millimetre and
     // the sentence says millimetres.
-    let (unit, mm) = reading(DocParam::written_length(WrittenLength::in_unit(8.0, MM)));
+    let (unit, mm) = reading(FreeVar::written_length(WrittenLength::in_unit(8.0, MM)));
     assert_eq!(unit, Some("mm"), "the search ran in the declared unit");
     assert!(mm.contains(" mm"), "{mm}");
     assert!(!mm.contains(" m,") && !mm.contains(" m "), "{mm}");
 
-    // The same parameter declared canonically: same document, same
+    // The same variable declared canonically: same document, same
     // search, a different sentence — so the reading follows the
     // DECLARATION and not the dimension.
-    let (unit, m) = reading(DocParam::continuous(Dimension::Length, 0.008));
+    let (unit, m) = reading(FreeVar::continuous(Dimension::Length, 0.008));
     assert_eq!(unit, Some("m"));
     assert!(m.contains(" m"), "{m}");
     assert!(!m.contains(" mm"), "{m}");
@@ -822,10 +835,10 @@ fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
 test_utils::loud_skip_marker!(
     feature = "app",
     row = app_lane_skipped_no_panel_display_coverage_here,
-    absent = "coverage of the parameter panel's writing",
+    absent = "coverage of the variable panel's writing",
 );
 
-/// **A parameter field is shown, scrubbed and authored in the unit its
+/// **A variable field is shown, scrubbed and authored in the unit its
 /// DECLARATION names** — `app::FieldWriting`, the value the panel
 /// builds one field from.
 ///
@@ -853,26 +866,28 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-param-field", tol);
     let (doc, _) = common::edited(
         &doc,
-        DocEdit::SetDocParam {
-            name: ParamName::from_static("thickness"),
-            value: DocParam::written_length(WrittenLength::in_unit(8.0, MM)),
+        DocEdit::DeclareVar {
+            name: VarName::from_static("thickness"),
+            def: pncad::document::VarDecl::Free(FreeVar::written_length(WrittenLength::in_unit(
+                8.0, MM,
+            ))),
         },
         tol,
     );
     let (doc, _) = common::edited(
         &doc,
-        DocEdit::SetDocParam {
-            name: ParamName::from_static("in_metres"),
-            value: DocParam::continuous(Dimension::Length, 0.008),
+        DocEdit::DeclareVar {
+            name: VarName::from_static("in_metres"),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.008)),
         },
         tol,
     );
-    let rows = props::param_rows(&doc);
+    let rows = props::variable_rows(&doc);
     let writing = |name: &'static str| {
         let row = rows
             .iter()
-            .find(|row| row.name == ParamName::from_static(name))
-            .expect("the parameter row");
+            .find(|row| row.label.name() == Some(&VarName::from_static(name)))
+            .expect("the variable row");
         FieldWriting::of(row.dimension, row.unit, Notation::DEFAULT)
     };
 
@@ -907,6 +922,7 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
         Node::Extrude {
             profile,
             distance: common::len_mm(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -1049,43 +1065,43 @@ fn a_field_showing_source_echoes_its_source_and_nothing_else() {
 }
 
 /// **The create form mints the notation it was authoring in**, through
-/// the total doors — `props::doc_param` over a picked unit is a
+/// the total doors — `props::doc_variable` over a picked unit is a
 /// declaration whose `display_unit` is that unit and whose value is
 /// the canonical one it was handed, unscaled.
 #[test]
 fn the_create_door_mints_a_declaration_in_the_unit_it_was_given() {
-    let minted = props::doc_param(
+    let minted = props::doc_variable(
         Dimension::Length,
         SlotValue::Continuous(0.05),
         Some(MM.def()),
     );
     assert_eq!(
         minted,
-        DocParam::written_length(WrittenLength::canonical_in(0.05, pncad::prelude::MM))
+        FreeVar::written_length(WrittenLength::canonical_in(0.05, pncad::prelude::MM))
     );
-    let row = props::param_rows(&common::declared(
+    let row = props::variable_rows(&common::declared(
         "mint-mm",
-        &ParamName::from_static("base_r"),
+        &VarName::from_static("base_r"),
         minted,
         Tol::witness(),
     ))
     .pop()
-    .expect("the declared parameter");
+    .expect("the declared variable");
     assert_eq!(row.unit.map(|u| u.symbol()), Some("mm"));
     assert_eq!(row.value, SlotValue::Continuous(0.05), "and not rescaled");
     assert_eq!(in_written(row.value.as_f64(), MM.def()), 50.0);
 
     // The angle door is its mirror, and a dimension with no notation
     // takes the canonical declaration — there is nothing to pick.
-    let angle = props::doc_param(
+    let angle = props::doc_variable(
         Dimension::Angle,
         SlotValue::Continuous(1.0),
         Some(DEG.def()),
     );
     assert_eq!(
-        props::param_rows(&common::declared(
+        props::variable_rows(&common::declared(
             "mint-deg",
-            &ParamName::from_static("sweep"),
+            &VarName::from_static("sweep"),
             angle,
             Tol::witness()
         ))
@@ -1095,11 +1111,11 @@ fn the_create_door_mints_a_declaration_in_the_unit_it_was_given() {
         Some("deg")
     );
     assert_eq!(
-        props::doc_param(Dimension::Scalar, SlotValue::Continuous(2.0), None),
-        DocParam::continuous(Dimension::Scalar, 2.0)
+        props::doc_variable(Dimension::Scalar, SlotValue::Continuous(2.0), None),
+        FreeVar::continuous(Dimension::Scalar, 2.0)
     );
     assert_eq!(
-        props::doc_param(Dimension::Count, SlotValue::Count(6), None),
-        DocParam::Count { value: 6 }
+        props::doc_variable(Dimension::Count, SlotValue::Count(6), None),
+        FreeVar::Count { value: 6 }
     );
 }

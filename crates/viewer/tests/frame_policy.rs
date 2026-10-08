@@ -16,6 +16,7 @@
 
 use crate::common;
 use crate::common::plate_index;
+use editor_core::ExtrudeSide;
 use test_utils::refusal::tagged;
 
 use std::sync::Arc;
@@ -24,8 +25,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use common::asm;
 use pncad::document::NodeStanding;
 use pncad::document::{
-    CheckEvidence, CheckFinding, CheckId, ChecksReport, Doc, Expr, Frame, Node, ParamName,
-    ProductError, ProfileProgram, RecipeNodeId, SlotId,
+    CheckEvidence, CheckFinding, CheckId, ChecksReport, Doc, DocumentId, Formula, Frame, Node,
+    ProductError, ProfileProgram, RecipeNodeId, SlotId, SpokenNode, VarName,
 };
 use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::{EntityKind, StableName};
@@ -48,6 +49,25 @@ use viewer::session::{
     AtRestBadge, DocSession, FaceSelection, Hovered, Outstanding, Refusal, Selection, SessionOp,
     Step,
 };
+
+/// An empty document and its evaluation: the landed pair a door that
+/// says its names within an evaluation is handed where nothing is drawn.
+fn empty_landed(
+    name: &str,
+) -> (
+    Doc<pncad::document::ProfileProgram>,
+    pncad::document::Evaluation<f64>,
+) {
+    let doc = Doc::empty_derived(name, Tol::witness());
+    let evaluation = pncad::document::evaluate(
+        &doc,
+        None,
+        &pncad::document::CancelToken::new(),
+        &pncad::document::EvalOptions::default(),
+        Tol::witness(),
+    );
+    (doc, evaluation)
+}
 
 fn plate_session(tol: Tol) -> (DocSession, RecipeNodeId) {
     let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
@@ -124,16 +144,19 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
     // carries the answer its event arm gives rather than a second
     // spelling of it.
     let target = BlendTarget {
-        node: RecipeNodeId(tagged(3)),
+        node: RecipeNodeId::new(0, tagged(3)),
         body: 0,
     };
-    let notice = frame::tool_notice(&ToolNotice::Blend(BlendEvent::OtherTarget {
-        held: target,
-        picked: BlendTarget {
-            node: RecipeNodeId(tagged(5)),
-            body: 0,
-        },
-    }));
+    let notice = frame::tool_notice(
+        &ToolNotice::Blend(BlendEvent::OtherTarget {
+            held: target,
+            picked: BlendTarget {
+                node: RecipeNodeId::new(0, tagged(5)),
+                body: 0,
+            },
+        }),
+        None,
+    );
 
     // The batch alone, with the notice left out: the frame acted,
     // nothing refused, so the line is cleared. This is the seam.
@@ -167,10 +190,14 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
     // `status` from each in turn keeps the last and loses the rest,
     // which is the keep-last defect the batch policy already exists to
     // stop for refusals.
-    let second = frame::tool_notice(&ToolNotice::Blend(BlendEvent::TargetLost {
-        target,
-        edges: 6,
-    }));
+    let second = frame::tool_notice(
+        &ToolNotice::Blend(BlendEvent::TargetLost {
+            target,
+            node: pncad::document::SpokenNode::absent(target.node),
+            edges: 6,
+        }),
+        None,
+    );
     let both = frame::frame_status(&[notice.clone(), second.clone()], &declined, None);
     let RankedVerdict::Show(line) = &both else {
         panic!("two notices are shown, got {both:?}");
@@ -217,9 +244,9 @@ fn a_joined_line_splits_back_into_the_notices_it_was_made_from() {
     );
     let dashes = frame::tool_news(
         AdmissionFault::FusedGeometry {
-            instance: RecipeNodeId(tagged(3)),
-            root: RecipeNodeId(tagged(9)),
-            others: vec![RecipeNodeId(tagged(5))],
+            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(3))),
+            root: SpokenNode::absent(RecipeNodeId::new(0, tagged(9))),
+            others: vec![SpokenNode::absent(RecipeNodeId::new(0, tagged(5)))],
         }
         .to_string(),
         frame::Retold::Again,
@@ -338,19 +365,25 @@ fn cause_ordinal(cause: &AdmissionFault) -> usize {
 fn every_cause() -> Vec<AdmissionFault> {
     vec![
         AdmissionFault::NoSuchNode {
-            node: RecipeNodeId(tagged(4)),
+            node: SpokenNode::absent(RecipeNodeId::new(0, tagged(4))),
         },
         AdmissionFault::NotAnInstance {
-            node: RecipeNodeId(tagged(5)),
+            node: SpokenNode::absent(RecipeNodeId::new(0, tagged(5))),
         },
         AdmissionFault::MateConstrained {
-            instance: RecipeNodeId(tagged(6)),
-            mates: vec![RecipeNodeId(tagged(7)), RecipeNodeId(tagged(8))],
+            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(6))),
+            mates: vec![
+                SpokenNode::absent(RecipeNodeId::new(0, tagged(7))),
+                SpokenNode::absent(RecipeNodeId::new(0, tagged(8))),
+            ],
         },
         AdmissionFault::FusedGeometry {
-            instance: RecipeNodeId(tagged(9)),
-            root: RecipeNodeId(tagged(10)),
-            others: vec![RecipeNodeId(tagged(11)), RecipeNodeId(tagged(12))],
+            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(9))),
+            root: SpokenNode::absent(RecipeNodeId::new(0, tagged(10))),
+            others: vec![
+                SpokenNode::absent(RecipeNodeId::new(0, tagged(11))),
+                SpokenNode::absent(RecipeNodeId::new(0, tagged(12))),
+            ],
         },
     ]
 }
@@ -388,8 +421,8 @@ fn a_withdrawn_cause_never_carries_the_list_mark() {
     assert_eq!(
         covered.len(),
         cause_ordinal(&AdmissionFault::FusedGeometry {
-            instance: RecipeNodeId(tagged(1)),
-            root: RecipeNodeId(tagged(2)),
+            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(1))),
+            root: SpokenNode::absent(RecipeNodeId::new(0, tagged(2))),
             others: vec![],
         }) + 1,
         "the vocabulary is bigger than this row covers — see `cause_ordinal`'s obligation",
@@ -428,7 +461,7 @@ fn a_withdrawals_cause_list_splits_back_into_its_causes() {
             .iter()
             .enumerate()
             .map(|(seat, cause)| Withdrawn {
-                instance: RecipeNodeId(tagged(seat as u64 + 20)),
+                instance: RecipeNodeId::new(0, tagged(seat as u64 + 20)),
                 cause: cause.clone(),
             })
             .collect(),
@@ -558,6 +591,7 @@ fn a_startup_notice_echoing_a_key_that_holds_the_boundary_mark_still_splits_back
 /// that names it.
 #[test]
 fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
+    let (cursor, pick) = (empty_landed("cursor"), empty_landed("pick"));
     let camera = Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("a plate frames");
     let projection = camera
         .view_projection(0.0)
@@ -567,7 +601,7 @@ fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
         from_ray: Vec::new(),
     };
     assert_eq!(
-        disagreement.notice().subject(),
+        disagreement.notice((&cursor.0, &cursor.1)).subject(),
         frame::Subject::Cursor,
         "what the two picking paths said is about THIS cursor"
     );
@@ -611,7 +645,10 @@ fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
 
     for (message, what) in [
         (
-            frame::pick_refusal(&pickindex::PickError::Camera(projection)),
+            frame::pick_refusal(
+                &pickindex::PickError::Camera(projection),
+                (&pick.0, &pick.1),
+            ),
             "a cursor action the pick index refused",
         ),
         (
@@ -651,14 +688,14 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
         .expect_err("a zero aspect has no projection");
     let delta = DisplayTolerance::new(0.0).expect_err("zero is not a δ");
     let build = pickindex::PickIndexError::DrawnTwice {
-        node: RecipeNodeId(tagged(3)),
+        node: RecipeNodeId::new(0, tagged(3)),
         body: 0,
     };
     let collision = ProductError::Naming {
-        node: RecipeNodeId(tagged(2)),
+        node: RecipeNodeId::new(0, tagged(2)),
         name: Box::new(StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(tagged(2)),
+            node: RecipeNodeId::new(0, tagged(2)),
             path: Vec::new(),
         }),
     };
@@ -699,9 +736,10 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
         ),
         (
             frame::checks_badge(Some(&ChecksReport {
+                document: DocumentId(1),
                 findings: vec![CheckFinding {
                     check: CheckId::Connectedness,
-                    root: RecipeNodeId(tagged(3)),
+                    root: RecipeNodeId::new(0, tagged(3)),
                     output_ix: 0,
                     evidence: CheckEvidence::Connectedness {
                         actual: 2,
@@ -714,7 +752,10 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
             "so do the advisory checks",
         ),
         (
-            frame::product_badge(Some(&collision)),
+            frame::product_badge(
+                Some(&collision),
+                &Doc::empty_derived("badge", Tol::witness()),
+            ),
             frame::Subject::Document,
             "and the gather's verdict on the landed pair",
         ),
@@ -819,21 +860,30 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     session.pump();
     let refusal = common::index_at(&session, common::plate_delta())
         .expect_err("a poisoned root refuses the index");
-    let badge = frame::index_badge(Some(&refusal), session.doc(), session.evaluation())
+    let badge = frame::index_badge(Some(&refusal), session.doc(), session.landed_pair())
         .expect("a refusal the cache holds is still badged");
     assert_eq!(
         badge.label(),
         format!(
             "pick index: waits on Extrude {}, which failed — {consequence}",
-            test_utils::refusal::tag(extrude.0)
+            test_utils::refusal::tag(extrude.0.digest())
         ),
         "the row the tree blames, not the root the build refused on"
     );
     assert_eq!(badge.tone(), frame::Tone::Advisory);
     assert_eq!(
         badge.detail(),
-        Some(format!("pick index: {refusal}").as_str()),
-        "the index's own words are kept, as the tooltip"
+        Some(
+            format!(
+                "pick index: {}",
+                pncad::document::Said(
+                    &refusal,
+                    pncad::document::Speaker::of(session.landed_pair().expect("landed").0)
+                )
+            )
+            .as_str()
+        ),
+        "the index's own words are kept, as the tooltip, said from the landed document"
     );
     let rows = session.tree_rows();
     assert_eq!(
@@ -852,6 +902,7 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         Node::Extrude {
             profile: healthy_profile,
             distance: common::len(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -860,8 +911,9 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         &doc,
         Node::Extrude {
             profile: broken_profile,
-            distance: Expr::div(common::len(0.008), common::scl(0.0))
+            distance: Formula::div(common::len(0.008), common::scl(0.0))
                 .expect("length / scalar is a length"),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -870,13 +922,13 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     session.pump();
     let refusal = common::index_at(&session, common::plate_delta())
         .expect_err("one failed root refuses the whole index");
-    let badge = frame::index_badge(Some(&refusal), session.doc(), session.evaluation())
+    let badge = frame::index_badge(Some(&refusal), session.doc(), session.landed_pair())
         .expect("a refusal the cache holds is still badged");
     assert_eq!(
         badge.label(),
         format!(
             "pick index: waits on Extrude {}, which failed — {consequence}",
-            test_utils::refusal::tag(broken.0)
+            test_utils::refusal::tag(broken.0.digest())
         )
     );
     assert_eq!(badge.tone(), frame::Tone::Advisory);
@@ -884,9 +936,9 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         badge.detail(),
         Some(
             format!(
-                "pick index: root {0} could not be indexed: pick: node {0} failed, so \
+                "pick index: Extrude {} could not be indexed: pick: this node failed, so \
                  it has no value — fix the node's own failure",
-                test_utils::refusal::tag(broken.0)
+                test_utils::refusal::tag(broken.0.digest())
             )
             .as_str()
         ),
@@ -897,11 +949,11 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     // words — and so does a standing refusal with no evaluation to
     // find its cause in, since there is then no row it can defer to.
     let own = pickindex::PickIndexError::DrawnTwice {
-        node: RecipeNodeId(tagged(3)),
+        node: RecipeNodeId::new(0, tagged(3)),
         body: 0,
     };
     let badge =
-        frame::index_badge(Some(&own), session.doc(), session.evaluation()).expect("it badges");
+        frame::index_badge(Some(&own), session.doc(), session.landed_pair()).expect("it badges");
     assert_eq!(badge.tone(), frame::Tone::Actionable);
     assert_eq!(badge.label(), format!("pick index: {own}"));
     let unread = frame::index_badge(Some(&refusal), session.doc(), None).expect("it badges");
@@ -911,7 +963,7 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     // A root that NEVER RAN, with an evaluation in hand: the tree draws
     // it `Unevaluated` and `Advisory`, so there is no loud row above it
     // to defer to, and quieting it would hide the only news there is.
-    let absent = RecipeNodeId(tagged(99));
+    let absent = RecipeNodeId::new(0, tagged(99));
     assert!(
         session
             .evaluation()
@@ -924,13 +976,13 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         node: absent,
         error: NodePickError::Standing(NodeStanding::NotEvaluated { node: absent }),
     };
-    let badge = frame::index_badge(Some(&never_ran), session.doc(), session.evaluation())
+    let badge = frame::index_badge(Some(&never_ran), session.doc(), session.landed_pair())
         .expect("it badges");
     assert_eq!(badge.tone(), frame::Tone::Actionable);
     assert_eq!(
         badge.label(),
-        "pick index: root 000000000063 could not be indexed: pick: node 000000000063 has no \
-         result in this evaluation: the run was canceled before it reached the node — \
+        "pick index: root 000000000063 could not be indexed: pick: this node has no result in \
+         this evaluation: the run was canceled before it reached the node — \
          re-evaluate the document to completion"
     );
 }
@@ -964,7 +1016,7 @@ fn a_refusal_reached_through_a_mate_names_the_mate_the_tree_blames() {
     else {
         panic!("the root is Failed in the evaluation, not poisoned: {refusal:?}");
     };
-    let badge = frame::index_badge(Some(&refusal), session.doc(), session.evaluation())
+    let badge = frame::index_badge(Some(&refusal), session.doc(), session.landed_pair())
         .expect("a refusal the cache holds is still badged");
     assert_eq!(
         (*root, *failed),
@@ -977,7 +1029,7 @@ fn a_refusal_reached_through_a_mate_names_the_mate_the_tree_blames() {
         format!(
             "pick index: waits on Mate {}, which failed — until the index builds, no pick \
              is answered and the picture is not redrawn",
-            test_utils::refusal::tag(offender.0)
+            test_utils::refusal::tag(offender.0.digest())
         ),
         "the mate the tree blames, not the root the index's words name"
     );
@@ -1223,6 +1275,7 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
     );
     assert_eq!(
         frame::checks_badge(Some(&ChecksReport {
+            document: DocumentId(1),
             findings: Vec::new(),
             skipped: Vec::new(),
         })),
@@ -1232,6 +1285,7 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
     );
     assert_eq!(
         frame::checks_badge(Some(&ChecksReport {
+            document: DocumentId(1),
             findings: Vec::new(),
             skipped: vec![CheckId::Connectedness],
         })),
@@ -1241,7 +1295,10 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
          window is where that distinction is drawn"
     );
     assert_eq!(frame::delta_badge(None, M), None, "the user's own δ");
-    assert_eq!(frame::product_badge(None), None);
+    assert_eq!(
+        frame::product_badge(None, &Doc::empty_derived("badge", Tol::witness())),
+        None
+    );
     assert_eq!(
         frame::prefs_badge(None),
         None,
@@ -1258,7 +1315,7 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
         "every committed profile drew, or there are none — the same zero"
     );
     assert_eq!(
-        frame::held_edges_badge(None),
+        frame::held_edges_badge(None, None),
         None,
         "nothing held, or a held body the index names whole"
     );
@@ -1287,14 +1344,54 @@ fn an_unnamed_drawn_edge_wears_one_subject_on_both_channels() {
     use viewer::tools::ToolNotice;
 
     let target = BlendTarget {
-        node: RecipeNodeId(tagged(3)),
+        node: RecipeNodeId::new(0, tagged(3)),
         body: 0,
     };
     let refused = unnamed_on(target);
-    let badge = frame::held_edges_badge(Some(&refused)).expect("a refusal badges");
-    let line = frame::tool_notice(&ToolNotice::Blend(BlendEvent::EdgesUnnamed { refused }));
+    let spelled = frame::Spelled {
+        doc: None,
+        value: refused.clone(),
+    };
+    let badge = frame::held_edges_badge(Some(&spelled), None).expect("a refusal badges");
+    let line = frame::tool_notice(
+        &ToolNotice::Blend(BlendEvent::EdgesUnnamed { refused }),
+        None,
+    );
     assert_eq!(badge.subject(), frame::Subject::Document);
     assert_eq!(line.subject(), badge.subject());
+}
+
+/// **A held-edge refusal speaks its node only from the document it is
+/// spelled in.** The viewport made it last frame; an `Open` since then
+/// lands another document, which may hold the same id as another node,
+/// so the badge says the tag there rather than that document's label.
+#[test]
+fn a_held_edge_refusal_is_said_from_its_own_document_and_by_tag_from_another() {
+    let tol = Tol::witness();
+    let (session, extrude) = plate_session(tol);
+    let (landed, _) = session.landed_pair().expect("landed");
+    let refused = unnamed_on(viewer::blend::BlendTarget {
+        node: extrude,
+        body: 0,
+    });
+    let label = |spelled: &frame::Spelled<pickindex::EdgeNamesRefused>| {
+        frame::held_edges_badge(Some(spelled), Some(landed))
+            .expect("a refusal badges")
+            .label()
+            .to_owned()
+    };
+    let own = label(&frame::Spelled::in_landed(refused.clone(), Some(landed)));
+    assert!(
+        own.contains(&landed.spoken(extrude).to_string()) && own.contains("Extrude"),
+        "spoken from the document it is spelled in: {own}"
+    );
+    let other: Doc<ProfileProgram> = Doc::empty_derived("another", tol);
+    let foreign = label(&frame::Spelled::in_landed(refused.clone(), Some(&other)));
+    assert_eq!(
+        foreign,
+        format!("held edges: the mark may leave some out — {refused}"),
+        "a refusal spelled in another document is said by its tags"
+    );
 }
 
 /// **The profiles badge counts, in agreeing words, and says it is the
@@ -1440,9 +1537,10 @@ fn a_badge_states_whether_a_reader_has_anything_to_do_about_it() {
 #[test]
 fn the_checks_badge_is_a_control_and_the_rest_are_labels() {
     let report = ChecksReport {
+        document: DocumentId(1),
         findings: vec![CheckFinding {
             check: CheckId::Connectedness,
-            root: RecipeNodeId(tagged(3)),
+            root: RecipeNodeId::new(0, tagged(3)),
             output_ix: 0,
             evidence: CheckEvidence::Connectedness {
                 actual: 2,
@@ -1473,7 +1571,7 @@ fn the_checks_badge_is_a_control_and_the_rest_are_labels() {
     // δ member was missing altogether: it promised three labels and
     // asserted about one, and stayed green with either affordance
     // flipped.
-    let node = RecipeNodeId(tagged(2));
+    let node = RecipeNodeId::new(0, tagged(2));
     let collision = ProductError::Naming {
         node,
         name: Box::new(StableName {
@@ -1496,7 +1594,13 @@ fn the_checks_badge_is_a_control_and_the_rest_are_labels() {
             "at rest",
             frame::at_rest_badge(Some(&AtRestBadge::Certified { minted: 0 })),
         ),
-        ("product", frame::product_badge(Some(&collision))),
+        (
+            "product",
+            frame::product_badge(
+                Some(&collision),
+                &Doc::empty_derived("badge", Tol::witness()),
+            ),
+        ),
         ("δ", frame::delta_badge(Some(&budget), M)),
         (
             "preferences",
@@ -1788,23 +1892,19 @@ fn answer(serial: u32, id: u32) -> u64 {
 /// **The status line tells two tied faces apart.**
 ///
 /// A refusal whose whole subject is that two answers cannot be
-/// separated cannot render them as the same words. The kernel's own
-/// message numbers its faces by name alone — `StableName`'s `Display`
-/// omits the role path on purpose, so two faces of ONE node come out
-/// as one phrase twice, and the ordinal is all a reader has. That is
-/// right for the kernel, whose typed payload carries the path; it is
-/// not enough on a status line, where there is no payload to open.
-///
-/// So `frame::pick_refusal` renders each tied face the way
-/// `idpass::Disagreement` does — kind and minting node, then the role
-/// path. The premise is asserted first: these two names really do
-/// render identically through `Display` alone.
+/// separated cannot render them as the same words. Two faces of ONE
+/// node are told apart by their words alone — the full form never says
+/// two names of one table alike, which `name_words_corpus` gates over
+/// the corpus, so no pair whose words collide is left to build this
+/// premise from — and `frame::pick_refusal` says each tied face in its
+/// words within the landed evaluation's table, never its role path: the
+/// status line is a user surface.
 #[test]
 fn the_status_line_renders_two_tied_faces_as_two_different_phrases() {
     let tol = Tol::witness();
     let (session, _) = plate_session(tol);
     let index = plate_index(&session);
-    let eval = session.evaluation().expect("landed");
+    let (landed, evaluation) = session.landed_pair().expect("landed");
     let names: Vec<StableName> = index
         .ids()
         .ids()
@@ -1814,8 +1914,8 @@ fn the_status_line_renders_two_tied_faces_as_two_different_phrases() {
     let first = names.first().expect("the plate draws a face").clone();
     let second = names
         .iter()
-        .find(|name| name.path != first.path && name.to_string() == first.to_string())
-        .expect("the plate draws two faces of one node, which render as one phrase")
+        .find(|name| name.node == first.node && name.path != first.path)
+        .expect("the plate draws two faces of one node")
         .clone();
     let hit_at = |name: StableName, t: f64| pncad::select::PickHit {
         name,
@@ -1829,21 +1929,38 @@ fn the_status_line_renders_two_tied_faces_as_two_different_phrases() {
     let refusal = pickindex::PickError::HitTest(pncad::select::HitTestError::Ambiguous {
         hits: vec![hit_at(first.clone(), 1.0), hit_at(second.clone(), 1.0)],
     });
-    let _ = eval;
 
-    // The premise: by name alone the two faces are one phrase.
-    assert_eq!(
+    // By name alone the two faces are two phrases: their words tell
+    // them apart.
+    assert_ne!(
         first.to_string(),
         second.to_string(),
-        "the two faces render identically through `Display` alone"
+        "two faces of one node render apart through `Display` alone"
     );
 
-    let text = frame::pick_refusal(&refusal).text().to_owned();
-    let rendered = |name: &StableName| format!("{name} ({:?})", name.path);
+    let text = frame::pick_refusal(&refusal, (landed, evaluation))
+        .text()
+        .to_owned();
+    let rendered = |name: &StableName| {
+        pncad::document::Speaker::of(landed)
+            .within(evaluation)
+            .name(name)
+            .to_string()
+    };
+    assert!(
+        text.contains("of Extrude"),
+        "each tied face's feature is said as the landed document holds it: {text}"
+    );
     assert!(
         text.contains(&rendered(&first)) && text.contains(&rendered(&second)),
-        "each tied face is rendered with its role path: {text}"
+        "each tied face is said in its words within the landed table: {text}"
     );
+    for path in [&first.path, &second.path] {
+        assert!(
+            !text.contains(&format!("{path:?}")),
+            "no role path reaches the status line: {text}"
+        );
+    }
     assert_ne!(
         rendered(&first),
         rendered(&second),
@@ -1956,7 +2073,7 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
 #[test]
 fn an_unnamed_patch_is_said_as_its_id_and_its_own_refusal() {
     let error = UnnamedEntity {
-        node: RecipeNodeId(tagged(2)),
+        node: RecipeNodeId::new(0, tagged(2)),
         entity: editor_core::names::EntityRef {
             body: 0,
             key: editor_core::names::EntityKey::Body,
@@ -2119,6 +2236,7 @@ fn two_placements(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId)
         Node::Extrude {
             profile,
             distance: common::len(0.01),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -2185,7 +2303,11 @@ fn the_highlight_narrows_a_twice_drawn_name_to_exactly_one_id() {
         assert_eq!(key.node, right);
     }
     assert!(!index.ids_in(right, hit.body).is_empty());
-    assert!(index.ids_in(RecipeNodeId(tagged(9999)), 0).is_empty());
+    assert!(
+        index
+            .ids_in(RecipeNodeId::new(0, tagged(9999)), 0)
+            .is_empty()
+    );
 }
 
 // --- the rebuild loop, across the index seam -------------------------
@@ -2829,7 +2951,7 @@ fn the_feature_tree_reads_the_landed_pair_not_the_shown_document() {
     let (landed_doc, _) = session.landed_pair().expect("a landed pair");
     assert_eq!(
         rows.len(),
-        landed_doc.order().len(),
+        landed_doc.ids().len(),
         "the tree describes the landed document, which is what is drawn"
     );
     session.pump();
@@ -2932,13 +3054,13 @@ fn the_pixel_to_ndc_conversion_round_trips_and_flips_y_once() {
     assert!((ray.dir.z - forward.z).abs() < 1e-12);
 }
 
-// --- the refuse-then-offer pair for an unknown parameter ------------
+// --- the refuse-then-offer pair for an unknown variable ------------
 
-/// **The unknown-parameter refusal carries its offer, and the frame
+/// **The unknown-variable refusal carries its offer, and the frame
 /// policies hand both to the chrome.** An expression naming an
-/// undeclared parameter refuses at the parse door (typo-safety — text
-/// never creates a parameter); `creation_offer` extracts the name to
-/// prefill the add-parameter affordance, and `retype_draft` hands the
+/// undeclared variable refuses at the parse door (typo-safety — text
+/// never creates a variable); `creation_offer` extracts the name to
+/// prefill the add-variable affordance, and `retype_draft` hands the
 /// refused text back so acting on the offer does not cost the very
 /// expression that raised it.
 #[test]
@@ -2951,6 +3073,7 @@ fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
         Node::Extrude {
             profile,
             distance: common::len(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -2971,7 +3094,7 @@ fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
     }
     assert_eq!(
         frame::creation_offer(refusal.as_ref()),
-        Some(ParamName::from_static("margin")),
+        Some(VarName::from_static("margin")),
         "the offer is the undeclared name"
     );
     assert_eq!(
@@ -2980,7 +3103,7 @@ fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
         "and the refused draft comes back"
     );
 
-    // A parse refusal that names NO parameter restores the draft but
+    // A parse refusal that names NO variable restores the draft but
     // offers nothing to create.
     let batch = vec![SessionOp::SetSlotExpression {
         node: extrude,
@@ -3129,7 +3252,7 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     // The mate the op landed, read off the document rather than off the
     // fault under test.
-    let landed = *session.doc().order().last().expect("the mate landed");
+    let landed = *session.doc().ids().last().expect("the mate landed");
     assert!(
         matches!(session.doc().node(landed), Some(Node::Mate { .. })),
         "the newest node is the mate"
@@ -3152,10 +3275,14 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
             superseded.cause
         )
     };
-    assert_eq!(*instance, bench.post_b, "the fault names the same instance");
     assert_eq!(
-        mates,
-        &vec![landed],
+        instance.id(),
+        bench.post_b,
+        "the fault names the same instance"
+    );
+    assert_eq!(
+        mates.iter().map(|mate| mate.id()).collect::<Vec<_>>(),
+        vec![landed],
         "and names the mate that landed, which is what the line then reads"
     );
 
@@ -3186,8 +3313,8 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     };
     assert!(
         message.text().contains(&format!(
-            "instance {}",
-            test_utils::refusal::tag(bench.post_b.0)
+            "InstantiatePart {}",
+            test_utils::refusal::tag(bench.post_b.0.digest())
         )),
         "the line names which of the user's placements went: {message}"
     );
@@ -3234,16 +3361,16 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     // as why the placement went: two typed values, each rendering
     // itself, which is the join's rule.
     let (post, mate_node) = (
-        test_utils::refusal::tag(bench.post_b.0),
-        test_utils::refusal::tag(landed.0),
+        test_utils::refusal::tag(bench.post_b.0.digest()),
+        test_utils::refusal::tag(landed.0.digest()),
     );
     assert_eq!(
         line.text(),
         format!(
-            "instance {post} is mate-constrained (mate node(s) {mate_node}): its pose is \
+            "InstantiatePart {post} is mate-constrained (Mate {mate_node}): its pose is \
              mate-derived, so the free-move probe refuses — delete the mate(s) if free \
              relative motion is intended \u{2022} free move: a committed placement was \
-             discarded — instance {post} is mate-constrained (mate node(s) {mate_node}): its \
+             discarded — InstantiatePart {post} is mate-constrained (Mate {mate_node}): its \
              pose is mate-derived, so the free-move probe refuses — delete the mate(s) if \
              free relative motion is intended"
         )
@@ -3268,23 +3395,29 @@ fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
     use viewer::seats::{Seat, SeatEvent};
     use viewer::tools::{ToolKind, ToolNotice};
 
-    let declined = frame::tool_notice(&ToolNotice::Blend(BlendEvent::OtherTarget {
-        held: BlendTarget {
-            node: RecipeNodeId(tagged(3)),
-            body: 0,
+    let declined = frame::tool_notice(
+        &ToolNotice::Blend(BlendEvent::OtherTarget {
+            held: BlendTarget {
+                node: RecipeNodeId::new(0, tagged(3)),
+                body: 0,
+            },
+            picked: BlendTarget {
+                node: RecipeNodeId::new(0, tagged(5)),
+                body: 0,
+            },
+        }),
+        None,
+    );
+    let dropped = frame::tool_notice(
+        &ToolNotice::Seated {
+            tool: ToolKind::Revolve,
+            event: SeatEvent::PickLost {
+                seat: Seat::RevolveProfile,
+                node: viewer::test_support::spoken(RecipeNodeId::new(0, tagged(4)), None),
+            },
         },
-        picked: BlendTarget {
-            node: RecipeNodeId(tagged(5)),
-            body: 0,
-        },
-    }));
-    let dropped = frame::tool_notice(&ToolNotice::Seated {
-        tool: ToolKind::Revolve,
-        event: SeatEvent::PickLost {
-            seat: Seat::RevolveProfile,
-            node: viewer::test_support::spoken(RecipeNodeId(tagged(4)), None),
-        },
-    });
+        None,
+    );
     let panel = frame::tool_news(
         "mate tool: no landed evaluation to derive frames from",
         frame::Retold::Again,
@@ -3324,6 +3457,7 @@ fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
 /// and the store's, which nothing is sure to write again, rides.
 #[test]
 fn every_typed_refusal_door_says_whether_anything_will_say_it_again() {
+    let (cursor, pick) = (empty_landed("cursor"), empty_landed("pick"));
     let camera = Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("a plate frames");
     let StatusUpdate::Show(fold) = frame::fold_status(&viewer::camera::Folded {
         camera,
@@ -3343,10 +3477,10 @@ fn every_typed_refusal_door_says_whether_anything_will_say_it_again() {
     let tied = |t: f64| pncad::select::PickHit {
         name: StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(tagged(3)),
+            node: RecipeNodeId::new(0, tagged(3)),
             path: vec![],
         },
-        node: RecipeNodeId(tagged(3)),
+        node: RecipeNodeId::new(0, tagged(3)),
         body: 0,
         t,
         t_lo: t,
@@ -3357,19 +3491,23 @@ fn every_typed_refusal_door_says_whether_anything_will_say_it_again() {
         ("a refused camera move", fold, frame::Retold::Again),
         (
             "a pick tied between faces",
-            frame::pick_refusal(&pickindex::PickError::HitTest(HitTestError::Ambiguous {
-                hits: vec![tied(1.0), tied(1.0)],
-            })),
+            frame::pick_refusal(
+                &pickindex::PickError::HitTest(HitTestError::Ambiguous {
+                    hits: vec![tied(1.0), tied(1.0)],
+                }),
+                (&pick.0, &pick.1),
+            ),
             frame::Retold::Again,
         ),
         (
             "a pick the camera could not un-project",
-            frame::pick_refusal(&pickindex::PickError::Camera(
-                viewer::camera::CameraError::NotFinite {
+            frame::pick_refusal(
+                &pickindex::PickError::Camera(viewer::camera::CameraError::NotFinite {
                     what: "x",
                     value: f64::NAN,
-                },
-            )),
+                }),
+                (&pick.0, &pick.1),
+            ),
             frame::Retold::Again,
         ),
         (
@@ -3393,7 +3531,7 @@ fn every_typed_refusal_door_says_whether_anything_will_say_it_again() {
                 from_gpu: idpass::IdAnswer::Nothing,
                 from_ray: Vec::new(),
             }
-            .notice(),
+            .notice((&cursor.0, &cursor.1)),
             frame::Retold::Again,
         ),
         (
@@ -3472,12 +3610,12 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
     use viewer::tools::{ToolKind, ToolNotice};
 
     let target = BlendTarget {
-        node: RecipeNodeId(tagged(3)),
+        node: RecipeNodeId::new(0, tagged(3)),
         body: 0,
     };
     let face = StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(tagged(3)),
+        node: RecipeNodeId::new(0, tagged(3)),
         path: vec![],
     };
     let cases = [
@@ -3485,15 +3623,15 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
             "mate: a held pick lost",
             ToolNotice::Mate(MateToolEvent::PickLost {
                 side: MateSide::B,
-                node: viewer::test_support::spoken(RecipeNodeId(tagged(3)), None),
+                node: viewer::test_support::spoken(RecipeNodeId::new(0, tagged(3)), None),
                 pick: FaceSelection {
                     name: face.clone(),
-                    node: RecipeNodeId(tagged(3)),
+                    node: RecipeNodeId::new(0, tagged(3)),
                     body: 0,
                 },
                 resolution: Box::new(Resolution::Indeterminate(ResolveIndeterminate {
                     standing: NodeStanding::NotEvaluated {
-                        node: RecipeNodeId(tagged(3)),
+                        node: RecipeNodeId::new(0, tagged(3)),
                     },
                 })),
             }),
@@ -3505,14 +3643,18 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
                 tool: ToolKind::Boolean,
                 event: SeatEvent::PickLost {
                     seat: Seat::OperandA,
-                    node: viewer::test_support::spoken(RecipeNodeId(tagged(3)), None),
+                    node: viewer::test_support::spoken(RecipeNodeId::new(0, tagged(3)), None),
                 },
             },
             frame::Retold::Never,
         ),
         (
             "blend: the target lost",
-            ToolNotice::Blend(BlendEvent::TargetLost { target, edges: 4 }),
+            ToolNotice::Blend(BlendEvent::TargetLost {
+                target,
+                node: pncad::document::SpokenNode::absent(target.node),
+                edges: 4,
+            }),
             frame::Retold::Never,
         ),
         (
@@ -3529,7 +3671,7 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
             ToolNotice::Blend(BlendEvent::OtherTarget {
                 held: target,
                 picked: BlendTarget {
-                    node: RecipeNodeId(tagged(5)),
+                    node: RecipeNodeId::new(0, tagged(5)),
                     body: 0,
                 },
             }),
@@ -3557,7 +3699,7 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
         ),
     ];
     for (what, notice, retold) in cases {
-        assert_eq!(frame::tool_notice(&notice).retold(), retold, "{what}");
+        assert_eq!(frame::tool_notice(&notice, None).retold(), retold, "{what}");
     }
 }
 
@@ -3570,9 +3712,9 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
 #[test]
 fn every_withdrawal_kind_rides_beside_a_refusal() {
     let gone = |node: u64| Withdrawn {
-        instance: RecipeNodeId(tagged(node)),
+        instance: RecipeNodeId::new(0, tagged(node)),
         cause: AdmissionFault::NoSuchNode {
-            node: RecipeNodeId(tagged(node)),
+            node: SpokenNode::absent(RecipeNodeId::new(0, tagged(node))),
         },
     };
     let report = PruneReport {

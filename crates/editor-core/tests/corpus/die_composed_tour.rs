@@ -148,9 +148,7 @@ fn edits() -> Vec<DocEdit<ProfileProgram>> {
         ProfileDoc::empty_derived(DOC_LABEL, tol).id(),
         "the committed document is not the tour's `{DOC_LABEL}` document — {recourse}"
     );
-    // The die holds no instance and no mate, so no logged entry carries
-    // maintenance rows: the log IS its edits.
-    loaded.edits.into_iter().map(|e| e.edit).collect()
+    loaded.edits
 }
 
 /// `text` with its one `"epsilon":` line replaced by the line the
@@ -183,7 +181,7 @@ fn restamped_at_process_epsilon(text: &str) -> String {
 /// rather than transcribed as an id, so the bump follows the scene
 /// instead of pinning a number that would go quietly wrong.
 fn first_pip(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()
+    doc.ids()
         .iter()
         .copied()
         .find(|id| {
@@ -204,7 +202,7 @@ pub fn document() -> CorpusDoc {
             .expect("the tour's edit log replays")
             .doc;
     }
-    let composed = *doc.order().last().expect("the die has nodes");
+    let composed = *doc.ids().last().expect("the die has nodes");
     assert!(
         matches!(
             doc.node(composed).expect("the last node"),
@@ -220,7 +218,7 @@ pub fn document() -> CorpusDoc {
         about: "the demo tour's die: 21 pips fused by one n-ary union and cut in one \
                 grouped tool, then 12 box edges and 42 rim arcs blended behind \
                 member-keyed names",
-        edits: editor_core::LoggedEdit::bare_all(&edits),
+        edits: edits.to_vec(),
         doc,
         result: Some(composed),
         // π-valued closed forms are not dyadic — module docs.
@@ -241,6 +239,7 @@ pub fn document() -> CorpusDoc {
             node: pip,
             slot: SlotId::Translation(Axis3::Y),
             expr: len(PIP_Y_BUMPED),
+            fresh: Vec::new(),
         },
         bump_root: pip,
     }

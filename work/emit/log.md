@@ -1344,3 +1344,779 @@ Implements the ruling on PR 3565:
   - "label" has other meanings.
 
 Next: PR 2 (dispatched).
+
+## 2026-10-01 — edit refusals speak the node (PR 3728, labels PR 2)
+
+Every `EditError` node field is a `SpokenNode`, built at the edit door:
+- a held node is spoken from the pre-edit document;
+- a minting node by kind alone (`entering`);
+- a gauge from after the edit, falling back to before;
+- an absent id by tag (`absent`).
+
+The rule is stated on `edit::written`.
+
+**Memoized `NodeError`.** It keeps a bare id and is spoken by the frame that hands it out (`NodeError::spoken`, `CarriedLevel::line_in`). A level inside a part stays a tag.
+
+**Python.** Payloads keep the full id. Exception text is spoken from the evaluated document.
+
+**`PathOffTree` and `LabelUnchanged`.** Each now holds its fact once.
+
+**Review.** Nothing blocking. Folded:
+- three doubled nouns, now held by a display-contract test;
+- the size comment, now a 64-bit const assert;
+- the concision fixture, which now speaks each node by its real kind;
+- tests for the dropped-gauge arm, a labelled `SetMembers` input, and a frame's `Evaluation` drawn across a rename.
+
+**A test assertion that would have been false.** The asked-for "recomputed == 0" does not hold: the memo reuses only `Ok` values, so a failed node recomputes every run. The test pins the frame-held evaluation instead.
+
+**Closed** chrome's `kernel-refusals-say-node-where-the-tree-says-feature`. Ev ruled kind + label/tag everywhere. The inner `node <tag>` is a leftover on the memoized row.
+
+**Filed** (parent: the labels unit):
+- `kernel-door-refusals-beyond-edit-speak-the-node`, which includes `StableName`'s minting node inside about 14 `EditError` sentences;
+- `viewer-refusals-speak-the-node`, which notes that a kept `Refusal::Edit` freezes its label;
+- `memoized-refusals-speak-inner-nodes-through-the-frame`.
+
+## 2026-10-01 — kernel refusals at every door speak the node (PR 3735)
+
+**`RootFault`.** It speaks at all three doors. The edit door uses `spoken_before_else_after`. The load and save doors speak from the document they validate.
+
+**Names.** A forwarded name speaks its minting node through `SpokenName` in the 15 `EditError` name arms.
+
+**Maintenance rows.** The strand and orphan rows speak from the document as it stood before the edit, so a strand says the label of the node it lost.
+
+**Articles.** A first-letter `sentence::article` fixes "a edge", "a arc", "a empty" and similar across editor-core.
+
+**Load-door ruling, mine, on review.** The lane first kept the bare tag at the load door, but both of its premises were false:
+- the validator judges a parsed `Doc`;
+- labels pass `Label::new` at the parse, and `LabelOnMissingNode` runs first.
+
+Also, save runs the same validator, and `EditReplay` already spoke labels at load. DESIGN.md Band 1 makes no exception for load or save. The `spoken.rs` sentence the lane cited was an agent's own wording, never ratified, and is now corrected.
+
+**Filed**, each with parent the labels unit:
+- `split-and-inline-refusals-speak-the-node` (also records `SplitError` printing decimal `u64`s);
+- `analysis-door-refusals-speak-the-node`;
+- `selection-door-refusals-speak-the-node`;
+- `persist-door-refusals-speak-the-node`;
+- the issue `a-cluster-act-speaks-its-gauges-by-tag`.
+
+**Also today:** `[ev]` PR 3734 is open. It asks how a union decides which member faces a merged face cites. The designers converged on linking in member space; fork-log row 37.
+
+## 2026-10-01 — split/inline (PR 3740) and persist-door (PR 3741) refusals speak the node
+
+**PR 3740: split and inline errors.** `SplitError` and `InlineError` speak each node from the document whose ids it is spelled in.
+- Fixed: `TornGroup`, `OperandSeveredFromMate` and `SeveredEdge` printed their cut and kept ends as decimal ids. They now name each end once, by role.
+- Review folds:
+  - inline's choice of document is pinned by labelled tests (checked by mutation);
+  - `carry` now copies each label right after its insert, so a refusal raised mid-carry has labels to speak;
+  - the placeholder `RecipeNodeId(0)` is now `unreachable!`.
+- Corrected premise: ids are not document-scoped. `Mint::empty()` starts every document at the zero chain, so the speaking document is fixed by the raise site, never looked up. This is now stated on `SplitError`.
+
+**PR 3741: load and save errors.** `SnapshotError`'s 30 node fields and two names, `NonFiniteSite`, `PersistError::ProfileProgram` and `FrameSite::subject` speak from the document being validated.
+- New arm `SnapshotError::DuplicateInput` (Python `duplicate_input`). `InputList` now holds a `ListFault`, which cannot be a duplicate.
+- Duplicate-key refusals at parse time have one helper and one sentence.
+- Filed `work/doctail/load-door-refusals-tag-ids-the-file-spells-in-decimal` (P4, a design question).
+
+**Remaining rows of the labels unit:**
+- `analysis-door-refusals-speak-the-node`
+- `selection-door-refusals-speak-the-node`
+- `viewer-refusals-speak-the-node`
+- `memoized-refusals-speak-inner-nodes-through-the-frame`
+- `a-cluster-act-speaks-its-gauges-by-tag`
+## 2026-10-01 — union parents link in member space (PR 3734, ruled)
+
+**Ruling.** Ev approved the fork-log row 37 recommendation:
+- A union links two member faces when their pair is declared coincident (or shares a source), same-oriented, and consumed by that pair's own judgement.
+- Linking is transitive.
+- A finished face takes the parent of the member faces it descends from, whatever the fold kept.
+
+**Effect.** This replaces N2's union-parent sentences from PR 3222.
+
+**Designers.** A started from a per-step kernel record and moved to B's siting, adding the "consumed" condition. B took that condition in round 2.
+
+**Next.** The build has been dispatched, on the row `a-member-the-fold-discards-whole-is-cited-nowhere-though-it-lies-flush`.
+
+## 2026-10-02 — analysis-door refusals speak the node (PR 3749)
+
+**Spoken at the raise:**
+- the range, drive and mc refusals;
+- the stackup refusals, including `PairingViolation`, which the name sweep had missed.
+
+**Reports.** Report values keep the bare id, and their human forms speak the node.
+- `Stackup`, `Sensitivity`, `McReport` and `LeafHistogram` carry the `DocumentId` they were taken of. `render` fails loud on any other document, because ids are not document-scoped.
+- The golden forms print the full id. `Stackup::serialize`'s sensitivity field moved from the tag to the full id; nothing persisted reads it.
+
+**Divergence.** `VerdictNotOfThisBuild` names its node as `DivergedAt`:
+- `Replayed`: spoken from the replayed document;
+- `Recorded`: "the drive record's node <tag>", never looked up.
+
+**Python.** `McReport` holds its run's document.
+
+**Review fixes:**
+- a test that could not fail, which filtered on "node";
+- tests that could not tell documents apart;
+- two echoing sentences;
+- untested raise sites.
+
+**Filed.** `product-refusals-speak-the-node` (`design: true`). Its sentence is memoized inside a part's evaluation, so it needs a designer pair and Ev.
+
+## 2026-10-02 — union member-space linking built (PR 3753)
+
+This builds Ev's PR 3734 ruling.
+
+**Kernel (topo)**
+- `BooleanNaming::covered` records coincident pairs where one copy is kept. It is written symmetrically, on the section path, the REST path and `finish_fallback`.
+- `judge_pairwise_contact` keeps each pair's naming.
+- `emit_union::Links` links member faces before the fold.
+
+**Results**
+- `KNOWN_ABSENT` for r4tri/r4trig went from 168/564 to 0.
+- New cross-order cases: `r5covered`, `r5poke`, `r5pokehi`, `xmerge`.
+- lib_g16 and the names corpus did not move.
+
+**`near`**
+- Linking made `near` refuse in two orders, a `Borders` gap. I ruled this a mechanism question, not a design one: N2 already fixes the outcome, and the kernel records the fact.
+- So `BooleanReduction::held` now records the kept copy's edges that run into the dropped face. They attach to the discarded fragment that holds their entry vertex, and `Obstacles` reads them as seams.
+
+**Review**
+- M1, reproduced: held edges were first attached by lineage, which joined a pillar's hole to the slab's obstacle in 6 of 14 orders. Fixed by the entry-vertex rule, and the pillar case is now a test.
+- Re-review: clean.
+
+**Filed**
+- `a-pair-boolean-names-a-declared-covered-pair-by-operand-order` (`design: true`). Ev ruled unions only.
+- `a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere` (P3). It now also records the latent attach-by-vertex gap at reflex vertices, which the kernel refuses today.
+
+## 2026-10-02 — selection-door refusals speak through their frame (PR 3760)
+
+**The ruling.** Every type in the row is either memoized (`NodeStanding`, `ResolveError`, `NamingError`, `MintRefusal`) or raised by doors that hold only an `Evaluation`. Those doors are pick, hit, select, flush, read-back and `step_for_node`. `AssemblyError` and `ExportError` also have doc-less siblings. So every one of them keeps bare ids, and the frame that hands it out speaks it with `spoken(doc)`.
+
+**`Speaker` / `Say`.** The template lives in one place: `Speaker` / `Say` in `spoken.rs`. It is public, so `ExportError` uses it too.
+
+**Python.** Python speaks from the `Evaluation`'s captured document. That includes the `__str__` of the assembly row objects.
+
+**Carried rows** from a part keep the part's tags. A collision fixture (the outer document and the part both mint the same id, under different labels) pins this. Both reviewer mutations turn it red.
+
+**Wording.** `NodeGone` says the node once, and the `ForeignNode` contradiction is fixed.
+
+**Filed:**
+- `check-findings-speak-their-root-by-tag`
+- `a-carried-rows-route-says-its-first-instance-by-tag`
+- The product row gained the forward sites.
+- The viewer row gained about 80 reads.
+
+## 2026-10-02 — memoized refusals speak their inner nodes through the frame (PR 3782)
+
+`NodeErrorKind`, `MateFault`, `LeverRefusal`, `FaceRefusal`, `OffsetCheck`, `PoseRefusal`, `PartFault`, `NamingError` and `SelectionRefusal` keep bare ids and gain `Say`.
+
+- **One-time naming.** `Speaker::about` says the row's own node once ("this mate", "this node"), so "Mate X … mate X's" is gone.
+- **Parts.**
+  - A part's ids keep their tags unless the frame holds the part.
+  - `PartFault::spoken` and `line_in_part` assert the part's id and its pin (`spoken::assert_pinned`).
+- **`EditError::MateRefused`** gains `HeldNodes`, which is spoken at the door.
+- **Python.** `SolvedPoses` speaks `fault()` from its solve-time copy and `placement()` from the document passed in.
+- **`SelectionRefusal::payload`** prints full ids. A refused-selection clearance report's `content_key` moves.
+- **Prose census** now reads `impl Say` as well. It had lost PR 3760's sentences.
+
+Filed:
+- `work/lib/the-clearance-payload-spells-a-node-standing-in-its-own-words` (P4)
+- `work/census/prose-census-finds-sentence-impls-by-their-trait-names` (P4)
+
+**Ruling (mine): `product-refusals-speak-the-node` is not a fork.** PR 3760's pattern settles it. `ProductError` keeps ids and gains `Say`, and `PartFault::PartProduct` holds the error rather than a pre-rendered string. The ruling is recorded on the row and dispatched.
+
+## 2026-10-02 — the viewer's own refusal types speak the node at the raise (viewer-refusals-speak-the-node)
+
+`Refusal`'s node arms, `FaceFrameFault`, `AdmissionFault`, `SlotUnitFault`, `DuplicateFault`, `MateToolError` and `HeldRefusal` hold `SpokenNode`, built from the document the raising door holds; a kernel `Say` value they carry keeps its `HeldNodes`.
+
+**Ruling (implementer, revised in review): a kept refusal is not a fork.** The status line is a sentence made once, at the end of its batch (`frame::batch_refusal` speaks the refusal again from the document the batch leaves, unless it replaced the document; `Refusal::Edit` excepted, filed as `edit-error-respeaks-from-a-later-version`), and any batch that acts clears it; `SetLabel` acts, so a rename retires a refusal that said the old label. Recorded on the row.
+
+**Split:** `viewer-pick-path-refusals-speak-the-node`, `viewer-panes-speak-the-kernel-refusals-they-draw`, `viewer-product-badge-speaks-the-node` (carried by this PR once 3794 merged), `edit-error-respeaks-from-a-later-version`. **Filed on vnews:** `a-withdrawn-cause-can-carry-the-list-mark-inside-a-label` (P4).
+## 2026-10-02 — product refusals speak the node (PR 3794)
+
+**Shape.** Built on PR 3760's pattern:
+- `ProductError` and `SourceFinding` keep their ids and gain `Say`.
+- `PartFault::PartProduct` and `ChecksError::Product` hold the refusal rather than a pre-rendered string, so the frame speaks it. A part's product refusal keeps its tags in a host frame; this is pinned by the zero-chain collision fixture.
+- The assembly and export forwards now say `Said(e, by)`.
+- Python `product_err` speaks from the evaluation's document.
+
+**Review folds:**
+- One shared `editor_core::Refusal<E>` wrapper. `NodeRefusal` and `ProductRefusal` are now aliases of it.
+- `Labelled::open` is the one spelling of the stage opening.
+- The `Naming` arms use `by.name`.
+- `SourceLine::subject` renders through `SourceFinding`'s `Say`.
+- The demos speak `ChecksError`.
+
+**Filed:** `separation-unavailable-carries-the-kernel-refusal-shared`.
+
+**CI.** The test job went red on #3733's `circle_image_envelope`, which was missing from geom-core's `bounds_census` roster and was red on every merge ref. The lane added the roster line, classing it as `Selection` with two refusal gates.
+
+## 2026-10-02 — viewer refusals speak the node, part 1 (PR 3806)
+
+**What changed.**
+- The viewer's own refusal types now hold a `SpokenNode` built at the raise: `Refusal`, `FaceFrameFault`, `AdmissionFault`, `SlotUnitFault`, `DuplicateFault`, `MateToolError`, `HeldRefusal` and `RefusedBoolean`.
+- Kernel errors carry `HeldNodes` beside them.
+- These also speak: the at-rest badge, the product badge and `NoProduct`.
+
+**Kept refusal (ruled by the lane, not a fork).** The status line is a sentence made once, and the next accepted act retires it. The review found two holes, both fixed:
+- A refusal and a rename in one batch: `frame::batch_refusal` now re-speaks the batch's refusal from the document the batch leaves.
+- A stale mate-tool label: it is now spoken from the session document. Ids are stable within one document's history, which the mint check verifies.
+
+The rule is now stated in the viewer README.
+
+**Not fixed: `Refusal::Edit`.** `EditError` stores its nodes already spoken, so it cannot re-speak them. Filed as `edit-error-respeaks-from-a-later-version`.
+
+**Main formatting.** Main was red on fmt in `crates/sweep/tests/run_walls_built.rs` (from `ea80b402fc`). This PR carried the fix, so main is green again.
+
+**Filed:**
+- `viewer-pick-path-refusals-speak-the-node`
+- `viewer-panes-speak-the-kernel-refusals-they-draw`
+- the vnews in-band-mark issue, now covering `•` and the `"; "` join
+
+## 2026-10-02 — viewer pick-path refusals speak the node (PR 3821)
+
+**What changed**
+- These types keep bare ids and gain `Say`: `PickIndexError`, `IdMapError`, `EdgeNameFault`, `EdgeNamesRefused`, `PickError`, `BlendTarget`, `BlendEvent`, `IdAnswer`, `Disagreement`.
+- Each is spoken where it is drawn, from `DocSession::landed_pair`.
+- A forwarded sentence says "this node" through `about`.
+
+**Review fixes**
+- The blend panel line is spoken.
+- `frame::Spelled<T>` carries a cross-frame value's `DocumentId`. It speaks only in that document and says the tag otherwise; this closes the held-edges badge's speaking one document's id in another after an `Open`.
+- A gated-evaluator test proves the landed document is the one spoken.
+- `TargetLost` speaks from a `SpokenNode` snapshot taken at pick time, as seats and the mate tool do.
+- `NameAndPath` is the one home for "name with path".
+- `ToolNotice` gets `Say`, with an exhaustive match.
+- Five open items are re-cited.
+- The `names-render-a-faces-leaf-role-in-words` premise is corrected: Ev's ruling must also reach `Speaker::name` / `SaidName`.
+
+**README** The viewer README's channel section now states the pick-path rule and the landed lag.
+
+**Still open in the labels unit**
+- `viewer-panes-speak-the-kernel-refusals-they-draw`
+- `edit-error-respeaks-from-a-later-version`
+- P3/P4 residue rows
+
+## 2026-10-02 — viewer panes speak the kernel refusals they draw (PR 3827)
+
+**Done**
+- `standing_verdict` now speaks `ResolveError` from the landed document.
+- `indeterminate_wording` now takes a `Speaker`.
+- A gated-evaluator test shows the verdict says the landed label while a rename has not landed.
+- Sweep: no other kernel `Say` value is drawn by tag. The blind spots each have a row.
+
+**Split off as a design question**
+- `a-frame-that-speaks-a-parts-refusal-holds-no-resolved-part` (P3, `design: true`). No frame holds a resolved part.
+- The options are:
+  - (a) re-resolve the part at landing;
+  - (b) the fault carries the part;
+  - (c) retire the part speakers;
+  - (d) a `HeldNodes` snapshot taken inside the nested evaluation. Labels are pinned content.
+
+**Filed**
+- `a-selected-node-deleted-is-said-by-tag-where-the-tools-say-its-label`
+- The check-root button note, added to `check-findings-speak-their-root-by-tag`.
+
+**State of the labels unit:** every door and viewer surface now speaks. Open residue:
+- `edit-error-respeaks-from-a-later-version` (P3)
+- the part design row (P3)
+- the selected-node snapshot row (P3)
+- `a-cluster-act-speaks-its-gauges-by-tag`
+- `check-findings-speak-their-root-by-tag`
+- `a-carried-rows-route-says-its-first-instance-by-tag`
+- the earlier P3/P4 label rows
+
+## 2026-10-02 — EditError re-speaks from a later version (PR 3832); check findings speak their root (PR 3833)
+
+**PR 3832: re-speaking edit refusals**
+
+- `SpokenNode`, `SpokenName`, `HeldNodes`, `RootFault` and `EditError` all gain `respoken(doc)`.
+- The rule: a node the later document holds is spoken as that document holds it now. Otherwise it keeps the spelling it was raised with. The mint-chain soundness argument has one home, at `SpokenNode::respoken`.
+- This replaced the row's specified `doc.spoken` rule. That rule would have dropped every refused insert's minting node to a bare tag.
+- Arms whose sentence asserts absence or collision stay as raised, alongside `LabelUnchanged`.
+- The viewer's `Refusal::Edit` now re-speaks within `batch_refusal`. Every viewer walk, `held_by` sets included, follows the one rule.
+- `replaces_the_document` is an exhaustive match over `SessionOp`.
+
+**PR 3833: check findings and reports**
+
+- `CheckFinding` gains `Say`.
+- `ChecksReport` and `CheckRefusal` carry `document` and `speaker` / `spoken`, with an assert on the document id (the PR 3749 pattern). The assert refuses another document, not another version of the same one.
+- The viewer's checks window speaks from the landed pair.
+- Python `Evaluation.doc` is shared through an `Arc`. Reports and findings speak from it.
+- Python equality means the same findings over the same document; labels are not compared.
+
+**Labels residue still open**
+
+- `a-cluster-act-speaks-its-gauges-by-tag`
+- `a-carried-rows-route-says-its-first-instance-by-tag`
+- `a-selected-node-deleted-is-said-by-tag-where-the-tools-say-its-label`
+- the part design row (needs a designer pair)
+- earlier P3/P4 rows
+
+## 2026-10-03 — HOLD: a refactor of dependency, placement and intent is underway (Ev, `[ev]` PR #3990)
+
+Ev has opened a redesign of how a document says that one thing depends
+on another and that things are meant to coincide. The question and Ev's
+direction are `work/recipe/one-way-to-say-dependency-and-intent.md`;
+the design lands through `[ev]` PR #3990. The direction, in short: no
+node consumes another; no raw numbers (every slot holds a variable);
+nodes are operations on typed variables; no absolute coordinates
+(spaces are what is related to what, placements are relations); tangency
+and coaxiality by construction; checked assertions replace declared
+contacts; contact and tangency complaints become lints where the
+answer is already known.
+
+**Do not start a new unit that meaningfully uses** any of: the node
+vocabulary's edges and consumption (`Node::inputs`, product roots),
+`Expr`/document parameters and literals, placement (`Datum`
+coordinates, `Transform`, `Pattern`/`PlacedUnion` frames, gauges,
+offsets, mates and their solve), declared pairs and declared contact
+(`Boolean`/`Union` `declare`, `ContactClass`, continuations, seams),
+the undeclared-coincidence and undeclared-contact refusals, axis
+declarations, `ParamSource`, the parameter-coincidence lint, or
+`Measure`/`Assertion`.
+
+**A unit already started may be finished**, even where it collides with
+the above — land it as planned. Park each row the hold covers
+(`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
+so the row fires when the ruling closes). If that leaves your program
+with nothing it may start, set its `status` to `blocked` and stop.
+
+## 2026-10-03 — the intent refactor's hold now waits on the build, not the ruling (Ev ratified #3990)
+
+Ev ratified DESIGN.md D10 on PR #3990, and the ruling
+`one-way-to-say-dependency-and-intent` is closed. The hold announced in
+the entry before this one CONTINUES until D10 is built: it now waits on
+`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md`. Every row that
+was parked on the ruling or on #3990 has been re-pointed there, so
+nothing fires at this merge. Park any further held row with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Units already
+started may still finish. Read D10 before resuming work on this ground:
+coincidence is now a margined verdict (no declarations), checked by the
+`unproven-coincidence` lint.
+
+## 2026-10-06 — PR 3839 ([ev]): a part's nodes are said by label, carried on the fault from the seam
+
+Designer pair (fork-log row 71, A = Fable, B = Opus) converged on option
+(d): the fault records the part's nodes while the pinned part is in hand
+and carries them, and the uncalled doors go. Ev approved the mechanism
+but asked for the Band 1 bullet to state the general principle instead
+of a part exception. It now reads "a value the evaluation memo reuses
+holds a label only when its memo key fixes that label", with host and
+part as its two consequences. The row
+`a-frame-that-speaks-a-parts-refusal-holds-no-resolved-part` stays open
+for the build, with a Ruled section naming it. Fork-log row renumbered
+from 45 to 71 on merging main (main had taken 45–70).
+
+## 2026-10-06 — PR 3841: a carried row's route says this document's instance by label
+
+`Route::say` reads `route.through` off the speaking document (kind,
+label and tag) when the sentence is made. The `via` hops belong to
+deeper documents and stay said by tag. The same goes for the mate, the
+group and the cause, which are spelled in the part (that is the separate
+part-at-the-seam row). Covered: `AssemblyError::CarriedMintRefusal`,
+`Attribution::Carried`, `ExportError::UnplacedBelow`, and Python
+`CarriedRefusal.__str__`. The viewer badge and Python `export_err`
+already spoke through `spoken(doc)`. The review found nothing blocking.
+Two twin-id tests were folded in, each mutation-checked:
+- a four-document route whose `via` hop shares an id with an outer node
+  labelled "spare seat";
+- an unplaced group whose id the outer document holds as "twin group".
+The two-nouns-per-route reading (kind noun for the first hop,
+"instance" for later ones) stays as `NodeAs` makes it.
+
+## 2026-10-06 — PR 4086: a deleted selection says the last label its node had
+
+The selection keeps its nodes as they were said (`Derived::said`,
+written by `Select`). After every operation, `DocSession::perform`
+re-speaks them from the shown document under the `respoken` keep rule.
+`Speaker::or_held` says a node from the document while the document
+holds it, then from the kept nodes, then by tag. Picks are spoken from
+the shown document first and the landed run's second (`spoken_now`).
+The row asked each door to name its document instead. The review judged
+this better: it picks up a rename made after the landing.
+
+The datum face form keeps its own kept nodes (`Drafts::datum_face_said`),
+so it no longer reads a snapshot that belongs to a later selection. That
+fault was filed and folded in the same PR.
+
+Review folds, each mutation-checked:
+- the per-op re-speak;
+- the shown-first test;
+- the datum face test.
+
+Filed:
+- `a-verdicts-other-nodes-are-said-by-tag-once-deleted`;
+- `the-tools-pick-time-snapshots-never-follow-a-rename`.
+
+## 2026-10-06 — PR 4090: a part's fault and carried levels say the part's labels as its pin fixes them
+
+Built to the Ruled section of #3839. `product_fault` records the part's
+nodes (`held_by` over the fault's sentence and its in-part carried
+levels) while the evaluated pinned part is in hand. The four `PartFault`
+arms that name part nodes keep them as `held: Arc<HeldNodes>`.
+`CarriedIn::Part` carries them too. `PartFault`'s `Display` speaks only
+through its own snapshot, so a host speaker can never lend a twin id its
+label. The viewer tree, `str(err)` and `__cause__` say part labels.
+Deleted: `CarriedLevel::line_in_part`, `PartFault::spoken`,
+`assert_pinned` (no resolver/pin cross-check remains on the speaking
+path; labels come from the evaluated document).
+
+Equality now also compares the labels the pin fixed. Equal ids from
+differently-labelled pins compare unequal, which is deliberate and
+reaches `ReachRefusal` and `FacePoseRefusal`.
+
+Review folds:
+- the `Eq` prose;
+- arms built with their snapshot, with `held_mut` gone;
+- the `spoken.rs` module doc leads with the general rule;
+- a direct match in `line_in`/`line`.
+
+Twin-id tests in editor-core, the viewer and Python, mutation-checked
+before the refactor.
+
+Filed: `carried-rows-say-a-parts-nodes-by-tag`. The success-path rows
+(`Route` via hops, `CarriedRefusal`, `CarriedUnplaced`, carried
+declarations) never pass `product_fault`.
+
+**Main was red.** `review_pick_r2`'s corpus tally moved at the merge of
+#4081 (ae873ecb6b; b804bcc1c9 still at the old pin), from
+`(442782, 141968, 12774, 6870)` to `(442782, 141890, 13932, 7110)`.
+Only the pin moved: no genuine crossing is refused and there are no wide
+winners. #4081's CI passed on a head that predates #4088/#4086, and
+main runs no test job on push. Re-pinned here.
+
+## 2026-10-06 — PR 4093: the open tool's held nodes follow every later document
+
+`Tools::respeak` re-speaks the open tool's held `SpokenNode`s (seats, the
+blend target, the mate's two picks) under the `respoken` keep rule.
+`ViewerApp::respeak_held` is now the single per-op call, beside
+`Drafts::respeak`. So a lost pick or target says the last label its node
+had.
+
+The mate's commit refusals (`NotAnInstancePick`, `SamePick`) prefer the
+kept label over the landed spelling. This covers the window where a
+rename and delete have not landed.
+
+On `Open`/`NewDocument`, `Tools::document_replaced` re-opens the tool
+empty, as drafts drop their held face. Without that, picks would be
+re-spoken from another document's id space; a reopened saved copy keeps
+identical ids, so the pick survived reconcile.
+
+Review folds:
+- C1 (kept-first, over a gated `app` row);
+- C2 (`Driven` rows through `perform_batch` for both respeakers);
+- C4 (replacement);
+- one helper and one shared loop;
+- a stale `app`-gated comment.
+
+All mutation-checked.
+
+## 2026-10-06 — PR 4103: verdict-nodes issue parked on the rewiring op
+
+`a-verdicts-other-nodes-are-said-by-tag-once-deleted` cannot happen
+through the session today. A `Vanished` verdict names only derivation
+nodes and strict ancestors of a live minter. `delete_node` deletes the
+whole cascade cone, and no session op rewires a live node's inputs.
+The row is parked on `no-docedit-splices-a-deleted-node` (#1324). Its
+body records the reachability evidence and the fix for when the case
+becomes reachable: widen `Derived::said` to the nodes a verdict can
+name, merged after each op. A snapshot taken at standing time would be
+too late.
+
+## 2026-10-06 — PR 4107: cluster-act gauges row closed as overtaken
+
+`a-cluster-act-speaks-its-gauges-by-tag` named `ClusterMaintenance`,
+`Maintenance::Cluster` and `mate::solve::gauge_spoken`. #3676
+(`1441b5154d`) deleted all of them with the placement registry, hours
+before the row was filed from a branch that predated it. The one
+placement row an edit reports today, `Maintenance::OffsetCleared`,
+already speaks its instance. A sweep of every `Maintenance` arm and of
+`node {` format strings in `editor-core/src` found nothing new (the
+carried rows are already filed). The PR only removes comments left stale
+by the deletion, and re-points two citations of a renamed test. That
+re-pointing was checked by mutating `Carrier::ALL`: exactly the three
+cited rows fail.
+
+## 2026-10-06 — PR 4114: a part's carried rows say its nodes as the pinned part holds them
+
+The success-path rows a part carries up now say the part's nodes by the
+labels its pin fixes. These are the `Route` deeper hops, `CarriedRefusal`,
+`CarriedUnplaced` (group and cause) and `Attribution::Carried`.
+- `Route::via` is `Vec<SpokenNode>`, each hop spoken from its own
+  document.
+- Each row body keeps `held: Arc<HeldNodes>`, recorded by `held_by` over
+  the body's own sentence (`PartRow::own`).
+- `PartValue` hands up `PartRow`s, built in `evaluate_entered` while the
+  pinned part is in hand.
+- `carry_up` and `Route::through_instance` are deleted.
+- Only `route.through`, the memoizing document's own id, stays bare and
+  is said by the frame.
+
+Memo keys: carried rows are reused only through `PartCache`
+`(DocRef, ε)` and the instance's content key (`feed_doc_ref`: id + pin).
+The pin hashes the canonical bytes, labels included, and fixes every
+deeper reference transitively. So every stored label is fixed by its
+key, under the general rule Ev ratified on #3839, and there is no design
+fork. The review confirmed this, and found `gauge_chain`'s "dead" cycle
+unreachable (every gauge-writing door runs `gauge_ref_fault`).
+
+Review folds:
+- the four stale `Display` docs;
+- a live-twin cause-gauge test (mutation-checked);
+- `RowBody` replaced by `held_by` over `B: Say`;
+- `UnplacedGroup` replaces the tuple;
+- one spelling of `Unplaced` through its `Say`.
+
+The generic carried-row type was skipped: it would rename public fields
+the Python bindings and the census read.
+
+The node-labels unit has no open actionable rows left. The verdict-nodes
+row is parked on #1324.
+
+## 2026-10-06 — the union member-order row re-measured, and parked on D10
+
+Re-measured `union-refuses-in-some-member-orders-and-publishes-in-others`
+on main (`35e4ac1829`). One class is left: `DeclareResolve` (`Vanished`,
+`ConsumedByFold { Split | FragmentedMerge }`) in 22 cases; `RayExhausted`
+left with PR 3655 and `UndeclaredContact` is uniform. Five more
+order-mixed unions of the same class sit outside the row's old scope
+(`near`, the declared `(a, h)` and `{a, b, h}` variants, and
+`wire_legal_union_refusals`' two fixtures). Root cause: `look_through_fold`
+refuses a split name at the step `route_declarations` sends it to, so
+member order decides whether the face is already split (ratified DM4).
+
+- **Parked** both the row and
+  `a-declaration-on-a-face-one-fold-step-cut-and-partly-merged-cannot-be-routed-by-names`
+  on `d10-one-way-to-say-intent-is-unbuilt`: declared pairs are held
+  ground, and INTENT's stage 4 retires them, which removes the class by
+  construction. The design row's stale `r4trig` pin is now
+  `DeclareResolve:12`.
+- **Fan-out evidence for stage 4** (scratch, not built: it changes DM4
+  on held ground): feeding a refused pair to every face descending from
+  the name made all 22 cases fuse in every order, with no name rebinds.
+- **What that uncovers**, noted on its owners' rows with no status
+  change: the seam-vertex parentage residue `Emission` (WIRE's
+  `a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission`,
+  2 → 8 orders on `row`/`rowids` and on `emit_seam_junction`), and
+  `SeamVertexParentage` on `near` (WIRE's
+  `a-merged-face-with-several-same-side-constituents-has-no-chord-rule`,
+  FUSE's `a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made`).
+- Two test comments citing GATHER's deleted look-through row now cite
+  the union row; recorded, with three more dead GATHER citations found
+  by the sweep, in `dead-work-citations-from-shipped-code-and-docs`.
+
+- 2026-10-06 — Seam from FUSE: step 4 of Ev's PR-3881 build (a union
+  edge spanning several member edges is named for the set) is being
+  built by a FUSE lane on `fuse/set-names`, under
+  `crates/editor-core/src/names/` (`emit_topo.rs`'s `same_side_rim`,
+  `seam_set`, `seam_edges` and the `vertex_merges` reads). It lands
+  together with the join at every stage (PR 4140). Any fork in naming
+  the set goes to Ev, and EMIT is told. (FUSE log, 2026-10-06.)
+
+## 2026-10-06 — covered-pair naming row parked on D10
+
+`a-pair-boolean-names-a-declared-covered-pair-by-operand-order` asks
+whether a pair boolean should name a declared covered pair the way the
+union now does. Declared pairs are on the D10 hold's ground, and stage 4
+retires them. Parked on `d10-one-way-to-say-intent-is-unbuilt`, beside
+the union member-order row (PR 4141).
+
+## 2026-10-06 — PR 4134 ([ev]): a crossing is named by its sense
+
+The designer pair (fork-log row 73; byte 120, A = Opus, B = Fable)
+converged after three rounds. They agreed on:
+- every crossing carries its sense, read against the partner's closed
+  body;
+- a `Crossing { edge, face, sense }` head;
+- `Ends` on every edge piece, after a run showed the lone-piece rule
+  renames an untouched piece whatever the crossing is named.
+
+They split on the same-sense residue: A ranked it, B tied it. Ev first
+asked whether a tie was viable as a permanent state. The answer: it loses
+no geometry, but leaves same-sense crossings, and the pieces between
+them, unreferenceable one at a time, and it departs from N4's own rule.
+Ev then took the ordinal (A). The row stays open for the build, with a
+Ruled section.
+
+The runs also found:
+- the pinned locality test is vacuous (two documents, two Split ids);
+- an in-face union case that neither first reading of the sense covered.
+
+## 2026-10-06 — PR 4134's follow-ups filed
+
+Three design rows came out of the crossing-sense fork:
+- `borders-and-keeps-spell-a-lone-piece-bare`: the lone-member rule, on
+  faces;
+- `section-face-and-hole-rim-are-ordinals-over-their-group`;
+- `an-in-face-crossing-is-spelled-as-a-seam-of-the-face-it-lies-in`.
+
+The NURBS-crossing and edge × edge rows each get a note to re-measure
+once the sense is built.
+
+## 2026-10-06 — PR 4156 ([ev]): ids carry their mint ordinal
+
+The designer pair (fork-log row 74; byte 171, A = Fable, B = Opus) crossed
+once and converged. Only `Flush` chooses anything. Seniority belongs in the
+id, so `Doc::order` can be derived rather than stored unchecked.
+
+Ev asked first why `Flush` needed it. The answer: on its own it does not;
+the case rests on the other readers of `Doc::order`, and on the stored list
+the load door cannot check. Ev then asked how `Doc::order` is built.
+
+Ev approved removing `Doc::order` and folding seniority in next to the id,
+as a custom pair type `(u32, u64)` rather than bit packing, unless
+something needs one integer. The row stays open for the build, with a
+Ruled section.
+
+## 2026-10-06 — PR 4164: `band_rim_pi` mints the rim's second half-arc
+
+The builder sits beside `band_rim` (`names/role.rs`). It is exported through `pncad::select` and as `pncad.band_rim_pi`, and declared in `pncad.pyi`. The hand spellings in the teapot demo, `blend5_rim_support`, `m4_pr3_names` and `band_run_wall_names` now use the builders, including `meridian_vertex`. Filed `meridian-edge-has-no-minting-builder`, the same class for meridian edges. Review: nothing blocking; the optional findings are folded.
+## 2026-10-06 — PR 4166: the part chooser proposes an editable label
+
+`add_part_ui` now draws `creation_label_row` above the listing, because a pick commits at once. A pick commits through `push_labelled(INSTANCE_NOUN, AddInstance)`: one undo, a blank field commits the bare op, and refused text queues nothing, as on every other create form (PR 3713). The tests are an app-level row (save beside a stored part, type over the proposal, pick) and the noun pin. Review: nothing blocking; a comment now guards the chooser's take/put-back against an early return.
+
+## 2026-10-06 — PR 4183: a label refuses direction scopes and needs a character that shows
+
+A blinded designer pair (byte 192, A = Opus, B = Fable, recorded on
+`analysis/design-fork/emit-label-invisible-chars`) converged in its first
+reports. No ratified text changed: DESIGN.md has no character rule, and
+the rule lives in `label.rs`. So it was built without an `[ev]`; the PR
+body says it extends the rule approved on #3565.
+
+`Label::new` refuses, in this order:
+- a line break;
+- a control character;
+- one of the nine bidi embedding, override or isolate characters
+  (`LabelFault::Direction`, Python tag `label_direction_control`);
+- `Blank`: every character is whitespace or Unicode
+  `Default_Ignorable_Code_Point`. The 17 ranges are verified against
+  Unicode 16 and 18 (4174 code points).
+
+Joiners, bidi marks and emoji sequences pass. The viewer clears a field
+on `Label::is_blank`, the same predicate, so a field that shows nothing
+clears rather than refusing. Review folds: ALM and control-order rows, a
+full-range direction scan, narrowed docs, and the range test's stated
+re-derivation rule.
+## 2026-10-06 — the strict-tolerance reds, traced
+
+Several PRs failed CI's strict-tolerance step today (#4164 among them).
+#4083 had already fixed the cause on main: sweep rows from #4120 and
+#4074 used fixed tolerances. On main at c1199a2a56 the workspace passes
+12078/12078 with `--profile ci` at 1e-6 and 1e-12, at CI's opt-level.
+
+Two nightly-only reds remain, both stale test pins, fixed on
+`emit/nightly-eps-stale-pins`:
+- `pocket_ring_steep_ellipse` at 1e-6 (join row closed);
+- `arc_loft` and `r1_dm1_probe`, which pinned prose that #3942 reworded,
+  at 1e-12 (exch row closed).
+
+Job logs are readable from a cloud box: the GitHub MCP `get_job_logs`
+with `return_content=false` returns a signed URL that `curl` fetches.
+
+## 2026-10-06 — PR 4203: every crossing carries its sense
+
+The ruled row from PR 4134, the sense half.
+- The boolean records each operand edge piece's in/on/out class at its
+  vertex (`EdgePieceClass`). The vertex-on-face rows are the side codes
+  that pass decided (D5). The vertex-vertex rows are measured beside the
+  classification by `sectors::wedge_classes`.
+- Null-edge copies are exposed (`BooleanNaming::null_copies`), so an edge
+  that ends at a copy ends at the vertex. A side with no row refuses unless
+  the edge ends there.
+- The boolean and union name an edge × face vertex
+  `Crossing { edge, face, sense }` and an edge × edge vertex
+  `EdgeCrossing { a, a_sense, b, b_sense }`. The Split's `CrossingVertex`
+  gains `sense`.
+- Ranks run per sense.
+- Senses ride a union's fold. They flip under `RankRule::Reverse`, a
+  Split's crossings included, and a union rewrite re-reads them side by
+  side by image.
+
+`Ends` on every piece of a divided edge was built and reverted in the same
+PR. The review measured names growing about 2.41× per cut along a chain of
+trims (8.3M words at fourteen trims). It waits on
+`a-crossing-cites-its-edge-by-a-name-that-holds-that-edges-ends-so-names-grow-exponentially`.
+
+The pinned test is rebuilt as one document edited in place; it pins the
+crossing, and not the lone piece.
+
+Filed:
+- the touch and edge × edge spelling (design);
+- the unoriented-seam refusal (design);
+- the end-touch row, which main's edge joins left without a witness.
+
+## 2026-10-07 — PR 4212: a crossing cites the edge's line (ruled)
+
+Ev approved fork-log row 77: a crossing and every piece's base cite the
+edge's line, and N5 reads a cited line as the rows whose undivided base
+it is. Both designers converged on it after round 2. The growth row
+stays open for the build, which lands `Ends` on every piece on top.
+
+## 2026-10-07 — PR 4228: a crossing cites the edge's line; Ends on every piece
+
+This builds the #4212 ruling. Review found three real defects, all fixed
+with fail-before rows:
+- a cascade's `through` line, resolved on its own, cascaded wrongly;
+- `GroupResized` broke when two untied parents lay on one line;
+- the cross-piece ranking was anchored to the least-named piece, which
+  could swap ranks silently on a closed carrier.
+
+Two rows were filed: a curved-rim union that refuses `SharedRim` on main
+too, and the second-crossing row's same-sense group, which no geometry
+the kernel accepts reaches today. Main's lint red from #4234 was fixed by
+#4241 on the way. The growth row is closed.
+
+## 2026-10-07 — PR 4244: ids are a (mint ordinal, digest) pair
+
+This builds the #4156 ruling; nothing needed one integer. Review caught
+four things:
+- a probe-twin pin left stale;
+- msolve14's ε pins left stale (they hash ids; with ids masked to
+  positions the solve matches main at every ε);
+- `MintLogOrder`'s old wording;
+- docs restating a false "id order is topological".
+
+Filed from it: the forward-member row (doors), the u64-token residue
+(wire) and the analysis boxes' redundant axis order (flux). PR 4244
+merged second after #4228 and re-measured exactly the pins #4228 moved.
+The name row is closed.
+
+## 2026-10-07 — PR 4269: a vertex reads every key fused into it (P0)
+
+This fixes a regression from #4203. Leaning wedges' unions refused the
+unclassified-crossing emission in the 78 member orders whose first fold
+step unions two adjacent wedges.
+
+The cause was that `fused_partners` read the zips' fusions one hop deep.
+`split_cones` leaves per-cone copies that chain two fusions, so B's keys
+never reached the pinch vertex.
+
+Review asked for three things, all done:
+- partners nearest first, so every one-hop identity holds;
+- rows with mutation evidence;
+- a measurement: no corpus name moves.
+
+## 2026-10-07 — PR 4278: crossings of one NURBS piece rank by its parameter
+
+A crossing point is read along the piece's chord. The reading is used
+only when every control step shaping the piece advances along the
+chord, which makes the piece a graph over its chord, so the readings
+order as the parameters do.
+
+Review confirmed the argument and caught two things, both fixed: the
+certificate escalated where main tied, and no row checked the certificate.
+
+Filed from the review: K > 2 is unenforced (flux), and N2 states only
+part of the tie rule (emit). The lane also filed a swaying-loft refusal
+(nurbs) and the flush reading's NURBS gap (emit).
+
+## 2026-10-07 — PR 4281: merged sets are flat through FromMember (N3)
+
+A union over a union, or over a pair boolean, published an inner merge as
+one constituent. Merged sets now peel `FromA`, `FromB` and `FromMember`
+in one place. `Parents` and `member_edge` read constituents, and
+`face_descends_from` counts descent from a constituent.
+
+Review caught two things: an overstated PR claim (main never dropped
+declarations silently) and the untested pair-boolean case, which now has
+a row that is red on main. The wrong cascade diagnosis is filed as
+`a-vanished-merged-name-is-diagnosed-a-cascade-through-its-retired-constituent`.
+

@@ -425,7 +425,7 @@ fn null_scaffold_fail_loud_audit() {
     assert_eq!(dump(&cube.body), before);
     // Door 6: revert carries the scaffold through UNCHANGED (still
     // typed scaffolding on the other side, still refused at rest).
-    let reverted = cube.body.revert().unwrap();
+    let reverted = cube.body.revert();
     assert!(
         reverted
             .get_curve_geom(created.curve)
@@ -591,6 +591,41 @@ fn split_edge_interiority_band_edges() {
     assert_eq!(validate_geometric(&cube.body, Tol::witness()), Ok(()));
 }
 
+/// The parent key survives as the FIRST child (original start → new
+/// vertex) and `new_edge` is the SECOND (new vertex → original end),
+/// read off the keys alone.
+#[test]
+fn split_edge_parent_key_keeps_the_start_side() {
+    let mut cube = geometric_cube::<f64>(Tol::witness());
+    describe_as_intersections(&mut cube.body, Tol::witness());
+    let edge = cube.mevs[0].edge;
+    let ends = |body: &Body<f64>, e: topo::EdgeKey| {
+        let data = body.get_edge(e).unwrap();
+        let start = body.get_half_edge(data.he_plus).unwrap().start;
+        let end = body.half_edge_end(data.he_plus).unwrap();
+        (start, end)
+    };
+    let (u, v) = ends(&cube.body, edge);
+    assert_ne!(u, v, "fixture edge must have distinguishable ends");
+    let created = cube.body.split_edge(edge, 0.5, Tol::witness()).unwrap();
+    let w = created.vertex;
+    assert_eq!(
+        ends(&cube.body, edge),
+        (u, w),
+        "parent key must keep the start side: original start -> new vertex"
+    );
+    assert_eq!(
+        ends(&cube.body, created.new_edge),
+        (w, v),
+        "new_edge must take the end side: new vertex -> original end"
+    );
+    assert_eq!(
+        cube.body.get_edge(created.new_edge).unwrap().he_plus,
+        created.he_plus,
+        "created.he_plus must be new_edge's plus half"
+    );
+}
+
 /// TARGET 4: revert posture on a body WITH a ring and split edges (the
 /// harder inventory than the shipped plain-cube pin): bitwise
 /// involution, D9 determinism, tier-2 currency, tier 3 = exactly
@@ -610,7 +645,7 @@ fn revert_on_split_body_involution_and_posture() {
     let vol = topo::mass_properties(&cube.body, Tol::witness())
         .unwrap()
         .volume;
-    let reverted = cube.body.revert().unwrap();
+    let reverted = cube.body.revert();
     // Source untouched (functional, both-results-free).
     assert_eq!(dump(&cube.body), original);
     // Tier-2 currency; tier 3 EXACTLY NegativeVolume.
@@ -627,10 +662,10 @@ fn revert_on_split_body_involution_and_posture() {
         .volume;
     assert_eq!(rvol.to_bits(), (-vol).to_bits());
     // Bitwise involution + determinism.
-    assert_eq!(dump(&reverted.revert().unwrap()), original);
-    assert_eq!(dump(&cube.body.revert().unwrap()), dump(&reverted));
+    assert_eq!(dump(&reverted.revert()), original);
+    assert_eq!(dump(&cube.body.revert()), dump(&reverted));
     // Double-revert of the REVERTED body too (involution both ways).
-    let twice = reverted.revert().unwrap().revert().unwrap();
+    let twice = reverted.revert().revert();
     assert_eq!(dump(&twice), dump(&reverted));
 }
 
@@ -959,13 +994,13 @@ fn merge_coplanar_annulus_makes_ring_and_spares_numeric_center() {
     // reach for chord-line descriptions - TransverseNotIntrinsic - so
     // the volume sign carries the complement witness here).
     let original = dump(&cube.body);
-    let reverted = cube.body.revert().unwrap();
+    let reverted = cube.body.revert();
     assert_eq!(validate_closed(&reverted), Ok(()));
     let rvol = topo::mass_properties(&reverted, Tol::witness())
         .unwrap()
         .volume;
     assert_eq!(rvol.to_bits(), (-vol1).to_bits());
-    assert_eq!(dump(&reverted.revert().unwrap()), original);
+    assert_eq!(dump(&reverted.revert()), original);
 }
 
 /// TARGET 6/8: sharper numeric-coincidence teeth than the shipped

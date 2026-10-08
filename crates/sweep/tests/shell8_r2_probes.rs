@@ -13,10 +13,10 @@
 use core::f64::consts::PI;
 
 use geom_core::k_stats::Bracket;
-use geom_core::{Affine3, Point3, Sign, Tol, Vec3};
-use sweep::test_support::{block, brick};
+use geom_core::{Affine3, Point3, Tol, Vec3};
+use sweep::test_support::{block, brick, finished};
 use topo::ShellNaming;
-use topo::{Body, FaceKey, ShellError, ShellRole, SolidKey, VoidContainment, VoidEvidence};
+use topo::{Body, FaceKey, ShellError, ShellRole, SolidKey};
 
 use crate::common::approx::band;
 use crate::common::charts::{charts_of, moves_inward};
@@ -25,11 +25,8 @@ use crate::common::shell_operands::{hollow_box, outer_and_void, vessel};
 use crate::shell8_common::{beside, beside_raw, cap, faces_of, solid_of, tol, volume, wearers};
 
 fn points(body: &Body<f64>) -> Vec<(topo::VertexKey, (u64, u64, u64))> {
-    body.vertices()
-        .map(|(k, v)| {
-            let p = body.get_point(v.point).unwrap();
-            (k, (p.x.to_bits(), p.y.to_bits(), p.z.to_bits()))
-        })
+    body.vertex_points()
+        .map(|(k, p)| (k, (p.x.to_bits(), p.y.to_bits(), p.z.to_bits())))
         .collect()
 }
 
@@ -79,8 +76,10 @@ fn r2_axial_door_scoped_to_the_vessel_leaves_the_box_bitwise() {
     let solids: Vec<SolidKey> = pair.solids().map(|(k, _)| k).collect();
     let (bx, vs) = (solids[0], solids[1]);
 
-    // Whole-body reading: not axial (the box is in it).
-    assert!(!topo::is_axial(&pair, band()).unwrap());
+    // Whole-body reading: axial, the box's faces standing normal and
+    // parallel to the vessel's axis; the scope below is what keeps the
+    // box out of the door's writes.
+    assert!(topo::is_axial(&pair, band()).unwrap());
 
     // The vessel's charts only, through the axial door.
     let mut work = pair.clone();
@@ -168,7 +167,7 @@ fn r2_a_solid_inside_anothers_void_shells_and_never_gates() {
         "a solid inside a void is a valid body"
     );
     println!("[r2] roles of the nested operand: {:?}", roles(&body));
-    let s = topo::shell(&body, t, tol())
+    let s = topo::shell(&finished("the operand", body.clone(), tol()), t, tol())
         .expect("both shell; the void wall and the cube face never gate");
     let want = (box_volume(2.0, 3.0, 4.0) - box_volume(1.9, 2.9, 3.9))
         + (box_volume(1.6, 2.6, 3.6) - box_volume(1.5, 2.5, 3.5))
@@ -199,7 +198,8 @@ fn r2_a_solid_inside_anothers_void_shells_and_never_gates() {
         &block(0.5, 0.5, 0.5, Tol::witness()),
         Vec3::new(2.02, 0.0, 0.0),
     );
-    topo::shell(&thin, t, tol()).expect("cross-solid 0.02 gap builds");
+    topo::shell(&finished("the operand", thin.clone(), tol()), t, tol())
+        .expect("cross-solid 0.02 gap builds");
 }
 
 // ---------------------------------------------------------------------
@@ -211,7 +211,7 @@ fn r2_a_solid_inside_anothers_void_shells_and_never_gates() {
 fn r2_roles_are_read_per_hollow_solid_and_never_for_a_plain_one() {
     let pair = beside(&hollow_box(), &block(2.0, 3.0, 4.0, Tol::witness()), 10.0);
     let bracket = Bracket::open();
-    topo::shell(&pair, 0.05, tol()).expect("shells");
+    topo::shell(&finished("the operand", pair.clone(), tol()), 0.05, tol()).expect("shells");
     let verdicts = bracket.finish().verdicts;
     let signs = verdicts
         .iter()
@@ -230,7 +230,7 @@ fn r2_roles_are_read_per_hollow_solid_and_never_for_a_plain_one() {
         10.0,
     );
     let bracket = Bracket::open();
-    topo::shell(&plain, 0.05, tol()).expect("shells");
+    topo::shell(&finished("the operand", plain.clone(), tol()), 0.05, tol()).expect("shells");
     let verdicts = bracket.finish().verdicts;
     let signs = verdicts
         .iter()
@@ -244,52 +244,35 @@ fn r2_roles_are_read_per_hollow_solid_and_never_for_a_plain_one() {
 }
 
 #[test]
-fn r2_operand_outer_shells_names_the_offending_solids_own_count() {
-    // A solid with TWO outer shells: a positively oriented cube inserted
-    // through the void door (which trusts carried evidence and reverts
-    // the cavity — so a pre-reverted cavity lands positive).
-    let mut host = block(2.0, 3.0, 4.0, Tol::witness());
-    let host_solid = host.solids().next().unwrap().0;
-    let cube = topo::transform_rigid(
-        &block(0.5, 0.5, 0.5, Tol::witness()),
-        &Affine3::translation(Vec3::new(0.75, 1.25, 1.75)),
-        tol(),
-    )
-    .unwrap();
-    let pre_reverted = cube.revert().expect("reverts");
-    let evidence = VoidEvidence {
-        shells: pre_reverted
-            .shells()
-            .map(|(s, _)| {
-                (
-                    s,
-                    VoidContainment::Carried {
-                        sign: Sign::Positive,
-                    },
-                )
-            })
-            .collect(),
+fn r2_a_solid_of_only_cavities_is_refused_at_the_gate() {
+    // A solid with NO outer shell: two inside-out cubes filed under one
+    // solid (the `sweep-testing` merge door), beside a plain block. Its
+    // total is negative, so tier 3's check 7 refuses it naming that
+    // solid, and the verb is never handed it.
+    let cube = |at: Vec3<f64>| {
+        topo::transform_rigid(
+            &block(0.5, 0.5, 0.5, Tol::witness()),
+            &Affine3::translation(at),
+            tol(),
+        )
+        .unwrap()
+        .revert()
     };
-    topo::insert_void(&mut host, host_solid, pre_reverted, &evidence).expect("inserts");
-    println!("[r2] two-outer host roles: {:?}", roles(&host));
+    let mut voids = cube(Vec3::new(0.0, 0.0, 0.0));
+    topo::graft_disjoint_all_keyed(&mut voids, &cube(Vec3::new(3.0, 0.0, 0.0))).unwrap();
+    let voids = voids.with_solids_merged_for_tests();
     let (body, _) = beside_raw(
-        &host,
+        &voids,
         &block(2.0, 3.0, 4.0, Tol::witness()),
         Vec3::new(10.0, 0.0, 0.0),
     );
-    let e = topo::shell(&body, 0.05, tol()).expect_err("two outer shells in one solid refuse");
-    println!("[r2] two-outer beside plain: {e}");
-    // **The count is that SOLID's own, and the refusal names it.** The
-    // roles are read per hollow solid, so the plain neighbour's shell
-    // is never classified: a whole-body read would have counted three
-    // outer shells here and named none of them.
-    let host_solid_in_body = body.solids().next().unwrap().0;
-    assert!(
-        matches!(
-            e,
-            ShellError::OperandOuterShells { solid, outer: 2 } if solid == host_solid_in_body
-        ),
-        "{e}"
+    let voids_solid = body.solids().next().unwrap().0;
+    let errors = topo::AtRestBody::validate(body, tol())
+        .expect_err("a solid of only cavities is not a finished body");
+    assert_eq!(
+        errors,
+        vec![topo::ValidationError::NegativeVolume { solid: voids_solid }],
+        "the gate names the cavities' solid alone"
     );
 }
 
@@ -301,21 +284,20 @@ fn r2_operand_outer_shells_names_the_offending_solids_own_count() {
 // ---------------------------------------------------------------------
 
 /// The un-moved split slab is one solid with two OUTER shells, which
-/// the shell door refuses whole and opened, upstream of any chart
-/// grouping — whichever of the shared top's wearers is named.
+/// only the test-only merge door makes: tier 3's check 10 refuses it,
+/// so the verb is never handed it. The public product, one solid per
+/// component, shells below (`split_slab(true)`).
 #[test]
-fn r2_a_disconnecting_subtract_files_two_outer_shells_the_shell_door_refuses() {
+fn r2_two_outer_shells_under_one_solid_are_refused_at_the_gate() {
     let body = split_slab(false);
     let solid = body.solids().next().unwrap().0;
-    let outer_shells = |e: &ShellError<f64>| matches!(e, ShellError::OperandOuterShells { solid: s, outer: 2 } if *s == solid);
-    let e = topo::shell(&body, 0.05, tol()).unwrap_err();
-    assert!(outer_shells(&e), "closed: {e}");
-    let tops = plane_face_at_z(&body, solid, 1.0);
-    assert_eq!(tops.len(), 2, "one top wearer per component");
-    for open in [&tops[..1], &tops[1..], &tops[..]] {
-        let e = topo::shell_open(&body, 0.05, open, tol()).unwrap_err();
-        assert!(outer_shells(&e), "opened at {open:?}: {e}");
-    }
+    let errors = topo::AtRestBody::validate(body, tol())
+        .expect_err("two pieces under one solid is not a finished body");
+    assert_eq!(
+        errors,
+        vec![topo::ValidationError::SolidOuterShells { solid, outer: 2 }],
+        "the gate counts the solid's two pieces"
+    );
 }
 
 // ---------------------------------------------------------------------
@@ -336,11 +318,19 @@ fn hollow_vessel_want(t1: f64, t: f64, r: f64, h: f64, lid: bool) -> f64 {
 fn r2_lift_on_the_vessels_void_ceiling_alone_and_beside_a_box() {
     let y = Vec3::new(0.0, 1.0, 0.0);
     let (t1, t) = (0.1, 0.02);
-    let hv = topo::shell(&vessel(1.0, 2.0), t1, tol()).unwrap().body;
+    let hv = topo::shell(&finished("the operand", vessel(1.0, 2.0), tol()), t1, tol())
+        .unwrap()
+        .body;
     let (_, void) = outer_and_void(&hv);
     let ceiling = cap(&hv, void, y, 2.0 - t1);
 
-    let alone = topo::shell_open(&hv, t, &ceiling, tol()).expect("the void ceiling opens");
+    let alone = topo::shell_open(
+        &finished("the operand", hv.clone(), tol()),
+        t,
+        &ceiling,
+        tol(),
+    )
+    .expect("the void ceiling opens");
     let props = topo::mass_properties(&alone.body, tol()).unwrap();
     let want = hollow_vessel_want(t1, t, 1.0, 2.0, true);
     println!(
@@ -371,9 +361,15 @@ fn r2_lift_on_the_vessels_void_ceiling_alone_and_beside_a_box() {
         (rs, voids[0])
     };
     let ceiling = cap(&pair, void, y, 2.0 - t1);
-    let sealed = topo::shell(&pair, t, tol()).expect("sealed");
-    let opened =
-        topo::shell_open(&pair, t, &ceiling, tol()).expect("opened on the vessel's void ceiling");
+    let sealed =
+        topo::shell(&finished("the operand", pair.clone(), tol()), t, tol()).expect("sealed");
+    let opened = topo::shell_open(
+        &finished("the operand", pair.clone(), tol()),
+        t,
+        &ceiling,
+        tol(),
+    )
+    .expect("opened on the vessel's void ceiling");
     // By OPERAND key: the box's entities survive under their keys in
     // both results, while the rim surgery kills vertices elsewhere.
     let owners = topo::SolidOwners::of(&pair);
@@ -419,7 +415,13 @@ fn r2_lift_on_the_vessels_void_ceiling_alone_and_beside_a_box() {
 #[test]
 fn r2_no_solid_is_only_the_empty_operand() {
     let empty: Body<f64> = Body::new();
-    let e = topo::shell_open(&empty, 0.05, &[], tol()).unwrap_err();
+    let e = topo::shell_open(
+        &finished("the operand", empty.clone(), tol()),
+        0.05,
+        &[],
+        tol(),
+    )
+    .unwrap_err();
     assert!(matches!(e, ShellError::NoSolid));
     println!("[r2] NoSolid display: {e}");
     // Three solids build.
@@ -429,7 +431,8 @@ fn r2_no_solid_is_only_the_empty_operand() {
         10.0,
     );
     let three = beside(&two, &block(2.0, 3.0, 4.0, Tol::witness()), 20.0);
-    let s = topo::shell(&three, 0.05, tol()).expect("three build");
+    let s = topo::shell(&finished("the operand", three.clone(), tol()), 0.05, tol())
+        .expect("three build");
     assert_eq!(s.body.solids().count(), 3);
 }
 
@@ -455,7 +458,8 @@ fn r2_solid_order_assertion_on_a_body_with_a_freed_solid_slot() {
     println!("[r2] freed slot: solid order {order:?} (third = {third:?})");
     assert_eq!(order.len(), 2);
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
-    let s = topo::shell(&body, 0.05, tol()).expect("a freed slot in the arena is not a reorder");
+    let s = topo::shell(&finished("the operand", body.clone(), tol()), 0.05, tol())
+        .expect("a freed slot in the arena is not a reorder");
     assert_eq!(s.body.solids().count(), 2);
     let one_wall = box_volume(2.0, 3.0, 4.0) - box_volume(1.9, 2.9, 3.9);
     assert!((volume(&s.body) - 2.0 * one_wall).abs() < 1e-12);
@@ -469,7 +473,8 @@ fn r2_solid_order_assertion_on_a_body_with_a_freed_solid_slot() {
     );
     let order: Vec<SolidKey> = body.solids().map(|(k, _)| k).collect();
     println!("[r2] reused slot: solid order {order:?} (reused = {reused:?})");
-    let s = topo::shell(&body, 0.05, tol()).expect("builds");
+    let s =
+        topo::shell(&finished("the operand", body.clone(), tol()), 0.05, tol()).expect("builds");
     assert_eq!(s.body.solids().count(), 3);
     assert!((volume(&s.body) - 3.0 * one_wall).abs() < 1e-12);
 }
@@ -537,7 +542,12 @@ fn r2_e2e_consumer_seat() {
     .unwrap();
     let b_solid = topo::graft_disjoint(&mut assembly, &placed).expect("placed");
     let a_solid = assembly.solids().next().unwrap().0;
-    let hollowed = topo::shell(&assembly, 0.05, tol()).expect("both parts hollow in one call");
+    let hollowed = topo::shell(
+        &finished("the operand", assembly.clone(), tol()),
+        0.05,
+        tol(),
+    )
+    .expect("both parts hollow in one call");
     let want = one_wall(0.05) + PI * (1.0 * 2.0 - 0.95 * 0.95 * 1.9);
     let props = topo::mass_properties(&hollowed.body, tol()).unwrap();
     println!(
@@ -556,8 +566,13 @@ fn r2_e2e_consumer_seat() {
     tess("1 (two hollow parts)", &hollowed.body);
 
     // ---- 2. Hollow, hollow, open on a box. ----
-    let first = topo::shell(&part_a, 0.25, tol()).unwrap();
-    let second = topo::shell(&first.body, 0.05, tol()).unwrap();
+    let first = topo::shell(&finished("the operand", part_a.clone(), tol()), 0.25, tol()).unwrap();
+    let second = topo::shell(
+        &finished("the operand", first.body.clone(), tol()),
+        0.05,
+        tol(),
+    )
+    .unwrap();
     // Naming "the ceiling of the innermost cavity": the operand's top
     // face → its inner twin after the first hollowing (a void face,
     // whose key SURVIVES the second hollowing under the same key).
@@ -580,8 +595,13 @@ fn r2_e2e_consumer_seat() {
         "[r2] e2e 2: the inner ceiling {inner_ceiling:?} sits in thin solid {owner:?} of {:?}",
         second.body.solids().map(|(k, _)| k).collect::<Vec<_>>()
     );
-    let third = topo::shell_open(&second.body, 0.01, &[inner_ceiling], tol())
-        .expect("hollow, hollow, open");
+    let third = topo::shell_open(
+        &finished("the operand", second.body.clone(), tol()),
+        0.01,
+        &[inner_ceiling],
+        tol(),
+    )
+    .expect("hollow, hollow, open");
     let want = (box_volume(2.0, 3.0, 4.0) - box_volume(1.98, 2.98, 3.98))
         + (box_volume(1.92, 2.92, 3.92) - box_volume(1.9, 2.9, 3.9))
         + (box_volume(1.6, 2.6, 3.6) - box_volume(1.58, 2.58, 3.58))
@@ -599,8 +619,13 @@ fn r2_e2e_consumer_seat() {
     // The OTHER way to say "inner wall": the dilated twin of that
     // ceiling — the OUTER face of the innermost thin solid.
     let outer_of_innermost = twin_of(&second.naming, inner_ceiling);
-    let alt = topo::shell_open(&second.body, 0.01, &[outer_of_innermost], tol())
-        .expect("opens on the outer side too");
+    let alt = topo::shell_open(
+        &finished("the operand", second.body.clone(), tol()),
+        0.01,
+        &[outer_of_innermost],
+        tol(),
+    )
+    .expect("opens on the outer side too");
     // That twin is the ceiling of S2's OUTER shell (1.6 × 2.6 × 3.6), so
     // this is an OUTER designation and the lid is the cavity footprint.
     let want_alt = want + 1.52 * 2.52 * 0.01 - 1.58 * 2.58 * 0.01;
@@ -612,22 +637,24 @@ fn r2_e2e_consumer_seat() {
 
     // ---- 3. Vessel beside a box, hollowed, then opened on the
     // vessel's inner wall. ----
-    // FRICTION, measured: the vessel's cap is a full revolve's — two
-    // half-disc faces on one chart — and designating ONE of them refuses
-    // `OpenFaceChartPartial`. The consumer has to know to widen a face
-    // to its chart and map each face through the record.
+    // The vessel's cap is a full revolve's, built as ONE face on its
+    // chart, so the face a consumer picks is its whole chart: the
+    // friction this row once measured (designating one half-disc
+    // refused `OpenFaceChartPartial`) is gone.
     let b_cap = wall(&assembly, b_solid, y, 2.0);
-    let one_face_only = twin_of(&hollowed.naming, b_cap);
-    let e = topo::shell_open(&hollowed.body, 0.02, &[one_face_only], tol()).unwrap_err();
-    println!("[r2] e2e 3: one half-disc of the vessel's inner ceiling: {e}");
-    assert!(matches!(e, ShellError::OpenFaceChartPartial { .. }));
     let chart = assembly.get_face(b_cap).unwrap().surface;
     let b_inner_ceiling: Vec<FaceKey> = wearers(&assembly, b_solid, chart)
         .into_iter()
         .map(|k| twin_of(&hollowed.naming, k))
         .collect();
-    let opened = topo::shell_open(&hollowed.body, 0.02, &b_inner_ceiling, tol())
-        .expect("opened on the vessel's inner wall");
+    assert_eq!(b_inner_ceiling.len(), 1, "the cap's chart is one face");
+    let opened = topo::shell_open(
+        &finished("the operand", hollowed.body.clone(), tol()),
+        0.02,
+        &b_inner_ceiling,
+        tol(),
+    )
+    .expect("opened on the vessel's inner wall");
     // BOTH solids shell again: the box's thin solid becomes two more.
     let want = (box_volume(2.0, 3.0, 4.0) - box_volume(1.96, 2.96, 3.96))
         + (box_volume(1.94, 2.94, 3.94) - box_volume(1.9, 2.9, 3.9))
@@ -655,28 +682,37 @@ fn r2_e2e_consumer_seat() {
     let _ = a_solid;
 }
 
-/// The 6×1×1 slab cut in half by a subtract. The subtract files both
-/// components under ONE solid (ZIP's separate defect), each cut operand
-/// face's fragments keeping the operand's surface key, so four charts —
-/// the top, bottom, front and back planes — are each worn by a face of
-/// both components. `moved` files the components as two solids through
-/// the public ownership door.
+/// The 6×1×1 slab cut in half by a subtract. The subtract files each
+/// component as a solid of its own (a solid is one piece of material),
+/// each cut operand face's fragments keeping the operand's surface key,
+/// so four charts — the top, bottom, front and back planes — are each
+/// worn by a face of both components. Unless `moved`, both components
+/// are filed back under ONE solid through the `sweep-testing` merge
+/// door, the shape the ownership door's rows start from.
 fn split_slab(moved: bool) -> Body<f64> {
-    let slab = brick((0.0, 6.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
-    let wall = brick((2.5, 3.5), (-1.0, 2.0), (-1.0, 2.0), Tol::witness());
+    let slab = finished(
+        "the slab",
+        brick((0.0, 6.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
+        tol(),
+    );
+    let wall = finished(
+        "the wall",
+        brick((2.5, 3.5), (-1.0, 2.0), (-1.0, 2.0), Tol::witness()),
+        tol(),
+    );
     let Ok(topo::BooleanResult::Body(b)) = topo::subtract(&slab, &wall, tol()) else {
         panic!("no body")
     };
-    let mut body = b.body;
-    let shells: Vec<topo::ShellKey> = body.shells().map(|(k, _)| k).collect();
-    assert_eq!(shells.len(), 2, "the subtract files two shells");
-    assert_eq!(body.solids().count(), 1, "under one solid");
+    let body = b.body.into_body();
+    assert_eq!(body.shells().count(), 2, "the subtract files two shells");
+    assert_eq!(body.solids().count(), 2, "one solid per component");
     if moved {
-        body.move_shells_to_new_solid(&[shells[1]])
-            .expect("one component moves to its own solid");
-        assert_eq!(body.solids().count(), 2);
+        body
+    } else {
+        let merged = body.with_solids_merged_for_tests();
+        assert_eq!(merged.solids().count(), 1, "under one solid");
+        merged
     }
-    body
 }
 
 /// Face pairs of `body` wearing one surface key that `apart` separates.
@@ -739,7 +775,8 @@ fn r2_move_shells_to_new_solid_keeps_every_chart_and_the_slab_thickens() {
     );
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
 
-    let shelled = topo::shell(&body, 0.05, tol()).expect("the split slab as two solids shells");
+    let shelled = topo::shell(&finished("the operand", body.clone(), tol()), 0.05, tol())
+        .expect("the split slab as two solids shells");
     assert_eq!(
         shelled.body.solids().count(),
         2,
@@ -801,16 +838,22 @@ fn r2_replace_faces_offset_on_one_solids_wearers_leaves_the_other_on_the_old_key
 /// own faces: its own cap's interior in, the other's out.
 #[test]
 fn r2_point_in_solid_of_one_cap_answers_beside_a_shared_sphere_chart() {
-    let ball = sweep::test_support::ball_poled_z(1.0, Vec3::new(0.0, 0.0, 0.0), tol());
-    let slab = brick((-2.0, 2.0), (-2.0, 2.0), (-0.2, 0.2), Tol::witness());
+    let ball = finished(
+        "the ball",
+        sweep::test_support::ball_poled_z(1.0, Vec3::new(0.0, 0.0, 0.0), tol()),
+        tol(),
+    );
+    let slab = finished(
+        "the slab",
+        brick((-2.0, 2.0), (-2.0, 2.0), (-0.2, 0.2), Tol::witness()),
+        tol(),
+    );
     let Ok(topo::BooleanResult::Body(b)) = topo::subtract(&ball, &slab, tol()) else {
         panic!("no body")
     };
-    let mut body = b.body;
-    let shells: Vec<topo::ShellKey> = body.shells().map(|(k, _)| k).collect();
-    assert_eq!(shells.len(), 2, "the subtract files two caps");
-    body.move_shells_to_new_solid(&[shells[1]])
-        .expect("one cap moves to its own solid");
+    let body = b.body;
+    assert_eq!(body.shells().count(), 2, "the subtract files two caps");
+    assert_eq!(body.solids().count(), 2, "each cap a solid of its own");
     let is_sphere = |f: FaceKey| {
         matches!(
             body.get_surface(body.get_face(f).unwrap().surface),
@@ -947,7 +990,8 @@ fn in_solid(body: &Body<f64>, solid: SolidKey, q: Point3<f64>) -> topo::SolidCon
 #[test]
 fn r2_two_solids_on_one_chart_with_opposed_senses_shell_independently() {
     let (body, ..) = opposed_pair();
-    let shelled = topo::shell(&body, 0.1, tol()).expect("each solid thickens on its own");
+    let shelled = topo::shell(&finished("the operand", body.clone(), tol()), 0.1, tol())
+        .expect("each solid thickens on its own");
     assert_eq!(shelled.body.solids().count(), 2);
     assert_volume(&shelled.body, 2.0 * (1.0 - 0.8 * 0.8 * 0.8), "shelled");
     assert_eq!(topo::validate_geometric(&shelled.body, tol()), Ok(()));
@@ -970,8 +1014,13 @@ fn r2_open_on_a_chart_two_solids_share_opens_only_the_named_solids() {
         (vec![top, bottom], 2.0 * open),
         (vec![bottom, top], 2.0 * open),
     ] {
-        let s = topo::shell_open(&pair, t, &faces, tol())
-            .unwrap_or_else(|e| panic!("opposed pair opened at {faces:?}: {e}"));
+        let s = topo::shell_open(
+            &finished("the operand", pair.clone(), tol()),
+            t,
+            &faces,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("opposed pair opened at {faces:?}: {e}"));
         assert_eq!(s.body.solids().count(), 2, "opposed pair at {faces:?}");
         assert_volume(&s.body, want, &format!("opposed pair opened at {faces:?}"));
         assert_eq!(topo::validate_geometric(&s.body, tol()), Ok(()));
@@ -992,8 +1041,13 @@ fn r2_open_on_a_chart_two_solids_share_opens_only_the_named_solids() {
         ([&b[..], &a[..]].concat(), 2.0 * open),
         ([&a[..], &b_bottom[..]].concat(), 2.0 * open),
     ] {
-        let s = topo::shell_open(&slab, t, &faces, tol())
-            .unwrap_or_else(|e| panic!("split slab opened at {faces:?}: {e}"));
+        let s = topo::shell_open(
+            &finished("the operand", slab.clone(), tol()),
+            t,
+            &faces,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("split slab opened at {faces:?}: {e}"));
         assert_eq!(s.body.solids().count(), 2, "split slab at {faces:?}");
         assert_volume(&s.body, want, &format!("split slab opened at {faces:?}"));
         assert_eq!(topo::validate_geometric(&s.body, tol()), Ok(()));
@@ -1034,22 +1088,34 @@ fn r2_open_on_a_chart_two_solids_share_opens_only_the_named_solids() {
 #[test]
 fn r2_three_solids_on_one_sphere_chart_open_additively() {
     let tol = tol();
-    let ball = sweep::test_support::ball_poled_z(1.0, Vec3::new(0.0, 0.0, 0.0), tol);
-    let upper = brick((-2.0, 2.0), (-2.0, 2.0), (0.3, 0.5), Tol::witness());
-    let lower = brick((-2.0, 2.0), (-2.0, 2.0), (-0.5, -0.3), Tol::witness());
+    let ball = finished(
+        "the ball",
+        sweep::test_support::ball_poled_z(1.0, Vec3::new(0.0, 0.0, 0.0), tol),
+        tol,
+    );
+    let upper = finished(
+        "the upper slab",
+        brick((-2.0, 2.0), (-2.0, 2.0), (0.3, 0.5), Tol::witness()),
+        tol,
+    );
+    let lower = finished(
+        "the lower slab",
+        brick((-2.0, 2.0), (-2.0, 2.0), (-0.5, -0.3), Tol::witness()),
+        tol,
+    );
     let Ok(topo::BooleanResult::Body(b)) = topo::subtract(&ball, &upper, tol) else {
         panic!("the first cut builds")
     };
     let Ok(topo::BooleanResult::Body(b)) = topo::subtract(&b.body, &lower, tol) else {
         panic!("the second cut builds")
     };
-    let mut body = b.body;
-    let shells: Vec<topo::ShellKey> = body.shells().map(|(k, _)| k).collect();
-    assert_eq!(shells.len(), 3, "a top cap, a zone and a bottom cap");
-    for &shell in &shells[1..] {
-        body.move_shells_to_new_solid(&[shell])
-            .expect("each piece moves to its own solid");
-    }
+    let body = b.body;
+    assert_eq!(
+        body.shells().count(),
+        3,
+        "a top cap, a zone and a bottom cap"
+    );
+    assert_eq!(body.solids().count(), 3, "each piece a solid of its own");
     assert_eq!(topo::validate_geometric(&body, tol), Ok(()));
     let sphere_keys: std::collections::BTreeSet<topo::SurfaceKey> = body
         .faces()
@@ -1138,7 +1204,9 @@ fn r2_replace_faces_offset_scopes_to_the_solid_across_shells_and_solids() {
     );
     let before = volume(&one);
     topo::replace_faces_offset(&mut one, &tops, -0.1, tol()).expect("both of the solid's wearers");
-    assert_eq!(topo::validate_geometric(&one, tol()), Ok(()));
+    // Two pieces under one solid is tier 3's refusal by count; tiers 1
+    // and 2 hold.
+    assert_eq!(topo::validate_closed(&one), Ok(()));
     assert_volume(&one, before - 2.0 * 2.5 * 0.1, "one solid, both tops");
 
     let mut two = split_slab(true);
@@ -1173,18 +1241,26 @@ fn r2_replace_faces_offset_scopes_to_the_solid_across_shells_and_solids() {
 
 /// **Point-in-solid on one sphere chart worn across two shells of ONE
 /// solid.** A ball cut through its equator by a slab leaves two caps
-/// on the ball's one sphere key, both filed under one solid. The
-/// solid's query reads both caps; after the move, the whole-body query
-/// does.
+/// on the ball's one sphere key, filed back under one solid through the
+/// `sweep-testing` merge door. The solid's query reads both caps; after
+/// the move, the whole-body query does.
 #[test]
 fn r2_point_in_solid_reads_one_sphere_chart_across_two_shells_of_one_solid() {
-    let ball = sweep::test_support::ball_poled_z(1.0, Vec3::new(0.0, 0.0, 0.0), tol());
-    let slab = brick((-2.0, 2.0), (-2.0, 2.0), (-0.2, 0.2), Tol::witness());
+    let ball = finished(
+        "the ball",
+        sweep::test_support::ball_poled_z(1.0, Vec3::new(0.0, 0.0, 0.0), tol()),
+        tol(),
+    );
+    let slab = finished(
+        "the slab",
+        brick((-2.0, 2.0), (-2.0, 2.0), (-0.2, 0.2), Tol::witness()),
+        tol(),
+    );
     let Ok(topo::BooleanResult::Body(b)) = topo::subtract(&ball, &slab, tol()) else {
         panic!("no body")
     };
-    let mut body = b.body;
-    assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
+    assert_eq!(topo::validate_geometric(&b.body, tol()), Ok(()));
+    let mut body = b.body.with_solids_merged_for_tests();
     let solid = body.solids().next().unwrap().0;
     use topo::SolidContainment::{In, Out};
     for (q, want) in [

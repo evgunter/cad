@@ -34,3 +34,31 @@ for vertex-only witness walks. No fixture has been built that reaches
 
 Read the witness from `shell_witness` (tiers 2 and 3) after the
 vertices run out. It is `pub(super)` to `boolean` today.
+
+## Disposition from the ladder unit (CLEAVE `cleave/ladders`, PR 3716)
+
+PR 3716's sweep listed this probe as "not this unit: a different
+question". That holds for its first pass, which looks for ANY vertex of
+`inner` that is `In` and continues past `Out`. It does not hold for the
+residue this row is about. When every vertex reads `OnBoundary`, the
+remaining question is the ladder's own: which side of `outer` is
+`inner` on. So this row's prescription stands.
+
+The ladder is now one function, `shell_witness.rs` `complex_side`. It
+reads vertices, then edge carrier midpoints, then certified planar-face
+interior points, and passes over in-band readings. Census cannot call
+it as it stands. Census probes a SOLID's face selection
+(`point_in_solid_faces`), and `complex_side` probes a whole body
+(`point_in_solid`). The fix makes the probe a parameter of the ladder,
+or moves it next to `SolidFaces`, and runs the ladder on `AllOn`.
+
+## The probe is now a parameter (FUSE `fuse/one-home-shell-stands`)
+
+The ladder moved to `crates/topo/src/stands.rs` as `ladder(body, faces,
+band, probe)`, generic over the probe (a closure from a point to
+`Witness<S>`) and over the refusal type (`E: From<LadderRefusal>`).
+`Witness::of` turns one `point_in_solid_faces` reading into a witness.
+So the fix here is wiring: on `Probe::AllOn`, run the ladder over
+`inner`'s faces with that probe against `outer`'s selection. FUSE left
+that to this row's owner, because it changes which census verdicts
+appear.

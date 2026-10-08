@@ -42,9 +42,10 @@
 //! often.** A box that is too BIG cannot make a wrong certificate —
 //! it can only withhold one — but withholding is this door's whole
 //! output. What remains is the looseness the RULES themselves state —
-//! a whole ball for a sphere band, a full turn for an arc — not slack
-//! in the code: each arm claims exactly its construction, which the
-//! `boxes` module's ceiling rows pin.
+//! a whole ball for a sphere face outside the chart-rectangle class, a
+//! full turn for an arc — not slack in the code: each arm claims
+//! exactly its construction, which the `boxes` module's ceiling rows
+//! pin.
 //!
 //! **This door needs no surface-kind gate of its own.** It shares the one
 //! [`crate::boolean::boxes::FaceBoxRule`]; what differs is only what a
@@ -161,7 +162,7 @@ impl Separation {
         let pad = sweep_pad(band);
         let mut boxes = Vec::new();
         for (f, _) in proto.faces() {
-            boxes.push(face_box(proto, f, pad)?);
+            boxes.push(face_box(proto, f, pad, band)?);
         }
         // A face-less prototype encloses nothing; the hull of nothing is
         // the poison box, which overlaps everything — so a face-less
@@ -413,7 +414,7 @@ impl SolidSeparation {
                             what: "solid separation: a solid names a shell the body lost",
                         })?;
                 for &face in &shell.faces {
-                    boxes.push(face_box(body, face, pad)?);
+                    boxes.push(face_box(body, face, pad, band)?);
                 }
             }
             // A face-less solid encloses nothing, and the hull of
@@ -670,10 +671,10 @@ mod owner_index {
     fn solid_owners_and_the_scope_walk_place_every_entity_alike() {
         let (body, solids, lone) = lone_vertices();
         let owners = SolidOwners::of(&body);
-        let whole = Scope::whole(&body).expect("a tier-1 body scopes");
+        let whole = Scope::whole(&body);
         let each: Vec<Scope> = solids
             .iter()
-            .map(|&s| Scope::of_solids(&body, &[s]).expect("a tier-1 body scopes"))
+            .map(|&s| Scope::of_solids(&body, &[s]))
             .collect();
 
         assert_eq!(

@@ -338,6 +338,105 @@ fn digest() -> String {
 /// 656 → 654 / 570 → 568 / 641 → 638 and `sym_thin_strip`
 /// 757 → 754 / 722 → 719 / 755 → 752 at ε = 1e-6 / 1e-9 / 1e-12.
 /// Decisions, discharges, shapes and verdicts are unchanged.
+///
+/// **Re-cut at all three ε when the quadrature lane's square roots
+/// became the backend's** (`geom_core::interval::Certification::sqrt`,
+/// #3727) in place of a local root that stepped one ulp outward at
+/// both ends even where the root was exact. Only the two NURBS lofts'
+/// area readings move: `loft_prism`'s `a` rises 149 ulps and its
+/// `apad` falls 0.18961175980001 → 0.18961175979655 at every ε, and
+/// `arc_loft_1e9eps`'s `apad` falls by 4.2e-11 of itself at ε = 1e-6
+/// and 1e-9. Both enclosures still hold the true area: `loft_prism`'s
+/// 25.31243834738 m² (its two flared walls integrated independently)
+/// and the arc loft's `s²·(18 + π(1+√2))`.
+/// Volumes, volume pads, refusals, verdict hashes and the sym-session
+/// counts are unchanged.
+///
+/// **Re-cut at all three ε when check 4 of the pcurve certificate became
+/// incidence plus fidelity** (`geom_brep::pcurve_cache`, C4). The
+/// quadrature's map-residual honesty pad reads each edge's certificate
+/// envelope, and on `tilted_cut_upper`'s cylinder wall the restated
+/// envelope is smaller. Only that row moves, and only down: `vpad` and
+/// `apad` fall by 2.5e-9 of themselves at ε = 1e-9, by ~5e-12 at
+/// 1e-6, and by 1.3e-6 at 1e-12. The volume's midpoint moves two ulps
+/// with its pad at 1e-6 and 1e-12. Areas, refusals, verdict hashes and
+/// the sym-session counts are unchanged.
+///
+/// **Re-cut at all three ε when a cylinder face's flux became its chart
+/// Green form** (`geom_brep::props::curved_face_loops`, `−∮ v du` over
+/// every loop). Only `bulged_extrusion`'s verdict row moves: its walls
+/// no longer run the iso-rectangle premises and the rim-side reading
+/// (`props_rim_level`, `props_rim_level_group`, `props_du_consistent`,
+/// `props_rim_side`), so 18 verdicts fall to 13 and the hash with them.
+/// Its volume and area bits, and every other row, are unchanged.
+///
+/// **Re-cut at all three ε when that Green form checked its closure**
+/// (`props_loop_closed` at every loop junction,
+/// `props_chart_loops_closed` per face — the premise that makes the sum
+/// anchor-free). Only `bulged_extrusion`'s verdict row moves again,
+/// 13 → 18, and its hash; its volume and area bits, and every other
+/// row, are unchanged.
+///
+/// **Re-cut at all three ε when check 5 of the pcurve certificate
+/// decided only an escape's positive part** (`geom_brep::pcurve_cache`'s
+/// `trim_containment`). Only `sym_arc_loft`'s `validate_geometric` row
+/// moves: two of its numeric decisions become theorems (`sz` 54 → 56,
+/// `num` 638 → 636). Every verdict, pad and other row is unchanged.
+///
+/// **Re-cut at all three ε when check 7 took a quadrature face about the
+/// body's corner** (`topo::props::certify_role`: a sign the walk's own
+/// enclosure leaves unresolved is read again with those faces measured
+/// about the corner). Only `sym_thin_strip`'s `validate_geometric` row
+/// moves, the strip whose sign the schedule never decides: its
+/// quadrature faces are measured once more, eight more decisions
+/// (`num` 654 → 662, `decisions` 692 → 700). Every verdict, pad and other row,
+/// `sym_arc_loft`'s included, is unchanged.
+///
+/// **Re-cut at all three ε when a pcurve row became an image plus a
+/// joint element** (`topo::joint`, the re-anchor ruling, PR 4024). Only
+/// the two `validate_geometric` rows move, the same at every ε but
+/// `frozen`. Tier 3 decides the closure joint as every other joint and
+/// reads the winding off the elements: the closure margins go
+/// (`pcurve_loop_closure` 4, `pcurve_loop_closure_height` 4), the
+/// closure joint's two continuity margins come in (8), and the lever is
+/// read at all 16 joints (`pcurve_loop_pole_joint`, all definite) — 16
+/// more numeric decisions on each body (`sym_arc_loft` 692 → 708, `num`
+/// 636 → 652). The window a row certifies against is now the hull of
+/// the face's images, so on `sym_thin_strip` an image's escape against
+/// the window end it sets cancels: 16 `pcurve_trim_containment` and 6
+/// `pcurve_iso_boundary` decisions become theorems (`sz` 38 → 64,
+/// `num` 662 → 652, `decisions` 700 → 716) and the early walk freezes
+/// 46 fewer nodes (`frozen` 719 → 673 at 1e-9). Every verdict, pad and
+/// f64 row is unchanged.
+///
+/// **Re-cut at all three ε when `skin::segment_curve` began building an
+/// arc's NURBS from the evaluation's own points and the spoke
+/// `a − centre`** (PATHS 5b) instead of the stored radius and an
+/// endpoint `atan2`. Only the two arc lofts move: `arc_loft_1e9eps`'s
+/// `v`, `a`, `vpad` and `apad` in their last bits (its volume by 4, 5
+/// and 7 ulps at ε = 1e-6 / 1e-9 / 1e-12), and the `frozen` column of
+/// the two `validate_geometric` rows — `sym_arc_loft` 654 → 607 /
+/// 568 → 539 / 638 → 606 and `sym_thin_strip` 708 → 704 / 673 → 674 /
+/// 706 → 699. Decisions, discharges, shapes, refusals and every verdict
+/// hash are unchanged.
+///
+/// **Re-cut at all three ε when the loop's chart-space angle
+/// comparisons and check 5 retired** (PCERT's chart-angle unit,
+/// `topo::pcurves`' `decide_joint`). Only the two `validate_geometric`
+/// rows move, the same at every ε: each body takes 64 fewer decisions at
+/// tier 3, because those decisions no longer exist (`sym_arc_loft`
+/// 708 → 644, `sz` 56 → 48, `num` 652 → 596; `sym_thin_strip`
+/// 716 → 652, `sz` 64 → 48, `num` 652 → 604). Every verdict, pad,
+/// `frozen` count and f64 row is unchanged.
+///
+/// **Re-cut at all three ε when the pcurve iso lane's seam class began
+/// reading which way an image runs its column** (`pcurve_iso_seam_sense`,
+/// the wrap-edge unit: a one-segment loft's strut runs its column
+/// backward). One more numeric decision per seam-class row, so the two
+/// `validate_geometric` rows gain 8 each (`sym_arc_loft` 644 → 652,
+/// `num` 596 → 604; `sym_thin_strip` 652 → 660, `num` 604 → 612).
+/// Every verdict hash, pad, volume, refusal and `frozen` column is
+/// unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

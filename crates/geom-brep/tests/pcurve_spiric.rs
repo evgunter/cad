@@ -17,9 +17,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_brep::{
-    ChartWindow, EnvelopeStatement, Pcurve, PcurveCache, PcurveCertifyError, SpiricImage,
-};
+use geom_brep::{EnvelopeStatement, Pcurve, PcurveCache, PcurveCertifyError, SpiricImage};
 use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
 
 const R: f64 = 0.09375;
@@ -113,19 +111,7 @@ fn certify(
     surface: &Surface<f64>,
     b: Band,
 ) -> Result<PcurveCache<f64>, PcurveCertifyError> {
-    let window = wide();
-    PcurveCache::certify(p, T0, T1, &carrier(), surface, window, b)
-}
-
-/// A window no chart box can escape — check 5 is not what these rows
-/// are about.
-fn wide() -> ChartWindow<f64> {
-    ChartWindow {
-        u_min: -100.0,
-        u_max: 100.0,
-        v_min: -100.0,
-        v_max: 100.0,
-    }
+    PcurveCache::certify(p, T0, T1, &carrier(), surface, b)
 }
 
 /// **The minted pair is the baseline**: the wall certifies
@@ -550,50 +536,9 @@ fn the_mirror_torus_holds_the_oval_and_is_uncovered() {
         matches!(
             e,
             PcurveCertifyError::UnsupportedCarrier {
-                chart: geom_brep::SurfaceKind::Torus,
-                carrier: geom_brep::CurveKind::Spiric,
+                chart: geom::SurfaceKind::Torus,
+                carrier: geom::CurveKind::Spiric,
                 class: geom_brep::UncoveredClass::MirrorTorusSpiric,
-            }
-        ),
-        "{e:?}"
-    );
-}
-
-/// **A zero-offset spiric is a circle**, the torus's meridian, and a
-/// circle lies on charts the spiric lane has no route for: a sphere
-/// centred on it, of its radius, holds it — measured here — so the
-/// pair is uncovered rather than off the chart.
-#[test]
-fn a_zero_offset_spiric_off_its_torus_is_uncovered() {
-    let meridian = Curve3::Spiric {
-        center: Point3::origin(),
-        axis: Vec3::unit_y(),
-        u_ref: Vec3::unit_x(),
-        major_radius: R,
-        minor_radius: RR,
-        offset: 0.0,
-    };
-    // `m = axis × u_ref = −z`: the oval is the meridian circle centred
-    // at `−R·z`, radius `r`.
-    let sphere = Surface::Sphere {
-        center: Point3::new(0.0, 0.0, -R),
-        radius: RR,
-        axis: Vec3::unit_y(),
-        u_ref: Vec3::unit_x(),
-    };
-    for k in 0..16 {
-        let p = meridian.eval(f64::from(k) * core::f64::consts::TAU / 16.0);
-        let d = (p - Point3::new(0.0, 0.0, -R)).norm() - RR;
-        assert!(d.abs() < 1e-14, "on the sphere: {d:e}");
-    }
-    let e = geom_brep::chart_pcurve(&meridian, &sphere, band())
-        .unwrap_err_or_else_msg("zero-offset spiric on a sphere");
-    assert!(
-        matches!(
-            e,
-            PcurveCertifyError::UnsupportedCarrier {
-                class: geom_brep::UncoveredClass::ZeroOffsetSpiric,
-                ..
             }
         ),
         "{e:?}"

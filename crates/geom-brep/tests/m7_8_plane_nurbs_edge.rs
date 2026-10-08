@@ -12,8 +12,8 @@
 //! vocabulary.
 //!
 //! SU3 adds the same three rows driven through the CERTIFICATION DOOR
-//! (`EdgeCurve::certify_nurbs_lane`) — the call the importer's attach
-//! door actually makes, so these pin that the lane's verdicts arrive
+//! (`EdgeCurve::certify_via` with the certified lane) — the call the
+//! importer's attach door makes at `f64`, so these pin that the lane's verdicts arrive
 //! in `certify`'s own vocabulary rather than as a private dialect —
 //! plus the row proving the LANELESS door still refuses the class.
 //!
@@ -29,6 +29,7 @@ use crate::shared::tol::band;
 use geom::{Curve3, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
+use geom_brep::ssi::PointLever;
 use geom_brep::{
     CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, PlaneNurbsRefusal,
     plane_nurbs_limbs,
@@ -164,10 +165,102 @@ fn a_tangential_plane_refuses_with_the_transversality_vocabulary() {
     }
 }
 
+/// **A plane near tangent to a tightly curved wall refuses at the
+/// wall's curvature radius.** The quarter cylinder scaled to radius
+/// `ρ` = 1 mm, cut along its `u = 0` ruling by a plane turned from the
+/// tangent plane there by `sin θ = ε/(2ρ)`: the second line it cuts lies
+/// `2ρ·sin θ = ε` away. The per-sample transversality reads
+/// `sin θ · min(ρ, E)` = ε/2, inside the band, so the stated ruling
+/// refuses `NotTransverse`; levered by the edge's extent of 1 m alone it
+/// would read 500ε and clear.
+#[test]
+fn a_plane_near_tangent_to_a_tight_wall_refuses_at_its_curvature_radius() {
+    let rho = 1e-3;
+    let eps = band().zero();
+    let unit = quarter_cylinder_wall();
+    let control = unit
+        .control()
+        .iter()
+        .map(|p| Point3::new(rho * p.x, rho * p.y, p.z))
+        .collect();
+    let wall = NurbsSurface::new(
+        unit.knots_u().clone(),
+        unit.knots_v().clone(),
+        control,
+        unit.weights().to_vec(),
+    )
+    .unwrap();
+    let sin = eps / (2.0 * rho);
+    let cos = (1.0 - sin * sin).sqrt();
+    let plane = Surface::Plane {
+        origin: Point3::new(rho, 0.0, 0.0),
+        normal: Vec3::new(cos, sin, 0.0),
+        u_ref: Vec3::new(0.0, 0.0, 1.0),
+    };
+    let carrier = segment(Point3::new(rho, 0.0, 0.0), Point3::new(rho, 0.0, 1.0));
+    match plane_nurbs_limbs::<f64>(&carrier, &plane, &wall, 1.0, band()) {
+        Err(PlaneNurbsRefusal::NotTransverse { verdict, lever, .. }) => {
+            assert_eq!(
+                lever,
+                PointLever::CurvatureRadius,
+                "the lever the refusal names"
+            );
+            let m = verdict.margin().diagnostic_f64_for_error_text().value();
+            assert!(
+                m.is_some_and(|m| m <= eps),
+                "the margin is sin θ times the wall's radius, ε/2, not the extent's: {m:?}"
+            );
+        }
+        other => panic!("a plane ε from tangent to a 1 mm wall must refuse: {other:?}"),
+    }
+}
+
+/// **A plane near tangent to a flat wall refuses at the edge's
+/// extent.** The flat wall `x = 0` over `y, z ∈ [0, 1]`, cut along its
+/// `y = 0` side by a plane turned from it by `sin θ = ε/2`: the wall's
+/// curvature is zero, so the per-sample transversality reads
+/// `sin θ · E` with `E` the edge's extent of 1 m, ε/2, inside the band,
+/// and the refusal names the extent.
+#[test]
+fn a_plane_near_tangent_to_a_flat_wall_refuses_at_the_edges_extent() {
+    let eps = band().zero();
+    let k = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let wall = NurbsSurface::new(
+        k.clone(),
+        k,
+        vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 0.0, 1.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 1.0),
+        ],
+        vec![1.0; 4],
+    )
+    .unwrap();
+    let sin = eps / 2.0;
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        normal: Vec3::new((1.0 - sin * sin).sqrt(), sin, 0.0),
+        u_ref: Vec3::new(0.0, 0.0, 1.0),
+    };
+    let carrier = segment(Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, 0.0, 1.0));
+    match plane_nurbs_limbs::<f64>(&carrier, &plane, &wall, 1.0, band()) {
+        Err(PlaneNurbsRefusal::NotTransverse { verdict, lever, .. }) => {
+            assert_eq!(lever, PointLever::Extent, "the lever the refusal names");
+            let m = verdict.margin().diagnostic_f64_for_error_text().value();
+            assert!(
+                m.is_some_and(|m| m <= eps && m > 0.0),
+                "the margin is sin θ times the extent, ε/2: {m:?}"
+            );
+        }
+        other => panic!("a plane ε/2 from tangent to a flat wall must refuse: {other:?}"),
+    }
+}
+
 // ---------------------------------------------------------------
 // The certification DOOR (M7-8 SU3): the same three rows driven
-// through `EdgeCurve::certify_nurbs_lane`, which is what the
-// importer's attach door actually calls. These pin the MAPPING —
+// through `EdgeCurve::certify_via` with the certified lane, which is
+// what the importer's attach door calls at `f64`. These pin the MAPPING —
 // that the lane's verdicts arrive in `certify`'s own vocabulary
 // rather than as a private dialect — and that the door refuses the
 // class identically when no lane is injected.
@@ -209,8 +302,15 @@ fn the_door_certifies_the_true_carrier_and_records_the_lane_sup() {
     let carrier = segment(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0));
     let ends = (carrier.eval(0.0), carrier.eval(1.0));
     let (arena, spec) = door_spec(transverse_plane(), quarter_cylinder_wall(), carrier);
-    let edge = EdgeCurve::certify_nurbs_lane(spec, ends.0, ends.1, arena, band())
-        .expect("the stated carrier certifies through the attach door");
+    let edge = EdgeCurve::certify_via(
+        spec,
+        ends.0,
+        ends.1,
+        arena,
+        band(),
+        Some(geom_brep::NurbsLane::certified()),
+    )
+    .expect("the stated carrier certifies through the attach door");
     println!(
         "M7-8 door: certified max_residual {:e} m over {} samples",
         edge.certificate().max_residual,
@@ -233,7 +333,14 @@ fn the_door_refuses_a_displaced_carrier_with_the_measured_bound() {
     let carrier = segment(Point3::new(1.0, off, 0.0), Point3::new(1.0, off, 1.0));
     let ends = (carrier.eval(0.0), carrier.eval(1.0));
     let (arena, spec) = door_spec(transverse_plane(), quarter_cylinder_wall(), carrier);
-    match EdgeCurve::certify_nurbs_lane(spec, ends.0, ends.1, arena, band()) {
+    match EdgeCurve::certify_via(
+        spec,
+        ends.0,
+        ends.1,
+        arena,
+        band(),
+        Some(geom_brep::NurbsLane::certified()),
+    ) {
         Err(CertifyError::PlaneNurbs(PlaneNurbsRefusal::Limb { limb, value })) => {
             println!("M7-8 door falsifier: {} measured {value:e} m", limb.name());
             assert!(value >= off * 0.5, "the measured bound: {value:e}");
@@ -258,7 +365,14 @@ fn the_door_refuses_a_tangential_plane_in_the_certify_vocabulary() {
     let carrier = segment(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0));
     let ends = (carrier.eval(0.0), carrier.eval(1.0));
     let (arena, spec) = door_spec(tangent, quarter_cylinder_wall(), carrier);
-    match EdgeCurve::certify_nurbs_lane(spec, ends.0, ends.1, arena, band()) {
+    match EdgeCurve::certify_via(
+        spec,
+        ends.0,
+        ends.1,
+        arena,
+        band(),
+        Some(geom_brep::NurbsLane::certified()),
+    ) {
         Err(e @ CertifyError::NotTransverse { .. }) => {
             let msg = e.to_string();
             println!("M7-8 door tangential: {msg}");
@@ -300,8 +414,15 @@ fn the_at_rest_re_derivation_of_this_class_needs_the_injected_lane() {
     let carrier = segment(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0));
     let ends = (carrier.eval(0.0), carrier.eval(1.0));
     let (arena, spec) = door_spec(transverse_plane(), quarter_cylinder_wall(), carrier);
-    let edge = EdgeCurve::certify_nurbs_lane(spec, ends.0, ends.1, &arena, band())
-        .expect("the stated carrier certifies through the attach door");
+    let edge = EdgeCurve::certify_via(
+        spec,
+        ends.0,
+        ends.1,
+        &arena,
+        band(),
+        Some(geom_brep::NurbsLane::certified()),
+    )
+    .expect("the stated carrier certifies through the attach door");
 
     let with_lane = edge.recertify_via(
         ends.0,
@@ -341,8 +462,15 @@ fn without_the_lane_a_non_lane_defect_on_this_class_is_not_reported() {
     let carrier = segment(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0));
     let ends = (carrier.eval(0.0), carrier.eval(1.0));
     let (arena, spec) = door_spec(transverse_plane(), quarter_cylinder_wall(), carrier);
-    let edge = EdgeCurve::certify_nurbs_lane(spec, ends.0, ends.1, &arena, band())
-        .expect("the stated carrier certifies through the attach door");
+    let edge = EdgeCurve::certify_via(
+        spec,
+        ends.0,
+        ends.1,
+        &arena,
+        band(),
+        Some(geom_brep::NurbsLane::certified()),
+    )
+    .expect("the stated carrier certifies through the attach door");
 
     // A drifted start point: a check-2 finding of a class the lane has
     // nothing to do with.

@@ -60,6 +60,7 @@ use super::rules;
 use super::{PlaneSide, SectorEntry, SectorEntryKind, SplitPlane, SplitReduceError};
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
+use crate::live::{Proven, linked, proven};
 use crate::sector_face::{SectorCarrier, SectorFaceError};
 use crate::sector_shape::{SectorFault, SectorShape, sector_shape};
 use crate::validate::decide;
@@ -80,7 +81,7 @@ use crate::validate::decide;
 /// rather than left to the gate.
 ///
 /// It is worth being exact about WHY the arm is unreachable, because
-/// the obvious answer is wrong: it is not that the F5 operand gate
+/// the obvious answer is wrong: it is not that the F5 carrier gate
 /// ([`super::classify`]) runs first. [`super::classify_neighborhood`]
 /// is public, deliberately, so tests and the joining step can inspect
 /// classification on their own, and on that path no gate runs at all.
@@ -106,31 +107,22 @@ pub(super) fn sector_face<T: Decide>(
     he: HalfEdgeKey,
 ) -> Result<(FaceKey, OutwardNormal<T>, bool), SplitReduceError> {
     let resolved = crate::sector_face::resolve(body, vertex, he).map_err(|e| match e {
-        // The shared walk names the entity that did not resolve; this
-        // lane's public corruption arm carries a VERTEX, so the payload
-        // is narrowed here rather than lost upstream: a vertex names
-        // itself, anything else falls back to the base vertex the
-        // caller asked about. Widening `CorruptOperand` to an
-        // `EntityId` is a public-API change in a type re-exported into
-        // four crates — issue #695.
-        SectorFaceError::Corrupt(EntityId::Vertex(v)) => {
-            SplitReduceError::CorruptOperand { vertex: v }
-        }
-        SectorFaceError::Corrupt(_) => SplitReduceError::CorruptOperand { vertex },
         SectorFaceError::Unsupported { face, kind } => {
             SplitReduceError::CurvedBooleanUnsupported { face, kind }
         }
     })?;
     match resolved.carrier {
         SectorCarrier::Plane => Ok((resolved.face, resolved.normal, true)),
-        SectorCarrier::Cylinder => Ok((resolved.face, resolved.normal, false)),
+        SectorCarrier::Cylinder | SectorCarrier::Cone => {
+            Ok((resolved.face, resolved.normal, false))
+        }
         SectorCarrier::Sphere => Err(SplitReduceError::CurvedBooleanUnsupported {
             face: resolved.face,
-            kind: geom_brep::SurfaceKind::Sphere,
+            kind: geom::SurfaceKind::Sphere,
         }),
         SectorCarrier::Torus => Err(SplitReduceError::CurvedBooleanUnsupported {
             face: resolved.face,
-            kind: geom_brep::SurfaceKind::Torus,
+            kind: geom::SurfaceKind::Torus,
         }),
     }
 }
@@ -149,25 +141,28 @@ pub(super) fn sector_face<T: Decide>(
 ///   certified point-set-diameter lower bound; the chord collapses on
 ///   near-closed arcs).
 #[allow(clippy::type_complexity)] // (far vertex, scaled dir, conic jet) — one internal tuple
-fn chord<T: Decide>(
+pub(super) fn chord<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
     he: HalfEdgeKey,
 ) -> Result<(VertexKey, Vec3<T>, Option<(Vec3<T>, T)>), SplitReduceError> {
-    let corrupt = || SplitReduceError::CorruptOperand { vertex };
-    let final_vertex = body.half_edge_end(he).ok_or_else(corrupt)?;
-    let p_base = *body
-        .get_point(body.get_vertex(vertex).ok_or_else(corrupt)?.point)
-        .ok_or_else(corrupt)?;
-    let p_final = *body
-        .get_point(body.get_vertex(final_vertex).ok_or_else(corrupt)?.point)
-        .ok_or_else(corrupt)?;
-    let he_data = body.get_half_edge(he).ok_or_else(corrupt)?;
-    let edge = body.get_edge(he_data.edge).ok_or_else(corrupt)?;
-    let curve = body
-        .get_curve_geom(edge.curve)
-        .and_then(crate::null::CurveGeom::certified)
-        .ok_or_else(corrupt)?;
+    let final_vertex = body.proven_half_edge_end(he);
+    let p_base = body.resolve_vertex_point(vertex, Proven);
+    let p_final = body.resolve_vertex_point(final_vertex, Proven);
+    let edge_key = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
+    let edge = linked(
+        &body.edges,
+        edge_key,
+        EntityId::Edge,
+        EntityId::HalfEdge(he),
+        "edge",
+    );
+    let curve = body.edge_curve_linked(edge_key, edge).certified().ok_or(
+        SplitReduceError::NullEdgeAtVertex {
+            vertex,
+            edge: edge_key,
+        },
+    )?;
     match curve.carrier() {
         geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => {
             Ok((final_vertex, p_final - p_base, None))
@@ -178,17 +173,10 @@ fn chord<T: Decide>(
             let (t0, t1) = curve.params();
             // The base-endpoint jet: outgoing tangent, plus the raw
             // second derivative and squared speed for the C12.2
-            // second-order descent (M5 PR 9). Walking the minus half
-            // reverses the FIRST derivative only — position along the
-            // walk is c(t₁ − τ), so d²/dτ² = +c″(t₁): no sign flip on
-            // the curvature datum.
-            let (tangent, deriv2, speed_sq) = if he == edge.he_plus {
-                let d = curve.carrier().deriv(t0);
-                (d, curve.carrier().deriv2(t0), d.norm_squared())
-            } else {
-                let d = curve.carrier().deriv(t1);
-                (-d, curve.carrier().deriv2(t1), d.norm_squared())
-            };
+            // second-order descent (M5 PR 9).
+            let (tangent, _) = curve.walk_tangents(he == edge.he_plus);
+            let deriv2 = curve.walk_departure_deriv2(he == edge.he_plus);
+            let speed_sq = tangent.norm_squared();
             let chord_len = p_final.distance(p_base);
             let extent = geom_brep::edge_extent(curve.carrier(), t0, t1, chord_len);
             Ok((
@@ -209,7 +197,9 @@ fn chord<T: Decide>(
 /// # Errors
 ///
 /// [`SplitReduceError`] — sliver escalations, the consecutive-ON
-/// invariant, or a corrupt/unwalkable neighborhood.
+/// invariant, a `vertex` that does not resolve or is a lone vertex, a
+/// far vertex `sides` holds no verdict for, or a null edge at `vertex`
+/// ([`SplitReduceError::NullEdgeAtVertex`]).
 pub fn classify_neighborhood<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
@@ -217,13 +207,13 @@ pub fn classify_neighborhood<T: Decide>(
     vertex: VertexKey,
     band: Band,
 ) -> Result<Vec<SectorEntry>, SplitReduceError> {
-    let corrupt = || SplitReduceError::CorruptOperand { vertex };
-    let anchor = body
-        .get_vertex(vertex)
-        .ok_or_else(corrupt)?
-        .emanating
-        .ok_or_else(corrupt)?;
-    let orbit = body.vertex_orbit(anchor).ok_or_else(corrupt)?;
+    if body.get_vertex(vertex).is_none() {
+        return Err(SplitReduceError::StaleVertex { vertex });
+    }
+    let orbit = body.vertex_orbit_linked(vertex);
+    if orbit.is_empty() {
+        return Err(SplitReduceError::LoneVertex { vertex });
+    }
 
     let mut entries = Vec::with_capacity(orbit.len());
     for (i, &he) in orbit.iter().enumerate() {
@@ -243,7 +233,7 @@ pub fn classify_neighborhood<T: Decide>(
         //   contact) classifies On for rule (b)'s adjudication;
         //   in-band escalates typed.
         let class = if let Some((deriv2, speed_sq)) = conic_jet {
-            let margin = Margin::of(dir_a.dot(plane.normal));
+            let margin = Margin::of(dir_a.dot(plane.normal.get()));
             match decide("split_conic_departure", margin, band) {
                 Ok(Sign::Negative) => PlaneSide::Below,
                 Ok(Sign::Positive) => PlaneSide::Above,
@@ -264,7 +254,7 @@ pub fn classify_neighborhood<T: Decide>(
                     match geom_brep::enters_material_order2(
                         deriv2,
                         speed_sq,
-                        geom_brep::ReferenceNormal::of_split_plane(plane.normal),
+                        geom_brep::ReferenceNormal::of_split_plane(plane.normal.get()),
                         dir_a.norm(),
                         band,
                     ) {
@@ -283,7 +273,11 @@ pub fn classify_neighborhood<T: Decide>(
                 }
             }
         } else {
-            *sides.get(final_vertex).ok_or_else(corrupt)?
+            *sides
+                .get(final_vertex)
+                .ok_or(SplitReduceError::UnrecordedSide {
+                    vertex: final_vertex,
+                })?
         };
         entries.push(SectorEntry {
             he,
@@ -320,7 +314,7 @@ pub fn classify_neighborhood<T: Decide>(
             },
         )?;
         if let Some(bisector) = wide {
-            let margin = Margin::levered(bisector.dot(plane.normal), arm);
+            let margin = Margin::levered(bisector.dot(plane.normal.get()), arm);
             let class = match decide("split_bisector_side", margin, band) {
                 Ok(Sign::Negative) => PlaneSide::Below,
                 Ok(Sign::Positive) => PlaneSide::Above,
@@ -335,8 +329,8 @@ pub fn classify_neighborhood<T: Decide>(
         }
     }
 
-    rules::apply_rule_a(body, plane, vertex, &mut entries, band)?;
-    rules::apply_rule_b(vertex, &mut entries)?;
+    let grazes = rules::apply_rule_a(body, plane, vertex, &mut entries, band)?;
+    rules::apply_rule_b(body, plane, vertex, &mut entries, &grazes, band)?;
     Ok(entries)
 }
 
@@ -379,7 +373,7 @@ mod tests {
         match sector_face(&body, vertex, orbit_he) {
             Err(SplitReduceError::CurvedBooleanUnsupported { face: f, kind }) => {
                 assert_eq!(f, face);
-                assert_eq!(kind, geom_brep::SurfaceKind::Sphere);
+                assert_eq!(kind, geom::SurfaceKind::Sphere);
             }
             other => panic!("expected the typed sphere refusal, got {other:?}"),
         }

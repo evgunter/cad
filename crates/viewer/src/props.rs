@@ -1,6 +1,6 @@
 //! The property panel's model: the two things it draws rows for — a
-//! node's SLOTS ([`slot_rows`]) and the document's PARAMETERS
-//! ([`param_rows`]) — their current values, the notation each is
+//! node's SLOTS ([`slot_rows`]) and the document's VARIABLES
+//! ([`variable_rows`]) — their current values, the notation each is
 //! written in, and what an edit to each one is allowed to be.
 //!
 //! # Canonical inside, written units outside
@@ -15,7 +15,7 @@
 //!
 //! The reason it is a change worth making rather than a convenience:
 //! the display unit is already stored per literal and already round-
-//! trips through persistence — `Expr::literal_with_unit` exists
+//! trips through persistence — `Formula::literal_with_unit` exists
 //! precisely so that "25 mm" comes back as `25 mm` and not as `0.025`.
 //! A panel that showed `0.025` was throwing away information the
 //! document was carrying for it. The conversion is the parser's own
@@ -33,31 +33,31 @@
 //!   `SessionOp::SetSlotUnit`, which rewrites the display unit and
 //!   leaves the canonical bits alone.
 //!
-//! **A document parameter keeps both rules, through its own pair of
-//! doors.** [`ParamRow::unit`] is the notation its DECLARATION names
-//! ([`DocParam::Continuous`]'s `display_unit`), the panel divides and
+//! **A document variable keeps both rules, through its own pair of
+//! doors.** [`VariableRow::unit`] is the notation its DECLARATION names
+//! ([`FreeVar::Continuous`]'s `display_unit`), the panel divides and
 //! multiplies by it exactly as it does for a slot ([`shown_in`] /
 //! [`authored_in`], through `crate::forms::FieldWriting`), and the
-//! two facts move separately: [`param_edit`] writes a number into a
+//! two facts move separately: [`variable_edit`] writes a number into a
 //! standing declaration and cannot mention the notation, and
-//! [`param_unit_edit`] rewrites the notation and cannot mention the
-//! value. Each is a carry-forward edit — `DocEdit::SetDocParamValue`
-//! and `DocEdit::SetDocParamUnit` read the declaration off the
+//! [`variable_unit_edit`] rewrites the notation and cannot mention the
+//! value. Each is a carry-forward edit — `DocEdit::SetVarValue`
+//! and `DocEdit::SetVarUnit` read the declaration off the
 //! document and reuse it whole — so neither can drop the dimension or
 //! the distribution it never names.
 //!
-//! The parameter pair differs from the slot pair in what it is made
+//! The variable pair differs from the slot pair in what it is made
 //! of, and only there. A slot's unit change rebuilds a literal
 //! ([`slot_unit_edit`]) because a literal's whole state is its value
-//! and its unit; a parameter's rides on the declaration beside the
+//! and its unit; a variable's rides on the declaration beside the
 //! dimension and the distribution, so the kernel carries it forward
 //! rather than the panel rebuilding it. Neither door validates: the
-//! notation a parameter may be written in is
+//! notation a variable may be written in is
 //! `UnitSym::measures`'s answer, asked at the edit door.
 //!
-//! **A parameter is authored in a notation at both of its doors.**
-//! [`doc_param`] mints a declaration through
-//! `DocParam::written_length`/`written_angle` — total doors, so the
+//! **A variable is authored in a notation at both of its doors.**
+//! [`doc_variable`] mints a declaration through
+//! `FreeVar::written_length`/`written_angle` — total doors, so the
 //! unit measures the dimension by construction — and the standing
 //! row's field reads `50 mm` through the ONE parser a
 //! unit-bearing number has in this workspace, `editor_core::parse`.
@@ -73,33 +73,33 @@
 //! # The expression-driven refusal
 //!
 //! Setting a number into a slot that is DRIVEN — by a document
-//! parameter or by arithmetic — is refused, with an affordance
+//! variable or by arithmetic — is refused, with an affordance
 //! (the ratified micro-decision). [`SlotDriver`] is how a slot says
 //! which it is, using only public expression API: a bare literal is a
-//! leaf with no parameter references, and anything else is driven.
+//! leaf with no variable references, and anything else is driven.
 //!
 //! **What the affordance offers, measured against this substrate.**
 //! The typed expression API has a text door in BOTH directions —
-//! `parse_expr` inward and `unparse` outward (issue #1103, closed) —
+//! `parse_formula` inward and `unparse` outward (issue #1103, closed) —
 //! so the panel neither parses nor renders expression text itself. It
 //! shows the slot's own source, and hands edited text straight back
 //! through the parser. Beside that it still shows what a user needs in
 //! order to act on a refusal: the slot's CURRENT VALUE under the
-//! document's parameters, and the names of the parameters driving it,
+//! document's variables, and the names of the variables driving it,
 //! each of which the panel can navigate to and edit as a document
-//! parameter.
+//! variable.
 //!
 //! # One field for numbers and expressions
 //!
 //! **Both panel value fields have this shape**, and one function draws
 //! them (`crate::widgets::value_field_ops`): the slot row's and the
-//! document parameter's. What a user types decides which of the
+//! document variable's. What a user types decides which of the
 //! field's two doors the edit takes, and [`field_edit`] is the one
 //! reading of the text that decides it:
 //!
 //! * Bare digits mean a number in the field's WRITTEN unit, through
 //!   [`from_written`] — `SessionOp::SetSlot` at a slot,
-//!   `SessionOp::SetParam` at a parameter — leaving the stored display
+//!   `SessionOp::SetVariable` at a variable — leaving the stored display
 //!   unit alone.
 //! * **Anything else is text for the field's other door**, including a
 //!   number with a unit on it. That is the unit-authoring rule, and it
@@ -108,21 +108,20 @@
 //!   — so the field and the unit picker agree afterwards without
 //!   either being told about the other.
 //!
-//! **The two doors differ in WHERE that text may land, and only
-//! there.** A slot can be driven by an expression, so its text door is
-//! `SessionOp::SetSlotExpression` and `w * 2` is an edit. A document
-//! parameter holds an `f64` and nothing else — there is no
-//! `SetDocParamExpression` — so its text door is
-//! `SessionOp::SetParamText`, which takes a number and its notation
-//! (`50 mm`) and refuses every other expression by name.
+//! **The two doors differ in WHERE that text lands.** A slot's text
+//! door is `SessionOp::SetSlotExpression`, and `w * 2` drives the slot.
+//! A document variable's is `SessionOp::SetVariableText`: a number and
+//! its notation (`50 mm`) are the free variable's value, and any
+//! other expression DEFINES the variable (`DocEdit::DefineVar`),
+//! keeping its identity.
 //!
 //! A slot field that evaluated to a literal shows its number, which
 //! the widget formats (`crate::widgets::number_text`); the unit is the
 //! picker's to say, not the field's. Every other slot field shows
 //! [`field_text`] in its number's place: a driven slot the value its
 //! expression equals, with its keyboard edit opening on the source
-//! ([`field_source`]). A parameter's always shows its number, because
-//! a parameter is never driven by anything.
+//! ([`field_source`]). A free variable's always shows its number; a
+//! defined variable's row shows its formula ([`defined_rows`]).
 //!
 //! **Text the field itself produced is not an edit**, at either field
 //! — [`echoed`], one function because it is one rule, asked of the
@@ -131,10 +130,11 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
+use pncad::document::Formula;
 use pncad::document::{
-    Dimension, DimensionError, Doc, DocEdit, DocParam, DocParamValue, EvalError, Expr, Node,
-    ParamName, ProfileProgram, RecipeNodeId, SlotId, UnitSym, VectorSlot, eval, eval_count,
-    unparse,
+    Dimension, DimensionError, Doc, DocEdit, EvalError, Expr, FreeValue, FreeVar, Node,
+    ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenVar, UnitSym, VarEnv, VarId, VarName,
+    VectorSlot, eval, eval_count,
 };
 use pncad::prelude::{M, PI, RAD};
 use pncad::quantity::{
@@ -169,18 +169,18 @@ impl SlotValue {
     ///
     /// [`DimensionError::NonFiniteLiteral`] for a non-finite value in
     /// a `Count` dimension — **the same refusal, by name, that
-    /// `Expr::literal` raises for the continuous half**, which is what
+    /// `Formula::literal` raises for the continuous half**, which is what
     /// makes [`field_edit`]'s promise true. That door admits `inf` and
     /// `NaN` as Numbers on the stated ground that the refusal
     /// downstream names the problem; downstream of a `Count` dimension
-    /// there is no literal to refuse, because `Expr::count` takes an
+    /// there is no literal to refuse, because `Formula::count` takes an
     /// integer. `f64 as i64` is a SATURATING cast, not a conversion —
     /// `NaN` is `0` and `inf` is `i64::MAX` — so without this the word
     /// the user typed leaves as an ordinary count that no one asked
     /// for, and every guard downstream of it sees a number.
     ///
     /// The continuous arm refuses nothing here: its value reaches
-    /// `Expr::literal` intact and is refused there, which is the
+    /// `Formula::literal` intact and is refused there, which is the
     /// arrangement this arm is being brought into line with rather
     /// than a second one.
     pub fn of(dimension: Dimension, value: f64) -> Result<Self, DimensionError> {
@@ -279,8 +279,8 @@ impl Notation {
     /// # Errors
     ///
     /// A non-finite value (the literal door's refusal).
-    pub fn length_literal(self, metres: f64) -> Result<Expr, DimensionError> {
-        Expr::written_length(WrittenLength::canonical_in(metres, self.length))
+    pub fn length_literal(self, metres: f64) -> Result<Formula, DimensionError> {
+        Formula::written_length(WrittenLength::canonical_in(metres, self.length))
     }
 
     /// An `Angle` literal — [`Self::length_literal`]'s twin.
@@ -288,8 +288,8 @@ impl Notation {
     /// # Errors
     ///
     /// A non-finite value.
-    pub fn angle_literal(self, radians: f64) -> Result<Expr, DimensionError> {
-        Expr::written_angle(WrittenAngle::canonical_in(radians, self.angle))
+    pub fn angle_literal(self, radians: f64) -> Result<Formula, DimensionError> {
+        Formula::written_angle(WrittenAngle::canonical_in(radians, self.angle))
     }
 
     /// Three `Length` literals — a datum origin, a translation.
@@ -297,7 +297,7 @@ impl Notation {
     /// # Errors
     ///
     /// A non-finite component.
-    pub fn length_literals(self, v: [f64; 3]) -> Result<[Expr; 3], DimensionError> {
+    pub fn length_literals(self, v: [f64; 3]) -> Result<[Formula; 3], DimensionError> {
         Ok([
             self.length_literal(v[0])?,
             self.length_literal(v[1])?,
@@ -310,7 +310,7 @@ impl Notation {
     /// # Errors
     ///
     /// A non-finite component.
-    pub fn point_literals(self, p: [f64; 2]) -> Result<[Expr; 2], DimensionError> {
+    pub fn point_literals(self, p: [f64; 2]) -> Result<[Formula; 2], DimensionError> {
         Ok([self.length_literal(p[0])?, self.length_literal(p[1])?])
     }
 }
@@ -415,7 +415,7 @@ pub fn written_text(canonical: f64, unit: UnitDef) -> String {
 }
 
 /// A written value back to canonical — `n * factor`, which is exactly
-/// the literal semantics `parse_expr` applies to `n <symbol>`, so a
+/// the literal semantics `parse_formula` applies to `n <symbol>`, so a
 /// number typed into a panel field and the same number typed into the
 /// expression field land on the same bits.
 pub fn from_written(written: f64, unit: UnitDef) -> f64 {
@@ -490,12 +490,13 @@ pub fn authored_in(unit: Option<UnitDef>, written: f64) -> f64 {
 pub enum SlotDriver {
     /// A bare literal: editable in place.
     Literal,
-    /// An expression. Direct numeric editing is refused; `params` are
-    /// the document parameters it references, in first-seen order and
+    /// An expression. Direct numeric editing is refused; `variables` are
+    /// the document variables it references, in first-seen order and
     /// deduplicated — the affordance's navigation targets.
     Expression {
-        /// The parameters this expression reads.
-        params: Vec<ParamName>,
+        /// The variables this expression reads, first-read order, each
+        /// as the document speaks it.
+        variables: Vec<SpokenVar>,
     },
 }
 
@@ -503,23 +504,25 @@ impl SlotDriver {
     /// Classify an expression using public expression API only.
     ///
     /// A bare literal is a LEAF (no child at index 0) that references
-    /// no parameter. Everything else — a parameter reference, or any
+    /// no variable. Everything else — a variable reference, or any
     /// arithmetic, however constant — is driven, which is the
     /// conservative direction: refusing to overwrite a computed slot
     /// is recoverable, silently flattening one to a number is not.
-    pub fn of(expr: &Expr) -> Self {
+    pub fn of(doc: &Doc<ProfileProgram>, expr: &Formula) -> Self {
         let mut refs = Vec::new();
-        expr.param_refs(&mut refs);
+        expr.var_reads(&mut refs);
         if refs.is_empty() && expr.child(0).is_none() {
             return Self::Literal;
         }
-        let mut params: Vec<ParamName> = Vec::new();
-        for (name, _) in refs {
-            if !params.contains(&name) {
-                params.push(name);
+        let mut read: Vec<VarId> = Vec::new();
+        for (var, _) in refs {
+            if !read.contains(&var) {
+                read.push(var);
             }
         }
-        Self::Expression { params }
+        Self::Expression {
+            variables: read.into_iter().map(|var| doc.spoken_var(var)).collect(),
+        }
     }
 
     /// Whether this slot refuses a direct numeric edit.
@@ -532,7 +535,7 @@ impl SlotDriver {
 #[derive(Clone, Debug, PartialEq)]
 pub enum SlotFault {
     /// The expression did not evaluate — the kernel's own typed reason
-    /// (an unbound parameter, a non-finite result).
+    /// (an unbound variable, a non-finite result).
     Eval(EvalError),
     /// The node LISTED this slot and then carried no expression for it.
     /// A broken `Node::slots`/`Node::expr` postcondition, reported
@@ -566,7 +569,7 @@ pub struct SlotRow {
     pub structural: bool,
     /// Literal, or driven by an expression.
     pub driver: SlotDriver,
-    /// The value the slot has under the document's parameters, or the
+    /// The value the slot has under the document's variables, or the
     /// typed reason it has none.
     pub value: Result<SlotValue, SlotFault>,
     /// The display unit the slot's expression REMEMBERS — `None` only
@@ -581,23 +584,25 @@ pub struct SlotRow {
     ///
     /// It is the text an edit to this slot revises, so it is carried
     /// even for a slot whose value did not evaluate — a slot driven by
-    /// an unbound parameter is exactly the one a user has to be able
+    /// an unbound variable is exactly the one a user has to be able
     /// to retype.
     pub source: Option<String>,
 }
 
 /// The rows for one node, in the node vocabulary's own slot order.
 ///
-/// Empty for a node that carries no expressions (a boolean, a mate, an
-/// instance) — which is a true statement about that node, not a
-/// failure.
+/// Empty for a node that carries no expressions (a boolean, an
+/// instance with no rigid offset step) — which is a true statement
+/// about that node, not a failure. A mate lists its frame offsets'
+/// rigid-step components, and an edit to one is admitted as an insert
+/// of the mate would be.
 pub fn slot_rows(doc: &Doc<ProfileProgram>, id: RecipeNodeId) -> Vec<SlotRow> {
     let Some(node) = doc.node(id) else {
         return Vec::new();
     };
     node.slots()
         .into_iter()
-        .map(|slot| slot_row(doc, node, slot))
+        .map(|slot| slot_row(doc, id, node, slot))
         .collect()
 }
 
@@ -613,8 +618,13 @@ pub fn slot_rows(doc: &Doc<ProfileProgram>, id: RecipeNodeId) -> Vec<SlotRow> {
 /// The row is still a value, not a panic: the panel says the slot is
 /// there and that its value could not be read, which is the same shape
 /// every other unreadable value takes here.
-fn slot_row(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>, slot: SlotId) -> SlotRow {
-    let Some(expr) = node.expr(slot) else {
+fn slot_row(
+    doc: &Doc<ProfileProgram>,
+    id: RecipeNodeId,
+    node: &Node<ProfileProgram>,
+    slot: SlotId,
+) -> SlotRow {
+    let Some(expr) = node.expr(slot).and(doc.slot_expansion(id, slot)) else {
         return SlotRow {
             slot,
             dimension: slot.dimension(),
@@ -623,19 +633,21 @@ fn slot_row(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>, slot: SlotId
             // the refusing direction: nothing here should be
             // overwritten with a number on the strength of an
             // invariant that just failed.
-            driver: SlotDriver::Expression { params: Vec::new() },
+            driver: SlotDriver::Expression {
+                variables: Vec::new(),
+            },
             value: Err(SlotFault::NoExpression),
             unit: None,
             source: None,
         };
     };
-    let env = doc.param_env::<f64>();
+    let env = doc.var_env::<f64>();
     let value = if slot.dimension() == Dimension::Count {
-        eval_count(expr, &env)
+        eval_count(&expr, &env)
             .map(SlotValue::Count)
             .map_err(SlotFault::Eval)
     } else {
-        eval::<f64>(expr, &env)
+        eval::<f64>(&expr, &env)
             .map(SlotValue::Continuous)
             .map_err(SlotFault::Eval)
     };
@@ -643,10 +655,10 @@ fn slot_row(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>, slot: SlotId
         slot,
         dimension: slot.dimension(),
         structural: slot.is_structural(),
-        driver: SlotDriver::of(expr),
+        driver: SlotDriver::of(doc, &expr),
         value,
         unit: expr.display_unit(),
-        source: Some(unparse(expr)),
+        source: Some(doc.unparse(&expr)),
     }
 }
 
@@ -797,19 +809,19 @@ pub fn render_number(value: f64) -> String {
 pub enum FieldEdit {
     /// A bare number, in the unit the field is written in — the
     /// numeric door, `SessionOp::SetSlot` at a slot and
-    /// `SessionOp::SetParam` at a document parameter. Both leave the
+    /// `SessionOp::SetVariable` at a document variable. Both leave the
     /// notation alone: one re-attaches the slot's stored display unit
     /// and the other carries the declaration forward.
     Number(f64),
     /// Anything else: the text door's, which is `SessionOp::
-    /// SetSlotExpression` at a slot and `SessionOp::SetParamText` at a
-    /// document parameter. A number carrying a UNIT is this variant at
+    /// SetSlotExpression` at a slot and `SessionOp::SetVariableText` at a
+    /// document variable. A number carrying a UNIT is this variant at
     /// both — see the module docs' authoring rule — and so is every
     /// expression, which is an edit at one field and a refusal by name
     /// at the other.
     ///
     /// Named for the slot's reading of it because that is the wider
-    /// one: a parameter's door accepts a strict subset.
+    /// one: a variable's door accepts a strict subset.
     Expression(String),
     /// Nothing was typed. Not an edit, and not a refusal either.
     Empty,
@@ -822,9 +834,9 @@ pub enum FieldEdit {
 /// line exactly where the user sees it — `25` is a number, `25 in` is
 /// not, `w * 2` is not — and it inherits `1e-3` and `-4` for free.
 /// A non-finite spelling (`inf`, `NaN`) reads as a Number here on
-/// purpose: `Expr::literal`'s refusal names the problem ("a literal
+/// purpose: `Formula::literal`'s refusal names the problem ("a literal
 /// value must be finite"), where the parser would only say the word
-/// is not a parameter.
+/// is not a variable.
 pub fn field_edit(text: &str) -> FieldEdit {
     let trimmed = text.trim();
     if trimmed.is_empty() {
@@ -889,51 +901,136 @@ pub fn echoed(typed: &str, rendered: &str) -> bool {
 /// expression's display unit, or None if the node or the expression is
 /// gone" for itself.
 pub fn slot_unit(doc: &Doc<ProfileProgram>, node: RecipeNodeId, slot: SlotId) -> Option<UnitDef> {
-    doc.node(node)?.expr(slot)?.display_unit()
+    doc.slot_expansion(node, slot)?.display_unit()
 }
 
-/// One document-level parameter, as the panel shows it.
+/// **The variable the document holds under `name`, at its kind's
+/// dimension** — free or defined alike, since the declare door refuses
+/// a name either holds (`EditError::VarNameTaken`).
+pub fn named_variable(doc: &Doc<ProfileProgram>, name: &VarName) -> Option<(VarId, Dimension)> {
+    let var = doc.var_named(name.as_str())?;
+    Some((var, doc.var(var)?.kind().dimension()?))
+}
+
+/// One document-level variable, as the panel shows it.
 #[derive(Clone, Debug, PartialEq)]
-pub struct ParamRow {
-    /// The parameter's name.
-    pub name: ParamName,
+pub struct VariableRow {
+    /// The variable — the row's identity, which a rename does not
+    /// move.
+    pub var: VarId,
+    /// The variable as the panel labels it: its name, or its tag when
+    /// it has none.
+    pub label: SpokenVar,
     /// Its declared dimension.
     pub dimension: Dimension,
     /// Its exact stored value, canonical.
     pub value: SlotValue,
-    /// The display unit the parameter was AUTHORED in — `None` only for
+    /// The display unit the variable was AUTHORED in — `None` only for
     /// a `Count`, which is a number rather than a quantity and has no
     /// notation to name.
     ///
     /// Unlike [`SlotRow::unit`] there is no computed case: a
-    /// parameter's notation rides with its DECLARATION, beside the
-    /// dimension, so a continuous parameter always names one. It is
-    /// also why no value edit has to carry it — `SetDocParamValue`
-    /// leaves the declaration alone ([`param_edit`]) where a slot's
+    /// variable's notation rides with its DECLARATION, beside the
+    /// dimension, so a continuous variable always names one. It is
+    /// also why no value edit has to carry it — `SetVarValue`
+    /// leaves the declaration alone ([`variable_edit`]) where a slot's
     /// literal has to be rebuilt around its unit.
     pub unit: Option<UnitDef>,
 }
 
-/// Every document parameter, name order.
-pub fn param_rows(doc: &Doc<ProfileProgram>) -> Vec<ParamRow> {
-    doc.params()
-        .iter()
-        .map(|(name, param)| ParamRow {
-            name: name.clone(),
-            dimension: param.dim(),
-            value: match param {
-                DocParam::Continuous { value, .. } => SlotValue::Continuous(*value),
-                DocParam::Count { value } => SlotValue::Count(*value),
+/// Every NAMED free variable, declaration order — the order a rename
+/// leaves alone, so a row keeps its place when its label changes. An
+/// anonymous one shows at the slot that reads it.
+pub fn variable_rows(doc: &Doc<ProfileProgram>) -> Vec<VariableRow> {
+    doc.free_vars()
+        .filter(|(var, _)| doc.var_name(*var).is_some())
+        .map(|(var, held)| VariableRow {
+            var,
+            label: doc.spoken_var(var),
+            dimension: held.dim(),
+            value: match held {
+                FreeVar::Continuous { value, .. } => SlotValue::Continuous(*value),
+                FreeVar::Count { value } => SlotValue::Count(*value),
             },
-            unit: match param {
-                DocParam::Continuous { display_unit, .. } => Some(display_unit.def()),
-                DocParam::Count { .. } => None,
+            unit: match held {
+                FreeVar::Continuous { display_unit, .. } => Some(display_unit.def()),
+                FreeVar::Count { .. } => None,
             },
         })
         .collect()
 }
 
-/// The edit that writes `value` into `slot` on `node`.
+/// One defined variable, as the panel shows it: its formula as the
+/// document's names write it, in a field that takes a new formula or a
+/// value ([`crate::session::SessionOp::SetVariableText`]).
+#[derive(Clone, Debug, PartialEq)]
+pub struct DefinedRow {
+    /// The variable.
+    pub var: VarId,
+    /// The variable as the panel labels it.
+    pub label: SpokenVar,
+    /// Its dimension.
+    pub dimension: Dimension,
+    /// Its definition, unparsed (`Doc::unparse`).
+    pub formula: String,
+    /// What the definition evaluates to, or `None` when it refuses.
+    pub value: Option<SlotValue>,
+}
+
+/// Every NAMED defined variable, declaration order: an anonymous one
+/// shows at the slot that reads it.
+pub fn defined_rows(doc: &Doc<ProfileProgram>) -> Vec<DefinedRow> {
+    let env = doc.var_env::<f64>();
+    doc.var_ids()
+        .iter()
+        .filter_map(|&var| {
+            doc.var_name(var)?;
+            let expr = doc.var(var)?.def().defined()?;
+            Some(DefinedRow {
+                var,
+                label: doc.spoken_var(var),
+                dimension: expr.dim(),
+                formula: doc.unparse(expr),
+                value: if expr.dim() == Dimension::Count {
+                    eval_count(expr, &env).ok().map(SlotValue::Count)
+                } else {
+                    eval(expr, &env).ok().map(SlotValue::Continuous)
+                },
+            })
+        })
+        .collect()
+}
+
+/// **The edit a value GESTURE writes into `slot` on `node`**: a slot
+/// reading a typed value moves that value (VARIABLES-DESIGN,
+/// INTENT-LITERALS Q6), so the variable keeps its identity, its
+/// notation and its distribution, and every other slot takes
+/// [`slot_typed_edit`]'s new variable. A value TYPED into the field
+/// is [`slot_typed_edit`] whatever the slot reads.
+///
+/// # Errors
+///
+/// [`slot_typed_edit`]'s.
+pub fn slot_edit(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+    slot: SlotId,
+    value: SlotValue,
+    unit: Option<UnitDef>,
+) -> Result<DocEdit<ProfileProgram>, pncad::document::DimensionError> {
+    if let Some(var) = doc.slot(node, slot)
+        && doc.is_typed_value(var)
+    {
+        return Ok(variable_edit(var, value));
+    }
+    slot_typed_edit(node, slot, value, unit)
+}
+
+/// **The edit a value TYPED at `slot` on `node` writes**: the slot
+/// reads a new anonymous free variable holding `value` (VR6; D10's
+/// "typing a value in the GUI mints a free variable"), and whatever it
+/// read before is no longer read from here. Two slots that read one
+/// variable are therefore made two by a value typed at either.
 ///
 /// The structural/continuous divide is decided by the SLOT, which is
 /// the only thing that knows: a Count slot takes
@@ -941,7 +1038,7 @@ pub fn param_rows(doc: &Doc<ProfileProgram>) -> Vec<ParamRow> {
 /// edit rather than applying it keeps this a pure function of the
 /// request, which is what lets a test assert on the emitted edit.
 ///
-/// `unit` is the display unit the new literal REMEMBERS. Callers pass
+/// `unit` is the display unit the new variable REMEMBERS. Callers pass
 /// the slot's existing one (`SlotRow::unit`), which is what makes an
 /// edit to the number leave the way it is written alone; the door that
 /// changes the unit is `SessionOp::SetSlotUnit`. A `Count` slot has no
@@ -951,36 +1048,161 @@ pub fn param_rows(doc: &Doc<ProfileProgram>) -> Vec<ParamRow> {
 ///
 /// # Errors
 ///
-/// The dimension refusal `Expr::literal` raises for a value that is
-/// not finite, and `Expr::literal_with_unit`'s
+/// The dimension refusal `Formula::literal` raises for a value that is
+/// not finite, and `Formula::literal_with_unit`'s
 /// `DisplayUnitMismatch` for a unit that does not measure the slot's
 /// dimension — reported rather than silently dropped, because a
 /// mismatched unit means the caller's idea of the slot disagrees with
 /// the slot's own.
-pub fn slot_edit(
+pub fn slot_typed_edit(
     node: RecipeNodeId,
     slot: SlotId,
     value: SlotValue,
     unit: Option<UnitDef>,
 ) -> Result<DocEdit<ProfileProgram>, pncad::document::DimensionError> {
     let expr = match (value, unit) {
-        (SlotValue::Count(count), _) => Expr::count(count),
-        (SlotValue::Continuous(v), None) => Expr::literal(v, slot.dimension())?,
+        (SlotValue::Count(count), _) => Formula::count(count),
+        (SlotValue::Continuous(v), None) => Formula::literal(v, slot.dimension())?,
         (SlotValue::Continuous(v), Some(unit)) => {
-            Expr::literal_with_unit(v, slot.dimension(), unit)?
+            Formula::literal_with_unit(v, slot.dimension(), unit)?
         }
     };
-    Ok(if slot.is_structural() {
-        DocEdit::SetStructuralParam { node, slot, expr }
-    } else {
-        DocEdit::SetParam { node, slot, expr }
-    })
+    Ok(slot_formula_edit(node, slot, expr))
 }
 
-/// The `DocParam` a dimension, a value and a NOTATION mint — the
-/// panel's CREATE-parameter affordance, where a declaration really is
-/// being authored from parts. Moving an existing parameter's value is
-/// [`param_edit`]'s door and re-noting it is [`param_unit_edit`]'s;
+/// **The edit that makes `slot` on `node` read `var`** — the slot-write
+/// gesture an accepted offer emits ([`equal_variables`]). The kind is
+/// the door's to check (`EditError::SlotVarKind`).
+pub fn slot_read_edit(node: RecipeNodeId, slot: SlotId, var: VarId) -> DocEdit<ProfileProgram> {
+    slot_formula_edit(node, slot, Formula::var(var, slot.dimension()))
+}
+
+/// `expr` at `slot`, through the edit the slot's side of the
+/// structural divide takes.
+pub fn slot_formula_edit(
+    node: RecipeNodeId,
+    slot: SlotId,
+    expr: Formula,
+) -> DocEdit<ProfileProgram> {
+    if slot.is_structural() {
+        DocEdit::SetStructuralParam {
+            node,
+            slot,
+            expr,
+            fresh: Vec::new(),
+        }
+    } else {
+        DocEdit::SetParam {
+            node,
+            slot,
+            expr,
+            fresh: Vec::new(),
+        }
+    }
+}
+
+/// One variable a slot's typed value is OFFERED — an existing variable
+/// of the same kind holding the same value (D10).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Offered {
+    /// The variable accepting the offer makes the slot read.
+    pub var: VarId,
+    /// How the offer names it: its name, or for an anonymous variable
+    /// the slot that reads it (`the depth of Extrude "base"`), as VR2
+    /// says an unnamed variable reads; its tag where no slot reads it.
+    pub label: String,
+}
+
+/// **The variables `slot` on `node` is offered**: every other variable
+/// of the kind the slot reads whose value equals the slot's, in
+/// declaration order — free variables by their value, defined ones by
+/// what their definition evaluates to. Equal is equal at the bits of
+/// the canonical value: `5 mm` typed twice is offered, `0.5 cm` against
+/// `5 mm` only where the two scale to the same number.
+///
+/// Empty where the slot reads nothing the document holds, or reads a
+/// value nothing else equals.
+pub fn equal_variables(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+    slot: SlotId,
+) -> Vec<Offered> {
+    let Some(own) = doc.slot(node, slot) else {
+        return Vec::new();
+    };
+    let Some(kind) = doc.var(own).map(|held| held.kind()) else {
+        return Vec::new();
+    };
+    let env = doc.var_env::<f64>();
+    let value_of = |var: VarId| value_in(doc, &env, var);
+    let Some(value) = value_of(own) else {
+        return Vec::new();
+    };
+    doc.var_ids()
+        .iter()
+        .copied()
+        .filter(|&var| var != own)
+        .filter(|&var| doc.var(var).is_some_and(|held| held.kind() == kind))
+        .filter(|&var| value_of(var).is_some_and(|other| bit_equal(other, value)))
+        .map(|var| Offered {
+            var,
+            label: variable_label(doc, var),
+        })
+        .collect()
+}
+
+/// **What `var` holds now**: a free variable its value, a defined one
+/// what its definition evaluates to; `None` where the document holds no
+/// such variable or it does not evaluate.
+pub fn variable_value(doc: &Doc<ProfileProgram>, var: VarId) -> Option<SlotValue> {
+    value_in(doc, &doc.var_env::<f64>(), var)
+}
+
+/// [`variable_value`] against an environment built once for a scan.
+fn value_in(doc: &Doc<ProfileProgram>, env: &VarEnv<f64>, var: VarId) -> Option<SlotValue> {
+    let dimension = doc.var(var)?.kind().dimension()?;
+    let expr = Expr::var(var, dimension);
+    if dimension == Dimension::Count {
+        eval_count(&expr, env).ok().map(SlotValue::Count)
+    } else {
+        eval(&expr, env).ok().map(SlotValue::Continuous)
+    }
+}
+
+/// Equal at the bits: `-0.0` is not `0`, where `==` would say it is.
+pub fn bit_equal(a: SlotValue, b: SlotValue) -> bool {
+    match (a, b) {
+        (SlotValue::Continuous(a), SlotValue::Continuous(b)) => a.to_bits() == b.to_bits(),
+        (SlotValue::Count(a), SlotValue::Count(b)) => a == b,
+        (SlotValue::Continuous(_), SlotValue::Count(_))
+        | (SlotValue::Count(_), SlotValue::Continuous(_)) => false,
+    }
+}
+
+/// **A variable as a person reads it**: its name, or, unnamed, the first
+/// slot in document order that reads it (VR2: "the depth of Extrude
+/// "base plate""), or its tag where no slot does.
+pub fn variable_label(doc: &Doc<ProfileProgram>, var: VarId) -> String {
+    if let Some(name) = doc.var_name(var) {
+        return name.to_string();
+    }
+    doc.ids()
+        .iter()
+        .find_map(|&node| {
+            let slot = doc
+                .node(node)?
+                .slots()
+                .into_iter()
+                .find(|&slot| doc.slot(node, slot) == Some(var))?;
+            Some(format!("the {} of {}", slot.label(), doc.spoken(node)))
+        })
+        .unwrap_or_else(|| doc.spoken_var(var).to_string())
+}
+
+/// The `FreeVar` a dimension, a value and a NOTATION mint — the
+/// panel's CREATE-variable affordance, where a declaration really is
+/// being authored from parts. Moving an existing variable's value is
+/// [`variable_edit`]'s door and re-noting it is [`variable_unit_edit`]'s;
 /// neither mints a declaration at all.
 ///
 /// `value` is canonical, as everything crossing this module is, and
@@ -991,7 +1213,7 @@ pub fn slot_edit(
 /// `None` is the field that names no notation (a `Count`, a bare
 /// `Scalar`), and the canonical declaration is right for it.
 ///
-/// **Minted through `DocParam::written_length` /
+/// **Minted through `FreeVar::written_length` /
 /// `written_angle`, which are TOTAL**: each takes a typed view that is
 /// an index into a row of its own quantity, so the unit measures the
 /// dimension by construction and there is no pairing left for the
@@ -1007,7 +1229,7 @@ pub fn slot_edit(
 /// this codebase refuses; the pairing has no run-time recourse at this
 /// seat, so it is `unreachable!` rather than a `Result` nobody could
 /// act on. The one caller reaches it through
-/// `ViewerBehavior::new_param_unit`, which answers off the same
+/// `ViewerBehavior::new_variable_unit`, which answers off the same
 /// dimension.
 ///
 /// **No multiply.** `WrittenLength::canonical_in` attaches the
@@ -1015,74 +1237,74 @@ pub fn slot_edit(
 /// the draft behind a form field is canonical whatever the picker
 /// says (`crate::widgets::unit_field`), so applying the factor here
 /// would apply it twice.
-pub fn doc_param(dimension: Dimension, value: SlotValue, unit: Option<UnitDef>) -> DocParam {
+pub fn doc_variable(dimension: Dimension, value: SlotValue, unit: Option<UnitDef>) -> FreeVar {
     let value = match value {
-        SlotValue::Count(value) => return DocParam::Count { value },
+        SlotValue::Count(value) => return FreeVar::Count { value },
         SlotValue::Continuous(value) => value,
     };
     // No notation offered at all: the canonical declaration is the
     // whole of what there is to mint.
     let Some(unit) = unit else {
-        return DocParam::continuous(dimension, value);
+        return FreeVar::continuous(dimension, value);
     };
     let written = match dimension {
         Dimension::Length => unit
             .as_length()
-            .map(|unit| DocParam::written_length(WrittenLength::canonical_in(value, unit))),
+            .map(|unit| FreeVar::written_length(WrittenLength::canonical_in(value, unit))),
         Dimension::Angle => unit
             .as_angle()
-            .map(|unit| DocParam::written_angle(WrittenAngle::canonical_in(value, unit))),
+            .map(|unit| FreeVar::written_angle(WrittenAngle::canonical_in(value, unit))),
         // A dimension with no written door — a bare `Scalar` — has one
         // unit and the canonical declaration already names it, so
         // being handed it is no mistake and nothing to refuse.
         Dimension::Scalar | Dimension::Count => {
-            return DocParam::continuous(dimension, value);
+            return FreeVar::continuous(dimension, value);
         }
     };
     written.unwrap_or_else(|| {
         unreachable!(
-            "a {dimension} parameter was offered {}, which does not measure it",
+            "a {dimension} variable was offered {}, which does not measure it",
             unit.symbol()
         )
     })
 }
 
-/// The edit that changes how a standing parameter's value is WRITTEN,
-/// leaving its exact value alone — [`param_edit`]'s mirror over the
+/// The edit that changes how a standing variable's value is WRITTEN,
+/// leaving its exact value alone — [`variable_edit`]'s mirror over the
 /// other field of the declaration, and [`slot_unit_edit`]'s
-/// counterpart for a parameter.
+/// counterpart for a variable.
 ///
-/// Unlike a slot's, this rebuilds nothing: `DocEdit::SetDocParamUnit`
+/// Unlike a slot's, this rebuilds nothing: `DocEdit::SetVarUnit`
 /// carries the declaration forward, so the dimension, the value and
 /// any distribution ride through without this function naming them.
-/// The refusals (an undeclared name, a `Count`, a unit that does not
+/// The refusals (a variable the document does not hold, a `Count`, a unit that does not
 /// measure the declared dimension) belong to the edit door; this is
 /// the spelling, not a second validator.
-pub fn param_unit_edit(name: ParamName, unit: UnitDef) -> DocEdit<ProfileProgram> {
-    DocEdit::SetDocParamUnit {
-        name,
+pub fn variable_unit_edit(var: VarId, unit: UnitDef) -> DocEdit<ProfileProgram> {
+    DocEdit::SetVarUnit {
+        var: var.into(),
         unit: UnitSym::from_def(&unit),
     }
 }
 
 /// The edit that writes a new VALUE into an already-declared document
-/// parameter.
+/// variable.
 ///
 /// The panel authors a number and nothing else, so it spells the edit
-/// that carries a number and nothing else: `SetDocParamValue` reads
+/// that carries a number and nothing else: `SetVarValue` reads
 /// the declaration off the document and keeps it — the dimension and
 /// any distribution alike. The panel is therefore structurally unable
 /// to delete an annotation it never mentions, rather than remembering
 /// to copy one across.
 ///
-/// The refusals (an undeclared name, a kind mismatch) belong to the
+/// The refusals (a variable the document does not hold, a kind mismatch) belong to the
 /// edit door; this is the spelling, not a second validator.
-pub fn param_edit(name: ParamName, value: SlotValue) -> DocEdit<ProfileProgram> {
-    DocEdit::SetDocParamValue {
-        name,
+pub fn variable_edit(var: VarId, value: SlotValue) -> DocEdit<ProfileProgram> {
+    DocEdit::SetVarValue {
+        var: var.into(),
         value: match value {
-            SlotValue::Count(value) => DocParamValue::Count(value),
-            SlotValue::Continuous(value) => DocParamValue::Continuous(value),
+            SlotValue::Count(value) => FreeValue::Count(value),
+            SlotValue::Continuous(value) => FreeValue::Continuous(value),
         },
     }
 }
@@ -1253,9 +1475,21 @@ pub fn slot_unit_edit(
     unit: UnitDef,
 ) -> Result<DocEdit<ProfileProgram>, SlotUnitFault> {
     let value = slot_literal(doc, node, slot)?;
-    let expr = Expr::literal_with_unit(value, slot.dimension(), unit)
+    let expr = Formula::literal_with_unit(value, slot.dimension(), unit)
         .map_err(|source| SlotUnitFault::Dimension { slot, source })?;
-    Ok(DocEdit::SetParam { node, slot, expr })
+    // The slot's own written value is re-noted in place, keeping the
+    // variable (Q6); the check above has refused anything else.
+    if let Some(var) = doc.slot(node, slot)
+        && doc.is_typed_value(var)
+    {
+        return Ok(variable_unit_edit(var, unit));
+    }
+    Ok(DocEdit::SetParam {
+        node,
+        slot,
+        expr,
+        fresh: Vec::new(),
+    })
 }
 
 /// **The half of [`slot_unit_edit`] that does not read the unit**: the
@@ -1275,15 +1509,20 @@ pub fn slot_literal(
     slot: SlotId,
 ) -> Result<f64, SlotUnitFault> {
     let expr = doc
-        .node(node)
-        .and_then(|n| n.expr(slot))
-        .ok_or(SlotUnitFault::NoExpression { node, slot })?;
+        .slot_expansion(node, slot)
+        .ok_or_else(|| SlotUnitFault::NoExpression {
+            node: doc.spoken(node),
+            slot,
+        })?;
     // A display unit belongs to a LITERAL. An expression's value is
     // computed, so there is no authored notation to change — refused
     // rather than silently flattened to the computed number, which is
     // the same direction `SlotDriver` refuses a numeric edit in.
     expr.literal_value()
-        .ok_or(SlotUnitFault::NotALiteral { node, slot })
+        .ok_or_else(|| SlotUnitFault::NotALiteral {
+            node: doc.spoken(node),
+            slot,
+        })
 }
 
 /// Why a display-unit change was refused.
@@ -1291,16 +1530,16 @@ pub fn slot_literal(
 pub enum SlotUnitFault {
     /// The node carries no expression in that slot.
     NoExpression {
-        /// The node named.
-        node: RecipeNodeId,
+        /// The node named, as the document held it.
+        node: SpokenNode,
         /// The slot named.
         slot: SlotId,
     },
     /// The slot's expression is computed, so it has no authored
     /// notation to rewrite.
     NotALiteral {
-        /// The node.
-        node: RecipeNodeId,
+        /// The node, as the document held it.
+        node: SpokenNode,
         /// The slot.
         slot: SlotId,
     },
@@ -1319,17 +1558,15 @@ impl core::fmt::Display for SlotUnitFault {
             Self::NoExpression { node, slot } => {
                 write!(
                     f,
-                    "node {} carries no expression in its {} slot",
-                    node,
+                    "{node} carries no expression in its {} slot",
                     slot.label()
                 )
             }
             Self::NotALiteral { node, slot } => write!(
                 f,
-                "the {} slot on node {} is computed, so it has no written unit to change — \
-                 set an expression to change what it says",
-                slot.label(),
-                node
+                "the {} slot on {node} is computed, so it has no written unit to change — set \
+                 an expression to change what it says",
+                slot.label()
             ),
             Self::Dimension { slot, source } => {
                 write!(
@@ -1343,6 +1580,26 @@ impl core::fmt::Display for SlotUnitFault {
 }
 
 impl core::error::Error for SlotUnitFault {}
+
+impl SlotUnitFault {
+    /// This fault with its node spoken from `doc`, a later version of
+    /// the document it was raised in
+    /// ([`crate::session::Refusal::respoken`]).
+    #[must_use]
+    pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
+        match self {
+            Self::NoExpression { node, slot } => Self::NoExpression {
+                node: node.respoken(doc),
+                slot,
+            },
+            Self::NotALiteral { node, slot } => Self::NotALiteral {
+                node: node.respoken(doc),
+                slot,
+            },
+            unspoken @ Self::Dimension { .. } => unspoken,
+        }
+    }
+}
 
 #[cfg(test)]
 mod written_tests {

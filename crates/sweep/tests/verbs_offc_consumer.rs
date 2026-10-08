@@ -38,9 +38,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;
+use sweep::ExtrudeSide;
 
 use geom::{NurbsSurface, Surface};
 use geom_core::{Affine3, Tol, Vec3};
+use sweep::test_support::finished;
 use topo::{Body, FaceKey, FaceSurface};
 
 use crate::common;
@@ -154,8 +156,8 @@ fn a_degraded_fit_on_a_face_goes_red_at_tier_three() {
     )
     .unwrap();
 
-    // Lifts both refusals: the degraded fit behind an honest certificate is the row.
-    body.set_face_surface_stranding_for_tests(
+    // Lifts RechartStrandsDescriptions: the degraded fit behind an honest certificate is the row.
+    body.set_face_surface_unvouched_for_tests(
         face,
         FaceSurface::New {
             surface: Surface::Approx(Arc::new(planted)),
@@ -192,7 +194,9 @@ fn a_degraded_fit_on_a_face_goes_red_at_tier_three() {
 #[test]
 fn the_boolean_gate_refuses_an_approx_operand_by_kind() {
     // Control: two overlapping boxes union through the gate.
-    topo::union(&unit_box(), &moved_box(), Tol::witness())
+    let tol = Tol::witness();
+    let moved = finished("the moved box", moved_box(), tol);
+    topo::union(&finished("the unit box", unit_box(), tol), &moved, tol)
         .expect("two planar boxes union through the gate");
 
     // The same box with its top face carrying an approximating
@@ -200,14 +204,18 @@ fn the_boolean_gate_refuses_an_approx_operand_by_kind() {
     // described as the offset of that patch pulled back by `d`.
     let (a, face) = box_with_approx_cap(0.05, MINT_TARGET);
 
-    let e = topo::union(&a, &moved_box(), Tol::witness())
-        .expect_err("an Approx operand is unsupported-kind for the boolean gate");
+    let e = topo::union(
+        &finished("the approx-capped box", a.clone(), tol),
+        &moved,
+        tol,
+    )
+    .expect_err("an Approx operand is unsupported-kind for the boolean gate");
     assert!(
         matches!(
             e,
             topo::BooleanError::CurvedPairUnsupported {
-                kind: geom_brep::SurfaceKind::Approx,
-                other_kind: geom_brep::SurfaceKind::Plane,
+                kind: geom::SurfaceKind::Approx,
+                other_kind: geom::SurfaceKind::Plane,
                 face: f,
                 ..
             } if f == face
@@ -367,29 +375,17 @@ fn an_approx_faced_body_moves_under_a_rigid_map() {
         );
 
         // The independent check: tier 3 re-derives the mapped
-        // certificate itself, and finds nothing the operand did not
-        // already have. The operand's own baseline is exactly one
-        // finding — check 7 wanting the pcurve caches the seam class
-        // will not mint (see `box_with_approx_cap`) — so this compares
-        // a set of one against a set of one, and names what is in it.
-        let findings = |b: &Body<f64>| match topo::validate_geometric(b, Tol::witness()) {
-            Ok(()) => Vec::new(),
-            Err(e) => e.iter().map(|f| format!("{f:?}")).collect(),
-        };
-        let (here, there) = (findings(&body), findings(&moved));
+        // certificate itself, and finds nothing, either side of the map:
+        // the operand is minted, so check 7 weighs it.
         assert_eq!(
-            there, here,
-            "d = {d}: a rigid map must introduce no tier-3 finding"
+            topo::validate_geometric(&body, Tol::witness()),
+            Ok(()),
+            "d = {d}: the operand is valid at rest"
         );
-        assert!(
-            !there
-                .iter()
-                .any(|f| f.contains("Approx") || f.contains("Certif")),
-            "d = {d}: no finding about the mapped approximating surface: {there:?}"
-        );
-        assert!(
-            there.iter().all(|f| f.contains("VolumeUncomputable")),
-            "d = {d}: the only wall is check 7 wanting caches: {there:?}"
+        assert_eq!(
+            topo::validate_geometric(&moved, Tol::witness()),
+            Ok(()),
+            "d = {d}: a rigid map introduces no tier-3 finding"
         );
     }
 }
@@ -544,8 +540,8 @@ fn a_degraded_fit_does_not_survive_the_map() {
         good.window(),
         *good.certificate(),
     );
-    // Lifts both refusals: the degraded fit behind an honest certificate is the row.
-    body.set_face_surface_stranding_for_tests(
+    // Lifts RechartStrandsDescriptions: the degraded fit behind an honest certificate is the row.
+    body.set_face_surface_unvouched_for_tests(
         face,
         FaceSurface::New {
             surface: Surface::Approx(Arc::new(planted)),
@@ -632,8 +628,8 @@ fn a_narrowed_window_refuses_at_the_validator_and_at_the_map() {
         narrowed,
         *good.certificate(),
     );
-    // Lifts both refusals: the narrowed window behind an honest surface is the row.
-    body.set_face_surface_stranding_for_tests(
+    // Lifts RechartStrandsDescriptions: the narrowed window behind an honest surface is the row.
+    body.set_face_surface_unvouched_for_tests(
         face,
         FaceSurface::New {
             surface: Surface::Approx(Arc::new(planted)),
@@ -708,8 +704,8 @@ fn a_micro_edit_of_an_interior_control_point_does_not_survive_the_map() {
         good.window(),
         *good.certificate(),
     );
-    // Lifts both refusals: the nudged fit control point is the row.
-    body.set_face_surface_stranding_for_tests(
+    // Lifts RechartStrandsDescriptions: the nudged fit control point is the row.
+    body.set_face_surface_unvouched_for_tests(
         face,
         FaceSurface::New {
             surface: Surface::Approx(Arc::new(planted)),
@@ -759,8 +755,8 @@ fn a_planted_certificate_is_replaced_by_the_re_derivation_field_by_field() {
         good.window(),
         bogus,
     );
-    // Lifts both refusals: the planted certificate behind a good pair is the row.
-    body.set_face_surface_stranding_for_tests(
+    // Lifts RechartStrandsDescriptions: the planted certificate behind a good pair is the row.
+    body.set_face_surface_unvouched_for_tests(
         face,
         FaceSurface::New {
             surface: Surface::Approx(Arc::new(planted)),
@@ -836,7 +832,10 @@ fn an_approx_face_refuses_typed_at_a_scalar_with_no_fit_lane() {
         .expect("a square is a valid profile");
     let mut body = sweep::extrude(
         &profile,
-        sweep::Extrusion::Distance(iv(1.0)),
+        sweep::Extrusion::Distance {
+            depth: iv(1.0),
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .expect("a square prism extrudes at Interval")
@@ -855,8 +854,8 @@ fn an_approx_face_refuses_typed_at_a_scalar_with_no_fit_lane() {
         })
         .map(|(k, _)| k)
         .expect("the extruded box has a top cap");
-    // Lifts both refusals: the Approx face at a scalar with no fit lane is the row.
-    body.set_face_surface_stranding_for_tests(
+    // Lifts RechartStrandsDescriptions: the Approx face at a scalar with no fit lane is the row.
+    body.set_face_surface_unvouched_for_tests(
         face,
         FaceSurface::New {
             surface: Surface::Approx(Arc::new(lifted)),
@@ -880,40 +879,39 @@ fn an_approx_face_refuses_typed_at_a_scalar_with_no_fit_lane() {
     );
 }
 
-/// **What an `Approx`-capped part still cannot do, pinned so that
-/// lifting any of it is loud.** A user who places one of these bodies
-/// meets three walls after the map, and each is a different door's
-/// gap rather than a property of the map:
+/// **What an `Approx`-capped part can and cannot do once placed,
+/// pinned so that a move either way is loud.** The fixture ends with its
+/// closing mint (rows are mandatory at rest), and every cap edge's row
+/// derives and certifies, so the two doors that want stored caches
+/// answer on the placed part:
 ///
-/// - **mass properties** refuse, because the quadrature wants a stored
-///   pcurve cache on every half-edge of a spline face and the iso
-///   lane's seam class will not mint one over a straight carrier;
-/// - **tessellation** refuses for the same missing caches;
+/// - **mass properties** weigh it, at the operand's own volume and area;
+/// - **tessellation** meshes it;
 /// - **STEP export** refuses by kind: the writer has no printer for an
 ///   approximating surface (`OFFSET_SURFACE` is the entity it would
 ///   need), so it declines rather than emitting the fit as if the fit
 ///   were the described geometry.
 ///
-/// The row asserts each refusal and its shape. When one is built, this
-/// reds, and `work/shell/no-approx-faced-body-is-both-movable-and-valid.md`
-/// is the file to update.
+/// `work/shell/no-approx-faced-body-is-both-movable-and-valid.md` is the
+/// file that tracks the walls.
 #[test]
 fn the_walls_a_placed_approx_capped_part_still_meets() {
     let (body, _) = box_with_approx_cap(0.05, MINT_TARGET);
     let placed = topo::transform_rigid(&body, &rigid(), Tol::witness()).expect("the part places");
 
-    let props = topo::mass_properties(&placed, Tol::witness())
-        .expect_err("the quadrature wants caches this chart cannot mint");
+    let here = topo::mass_properties(&body, Tol::witness()).expect("the operand weighs");
+    let props = topo::mass_properties(&placed, Tol::witness()).expect("the placed part weighs");
     assert!(
-        format!("{props}").contains("no stored pcurve cache"),
-        "mass properties must refuse for the missing caches, got {props}"
+        (props.volume - here.volume).abs() <= props.volume_pad + here.volume_pad
+            && (props.surface_area - here.surface_area).abs() <= props.area_pad + here.area_pad,
+        "a rigid map moves neither volume nor area: {here:?} -> {props:?}"
     );
 
-    let mesh = mesh::tessellate(&placed, 0.05, Tol::witness())
-        .expect_err("tessellation wants the same caches");
-    assert!(
-        format!("{mesh}").contains("no stored pcurve cache"),
-        "tessellation must refuse for the missing caches, got {mesh}"
+    let mesh = mesh::tessellate(&placed, 0.05, Tol::witness()).expect("the placed part meshes");
+    assert_eq!(
+        mesh.patches.len(),
+        placed.faces().count(),
+        "every face of the placed part is meshed"
     );
 
     let step = step_export::step_string(
@@ -925,10 +923,7 @@ fn the_walls_a_placed_approx_capped_part_still_meets() {
     assert!(
         matches!(
             step,
-            step_export::StepExportError::UnsupportedSurface {
-                kind: "approximating surface",
-                ..
-            }
+            step_export::StepExportError::UnsupportedSurface { kind: "approx", .. }
         ),
         "expected the kind refusal, got {step}"
     );

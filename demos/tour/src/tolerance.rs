@@ -11,22 +11,23 @@
 //! **Stop 1 is what a user gets today, and E12 turned it from a
 //! refusal into an ANSWER.** ±0.05 mm on the hole spacing and σ =
 //! 0.01 mm on each radius — a real study — and the driver now certifies
-//! it. At the cell's 512-leaf budget (release, default ε): 193 leaves
-//! certified, 319 refused at the budget and none for any other reason,
-//! 83.4% of the study's mass certified; the certified worst case on the
-//! web is `[0.419, 0.845]` mm against the asserted floor of 0.500 mm,
+//! it. At the cell's 512-leaf budget (default ε): 211 leaves
+//! certified, 301 refused at the budget and none for any other reason,
+//! 94.9% of the study's mass certified; the certified worst case on the
+//! web is `[0.440, 0.760]` mm against the asserted floor of 0.500 mm,
 //! the nominal 0.600 mm sits in a certified chamber, and the
 //! requirement — read off the ASSERTION NODE over each certified leaf,
 //! the way stop 2 reads it — is MIXED, with its masses: it HOLDS on
-//! 0.8337 of the study's mass and is VIOLATED on 0.0002, certified —
+//! 0.9387 of the study's mass and is VIOLATED on 0.0104, certified —
 //! the corner where the spacing is short and both holes are large —
-//! with 0.1661 in leaves the budget left unresolved. That is the
-//! study's answer, and it is a gating one: "with probability 2·10⁻⁴
+//! with 0.0509 in leaves the budget left unresolved. That is the
+//! study's answer, and it is a gating one: "with probability 1·10⁻²
 //! the web is under the floor" is now a sentence the kernel says.
-//! The hull `[0.4188, 0.8450]` mm pads the exact affine range over the
-//! certified leaves, `[0.4400, 0.7600]` mm, by 0.021 mm below and
-//! 0.085 mm above — the interval lane's dependency widening, pinned
-//! at both ends by the cell's row. Every sensitivity is
+//! The hull is the exact affine range over the certified leaves,
+//! `[0.4400, 0.7600]` mm, to rounding: its padding was 0.021 mm below
+//! and 0.085 mm above at 193 certified leaves, and since the PATHS
+//! lattice stores the carriers it builds (PR 3774) it is ~1e-18 m at
+//! both ends, which the cell's row pins as a ceiling. Every sensitivity is
 //! chamber-certified (`∂web/∂spacing = 2`, `∂web/∂r = −1` each).
 //!
 //! The symbolic identity tier (`geom_core::sym`, ERROR-DESIGN E12)
@@ -99,6 +100,18 @@
 //! and why (here, all at the leaf budget), and the coverage says where
 //! the mass went. Beside it the Monte-Carlo lane answers the same
 //! question advisorily, labeled, with its count and seed.
+//!
+//! **The plate with its holes cut is a wall.** The study's document
+//! reads the web off the hole extrudes and never subtracts them
+//! ([`crate::plate`]); [`crate::plate::cut_plate`] cuts them and reads
+//! the cut part's bore walls, and the drive certifies no box of it:
+//! each hole lies wholly inside the blank, so the subtract's volume
+//! bound `vol(A ∖ B) ≥ vol(A) − vol(B)` is a tie whose enclosure
+//! straddles zero at every width
+//! (`work/tally/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`).
+//! [`cut_wall`] pins it at `1e-9` of the study, a box the study's own
+//! document certifies whole. The Monte-Carlo lane answers on the cut
+//! plate; only the certified lane, and the stackup over it, refuse.
 //!
 //! **Stop 2 is the MVP's reason to exist, at the scale where it
 //! works.** The same plate with every tolerance scaled to the box the
@@ -180,16 +193,17 @@ use pncad::analysis::{
 use pncad::document::{ProfileDoc, RecipeNodeId};
 use pncad::geom_core::Tol;
 
-use crate::plate::{Plate, WEB, plate};
+use crate::plate::{Plate, RADIUS_SIGMA, SPACING_HALF_WIDTH, WEB, WEB_BOUND, plate};
 
 /// The hull's padding below and above the true range over the
-/// certified leaves at stop 1's budget (512 leaves, 193 certified),
-/// MEASURED at the default ε in metres — `2.125e-5` below and
-/// `8.500e-5` above the exact affine range `[4.400e-4, 7.600e-4]`
-/// — and pinned at BOTH ends within 2% at the CI row (a hull that
-/// padded more would fail, and so would one whose leaves narrowed:
-/// the widening is proportional to the leaf's width), as a ceiling
-/// at the other ε rows.
+/// certified leaves at stop 1's budget (512 leaves, 211 certified),
+/// MEASURED at the default ε in metres: `9.76e-19` below and `8.67e-19`
+/// above the exact affine range `[4.400e-4, 7.600e-4]`, rounding of a
+/// sub-millimetre length. Pinned at the CI row as a ceiling at
+/// rounding, so a hull that padded again would fail. Before PR 3774 it
+/// was `2.125e-5` and `8.500e-5` at 193 certified leaves, which stay
+/// the ceiling at the other ε rows.
+const HULL_SLACK_AT_ROUNDING: f64 = 1e-15;
 const HULL_SLACK_BELOW: f64 = 2.125e-5;
 const HULL_SLACK_ABOVE: f64 = 8.500e-5;
 
@@ -243,35 +257,109 @@ fn parallel() -> DriveConfig {
 pub fn narration(tol: Tol) {
     real_study(tol);
     certified_study(tol);
+    cut_wall(tol);
+}
+
+/// **The wall: the plate with its holes cut certifies on no box.**
+///
+/// [`crate::plate::cut_plate`] is the natural spelling — the holes
+/// subtracted from the blank, the web read off the cut part's bore
+/// walls. Each hole lies wholly inside the blank, so
+/// `vol(A ∖ B) ≥ vol(A) − vol(B)` holds with equality, and the
+/// backstop's `volume_backstop_violation` enclosure straddles zero at
+/// every box width (measured to `1e-12` of the study). The probe is the
+/// whole box at `1e-9` of the study, one leaf: a box that narrow
+/// certifies whole on the study's own document.
+fn cut_wall(tol: Tol) {
+    let s = 1.0e-9;
+    let whole = DriveConfig {
+        max_leaves: 1,
+        ..DriveConfig::default()
+    };
+    let uncut = plate(SPACING_HALF_WIDTH * s, RADIUS_SIGMA * s, WEB_BOUND, tol);
+    let uncut_box = analyzed_box(&uncut.doc, &AnalysisPolicy::default());
+    let receipt = drive(&uncut.doc, &uncut_box, &whole, tol)
+        .expect("the study's nominal builds")
+        .receipt();
+    assert_eq!(
+        receipt.certified, 1,
+        "the study's own document certifies this box whole, so the wall is the cut's: {receipt:?}"
+    );
+    let Plate { doc, measure, .. } =
+        crate::plate::cut_plate(SPACING_HALF_WIDTH * s, RADIUS_SIGMA * s, WEB_BOUND, tol);
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let verdict = drive(&doc, &analyzed, &whole, tol).expect("the cut plate's nominal builds");
+    crate::walls::wall(
+        "two-hole plate",
+        1,
+        "the holes cut from the blank, the web read off the cut part's bore walls, \
+         over 1e-9 of the study",
+        stackup(&doc, measure, &analyzed, &verdict, None, true, None, tol).map_err(|r| match r {
+            StackupRefusal::NothingCertified { receipt, .. } => Ok(receipt),
+            other => Err(Box::new(other)),
+        }),
+        |r| matches!(r, Ok(receipt) if receipt.certified == 0),
+        "re-author crate::plate::plate as the cut (work/tally/\
+         a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md)",
+    );
+    // The advisory lane is not walled: it samples the cut plate over
+    // the real study, and the web it reads off the cut part's bores is
+    // the study's bit for bit: the same draws (one seed, the same three
+    // laws) measured between the same cylinder axes.
+    let row = |p: &Plate| {
+        let analyzed = analyzed_box(&p.doc, &AnalysisPolicy::default());
+        let mc = monte_carlo(&p.doc, &analyzed, &McConfig::default(), tol)
+            .expect("the Monte-Carlo lane answers");
+        let m = mc
+            .measures
+            .iter()
+            .find(|m| m.node == p.measure)
+            .expect("the web measure has a row");
+        (m.measured, m.mean, m.min, m.max)
+    };
+    let cut = row(&crate::plate::cut_plate(
+        SPACING_HALF_WIDTH,
+        RADIUS_SIGMA,
+        WEB_BOUND,
+        tol,
+    ));
+    let study = row(&crate::plate::real_study(tol));
+    assert!(
+        cut.0 == study.0
+            && [(cut.1, study.1), (cut.2, study.2), (cut.3, study.3)]
+                .iter()
+                .all(|(a, b)| a.to_bits() == b.to_bits()),
+        "the cut plate's sampled web (measured, mean, min, max) is the study's bit for bit: \
+         {cut:?} against {study:?}"
+    );
 }
 
 /// **Stop 1 — the study a user actually has.** ±0.05 mm on the
 /// spacing, σ = 0.01 mm on each radius.
 fn real_study(tol: Tol) {
-    let bound = WEB - 1.0e-4;
     let Plate {
         doc,
         measure,
         assertion,
         ..
-    } = plate(5.0e-5, 1.0e-5, bound, tol);
+    } = crate::plate::real_study(tol);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     println!(
         "   the real study: web nominal {:.4} mm, asserted >= {:.4} mm, over ±0.05 mm of \
          spacing and σ = 0.01 mm on each radius",
         WEB * 1e3,
-        bound * 1e3
+        WEB_BOUND * 1e3
     );
 
     let verdict = drive(&doc, &analyzed, &starved(), tol).expect("the nominal builds");
-    println!("{}", indent(&verdict.render(&analyzed)));
+    println!("{}", indent(&verdict.render(&doc, &analyzed)));
     // The verdict on the requirement, read off the ASSERTION NODE over
     // each certified leaf — stop 2's discipline, applied to the study
     // a user actually has.
     let (decided, masses) = requirement_over_leaves(&doc, &analyzed, &verdict, assertion, tol);
-    match stackup(&doc, measure, &analyzed, &verdict, None, true, tol) {
+    match stackup(&doc, measure, &analyzed, &verdict, None, true, None, tol) {
         Ok(report) => {
-            println!("{}", indent(&report.render(&analyzed)));
+            println!("{}", indent(&report.render(&doc, &analyzed)));
             // What the captions below claim, asserted here — the cell panics
             // when the kernel stops doing what it narrates, the posture every
             // tour cell keeps. (A stackup that answered implies a leaf
@@ -306,14 +394,14 @@ fn real_study(tol: Tol) {
             if at_the_ci_row(tol) {
                 assert_eq!(
                     (verdict.certified().len(), verdict.refused().len()),
-                    (193, 319),
+                    (211, 301),
                     "the header's leaf counts at 512 leaves: {:?}",
                     verdict.receipt()
                 );
             }
             assert!(
-                report.worst_case.lo < bound && bound < report.worst_case.hi,
-                "the certified worst case straddles the floor: {:?} against {bound:e}",
+                report.worst_case.lo < WEB_BOUND && WEB_BOUND < report.worst_case.hi,
+                "the certified worst case straddles the floor: {:?} against {WEB_BOUND:e}",
                 report.worst_case
             );
             println!(
@@ -326,11 +414,11 @@ fn real_study(tol: Tol) {
                 describe(&decided),
                 masses.holds,
                 masses.violated,
-                bound * 1e3,
+                WEB_BOUND * 1e3,
                 masses.unevaluated,
                 1.0 - masses.holds - masses.violated - masses.unevaluated
             );
-            let slack = hull_slack(&verdict, (report.worst_case.lo, report.worst_case.hi));
+            let slack = hull_slack(&doc, &verdict, (report.worst_case.lo, report.worst_case.hi));
             // The straddle beside its padding (R2's Q3): the hull
             // ENCLOSES the true range over the certified leaves and
             // exceeds it by a padding proportional to the leaf's width
@@ -347,13 +435,13 @@ fn real_study(tol: Tol) {
                 "the hull is over every certified leaf"
             );
             assert!(
-                slack.true_lo < bound,
+                slack.true_lo < WEB_BOUND,
                 "the TRUE range over the certified leaves reaches under the floor — the \
-                 straddle is the study's, not the padding's: {slack:?} against {bound:e}"
+                 straddle is the study's, not the padding's: {slack:?} against {WEB_BOUND:e}"
             );
             let within = |got: f64, want: f64| {
                 if at_the_ci_row(tol) {
-                    (got - want).abs() <= 0.02 * want
+                    got <= HULL_SLACK_AT_ROUNDING
                 } else {
                     got <= 1.05 * want
                 }
@@ -367,7 +455,7 @@ fn real_study(tol: Tol) {
                 "   the certified hull [{:.4e}, {:.4e}] m against the TRUE range over the \
                  certified leaves [{:.4e}, {:.4e}] m (the web is affine in the parameters, \
                  so that range is exact): padding {:.2e} m below and {:.2e} m above — the \
-                 interval lane's dependency widening, proportional to the leaf's width \
+                 interval lane's dependency widening, at rounding on these leaves \
                  (work/stack/certified-hull-padding-is-the-leaf-width-not-the-lane)",
                 report.worst_case.lo,
                 report.worst_case.hi,
@@ -426,15 +514,18 @@ fn real_study(tol: Tol) {
                 // it. `render_sensitivity` was made public for this.
                 println!(
                     "     ∂web/∂{}: {}",
-                    s.param.as_str(),
-                    render_sensitivity(&s.outcome)
+                    doc.spoken_var(s.param),
+                    render_sensitivity(s, &doc)
                 );
             }
             println!(
                 "     the drive: {} certified, {} refused",
                 receipt.certified, receipt.refused
             );
-            println!("{}", indent(&MassBudget::of(&coverage, &analyzed).render()));
+            println!(
+                "{}",
+                indent(&MassBudget::of(&coverage, &analyzed).render(&doc))
+            );
             println!(
                 "     This is NOT the expected answer any more: under M10-10's tier this \
                  study certifies (the module header carries the numbers). A refusal \
@@ -450,9 +541,9 @@ fn real_study(tol: Tol) {
     // The advisory lane, which CAN answer at this box — and says what
     // it is on every line.
     let mc = monte_carlo(&doc, &analyzed, &McConfig::default(), tol).expect("the nominal builds");
-    println!("{}", indent(&mc.render()));
+    println!("{}", indent(&mc.render(&doc)));
     assert!(
-        mc.render().contains("ADVISORY"),
+        mc.render(&doc).contains("ADVISORY"),
         "the advisory lane's label rides it"
     );
     assert_eq!(mc.samples, pncad::analysis::DEFAULT_SAMPLES);
@@ -502,7 +593,7 @@ fn certified_study(tol: Tol) {
     } = plate(spacing_half_width, radius_sigma, bound, tol);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &parallel(), tol).expect("the nominal builds");
-    println!("{}", indent(&verdict.render(&analyzed)));
+    println!("{}", indent(&verdict.render(&doc, &analyzed)));
     // **The verdict the CI row gates on, read off the ASSERTION NODE**
     // — not off a comparison this cell makes for itself. That is the
     // whole correction R1 forced (see the module header's finding on
@@ -511,7 +602,7 @@ fn certified_study(tol: Tol) {
     // threshold, and a demo that decides on it is claiming a certainty
     // the kernel refuses to claim one line away.
     let decided = requirement_over_leaves(&doc, &analyzed, &verdict, assertion, tol).0;
-    let report = match stackup(&doc, measure, &analyzed, &verdict, None, true, tol) {
+    let report = match stackup(&doc, measure, &analyzed, &verdict, None, true, None, tol) {
         Ok(report) => report,
         Err(refusal) => panic!(
             "the certifiable box did not certify: {refusal}. That is a finding about the \
@@ -519,11 +610,11 @@ fn certified_study(tol: Tol) {
              regression, since this box is the one the cell exists to show certifying."
         ),
     };
-    println!("{}", indent(&report.render(&analyzed)));
+    println!("{}", indent(&report.render(&doc, &analyzed)));
     print_divergence(&report, bound, worst, &decided, tol);
     // The E11.6 datum: where each certified leaf's mass lands.
     let histogram = leaf_histogram(&doc, &analyzed, &verdict, measure, tol);
-    println!("{}", indent(&histogram.render()));
+    println!("{}", indent(&histogram.render(&doc)));
     println!(
         "   the assertion node {} is the recorded requirement, and THIS is what the CI \
          row gates on: {}",
@@ -570,7 +661,7 @@ fn certified_study(tol: Tol) {
         tol.k() * tol.eps()
     );
     let mc = monte_carlo(&doc, &analyzed, &McConfig::default(), tol).expect("the nominal builds");
-    println!("{}", indent(&mc.render()));
+    println!("{}", indent(&mc.render(&doc)));
     assert_eq!(mc.samples, pncad::analysis::DEFAULT_SAMPLES);
     // The advisory lane's own number, READ OFF THE REPORT rather than
     // asserted in prose. The first pass printed "0%" as a literal, so
@@ -692,12 +783,12 @@ fn requirement_over_leaves(
 /// its varying axes.
 fn leaf_mass(analyzed: &AnalyzedBox, box_: &pncad::analysis::ParamBox) -> f64 {
     let mut m = 1.0;
-    for (name, axis) in box_.axes() {
-        let Some(dist) = analyzed.get(name).and_then(|p| p.distribution.as_ref()) else {
+    for (&var, axis) in box_.axes() {
+        let Some(dist) = analyzed.get(var).and_then(|p| p.distribution.as_ref()) else {
             continue;
         };
         if let BoxAxis::Varying { lo, hi } = axis {
-            m *= box_mass(name, dist, (*lo, *hi)).unwrap_or(f64::NAN);
+            m *= box_mass(&analyzed.spoken(var), dist, (*lo, *hi)).unwrap_or(f64::NAN);
         }
     }
     m
@@ -720,17 +811,14 @@ struct HullSlack {
     above: f64,
 }
 
-fn hull_slack(verdict: &ParamBoxVerdict, hull: (f64, f64)) -> HullSlack {
+fn hull_slack(doc: &ProfileDoc, verdict: &ParamBoxVerdict, hull: (f64, f64)) -> HullSlack {
     let (mut true_lo, mut true_hi) = (f64::INFINITY, f64::NEG_INFINITY);
     for leaf in verdict.certified() {
-        let span = |n: &'static str| match leaf
-            .box_
-            .axes()
-            .get(&pncad::document::ParamName::from_static(n))
-        {
-            Some(BoxAxis::Varying { lo, hi }) => (*lo, *hi),
-            _ => (0.0, 0.0),
-        };
+        let span =
+            |n: &'static str| match doc.var_named(n).and_then(|var| leaf.box_.axes().get(&var)) {
+                Some(BoxAxis::Varying { lo, hi }) => (*lo, *hi),
+                _ => (0.0, 0.0),
+            };
         let (hs_lo, hs_hi) = span("half_spacing");
         let (a_lo, a_hi) = span("hole_a_r");
         let (b_lo, b_hi) = span("hole_b_r");

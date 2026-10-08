@@ -28,17 +28,19 @@
 
 use crate::fixture;
 use crate::wire;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
+use editor_core::Formula;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, Clash, ClusterMaintenance, ContactClass, DocEdit, DocumentId,
-    EditError, EvalOptions, FacePoseRefusal, Lever, LeverRefusal, LoggedEdit, MateFault, MateFrame,
-    MatePrimitive, MateReach, MateRole, MateSide, Node, PartFault, PersistError, ProfileDoc,
-    ReachRefusal, RecipeNodeId, RefusingReach, load, mate_reach, root_of, save,
+    Alignment, AxisSense, CapEnd, Clash, ContactClass, DocEdit, DocumentId, EditError, EvalOptions,
+    FacePoseRefusal, Lever, LeverRefusal, MateFault, MateFrame, MatePrimitive, MateReach, MateRole,
+    MateSide, Node, PartFault, PersistError, ProfileDoc, ReachRefusal, RecipeNodeId, RefusingReach,
+    load, mate_reach, root_of, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{at_the_door, insert, len, on_frame, solve, step, step_with};
+use fixture::{ang, at_the_door, insert, len, on_frame, scl, solve, step, step_with};
 use geom_core::Tol;
-use topo::readback::Pose;
 
 // ---- Substrate ----
 
@@ -58,6 +60,7 @@ fn box_part(label: &str, half: f64, height: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(height),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -70,16 +73,29 @@ fn instances(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, EvalOptio
         store.insert_part(box_part(&format!("{label}-part"), 0.5, 1.0), Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
-    for _ in 0..n {
-        let (next, id) = insert(doc, Node::instantiate_part(doc_ref));
+    for i in 0..n {
+        // The first roots every group the rows' mates make; the rest
+        // sit where their mates put them.
+        let node = if i == 0 {
+            Node::instantiate_part(doc_ref)
+        } else {
+            crate::fixture::mated_instance(doc_ref)
+        };
+        let (next, id) = insert(doc, node);
         doc = next;
         ids.push(id);
     }
     (doc, ids, with_resolver(store), body)
 }
 
-fn frame(origin: [f64; 3]) -> MateFrame {
-    MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
+fn frame(origin: [f64; 3]) -> MateFrame<Formula> {
+    MateFrame::authored(
+        origin,
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        geom_core::Tol::witness(),
+    )
+    .expect("a definite frame")
 }
 
 /// `a`'s top cap on `b`'s bottom cap, at `alignment`, both instances
@@ -88,8 +104,8 @@ fn mate(
     body: RecipeNodeId,
     a: RecipeNodeId,
     b: RecipeNodeId,
-    alignment: Alignment,
-) -> Node<editor_core::ProfileProgram> {
+    alignment: Alignment<Formula>,
+) -> AuthoredNode {
     mate_across((a, body), (b, body), alignment)
 }
 
@@ -98,8 +114,8 @@ fn mate(
 fn mate_across(
     (a, a_body): (RecipeNodeId, RecipeNodeId),
     (b, b_body): (RecipeNodeId, RecipeNodeId),
-    alignment: Alignment,
-) -> Node<editor_core::ProfileProgram> {
+    alignment: Alignment<Formula>,
+) -> AuthoredNode {
     Node::Mate {
         a: fixture::head(in_part(a, a_body, CapEnd::End)),
         b: fixture::head(in_part(b, b_body, CapEnd::Start)),
@@ -109,10 +125,7 @@ fn mate_across(
 }
 
 /// `node` with its `b` head replaced.
-fn with_b(
-    mut node: Node<editor_core::ProfileProgram>,
-    head: editor_core::SitedFace,
-) -> Node<editor_core::ProfileProgram> {
+fn with_b(mut node: AuthoredNode, head: editor_core::SitedFace) -> AuthoredNode {
     if let Node::Mate { b, .. } = &mut node {
         *b = head;
     }
@@ -120,10 +133,7 @@ fn with_b(
 }
 
 /// `node` with its `a` head replaced.
-fn with_a(
-    mut node: Node<editor_core::ProfileProgram>,
-    head: editor_core::SitedFace,
-) -> Node<editor_core::ProfileProgram> {
+fn with_a(mut node: AuthoredNode, head: editor_core::SitedFace) -> AuthoredNode {
     if let Node::Mate { a, .. } = &mut node {
         *a = head;
     }
@@ -131,10 +141,7 @@ fn with_a(
 }
 
 /// `node` with its class replaced.
-fn with_class(
-    mut node: Node<editor_core::ProfileProgram>,
-    class: ContactClass,
-) -> Node<editor_core::ProfileProgram> {
+fn with_class(mut node: AuthoredNode, class: ContactClass) -> AuthoredNode {
     if let Node::Mate { class: c, .. } = &mut node {
         *c = class;
     }
@@ -143,7 +150,7 @@ fn with_class(
 
 /// A frame coincidence seating `b` a unit up `a`, with `clocking` as
 /// the rider.
-fn seat(clocking: Option<f64>) -> Alignment {
+fn seat(clocking: Option<f64>) -> Alignment<Formula> {
     Alignment {
         a: frame([0.0, 0.0, 1.0]),
         b: frame([0.0; 3]),
@@ -183,7 +190,7 @@ impl MateReach for Counting<'_> {
         &self,
         part: &editor_core::DocRef,
         face: &editor_core::FaceName,
-    ) -> Result<Pose<f64>, FacePoseRefusal> {
+    ) -> Result<topo::readback::Pose<f64>, FacePoseRefusal> {
         self.2.set(self.2.get() + 1);
         self.1.face_pose(part, face)
     }
@@ -195,7 +202,7 @@ fn lever_of(
     doc: &editor_core::ProfileDoc,
     opts: &EvalOptions,
     ids: &[RecipeNodeId],
-    a: &Alignment,
+    a: &Alignment<Formula>,
 ) -> f64 {
     let reach = mate_reach::<f64>(opts, Tol::witness());
     let mut arm = fixture::datum_lever(a);
@@ -251,7 +258,8 @@ fn a1_a_rider_beyond_the_band_refuses_at_insert_with_the_solves_lever() {
     let err = doc
         .apply(
             &DocEdit::InsertNode {
-                node: mate(body, ids[0], ids[1], alignment),
+                node: Box::new(mate(body, ids[0], ids[1], alignment)),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &reach,
@@ -261,11 +269,16 @@ fn a1_a_rider_beyond_the_band_refuses_at_insert_with_the_solves_lever() {
         panic!("{err:?}");
     };
     let sentence = err.to_string();
+    let t = test_utils::refusal::tag(named.0.digest());
     assert!(
-        sentence.contains(&format!("node {}", test_utils::refusal::tag(named.0)))
-            && sentence.contains(&fault.to_string()),
-        "{sentence}"
+        sentence.contains(&format!(
+            "Mate {t} is refused by the solve on its own datum: this mate contradicts itself"
+        )) && fault
+            .to_string()
+            .starts_with(&format!("mate {t} contradicts itself")),
+        "the door names the mate once, and the fault's own sentence names it: {sentence}"
     );
+    assert_eq!(sentence.matches(&t).count(), 1, "{sentence}");
 }
 
 /// **A rider inside the band is admitted, and the solve places the
@@ -328,21 +341,34 @@ fn a4_the_static_gaps_refuse_table_lacks_with_no_reach_asked() {
     assert_eq!(counting.0.get(), 0, "a static gap asks no lever");
 }
 
-/// **A frame with no definite direction refuses `Frame` at insert**,
-/// with no reach asked: the frame is read before any decision is
-/// levered.
+/// **A frame with no definite direction refuses at its authoring, and
+/// an offset step with none refuses `FrameUnevaluated` at insert**, with
+/// no reach asked: the frame is read before any decision is levered.
 #[test]
 fn a4_a_degenerate_frame_refuses_frame_at_insert_with_no_ask() {
+    assert!(matches!(
+        MateFrame::<Formula>::authored(
+            [0.0; 3],
+            [0.0; 3],
+            [1.0, 0.0, 0.0],
+            geom_core::Tol::witness()
+        ),
+        Err(geom_core::FrameError::Degenerate { .. })
+    ));
     let (doc, ids, _, body) = instances("msolve10-a4-frame", 2);
     let counting = Counting::over(&RefusingReach);
     let mut alignment = seat(Some(0.3));
-    alignment.b = MateFrame::authored([0.0; 3], [0.0; 3], [1.0, 0.0, 0.0]);
+    alignment.b = MateFrame::on_part(editor_core::Step::Rigid {
+        translation: [len(0.0), len(0.0), len(0.0)],
+        axis: [scl(0.0), scl(0.0), scl(0.0)],
+        angle: ang(0.5),
+    });
     let (_, fault) =
         at_the_door(&doc, &counting, mate(body, ids[0], ids[1], alignment)).expect_err("refused");
     assert!(
         matches!(
             fault,
-            MateFault::Frame {
+            MateFault::FrameUnevaluated {
                 side: MateSide::B,
                 ..
             }
@@ -392,9 +418,9 @@ fn a4_a_rider_needs_the_reach_and_a_plain_coincidence_asks_none() {
     assert_eq!(admitted, named, "the refusal named the id the mate mints");
 }
 
-// ---- A `FromFace` side at the door, and on replay ----
+// ---- A face-based side at the door, and on replay ----
 
-/// **A `FromFace` side asks `face_pose` once per such side at the
+/// **A face-based side asks `face_pose` once per such side at the
 /// door, an `Authored` side asks nothing, and a rider still asks the
 /// reach once per part**: the door asks each read exactly where the
 /// solve asks it — the face before the table reads the frame, the
@@ -404,17 +430,10 @@ fn a_from_face_side_asks_face_pose_once_per_side_at_the_door() {
     let (doc, ids, opts, body) = instances("msolve10-from-face-asks", 2);
     let store_reach = mate_reach::<f64>(&opts, Tol::witness());
     let counting = Counting::over(&store_reach);
-    let cap = |end: CapEnd| editor_core::StableName {
-        kind: editor_core::EntityKind::Face,
-        node: body,
-        path: vec![editor_core::RoleSeg::Cap(end)],
-    };
-    let face =
-        |end: CapEnd| MateFrame::from_face(editor_core::FaceName::new(cap(end)).expect("a face"));
     // One face side, one authored side, no rider: one face ask, no
     // reach ask.
     let one_side = Alignment {
-        a: face(CapEnd::End),
+        a: MateFrame::from_face(),
         ..seat(None)
     };
     at_the_door(&doc, &counting, mate(body, ids[0], ids[1], one_side)).expect("admitted");
@@ -422,8 +441,8 @@ fn a_from_face_side_asks_face_pose_once_per_side_at_the_door() {
     assert_eq!(counting.0.get(), 0, "no rider, no reach");
     // Two face sides, no rider: two face asks, still no reach ask.
     let both = Alignment {
-        a: face(CapEnd::End),
-        b: face(CapEnd::Start),
+        a: MateFrame::from_face(),
+        b: MateFrame::from_face(),
         ..seat(None)
     };
     at_the_door(&doc, &counting, mate(body, ids[0], ids[1], both)).expect("admitted");
@@ -436,7 +455,7 @@ fn a_from_face_side_asks_face_pose_once_per_side_at_the_door() {
     assert_eq!(counting.0.get(), 2, "a rider asks the reach once per part");
 }
 
-/// **A logged `FromFace` insert replays with no store and loads**:
+/// **A logged face-based insert replays with no store and loads**:
 /// replay declines the face as it declines the rider — the datum
 /// alone is decided, the face is not read, the next solve decides it
 /// — so a file the door admitted loads without the parts it was
@@ -446,32 +465,25 @@ fn a_logged_from_face_insert_replays_with_no_store_and_loads() {
     let (doc, ids, opts, body) = instances("msolve10-from-face-replay", 2);
     let reach = mate_reach::<f64>(&opts, Tol::witness());
     let snapshot = doc.clone();
-    let cap = editor_core::StableName {
-        kind: editor_core::EntityKind::Face,
-        node: body,
-        path: vec![editor_core::RoleSeg::Cap(CapEnd::End)],
-    };
     let alignment = Alignment {
-        a: MateFrame::from_face(editor_core::FaceName::new(cap).expect("a face")),
+        a: MateFrame::from_face(),
         ..seat(Some(0.0))
     };
     let edit = DocEdit::InsertNode {
-        node: mate(body, ids[0], ids[1], alignment),
+        node: Box::new(mate(body, ids[0], ids[1], alignment)),
+        fresh: Vec::new(),
     };
     let applied = doc.apply(&edit, Tol::witness(), &reach).expect("admitted");
-    let log = vec![LoggedEdit {
-        edit: edit.clone(),
-        maintenance: applied.cluster_rows(),
-    }];
+    let log = vec![edit.clone()];
     let text = save(&snapshot, &log, Tol::witness()).expect("saves");
-    let loaded = load(&text, Tol::witness()).expect("a FromFace insert replays with no store");
-    assert_eq!(loaded.doc.order(), applied.doc.order());
+    let loaded = load(&text, Tol::witness()).expect("a face-based insert replays with no store");
+    assert_eq!(loaded.doc.ids(), applied.doc.ids());
     assert_eq!(loaded.edits, log);
     // And the same entry through the door with no reach at all —
     // replay's own arm — is admitted, the face declined.
     let admitted = snapshot
         .apply(&edit, Tol::witness(), &RefusingReach)
-        .map(|applied| applied.doc.order().len());
+        .map(|applied| applied.doc.ids().len());
     assert!(
         matches!(
             admitted,
@@ -496,7 +508,7 @@ fn a1_a_refused_insert_leaves_no_entry_in_the_history() {
     };
     let (named, _) =
         at_the_door(&doc, &RefusingReach, mate(body, ids[0], ids[1], rest)).expect_err("refused");
-    assert_eq!(doc.order(), before.order());
+    assert_eq!(doc.ids(), before.ids());
     assert_eq!(doc.node(named), None);
     let (after, minted) = insert(doc, mate(body, ids[0], ids[1], seat(None)));
     assert_ne!(minted, named, "another mate, another id");
@@ -504,7 +516,7 @@ fn a1_a_refused_insert_leaves_no_entry_in_the_history() {
         !after.has_minted(named),
         "nothing was minted for the refusal"
     );
-    assert_eq!(after.order().len(), before.order().len() + 1);
+    assert_eq!(after.ids().len(), before.ids().len() + 1);
     let (unasked, _) = insert(before, mate(body, ids[0], ids[1], seat(None)));
     assert_eq!(
         after.mint(),
@@ -529,22 +541,20 @@ fn a3_replay_round_trips_an_admitted_rider_and_refuses_a_table_gap_at_load() {
     let reach = mate_reach::<f64>(&opts, Tol::witness());
     let snapshot = doc.clone();
     let edit = DocEdit::InsertNode {
-        node: mate(body, ids[0], ids[1], seat(Some(0.0))),
+        node: Box::new(mate(body, ids[0], ids[1], seat(Some(0.0)))),
+        fresh: Vec::new(),
     };
     let applied = doc.apply(&edit, Tol::witness(), &reach).expect("admitted");
-    let log = vec![LoggedEdit {
-        edit: edit.clone(),
-        maintenance: applied.cluster_rows(),
-    }];
+    let log = vec![edit.clone()];
     let text = save(&snapshot, &log, Tol::witness()).expect("saves");
     let loaded = load(&text, Tol::witness()).expect("a log the door admitted loads with no store");
-    assert_eq!(loaded.doc.order(), applied.doc.order());
+    assert_eq!(loaded.doc.ids(), applied.doc.ids());
     assert_eq!(loaded.edits, log);
 
     // The hand-edited entry: a rider on a planar rest, spliced in as
     // a bare entry at index 1.
-    let gap = LoggedEdit::bare(DocEdit::InsertNode {
-        node: mate(
+    let gap: DocEdit<editor_core::ProfileProgram> = DocEdit::InsertNode {
+        node: Box::new(mate(
             body,
             ids[0],
             ids[1],
@@ -552,8 +562,9 @@ fn a3_replay_round_trips_an_admitted_rider_and_refuses_a_table_gap_at_load() {
                 primitive: MatePrimitive::PlanarRest { offset: 0.0 },
                 ..seat(Some(0.3))
             },
-        ),
-    });
+        )),
+        fresh: Vec::new(),
+    };
     let gap_wire = serde_json::to_value(&gap).expect("an entry serializes");
     let doctored = wire::doctored(&text, |wire| {
         wire["edits"]
@@ -568,7 +579,7 @@ fn a3_replay_round_trips_an_admitted_rider_and_refuses_a_table_gap_at_load() {
     assert_eq!(*index, 1, "the entry is named");
     assert!(
         matches!(
-            error,
+            &**error,
             EditError::MateRefused { fault, .. }
                 if matches!(**fault, MateFault::TableLacks { what, .. } if what.contains("planar rest"))
         ),
@@ -581,14 +592,15 @@ fn a3_replay_round_trips_an_admitted_rider_and_refuses_a_table_gap_at_load() {
 
     // A contradictory rider, hand-edited in, replays: no reach, no
     // decision, and the evaluation's solve refuses it as before.
-    let contradictory = LoggedEdit::bare(DocEdit::InsertNode {
-        node: mate(
+    let contradictory: DocEdit<editor_core::ProfileProgram> = DocEdit::InsertNode {
+        node: Box::new(mate(
             body,
             ids[0],
             ids[1],
             seat(Some(core::f64::consts::FRAC_PI_2)),
-        ),
-    });
+        )),
+        fresh: Vec::new(),
+    };
     let wire_entry = serde_json::to_value(&contradictory).expect("serializes");
     let doctored = wire::doctored(&text, |wire| {
         wire["edits"]
@@ -597,7 +609,7 @@ fn a3_replay_round_trips_an_admitted_rider_and_refuses_a_table_gap_at_load() {
             .push(wire_entry);
     });
     let loaded = load(&doctored, Tol::witness()).expect("replay re-decides nothing");
-    let rider = *loaded.doc.order().last().expect("the rider is last");
+    let rider = *loaded.doc.ids().last().expect("the rider is last");
     let poses = solve(&loaded.doc, &opts, Tol::witness());
     assert!(
         matches!(
@@ -671,7 +683,11 @@ fn a3_a_doctored_snapshot_carrying_a_table_gap_loads_and_the_solve_refuses_it() 
         "{fault:?}"
     );
     assert_eq!(poses.role(mate_id), Some(MateRole::Refused));
-    let twin = loaded.doc.node(mate_id).expect("live").clone();
+    let twin = loaded
+        .doc
+        .node(mate_id)
+        .expect("live")
+        .authored(&loaded.doc);
     let (named, door) =
         at_the_door(&loaded.doc, &reach, twin).expect_err("the door refuses the twin");
     assert_eq!(
@@ -709,7 +725,7 @@ fn a2_a_mate_on_a_pair_the_fold_never_reads_is_refused_on_the_datum_alone() {
             doc,
             Node::Pattern {
                 input: ids[0],
-                count: editor_core::Expr::count(2),
+                count: editor_core::Formula::count(2),
                 kind: editor_core::PatternKind::Linear {
                     direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],
                     spacing: len(3.0),
@@ -777,7 +793,11 @@ fn a2_a_mate_on_a_pair_the_fold_never_reads_is_refused_on_the_datum_alone() {
             "{label}: the fold never reads this pair, so the solve records nothing"
         );
         assert_eq!(poses.role(mate_id), Some(MateRole::Declaring), "{label}");
-        let twin = loaded.doc.node(mate_id).expect("live").clone();
+        let twin = loaded
+            .doc
+            .node(mate_id)
+            .expect("live")
+            .authored(&loaded.doc);
         let (_, fault) =
             at_the_door(&loaded.doc, &reach, twin).expect_err("the door refuses the datum");
         match expect {
@@ -804,7 +824,8 @@ fn a2_a_mate_on_a_pair_the_fold_never_reads_is_refused_on_the_datum_alone() {
 /// The mate a fault names as its SUBJECT, for the arms that are a
 /// fact about one mate's own datum — the arms the door refuses — and
 /// `None` for every other: a verdict about a pair (UNDER, a
-/// contradiction between two mates, an escalation on a fold), a fault
+/// contradiction between two mates, an escalation on a fold, a pose
+/// past the format's range), a fault
 /// about the document, and `PlacerRefused`, which two sites raise —
 /// the per-reference check the door asks, and the pair's derived
 /// offset the fold alone reads — with nothing in the value to say
@@ -818,7 +839,8 @@ fn own_datum_subject(fault: &MateFault) -> Option<RecipeNodeId> {
         | MateFault::PartSelectsAnotherCopy { mate, .. }
         | MateFault::SelfMate { mate, .. }
         | MateFault::Unleverable { mate, .. }
-        | MateFault::FaceUnresolved { mate, .. } => Some(*mate),
+        | MateFault::FaceUnresolved { mate, .. }
+        | MateFault::FrameUnevaluated { mate, .. } => Some(*mate),
         MateFault::Contradictory {
             held,
             added,
@@ -832,10 +854,13 @@ fn own_datum_subject(fault: &MateFault) -> Option<RecipeNodeId> {
         }
         MateFault::Contradictory { .. }
         | MateFault::Indeterminate { .. }
+        | MateFault::PoseOutOfRange { .. }
         | MateFault::Under { .. }
         | MateFault::Band { .. }
         | MateFault::PosesOfAnotherDocument { .. }
-        | MateFault::PlacerRefused { .. } => None,
+        | MateFault::PlacerRefused { .. }
+        | MateFault::OffsetDisagrees { .. }
+        | MateFault::OffsetUnchecked { .. } => None,
     }
 }
 
@@ -852,7 +877,20 @@ fn renamed(fault: MateFault, from: RecipeNodeId, to: RecipeNodeId) -> MateFault 
             side,
             error,
         },
+        MateFault::FrameUnevaluated {
+            mate,
+            side,
+            refusal,
+        } => MateFault::FrameUnevaluated {
+            mate: r(mate),
+            side,
+            refusal,
+        },
         MateFault::ClassNotAdmitted { mate } => MateFault::ClassNotAdmitted { mate: r(mate) },
+        MateFault::PoseOutOfRange { held, added } => MateFault::PoseOutOfRange {
+            held: r(held),
+            added: r(added),
+        },
         MateFault::TableLacks { mate, what } => MateFault::TableLacks {
             mate: r(mate),
             what,
@@ -931,6 +969,7 @@ fn renamed(fault: MateFault, from: RecipeNodeId, to: RecipeNodeId) -> MateFault 
             side,
             refusal,
         },
+        MateFault::OffsetDisagrees { .. } | MateFault::OffsetUnchecked { .. } => fault,
     }
 }
 
@@ -949,13 +988,14 @@ type Row = (&'static str, ProfileDoc, EvalOptions);
 /// rider a hand-edited log carried in.
 fn corpus() -> Vec<Row> {
     let mut rows: Vec<Row> = Vec::new();
-    let pair = |label: &'static str, alignment: Alignment| -> Row {
+    let pair = |label: &'static str, alignment: Alignment<Formula>| -> Row {
         let (doc, ids, opts, body) = instances(label, 2);
         let reach = mate_reach::<f64>(&opts, Tol::witness());
         let (doc, _) = step_with(
             doc,
             DocEdit::InsertNode {
-                node: mate(body, ids[0], ids[1], alignment),
+                node: Box::new(mate(body, ids[0], ids[1], alignment)),
+                fresh: Vec::new(),
             },
             &reach,
         );
@@ -1016,7 +1056,7 @@ fn corpus() -> Vec<Row> {
             doc,
             Node::Pattern {
                 input: ids[0],
-                count: editor_core::Expr::count(2),
+                count: editor_core::Formula::count(2),
                 kind: editor_core::PatternKind::Linear {
                     direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],
                     spacing: len(3.0),
@@ -1052,6 +1092,7 @@ fn corpus() -> Vec<Row> {
             Node::Extrude {
                 profile,
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             },
         );
         let local_cap = editor_core::StableName {
@@ -1080,7 +1121,8 @@ fn corpus() -> Vec<Row> {
         let (doc, _) = step_with(
             doc,
             DocEdit::InsertNode {
-                node: mate(body, ids[0], ids[1], seat(None)),
+                node: Box::new(mate(body, ids[0], ids[1], seat(None))),
+                fresh: Vec::new(),
             },
             &reach,
         );
@@ -1101,7 +1143,7 @@ fn corpus() -> Vec<Row> {
             doc,
             Node::Pattern {
                 input: ids[1],
-                count: editor_core::Expr::count(3),
+                count: editor_core::Formula::count(3),
                 kind: editor_core::PatternKind::Linear {
                     direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],
                     spacing: len(3.0),
@@ -1112,7 +1154,7 @@ fn corpus() -> Vec<Row> {
             doc,
             Node::Part {
                 of: pattern,
-                select: editor_core::PartSelect::Instance(editor_core::Expr::count(0)),
+                select: editor_core::PartSelect::Instance(editor_core::Formula::count(0)),
             },
         );
         let (doc, _) = insert(
@@ -1130,7 +1172,8 @@ fn corpus() -> Vec<Row> {
             DocEdit::SetStructuralParam {
                 node: part,
                 slot: editor_core::SlotId::Instance,
-                expr: editor_core::Expr::count(2),
+                expr: editor_core::Formula::count(2),
+                fresh: Vec::new(),
             },
         );
         ("msolve10-corpus-part", doc, opts)
@@ -1154,7 +1197,12 @@ fn corpus() -> Vec<Row> {
         let (doc, _) = step_with(
             doc,
             DocEdit::InsertNode {
-                node: mate_across((ids[0], body), (lost, lost_body), seat(Some(0.0))),
+                node: Box::new(mate_across(
+                    (ids[0], body),
+                    (lost, lost_body),
+                    seat(Some(0.0)),
+                )),
+                fresh: Vec::new(),
             },
             &reach,
         );
@@ -1165,23 +1213,17 @@ fn corpus() -> Vec<Row> {
         // re-decides nothing, so the document holds it.
         let (doc, ids, opts, body) = instances("msolve10-corpus-hand-edited", 2);
         let text = save(&doc, &[], Tol::witness()).expect("saves");
-        // The mate joins the two instances' groups, and a log entry
-        // carries the rows its edit performs — so the hand-edited entry
-        // records the join, as the save door would have.
-        let entry = LoggedEdit {
-            edit: DocEdit::InsertNode {
-                node: mate(
-                    body,
-                    ids[0],
-                    ids[1],
-                    seat(Some(core::f64::consts::FRAC_PI_2)),
-                ),
-            },
-            maintenance: vec![ClusterMaintenance::Join {
-                survived: ids[0],
-                absorbed: ids[1],
-                absorbed_frame: doc.placements().get(&ids[1]).copied(),
-            }],
+        // The mate joins the two instances' groups, and replay applies
+        // the edit through the same door, which re-decides nothing it
+        // levers through a reach.
+        let entry: DocEdit<editor_core::ProfileProgram> = DocEdit::InsertNode {
+            node: Box::new(mate(
+                body,
+                ids[0],
+                ids[1],
+                seat(Some(core::f64::consts::FRAC_PI_2)),
+            )),
+            fresh: Vec::new(),
         };
         let entry = serde_json::to_value(&entry).expect("serializes");
         let doctored = wire::doctored(&text, |wire| {
@@ -1214,7 +1256,7 @@ fn a2_the_door_and_the_solve_agree_on_every_mate_of_the_corpus() {
         let reach = mate_reach::<f64>(&opts, Tol::witness());
         let poses = solve(&doc, &opts, Tol::witness());
         let mut mates = 0_usize;
-        for &id in doc.order() {
+        for id in doc.ids() {
             let Some(node) = doc.node(id) else {
                 continue;
             };
@@ -1222,13 +1264,13 @@ fn a2_the_door_and_the_solve_agree_on_every_mate_of_the_corpus() {
                 continue;
             }
             mates += 1;
-            let twin = at_the_door(&doc, &reach, node.clone());
+            let twin = at_the_door(&doc, &reach, node.authored(&doc));
             match poses.fault(id) {
                 None => {
                     assert!(
                         twin.is_ok(),
                         "{label}: the solve admits mate {}; the door refused its twin: {:?}",
-                        test_utils::refusal::tag(id.0),
+                        test_utils::refusal::tag(id.0.digest()),
                         twin.err()
                     );
                     admitted += 1;
@@ -1239,14 +1281,14 @@ fn a2_the_door_and_the_solve_agree_on_every_mate_of_the_corpus() {
                         Ok(_) => panic!(
                             "{label}: the solve refuses mate {} on its own datum ({fault}); \
                              the door admitted its twin",
-                            test_utils::refusal::tag(id.0)
+                            test_utils::refusal::tag(id.0.digest())
                         ),
                     };
                     assert_eq!(
                         renamed(got, named, id),
                         *fault,
                         "{label}: mate {} — the door's fault is the solve's",
-                        test_utils::refusal::tag(id.0)
+                        test_utils::refusal::tag(id.0.digest())
                     );
                     refused += 1;
                 }

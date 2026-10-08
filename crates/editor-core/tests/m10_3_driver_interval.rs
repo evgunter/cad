@@ -31,10 +31,11 @@
 //! than an enclosure that could not see through an identity.
 //!
 //! **The ε-scaled boxes below are kept where they are still the
-//! subject.** A planted flip at `20ε ± 40ε` is about the flip, and
-//! sizing it in ε is what puts the flip inside the box; a terminal
-//! sliver is a statement about the band and has no other scale to be
-//! stated at. Only the rows whose subject WAS the widening moved.
+//! subject.** A terminal sliver is a statement about the band and has
+//! no other scale to be stated at; the slab at `20ε ± 40ε` straddles
+//! that band. The planted flip is a profile vertex passing through
+//! collinear ([`notch`]), at the scale of the part. Only the rows whose
+//! subject WAS the widening moved.
 //!
 //! `the_tier_off_reproduces_the_pre_e12_refusal` keeps the old answer
 //! visible: the same document and box with `SymbolicDials::off()` comes
@@ -48,22 +49,24 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::UnitSym;
+use editor_core::VarId;
 use editor_core::analysis::{
-    AnalysisPolicy, AnalyzedBox, BoxAxis, ParamBox, analyzed_box, param_env_over,
+    AnalysisPolicy, AnalyzedBox, BoxAxis, ParamBox, analyzed_box, var_env_over,
 };
 use editor_core::drive::{
     BudgetKind, DEFAULT_MAX_DEPTH, DriveConfig, DriveRefusal, FlipEvidence, ReasonClass,
     RefusalReason, SymbolicDials, VerdictVector, drive,
 };
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Evaluation, Expr,
-    LoopProgram, Node, NodeErrorKind, NodeResult, ParamName, ParamValue, ProfileDoc, ProfileLift,
-    ProfileProgram, evaluate,
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula, FreeVar,
+    LoopProgram, Node, NodeErrorKind, NodeResult, ParamValue, ProfileDoc, ProfileLift,
+    ProfileProgram, VarName, evaluate,
 };
 use geom_core::{Bounds, Interval, Tol};
 
@@ -73,12 +76,12 @@ fn eps() -> f64 {
     Tol::witness().eps()
 }
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
-fn param(n: &'static str) -> Expr {
-    Expr::param(name(n), Dimension::Length)
+fn param(n: &'static str) -> Formula {
+    Formula::named(name(n), Dimension::Length)
 }
 
 fn uniform(w: f64) -> Distribution {
@@ -92,36 +95,26 @@ fn config(max_leaves: usize) -> DriveConfig {
     }
 }
 
-fn unit_square() -> LoopProgram {
+fn unit_square() -> LoopProgram<Formula> {
     LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
         .expect("finite square corners")
 }
 
-/// **The planted-flip fixture**: a square extruded by a distance that
-/// is a document parameter, over a box that straddles ZERO.
-///
-/// The flip is real and it is not a degeneracy of the analysis: on the
-/// far side the extrusion runs the other way, so
-/// `extrusion_normal_component` and the side planes' cosurface tests
-/// all decide the opposite sign and the body is a perfectly good solid
-/// built on a different branch. That is exactly the no-flips v1 case —
-/// definite, on a different verdict vector, refused as mass rather than
-/// analyzed.
-/// **Crate-visible since M10-6** (R2's MINOR-14): the accounting
-/// golden in `m10_6_ci_rows_interval` is ABOUT this fixture's drive,
-/// and it carried a re-derived copy that could silently stop being the
-/// same document. One home, so the golden cannot golden something
-/// else.
+/// **The slab**: a square extruded by a depth that is a document
+/// parameter. A depth is a size, so over a box that straddles zero the
+/// extrude refuses below its coincidence zone as definitely as inside
+/// it — a half-line the driver prices `Budget` at the floor
+/// (`work/verdict/coincidence-zone-priced-budget-at-the-floor.md`).
 pub(crate) fn slab(nominal: f64, half: f64) -> ProfileDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("depth"),
-        value: DocParam::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: Some(uniform(half)),
-        },
+        }),
     });
     let xy_frame_0 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
@@ -132,6 +125,60 @@ pub(crate) fn slab(nominal: f64, half: f64) -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: p,
         distance: param("depth"),
+        side: ExtrudeSide::Along,
+    });
+    r.doc
+}
+
+/// **The planted-flip fixture**: a unit square whose bottom side has a
+/// vertex at its midpoint, the vertex's height a document parameter,
+/// extruded, over a box that straddles ZERO.
+///
+/// The flip is real and it is not a degeneracy of the analysis: below
+/// zero the vertex is a convex point and above it a notch, so
+/// `path_junction_turn` and the walls' cosurface tests decide the
+/// opposite sign and the body is a perfectly good solid built on a
+/// different branch. That is exactly the no-flips v1 case — definite,
+/// on a different verdict vector, refused as mass rather than
+/// analyzed.
+/// **Crate-visible since M10-6** (R2's MINOR-14): the accounting
+/// golden in `m10_6_ci_rows_interval` is ABOUT this fixture's drive,
+/// and it carried a re-derived copy that could silently stop being the
+/// same document. One home, so the golden cannot golden something
+/// else.
+pub(crate) fn notch(nominal: f64, half: f64) -> ProfileDoc {
+    notch_with(nominal, uniform(half), param("height"))
+}
+
+/// [`notch`] with the parameter's distribution and the vertex's
+/// height expression given.
+pub(crate) fn notch_with(nominal: f64, dist: Distribution, height: Formula) -> ProfileDoc {
+    let mut r = Recorder::new();
+    r.push(DocEdit::DeclareVar {
+        name: name("height"),
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
+            dim: Dimension::Length,
+            value: nominal,
+            display_unit: UnitSym::canonical_for(Dimension::Length),
+            distribution: Some(dist),
+        }),
+    });
+    let xy_frame_0 = r.insert(xy_frame());
+    let p = r.insert(Node::Profile(ProfileProgram {
+        plane: xy_frame_0,
+        loops: vec![LoopProgram::polygon_expr([
+            [len(0.0), len(0.0)],
+            [len(0.5), height],
+            [len(1.0), len(0.0)],
+            [len(1.0), len(1.0)],
+            [len(0.0), len(1.0)],
+        ])],
+        ids: Vec::new(),
+    }));
+    r.insert(Node::Extrude {
+        profile: p,
+        distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     r.doc
 }
@@ -146,23 +193,23 @@ pub(crate) fn slab(nominal: f64, half: f64) -> ProfileDoc {
 /// first of those reached the interval lane as a constant.
 fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("hole_r"),
-        value: DocParam::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.25,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: Some(radius),
-        },
+        }),
     });
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("depth"),
-        value: DocParam::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.5,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: Some(depth),
-        },
+        }),
     });
     let xy_frame_1 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
@@ -180,6 +227,7 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: p,
         distance: param("depth"),
+        side: ExtrudeSide::Along,
     });
     r.doc
 }
@@ -197,14 +245,14 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
 /// Crate-visible for the same reason [`slab`] is.
 pub(crate) fn sliver_axis() -> ProfileDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("axis"),
-        value: DocParam::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Scalar,
             value: 20.0 * eps(),
             display_unit: UnitSym::canonical_for(Dimension::Scalar),
             distribution: Some(uniform(15.0 * eps())),
-        },
+        }),
     });
     let xy_frame_2 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
@@ -215,6 +263,7 @@ pub(crate) fn sliver_axis() -> ProfileDoc {
     let block = r.insert(Node::Extrude {
         profile: p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     r.insert(Node::transform(
         block,
@@ -223,7 +272,7 @@ pub(crate) fn sliver_axis() -> ProfileDoc {
             axis: [
                 scl(0.0),
                 scl(0.0),
-                Expr::param(name("axis"), Dimension::Scalar),
+                Formula::named(name("axis"), Dimension::Scalar),
             ],
             angle: ang(0.0),
         },
@@ -245,8 +294,10 @@ fn the_parameter_door_widens_exactly_the_declared_axes() {
     let doc = two_param_plate(uniform(0.01), uniform(0.0));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let box_ = ParamBox::of(&analyzed);
-    let env = param_env_over::<Interval, _>(&doc, &box_).expect("the box binds at Interval");
-    let ParamValue::Continuous { value: radius, .. } = env.bindings[&name("hole_r")] else {
+    let env = var_env_over::<Interval, _>(&doc, &box_).expect("the box binds at Interval");
+    let ParamValue::Continuous { value: radius, .. } =
+        env.bindings[&doc.var_named("hole_r").expect("declared")]
+    else {
         panic!("hole_r is continuous")
     };
     // The nominal is added in the scalar's own arithmetic, so the
@@ -254,7 +305,9 @@ fn the_parameter_door_widens_exactly_the_declared_axes() {
     // most an ulp wider on each side, never narrower.
     assert!(radius.lo() <= 0.24 && 0.26 <= radius.hi());
     assert!(radius.hi() - radius.lo() <= 0.02 + 1e-12);
-    let ParamValue::Continuous { value: depth, .. } = env.bindings[&name("depth")] else {
+    let ParamValue::Continuous { value: depth, .. } =
+        env.bindings[&doc.var_named("depth").expect("declared")]
+    else {
         panic!("depth is continuous")
     };
     // A zero-width uniform is a FIXED axis and reaches the lane as the
@@ -269,7 +322,7 @@ fn a_widened_box_at_f64_refuses_loudly() {
     let doc = two_param_plate(uniform(0.01), uniform(0.01));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let box_ = Arc::new(ParamBox::of(&analyzed));
-    assert!(param_env_over::<f64, _>(&doc, &box_).is_err());
+    assert!(var_env_over::<f64, _>(&doc, &box_).is_err());
     let opts = EvalOptions {
         param_box: Some(box_),
         ..EvalOptions::default()
@@ -298,11 +351,14 @@ fn the_split_rule_is_relative_width_with_a_lowest_index_tie() {
     // ALSO the numerically wider one there, which is the case a
     // relative rule and an absolute rule agree on. The row below is the
     // one that separates them.
-    axes.insert(name("a"), BoxAxis::Varying { lo: -1.0, hi: 1.0 });
-    axes.insert(name("b"), BoxAxis::Varying { lo: -1.0, hi: 1.0 });
+    axes.insert(VarId::new(0, 1), BoxAxis::Varying { lo: -1.0, hi: 1.0 });
+    axes.insert(VarId::new(0, 2), BoxAxis::Varying { lo: -1.0, hi: 1.0 });
     let root = ParamBox::from_axes(axes.clone());
-    axes.insert(name("b"), BoxAxis::Varying { lo: 0.0, hi: 0.1 });
-    assert_eq!(ParamBox::from_axes(axes).split_axis(&root), Some(name("a")));
+    axes.insert(VarId::new(0, 2), BoxAxis::Varying { lo: 0.0, hi: 0.1 });
+    assert_eq!(
+        ParamBox::from_axes(axes).split_axis(&root),
+        Some(VarId::new(0, 1))
+    );
 
     // Relative vs absolute, separated: `wide`'s root axis is a hundred
     // times `narrow`'s, and the sub-box has already been bisected on
@@ -310,16 +366,16 @@ fn the_split_rule_is_relative_width_with_a_lowest_index_tie() {
     // is relatively wider, and relative is what the rule reads.
     let mut root2 = BTreeMap::new();
     root2.insert(
-        name("narrow"),
+        VarId::new(0, 3),
         BoxAxis::Varying {
             lo: -0.01,
             hi: 0.01,
         },
     );
-    root2.insert(name("wide"), BoxAxis::Varying { lo: -1.0, hi: 1.0 });
+    root2.insert(VarId::new(0, 4), BoxAxis::Varying { lo: -1.0, hi: 1.0 });
     let root2b = ParamBox::from_axes(root2.clone());
     root2.insert(
-        name("wide"),
+        VarId::new(0, 4),
         BoxAxis::Varying {
             lo: 0.0,
             hi: 2.0 / 128.0,
@@ -327,17 +383,17 @@ fn the_split_rule_is_relative_width_with_a_lowest_index_tie() {
     );
     assert_eq!(
         ParamBox::from_axes(root2).split_axis(&root2b),
-        Some(name("narrow"))
+        Some(VarId::new(0, 3))
     );
 
     // The tie — both axes at full relative width — goes to the lowest
-    // axis index, which is name order.
-    assert_eq!(root.split_axis(&root), Some(name("a")));
-    let (lo, hi) = root.split(&name("a")).expect("a splits");
-    assert_eq!(lo.get(&name("a")).unwrap().span(), (-1.0, 0.0));
-    assert_eq!(hi.get(&name("a")).unwrap().span(), (0.0, 1.0));
+    // axis index, which is id order.
+    assert_eq!(root.split_axis(&root), Some(VarId::new(0, 1)));
+    let (lo, hi) = root.split(VarId::new(0, 1)).expect("a splits");
+    assert_eq!(lo.get(VarId::new(0, 1)).unwrap().span(), (-1.0, 0.0));
+    assert_eq!(hi.get(VarId::new(0, 1)).unwrap().span(), (0.0, 1.0));
     // The other axis is untouched: one axis per bisection.
-    assert_eq!(lo.get(&name("b")).unwrap().span(), (-1.0, 1.0));
+    assert_eq!(lo.get(VarId::new(0, 2)).unwrap().span(), (-1.0, 1.0));
 }
 
 // -------------------------------------------------------------- e2e
@@ -688,15 +744,15 @@ fn evidence_two_param_plate_whole_certifying_half_width() {
 /// leaves certify after real bisection, the receipt identity holds, and
 /// the accounting sums to 1.
 ///
-/// At ±0.05 on both parameters — a REAL study, a fifth of the radius.
-/// Under M10-10's tier (rule D with amendment A1) the fixture's
-/// whole-certifying half-width is a real margin at about 0.022
-/// (`evidence_two_param_plate_whole_certifying_half_width`), so an
-/// ε-scaled box no longer splits and a row about bisection has to be
+/// At ±0.1 on both parameters — a REAL study, two fifths of the radius.
+/// The fixture's whole-certifying half-width is a real margin at about
+/// 0.0596 (`evidence_two_param_plate_whole_certifying_half_width`; it
+/// was 0.022 until the circle stored its authored carrier), so an
+/// ε-scaled box does not split and a row about bisection has to be
 /// wider than that.
 #[test]
 fn the_two_parameter_drive_certifies_after_bisection_and_accounts_for_all_of_it() {
-    let doc = two_param_plate(uniform(0.05), uniform(0.05));
+    let doc = two_param_plate(uniform(0.1), uniform(0.1));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let v = drive(&doc, &analyzed, &config(256), Tol::witness()).expect("the nominal builds");
 
@@ -749,9 +805,8 @@ fn the_verdict_is_bit_identical_across_repeats_and_schedules() {
     // Not a vacuous comparison: hundreds of splits and a full frontier
     // of leaves, compared row for row. It is NOT a drive with certified
     // leaves — at 256 leaves this fixture certifies none, because the
-    // sign flip keeps every box indeterminate past the frontier bound
-    // (the planted-flip row above pays 4096 leaves for exactly that
-    // reason). What this row pins is that the same subdivision comes
+    // band and the refusing half-line keep every box indeterminate past
+    // the frontier bound. What this row pins is that the same subdivision comes
     // out identical twice and under both schedules, and refusals are
     // rows like any other.
     assert!(seq.receipt().splits > 8, "{:?}", seq.receipt());
@@ -785,7 +840,7 @@ fn driving_writes_nothing() {
 /// side, with the flipped predicates NAMED from the vector diff.
 #[test]
 fn a_planted_flip_refuses_flip_crossing_and_names_what_flipped() {
-    let doc = slab(20.0 * eps(), 40.0 * eps());
+    let doc = notch(-0.25, 0.3);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let v = drive(&doc, &analyzed, &config(4096), Tol::witness()).expect("the nominal builds");
     assert!(v.receipt().holds());
@@ -818,11 +873,9 @@ fn a_planted_flip_refuses_flip_crossing_and_names_what_flipped() {
         .map(|f| (f.predicate, f.from, f.to))
         .collect();
     assert!(
-        named
-            .iter()
-            .any(|(p, w, l)| *p == "extrusion_normal_component"
-                && *w == geom_core::Sign::Positive
-                && *l == geom_core::Sign::Negative),
+        named.iter().any(|(p, w, l)| *p == "path_junction_turn"
+            && *w == geom_core::Sign::Positive
+            && *l == geom_core::Sign::Negative),
         "the flip was not named: {named:?}"
     );
     // Not vacuous on this fixture: every FlipCrossing here names
@@ -965,11 +1018,12 @@ fn a_terminal_sliver_refuses_naming_its_predicate_and_is_not_refined() {
 /// The band's share of the box is the pin: `2 · (K − 1)ε / 80ε` with
 /// `K = 10` is 22.5%, and the sliver mass has to be that, up to the
 /// leaves straddling the band's four edges. What the depth budget may
-/// still price `Budget` here is the coincidence zone `(−ε, ε)` — 2.5%
-/// of the box — where the depth decides `Zero` and the extrude refuses
-/// `DegenerateExtrusion`: a DEFINITE refusal, not an escalation, which
-/// this driver refines to the floor. That zone is a different class
-/// from this row's and is bounded here, not claimed.
+/// still price `Budget` here is where the extrude refuses DEFINITELY —
+/// the coincidence zone `(−ε, ε)`, `DegenerateExtrusion`, and the
+/// definitely negative depths below it, `NegativeDepth`, together
+/// `[−20ε, ε)`, 26.25% of the box — which this driver refines to the
+/// floor. That region is a different class from this row's and is
+/// bounded here, not claimed.
 #[test]
 fn a_sliver_wrapped_in_the_ops_own_error_is_priced_sliver_terminal_not_budget() {
     let doc = slab(20.0 * eps(), 40.0 * eps());
@@ -1008,11 +1062,11 @@ fn a_sliver_wrapped_in_the_ops_own_error_is_priced_sliver_terminal_not_budget() 
         "the band's share of the box is sliver mass: sliver {sliver_mass}, budget \
          {budget_mass}, band share {band_share}; classes {classes:?}"
     );
-    let coincidence_share = 2.0 * eps() / (80.0 * eps());
+    let refusing_share = 21.0 * eps() / (80.0 * eps());
     assert!(
-        budget_mass <= coincidence_share + 1e-3,
-        "only the coincidence zone and the band's edge leaves may reach the depth floor: \
-         budget mass {budget_mass}, coincidence zone {coincidence_share}"
+        budget_mass <= refusing_share + 1e-3,
+        "only where the depth definitely refuses, and the band's edge leaves, may reach the \
+         depth floor: budget mass {budget_mass}, refusing share {refusing_share}"
     );
 }
 
@@ -1082,13 +1136,13 @@ fn an_exhausted_depth_budget_refuses_the_whole_box() {
 /// parameter varying, leaves certify and refuse exactly as they would
 /// otherwise, and the ACCOUNTING columns refuse typed, naming the band.
 ///
-/// At ±0.05, past the fixture's whole-certifying half-width (the row
+/// At ±0.1, past the fixture's whole-certifying half-width (the row
 /// above): a leaf that covers a band's WHOLE support prices as 1 by
 /// the band's own rule (`box_mass`), so the refusal this row is about
 /// needs a leaf that covers part of it, i.e. a drive that split.
 #[test]
 fn a_band_parameter_certifies_normally_and_prices_nothing() {
-    let w = 0.05;
+    let w = 0.1;
     let banded = two_param_plate(Distribution::Band { lo: -w, hi: w }, uniform(w));
     let priced = two_param_plate(uniform(w), uniform(w));
     let analyzed = analyzed_box(&banded, &AnalysisPolicy::default());
@@ -1117,7 +1171,7 @@ fn a_band_parameter_certifies_normally_and_prices_nothing() {
             .clone()
             .expect_err("a band prices nothing"),
         editor_core::MeasureUnavailable::BandHasNoMeasure {
-            param: name("hole_r")
+            param: banded.spoken_var(banded.var_named("hole_r").expect("declared"))
         }
     );
     assert!(v.accounting().total().is_err());
@@ -1191,11 +1245,24 @@ fn a_document_with_nothing_varying_refuses_up_front() {
 fn a_witness_that_does_not_build_refuses_up_front() {
     // A nominal extrusion depth INSIDE the ambiguity band: the f64
     // build itself cannot classify it.
-    let doc = slab(5.0 * eps(), eps());
+    let doc = crate::fixture::label_every_node(slab(5.0 * eps(), eps()), "slab");
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let err = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness())
         .expect_err("a sliver-thin nominal does not build");
-    assert!(matches!(err, DriveRefusal::WitnessDoesNotBuild { .. }));
+    let DriveRefusal::WitnessDoesNotBuild { node, cause } = &err else {
+        panic!("expected WitnessDoesNotBuild, got {err:?}");
+    };
+    assert_eq!(
+        *node,
+        doc.spoken(node.id()),
+        "spoken from the driven document"
+    );
+    assert!(node.to_string().contains("\"slab\""), "{node}");
+    assert!(
+        err.to_string()
+            .starts_with(&format!("the witness build refuses at {node}: {cause} — ")),
+        "{err}"
+    );
 }
 
 // ------------------------------------------------------------ the fence

@@ -2,8 +2,9 @@
 id: boolean-in-band-arms-read-ahead-of-the-declaration
 kind: issue
 title: topo: in-band arms read ahead of the declaration — the Boolean's sweep and sector primitives escalate before any face-pair declaration is read, so a declared pair refuses exactly as an undeclared one
-status: open
+status: parked
 opened: 2026-09-30
+blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -111,3 +112,7 @@ read. The repair shape is unchanged: a site that comes to read the
 pair's declaration first, and to let it settle the question, adds the
 question to `Coincide::settled_by` and passes the classes its door
 admits.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: the repair reads the face-pair declaration before the in-band arm; stage 4 retires declarations and in-band then refuses as the sliver band (D10 Booleans). (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

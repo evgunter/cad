@@ -1,24 +1,23 @@
 //! Corpus document **kitchen_sink** — every v1 node kind and every
 //! REQUIRED `DocEdit` kind in ONE document (M4 PR 8a spec D1's
 //! "touching everything at once"); "required" is `EDIT_KINDS`, which
-//! is every arm but four and says at its own definition which four
-//! stand outside it and why. It grew out of the M4 PR 6 round-trip
+//! is a subset of the arms and says at its own definition which stand
+//! outside it and why. It grew out of the M4 PR 6 round-trip
 //! fixture, which now consumes it from here so the persistence rows
 //! and the corpus rows can never drift apart.
 //!
 //! Node kinds: Datum (Point/Axis/Plane), Profile (plain, arc-bearing
 //! by fillet construction, hand-declared tangent), Extrude, Revolve,
-//! Split, Boolean (Union, with a Declare operand), Transform, Pattern
-//! (Linear and Circular), Declare.
+//! Split, Boolean (Union, declared), Transform, Pattern (Linear and
+//! Circular).
 //!
 //! Edit kinds — the `EDIT_KINDS` names, which is every arm the corpus
 //! is required to cover and NOT every arm `DocEdit` has (that list's
-//! own doc says which four stand outside it and what guards a new
+//! own doc says which stand outside it and what guards a new
 //! one):
 //! `InsertNode`, `DeleteNode`, `SetParam`,
-//! `SetStructuralParam`, `SetExpression`, `SetDocParam`,
-//! `SetDocParamValue`, `SetDocParamUnit`,
-//! `SetDocParamDistribution`, `Rebind`,
+//! `SetStructuralParam`, `SetExpression`, `DeclareVar`, `DefineVar`,
+//! `SetVarValue`, `SetVarUnit`, `SetVarDistribution`, `Rebind`,
 //! `ReWitness`, `ReWitnessBulk`, `SetAppearance`, `ClearAppearance`,
 //! `SetTolerance`, `SetAppearanceMeta`, `ClearAppearanceMeta`.
 //!
@@ -33,12 +32,13 @@
 //! one — the golden fixture in `m4_pr6_golden.rs` is where a pinned ε
 //! belongs, deliberately.
 
+use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use editor_core::{
     Attr, AttrKind, Axis3, BooleanOp, BranchCertification, Datum, Dimension, Distribution, DocEdit,
-    DocParam, DocParamValue, EntityKind, Expr, ExprPath, MetaValue, Node, ParamName, PatternKind,
-    Rgba8, RoleSeg, SlotId, StableName, UnitSym, WitnessDatum,
+    EntityKind, ExprPath, Formula, FreeValue, FreeVar, MetaValue, Node, PatternKind, Rgba8,
+    RoleSeg, SlotId, StableName, UnitSym, VarName, WitnessDatum,
 };
 
 use crate::fixture::{ang, axis_in_plane, declare_x_offset_flush, len, scl};
@@ -51,18 +51,16 @@ pub fn document() -> CorpusDoc {
     // Re-record the ambient ε (a structural edit; see module docs).
     let ambient = r.doc.epsilon();
     r.push(DocEdit::SetTolerance { eps: ambient });
-    r.push(DocEdit::SetDocParam {
-        name: ParamName::from_static("h"),
-        value: DocParam::continuous(Dimension::Length, 1.0),
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static("h"),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 1.0)),
     });
-    // The VALUE door, on the parameter the declaration above just
-    // made: it carries the declaration forward, so `h` keeps its
-    // dimension (and would keep a distribution) while the number
-    // moves. The document's state after this pair is the same
-    // document a single declaration at 1.25 would have produced.
-    r.push(DocEdit::SetDocParamValue {
-        name: ParamName::from_static("h"),
-        value: DocParamValue::Continuous(1.25),
+    // The VALUE door, on the variable the declare above just minted:
+    // it carries the definition forward, so `h` keeps its kind (and
+    // would keep a distribution) while the number moves.
+    r.push(DocEdit::SetVarValue {
+        var: VarName::from_static("h").into(),
+        value: FreeValue::Continuous(1.25),
     });
     // The NOTATION door, the value door's mirror over the other field
     // of the same declaration: `h` is now written in millimetres and
@@ -70,25 +68,32 @@ pub fn document() -> CorpusDoc {
     // edit is invisible to `bit_eq` by ruling (`display_unit` is
     // presentation metadata), so the round-trip rows read it as the
     // same document and the FILE is where it has to survive.
-    r.push(DocEdit::SetDocParamUnit {
-        name: ParamName::from_static("h"),
+    r.push(DocEdit::SetVarUnit {
+        var: VarName::from_static("h").into(),
         unit: UnitSym::from_def(&quantity::MM.def()),
     });
     // The ANNOTATION door, the third field of the same declaration:
     // `h` acquires an E1/E2 tolerance and keeps the millimetres the
-    // edit above wrote. Through create-or-replace this pair reverts
+    // edit above wrote. Through a whole definition this pair reverts
     // the notation, which is the trap the door removes; here the FILE
     // carries both, so the round-trip rows read them back together.
-    r.push(DocEdit::SetDocParamDistribution {
-        name: ParamName::from_static("h"),
+    r.push(DocEdit::SetVarDistribution {
+        var: VarName::from_static("h").into(),
         distribution: Some(Distribution::Band {
             lo: -0.0001,
             hi: 0.0001,
         }),
     });
-    r.push(DocEdit::SetDocParam {
-        name: ParamName::from_static("n"),
-        value: DocParam::Count { value: 3 },
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static("n"),
+        def: editor_core::VarDecl::Free(FreeVar::Count { value: 2 }),
+    });
+    // The DEFINITION door: `n` keeps its identity, its name and its
+    // kind while its definition is replaced whole.
+    r.push(DocEdit::DefineVar {
+        var: VarName::from_static("n").into(),
+        def: editor_core::VarDecl::Free(FreeVar::Count { value: 3 }),
+        fresh: Vec::new(),
     });
 
     // Datums: an inert point (deleted below — the DeleteNode arm),
@@ -113,15 +118,19 @@ pub fn document() -> CorpusDoc {
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
-    let h = Expr::param(ParamName::from_static("h"), Dimension::Length);
-    let dist =
-        Expr::mul(h, Expr::sin(ang(std::f64::consts::FRAC_PI_2)).expect("sin")).expect("mul");
+    let h = Formula::named(VarName::from_static("h"), Dimension::Length);
+    let dist = Formula::mul(
+        h,
+        Formula::sin(ang(std::f64::consts::FRAC_PI_2)).expect("sin"),
+    )
+    .expect("mul");
     let block_a = r.insert(Node::Extrude {
         profile,
         distance: dist,
+        side: ExtrudeSide::Along,
     });
 
-    // A flush neighbour + Declare + the consuming union (F5). The
+    // A flush neighbour and the union declaring its contacts (F5). The
     // offset is HALF the width, so the blocks OVERLAP along x while
     // their y-walls and both caps stay flush — the sliding-overlap
     // shape `declare_x_offset_flush` declares. (A pure face-to-face
@@ -136,18 +145,14 @@ pub fn document() -> CorpusDoc {
     let block_b = r.insert(Node::Extrude {
         profile: profile_b,
         distance: len(1.25),
+        side: ExtrudeSide::Along,
     });
-    let (with_declare, declare) = declare_x_offset_flush(r.doc.clone(), block_a, block_b);
-    let declare_node = with_declare
-        .node(declare)
-        .expect("declare inserted")
-        .clone();
-    r.insert(declare_node);
+    let declare = declare_x_offset_flush(&r.doc, block_a, block_b);
     let union = r.insert(Node::Boolean {
         op: BooleanOp::Union,
         a: block_a,
         b: block_b,
-        declare: Some(declare),
+        declare,
     });
 
     // Split the union with a plane tool.
@@ -172,7 +177,7 @@ pub fn document() -> CorpusDoc {
     ));
     let linear = r.insert(Node::Pattern {
         input: moved,
-        count: Expr::count(2),
+        count: Formula::count(2),
         kind: PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
             spacing: len(3.0),
@@ -181,10 +186,11 @@ pub fn document() -> CorpusDoc {
     let lone = r.insert(Node::Extrude {
         profile,
         distance: len(0.5),
+        side: ExtrudeSide::Along,
     });
     r.insert(Node::Pattern {
         input: lone,
-        count: Expr::count(2),
+        count: Formula::count(2),
         kind: PatternKind::Circular {
             axis,
             step: ang(std::f64::consts::PI),
@@ -213,7 +219,8 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::SetStructuralParam {
         node: linear,
         slot: SlotId::Count,
-        expr: Expr::param(ParamName::from_static("n"), Dimension::Count),
+        expr: Formula::named(VarName::from_static("n"), Dimension::Count),
+        fresh: Vec::new(),
     });
     // Subtree surgery: replace `sin(π/2)` with the Scalar literal 1
     // (same dimension, same value — a pure representation edit).
@@ -230,6 +237,12 @@ pub fn document() -> CorpusDoc {
         node: lone,
         slot: SlotId::Distance,
         expr: len(0.375),
+        fresh: Vec::new(),
+    });
+    // The extrude's structural side: the same block, below its plane.
+    r.push(DocEdit::SetExtrudeSide {
+        node: lone,
+        side: ExtrudeSide::Against,
     });
     // The inert datum has no dependents: delete it (ids never reused).
     r.push(DocEdit::DeleteNode { id: inert });
@@ -290,7 +303,8 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::SetAppearanceMeta {
         name: body.clone(),
         key: "tool.example/scratch".into(),
-        value: MetaValue::Map(BTreeMap::from([("v".into(), MetaValue::Int(1))])),
+        value: MetaValue::map(BTreeMap::from([("v".into(), MetaValue::Int(1.into()))]))
+            .expect("a shallow value"),
     });
     r.push(DocEdit::ClearAppearanceMeta {
         name: body.clone(),
@@ -332,6 +346,7 @@ pub fn document() -> CorpusDoc {
             node: moved,
             slot: SlotId::Translation(Axis3::Y),
             expr: len(5.0),
+            fresh: Vec::new(),
         },
         bump_root: moved,
     }
@@ -342,7 +357,7 @@ pub fn document() -> CorpusDoc {
 /// `-0.0` is DATA.
 pub fn meta_tree() -> MetaValue {
     let mut m = BTreeMap::new();
-    m.insert("v".into(), MetaValue::Int(1));
+    m.insert("v".into(), MetaValue::Int(1.into()));
     m.insert("flag".into(), MetaValue::Bool(true));
     m.insert("nothing".into(), MetaValue::Null);
     m.insert("neg_zero".into(), MetaValue::Float(-0.0));
@@ -351,7 +366,8 @@ pub fn meta_tree() -> MetaValue {
     m.insert("blob".into(), MetaValue::Bytes(vec![0xde, 0xad, 0x00]));
     m.insert(
         "list".into(),
-        MetaValue::List(vec![MetaValue::Int(-7), MetaValue::Float(0.1)]),
+        MetaValue::list(vec![MetaValue::Int((-7).into()), MetaValue::Float(0.1)])
+            .expect("a shallow value"),
     );
-    MetaValue::Map(m)
+    MetaValue::map(m).expect("a shallow value")
 }

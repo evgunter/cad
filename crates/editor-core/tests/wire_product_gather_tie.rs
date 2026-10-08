@@ -29,10 +29,11 @@
 )]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BooleanOp, Datum, EntityKey, EntityRef, Entry, EvalOptions, Evaluation, Expr, NameTable, Node,
-    PatternKind, ProductError, ProfileDoc, RecipeNodeId, StableName, product_named,
+    BooleanOp, Datum, EntityKey, EntityRef, Entry, EvalOptions, Evaluation, Formula, NameTable,
+    Node, PatternKind, ProductError, ProfileDoc, RecipeNodeId, StableName, product_named,
 };
 use fixture::{ang, insert, len, on_frame, scl, table};
 use geom_core::Tol;
@@ -61,6 +62,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -93,6 +95,7 @@ fn u_cutter_subtract() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, sub) = insert(
@@ -101,7 +104,7 @@ fn u_cutter_subtract() -> (ProfileDoc, RecipeNodeId) {
             op: BooleanOp::Subtract,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     (doc, sub)
@@ -221,7 +224,7 @@ fn a_placed_union_carries_each_instances_tie_with_both_candidates() {
         doc,
         Node::placed_union(
             sub,
-            Expr::count(3),
+            Formula::count(3),
             PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(10.0),

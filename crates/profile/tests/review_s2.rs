@@ -24,8 +24,10 @@
 //!   `CAD_FUZZ_EFFORT`. A pinned seed would make this a replay corpus
 //!   rather than a fuzzer.
 //! - F3's gate-sequence invariance probe records at `Probe`, so it lives
-//!   in `review_s2_probe.rs` behind the `probe` feature; the rest of the
-//!   suite is f64 and runs in the default build.
+//!   in `review_s2_probe.rs` behind the `probe` feature. The rest of
+//!   the suite runs in the default build, at `f64`, except the
+//!   decided-tangency rows, which build each corner at `f64` and at
+//!   `Interval` (`check_at_both_scalars`).
 //!
 //! # Why the enclosing case is a FIXTURE and not a coverage floor
 //!
@@ -101,6 +103,65 @@ use test_utils::fuzz;
 const TAU: f64 = core::f64::consts::TAU;
 const PI: f64 = core::f64::consts::PI;
 const FRAC_PI_2: f64 = core::f64::consts::FRAC_PI_2;
+
+/// Rounding on a decided corner's rims read off the stored arc, in ulps
+/// of the corner's scene ([`scene_scale`]). Measured worst over the
+/// decided rows and the drawn sweep at ε = 1e-9, 1e-6 and 1e-12, at
+/// `f64` and at `Interval`'s midpoints: 11.4 ulps over the gap on the
+/// two rims' sum, and 5.7 over half of it on one arc×arc rim.
+const RIM_ULPS: f64 = 32.0;
+
+/// The corner's scene extent: the largest coordinate or radius it
+/// carries, the size one ulp of a rim read off it is measured in.
+fn scene_scale(corner: Point2<f64>, leg_in: OracleLeg, leg_out: OracleLeg, r: f64) -> f64 {
+    let mut scale = corner.x.abs().max(corner.y.abs()).max(r);
+    for leg in [leg_in, leg_out] {
+        scale = match leg {
+            OracleLeg::Arc { center, radius, .. } => {
+                scale.max(center.x.abs()).max(center.y.abs()).max(radius)
+            }
+            OracleLeg::Line { far } => scale.max(far.x.abs()).max(far.y.abs()),
+        };
+    }
+    scale
+}
+
+/// [`RIM_ULPS`] of the corner's scene.
+fn rim_rounding(corner: Point2<f64>, leg_in: OracleLeg, leg_out: OracleLeg, r: f64) -> f64 {
+    RIM_ULPS * f64::EPSILON * scene_scale(corner, leg_in, leg_out, r)
+}
+
+/// **(g): what a decided corner's two rims may carry.** The decided
+/// centre's distances from the two offset carriers sum to their `gap`
+/// ([`check_corner`]'s (0)), and the rims are those distances. On
+/// arc×arc the centre is the midpoint of the offset circles' nearest
+/// points, so each rim carries `gap/2`. On line×circle it is the foot
+/// on the offset line, so the line's rim carries nothing and the
+/// circle's the whole gap; only the sum is bounded there, because the
+/// foot's split is that branch's own construction and not a defect.
+fn assert_decided_rims(
+    (rim_in, rim_out): (f64, f64),
+    gap: f64,
+    rounding: f64,
+    arc_arc: bool,
+    lane: &str,
+    ctx: &dyn Fn() -> String,
+) {
+    assert!(
+        rim_in + rim_out <= gap + rounding,
+        "(g) at {lane} the rims carry {rim_in:e} + {rim_out:e} of an offset gap of {gap:e} \
+         (rounding {rounding:e}) — {}",
+        ctx()
+    );
+    if arc_arc {
+        assert!(
+            rim_in.max(rim_out) <= gap / 2.0 + rounding,
+            "(g) at {lane} a rim carries more than half the offset gap: {rim_in:e} and \
+             {rim_out:e} of {gap:e} (rounding {rounding:e}) — {}",
+            ctx()
+        );
+    }
+}
 
 fn flip(rng: &mut fuzz::Rng) -> bool {
     rng.unit() < 0.5
@@ -222,25 +283,60 @@ impl OracleLeg {
             }
         }
     }
-    /// The F1 crux: expected |P_fillet - O| for an arc leg = |R - sigma*tau*r|.
-    fn center_distance_residual(&self, pf: Point2<f64>, sigma: f64, r: f64) -> f64 {
+    /// The leg's SIGNED offset radius ρ = R − σ·τ·r, re-derived here and
+    /// read by every check that needs it (`None` on a line). Spelled once
+    /// so the oracle's three readers — the gap, the centre distance and
+    /// the enclosing class — cannot drift apart; independence is from
+    /// `sugar.rs`, not between the oracle's own checks.
+    fn offset_radius(&self, sigma: f64, r: f64) -> Option<f64> {
         match *self {
-            OracleLeg::Line { .. } => 0.0, // handled by carrier_residual(pf) - r elsewhere
-            OracleLeg::Arc {
-                center,
-                radius,
-                tau,
-                ..
-            } => {
+            OracleLeg::Line { .. } => None,
+            OracleLeg::Arc { radius, tau, .. } => Some(radius - sigma * tau * r),
+        }
+    }
+    /// The F1 crux: expected |P_fillet - O| for an arc leg = |ρ|.
+    fn center_distance_residual(&self, pf: Point2<f64>, sigma: f64, r: f64) -> f64 {
+        match (*self, self.offset_radius(sigma, r)) {
+            (OracleLeg::Arc { center, .. }, Some(rho)) => {
                 let d = (pf.x - center.x).hypot(pf.y - center.y);
-                (d - (radius - sigma * tau * r).abs()).abs()
+                (d - rho.abs()).abs()
             }
+            // handled by carrier_residual(pf) - r elsewhere
+            _ => 0.0,
         }
     }
     fn is_enclosing(&self, sigma: f64, r: f64) -> bool {
-        match *self {
-            OracleLeg::Line { .. } => false,
-            OracleLeg::Arc { radius, tau, .. } => radius - sigma * tau * r < 0.0,
+        self.offset_radius(sigma, r).is_some_and(|rho| rho < 0.0)
+    }
+}
+
+/// **By how much the corner's two offset carriers miss tangency** at
+/// radius `r`, re-derived: |ρ| = |R − σ·τ·r| about each circular leg's
+/// centre, the offset line `σ·r` off a straight one. The smaller of
+/// the external and internal clearances on arc×arc, `|ρ| − |h|` on
+/// line×arc (`h` the arc centre's distance from the offset line), and
+/// infinite on line×line, whose offset lines always cross.
+fn offset_gap(corner: Point2<f64>, leg_in: OracleLeg, leg_out: OracleLeg, r: f64) -> f64 {
+    let sigma = turn_sign(corner, leg_in, leg_out);
+    let offset = |leg: OracleLeg| match (leg, leg.offset_radius(sigma, r)) {
+        (OracleLeg::Arc { center, .. }, Some(rho)) => Some((center, rho.abs())),
+        _ => None,
+    };
+    match (offset(leg_in), offset(leg_out)) {
+        (Some((o1, r1)), Some((o2, r2))) => {
+            let d = (o2.x - o1.x).hypot(o2.y - o1.y);
+            (r1 + r2 - d).abs().min((d - (r1 - r2).abs()).abs())
+        }
+        (None, None) => f64::INFINITY,
+        (Some((o, rho)), None) | (None, Some((o, rho))) => {
+            let (line, incoming) = match leg_in {
+                OracleLeg::Line { .. } => (leg_in, true),
+                OracleLeg::Arc { .. } => (leg_out, false),
+            };
+            let (dx, dy) = line.travel_dir(corner, incoming);
+            let (nx, ny) = (-dy, dx);
+            let h = (o.x - corner.x - nx * sigma * r) * nx + (o.y - corner.y - ny * sigma * r) * ny;
+            (rho - h.abs()).abs()
         }
     }
 }
@@ -454,6 +550,18 @@ fn build_corner(
     leg_out: OracleLeg,
     r: f64,
 ) -> Result<ProfileLoop<f64>, PathError<f64>> {
+    build_corner_at(corner, leg_in, leg_out, r, Tol::witness())
+}
+
+/// [`build_corner`] at any scalar and band: the oracle's f64 data read
+/// into `T`, the same lattice calls.
+fn build_corner_at<T: profile::ArcCarrierScalar>(
+    corner: Point2<f64>,
+    leg_in: OracleLeg,
+    leg_out: OracleLeg,
+    r: f64,
+    w: Tol,
+) -> Result<ProfileLoop<T>, PathError<T>> {
     let (leg_in, leg_out) = match mirror_corner(corner, leg_in, leg_out) {
         Some(m) => (
             cap_incoming(corner, leg_in),
@@ -461,102 +569,635 @@ fn build_corner(
         ),
         None => (leg_in, leg_out),
     };
-    let head = leg_in.far_point(corner);
-    let next = leg_out.far_point(corner);
+    let p = |q: Point2<f64>| Point2::new(T::from_f64(q.x), T::from_f64(q.y));
+    let f = T::from_f64;
+    let head = p(leg_in.far_point(corner));
+    let next = p(leg_out.far_point(corner));
     let closed = match (leg_in, leg_out) {
         (OracleLeg::Arc { center: c1, .. }, OracleLeg::Arc { center: c2, .. }) => Open
             .arc_fillet_arc(
                 Center {
-                    c: c1,
+                    c: p(c1),
                     winding: leg_in.winding(),
                     p: head,
                 },
-                r,
+                f(r),
                 Center {
-                    c: c2,
+                    c: p(c2),
                     winding: leg_out.winding(),
                     p: next,
                 },
-                Tol::witness(),
+                w,
             )?
-            .line_to(Start, Tol::witness())?,
+            .line_to(Start, w)?,
         (OracleLeg::Arc { center: c1, .. }, OracleLeg::Line { .. }) => {
             let (dx, dy) = leg_out.travel_dir(corner, false);
             Open.arc_fillet(
                 Center {
-                    c: c1,
+                    c: p(c1),
                     winding: leg_in.winding(),
                     p: head,
                 },
-                r,
-                Tol::witness(),
+                f(r),
+                w,
             )?
-            .at(next, Tol::witness())?
-            .toward(dx, dy, Tol::witness())?
-            .line(0.25, Tol::witness())?
-            .line_to(Start, Tol::witness())?
+            .at(next, w)?
+            .toward(f(dx), f(dy), w)?
+            .line(f(0.25), w)?
+            .line_to(Start, w)?
         }
         (OracleLeg::Line { .. }, OracleLeg::Arc { center: c2, .. }) => {
             let (dx, dy) = leg_in.travel_dir(corner, true);
             Open.at(head)
-                .toward(dx, dy, Tol::witness())?
+                .toward(f(dx), f(dy), w)?
                 .fillet_arc(
-                    r,
+                    f(r),
                     Center {
-                        c: c2,
+                        c: p(c2),
                         winding: leg_out.winding(),
                         p: next,
                     },
-                    Tol::witness(),
+                    w,
                 )?
-                .line_to(Start, Tol::witness())?
+                .line_to(Start, w)?
         }
         (OracleLeg::Line { .. }, OracleLeg::Line { .. }) => {
             let (dx1, dy1) = leg_in.travel_dir(corner, true);
             let (dx2, dy2) = leg_out.travel_dir(corner, false);
             Open.at(head)
-                .toward(dx1, dy1, Tol::witness())?
-                .fillet(r, Tol::witness())?
-                .at(next, Tol::witness())?
-                .toward(dx2, dy2, Tol::witness())?
-                .line(0.25, Tol::witness())?
-                .line_to(Start, Tol::witness())?
+                .toward(f(dx1), f(dy1), w)?
+                .fillet(f(r), w)?
+                .at(next, w)?
+                .toward(f(dx2), f(dy2), w)?
+                .line(f(0.25), w)?
+                .line_to(Start, w)?
         }
     };
     Ok(closed.loop_.into_loop())
 }
 
-/// Locate the emitted fillet arc: the unique segment whose recovered
+/// **A fillet on a decided offset tangency registers nothing it did not
+/// prove, and splits the gap it cannot close.** The corner
+/// `CAD_FUZZ_SEED=0x063fda568e08fb0f` drew at iteration 380 of
+/// `fuzz_offset_carrier_construction_tangency_and_bulge` at ε = 1e-6:
+/// two arc legs whose offset circles miss internal tangency by 5.27e-7,
+/// which `fillet_offset_circles_internal` decides tangent there. No
+/// circle of the radius touches both carriers, so the rims carry the
+/// gap between them ([`check_corner`]'s (0)). Built at `f64` and at
+/// `Interval`: a fillet that registered its endpoint facts would abort
+/// the `Interval` build, the exact witness separating the rim at its
+/// start. At ε = 1e-6 both build and meet the oracle; at another ε the
+/// gap is decided, the pair refuses, and only the absence of an abort
+/// is asserted (a typed answer is printed).
+#[test]
+fn the_decided_tangent_fuzz_corner_builds_at_both_scalars_and_meets_the_oracle() {
+    let corner = Point2::new(0.9172118604657906, 0.862214677933687);
+    let leg_in = OracleLeg::Arc {
+        center: Point2::new(0.7238483837240783, 1.029671309136586),
+        radius: 0.255795147474432,
+        tau: -1.0,
+        far_angle: 7.878574846268673,
+    };
+    let leg_out = OracleLeg::Arc {
+        center: Point2::new(1.0053814475969767, 0.8933271466707279),
+        radius: 0.09349792407212658,
+        tau: 1.0,
+        far_angle: 6.177768336234397,
+    };
+    let r = 0.07525705177877821;
+    if tol().eps() == 1e-6 {
+        let what = "the iteration-380 corner";
+        let built = check_at_both_scalars(corner, leg_in, leg_out, r, IntervalLane::Builds, what);
+        assert!(built, "{what} builds at ε = 1e-6");
+    } else {
+        let w = tol();
+        let at_f64 = build_corner_at::<f64>(corner, leg_in, leg_out, r, w).map(|_| ());
+        let at_interval =
+            build_corner_at::<geom_core::Interval>(corner, leg_in, leg_out, r, w).map(|_| ());
+        eprintln!(
+            "ε = {}: f64 {at_f64:?}, Interval {at_interval:?} (no abort)",
+            w.eps()
+        );
+    }
+}
+
+/// What the `Interval` lane may answer where the `f64` lane builds.
+#[derive(Clone, Copy, Debug)]
+enum IntervalLane {
+    /// It builds too, and its rims meet (g). The one escalation admitted
+    /// is a tangency predicate ([`TANGENCY_PREDICATES`]) on an enclosure
+    /// straddling ±ε: the margin sits near the boundary of the Zero the
+    /// `f64` lane decided, within the enclosure's width of it, and no
+    /// enclosure that wide can say which side. A decided margin is drawn
+    /// up to 0.95ε, and on line×circle the contact's margin is the whole
+    /// gap, so that is a property of the margin, not of the case.
+    Builds,
+    /// As [`IntervalLane::Builds`], and also an escalation in a tangency
+    /// predicate on an enclosure wider than the band. That is the sound
+    /// answer where the band is few ulps of the scene or the
+    /// construction's conditioning widens the enclosure past it; each
+    /// caller names its cases and says why.
+    MayEscalate,
+}
+
+/// The predicates that judge a fillet's tangency: the decisions that
+/// call its offset carriers tangent, and the stored-form read's contacts
+/// (`Core::fillets_carry_their_tangency`, which re-runs validation's
+/// contact predicates on the loop the door is about to store) of the
+/// fillet arc with its own legs. On a decided corner the contact's
+/// margin is a rim's error, up to the whole gap on line×circle.
+const TANGENCY_PREDICATES: [&str; 6] = [
+    "fillet_offset_circles_external",
+    "fillet_offset_circles_internal",
+    "fillet_offset_line_circle",
+    "carrier_circles_external",
+    "carrier_circles_internal",
+    "carrier_line_circle",
+];
+
+/// Whether `lane` admits an `Interval` escalation where `f64` built: a
+/// tangency predicate whose enclosure `[lo, hi]` straddles the band's
+/// `±zero`, or, where the lane is [`IntervalLane::MayEscalate`], is
+/// wider than `zero`.
+fn sound_escalation(lane: IntervalLane, predicate: &str, lo: f64, hi: f64, zero: f64) -> bool {
+    let straddles = |at: f64| lo < at && at < hi;
+    let wide = matches!(lane, IntervalLane::MayEscalate) && hi - lo > zero;
+    TANGENCY_PREDICATES.contains(&predicate) && (straddles(zero) || straddles(-zero) || wide)
+}
+
+/// Builds the corner at `f64` and at `Interval` on the run's band,
+/// asserts the two lanes agree on whether it builds, and runs
+/// [`check_corner`] on the `f64` build and the rim bound (g) on the
+/// `Interval` one's enclosures. An `Interval` escalation where `f64`
+/// builds fails unless `lane` admits it. Returns whether it built.
+fn check_at_both_scalars(
+    corner: Point2<f64>,
+    leg_in: OracleLeg,
+    leg_out: OracleLeg,
+    r: f64,
+    lane: IntervalLane,
+    what: &str,
+) -> bool {
+    use geom_core::{Bounds, ErrorTextReading, Interval};
+    let w = tol();
+    let at_f64 = build_corner_at::<f64>(corner, leg_in, leg_out, r, w);
+    let at_interval = build_corner_at::<Interval>(corner, leg_in, leg_out, r, w);
+    let (lp, lp_interval) = match (at_f64, at_interval) {
+        (Ok(lp), Ok(lp_interval)) => (lp, lp_interval),
+        (Err(_), Err(_)) => return false,
+        (Ok(lp), Err(PathError::Escalated { source })) => {
+            let predicate = source.predicate.unwrap_or("<unnamed>");
+            let ErrorTextReading::Enclosure { lo, hi } =
+                source.margin.diagnostic_f64_for_error_text()
+            else {
+                panic!("{what}: Interval escalates on a margin that is no enclosure: {source:?}")
+            };
+            assert!(
+                sound_escalation(lane, predicate, lo, hi, source.band.zero()),
+                "{what}: Interval escalates in {predicate} on [{lo:e}, {hi:e}] (band {:e}) \
+                 where f64 builds, and the case admits {lane:?}",
+                source.band.zero()
+            );
+            check_corner(corner, leg_in, leg_out, r, &lp, &|| what.to_string());
+            return true;
+        }
+        (f, i) => panic!(
+            "{what}: the lanes disagree — f64 {:?}, Interval {:?}",
+            f.err(),
+            i.err()
+        ),
+    };
+    check_corner(corner, leg_in, leg_out, r, &lp, &|| what.to_string());
+
+    let n = lp_interval.vertices().len();
+    let i = (0..n)
+        .find(|&i| {
+            matches!(lp_interval.segments()[i], profile::Segment::Arc(arc)
+                if arc.radius.lo() <= r && r <= arc.radius.hi())
+        })
+        .unwrap_or_else(|| panic!("{what}: no Interval segment stores the fillet radius {r}"));
+    let profile::Segment::Arc(arc) = lp_interval.segments()[i] else {
+        unreachable!("found as an arc above")
+    };
+    // Read at the enclosures' midpoints: near a tangency the crossing
+    // branch's half-chord is a root of a near-zero radicand, which an
+    // enclosure widens to its square root, so the width speaks about
+    // the lane and the midpoint about the construction.
+    let rim = |t: Point2<Interval>| {
+        let e: Interval = (t - arc.centre).norm() - arc.radius;
+        ((e.lo() + e.hi()) / 2.0).abs()
+    };
+    let rims = (
+        rim(lp_interval.vertices()[i]),
+        rim(lp_interval.vertices()[(i + 1) % n]),
+    );
+    let gap = offset_gap(corner, leg_in, leg_out, r);
+    if gap < w.k() * w.eps() {
+        let arc_arc =
+            matches!(leg_in, OracleLeg::Arc { .. }) && matches!(leg_out, OracleLeg::Arc { .. });
+        let rounding = rim_rounding(corner, leg_in, leg_out, r);
+        assert_decided_rims(rims, gap, rounding, arc_arc, "Interval", &|| {
+            what.to_string()
+        });
+    } else {
+        assert!(
+            rims.0 + rims.1 <= 1e-9,
+            "{what}: at Interval the rims read {:e} + {:e} at their midpoints on a \
+             crossing (offset gap {gap:e})",
+            rims.0,
+            rims.1
+        );
+    }
+    true
+}
+
+/// A similarity that places a lens builder's local frame in the scene:
+/// reflect across the local x axis when `mirror` is −1, rotate by
+/// `turn`, move the origin to `origin`. Lengths are kept; a builder
+/// scales its own.
+#[derive(Clone, Copy)]
+struct Frame {
+    origin: Point2<f64>,
+    turn: f64,
+    mirror: f64,
+}
+
+impl Frame {
+    const LOCAL: Frame = Frame {
+        origin: Point2::new(0.0, 0.0),
+        turn: 0.0,
+        mirror: 1.0,
+    };
+
+    fn point(&self, p: Point2<f64>) -> Point2<f64> {
+        let (s, c) = self.turn.sin_cos();
+        let y = self.mirror * p.y;
+        Point2::new(
+            self.origin.x + c * p.x - s * y,
+            self.origin.y + s * p.x + c * y,
+        )
+    }
+
+    /// [`arc_leg`] with its corner, angle and winding given in the
+    /// local frame.
+    fn arc_leg(
+        &self,
+        corner: Point2<f64>,
+        a: f64,
+        radius: f64,
+        tau: f64,
+        delta: f64,
+        incoming: bool,
+    ) -> OracleLeg {
+        let a = self.turn + self.mirror * a;
+        arc_leg(
+            self.point(corner),
+            a,
+            radius,
+            self.mirror * tau,
+            delta,
+            incoming,
+        )
+    }
+}
+
+/// A built lens corner: the corner, its two legs and the fillet radius.
+///
+/// `fillet_decided_tangency.rs` builds the unit cases of
+/// [`external_lens`] and [`line_into_circle`] again, from the door's
+/// own literals, and keeps its own spelling on purpose: it pins that the
+/// door builds them at both scalars without this harness's leg types,
+/// mirror bracketing or oracle, so a drift in these builders cannot
+/// carry that pin with it.
+type Lens = (Point2<f64>, OracleLeg, OracleLeg, f64);
+
+/// The corner where an incoming clockwise carrier of radius `r_in`
+/// meets an outgoing counterclockwise one of radius `r_out`, the
+/// fillet of radius `r` turning left between them: offset radii
+/// `r_in + r` and `r_out − r`, their centres placed `margin` past
+/// internal tangency (negative: one inside the other). In the local
+/// frame the corner is the origin, at angle 0 about the incoming
+/// centre; both legs' extents are the iteration-380 corner's.
+fn internal_lens(frame: Frame, r_in: f64, r_out: f64, r: f64, margin: f64) -> Lens {
+    let origin = Point2::new(0.0, 0.0);
+    let d = r_in - r_out + 2.0 * r + margin;
+    let phi = ((r_in * r_in + r_out * r_out - d * d) / (2.0 * r_in * r_out)).acos();
+    (
+        frame.point(origin),
+        frame.arc_leg(origin, 0.0, r_in, -1.0, 2.309_110_809_683_997, true),
+        frame.arc_leg(origin, -phi, r_out, 1.0, 2.696_945_690_936_384, false),
+        r,
+    )
+}
+
+/// The iteration-380 corner's frame for [`internal_lens`]: its corner,
+/// and the angle it sits at about the incoming centre.
+const FRAME_380: Frame = Frame {
+    origin: Point2::new(0.9172118604657906, 0.862214677933687),
+    turn: -0.7137212705949091,
+    mirror: 1.0,
+};
+
+/// Two counterclockwise carriers of radii `r_1` and `r_2` whose offset
+/// circles of radii `r_1 − r` and `r_2 − r` miss external tangency by
+/// `margin` (negative: apart), the fillet in their lens at the upper
+/// corner. The local frame has the first centre at the origin and the
+/// second on the positive x axis.
+fn external_lens(frame: Frame, r_1: f64, r_2: f64, r: f64, margin: f64) -> Lens {
+    let dist = r_1 + r_2 - 2.0 * r - margin;
+    let x = (dist * dist + r_1 * r_1 - r_2 * r_2) / (2.0 * dist);
+    let corner = Point2::new(x, (r_1 * r_1 - x * x).sqrt());
+    let a_in = corner.y.atan2(corner.x);
+    let a_out = corner.y.atan2(corner.x - dist);
+    (
+        frame.point(corner),
+        frame.arc_leg(corner, a_in, r_1, 1.0, a_in + 20f64.to_radians(), true),
+        frame.arc_leg(corner, a_out, r_2, 1.0, 200f64.to_radians() - a_out, false),
+        r,
+    )
+}
+
+/// The vertical line travelled up into the clockwise carrier of radius
+/// `radius` about the local origin, the fillet of radius `r` in the
+/// circular segment between them: the offset line misses the offset
+/// circle of radius `radius − r` by `margin` (negative: apart).
+fn line_into_circle(frame: Frame, radius: f64, r: f64, margin: f64) -> Lens {
+    let x = radius - 2.0 * r - margin;
+    let corner = Point2::new(x, (radius * radius - x * x).sqrt());
+    let a = corner.y.atan2(corner.x);
+    (
+        frame.point(corner),
+        OracleLeg::Line {
+            far: frame.point(Point2::new(x, -0.5 * radius)),
+        },
+        frame.arc_leg(corner, a, radius, -1.0, a + 30f64.to_radians(), false),
+        r,
+    )
+}
+
+/// **Every fillet near a half turn, or at an extreme of its sweep,
+/// meets the oracle at both scalars.** The lens fillets are the ones a
+/// decided offset tangency builds: their offset carriers are placed a
+/// chosen margin from tangency, inside the band (decided tangent, a
+/// sweep a hair either side of π, apart or overlapping) and past it
+/// (two crossings, the sweep further from π). The internal pairs run
+/// from the iteration-380 corner's proportions to near-equal carriers
+/// with a small fillet, where the offset circles' centres sit close
+/// against their radii: a centre placed by the radical line there
+/// carries the gap amplified by (ρ₁ + ρ₂)/d, which (g) catches. Two
+/// pairs and two external lenses sit on carriers of about 30 and 100,
+/// where a rim's rounding is that many times a unit scene's. The
+/// line×line corners take the sweep from a near-straight turn to a
+/// near-hairpin. Every margin scales with the run's ε, so each eps row
+/// re-exercises the band.
+///
+/// **Where the `Interval` lane may escalate** (`IntervalLane::
+/// MayEscalate`). The stored-form read's enclosure of the fillet's
+/// contact with its own legs carries the construction's conditioning,
+/// and three families widen it past the band.
+///
+/// - The crossing just past the band (margin 20kε) on every internal
+///   lens and the line-into-circle lens, at every row: the crossing's
+///   half-chord is the root of a radicand of size gap·ρ, and the
+///   enclosure of a root widens by 1/√(gap·ρ). Measured: escalates on
+///   the unit lenses at 1e-12 and on the lenses of 30 and 100 at 1e-9.
+/// - The near-equal 1/0.9/0.01 lens, on the 1e-12 row: its centres are
+///   0.12 apart against radii near 1, so (ρ₁ + ρ₂)/d ≈ 16 multiplies
+///   every width, and the band is about 4500 ulps of the scene.
+///   Measured: escalates at ±0.9ε and at 1e-4.
+/// - The line×line hairpins π − 0.05 and π − 0.01, on the 1e-12 row:
+///   the centre sits r/sin(α/2) down the bisector of an opening α of
+///   0.05 and 0.01.
+///
+/// On the 1e-12 row the carriers of 30 and 100 do not build at either
+/// scalar: the conditioning gate (`fillet_offset_lever`) refuses their
+/// levers, since the band there is under 200 ulps of the scene. Every
+/// other case at every row builds at both scalars, which the row
+/// asserts.
+#[test]
+fn near_half_turn_and_extreme_sweep_fillets_meet_the_oracle_at_both_scalars() {
+    let (eps, k) = (tol().eps(), tol().k());
+    let fine = eps <= 1e-12;
+    let past_band = 20.0 * k * eps;
+    let mut margins: Vec<f64> = [-0.9, -0.5, -0.1, 0.0, 0.1, 0.5, 0.9]
+        .iter()
+        .map(|m| m * eps)
+        .collect();
+    margins.extend(
+        [past_band, 1e-4, 1e-2]
+            .iter()
+            .filter(|&&m| m > 2.0 * k * eps),
+    );
+    let lane = |may: bool| {
+        if may {
+            IntervalLane::MayEscalate
+        } else {
+            IntervalLane::Builds
+        }
+    };
+    let mut cases: Vec<(String, Lens, IntervalLane, bool)> = Vec::new();
+    for &m in &margins {
+        for (r_in, r_out, r, frame) in [
+            (
+                0.255795147474432,
+                0.09349792407212658,
+                0.07525705177877821,
+                FRAME_380,
+            ),
+            (0.5, 0.45, 0.02, FRAME_380),
+            (1.0, 0.9, 0.01, FRAME_380),
+            (30.0, 2.0, 0.5, Frame::LOCAL),
+            (100.0, 10.0, 1.0, Frame::LOCAL),
+        ] {
+            let near_equal = r_out / r_in > 0.85;
+            cases.push((
+                format!("internal lens {r_in}/{r_out}/{r} at margin {m:e}"),
+                internal_lens(frame, r_in, r_out, r, m),
+                lane(m == past_band || (fine && near_equal)),
+                fine && r_in >= 30.0,
+            ));
+        }
+        for (radius, r) in [(1.0, 0.25), (30.0, 7.5), (100.0, 25.0)] {
+            cases.push((
+                format!("external lens {radius}/{r} at margin {m:e}"),
+                external_lens(Frame::LOCAL, radius, radius, r, m),
+                IntervalLane::Builds,
+                fine && radius >= 30.0,
+            ));
+        }
+        cases.push((
+            format!("line into circle at margin {m:e}"),
+            line_into_circle(Frame::LOCAL, 1.0, 0.25, m),
+            lane(m == past_band),
+            false,
+        ));
+    }
+    for turn in [0.05, 1.0, FRAC_PI_2, PI - 0.05, PI - 1e-2] {
+        let corner = Point2::new(0.1, -0.2);
+        let r = (0.5 / (turn / 2.0).tan()).min(0.3);
+        cases.push((
+            format!("line×line turning {turn}"),
+            (
+                corner,
+                line_leg(corner, PI, 1.0),
+                line_leg(corner, turn, 1.0),
+                r,
+            ),
+            lane(fine && turn > 3.0),
+            false,
+        ));
+    }
+    for (what, (corner, leg_in, leg_out, r), lane, may_refuse) in cases {
+        let built = check_at_both_scalars(corner, leg_in, leg_out, r, lane, &what);
+        assert!(built || may_refuse, "{what} builds at f64");
+    }
+}
+
+/// **Decided tangencies drawn directly meet the oracle at both
+/// scalars.** The corner fuzz draws legs at random and almost never
+/// lands inside the band (none at CI effort), so this row draws the
+/// decided class itself: an internal lens, an external lens or a line
+/// into a circle, with random radii, its offset carriers a random
+/// margin inside ±0.95ε of tangency, the whole placed by a random
+/// rotation, reflection, scale in [0.1, 10] and offset up to 1e3. Every
+/// draw is in the class by construction, so the seed is pinned as a
+/// fixture and `CAD_FUZZ_SEED` explores.
+///
+/// A draw may refuse typed at both lanes: the conditioning gate
+/// (`fillet_offset_lever`) refuses a lever its law cannot place, and a
+/// margin rounded past ε escalates. Where it builds at `f64`, it builds
+/// at `Interval`, unless the band is under [`TIGHT_BAND_ULPS`] of the
+/// draw's scene: there the enclosure of a tangency predicate can be
+/// wider than the band, and that escalation is the sound answer
+/// ([`IntervalLane::MayEscalate`]). A straddle of ±ε is admitted on
+/// every draw ([`IntervalLane::Builds`]).
+#[test]
+fn drawn_decided_tangencies_meet_the_oracle_at_both_scalars() {
+    let mut rng = fuzz::pinned("review_s2::drawn_decided_tangencies", 0xdec1_ded0_7a96_e5e5);
+    let eps = tol().eps();
+    let draws = fuzz::scaled(1000);
+    // The pinned seed reproduces by itself; an explored one is named.
+    let replay = if std::env::var_os("CAD_FUZZ_SEED").is_some() {
+        fuzz::replay()
+    } else {
+        format!("pinned seed, CAD_FUZZ_EFFORT={}", fuzz::effort())
+    };
+    let (mut built, mut refused, mut skipped) = (0usize, 0usize, 0usize);
+    for i in 0..draws {
+        let scale = 10f64.powf(rng.range(-1.0, 1.0));
+        let (reach, heading) = (10f64.powf(rng.range(-1.0, 3.0)), rng.range(0.0, TAU));
+        let frame = Frame {
+            origin: Point2::new(reach * heading.cos(), reach * heading.sin()),
+            turn: rng.range(0.0, TAU),
+            mirror: if flip(&mut rng) { -1.0 } else { 1.0 },
+        };
+        let margin = rng.range(-0.95, 0.95) * eps;
+        let (kind, (corner, leg_in, leg_out, r)) = match rng.below(3) {
+            0 => {
+                let r_out = scale * rng.range(0.2, 1.0);
+                let r = r_out * rng.range(0.05, 0.6);
+                let r_in = rng.range((r_out - 0.5 * r).max(0.1 * scale), 2.5 * scale);
+                (
+                    "internal lens",
+                    internal_lens(frame, r_in, r_out, r, margin),
+                )
+            }
+            1 => {
+                let (r_1, r_2) = (scale * rng.range(0.3, 2.0), scale * rng.range(0.3, 2.0));
+                let r = r_1.min(r_2) * rng.range(0.1, 0.6);
+                ("external lens", external_lens(frame, r_1, r_2, r, margin))
+            }
+            _ => {
+                let radius = scale * rng.range(0.3, 2.0);
+                let r = radius * rng.range(0.05, 0.45);
+                (
+                    "line into circle",
+                    line_into_circle(frame, radius, r, margin),
+                )
+            }
+        };
+        let near_r = |leg: OracleLeg| matches!(leg, OracleLeg::Arc { radius, .. } if (radius - r).abs() < 1e-4 * r);
+        let mirror_survives = mirror_corner(corner, leg_in, leg_out).is_some_and(|m| {
+            !mirror_excluded(
+                m,
+                cap_incoming(corner, leg_in),
+                clamp_arrival(corner, m, leg_out),
+                corner,
+            )
+        });
+        if near_r(leg_in) || near_r(leg_out) || mirror_survives {
+            skipped += 1;
+            continue;
+        }
+        let band_ulps = eps / (f64::EPSILON * scene_scale(corner, leg_in, leg_out, r));
+        let lane = if band_ulps < TIGHT_BAND_ULPS {
+            IntervalLane::MayEscalate
+        } else {
+            IntervalLane::Builds
+        };
+        let what = format!(
+            "draw {i}: {kind} at margin {margin:e}, scale {scale}, band {band_ulps:.0} ulps — {}",
+            replay
+        );
+        if check_at_both_scalars(corner, leg_in, leg_out, r, lane, &what) {
+            built += 1;
+        } else {
+            refused += 1;
+        }
+    }
+    eprintln!(
+        "drawn decided tangencies at ε = {eps}: {built} built, {refused} refused, \
+         {skipped} skipped of {draws}"
+    );
+    // Not a coverage floor on a rare class: every draw is in the class,
+    // and this fails only if the row stops building the bulk of it
+    // (measured: all of 1000 at 1e-9, 999 at 1e-6, 934 at 1e-12).
+    assert!(
+        2 * built >= draws,
+        "only {built} of {draws} drawn decided tangencies built — {}",
+        replay
+    );
+}
+
+/// The band, in ulps of a drawn corner's scene, below which
+/// [`drawn_decided_tangencies_meet_the_oracle_at_both_scalars`] admits
+/// an `Interval` escalation ([`IntervalLane::MayEscalate`]). Measured
+/// over its 1000 pinned draws: escalations at bands of 5 to 726 ulps
+/// on the 1e-12 row, none at 1e-9 or 1e-6, where no draw's band is
+/// under 4000 ulps.
+const TIGHT_BAND_ULPS: f64 = 1000.0;
+
+/// Locate the emitted fillet arc: the unique segment whose stored
 /// circle has radius `r` (draws that would put a LEG carrier's radius
 /// within the match window of `r` are skipped at the draw, so the
-/// match cannot be ambiguous). Returns (t1, t2, bulge).
+/// match cannot be ambiguous). Returns (t1, t2, bulge, stored centre).
+/// The match is on the stored radius, not on the one recovered from
+/// the chord: the recovered radius is what oracle (a) measures, so a
+/// locator reading it would turn a defect there into "no fillet".
 fn fillet_segment(
     lp: &ProfileLoop<f64>,
     r: f64,
     ctx: &dyn Fn() -> String,
-) -> (Point2<f64>, Point2<f64>, f64) {
+) -> (Point2<f64>, Point2<f64>, f64, Point2<f64>) {
     let n = lp.vertices().len();
     let mut found = None;
     for i in 0..n {
-        let a = lp.vertices()[i];
-        let b = lp.vertices()[(i + 1) % n];
-        let bl = crate::common::quarter_tan(&lp.segments()[i]);
-        if bl == 0.0 {
+        let profile::Segment::Arc(arc) = lp.segments()[i] else {
             continue;
-        }
-        let (_, rf) = circle_from_bulge(a, b, bl);
-        if (rf - r).abs() < 1e-6 * r.max(1.0) {
+        };
+        if (arc.radius - r).abs() < 1e-6 * r.max(1.0) {
             assert!(
                 found.is_none(),
-                "two segments recover the fillet radius — {}",
+                "two segments store the fillet radius — {}",
                 ctx()
             );
-            found = Some((a, b, bl));
+            let bl = crate::common::quarter_tan(&lp.segments()[i]);
+            found = Some((lp.vertices()[i], lp.vertices()[(i + 1) % n], bl, arc.centre));
         }
     }
     found.unwrap_or_else(|| {
         panic!(
-            "no emitted segment recovers the fillet radius {r} — {}",
+            "no emitted segment stores the fillet radius {r} — {}",
             ctx()
         )
     })
@@ -619,7 +1260,7 @@ fn report_moved_refuse_pin(
     what: &str,
     ctx: &dyn Fn() -> String,
 ) -> ! {
-    let (t1, t2, b) = fillet_segment(lp, r, ctx);
+    let (t1, t2, b, _) = fillet_segment(lp, r, ctx);
     let (pf, _) = circle_from_bulge(t1, t2, b);
     for (center, radius) in carriers {
         assert_swallows_nothing(pf, *center, *radius, r, ctx);
@@ -663,7 +1304,7 @@ fn check_corner(
         enclosing: 0,
         major: 0,
     };
-    let (t1, t2, b) = fillet_segment(lp, r, ctx);
+    let (t1, t2, b, centre) = fillet_segment(lp, r, ctx);
     assert!(
         b.is_finite() && b != 0.0,
         "degenerate fillet bulge {b} — {}",
@@ -673,11 +1314,46 @@ fn check_corner(
     // sigma re-derived from travel directions.
     let sigma = turn_sign(corner, leg_in, leg_out);
 
+    // (0) What the corner itself allows. Where the offset carriers miss
+    // tangency by less than the band, the construction decided them
+    // tangent and placed one centre. A centre P has |P − O₁| − ρ₁ and
+    // |P − O₂| − ρ₂ (or its clearance from the offset line), and the
+    // tangent points, its feet on the leg carriers, carry those as rim
+    // errors. Where the carriers are separated by the gap, those two sum
+    // to at least the gap for every P, and the decided centre is at that
+    // floor. Where they overlap by it, two exact centres exist, but they
+    // sit about √(gap·ρ) off the link and are ill-conditioned in it; the
+    // decision says tangent, so the one decided centre is taken, and the
+    // gap is a bound on its rims rather than a floor. (g) pins how the
+    // stored arc splits it. (a), (c) and (d), read off the chord, see
+    // the mean of the two rims: the lens's sweep is a half turn, so the
+    // chord's ends sit on the link either side of P, and the circle
+    // through them moves by half each rim. The stored bulge reads that
+    // chord against r, so a chord the rims made longer or shorter than
+    // 2r reads as a sweep off the half turn by an angle of order gap/r,
+    // which moves the recovered circle by gap²/8r more (bounded here by
+    // gap²/r). They get both on top of their rounding bar. A built corner whose gap is
+    // under kε was decided tangent: [ε, kε) escalates.
+    let gap = offset_gap(corner, leg_in, leg_out, r);
+    let decided = gap < tol().k() * tol().eps();
+    let rounding = rim_rounding(corner, leg_in, leg_out, r);
+    let slack = if decided {
+        gap / 2.0 + gap * gap / r + rounding
+    } else {
+        0.0
+    };
+    if decided {
+        let rim = |t: Point2<f64>| ((t.x - centre.x).hypot(t.y - centre.y) - r).abs();
+        let arc_arc =
+            matches!(leg_in, OracleLeg::Arc { .. }) && matches!(leg_out, OracleLeg::Arc { .. });
+        assert_decided_rims((rim(t1), rim(t2)), gap, rounding, arc_arc, "f64", ctx);
+    }
+
     // (a) fillet circle from the emitted data.
     let (pf, rf) = circle_from_bulge(t1, t2, b);
     assert!(
-        (rf - r).abs() < 1e-9,
-        "recovered radius {rf} vs {r} — {}",
+        (rf - r).abs() < 1e-9 + slack,
+        "recovered radius {rf} vs {r} (offset gap {gap:e}) — {}",
         ctx()
     );
 
@@ -707,7 +1383,7 @@ fn check_corner(
             OracleLeg::Line { .. } => {
                 let d = leg.carrier_residual(corner, pf);
                 assert!(
-                    (d - r).abs() < 1e-9,
+                    (d - r).abs() < 1e-9 + slack,
                     "line-carrier clearance {d} vs r {r} — {}",
                     ctx()
                 );
@@ -715,7 +1391,11 @@ fn check_corner(
             OracleLeg::Arc { center, radius, .. } => {
                 counts.arc_legs += 1;
                 let res = leg.center_distance_residual(pf, sigma, r);
-                assert!(res < 1e-9, "|P-O| vs |rho| residual {res} — {}", ctx());
+                assert!(
+                    res < 1e-9 + slack,
+                    "|P-O| vs |rho| residual {res} (offset gap {gap:e}) — {}",
+                    ctx()
+                );
                 if leg.is_enclosing(sigma, r) {
                     // rho < 0 on this leg: the corner's geometry DEMANDS
                     // the enclosing tangency. What is asserted here is
@@ -734,7 +1414,11 @@ fn check_corner(
         // (d) tangent points at distance r from the fillet center.
         let t = if inc { t1 } else { t2 };
         let dt = ((t.x - pf.x).hypot(t.y - pf.y) - r).abs();
-        assert!(dt < 1e-9, "|t-P| residual {dt} — {}", ctx());
+        assert!(
+            dt < 1e-9 + slack,
+            "|t-P| residual {dt} (offset gap {gap:e}) — {}",
+            ctx()
+        );
         // (e) corner-side extents.
         let (sb, ext) = leg.setback_extent(corner, t, inc);
         assert!(
@@ -931,13 +1615,11 @@ fn fuzz_offset_carrier_construction_tangency_and_bulge() {
          enclosing tangency; the boundary this suite pins says it builds none — {}",
         fuzz::replay()
     );
-    // `n_major` stays a REPORT. It comes out 0, which is the fuzz
-    // corroborating the bound `fillet_bulge`'s docs argue for — the corner-side extent gates keep
-    // every fillet arc below half a turn, so the negative-apothem branch
-    // is unreachable through this door and is unit-tested directly
-    // instead. Deliberately not asserted either way: a future change that
-    // legitimately admits major arcs should not fail here, it should make
-    // the branch live.
+    // `n_major` stays a REPORT, not asserted either way. The corner-side
+    // extent gates keep a fillet arc short of half a turn wherever their
+    // decisions are exact, but a lens fillet sweeps π to within the band
+    // (a decided offset tangency, `fillet_decided_tangency.rs`), and the
+    // one quarter-tangent spelling reads either side of π.
     eprintln!(
         "fuzz: ok {n_ok}, arc legs {n_arc_leg}, arc-by-arc {n_arc_arc}, enclosing {n_enclosing}, major {n_major}"
     );
@@ -1185,7 +1867,7 @@ fn the_lattice_door_never_emits_an_enclosing_tangency() {
                         )
                     });
                 let ctx = || format!("{name} @ endorsed radius");
-                let (t1, t2, b) = fillet_segment(&lp, endorsed, &ctx);
+                let (t1, t2, b, _) = fillet_segment(&lp, endorsed, &ctx);
                 let (pf, _) = circle_from_bulge(t1, t2, b);
                 for (center, big) in [(o1, radii[0].0), (o2, radii[1].0)] {
                     assert_swallows_nothing(pf, center, big, endorsed, &ctx);
@@ -1499,7 +2181,7 @@ fn an_uncertifiable_tangent_point_refuses_instead_of_being_returned() {
                  build rather than refuse; got {e:?}"
             )
         });
-        let (t1, t2, b) = fillet_segment(&lp, r, &|| "uncertifiable pin".to_string());
+        let (t1, t2, b, _) = fillet_segment(&lp, r, &|| "uncertifiable pin".to_string());
         // WHICH fillet came back, asserted rather than described. Every
         // leg's centre distance is the one the OTHER turn side predicts
         // — |P - O| = |R - (-sigma)*tau*r| on both — which is the twin
@@ -1655,7 +2337,7 @@ fn enclosing_fillet_swallows_both_leg_carriers() {
                 panic!("the endorsed radius {endorsed} refuses with {e:?} — a dead recourse")
             });
             let ctx = || "enclosing_fillet_swallows_both_leg_carriers @ endorsed".to_string();
-            let (t1, t2, b) = fillet_segment(&lp, endorsed, &ctx);
+            let (t1, t2, b, _) = fillet_segment(&lp, endorsed, &ctx);
             let (pf, _) = circle_from_bulge(t1, t2, b);
             assert_swallows_nothing(pf, o1, r1, endorsed, &ctx);
             assert_swallows_nothing(pf, o2, r2, endorsed, &ctx);
@@ -1748,7 +2430,7 @@ fn an_ill_conditioned_corner_lands_its_tangent_point_on_the_carrier() {
         "ill-conditioned tangent-point pin".to_string()
     });
 
-    let (t1, _, _) = fillet_segment(&lp, r, &|| "ill-conditioned pin".to_string());
+    let (t1, _, _, _) = fillet_segment(&lp, r, &|| "ill-conditioned pin".to_string());
     let res_in = leg_in.carrier_residual(corner, t1);
     let bound = ULPS * f64::EPSILON * SCENE;
     assert!(

@@ -36,6 +36,7 @@
 #![allow(clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeSet;
 
@@ -75,6 +76,7 @@ fn prism(id: &str, n: u32) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     if n == 4 {
@@ -91,6 +93,7 @@ fn prism(id: &str, n: u32) -> (ProfileDoc, RecipeNodeId) {
             node: profile,
             loops,
             ids,
+            fresh: Vec::new(),
         },
     );
     (doc, extrude)
@@ -145,10 +148,11 @@ impl Twins {
 
         let fourth = ename(
             sq,
-            RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&square, sq, 0, 3)),
+            RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&square, sq, 0, 3).into()),
         );
         let edit = DocEdit::InsertNode {
-            node: Node::fillet(sq, len(0.1), vec![fourth.clone()]),
+            node: Box::new(Node::fillet(sq, len(0.1), vec![fourth.clone()])),
+            fresh: Vec::new(),
         };
         Self {
             square,
@@ -211,7 +215,9 @@ fn a_document_against_its_own_evaluation_answers_as_it_always_did() {
             &editor_core::RefusingReach
         )
         .expect_err("the triangle has no fourth outer segment"),
-        EditError::NameUnresolvedInEvaluation { name: t.fourth },
+        EditError::NameUnresolvedInEvaluation {
+            name: t.triangle.spoken_name(&t.fourth)
+        },
         "the triangle's own tables do not"
     );
 }
@@ -320,10 +326,11 @@ fn the_pairing_is_identity_and_survives_a_new_version_of_the_document() {
 
     let fourth = ename(
         sq,
-        RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&square, sq, 0, 3)),
+        RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&square, sq, 0, 3).into()),
     );
     let edit = DocEdit::InsertNode {
-        node: Node::fillet(sq, len(0.1), vec![fourth]),
+        node: Box::new(Node::fillet(sq, len(0.1), vec![fourth])),
+        fresh: Vec::new(),
     };
     assert!(
         apply_with_names(&moved, &edit, &ev_square, tol, &editor_core::RefusingReach).is_ok(),
@@ -522,6 +529,7 @@ fn a_later_evaluation_of_the_same_document_is_admitted() {
                     node: ext,
                     slot: SlotId::Distance,
                     expr: len(distance),
+                    fresh: Vec::new(),
                 },
                 tol,
                 &editor_core::RefusingReach,
@@ -789,6 +797,7 @@ fn what_the_admitted_later_evaluation_answers() {
                 node: ext,
                 slot: SlotId::Distance,
                 expr: len(2.0),
+                fresh: Vec::new(),
             },
             tol,
             &editor_core::RefusingReach,

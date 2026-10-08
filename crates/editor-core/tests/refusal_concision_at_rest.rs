@@ -119,11 +119,11 @@ const KERNEL_KEYED: &[&str] = &[
 fn minted() -> MintedDeclaration {
     let name = |node| StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(node),
+        node: RecipeNodeId::new(0, node),
         path: vec![RoleSeg::OutputBody],
     };
     MintedDeclaration {
-        mate: RecipeNodeId(tagged(7)),
+        mate: RecipeNodeId::new(0, tagged(7)),
         a: name(1),
         b: name(2),
         class: ContactClass::Rest,
@@ -135,12 +135,13 @@ fn minted() -> MintedDeclaration {
 fn carried(relation: Relation) -> Attribution {
     Attribution::Carried {
         route: Route {
-            through: RecipeNodeId(tagged(4)),
+            through: RecipeNodeId::new(0, tagged(4)),
             of: DocumentId::derive("the bracket part"),
             via: Vec::new(),
         },
         declaration: minted(),
         relation,
+        held: Default::default(),
     }
 }
 
@@ -157,7 +158,7 @@ fn renderings(error: &ValidationError) -> Vec<(&'static str, String)> {
     };
     let product = ProductError::RootInvalid {
         findings: vec![SourceFinding {
-            node: RecipeNodeId(tagged(5)),
+            node: RecipeNodeId::new(0, tagged(5)),
             output: 0,
             errors: vec![error.clone()],
         }],
@@ -228,7 +229,7 @@ fn every_at_rest_finding_renders_to_the_standard() {
             let admitted = CARRIED_ROUTES.contains(&route).then(|| Admission {
                 row: &name,
                 span: CARRIED_FROM,
-                filed: "work/edit/part-refusals-name-documents-by-hex-id.md",
+                filed: "work/doctail/part-refusals-name-documents-by-hex-id.md",
             });
             problems.extend(test_utils::refusal::problems_admitting(
                 &name,

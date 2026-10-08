@@ -2,22 +2,23 @@
 //! little lighthouse — three coaxial drums, each pierced a few
 //! millimetres into the one below — built through the session's op
 //! vocabulary and then LIVED IN parametrically: every proportion hangs
-//! off four document parameters, and the session edits the part by
+//! off four document variables, and the session edits the part by
 //! moving those numbers rather than by touching geometry again.
 //!
 //! The walk covers the whole parametric surface as one continuous
-//! session: the create/replace param partition (`CreateParam` refuses
-//! an existing name typed, `SetParam` refuses an absent one),
+//! session: the create/replace param partition (`DeclareVar` refuses
+//! a taken name, `SetVariable` refuses an absent variable — both in the
+//! edit door's words),
 //! expressions driving slots (`SetSlotExpression`) and the ratified
 //! refuse-with-affordance on a numeric write to a driven slot, display
 //! units as a separate door from values (`SetSlotUnit`), slider
-//! gestures over a slot and over a parameter (previews against
+//! gestures over a slot and over a variable (previews against
 //! scratch, exactly one undo step, a cancel leaving no trace), a
 //! locally-valid-range probe (`ProbeBounds`) and its discard on the
 //! next edit, param edits rippling through evaluation against a closed
 //! form, tree-shaped undo history (an edit after an undo mints a
 //! sibling), and a save/reopen round trip that keeps the expressions,
-//! the parameters and the written units.
+//! the variables and the written units.
 //!
 //! One test, deliberately, following `assembly_walk`: the walk's
 //! readability is part of what it asserts — each stage is a numbered
@@ -33,8 +34,8 @@ use core::f64::consts::PI;
 
 use common::{ang, body_volume, len, len3, near, scl3, session_insert, shape};
 use pncad::document::{
-    Axis3, BooleanOp, Dimension, Doc, DocEdit, DocParam, EditError, ParamName, ProfileProgram,
-    RecipeNodeId, SlotId, StepArg,
+    Axis3, BooleanOp, Dimension, Doc, DocEdit, EditError, FreeVar, ProfileProgram, RecipeNodeId,
+    SlotId, StepArg, VarName,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::MM;
@@ -43,7 +44,7 @@ use viewer::props::{self, SlotDriver, SlotValue, in_written, rendering_unit};
 use viewer::session::{BoundsTarget, DocSession, ProfilePlane, ProfileShape, Refusal, SessionOp};
 use viewer::tree::RowStatus;
 
-/// The lighthouse's proportions, as the parameters are first declared:
+/// The lighthouse's proportions, as the variables are first declared:
 /// base radius, tier ratio, tier height, and how deep each drum sinks
 /// into the one below (what keeps every union seam transversal).
 const BASE_R: f64 = 0.05;
@@ -51,7 +52,7 @@ const TAPER: f64 = 0.6;
 const HEIGHT: f64 = 0.03;
 const EMBED: f64 = 0.005;
 /// The lamp room's height — the one dimension of the part that is NOT
-/// parameter-driven, kept literal so the walk has a slot that carries
+/// variable-driven, kept literal so the walk has a slot that carries
 /// a display unit and a slider of its own.
 const LAMP_H: f64 = 0.012;
 
@@ -108,13 +109,18 @@ fn radius_slot(doc: &Doc<ProfileProgram>, profile: RecipeNodeId) -> SlotId {
         .expect("a circle profile carries a radius slot")
 }
 
-/// A declared parameter's stored value.
-fn param_of(doc: &Doc<ProfileProgram>, name: &ParamName) -> SlotValue {
-    props::param_rows(doc)
+/// A declared variable's stored value.
+fn variable_value(doc: &Doc<ProfileProgram>, name: &VarName) -> SlotValue {
+    props::variable_rows(doc)
         .into_iter()
-        .find(|row| row.name == *name)
-        .expect("the parameter is declared")
+        .find(|row| row.label.name() == Some(name))
+        .expect("the variable is declared")
         .value
+}
+
+/// The variable `doc` names `name`, as the document speaks it.
+fn spoken(doc: &Doc<ProfileProgram>, name: &VarName) -> pncad::document::SpokenVar {
+    doc.spoken_var(common::var_of(doc, name.as_str()))
 }
 
 /// One drum: a circle profile on world XY driven by `radius_expr`,
@@ -167,76 +173,83 @@ fn the_parametric_living_walk() {
     assert!(session.tree_rows().is_empty(), "an empty document");
     assert_eq!(session.history().len(), 1, "a fresh history: root only");
 
-    // ── 2. The user declares the proportions FIRST — four parameters,
-    // each one committed `SetDocParam` edit and one undo step.
-    let base_r = ParamName::from_static("base_r");
-    let taper = ParamName::from_static("taper");
-    let height = ParamName::from_static("height");
-    let embed = ParamName::from_static("embed");
+    // ── 2. The user declares the proportions FIRST — four variables,
+    // each one committed `DeclareVar` edit and one undo step.
+    let base_r = VarName::from_static("base_r");
+    let taper = VarName::from_static("taper");
+    let height = VarName::from_static("height");
+    let embed = VarName::from_static("embed");
     for (name, param) in [
-        (&base_r, DocParam::continuous(Dimension::Length, BASE_R)),
-        (&taper, DocParam::continuous(Dimension::Scalar, TAPER)),
-        (&height, DocParam::continuous(Dimension::Length, HEIGHT)),
-        (&embed, DocParam::continuous(Dimension::Length, EMBED)),
+        (&base_r, FreeVar::continuous(Dimension::Length, BASE_R)),
+        (&taper, FreeVar::continuous(Dimension::Scalar, TAPER)),
+        (&height, FreeVar::continuous(Dimension::Length, HEIGHT)),
+        (&embed, FreeVar::continuous(Dimension::Length, EMBED)),
     ] {
         let before = session.history().len();
-        let outcome = session.perform(SessionOp::CreateParam {
+        let outcome = session.perform(SessionOp::DeclareVar {
             name: name.clone(),
             value: param,
         });
         assert!(outcome.refusal.is_none(), "{name:?}: {:?}", outcome.refusal);
         assert_eq!(outcome.committed.len(), 1);
         assert!(
-            matches!(outcome.committed.first(), Some(DocEdit::SetDocParam { .. })),
+            matches!(outcome.committed.first(), Some(DocEdit::DeclareVar { .. })),
             "the create door authors a declaration"
         );
         assert_eq!(session.history().len(), before + 1, "one undo step");
     }
-    assert_eq!(props::param_rows(session.committed_doc()).len(), 4);
+    assert_eq!(props::variable_rows(session.committed_doc()).len(), 4);
     assert_eq!(
-        param_of(session.committed_doc(), &taper),
+        variable_value(session.committed_doc(), &taper),
         SlotValue::Continuous(TAPER)
     );
 
-    // ── 3. The two doors partition the edit's semantics, typed.
-    // Create over a declared name refuses `ParamExists` carrying what
-    // already stands there — a layer-3 narrowing of an edit that is
-    // create-or-replace, so no door below refuses it. A value write to
-    // an undeclared name — here a typo — is refused by the EDIT door
-    // instead: `DocEdit::SetDocParamValue` carries an existing
-    // declaration forward and says so, `EditError::DocParamNotDeclared`
-    // naming the parameter and the one recourse both doors render
-    // (`editor_core::edit::UNDECLARED_PARAM_RECOURSE`).
+    // ── 3. The two doors partition the edit's semantics, typed, and
+    // both refusals are the edit door's own, forwarded through
+    // `Refusal::Edit`. Create over a declared name is refused by the
+    // declare (`VarNameTaken`, naming the variable holding it). A
+    // value write to a variable the document does not hold is refused
+    // by `DocEdit::SetVarValue`, which carries an existing
+    // declaration forward and says so: `EditError::UnknownVar`, naming
+    // the variable and the one recourse both doors render
+    // (`editor_core::edit::UNKNOWN_VAR_RECOURSE`).
     // Neither commits or mints history.
     let before = session.history().len();
-    let outcome = session.perform(SessionOp::CreateParam {
+    let taper_var = common::var_of(session.committed_doc(), taper.as_str());
+    let outcome = session.perform(SessionOp::DeclareVar {
         name: taper.clone(),
-        value: DocParam::continuous(Dimension::Length, 1.0),
+        value: FreeVar::continuous(Dimension::Length, 1.0),
     });
     match outcome.refusal {
-        Some(Refusal::ParamExists {
-            ref name,
-            dimension,
-        }) => {
-            assert_eq!(name, &taper);
-            assert_eq!(
-                dimension,
-                Dimension::Scalar,
-                "the payload carries the EXISTING declaration's dimension"
-            );
-        }
-        ref other => panic!("expected ParamExists, got {other:?}"),
+        Some(Refusal::Edit(ref error)) => match **error {
+            EditError::VarNameTaken {
+                ref name,
+                ref holder,
+            } => {
+                assert_eq!(name, &taper);
+                assert_eq!(
+                    holder.id(),
+                    taper_var,
+                    "the holder is the standing variable"
+                );
+            }
+            ref other => panic!("expected VarNameTaken, got {other:?}"),
+        },
+        ref other => panic!("expected the declare door's refusal, got {other:?}"),
     }
     assert!(outcome.committed.is_empty(), "a refusal commits nothing");
-    let outcome = session.perform(SessionOp::SetParam {
-        name: ParamName::from_static("tapper"),
+    let absent = pncad::document::VarId::new(0, 0x7461_7070_6572);
+    let outcome = session.perform(SessionOp::SetVariable {
+        var: absent,
         value: SlotValue::Continuous(0.5),
     });
     match outcome.refusal {
         Some(Refusal::Edit(ref error)) => match **error {
-            // The door rides along now; this row is about the NAME.
-            EditError::DocParamNotDeclared { ref name, .. } => assert_eq!(name.as_str(), "tapper"),
-            ref other => panic!("expected DocParamNotDeclared, got {other:?}"),
+            // The door rides along; this row is about the ADDRESS.
+            EditError::UnknownVar { ref var, .. } => {
+                assert_eq!(*var, absent.into());
+            }
+            ref other => panic!("expected UnknownVar, got {other:?}"),
         },
         ref other => panic!("expected the edit door's refusal, got {other:?}"),
     }
@@ -248,7 +261,7 @@ fn the_parametric_living_walk() {
     // what, and the evaluated body is the closed-form cylinder.
     // The literal 0.03 deliberately equals `height`'s value, so the
     // part is coherent even mid-build; were the expression below to
-    // silently not take over, the stage-9/11 parameter ripples would
+    // silently not take over, the stage-9/11 variable ripples would
     // catch the literal standing still.
     let (base_profile, base) = drum(&mut session, "base_r", 0.03);
     drive(&mut session, base, SlotId::Distance, "height");
@@ -260,9 +273,9 @@ fn the_parametric_living_walk() {
     assert_eq!(
         radius_row.driver,
         SlotDriver::Expression {
-            params: vec![base_r.clone()]
+            variables: vec![spoken(session.committed_doc(), &base_r)]
         },
-        "the radius names its driving parameter"
+        "the radius names its driving variable"
     );
     assert_eq!(radius_row.value, Ok(SlotValue::Continuous(BASE_R)));
     let got = body_volume(&mut session, base, tol);
@@ -355,7 +368,7 @@ fn the_parametric_living_walk() {
             input: lamp,
             // 0.08 deliberately equals `height * 3 - embed * 2` today
             // (coherent mid-build); a literal that stayed driving would
-            // be caught by the stage-9/11 parameter ripples.
+            // be caught by the stage-9/11 variable ripples.
             translation: len3([0.0, 0.0, 0.08]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
             rotation_angle: ang(0.0),
@@ -396,7 +409,7 @@ fn the_parametric_living_walk() {
 
     // ── 7. Living in it, first touch: a direct number onto the
     // tower's driven distance refuses with the ratified affordance —
-    // the typed payload names the driving parameter and the value the
+    // the typed payload names the driving variable and the value the
     // slot has today, and the refusal commits nothing.
     let before = session.history().len();
     let outcome = session.perform(SessionOp::SetSlot {
@@ -408,13 +421,17 @@ fn the_parametric_living_walk() {
         Some(Refusal::DrivenByExpression {
             node,
             slot,
-            ref params,
+            ref variables,
             current,
             ..
         }) => {
             assert_eq!(node, tower);
             assert_eq!(slot, SlotId::Distance);
-            assert_eq!(params, &vec![height.clone()], "the affordance's target");
+            assert_eq!(
+                variables,
+                &vec![spoken(session.committed_doc(), &height)],
+                "the affordance's target"
+            );
             assert_eq!(
                 current,
                 Some(SlotValue::Continuous(HEIGHT * 2.0)),
@@ -427,16 +444,16 @@ fn the_parametric_living_walk() {
     assert_eq!(session.history().len(), before, "and mints no history");
 
     // ── 8. About to move `taper`, the user asks how far it can go.
-    // The probe targets the PARAMETER, and on a driven slot it must:
+    // The probe targets the VARIABLE, and on a driven slot it must:
     // the probe refuses an expression-driven slot with the same
     // affordance the numeric write above got, which names the
-    // parameter to ask about instead. The probe is explicit, commits
+    // variable to ask about instead. The probe is explicit, commits
     // nothing,
     // and answers in the session: below, a wall exists (a drum's radius hits zero before
     // taper does — degenerate profile), so the low side is an EDGE
     // strictly inside (0, taper); above, the drums merely re-stack, so
     // the search finds real room past the first reach. A probe on an
-    // undeclared parameter refuses through the same typed door as the
+    // undeclared variable refuses through the same typed door as the
     // value write.
     let outcome = session.perform(SessionOp::ProbeBounds {
         target: BoundsTarget::Slot {
@@ -445,8 +462,12 @@ fn the_parametric_living_walk() {
         },
     });
     match outcome.refusal {
-        Some(Refusal::DrivenByExpression { ref params, .. }) => {
-            assert_eq!(params, &vec![height.clone()], "probe THAT instead");
+        Some(Refusal::DrivenByExpression { ref variables, .. }) => {
+            assert_eq!(
+                variables,
+                &vec![spoken(session.committed_doc(), &height)],
+                "probe THAT instead"
+            );
         }
         ref other => panic!("expected the driven refusal on the probe, got {other:?}"),
     }
@@ -455,15 +476,15 @@ fn the_parametric_living_walk() {
         "a refused probe lands no reading"
     );
     let outcome = session.perform(SessionOp::ProbeBounds {
-        target: BoundsTarget::Param {
-            name: ParamName::from_static("tapper"),
+        target: BoundsTarget::Variable {
+            var: pncad::document::VarId::new(0, 0x7461_7070_6572),
         },
     });
-    assert!(matches!(outcome.refusal, Some(Refusal::NoSuchParam(_))));
+    assert!(matches!(outcome.refusal, Some(Refusal::NoSuchVariable(_))));
     let before = session.history().len();
     let outcome = session.perform(SessionOp::ProbeBounds {
-        target: BoundsTarget::Param {
-            name: taper.clone(),
+        target: BoundsTarget::Variable {
+            var: common::var_of(session.committed_doc(), taper.as_str()),
         },
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -473,8 +494,8 @@ fn the_parametric_living_walk() {
     let bounds = reading.bounds;
     assert_eq!(
         reading.target,
-        BoundsTarget::Param {
-            name: taper.clone()
+        BoundsTarget::Variable {
+            var: common::var_of(session.committed_doc(), taper.as_str())
         }
     );
     assert_eq!(bounds.origin, TAPER, "searched from where the field is");
@@ -499,19 +520,19 @@ fn the_parametric_living_walk() {
         bounds.samples
     );
 
-    // ── 9. The ripple: one parameter moves and the whole part
+    // ── 9. The ripple: one variable moves and the whole part
     // follows. The probe's answer — a statement about the OLD document
     // — is discarded by the edit; the volume tracks the closed form;
     // one undo restores the old geometry exactly; redo returns.
     let v_before = body_volume(&mut session, lighthouse, tol);
-    let outcome = session.perform(SessionOp::SetParam {
-        name: taper.clone(),
+    let outcome = session.perform(SessionOp::SetVariable {
+        var: common::var_of(session.committed_doc(), taper.as_str()),
         value: SlotValue::Continuous(0.7),
     });
     assert_eq!(outcome.committed.len(), 1);
     assert!(matches!(
         outcome.committed.first(),
-        Some(DocEdit::SetDocParamValue { .. })
+        Some(DocEdit::SetVarValue { .. })
     ));
     assert!(
         session.bounds().is_none(),
@@ -524,9 +545,9 @@ fn the_parametric_living_walk() {
 
     assert!(session.perform(SessionOp::Undo).refusal.is_none());
     assert_eq!(
-        param_of(session.committed_doc(), &taper),
+        variable_value(session.committed_doc(), &taper),
         SlotValue::Continuous(TAPER),
-        "undo returns the parameter"
+        "undo returns the variable"
     );
     let v_back = body_volume(&mut session, lighthouse, tol);
     assert_eq!(
@@ -536,7 +557,7 @@ fn the_parametric_living_walk() {
     );
     assert!(session.perform(SessionOp::Redo).refusal.is_none());
     assert_eq!(
-        param_of(session.committed_doc(), &taper),
+        variable_value(session.committed_doc(), &taper),
         SlotValue::Continuous(0.7),
         "redo walks forward along the same branch"
     );
@@ -617,7 +638,7 @@ fn the_parametric_living_walk() {
     assert_eq!(history.entry(fork).children().len(), 2, "a real branch");
     assert!(history.entry(fork).children().contains(&abandoned));
     assert_eq!(
-        param_of(history.entry(abandoned).doc(), &taper),
+        variable_value(history.entry(abandoned).doc(), &taper),
         SlotValue::Continuous(0.7),
         "nothing destroyed: the abandoned branch still holds its edit"
     );
@@ -625,23 +646,23 @@ fn the_parametric_living_walk() {
     let want = lighthouse_volume(BASE_R, TAPER, HEIGHT, EMBED, 0.013);
     assert!(near(got, want), "taller lamp volume {got} vs {want}");
 
-    // ── 11. A slider drag on a PARAMETER — the affordance's landing
+    // ── 11. A slider drag on a VARIABLE — the affordance's landing
     // spot, and the same gesture machinery through its own door. Mid-
     // drag the preview drives the EVALUATION (the picture follows the
     // scratch document), the document is locked against other edits,
-    // and the release commits one `SetDocParamValue`.
+    // and the release commits one `SetVarValue`.
     let before = session.history().len();
     assert!(
         session
-            .perform(SessionOp::BeginParamGesture {
-                name: height.clone()
+            .perform(SessionOp::BeginVariableGesture {
+                var: common::var_of(session.committed_doc(), height.as_str())
             })
             .refusal
             .is_none()
     );
     for value in [0.032, 0.04, 0.036] {
-        let outcome = session.perform(SessionOp::PreviewParamGesture {
-            name: height.clone(),
+        let outcome = session.perform(SessionOp::PreviewVariableGesture {
+            var: common::var_of(session.committed_doc(), height.as_str()),
             value,
         });
         assert!(outcome.committed.is_empty());
@@ -659,15 +680,15 @@ fn the_parametric_living_walk() {
         "the picture follows the newest preview: {previewed}"
     );
     assert_eq!(
-        param_of(session.committed_doc(), &height),
+        variable_value(session.committed_doc(), &height),
         SlotValue::Continuous(HEIGHT),
-        "the committed parameter has not moved"
+        "the committed variable has not moved"
     );
     assert!(
         matches!(
             session
-                .perform(SessionOp::SetParam {
-                    name: embed.clone(),
+                .perform(SessionOp::SetVariable {
+                    var: common::var_of(session.committed_doc(), embed.as_str()),
                     value: SlotValue::Continuous(0.004),
                 })
                 .refusal,
@@ -675,17 +696,17 @@ fn the_parametric_living_walk() {
         ),
         "other edits refuse typed while the drag holds the document"
     );
-    let outcome = session.perform(SessionOp::CommitParamGesture {
-        name: height.clone(),
+    let outcome = session.perform(SessionOp::CommitVariableGesture {
+        var: common::var_of(session.committed_doc(), height.as_str()),
     });
     assert_eq!(outcome.committed.len(), 1, "one edit for the whole drag");
     assert!(matches!(
         outcome.committed.first(),
-        Some(DocEdit::SetDocParamValue { .. })
+        Some(DocEdit::SetVarValue { .. })
     ));
     assert_eq!(session.history().len(), before + 1, "one undo step");
     assert_eq!(
-        param_of(session.committed_doc(), &height),
+        variable_value(session.committed_doc(), &height),
         SlotValue::Continuous(0.036),
         "the LAST previewed value is what the commit recorded"
     );
@@ -695,12 +716,12 @@ fn the_parametric_living_walk() {
     // One undo returns the whole drag; redo re-lands it.
     session.perform(SessionOp::Undo);
     assert_eq!(
-        param_of(session.committed_doc(), &height),
+        variable_value(session.committed_doc(), &height),
         SlotValue::Continuous(HEIGHT)
     );
     session.perform(SessionOp::Redo);
     assert_eq!(
-        param_of(session.committed_doc(), &height),
+        variable_value(session.committed_doc(), &height),
         SlotValue::Continuous(0.036)
     );
 
@@ -740,7 +761,7 @@ fn the_parametric_living_walk() {
     ));
 
     // ── 13. Save, reopen, and everything parametric survives: the
-    // document bit-for-bit, the four parameters at their final values,
+    // document bit-for-bit, the four variables at their final values,
     // the drivers still expressions over the same names, the mm
     // notation still on the lamp's height, and the same solid.
     let v_final = body_volume(&mut session, lighthouse, tol);
@@ -769,7 +790,7 @@ fn the_parametric_living_walk() {
         (&embed, EMBED),
     ] {
         assert_eq!(
-            param_of(session.committed_doc(), name),
+            variable_value(session.committed_doc(), name),
             SlotValue::Continuous(want),
             "{name:?} survives the round trip"
         );
@@ -778,7 +799,7 @@ fn the_parametric_living_walk() {
     assert_eq!(
         distance.driver,
         SlotDriver::Expression {
-            params: vec![height.clone()]
+            variables: vec![spoken(session.committed_doc(), &height)]
         },
         "the tower's distance is still height-driven"
     );

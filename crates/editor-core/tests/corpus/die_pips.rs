@@ -38,7 +38,7 @@
 //! nothing. At M5 a ball∪ball tool would have broken that claim — the
 //! union only "worked" because the tree hid a pair the unconditional
 //! conic arm refused on. **The M6 rider retired that divergence** as
-//! this paragraph predicted it would: `bool_circle_curved_clearance`
+//! this paragraph predicted it would: `bool_conic_curved_clearance`
 //! proves far circle-vs-curved pairs a definite miss, so the two
 //! strategies agree on disjoint balls again. The document keeps ONE
 //! pip anyway — the multi-ball tool adds twenty nodes and no new
@@ -74,6 +74,8 @@
 //! document pins is validity (tier 1 + closed) at every ε row, under
 //! Interval, and through BOTH sweep strategies.
 
+use editor_core::ExtrudeSide;
+use editor_core::Formula;
 use editor_core::{
     Axis3, BooleanOp, DocEdit, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep,
     ProgramTarget, SlotId,
@@ -113,6 +115,7 @@ pub fn document() -> CorpusDoc {
     let cube = r.insert(Node::Extrude {
         profile: cube_p,
         distance: len(DIE_L),
+        side: ExtrudeSide::Along,
     });
 
     // ---- the master ball, poled along the +Z face normal ----
@@ -155,7 +158,7 @@ pub fn document() -> CorpusDoc {
         op: BooleanOp::Subtract,
         a: cube,
         b: pip,
-        declare: None,
+        declare: Vec::new(),
     });
 
     CorpusDoc {
@@ -174,6 +177,7 @@ pub fn document() -> CorpusDoc {
             node: pip,
             slot: SlotId::Translation(Axis3::Y),
             expr: len(0.53125),
+            fresh: Vec::new(),
         },
         bump_root: pip,
     }
@@ -182,7 +186,7 @@ pub fn document() -> CorpusDoc {
 /// The half-disc loop PROGRAM: the bulge-1 semicircle pole to pole,
 /// closed by its on-axis diameter — three steps, both vertices on the
 /// revolve axis.
-pub fn half_disc_program() -> LoopProgram {
+pub fn half_disc_program() -> LoopProgram<Formula> {
     LoopProgram::Chain(vec![
         ProgramStep::At(len2([0.0, -PIP_R])),
         ProgramStep::ArcTo(ProgramArcData::Bulge {

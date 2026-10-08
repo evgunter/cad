@@ -12,8 +12,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{ang, len, scl};
+use editor_core::ExtrudeSide;
 use editor_core::{
-    Dimension, Doc, DocEdit, DocParam, Expr, Node, NodeChange, ParamName, RecipeNodeId, eval,
+    Dimension, Doc, DocEdit, Formula, FreeVar, Node, NodeChange, RecipeNodeId, VarName, eval,
 };
 use geom_core::Tol;
 
@@ -21,7 +22,31 @@ use geom_core::Tol;
 struct FakeProfile(&'static str);
 // The v4 payload trait: fake payloads take the slot-free, check-free
 // defaults (LIB-SWITCH §4c — exactly the retired opaque behavior).
-impl editor_core::ProfilePayload for FakeProfile {}
+impl editor_core::SlotPayload<editor_core::VarId> for FakeProfile {}
+impl editor_core::SlotPayload<editor_core::Formula> for FakeProfile {}
+impl editor_core::ProfilePayload for FakeProfile {
+    type Authored = Self;
+    fn lower<E>(
+        authored: &Self,
+        _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::VarId, E>,
+    ) -> Result<Self, E> {
+        Ok(authored.clone())
+    }
+    fn authored_with(
+        &self,
+        _: &mut dyn FnMut(editor_core::VarId, editor_core::Dimension) -> editor_core::Formula,
+    ) -> Self {
+        self.clone()
+    }
+    fn drawn_pieces(
+        &self,
+        _env: &editor_core::VarEnv<f64>,
+        _tol: geom_core::Tol,
+    ) -> Result<std::collections::BTreeSet<editor_core::ProfileEdgeRef>, editor_core::ProgramRefusal>
+    {
+        Ok(std::collections::BTreeSet::new())
+    }
+}
 
 type TDoc = Doc<FakeProfile>;
 type TEdit = DocEdit<FakeProfile>;
@@ -96,7 +121,7 @@ fn step(doc: TDoc, log: &mut Vec<TEdit>, edit: TEdit) -> (TDoc, Option<RecipeNod
     (applied.doc, applied.record.minted)
 }
 
-fn transform_node(pip: RecipeNodeId, p: &([f64; 3], [f64; 3], f64)) -> Node<FakeProfile> {
+fn transform_node(pip: RecipeNodeId, p: &([f64; 3], [f64; 3], f64)) -> Node<FakeProfile, Formula> {
     let (t, r, a) = p;
     Node::transform(
         pip,
@@ -108,12 +133,12 @@ fn transform_node(pip: RecipeNodeId, p: &([f64; 3], [f64; 3], f64)) -> Node<Fake
     )
 }
 
-fn subtract_node(a: RecipeNodeId, b: RecipeNodeId) -> Node<FakeProfile> {
+fn subtract_node(a: RecipeNodeId, b: RecipeNodeId) -> Node<FakeProfile, Formula> {
     Node::Boolean {
         op: editor_core::BooleanOp::Subtract,
         a,
         b,
-        declare: None,
+        declare: Vec::new(),
     }
 }
 
@@ -126,9 +151,9 @@ struct Authored {
 }
 
 fn depth_param() -> TEdit {
-    TEdit::SetDocParam {
-        name: ParamName::from_static("pip_depth"),
-        value: DocParam::continuous(Dimension::Length, 0.002),
+    TEdit::DeclareVar {
+        name: VarName::from_static("pip_depth"),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.002)),
     }
 }
 
@@ -145,34 +170,40 @@ fn author_theirs() -> Authored {
         doc,
         &mut log,
         TEdit::InsertNode {
-            node: Node::Profile(FakeProfile("square-20mm")),
+            node: Box::new(Node::Profile(FakeProfile("square-20mm"))),
+            fresh: Vec::new(),
         },
     );
     let (doc, cube) = step(
         doc,
         &mut log,
         TEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: cube_p.unwrap(),
                 distance: len(2.0 * HALF),
-            },
+                side: ExtrudeSide::Along,
+            }),
+            fresh: Vec::new(),
         },
     );
     let (doc, pip_p) = step(
         doc,
         &mut log,
         TEdit::InsertNode {
-            node: Node::Profile(FakeProfile("circle-2mm")),
+            node: Box::new(Node::Profile(FakeProfile("circle-2mm"))),
+            fresh: Vec::new(),
         },
     );
     let (mut doc, pip_e) = step(
         doc,
         &mut log,
         TEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: pip_p.unwrap(),
-                distance: Expr::param(ParamName::from_static("pip_depth"), Dimension::Length),
-            },
+                distance: Formula::named(VarName::from_static("pip_depth"), Dimension::Length),
+                side: ExtrudeSide::Along,
+            }),
+            fresh: Vec::new(),
         },
     );
     let pip_e = pip_e.unwrap();
@@ -183,14 +214,16 @@ fn author_theirs() -> Authored {
             doc,
             &mut log,
             TEdit::InsertNode {
-                node: transform_node(pip_e, &p),
+                node: Box::new(transform_node(pip_e, &p)),
+                fresh: Vec::new(),
             },
         );
         let (d3, cut) = step(
             d2,
             &mut log,
             TEdit::InsertNode {
-                node: subtract_node(body, placed.unwrap()),
+                node: Box::new(subtract_node(body, placed.unwrap())),
+                fresh: Vec::new(),
             },
         );
         doc = d3;
@@ -212,14 +245,16 @@ fn author_mine() -> Authored {
         TDoc::empty_derived("review_m4_pr1_die", Tol::witness()),
         &mut log,
         TEdit::InsertNode {
-            node: Node::Profile(FakeProfile("square-20mm")),
+            node: Box::new(Node::Profile(FakeProfile("square-20mm"))),
+            fresh: Vec::new(),
         },
     );
     let (doc, pip_p) = step(
         doc,
         &mut log,
         TEdit::InsertNode {
-            node: Node::Profile(FakeProfile("circle-2mm")),
+            node: Box::new(Node::Profile(FakeProfile("circle-2mm"))),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = step(doc, &mut log, depth_param());
@@ -227,20 +262,24 @@ fn author_mine() -> Authored {
         doc,
         &mut log,
         TEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: pip_p.unwrap(),
-                distance: Expr::param(ParamName::from_static("pip_depth"), Dimension::Length),
-            },
+                distance: Formula::named(VarName::from_static("pip_depth"), Dimension::Length),
+                side: ExtrudeSide::Along,
+            }),
+            fresh: Vec::new(),
         },
     );
     let (mut doc, cube) = step(
         doc,
         &mut log,
         TEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: cube_p.unwrap(),
                 distance: len(2.0 * HALF),
-            },
+                side: ExtrudeSide::Along,
+            }),
+            fresh: Vec::new(),
         },
     );
     let pip_e = pip_e.unwrap();
@@ -250,7 +289,8 @@ fn author_mine() -> Authored {
             doc,
             &mut log,
             TEdit::InsertNode {
-                node: transform_node(pip_e, &p),
+                node: Box::new(transform_node(pip_e, &p)),
+                fresh: Vec::new(),
             },
         );
         doc = d2;
@@ -263,7 +303,8 @@ fn author_mine() -> Authored {
             doc,
             &mut log,
             TEdit::InsertNode {
-                node: subtract_node(body, t),
+                node: Box::new(subtract_node(body, t)),
+                fresh: Vec::new(),
             },
         );
         doc = d2;
@@ -298,8 +339,16 @@ fn assert_role_isomorphic(theirs: &Authored, mine: &Authored) {
         assert_eq!(mapped, mn.inputs(), "inputs of {t_id:?}→{m_id:?}");
         assert_eq!(tn.slots(), mn.slots());
         for slot in tn.slots() {
-            let tv = eval::<f64>(tn.expr(slot).unwrap(), &theirs.doc.param_env()).unwrap();
-            let mv = eval::<f64>(mn.expr(slot).unwrap(), &mine.doc.param_env()).unwrap();
+            let tv = eval::<f64>(
+                &theirs.doc.slot_expansion(t_id, slot).unwrap(),
+                &theirs.doc.var_env(),
+            )
+            .unwrap();
+            let mv = eval::<f64>(
+                &mine.doc.slot_expansion(m_id, slot).unwrap(),
+                &mine.doc.var_env(),
+            )
+            .unwrap();
             assert_eq!(tv.to_bits(), mv.to_bits(), "slot {slot:?} of {t_id:?}");
         }
     }
@@ -315,46 +364,56 @@ fn r7_die_reauthored_different_order_isomorphic_and_diff_exact() {
     // Replay identity holds for BOTH edit orders (PartialEq + the
     // stricter role-isomorphism check against self is implied).
     assert_eq!(
-        TDoc::replay(
-            theirs.doc.id(),
-            &editor_core::LoggedEdit::bare_all(&theirs.log),
-            Tol::witness()
-        )
-        .unwrap(),
+        TDoc::replay(theirs.doc.id(), &theirs.log.to_vec(), Tol::witness()).unwrap(),
         theirs.doc
     );
     assert_eq!(
-        TDoc::replay(
-            mine.doc.id(),
-            &editor_core::LoggedEdit::bare_all(&mine.log),
-            Tol::witness()
-        )
-        .unwrap(),
+        TDoc::replay(mine.doc.id(), &mine.log.to_vec(), Tol::witness()).unwrap(),
         mine.doc
     );
 
     // The two authorings are payload-isomorphic under relabeling.
     assert_role_isomorphic(&theirs, &mine);
 
-    // The diff is EXACTLY the relabeling residue. The first insert is
-    // one edit from one mint in both authorings, so it is one id and
-    // unchanged; from the second on the edit sequences differ, so the
-    // two share no other id: the rest of theirs Removed in its order,
-    // the rest of mine Added in its.
-    assert_eq!(
-        theirs.doc.order()[0],
-        mine.doc.order()[0],
-        "one first edit, one first id"
+    // The diff is EXACTLY the relabeling residue. Theirs opens with the
+    // declare and mine with an insert, so the two sequences part at the
+    // first minting edit and share no id: every node of theirs Removed
+    // in its order, every node of mine Added in its, and the one
+    // variable, declared at a different point of each chain, two ids.
+    assert_ne!(
+        theirs.doc.ids()[0],
+        mine.doc.ids()[0],
+        "two first edits, two first ids"
     );
     let d = theirs.doc.diff(&mine.doc);
-    let expected: Vec<NodeChange> = theirs.doc.order()[1..]
+    let expected: Vec<NodeChange> = theirs
+        .doc
+        .ids()
         .iter()
         .copied()
         .map(NodeChange::Removed)
-        .chain(mine.doc.order()[1..].iter().copied().map(NodeChange::Added))
+        .chain(mine.doc.ids().iter().copied().map(NodeChange::Added))
         .collect();
     assert_eq!(d.nodes, expected, "diff is exactly the relabeling residue");
-    assert!(d.params.is_empty(), "same params");
-    assert!(d.order_changed, "the orders share only the first id");
+    let depth = |a: &Authored| a.doc.var_named("pip_depth").expect("declared");
+    // `self`'s as `self` declared them, then `other`'s added ones: the
+    // two chains share no id, so every variable — the one named one
+    // and each typed value's own — is one of each side's.
+    let expected: Vec<editor_core::VarId> = theirs
+        .doc
+        .var_ids()
+        .into_iter()
+        .chain(mine.doc.var_ids())
+        .collect();
+    assert_eq!(d.vars, expected, "every variable under two minted ids");
+    assert!(
+        d.vars.contains(&depth(&theirs)) && d.vars.contains(&depth(&mine)),
+        "the one named variable under two minted ids"
+    );
+    assert_eq!(
+        theirs.doc.var_scope(),
+        mine.doc.var_scope(),
+        "and one name at one kind"
+    );
     assert!(!d.epsilon_changed && !d.metadata_changed);
 }

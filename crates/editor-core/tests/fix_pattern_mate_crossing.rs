@@ -32,11 +32,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeSet;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EvalOptions, Expr,
+    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EvalOptions, Formula,
     MateFrame, MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
     content_pin, split,
 };
@@ -59,6 +61,7 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -80,12 +83,18 @@ fn legs_reach() -> EvalOptions {
     fixture::resolver::with_resolver(store)
 }
 
-fn mate_frame(origin: [f64; 3]) -> MateFrame {
-    MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
+fn mate_frame(origin: [f64; 3]) -> MateFrame<Formula> {
+    MateFrame::authored(
+        origin,
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        geom_core::Tol::witness(),
+    )
+    .expect("a definite frame")
 }
 
 /// A determining `Rest` mate seating `b`'s bottom onto `a`.
-fn seat(a: StableName, b: StableName) -> Node<editor_core::ProfileProgram> {
+fn seat(a: StableName, b: StableName) -> AuthoredNode {
     Node::Mate {
         a: crate::fixture::head(a),
         b: crate::fixture::head(b),
@@ -100,7 +109,7 @@ fn seat(a: StableName, b: StableName) -> Node<editor_core::ProfileProgram> {
     }
 }
 
-fn linear(spacing: f64) -> PatternKind {
+fn linear(spacing: f64) -> PatternKind<Formula> {
     PatternKind::Linear {
         direction: [scl(1.0), scl(0.0), scl(0.0)],
         spacing: len(spacing),
@@ -136,19 +145,20 @@ fn four_legs(
         doc,
         Node::Pattern {
             input: leg,
-            count: Expr::count(4),
+            count: Formula::count(4),
             kind: linear(2.0),
         },
     );
     let (top_ref, top_body) = block_ref("fix-xs-top");
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat(
+            node: Box::new(seat(
                 in_copy(pattern, COPY, in_part(leg, leg_body, CapEnd::End)),
                 in_part(top, top_body, CapEnd::Start),
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     (doc, leg, pattern, top, mate.unwrap(), leg_body)
@@ -231,7 +241,7 @@ fn a_pattern_headed_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
         };
         assert_eq!(
             (root, instance, cut_side),
-            (leg, top, root_is_cut),
+            (doc.spoken(leg), doc.spoken(top), root_is_cut),
             "cutting {what} names the root, the instance across the tear, \
              and which side the root is on"
         );
@@ -259,7 +269,7 @@ fn a_pattern_headed_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
     };
     assert_eq!(
         (consumer, input, consumer_is_cut),
-        (pattern, leg, true),
+        (doc.spoken(pattern), doc.spoken(leg), true),
         "the pattern is the cut-side consumer and its instance input is the severed end"
     );
 
@@ -351,7 +361,7 @@ fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing()
         doc,
         Node::Pattern {
             input: leg,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: linear(2.0),
         },
     );
@@ -359,12 +369,24 @@ fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing()
         doc,
         Node::Pattern {
             input: inner,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: linear(5.0),
         },
     );
     let (top_ref, top_body) = block_ref("fix-xs-n-top");
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
+    // The top sits on a gauge of its own, so once the cut side is read
+    // at the instance left behind — on the world — the mate still
+    // declares rather than starting to place (A4's refusal for that is
+    // `SplitError::WouldStartPlacing`).
+    let (doc, gauge) = insert(doc, Node::gauge(None, editor_core::Placement::IDENTITY));
+    let (doc, _) = crate::fixture::step(
+        doc,
+        editor_core::DocEdit::SetGauge {
+            node: top,
+            gauge: Some(gauge),
+        },
+    );
     // The insert door refuses a head that resolves to no member, so
     // the mate is authored the way such a head arises after insert
     // (`insert_mate_with_stranded_head`).
@@ -429,7 +451,7 @@ fn a_stranded_operand_over_an_instance_head_refuses_at_the_door() {
     let (leg_ref, leg_body) = block_ref("fix-xs-st-leg");
     let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
     let (top_ref, top_body) = block_ref("fix-xs-st-top");
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let mut node = seat(
         in_part(leg, leg_body, CapEnd::End),
         in_part(top, top_body, CapEnd::Start),
@@ -440,7 +462,10 @@ fn a_stranded_operand_over_an_instance_head_refuses_at_the_door() {
     *a = crate::fixture::head_at(stranger, (*a.name).clone());
     let err = doc
         .apply(
-            &DocEdit::InsertNode { node },
+            &DocEdit::InsertNode {
+                node: Box::new(node),
+                fresh: Vec::new(),
+            },
             Tol::witness(),
             &editor_core::RefusingReach,
         )

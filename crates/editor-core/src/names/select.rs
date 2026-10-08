@@ -47,7 +47,7 @@
 use geom_core::{Band, Decide, Tol};
 
 use crate::eval::Evaluation;
-use crate::expr::ParamEnv;
+use crate::expr::VarEnv;
 use crate::node::RecipeNodeId;
 
 use super::geompred::{self, GeomPred, SelectRefusal};
@@ -153,6 +153,8 @@ seg_tags! {
     FromB,
     FromMember,
     Seam,
+    Crossing,
+    EdgeCrossing,
     Merged,
     Fragment,
     // Split
@@ -169,6 +171,8 @@ seg_tags! {
     TrimEdge,
     FootVertex,
     EndArc,
+    Mitre,
+    TurnFoot,
     BandFace,
     BandTrim,
     BandFoot,
@@ -249,6 +253,8 @@ impl SegTag {
             RoleSeg::FromB(..) => Self::FromB,
             RoleSeg::FromMember { .. } => Self::FromMember,
             RoleSeg::Seam { .. } => Self::Seam,
+            RoleSeg::Crossing { .. } => Self::Crossing,
+            RoleSeg::EdgeCrossing { .. } => Self::EdgeCrossing,
             RoleSeg::Merged(..) => Self::Merged,
             RoleSeg::Fragment(..) => Self::Fragment,
             RoleSeg::SplitBody(..) => Self::SplitBody,
@@ -263,6 +269,8 @@ impl SegTag {
             RoleSeg::TrimEdge { .. } => Self::TrimEdge,
             RoleSeg::FootVertex { .. } => Self::FootVertex,
             RoleSeg::EndArc { .. } => Self::EndArc,
+            RoleSeg::Mitre { .. } => Self::Mitre,
+            RoleSeg::TurnFoot { .. } => Self::TurnFoot,
             RoleSeg::BandFace(..) => Self::BandFace,
             RoleSeg::BandTrim { .. } => Self::BandTrim,
             RoleSeg::BandFoot(..) => Self::BandFoot,
@@ -304,6 +312,8 @@ impl SegTag {
             // with, and this segment versions with the union's.
             | Self::FromMember
             | Self::Seam
+            | Self::Crossing
+            | Self::EdgeCrossing
             | Self::Merged
             | Self::Fragment => OpGroup::Boolean,
             Self::SplitBody
@@ -318,6 +328,8 @@ impl SegTag {
             | Self::TrimEdge
             | Self::FootVertex
             | Self::EndArc
+            | Self::Mitre
+            | Self::TurnFoot
             | Self::BandFace
             | Self::BandTrim
             | Self::BandFoot
@@ -364,6 +376,8 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::FromB(_)
         | RoleSeg::FromMember { .. }
         | RoleSeg::Seam { .. }
+        | RoleSeg::Crossing { .. }
+        | RoleSeg::EdgeCrossing { .. }
         | RoleSeg::Merged(_)
         | RoleSeg::Fragment(
             Qualifier::Borders(_)
@@ -377,6 +391,8 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::TrimEdge { .. }
         | RoleSeg::FootVertex { .. }
         | RoleSeg::EndArc { .. }
+        | RoleSeg::Mitre { .. }
+        | RoleSeg::TurnFoot { .. }
         | RoleSeg::BandFace(_)
         | RoleSeg::BandFoot(_)
         | RoleSeg::BandCross { .. }
@@ -417,6 +433,8 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::FromTarget(n)
         | RoleSeg::BlendFace(n)
         | RoleSeg::CornerFace(n)
+        | RoleSeg::Mitre { vertex: n }
+        | RoleSeg::TurnFoot { vertex: n }
         | RoleSeg::BandFoot(n)
         | RoleSeg::BandCut(n)
         | RoleSeg::Inner(n)
@@ -429,7 +447,8 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::BandTrim { edge: n, .. }
         | RoleSeg::Instance { of: n, .. }
         | RoleSeg::InPart { of: n } => vec![n],
-        RoleSeg::Seam { a, b } => vec![a, b],
+        RoleSeg::Seam { a, b } | RoleSeg::EdgeCrossing { a, b, .. } => vec![a, b],
+        RoleSeg::Crossing { edge, face, .. } => vec![edge, face],
         RoleSeg::TrimEdge { edge, support } => vec![edge, support],
         RoleSeg::FootVertex { vertex, support } => vec![vertex, support],
         RoleSeg::EndArc { vertex, edge } => vec![vertex, edge],
@@ -872,9 +891,9 @@ pub fn select<T: Decide>(
 ///
 /// # `params`
 ///
-/// [`GeomPred::DatumDistance`] states its value as an [`Expr`](crate::Expr), which
+/// [`GeomPred::DatumDistance`] states its value as a [`Formula`](crate::Formula), which
 /// cannot be evaluated without the document's parameter bindings
-/// (`Doc::param_env`). The design's signature omits this argument; it
+/// (`Doc::var_env`). The design's signature omits this argument; it
 /// is added here rather than degrading the value to a bare float,
 /// because a selection rule written against a named parameter is the
 /// whole point of `Expr` being the value type (SELECT-DESIGN §5).
@@ -895,7 +914,7 @@ pub fn select_where<T: Decide>(
     node: RecipeNodeId,
     sel: &Selector,
     geom: &[GeomPred],
-    params: &ParamEnv<T>,
+    params: &VarEnv<T>,
     tol: Tol,
 ) -> Result<Vec<StableName>, SelectRefusal> {
     // No value, no names: `select`'s doc.

@@ -1,7 +1,8 @@
 //! The expression sublanguage v1 (spec D4, ratified forks F1 + F7).
 //!
-//! A small typed AST: dimensioned literals, document-parameter refs,
-//! arithmetic, trig, min/max. **No conditionals, no iteration, no
+//! A small typed AST: variable readers, exact constants (rationals,
+//! integers and `turn`), arithmetic, trig, min/max. The stored form
+//! holds no float (VARIABLES-DESIGN VR5): a written value is a variable. **No conditionals, no iteration, no
 //! user-defined functions** — total by construction (F7); case analysis
 //! belongs to structural parameters.
 //!
@@ -14,6 +15,10 @@
 //! exponent lattice is a purely additive future extension, so the
 //! refusal forecloses nothing; it is pinned by test.
 //!
+//! One tree serves two forms: the stored [`Expr`] reads every variable
+//! by id, and the authored [`crate::Formula`] may also write a name,
+//! which the edit door lowers to an id (VR6).
+//!
 //! Units erase at the evaluation boundary (GQ5): [`eval`] returns raw
 //! `T` in kernel units (meters/radians); display units are document
 //! presentation metadata, not this layer's concern.
@@ -21,8 +26,11 @@
 use geom_core::Real;
 use geom_core::predicate::{Band, Decide, Sign};
 
-use crate::doc::ParamName;
+use crate::doc::VarName;
 use crate::node::{RecipeNodeId, SlotId};
+use crate::var::VarId;
+
+pub use crate::ratio::Ratio;
 
 /// The v1 quantity-dimension lattice (ratified F1, GQ5's banked
 /// decision): four dimensions, no products of dimensions.
@@ -168,25 +176,41 @@ pub enum DimensionError {
         /// The operand's actual dimension.
         found: Dimension,
     },
-    /// A literal constructed with [`Dimension::Count`] — Count literals
-    /// are integers, made by [`Expr::count`].
+    /// A written quantity constructed with [`Dimension::Count`] — a
+    /// count is an integer, made by [`crate::Formula::count`].
     LiteralCountIsInteger,
-    /// A non-finite (NaN/±inf) literal — refused at construction (the
-    /// M4 PR 1 review's ruled "door 1": the kernel never produces
-    /// non-finite values legitimately, so admitting one into recipe
-    /// data would smuggle poison past every downstream check).
+    /// A non-finite (NaN/±inf) written quantity — refused at
+    /// construction (the M4 PR 1 review's ruled "door 1": the kernel
+    /// never produces non-finite values legitimately, so admitting one
+    /// into recipe data would smuggle poison past every downstream
+    /// check).
     NonFiniteLiteral,
-    /// A literal's display unit measures a different quantity than the
-    /// literal's dimension (`mm` can only suffix a `Length`; `deg` only
-    /// an `Angle`; `Scalar` literals take no unit). LIB-SWITCH §4g: the
+    /// A written quantity's display unit measures a different quantity
+    /// than its dimension (`mm` can only suffix a `Length`; `deg` only
+    /// an `Angle`; a `Scalar` takes no unit). LIB-SWITCH §4g: the
     /// display unit is presentation metadata, but a MISMATCHED one is
     /// corrupt data, refused at construction like every other dimension
     /// fault.
     DisplayUnitMismatch {
         /// The dimension the unit's quantity implies.
         unit: Dimension,
-        /// The literal's declared dimension.
+        /// The quantity's declared dimension.
         literal: Dimension,
+    },
+    /// A rational constant with a zero denominator, or whose reduced
+    /// numerator or denominator exceeds 2^53 ([`Ratio`]): both
+    /// operands of its one division must be exact doubles.
+    ConstantOutOfRange {
+        /// The constant as written.
+        text: String,
+    },
+    /// A persisted rational constant that is not in lowest terms: the
+    /// load door reads the one spelling each constant has.
+    RatioNotReduced {
+        /// The numerator as written.
+        num: i64,
+        /// The denominator as written.
+        den: u64,
     },
     /// A persisted display-unit symbol outside quantity's closed table
     /// (the load door's strict-vocabulary refusal; the wire form stores
@@ -247,13 +271,21 @@ impl core::fmt::Display for DimensionError {
                 )
             }
             Self::LiteralCountIsInteger => {
-                f.write_str("a count literal must be an integer (use Expr::count)")
+                f.write_str("a count literal must be an integer (use Formula::count)")
             }
             Self::NonFiniteLiteral => f.write_str("a literal value must be finite"),
             Self::DisplayUnitMismatch { unit, literal } => write!(
                 f,
                 "the display unit measures {unit} but the literal is {literal}"
             ),
+            Self::ConstantOutOfRange { text } => write!(
+                f,
+                "the constant {text} is out of range: a constant is a ratio of integers of \
+                 at most 2^53, with a non-zero denominator"
+            ),
+            Self::RatioNotReduced { num, den } => {
+                write!(f, "the constant {num}/{den} is not in lowest terms")
+            }
             Self::UnknownDisplayUnit { symbol } => {
                 write!(f, "unknown display unit {symbol:?}")
             }
@@ -268,6 +300,21 @@ impl core::fmt::Display for DimensionError {
 
 impl core::error::Error for DimensionError {}
 
+/// **Why a name leaf did not lower** ([`crate::Formula::lower`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Unlowered {
+    /// No variable holds the name.
+    Unheld,
+    /// The variable holding the name is of kind `declared`, which does
+    /// not read at the dimension the leaf reads it at.
+    Kind {
+        /// The variable holding the name.
+        var: VarId,
+        /// Its kind.
+        declared: crate::VarKind,
+    },
+}
+
 /// A dimension-checked expression tree (ratified F7 shape).
 ///
 /// Construction goes through the smart constructors below, which run
@@ -281,13 +328,306 @@ impl core::error::Error for DimensionError {}
 /// associate to the left, so a flat chain of more than 128 terms
 /// (`a + b + …`) refuses; grouped (`(a + b) + (c + d)`), the same terms
 /// nest less.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Expr {
+///
+/// **Two forms share the tree**, and differ only in the leaves `L`
+/// adds to the shared ones: [`Expr`] is the stored form and adds none,
+/// [`crate::Formula`] is the authored form and adds the leaves only an
+/// author writes (VARIABLES-DESIGN VR6). The edit door lowers the one
+/// to the other, so a stored document cannot hold an authored leaf.
+#[derive(Clone, PartialEq)]
+pub struct ExprTree<L: LeafSet> {
     dim: Dimension,
     /// How many levels the tree nests, this node included (a leaf is
     /// 1); never above [`MAX_NESTING`].
     nesting: u8,
-    kind: ExprKind,
+    kind: ExprKind<L>,
+}
+
+/// The stored expression: no leaf beyond the shared ones, so every
+/// variable it reads is read by id.
+pub type Expr = ExprTree<StoredLeaf>;
+
+impl<L: LeafSet> core::fmt::Debug for ExprTree<L> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self { dim, nesting, kind } = self;
+        f.debug_struct(L::FORM)
+            .field("dim", dim)
+            .field("nesting", nesting)
+            .field("kind", kind)
+            .finish()
+    }
+}
+
+mod sealed {
+    pub trait Sealed {}
+}
+
+/// **The leaves one form of [`ExprTree`] adds** to the shared ones —
+/// sealed: the forms are [`Expr`] and [`crate::Formula`], and no other.
+pub trait LeafSet: Clone + core::fmt::Debug + PartialEq + sealed::Sealed {
+    /// The form's type name, as `Debug` writes it.
+    const FORM: &'static str;
+    /// The text of one such leaf, read at `dim` ([`unparse`]).
+    fn write(&self, dim: Dimension, out: &mut String);
+    /// Pushes the bits of every float the leaf holds
+    /// ([`crate::Formula::literal_bits`]).
+    fn bits(&self, out: &mut Vec<u64>);
+    /// Whether the leaf's text opens with a minus sign, so it binds as
+    /// a negation does ([`unparse`]).
+    fn negative(&self) -> bool;
+    /// Whether the leaf's text is a number, whose sign a minus written
+    /// before it is read as ([`unparse`]).
+    fn numeric(&self) -> bool;
+    /// The leaf as an author writes it.
+    fn authored(&self) -> AuthoredLeaf;
+    /// The leaf's value, read at the continuous dimension `dim`.
+    ///
+    /// # Errors
+    ///
+    /// A leaf only the edit door resolves ([`EvalError::Unlowered`]).
+    fn value<T: Real>(&self, dim: Dimension) -> Result<T, EvalError>;
+    /// The leaf's value as a count.
+    ///
+    /// # Errors
+    ///
+    /// A leaf only the edit door resolves ([`EvalError::Unlowered`]), or
+    /// a continuous one.
+    fn count(&self, dim: Dimension) -> Result<i64, EvalError>;
+}
+
+/// **What a node's slot holds**, in either form: the stored
+/// [`VarId`] (VARIABLES-DESIGN VR4), or the authored [`crate::Formula`]
+/// an edit carries. Sealed, as [`LeafSet`] is; the node, the program
+/// and the measure are generic over it, so one declaration serves the
+/// form a door is handed and the form the document stores. A stored
+/// slot carries no dimension of its own: its address fixes the one it
+/// is read at, and its variable's kind the one it holds.
+pub trait Slot:
+    Clone
+    + core::fmt::Debug
+    + PartialEq
+    + serde::Serialize
+    + for<'de> serde::Deserialize<'de>
+    + sealed::Sealed
+{
+    /// The variables it reads by id, in pre-order.
+    fn var_ids(&self, out: &mut Vec<VarId>);
+    /// How many levels the value nests, itself included: a stored
+    /// slot is one leaf.
+    fn nesting(&self) -> usize;
+    /// Bit-semantic equality (D7): `PartialEq`, with every float the
+    /// value holds compared by its bits.
+    fn bit_eq(&self, other: &Self) -> bool;
+}
+
+impl<L: LeafSet> sealed::Sealed for ExprTree<L> {}
+
+impl<L: LeafSet> Slot for ExprTree<L>
+where
+    Self: serde::Serialize + for<'de> serde::Deserialize<'de>,
+{
+    fn var_ids(&self, out: &mut Vec<VarId>) {
+        let mut reads = Vec::new();
+        ExprTree::var_reads(self, &mut reads);
+        out.extend(reads.into_iter().map(|(var, _)| var));
+    }
+    fn nesting(&self) -> usize {
+        usize::from(self.nesting)
+    }
+    fn bit_eq(&self, other: &Self) -> bool {
+        ExprTree::bit_eq(self, other)
+    }
+}
+
+impl sealed::Sealed for VarId {}
+
+impl Slot for VarId {
+    fn var_ids(&self, out: &mut Vec<VarId>) {
+        out.push(*self);
+    }
+    fn nesting(&self) -> usize {
+        1
+    }
+    fn bit_eq(&self, other: &Self) -> bool {
+        self == other
+    }
+}
+
+/// The stored form's own leaves: there are none, so a stored tree
+/// holds only the shared ones.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StoredLeaf {}
+
+impl sealed::Sealed for StoredLeaf {}
+
+impl LeafSet for StoredLeaf {
+    const FORM: &'static str = "Expr";
+    fn write(&self, _dim: Dimension, _out: &mut String) {
+        match *self {}
+    }
+    fn bits(&self, _out: &mut Vec<u64>) {
+        match *self {}
+    }
+    fn negative(&self) -> bool {
+        match *self {}
+    }
+    fn numeric(&self) -> bool {
+        match *self {}
+    }
+    fn authored(&self) -> AuthoredLeaf {
+        match *self {}
+    }
+    fn value<T: Real>(&self, _dim: Dimension) -> Result<T, EvalError> {
+        match *self {}
+    }
+    fn count(&self, _dim: Dimension) -> Result<i64, EvalError> {
+        match *self {}
+    }
+}
+
+/// **A written quantity** (VARIABLES-DESIGN VR6): a value in canonical
+/// kernel units, the unit it was written in, and an optional
+/// distribution. The dimension is the tree's, at the leaf. The edit
+/// door mints an anonymous free variable holding it, so a document
+/// holds it as that variable and never as a float in an expression.
+#[derive(Debug, Clone, Copy)]
+pub struct Quantity {
+    /// The exact canonical-units value.
+    pub(crate) value: f64,
+    /// The unit it was written in (presentation, D6).
+    pub(crate) unit: UnitSym,
+    /// Its uncertainty, if the author wrote one.
+    pub(crate) distribution: Option<crate::distribution::Distribution>,
+}
+
+impl Quantity {
+    /// The exact canonical-units value.
+    #[must_use]
+    pub fn value(&self) -> f64 {
+        self.value
+    }
+
+    /// The unit it was written in.
+    #[must_use]
+    pub fn unit(&self) -> quantity::UnitDef {
+        self.unit.def()
+    }
+
+    /// Its distribution, if one was written.
+    #[must_use]
+    pub fn distribution(&self) -> Option<&crate::distribution::Distribution> {
+        self.distribution.as_ref()
+    }
+
+    /// The free variable the edit door mints for it, read at `dim`.
+    pub(crate) fn free_var(&self, dim: Dimension) -> crate::doc::FreeVar {
+        crate::doc::FreeVar::Continuous {
+            dim,
+            value: self.value,
+            display_unit: self.unit,
+            distribution: self.distribution,
+        }
+    }
+}
+
+impl PartialEq for Quantity {
+    /// IEEE-semantic on the value and the distribution; the display
+    /// unit is presentation metadata and never part of a formula's
+    /// identity (DESIGN.md D6).
+    fn eq(&self, other: &Self) -> bool {
+        let Self {
+            value,
+            unit: _,
+            distribution,
+        } = self;
+        *value == other.value && *distribution == other.distribution
+    }
+}
+
+/// The authored form's own leaves: what an author writes and the edit
+/// door resolves.
+#[derive(Debug, Clone, PartialEq)]
+pub enum AuthoredLeaf {
+    /// A variable by NAME, which the edit door lowers to a reader of
+    /// the variable the document names so.
+    Name(VarName),
+    /// Entry `i` of the edit's fresh table: a variable the edit mints,
+    /// which the door lowers to a reader of the id it minted.
+    Fresh(u16),
+    /// A written quantity, which the door lowers to a reader of the
+    /// anonymous free variable it mints for it (boxed, so a leaf costs
+    /// what a name costs).
+    Quantity(Box<Quantity>),
+}
+
+impl sealed::Sealed for AuthoredLeaf {}
+
+impl LeafSet for AuthoredLeaf {
+    const FORM: &'static str = "Formula";
+    fn write(&self, dim: Dimension, out: &mut String) {
+        match self {
+            Self::Name(name) => out.push_str(name.as_str()),
+            Self::Fresh(index) => {
+                use core::fmt::Write as _;
+                let _ = write!(out, "fresh[{index}]");
+            }
+            Self::Quantity(q) => out.push_str(&write_quantity(q.value, q.unit, dim)),
+        }
+    }
+    fn bits(&self, out: &mut Vec<u64>) {
+        if let Self::Quantity(q) = self {
+            out.push(q.value.to_bits());
+        }
+    }
+    fn negative(&self) -> bool {
+        matches!(self, Self::Quantity(q) if q.value.is_sign_negative())
+    }
+    fn numeric(&self) -> bool {
+        matches!(self, Self::Quantity(_))
+    }
+    fn authored(&self) -> AuthoredLeaf {
+        self.clone()
+    }
+    fn value<T: Real>(&self, dim: Dimension) -> Result<T, EvalError> {
+        match unlowered(self, dim) {
+            Ok(fault) => Err(EvalError::Unlowered(fault)),
+            Err(q) => Ok(T::from_f64(q.value)),
+        }
+    }
+    fn count(&self, dim: Dimension) -> Result<i64, EvalError> {
+        match unlowered(self, dim) {
+            Ok(fault) => Err(EvalError::Unlowered(fault)),
+            Err(_) => Err(EvalError::ContinuousExprInCountEval { found: dim }),
+        }
+    }
+}
+
+/// Why an authored leaf does not lower outside a document and an
+/// edit: a name held by nothing, a fresh entry in no table.
+fn unlowered(leaf: &AuthoredLeaf, dim: Dimension) -> Result<crate::LowerFault, Quantity> {
+    match leaf {
+        AuthoredLeaf::Name(name) => Ok(crate::LowerFault::Name(crate::NameFault {
+            name: name.clone(),
+            dim,
+            why: Unlowered::Unheld,
+        })),
+        &AuthoredLeaf::Fresh(index) => Ok(crate::LowerFault::Fresh(crate::FreshFault {
+            index,
+            dim,
+            held: None,
+        })),
+        AuthoredLeaf::Quantity(q) => Err(**q),
+    }
+}
+
+/// **One leaf of a tree**, as [`ExprTree::visit_terminals`] hands it.
+pub(crate) enum Terminal<'a, L> {
+    /// A reader of a variable, by id.
+    Var(VarId),
+    /// A leaf of the form's own set.
+    Leaf(&'a L),
+    /// A constant.
+    Constant,
 }
 
 /// **How deep an expression may nest**: the longest chain of nodes
@@ -325,13 +665,9 @@ pub(crate) fn nesting_over(below: u8) -> Result<u8, DimensionError> {
 }
 
 /// The stored display-unit CODE — quantity's closed table as a one-
-/// byte identity (the spec's "U8a's unit type/code" read at its word:
-/// storing the 32-byte [`quantity::UnitDef`] row inline grew every
-/// `Expr` by ~40 bytes and tripped `large_enum_variant` on
-/// `DocEdit::InsertNode`; the ROW is derivable from the identity, so
-/// the identity is what is stored — resolved back through
-/// [`Lit::unit_def`] at every read. That measurement is pinned by the
-/// `size_of::<Lit>()` assertion below.)
+/// byte identity: the 32-byte [`quantity::UnitDef`] row is derivable
+/// from the identity, so the identity is what is stored and resolved
+/// back through [`UnitSym::def`] at every read.
 ///
 /// The identity is the row's POSITION in [`quantity::UNITS`], not a
 /// second spelling of the table's units: no unit symbol is written as CODE
@@ -359,20 +695,20 @@ pub(crate) fn nesting_over(below: u8) -> Result<u8, DimensionError> {
 ///   `switch_display_units.rs`'s golden and its `table_row` fixtures.
 ///
 /// The index carries **no compatibility contract**: it is never
-/// persisted, never enters expression identity, keys or
-/// [`Expr::literal_bits`] (D7), and is minted afresh at every
+/// persisted, never enters a formula's identity, keys or
+/// [`crate::Formula::literal_bits`] (D7), and is minted afresh at every
 /// construction and load.
 ///
 /// **Serialization goes through the SYMBOL, never the index**, and the
 /// impls below are what keep that true now that the type is public and
-/// two carriers store it: `persist::wire`'s `WireExpr::Literal` writes
-/// the symbol as its own field, and [`crate::DocParam::Continuous`]
+/// two carriers store it: `persist::wire`'s `WireFormula::Quantity`
+/// writes the symbol as its own field, and [`crate::FreeVar::Continuous`]
 /// writes one through this type's `Serialize`. Both read back through
 /// [`quantity::unit_by_symbol`], so a table REORDER still moves no
 /// byte of any file.
 ///
 /// Public because a document parameter's declaration carries one
-/// ([`crate::DocParam::Continuous`]'s `display_unit`) and an enum
+/// ([`crate::FreeVar::Continuous`]'s `display_unit`) and an enum
 /// variant's fields are public with it. The FIELD stays private to
 /// this module, which is what every totality argument above rests on —
 /// nothing about the seal depended on the type's visibility.
@@ -465,11 +801,11 @@ impl UnitSym {
     ///
     /// **The one place that reading is spelled**, and every caller that
     /// needs it asks here rather than re-laddering it: the expression
-    /// TEXT door (`parse`, on a suffix), [`Expr::literal_with_unit`] at
-    /// construction, [`crate::DocParam::with_display_unit`] at the
-    /// parameter's notation door, `write_doc_param` at the
-    /// create-or-replace door, and the save/load validator's parameter
-    /// walk (`persist::check`). Callers restating one `match` are that
+    /// TEXT door (`parse`, on a suffix), [`crate::Formula::literal_with_unit`] at
+    /// construction, [`crate::FreeVar::with_display_unit`] at the
+    /// variable's notation door, the declare and define doors' definition
+    /// check (`edit.rs`'s `check_var_def`), and the save/load
+    /// validator's variable walk (`persist::check`). Callers restating one `match` are that
     /// many chances for them to disagree about what `mm` measures —
     /// and the parser's copy was worse than a duplicate, because the
     /// dimension it derived was then handed to a door that derives the
@@ -496,12 +832,12 @@ impl UnitSym {
     /// becomes a stored fact.
     ///
     /// **Total, including `Count`** — deliberately, though a count has
-    /// no notation and the table no row for one. [`Expr::literal`]
+    /// no notation and the table no row for one. [`crate::Formula::literal`]
     /// refuses `Count` before ever reaching here, so no LITERAL takes
-    /// that arm; what can is [`crate::DocParam::continuous`], whose
+    /// that arm; what can is [`crate::FreeVar::continuous`], whose
     /// `dim` is a caller's argument and whose `Count` spelling is a
     /// corrupt parameter the edit door refuses typed
-    /// (`EditError::ContinuousParamCannotBeCount`). Panicking here
+    /// (`EditError::ContinuousVarCannotBeCount`). Panicking here
     /// would replace that typed refusal with a crash on the way to it,
     /// which is the wrong trade: the answer is the dimensionless row,
     /// nothing ever renders it (a count is an integer), and the
@@ -519,7 +855,7 @@ impl UnitSym {
     ///
     /// The one home of "a unit measures what its value holds". Every
     /// door that attaches a notation a caller CHOSE — the literal
-    /// constructor [`Expr::literal_with_unit`] and
+    /// constructor [`crate::Formula::literal_with_unit`] and
     /// [`crate::RecordedNotation::set`], which writes one down before
     /// any literal exists — asks this, so the two cannot come to
     /// disagree about which pairings are legal. [`Self::canonical_for`]
@@ -593,100 +929,11 @@ impl UnitSym {
     }
 }
 
-/// A stored continuous literal: the canonical-units value plus its
-/// per-literal DISPLAY unit (LIB-SWITCH §4g, U8b folded into the v4
-/// break). The unit is presentation metadata under DESIGN.md D6's hard
-/// rules — it is EXCLUDED from equality here (so [`Expr::bit_eq`],
-/// content keys, and naming keys are all display-unit-blind by
-/// construction),
-/// excluded from [`Expr::literal_bits`], and ignored by evaluation;
-/// the value stays canonical meters/radians regardless.
-///
-/// **The unit is not optional.** Every literal names the notation it
-/// was written in, dimensionless ones included ([`quantity::ONE`], the
-/// empty symbol), so there is no absence for two readers to resolve
-/// differently — which is what the dimensionless row exists for. The
-/// break that introduced it (schema v20) carries the incident.
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct Lit {
-    /// The exact canonical-units value (bit-exact per D7).
-    pub(crate) value: f64,
-    /// The display unit the literal was authored in (a code into
-    /// quantity's closed table).
-    pub(crate) display_unit: UnitSym,
-}
-
-// PR #291 MAJOR-2, as a compile-time row rather than a remembered
-// measurement: `Lit` stores the one-byte CODE, never the row.
-// Inlining `quantity::UnitDef` (32 bytes) into this struct took it to
-// 40 and grew every `Expr` with it, tripping `large_enum_variant` on
-// `DocEdit::InsertNode`.
-//
-// What this pin adds, stated precisely: the ORIGINAL detector is
-// still armed — `large_enum_variant` is default-on in clippy's `perf`
-// group and CI runs `cargo clippy --workspace --all-targets -D
-// warnings` — so a repeat was never entirely unguarded. What is
-// unguarded is the MARGIN. Whether a regrowth re-crosses that lint's
-// 200-byte threshold depends on `DocEdit`'s size, which nothing
-// tracks, and `Lit` is a struct, so it trips no enum lint on its own.
-// This assertion moves the guard onto the thing that actually
-// regressed, and makes it exact rather than threshold-dependent.
-//
-// It pins the PADDED size, and claims no more: re-inlining the row
-// goes red here, and so does any growth past 16 bytes, and the six
-// padding bytes beside the one-byte code are free OF THIS ASSERTION —
-// a `[u8; 6]` field added here leaves it silent.
-//
-// It no longer compiles, though, and that is new as of the destructure
-// below: such a field is now an E0027 at both of `PartialEq`'s
-// patterns. The parenthetical here said "still compiles" and was true
-// until that repair landed in the same diff; a style review executed
-// it. What this assertion does not see is unchanged — the tie that
-// sees it is the pattern, not the size.
-//
-// (`Expr` itself is not pinned: its size is the largest `ExprKind`
-// variant and moves for unrelated reasons. `Lit` is where the
-// regression would enter.)
-const _: () = assert!(
-    core::mem::size_of::<Lit>() == 16,
-    "a literal is one f64 plus a one-byte display-unit code"
-);
-
-impl Lit {
-    /// The stored unit's table row.
-    pub(crate) fn unit_def(&self) -> quantity::UnitDef {
-        self.display_unit.def()
-    }
-}
-
-impl PartialEq for Lit {
-    /// IEEE-semantic on the VALUE only — the display unit is
-    /// presentation metadata and never part of expression identity
-    /// (DESIGN.md D6; two literals differing only in display unit are
-    /// the same expression).
-    fn eq(&self, other: &Self) -> bool {
-        // Bound by name on both sides so the omission is the
-        // compiler's business: a third field on `Lit` is an E0027
-        // here and has to be given a reason or a comparison.
-        let Self {
-            value,
-            // Presentation metadata, outside expression identity
-            // (DESIGN.md D6).
-            display_unit: _,
-        } = self;
-        let Self {
-            value: other_value,
-            display_unit: _,
-        } = other;
-        value == other_value
-    }
-}
-
 /// The two-operand [`ExprKind`] variants, as a PATTERN taking the two
 /// operand sub-patterns.
 ///
 /// Four matches partition `ExprKind` by arity — `Expr::child`'s two
-/// arms, `param_refs` and `literal_bits` — and each wrote the same
+/// arms, `var_reads` and `literal_bits` — and each wrote the same
 /// seven names out. Sharing them as patterns keeps every one of those
 /// matches exhaustive: a new variant absent from this macro breaks all
 /// four builds, and its arity is one decision at one site.
@@ -716,7 +963,11 @@ macro_rules! unary_kind {
 /// The zero-operand (leaf) [`ExprKind`] variants — see [`binary_kind`].
 macro_rules! leaf_kind {
     () => {
-        ExprKind::Literal(_) | ExprKind::CountLiteral(_) | ExprKind::Param(_)
+        ExprKind::Ratio(_)
+            | ExprKind::Integer(_)
+            | ExprKind::Turn
+            | ExprKind::Var(_)
+            | ExprKind::Leaf(_)
     };
 }
 
@@ -725,49 +976,53 @@ macro_rules! leaf_kind {
 /// Child order (the ExprPath byte at each level, spec D5): operands in
 /// argument order — 0 = first/only child, 1 = second.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) enum ExprKind {
-    /// A continuous dimensioned literal, canonical kernel units
-    /// (meters/radians); bit-exact f64 storage per D7 replay identity.
-    Literal(Lit),
-    /// A `Count` literal — exact integer (spec D4: Count is
+pub(crate) enum ExprKind<L: LeafSet> {
+    /// An exact rational constant, dimension `Scalar` (VR5).
+    Ratio(Ratio),
+    /// An exact integer constant, dimension `Count` (spec D4: Count is
     /// integer-valued, never a float).
-    CountLiteral(i64),
-    /// A document-level named-parameter reference, carrying the
-    /// dimension the parameter was declared with at construction time
-    /// (`apply` re-checks it against the document's table).
-    Param(ParamName),
+    Integer(i64),
+    /// One full rotation, dimension `Angle`: the exact constant a right
+    /// angle is a quarter of (VR5).
+    Turn,
+    /// A reader of a document variable, by identity: the stored form.
+    /// The leaf's `dim` caches the variable's kind, which cannot change
+    /// (VR3); the doors re-check the cache against the table.
+    Var(VarId),
+    /// A leaf of the form's own vocabulary ([`LeafSet`]).
+    Leaf(L),
     /// Same-dimension addition.
-    Add(Box<Expr>, Box<Expr>),
+    Add(Box<ExprTree<L>>, Box<ExprTree<L>>),
     /// Same-dimension subtraction.
-    Sub(Box<Expr>, Box<Expr>),
+    Sub(Box<ExprTree<L>>, Box<ExprTree<L>>),
     /// Negation (any dimension, including Count).
-    Neg(Box<Expr>),
+    Neg(Box<ExprTree<L>>),
     /// Product; ≥1 operand dimensionless (`Scalar`), or Count×Count.
-    Mul(Box<Expr>, Box<Expr>),
+    Mul(Box<ExprTree<L>>, Box<ExprTree<L>>),
     /// Quotient; the divisor must be `Scalar`.
-    Div(Box<Expr>, Box<Expr>),
+    Div(Box<ExprTree<L>>, Box<ExprTree<L>>),
     /// Sine of an `Angle`, yielding `Scalar`.
-    Sin(Box<Expr>),
+    Sin(Box<ExprTree<L>>),
     /// Cosine of an `Angle`, yielding `Scalar`.
-    Cos(Box<Expr>),
+    Cos(Box<ExprTree<L>>),
     /// Tangent of an `Angle`, yielding `Scalar`.
-    Tan(Box<Expr>),
+    Tan(Box<ExprTree<L>>),
     /// Four-quadrant arctangent of same-dimension (y, x), yielding
     /// `Angle`.
-    Atan2(Box<Expr>, Box<Expr>),
+    Atan2(Box<ExprTree<L>>, Box<ExprTree<L>>),
     /// Same-dimension lattice minimum (a value operation, never
     /// control flow — the AST has no branches; F7).
-    Min(Box<Expr>, Box<Expr>),
+    Min(Box<ExprTree<L>>, Box<ExprTree<L>>),
     /// Same-dimension lattice maximum.
-    Max(Box<Expr>, Box<Expr>),
+    Max(Box<ExprTree<L>>, Box<ExprTree<L>>),
     /// EXPLICIT Count→Scalar promotion (spec D4: never implicit).
-    CountToScalar(Box<Expr>),
+    CountToScalar(Box<ExprTree<L>>),
 }
 
-impl ExprKind {
+impl<L: LeafSet> ExprKind<L> {
     /// Moves this node's children onto `out`, leaving a leaf behind.
-    fn detach_children(&mut self, out: &mut Vec<Expr>) {
-        match core::mem::replace(self, ExprKind::CountLiteral(0)) {
+    fn detach_children(&mut self, out: &mut Vec<ExprTree<L>>) {
+        match core::mem::replace(self, ExprKind::Integer(0)) {
             binary_kind!(a, b) => {
                 out.push(*a);
                 out.push(*b);
@@ -778,7 +1033,7 @@ impl ExprKind {
     }
 }
 
-impl Drop for Expr {
+impl<L: LeafSet> Drop for ExprTree<L> {
     /// Frees the tree from a heap stack (`crate::tree::free`), so no
     /// drop recurses.
     fn drop(&mut self) {
@@ -793,7 +1048,7 @@ impl Drop for Expr {
 // implement those traits: they are FALLIBLE (the F1 dimension checker
 // runs at construction) and associated functions, not methods.
 #[allow(clippy::should_implement_trait)]
-impl Expr {
+impl<L: LeafSet> ExprTree<L> {
     /// This expression's dimension (cached; correct by construction).
     pub fn dim(&self) -> Dimension {
         self.dim
@@ -802,170 +1057,51 @@ impl Expr {
     /// The AST node (persistence's wire conversion reads it; the type
     /// stays crate-private so trees are only built through the
     /// dimension-checking constructors).
-    pub(crate) fn kind(&self) -> &ExprKind {
+    pub(crate) fn kind(&self) -> &ExprKind<L> {
         &self.kind
     }
 
-    /// How many levels the tree nests, this node included: 1 for a
-    /// leaf, never above [`MAX_NESTING`].
-    pub(crate) fn nesting(&self) -> usize {
-        usize::from(self.nesting)
+    /// The AST node, to rewrite a leaf in place (a leaf's dimension
+    /// and nesting do not move).
+    pub(crate) fn kind_mut(&mut self) -> &mut ExprKind<L> {
+        &mut self.kind
     }
 
-    /// A continuous dimensioned literal in canonical kernel units.
-    /// Refuses [`Dimension::Count`] — Count literals are integers
-    /// ([`Expr::count`]) — and NON-FINITE values (ruled door 1 of the
-    /// non-finite policy: the kernel never produces NaN/inf
-    /// legitimately, so recipe data must not admit them; F3's
-    /// persist-time refusal then has nothing to catch).
-    pub fn literal(value: f64, dim: Dimension) -> Result<Self, DimensionError> {
-        if dim == Dimension::Count {
-            return Err(DimensionError::LiteralCountIsInteger);
-        }
-        if !value.is_finite() {
-            return Err(DimensionError::NonFiniteLiteral);
-        }
-        Ok(Self::leaf(
-            dim,
-            ExprKind::Literal(Lit {
-                value,
-                display_unit: UnitSym::canonical_for(dim),
-            }),
-        ))
-    }
-
-    /// A continuous literal that REMEMBERS the display unit it was
-    /// authored in (LIB-SWITCH §4g; the text door's `25 mm` row).
-    /// `value` is already canonical (meters/radians) — the parser does
-    /// its one multiply before this door. The unit's quantity must
-    /// agree with `dim` ([`DimensionError::DisplayUnitMismatch`]);
-    /// everything [`Expr::literal`] refuses is refused here too.
-    ///
-    /// The unit is presentation metadata (DESIGN.md D6): it round-trips
-    /// through persistence and feeds the display formatter, but never
-    /// enters [`Expr::bit_eq`], [`Expr::literal_bits`], content/naming
-    /// keys, or evaluation.
-    pub fn literal_with_unit(
-        value: f64,
-        dim: Dimension,
-        unit: quantity::UnitDef,
-    ) -> Result<Self, DimensionError> {
-        let sym = UnitSym::checked_for(dim, unit)?;
-        // Run literal()'s refusal doors, then attach the unit.
-        let mut e = Self::literal(value, dim)?;
-        if let ExprKind::Literal(ref mut lit) = e.kind {
-            lit.display_unit = sym;
-        }
-        Ok(e)
-    }
-
-    /// A continuous literal from an AUTHORED length — the value and
-    /// the notation it was written in, together
-    /// ([`quantity::WrittenLength`]).
-    ///
-    /// The door library and GUI authoring should reach for. A caller
-    /// never spells the dimension — a `WrittenLength` is a length, so
-    /// there is no second fact to keep in step — and the literal
-    /// ALWAYS remembers a unit, because an authored quantity always
-    /// names the one it is written in (`quantity::written`'s module
-    /// docs). [`Expr::literal`] remains the door for a value whose
-    /// notation is not a CHOICE — it stores the canonical row for the
-    /// dimension, `quantity::ONE` for a `Scalar`.
-    ///
-    /// **`DisplayUnitMismatch` cannot fire here.** A
-    /// [`quantity::WrittenLength`] holds a `LengthUnit`, which is an
-    /// index into a Length row of the table (#669), so the unit's
-    /// quantity agrees with `Dimension::Length` by construction rather
-    /// than by a check. The refusal that remains is
-    /// [`Expr::literal`]'s: a non-finite value (ruled door 1). The
-    /// claim is executed by
-    /// `switch_display_units::every_authored_unit_reaches_a_literal_without_a_mismatch`,
-    /// not merely stated here.
-    ///
-    /// # Errors
-    ///
-    /// [`DimensionError::NonFiniteLiteral`] for a non-finite value.
-    pub fn written_length(written: quantity::WrittenLength) -> Result<Self, DimensionError> {
-        Self::literal_with_unit(written.meters(), Dimension::Length, written.unit().def())
-    }
-
-    /// A continuous literal from an AUTHORED angle —
-    /// [`Expr::written_length`]'s mirror, and everything that door's
-    /// docs say holds here with `AngleUnit` and `Dimension::Angle`.
-    ///
-    /// # Errors
-    ///
-    /// [`DimensionError::NonFiniteLiteral`] for a non-finite value.
-    pub fn written_angle(written: quantity::WrittenAngle) -> Result<Self, DimensionError> {
-        Self::literal_with_unit(written.radians(), Dimension::Angle, written.unit().def())
-    }
-
-    /// A continuous literal from a length authored as `value` in
-    /// `unit` — exactly
-    /// `Expr::written_length(WrittenLength::in_unit(value, unit))`,
-    /// the composition an authoring caller holding a number and a unit
-    /// writes at every authored length.
-    ///
-    /// Sugar over [`Expr::written_length`] and
-    /// [`quantity::WrittenLength::in_unit`], and nothing besides: it
-    /// stores the notation the same way, refuses exactly what
-    /// `written_length` refuses, and mints no type of its own. The two
-    /// halves stay the doors — reach for them when the
-    /// [`quantity::WrittenLength`] is already in hand.
-    ///
-    /// # Errors
-    ///
-    /// [`DimensionError::NonFiniteLiteral`] for a non-finite value.
-    pub fn length_in(value: f64, unit: quantity::LengthUnit) -> Result<Self, DimensionError> {
-        Self::written_length(quantity::WrittenLength::in_unit(value, unit))
-    }
-
-    /// A continuous literal from an angle authored as `value` in
-    /// `unit` — [`Expr::length_in`]'s mirror, exactly
-    /// `Expr::written_angle(WrittenAngle::in_unit(value, unit))`, and
-    /// everything that door's docs say holds here with an
-    /// [`quantity::AngleUnit`].
-    ///
-    /// # Errors
-    ///
-    /// [`DimensionError::NonFiniteLiteral`] for a non-finite value.
-    pub fn angle_in(value: f64, unit: quantity::AngleUnit) -> Result<Self, DimensionError> {
-        Self::written_angle(quantity::WrittenAngle::in_unit(value, unit))
-    }
-
-    /// The display unit of a LITERAL expression — `None` for every
-    /// other kind, because only a literal is WRITTEN. A literal always
-    /// has one ([`Lit`]). The formatter's read side (§4g).
-    pub fn display_unit(&self) -> Option<quantity::UnitDef> {
-        match &self.kind {
-            ExprKind::Literal(lit) => Some(lit.unit_def()),
+    /// The variable this tree is, where it is one lone reader.
+    pub fn as_var(&self) -> Option<VarId> {
+        match self.kind {
+            ExprKind::Var(var) => Some(var),
             _ => None,
         }
     }
 
-    /// A literal's exact canonical-units value (`None` for non-literal
-    /// kinds) — with [`Expr::display_unit`], the display formatter's
-    /// complete read surface.
-    pub fn literal_value(&self) -> Option<f64> {
-        match &self.kind {
-            ExprKind::Literal(lit) => Some(lit.value),
-            _ => None,
-        }
+    /// The constant `ratio`, dimension `Scalar`.
+    pub(crate) fn ratio_leaf(ratio: Ratio) -> Self {
+        Self::leaf(Dimension::Scalar, ExprKind::Ratio(ratio))
     }
 
-    /// A `Count` literal — an exact integer.
-    pub fn count(value: i64) -> Self {
-        Self::leaf(Dimension::Count, ExprKind::CountLiteral(value))
+    /// The integer constant `value`, dimension `Count`.
+    pub(crate) fn integer_leaf(value: i64) -> Self {
+        Self::leaf(Dimension::Count, ExprKind::Integer(value))
     }
 
-    /// A document-parameter reference, recording the dimension the
-    /// parameter is declared with; `apply` re-checks the record against
-    /// the document's table (spec D6).
-    pub fn param(name: ParamName, dim: Dimension) -> Self {
-        Self::leaf(dim, ExprKind::Param(name))
+    /// One full rotation, dimension `Angle`.
+    pub(crate) fn turn_leaf() -> Self {
+        Self::leaf(Dimension::Angle, ExprKind::Turn)
     }
 
-    fn leaf(dim: Dimension, kind: ExprKind) -> Self {
+    /// A leaf of the form's own vocabulary, read at `dim`.
+    pub(crate) fn own_leaf(own: L, dim: Dimension) -> Self {
+        Self::leaf(dim, ExprKind::Leaf(own))
+    }
+
+    /// A reader of the variable `var`, read at `dim` (the variable's
+    /// kind; the doors re-check it against the document's table).
+    pub fn var(var: VarId, dim: Dimension) -> Self {
+        Self::leaf(dim, ExprKind::Var(var))
+    }
+
+    fn leaf(dim: Dimension, kind: ExprKind<L>) -> Self {
         Self {
             dim,
             nesting: 1,
@@ -975,7 +1111,7 @@ impl Expr {
 
     /// An operator node over the children `kind` holds, refused when it
     /// would nest past [`MAX_NESTING`].
-    fn over(dim: Dimension, kind: ExprKind) -> Result<Self, DimensionError> {
+    fn over(dim: Dimension, kind: ExprKind<L>) -> Result<Self, DimensionError> {
         let below = match &kind {
             binary_kind!(a, b) => a.nesting.max(b.nesting),
             unary_kind!(a) => a.nesting,
@@ -990,9 +1126,9 @@ impl Expr {
 
     fn same_dim(
         op: &'static str,
-        a: Expr,
-        b: Expr,
-        make: fn(Box<Expr>, Box<Expr>) -> ExprKind,
+        a: Self,
+        b: Self,
+        make: fn(Box<Self>, Box<Self>) -> ExprKind<L>,
     ) -> Result<Self, DimensionError> {
         if a.dim != b.dim {
             return Err(DimensionError::Mismatch {
@@ -1006,12 +1142,12 @@ impl Expr {
 
     /// Same-dimension addition (Count included: Count is closed under
     /// add/sub/mul/neg/min/max, spec D4).
-    pub fn add(a: Expr, b: Expr) -> Result<Self, DimensionError> {
+    pub fn add(a: Self, b: Self) -> Result<Self, DimensionError> {
         Self::same_dim("add", a, b, ExprKind::Add)
     }
 
     /// Same-dimension subtraction.
-    pub fn sub(a: Expr, b: Expr) -> Result<Self, DimensionError> {
+    pub fn sub(a: Self, b: Self) -> Result<Self, DimensionError> {
         Self::same_dim("sub", a, b, ExprKind::Sub)
     }
 
@@ -1021,7 +1157,7 @@ impl Expr {
     ///
     /// [`DimensionError::NestedTooDeep`] alone: negation is total over
     /// every dimension, so only the nesting bound refuses it.
-    pub fn neg(a: Expr) -> Result<Self, DimensionError> {
+    pub fn neg(a: Self) -> Result<Self, DimensionError> {
         Self::over(a.dim, ExprKind::Neg(Box::new(a)))
     }
 
@@ -1031,7 +1167,7 @@ impl Expr {
     /// are out of the v1 lattice; relaxation is additive). A single
     /// Count operand mixed with a continuous one is refused — promote
     /// explicitly via [`Expr::count_to_scalar`].
-    pub fn mul(a: Expr, b: Expr) -> Result<Self, DimensionError> {
+    pub fn mul(a: Self, b: Self) -> Result<Self, DimensionError> {
         use Dimension::{Count, Scalar};
         let dim = match (a.dim, b.dim) {
             (Count, Count) => Count,
@@ -1049,7 +1185,7 @@ impl Expr {
     /// test; relaxing to ratios later is purely additive). Count is
     /// not closed under division (spec D4 lists add/sub/mul/min/max),
     /// so any Count operand is refused — promote explicitly first.
-    pub fn div(a: Expr, b: Expr) -> Result<Self, DimensionError> {
+    pub fn div(a: Self, b: Self) -> Result<Self, DimensionError> {
         use Dimension::{Count, Scalar};
         if a.dim == Count || b.dim == Count {
             return Err(DimensionError::CountNeedsExplicitPromotion { op: "div" });
@@ -1065,8 +1201,8 @@ impl Expr {
 
     fn trig(
         op: &'static str,
-        a: Expr,
-        make: fn(Box<Expr>) -> ExprKind,
+        a: Self,
+        make: fn(Box<Self>) -> ExprKind<L>,
     ) -> Result<Self, DimensionError> {
         if a.dim != Dimension::Angle {
             return Err(DimensionError::TrigNeedsAngle { op, found: a.dim });
@@ -1075,17 +1211,17 @@ impl Expr {
     }
 
     /// Sine of an `Angle` → `Scalar` (spec D4).
-    pub fn sin(a: Expr) -> Result<Self, DimensionError> {
+    pub fn sin(a: Self) -> Result<Self, DimensionError> {
         Self::trig("sin", a, ExprKind::Sin)
     }
 
     /// Cosine of an `Angle` → `Scalar`.
-    pub fn cos(a: Expr) -> Result<Self, DimensionError> {
+    pub fn cos(a: Self) -> Result<Self, DimensionError> {
         Self::trig("cos", a, ExprKind::Cos)
     }
 
     /// Tangent of an `Angle` → `Scalar`.
-    pub fn tan(a: Expr) -> Result<Self, DimensionError> {
+    pub fn tan(a: Self) -> Result<Self, DimensionError> {
         Self::trig("tan", a, ExprKind::Tan)
     }
 
@@ -1093,7 +1229,7 @@ impl Expr {
     /// Operands must share one continuous dimension (their common
     /// scale cancels in the true ratio); Count operands are refused —
     /// promote explicitly.
-    pub fn atan2(y: Expr, x: Expr) -> Result<Self, DimensionError> {
+    pub fn atan2(y: Self, x: Self) -> Result<Self, DimensionError> {
         if y.dim == Dimension::Count || x.dim == Dimension::Count {
             return Err(DimensionError::CountNeedsExplicitPromotion { op: "atan2" });
         }
@@ -1109,18 +1245,18 @@ impl Expr {
 
     /// Same-dimension lattice minimum (value operation, never control
     /// flow — the AST has no branches, F7; Count included).
-    pub fn min(a: Expr, b: Expr) -> Result<Self, DimensionError> {
+    pub fn min(a: Self, b: Self) -> Result<Self, DimensionError> {
         Self::same_dim("min", a, b, ExprKind::Min)
     }
 
     /// Same-dimension lattice maximum.
-    pub fn max(a: Expr, b: Expr) -> Result<Self, DimensionError> {
+    pub fn max(a: Self, b: Self) -> Result<Self, DimensionError> {
         Self::same_dim("max", a, b, ExprKind::Max)
     }
 
     /// EXPLICIT Count→Scalar promotion (spec D4: never implicit).
     /// Refuses non-Count operands.
-    pub fn count_to_scalar(a: Expr) -> Result<Self, DimensionError> {
+    pub fn count_to_scalar(a: Self) -> Result<Self, DimensionError> {
         if a.dim != Dimension::Count {
             return Err(DimensionError::NotCount { found: a.dim });
         }
@@ -1129,7 +1265,7 @@ impl Expr {
 
     /// The child at ExprPath index `i` (spec D5: operands in argument
     /// order), or `None` past the arity.
-    pub fn child(&self, i: u8) -> Option<&Expr> {
+    pub fn child(&self, i: u8) -> Option<&Self> {
         match (&self.kind, i) {
             (binary_kind!(a, _), 0) | (unary_kind!(a), 0) => Some(a),
             (binary_kind!(_, b), 1) => Some(b),
@@ -1144,72 +1280,74 @@ impl Expr {
 
     /// The subtree at an AST path (a chain of [`Expr::child`] steps);
     /// `None` if the path runs off the tree.
-    pub fn descend(&self, path: &[u8]) -> Option<&Expr> {
+    pub fn descend(&self, path: &[u8]) -> Option<&Self> {
         path.iter().try_fold(self, |e, &i| e.child(i))
     }
 
-    /// The parameter names this expression references, with their
-    /// recorded dimensions (used by `apply`'s re-check, spec D6).
-    pub fn param_refs(&self, out: &mut Vec<(ParamName, Dimension)>) {
+    /// The variables this expression reads, with the dimension each
+    /// leaf reads it at, in pre-order.
+    pub fn var_reads(&self, out: &mut Vec<(VarId, Dimension)>) {
         match &self.kind {
-            ExprKind::Param(name) => out.push((name.clone(), self.dim)),
-            ExprKind::Literal(_) | ExprKind::CountLiteral(_) => {}
-            unary_kind!(a) => a.param_refs(out),
+            ExprKind::Var(var) => out.push((*var, self.dim)),
+            ExprKind::Ratio(_) | ExprKind::Integer(_) | ExprKind::Turn | ExprKind::Leaf(_) => {}
+            unary_kind!(a) => a.var_reads(out),
             binary_kind!(a, b) => {
-                a.param_refs(out);
-                b.param_refs(out);
+                a.var_reads(out);
+                b.var_reads(out);
             }
         }
     }
 
-    /// Pushes every continuous literal's `f64` BITS in deterministic
-    /// traversal order (pre-order, children in [`Expr::child`] order)
-    /// — the bit-semantic comparison substrate (spec D7: replay is
-    /// bit-identical, so the comparators must not be bit-blind).
-    pub fn literal_bits(&self, out: &mut Vec<u64>) {
-        match &self.kind {
-            ExprKind::Literal(lit) => out.push(lit.value.to_bits()),
-            ExprKind::CountLiteral(_) | ExprKind::Param(_) => {}
-            unary_kind!(a) => a.literal_bits(out),
-            binary_kind!(a, b) => {
-                a.literal_bits(out);
-                b.literal_bits(out);
-            }
-        }
+    /// Whether this expression reads the variable `var`.
+    #[must_use]
+    pub fn reads(&self, var: VarId) -> bool {
+        let mut reads = Vec::new();
+        self.var_reads(&mut reads);
+        reads.iter().any(|&(read, _)| read == var)
     }
 
-    /// Sets every literal's display unit to its dimension's canonical
-    /// one, leaving every value: the expression `PartialEq` and
-    /// [`Expr::bit_eq`] see, as a value that serializes (D6: the display
-    /// unit is never identity).
-    pub(crate) fn erase_display_units(&mut self) {
-        let dim = self.dim;
+    /// Re-point every reader of a key of `map` at its value; a reader
+    /// of any other variable is untouched.
+    pub fn remap_vars(&mut self, map: &std::collections::BTreeMap<VarId, VarId>) {
         match &mut self.kind {
-            ExprKind::Literal(lit) => lit.display_unit = UnitSym::canonical_for(dim),
-            ExprKind::CountLiteral(_) | ExprKind::Param(_) => {}
-            unary_kind!(a) => a.erase_display_units(),
+            ExprKind::Var(var) => {
+                if let Some(&to) = map.get(var) {
+                    *var = to;
+                }
+            }
+            ExprKind::Ratio(_) | ExprKind::Integer(_) | ExprKind::Turn | ExprKind::Leaf(_) => {}
+            unary_kind!(a) => a.remap_vars(map),
             binary_kind!(a, b) => {
-                a.erase_display_units();
-                b.erase_display_units();
+                a.remap_vars(map);
+                b.remap_vars(map);
             }
         }
+    }
+
+    /// Pushes the `f64` BITS of every value this form's own leaves
+    /// hold, in pre-order (children in [`Expr::child`] order): the
+    /// bit-semantic comparison substrate (spec D7: replay is
+    /// bit-identical, so the comparators must not be bit-blind). A
+    /// stored expression holds no float, so the public door is the
+    /// authored form's ([`crate::Formula::literal_bits`]).
+    pub(crate) fn own_bits(&self, out: &mut Vec<u64>) {
+        self.visit_leaves(&mut |leaf, _| leaf.bits(out));
     }
 
     /// Bit-semantic equality (M4 PR 1 review non-blocker): structural
-    /// equality with float literals compared by BITS — `0.0` and
-    /// `-0.0` are DIFFERENT expressions here, unlike `PartialEq`
-    /// (which stays IEEE-semantic). NaN cannot occur in a stored
-    /// expression (door 1 refuses non-finite literals), so
-    /// `PartialEq` + aligned bit vectors is exact: when `self ==
-    /// other`, both trees have identical shape, so the traversals
-    /// align literal-for-literal.
-    pub fn bit_eq(&self, other: &Expr) -> bool {
+    /// equality with every float a leaf holds compared by BITS — `0.0`
+    /// and `-0.0` are DIFFERENT formulas here, unlike `PartialEq`
+    /// (which stays IEEE-semantic). NaN cannot occur (door 1 refuses
+    /// non-finite values), so `PartialEq` + aligned bit vectors is
+    /// exact: when `self == other`, both trees have identical shape, so
+    /// the traversals align leaf for leaf.
+    pub fn bit_eq(&self, other: &Self) -> bool {
         if self != other {
             return false;
         }
         let (mut a, mut b) = (Vec::new(), Vec::new());
-        self.literal_bits(&mut a);
-        other.literal_bits(&mut b);
+        self.own_bits(&mut a);
+        other.own_bits(&mut b);
         a == b
     }
 
@@ -1217,7 +1355,7 @@ impl Expr {
     /// re-running the dimension checker on every rebuilt ancestor (the
     /// replacement may change a subtree's dimension; ancestors must
     /// still type-check). `None` if the path runs off the tree.
-    pub fn with_replaced(&self, path: &[u8], new: Expr) -> Option<Result<Expr, DimensionError>> {
+    pub fn with_replaced(&self, path: &[u8], new: Self) -> Option<Result<Self, DimensionError>> {
         use ExprKind as K;
         let Some((&i, rest)) = path.split_first() else {
             return Some(Ok(new));
@@ -1229,7 +1367,7 @@ impl Expr {
         };
         // Re-run the smart constructor for this node with the rebuilt
         // child in position `i` (sibling clones keep their checked dims).
-        let other = |b: &Expr| b.clone();
+        let other = |b: &Self| b.clone();
         let res = match (&self.kind, i) {
             (K::Add(_, b), 0) => Self::add(rebuilt, other(b)),
             (K::Add(a, _), 1) => Self::add(other(a), rebuilt),
@@ -1260,6 +1398,186 @@ impl Expr {
     }
 }
 
+impl<L: LeafSet> ExprTree<L> {
+    /// **This tree with readers replaced**: every reader of a variable
+    /// `f` answers for replaced by the answer, each operator above one
+    /// rebuilt through its checking constructor.
+    ///
+    /// # Errors
+    ///
+    /// The constructors' first refusal, which is
+    /// [`DimensionError::NestedTooDeep`] where a replacement deepens the
+    /// tree past [`MAX_NESTING`]; or `f`'s answer at another dimension
+    /// than the reader's.
+    pub fn substitute_vars(
+        &self,
+        f: &mut impl FnMut(VarId) -> Option<Self>,
+    ) -> Result<Self, DimensionError> {
+        use ExprKind as K;
+        let mut go = |e: &Self| e.substitute_vars(f);
+        match &self.kind {
+            K::Var(var) => match f(*var) {
+                Some(by) if by.dim == self.dim => Ok(by),
+                Some(by) => Err(DimensionError::Mismatch {
+                    op: "substitute",
+                    left: self.dim,
+                    right: by.dim,
+                }),
+                None => Ok(self.clone()),
+            },
+            K::Ratio(_) | K::Integer(_) | K::Turn | K::Leaf(_) => Ok(self.clone()),
+            K::Add(a, b) => Self::add(go(a)?, go(b)?),
+            K::Sub(a, b) => Self::sub(go(a)?, go(b)?),
+            K::Mul(a, b) => Self::mul(go(a)?, go(b)?),
+            K::Div(a, b) => Self::div(go(a)?, go(b)?),
+            K::Atan2(a, b) => Self::atan2(go(a)?, go(b)?),
+            K::Min(a, b) => Self::min(go(a)?, go(b)?),
+            K::Max(a, b) => Self::max(go(a)?, go(b)?),
+            K::Neg(a) => Self::neg(go(a)?),
+            K::Sin(a) => Self::sin(go(a)?),
+            K::Cos(a) => Self::cos(go(a)?),
+            K::Tan(a) => Self::tan(go(a)?),
+            K::CountToScalar(a) => Self::count_to_scalar(go(a)?),
+        }
+    }
+}
+
+impl<L: LeafSet> ExprTree<L> {
+    /// **Every leaf of this form's own set**, with the dimension it is
+    /// read at, in pre-order: what a reader of the leaves asks, where
+    /// [`Self::try_map_leaves`] rewrites them.
+    ///
+    /// Recursion is bounded by [`MAX_NESTING`], as every walk over a
+    /// constructed tree is.
+    pub(crate) fn visit_leaves(&self, visit: &mut impl FnMut(&L, Dimension)) {
+        use ExprKind as K;
+        match &self.kind {
+            K::Leaf(leaf) => visit(leaf, self.dim),
+            K::Ratio(_) | K::Integer(_) | K::Turn | K::Var(_) => {}
+            K::Add(a, b)
+            | K::Sub(a, b)
+            | K::Mul(a, b)
+            | K::Div(a, b)
+            | K::Atan2(a, b)
+            | K::Min(a, b)
+            | K::Max(a, b) => {
+                a.visit_leaves(visit);
+                b.visit_leaves(visit);
+            }
+            K::Neg(a) | K::Sin(a) | K::Cos(a) | K::Tan(a) | K::CountToScalar(a) => {
+                a.visit_leaves(visit);
+            }
+        }
+    }
+
+    /// **Every leaf of this tree**, with the dimension it is read at,
+    /// in pre-order: a reader by id, a leaf of this form's own set, or a
+    /// constant.
+    ///
+    /// Recursion is bounded by [`MAX_NESTING`], as every walk over a
+    /// constructed tree is.
+    pub(crate) fn visit_terminals(&self, visit: &mut impl FnMut(Terminal<'_, L>, Dimension)) {
+        use ExprKind as K;
+        match &self.kind {
+            K::Leaf(leaf) => visit(Terminal::Leaf(leaf), self.dim),
+            K::Var(var) => visit(Terminal::Var(*var), self.dim),
+            K::Ratio(_) | K::Integer(_) | K::Turn => visit(Terminal::Constant, self.dim),
+            binary_kind!(a, b) => {
+                a.visit_terminals(visit);
+                b.visit_terminals(visit);
+            }
+            unary_kind!(a) => a.visit_terminals(visit),
+        }
+    }
+
+    /// **This tree in another form**: every leaf of this form's own
+    /// vocabulary rewritten by `own` (handed the dimension it reads at),
+    /// every shared leaf and operator kept, with its dimension and
+    /// nesting. The first refusal of `own`, in pre-order, is the
+    /// answer.
+    ///
+    /// Recursion is bounded by [`MAX_NESTING`], as every walk over a
+    /// constructed tree is.
+    pub(crate) fn try_map_leaves<M: LeafSet, E>(
+        &self,
+        own: &mut impl FnMut(&L, Dimension) -> Result<ExprTree<M>, E>,
+    ) -> Result<ExprTree<M>, E> {
+        use ExprKind as K;
+        let mut map = |e: &Self| e.try_map_leaves(own).map(Box::new);
+        let kind = match &self.kind {
+            K::Leaf(leaf) => return own(leaf, self.dim),
+            K::Ratio(r) => K::Ratio(*r),
+            K::Integer(n) => K::Integer(*n),
+            K::Turn => K::Turn,
+            K::Var(var) => K::Var(*var),
+            K::Add(a, b) => K::Add(map(a)?, map(b)?),
+            K::Sub(a, b) => K::Sub(map(a)?, map(b)?),
+            K::Mul(a, b) => K::Mul(map(a)?, map(b)?),
+            K::Div(a, b) => K::Div(map(a)?, map(b)?),
+            K::Atan2(a, b) => K::Atan2(map(a)?, map(b)?),
+            K::Min(a, b) => K::Min(map(a)?, map(b)?),
+            K::Max(a, b) => K::Max(map(a)?, map(b)?),
+            K::Neg(a) => K::Neg(map(a)?),
+            K::Sin(a) => K::Sin(map(a)?),
+            K::Cos(a) => K::Cos(map(a)?),
+            K::Tan(a) => K::Tan(map(a)?),
+            K::CountToScalar(a) => K::CountToScalar(map(a)?),
+        };
+        Ok(ExprTree {
+            dim: self.dim,
+            nesting: self.nesting,
+            kind,
+        })
+    }
+}
+
+// The constants both forms share.
+impl<L: LeafSet> ExprTree<L> {
+    /// This tree as an author writes it: every leaf kept.
+    pub(crate) fn to_formula(&self) -> crate::Formula {
+        let Ok(formula) = self.try_map_leaves(&mut |leaf, dim| {
+            Ok::<_, core::convert::Infallible>(crate::Formula::own_leaf(leaf.authored(), dim))
+        });
+        formula
+    }
+
+    /// The exact rational constant `num / den`, dimension `Scalar`.
+    ///
+    /// # Errors
+    ///
+    /// [`Ratio::new`]'s.
+    pub fn ratio(num: i64, den: u64) -> Result<Self, DimensionError> {
+        Ratio::new(num, den).map(Self::ratio_leaf)
+    }
+
+    /// The exact integer constant `value`, dimension `Count`.
+    pub fn integer(value: i64) -> Self {
+        Self::integer_leaf(value)
+    }
+
+    /// One full rotation, dimension `Angle`: `turn / 4` is a right
+    /// angle.
+    pub fn turn() -> Self {
+        Self::turn_leaf()
+    }
+
+    /// The constant this tree is, where it is one lone rational.
+    pub fn as_ratio(&self) -> Option<Ratio> {
+        match self.kind {
+            ExprKind::Ratio(r) => Some(r),
+            _ => None,
+        }
+    }
+
+    /// The integer this tree is, where it is one lone integer constant.
+    pub fn as_integer(&self) -> Option<i64> {
+        match self.kind {
+            ExprKind::Integer(n) => Some(n),
+            _ => None,
+        }
+    }
+}
+
 /// The address of an expression subtree inside a document (spec D5,
 /// F7's "GeomSource's missing type"): a node, a NAMED slot (never an
 /// index), and a chain of AST-child indices. Stable under edits to
@@ -1287,7 +1605,7 @@ pub struct ExprPath {
 
 /// A document-parameter value bound for evaluation (spec D4). The
 /// scalar type is generic: the document stores exact `f64`/`i64`;
-/// [`crate::Doc::param_env`] embeds them into any [`Real`].
+/// [`crate::Doc::var_env`] embeds them into any [`Real`].
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ParamValue<T> {
     /// A continuous value with its declared dimension (kernel units).
@@ -1311,20 +1629,51 @@ impl<T> ParamValue<T> {
     }
 }
 
-/// The name→value environment [`eval`] and [`eval_count`] read
-/// parameter refs from (spec D4's `params`).
+/// The id→value environment [`eval`] and [`eval_count`] read variable
+/// readers from (spec D4's `params`).
 #[derive(Debug, Clone, PartialEq)]
-pub struct ParamEnv<T> {
-    /// The bindings, by parameter name.
-    pub bindings: std::collections::BTreeMap<ParamName, ParamValue<T>>,
+pub struct VarEnv<T> {
+    /// The bindings, by variable.
+    pub bindings: std::collections::BTreeMap<VarId, ParamValue<T>>,
+    /// The defined variables whose definition refused, and the outputs,
+    /// by variable: a
+    /// reader of one refuses [`EvalError::DefinitionRefused`] with
+    /// this refusal as its source — or, for one in [`Self::written`],
+    /// with the refusal itself.
+    pub refused: std::collections::BTreeMap<VarId, EvalError>,
+    /// The defined variables a document holds with no name: each is a
+    /// formula as it was written at the slot that reads it, so a
+    /// refusal of its definition is the slot's own refusal, not a
+    /// variable's the person never named. An operation's output is here
+    /// too: its refusal ([`EvalError::OutputRead`]) is its reader's.
+    pub written: std::collections::BTreeSet<VarId>,
+}
+
+impl<T> VarEnv<T> {
+    /// The binding of `var`, or why it has none.
+    pub(crate) fn binding(&self, var: VarId) -> Result<&ParamValue<T>, EvalError> {
+        match self.bindings.get(&var) {
+            Some(bound) => Ok(bound),
+            None => Err(match self.refused.get(&var) {
+                Some(source) if self.written.contains(&var) => source.clone(),
+                Some(source) => EvalError::DefinitionRefused {
+                    var,
+                    source: Box::new(source.clone()),
+                },
+                None => EvalError::UnresolvedVar { var },
+            }),
+        }
+    }
 }
 
 // Manual impl: the derive would demand `T: Default`, which certified
 // scalars (Interval) deliberately do not provide.
-impl<T> Default for ParamEnv<T> {
+impl<T> Default for VarEnv<T> {
     fn default() -> Self {
         Self {
             bindings: std::collections::BTreeMap::new(),
+            refused: std::collections::BTreeMap::new(),
+            written: std::collections::BTreeSet::new(),
         }
     }
 }
@@ -1335,27 +1684,46 @@ impl<T> Default for ParamEnv<T> {
 /// docs) — the evaluator has no branches to hide them behind.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EvalError {
-    /// A parameter ref with no binding in the environment.
-    UnknownParam(ParamName),
-    /// A parameter bound with a different dimension than the ref
-    /// recorded at construction.
+    /// A reader of a variable with no binding in the environment: a
+    /// variable the document deleted (VR7: its readers stay, unresolved),
+    /// or one a hand-built environment left out.
+    UnresolvedVar {
+        /// The variable read.
+        var: VarId,
+    },
+    /// A reader of an operation's output (D10): a value the built
+    /// geometry gives, where a construction reads only what was
+    /// written. The edit door does not refuse it yet, so evaluation
+    /// does.
+    OutputRead {
+        /// The output read.
+        var: VarId,
+    },
+    /// A reader of a defined variable whose definition refused: the
+    /// definition's own refusal is `source`. The reader's address is
+    /// the wrapper's, as for [`Self::VarKindMismatch`].
+    DefinitionRefused {
+        /// The defined variable read.
+        var: VarId,
+        /// Why its definition refused.
+        source: Box<EvalError>,
+    },
+    /// A reader whose cached kind disagrees with the dimension the
+    /// environment bound the variable at.
     ///
-    /// The dimension fact at EVALUATION, where the edit and load
-    /// doors spell it `{Slot,Payload}DocParamDimension`. It is named
-    /// by the fact alone because the address is not this arm's to
-    /// carry: the wrapper supplies it
-    /// ([`crate::eval::NodeErrorKind::Expr`] a node and a slot,
-    /// [`crate::eval::NodeErrorKind::PayloadExpr`] a node and a
+    /// The kind fact at EVALUATION, where the edit and load doors
+    /// spell it `{Slot,Payload}VarKind`. It is named by the fact alone
+    /// because the address is not this arm's to carry: the wrapper
+    /// supplies it ([`crate::eval::NodeErrorKind::Expr`] a node and a
+    /// slot, [`crate::eval::NodeErrorKind::PayloadExpr`] a node and a
     /// payload), and it forwards this refusal unaltered.
-    /// [`crate::edit::EditError`]'s enum doc is where that convention
-    /// and its two families are stated.
-    ParamDimensionMismatch {
-        /// The parameter name.
-        name: ParamName,
-        /// The dimension the expression's ref recorded.
-        expected: Dimension,
+    VarKindMismatch {
+        /// The variable read.
+        var: VarId,
         /// The dimension the environment bound.
-        found: Dimension,
+        bound: Dimension,
+        /// The dimension the reader reads at.
+        read: Dimension,
     },
     /// [`eval`] applied to a `Count`-dimension expression — Count
     /// evaluates exactly via [`eval_count`]; promotion to `T` is only
@@ -1388,6 +1756,10 @@ pub enum EvalError {
     /// enclosures pass (boundedness is the `Com`-decoration's business,
     /// not this door's).
     NonFiniteResult,
+    /// A leaf of an authored formula that only the edit door resolves —
+    /// a name, or a fresh-table entry — evaluated outside it: lower the
+    /// formula in a document first.
+    Unlowered(crate::LowerFault),
 }
 
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
@@ -1398,19 +1770,22 @@ pub enum EvalError {
 impl core::fmt::Display for EvalError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::UnknownParam(name) => write!(
+            Self::UnresolvedVar { var } => write!(
                 f,
-                "parameter {name} has no binding in the evaluation environment — declare \
-                 the document parameter or fix the reference"
+                "variable {var} has no binding in the evaluation environment — it was \
+                 deleted, or never declared here; point the reader at a live variable"
             ),
-            Self::ParamDimensionMismatch {
-                name,
-                expected,
-                found,
-            } => write!(
+            Self::OutputRead { var } => write!(
                 f,
-                "parameter {name} is referenced as {expected} but bound as {found}"
+                "variable {var} is an operation's output, a value the built geometry gives, and \
+                 a construction reads only what was written; read a written variable here"
             ),
+            Self::DefinitionRefused { var, source } => {
+                write!(f, "the definition of variable {var} refused: {source}")
+            }
+            Self::VarKindMismatch { var, bound, read } => {
+                write!(f, "variable {var} is read as {read} but bound as {bound}")
+            }
             Self::CountExprInContinuousEval => f.write_str(
                 "a count expression does not evaluate continuously — promote it \
                  explicitly through count_to_scalar",
@@ -1433,6 +1808,11 @@ impl core::fmt::Display for EvalError {
                 "the evaluated result is not finite — the arithmetic overflowed or hit \
                  a pole (1/0, 0/0); fix the expression or the values feeding it",
             ),
+            Self::Unlowered(fault) => write!(
+                f,
+                "{fault}, and only a document's edit door resolves it; evaluate the formula \
+                 as the document lowers it"
+            ),
         }
     }
 }
@@ -1449,8 +1829,29 @@ impl core::error::Error for EvalError {}
 /// door-2 finiteness check on the FINAL value is a reified decision,
 /// so it goes through `sign_within`, never a raw comparison. The
 /// evaluation itself needs only `Real` (see `eval_inner`).
-pub fn eval<T: Decide>(expr: &Expr, params: &ParamEnv<T>) -> Result<T, EvalError> {
+pub fn eval<T: Decide>(expr: &ExprTree<impl LeafSet>, params: &VarEnv<T>) -> Result<T, EvalError> {
     refuse_non_finite(eval_inner(expr, params)?)
+}
+
+/// **A slot's variable evaluated** (VARIABLES-DESIGN VR4): its binding
+/// in `params`, read at `dim`, the dimension the slot's address reads
+/// it at — exactly [`eval`] of a lone reader of `var`.
+///
+/// # Errors
+///
+/// [`eval`]'s, of that reader.
+pub fn eval_var<T: Decide>(var: VarId, dim: Dimension, params: &VarEnv<T>) -> Result<T, EvalError> {
+    eval(&Expr::var(var, dim), params)
+}
+
+/// **A structural slot's variable evaluated**: [`eval_count`] of a lone
+/// `Count` reader of `var`.
+///
+/// # Errors
+///
+/// [`eval_count`]'s, of that reader.
+pub fn eval_var_count<T>(var: VarId, params: &VarEnv<T>) -> Result<i64, EvalError> {
+    eval_count(&Expr::var(var, Dimension::Count), params)
 }
 
 /// **Door 2, as a shared door.** The ruled non-finite check on a
@@ -1499,7 +1900,7 @@ pub(crate) fn refuse_non_finite<T: Decide>(value: T) -> Result<T, EvalError> {
 /// [`eval`]'s final check). The walk keeps its own stack
 /// ([`crate::tree::fold`]), so how deep the expression nests costs the
 /// thread's stack nothing.
-fn eval_inner<T: Real>(root: &Expr, params: &ParamEnv<T>) -> Result<T, EvalError> {
+fn eval_inner<T: Real, L: LeafSet>(root: &ExprTree<L>, params: &VarEnv<T>) -> Result<T, EvalError> {
     use crate::tree::{Operands as O, Visit};
     use ExprKind as K;
     crate::tree::fold(
@@ -1509,24 +1910,22 @@ fn eval_inner<T: Real>(root: &Expr, params: &ParamEnv<T>) -> Result<T, EvalError
                 return Err(EvalError::CountExprInContinuousEval);
             }
             Ok(match &expr.kind {
-                // The display unit is presentation metadata: evaluation
-                // reads only the canonical value (DESIGN.md D6;
-                // LIB-SWITCH §4g).
-                K::Literal(lit) => Visit::Value(T::from_f64(lit.value)),
-                K::CountLiteral(_) => return Err(EvalError::CountExprInContinuousEval),
-                K::Param(name) => match params.bindings.get(name) {
-                    None => return Err(EvalError::UnknownParam(name.clone())),
-                    Some(ParamValue::Continuous { dim, value }) if *dim == expr.dim => {
+                K::Ratio(r) => Visit::Value(r.eval()),
+                K::Turn => Visit::Value(T::tau()),
+                K::Integer(_) => return Err(EvalError::CountExprInContinuousEval),
+                K::Var(var) => match params.binding(*var)? {
+                    ParamValue::Continuous { dim, value } if *dim == expr.dim => {
                         Visit::Value(*value)
                     }
-                    Some(bound) => {
-                        return Err(EvalError::ParamDimensionMismatch {
-                            name: name.clone(),
-                            expected: expr.dim,
-                            found: bound.dim(),
+                    bound => {
+                        return Err(EvalError::VarKindMismatch {
+                            var: *var,
+                            bound: bound.dim(),
+                            read: expr.dim,
                         });
                     }
                 },
+                K::Leaf(own) => Visit::Value(own.value(expr.dim)?),
                 K::CountToScalar(a) => {
                     let n = eval_count(a, params)?;
                     // i32::try_from is total on i64 (no abs, no panic —
@@ -1564,7 +1963,7 @@ fn eval_inner<T: Real>(root: &Expr, params: &ParamEnv<T>) -> Result<T, EvalError
 /// Evaluate a `Count` expression to an exact `i64` (spec D4: Count is
 /// integer-valued; arithmetic is checked, overflow a typed error). The
 /// walk keeps its own stack, as [`eval`]'s does.
-pub fn eval_count<T>(root: &Expr, params: &ParamEnv<T>) -> Result<i64, EvalError> {
+pub fn eval_count<T>(root: &ExprTree<impl LeafSet>, params: &VarEnv<T>) -> Result<i64, EvalError> {
     use crate::tree::{Operands as O, Visit};
     use ExprKind as K;
     let checked = |r: Option<i64>| r.ok_or(EvalError::CountOverflow);
@@ -1575,24 +1974,25 @@ pub fn eval_count<T>(root: &Expr, params: &ParamEnv<T>) -> Result<i64, EvalError
                 return Err(EvalError::ContinuousExprInCountEval { found: expr.dim });
             }
             Ok(match &expr.kind {
-                K::CountLiteral(n) => Visit::Value(*n),
-                K::Param(name) => match params.bindings.get(name) {
-                    None => return Err(EvalError::UnknownParam(name.clone())),
-                    Some(ParamValue::Count(n)) => Visit::Value(*n),
-                    Some(bound) => {
-                        return Err(EvalError::ParamDimensionMismatch {
-                            name: name.clone(),
-                            expected: Dimension::Count,
-                            found: bound.dim(),
+                K::Integer(n) => Visit::Value(*n),
+                K::Var(var) => match params.binding(*var)? {
+                    ParamValue::Count(n) => Visit::Value(*n),
+                    bound => {
+                        return Err(EvalError::VarKindMismatch {
+                            var: *var,
+                            bound: bound.dim(),
+                            read: Dimension::Count,
                         });
                     }
                 },
+                K::Leaf(own) => Visit::Value(own.count(expr.dim)?),
                 K::Add(a, b) | K::Sub(a, b) | K::Mul(a, b) | K::Min(a, b) | K::Max(a, b) => {
                     Visit::Two(a, b)
                 }
                 K::Neg(a) => Visit::One(a),
                 // Construction makes these unrepresentable at Count dimension.
-                K::Literal(_)
+                K::Ratio(_)
+                | K::Turn
                 | K::Div(..)
                 | K::Sin(_)
                 | K::Cos(_)
@@ -1639,16 +2039,19 @@ const PREC_ATOM: u8 = 4;
 /// therefore binds as a negation does, not as an atom — the sign is
 /// part of the emitted text, and whoever is deciding parentheses has
 /// to see it.
-fn precedence(expr: &Expr) -> u8 {
+fn precedence<L: LeafSet>(expr: &ExprTree<L>) -> u8 {
     match &expr.kind {
-        ExprKind::Literal(lit) if lit.value.is_sign_negative() => PREC_UNARY,
-        ExprKind::CountLiteral(n) if *n < 0 => PREC_UNARY,
+        ExprKind::Ratio(r) if r.is_negative() => PREC_UNARY,
+        ExprKind::Integer(n) if *n < 0 => PREC_UNARY,
+        ExprKind::Leaf(own) if own.negative() => PREC_UNARY,
         ExprKind::Add(..) | ExprKind::Sub(..) => PREC_SUM,
         ExprKind::Mul(..) | ExprKind::Div(..) => PREC_PRODUCT,
         ExprKind::Neg(_) => PREC_UNARY,
-        ExprKind::Literal(_)
-        | ExprKind::CountLiteral(_)
-        | ExprKind::Param(_)
+        ExprKind::Ratio(_)
+        | ExprKind::Integer(_)
+        | ExprKind::Turn
+        | ExprKind::Var(_)
+        | ExprKind::Leaf(_)
         | ExprKind::Sin(_)
         | ExprKind::Cos(_)
         | ExprKind::Tan(_)
@@ -1660,12 +2063,12 @@ fn precedence(expr: &Expr) -> u8 {
 }
 
 /// The expression TEXT door OUTWARD (issue #1103): source text that
-/// [`crate::parse_expr`] reads back as this very expression.
+/// [`crate::parse_formula`] reads back as this very expression.
 ///
 /// **The contract is the round trip, structurally**: for every `e`
-/// the constructors admit, `parse_expr(&unparse(&e), params)` is
-/// [`Expr::bit_eq`] to `e` — same tree, so the same nesting, and the
-/// same literal BITS — and its literals remember the same display
+/// the constructors admit, `parse_formula(&unparse(&e, names), params)` is
+/// [`ExprTree::bit_eq`] to `e` — same tree, so the same nesting, and the
+/// same value BITS — and its quantities remember the same display
 /// units (which `bit_eq` deliberately does not compare, being
 /// presentation metadata). Parentheses are emitted where and only
 /// where the grammar needs them to reproduce the same tree, which is
@@ -1673,34 +2076,52 @@ fn precedence(expr: &Expr) -> u8 {
 /// `Add(a, Add(b, c))` is parenthesised even though `a + b + c`
 /// evaluates identically.
 ///
-/// A literal is written in the display unit it REMEMBERS
-/// ([`Expr::display_unit`]) — through [`quantity::fmt_length`]/
-/// [`quantity::fmt_angle`], whose own pin is that the digits multiply
-/// back to the exact bits, and which fall back to the canonical unit
-/// for the values that have no preimage in the asked-for one. A
-/// `Scalar` literal takes no unit and is written with a decimal point
-/// or an exponent, because a BARE integer is this grammar's spelling
-/// of a `Count`.
+/// A written quantity is written in the display unit it REMEMBERS
+/// ([`crate::Formula::display_unit`]) — through
+/// [`quantity::fmt_length`]/[`quantity::fmt_angle`], whose own pin is
+/// that the digits multiply back to the exact bits, and which fall back
+/// to the canonical unit for the values that have no preimage in the
+/// asked-for one. A `Scalar` one takes no unit and is written with a
+/// decimal point or an exponent, because a BARE integer is this
+/// grammar's spelling of a `Count`. The text has no spelling of a
+/// written dimensionless value inside a formula, so there its digits
+/// read back as the constant they spell, up to identity, and refuse
+/// [`DimensionError::ConstantOutOfRange`] where none in range does;
+/// alone, they read back as the written value. A rational constant is
+/// written as a decimal where its denominator is a product of twos and
+/// fives and as `p/q` otherwise ([`Ratio`]'s `Display`), bracketed as a
+/// divisor (`w / (1/3)`), and one full rotation as `turn`.
 ///
-/// A negative literal is written with its sign (`-25 mm`), which the
-/// parser reads as the literal's own; the negation of a non-negative
-/// literal is therefore bracketed (`-(25 mm)`), the one place a
-/// bracket around an atom is needed.
-pub fn unparse(expr: &Expr) -> String {
+/// A negative number is written with its sign (`-25 mm`), which the
+/// parser reads as the number's own; the negation of a non-negative
+/// number is therefore bracketed (`-(25 mm)`), the one place a bracket
+/// around an atom is needed.
+///
+/// A reader writes the name `names` gives its variable, so the text
+/// parses back to a name leaf that lowers, against the same names, to
+/// the same reader. A reader `names` has no name for writes
+/// `#<16 hex>`, its full id, which the parser refuses.
+pub fn unparse<'n, L: LeafSet>(
+    expr: &ExprTree<L>,
+    names: &impl Fn(VarId) -> Option<&'n VarName>,
+) -> String {
     let mut out = String::new();
-    write_expr(expr, &mut out);
+    write_expr(expr, names, &mut out);
     out
 }
 
+/// The names a rendering reads its readers' text from.
+type Names<'a, 'n> = &'a dyn Fn(VarId) -> Option<&'n VarName>;
+
 /// `expr`, wrapped in parentheses unless it already binds at least as
 /// tightly as `needs`.
-fn write_nested(expr: &Expr, needs: u8, out: &mut String) {
+fn write_nested<L: LeafSet>(expr: &ExprTree<L>, needs: u8, names: Names<'_, '_>, out: &mut String) {
     if precedence(expr) < needs {
         out.push('(');
-        write_expr(expr, out);
+        write_expr(expr, names, out);
         out.push(')');
     } else {
-        write_expr(expr, out);
+        write_expr(expr, names, out);
     }
 }
 
@@ -1711,65 +2132,101 @@ fn write_nested(expr: &Expr, needs: u8, out: &mut String) {
 /// and `a - b - c` are different trees, so a right operand binding at
 /// its parent's own level has to be bracketed even where arithmetic
 /// would not care.
-fn write_infix(left: &Expr, op: &str, right: &Expr, level: u8, out: &mut String) {
-    write_nested(left, level, out);
+fn write_infix<L: LeafSet>(
+    left: &ExprTree<L>,
+    op: &str,
+    right: &ExprTree<L>,
+    level: u8,
+    names: Names<'_, '_>,
+    out: &mut String,
+) {
+    write_nested(left, level, names, out);
     out.push(' ');
     out.push_str(op);
     out.push(' ');
-    write_nested(right, level + 1, out);
+    write_nested(right, level + 1, names, out);
 }
 
 /// A call in the parser's own spelling — the arguments are delimited,
 /// so no argument is ever parenthesised.
-fn write_call(name: &str, args: &[&Expr], out: &mut String) {
+fn write_call<L: LeafSet>(
+    name: &str,
+    args: &[&ExprTree<L>],
+    names: Names<'_, '_>,
+    out: &mut String,
+) {
     out.push_str(name);
     out.push('(');
     for (i, arg) in args.iter().enumerate() {
         if i > 0 {
             out.push_str(", ");
         }
-        write_expr(arg, out);
+        write_expr(arg, names, out);
     }
     out.push(')');
 }
 
 /// The rendering proper (see [`unparse`] for the contract).
-fn write_expr(expr: &Expr, out: &mut String) {
+fn write_expr<L: LeafSet>(expr: &ExprTree<L>, names: Names<'_, '_>, out: &mut String) {
     use ExprKind as K;
     match &expr.kind {
-        K::Literal(lit) => out.push_str(&write_literal(lit, expr.dim)),
-        K::CountLiteral(n) => out.push_str(&n.to_string()),
-        K::Param(name) => out.push_str(name.as_str()),
-        K::Add(a, b) => write_infix(a, "+", b, PREC_SUM, out),
-        K::Sub(a, b) => write_infix(a, "-", b, PREC_SUM, out),
-        K::Mul(a, b) => write_infix(a, "*", b, PREC_PRODUCT, out),
-        K::Div(a, b) => write_infix(a, "/", b, PREC_PRODUCT, out),
+        K::Ratio(r) => out.push_str(&r.to_string()),
+        K::Integer(n) => out.push_str(&n.to_string()),
+        K::Turn => out.push_str("turn"),
+        K::Leaf(own) => own.write(expr.dim, out),
+        // A reader the names cannot speak — an anonymous variable, or
+        // one the document no longer holds — writes its full id, which
+        // the parser does not read: such text names no variable.
+        K::Var(var) => match names(*var) {
+            Some(name) => out.push_str(name.as_str()),
+            None => out.push_str(&var.to_string()),
+        },
+        K::Add(a, b) => write_infix(a, "+", b, PREC_SUM, names, out),
+        K::Sub(a, b) => write_infix(a, "-", b, PREC_SUM, names, out),
+        K::Mul(a, b) => write_infix(a, "*", b, PREC_PRODUCT, names, out),
+        // A ratio written `p/q` is bracketed as a divisor: the parser
+        // reads an unspaced pair after `/` as two divisions, left to
+        // right (`w/2/3` is `w/6`).
+        K::Div(a, b) => match &b.kind {
+            K::Ratio(r) if r.decimal().is_none() => {
+                write_nested(a, PREC_PRODUCT, names, out);
+                out.push_str(" / (");
+                out.push_str(&r.to_string());
+                out.push(')');
+            }
+            _ => write_infix(a, "/", b, PREC_PRODUCT, names, out),
+        },
         K::Neg(a) => {
             out.push('-');
-            if matches!(a.kind, K::Literal(_) | K::CountLiteral(_)) && precedence(a) == PREC_ATOM {
+            let numeric = match &a.kind {
+                K::Ratio(_) | K::Integer(_) => true,
+                K::Leaf(own) => own.numeric(),
+                _ => false,
+            };
+            if numeric && precedence(a) == PREC_ATOM {
                 out.push('(');
-                write_expr(a, out);
+                write_expr(a, names, out);
                 out.push(')');
             } else {
-                write_nested(a, PREC_UNARY, out);
+                write_nested(a, PREC_UNARY, names, out);
             }
         }
-        K::Sin(a) => write_call("sin", &[a], out),
-        K::Cos(a) => write_call("cos", &[a], out),
-        K::Tan(a) => write_call("tan", &[a], out),
-        K::CountToScalar(a) => write_call("scalar", &[a], out),
-        K::Atan2(y, x) => write_call("atan2", &[y, x], out),
-        K::Min(a, b) => write_call("min", &[a, b], out),
-        K::Max(a, b) => write_call("max", &[a, b], out),
+        K::Sin(a) => write_call("sin", &[a], names, out),
+        K::Cos(a) => write_call("cos", &[a], names, out),
+        K::Tan(a) => write_call("tan", &[a], names, out),
+        K::CountToScalar(a) => write_call("scalar", &[a], names, out),
+        K::Atan2(y, x) => write_call("atan2", &[y, x], names, out),
+        K::Min(a, b) => write_call("min", &[a, b], names, out),
+        K::Max(a, b) => write_call("max", &[a, b], names, out),
     }
 }
 
-/// One continuous literal, in the unit it remembers.
-fn write_literal(lit: &Lit, dim: Dimension) -> String {
-    let remembered = lit.unit_def();
+/// One written quantity, in the unit it remembers.
+fn write_quantity(value: f64, unit: UnitSym, dim: Dimension) -> String {
+    let remembered = unit.def();
     let formatted = match dim {
         // The stored unit and the dimension agree by construction —
-        // `Expr::literal_with_unit` checks the pairing and `literal`
+        // `Formula::literal_with_unit` checks the pairing and `literal`
         // supplies the canonical row — so the typed view is there, and
         // its absence is D2 addendum row 4 rather than a default: a
         // quiet fallback here would render a corrupt literal as if it
@@ -1782,7 +2239,7 @@ fn write_literal(lit: &Lit, dim: Dimension) -> String {
                     remembered.quantity()
                 )
             };
-            quantity::fmt_length(lit.value, unit)
+            quantity::fmt_length(value, unit)
         }
         Dimension::Angle => {
             let Some(unit) = remembered.as_angle() else {
@@ -1792,7 +2249,7 @@ fn write_literal(lit: &Lit, dim: Dimension) -> String {
                     remembered.quantity()
                 )
             };
-            quantity::fmt_angle(lit.value, unit)
+            quantity::fmt_angle(value, unit)
         }
         // The dimensionless row's symbol is empty, so there is no
         // suffix to append and no formatter to route through: a
@@ -1801,20 +2258,21 @@ fn write_literal(lit: &Lit, dim: Dimension) -> String {
         // is a `Scalar`. `{:?}` is the shortest form that reads back to
         // the same bits and always carries a `.` or an `e`, so it
         // settles the round trip and the dimension together.
-        Dimension::Scalar => return format!("{:?}", lit.value),
-        // Unconstructable (D2 addendum row 4): `Expr::literal` refuses
-        // `Count`, and `ExprKind::Literal` is minted nowhere else.
+        Dimension::Scalar => return format!("{value:?}"),
+        // Unconstructable (D2 addendum row 4): `Formula::literal` and
+        // `literal_with_unit` refuse `Count`, and a written quantity is
+        // built nowhere else.
         Dimension::Count => {
-            unreachable!("a Count literal is an integer (ExprKind::CountLiteral), never a Lit")
+            unreachable!("a count is an integer constant (ExprKind::Integer), never a quantity")
         }
     };
     match formatted {
         Ok(text) => text,
-        // Same row: door 1 refuses a non-finite literal at
+        // Same row: door 1 refuses a non-finite quantity at
         // construction, and non-finiteness is the formatter's only
         // refusal.
         Err(error) => unreachable!(
-            "a stored literal is finite by construction, yet the display formatter refused: \
+            "a written quantity is finite by construction, yet the display formatter refused: \
              {error}"
         ),
     }
@@ -1846,11 +2304,11 @@ mod tests {
     fn evaluation_and_drop_keep_their_own_stack() {
         test_utils::own_thread::on_the_smallest_stack(|| {
             let levels = 1_000_000;
-            let half = Expr::literal(0.5, Dimension::Length).expect("a finite length");
+            let half = Expr::ratio(1, 2).expect("a constant in range");
             let deep = raw_chain(half, levels, raw_neg);
-            assert_eq!(eval(&deep, &ParamEnv::<f64>::default()), Ok(-0.5));
-            let counted = raw_chain(Expr::count(3), levels, raw_neg);
-            assert_eq!(eval_count(&counted, &ParamEnv::<f64>::default()), Ok(-3));
+            assert_eq!(eval(&deep, &VarEnv::<f64>::default()), Ok(-0.5));
+            let counted = raw_chain(Expr::integer(3), levels, raw_neg);
+            assert_eq!(eval_count(&counted, &VarEnv::<f64>::default()), Ok(-3));
             drop((deep, counted));
         });
     }

@@ -77,12 +77,18 @@ mod cert5_r1_patch_probes;
 #[path = "chart_box_span.rs"]
 mod chart_box_span;
 
+#[path = "axis_rows_read_as_one_sum.rs"]
+mod axis_rows_read_as_one_sum;
 #[path = "curved_torus_arc_residual.rs"]
 mod curved_torus_arc_residual;
+#[path = "cylinder_green_conditioning.rs"]
+mod cylinder_green_conditioning;
 #[path = "d290_r2_e2e.rs"]
 mod d290_r2_e2e;
 #[path = "decoration_plane_mint.rs"]
 mod decoration_plane_mint;
+#[path = "ellipse_signed_semi_axis_gate.rs"]
+mod ellipse_signed_semi_axis_gate;
 #[path = "exhaust_lane_meters.rs"]
 mod exhaust_lane_meters;
 #[path = "germ_pose_gate.rs"]
@@ -115,12 +121,18 @@ mod offa_r1_probes;
 mod offb_r1_probes;
 #[path = "onb_wall_frame_interval.rs"]
 mod onb_wall_frame_interval;
+#[path = "pcurve_frame_premise_rows.rs"]
+mod pcurve_frame_premise_rows;
 #[path = "props_cone_apex_cap.rs"]
 mod props_cone_apex_cap;
+#[path = "props_sphere_circle_loop.rs"]
+mod props_sphere_circle_loop;
 #[path = "props_sphere_pole_side.rs"]
 mod props_sphere_pole_side;
 #[path = "r2_probe_sphere_polar.rs"]
 mod r2_probe_sphere_polar;
+#[path = "section_reads_at_the_reach.rs"]
+mod section_reads_at_the_reach;
 
 #[path = "offb_r2_probes.rs"]
 mod offb_r2_probes;
@@ -152,6 +164,8 @@ mod chart_incidence;
 mod cone_incidence_fuzz;
 #[path = "offset_mint.rs"]
 mod offset_mint;
+#[path = "pcurve_cone_section.rs"]
+mod pcurve_cone_section;
 #[path = "pcurve_conic.rs"]
 mod pcurve_conic;
 #[path = "pcurve_general.rs"]
@@ -162,6 +176,8 @@ mod pcurve_p1a_meter;
 mod pcurve_p1b_r2_probes;
 #[path = "pcurve_parameter_finding.rs"]
 mod pcurve_parameter_finding;
+#[path = "pcurve_villarceau.rs"]
+mod pcurve_villarceau;
 #[path = "r1_pxn_probes.rs"]
 mod r1_pxn_probes;
 #[path = "r2_cert3_e2e.rs"]
@@ -204,6 +220,8 @@ mod s58_iso_rectangle;
 mod s81_one_rim_level_rule;
 #[path = "span_meter_dim_twins.rs"]
 mod span_meter_dim_twins;
+#[path = "ssi_limb3_one_arc.rs"]
+mod ssi_limb3_one_arc;
 
 test_utils::every_suite_file_is_aggregated!();
 
@@ -251,11 +269,21 @@ mod mesh12_saturated_span;
 #[path = "pcurve_mirror_v.rs"]
 mod pcurve_mirror_v;
 
+#[path = "one_sum_differential.rs"]
+mod one_sum_differential;
 #[path = "pcurve_spiric.rs"]
 mod pcurve_spiric;
 #[path = "r2_mesh7_door_probes.rs"]
 mod r2_mesh7_door_probes;
+#[path = "span_reach_differential.rs"]
+mod span_reach_differential;
+#[path = "span_reach_hunt.rs"]
+mod span_reach_hunt;
+#[path = "sphere_circle_certificate.rs"]
+mod sphere_circle_certificate;
 #[path = "tcost_k1_budget_exit.rs"]
 mod tcost_k1_budget_exit;
+#[path = "torus_chart_guards.rs"]
+mod torus_chart_guards;
 #[path = "torus_meridian_radial.rs"]
 mod torus_meridian_radial;

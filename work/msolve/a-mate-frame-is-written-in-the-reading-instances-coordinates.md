@@ -2,11 +2,12 @@
 id: a-mate-frame-is-written-in-the-reading-instances-coordinates
 kind: issue
 title: A mate's literal frame is written in the coordinates of the instance it reads, so split and inline must refuse where its meaning would change
-status: open
+status: parked
 opened: 2026-10-01
 priority: P2
 cost: M
 design: true
+blocked_on: [intent-stage3-is-built]
 ---
 
 
@@ -44,3 +45,14 @@ inner face follows that face.
 MSOLVE's ground, and the saved meaning of every literal frame on a
 non-root inner face (a migration question: re-express existing frames,
 or version the field). It goes to a designer pair and an `[ev]` PR.
+
+**The face arm already has M1's property** (`[ev]` #3888, built by
+P2-face, `docs/doc-ledger/edit-placement-spec.md` § P2-split rulings 7 and 8): a
+`FromFace` side names no face, its frame is its own head's face read in
+the member's part, so it crosses split and inline with its head under
+A4's condition (b) alone, and follows that face wherever the head
+reads it. What this row asks is the same for the authored arm.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage3-is-built`, not on the whole program: what a mate's literal frame means is ASSEMBLY A3, which D10 retires; spaces, "a part has no location" and the per-space computing frame are stage 3. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

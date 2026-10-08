@@ -10,6 +10,7 @@
 )]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     BooleanOp, CancelToken, CapEnd, EntityKind, Entry, EvalOptions, Evaluation, Node, ProfileDoc,
@@ -58,6 +59,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -69,14 +71,14 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_bool", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, decl) = declare_x_offset_flush(doc, a, b);
+    let decl = declare_x_offset_flush(&doc, a, b);
     let (doc, u) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
             b,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let ev = run(&doc);
@@ -115,16 +117,20 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
     );
     // Four Merged faces total (both caps + both flush y-walls); the
     // x-extreme walls survive under their FromX wraps unmerged.
-    let merged_rows = t
-        .iter()
-        .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::Merged(_))))
-        .count();
-    assert_eq!(merged_rows, 4);
+    let merged = |kind| {
+        t.iter()
+            .filter(|(n, _)| n.kind == kind && matches!(n.path.first(), Some(RoleSeg::Merged(_))))
+            .count()
+    };
+    assert_eq!(merged(EntityKind::Face), 4);
+    // The four flush rims along x are each one edge across both
+    // blocks, named for the two rims it spans.
+    assert_eq!(merged(EntityKind::Edge), 4);
     for (node, seg, wrap_a) in [(a, 3u32, true), (b, 1u32, false)] {
         let inner = minted(
             EntityKind::Face,
             node,
-            RoleSeg::Lateral(crate::fixture::piece(&doc, node, 0, seg as usize)),
+            RoleSeg::Lateral(crate::fixture::piece(&doc, node, 0, seg as usize).into()),
         );
         let seg = if wrap_a {
             RoleSeg::FromA(inner.into())
@@ -139,8 +145,31 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
             "missing surviving x-wall of {node:?}"
         );
     }
-    // Cut rims are told apart by their ends (never bare indices).
-    let pieces = t
+    // The flush rims are joined, not cut: no edge is a piece.
+    assert!(
+        t.iter()
+            .all(|(n, _)| !matches!(n.path.last(), Some(RoleSeg::Fragment(_)))),
+        "no rim of the flush union is held in pieces"
+    );
+    assert!(t.iter().all(|(_, e)| matches!(e, Entry::Unique(_))));
+
+    // A notch through `a`'s rim at y = 0, z = 1 cuts it at two genuine
+    // valence-3 vertices, where the notch's x-walls cross it.
+    let (doc, n) = block(doc, (0.4, 0.6), (-0.5, 0.5), 0.5, 1.0);
+    let (doc, u2) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a,
+            b: n,
+            declare: Vec::new(),
+        },
+    );
+    let ev = run(&doc);
+    let t = table(&ev, u2);
+    // Cut rims are told apart by their ends (never bare indices), and so
+    // is a lone piece: each of the notch's edges the cap cuts.
+    let pieces: Vec<_> = t
         .iter()
         .filter(|(n, _)| {
             matches!(
@@ -148,16 +177,35 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
                 Some(RoleSeg::Fragment(Qualifier::Ends(ends))) if ends.len() == 2
             )
         })
-        .count();
-    assert_eq!(
-        pieces, 8,
-        "rim pieces named by their ends (per-operand rims cut in two)"
+        .map(|(n, _)| n.path[..n.path.len() - 1].to_vec())
+        .collect();
+    let (of_a, of_n): (Vec<_>, Vec<_>) = pieces
+        .iter()
+        .partition(|p| matches!(p.as_slice(), [RoleSeg::FromA(_)]));
+    assert_eq!(of_a.len(), 2, "`a`'s cut rim in two pieces: {pieces:?}");
+    assert_eq!(of_a[0], of_a[1], "both pieces of one rim");
+    // `a` cuts four of the notch's edges, two start rims and two
+    // laterals, and keeps one piece of each: still named by its ends.
+    assert_eq!(of_n.len(), 4, "the notch's lone pieces: {pieces:?}");
+    assert!(
+        of_n.iter()
+            .all(|p| matches!(p.as_slice(), [RoleSeg::FromB(_)]))
+            && of_n.windows(2).all(|w| w[0] != w[1]),
+        "every other piece is the notch's, one of each edge: {pieces:?}"
     );
     // Seam vertices exist, with operand-name arguments.
     let seams = t
         .iter()
         .filter(|(n, _)| {
-            n.kind == EntityKind::Vertex && matches!(n.path.first(), Some(RoleSeg::Seam { .. }))
+            n.kind == EntityKind::Vertex
+                && matches!(
+                    n.path.first(),
+                    Some(
+                        RoleSeg::Seam { .. }
+                            | RoleSeg::Crossing { .. }
+                            | RoleSeg::EdgeCrossing { .. }
+                    )
+                )
         })
         .count();
     assert!(seams >= 4, "expected seam vertices, got {seams}");
@@ -179,7 +227,7 @@ fn slot_subtract_names_cap_fragments_by_the_walls_they_border() {
             op: BooleanOp::Subtract,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -252,6 +300,7 @@ fn symmetric_u_cutter_fragments_tie_and_naming_stays_total() {
         Node::Extrude {
             profile: p,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, sub) = insert(
@@ -260,7 +309,7 @@ fn symmetric_u_cutter_fragments_tie_and_naming_stays_total() {
             op: BooleanOp::Subtract,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -294,6 +343,7 @@ fn slide(doc: ProfileDoc, node: RecipeNodeId, to: f64) -> ProfileDoc {
             node,
             slot: editor_core::SlotId::Translation(editor_core::Axis3::X),
             expr: len(to),
+            fresh: Vec::new(),
         },
     )
     .0
@@ -318,14 +368,14 @@ fn no_flip_translation_edit_leaves_every_table_identical() {
             ),
         );
         // The B side is read at the TRANSFORM, the boolean's operand.
-        let (doc, decl) = declare_x_offset_flush_at(doc, (a, a), (tb, b0));
+        let decl = declare_x_offset_flush_at(&doc, (a, a), (tb, b0));
         let (doc, u) = insert(
             doc,
             Node::Boolean {
                 op: BooleanOp::Union,
                 a,
                 b: tb,
-                declare: Some(decl),
+                declare: decl,
             },
         );
         (doc, u, tb)
@@ -363,14 +413,14 @@ fn flip_changes_exactly_the_boolean_nodes_table() {
             ),
         );
         // The B side is read at the TRANSFORM, the boolean's operand.
-        let (doc, decl) = declare_x_offset_flush_at(doc, (a, a), (tb, b0));
+        let decl = declare_x_offset_flush_at(&doc, (a, a), (tb, b0));
         let (doc, u) = insert(
             doc,
             Node::Boolean {
                 op: BooleanOp::Union,
                 a,
                 b: tb,
-                declare: Some(decl),
+                declare: decl,
             },
         );
         (doc, u, tb)

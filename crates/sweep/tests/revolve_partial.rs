@@ -48,7 +48,7 @@ fn check_wedge(theta: f64) {
     };
     assert_ne!(start_cap, end_cap);
     // The axis segment (canonical 3) has no wall and ONE shared edge.
-    assert_eq!(t.walls[0][3], None);
+    assert_eq!(t.walls()[0][3], None);
     assert_eq!(start_meridians[0][3], end_meridians[0][3]);
     let axis_edge = start_meridians[0][3];
     assert!(matches!(
@@ -58,7 +58,7 @@ fn check_wedge(theta: f64) {
     // Walled segments have distinct start/end meridians, upgraded to
     // cap–wall Intersections.
     for j in 0..3 {
-        assert!(t.walls[0][j].is_some());
+        assert!(t.walls()[0][j].is_some());
         assert_ne!(start_meridians[0][j], end_meridians[0][j]);
         for e in [start_meridians[0][j], end_meridians[0][j]] {
             assert!(matches!(

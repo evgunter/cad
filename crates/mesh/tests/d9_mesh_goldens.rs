@@ -79,6 +79,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
+use sweep::ExtrudeSide;
 use topo::Body;
 
 use crate::common;
@@ -195,7 +196,7 @@ pub(crate) fn tilted_halves() -> (Body<f64>, Body<f64>) {
     use geom_core::{Point2, Point3, Vec3};
     use profile::{Profile, SketchPlane, test_support::bulge_loop};
     use sweep::{Extrusion, extrude};
-    use topo::splitting::{SplitPart, SplitPlane, split};
+    use topo::splitting::{SplitPart, split};
 
     const R: f64 = 1.0;
     const H: f64 = 2.5;
@@ -210,13 +211,22 @@ pub(crate) fn tilted_halves() -> (Body<f64>, Body<f64>) {
     )
     .validate(Tol::witness())
     .expect("the disc validates");
-    let cylinder = extrude(&disc, Extrusion::Distance(H), Tol::witness())
-        .expect("the disc extrudes")
-        .body;
-    let plane = SplitPlane {
-        origin: Point3::new(0.0, 0.0, H / 2.0),
-        normal: Vec3::new(PHI.sin(), 0.0, PHI.cos()),
-    };
+    let cylinder = extrude(
+        &disc,
+        Extrusion::Distance {
+            depth: H,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the disc extrudes")
+    .body;
+    let cylinder = topo::test_support::finished("the cylinder", cylinder, Tol::witness());
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, H / 2.0),
+        Vec3::new(PHI.sin(), 0.0, PHI.cos()),
+        geom_core::Tol::witness(),
+    );
     let result = split(&cylinder, &plane, Tol::witness()).expect("the oblique cut splits");
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
         panic!("both sides of the oblique cut carry material");
@@ -257,17 +267,17 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
         "sphere_wedge",
         [0x4dcf_6a46_d7e4_8afd, 0xdfa9_7fcf_d5a6_1f91],
     ),
-    ("cone", [0xc8ac_e3fb_a915_38fa, 0x6376_0636_4757_7532]),
+    ("cone", [0xbeb5_569e_177b_e0f5, 0x5880_b4f5_0c8e_167c]),
     ("cone_wedge", [0x2a10_1aee_9f5a_1b91, 0x83f2_5aac_9243_68ce]),
     ("donut", [0x7673_a909_57aa_a0f3, 0xe549_2aa4_78a6_d185]),
-    ("washer", [0xb5e6_4707_7081_1521, 0xd261_a4a3_e2d2_f19d]),
+    ("washer", [0x540e_b2df_ace5_aa6d, 0x439b_f735_4bfe_96f1]),
     (
         "tilted_above",
         [0x05de_30f5_be30_29e1, 0xb957_d220_dd6d_cd8e],
     ),
     (
         "tilted_below",
-        [0xedb7_92c4_4d03_cfde, 0xd33f_a391_6fc1_9740],
+        [0xea6f_5d95_6798_b5cb, 0xe36b_b830_e6a3_496b],
     ),
     ("keyway", [0x9d8e_44fd_e323_88de, 0x9d8e_44fd_e323_88de]),
     ("slit", [0xaed6_09ed_f923_833b, 0xaed6_09ed_f923_833b]),
@@ -286,7 +296,7 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
     ("loft_prism", [0x2d6a_6bd0_bdce_2300, 0x6109_b327_f166_6647]),
     (
         "swept_elbow",
-        [0xd90e_27e6_5762_0090, 0xb1a5_2588_0e2c_329d],
+        [0xf14b_fb4f_551e_c7dc, 0xc9f7_1c83_0ce6_8dfd],
     ),
 ];
 

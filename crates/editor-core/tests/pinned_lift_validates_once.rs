@@ -18,6 +18,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::documents;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     CancelToken, Datum, DatumValue, EvalOptions, EvalScalar, Node, ValuePayload, evaluate,
@@ -39,23 +40,10 @@ fn embed<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
 /// `profile`'s types without a cycle.)
 fn scalars<T: Real>(vp: &ValidatedProfile<T>) -> Vec<T> {
     let m = &vp.plane().placement;
-    let mut out = vec![
-        m.linear.c0.x,
-        m.linear.c0.y,
-        m.linear.c0.z,
-        m.linear.c1.x,
-        m.linear.c1.y,
-        m.linear.c1.z,
-        m.linear.c2.x,
-        m.linear.c2.y,
-        m.linear.c2.z,
-        m.translation.x,
-        m.translation.y,
-        m.translation.z,
-    ];
+    let mut out = m.components().to_vec();
     for lp in vp.loops() {
         for v in lp.vertices() {
-            out.extend([v.x, v.y]);
+            out.extend(v.to_array());
         }
         for s in lp.segments() {
             out.extend([s.start.x, s.start.y, s.end.x, s.end.y]);
@@ -120,7 +108,7 @@ fn the_lifted_form_is_the_revalidated_form<T: EvalScalar>(channels: &[Channel<T>
             &EvalOptions::default(),
             tol,
         );
-        let env = d.doc.param_env::<f64>();
+        let env = d.doc.var_env::<f64>();
         for &id in &ev.order {
             let Some(Node::Profile(program)) = d.doc.node(id) else {
                 continue;
@@ -358,6 +346,7 @@ fn a_default_interval_evaluation_of_an_extruded_copied_arc_builds() {
     let solid = r.insert(Node::Extrude {
         profile,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let tol = Tol::witness();
     let at = |doc| {

@@ -1192,6 +1192,7 @@ version = "0.0.0"
 dependencies = [
  "geom",
  "geom-core",
+ "num-bigint",
  "proptest",
  "slotmap",
  "strum",
@@ -4207,6 +4208,7 @@ dependencies = [
  "egui",
  "egui-wgpu",
  "egui_tiles",
+ "geom",
  "geom-brep",
  "geom-core",
  "getrandom 0.3.4",

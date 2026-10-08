@@ -25,12 +25,13 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::AuthoredNode;
 
 use core::f64::consts::TAU;
 
 use common::{ang, body_volume, len, len2, len3, near, scl, scl2, scl3, session_insert, shape};
 use pncad::document::{
-    Datum, Dimension, DimensionError, Doc, DocumentId, Expr, LoopProgram, Node, ProfileProgram,
+    Datum, Dimension, DimensionError, Doc, DocumentId, Formula, LoopProgram, Node, ProfileProgram,
     RecipeNodeId, RecordedProgramError, SlotId,
 };
 use pncad::geom_core::Tol;
@@ -236,7 +237,7 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
     for _ in 0..3 {
         assert!(session.perform(SessionOp::Undo).refusal.is_none());
     }
-    assert!(session.committed_doc().order().is_empty(), "back to empty");
+    assert!(session.committed_doc().ids().is_empty(), "back to empty");
     let at_root = session.perform(SessionOp::Undo);
     assert!(matches!(
         at_root.refusal,
@@ -323,7 +324,7 @@ fn new_document_derives_its_id_and_clears_the_session() {
         DocumentId::derive("fresh-part"),
         "the id is authored at creation from the typed name"
     );
-    assert!(doc.order().is_empty(), "an empty document");
+    assert!(doc.ids().is_empty(), "an empty document");
     assert_eq!(session.selection(), &Selection::None);
     assert!(session.hover().is_none(), "hover cleared");
     assert!(session.path().is_none(), "no backing file until saved");
@@ -455,9 +456,10 @@ fn each_datum_form_inserts_its_variant_with_literal_slots() {
         },
     );
     let doc = session.committed_doc();
-    let expect_bit_eq = |id: RecipeNodeId, want: Node<ProfileProgram>| {
-        assert!(
-            doc.node(id).expect("the datum is live").bit_eq(&want),
+    let expect_bit_eq = |id: RecipeNodeId, want: AuthoredNode| {
+        assert_eq!(
+            doc.node(id).expect("the datum is live").written(doc),
+            want,
             "the inserted node is the literal spelling of the form"
         );
     };
@@ -486,7 +488,7 @@ fn each_datum_form_inserts_its_variant_with_literal_slots() {
     // that door is now BEFORE the op: an `Expr` cannot hold one, so
     // the datum spec has no spelling for a NaN origin.
     assert!(matches!(
-        Expr::literal(f64::NAN, Dimension::Length),
+        Formula::literal(f64::NAN, Dimension::Length),
         Err(DimensionError::NonFiniteLiteral)
     ));
 
@@ -544,12 +546,10 @@ fn the_rectangle_template_is_the_centred_polygon() {
         ],
         ids: minted.ids.clone(),
     });
-    assert!(
-        session
-            .committed_doc()
-            .node(profile)
-            .expect("the profile is live")
-            .bit_eq(&want),
+    let doc = session.committed_doc();
+    assert_eq!(
+        doc.node(profile).expect("the profile is live").written(doc),
+        want,
         "corners at (±w/2, ±h/2), counter-clockwise from lower-left"
     );
 }
@@ -719,16 +719,16 @@ fn extrude_and_revolve_require_their_node_kinds() {
 
     // The extrude door: an extrude node is not a profile, and neither
     // is an id the document never held.
-    for wrong in [extrude, RecipeNodeId(999)] {
+    for wrong in [extrude, RecipeNodeId::new(0, 999)] {
         let refused = session.perform(SessionOp::AddExtrude {
             profile: wrong,
             distance: len(0.02),
         });
         assert!(
             matches!(
-                refused.refusal,
+                &refused.refusal,
                 Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Profile })
-                    if node == wrong
+                    if node.id() == wrong
             ),
             "{:?}",
             refused.refusal
@@ -744,9 +744,9 @@ fn extrude_and_revolve_require_their_node_kinds() {
     });
     assert!(
         matches!(
-            refused.refusal,
+            &refused.refusal,
             Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Profile })
-                if node == axis
+                if node.id() == axis
         ),
         "{:?}",
         refused.refusal
@@ -768,9 +768,9 @@ fn extrude_and_revolve_require_their_node_kinds() {
         });
         assert!(
             matches!(
-                refused.refusal,
+                &refused.refusal,
                 Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::SketchAxis })
-                    if node == wrong
+                    if node.id() == wrong
             ),
             "{:?}",
             refused.refusal
@@ -780,7 +780,7 @@ fn extrude_and_revolve_require_their_node_kinds() {
     // The add-datum door, for the axis a revolve takes: its frame is
     // a pick, and a plane datum or a feature is not a frame. Nothing
     // lands.
-    let before = session.committed_doc().order().len();
+    let before = session.committed_doc().ids().len();
     for wrong in [extrude, plane] {
         let refused = session.perform(SessionOp::AddDatum {
             datum: DatumSpec::AxisInPlane {
@@ -791,15 +791,15 @@ fn extrude_and_revolve_require_their_node_kinds() {
         });
         assert!(
             matches!(
-                refused.refusal,
+                &refused.refusal,
                 Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Frame })
-                    if node == wrong
+                    if node.id() == wrong
             ),
             "{:?}",
             refused.refusal
         );
     }
-    assert_eq!(session.committed_doc().order().len(), before);
+    assert_eq!(session.committed_doc().ids().len(), before);
 
     // The happy path inserts the revolve with both references.
     let revolve = session_insert(
@@ -1070,7 +1070,7 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
 
     // The extrude form's one field, authored the way the chrome does:
     // the draft is canonical, the picker says how it is written.
-    let extrude_distance = Expr::written_length(WrittenLength::canonical_in(0.01, mm.length))
+    let extrude_distance = Formula::written_length(WrittenLength::canonical_in(0.01, mm.length))
         .expect("10 mm is a length");
     let plane = common::xy_frame_in(&mut session);
     let profile = session_insert(
@@ -1132,7 +1132,7 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
         SessionOp::AddDatum {
             datum: DatumSpec::Point {
                 position: [0.001, 0.002, 0.003].map(|metres| {
-                    Expr::written_length(WrittenLength::canonical_in(metres, mm.length))
+                    Formula::written_length(WrittenLength::canonical_in(metres, mm.length))
                         .expect("a finite length")
                 }),
             },
@@ -1165,7 +1165,7 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
         SessionOp::AddRevolve {
             profile,
             axis,
-            angle: Expr::written_angle(WrittenAngle::canonical_in(
+            angle: Formula::written_angle(WrittenAngle::canonical_in(
                 core::f64::consts::FRAC_PI_2,
                 mm.angle,
             ))
@@ -1207,7 +1207,7 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
 ///
 /// It is still a TWO-FORM trip for a person — add the datum, then draw
 /// on it — which is the residue
-/// `work/author/add-profile-mints-no-frame.md` carries.
+/// `work/authtail/drawing-on-a-picked-face-is-a-two-form-trip.md` carries.
 #[test]
 fn a_boss_is_authored_on_a_picked_face() {
     let tol = Tol::witness();
@@ -1274,19 +1274,19 @@ fn a_boss_is_authored_on_a_picked_face() {
     };
     let origin = placed.origin();
     close(
-        [origin.x, origin.y, origin.z],
+        origin.to_array(),
         [0.0, 0.0, 0.01],
         "the frame's origin is the cap's centre, 10 mm up",
     );
     let n = placed.normal();
     close(
-        [n.x, n.y, n.z],
+        n.to_array(),
         [0.0, 0.0, 1.0],
         "and its normal is the cap's outward normal, not the base's",
     );
     let u = placed.u();
     close(
-        [u.x, u.y, u.z],
+        u.to_array(),
         [1.0, 0.0, 0.0],
         "and a zero spin leaves sketch +x on the carrier's u-reference",
     );
@@ -1317,7 +1317,7 @@ fn a_new_xy_plane_inserts_the_frame_and_the_profile_as_one_action() {
         "the frame and the profile are one action's two edits"
     );
     let doc = session.committed_doc();
-    let order = doc.order().to_vec();
+    let order = doc.ids().to_vec();
     assert_eq!(order.len(), 2, "two nodes and no more");
     let (frame, profile) = (order[0], order[1]);
     assert!(
@@ -1338,7 +1338,7 @@ fn a_new_xy_plane_inserts_the_frame_and_the_profile_as_one_action() {
     let outcome = session.perform(SessionOp::Undo);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(
-        session.committed_doc().order().is_empty(),
+        session.committed_doc().ids().is_empty(),
         "one undo took the whole gesture, frame included"
     );
 }
@@ -1365,7 +1365,7 @@ fn a_refused_new_xy_profile_leaves_the_document_untouched() {
         outcome.committed
     );
     assert!(
-        session.committed_doc().order().is_empty(),
+        session.committed_doc().ids().is_empty(),
         "and no frame was left behind for the refusal to strand"
     );
 }
@@ -1389,7 +1389,7 @@ fn a_new_xy_frame_lands_where_its_preview_drew() {
         })],
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let frame = session.committed_doc().order()[0];
+    let frame = session.committed_doc().ids()[0];
     session.pump();
     let ev = session.evaluation().expect("the document evaluated");
     let landed = viewer::sketch::frame_placement(session.committed_doc(), ev, frame)
@@ -1397,7 +1397,7 @@ fn a_new_xy_frame_lands_where_its_preview_drew() {
     let previewed = ProfilePlane::xy_placement();
     let (o, po) = (landed.origin(), previewed.origin());
     let triples = [
-        ([o.x, o.y, o.z], [po.x, po.y, po.z], "origin"),
+        (o.to_array(), po.to_array(), "origin"),
         (xyz(landed.u()), xyz(previewed.u()), "sketch +x"),
         (xyz(landed.v()), xyz(previewed.v()), "sketch +y"),
         (xyz(landed.normal()), xyz(previewed.normal()), "normal"),
@@ -1415,7 +1415,7 @@ fn a_new_xy_frame_lands_where_its_preview_drew() {
 
 /// A direction's components, for the comparison above.
 fn xyz(v: pncad::geom_core::Vec3<f64>) -> [f64; 3] {
-    [v.x, v.y, v.z]
+    v.to_array()
 }
 
 /// **The frame is minted BEFORE the profile that names it**, and the
@@ -1438,7 +1438,7 @@ fn a_new_xy_action_mints_the_frame_before_the_profile() {
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let doc = session.committed_doc();
-    let order = doc.order().to_vec();
+    let order = doc.ids().to_vec();
     assert_eq!(
         outcome.minted, order,
         "both ids, in the order the action applied them: {:?}",

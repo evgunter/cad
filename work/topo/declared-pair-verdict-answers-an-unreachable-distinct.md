@@ -2,8 +2,9 @@
 id: declared-pair-verdict-answers-an-unreachable-distinct
 kind: issue
 title: topo: declared_pair_verdict answers the declared rung's unreachable Distinct verdict as 'do not merge'
-status: open
+status: parked
 opened: 2026-09-30
+blocked_on: [intent-stage4-is-built]
 ---
 
 (TOPO, the receipt of the D262 unit, PR 3532: its sweep of every
@@ -37,3 +38,7 @@ only the two relations it returns (`SameOriented`, `SameOpposite`), so
 that, the arm refuses typed (a kernel defect ending), as the
 neighbouring `PlaneEqError::Undeclared` arm of
 `MergeCoplanarError::of_declared_refusal` already does.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: merge_faces::declared_pair_verdict maps the declared plane rung, which goes with declared pairs at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

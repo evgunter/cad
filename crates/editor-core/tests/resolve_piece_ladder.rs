@@ -11,6 +11,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::sync::Arc;
 
@@ -60,6 +61,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -81,12 +83,9 @@ fn wall(doc: &ProfileDoc, bar: RecipeNodeId, segment: u32) -> StableName {
     StableName {
         kind: EntityKind::Face,
         node: bar,
-        path: vec![RoleSeg::Lateral(crate::fixture::piece(
-            doc,
-            bar,
-            0,
-            segment as usize,
-        ))],
+        path: vec![RoleSeg::Lateral(
+            crate::fixture::piece(doc, bar, 0, segment as usize).into(),
+        )],
     }
 }
 
@@ -111,7 +110,7 @@ fn slot() -> Slot {
             op: BooleanOp::Subtract,
             a,
             b: tr,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     Slot {
@@ -130,6 +129,7 @@ fn slide(s: &Slot, axis: Axis3, to: f64) -> ProfileDoc {
             node: s.tr,
             slot: SlotId::Translation(axis),
             expr: len(to),
+            fresh: Vec::new(),
         },
     )
     .0
@@ -187,11 +187,13 @@ fn vanished(res: &Resolution) -> &Diagnosis {
 // ---------------------------------------------------------------
 
 #[test]
-fn a_vanished_rim_piece_is_diagnosed_as_its_group_resizing() {
-    // The corpus's own pruned-pair row: the rim piece's group
-    // goes from two to one (why no flip exists there:
-    // `resolve::group_resized`'s docs). The undivided rim edge rides
-    // in the offers.
+fn a_vanished_rim_piece_is_diagnosed_by_its_cutters_flip_over_its_group_resizing() {
+    // The corpus's own flip-vanish row: the rim piece's group goes
+    // from two to one as the slab that cut it slides clear, and the
+    // slab's wall, a cutter its seam vertex names, flips from inside
+    // `a` to outside. The flip is on the name's path, so it outranks
+    // the group-size rung (`resolve_group_membership` holds that rung
+    // on real documents). The undivided rim edge rides in the offers.
     let rows = fixture::pr4::diagnosis_corpus::<f64>();
     let (_, res) = rows
         .iter()
@@ -208,37 +210,16 @@ fn a_vanished_rim_piece_is_diagnosed_as_its_group_resizing() {
         ),
         "the row is about a piece named by its ends: {name:?}"
     );
-    // The cutter whose seam vertex with the rim edge is gone is the
-    // other operand's cap VERTEX, a point on the edge, not a face.
-    let Diagnosis::GroupResized {
-        node,
-        was: 2,
-        now: 1,
-        cutters: GroupCutters::Read { gone, new },
+    let Diagnosis::PredicateFlip {
+        predicate,
+        from,
+        to,
     } = vanished(res)
     else {
-        panic!("expected a 2 -> 1 resize with its cutters read: {res:?}");
+        panic!("expected the cutter's flip: {res:?}");
     };
-    assert_eq!(*node, name.node);
-    assert!(new.is_empty(), "no cutter starts cutting: {new:?}");
-    let [cutter] = gone.as_slice() else {
-        panic!("one cutter stops cutting: {gone:?}");
-    };
-    assert_eq!(cutter.kind, EntityKind::Vertex, "{cutter:?}");
-    assert_ne!(cutter.node, name.node, "{cutter:?}");
-    assert!(
-        matches!(
-            cutter.path.as_slice(),
-            [RoleSeg::CapVertex(
-                editor_core::CapEnd::End,
-                editor_core::ProfileVertexRef::Piece {
-                    role: editor_core::PieceRole::Leg,
-                    ..
-                },
-            )]
-        ),
-        "an end cap vertex where a leg starts: {cutter:?}"
-    );
+    assert_eq!(*predicate, "bool_point_in_solid_plane", "{res:?}");
+    assert_ne!(from, to);
     assert!(f.offers.contains(&base_of(name)), "{:?}", f.offers);
 }
 
@@ -279,11 +260,12 @@ fn one_node_eval(
     nodes.insert(
         node,
         editor_core::NodeResult::Ok(editor_core::NodeValue {
-            payload: editor_core::ValuePayload::Declarations(vec![]),
+            payload: editor_core::ValuePayload::Gauge,
             name_table: Arc::new(t),
             fragment_groups: Arc::new(groups),
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(editor_core::CarriedDeclarations::default()),
+            parts: 1,
             verdicts: Arc::new(log),
             escalations: Arc::new(vec![]),
             placement: None,
@@ -294,6 +276,8 @@ fn one_node_eval(
     );
     Evaluation::<f64> {
         epoch: editor_core::Epoch::mint(),
+        unplaced: Default::default(),
+        unplaced_below: Default::default(),
         document,
         prior_refused: None,
         order: vec![node],
@@ -306,7 +290,7 @@ fn one_node_eval(
     }
 }
 
-/// A two-`declare_rest` document and the vanished/base/wall names
+/// A two-frame document and the vanished/base/wall names
 /// over its first node. The document is deliberately geometry-free:
 /// every row below decides a rung's PLACE, and none of them may depend
 /// on a body existing.
@@ -325,9 +309,9 @@ struct Hand {
 fn hand() -> Hand {
     let (doc, n) = insert(
         ProfileDoc::empty_derived("bool7-hand", Tol::witness()),
-        Node::declare_rest(vec![]),
+        fixture::xy_frame(),
     );
-    let (doc, m) = insert(doc, Node::declare_rest(vec![]));
+    let (doc, m) = insert(doc, fixture::xy_frame());
     let of = minted(EntityKind::Body, n, RoleSeg::OutputBody);
     let wall = |rank| StableName {
         kind: EntityKind::Body,
@@ -453,7 +437,10 @@ fn a_collapsed_edge_piece_group_at_the_cut_is_diagnosed_group_resized() {
             .name_table
             .iter()
             .filter_map(|(n, e)| {
-                let hit = matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))));
+                // The plate's rim pieces: the bar's own edges are lone
+                // pieces whose ends the slide moves.
+                let hit = matches!(n.path.first(), Some(RoleSeg::FromA(_)))
+                    && matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))));
                 (hit && matches!(e, Entry::Unique(_))).then(|| n.clone())
             })
             .collect();

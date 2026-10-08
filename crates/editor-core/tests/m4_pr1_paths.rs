@@ -4,8 +4,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{len, scl};
+use editor_core::ExtrudeSide;
 use editor_core::{
-    Datum, Dimension, Doc, DocEdit, EditError, Expr, ExprPath, Node, RecipeNodeId, SlotId,
+    Datum, Dimension, Doc, DocEdit, EditError, ExprPath, Formula, Node, RecipeNodeId, SlotId,
 };
 use geom_core::Tol;
 
@@ -15,7 +16,31 @@ use geom_core::Tol;
 struct FakeProfile(&'static str);
 // The v4 payload trait: fake payloads take the slot-free, check-free
 // defaults (LIB-SWITCH §4c — exactly the retired opaque behavior).
-impl editor_core::ProfilePayload for FakeProfile {}
+impl editor_core::SlotPayload<editor_core::VarId> for FakeProfile {}
+impl editor_core::SlotPayload<editor_core::Formula> for FakeProfile {}
+impl editor_core::ProfilePayload for FakeProfile {
+    type Authored = Self;
+    fn lower<E>(
+        authored: &Self,
+        _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::VarId, E>,
+    ) -> Result<Self, E> {
+        Ok(authored.clone())
+    }
+    fn authored_with(
+        &self,
+        _: &mut dyn FnMut(editor_core::VarId, editor_core::Dimension) -> editor_core::Formula,
+    ) -> Self {
+        self.clone()
+    }
+    fn drawn_pieces(
+        &self,
+        _env: &editor_core::VarEnv<f64>,
+        _tol: geom_core::Tol,
+    ) -> Result<std::collections::BTreeSet<editor_core::ProfileEdgeRef>, editor_core::ProgramRefusal>
+    {
+        Ok(std::collections::BTreeSet::new())
+    }
+}
 
 type TDoc = Doc<FakeProfile>;
 type TEdit = DocEdit<FakeProfile>;
@@ -27,19 +52,25 @@ fn profile_and_extrude() -> (TDoc, RecipeNodeId, RecipeNodeId) {
     let a = doc
         .apply(
             &TEdit::InsertNode {
-                node: Node::Profile(FakeProfile("square")),
+                node: Box::new(Node::Profile(FakeProfile("square"))),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
         .unwrap();
     let profile = a.record.minted.unwrap();
-    let distance = Expr::add(len(0.010), len(0.005)).unwrap();
+    let distance = Formula::add(len(0.010), len(0.005)).unwrap();
     let b = a
         .doc
         .apply(
             &TEdit::InsertNode {
-                node: Node::Extrude { profile, distance },
+                node: Box::new(Node::Extrude {
+                    profile,
+                    distance,
+                    side: ExtrudeSide::Along,
+                }),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -64,9 +95,10 @@ fn expr_path_survives_edits_to_other_expressions() {
     let c = doc
         .apply(
             &TEdit::InsertNode {
-                node: Node::Datum(Datum::Point {
+                node: Box::new(Node::Datum(Datum::Point {
                     position: [len(0.0), len(0.0), len(0.0)],
-                }),
+                })),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -80,12 +112,13 @@ fn expr_path_survives_edits_to_other_expressions() {
                 node: datum,
                 slot: SlotId::Origin(editor_core::Axis3::X),
                 expr: len(0.042),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
         .unwrap();
-    assert_eq!(d.doc.expr_at(&path).unwrap(), &before);
+    assert_eq!(d.doc.expr_at(&path).unwrap(), before);
 }
 
 #[test]
@@ -115,8 +148,8 @@ fn expr_path_survives_edits_to_unrelated_subtrees() {
             &editor_core::RefusingReach,
         )
         .unwrap();
-    assert_eq!(e.doc.expr_at(&second).unwrap(), &before);
-    assert_eq!(e.doc.expr_at(&first).unwrap(), &len(0.020));
+    assert_eq!(e.doc.expr_at(&second).unwrap(), before);
+    assert_eq!(e.doc.expr_at(&first).unwrap(), len(0.020));
     // The whole-slot expression still type-checks as Length.
     assert_eq!(
         e.doc
@@ -139,7 +172,8 @@ fn recipe_node_ids_are_never_reused() {
     let a = doc
         .apply(
             &TEdit::InsertNode {
-                node: Node::Profile(FakeProfile("p0")),
+                node: Box::new(Node::Profile(FakeProfile("p0"))),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -158,7 +192,8 @@ fn recipe_node_ids_are_never_reused() {
         .doc
         .apply(
             &TEdit::InsertNode {
-                node: Node::Profile(FakeProfile("p1")),
+                node: Box::new(Node::Profile(FakeProfile("p1"))),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -173,20 +208,27 @@ fn recipe_node_ids_are_never_reused() {
 #[test]
 fn dangling_ref_rejected() {
     let doc = TDoc::empty_derived("m4_pr1_paths", Tol::witness());
-    let ghost = RecipeNodeId(99);
+    let ghost = RecipeNodeId::new(0, 99);
     let err = doc
         .apply(
             &TEdit::InsertNode {
-                node: Node::Extrude {
+                node: Box::new(Node::Extrude {
                     profile: ghost,
                     distance: len(0.01),
-                },
+                    side: ExtrudeSide::Along,
+                }),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
         .unwrap_err();
-    assert_eq!(err, EditError::UnresolvedInput { input: ghost });
+    assert_eq!(
+        err,
+        EditError::UnresolvedInput {
+            input: editor_core::SpokenNode::absent(ghost)
+        }
+    );
 }
 
 #[test]
@@ -194,20 +236,27 @@ fn self_reference_cannot_forge_the_next_id() {
     // Guessing the about-to-mint id is still an unresolved ref: refs
     // must resolve among EXISTING nodes, so insertion cannot cycle.
     let doc = TDoc::empty_derived("m4_pr1_paths", Tol::witness());
-    let guessed = RecipeNodeId(0); // no node holds it
+    let guessed = RecipeNodeId::new(0, 0); // no node holds it
     let err = doc
         .apply(
             &TEdit::InsertNode {
-                node: Node::Extrude {
+                node: Box::new(Node::Extrude {
                     profile: guessed,
                     distance: len(0.01),
-                },
+                    side: ExtrudeSide::Along,
+                }),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
         .unwrap_err();
-    assert_eq!(err, EditError::UnresolvedInput { input: guessed });
+    assert_eq!(
+        err,
+        EditError::UnresolvedInput {
+            input: editor_core::SpokenNode::absent(guessed)
+        }
+    );
 }
 
 #[test]
@@ -223,8 +272,8 @@ fn delete_of_referenced_node_rejected() {
     assert_eq!(
         err,
         EditError::DeleteWouldDangle {
-            id: profile,
-            referenced_by: extrude
+            id: doc.spoken(profile),
+            referenced_by: doc.spoken(extrude)
         }
     );
 }
@@ -239,6 +288,7 @@ fn structural_and_continuous_edit_arms_are_disjoint() {
                 node: extrude,
                 slot: SlotId::Distance,
                 expr: len(0.01),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -257,6 +307,7 @@ fn structural_and_continuous_edit_arms_are_disjoint() {
                 node: extrude,
                 slot: SlotId::Distance,
                 expr: scl(1.0),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -290,5 +341,12 @@ fn set_expression_path_off_tree_rejected() {
             &editor_core::RefusingReach,
         )
         .unwrap_err();
-    assert_eq!(err, EditError::PathOffTree { path: bad });
+    assert_eq!(
+        err,
+        EditError::PathOffTree {
+            node: doc.spoken(extrude),
+            slot: bad.slot,
+            path: bad.path
+        }
+    );
 }

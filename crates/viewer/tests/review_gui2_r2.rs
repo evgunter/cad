@@ -38,12 +38,14 @@ test_utils::gated_to![
     "crates/editor-core/src/test_support.rs",
 ];
 
+use pncad::document::AuthoredNode;
+use pncad::document::ExtrudeSide;
 use std::sync::{Arc, Mutex};
 
 use crate::common;
 use crate::common::{ang, len, scl, xy_frame};
 
-use pncad::document::{Doc, Evaluation, Expr, Node, PatternKind, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, Evaluation, Formula, Node, PatternKind, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::StableName;
 use pncad::select::{Ray, Resolution};
@@ -74,14 +76,11 @@ fn delta() -> DisplayTolerance {
 
 /// `common::inserted` at this suite's tolerance: one node into `doc`
 /// through the document's door, no session.
-fn inserted(
-    doc: &Doc<ProfileProgram>,
-    node: Node<ProfileProgram>,
-) -> (Doc<ProfileProgram>, RecipeNodeId) {
+fn inserted(doc: &Doc<ProfileProgram>, node: AuthoredNode) -> (Doc<ProfileProgram>, RecipeNodeId) {
     common::inserted(doc, node, tol())
 }
 
-fn translated(input: RecipeNodeId, dx: f64, dy: f64, dz: f64) -> Node<ProfileProgram> {
+fn translated(input: RecipeNodeId, dx: f64, dy: f64, dz: f64) -> AuthoredNode {
     Node::transform(
         input,
         pncad::document::Step::Rigid {
@@ -104,6 +103,7 @@ fn slab(w: f64, h: f64, t: f64, label: &str) -> (Doc<ProfileProgram>, RecipeNode
         Node::Extrude {
             profile,
             distance: len(t),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, extrude)
@@ -131,7 +131,7 @@ fn pattern_of(count: i64) -> (Doc<ProfileProgram>, RecipeNodeId) {
         &doc,
         Node::Pattern {
             input: extrude,
-            count: Expr::count(count),
+            count: Formula::count(count),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(0.04),
@@ -533,7 +533,7 @@ fn the_id_map_is_a_bijection_over_keys_of_its_own() {
         .flat_map(|node| {
             (0..2).flat_map(move |body| {
                 (0..4).map(move |patch| PatchId {
-                    node: RecipeNodeId(node),
+                    node: RecipeNodeId::new(0, node),
                     body,
                     patch,
                 })
@@ -574,13 +574,13 @@ fn the_id_map_is_a_bijection_over_keys_of_its_own() {
 #[test]
 fn keys_differing_in_any_single_field_never_share_an_id() {
     let base = PatchId {
-        node: RecipeNodeId(4),
+        node: RecipeNodeId::new(0, 4),
         body: 1,
         patch: 2,
     };
     let neighbours = [
         PatchId {
-            node: RecipeNodeId(5),
+            node: RecipeNodeId::new(0, 5),
             ..base
         },
         PatchId { body: 0, ..base },
@@ -1370,7 +1370,7 @@ fn the_landed_pair_is_never_a_run_that_never_happened() {
     let done = held.release_one().expect("the first request was submitted");
     session.land(done);
     let (first_doc, _) = session.landed_pair().expect("a pair landed");
-    let first_nodes = first_doc.order().len();
+    let first_nodes = first_doc.ids().len();
     let first_generation = session.landed_generation().expect("a generation");
 
     // Edit: the shown document moves, the landed pair must not.
@@ -1378,7 +1378,7 @@ fn the_landed_pair_is_never_a_run_that_never_happened() {
     assert!(held.outstanding() >= 1, "the edit asked for a new run");
     let (still_doc, _) = session.landed_pair().expect("the old pair stands");
     assert_eq!(
-        still_doc.order().len(),
+        still_doc.ids().len(),
         first_nodes,
         "the landed document moved ahead of the landed evaluation"
     );
@@ -1387,7 +1387,7 @@ fn the_landed_pair_is_never_a_run_that_never_happened() {
         "the landed document is the one the landed run answered"
     );
     assert_ne!(
-        session.doc().order().len(),
+        session.doc().ids().len(),
         first_nodes,
         "the SHOWN document really did move"
     );
@@ -1423,9 +1423,7 @@ fn tree_rows_still_read_the_shown_doc_against_the_old_evaluation() {
         "EVIDENCE tree_rows while a run is outstanding: {before} rows before the edit, \
          {} after; landed_pair still names {} nodes",
         after.len(),
-        session
-            .landed_pair()
-            .map_or(0, |(doc, _)| doc.order().len())
+        session.landed_pair().map_or(0, |(doc, _)| doc.ids().len())
     );
 }
 

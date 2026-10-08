@@ -747,7 +747,7 @@ fn project_association_is_the_documented_one() {
     assert_eq!(r.y.to_bits(), hand_r.y.to_bits());
     assert_eq!(r.z.to_bits(), hand_r.z.to_bits());
     let sum = p + r;
-    let biggest = v.x.abs().max(v.y.abs()).max(v.z.abs());
+    let biggest = v.norm_inf();
     let ulp = f64::from_bits(biggest.to_bits() + 1) - biggest;
     for (a, b) in [(sum.x, v.x), (sum.y, v.y), (sum.z, v.z)] {
         assert!(

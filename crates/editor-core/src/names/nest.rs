@@ -355,6 +355,8 @@ impl RoleSeg {
             | RoleSeg::FromTarget(n)
             | RoleSeg::BlendFace(n)
             | RoleSeg::CornerFace(n)
+            | RoleSeg::Mitre { vertex: n }
+            | RoleSeg::TurnFoot { vertex: n }
             | RoleSeg::BandTrim { edge: n, .. }
             | RoleSeg::BandFoot(n)
             | RoleSeg::BandCut(n)
@@ -364,6 +366,10 @@ impl RoleSeg {
             | RoleSeg::InPart { of: n }
             | RoleSeg::Instance { of: n, .. } => f(Shared(n)),
             RoleSeg::Seam { a, b }
+            | RoleSeg::Crossing {
+                edge: a, face: b, ..
+            }
+            | RoleSeg::EdgeCrossing { a, b, .. }
             | RoleSeg::TrimEdge {
                 edge: a,
                 support: b,
@@ -403,6 +409,8 @@ impl RoleSeg {
             | RoleSeg::FromTarget(n)
             | RoleSeg::BlendFace(n)
             | RoleSeg::CornerFace(n)
+            | RoleSeg::Mitre { vertex: n }
+            | RoleSeg::TurnFoot { vertex: n }
             | RoleSeg::BandTrim { edge: n, .. }
             | RoleSeg::BandFoot(n)
             | RoleSeg::BandCut(n)
@@ -412,6 +420,10 @@ impl RoleSeg {
             | RoleSeg::InPart { of: n }
             | RoleSeg::Instance { of: n, .. } => f(Shared(n)),
             RoleSeg::Seam { a, b }
+            | RoleSeg::Crossing {
+                edge: a, face: b, ..
+            }
+            | RoleSeg::EdgeCrossing { a, b, .. }
             | RoleSeg::TrimEdge {
                 edge: a,
                 support: b,
@@ -1238,7 +1250,7 @@ impl Holes {
     fn placeholder(index: usize) -> StableName {
         StableName {
             kind: EntityKind::Body,
-            node: RecipeNodeId(index as u64),
+            node: RecipeNodeId::new(0, index as u64),
             path: Vec::new(),
         }
     }
@@ -1601,11 +1613,11 @@ fn read_json(text: &str) -> Result<StableName, LevelFault> {
         name.each_held_mut(&mut |h| {
             let (slot, index) = match h {
                 HoldMut::Shared(r) => {
-                    let index = r.node.0;
+                    let index = r.node.0.digest();
                     (r.get_mut(), index)
                 }
                 HoldMut::Owned(n) => {
-                    let index = n.node.0;
+                    let index = n.node.0.digest();
                     (Some(n), index)
                 }
             };
@@ -1787,7 +1799,7 @@ pub(super) mod tests {
             use RoleSeg as R;
             let (a, b): (&StableName, &StableName) = ($a, $b);
             let r = |n: &StableName| NameRef::new(n.clone());
-            let step = StepId(7);
+            let step = StepId::new(0, 7);
             let e = ProfileEdgeRef::Piece {
                 step,
                 role: PieceRole::Piece(2),
@@ -1803,28 +1815,46 @@ pub(super) mod tests {
             vec![
                 R::OutputBody,
                 R::Cap(CapEnd::Start),
-                R::Lateral(e),
-                R::RimEdge(CapEnd::End, e2),
+                R::Lateral(e.into()),
+                R::RimEdge(CapEnd::End, e2.into()),
                 R::LateralEdge(v),
                 R::CapVertex(CapEnd::Start, v),
                 R::LoftWall(vec![e, e2]),
                 R::LoftSeam(vec![v]),
-                R::Band(e),
+                R::Band(e.into()),
                 R::BandRim(v),
                 R::BandRimPi(v),
-                R::BandPi(e),
-                R::Meridian(MeridianEnd::Seam, e),
+                R::BandPi(e.into()),
+                R::Meridian(MeridianEnd::Seam, e.into()),
+                // Runs of several pieces, in every role that holds one.
+                R::Lateral(PieceRun::new(vec![e, e2]).unwrap()),
+                R::Band(PieceRun::new(vec![e2, e]).unwrap()),
+                R::BandPi(PieceRun::new(vec![e, e2, e]).unwrap()),
+                R::Meridian(MeridianEnd::Pi, PieceRun::new(vec![e, e2]).unwrap()),
+                R::RimEdge(CapEnd::Start, PieceRun::new(vec![e2, e]).unwrap()),
+                R::AxisEdge(PieceRun::new(vec![e, e2]).unwrap()),
                 R::MeridianVertex(MeridianEnd::Pi, v),
                 R::RevolveCap(MeridianEnd::End),
                 R::Pole(v),
-                R::AxisEdge(e2),
+                R::AxisEdge(e2.into()),
                 R::FromA(r(a)),
                 R::FromB(r(b)),
                 R::FromMember {
-                    member: RecipeNodeId(3),
+                    member: RecipeNodeId::new(0, 3),
                     of: r(a),
                 },
                 R::Seam { a: r(a), b: r(b) },
+                R::Crossing {
+                    edge: r(a),
+                    face: r(b),
+                    sense: crate::names::Sense::Enters,
+                },
+                R::EdgeCrossing {
+                    a: r(a),
+                    a_sense: crate::names::Sense::Leaves,
+                    b: r(b),
+                    b_sense: crate::names::Sense::Enters,
+                },
                 R::Merged(vec![a.clone(), b.clone()]),
                 R::Fragment(Qualifier::Borders(vec![a.clone(), b.clone()])),
                 R::Fragment(Qualifier::Keeps(vec![a.clone(), b.clone()])),
@@ -1846,6 +1876,7 @@ pub(super) mod tests {
                 R::CrossingVertex {
                     side: SplitHalf::Below,
                     edge: r(a),
+                    sense: crate::names::Sense::Leaves,
                 },
                 R::OnToolVertex {
                     side: SplitHalf::Above,
@@ -1866,6 +1897,8 @@ pub(super) mod tests {
                     vertex: r(a),
                     edge: r(b),
                 },
+                R::Mitre { vertex: r(a) },
+                R::TurnFoot { vertex: r(b) },
                 R::BandFace(vec![a.clone(), b.clone()]),
                 R::BandTrim {
                     edge: r(a),
@@ -1898,7 +1931,7 @@ pub(super) mod tests {
         () => {{
             let named = |kind, node: u64, path: Vec<RoleSeg>| StableName {
                 kind,
-                node: RecipeNodeId(node),
+                node: RecipeNodeId::new(0, node),
                 path,
             };
             let leaf = |node: u64| named(EntityKind::Face, node, vec![RoleSeg::Cap(CapEnd::End)]);
@@ -1946,8 +1979,8 @@ pub(super) mod tests {
     /// The names under test, built by the corpus.
     mod ours {
         pub(super) use super::super::super::role::{
-            CapEnd, EntityKind, MeridianEnd, NameRef, PieceRole, ProfileEdgeRef, ProfileVertexRef,
-            Qualifier, RimSupport, RoleSeg, SectionCircle, SplitHalf, StableName,
+            CapEnd, EntityKind, MeridianEnd, NameRef, PieceRole, PieceRun, ProfileEdgeRef,
+            ProfileVertexRef, Qualifier, RimSupport, RoleSeg, SectionCircle, SplitHalf, StableName,
         };
         use crate::node::{RecipeNodeId, StepId};
 
@@ -1985,7 +2018,7 @@ pub(super) mod tests {
     fn named(kind: EntityKind, node: u64, path: Vec<RoleSeg>) -> StableName {
         StableName {
             kind,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path,
         }
     }
@@ -2218,7 +2251,7 @@ pub(super) mod tests {
     ) -> StableName {
         (0..levels).fold(inner, |n, _| StableName {
             kind: n.kind,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![seg(NameRef::new(n))],
         })
     }
@@ -2236,7 +2269,11 @@ pub(super) mod tests {
             );
             let through = wrapped(edge, DEEP, 6, RoleSeg::FromA);
             let (a, b) = super::super::seam_pair::seam_line_pair(&through).expect("a seam pair");
-            assert_eq!((a.node.0, b.node.0), (1, 2), "the seam at the foot");
+            assert_eq!(
+                (a.node.0.digest(), b.node.0.digest()),
+                (1, 2),
+                "the seam at the foot"
+            );
             let face = wrapped(leaf(1), DEEP, 6, RoleSeg::FromB);
             assert!(
                 super::super::face_descends_from(&face, &leaf(1)),
@@ -2265,15 +2302,18 @@ pub(super) mod tests {
             let piece = named(
                 EntityKind::Face,
                 3,
-                vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
-                    step: StepId(7),
-                    role: PieceRole::Leg,
-                })],
+                vec![RoleSeg::Lateral(
+                    ProfileEdgeRef::Piece {
+                        step: StepId::new(0, 7),
+                        role: PieceRole::Leg,
+                    }
+                    .into(),
+                )],
             );
             let copy = |r: NameRef| RoleSeg::Instance { i: 1, of: r };
             assert_eq!(
                 wrapped(piece, DEEP, 8, copy).piece_steps(),
-                [StepId(7)].into(),
+                [StepId::new(0, 7)].into(),
                 "the step at the foot of a chain of pattern copies"
             );
         });
@@ -2282,12 +2322,12 @@ pub(super) mod tests {
     #[test]
     fn a_union_collapses_a_fold_name_nested_past_every_stack_on_the_smallest_stack() {
         on_the_smallest_stack(|| {
-            let union = RecipeNodeId(9);
+            let union = RecipeNodeId::new(0, 9);
             let member = named(
                 EntityKind::Face,
                 9,
                 vec![RoleSeg::FromMember {
-                    member: RecipeNodeId(4),
+                    member: RecipeNodeId::new(0, 4),
                     of: NameRef::new(leaf(4)),
                 }],
             );
@@ -2310,10 +2350,13 @@ pub(super) mod tests {
             named(
                 EntityKind::Face,
                 1,
-                vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
-                    step: StepId(i as u64),
-                    role: PieceRole::Leg,
-                })],
+                vec![RoleSeg::Lateral(
+                    ProfileEdgeRef::Piece {
+                        step: StepId::new(0, i as u64),
+                        role: PieceRole::Leg,
+                    }
+                    .into(),
+                )],
             )
         };
         let member = |i: usize| {
@@ -2347,7 +2390,7 @@ pub(super) mod tests {
             "{asked} answers asked of {WIDE} members"
         );
 
-        let union = RecipeNodeId(9);
+        let union = RecipeNodeId::new(0, 9);
         let merged = named(
             EntityKind::Face,
             9,
@@ -2358,7 +2401,7 @@ pub(super) mod tests {
                             EntityKind::Face,
                             9,
                             vec![RoleSeg::FromMember {
-                                member: RecipeNodeId(100 + i as u64),
+                                member: RecipeNodeId::new(0, 100 + i as u64),
                                 of: NameRef::new(leaf(4)),
                             }],
                         )

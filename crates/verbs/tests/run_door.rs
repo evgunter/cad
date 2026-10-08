@@ -15,17 +15,19 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::fmt::Write as _;
+use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Vec3};
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::{Extrusion, Revolution};
 use topo::{
-    Body, BooleanDeclarations, BooleanOp, BooleanResult, SplitPart, SweepStrategy, boolean_op_with,
-    split,
+    AtRestBody, Body, BooleanDeclarations, BooleanOp, BooleanResult, SplitPart, SweepStrategy,
+    boolean_op_with, split,
 };
 use verbs::{Arity, PairOut, Verb, VerbError, VerbKind, VerbRecord};
 
 use crate::fixture::{disc, offset_disc, pinch_plane, pinch_prism, tol, x_axis, z_plane};
+use sweep::test_support::finished;
 
 /// The `f64` shell door, read at the ONE seam that answers it
 /// (`topo::AtRestPolicy::shell_door`) rather than constructed here —
@@ -47,11 +49,7 @@ fn dump(body: &Body<f64>) -> String {
         body.edges().count(),
         body.faces().count()
     );
-    for (k, _) in body.vertices() {
-        let p = body
-            .get_vertex(k)
-            .and_then(|v| body.get_point(v.point))
-            .unwrap();
+    for (k, p) in body.vertex_points() {
         let _ = writeln!(
             s,
             "{k:?} {:016x} {:016x} {:016x}",
@@ -76,12 +74,18 @@ fn the_fillet_dispatch_is_the_fillet_door() {
     let cube = sweep::test_support::cube(1.0, tol());
     let edges: Vec<_> = cube.edges().map(|(k, _)| k).collect();
 
-    let door = fillet_edges(&cube, &edges, 0.1, tol()).unwrap();
+    let door = fillet_edges(
+        &sweep::test_support::at_rest(&cube, tol()),
+        &edges,
+        0.1,
+        tol(),
+    )
+    .unwrap();
     let via = Verb::Fillet {
         edges: edges.clone(),
         radius: 0.1,
     }
-    .run(&cube, tol())
+    .run(&finished("the operand", cube.clone(), tol()), tol())
     .unwrap();
 
     assert_eq!(dump(&door.body), dump(&via.body));
@@ -97,12 +101,18 @@ fn the_chamfer_dispatch_is_the_chamfer_door() {
     let cube = sweep::test_support::cube(1.0, tol());
     let edges: Vec<_> = cube.edges().map(|(k, _)| k).collect();
 
-    let door = chamfer_edges(&cube, &edges, 0.1, tol()).unwrap();
+    let door = chamfer_edges(
+        &sweep::test_support::at_rest(&cube, tol()),
+        &edges,
+        0.1,
+        tol(),
+    )
+    .unwrap();
     let via = Verb::Chamfer {
         edges: edges.clone(),
         distance: 0.1,
     }
-    .run(&cube, tol())
+    .run(&finished("the operand", cube.clone(), tol()), tol())
     .unwrap();
 
     assert_eq!(dump(&door.body), dump(&via.body));
@@ -121,12 +131,18 @@ fn a_refusal_crosses_the_dispatch_unaltered() {
     let cube = sweep::test_support::cube(1.0, tol());
     let edges: Vec<_> = cube.edges().map(|(k, _)| k).collect();
 
-    let door = chamfer_edges(&cube, &edges, 0.0, tol()).unwrap_err();
+    let door = chamfer_edges(
+        &sweep::test_support::at_rest(&cube, tol()),
+        &edges,
+        0.0,
+        tol(),
+    )
+    .unwrap_err();
     let via = Verb::Chamfer {
         edges,
         distance: 0.0,
     }
-    .run(&cube, tol())
+    .run(&finished("the operand", cube.clone(), tol()), tol())
     .unwrap_err();
 
     let VerbError::Blend(carried) = via else {
@@ -136,16 +152,28 @@ fn a_refusal_crosses_the_dispatch_unaltered() {
     assert_eq!(door.to_string(), carried.to_string());
 }
 
-/// A unit cube translated by `d` — the boolean rows' second operand.
-fn shifted_cube(d: Vec3<f64>) -> Body<f64> {
+/// The unit cube, finished — the boolean rows' first operand, and the
+/// split rows' operand.
+fn unit_cube() -> AtRestBody<f64> {
+    sweep::test_support::finished(
+        "the unit cube",
+        sweep::test_support::cube(1.0, tol()),
+        tol(),
+    )
+}
+
+/// A unit cube translated by `d`, finished — the boolean rows' second
+/// operand.
+fn shifted_cube(d: Vec3<f64>) -> AtRestBody<f64> {
     let cube = sweep::test_support::cube(1.0, tol());
     let map = Affine3::translation(d);
-    topo::transform_rigid(&cube, &map, tol()).expect("a translation is rigid")
+    let moved = topo::transform_rigid(&cube, &map, tol()).expect("a translation is rigid");
+    sweep::test_support::finished("the shifted cube", moved, tol())
 }
 
 #[test]
 fn the_boolean_dispatch_is_the_boolean_door() {
-    let a = sweep::test_support::cube(1.0, tol());
+    let a = unit_cube();
     // A proper crossing: overlap in every axis, no face-on-face rest.
     let b = shifted_cube(Vec3::new(0.5, 0.5, 0.5));
 
@@ -197,7 +225,7 @@ fn the_boolean_dispatch_is_the_boolean_door() {
 /// not an error) — disjoint operands intersected.
 #[test]
 fn an_empty_boolean_result_crosses_as_the_typed_empty() {
-    let a = sweep::test_support::cube(1.0, tol());
+    let a = unit_cube();
     let b = shifted_cube(Vec3::new(3.0, 0.0, 0.0));
 
     let door = boolean_op_with(
@@ -228,7 +256,7 @@ fn an_empty_boolean_result_crosses_as_the_typed_empty() {
 /// coincidence refusal, reached identically both ways.
 #[test]
 fn a_boolean_refusal_crosses_the_dispatch_unaltered() {
-    let a = sweep::test_support::cube(1.0, tol());
+    let a = unit_cube();
     let b = shifted_cube(Vec3::new(1.0, 0.0, 0.0));
 
     let door = boolean_op_with(
@@ -265,7 +293,10 @@ fn sample(kind: VerbKind) -> Verb<f64> {
             edges: Vec::new(),
             distance: 0.1,
         },
-        VerbKind::Extrude => Verb::Extrude { distance: 1.0 },
+        VerbKind::Extrude => Verb::Extrude {
+            distance: 1.0,
+            side: ExtrudeSide::Along,
+        },
         VerbKind::Revolve => Verb::Revolve {
             axis: x_axis(),
             revolution: Revolution::Full,
@@ -301,8 +332,8 @@ fn sample(kind: VerbKind) -> Verb<f64> {
 /// below read it, one for the refusals and one for the census.
 fn every_door(
     verb: &Verb<f64>,
-    a: &Body<f64>,
-    b: &Body<f64>,
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
     disc: &profile::ValidatedProfile<f64>,
 ) -> Vec<(Arity, Option<VerbError<f64>>)> {
     vec![
@@ -327,7 +358,7 @@ fn every_door(
 /// without a row cannot be written (the matrix keys on the enum).
 #[test]
 fn every_arity_row_has_a_door_and_every_door_a_row() {
-    let a = sweep::test_support::cube(1.0, tol());
+    let a = unit_cube();
     let b = shifted_cube(Vec3::new(0.5, 0.5, 0.5));
     let disc = disc(0.5);
     let doors: std::collections::BTreeSet<Arity> =
@@ -364,7 +395,7 @@ fn every_arity_row_has_a_door_and_every_door_a_row() {
 /// that agrees.
 #[test]
 fn each_door_refuses_the_undeclared_arity() {
-    let a = sweep::test_support::cube(1.0, tol());
+    let a = unit_cube();
     let b = shifted_cube(Vec3::new(0.5, 0.5, 0.5));
     let disc = disc(0.5);
 
@@ -425,9 +456,12 @@ fn the_arity_refusal_names_the_declared_operand_and_the_door() {
     );
 
     let cube = sweep::test_support::cube(1.0, tol());
-    let err = Verb::Extrude { distance: 1.0_f64 }
-        .run(&cube, tol())
-        .expect_err("an extrude is not a one-body verb");
+    let err = Verb::Extrude {
+        distance: 1.0_f64,
+        side: ExtrudeSide::Along,
+    }
+    .run(&finished("the operand", cube.clone(), tol()), tol())
+    .expect_err("an extrude is not a one-body verb");
     assert_eq!(
         err.to_string(),
         "the Extrude verb was run through the One door; the door that answers it is Profile"
@@ -436,7 +470,7 @@ fn the_arity_refusal_names_the_declared_operand_and_the_door() {
     let err = Verb::Split {
         plane: z_plane(0.5),
     }
-    .run(&cube, tol())
+    .run(&finished("the operand", cube.clone(), tol()), tol())
     .expect_err("a split hands back two sides, which the one-body door cannot");
     assert_eq!(
         err.to_string(),
@@ -446,7 +480,7 @@ fn the_arity_refusal_names_the_declared_operand_and_the_door() {
         edges: Vec::new(),
         radius: 0.1_f64,
     }
-    .run_split(&cube, tol())
+    .run_split(&unit_cube(), tol())
     .expect_err("a fillet hands back one body, not two sides");
     assert_eq!(
         err.to_string(),
@@ -460,7 +494,7 @@ fn the_arity_refusal_names_the_declared_operand_and_the_door() {
         thickness: 0.1_f64,
         open: Vec::new(),
     }
-    .run(&cube, tol())
+    .run(&finished("the operand", cube.clone(), tol()), tol())
     .expect_err("a shell's door asks more of the scalar than the one-body door does");
     assert_eq!(
         err.to_string(),
@@ -470,7 +504,11 @@ fn the_arity_refusal_names_the_declared_operand_and_the_door() {
         edges: Vec::new(),
         radius: 0.1_f64,
     }
-    .run_shell(&cube, tol(), shell_door())
+    .run_shell(
+        &finished("the operand", cube.clone(), tol()),
+        tol(),
+        shell_door(),
+    )
     .expect_err("a fillet does not hollow");
     assert_eq!(
         err.to_string(),
@@ -488,7 +526,7 @@ fn the_arity_refusal_names_the_declared_operand_and_the_door() {
         op: BooleanOp::Subtract,
         declare: BooleanDeclarations::none(),
     }
-    .run(&cube, tol())
+    .run(&finished("the operand", cube.clone(), tol()), tol())
     .expect_err("a boolean takes two operands, not one");
     assert_eq!(
         err.to_string(),
@@ -509,7 +547,7 @@ fn dump_sides(above: &SplitPart<f64>, below: &SplitPart<f64>) -> String {
 
 #[test]
 fn the_split_dispatch_is_the_split_door() {
-    let cube = sweep::test_support::cube(1.0, tol());
+    let cube = unit_cube();
     let plane = z_plane(0.5);
 
     let door = split(&cube, &plane, tol()).unwrap();
@@ -539,9 +577,9 @@ fn the_split_dispatch_is_the_split_door() {
 /// Bitwise vertex lookup: how many vertices of `body` sit exactly at
 /// `(x, y, z)`.
 fn vertices_at(body: &Body<f64>, x: f64, y: f64, z: f64) -> usize {
-    body.vertices()
-        .filter(|(_, v)| {
-            let p = *body.get_point(v.point).unwrap();
+    body.vertex_points()
+        .filter(|(_, p)| {
+            let p = *p;
             p.x == x && p.y == y && p.z == z
         })
         .count()
@@ -570,7 +608,7 @@ fn vertices_at(body: &Body<f64>, x: f64, y: f64, z: f64) -> usize {
 /// it, so that is not the failure this row guards.)
 #[test]
 fn the_split_dispatch_agrees_with_the_door_through_the_pinch_lane() {
-    let prism = pinch_prism();
+    let prism = sweep::test_support::finished("the pinch prism", pinch_prism(), tol());
     let plane = pinch_plane();
 
     let door = split(&prism, &plane, tol()).unwrap();
@@ -610,7 +648,7 @@ fn the_split_dispatch_agrees_with_the_door_through_the_pinch_lane() {
 /// a refusal.
 #[test]
 fn an_empty_split_side_crosses_as_the_typed_empty() {
-    let cube = sweep::test_support::cube(1.0, tol());
+    let cube = unit_cube();
     let plane = z_plane(5.0);
 
     let door = split(&cube, &plane, tol()).unwrap();
@@ -634,7 +672,7 @@ fn an_empty_split_side_crosses_as_the_typed_empty() {
 /// section.
 #[test]
 fn a_split_refusal_crosses_the_dispatch_unaltered() {
-    let empty = Body::<f64>::new();
+    let empty = sweep::test_support::finished("the empty body", Body::<f64>::new(), tol());
     let plane = z_plane(0.5);
 
     let door = split(&empty, &plane, tol()).unwrap_err();
@@ -650,25 +688,36 @@ fn a_split_refusal_crosses_the_dispatch_unaltered() {
 #[test]
 fn the_extrude_dispatch_is_the_extrude_door() {
     let profile = disc(0.5);
-    let door = sweep::extrude(&profile, Extrusion::Distance(1.0), tol()).unwrap();
-    let via = Verb::Extrude { distance: 1.0 }
-        .run_profile(&profile, tol())
-        .unwrap();
+    let door = sweep::extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .unwrap();
+    let via = Verb::Extrude {
+        distance: 1.0,
+        side: ExtrudeSide::Along,
+    }
+    .run_profile(&profile, tol())
+    .unwrap();
 
     let VerbRecord::Extrude(via) = via else {
         panic!("an extrude run produced another family's record");
     };
     assert_eq!(dump(&door.body), dump(&via.body));
     assert_eq!(
-        format!("{:?}", door.side_faces),
-        format!("{:?}", via.side_faces),
+        format!("{:?}", door.side_faces()),
+        format!("{:?}", via.side_faces()),
         "the birth record is carried across, not rebuilt"
     );
     assert_eq!(format!("{:?}", door.top), format!("{:?}", via.top));
     assert_eq!(format!("{:?}", door.bottom), format!("{:?}", via.bottom));
     assert_eq!(
-        format!("{:?}", door.strut_edges),
-        format!("{:?}", via.strut_edges)
+        format!("{:?}", door.strut_edges()),
+        format!("{:?}", via.strut_edges())
     );
     assert_eq!(format!("{:?}", door.solid), format!("{:?}", via.solid));
     assert_eq!(format!("{:?}", door.shell), format!("{:?}", via.shell));
@@ -692,8 +741,8 @@ fn the_revolve_dispatch_is_the_revolve_door() {
     };
     assert_eq!(dump(&door.body), dump(&via.body));
     assert_eq!(
-        format!("{:?}", door.walls),
-        format!("{:?}", via.walls),
+        format!("{:?}", door.walls()),
+        format!("{:?}", via.walls()),
         "the birth record is carried across, not rebuilt"
     );
     assert_eq!(format!("{:?}", door.rims), format!("{:?}", via.rims));
@@ -714,10 +763,21 @@ fn the_revolve_dispatch_is_the_revolve_door() {
 #[test]
 fn a_sweep_refusal_crosses_the_dispatch_unaltered() {
     let profile = disc(0.5);
-    let door = sweep::extrude(&profile, Extrusion::Distance(0.0), tol()).unwrap_err();
-    let via = Verb::Extrude { distance: 0.0 }
-        .run_profile(&profile, tol())
-        .unwrap_err();
+    let door = sweep::extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 0.0,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .unwrap_err();
+    let via = Verb::Extrude {
+        distance: 0.0,
+        side: ExtrudeSide::Along,
+    }
+    .run_profile(&profile, tol())
+    .unwrap_err();
     let VerbError::Extrude(carried) = via else {
         panic!("an extrude refusal crossed as another family's: {via:?}");
     };
@@ -752,16 +812,25 @@ fn the_shell_dispatch_is_the_shell_door() {
 
     for open in [Vec::new(), designated] {
         let door = if open.is_empty() {
-            topo::shell(&cube, 0.1, tol())
+            topo::shell(&finished("the operand", cube.clone(), tol()), 0.1, tol())
         } else {
-            topo::shell_open(&cube, 0.1, &open, tol())
+            topo::shell_open(
+                &finished("the operand", cube.clone(), tol()),
+                0.1,
+                &open,
+                tol(),
+            )
         }
         .unwrap_or_else(|e| panic!("the fixture is inside the door: {e}"));
         let via = Verb::Shell {
             thickness: 0.1,
             open: open.clone(),
         }
-        .run_shell(&cube, tol(), shell_door())
+        .run_shell(
+            &finished("the operand", cube.clone(), tol()),
+            tol(),
+            shell_door(),
+        )
         .unwrap_or_else(|e| panic!("the dispatch refused what the door accepted: {e}"));
 
         assert_eq!(dump(&door.body), dump(&via.body));
@@ -797,12 +866,21 @@ fn the_shell_dispatch_is_the_shell_door() {
 #[test]
 fn a_shell_refusal_crosses_the_dispatch_unaltered() {
     let cube = sweep::test_support::cube(1.0, tol());
-    let door = topo::shell(&cube, 0.0_f64, tol()).unwrap_err();
+    let door = topo::shell(
+        &finished("the operand", cube.clone(), tol()),
+        0.0_f64,
+        tol(),
+    )
+    .unwrap_err();
     let via = Verb::Shell {
         thickness: 0.0,
         open: Vec::new(),
     }
-    .run_shell(&cube, tol(), shell_door())
+    .run_shell(
+        &finished("the operand", cube.clone(), tol()),
+        tol(),
+        shell_door(),
+    )
     .unwrap_err();
 
     let VerbError::Shell(carried) = via else {

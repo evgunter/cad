@@ -391,11 +391,18 @@ struct Racing {
     /// row says which of its arms is carrying that comparison rather
     /// than leaving it to be assumed.
     certifies: bool,
+    /// How many distinct NEEDS its leaves must show — the row's guard
+    /// against a column collapsed to one value, as strong as each drive
+    /// supports. The 8-leaf race shows two: since an extrude's depth is
+    /// a size, the chamber's two ends refuse and freeze nothing new
+    /// (`work/props/the-race-rows-leaves-need-two-amounts-where-they-\
+    /// needed-six.md`).
+    min_distinct: usize,
 }
 
 /// Three of them, because one document's leaf partition is one shape:
-/// the unit's own race, the second reviewer's (which hands twelve
-/// leaves nine distinct NEEDs), and a wider drive that CERTIFIES — the
+/// the unit's own race, the second reviewer's (whose twelve leaves
+/// need three distinct amounts), and a wider drive that CERTIFIES — the
 /// only arm in which the `certified()` comparison below is about
 /// anything.
 const RACING: [Racing; 3] = [
@@ -405,6 +412,7 @@ const RACING: [Racing; 3] = [
         terms: 8,
         degree: 4,
         certifies: false,
+        min_distinct: 2,
     },
     Racing {
         label: "race (the second reviewer's)",
@@ -412,6 +420,7 @@ const RACING: [Racing; 3] = [
         terms: 16,
         degree: 6,
         certifies: false,
+        min_distinct: 3,
     },
     Racing {
         label: "certifying",
@@ -419,6 +428,7 @@ const RACING: [Racing; 3] = [
         terms: 512,
         degree: 32,
         certifies: true,
+        min_distinct: 3,
     },
 ];
 
@@ -491,9 +501,10 @@ fn every_leaf_reports_one_column_under_every_schedule_and_both_dials() {
             seq_on.plain_memo(),
         );
         // Non-vacuity: the document really freezes, the memo really
-        // held forms, the leaves need visibly different amounts of the
-        // set, and the `certified()` comparison below is about
-        // something in the arm that says it is.
+        // held forms, the leaves do not all need the same amount of the
+        // set (the collapse to one value this row guards), and the
+        // `certified()` comparison below is about something in the arm
+        // that says it is.
         assert!(
             seq_on.decisions().frozen > 0 && seq_on.plain_memo().forms > 0,
             "{}: the drive must freeze and the memo must hold forms: {:?} {:?}",
@@ -502,9 +513,10 @@ fn every_leaf_reports_one_column_under_every_schedule_and_both_dials() {
             seq_on.plain_memo()
         );
         assert!(
-            base.iter().collect::<BTreeSet<_>>().len() >= 3,
-            "{}: the leaves must need visibly different amounts: {base:?}",
-            r.label
+            base.iter().collect::<BTreeSet<_>>().len() >= r.min_distinct,
+            "{}: the leaves must need at least {} different amounts: {base:?}",
+            r.label,
+            r.min_distinct
         );
         assert_eq!(
             !seq_on.certified().is_empty(),

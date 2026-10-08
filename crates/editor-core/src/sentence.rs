@@ -42,11 +42,20 @@ pub trait Staged {
 /// A [`Staged`] refusal rendered at a [`Labels`].
 pub struct Labelled<'a, E: ?Sized>(pub &'a E, pub Labels);
 
-impl<E: Staged + ?Sized> core::fmt::Display for Labelled<'_, E> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        if self.1 == Labels::Kept {
+impl<E: Staged + ?Sized> Labelled<'_, E> {
+    /// The stage word and its joint, written when `labels` are kept:
+    /// the one spelling of a refusal's opening, whoever says the rest.
+    pub(crate) fn open(f: &mut core::fmt::Formatter<'_>, labels: Labels) -> core::fmt::Result {
+        if labels == Labels::Kept {
             write!(f, "{}: ", E::STAGE)?;
         }
+        Ok(())
+    }
+}
+
+impl<E: Staged + ?Sized> core::fmt::Display for Labelled<'_, E> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        Self::open(f, self.1)?;
         self.0.fmt_labelled(f, self.1)
     }
 }
@@ -66,3 +75,16 @@ impl<A: core::fmt::Display> core::fmt::Display for Recourse<A> {
 /// The viewer states its own (it resolves through the saved file's
 /// directory).
 pub const PASS_A_RESOLVER: &str = "pass a resolver over the store that holds the part";
+
+/// **The indefinite article a word takes**, by its first letter: `an`
+/// before a vowel, `a` otherwise. For a word that comes from a value
+/// (a family word, a surface kind, a piece role), where a sentence
+/// that hard-codes one article is wrong for some value it can reach.
+/// A closed vocabulary with its own `article` (`EntityKind`,
+/// `Dimension`) keeps that one.
+pub(crate) fn article(word: &str) -> &'static str {
+    match word.chars().next() {
+        Some('a' | 'e' | 'i' | 'o' | 'u' | 'A' | 'E' | 'I' | 'O' | 'U') => "an",
+        _ => "a",
+    }
+}

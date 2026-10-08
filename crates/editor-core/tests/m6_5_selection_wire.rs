@@ -9,6 +9,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use crate::fixture::len;
 use editor_core::{PersistError, load};
@@ -39,9 +40,10 @@ fn the_selection_reaches_the_wire_canonical() {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
-    let steps: Vec<u64> = (0..4)
+    let steps: Vec<editor_core::MintId> = (0..4)
         .map(|seg| match crate::fixture::piece(&doc, body, 0, seg) {
             editor_core::ProfileEdgeRef::Piece { step, .. } => step.0,
             other => panic!("a square's side is a step's piece, got {other:?}"),
@@ -62,13 +64,18 @@ fn the_selection_reaches_the_wire_canonical() {
         node: body,
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
-            crate::fixture::piece(&doc, body, 0, seg as usize),
+            crate::fixture::piece(&doc, body, 0, seg as usize).into(),
         )],
     };
     doc = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::fillet(body, len(0.0625), vec![rim(high as u32), rim(low as u32)]),
+            node: Box::new(Node::fillet(
+                body,
+                len(0.0625),
+                vec![rim(high as u32), rim(low as u32)],
+            )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -79,7 +86,7 @@ fn the_selection_reaches_the_wire_canonical() {
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     assert!(text.contains("\"selection\""), "the field reaches the wire");
     let sel = text.find("\"selection\"").expect("the selection block");
-    let spelled = |seg: usize| format!("\"step\": {}", step_of(seg));
+    let spelled = |seg: usize| format!("\"step\": \"{}\"", step_of(seg));
     let at_low = text[sel..].find(&spelled(low)).expect("the lower id");
     let at_high = text[sel..].find(&spelled(high)).expect("the higher id");
     assert!(
@@ -104,7 +111,7 @@ fn the_selection_reaches_the_wire_canonical() {
     );
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(editor_core::SnapshotError::InputList {
-            fault: editor_core::InputFault::SelectionNotCanonical { at: 0 },
+            fault: editor_core::ListFault::SelectionNotCanonical { at: 0 },
             ..
         })) => {}
         other => panic!("a non-canonical selection must refuse typed, got {other:?}"),

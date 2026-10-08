@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::common;
 
-use common::brick;
+use common::{brick, finished};
 use geom_core::Tol;
 use topo::{Body, BooleanBody, BooleanResult, EdgeKey, FaceKey, VertexKey, subtract};
 
@@ -21,10 +21,7 @@ pub(crate) type Stretch = Option<(EdgeKey, [FaceKey; 2])>;
 /// fused or that no live edge joins.
 pub(crate) fn bordered_edges(out: &BooleanBody<f64>) -> Vec<Vec<Stretch>> {
     let body: &Body<f64> = &out.body;
-    let fused = out
-        .naming
-        .fused_into()
-        .expect("the zip's fusions form no cycle");
+    let fused = out.naming.fused_into();
     let settle = |v: VertexKey| fused.get(&v).copied().unwrap_or(v);
     let face_of = |he| body.face_of_half_edge(he).unwrap();
     let mut by_ends: BTreeMap<(VertexKey, VertexKey), (EdgeKey, [FaceKey; 2])> = BTreeMap::new();
@@ -44,7 +41,11 @@ pub(crate) fn bordered_edges(out: &BooleanBody<f64>) -> Vec<Vec<Stretch>> {
                 .iter()
                 .map(|&(u, w)| {
                     let (u, w) = (settle(u), settle(w));
-                    by_ends.get(&(u.min(w), u.max(w))).copied()
+                    by_ends.get(&(u.min(w), u.max(w))).copied().or_else(|| {
+                        let e = out.naming.stretch_through_joins(body, (u, w))?;
+                        let d = body.get_edge(e)?;
+                        Some((e, [face_of(d.he_plus), face_of(d.he_minus)]))
+                    })
                 })
                 .collect()
         })
@@ -57,8 +58,16 @@ pub(crate) fn bordered_edges(out: &BooleanBody<f64>) -> Vec<Vec<Stretch>> {
 #[test]
 fn a_through_slot_records_the_strip_it_discards_between_two_kept_pieces() {
     let tol = Tol::witness();
-    let plate = brick::<f64>((0.0, 3.0), (0.0, 2.0), (0.0, 1.0), tol);
-    let slot = brick::<f64>((1.4, 1.6), (-1.0, 3.0), (-1.0, 3.0), tol);
+    let plate = finished(
+        "plate",
+        brick::<f64>((0.0, 3.0), (0.0, 2.0), (0.0, 1.0), tol),
+        tol,
+    );
+    let slot = finished(
+        "slot",
+        brick::<f64>((1.4, 1.6), (-1.0, 3.0), (-1.0, 3.0), tol),
+        tol,
+    );
     let BooleanResult::Body(out) = subtract(&plate, &slot, tol).expect("the slot subtracts") else {
         panic!("a slotted plate is not empty");
     };

@@ -46,7 +46,11 @@ fn probe_s350_face_reach_returns_a_partially_poisoned_box() {
             },
         )
         .unwrap();
-    let answer = face_reach(&st.body, st.face);
+    let answer = face_reach(
+        &st.body,
+        st.face,
+        Band::linear(geom_core::Tol::witness()).unwrap(),
+    );
     let Some((lo, hi)) = answer else {
         panic!("PROBE: face_reach answered None — S350's premise does not hold");
     };
@@ -76,7 +80,12 @@ fn probe_s350_a_margin_against_the_partial_box_clears_a_pair() {
             },
         )
         .unwrap();
-    let (olo, ohi) = face_reach(&st.body, st.face).expect("the partial box");
+    let (olo, ohi) = face_reach(
+        &st.body,
+        st.face,
+        Band::linear(geom_core::Tol::witness()).unwrap(),
+    )
+    .expect("the partial box");
     // An inner box far outside the outer's y extent: the census's
     // clearing direction.
     let ilo = Point3::new(0.0, 100.0, 0.0);

@@ -31,6 +31,13 @@
 //!    an ε-scaled target rather than a model-scale distance: a definite
 //!    margin below [`EPS_COUPLED_FLOOR_RATIO`] · ε. Those families are
 //!    NOT subject to rules (2) or (3) — see "The ε-coupled families".
+//! 5. **Off its construction's target** — for the construction-coupled
+//!    names ([`CONSTRUCTION_COUPLED`]), whose ZERO-classified margin is
+//!    a certified bound the kernel REFINED to a stated fraction of ε:
+//!    a zero row above [`CONSTRUCTION_CEILING_FACTOR`] times that
+//!    fraction of ε, or any definite row (a bound past the band is a
+//!    refused certificate). Those names are NOT subject to rule (2)'s
+//!    zero arm — see "The construction-coupled families".
 //!
 //! Ratio rules (2), (3) and (4) apply only to samples deciding against an
 //! AMBIENT band (`band_zero ≥` [`AMBIENT_BAND_MIN`]): the kernel also
@@ -198,6 +205,69 @@
 //! them ahead of the flags, and fails the run naming the open ruling
 //! rather than a baseline re-derivation that will not move. Gating on
 //! the NAME is what makes the guard independent of a row's sign.
+//!
+//! # The construction-coupled families (rule 5)
+//!
+//! Rule (2)'s zero arm judges every family by the same question: a
+//! `zero` row above `ε/10²` sits within two decades of the coincidence
+//! threshold. That is the right question for a residual that measures
+//! rounding, and the wrong one for a certified BOUND that the kernel
+//! refines until it clears a stated fraction of the band. Such a bound
+//! lands just under that fraction at every ε by construction, so rule
+//! (2) would flag every row it ever records. Unlike rule (4)'s family,
+//! the rows are `zero` rather than definite. Rostering the name under
+//! rule (4) therefore would not touch them, and [`EPS_COUPLED_UNRULED`],
+//! which gates on the name, would fail every sweep.
+//!
+//! [`CONSTRUCTION_COUPLED`] lists these names, each with the fraction
+//! its construction targets. Today that is exactly one:
+//! `pcurve_envelope_hermite`, the envelope `certify_fitted` re-derives
+//! for a general circle's chart image on a sphere. `geom-brep`'s
+//! `sphere_circle_image_lane` refines that image by trisection "until
+//! every span's certified bound is a quarter of the band"
+//! (`hermite_image(…, 0.25 * band.zero())`). `run_fitted_checks` mints
+//! the name for the envelope whose statement is `MapResidualHermite`,
+//! the construction `fitted_lane` states for that image. The name is
+//! keyed on the construction, not on the carrier kind, so a later
+//! circle lane with another construction keeps `pcurve_envelope` until
+//! it is ruled. The closed-form lanes' envelopes are rounding-sized
+//! (~1e-15 m, ε-independent), keep that name, and stay under the metre
+//! rules.
+//!
+//! Measured on the first sweep that carried the rows: a fresh
+//! `scripts/k_probe_sweep.sh` over the corpus and the demo scenes at the
+//! `reach/tilted-sphere-pair` head (2026-10-02), 8 rows per ε row, all on
+//! `demo/lily_walls`, where wall 7 carves the lantern's zone sphere along
+//! a tilted section. All are `zero`. Their `|m|/ε` are 0.1942 and 0.2290
+//! at 1e-6, 0.2124 and 0.2409 at 1e-9, and 0.2470 and 0.2498 at 1e-12,
+//! each twice. The maximum, 0.2498, sits 0.1% under the target.
+//!
+//! The rule: a `zero` row is flagged above
+//! [`CONSTRUCTION_CEILING_FACTOR`] · target · ε (0.30·ε for the quarter
+//! band), and any definite row is flagged, since a definite envelope is
+//! the certificate refusing. The ceiling's 20% over the target is the
+//! stated margin. The target is met by the `f64` bound at the
+//! structure's bracket midpoints, and the certificate re-derives the
+//! bound at the run's own scalar, so a re-derivation may land a
+//! rounding over the target and must not flag. 20% is two orders above
+//! any such rounding and still well under the band. A zero row above the
+//! ceiling means the refinement no longer meets its own target, or the
+//! certificate no longer re-derives what the refinement bounded: a
+//! moved construction, which is what this rule exists to catch. Rule (1)
+//! is unchanged: an envelope that escalates is in-band whatever its
+//! name.
+//!
+//! **The premise is pinned at its source.**
+//! `tests/construction_coupled.rs` reads `pcurve_cache.rs` through the
+//! shared lexer. It reds if the name is minted anywhere but the
+//! `MapResidualHermite` arm of `run_fitted_checks`, if that statement is
+//! stated anywhere but `fitted_lane`, or if `sphere_circle_image_lane`
+//! stops refining to `0.25 * band.zero()`. The target here and the
+//! target there cannot drift apart silently.
+//!
+//! Rule 5 tallies under its own number ([`Reason::rule`]), so a run's
+//! per-rule line says how many findings are a construction off its
+//! target. It is decided, like rules 2 and 3, and demotes with them.
 //!
 //! # Rule (2)'s discrimination floor
 //!
@@ -435,6 +505,42 @@ pub fn eps_coupled_excuse(predicate: &str) -> Option<&'static str> {
 /// test is where the move happens.
 pub const EPS_COUPLED_FLOOR_RATIO: f64 = 1.5e2;
 
+/// **The construction-coupled names**, as `(predicate, target, why)`:
+/// names whose `zero` margin is a certified bound the kernel refines to
+/// `target · ε` by construction. They are judged by rule (5) instead of
+/// rule (2)'s zero arm (module docs, "The construction-coupled
+/// families", which carries the measured distribution). An explicit
+/// list, never inferred, for the reason [`EPS_COUPLED_PREDICATES`] is
+/// one: a name not on it stays under the metre rules and flags loudly.
+pub const CONSTRUCTION_COUPLED: [(&str, f64, &str); 1] = [(
+    "pcurve_envelope_hermite",
+    0.25,
+    concat!(
+        "the sphere general-circle image's Hermite sup bound: geom-brep's ",
+        "sphere_circle_image_lane refines the image until every span's certified bound is ",
+        "a quarter of the band, and certify_fitted re-derives it",
+    ),
+)];
+
+/// Rule (5)'s ceiling, as a multiple of a [`CONSTRUCTION_COUPLED`]
+/// name's target: a `zero` row above `factor · target · ε` is flagged.
+/// 1.2 is the stated margin over the measured maximum (0.2498·ε against
+/// the 0.25·ε target): the certificate re-derives the bound at the run's
+/// scalar, so a rounding over target must not flag, and a re-derived
+/// envelope 20% over its construction's target is a construction that
+/// moved.
+pub const CONSTRUCTION_CEILING_FACTOR: f64 = 1.2;
+
+/// Rule (5)'s `zero`-row ceiling for `predicate`, in units of ε, if it
+/// is a [`CONSTRUCTION_COUPLED`] name.
+#[must_use]
+pub fn construction_ceiling(predicate: &str) -> Option<f64> {
+    CONSTRUCTION_COUPLED
+        .iter()
+        .find(|(n, _, _)| *n == predicate)
+        .map(|(_, target, _)| CONSTRUCTION_CEILING_FACTOR * target)
+}
+
 /// Whether `predicate` is one of the [`EPS_COUPLED_PREDICATES`].
 #[must_use]
 pub fn is_eps_coupled(predicate: &str) -> bool {
@@ -467,10 +573,16 @@ pub enum Reason {
     /// An [`EPS_COUPLED_PREDICATES`] margin below
     /// [`EPS_COUPLED_FLOOR_RATIO`] · ε.
     BelowEpsCoupledFloor,
+    /// A [`CONSTRUCTION_COUPLED`] name's `zero` margin above its
+    /// ceiling ([`construction_ceiling`]).
+    AboveConstructionTarget,
+    /// A [`CONSTRUCTION_COUPLED`] name's definite margin: the bound
+    /// passed the band and the certificate refused.
+    ConstructionRefused,
 }
 
 impl Reason {
-    /// **Which RULE of the module's three this reason belongs to.**
+    /// **Which RULE this reason belongs to, as the CLI tallies it.**
     ///
     /// The distinction is load-bearing since M10-6: rule 1 detects a
     /// margin the run could not decide at all (`indeterminate`) or a
@@ -482,7 +594,14 @@ impl Reason {
     /// toward zero by construction will make in bulk without anything
     /// being wrong.
     ///
-    /// A consumer may demote 2 and 3 with a recorded justification
+    /// Rule 5 is the construction-coupled names' own rule (module
+    /// docs, "The construction-coupled families"). It tallies under its
+    /// own number so a run says how many of its findings are a
+    /// construction off its target rather than a margin near the band.
+    /// It is decided, like rules 2 and 3, and demotes with them. Rule 4's
+    /// floor tallies under rule 3, the floor it recalibrates.
+    ///
+    /// A consumer may demote 2, 3 and 5 with a recorded justification
     /// (`docs/K-REPORT.md`'s recourse 2). Demoting rule 1 would demote
     /// the trigger, so nothing offers that.
     pub fn rule(self) -> u8 {
@@ -490,18 +609,21 @@ impl Reason {
             Self::InBand | Self::Invalid => 1,
             Self::NearBandAbove | Self::NearBandBelow => 2,
             Self::BelowBaselineFloor | Self::BelowEpsCoupledFloor => 3,
+            Self::AboveConstructionTarget | Self::ConstructionRefused => 5,
         }
     }
 
     /// Every reason, for tallying — so a per-rule count cannot silently
     /// omit a variant the enum grows.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 8] = [
         Self::InBand,
         Self::Invalid,
         Self::NearBandAbove,
         Self::NearBandBelow,
         Self::BelowBaselineFloor,
         Self::BelowEpsCoupledFloor,
+        Self::AboveConstructionTarget,
+        Self::ConstructionRefused,
     ];
 }
 
@@ -515,6 +637,12 @@ impl core::fmt::Display for Reason {
             Reason::BelowBaselineFloor => "definite below the baseline distribution's floor (4e-5)",
             Reason::BelowEpsCoupledFloor => {
                 "ε-coupled headroom below the ε-relative floor (1.5e2·ε)"
+            }
+            Reason::AboveConstructionTarget => {
+                "construction-coupled bound above its construction's target (1.2·target·ε)"
+            }
+            Reason::ConstructionRefused => {
+                "construction-coupled bound decided definite: the certificate refused"
             }
         };
         f.write_str(s)
@@ -725,7 +853,9 @@ pub struct ParseError {
 /// datum against every supported ε row's band.
 ///
 /// `predicate` selects the rule set: the [`EPS_COUPLED_PREDICATES`]
-/// answer to rule (4) instead of rules (2) and (3) — module docs.
+/// answer to rule (4) instead of rules (2) and (3), and the
+/// [`CONSTRUCTION_COUPLED`] names to rule (5) instead of rule (2)'s zero
+/// arm — module docs.
 #[must_use]
 pub fn lint_sample(
     predicate: &str,
@@ -736,6 +866,23 @@ pub fn lint_sample(
 ) -> Vec<Reason> {
     let mut reasons = Vec::new();
     let m = margin.abs();
+    // Rule (5): a construction-coupled name answers to its own target
+    // instead of rule (2)'s zero arm, and its refusal side is a finding
+    // too (module docs, "The construction-coupled families").
+    if let Some(ceiling) = construction_ceiling(predicate) {
+        match outcome {
+            "indeterminate" => reasons.push(Reason::InBand),
+            "invalid" => reasons.push(Reason::Invalid),
+            "zero" if band_zero >= AMBIENT_BAND_MIN && m > ceiling * band_zero => {
+                reasons.push(Reason::AboveConstructionTarget);
+            }
+            "positive" | "negative" if band_zero >= AMBIENT_BAND_MIN => {
+                reasons.push(Reason::ConstructionRefused);
+            }
+            _ => {}
+        }
+        return reasons;
+    }
     match outcome {
         "indeterminate" => reasons.push(Reason::InBand),
         "invalid" => reasons.push(Reason::Invalid),
@@ -1376,8 +1523,8 @@ mod tests {
         for r in Reason::ALL {
             let rule = r.rule();
             assert!(
-                (1..=3).contains(&rule),
-                "{r:?} claims rule {rule}, which is not one of the module's three"
+                [1, 2, 3, 5].contains(&rule),
+                "{r:?} claims rule {rule}, which is not one the CLI tallies"
             );
         }
         // Rule 1 is exactly the two undecided outcomes: the trigger E6
@@ -1391,7 +1538,7 @@ mod tests {
         for r in Reason::ALL {
             assert!(seen.insert(format!("{r:?}")), "{r:?} listed twice in ALL");
         }
-        assert_eq!(seen.len(), 6, "Reason::ALL must list every variant");
+        assert_eq!(seen.len(), 8, "Reason::ALL must list every variant");
     }
 
     /// An `indeterminate` row is rule 1 and a merely-near-threshold row

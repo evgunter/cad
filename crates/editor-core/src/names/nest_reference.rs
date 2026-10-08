@@ -6,7 +6,9 @@
 //! variants, the same serde attributes, every impl derived; and
 //! [`NameRef`] as the handle it was, rendered, compared and written as
 //! the name it holds. `RoleSeg` and `Qualifier` are copied from
-//! `role.rs` with their docs left out; the variant row builds one
+//! `role.rs` with their docs left out (leaf types — the piece
+//! locators and the run of them, `PieceRun`, whose one-or-many wire is
+//! specified rather than derived — are shared); the variant row builds one
 //! segment of every variant in both families from one list, so a
 //! variant missing here stops that row's build.
 #![allow(dead_code, unreachable_pub)]
@@ -14,8 +16,8 @@
 use std::sync::Arc;
 
 pub(super) use super::role::{
-    CapEnd, EntityKind, MeridianEnd, PieceRole, ProfileEdgeRef, ProfileVertexRef, RimSupport,
-    SectionCircle, SplitHalf,
+    CapEnd, EntityKind, MeridianEnd, PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef,
+    RimSupport, SectionCircle, Sense, SplitHalf,
 };
 pub(super) use crate::node::{RecipeNodeId, StepId};
 
@@ -105,23 +107,23 @@ pub(super) enum RoleSeg {
     OutputBody,
 
     Cap(CapEnd),
-    Lateral(ProfileEdgeRef),
-    RimEdge(CapEnd, ProfileEdgeRef),
+    Lateral(PieceRun),
+    RimEdge(CapEnd, PieceRun),
     LateralEdge(ProfileVertexRef),
     CapVertex(CapEnd, ProfileVertexRef),
 
     LoftWall(Vec<ProfileEdgeRef>),
     LoftSeam(Vec<ProfileVertexRef>),
 
-    Band(ProfileEdgeRef),
+    Band(PieceRun),
     BandRim(ProfileVertexRef),
     BandRimPi(ProfileVertexRef),
-    BandPi(ProfileEdgeRef),
-    Meridian(MeridianEnd, ProfileEdgeRef),
+    BandPi(PieceRun),
+    Meridian(MeridianEnd, PieceRun),
     MeridianVertex(MeridianEnd, ProfileVertexRef),
     RevolveCap(MeridianEnd),
     Pole(ProfileVertexRef),
-    AxisEdge(ProfileEdgeRef),
+    AxisEdge(PieceRun),
 
     FromA(NameRef),
     FromB(NameRef),
@@ -132,6 +134,17 @@ pub(super) enum RoleSeg {
     Seam {
         a: NameRef,
         b: NameRef,
+    },
+    Crossing {
+        edge: NameRef,
+        face: NameRef,
+        sense: Sense,
+    },
+    EdgeCrossing {
+        a: NameRef,
+        a_sense: Sense,
+        b: NameRef,
+        b_sense: Sense,
     },
     Merged(Vec<StableName>),
     Fragment(Qualifier),
@@ -152,6 +165,7 @@ pub(super) enum RoleSeg {
     CrossingVertex {
         side: SplitHalf,
         edge: NameRef,
+        sense: Sense,
     },
     OnToolVertex {
         side: SplitHalf,
@@ -172,6 +186,12 @@ pub(super) enum RoleSeg {
     EndArc {
         vertex: NameRef,
         edge: NameRef,
+    },
+    Mitre {
+        vertex: NameRef,
+    },
+    TurnFoot {
+        vertex: NameRef,
     },
     BandFace(Vec<StableName>),
     BandTrim {

@@ -11,9 +11,10 @@ use crate::common::approx::band;
 use crate::common::three_arc;
 use geom_core::{Point2, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::blend::battery::{BlendRequest, convexity_at, run_battery};
 use sweep::blend::{BlendError, BlendSite};
-use sweep::test_support::{disc_of_arcs, extruded, sketch_from_axes};
+use sweep::test_support::{disc_of_arcs, extruded, finished, sketch_from_axes};
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, FaceSurface};
 
@@ -96,8 +97,8 @@ fn tilt_raised_cap(
         normal: normal * theta.cos() + u_ref.cross(normal) * theta.sin(),
         u_ref,
     };
-    // Lifts both refusals: the tilted cap plane is the unit's tilt.
-    body.set_face_surface_stranding_for_tests(
+    // Lifts RechartStrandsDescriptions: the tilted cap plane is the unit's tilt.
+    body.set_face_surface_unvouched_for_tests(
         cap,
         FaceSurface::New {
             surface: tilted,
@@ -258,19 +259,22 @@ fn r1_the_coaxiality_predicate_is_the_first_to_speak_on_the_tilted_cap() {
 /// N-arc rims carve at their closed forms in `closed_chain_junctions`.
 #[test]
 fn r1_a_three_arc_rim_carves_where_a_two_arc_rim_does() {
-    // `topo::query::rim_of` refuses the re-keyed body (`NotOneRim`:
-    // the arcs' descriptions name the old cap key), so the arcs are
-    // gathered by their carriers.
+    // The raised rim, named by its first arc and handed back whole by
+    // the rim door.
     let raised_arcs = |body: &Body<f64>| -> Vec<EdgeKey> {
-        body.edges()
-            .filter_map(|(k, e)| {
-                let c = body.get_curve_geom(e.curve)?.certified()?;
-                match c.carrier() {
-                    geom::Curve3::Circle { center, .. } if center.z > 0.5 => Some(k),
-                    _ => None,
-                }
+        let seed = body
+            .edges()
+            .find(|(_, e)| {
+                matches!(
+                    body.get_curve_geom(e.curve)
+                        .and_then(|g| g.certified())
+                        .map(|c| c.carrier()),
+                    Some(geom::Curve3::Circle { center, .. }) if center.z > 0.5
+                )
             })
-            .collect()
+            .expect("a raised arc")
+            .0;
+        topo::query::rim_of(body, seed).unwrap_or_else(|e| panic!("the raised rim, got {e}"))
     };
     let whole = |body: &Body<f64>, arcs: Vec<EdgeKey>| -> Result<(), BlendError> {
         run_battery(
@@ -290,7 +294,13 @@ fn r1_a_three_arc_rim_carves_where_a_two_arc_rim_does() {
     assert_eq!(arcs2.len(), 2, "the raised rim is two arcs by authoring");
     whole(&two, arcs2.clone()).expect("the two-arc rim resolves");
     assert!(
-        sweep::blend::fillet_edges(&two, &arcs2, 0.05, tol()).is_ok(),
+        sweep::blend::fillet_edges(
+            &sweep::test_support::at_rest(&two, tol()),
+            &arcs2,
+            0.05,
+            tol()
+        )
+        .is_ok(),
         "the two-arc rim carves"
     );
     // The PRISTINE three-arc extrusion, whole rim: three junctions at
@@ -302,7 +312,13 @@ fn r1_a_three_arc_rim_carves_where_a_two_arc_rim_does() {
     whole(&pristine, arcs3.clone())
         .unwrap_or_else(|e| panic!("the three-arc rim resolves at every junction, got {e:?}"));
     assert!(
-        sweep::blend::fillet_edges(&pristine, &arcs3, 0.05, tol()).is_ok(),
+        sweep::blend::fillet_edges(
+            &sweep::test_support::at_rest(&pristine, tol()),
+            &arcs3,
+            0.05,
+            tol()
+        )
+        .is_ok(),
         "the three-arc rim carves through the public door"
     );
     // The unit's re-keyed body resolves the same way at departure 0:
@@ -373,7 +389,10 @@ fn r1_in_band_convexity_sign_renders_the_tangential_sentence() {
 
 /// **Can a BODY reach the in-band convexity arm?** A profile whose
 /// vertex turns by an in-band angle is the natural fixture; this row
-/// records what the profile validator and the battery say about it.
+/// records what the profile validator, the sweep's cosurface verdict
+/// and the battery say about it. Which of them answers depends on ε:
+/// at a wide enough band the turn decides zero and the vertex is a
+/// station of one run wall.
 #[test]
 fn r1_a_near_collinear_profile_vertex_and_the_convexity_arm() {
     // Two levers. The profile's `chord_side` meters the vertex's
@@ -401,13 +420,46 @@ fn r1_a_near_collinear_profile_vertex_and_the_convexity_arm() {
                 continue;
             }
         };
-        let body = match extrude(&profile, Extrusion::Distance(h), tol()) {
-            Ok(b) => b.body,
+        let built = match extrude(
+            &profile,
+            Extrusion::Distance {
+                depth: h,
+                side: ExtrudeSide::Along,
+            },
+            tol(),
+        ) {
+            Ok(b) => b,
             Err(e) => {
                 eprintln!("(d={d:e}, L={l}, h={h}) the extrude door refuses: {e}");
                 continue;
             }
         };
+        // Where the sweep's cosurface verdict DECIDES the turn zero at
+        // this ε (the wide band, eps = 1e-6, reads d = 1e-6 as zero),
+        // the vertex is a station of one run: the two segments sweep
+        // ONE wall and there is no strut edge there for the battery to
+        // meet (crate README, "Walls: one per run"). That is the decided
+        // verdict, not a silent pick — an in-band reading escalates at
+        // the extrude door above — so the row records it and moves on.
+        if built.walls[0].iter().any(|w| w.segments.len() == 2) {
+            let wall = built.walls[0]
+                .iter()
+                .find(|w| w.segments.len() == 2)
+                .expect("the two-segment run");
+            let mut segs = wall.segments.clone();
+            segs.sort_unstable();
+            assert_eq!(
+                segs,
+                vec![0, 1],
+                "(d={d:e}, L={l}, h={h}) the run is the near-collinear vertex's two segments"
+            );
+            eprintln!(
+                "(d={d:e}, L={l}, h={h}) the turn decides zero at this tolerance: one run \
+                 wall over segments 0 and 1, no strut at the vertex"
+            );
+            continue;
+        }
+        let body = built.body;
         let edge = body
             .edges()
             .find_map(|(k, e)| {
@@ -497,9 +549,17 @@ fn r1_a_boss_on_an_in_band_tilted_sketch_plane_through_the_union() {
         let profile = Profile::new(SketchPlane::xy(), vec![lp])
             .validate(tol())
             .unwrap();
-        extrude(&profile, Extrusion::Distance(1.0), tol())
-            .unwrap()
-            .body
+        let base = extrude(
+            &profile,
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
+            tol(),
+        )
+        .unwrap()
+        .body;
+        finished("the base", base, tol())
     };
     // The boss: a 0.5-radius cylinder standing on z = 1, its sketch
     // plane turned about x by an angle whose departure at the rim's
@@ -517,10 +577,14 @@ fn r1_a_boss_on_an_in_band_tilted_sketch_plane_through_the_union() {
         let u = Vec3::new(1.0, 0.0, 0.0);
         let v = Vec3::new(0.0, theta.cos(), theta.sin());
         let plane = sketch_from_axes(geom_core::Point3::new(0.0, 0.0, z0), u, v, Tol::witness());
-        let boss = extruded(
-            plane,
-            vec![three_arc(Point2::new(0.0, 0.0), 0.25, 0.0)],
-            1.0,
+        let boss = finished(
+            "the boss",
+            extruded(
+                plane,
+                vec![three_arc(Point2::new(0.0, 0.0), 0.25, 0.0)],
+                1.0,
+                tol(),
+            ),
             tol(),
         );
         let r = topo::boolean::union(&base, &boss, tol());

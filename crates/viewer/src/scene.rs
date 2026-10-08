@@ -26,12 +26,15 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
+use pncad::document::AuthoredNode;
+use pncad::document::ExtrudeSide;
 use std::collections::BTreeSet;
 
 use bvh::Aabb;
 use pncad::document::{
-    CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Expr, Frame, LoopProgram, Node,
-    ProductError, ProfileProgram, RecipeNodeId, apply, evaluate, product,
+    CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Formula, Frame, HeldNodes,
+    LoopProgram, Node, ProductError, ProfileProgram, RecipeNodeId, Said, Speaker, apply, evaluate,
+    held_by, product,
 };
 use pncad::geom_core::{Affine3, Point3, Tol, Vec3};
 use pncad::mesh::{Mesh, TessellateError, tessellate};
@@ -234,8 +237,10 @@ pub enum SceneError {
     },
     /// The document's roots did not gather into a product body, for
     /// any of the gather's reasons (`ProductErrorKind::means_no_body`
-    /// says which of them is an absence rather than a fault).
-    NoProduct(ProductError),
+    /// says which of them is an absence rather than a fault), beside
+    /// the nodes its sentence names as the gathered document held them
+    /// ([`held_by`]). Boxed so the refusal stays a small `Err`.
+    NoProduct(Box<ProductError>, HeldNodes),
     /// The body did not tessellate at this δ.
     NotTessellated(TessellateError),
     /// The tessellation was empty, or its positions gave no usable
@@ -312,7 +317,9 @@ impl core::fmt::Display for SceneError {
                  its value in millimetres is not a finite number",
                 unit.symbol()
             ),
-            Self::NoProduct(error) => write!(f, "{error}"),
+            Self::NoProduct(error, held) => {
+                write!(f, "{}", Said(error.as_ref(), Speaker::held(held)))
+            }
             Self::NotTessellated(error) => {
                 write!(
                     f,
@@ -802,7 +809,7 @@ pub fn plate_bounds() -> Aabb {
 ///
 /// Two ways to give a length live ten lines apart below:
 /// `LoopProgram::polygon` takes bare `(f64, f64)` metres, while
-/// `LoopProgram::Circle` takes `Expr::literal(x, Dimension::Length)`.
+/// `LoopProgram::Circle` takes `Formula::literal(x, Dimension::Length)`.
 /// Both are canonical metres and both are correct; the asymmetry is
 /// the profile-program vocabulary's, not this scene's, and a user
 /// authoring their first ring meets it immediately. Recorded per
@@ -851,6 +858,7 @@ pub fn plate_with_hole(tol: Tol) -> Result<(Doc<ProfileProgram>, RecipeNodeId), 
         Node::Extrude {
             profile: profile_node,
             distance: length(thickness)?,
+            side: ExtrudeSide::Along,
         },
         tol,
     )?;
@@ -886,6 +894,12 @@ impl core::fmt::Display for SceneDocError {
 
 impl core::error::Error for SceneDocError {}
 
+/// The gather's refusal of `doc`, its nodes said as `doc` holds them.
+fn no_product(error: ProductError, doc: &Doc<ProfileProgram>) -> SceneError {
+    let held = held_by(&error, doc);
+    SceneError::NoProduct(Box::new(error), held)
+}
+
 /// Evaluate a document and gather its product body.
 ///
 /// # Errors
@@ -894,7 +908,7 @@ impl core::error::Error for SceneDocError {}
 pub fn product_body(doc: &Doc<ProfileProgram>, tol: Tol) -> Result<Body<f64>, SceneError> {
     let cancel = CancelToken::new();
     let evaluation = evaluate::<f64>(doc, None, &cancel, &EvalOptions::default(), tol);
-    product(doc, &evaluation, tol).map_err(SceneError::NoProduct)
+    product(doc, &evaluation, tol).map_err(|error| no_product(error, doc))
 }
 
 /// **Gather the product of a pair the landing did not keep one for.**
@@ -916,7 +930,7 @@ pub fn product_of_evaluation(
     evaluation: &pncad::document::Evaluation<f64>,
     tol: Tol,
 ) -> Result<Body<f64>, SceneError> {
-    product(doc, evaluation, tol).map_err(SceneError::NoProduct)
+    product(doc, evaluation, tol).map_err(|error| no_product(error, doc))
 }
 
 /// The scene of a product SOMEONE ELSE gathered.
@@ -1503,17 +1517,17 @@ pub fn scene_of(
     scene_of_body(&body, delta, tol)
 }
 
-fn length(metres: f64) -> Result<Expr, SceneDocError> {
-    Expr::literal(metres, Dimension::Length).map_err(SceneDocError::Dimension)
+fn length(metres: f64) -> Result<Formula, SceneDocError> {
+    Formula::literal(metres, Dimension::Length).map_err(SceneDocError::Dimension)
 }
 
-fn scalar(v: f64) -> Result<Expr, SceneDocError> {
-    Expr::literal(v, Dimension::Scalar).map_err(SceneDocError::Dimension)
+fn scalar(v: f64) -> Result<Formula, SceneDocError> {
+    Formula::literal(v, Dimension::Scalar).map_err(SceneDocError::Dimension)
 }
 
 fn insert(
     doc: Doc<ProfileProgram>,
-    node: Node<ProfileProgram>,
+    node: AuthoredNode,
     tol: Tol,
 ) -> Result<(Doc<ProfileProgram>, RecipeNodeId), SceneDocError> {
     // The scene's document has no instance and no mate, so no edit
@@ -1521,7 +1535,10 @@ fn insert(
     // asked.
     let applied = apply(
         &doc,
-        &DocEdit::InsertNode { node },
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+            fresh: Vec::new(),
+        },
         tol,
         &pncad::document::RefusingReach,
     )

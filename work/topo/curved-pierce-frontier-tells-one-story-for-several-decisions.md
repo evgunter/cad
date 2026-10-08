@@ -2,8 +2,9 @@
 id: curved-pierce-frontier-tells-one-story-for-several-decisions
 kind: issue
 title: topo: CurvedPierceUnsupported offers the declaration from every arm of curved_face_arm, including arms that read none, and the radius guards' decided arm renders as a join desync
-status: open
+status: parked
 opened: 2026-09-30
+blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -51,8 +52,10 @@ whose verdict no declaration reads:
   `NoInterior | Elsewhere` (the `covered` twin reads the declaration,
   this arm does not);
 - the circle rung's `Ok(Sign::Negative)` for a non-torus circle (an
-  arc that crosses the wall), and every carrier the rung has no arm
-  for (an ellipse, a NURBS edge). The rung's `Ok(Sign::Zero)` is not
+  arc that crosses the wall), and an ellipse the rung has no arm for.
+  (A spiric or NURBS edge no longer reaches this frontier: it refuses
+  `CrossingCarrierUnsupported`, which offers no declaration —
+  `reach/planar-crossing-lane-reads-a-curved-carrier-as-a-line`.) The rung's `Ok(Sign::Zero)` is not
   on this list: a declaration settles it (below).
 
 A second definite sibling of the same shape: the declared-coaxial
@@ -98,3 +101,7 @@ adopted from the review's `zz_coincfr_rows.rs`):
   offer is false there.
 - An arc definitely one side of the wall (radius 0.9 or 1.1, coaxial)
   reads `Positive` and is eventless under every posture.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: the defect is which arm offers the declaration, and the radius guards sit behind CoaxialEvidence::Declared; the declare offer and the axis channel retire at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

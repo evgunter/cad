@@ -46,6 +46,8 @@
 //! (`sweep/tests/m6_surgery.rs`) meters the composed volume against
 //! its derived closed form at a stated relative tolerance.
 
+use editor_core::ExtrudeSide;
+use editor_core::Formula;
 use editor_core::{
     Axis3, BooleanOp, CapEnd, DocEdit, EntityKind, LoopProgram, MeridianEnd, NamePat, NameRef,
     Node, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg,
@@ -133,7 +135,7 @@ pub fn selection(
         .into_iter()
         .map(|e| at(RoleSeg::FromA(e.into())))
         .collect();
-    for band in [RoleSeg::Band(lower), RoleSeg::BandPi(lower)] {
+    for band in [RoleSeg::Band(lower.into()), RoleSeg::BandPi(lower.into())] {
         out.push(at(RoleSeg::Seam {
             a: cap_top.clone().into(),
             b: ball_face(band).into(),
@@ -185,24 +187,35 @@ pub fn selector() -> Selector {
 /// The two cavity meridians — the names the selection deliberately
 /// LEAVES OUT (the co-surface seams). Named here so the pin that
 /// checks the exclusion reads the same list the docs above describe.
+/// The cube's face cuts each, so the target publishes each as its one
+/// piece, named by its ends (N2): read off `ev`'s table at `pipped`.
 pub fn excluded_meridians(
     doc: &editor_core::ProfileDoc,
+    ev: &editor_core::Evaluation<f64>,
     ball: RecipeNodeId,
     pipped: RecipeNodeId,
 ) -> Vec<StableName> {
     [MeridianEnd::Seam, MeridianEnd::Pi]
         .into_iter()
-        .map(|end| StableName {
-            kind: EntityKind::Edge,
-            node: pipped,
-            path: vec![RoleSeg::FromB(NameRef::new(StableName {
+        .map(|end| {
+            let head = RoleSeg::FromB(NameRef::new(StableName {
                 kind: EntityKind::Edge,
                 node: ball,
                 path: vec![RoleSeg::Meridian(
                     end,
-                    crate::fixture::piece(doc, ball, 0, 0),
+                    crate::fixture::piece(doc, ball, 0, 0).into(),
                 )],
-            }))],
+            }));
+            let pieces: Vec<StableName> = crate::fixture::table(ev, pipped)
+                .iter()
+                .map(|(n, _)| n)
+                .filter(|n| n.kind == EntityKind::Edge && n.path.first() == Some(&head))
+                .cloned()
+                .collect();
+            let [piece] = pieces.as_slice() else {
+                panic!("one piece of the {end:?} meridian: {pieces:?}");
+            };
+            piece.clone()
         })
         .collect()
 }
@@ -224,6 +237,7 @@ pub fn document() -> CorpusDoc {
     let cube = r.insert(Node::Extrude {
         profile: cube_p,
         distance: len(DIE_L),
+        side: ExtrudeSide::Along,
     });
 
     // ---- the master ball, poled along the +Z face normal ----
@@ -258,7 +272,7 @@ pub fn document() -> CorpusDoc {
         op: BooleanOp::Subtract,
         a: cube,
         b: pip,
-        declare: None,
+        declare: Vec::new(),
     });
     // The fourteen selected edges — twelve box edges and the pip
     // rim's two arcs; the cavity meridians are NOT in the set (see
@@ -300,13 +314,14 @@ pub fn document() -> CorpusDoc {
             node: pip,
             slot: SlotId::Translation(Axis3::Y),
             expr: len(0.53125),
+            fresh: Vec::new(),
         },
         bump_root: pip,
     }
 }
 
 /// The half-disc loop PROGRAM (die_pips' twin).
-fn half_disc_program() -> LoopProgram {
+fn half_disc_program() -> LoopProgram<Formula> {
     LoopProgram::Chain(vec![
         ProgramStep::At(len2([0.0, -PIP_R])),
         ProgramStep::ArcTo(ProgramArcData::Bulge {

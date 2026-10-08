@@ -142,13 +142,13 @@ use pncad::prelude::*;
 use pncad::topo::BooleanError;
 let tol = Tol::witness();
 # type E = Box<dyn std::error::Error>;
-# fn slab(z: (f64, f64)) -> Result<Body<f64>, E> {
+# fn slab(z: (f64, f64)) -> Result<AtRestBody<f64>, E> {
 #     let tol = Tol::witness();
 #     let rect: ClosedLoop<f64> = Open
 #         .at(p2(0.0, 0.0)).line_to(p2(1.0, 0.0), tol)?
 #         .line_to(p2(1.0, 1.0), tol)?.line_to(p2(0.0, 1.0), tol)?.line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
-#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
+#     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
 # }
 let lower = slab((0.0, 1.0))?;   // z from 0 to 1
 let upper = slab((1.0, 2.0))?;   // z from 1 to 2 — they meet exactly at z = 1
@@ -182,7 +182,7 @@ Working examples of the declared path, in increasing order of realism:
 undeclared version still refuses, with a "retire this if it ever
 stops refusing" panic), and the `table` corpus document, which
 declares every leg contact by name through the detect/declare
-protocol (`find_flush_candidates` → `declare_node`).
+protocol (`find_flush_candidates` → `declared_pairs`).
 
 Notice the shape of that protocol: detection *proposes*, a human or a
 recipe *declares*. Value equality never classifies on its own — there
@@ -200,32 +200,34 @@ use pncad::prelude::*;
 use pncad::document::EditError;
 
 let tol = Tol::witness();
-let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
-let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
+let len = |v: f64| Formula::literal(v, Dimension::Length).expect("a length");
+let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("a scalar");
 let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
     .expect("finite corners");
 
 let doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
-// `apply`'s last argument is the mated parts' REACH — what an edit
-// that moves an assembly group's root levers its re-keying solve
-// through. This document has no instance and no mate, so no edit here
-// can move a root and the refusing reach is never asked.
+// `apply`'s last argument is the mated parts' REACH — what inserting
+// a mate with a clocking rider levers the rider's admission through.
+// This document inserts no mate, so the refusing reach is never asked.
 // The frame the square is drawn on — a dependency of the profile
 // exactly as the profile is a dependency of the extrude.
 let applied = apply(&doc, &DocEdit::InsertNode {
-    node: Node::Datum(Datum::Frame {
+    node: Box::new(Node::Datum(Datum::Frame {
         origin: [len(0.0), len(0.0), len(0.0)],
         u: [scl(1.0), scl(0.0), scl(0.0)],
         v: [scl(0.0), scl(1.0), scl(0.0)],
-    }),
+    })),
+    fresh: Vec::new(),
 }, tol, &pncad::document::RefusingReach)?;
 let (doc, frame) = (applied.doc, applied.record.minted.expect("minted"));
 let applied = apply(&doc, &DocEdit::InsertNode {
-    node: Node::Profile(ProfileProgram { plane: frame, loops: vec![square], ids: Vec::new() }),
+    node: Box::new(Node::Profile(ProfileProgram { plane: frame, loops: vec![square], ids: Vec::new() })),
+    fresh: Vec::new(),
 }, tol, &pncad::document::RefusingReach)?;
 let (doc, profile) = (applied.doc, applied.record.minted.expect("minted"));
 let doc = apply(&doc, &DocEdit::InsertNode {
-    node: Node::Extrude { profile, distance: len(1.0) },
+    node: Box::new(Node::Extrude { profile, distance: len(1.0), side: ExtrudeSide::Along }),
+    fresh: Vec::new(),
 }, tol, &pncad::document::RefusingReach)?.doc;
 
 let refused = apply(&doc, &DocEdit::DeleteNode { id: profile }, tol, &pncad::document::RefusingReach);
@@ -245,22 +247,22 @@ node should not hide the state of every other node. So `evaluate` is
 *total* — it always returns, and each node carries its own outcome.
 
 ```python
-from pncad import BooleanOp, Doc, EvaluationError, Expr, Node, evaluate, mm
+from pncad import BooleanOp, Doc, EvaluationError, Formula, Node, evaluate, mm
 
 
 def slab(doc, z0, z1):
     profile = doc.insert(
         Node.polygon(
             [
-                (Expr.length_in(0, mm), Expr.length_in(0, mm)),
-                (Expr.length_in(10, mm), Expr.length_in(0, mm)),
-                (Expr.length_in(10, mm), Expr.length_in(10, mm)),
-                (Expr.length_in(0, mm), Expr.length_in(10, mm)),
+                (Formula.length_in(0, mm), Formula.length_in(0, mm)),
+                (Formula.length_in(10, mm), Formula.length_in(0, mm)),
+                (Formula.length_in(10, mm), Formula.length_in(10, mm)),
+                (Formula.length_in(0, mm), Formula.length_in(10, mm)),
             ],
-            plane=doc.sketch_frame(elevation=Expr.literal(z0)),
+            plane=doc.sketch_frame(elevation=Formula.literal(z0)),
         )
     )
-    return doc.insert(Node.extrude(profile, Expr.literal(z1 - z0)))
+    return doc.insert(Node.extrude(profile, Formula.literal(z1 - z0)))
 
 
 # The same undeclared coincidence as section 3, now inside a document.
@@ -293,11 +295,11 @@ author the undeclared boolean, read the typed menu, declare, succeed:
 
 ```python
 from pncad import (
+    BooleanCoincidence,
     BooleanOp,
-    ContactClass,
     Doc,
     EvaluationError,
-    Expr,
+    Formula,
     Node,
     PlaneRelation,
     evaluate,
@@ -309,15 +311,15 @@ def slab(doc, z0, z1):
     profile = doc.insert(
         Node.polygon(
             [
-                (Expr.length_in(0, mm), Expr.length_in(0, mm)),
-                (Expr.length_in(10, mm), Expr.length_in(0, mm)),
-                (Expr.length_in(10, mm), Expr.length_in(10, mm)),
-                (Expr.length_in(0, mm), Expr.length_in(10, mm)),
+                (Formula.length_in(0, mm), Formula.length_in(0, mm)),
+                (Formula.length_in(10, mm), Formula.length_in(0, mm)),
+                (Formula.length_in(10, mm), Formula.length_in(10, mm)),
+                (Formula.length_in(0, mm), Formula.length_in(10, mm)),
             ],
-            plane=doc.sketch_frame(elevation=Expr.literal(z0)),
+            plane=doc.sketch_frame(elevation=Formula.literal(z0)),
         )
     )
-    return doc.insert(Node.extrude(profile, Expr.literal(z1 - z0)))
+    return doc.insert(Node.extrude(profile, Formula.literal(z1 - z0)))
 
 
 doc = Doc()
@@ -331,10 +333,14 @@ try:
     ev.value(naive)
     raise AssertionError("the undeclared union must refuse")
 except EvaluationError as err:
-    assert err.kind == "undeclared_contact"
+    assert err.kind == "undeclared_coincidence"
     menu = err.finding                      # the candidate declaration
-    assert menu.relation == PlaneRelation.SameOpposite  # resting contact
-    assert menu.class_ == ContactClass.Rest
+    # The slabs share a footprint, so besides the resting contact at
+    # z = 10 mm their four walls carry on across it, one surface each:
+    # continuations. The menu names the first undeclared pair the
+    # boolean meets, which here is a wall.
+    assert menu.relation == PlaneRelation.SameOriented
+    assert menu.class_ == BooleanCoincidence.Continuation
 
 # 2. The declare arm: detect, INSPECT, declare. The detector is the
 #    boolean's own verifier run in candidate-generation mode, so a
@@ -342,11 +348,10 @@ except EvaluationError as err:
 #    finding is drawn from the same inventory.
 findings = ev.find_flush_candidates(lower, upper)
 assert menu in findings
-decl = doc.declare_all(findings)            # or doc.declare(menu)
+doc.declare_all(naive, findings)            # or doc.declare(naive, menu)
 
 # 3. The SAME union, with the contact declared: verified and glued.
-glued = doc.insert(Node.boolean(BooleanOp.Union, lower, upper, declare=decl))
-body = evaluate(doc).value(glued).body()
+body = evaluate(doc).value(naive).body()
 body.validate()
 # 10 × 10 × 20 mm³ — one block, watertight.
 assert abs(body.mass_properties().volume - 2e-6) < 1e-15
@@ -361,7 +366,7 @@ A node downstream of a failure is not itself broken — it is
 **poisoned**, and it says so, naming the node that actually failed:
 
 ```python
-from pncad import BooleanOp, Doc, EvaluationError, Expr, Node, evaluate, mm
+from pncad import BooleanOp, Doc, EvaluationError, Formula, Node, evaluate, mm
 
 doc = Doc()
 
@@ -370,15 +375,15 @@ def slab(z0, z1):
     profile = doc.insert(
         Node.polygon(
             [
-                (Expr.length_in(0, mm), Expr.length_in(0, mm)),
-                (Expr.length_in(10, mm), Expr.length_in(0, mm)),
-                (Expr.length_in(10, mm), Expr.length_in(10, mm)),
-                (Expr.length_in(0, mm), Expr.length_in(10, mm)),
+                (Formula.length_in(0, mm), Formula.length_in(0, mm)),
+                (Formula.length_in(10, mm), Formula.length_in(0, mm)),
+                (Formula.length_in(10, mm), Formula.length_in(10, mm)),
+                (Formula.length_in(0, mm), Formula.length_in(10, mm)),
             ],
-            plane=doc.sketch_frame(elevation=Expr.literal(z0)),
+            plane=doc.sketch_frame(elevation=Formula.literal(z0)),
         )
     )
-    return doc.insert(Node.extrude(profile, Expr.literal(z1 - z0)))
+    return doc.insert(Node.extrude(profile, Formula.literal(z1 - z0)))
 
 
 lower = slab(0 * mm, 10 * mm)
@@ -411,7 +416,7 @@ said which refusal it holds.
 ```python
 import math
 
-from pncad import Doc, EvaluationError, Expr, Node, Open, Start, evaluate, m, rad
+from pncad import Doc, EvaluationError, Formula, Node, Open, Start, evaluate, m, rad
 
 
 def revolved(x0, angle):
@@ -425,13 +430,13 @@ def revolved(x0, angle):
         .line_to(Start)
     )
     axis = doc.insert(Node.datum_axis_in_plane(frame, (
-        Expr.length_in(0, m),
-        Expr.length_in(0, m),
+        Formula.length_in(0, m),
+        Formula.length_in(0, m),
     ), (
-        Expr.literal(0.0),
-        Expr.literal(1.0),
+        Formula.literal(0.0),
+        Formula.literal(1.0),
     )))
-    node = doc.insert(Node.revolve(doc.insert(Node.profile(square, plane=frame)), axis, Expr.literal(angle)))
+    node = doc.insert(Node.revolve(doc.insert(Node.profile(square, plane=frame)), axis, Formula.literal(angle)))
     try:
         evaluate(doc).value(node)
         raise AssertionError("expected a typed refusal")
@@ -463,7 +468,7 @@ let tol = Tol::witness();
 # let rect: ClosedLoop<f64> = Open
 #     .at(p2(0.0, 0.0)).line_to(p2(1.0, 0.0), tol)?
 #     .line_to(p2(1.0, 1.0), tol)?.line_to(p2(0.0, 1.0), tol)?.line_to(Start, tol)?;
-# let body = extrude(&validated(SketchPlane::<f64>::xy(), vec![rect.into()], tol)?, Extrusion::Distance(real(1.0)), tol)?.body;
+# let body = extrude(&validated(SketchPlane::<f64>::xy(), vec![rect.into()], tol)?, Extrusion::Distance { depth: real(1.0), side: ExtrudeSide::Along }, tol)?.body;
 match validate_geometric(&body, tol) {
     Ok(()) => { /* the body is sound at tier 3 */ }
     Err(failures) => {
@@ -490,7 +495,7 @@ The Python boundary refuses before a bad value ever reaches the
 kernel. Dimensions are checked by construction:
 
 ```python
-from pncad import Expr, LiteralError, Node, PncadError, QuantityOpMismatch, deg, mm
+from pncad import Formula, LiteralError, Node, PncadError, QuantityOpMismatch, deg, mm
 
 try:
     25 * mm + 90 * deg
@@ -507,7 +512,7 @@ except QuantityOpMismatch as err:
 
 # Non-finite values are refused where they enter, not where they explode.
 try:
-    Node.extrude(None, Expr.length_in(float("nan"), mm))
+    Node.extrude(None, Formula.length_in(float("nan"), mm))
     raise AssertionError("expected a typed refusal")
 except (LiteralError, TypeError) as err:
     if isinstance(err, LiteralError):
@@ -537,18 +542,18 @@ and the STL writers refuse a name or header they cannot write AT THE
 CALL rather than emitting a file that no reader can parse.
 
 ```python
-from pncad import Doc, Expr, Node, PncadError, StlError, TessellateError, evaluate, m, mm
+from pncad import Doc, Formula, Node, PncadError, StlError, TessellateError, evaluate, m, mm
 
 doc = Doc()
 sketch = doc.insert(
     Node.polygon([
-        (Expr.length_in(0, m), Expr.length_in(0, m)),
-        (Expr.length_in(1, m), Expr.length_in(0, m)),
-        (Expr.length_in(1, m), Expr.length_in(1, m)),
-        (Expr.length_in(0, m), Expr.length_in(1, m)),
+        (Formula.length_in(0, m), Formula.length_in(0, m)),
+        (Formula.length_in(1, m), Formula.length_in(0, m)),
+        (Formula.length_in(1, m), Formula.length_in(1, m)),
+        (Formula.length_in(0, m), Formula.length_in(1, m)),
     ], plane=doc.sketch_frame())
 )
-cube = doc.insert(Node.extrude(sketch, Expr.length_in(1, m)))
+cube = doc.insert(Node.extrude(sketch, Formula.length_in(1, m)))
 body = evaluate(doc).value(cube).body()
 
 # Refused, never clamped. `value` is the budget that was rejected.

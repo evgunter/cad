@@ -54,7 +54,7 @@ use std::collections::BTreeMap;
 
 use crate::eval::NodeStanding;
 use crate::meta::MetaValue;
-use crate::names::{Entry, NameTable, RoleSeg, StableName};
+use crate::names::{Entry, NameTable, StableName};
 use crate::node::RecipeNodeId;
 
 pub use crate::names::EntityRef;
@@ -390,40 +390,23 @@ pub(crate) fn resolve(
 }
 
 /// N3 candidate offers for a vanished name (structural, no
-/// heuristics): if the name IS a merged name, its constituents (the
-/// symmetric unmerge case — `Merged{a,b}` vanishes with candidates
-/// {a, b}); otherwise, any live merged name whose constituent set
-/// COVERS it (`names::merged::covers`: the retire-into-merge case —
-/// the reference fails "with the merged face as the offered
-/// candidate" — and, since the set is flat, a merged face consumed
-/// by a wider merge is covered by the row that lists its faces).
-///
-/// Scope of "structurally detectable" (review A5): the unmerge
-/// direction fires only when `Merged` is the path's LAST segment —
-/// names wrapping a merge deeper in (`Instance{of: Merged}`) get
-/// empty offers; PR 4's resolution ladder owns anything beyond this.
+/// heuristics; `names::merged::offers`, the one reading of a
+/// set-holding row): a merged name's constituents (the symmetric
+/// unmerge case — `Merged{a,b}` vanishes with candidates {a, b}), a
+/// broken run wall's pieces' live walls, and any live row whose set
+/// COVERS the name (`names::merged::row_covers`: the retire-into-merge
+/// case — the reference fails "with the merged face as the offered
+/// candidate" — a merged face consumed by a wider merge, covered by the
+/// row that lists its faces, and a wall a station joined into a run).
 fn vanished_candidates<'s, 'a: 's>(
     name: &StableName,
     states: impl Iterator<Item = (RecipeNodeId, &'s NodeState<'a>)>,
 ) -> Vec<StableName> {
-    if let Some(RoleSeg::Merged(constituents)) = name.path.last() {
-        return constituents.clone();
-    }
-    let mut out = Vec::new();
-    for (_, state) in states {
-        let Ok(table) = state else {
-            continue;
-        };
-        for (candidate, _) in table.iter() {
-            if let Some(RoleSeg::Merged(constituents)) = candidate.path.last()
-                && crate::names::merged::covers(constituents, name)
-                && !out.contains(candidate)
-            {
-                out.push(candidate.clone());
-            }
-        }
-    }
-    out
+    let rows: Vec<&StableName> = states
+        .filter_map(|(_, state)| state.as_ref().ok())
+        .flat_map(|table| table.iter().map(|(candidate, _)| candidate))
+        .collect();
+    crate::names::merged::offers(name, rows.iter().copied())
 }
 
 #[cfg(test)]
@@ -435,12 +418,12 @@ mod tests {
     //! record) and the tie refusal, over hand-built tables.
 
     use super::*;
-    use crate::names::{EntityKey, EntityKind};
+    use crate::names::{EntityKey, EntityKind, RoleSeg};
 
     fn body_name(node: u64, path: Vec<RoleSeg>) -> StableName {
         StableName {
             kind: EntityKind::Body,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path,
         }
     }
@@ -470,7 +453,7 @@ mod tests {
         let mut t = NameTable::new();
         t.insert(merged.clone(), ent(0)).unwrap();
         let mut states = BTreeMap::new();
-        states.insert(RecipeNodeId(9), Ok(&t));
+        states.insert(RecipeNodeId::new(0, 9), Ok(&t));
         // Appearance rides constituent `a`, whose node (7) is live but
         // whose name is in no table.
         let mut appearance = AppearanceMap::new();
@@ -478,7 +461,7 @@ mod tests {
         // Node 7 evaluated Ok with an empty table (its face was
         // absorbed downstream).
         let empty = NameTable::new();
-        states.insert(RecipeNodeId(7), Ok(&empty));
+        states.insert(RecipeNodeId::new(0, 7), Ok(&empty));
         let r = resolve(
             &appearance,
             &states.keys().copied().collect::<Vec<_>>(),
@@ -506,7 +489,7 @@ mod tests {
         let merged = body_name(9, vec![RoleSeg::Merged(vec![a.clone(), b.clone()])]);
         let empty = NameTable::new();
         let mut states = BTreeMap::new();
-        states.insert(RecipeNodeId(9), Ok(&empty));
+        states.insert(RecipeNodeId::new(0, 9), Ok(&empty));
         let mut appearance = AppearanceMap::new();
         appearance.insert(merged.clone(), color());
         let r = resolve(
@@ -529,7 +512,7 @@ mod tests {
         let mut t = NameTable::new();
         t.insert_tied(tied.clone(), vec![ent(0), ent(1)]).unwrap();
         let mut states = BTreeMap::new();
-        states.insert(RecipeNodeId(3), Ok(&t));
+        states.insert(RecipeNodeId::new(0, 3), Ok(&t));
         let mut appearance = AppearanceMap::new();
         appearance.insert(tied.clone(), color());
         let r = resolve(
@@ -542,7 +525,7 @@ mod tests {
         assert_eq!(
             r.losses[0].cause,
             AppearanceLossCause::Ambiguous {
-                at: RecipeNodeId(3),
+                at: RecipeNodeId::new(0, 3),
                 width: 2
             }
         );

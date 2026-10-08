@@ -82,7 +82,7 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 ///
 /// Two more rows are worth a reader's second look, and neither is a bug.
 ///
-/// `die` is `0x46ff_fbb3_d481_e812` — the same number
+/// `die` is the same number
 /// `m4_pr3_names_ci::DIE_TABLE_DIGEST` carries, because it is the same
 /// digest of the same tables. The two pins agreeing is a cross-check,
 /// not a duplication: that one covers the die FIXTURE through its own
@@ -118,50 +118,57 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// chamfer mint two ids and their names differ in `node` alone.
 /// `emit_fillet.rs`'s tie probe asserts the within-one-document case,
 /// where the two nodes differ and the names must be disjoint.
+///
+/// **`part_select` moved at JOIN-1's fix pass** (PR 3790), alone. Its
+/// union of the two split halves now builds through the chord join: the
+/// halves' side faces meet along edges of both solids, coplanar on the
+/// far side, which the join used to refuse and the declared-REST zip
+/// then built. The table is the box's — one body, six faces (the four
+/// sides each a `Merged` of the two halves' fragments), sixteen edges
+/// and twelve vertices, every name a `FromA`/`FromB` lineage — and
+/// the persisted text did not move (`perf2_name_keying_differential`'s
+/// second column).
+///
+/// **Re-pinned for INTENT-LITERALS PR C** (a slot holds a variable):
+/// every node is minted from slots that hold variable ids, a typed
+/// value's variable drawn from what it holds, so every node id moved
+/// and with it every row this hashes. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held untouched across the change.
+///
+/// **Re-pinned for INTENT-LITERALS PR D** (`Expr` holds no float):
+/// `kitchen_sink` alone, whose formulas hold written quantities that
+/// now mint variables of their own; every other row held its word.
 const PINNED: &[(&str, u64)] = &[
-    ("die", 0x46ff_fbb3_d481_e812),
-    ("corner_table", 0xec8c_44cc_e7ba_d1d4),
-    ("heat_sink", 0x9494_f2b0_e239_0d24),
-    ("crossing_slots", 0xe678_8002_978e_e6cf),
-    ("nested_islands_105", 0xbc61_97e6_8d2c_9c5c),
-    ("nested_islands_106_depth1", 0xf8c5_745b_4a9c_153b),
-    ("nested_islands_106_depth2", 0xf6f6_0ffb_4d6a_bad5),
-    ("declared_tangency", 0x10e3_3436_e0dd_f2ca),
-    ("kitchen_sink", 0xcc09_604b_8b74_e320),
-    ("cut_cylinder", 0x4fc1_3f27_d303_0751),
-    ("measured_web", 0x6a3e_d351_0833_d5e8),
-    ("boss_union", 0xd267_0612_127b_2383),
-    ("die_fillet", 0x9604_14fb_3d8d_dbf8),
-    ("die_chamfer", 0x6ec4_d463_dbda_f46c),
-    ("die_pips", 0xe6b8_bba4_9fa0_ff34),
-    ("heat_sink_fins", 0xde1b_5e70_e134_c51f),
-    ("die_tool", 0x76f0_19cf_1dd9_72c9),
-    ("face_sketch", 0x8969_aadc_d370_4777),
-    // DOCM-2. Two `Part`s of one split and one of a pattern: the
-    // projection mints nothing, so every name in the document is the
-    // split's, the pattern's, or the union's over them, and the row's
-    // arrival moved no other row.
-    ("part_select", 0x2fb2_7981_dae7_401b),
-    ("loft_prism", 0x74db_6889_4c07_172b),
-    ("die_composed", 0x094d_1539_1355_587e),
-    ("die_composed_tour", 0xbe61_d9d5_9d15_4607),
-    ("plate_param", 0x673d_ea64_7056_a450),
-    ("kiss_carry", 0x30ba_52ea_f908_146c),
-    // LIB-TUBE. Both tables are minted by `name_revolve` — the
-    // tube doors return `Revolved<T>` and the emitter reads only
-    // its maps — so these two rows are the revolve role vocabulary
-    // over a body no revolve node built. Their arrival moved no
-    // other row, which is the property this table exists to make
-    // readable.
-    ("tube_ring", 0xa71b_e28f_0bf1_a321),
-    ("tube_arc", 0x2af8_6e46_0e5f_188b),
-    ("hollow_tube_elbow", 0xafb7_1088_9300_f596),
-    ("hollow_tube_ring", 0x7842_e8a7_35aa_eb8d),
-    // EDIT-PROGRAM: the one document whose log reshapes a profile
-    // under a fillet. Its table is minted over the crease name the
-    // door REBOUND, which is the fact this row makes golden; its
-    // arrival moved no other row.
-    ("reshaped_rod", 0x6bd0_82fa_e3bc_3bde),
+    ("die", 0x5611f361e1805560),
+    ("corner_table", 0x0281e12ba95e535e),
+    ("heat_sink", 0xc954c43dae546e3c),
+    ("crossing_slots", 0xff45ed9eff7e9a16),
+    ("nested_islands_105", 0x01856df643b8e282),
+    ("nested_islands_106_depth1", 0x65fbdec2e0bd0031),
+    ("nested_islands_106_depth2", 0xec5b8360e00b1494),
+    ("declared_tangency", 0x1c683308a5dfd0ce),
+    ("kitchen_sink", 0x5a703c0f7d1e9e2b),
+    ("cut_cylinder", 0x1a75aec7b4ea4585),
+    ("measured_web", 0xe7405ce4890bd56e),
+    ("boss_union", 0xc6c51b9c013c2fcd),
+    ("die_fillet", 0xdef06c2ebf2645c6),
+    ("die_chamfer", 0x6f9286592972fb82),
+    ("die_pips", 0x795d420de8300a46),
+    ("heat_sink_fins", 0x2f6d7dd1c46595ec),
+    ("die_tool", 0x81af67afdae07af7),
+    ("face_sketch", 0x07a27a920bf53e24),
+    ("part_select", 0xb8754e5ad4247a4b),
+    ("loft_prism", 0x749f5f07d2a32b1d),
+    ("die_composed", 0x159cdfedac400d92),
+    ("die_composed_tour", 0x1b685398734cd88c),
+    ("plate_param", 0x398971ffc28bccd8),
+    ("kiss_carry", 0x2aa0c23dc0371893),
+    ("tube_ring", 0xbb1ef69349c42c17),
+    ("tube_arc", 0x9ecee336f0335114),
+    ("hollow_tube_elbow", 0x0ba6e44028178571),
+    ("hollow_tube_ring", 0x640f83e93775d929),
+    ("reshaped_rod", 0xfa78950ed9b9700d),
 ];
 
 #[test]

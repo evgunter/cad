@@ -2,10 +2,11 @@
 id: a-box-independent-mate-fault-bisects-the-whole-leaf-budget
 kind: issue
 title: A mate fault no box can move falls to the driver's catch-all Bisect, so a box run splits through its leaf budget and reports Budget
-status: open
+status: parked
 opened: 2026-10-01
 priority: P2
 cost: E
+blocked_on: [intent-stage3-is-built, the-box-driver-carries-no-part-resolver]
 ---
 
 Found by a designer weighing plan item 19 (the analysis lanes). The
@@ -74,3 +75,23 @@ does, an escalating mate reaches read (2), not the catch-all. It
 bisects, and it reads `SliverTerminal` when the margin sits wholly in
 the band. The box-independent faults this item names would still fall
 to read (3).
+
+
+## Re-measured (MSOLVE-14, PR 3986)
+
+The solve now runs at the evaluation's scalar over its lane
+environment, so an undecided mate predicate in a box run escalates on
+the deciding mate's log, and a checked offset's on its placing mate's.
+The driver still carries no resolver (`drive::lane_opts`), so this
+row's `Budget` shape is still unreachable:
+`msolve11_mate_log::a_box_run_over_an_escalating_mate_refuses_at_its_witness`
+holds unchanged (`WitnessDoesNotBuild`, the mate `Unleverable` for want
+of a resolver). The analysis doors that evaluate an assembly directly
+now take one (`stackup::sensitivities` and `stackup::stackup`'s
+`resolver`, `ClearanceQuery::resolver`); the driver is the remaining
+door (`work/flux/the-box-driver-carries-no-part-resolver.md`), and
+closing this row waits on it.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage3-is-built`, not on the whole program: the fix is a terminal class in drive.rs classify_replay for MateFault arms (Unpinned, dangling head, unresolved part), a vocabulary stage 3 rewrites (placement as a bundle of mates, subgroup overconstraint); keeps the-box-driver-carries-no-part-resolver. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

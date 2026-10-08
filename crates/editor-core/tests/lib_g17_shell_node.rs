@@ -8,7 +8,8 @@
 //! registry rather than in it, so this module runs the rows the
 //! registry would have run on them — both lanes, persistence, the
 //! bump — and pins the reason they are outside: a dual has no shell
-//! door.
+//! door. One row also shells `corpus/die_pips.rs`' revolved ball,
+//! whose closed form is π-valued and so is metered, not equated.
 //!
 //! # The oracles, derived rather than measured
 //!
@@ -29,18 +30,19 @@
 //! ```
 //!
 //! Every dimension is dyadic, so both are exact in `f64` and asserted
-//! with `==`, never metered.
+//! with `==`, never metered. The ball's `4/3·π(R³ − (R−t)³)` is not.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::AuthoredNode;
 
 use corpus::{body_of, cup, eval, failures, vessel};
 use editor_core::{
     CancelToken, DocEdit, EntityKind, EvalOptions, EvalOutcome, Node, NodeErrorKind, NodeResult,
-    PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SlotId, StableName, apply,
-    evaluate, load, save,
+    PersistError, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, StableName, apply, evaluate, load,
+    save,
 };
 use geom_core::{Dual64, Tol};
 use topo::ShellError;
@@ -71,7 +73,7 @@ fn cup_names(doc: &ProfileDoc, blank: RecipeNodeId, shell: RecipeNodeId) -> [Sta
 
 /// The blank the cup shells (its extrude node), found by kind.
 fn blank_of(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()
+    doc.ids()
         .iter()
         .copied()
         .find(|&id| matches!(doc.node(id), Some(Node::Extrude { .. })))
@@ -276,6 +278,7 @@ fn a_rebuild_moves_the_forms_and_keeps_the_names() {
             node: shell,
             slot: SlotId::ShellThickness,
             expr: fixture::len(cup::T_BUMPED),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -314,14 +317,14 @@ fn a_rebuild_moves_the_forms_and_keeps_the_names() {
 }
 
 // ---------------------------------------------------------------
-// 2. The vessel: the two-faced mouth
+// 2. The vessel: the revolved mouth
 // ---------------------------------------------------------------
 
-/// **The revolved mouth**: both halves designated, the rim is ONE
-/// annular face named for the FIRST designated half, and the body is a
-/// valid closed thin solid.
+/// **The revolved mouth**: the full revolve builds the mouth disc whole,
+/// so it is designated alone, the rim is ONE annular face named for it,
+/// and the body is a valid closed thin solid.
 #[test]
-fn the_vessel_opens_its_two_faced_mouth_into_one_rim() {
+fn the_vessel_opens_its_mouth_into_one_rim() {
     let d = vessel::document();
     let ev = eval::<f64>(&d.doc);
     let bad = failures(&ev);
@@ -330,8 +333,8 @@ fn the_vessel_opens_its_two_faced_mouth_into_one_rim() {
     let body = body_of(&ev, shell);
     assert_eq!(topo::validate(body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(body), Ok(()), "closed");
-    // Outer: base ×2, foot ×2, belly ×2; the rim; cavity: the same six.
-    assert_eq!(body.faces().count(), 13, "6 outer + 1 rim + 6 cavity");
+    // Outer: base, foot ×2, belly ×2; the rim; cavity: the same five.
+    assert_eq!(body.faces().count(), 11, "5 outer + 1 rim + 5 cavity");
     let pot = d.doc.node(shell).map(|n| n.inputs()[0]).expect("the pot");
     let table = &ev.value(shell).expect("evaluated").name_table;
     let rim = shelled(
@@ -341,16 +344,7 @@ fn the_vessel_opens_its_two_faced_mouth_into_one_rim() {
     );
     assert!(
         matches!(table.lookup(&rim), Some(editor_core::Entry::Unique(_))),
-        "the rim is named for the first designated half"
-    );
-    let other = shelled(
-        shell,
-        EntityKind::Face,
-        RoleSeg::Rim(editor_core::band_pi(pot, vessel::mouth(&d.doc, pot)).into()),
-    );
-    assert!(
-        table.lookup(&other).is_none(),
-        "the second half's name does not carry the rim"
+        "the rim is named for the designated mouth"
     );
     let rims = table
         .iter()
@@ -359,38 +353,72 @@ fn the_vessel_opens_its_two_faced_mouth_into_one_rim() {
     assert_eq!(rims, 1, "one chart, one rim");
 }
 
-/// **The order of `open` is the rim's identity, and the key says so**:
-/// the same two mouth faces named the other way round mint the other
-/// half's `Rim` and key apart.
+/// **A pole-touching cap opens from a document into a seamed band.**
+/// The revolve wears the cap on two half-faces and the document names
+/// both; the kernel keeps both as the band's branches, and the name
+/// table names each for its own designation — the first through the
+/// record's `rim`, the second as a live branch — with no face left
+/// unnamed. Tier 3 holds on the evaluated body.
 #[test]
-fn the_designation_order_moves_the_rim_and_the_content_key() {
-    let a = vessel::document();
-    let b = vessel::document_with_open(|doc, pot| {
-        [
-            editor_core::band_pi(pot, vessel::mouth(doc, pot)),
-            editor_core::band(pot, vessel::mouth(doc, pot)),
-        ]
-    });
-    let (sa, sb) = (a.result.unwrap(), b.result.unwrap());
-    let (ea, eb) = (eval::<f64>(&a.doc), eval::<f64>(&b.doc));
-    assert!(failures(&eb).is_empty(), "{:?}", failures(&eb));
-    assert_ne!(
-        ea.value(sa).unwrap().content_key,
-        eb.value(sb).unwrap().content_key,
-        "the rim's identity moved, so the key must"
+fn the_capped_vessel_opens_its_cap_into_a_seamed_band() {
+    let (doc, shell, pot) = vessel::capped_document();
+    let ev = eval::<f64>(&doc);
+    let bad = failures(&ev);
+    assert!(bad.is_empty(), "capped vessel:\n{}", bad.join("\n"));
+    let body = body_of(&ev, shell);
+    assert_eq!(
+        topo::validate_geometric(body, Tol::witness()),
+        Ok(()),
+        "tier 3"
     );
-    let pot = b.doc.node(sb).map(|n| n.inputs()[0]).unwrap();
-    let rim_pi = shelled(
-        sb,
+    // Outer: base, foot ×2; the band ×2; cavity: base, foot ×2.
+    assert_eq!(body.faces().count(), 8, "3 outer + 2 band + 3 cavity");
+    let table = &ev.value(shell).expect("evaluated").name_table;
+    let cap = fixture::piece(&doc, pot, 0, vessel::SEG_CAP as usize);
+    for (which, name) in [
+        ("the u = 0 half", editor_core::band(pot, cap)),
+        ("the u = π half", editor_core::band_pi(pot, cap)),
+    ] {
+        let rim = shelled(shell, EntityKind::Face, RoleSeg::Rim(name.into()));
+        assert!(
+            matches!(table.lookup(&rim), Some(editor_core::Entry::Unique(_))),
+            "{which} of the cap is named as a branch of the band"
+        );
+    }
+}
+
+/// **A planar void designation opens from a document.** The cup shelled
+/// sealed, then opened at its void's ceiling — the cavity twin of its
+/// top, `Inner(top)`. On a void the rim IS that cavity twin, and the
+/// name table carries it once, as `Rim(Inner(top))`: the rim role, not
+/// a second `Inner` row for the same face.
+#[test]
+fn a_planar_void_designation_opens_and_its_rim_is_named_for_it() {
+    let (doc, sealed) = cup_with(|blank| Node::shell(blank, fixture::len(cup::T), vec![]));
+    let blank = blank_of(&doc);
+    let ceiling = shelled(
+        sealed,
         EntityKind::Face,
-        RoleSeg::Rim(editor_core::band_pi(pot, vessel::mouth(&b.doc, pot)).into()),
+        RoleSeg::Inner(cup::top(blank).into()),
     );
+    let (doc, opened) = fixture::insert(
+        doc,
+        Node::shell(sealed, fixture::len(cup::T / 4.0), vec![ceiling.clone()]),
+    );
+    let ev = eval::<f64>(&doc);
+    let bad = failures(&ev);
+    assert!(bad.is_empty(), "the void-opened cup:\n{}", bad.join("\n"));
+    let body = body_of(&ev, opened);
+    assert_eq!(
+        topo::validate_geometric(body, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
+    let table = &ev.value(opened).expect("evaluated").name_table;
+    let rim = shelled(opened, EntityKind::Face, RoleSeg::Rim(ceiling.into()));
     assert!(
-        matches!(
-            eb.value(sb).unwrap().name_table.lookup(&rim_pi),
-            Some(editor_core::Entry::Unique(_))
-        ),
-        "named the other way round, the other half carries the rim"
+        matches!(table.lookup(&rim), Some(editor_core::Entry::Unique(_))),
+        "the void's rim is named for the designated ceiling"
     );
 }
 
@@ -414,9 +442,7 @@ fn refusal(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> NodeErrorKind {
 }
 
 /// A cup document whose shell node is replaced by `shell`.
-fn cup_with(
-    shell: impl FnOnce(RecipeNodeId) -> Node<ProfileProgram>,
-) -> (ProfileDoc, RecipeNodeId) {
+fn cup_with(shell: impl FnOnce(RecipeNodeId) -> AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
     let d = cup::document();
     let blank = blank_of(&d.doc);
     fixture::insert(d.doc, shell(blank))
@@ -430,29 +456,31 @@ fn cup_with(
 fn the_refusals_are_typed_and_their_texts_pinned() {
     // (a) a name the target never minted — Vanished through N5.
     let piece = fixture::no_piece_of(&cup::document().doc);
-    let ghost = |blank| fixture::fname(blank, RoleSeg::Lateral(piece));
+    let ghost = |blank| fixture::fname(blank, RoleSeg::Lateral(piece.into()));
     let (doc, n) = cup_with(|blank| Node::shell(blank, fixture::len(cup::T), vec![ghost(blank)]));
     let e = refusal(&doc, n);
-    let blank = test_utils::refusal::tag(blank_of(&doc).0);
+    let blank = test_utils::refusal::tag(blank_of(&doc).0.digest());
+    let step = fixture::step_of(&piece);
     assert!(matches!(e, NodeErrorKind::ShellOpenResolve { .. }), "{e:?}");
     assert_eq!(
         e.to_string(),
         format!(
-            "a shell open-face name failed to resolve: the face name minted by node {blank} no \
-             longer resolves in this evaluation: the recorded reference disagrees with the recipe \
-             as it stands on the derivation path (node {blank}'s payload differs)"
+            "a shell open-face name failed to resolve: the side wall over piece 7 of the profile \
+             step {step} of node {blank} no longer resolves in this evaluation: the recorded \
+             reference disagrees with the recipe as it stands on the derivation path (node \
+             {blank}'s payload differs)"
         )
     );
 
     // (b) a name of the wrong KIND: an edge that really is there, so
     // it resolves and then fails the door's faces-only check.
+    let mut edge = None;
     let (doc, n) = cup_with(|blank| {
-        Node::shell(
-            blank,
-            fixture::len(cup::T),
-            vec![fixture::prism_edges(&doc, blank, 4)[0].clone()],
-        )
+        let open = fixture::prism_edges(&doc, blank, 4)[0].clone();
+        edge = Some(open.clone());
+        Node::shell(blank, fixture::len(cup::T), vec![open])
     });
+    let edge = edge.expect("the shell was built");
     let e = refusal(&doc, n);
     assert!(
         matches!(
@@ -463,10 +491,7 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     );
     assert_eq!(
         e.to_string(),
-        format!(
-            "the shell open-face name minted by node {} denotes an edge, not a face",
-            test_utils::refusal::tag(blank_of(&doc).0)
-        )
+        format!("the shell's open face names {edge}, which is an edge, not a face")
     );
 
     // (c) a non-positive thickness: the kernel's gate, carried WITH its
@@ -488,59 +513,20 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
          positive. Recourse: supply a positive thickness"
     );
 
-    // (d) a half-chart designation on the vessel: the kernel's
-    // `OpenFaceChartPartial`, carried verbatim — the document layer
-    // completes no chart on the author's behalf.
+    // (d) half a chart: the belly is a sphere zone the revolve builds
+    // as two bands on one surface, and its piece names one of them, so
+    // the kernel's `OpenFaceChartPartial` names the band left behind.
     let v = vessel::document_with_open(|doc, pot| {
-        [
+        vec![
             editor_core::band(pot, vessel::mouth(doc, pot)),
             editor_core::band(pot, fixture::piece(doc, pot, 0, vessel::SEG_BELLY as usize)),
         ]
     });
-    // Replace the two-name designation by the single half: the door
-    // above needs two names, so re-author with one.
-    let pot = v
-        .doc
-        .node(v.result.unwrap())
-        .map(|n| n.inputs()[0])
-        .unwrap();
-    let (doc, n) = fixture::insert(
-        v.doc.clone(),
-        Node::shell(
-            pot,
-            fixture::len(vessel::WALL),
-            vec![editor_core::band(pot, vessel::mouth(&v.doc, pot))],
-        ),
-    );
-    let e = refusal(&doc, n);
-    match &e {
-        NodeErrorKind::Shell(inner) => {
-            assert!(
-                matches!(**inner, ShellError::OpenFaceChartPartial { .. }),
-                "expected the partial-chart gate, got {inner:?}"
-            );
-        }
-        other => panic!("expected the shell op's refusal, got {other:?}"),
-    }
-    let text = e.to_string();
-    assert!(
-        text.starts_with("the shell op refused: ")
-            && text.contains("another face on its chart was not"),
-        "the partial-chart refusal text moved: {text}"
-    );
-    // (e) a CURVED designated face: the belly is a sphere zone, and a
-    // rim on it would be a curved face carrying a ring — the kernel's
-    // `OpenFaceRingUnsupported`, carried with the surface kind. This
-    // gate sits BEFORE the chart check in the kernel's own order, so
-    // the mouth's missing half is not what this designation hears
-    // about first.
     let e = refusal(&v.doc, v.result.unwrap());
     match &e {
         NodeErrorKind::Shell(inner) => match **inner {
-            ShellError::OpenFaceRingUnsupported { kind, .. } => {
-                assert_eq!(kind, geom_brep::SurfaceKind::Sphere);
-            }
-            ref other => panic!("expected the ring gate on the belly, got {other:?}"),
+            ShellError::OpenFaceChartPartial { .. } => {}
+            ref other => panic!("expected the half-chart gate on the belly, got {other:?}"),
         },
         other => panic!("expected the shell op's refusal, got {other:?}"),
     }
@@ -551,10 +537,16 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
 /// list the same way.
 #[test]
 fn the_shell_door_keeps_designation_order_and_drops_repeats() {
-    let a = fixture::fname(RecipeNodeId(1), RoleSeg::Lateral(fixture::leg(0)));
-    let b = fixture::fname(RecipeNodeId(1), RoleSeg::Lateral(fixture::leg(1)));
-    let node: Node<ProfileProgram> = Node::shell(
-        RecipeNodeId(1),
+    let a = fixture::fname(
+        RecipeNodeId::new(0, 1),
+        RoleSeg::Lateral(fixture::leg(0).into()),
+    );
+    let b = fixture::fname(
+        RecipeNodeId::new(0, 1),
+        RoleSeg::Lateral(fixture::leg(1).into()),
+    );
+    let node: AuthoredNode = Node::shell(
+        RecipeNodeId::new(0, 1),
         fixture::len(0.1),
         vec![b.clone(), a.clone(), b.clone(), a.clone()],
     );
@@ -615,7 +607,7 @@ fn a_repeated_open_entry_is_refused_at_load() {
     let corrupt = format!("{}[{entry}, {entry}]{}", &text[..start], &text[end + 1..]);
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(editor_core::SnapshotError::InputList {
-            fault: editor_core::InputFault::RepeatedDesignation { first: 0, again: 1 },
+            fault: editor_core::ListFault::RepeatedDesignation { first: 0, again: 1 },
             ..
         })) => {}
         other => panic!("a repeated designation must refuse typed, got {other:?}"),
@@ -669,7 +661,7 @@ fn both_documents_round_trip_through_persistence() {
         let empty = ProfileDoc::empty_derived("lib-g17-roundtrip", Tol::witness());
         let mut expected = empty.clone();
         for edit in &d.edits {
-            expected = editor_core::apply_logged(&expected, edit, Tol::witness())
+            expected = editor_core::apply_replayed(&expected, edit, Tol::witness())
                 .expect("a corpus edit applies")
                 .doc;
         }
@@ -686,11 +678,49 @@ fn both_documents_round_trip_through_persistence() {
         );
         assert!(
             back.doc
-                .order()
+                .ids()
                 .iter()
                 .any(|&id| matches!(back.doc.node(id), Some(Node::Shell { .. }))),
             "{}: the round-tripped recipe carries no shell",
             d.name
         );
     }
+}
+
+/// **The pole-touching ball row**: a sealed `Shell` over the revolved
+/// half disc (`die_pips`' ball: one bulge-1 arc pole to pole, closed on
+/// the axis) evaluates green, tier-3 valid at the difference of two
+/// balls `4/3·π(R³ − (R−t)³)` — the route a user takes from a revolve.
+#[test]
+fn a_sealed_shell_over_a_revolved_ball_is_the_difference_of_two_balls() {
+    use corpus::die_pips::PIP_R;
+    let d = corpus::die_pips::document();
+    let ball = d
+        .doc
+        .ids()
+        .iter()
+        .copied()
+        .find(|&id| matches!(d.doc.node(id), Some(Node::Revolve { .. })))
+        .expect("the pip ball");
+    let t = 0.01;
+    let (doc, sealed) = fixture::insert(d.doc, Node::shell(ball, fixture::len(t), Vec::new()));
+    let ev = eval::<f64>(&doc);
+    let bad = failures(&ev);
+    assert!(bad.is_empty(), "shelled ball:\n{}", bad.join("\n"));
+    let body = body_of(&ev, sealed);
+    assert_eq!(
+        topo::validate_geometric(body, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
+    assert_eq!(body.shells().count(), 2, "an outer and a cavity shell");
+    let m = topo::mass_properties(body, Tol::witness()).expect("mass properties");
+    let want = 4.0 / 3.0 * std::f64::consts::PI * (PIP_R.powi(3) - (PIP_R - t).powi(3));
+    // `sweep`'s `pole_ball_shells` rule: rounding scales with R³, the
+    // pad is the quadrature's own bound.
+    assert!(
+        (m.volume - want).abs() <= 1e-12 * PIP_R.powi(3) + m.volume_pad,
+        "volume {} vs the closed form {want}",
+        m.volume
+    );
 }

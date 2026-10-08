@@ -11,6 +11,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::revolve_common;
+use sweep::ExtrudeSide;
 
 use core::f64::consts::PI;
 use profile::RawLoop;
@@ -23,6 +24,7 @@ use profile::{
     ArcSweep, Center, Open, Profile, ProfileLoop, SketchPlane, Start, test_support::bulge_loop,
 };
 use revolve_common::{assert_all_tiers, axis_y, validated};
+use sweep::test_support::finished;
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
 use topo::{Body, FaceKey};
@@ -59,7 +61,15 @@ fn adv_mixed_convex_concave_hole() {
     let vp = Profile::new(SketchPlane::xy(), vec![outer, hole])
         .validate(Tol::witness())
         .unwrap();
-    let t = extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
     assert_eq!(
         topo::validate::validate_geometric(&t.body, Tol::witness()),
@@ -68,7 +78,7 @@ fn adv_mixed_convex_concave_hole() {
     // Equal-sagitta segments cancel: hole area exactly 4, volume 32.
     assert!((vol(&t.body) - 32.0).abs() < 1e-9, "vol {}", vol(&t.body));
     let mut seen = (0, 0, 0); // (false-cyl, true-cyl, true-plane)
-    for &f in &t.side_faces[1] {
+    for &f in &t.side_faces()[1] {
         let sk = t.body.get_face(f).unwrap().surface;
         match *t.body.get_surface(sk).unwrap() {
             Surface::Cylinder { origin, .. } => {
@@ -155,13 +165,21 @@ fn adv_eye_slot_outer_and_hole_senses() {
     let vp = Profile::new(SketchPlane::xy(), vec![eye_slot(0.3)])
         .validate(Tol::witness())
         .unwrap();
-    let t = extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
     assert_eq!(
         topo::validate::validate_geometric(&t.body, Tol::witness()),
         Ok(())
     );
-    for &f in &t.side_faces[0] {
+    for &f in &t.side_faces()[0] {
         assert!(sense_of(&t.body, f), "outer vesica walls are all convex");
     }
     let v_outer = vol(&t.body);
@@ -176,13 +194,21 @@ fn adv_eye_slot_outer_and_hole_senses() {
     let vp = Profile::new(SketchPlane::xy(), vec![outer, eye_slot(0.3)])
         .validate(Tol::witness())
         .unwrap();
-    let t = extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
     assert_eq!(
         topo::validate::validate_geometric(&t.body, Tol::witness()),
         Ok(())
     );
-    for &f in &t.side_faces[1] {
+    for &f in &t.side_faces()[1] {
         assert!(!sense_of(&t.body, f), "every eye-slot hole wall is concave");
     }
     assert!(
@@ -223,7 +249,10 @@ fn adv_asymmetric_downward_invariance() {
         &Profile::new(SketchPlane::xy(), vec![mk()])
             .validate(Tol::witness())
             .unwrap(),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();
@@ -238,7 +267,7 @@ fn adv_asymmetric_downward_invariance() {
     assert_all_tiers(&up.body);
     assert_all_tiers(&down.body);
     let carriers = |t: &sweep::Extruded<f64>| {
-        let mut v: Vec<((i64, i64, i64), bool)> = t.side_faces[0]
+        let mut v: Vec<((i64, i64, i64), bool)> = t.side_faces()[0]
             .iter()
             .map(|&f| {
                 let sk = t.body.get_face(f).unwrap().surface;
@@ -294,7 +323,7 @@ fn adv_reversed_authoring_revolve_same_senses() {
             Tol::witness(),
         )
         .unwrap();
-        let mut m: Vec<(String, bool)> = t.walls[0]
+        let mut m: Vec<(String, bool)> = t.walls()[0]
             .iter()
             .flatten()
             .map(|&f| {
@@ -349,7 +378,7 @@ fn adv_bore_groove_torus_band() {
     );
     // bottom annulus F, outer cyl T, top annulus T, bore upper F,
     // groove torus F, bore lower F.
-    let senses: Vec<Option<bool>> = t.walls[0]
+    let senses: Vec<Option<bool>> = t.walls()[0]
         .iter()
         .map(|w| w.map(|f| sense_of(&t.body, f)))
         .collect();
@@ -365,7 +394,7 @@ fn adv_bore_groove_torus_band() {
         ]
     );
     // The groove wall really is a torus.
-    let groove = t.walls[0][4].unwrap();
+    let groove = t.walls()[0][4].unwrap();
     let sk = t.body.get_face(groove).unwrap().surface;
     assert!(matches!(
         t.body.get_surface(sk).unwrap(),
@@ -415,9 +444,20 @@ fn adv_union_with_reversed_faces_answers_exactly() {
     let vp = Profile::new(plane, vec![sq])
         .validate(Tol::witness())
         .unwrap();
-    let boxb = extrude(&vp, Extrusion::Distance(0.4), Tol::witness())
-        .unwrap()
-        .body;
+    let boxb = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 0.4,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
+    let (washer, boxb) = (
+        finished("the washer", washer, Tol::witness()),
+        finished("the box", boxb, Tol::witness()),
+    );
     match topo::boolean::union(&washer, &boxb, Tol::witness()) {
         Err(e) => panic!("the washer's full-turn walls are served at both doors: {e}"),
         Ok(r) => {

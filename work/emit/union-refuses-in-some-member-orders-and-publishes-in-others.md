@@ -2,10 +2,12 @@
 id: union-refuses-in-some-member-orders-and-publishes-in-others
 kind: issue
 title: A union refuses in some member orders and publishes in others, over PR 3112's review corpus and the #3168 review fixtures
-status: open
+status: parked
 opened: 2026-09-24
+blocked_on: [intent-stage4-is-built]
 priority: P1
 cost: H
+refs: [a-declaration-on-a-face-one-fold-step-cut-and-partly-merged-cannot-be-routed-by-names, a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission]
 ---
 
 
@@ -28,6 +30,10 @@ before the pairwise contact rule (`union-contact-is-judged-pairwise-before-the-f
 which took `row` and `rowids` out. The row pins them in `KNOWN_MIXED`,
 so a new one, or a change in any of these, turns it red.
 
+(2026-10-06: 22 cases now, all `DeclareResolve`; `r4tri` has left and
+`RayExhausted` is gone. The current table and owners are under
+"Re-measured on main (2026-10-06)" below.)
+
 | refusal | cases | owner |
 |---|---|---|
 | `DeclareResolve` (Vanished): a declared face the fold has consumed | `abg`, `abgids`, `abglow`, `abgg2`, `fam0{00,01,02,12,22}`, `fam1{00,01,02,12,22}`, `fam2{00,01,02,12,22}`, `r1flush`, `r2endsg`, part of `r4trig` | the refusal GATHER's member-space look-through unit designed, which closed with GATHER's departure (its row was deleted); the cut-and-partly-merged orders of `r2endsg` and `r4trig`: `a-declaration-on-a-face-one-fold-step-cut-and-partly-merged-cannot-be-routed-by-names` |
@@ -39,7 +45,7 @@ itself: whether a contact is flush depends on whether another member
 has covered it yet. `RayExhausted` is REACH's: the containment
 fallback's vertex probe runs out when every vertex of the joining
 member lies on the accumulation's boundary. It shares that shape with
-`work/zip/two-parts-of-one-body-at-one-boolean-refuse-as-ray-exhausted.md`
+`work/fuse/two-parts-of-one-body-at-one-boolean-refuse-as-ray-exhausted.md`
 but is not the same defect, because the operands here are distinct and
 legal.
 
@@ -75,6 +81,11 @@ contact. Contact is judged pairwise in member space before the fold.
 A declared contact that another member covers is satisfied, not
 refused. DM4 in `crates/editor-core/REFERENCES.md` states this. The
 wording waits on Ev's confirmation (`needs_ev`).
+
+(2026-10-06: Ev ruled this on #3200, under "Ruled" below. The
+`Emission` in the table above belongs now to
+`a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission`;
+the two-emitter row is closed. GATHER's row is deleted.)
 
 Rule 2, "a contact another member covers is not a contact", is
 rejected. Ev's objection: it lets a set get out of declaring a contact
@@ -126,6 +137,9 @@ The row stays open for the arms other programs own:
 - `DeclareResolve` is the refusal GATHER's closed look-through unit designed; its cut-and-partly-merged orders belong to `a-declaration-on-a-face-one-fold-step-cut-and-partly-merged-cannot-be-routed-by-names`;
 - `RayExhausted` belongs to REACH's row.
 
+(2026-10-06: GATHER's row is deleted and `RayExhausted` is gone, PR 3655.
+Current owners: "Re-measured on main (2026-10-06)" below.)
+
 ## Measured (EMIT, 2026-09-30, on `emit/cut-and-merged-pair`)
 
 A pair step no longer publishes a face under a constituent its merge
@@ -152,3 +166,122 @@ choice for now. The lost orders are owned by
 `a-declaration-on-a-face-one-fold-step-cut-and-partly-merged-cannot-be-routed-by-names`.
 The pins now count each refusal kind, so a swap of kinds at the same
 total turns them red.
+
+(2026-10-06: `r4trig` is now 12, `DeclareResolve:12`, and `[2,3,0,1]`,
+`[3,2,0,1]` are plain `Split` refusals. See the next section.)
+
+## Re-measured on main (2026-10-06)
+
+Measured on main at `35e4ac1829` by an analysis lane; nothing on the
+union path moved between that and this branch's base. One refusal
+class is left. Every case that refuses in some orders and fuses in
+others refuses `DeclareResolve` (`Vanished`), diagnosed
+`ConsumedByFold { by: Split | FragmentedMerge }`. `RayExhausted` left
+with PR 3655 (`r4tri` left `KNOWN_MIXED`), and `UndeclaredContact` is
+uniform in every order.
+
+`KNOWN_MIXED` (`emit_union_rim_piece_ranks.rs`) holds 22 cases, all
+`DeclareResolve`, and passes. Orders are block indices: b0 = `a` and
+b1 = `b` in the corpus cases, b0 = `ALONG` in `r2endsg`.
+
+| case | fuse | Split on b0's face | Split on b1's face | FragmentedMerge |
+|---|---|---|---|---|
+| `abg`, `abgids` (b0 Cap(End)) | 4 | 2: 021, 201 | – | – |
+| `abglow` (b0 Cap(Start)) | 4 | 2: 021, 201 | – | – |
+| `abgg2` (Cap(End)) | 8 | 8: 0213 0231 0321 2013 2031 2301 3021 3201 | 8: 1230 1302 1320 2130 2310 3102 3120 3210 | – |
+| `fam000`, `fam001`, `fam002`, `fam012`, `fam022` | 4 | 2: 021, 201 | – | – |
+| `fam100`, `fam101`, `fam102`, `fam112`, `fam122` | 2 | 2: 021, 201 | 2: 120, 210 | – |
+| `fam200`, `fam201`, `fam202`, `fam212`, `fam222` | 4 | – | 2: 120, 210 | – |
+| `r1flush` (Cap(End)) | 6 | 10: 0213 0231 0312 0321 2013 2031 2301 3012 3021 3201 | 8: 1230 1302 1320 2130 2310 3102 3120 3210 | – |
+| `r2endsg` (b0 Cap(End)) | 12 | 8: 0312 0321 1302 2301 3012 3021 3102 3201 | – | 4 on b0: 0132 0231 1032 2031 |
+| `r4trig` (Cap(End)) | 12 | 8: the same orders as `r2endsg` | – | 2 on b1: 0132 1032; 2 on b0: 0231 2031 |
+
+`row`, `rowids`, `cross` and `r1three` refuse `UndeclaredCoincidence`
+in all 24 orders, so they are not mixed.
+
+**Order-mixed unions outside this row's old scope**, same class:
+- `emit_union_flush_names.rs` `KNOWN_REFUSING`, `near` (the ZIP
+  document): `DeclareResolve` (Split) in `[0,2,1]`, `[2,0,1]`.
+- `emit_union_rim_piece_ranks::an_undeclared_covered_contact_refuses_in_every_order_and_declared_fuses_where_b_covers_it`,
+  `row`/`rowids` with `(a, h)` declared: 6 fuse, 2 `Emission`, 16
+  `DeclareResolve`.
+- `emit_union_rim_piece_ranks::a_contact_b_covers_refuses_undeclared_and_is_satisfied_declared_where_b_consumed_the_face`,
+  `{a, b, h}` declared: 2 fuse, 2 `Emission`, 2 `DeclareResolve`.
+- `wire_legal_union_refusals.rs`, the area-overlap fixture `{a, big, p, s}`:
+  14 `Fused`, 8 `SeamVertex`, 2 `Split`.
+- `wire_legal_union_refusals.rs`, the split fixture `{a, big, c, s}`:
+  2 `Fused`, 18 `SeamVertex`, 2 `MergedChord`, 2 `Split`.
+
+**Root cause.** `look_through_fold` (`crates/editor-core/src/eval/wire.rs`,
+~:3407) refuses `ConsumedByFold { by }` for a name that has fragment
+descendants (its `split` binding; `fold_descent`). Declarations are
+routed to the fold step that joins their two sites
+(`route_declarations`), and the fold calls
+`drop_consumed(look_through_fold(..))` at each step, so whether a
+declared face is already split by that step depends on member order.
+This is ratified DM4 (`crates/editor-core/REFERENCES.md`, "Consumed
+faces" and "Merges and order"; ruled on PR 2677).
+
+**Owners.**
+- Pure split by an earlier step (`abg*`, `fam*`, `r1flush`, `abgg2`,
+  `near`, and `r2endsg`/`r4trig` orders 0312 0321 3012 3021): this
+  row. GATHER's `member-space-look-through-stops-at-splits-containment-and-fragmented-merges`
+  built the refusal and was deleted with `work/gather/` (68e8072a6).
+- Cut-and-partly-merged orders (1302, 2301, 3102, 3201 of `r2endsg`
+  and `r4trig`):
+  `a-declaration-on-a-face-one-fold-step-cut-and-partly-merged-cannot-be-routed-by-names`
+  (parked on the same hold).
+- `FragmentedMerge`: this row.
+
+**Parked on the D10 hold.** The one class left is a refusal of a
+declared pair, which is ground the 2026-10-03 hold covers
+(`work/emit/log.md`). The row waits on
+`d10-one-way-to-say-intent-is-unbuilt`. INTENT's stage 4
+(`work/intent/plan.md`, "The coincidence door": "booleans glue on
+Zero; declared pairs … retire") removes the class by construction:
+with no declarations to route, `route_declarations`,
+`look_through_fold`, `drop_consumed` and `Diagnosis::ConsumedByFold`
+(`resolve/mod.rs`) have no job. The pairwise pre-pass
+(`judge_pairwise_contact`, `fold_step_refusal`) already certifies every
+contact before the fold. When the row fires, re-measure: the class
+should be gone, and what it was hiding (below) is what remains.
+
+**Evidence for stage 4: the fan-out experiment** (scratch, deleted;
+not built, because it changes ratified DM4 on held ground). Where
+`look_through_fold` refuses, feed the pair to every accumulation face
+row descending from the name (`names::face_descends_from`), crossed
+with the other side. This is sound because fragments inherit surface
+keys, and a declared pair whose surfaces never meet at an edge is a
+no-op (`crates/topo/src/merge_faces.rs`, ~:1519-1527). Measured:
+- `KNOWN_MIXED` empty: all 22 cases fuse in every order;
+- no name rebinds; `KNOWN_ABSENT` and the digests unchanged;
+- `emit_shared_rim_several` fused cells 148 → 210;
+- `wire_legal_union_refusals`' 4 `Split` orders become `Fused`;
+- `{a, b, h}` declared: its 2 `DeclareResolve` orders fuse;
+- `r4trig` 1302 and 3102 fuse (the orders where a names-only route
+  bound the wrong face before PR 3526).
+
+The only failing tests pin the old refusal: `docm8_flat_merged` 5,
+`emit_union_rim_piece_ranks` 3, `emit_union_flush_names` 3,
+`emit_seam_junction` 1, `emit_shared_rim_several` 1,
+`wire_legal_union_refusals` 2.
+
+**What the refusal hides**, surfaced by the fan-out and owned
+elsewhere. Whoever builds stage 4 meets these in more orders than
+today:
+- `Emission("seam vertex parentage underdetermined from incident edges")`
+  (`names/emit_topo.rs`, the seam-vertex pass's catch-all): `row`/`rowids`
+  with `(a, h)` declared go from 2 orders to 8 (0231 0312 0321 2031
+  2301 3012 3021 3201); `emit_seam_junction` from `{ahbg, habg}` to 8
+  orders; `{a, b, h}` stays at 2. Owner:
+  `work/wire/a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission.md` (P1).
+- `NamingError::SeamVertexParentage` (`names/emit_topo.rs`): `near`
+  `[0,2,1]`, `[2,0,1]`, and
+  `emit_union_flush_names::a_seam_a_leftover_vertex_splits_is_published_twice_under_two_names`
+  `[0,2,1]`. Owners:
+  `work/wire/a-merged-face-with-several-same-side-constituents-has-no-chord-rule.md` (P0)
+  and `work/fuse/a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made.md` (P1).
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: the class left is DeclareResolve/ConsumedByFold on routed declarations (wire.rs look_through_fold), removed when stage 4 retires declared pairs. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

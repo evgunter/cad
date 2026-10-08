@@ -849,3 +849,140 @@ tangencies), so the item now says where its look starts.
 - E6 moves;
 - PATHS lands `an-adjacent-pairs-shared-vertex-is-recomputed-as-a-root`,
   after which DECIDE measures its tier effect on `props/sign-hull`.
+
+## 2026-10-02 — DECIDE is not idle: two rows are live; the gated rows are parked and deferred
+
+The idle call of 2026-10-01 missed two rows.
+- **`the-decision-read-answers-theorems-the-must-carry-stations-would-prove`**
+  (P2), filed 2026-10-01 by LINALG's merge of `main` into
+  `props/sign-hull`. The decision read answers 32 of the pad's and 16 of
+  the bracket's zero forms `sign_gated`, ahead of the value-free folds its
+  contract orders it behind. It is DECIDE's charter, and it is the next
+  unit.
+- **`the-derived-frame-refusal-rows-none-rung-pins-the-retired-construction`**
+  (P1). It waits on a question for Ev (whether to re-aim the `none` rung)
+  that was never put.
+
+Ev, in chat, 2026-10-02: DECIDE does not close or re-home into SYM. It
+stays open and becomes `blocked` once only gated rows remain. Done now:
+- `declared-tangency-needs-the-registered-identity-door` is **parked** on
+  ROUND's `fillet-tangency-is-not-the-constructors-node`;
+- `revolve-carriers-state-only-the-rim` is **deferred** under ERROR-DESIGN
+  E6, since no measured document is bounded by it;
+- the program is `active` while this orchestrator holds it.
+
+Still dispatchable after the two live rows:
+- `rule-g-trades-sixteen-…` and `the-exact-quotient-re-keys-…` (P2),
+  which move no measured document;
+- `the-brackets-fillet-decisions-owe-a-structural-look` and
+  `rule-gs-magnitude-door-never-asks-rule-c` (P3).
+
+They are run, or deferred on Ev's say-so, before the program can read
+`blocked`.
+
+## 2026-10-02 — DECIDE-9 spec'd: the decision read answers theorems; single FULL review
+
+The read's contract orders it behind every value-free fold, yet it
+answers 32 of the pad's and 16 of the bracket's theorems `sign_gated`.
+That is DECIDE's own code and the program's live P2.
+
+**Review tier: single FULL review.** It is a contract-restoring change to
+the tier's labels, settled by receipts and minimal rows, and reversible,
+as DECIDE-6 and DECIDE-7 were. A stop rule sends to the orchestrator any
+answer that would move a decision's value.
+
+Spec `docs/DECIDE-9-SPEC.md`. Branch `decide/9-read-behind-theorems` from
+`props/sign-hull` at `494d477ef`.
+
+## 2026-10-02 — DECIDE-9 merged (#3807): the read's gate no longer leaks through a zero product
+
+The 48 decisions (32 pad, 16 bracket) were all `dihedral_wedge`:
+`sin θ · arm` at a tangent join, where `sin θ`'s early form is the zero
+polynomial and the arm is settled by the read at its own `min`. The
+early walk's zero product OR'd both factors' gates. Now a product is
+gated exactly when every zero factor is (`zero_factors_gate`), and
+`copysign(0, x)` likewise. Pad 925 / 2 / 148 / 1004, bracket
+1121 / 5 / 146 / 781; `numeric`, `registered` and `frozen` unchanged.
+One door answer moved, soundly (`(x·x − x)·min(x,3)` reads
+`registered`), pinned and said.
+
+The review (single FULL, APPROVE-WITH-FIXES, 0 MAJOR / 5 MINOR) showed
+the spec's suspected mechanism is real in the tier though absent from
+the measured documents: filed as
+`the-read-at-its-node-relabels-a-cancellation-above-it` (P2), pinned by
+`the_read_relabels_a_cancellation_above_its_node_filed_defect`; the
+read's doc now says "behind every value-free fold at its node". The
+`Form::mul` class row (P3) names `Form::mul`, `powi_form` and
+`algebra::apply`. Spec deleted (`docs/doc-ledger/decide-9-spec.md`).
+
+## 2026-10-03 — HOLD: a refactor of dependency, placement and intent is underway (Ev, `[ev]` PR #3990)
+
+Ev has opened a redesign of how a document says that one thing depends
+on another and that things are meant to coincide. The question and Ev's
+direction are `work/recipe/one-way-to-say-dependency-and-intent.md`;
+the design lands through `[ev]` PR #3990. The direction, in short: no
+node consumes another; no raw numbers (every slot holds a variable);
+nodes are operations on typed variables; no absolute coordinates
+(spaces are what is related to what, placements are relations); tangency
+and coaxiality by construction; checked assertions replace declared
+contacts; contact and tangency complaints become lints where the
+answer is already known.
+
+**Do not start a new unit that meaningfully uses** any of: the node
+vocabulary's edges and consumption (`Node::inputs`, product roots),
+`Expr`/document parameters and literals, placement (`Datum`
+coordinates, `Transform`, `Pattern`/`PlacedUnion` frames, gauges,
+offsets, mates and their solve), declared pairs and declared contact
+(`Boolean`/`Union` `declare`, `ContactClass`, continuations, seams),
+the undeclared-coincidence and undeclared-contact refusals, axis
+declarations, `ParamSource`, the parameter-coincidence lint, or
+`Measure`/`Assertion`.
+
+**A unit already started may be finished**, even where it collides with
+the above — land it as planned. Park each row the hold covers
+(`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
+so the row fires when the ruling closes). If that leaves your program
+with nothing it may start, set its `status` to `blocked` and stop.
+
+## 2026-10-03 — the intent refactor's hold now waits on the build, not the ruling (Ev ratified #3990)
+
+Ev ratified DESIGN.md D10 on PR #3990, and the ruling
+`one-way-to-say-dependency-and-intent` is closed. The hold announced in
+the entry before this one CONTINUES until D10 is built: it now waits on
+`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md`. Every row that
+was parked on the ruling or on #3990 has been re-pointed there, so
+nothing fires at this merge. Park any further held row with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Units already
+started may still finish. Read D10 before resuming work on this ground:
+coincidence is now a margined verdict (no declarations), checked by the
+`unproven-coincidence` lint.
+
+## 2026-10-06 — Ev's answers: the derived-frame row closes, the two P2s stay open
+
+- `the-derived-frame-refusal-rows-none-rung-pins-the-retired-construction`
+  (P1) is **closed**. The question put to Ev on 2026-10-02 (re-aim the
+  `none` rung?) had been answered in code by DECIDE-3 (`b07a01b8b6`,
+  2026-09-21); the row asserts what the `none` tier now does.
+- `rule-g-trades-sixteen-…` and `the-exact-quotient-re-keys-…` (P2, H)
+  are not gated; the orchestrator's 2026-10-02 summary called them
+  "gated" in error. Ev (in chat, 2026-10-06): defer them only if DECIDE
+  also has live P0 or P1 rows. It has none: its P1s are the parked
+  declared tangency and the deferred revolve carriers. So they stay
+  `open`, behind DECIDE-9's successor
+  `the-read-at-its-node-relabels-a-cancellation-above-it` (P2), which
+  is the next DECIDE unit.
+
+## 2026-10-06 — DECIDE-10 spec'd: the read behind its parent; single FULL review
+
+DECIDE-9's review showed the class its spec suspected is real in the
+tier: the read answers a `min`/`max`/`Select` node before its parent
+can cancel it against an equal node. No measured document carries it
+today, so this unit restores the read's contract for the class.
+
+**Review tier: single FULL review**, as DECIDE-9's. Candidate 2 (read
+at the decision form only) withdraws what DECIDE-3 ratified, so it is
+measured as a comparison and never shipped from this unit; a Phase 1
+that finds only it working stops and goes to Ev.
+
+Spec `docs/DECIDE-10-SPEC.md`. Branch `decide/10-read-behind-the-parent`
+from `main`.

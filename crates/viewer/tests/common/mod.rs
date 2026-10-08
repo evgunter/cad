@@ -37,6 +37,7 @@ pub mod asm;
 pub mod corpus_pick;
 
 use bvh::Aabb;
+use editor_core::ExtrudeSide;
 use pncad::document::{SolvedPoses, mate_reach, solve_document};
 use pncad::geom_core::Point3;
 use viewer::camera::Camera;
@@ -98,14 +99,14 @@ pub fn corners(b: &Aabb) -> Vec<Point3<f64>> {
 // --- document fixtures for the panel suites ------------------------
 //
 // Authored through the ordinary document doors, in the order a user
-// would: parameters before the expressions that read them, nodes
+// would: variables before the expressions that read them, nodes
 // before the nodes that consume them. A fixture that reached past
 // `apply` would be testing a document the edit vocabulary cannot
 // produce.
 
 use pncad::document::{
-    Dimension, Doc, DocEdit, DocParam, Expr, LoopProgram, Node, ParamName, ProfileProgram,
-    RecipeNodeId,
+    Dimension, Doc, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileProgram, RecipeNodeId,
+    VarName,
 };
 use pncad::geom_core::Tol;
 use viewer::props::Notation;
@@ -132,26 +133,38 @@ pub fn band() -> pncad::geom_core::Band {
 /// naming the notation (`sketch::loop_program` with one of its own),
 /// which is the point of the units riding the lowering rather than
 /// the op.
-pub fn shape(template: &ProfileShape) -> LoopProgram {
+pub fn shape(template: &ProfileShape) -> LoopProgram<Formula> {
     viewer::sketch::loop_program(template, Notation::CANONICAL).expect("a finite template")
 }
 
-/// The name of the parametric fixture's driving parameter.
-pub fn thickness_param() -> ParamName {
-    ParamName::from_static("thickness")
+/// The name of the parametric fixture's driving variable.
+pub fn thickness_param() -> VarName {
+    VarName::from_static("thickness")
+}
+
+/// The variable `doc` names `name` — the id every variable-keyed op
+/// and row addresses it by.
+pub fn var_of(doc: &Doc<ProfileProgram>, name: &str) -> pncad::document::VarId {
+    doc.var_named(name)
+        .unwrap_or_else(|| panic!("the document names a variable {name}"))
+}
+
+/// The parametric fixture's driving variable, by its id in `doc`.
+pub fn thickness_var(doc: &Doc<ProfileProgram>) -> pncad::document::VarId {
+    var_of(doc, thickness_param().as_str())
 }
 
 /// A document whose extrude distance is DRIVEN by a document
-/// parameter — the expression-driven-dimension fixture.
+/// variable — the expression-driven-dimension fixture.
 ///
 /// Answers the document, the profile node and the extrude node.
 pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui3-parametric", tol);
     let (doc, _) = edited(
         &doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: thickness_param(),
-            value: DocParam::continuous(Dimension::Length, 0.008),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.008)),
         },
         tol,
     );
@@ -161,10 +174,14 @@ pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeN
         Node::Extrude {
             profile,
             // `thickness / 2` — a composed expression over a
-            // parameter, which is the shape the refusal affordance
+            // variable, which is the shape the refusal affordance
             // exists for.
-            distance: Expr::div(Expr::param(thickness_param(), Dimension::Length), scl(2.0))
-                .expect("length / scalar is a length"),
+            distance: Formula::div(
+                Formula::named(thickness_param(), Dimension::Length),
+                scl(2.0),
+            )
+            .expect("length / scalar is a length"),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -185,7 +202,8 @@ pub fn broken_document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNo
         &doc,
         Node::Extrude {
             profile,
-            distance: Expr::div(len(0.008), scl(0.0)).expect("length / scalar is a length"),
+            distance: Formula::div(len(0.008), scl(0.0)).expect("length / scalar is a length"),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -299,7 +317,7 @@ pub fn session_insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
     ));
     *session
         .committed_doc()
-        .order()
+        .ids()
         .last()
         .expect("the insert landed")
 }
@@ -387,17 +405,20 @@ pub fn xy_box_in(session: &mut DocSession, size: [f64; 3]) -> RecipeNodeId {
     box_in(session, plane, size).1
 }
 
-/// One node's row status out of a tree render — the lookup five
-/// suites had written out by hand.
+/// **One node's row out of a tree render.**
 ///
 /// Panics rather than answering `None`: every id these rows pass is
 /// one the document holds, so a missing row is the failure, not a
 /// case to handle.
-pub fn status_of(rows: &[viewer::tree::TreeRow], id: RecipeNodeId) -> viewer::tree::RowStatus {
+pub fn row_of(rows: &[viewer::tree::TreeRow], id: RecipeNodeId) -> &viewer::tree::TreeRow {
     rows.iter()
         .find(|row| row.id == id)
-        .map(|row| row.status.clone())
         .unwrap_or_else(|| panic!("node {id:?} has a row"))
+}
+
+/// One node's row status out of a tree render ([`row_of`]).
+pub fn status_of(rows: &[viewer::tree::TreeRow], id: RecipeNodeId) -> viewer::tree::RowStatus {
+    row_of(rows, id).status.clone()
 }
 
 /// `got` and `want` agree to one part in 10⁹, relatively.

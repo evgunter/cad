@@ -18,11 +18,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions,
-    Evaluation, Expr, MateFrame, MatePrimitive, Node, NodeResult, PatternKind, ProfileDoc,
-    ProfileProgram, RecipeNodeId, SitedFace, evaluate,
+    Evaluation, Formula, MateFrame, MatePrimitive, Node, NodeResult, PatternKind, ProfileDoc,
+    RecipeNodeId, SitedFace, evaluate,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{in_copy, insert, len, on_frame, scl};
@@ -50,6 +52,7 @@ fn slab(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(h),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -86,7 +89,7 @@ fn scene(label: &str) -> Scene {
         doc,
         Node::Pattern {
             input: block,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(3.0),
@@ -132,9 +135,16 @@ impl Scene {
     }
 
     /// Inserts `node` through the door, levered by the scene's parts.
-    fn add(&mut self, node: Node<ProfileProgram>) -> RecipeNodeId {
+    fn add(&mut self, node: AuthoredNode) -> RecipeNodeId {
         let reach = editor_core::mate_reach::<f64>(&self.opts, Tol::witness());
-        let (doc, id) = fixture::step_with(self.doc.clone(), DocEdit::InsertNode { node }, &reach);
+        let (doc, id) = fixture::step_with(
+            self.doc.clone(),
+            DocEdit::InsertNode {
+                node: Box::new(node),
+                fresh: Vec::new(),
+            },
+            &reach,
+        );
         self.doc = doc;
         id.unwrap()
     }
@@ -188,14 +198,26 @@ fn seat(
     (x, y): (f64, f64),
     primitive: MatePrimitive,
     clocking: Option<f64>,
-) -> Node<ProfileProgram> {
+) -> AuthoredNode {
     Node::Mate {
         a,
         b,
         class: ContactClass::Rest,
         alignment: Alignment {
-            a: MateFrame::authored([x, y, BASE_HEIGHT], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
-            b: MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
+            a: MateFrame::authored(
+                [x, y, BASE_HEIGHT],
+                [0.0, 0.0, 1.0],
+                [1.0, 0.0, 0.0],
+                geom_core::Tol::witness(),
+            )
+            .expect("a definite frame"),
+            b: MateFrame::authored(
+                [0.0, 0.0, 0.0],
+                [0.0, 0.0, -1.0],
+                [1.0, 0.0, 0.0],
+                geom_core::Tol::witness(),
+            )
+            .expect("a definite frame"),
             primitive,
             sense: AxisSense::Opposed,
             clocking,
@@ -211,14 +233,10 @@ fn log(ev: &Evaluation<f64>, mate: RecipeNodeId) -> Vec<geom_core::k_stats::Verd
     }
 }
 
-/// The frame ladder's decisions over one mate's two authored sides —
-/// the first thing the solve decides about a mate's own datum.
-const OWN_FRAMES: [&str; 4] = [
-    "frame_point_at_aim",
-    "frame_point_at_roll_offset",
-    "frame_point_at_aim",
-    "frame_point_at_roll_offset",
-];
+/// The decisions over one mate's two authored sides — each a part base
+/// with one literal step, whose composed axis the solve re-mints — the
+/// first thing the solve decides about a mate's own datum.
+const OWN_FRAMES: [&str; 2] = ["mate_frame_offset_axis", "mate_frame_offset_axis"];
 
 // ---- one home per decision ----
 
@@ -231,10 +249,11 @@ const OWN_FRAMES: [&str; 4] = [
 /// - The fold's intersection is decided while the PIN is added to what
 ///   the rest left (`mate_axis_normal_perpendicular`, then the
 ///   membership checks), so it is the pin's and not the rest's.
-/// - The pair's left factor — the pattern's direction, derived for
-///   the pair once its mates are folded (`eval_direction_norm`) — is
-///   the pair's first mate's: the rest's, the mate an UNDER on this
-///   pair would name, and not the pin's.
+/// - The pair's left factor — the pattern's direction and the sign of
+///   its spacing, derived for the pair once its mates are folded
+///   (`eval_direction_norm`, `pattern_spacing`) — is the pair's first
+///   mate's: the rest's, the mate an UNDER on this pair would name,
+///   and not the pin's.
 /// - The rider on the coincidence (`mate_clocking_redundant`) is its
 ///   own mate's.
 #[test]
@@ -274,15 +293,17 @@ fn each_decision_is_on_the_log_of_the_mate_whose_answer_it_decided() {
             .any(|p| p.starts_with("mate_member_") || p.starts_with("mate_axis")),
         "the first mate's log holds no intersection: {rest_log:?}"
     );
-    assert_eq!(
-        rest_log.last(),
-        Some(&"eval_direction_norm"),
+    const LEFT_FACTOR: [&str; 2] = ["eval_direction_norm", "pattern_spacing"];
+    assert!(
+        rest_log.ends_with(&LEFT_FACTOR),
         "the pair's left factor is the first mate's, decided after the fold: {rest_log:?}"
     );
-    assert!(
-        !on(&pin_log, "eval_direction_norm") && !on(&coincidence_log, "eval_direction_norm"),
-        "the left factor is on no other mate's log: {pin_log:?} {coincidence_log:?}"
-    );
+    for p in LEFT_FACTOR {
+        assert!(
+            !on(&pin_log, p) && !on(&coincidence_log, p),
+            "the left factor's {p} is on no other mate's log: {pin_log:?} {coincidence_log:?}"
+        );
+    }
     assert_eq!(
         coincidence_log[OWN_FRAMES.len()..],
         ["mate_clocking_redundant"],
@@ -425,8 +446,20 @@ fn a_lever_out_of_range_refuses_typed_at_the_edit_door() {
         b: s.other_bottom(),
         class: ContactClass::Rest,
         alignment: Alignment {
-            a: MateFrame::authored([1e200, 0.0, BASE_HEIGHT], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
-            b: MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
+            a: MateFrame::authored(
+                [1e200, 0.0, BASE_HEIGHT],
+                [0.0, 0.0, 1.0],
+                [1.0, 0.0, 0.0],
+                geom_core::Tol::witness(),
+            )
+            .expect("a definite frame"),
+            b: MateFrame::authored(
+                [0.0, 0.0, 0.0],
+                [0.0, 0.0, -1.0],
+                [1.0, 0.0, 0.0],
+                geom_core::Tol::witness(),
+            )
+            .expect("a definite frame"),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Opposed,
             clocking: Some(0.0),
@@ -435,7 +468,14 @@ fn a_lever_out_of_range_refuses_typed_at_the_edit_door() {
     let reach = editor_core::mate_reach::<f64>(&s.opts, Tol::witness());
     let err = s
         .doc
-        .apply(&DocEdit::InsertNode { node }, Tol::witness(), &reach)
+        .apply(
+            &DocEdit::InsertNode {
+                node: Box::new(node),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+            &reach,
+        )
         .expect_err("the door refuses the lever");
     let editor_core::EditError::MateRefused { fault, .. } = err else {
         panic!("expected MateRefused, got {err:?}");
@@ -462,24 +502,24 @@ fn a_lever_out_of_range_refuses_typed_at_the_edit_door() {
 /// range at `k = 1`.
 #[test]
 fn a_parts_index_that_does_not_evaluate_is_refused_at_the_part() {
-    use editor_core::{Dimension, DocParam, DocParamValue, ParamName, PartSelect};
+    use editor_core::{Dimension, FreeValue, FreeVar, PartSelect, VarName};
     let mut s = scene("msolve11-part-index");
-    let k = ParamName::from_static("k");
+    let k = VarName::from_static("k");
     let (doc, _) = fixture::step(
         s.doc.clone(),
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: k.clone(),
-            value: DocParam::Count { value: 0 },
+            def: editor_core::VarDecl::Free(FreeVar::Count { value: 0 }),
         },
     );
     s.doc = doc;
-    let index = Expr::add(
-        Expr::mul(
-            Expr::param(k.clone(), Dimension::Count),
-            Expr::count(i64::MAX),
+    let index = Formula::add(
+        Formula::mul(
+            Formula::named(k.clone(), Dimension::Count),
+            Formula::count(i64::MAX),
         )
         .unwrap(),
-        Expr::count(1),
+        Formula::count(1),
     )
     .unwrap();
     let part = s.add(Node::Part {
@@ -506,9 +546,9 @@ fn a_parts_index_that_does_not_evaluate_is_refused_at_the_part() {
 
     let (doc, _) = fixture::step(
         s.doc.clone(),
-        DocEdit::SetDocParamValue {
-            name: k,
-            value: DocParamValue::Count(1),
+        DocEdit::SetVarValue {
+            var: k.into(),
+            value: FreeValue::Count(1),
         },
     );
     s.doc = doc;
@@ -564,7 +604,7 @@ fn a_parts_flat_index_past_the_row_width_is_refused_at_the_pattern_it_selects_fr
     let mut s = scene("msolve11-flat-index");
     let wide = |input| Node::Pattern {
         input,
-        count: Expr::count(70_000),
+        count: Formula::count(70_000),
         kind: PatternKind::Linear {
             direction: [scl(0.0), scl(1.0), scl(0.0)],
             spacing: len(3.0),
@@ -574,7 +614,7 @@ fn a_parts_flat_index_past_the_row_width_is_refused_at_the_pattern_it_selects_fr
     let outer = s.add(wide(inner));
     let part = s.add(Node::Part {
         of: outer,
-        select: PartSelect::Instance(Expr::count(0)),
+        select: PartSelect::Instance(Formula::count(0)),
     });
     let b = fixture::head_at(
         part,
@@ -636,7 +676,7 @@ fn a_parts_index_outside_its_value_is_refused_as_the_evaluation_refuses_it() {
     let mut s = scene("msolve11-part-out-of-range");
     let part = s.add(Node::Part {
         of: s.pattern,
-        select: PartSelect::Instance(Expr::count(5)),
+        select: PartSelect::Instance(Formula::count(5)),
     });
     let b = fixture::head_at(
         part,
@@ -698,7 +738,7 @@ fn a_parts_index_outside_its_value_is_refused_as_the_evaluation_refuses_it() {
 /// `work/msolve/a-placer-row-states-what-a-poisoned-row-cannot.md`.
 #[test]
 fn a_part_index_refusal_behind_a_poisoned_pattern_is_pointed_at_a_silent_row() {
-    use editor_core::{Dimension, DocParam, DocParamValue, ParamName, PartSelect};
+    use editor_core::{Dimension, FreeValue, FreeVar, PartSelect, VarName};
     let mut store = PartStore::new();
     let (base_ref, base_body) = store.insert_part(
         slab("msolve11-poisoned-base", BASE_WIDTH, BASE_HEIGHT),
@@ -719,7 +759,7 @@ fn a_part_index_refusal_behind_a_poisoned_pattern_is_pointed_at_a_silent_row() {
         doc,
         Node::Pattern {
             input: block,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(3.0),
@@ -736,22 +776,22 @@ fn a_part_index_refusal_behind_a_poisoned_pattern_is_pointed_at_a_silent_row() {
         block_body,
         pattern,
     };
-    let k = ParamName::from_static("k");
+    let k = VarName::from_static("k");
     let (doc, _) = fixture::step(
         s.doc.clone(),
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: k.clone(),
-            value: DocParam::Count { value: 0 },
+            def: editor_core::VarDecl::Free(FreeVar::Count { value: 0 }),
         },
     );
     s.doc = doc;
-    let index = Expr::add(
-        Expr::mul(
-            Expr::param(k.clone(), Dimension::Count),
-            Expr::count(i64::MAX),
+    let index = Formula::add(
+        Formula::mul(
+            Formula::named(k.clone(), Dimension::Count),
+            Formula::count(i64::MAX),
         )
         .unwrap(),
-        Expr::count(1),
+        Formula::count(1),
     )
     .unwrap();
     let part = s.add(Node::Part {
@@ -771,9 +811,9 @@ fn a_part_index_refusal_behind_a_poisoned_pattern_is_pointed_at_a_silent_row() {
     ));
     let (doc, _) = fixture::step(
         s.doc.clone(),
-        DocEdit::SetDocParamValue {
-            name: k,
-            value: DocParamValue::Count(1),
+        DocEdit::SetVarValue {
+            var: k.into(),
+            value: FreeValue::Count(1),
         },
     );
     s.doc = doc;
@@ -832,8 +872,8 @@ fn every_refuted_predicate_reads_in_words() {
     for refuted in Refuted::ALL {
         assert_eq!(Refuted::of(refuted.name()), Some(refuted));
         let said = editor_core::MateFault::Contradictory {
-            held: RecipeNodeId(3),
-            added: RecipeNodeId(5),
+            held: RecipeNodeId::new(0, 3),
+            added: RecipeNodeId::new(0, 5),
             predicate: refuted.name(),
             clash: editor_core::Clash::Length { metres: 0.5 },
         }
@@ -863,7 +903,7 @@ fn a_box_run_over_an_escalating_mate_refuses_at_its_witness() {
     use editor_core::analysis::{AnalysisPolicy, analyzed_box};
     use editor_core::drive::{DriveConfig, DriveRefusal};
     use editor_core::range::{RangeField, RangeSeed, derive};
-    use editor_core::{Dimension, DocParam, ParamName};
+    use editor_core::{Dimension, FreeVar, VarName};
     let mut s = scene("msolve11-drive");
     let eps = Tol::witness().get().eps;
     // A tilt whose levered sine lands in the band over this pair's arm.
@@ -875,8 +915,20 @@ fn a_box_run_over_an_escalating_mate_refuses_at_its_witness() {
             b: s.other_bottom(),
             class: ContactClass::Rest,
             alignment: Alignment {
-                a: MateFrame::authored([2.0, 2.0, BASE_HEIGHT], axis, [0.0, 1.0, 0.0]),
-                b: MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]),
+                a: MateFrame::authored(
+                    [2.0, 2.0, BASE_HEIGHT],
+                    axis,
+                    [0.0, 1.0, 0.0],
+                    geom_core::Tol::witness(),
+                )
+                .expect("a definite frame"),
+                b: MateFrame::authored(
+                    [0.0, 0.0, 0.0],
+                    [0.0, 0.0, -1.0],
+                    [0.0, 1.0, 0.0],
+                    geom_core::Tol::witness(),
+                )
+                .expect("a definite frame"),
                 primitive: MatePrimitive::PlanarRest { offset: 0.0 },
                 sense: AxisSense::Opposed,
                 clocking: None,
@@ -884,17 +936,17 @@ fn a_box_run_over_an_escalating_mate_refuses_at_its_witness() {
         };
         mates.push(s.add(node));
     }
-    let w = ParamName::from_static("w");
+    let w = VarName::from_static("w");
     let (doc, _) = fixture::step(
         s.doc.clone(),
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: w.clone(),
-            value: DocParam::continuous(Dimension::Length, 1.0),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 1.0)),
         },
     );
     let derived = derive(
         &doc,
-        &RangeField::Param(w),
+        &RangeField::Param(doc.var_named(w.as_str()).expect("declared")),
         RangeSeed::symmetric(0.1),
         Tol::witness(),
     )

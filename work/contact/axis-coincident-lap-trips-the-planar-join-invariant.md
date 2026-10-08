@@ -74,7 +74,7 @@ through the BOTTOM face — refuses `Join(SectionInvariant { what: "the
 all-planar join lane reached a conic run edge (the operand gate promises
 every carrier planar)" })`. The same pocket from the top refuses
 `JoinDesync` instead; both are rowed at
-`work/zip/blind-d-pocket-subtract-refuses-with-join-internal-words`.
+`work/join/blind-d-pocket-subtract-refuses-with-join-internal-words`.
 
 ## Closed
 

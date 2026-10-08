@@ -105,6 +105,7 @@ test_utils::f6_variants! {
         CertificateExceeded,
         Triangulation,
         SelfTouchingTrimLoop,
+        PinchWedge,
         UnsupportedCurvedDomain,
         UnsupportedCurvedShape,
         MeridianFreeCurvedFace,
@@ -217,6 +218,10 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
             vec!["trim loop", "T-junction"],
         ),
         (
+            TessellateError::PinchWedge { face },
+            vec!["one point", "sector", "single pass", "ring"],
+        ),
+        (
             TessellateError::UnsupportedCurvedDomain {
                 face,
                 off_bbox: 3,
@@ -237,14 +242,14 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
         (
             TessellateError::MeridianFreeCurvedFace {
                 face,
-                surface: geom_brep::SurfaceKind::Sphere,
+                surface: geom::SurfaceKind::Sphere,
             },
             vec!["sphere", "rims only", "is a meridian", "seamed"],
         ),
         (
             TessellateError::SingleColumnCurvedFace {
                 face,
-                surface: geom_brep::SurfaceKind::Torus,
+                surface: geom::SurfaceKind::Torus,
             },
             vec!["torus", "no rim", "single column", "needs a rim"],
         ),
@@ -268,7 +273,7 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
 /// one.
 #[test]
 fn the_meridian_free_refusal_prescribes_a_seam_only_where_one_exists() {
-    use geom_brep::SurfaceKind;
+    use geom::SurfaceKind;
     let shown = |surface| {
         TessellateError::MeridianFreeCurvedFace {
             face: topo::FaceKey::default(),
@@ -302,7 +307,7 @@ fn the_meridian_free_refusal_prescribes_a_seam_only_where_one_exists() {
 /// meridian.
 #[test]
 fn the_single_column_refusal_prescribes_a_second_column_only_where_one_can_exist() {
-    use geom_brep::SurfaceKind;
+    use geom::SurfaceKind;
     let shown = |surface| {
         TessellateError::SingleColumnCurvedFace {
             face: topo::FaceKey::default(),
@@ -354,8 +359,8 @@ fn two_faces_refusing_differently_report_the_first_in_arena_order() {
     fn poison(body: &mut Body<f64>, which: usize, surface: Surface<f64>) -> FaceKey {
         let (fk, face) = body.faces().nth(which).expect("a face at that index");
         let sense = face.sense;
-        // Lifts both refusals: the poisoned surface is the mesher's input, edges as they were.
-        body.set_face_surface_stranding_for_tests(fk, FaceSurface::New { surface, sense })
+        // Lifts RechartStrandsDescriptions: the poisoned surface is the mesher's input, edges as they were.
+        body.set_face_surface_unvouched_for_tests(fk, FaceSurface::New { surface, sense })
             .expect("the surface swap is accepted");
         fk
     }

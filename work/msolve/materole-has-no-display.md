@@ -6,7 +6,6 @@ status: closed
 opened: 2026-09-30
 priority: P1
 cost: E
-refs: [a-mate-row-does-not-say-whether-it-placed-its-child]
 parent: MSOLVE-11
 closed: 2026-10-01
 ---

@@ -75,21 +75,85 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// The literal's shipped CEILING is not the residue: 0.56 of
 /// its real study, bounded by `arc_diameter_clearance` (the annulus's
 /// real-margin class); the parameter's is `3.52e2·ε`, on and off
-/// alike.
+/// alike. Both are unmeasured with the extrude's closing pcurve mint in
+/// the build, whose three `pcurve_*` rows below are its wall rows'
+/// certificate; the re-measure is
+/// `work/sym/pcurve-certificate-checks-widen-past-the-band-over-a-parameter-box.md`'s.
+///
+/// **PCERT's incidence-and-fidelity unit (PR 3812) moved seven of the
+/// `pcurve_*` rows**, on both spellings. Against the pins it replaced:
+///
+/// - `pcurve_chart_azimuth_frame` 6/0/0/14 -> 12/0/0/26,
+///   `pcurve_chart_orientation` 0/0/0/6 -> 0/0/0/12 and
+///   `pcurve_chart_radial_moving` 8/0/0/6 -> 14/0/0/12: check 4
+///   re-derives each row's image (on the chart's orthonormal twin,
+///   which on these literal frames is the frame itself), so the
+///   derivation's decisions are taken twice.
+/// - `pcurve_map_residual` 0/0/28/98 -> 0/0/18/0: on a harmonic row the
+///   schedule is check 4's cross-check, run on the witness lane and not
+///   at this scalar; what is left is the rows of the lanes that keep
+///   their schedule.
+/// - `pcurve_envelope` 0/0/2/10 -> 8/0/0/4: incidence plus fidelity in
+///   place of the image pushed through the chart, and, with the loop
+///   walk's branch a literal `k` (`geom_brep::whole_periods`), the
+///   stored azimuth is `α + k·τ`; the envelope is a theorem on eight
+///   of its twelve rows.
+/// - `pcurve_fidelity_branch` is new, 0/0/0/24: fidelity's branch, two
+///   sign decisions per row at the half-period marks, definite, read
+///   off the value.
+/// - `pcurve_loop_branch` is new, 0/0/0/18: the walk's own branch
+///   decisions, definite.
+/// - `pcurve_loop_continuity` 9/0/0/9 -> 9/0/4/5: with no `floor`
+///   node between them, four joints' two ends go through the door.
+///
+/// **The circles store their authored carrier.** Each hole's rim is the
+/// authored centre and `|r|`, so the rim at a vertex folds onto the
+/// radius as the tier's own algebra: 8 of `carrier_endpoint_end`'s and
+/// `carrier_endpoint_start`'s door decisions, all 18 of
+/// `pcurve_map_residual`'s and 36 of `carrier_matches_mapped_source`'s
+/// are THEOREMS now, on this table and on the boss's alike. No numeric
+/// decision moved. On the merged tree (PCERT's restated certificate) the
+/// same fold takes four of `pcurve_loop_continuity`'s door decisions to
+/// theorems as well, on both tables.
+///
+/// **PCERT's chart-angle unit** retires the loop's chart-space angle
+/// comparisons and check 5: `pcurve_loop_continuity` (16/0/0/8; the
+/// boss's 16/0/2/6), `pcurve_trim_containment` (24/0/0/24; 0/24/0/24)
+/// and `pcurve_loop_pole_joint` (0/0/0/12 on both) leave both tables. A
+/// joint's element is decided as integers with its 3-D coincidence
+/// following from the rows' envelopes, the certificate tests no row
+/// against a window, and a cylinder has no singular set, so no joint of
+/// it decides one.
+///
+/// **`cap_plane_orientation` is new, 0/0/0/4**: each extrude's two caps
+/// decide once whether Newell's normal agrees with the profile's
+/// winding, definite and numeric, on this table and on the boss's.
+///
+/// **Validation reads a missed contact candidate's segment ends.** Where
+/// a span definitely misses a tangency or crossing candidate, each
+/// segment end is asked whether it touches the other segment, and its
+/// span only where it is not definitely off the carrier: `circle_side`
+/// is new, 0/0/2/2, its registered rows the ends the arc shares with
+/// its neighbours, whose rim (`Arc2::rim`) the arc registers; `chord_side`
+/// 4/0/0/10 -> 6/0/0/12, `line_span` 4/0/0/4 -> 6/0/0/4, `arc_span`
+/// 4/0/0/4 -> 4/0/2/4 and `contact_at_shared_vertex` 8/0/0/4 ->
+/// 12/0/0/4.
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("arc_apex_identity", [0, 0, 0, 1]),
     ("arc_diameter_clearance", [0, 0, 0, 6]),
-    ("arc_span", [4, 0, 0, 4]),
+    ("arc_span", [4, 0, 2, 4]),
     ("assert_bound", [0, 0, 0, 1]),
+    ("cap_plane_orientation", [0, 0, 0, 4]),
     ("carrier_circles_identity", [3, 0, 0, 0]),
     ("carrier_cyl_axis_parallel", [1, 0, 0, 0]),
-    ("carrier_endpoint_end", [24, 0, 12, 0]),
-    ("carrier_endpoint_start", [24, 0, 12, 0]),
+    ("carrier_endpoint_end", [32, 0, 4, 0]),
+    ("carrier_endpoint_start", [32, 0, 4, 0]),
     ("carrier_line_circle", [0, 0, 0, 5]),
     ("carrier_on_surface_1", [135, 0, 0, 9]),
     ("carrier_on_surface_2", [117, 0, 0, 27]),
-    ("chord_side", [4, 0, 0, 10]),
-    ("contact_at_shared_vertex", [8, 0, 0, 4]),
+    ("chord_side", [6, 0, 0, 12]),
+    ("circle_side", [0, 0, 2, 2]),
+    ("contact_at_shared_vertex", [12, 0, 0, 4]),
     ("datum_unit_norm", [0, 0, 0, 2]),
     ("dihedral_arm", [0, 0, 0, 128]),
     ("dihedral_wedge", [0, 0, 0, 128]),
@@ -97,13 +161,21 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("extrusion_normal_component", [0, 0, 0, 2]),
     ("interval_span_forward", [0, 0, 0, 36]),
     ("interval_span_winding", [0, 0, 0, 12]),
-    ("line_span", [4, 0, 0, 4]),
+    ("line_span", [6, 0, 0, 4]),
     ("newell_plane_residual", [30, 0, 0, 0]),
     ("path_circle_radius", [0, 0, 0, 1]),
     ("path_junction_turn", [0, 0, 0, 4]),
-    ("pcurve_chart_azimuth_frame", [0, 0, 0, 2]),
-    ("pcurve_chart_radial_moving", [2, 0, 0, 0]),
-    ("pcurve_map_residual", [0, 0, 18, 0]),
+    ("pcurve_azimuth_period", [0, 0, 0, 12]),
+    ("pcurve_chart_azimuth_affine", [24, 0, 0, 0]),
+    ("pcurve_chart_azimuth_frame", [12, 0, 0, 26]),
+    ("pcurve_chart_orientation", [0, 0, 0, 12]),
+    ("pcurve_chart_radial_moving", [14, 0, 0, 12]),
+    ("pcurve_chart_winding", [12, 0, 0, 18]),
+    ("pcurve_envelope", [8, 0, 0, 4]),
+    ("pcurve_fidelity_branch", [0, 0, 0, 24]),
+    ("pcurve_interval_forward", [0, 0, 0, 12]),
+    ("pcurve_loop_branch", [0, 0, 0, 25]),
+    ("pcurve_map_residual", [18, 0, 0, 0]),
     ("segment_straightness", [6, 0, 0, 6]),
     ("side_cylinders_cosurface", [2, 0, 0, 0]),
     ("side_planes_cosurface", [0, 0, 0, 2]),
@@ -159,6 +231,26 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
 /// quotient `5(a + h)²`, the root is the first term's atom
 /// (`m10_bulge_renders.txt` carries the form uncut). Nothing else on
 /// the boss, either D-tab or either control moves.
+///
+/// **PCERT's incidence-and-fidelity unit (PR 3812)** moves the same
+/// seven `pcurve_*` rows as on the D-tab, for the same reasons; the
+/// boss's own numbers: `pcurve_map_residual` 0/0/37/89 -> 0/0/18/0,
+/// `pcurve_envelope` 0/0/3/9 -> 6/6/0/0 (every one decided by the
+/// form, six theorems and six gated on a sign), the three derivation
+/// rows doubled, `pcurve_fidelity_branch` new at 0/0/0/24,
+/// `pcurve_loop_branch` new at 0/0/0/18, and `pcurve_loop_continuity`
+/// 9/0/0/9 -> 9/0/6/3.
+///
+/// **DECIDE-9** (a product with an ungated zero factor rests on that
+/// factor alone), merged in after PR 3812, makes the six gated
+/// `pcurve_envelope` decisions theorems: 6/6/0/0 -> 12/0/0/0. They are
+/// the six `sym_9` counts on the boss (`sign_gated` 26 -> 20).
+///
+/// **INTENT-LITERALS PR C** (a slot holds a variable): a formula
+/// written at a slot — the boss's `−chord_half` — lowers to an
+/// anonymous defined variable, which the environment binds through the
+/// non-finite door like every definition, so `expr_non_finite` gains
+/// those bindings' theorems: 29/0/0/0 -> 33/0/0/0. Nothing else moves.
 #[test]
 fn m10_bulge_the_bosss_split_at_the_nominal() {
     let tol = Tol::witness();
@@ -171,19 +263,20 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("arc_diameter_clearance", [0, 0, 0, 6]),
             ("arc_span", [6, 0, 0, 0]),
             ("assert_bound", [0, 0, 0, 1]),
+            ("cap_plane_orientation", [0, 0, 0, 4]),
             ("carrier_circles_identity", [3, 0, 0, 0]),
             ("carrier_cyl_axis_parallel", [1, 0, 0, 0]),
-            ("carrier_endpoint_end", [12, 0, 12, 0]),
-            ("carrier_endpoint_start", [12, 0, 12, 0]),
+            ("carrier_endpoint_end", [20, 0, 4, 0]),
+            ("carrier_endpoint_start", [20, 0, 4, 0]),
             ("carrier_line_circle", [0, 0, 0, 3]),
-            ("carrier_matches_mapped_source", [72, 0, 54, 0]),
+            ("carrier_matches_mapped_source", [108, 0, 18, 0]),
             ("carrier_on_surface_1", [90, 0, 0, 0]),
             ("carrier_on_surface_2", [90, 0, 0, 0]),
             ("contact_at_shared_vertex", [6, 0, 0, 3]),
             ("datum_unit_norm", [0, 0, 0, 2]),
             ("dihedral_arm", [0, 0, 0, 80]),
             ("dihedral_wedge", [0, 0, 0, 80]),
-            ("expr_non_finite", [29, 0, 0, 0]),
+            ("expr_non_finite", [33, 0, 0, 0]),
             ("extrusion_normal_component", [0, 0, 0, 2]),
             ("interval_span_forward", [0, 0, 0, 24]),
             ("interval_span_winding", [0, 0, 0, 12]),
@@ -191,9 +284,17 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("newell_plane_residual", [18, 0, 0, 0]),
             ("path_circle_radius", [0, 0, 0, 1]),
             ("path_junction_turn", [0, 0, 0, 2]),
-            ("pcurve_chart_azimuth_frame", [0, 0, 0, 2]),
-            ("pcurve_chart_radial_moving", [2, 0, 0, 0]),
-            ("pcurve_map_residual", [0, 0, 18, 0]),
+            ("pcurve_azimuth_period", [0, 0, 0, 12]),
+            ("pcurve_chart_azimuth_affine", [24, 0, 0, 0]),
+            ("pcurve_chart_azimuth_frame", [12, 0, 0, 26]),
+            ("pcurve_chart_orientation", [0, 0, 0, 12]),
+            ("pcurve_chart_radial_moving", [14, 0, 0, 12]),
+            ("pcurve_chart_winding", [12, 0, 0, 18]),
+            ("pcurve_envelope", [12, 0, 0, 0]),
+            ("pcurve_fidelity_branch", [0, 0, 0, 24]),
+            ("pcurve_interval_forward", [0, 0, 0, 12]),
+            ("pcurve_loop_branch", [0, 0, 0, 25]),
+            ("pcurve_map_residual", [18, 0, 0, 0]),
             ("segment_straightness", [2, 0, 0, 6]),
             ("side_cylinders_cosurface", [2, 0, 0, 0]),
             ("vertex_separation", [0, 0, 0, 8]),
@@ -224,7 +325,7 @@ fn m10_bulge_the_d_tabs_literal_split_at_the_nominal() {
     assert_split(
         "d_tab (bulge a literal)",
         &split_at_the_nominal(&doc, SymRules::shipped(), tol),
-        &d_tab_table([126, 0, 44, 10]),
+        &d_tab_table([162, 0, 8, 10]),
     );
 }
 
@@ -250,6 +351,6 @@ fn m10_bulge_the_d_tabs_parameter_split_at_the_nominal() {
     assert_split(
         "d_tab (bulge a parameter)",
         &split_at_the_nominal(&doc, SymRules::shipped(), tol),
-        &d_tab_table([126, 0, 40, 14]),
+        &d_tab_table([162, 0, 4, 14]),
     );
 }

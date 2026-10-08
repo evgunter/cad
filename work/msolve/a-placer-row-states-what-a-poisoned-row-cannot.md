@@ -2,10 +2,11 @@
 id: a-placer-row-states-what-a-poisoned-row-cannot
 kind: issue
 title: A Part's index and a pattern's count refuse with PlacerRow::States over a node that may be poisoned, so the cause is stated on no row
-status: open
+status: parked
 opened: 2026-10-01
 priority: P2
 cost: E
+blocked_on: [a-mate-reads-face-variables]
 ---
 
 
@@ -48,3 +49,7 @@ read `PlacerRow::Silent`. That puts the decision where the standing is
 known, as `MateFault::carried` already reads the row value. It is a
 re-siting of the decision, not a new mechanism. The pinned row flips:
 `Silent`, and the mate carries the refusal.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `a-mate-reads-face-variables`, not on the whole program: the raise site is member.rs check_reference's head walk through Pattern counts and Part indices, replaced by a typed unresolved read once mate sides read Face variables. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

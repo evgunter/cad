@@ -22,13 +22,18 @@
 //!   nothing it is not handed ([`Body::carried_redescriptions`] states
 //!   the stored ones on the moved charts). The offset doors and the
 //!   split finish, which move charts under described edges, take it.
+//!   Whether a moved boundary lies on its new chart is one question
+//!   for every re-chart door, [`Body::unvouched`]'s: by key, and by
+//!   residual where a door holds a band and the chart is a plane.
 //! - [`Body::set_edge_curve`] — an intrinsic
 //!   ([`geom_brep::EdgeDescription::Intersection`]) description references
 //!   its two adjacent faces' surfaces *by key*, and a swept edge is
 //!   necessarily minted **before** the side faces it will bound
 //!   (struts precede `mef`): the sweep mints with a conventional
 //!   description and upgrades to the intrinsic one here, once both
-//!   surfaces exist (the prefer-intrinsic rule lands at rest, D2).
+//!   surfaces exist (the prefer-intrinsic rule lands at rest, D2). A
+//!   certified edge's description re-mints the faces its halves are on,
+//!   since its rows are stated over the carrier and interval it replaces.
 //!
 //! The setters are **certified mutations**: the same D4 ¶2/¶3 gates as
 //! the operators (`EdgeCurve::certify`; typed errors, body untouched on
@@ -58,15 +63,16 @@
 //! keys, and a setter call is part of the history.
 
 use geom::Surface;
-use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec};
+use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign};
 
 use crate::body::Body;
-use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopBoundary, LoopKey};
-use crate::euler::{EulerOpError, FaceSurface, ParentSide};
+use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopKey, VertexKey};
+use crate::euler::{EulerOpError, FaceSurface, ParentSide, RechartDoor};
 use crate::geometry::{CurveKey, SurfaceKey};
-use crate::pcurves::{SiteHalf, SiteRows};
+use crate::live::{Arg, dangling_link, linked, lookup, proven, require_key};
+use crate::pcurves::{SiteCarriers, SiteHalf, SiteRows};
 use geom_core::Tol;
 
 impl<T: Decide> Body<T> {
@@ -100,15 +106,11 @@ impl<T: Decide> Body<T> {
     /// [`Body::same_chart`]'s one payload is not asked, since a
     /// certificate is a function of the payload it was taken on.
     ///
-    /// What the check does not decide: scaffold and null edges carry no
-    /// certificate and are not asked; nor is an empty loop's lone
-    /// vertex, since tier 2 bans an empty loop at rest.
-    /// [`Body::set_face_surfaces_describing`] certifies the
-    /// re-descriptions it is handed on every chart, and the boundary's
-    /// own residuals only on a plane; a curved chart's containment is
-    /// asked by neither door, nor by tier 3 at rest
-    /// (`work/restfront/validate-tier3-curved-boundary-containment`,
-    /// #638).
+    /// The question is [`Body::unvouched`]'s, which every re-chart door
+    /// asks: scaffold and null edges, and an empty loop's lone vertex,
+    /// carry no certificate and are not asked. This door reads keys
+    /// alone; [`Body::set_face_surfaces_describing`] also reads residuals
+    /// against a plane, and neither reads them on a curved chart.
     ///
     /// **The face's pcurve rows are not a cache this door may keep.** A
     /// row is a curve stated in a face's CHART
@@ -117,8 +119,8 @@ impl<T: Decide> Body<T> {
     /// longer on — the loop-re-parenting doors' defect with the two
     /// sides swapped, and it takes their answer: a swap onto the same
     /// chart carries every row untouched, and a swap onto a different
-    /// one drops the face's rows ([`Body::drop_face_rows`]), deriving
-    /// nothing. A caller that wants the face's rows on its new chart
+    /// one drops the rows of the face's loops, proven whole in the plan
+    /// ([`Body::face_cycles`]), deriving nothing. A caller that wants the face's rows on its new chart
     /// runs [`crate::pcurves::mint_pcurves`]. Leaving them was silent
     /// wherever the new surface does not mint — tier 3's pcurve pass
     /// skips such a face — so what the drop removes is a wrong row no
@@ -131,20 +133,55 @@ impl<T: Decide> Body<T> {
     ///
     /// # Errors
     ///
-    /// [`EulerOpError::StaleKey`] if `face` does not resolve;
-    /// [`EulerOpError::StaleGeometry`] if a `Shared` key does not
-    /// resolve; [`EulerOpError::SenseContradictsChart`] if a spec on
-    /// the face's own chart states the other bit; then
+    /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) if `face` does not resolve;
+    /// [`BadArgument::StaleGeometry`](crate::euler::BadArgument::StaleGeometry) if a `Shared` key
+    /// does not resolve; [`EulerOpError::SenseContradictsChart`] if a
+    /// spec on the face's own chart states the other bit; then
     /// [`EulerOpError::RechartStrandsDescriptions`], then
-    /// [`EulerOpError::RechartUnvouched`] (`StaleKey` / `StaleGeometry`
-    /// where a key a walk over the edges follows does not resolve). The
-    /// body is untouched on `Err`.
+    /// [`EulerOpError::RechartUnvouched`]. The body is untouched on
+    /// `Err`.
     pub fn set_face_surface(
         &mut self,
         face: FaceKey,
         surface: FaceSurface<T>,
     ) -> Result<SurfaceKey, EulerOpError> {
-        self.set_face_surface_gated(face, surface, true)
+        let face_data = lookup(&self.faces, face, EntityId::Face, Arg("face"))?;
+        let old = face_data.surface;
+        let resolved =
+            self.resolve_face_surface(&surface, face, (old, face_data.sense), ParentSide::With)?;
+        self.vouch_move(
+            RechartDoor::SetFaceSurface,
+            face,
+            self.landing_of_spec(old, &surface),
+            self.edges.keys(),
+            |_, _, f| f == face,
+            resolved.on_parent_chart,
+            None,
+        )?;
+        let dropped = if resolved.on_parent_chart {
+            Vec::new()
+        } else {
+            self.face_cycles(face)
+        };
+
+        // ---- Mutation (infallible from here on). ----
+        let new = self.mint_face_surface(surface, old);
+        let Some(f) = self.get_face_mut(face) else {
+            unreachable!(
+                "set_face_surface: `face` resolved in the plan phase and minting a \
+                 surface kills no face"
+            )
+        };
+        f.sense = resolved.sense;
+        if new != old {
+            f.surface = new;
+            self.drop_rows(dropped);
+            self.remove_surface_if_orphaned(old);
+        }
+
+        #[cfg(debug_assertions)]
+        self.assert_tier1_postcondition("set_face_surface");
+        Ok(new)
     }
 
     /// **Failure-injection door** (test builds only: this crate's own
@@ -172,73 +209,12 @@ impl<T: Decide> Body<T> {
     /// [`EulerOpError::RechartUnvouched`].
     #[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
     #[doc(hidden)]
-    pub fn set_face_surface_stranding_for_tests(
+    pub fn set_face_surface_unvouched_for_tests(
         &mut self,
         face: FaceKey,
         surface: FaceSurface<T>,
     ) -> Result<SurfaceKey, EulerOpError> {
-        self.set_face_surface_gated(face, surface, false)
-    }
-
-    /// [`Body::set_face_surface`], its refusals of a swap it cannot
-    /// vouch for asked iff `vouch`.
-    fn set_face_surface_gated(
-        &mut self,
-        face: FaceKey,
-        surface: FaceSurface<T>,
-        vouch: bool,
-    ) -> Result<SurfaceKey, EulerOpError> {
-        let face_data = self.get_face(face).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Face(face),
-        })?;
-        let old = face_data.surface;
-        let resolved =
-            self.resolve_face_surface(&surface, face, (old, face_data.sense), ParentSide::With)?;
-        let after = match surface {
-            FaceSurface::Inherit => Slot::Kept(old),
-            FaceSurface::New { .. } => Slot::Minted(0),
-            FaceSurface::Shared { key, .. } => Slot::Kept(key),
-        };
-        if vouch && after != Slot::Kept(old) {
-            let moved = |f: FaceKey| (f == face).then_some(after);
-            let RechartEdges {
-                stranded,
-                unvouched,
-                ..
-            } = self.rechart_edges(moved, false)?;
-            if !stranded.is_empty() {
-                return Err(EulerOpError::RechartStrandsDescriptions {
-                    edges: stranded.into_iter().map(|(e, _)| e).collect(),
-                });
-            }
-            if !resolved.on_parent_chart && !unvouched.is_empty() {
-                return Err(EulerOpError::RechartUnvouched {
-                    face,
-                    edges: unvouched,
-                });
-            }
-        }
-
-        // ---- Mutation (infallible from here on). ----
-        let new = self.mint_face_surface(surface, old);
-        let Some(f) = self.get_face_mut(face) else {
-            unreachable!(
-                "set_face_surface: `face` resolved in the plan phase and minting a \
-                 surface kills no face"
-            )
-        };
-        f.sense = resolved.sense;
-        if new != old {
-            f.surface = new;
-            if !resolved.on_parent_chart {
-                self.drop_face_rows(face);
-            }
-            self.remove_surface_if_orphaned(old);
-        }
-
-        #[cfg(debug_assertions)]
-        self.assert_tier1_postcondition("set_face_surface");
-        Ok(new)
+        self.lifting_rechart_refusals_for_tests(|body| body.set_face_surface(face, surface))
     }
 
     /// Re-charts faces with the re-descriptions of the edges the move
@@ -285,23 +261,28 @@ impl<T: Decide> Body<T> {
     /// its rows).
     ///
     /// **What it certifies:** every listed description, on every chart
-    /// kind; and, where a moved face's new chart is a plane and not its
-    /// old one, the boundary's residuals — every vertex of its loops,
-    /// an empty loop's lone vertex included, and every interior
-    /// certification sample of each edge on them (the listed curve, or
-    /// the stored one) is within the band of the plane. These are tier
-    /// 3's planar residual checks, asked before the move. A curved
-    /// chart's containment is not asked, here or by tier 3 at rest
+    /// kind; and that every moved face's boundary is vouched for on its
+    /// new chart ([`Body::unvouched`], the question the keys-only doors
+    /// ask). A certified edge is vouched for where its description —
+    /// the listed one, or the stored one — names the chart its face
+    /// moves onto; where none does and the chart is a plane, by its
+    /// residuals: its ends and interior certification samples within
+    /// the band of the plane, tier 3's planar residual checks asked
+    /// before the move. A curved chart's residuals are not read, here
+    /// or by tier 3 at rest
     /// (`work/restfront/validate-tier3-curved-boundary-containment`,
-    /// #638): handed no re-descriptions, a move onto a curved chart is
-    /// taken unchecked. The keys-only door leaves the lone vertex
-    /// unasked, since tier 2 bans an empty loop at rest; this one asks
-    /// it because it has the band to.
+    /// #638), so onto a curved chart an edge no description names
+    /// there is refused, as the keys-only door refuses it. Scaffold and
+    /// null edges, and an empty loop's lone vertex, carry no
+    /// certificate and are not asked.
     ///
     /// Each face's sense is [`FaceSurface`]'s rule, per face; its
     /// pcurve rows are [`Body::set_face_surface`]'s (kept on the same
-    /// chart, dropped on another); a re-described edge's rows are
-    /// [`Body::set_edge_curve`]'s.
+    /// chart, dropped on another); a re-described edge's rows on a face
+    /// that keeps its chart are kept as found, for the tier-3 pcurve
+    /// pass to re-certify against the new carrier, where
+    /// [`Body::set_edge_curve`] re-mints that face
+    /// (`work/topo/set-face-surfaces-describing-keeps-a-moved-edges-rows-on-a-kept-chart`).
     ///
     /// Minting order (D9): the new charts' surfaces in `charts` order,
     /// then the listed edges' curves in list order.
@@ -310,26 +291,30 @@ impl<T: Decide> Body<T> {
     ///
     /// `tol` builds a band ([`EulerOpError::Certification`]). Per chart
     /// in order, per face in order: the face resolves
-    /// ([`EulerOpError::StaleKey`]), was not listed before
+    /// ([`BadArgument::Stale`](crate::euler::BadArgument::Stale)), was not listed before
     /// ([`EulerOpError::FaceMovedTwice`]), a shared chart's key resolves
-    /// ([`EulerOpError::StaleGeometry`]) and the face states a sense its
-    /// chart admits ([`EulerOpError::SenseContradictsChart`]). Per
-    /// listed edge in order: it resolves (`StaleKey`), was not listed
+    /// ([`BadArgument::StaleGeometry`](crate::euler::BadArgument::StaleGeometry)) and the face
+    /// states a sense its chart admits
+    /// ([`EulerOpError::SenseContradictsChart`]). Per listed edge in
+    /// order: it resolves (`BadArgument::Stale`), was not listed
     /// before ([`EulerOpError::DuplicateRedescription`]), is not a null
     /// edge ([`EulerOpError::NullScaffoldCurve`]), its spec is
     /// adjacency-coherent on the moved charts
     /// ([`EulerOpError::DescriptionNotAdjacent`]) and certifies at its
-    /// endpoints ([`EulerOpError::RechartFalsifies`]). Then no unlisted
+    /// endpoints ([`EulerOpError::RechartFalsifies`]; the plane × NURBS
+    /// lane is the scalar's policy, [`crate::AtRestPolicy::nurbs_lane`],
+    /// and a scalar holding none refuses that class
+    /// [`EulerOpError::NurbsLaneUnsupported`]). Then no unlisted
     /// edge is stranded ([`EulerOpError::RechartUndescribed`], every one
-    /// named). Then per moved face in order onto a plane that is not its
-    /// old chart, per loop (outer, then rings) and half-edge in cycle
-    /// order: its start vertex, then its edge's interior samples, lie on
-    /// the plane, as does an empty loop's lone vertex
+    /// named). Then per moved face in order onto a chart that is not its
+    /// old one, per loop (outer, then rings) and half-edge in cycle
+    /// order, each certified edge no description names there: on a
+    /// plane, the half's start vertex, its end, then its edge's
+    /// interior samples lie on it
     /// ([`EulerOpError::RechartOffBoundary`] /
-    /// [`EulerOpError::RechartBoundaryEscalated`]). `StaleKey` /
-    /// `StaleGeometry` where a key a walk follows does not resolve, and
-    /// [`EulerOpError::LoopCycleBroken`] where a moved face's loop does
-    /// not walk.
+    /// [`EulerOpError::RechartBoundaryEscalated`]); on a curved chart,
+    /// it is refused ([`EulerOpError::RechartUnvouched`], every one on
+    /// the face named).
     ///
     /// # Errors
     ///
@@ -340,12 +325,15 @@ impl<T: Decide> Body<T> {
         charts: Vec<Rechart<T>>,
         redescriptions: &[(EdgeKey, EdgeCurveSpec<T>)],
         tol: Tol,
-    ) -> Result<Vec<SurfaceKey>, EulerOpError> {
+    ) -> Result<Vec<SurfaceKey>, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
         let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
             error: CertifyError::Band(e),
         })?;
         let faces = self.plan_recharts(&charts)?;
-        let moved = |f: FaceKey| moved_slot(&faces, f);
+        let moved = |_: HalfEdgeKey, _: LoopKey, f: FaceKey| moved_slot(&faces, f);
         let (body, planned) = (&*self, &charts);
         let resolve = |sides: Sides| {
             move |k: SurfaceKey| body.slot_surface(planned, sides.repoint(k)).cloned()
@@ -356,49 +344,76 @@ impl<T: Decide> Body<T> {
             Vec::with_capacity(redescriptions.len());
         for (edge, spec) in redescriptions {
             let edge = *edge;
-            let edge_data = self.get_edge(edge).ok_or(EulerOpError::StaleKey {
-                key: EntityId::Edge(edge),
-            })?;
+            let edge_data = lookup(&self.edges, edge, EntityId::Edge, Arg("redescriptions"))?;
             if written.iter().any(|&(e, ..)| e == edge) {
                 return Err(EulerOpError::DuplicateRedescription { edge });
             }
             let curve_key = edge_data.curve;
-            if self
-                .get_curve_geom(curve_key)
-                .ok_or(EulerOpError::StaleGeometry {
-                    key: GeomRef::Curve(curve_key),
-                })?
-                .null_scaffold()
-                .is_some()
-            {
+            if self.edge_curve(edge, curve_key).null_scaffold().is_some() {
                 return Err(EulerOpError::NullScaffoldCurve { curve: curve_key });
             }
-            let sides = self.sides(edge, moved)?;
-            if !sides.coherent_after(Named::of_spec(&spec.description)) {
-                return Err(EulerOpError::DescriptionNotAdjacent { edge });
+            let sides = self.sides(edge, moved);
+            if !sides.coherent_after(Named::of_spec(&spec.description), Spelling::Listed) {
+                return Err(EulerOpError::DescriptionNotAdjacent { edge: Some(edge) });
             }
-            let (p_start, p_end) = self.edge_endpoints(edge)?;
-            let curve = EdgeCurve::certify(spec.clone(), p_start, p_end, resolve(sides), band)
-                .map_err(|error| EulerOpError::RechartFalsifies { edge, error })?;
+            let (p_start, p_end) = self.edge_endpoints(edge);
+            let curve =
+                crate::policy_lane::certify(spec.clone(), p_start, p_end, resolve(sides), band)
+                    .map_err(|refusal| match refusal {
+                        crate::policy_lane::ByPolicy::NoLane { scalar } => {
+                            EulerOpError::NurbsLaneUnsupported {
+                                edge: Some(edge),
+                                scalar,
+                            }
+                        }
+                        crate::policy_lane::ByPolicy::Refused(error) => {
+                            EulerOpError::RechartFalsifies {
+                                door: RechartDoor::SetFaceSurfacesDescribing,
+                                edge,
+                                error,
+                            }
+                        }
+                    })?;
             written.push((edge, sides, curve));
         }
 
         // ---- No unlisted edge stranded. ----
         let undescribed: Vec<EdgeKey> = self
-            .rechart_edges(moved, false)?
-            .stranded
+            .stranded(&faces)
             .into_iter()
-            .map(|(e, _)| e)
             .filter(|e| !written.iter().any(|(w, ..)| w == e))
             .collect();
         if !undescribed.is_empty() {
-            return Err(EulerOpError::RechartUndescribed { edges: undescribed });
+            return Err(EulerOpError::RechartUndescribed {
+                door: RechartDoor::SetFaceSurfacesDescribing,
+                edges: undescribed,
+            });
         }
 
-        // ---- Every moved face's boundary on its new plane. ----
-        for m in &faces {
-            self.check_moved_boundary(m, &charts, &written, band)?;
+        // ---- Every moved face's boundary vouched for on its new chart. ----
+        let reading = Reading::Residuals {
+            door: RechartDoor::SetFaceSurfacesDescribing,
+            band,
+            charts: &charts,
+            written: &written,
+        };
+        for m in faces.iter().filter(|m| !m.on_parent_chart) {
+            let edges = self.run_edges(&self.face_cycles_linked(m.face));
+            let unvouched = self.unvouched(edges, moved, |f| f == m.face, &reading)?;
+            if !unvouched.is_empty() && !refusals_lifted() {
+                return Err(EulerOpError::RechartUnvouched {
+                    door: RechartDoor::SetFaceSurfacesDescribing,
+                    face: m.face,
+                    edges: unvouched,
+                    chord: false,
+                });
+            }
         }
+        let dropped = faces
+            .iter()
+            .filter(|m| !m.on_parent_chart)
+            .map(|m| self.face_cycles(m.face))
+            .collect::<Vec<_>>();
 
         // ---- Mutation (infallible from here on). ----
         let keys: Vec<SurfaceKey> = charts
@@ -421,10 +436,8 @@ impl<T: Decide> Body<T> {
             };
             f.surface = new;
             f.sense = m.sense;
-            if !m.on_parent_chart {
-                self.drop_face_rows(m.face);
-            }
         }
+        self.drop_rows(dropped.into_iter().flatten());
         for (edge, sides, curve) in written {
             let Some(rekeyed) = curve.with_remapped_surfaces(|k| key_of(sides.repoint(k))) else {
                 unreachable!("set_face_surfaces_describing: every moved chart was minted")
@@ -458,22 +471,48 @@ impl<T: Decide> Body<T> {
     /// # Errors
     ///
     /// The door's per-face preconditions, in its order
-    /// ([`EulerOpError::StaleKey`], [`EulerOpError::FaceMovedTwice`],
-    /// [`EulerOpError::StaleGeometry`],
-    /// [`EulerOpError::SenseContradictsChart`]); then `StaleKey` /
-    /// `StaleGeometry` where a key the walk over the edges follows does
-    /// not resolve.
+    /// ([`BadArgument::Stale`](crate::euler::BadArgument::Stale),
+    /// [`EulerOpError::FaceMovedTwice`],
+    /// [`BadArgument::StaleGeometry`](crate::euler::BadArgument::StaleGeometry),
+    /// [`EulerOpError::SenseContradictsChart`]).
     pub fn carried_redescriptions(
         &self,
         charts: &[Rechart<T>],
     ) -> Result<Vec<(EdgeKey, EdgeCurveSpec<T>)>, EulerOpError> {
         let faces = self.plan_recharts(charts)?;
-        let moved = |f: FaceKey| moved_slot(&faces, f);
+        let moved = |_: HalfEdgeKey, _: LoopKey, f: FaceKey| moved_slot(&faces, f);
         let mut out = Vec::new();
-        for (edge, sides) in self.rechart_edges(moved, true)?.carried {
-            out.push((edge, self.carried_spec(edge, sides, charts)?));
+        for (edge, sides) in self
+            .rechart_edges(self.edges.keys(), moved, Spelling::Listed)
+            .carried
+        {
+            out.push((edge, self.carried_spec(edge, sides, charts)));
         }
         Ok(out)
+    }
+
+    /// **The edges a re-chart strands**: those whose stored description
+    /// is adjacency-coherent now and is not once `charts` have moved,
+    /// each of which [`Body::set_face_surfaces_describing`] refuses
+    /// unlisted ([`EulerOpError::RechartUndescribed`]), in edge-arena
+    /// order. Pure.
+    ///
+    /// # Errors
+    ///
+    /// `charts`' per-face preconditions, as that door checks them.
+    pub(crate) fn stranded_by(&self, charts: &[Rechart<T>]) -> Result<Vec<EdgeKey>, EulerOpError> {
+        let faces = self.plan_recharts(charts)?;
+        Ok(self.stranded(&faces))
+    }
+
+    /// [`Body::stranded_by`] over planned faces.
+    fn stranded(&self, faces: &[MovedFace]) -> Vec<EdgeKey> {
+        let moved = |_: HalfEdgeKey, _: LoopKey, f: FaceKey| moved_slot(faces, f);
+        self.rechart_edges(self.edges.keys(), moved, Spelling::Stored)
+            .stranded
+            .into_iter()
+            .map(|(e, _)| e)
+            .collect()
     }
 
     /// The faces `charts` move, each resolved once with its moved sense,
@@ -484,9 +523,7 @@ impl<T: Decide> Body<T> {
         for (index, chart) in charts.iter().enumerate() {
             for wearer in &chart.faces {
                 let face = wearer.face;
-                let face_data = self.get_face(face).ok_or(EulerOpError::StaleKey {
-                    key: EntityId::Face(face),
-                })?;
+                let face_data = lookup(&self.faces, face, EntityId::Face, Arg("charts"))?;
                 if faces.iter().any(|m| m.face == face) {
                     return Err(EulerOpError::FaceMovedTwice { face });
                 }
@@ -516,31 +553,117 @@ impl<T: Decide> Body<T> {
                 ChartSurface::New(surface) => Some(surface),
                 ChartSurface::Shared(_) => None,
             },
-            Slot::Kept(k) => self.surfaces.get(k),
+            Slot::Kept(k) => Some(proven(&self.surfaces, k, GeomRef::Surface)),
         }
     }
 
-    /// Whether `m`'s boundary lies on the plane it moves onto, under
-    /// `band`: [`Body::set_face_surfaces_describing`]'s residual
-    /// question, asked of every vertex of the face's loops and every
-    /// interior certification sample of each edge on them, its curve
-    /// read from `written` where the door re-describes it. Nothing is
-    /// asked of a face that stays on its chart or moves onto a curved
-    /// one. Pure.
-    fn check_moved_boundary(
+    /// **Whether a moved boundary is vouched for on its new chart**: the
+    /// one answer every re-chart door gives, returning the edges it does
+    /// not vouch for, in the order `edges` hands them. `moved` answers,
+    /// for a half (given its loop and face), the surface its face wears
+    /// after the move, as [`Body::rechart_edges`] reads it; only the
+    /// moving halves whose face `asked` takes are asked.
+    ///
+    /// A certified edge carries a certificate on the keys its
+    /// description names — its samples lie on each within the band, its
+    /// ends on its vertices — so a moving half lands vouched for where
+    /// that description names the key its face wears after the move: a
+    /// re-description the door writes (`reading`'s, read
+    /// [`Spelling::Listed`]), else the stored one (read
+    /// [`Spelling::Stored`]). A `New` key is one no description names.
+    /// Where no key vouches, a [`Reading::Residuals`] door asks the
+    /// edge's own residuals against a plane — its ends, then its
+    /// interior certification samples — refusing
+    /// [`EulerOpError::RechartOffBoundary`] /
+    /// [`EulerOpError::RechartBoundaryEscalated`] on the first that is
+    /// not on it. Onto a curved chart no residual is read (a curved
+    /// chart's containment is
+    /// `work/restfront/validate-tier3-curved-boundary-containment`'s),
+    /// and a [`Reading::Keys`] door has no band: such an edge is
+    /// returned, since neither reading vouches for it.
+    ///
+    /// A side landing on the "no chart yet" placeholder is not asked:
+    /// there is no chart to vouch on, and no description can name it.
+    /// What carries no certificate is not asked by either reading:
+    /// scaffold and null edges, and an empty loop's lone vertex. The
+    /// door that later describes them names a chart and certifies them
+    /// on it; tier 3 bans scaffolds, and tier 2 empty loops, at rest.
+    /// Pure.
+    fn unvouched(
         &self,
-        m: &MovedFace,
-        charts: &[Rechart<T>],
-        written: &[(EdgeKey, Sides, EdgeCurve<T>)],
-        band: Band,
-    ) -> Result<(), EulerOpError> {
-        if m.on_parent_chart {
-            return Ok(());
+        edges: impl IntoIterator<Item = EdgeKey>,
+        moved: impl Fn(HalfEdgeKey, LoopKey, FaceKey) -> Option<Slot>,
+        asked: impl Fn(FaceKey) -> bool,
+        reading: &Reading<'_, T>,
+    ) -> Result<Vec<EdgeKey>, EulerOpError> {
+        let mut out = Vec::new();
+        for edge in edges {
+            let curve_key = proven(&self.edges, edge, EntityId::Edge).curve;
+            let (spelling, curve) = match reading.written().iter().find(|(e, ..)| *e == edge) {
+                Some((.., curve)) => (Spelling::Listed, Some(curve)),
+                None => (
+                    Spelling::Stored,
+                    self.edge_curve(edge, curve_key).certified(),
+                ),
+            };
+            let Some(curve) = curve else {
+                continue;
+            };
+            let named = Named::of_description(curve.description());
+            let sides = self.sides(edge, &moved);
+            for side in sides.unnamed(named, spelling) {
+                let face = sides.faces[side];
+                if !asked(face) || self.slot_chartless(reading, sides.after[side]) {
+                    continue;
+                }
+                let plane = match reading {
+                    Reading::Residuals {
+                        door, band, charts, ..
+                    } => match self.slot_surface(charts, sides.after[side]) {
+                        Some(&Surface::Plane { origin, normal, .. }) => {
+                            Some((*door, origin, normal, *band))
+                        }
+                        _ => None,
+                    },
+                    Reading::Keys => None,
+                };
+                let Some((door, origin, normal, band)) = plane else {
+                    out.push(edge);
+                    break;
+                };
+                self.edge_on_plane(door, edge, curve, (face, side), (origin, normal, band))?;
+            }
         }
-        let Some(&Surface::Plane { origin, normal, .. }) = self.slot_surface(charts, m.after)
-        else {
-            return Ok(());
-        };
+        Ok(out)
+    }
+
+    /// Whether `slot` is the "no chart yet" placeholder, as `reading`
+    /// knows the charts its door mints: a side landing there has no
+    /// chart for a certificate to vouch on, so it is not asked. A keys-only
+    /// door's minted chart is asked of its [`Landing`] instead.
+    fn slot_chartless(&self, reading: &Reading<'_, T>, slot: Slot) -> bool {
+        match (slot, reading) {
+            (Slot::Kept(key), _) => self.wears_no_chart(key),
+            (Slot::Minted(_), Reading::Residuals { charts, .. }) => self
+                .slot_surface(charts, slot)
+                .is_some_and(Surface::is_placeholder_chart),
+            (Slot::Minted(_), Reading::Keys) => false,
+        }
+    }
+
+    /// Whether `edge`, described by `curve`, lies on the plane through
+    /// `origin` with `normal` under `band`: its ends, in the order its
+    /// half on `face` (`side` 0 for `he_plus`) runs them, then its
+    /// interior certification samples — tier 3's planar residual
+    /// checks, asked of `face`'s boundary before it moves. Pure.
+    fn edge_on_plane(
+        &self,
+        door: RechartDoor,
+        edge: EdgeKey,
+        curve: &EdgeCurve<T>,
+        (face, side): (FaceKey, usize),
+        (origin, normal, band): (Point3<T>, geom_core::Vec3<T>, Band),
+    ) -> Result<(), EulerOpError> {
         let on_plane = |p: Point3<T>, on: EntityId| match decide(
             "rechart_boundary_residual",
             Margin::of((p - origin).dot(normal)),
@@ -548,146 +671,377 @@ impl<T: Decide> Body<T> {
         ) {
             Ok(Sign::Zero) => Ok(()),
             Ok(Sign::Positive | Sign::Negative) => {
-                Err(EulerOpError::RechartOffBoundary { face: m.face, on })
+                Err(EulerOpError::RechartOffBoundary { door, face, on })
             }
             Err(diag) => Err(EulerOpError::RechartBoundaryEscalated {
-                face: m.face,
+                door,
+                face,
                 on,
                 diag,
             }),
         };
-        let face = self.get_face(m.face).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Face(m.face),
-        })?;
-        for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
-            let first = match self
-                .get_loop(lk)
-                .ok_or(EulerOpError::StaleKey {
-                    key: EntityId::Loop(lk),
-                })?
-                .boundary
-            {
-                LoopBoundary::Cycle { first } => first,
-                // A lone vertex bounds the face too.
-                LoopBoundary::Empty { vertex } => {
-                    on_plane(self.resolve_vertex_point(vertex)?, EntityId::Vertex(vertex))?;
-                    continue;
-                }
-            };
-            let cycle = self
-                .loop_cycle(first)
-                .ok_or(EulerOpError::LoopCycleBroken { r#loop: lk })?;
-            for he in cycle {
-                let he_data = self.resolve_half_edge(he)?;
-                on_plane(
-                    self.resolve_vertex_point(he_data.start)?,
-                    EntityId::Vertex(he_data.start),
-                )?;
-                let edge = he_data.edge;
-                let curve = match written.iter().find(|(e, ..)| *e == edge) {
-                    Some((.., curve)) => Some(curve),
-                    None => {
-                        let curve_key = self
-                            .get_edge(edge)
-                            .ok_or(EulerOpError::StaleKey {
-                                key: EntityId::Edge(edge),
-                            })?
-                            .curve;
-                        self.get_curve_geom(curve_key)
-                            .ok_or(EulerOpError::StaleGeometry {
-                                key: GeomRef::Curve(curve_key),
-                            })?
-                            .certified()
-                    }
-                };
-                // A null edge has no carrier to sample; its endpoints
-                // are the vertices asked above.
-                let Some(curve) = curve else {
-                    continue;
-                };
-                for i in 1..(geom_brep::CERT_SAMPLES - 1) {
-                    on_plane(
-                        curve.carrier().eval(curve.sample_param(i)),
-                        EntityId::Edge(edge),
-                    )?;
-                }
-            }
+        let mut ends = self.edge_ends(edge);
+        if side == 1 {
+            ends.reverse();
+        }
+        for (vertex, point) in ends {
+            on_plane(point, EntityId::Vertex(vertex))?;
+        }
+        for i in 1..(geom_brep::CERT_SAMPLES - 1) {
+            on_plane(
+                curve.carrier().eval(curve.sample_param(i)),
+                EntityId::Edge(edge),
+            )?;
         }
         Ok(())
     }
 
-    /// **The certified edges a re-chart touches**, in edge-arena order:
-    /// every one with a half on a face `moved` answers for.
-    /// `unvouched` holds those a moved side's new key is not among the
-    /// keys of ([`Sides::vouched`]). Of those whose stored description
-    /// is adjacency-coherent now, `stranded` holds those the move
-    /// leaves incoherent. With `repoint`, a description's keys are read
-    /// through [`Sides::repoint`] and `carried` holds those it leaves
-    /// coherent only through a key their moved face wore; without it, a
-    /// key stands for itself — the reading every door gives a stored
-    /// description — and `carried` is empty. Pure.
+    /// **The certified edges a re-chart touches**, in the order `edges`
+    /// hands them: every one with a half `moved` answers for, given the
+    /// half, its loop and its face, with the key that half's face wears
+    /// after the move; a half it does not answer for stays on the key
+    /// its face wears now. Scaffold and null edges, and an edge both of
+    /// whose halves keep their keys, are skipped. Of those whose stored
+    /// description is adjacency-coherent now, `stranded` holds those the move
+    /// leaves incoherent, its keys read as `spelling` reads them. Read
+    /// [`Spelling::Listed`], `carried` holds those it leaves coherent
+    /// only through a key their moved face wore; read
+    /// [`Spelling::Stored`], it is empty. Pure.
     fn rechart_edges(
         &self,
-        moved: impl Fn(FaceKey) -> Option<Slot>,
-        repoint: bool,
-    ) -> Result<RechartEdges, EulerOpError> {
+        edges: impl IntoIterator<Item = EdgeKey>,
+        moved: impl Fn(HalfEdgeKey, LoopKey, FaceKey) -> Option<Slot>,
+        spelling: Spelling,
+    ) -> RechartEdges {
         let mut out = RechartEdges::default();
-        for (edge_key, edge) in &self.edges {
-            let named = Named::of(self.get_curve_geom(edge.curve).ok_or(
-                EulerOpError::StaleGeometry {
-                    key: GeomRef::Curve(edge.curve),
-                },
-            )?);
+        for edge_key in edges {
+            let edge = proven(&self.edges, edge_key, EntityId::Edge);
+            let named = Named::of(self.edge_curve(edge_key, edge.curve));
             if matches!(named, Named::Nothing) {
                 continue;
             }
-            let sides = self.sides(edge_key, &moved)?;
+            let sides = self.sides(edge_key, &moved);
             if sides.after == sides.before.map(Slot::Kept) {
                 continue;
-            }
-            if !sides.vouched(named) {
-                out.unvouched.push(edge_key);
             }
             if !sides.coherent_before(named) {
                 continue;
             }
-            let coherent = if repoint {
-                sides.coherent_after(named)
-            } else {
-                named.adjacent_to(sides.after, Slot::Kept)
-            };
-            if !coherent {
+            if !sides.coherent_after(named, spelling) {
                 out.stranded.push((edge_key, sides));
-            } else if repoint && named.keys().any(|k| sides.repoint(k) != Slot::Kept(k)) {
+            } else if spelling == Spelling::Listed
+                && named.keys().any(|k| sides.repoint(k) != Slot::Kept(k))
+            {
                 out.carried.push((edge_key, sides));
             }
         }
-        Ok(out)
+        out
+    }
+
+    /// **The keys-only re-chart refusals, one home for every door that
+    /// puts existing half-edges, or a chord it mints, on a face wearing
+    /// another key**: [`Body::set_face_surface`], [`Body::mef`],
+    /// [`Body::mfkrh`] and [`Body::ring_move`], each with its siblings.
+    ///
+    /// The half-edges `moves` answers for (given each one's loop and
+    /// face) land on a face wearing `landing`'s `after`, every other on
+    /// the surface its face wears now; `old` is the key they leave. `edges` are the
+    /// edges walked, as [`Body::rechart_edges`] walks them. A move that
+    /// keeps `old` asks nothing. Otherwise the door refuses
+    /// [`EulerOpError::RechartStrandsDescriptions`] where a description
+    /// coherent now names no key either of its edge's faces wears after
+    /// the move, then [`EulerOpError::RechartUnvouched`] where a
+    /// certified edge lands on a chart it does not name
+    /// ([`Body::unvouched`], read by keys alone) — or `chord`, the chord
+    /// a minting door mints with one half on each side, does — unless
+    /// `one_payload` (a certificate is a function of the payload it was
+    /// taken on, and the move re-reads that payload), or the landing is
+    /// chartless ([`Landing::chartless`]: a face wearing the "no chart
+    /// yet" placeholder has no chart for a certificate to vouch on, and
+    /// no description can name it, so that side asks nothing). Scaffold
+    /// and null edges carry no certificate: they neither strand nor
+    /// vouch, and are not asked. `face` is the face the refusal names.
+    /// Pure.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn vouch_move(
+        &self,
+        door: RechartDoor,
+        face: FaceKey,
+        landing: Landing,
+        edges: impl IntoIterator<Item = EdgeKey>,
+        moves: impl Fn(HalfEdgeKey, LoopKey, FaceKey) -> bool,
+        one_payload: bool,
+        chord: Option<&EdgeCurve<T>>,
+    ) -> Result<(), EulerOpError> {
+        let Landing {
+            old,
+            after,
+            chartless,
+        } = landing;
+        if after == Slot::Kept(old) || refusals_lifted() {
+            return Ok(());
+        }
+        let edges: Vec<EdgeKey> = edges.into_iter().collect();
+        let moved = |he, l, f| moves(he, l, f).then_some(after);
+        let stranded = self
+            .rechart_edges(edges.iter().copied(), moved, Spelling::Stored)
+            .stranded;
+        if !stranded.is_empty() {
+            return Err(EulerOpError::RechartStrandsDescriptions {
+                door,
+                edges: stranded.into_iter().map(|(e, _)| e).collect(),
+            });
+        }
+        if one_payload || chartless {
+            return Ok(());
+        }
+        let unvouched = self.unvouched(edges, moved, |_| true, &Reading::Keys)?;
+        let chord_unvouched = chord.is_some_and(|curve| {
+            Sides {
+                before: [old, old],
+                after: [Slot::Kept(old), after],
+                faces: [face, face],
+            }
+            .unnamed(Named::of_description(curve.description()), Spelling::Stored)
+            .next()
+            .is_some()
+        });
+        if chord_unvouched || !unvouched.is_empty() {
+            return Err(EulerOpError::RechartUnvouched {
+                door,
+                face,
+                edges: unvouched,
+                chord: chord_unvouched,
+            });
+        }
+        Ok(())
+    }
+
+    /// **The describing kills' vouch** ([`Body::kef_describing`],
+    /// [`Body::kfmrh_describing`]): [`Body::vouch_move`]'s questions for
+    /// a kill that moves the halves `moves` answers for onto `onto`,
+    /// leaving `old`, asked with the re-descriptions it is handed
+    /// certified under `tol`'s band. Returns each listed edge's certified
+    /// curve on the keys its faces wear after the move, in list order.
+    ///
+    /// Per listed edge, in order: it resolves
+    /// ([`BadArgument::Stale`](crate::euler::BadArgument::Stale)); it was
+    /// not listed before ([`EulerOpError::DuplicateRedescription`]); it
+    /// is one of `edges`, the edges the kill moves
+    /// ([`EulerOpError::NotMovedEdge`]); it is not a null edge
+    /// ([`EulerOpError::NullScaffoldCurve`]); its description is
+    /// adjacency-coherent once the move lands, a key the moving face
+    /// wears now standing for `onto`
+    /// ([`EulerOpError::DescriptionNotAdjacent`]); and, `tol` building
+    /// a band ([`EulerOpError::Certification`]), it certifies on the
+    /// edge's own carrier and interval at its endpoints
+    /// ([`EulerOpError::RechartFalsifies`], or
+    /// [`EulerOpError::NurbsLaneUnsupported`]). A kill re-describes; it
+    /// does not move a carrier, so the stored carrier, interval and
+    /// pcurve rows stand. Then no unlisted edge is stranded
+    /// ([`EulerOpError::RechartUndescribed`], every one named, in
+    /// `edges` order). Then, unless the move keeps its key, re-reads
+    /// one payload (`one_payload`) or lands chartless, each certified
+    /// edge no description names on `onto` is asked as
+    /// [`Body::set_face_surfaces_describing`] asks one: on a plane, by
+    /// residual ([`EulerOpError::RechartOffBoundary`] /
+    /// [`EulerOpError::RechartBoundaryEscalated`]); on a curved chart,
+    /// refused ([`EulerOpError::RechartUnvouched`]). Pure.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn vouch_described_move(
+        &self,
+        door: RechartDoor,
+        face: FaceKey,
+        (old, onto): (SurfaceKey, SurfaceKey),
+        edges: &[EdgeKey],
+        moves: impl Fn(HalfEdgeKey, LoopKey, FaceKey) -> bool,
+        one_payload: bool,
+        redescriptions: &[(EdgeKey, EdgeDescriptionSpec<T>)],
+        tol: Tol,
+    ) -> Result<Vec<(EdgeKey, EdgeCurve<T>)>, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        let band = || {
+            Band::linear(tol).map_err(|e| EulerOpError::Certification {
+                error: CertifyError::Band(e),
+            })
+        };
+        let landing = self.landing_on(old, onto);
+        let moved = |he, l, f| moves(he, l, f).then_some(landing.after);
+        let mut written: Vec<(EdgeKey, Sides, EdgeCurve<T>)> =
+            Vec::with_capacity(redescriptions.len());
+        for (edge, description) in redescriptions {
+            let edge = *edge;
+            let edge_data = lookup(&self.edges, edge, EntityId::Edge, Arg("redescriptions"))?;
+            if written.iter().any(|&(e, ..)| e == edge) {
+                return Err(EulerOpError::DuplicateRedescription { edge });
+            }
+            if !edges.contains(&edge) {
+                return Err(EulerOpError::NotMovedEdge { door, edge });
+            }
+            let curve_key = edge_data.curve;
+            let Some(stored) = self.edge_curve(edge, curve_key).certified() else {
+                return Err(EulerOpError::NullScaffoldCurve { curve: curve_key });
+            };
+            let sides = self.sides(edge, moved);
+            if !sides.coherent_after(Named::of_spec(description), Spelling::Listed) {
+                return Err(EulerOpError::DescriptionNotAdjacent { edge: Some(edge) });
+            }
+            let spec = EdgeCurveSpec {
+                description: description.clone(),
+                ..stored.restated_spec()
+            };
+            let (p_start, p_end) = self.edge_endpoints(edge);
+            let resolve = |k: SurfaceKey| self.slot_surface(&[], sides.repoint(k)).cloned();
+            let curve = crate::policy_lane::certify(spec, p_start, p_end, resolve, band()?)
+                .map_err(|refusal| match refusal {
+                    crate::policy_lane::ByPolicy::NoLane { scalar } => {
+                        EulerOpError::NurbsLaneUnsupported {
+                            edge: Some(edge),
+                            scalar,
+                        }
+                    }
+                    crate::policy_lane::ByPolicy::Refused(error) => {
+                        EulerOpError::RechartFalsifies { door, edge, error }
+                    }
+                })?;
+            written.push((edge, sides, curve));
+        }
+        let keeps = landing.after == Slot::Kept(old) || refusals_lifted();
+        if !keeps {
+            let undescribed: Vec<EdgeKey> = self
+                .rechart_edges(edges.iter().copied(), moved, Spelling::Stored)
+                .stranded
+                .into_iter()
+                .map(|(e, _)| e)
+                .filter(|e| !written.iter().any(|(w, ..)| w == e))
+                .collect();
+            if !undescribed.is_empty() {
+                return Err(EulerOpError::RechartUndescribed {
+                    door,
+                    edges: undescribed,
+                });
+            }
+        }
+        if !(keeps || one_payload || landing.chartless) {
+            let reading = Reading::Residuals {
+                door,
+                band: band()?,
+                charts: &[],
+                written: &written,
+            };
+            let unvouched = self
+                .unvouched(edges.iter().copied(), moved, |_| true, &reading)
+                .map_err(|error| match error {
+                    EulerOpError::RechartOffBoundary { door, on, .. } => {
+                        EulerOpError::RechartOffBoundary { door, face, on }
+                    }
+                    EulerOpError::RechartBoundaryEscalated { door, on, diag, .. } => {
+                        EulerOpError::RechartBoundaryEscalated {
+                            door,
+                            face,
+                            on,
+                            diag,
+                        }
+                    }
+                    other => other,
+                })?;
+            if !unvouched.is_empty() {
+                return Err(EulerOpError::RechartUnvouched {
+                    door,
+                    face,
+                    edges: unvouched,
+                    chord: false,
+                });
+            }
+        }
+        Ok(written
+            .into_iter()
+            .map(|(edge, sides, curve)| {
+                let Some(rekeyed) = curve.with_remapped_surfaces(|k| match sides.repoint(k) {
+                    Slot::Kept(k) => Some(k),
+                    Slot::Minted(_) => None,
+                }) else {
+                    unreachable!("a kill lands on a key the body holds, and mints no chart")
+                };
+                (edge, rekeyed)
+            })
+            .collect())
+    }
+
+    /// **The re-descriptions a kill's carry would give**: of `edges`,
+    /// the edges a kill moving the halves `moves` answers for onto
+    /// `onto` strands, each whose stored description is coherent once
+    /// its keys on the moving face stand for `onto`, with that
+    /// description restated there ([`Body::carried_redescriptions`]'s
+    /// reading, for a kill). The stored kind travels; nothing is
+    /// certified here. Pure.
+    pub(crate) fn kill_carried_redescriptions(
+        &self,
+        (old, onto): (SurfaceKey, SurfaceKey),
+        edges: &[EdgeKey],
+        moves: impl Fn(HalfEdgeKey, LoopKey, FaceKey) -> bool,
+    ) -> Vec<(EdgeKey, EdgeDescriptionSpec<T>)> {
+        let after = Slot::Kept(onto);
+        if after == Slot::Kept(old) {
+            return Vec::new();
+        }
+        let moved = |he, l, f| moves(he, l, f).then_some(after);
+        let RechartEdges { stranded, .. } =
+            self.rechart_edges(edges.iter().copied(), moved, Spelling::Stored);
+        let mut out = Vec::new();
+        for (edge, sides) in stranded {
+            let curve = proven(&self.edges, edge, EntityId::Edge).curve;
+            let named = Named::of(self.edge_curve(edge, curve));
+            if sides.coherent_after(named, Spelling::Listed) {
+                out.push((edge, self.carried_spec(edge, sides, &[]).description));
+            }
+        }
+        out
+    }
+
+    /// **Failure-injection scope** (test builds only: this crate's own
+    /// tests, `test-support` and `sweep-testing`): runs `op` with
+    /// [`EulerOpError::RechartStrandsDescriptions`] and
+    /// [`EulerOpError::RechartUnvouched`] taken out, at every door that
+    /// raises them ([`RechartDoor`]), so a door may leave edges
+    /// described against a surface their faces no longer wear, or put a
+    /// face's boundary on a chart no certified edge of it names. Every
+    /// other precondition and every write is the real door's, the
+    /// describing door's residual refusals
+    /// ([`EulerOpError::RechartOffBoundary`]) included.
+    ///
+    /// It is for a row that builds such a body on purpose, and only
+    /// there. Every call carries a one-line `// Lifts` comment naming
+    /// the refusal it takes out and why that state is the row's
+    /// premise.
+    #[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
+    #[doc(hidden)]
+    pub fn lifting_rechart_refusals_for_tests<R>(&mut self, op: impl FnOnce(&mut Self) -> R) -> R {
+        struct Restore(bool);
+        impl Drop for Restore {
+            fn drop(&mut self) {
+                LIFTED.with(|lifted| lifted.set(self.0));
+            }
+        }
+        let _restore = Restore(LIFTED.with(|lifted| lifted.replace(true)));
+        op(self)
     }
 
     /// `edge`'s stored description restated on the charts its moved
     /// faces go to: [`Body::carried_redescriptions`]' entry for it. A
     /// chart image is stated in its chart's coordinates, so it is left
     /// to be re-derived on a chart whose payload is not the old one's.
-    fn carried_spec(
-        &self,
-        edge: EdgeKey,
-        sides: Sides,
-        charts: &[Rechart<T>],
-    ) -> Result<EdgeCurveSpec<T>, EulerOpError> {
-        let curve_key = self
-            .get_edge(edge)
-            .ok_or(EulerOpError::StaleKey {
-                key: EntityId::Edge(edge),
-            })?
-            .curve;
-        let mut spec = self
-            .get_curve_geom(curve_key)
-            .and_then(crate::CurveGeom::certified)
-            .ok_or(EulerOpError::StaleGeometry {
-                key: GeomRef::Curve(curve_key),
-            })?
-            .restated_spec();
+    fn carried_spec(&self, edge: EdgeKey, sides: Sides, charts: &[Rechart<T>]) -> EdgeCurveSpec<T> {
+        let curve_key = proven(&self.edges, edge, EntityId::Edge).curve;
+        let Some(certified) = self.edge_curve(edge, curve_key).certified() else {
+            unreachable!(
+                "{edge:?} is carried, and `rechart_edges` carries only a certified edge \
+                 (it skips scaffold and null edges)"
+            )
+        };
+        let mut spec = certified.restated_spec();
         if let geom_brep::EdgeDescriptionSpec::Chart { surface, image, .. } = &mut spec.description
         {
             let same = match sides.repoint(*surface) {
@@ -700,61 +1054,98 @@ impl<T: Decide> Body<T> {
                 *image = None;
             }
         }
-        Ok(spec)
+        spec
     }
 
     /// `edge`'s two faces (`he_plus`'s, then `he_minus`'s) across a
     /// re-chart: the surface each wears now, and the one it wears once
     /// `moved` has moved it.
+    /// `edge` is one the caller resolved.
     fn sides(
         &self,
         edge: EdgeKey,
-        moved: impl Fn(FaceKey) -> Option<Slot>,
-    ) -> Result<Sides, EulerOpError> {
-        let edge_data = self.get_edge(edge).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Edge(edge),
-        })?;
-        let side = |he: HalfEdgeKey| {
-            let he_data = self.resolve_half_edge(he)?;
-            let face = self
-                .get_loop(he_data.parent_loop)
-                .ok_or(EulerOpError::StaleKey {
-                    key: EntityId::Loop(he_data.parent_loop),
-                })?
-                .face;
-            let surface = self
-                .get_face(face)
-                .ok_or(EulerOpError::StaleKey {
-                    key: EntityId::Face(face),
-                })?
-                .surface;
-            Ok::<_, EulerOpError>((surface, moved(face).unwrap_or(Slot::Kept(surface))))
+        moved: impl Fn(HalfEdgeKey, LoopKey, FaceKey) -> Option<Slot>,
+    ) -> Sides {
+        let edge_data = proven(&self.edges, edge, EntityId::Edge);
+        let side = |he: HalfEdgeKey, field: &'static str| {
+            let he_id = EntityId::HalfEdge(he);
+            let r#loop = linked(
+                &self.half_edges,
+                he,
+                EntityId::HalfEdge,
+                EntityId::Edge(edge),
+                field,
+            )
+            .parent_loop;
+            let face = linked(&self.loops, r#loop, EntityId::Loop, he_id, "parent_loop").face;
+            let surface = linked(
+                &self.faces,
+                face,
+                EntityId::Face,
+                EntityId::Loop(r#loop),
+                "face",
+            )
+            .surface;
+            (
+                surface,
+                moved(he, r#loop, face).unwrap_or(Slot::Kept(surface)),
+                face,
+            )
         };
-        let (plus, plus_after) = side(edge_data.he_plus)?;
-        let (minus, minus_after) = side(edge_data.he_minus)?;
-        Ok(Sides {
+        let (plus, plus_after, plus_face) = side(edge_data.he_plus, "he_plus");
+        let (minus, minus_after, minus_face) = side(edge_data.he_minus, "he_minus");
+        Sides {
             before: [plus, minus],
             after: [plus_after, minus_after],
-        })
+            faces: [plus_face, minus_face],
+        }
     }
 
     /// `edge`'s two endpoint points, `he_plus` forward order — the
     /// points every attach door certifies a description against.
-    fn edge_endpoints(&self, edge: EdgeKey) -> Result<(Point3<T>, Point3<T>), EulerOpError> {
-        let he_plus = self
-            .get_edge(edge)
-            .ok_or(EulerOpError::StaleKey {
-                key: EntityId::Edge(edge),
-            })?
-            .he_plus;
-        let start = self.resolve_half_edge(he_plus)?.start;
-        let end = self.half_edge_end(he_plus).ok_or(EulerOpError::StaleKey {
-            key: EntityId::HalfEdge(he_plus),
-        })?;
-        Ok((
-            self.resolve_vertex_point(start)?,
-            self.resolve_vertex_point(end)?,
-        ))
+    /// `edge` is one the caller resolved.
+    fn edge_endpoints(&self, edge: EdgeKey) -> (Point3<T>, Point3<T>) {
+        let [(_, start), (_, end)] = self.edge_ends(edge);
+        (start, end)
+    }
+
+    /// `edge`'s two end vertices and their points, `he_plus` forward
+    /// order. `edge` is one the caller resolved.
+    fn edge_ends(&self, edge: EdgeKey) -> [(VertexKey, Point3<T>); 2] {
+        let he_plus = proven(&self.edges, edge, EntityId::Edge).he_plus;
+        let plus = linked(
+            &self.half_edges,
+            he_plus,
+            EntityId::HalfEdge,
+            EntityId::Edge(edge),
+            "he_plus",
+        );
+        let next = plus.next;
+        let end = linked(
+            &self.half_edges,
+            next,
+            EntityId::HalfEdge,
+            EntityId::HalfEdge(he_plus),
+            "next",
+        )
+        .start;
+        [
+            (
+                plus.start,
+                self.linked_vertex_point(plus.start, EntityId::HalfEdge(he_plus), "start"),
+            ),
+            (
+                end,
+                self.linked_vertex_point(end, EntityId::HalfEdge(next), "start"),
+            ),
+        ]
+    }
+
+    /// The curve geometry `edge`'s `curve` field names.
+    #[track_caller]
+    fn edge_curve(&self, edge: EdgeKey, curve: CurveKey) -> &crate::CurveGeom<T> {
+        self.get_curve_geom(curve)
+            .unwrap_or_else(|| dangling_link(EntityId::Edge(edge), "curve", GeomRef::Curve(curve)))
     }
 
     /// Sets `face`'s orientation sense ([`crate::Face::sense`]) in
@@ -781,12 +1172,12 @@ impl<T: Decide> Body<T> {
     ///
     /// # Errors
     ///
-    /// [`EulerOpError::StaleKey`] if `face` does not resolve. The body
-    /// is untouched on `Err`.
+    /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) if `face` does not
+    /// resolve. The body is untouched on `Err`.
     pub fn set_face_sense(&mut self, face: FaceKey, sense: bool) -> Result<(), EulerOpError> {
-        let f = self.get_face_mut(face).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Face(face),
-        })?;
+        let f = self
+            .get_face_mut(face)
+            .ok_or_else(|| Arg("face").miss(EntityId::Face(face)))?;
         f.sense = sense;
         Ok(())
     }
@@ -798,63 +1189,63 @@ impl<T: Decide> Body<T> {
     /// be **adjacency-coherent** (module docs). The old curve is
     /// removed iff no other edge references it.
     ///
-    /// **A carrier swap leaves the pcurve rows where they are, and
-    /// that is not [`Body::set_face_surface`]'s case.** A row is stated
-    /// in a FACE's chart and keyed on a half-edge; this door moves
-    /// neither, so no row changes what it is ABOUT. What it does change
-    /// is what the row must agree WITH, and the tier-3 pcurve pass
-    /// re-derives that agreement from the edge's CURRENT curve on every
-    /// run — so on a COMPLETE face a row left saying the old carrier's
-    /// image is refused per half-edge, loud, which is where the surface
-    /// setter was silent.
-    ///
-    /// **Two faces of the pass are silent, and neither is this door's
-    /// to close.** A face whose chart mints nothing holds no minted row
-    /// for a carrier swap to stale at all. A HALF-MINTED face does hold
-    /// them, and the pass skips its re-certification entirely — it
-    /// reports the missing rows and then measures nothing else about
-    /// that face
-    /// (`work/trim/validate-pcurves-never-recertifies-a-face-it-finds-incomplete`),
-    /// so a row this door stales there is accepted unmeasured. That is
-    /// the pass's property for every content staleness in the tree, not
-    /// a fact about carrier swaps, and dropping rows here would buy a
-    /// `MissingCache` on that one face at the price of a re-mint on
-    /// every swap that certifies — including the upgrades this door
-    /// exists for, whose rows stay true within band.
-    ///
-    /// **A null edge's first description re-mints its loops.**
-    /// [`Body::mev_null`] adds two halves with no carrier to derive a
-    /// row from, and returns a minted face missing their rows. The
-    /// carrier arrives here, so before the door mutates, each face the
+    /// **Every description re-mints the faces its halves are on.** A row
+    /// is stated in a face's chart over its edge's carrier and interval,
+    /// and this door installs a new carrier, so it keeps no row of the
+    /// old one; a null edge's first carrier is the first from which its
+    /// halves' rows can be derived ([`Body::mev_null`] returns a minted
+    /// face missing them). Before the door mutates, each face the
     /// halves are on that the site mint selects — a minted face whose
     /// every loop walks, and whose only gaps are on loops a null edge
     /// holds open or which no null edge is left on once this one is
-    /// described — has every loop that no null edge holds open then
-    /// re-minted whole, through the site mint the Euler operators run
-    /// ([`crate::pcurves`]' `site_rows`): the loop leaves complete — the
-    /// rows of halves an operator added while it was held open included,
-    /// and on a face no null edge is left on every row it missed — or
-    /// the face rowless where the closed-form lane cannot mint it. A
-    /// loop another null edge still runs through is left as found, for
-    /// that edge to release. A face on a spline chart is left as found.
+    /// described — has every loop that no null edge holds open walked and
+    /// completed, through the site mint the Euler operators run
+    /// ([`crate::pcurves`]' `site_rows`), the edge's halves under the
+    /// curve the door installs: the loop leaves complete — the rows of
+    /// halves an operator added while it was held open included, and on
+    /// a face no null edge is left on every row it missed — or the face
+    /// rowless where the closed-form lane cannot mint it. A loop another
+    /// null edge still runs through is left as found, for that edge to
+    /// release. A face it finds half-minted is left as found, and so is a
+    /// certified edge's face on a spline chart; a row kept there is the
+    /// tier-3 pcurve pass's, which re-derives each stored row's agreement
+    /// from the edge's current carrier.
     ///
     /// # Errors
     ///
-    /// [`EulerOpError::StaleKey`] / [`EulerOpError::StaleGeometry`] on
-    /// unresolvable topology/points;
-    /// [`EulerOpError::DescriptionNotAdjacent`] on an
+    /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) if `edge` does not
+    /// resolve; [`EulerOpError::DescriptionNotAdjacent`] on an
     /// `Intersection`/`Seam` description whose surfaces are not the
     /// edge's faces' surfaces; [`EulerOpError::Certification`] on a
-    /// failed gate; [`EulerOpError::PcurveMint`] where a null edge's
-    /// face is re-minted and a half-edge of it does not resolve. The
-    /// body is untouched on `Err`.
+    /// failed gate, whose plane × NURBS lane is the scalar's policy
+    /// ([`crate::AtRestPolicy::nurbs_lane`]), and
+    /// [`EulerOpError::NurbsLaneUnsupported`] where that class meets a
+    /// scalar holding none; [`EulerOpError::PcurveMint`] where a face is
+    /// re-minted and a half-edge of it does not resolve.
+    /// The body is untouched on `Err`.
     pub fn set_edge_curve(
         &mut self,
         edge: EdgeKey,
         curve: EdgeCurveSpec<T>,
         tol: Tol,
-    ) -> Result<CurveKey, EulerOpError> {
-        self.set_edge_curve_via(edge, curve, Self::certify_edge_spec, tol)
+    ) -> Result<CurveKey, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        require_key(&self.edges, edge, EntityId::Edge, Arg("edge"))?;
+        let (p_start, p_end) = self.edge_endpoints(edge);
+        self.check_description_adjacent(edge, &curve.description)?;
+
+        let certified = self.certify_edge_spec(Some(edge), curve, p_start, p_end, tol)?;
+        let rows = self.description_rows(&[(edge, &certified)], |_| Ok(Vec::new()), tol)?;
+
+        // ---- Mutation (infallible from here on). ----
+        let new = self.replace_edge_curve(edge, certified);
+        crate::pcurves::apply_site_rows(self, rows, None);
+
+        #[cfg(debug_assertions)]
+        self.assert_tier1_postcondition("set_edge_curve");
+        Ok(new)
     }
 
     /// Re-states `edge` as an image in `chart`, keeping its carrier,
@@ -887,9 +1278,9 @@ impl<T: Decide> Body<T> {
     ///
     /// # Errors
     ///
-    /// [`EulerOpError::StaleKey`] / [`EulerOpError::StaleGeometry`] on
-    /// unresolvable topology or geometry;
-    /// [`EulerOpError::NullScaffoldCurve`] on an edge whose curve
+    /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) if `edge` does not
+    /// resolve, and [`BadArgument::StaleGeometry`](crate::euler::BadArgument::StaleGeometry)
+    /// if `chart` does not; [`EulerOpError::NullScaffoldCurve`] on an edge whose curve
     /// carries no certified geometry to re-state; and whatever
     /// [`Body::set_edge_curve`] raises on the re-attachment.
     pub fn describe_at_rest(
@@ -897,18 +1288,16 @@ impl<T: Decide> Body<T> {
         edge: EdgeKey,
         chart: SurfaceKey,
         tol: Tol,
-    ) -> Result<(), EulerOpError> {
-        let curve_key = self
-            .get_edge(edge)
-            .ok_or(EulerOpError::StaleKey {
-                key: EntityId::Edge(edge),
-            })?
-            .curve;
+    ) -> Result<(), EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        let curve_key = lookup(&self.edges, edge, EntityId::Edge, Arg("edge"))?.curve;
+        if !self.surfaces.contains_key(chart) {
+            return Err(Arg("chart").miss_geometry(GeomRef::Surface(chart)));
+        }
         let spec = self
-            .get_curve_geom(curve_key)
-            .ok_or(EulerOpError::StaleGeometry {
-                key: crate::GeomRef::Curve(curve_key),
-            })?
+            .edge_curve(edge, curve_key)
             .certified()
             .ok_or(EulerOpError::NullScaffoldCurve { curve: curve_key })?
             .restated_spec()
@@ -917,84 +1306,106 @@ impl<T: Decide> Body<T> {
         Ok(())
     }
 
-    /// [`Body::set_edge_curve`] with the certification door supplied by
-    /// the caller — the one axis on which the two attach doors differ
-    /// (the plane × NURBS lane, M7-8). Every precondition, every
-    /// adjacency rule and every mutation below is shared verbatim, so
-    /// the doors cannot drift apart.
-    pub(crate) fn set_edge_curve_via(
-        &mut self,
-        edge: EdgeKey,
-        curve: EdgeCurveSpec<T>,
-        certify: impl FnOnce(
-            &Self,
-            EdgeCurveSpec<T>,
-            geom_core::Point3<T>,
-            geom_core::Point3<T>,
-            Tol,
-        ) -> Result<geom_brep::EdgeCurve<T>, EulerOpError>,
-        tol: Tol,
-    ) -> Result<CurveKey, EulerOpError> {
-        let (p_start, p_end) = self.edge_endpoints(edge)?;
-        self.check_description_adjacent(edge, &curve.description)?;
-
-        let certified = certify(self, curve, p_start, p_end, tol)?;
-        let rows = self.null_description_rows(edge, &certified, tol)?;
-
-        // ---- Mutation (infallible from here on). ----
-        let new = self.replace_edge_curve(edge, certified);
-        crate::pcurves::apply_site_rows(self, rows, None);
-
-        #[cfg(debug_assertions)]
-        self.assert_tier1_postcondition("set_edge_curve");
-        Ok(new)
+    /// Every edge described as a wrap edge whose two halves an operation
+    /// has left on two faces, re-described where it rests: the same
+    /// image in the chart it names, without the wrap flag. A wrap
+    /// edge is a fact about ONE face (D1), so once a cut parts its
+    /// halves it is a boundary between two faces of one surface, and
+    /// tier 3 holds it to that (`DescriptionNotAdjacent`).
+    pub(crate) fn rest_parted_wrap_edges(&mut self, tol: Tol) -> Result<(), EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        let parted: Vec<(EdgeKey, geom_brep::EdgeCurveSpec<T>)> = self
+            .edges
+            .iter()
+            .filter_map(|(edge, e)| {
+                let c = self.edge_curve_linked(edge, e).certified()?;
+                let geom_brep::EdgeDescription::Chart(ch) = c.description() else {
+                    return None;
+                };
+                let sides = crate::readback::edge_sides_of(self, edge, e);
+                if !ch.wrap || sides.plus.face == sides.minus.face {
+                    return None;
+                }
+                let mut spec = c.restated_spec();
+                if let geom_brep::EdgeDescriptionSpec::Chart { ref mut wrap, .. } = spec.description
+                {
+                    *wrap = false;
+                }
+                Some((edge, spec))
+            })
+            .collect();
+        for (edge, spec) in parted {
+            self.set_edge_curve(edge, spec, tol)?;
+        }
+        Ok(())
     }
 
-    /// **The rows a null edge's first description writes**, decided
-    /// before [`Body::set_edge_curve_via`] mutates: one plan per face
-    /// the edge's halves are on, for [`crate::pcurves::apply_site_rows`].
+    /// **The rows a description writes**, decided before its door
+    /// mutates: one plan per face the halves of an edge in `described`
+    /// are on that the description re-mints
+    /// ([`Body::description_remints`]), for
+    /// [`crate::pcurves::apply_site_rows`]. `described` is every edge the
+    /// door describes, with the curve it installs; `rewired` reads every
+    /// loop the door's own surgery rewires, as the door leaves it (none
+    /// for [`Body::set_edge_curve`], whose description moves no key; the
+    /// loops the kill unsplices for [`Body::kev_describing`]), and runs
+    /// only where a face is re-minted. Every other loop is read as found.
+    /// Every edge in `described` is one the caller resolved.
     ///
-    /// Empty unless `edge` is a null edge ([`crate::CurveGeom::NullScaffold`]):
-    /// a certified edge's description moves no key, so no row goes
-    /// missing (the door's docs), and a face it finds half-minted is
-    /// left as found. A null edge's description is the first door that
-    /// can derive its halves' rows, so on each face they are on that the
-    /// site mint selects it re-walks every loop, through the Euler
-    /// operators' site mint ([`Body::plan_site_mint`]), and mints each
-    /// one no other null edge runs through; on a spline chart the face
-    /// is left as found.
+    /// Empty unless a face is re-minted: every face of a null edge
+    /// ([`crate::CurveGeom::NullScaffold`]), whose description is the
+    /// first door that can derive its halves' rows, and every face of a
+    /// certified one off a spline chart, whose rows are stated over the
+    /// carrier and interval the description replaces.
+    /// On each face their halves are on that the site mint selects it
+    /// walks every loop, through the Euler operators' site mint
+    /// ([`Body::plan_site_mint`]), each half of a described edge under
+    /// the curve the door installs, and on each loop no null edge runs
+    /// through after the door mints what is missing, those halves' rows
+    /// among it. A face it finds half-minted is left as found, and so is
+    /// one on a spline chart: a null edge holds it open, and a certified
+    /// edge's face is left where the closed-form lane does not reach.
     ///
     /// # Errors
     ///
-    /// [`EulerOpError::StaleKey`] / [`EulerOpError::StaleGeometry`] where
-    /// a half, loop, face or surface does not resolve;
-    /// [`EulerOpError::Certification`] where `tol` builds no band;
-    /// [`EulerOpError::PcurveMint`] naming the face a half-edge of which
+    /// What `rewired` raises; [`EulerOpError::Certification`] where
+    /// `tol` builds no band; [`EulerOpError::PcurveMint`] naming the face a half-edge of which
     /// did not resolve.
-    fn null_description_rows(
+    pub(crate) fn description_rows(
         &self,
-        edge: EdgeKey,
-        curve: &EdgeCurve<T>,
+        described: &[(EdgeKey, &EdgeCurve<T>)],
+        rewired: impl FnOnce(&Self) -> Result<Vec<(LoopKey, Vec<HalfEdgeKey>)>, EulerOpError>,
         tol: Tol,
     ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
-        let edge_data = self.get_edge(edge).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Edge(edge),
-        })?;
-        let is_null = self
-            .get_curve_geom(edge_data.curve)
-            .ok_or(EulerOpError::StaleGeometry {
-                key: GeomRef::Curve(edge_data.curve),
-            })?
-            .null_scaffold()
-            .is_some();
-        if !is_null {
+        let mut halves: Vec<HalfEdgeKey> = Vec::with_capacity(2 * described.len());
+        let mut touched: Vec<LoopKey> = Vec::new();
+        for &(edge, _) in described {
+            let edge_data = proven(&self.edges, edge, EntityId::Edge);
+            let pair = [
+                (edge_data.he_plus, "he_plus"),
+                (edge_data.he_minus, "he_minus"),
+            ];
+            halves.extend(pair.map(|(he, _)| he));
+            for (he, field) in pair {
+                let he_data = linked(
+                    &self.half_edges,
+                    he,
+                    EntityId::HalfEdge,
+                    EntityId::Edge(edge),
+                    field,
+                );
+                let face = crate::pcurves::half_edge_face(self, he).0;
+                if self.description_remints(edge, face) {
+                    touched.push(he_data.parent_loop);
+                }
+            }
+        }
+        if touched.is_empty() {
             return Ok(Vec::new());
         }
-        let halves = [edge_data.he_plus, edge_data.he_minus];
-        let touched = [
-            self.resolve_half_edge(halves[0])?.parent_loop,
-            self.resolve_half_edge(halves[1])?.parent_loop,
-        ];
+        let rewired = rewired(self)?;
         let site_half = |h: HalfEdgeKey| {
             if halves.contains(&h) {
                 SiteHalf::Described(h)
@@ -1005,27 +1416,59 @@ impl<T: Decide> Body<T> {
         self.plan_site_mint(
             &touched,
             |body, minted| {
-                minted
+                Ok(minted
                     .iter()
                     .map(|(face, from)| {
                         let every_loop: Vec<(LoopKey, Vec<SiteHalf>)> = from
                             .rows
                             .loops
                             .iter()
-                            .filter_map(|(lk, cycle)| {
-                                Some((
-                                    *lk,
-                                    cycle.as_deref()?.iter().copied().map(site_half).collect(),
-                                ))
+                            .map(|(lk, cycle)| {
+                                let cycle = match rewired.iter().find(|(k, _)| k == lk) {
+                                    Some((_, after)) => after.as_slice(),
+                                    None => cycle.as_slice(),
+                                };
+                                (*lk, cycle.iter().copied().map(site_half).collect())
                             })
                             .collect();
                         body.site_face(*face, &every_loop, None)
                     })
-                    .collect()
+                    .collect())
             },
-            Some(curve),
+            SiteCarriers::Described(described),
             tol,
         )
+    }
+
+    /// Whether [`Body::description_rows`] plans `face` for `edge`: one
+    /// of `edge`'s halves is on it, and it is off a spline chart unless
+    /// `edge` is null. The one home of that decision: the
+    /// description plans a half's face by it, and
+    /// [`Body::kev_describing`]'s released-loop plan leaves such a face
+    /// to the description's. `edge` and `face` are ones the caller
+    /// resolved.
+    pub(crate) fn description_remints(&self, edge: EdgeKey, face: FaceKey) -> bool {
+        let edge_data = proven(&self.edges, edge, EntityId::Edge);
+        let null = self
+            .edge_curve_linked(edge, edge_data)
+            .null_scaffold()
+            .is_some();
+        [edge_data.he_plus, edge_data.he_minus]
+            .into_iter()
+            .any(|h| {
+                crate::pcurves::half_edge_face(self, h).0 == face
+                    && (null || !self.face_on_spline_chart(face))
+            })
+    }
+
+    /// Whether `face`'s chart is a spline one, where the site mint's
+    /// closed-form lane does not reach. `face` is one the caller
+    /// resolved.
+    fn face_on_spline_chart(&self, face: FaceKey) -> bool {
+        let face_data = proven(&self.faces, face, EntityId::Face);
+        self.face_surface_linked(face, face_data)
+            .spline_chart()
+            .is_some()
     }
 
     /// The mutation half of every door that re-describes an existing
@@ -1054,28 +1497,66 @@ impl<T: Decide> Body<T> {
         new
     }
 
-    /// The **description-adjacency coherence** check (module docs) for
-    /// a spec about to describe `edge`: an intrinsic description's two
-    /// surfaces are exactly the edge's two faces' surfaces, a chart
-    /// image names one of them, a chart seam names the one surface on
-    /// both sides, and a scaffold names none. Pure — the plan-phase
-    /// half of every door that re-describes an existing edge.
+    /// [`require_description_adjacent`] for a spec about to describe
+    /// `edge`, against the surfaces its two faces wear now. Pure — the
+    /// plan-phase half of every door that re-describes an existing
+    /// edge. `edge` is one the caller resolved.
     ///
     /// # Errors
     ///
-    /// [`EulerOpError::StaleKey`] when the edge, a half, a loop or a
-    /// face does not resolve; [`EulerOpError::DescriptionNotAdjacent`]
-    /// when the description names surfaces that are not the edge's.
+    /// [`EulerOpError::DescriptionNotAdjacent`] when the description
+    /// names surfaces that are not the edge's.
     pub(crate) fn check_description_adjacent(
         &self,
         edge: EdgeKey,
         description: &geom_brep::EdgeDescriptionSpec<T>,
     ) -> Result<(), EulerOpError> {
-        let sides = self.sides(edge, |_| None)?;
-        if !sides.coherent_before(Named::of_spec(description)) {
-            return Err(EulerOpError::DescriptionNotAdjacent { edge });
-        }
+        let sides = self.sides(edge, |_, _, _| None);
+        require_description_adjacent(Some(edge), description, sides.before.map(Slot::Kept))
+    }
+
+    /// Whether `edge`'s STORED description is adjacency-coherent with
+    /// the two faces it lies between: [`require_description_adjacent`]'s
+    /// reading of the description at rest, tier 3's
+    /// `DescriptionNotAdjacent`. Exact: it compares keys and reads no
+    /// coordinate.
+    ///
+    /// `edge` is one the caller resolved.
+    ///
+    /// # Panics
+    ///
+    /// If `edge` or a record it links to does not resolve.
+    pub(crate) fn stored_description_adjacent(&self, edge: EdgeKey) -> bool {
+        let curve = proven(&self.edges, edge, EntityId::Edge).curve;
+        let stored = self.edge_curve(edge, curve);
+        let sides = self.sides(edge, |_, _, _| None);
+        Named::of(stored).adjacent_to(sides.before.map(Slot::Kept), Slot::Kept)
+    }
+}
+
+/// The **description-adjacency coherence** check (module docs), one
+/// home for [`Body::set_edge_curve`] and the minting doors that take a
+/// caller's description ([`Body::mef`]): an intrinsic description's two
+/// surfaces are exactly `faces`, a chart image names one of them, a
+/// wrap edge names the one surface on both sides (that its halves bound
+/// one face is tier 3's), and a scaffold names
+/// none. `faces` are the surfaces the edge's two faces wear, `he_plus`'s
+/// first; `edge` is the edge the refusal names, `None` for the one a
+/// minting door mints. Pure.
+///
+/// # Errors
+///
+/// [`EulerOpError::DescriptionNotAdjacent`] when the description names
+/// surfaces that are not `faces`.
+pub(crate) fn require_description_adjacent<T: Real>(
+    edge: Option<EdgeKey>,
+    description: &geom_brep::EdgeDescriptionSpec<T>,
+    faces: [Slot; 2],
+) -> Result<(), EulerOpError> {
+    if Named::of_spec(description).adjacent_to(faces, Slot::Kept) {
         Ok(())
+    } else {
+        Err(EulerOpError::DescriptionNotAdjacent { edge })
     }
 }
 
@@ -1139,6 +1620,53 @@ impl<T: Real> Rechart<T> {
     }
 }
 
+#[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
+thread_local! {
+    /// Whether [`Body::lifting_rechart_refusals_for_tests`] is running
+    /// on this thread.
+    static LIFTED: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
+}
+
+/// Whether the keys-only re-chart refusals are taken out
+/// ([`Body::lifting_rechart_refusals_for_tests`]); never outside a test
+/// build.
+fn refusals_lifted() -> bool {
+    #[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
+    {
+        LIFTED.with(core::cell::Cell::get)
+    }
+    #[cfg(not(any(test, feature = "test-support", feature = "sweep-testing")))]
+    {
+        false
+    }
+}
+
+/// How a door reads whether a moved boundary lies on its new chart
+/// ([`Body::unvouched`]).
+enum Reading<'a, T: Real> {
+    /// By the keys the boundary's descriptions name: a door with no band.
+    Keys,
+    /// By key, and where no key vouches, by residual against a plane
+    /// under `band`: [`Body::set_face_surfaces_describing`], with the
+    /// charts it moves faces onto and the re-descriptions it writes.
+    Residuals {
+        door: RechartDoor,
+        band: Band,
+        charts: &'a [Rechart<T>],
+        written: &'a [(EdgeKey, Sides, EdgeCurve<T>)],
+    },
+}
+
+impl<T: Real> Reading<'_, T> {
+    /// The re-descriptions the door writes, none for a keys-only door.
+    fn written(&self) -> &[(EdgeKey, Sides, EdgeCurve<T>)] {
+        match self {
+            Self::Keys => &[],
+            Self::Residuals { written, .. } => written,
+        }
+    }
+}
+
 /// A [`Rechart`]'s chart: [`FaceSurface`]'s `New` and `Shared`, the
 /// sense stated per face instead.
 #[derive(Clone, Debug)]
@@ -1179,15 +1707,16 @@ fn moved_slot(faces: &[MovedFace], face: FaceKey) -> Option<Slot> {
 struct RechartEdges {
     stranded: Vec<(EdgeKey, Sides)>,
     carried: Vec<(EdgeKey, Sides)>,
-    unvouched: Vec<EdgeKey>,
 }
 
 /// An edge's two faces across a re-chart ([`Body::sides`]): the surface
-/// each wears before, and after.
+/// each wears before, and after, and the face itself (`he_plus`'s,
+/// then `he_minus`'s).
 #[derive(Clone, Copy)]
 struct Sides {
     before: [SurfaceKey; 2],
     after: [Slot; 2],
+    faces: [FaceKey; 2],
 }
 
 impl Sides {
@@ -1210,59 +1739,238 @@ impl Sides {
         named.adjacent_to(self.before.map(Slot::Kept), Slot::Kept)
     }
 
-    fn coherent_after(self, named: Named) -> bool {
-        named.adjacent_to(self.after, |k| self.repoint(k))
+    /// What `key`, named in a description spelled `spelling`, stands
+    /// for once the re-chart lands.
+    fn slot_of(self, spelling: Spelling) -> impl Fn(SurfaceKey) -> Slot {
+        move |key| match spelling {
+            Spelling::Listed => self.repoint(key),
+            Spelling::Stored => Slot::Kept(key),
+        }
     }
 
-    /// Whether every side that moves lands on a key `named` names: the
-    /// edge's certificate vouches for it on each chart its faces move
-    /// onto.
-    fn vouched(self, named: Named) -> bool {
-        (0..2).all(|i| {
-            self.after[i] == Slot::Kept(self.before[i])
-                || named.keys().any(|k| Slot::Kept(k) == self.after[i])
+    fn coherent_after(self, named: Named, spelling: Spelling) -> bool {
+        named.adjacent_to(self.after, self.slot_of(spelling))
+    }
+
+    /// The sides that move and land on no key `named` names, its keys
+    /// read as `spelling` reads them: those the edge's certificate does
+    /// not vouch for on the chart their face moves onto. A scaffold or
+    /// null edge names nothing and carries no certificate, so it is not
+    /// asked.
+    fn unnamed(self, named: Named, spelling: Spelling) -> impl Iterator<Item = usize> {
+        let asked = !matches!(named, Named::Nothing);
+        let slot_of = self.slot_of(spelling);
+        (0..2).filter(move |&i| {
+            asked
+                && self.after[i] != Slot::Kept(self.before[i])
+                && !named.keys().any(|k| slot_of(k) == self.after[i])
         })
     }
+}
+
+/// Whose a description is, which decides what its keys stand for once
+/// a re-chart lands ([`Sides::slot_of`]).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Spelling {
+    /// A re-description the describing door is handed, or one
+    /// [`Body::carried_redescriptions`] would hand it: it names a chart
+    /// the call mints by a key the moving face wears now
+    /// ([`Sides::repoint`]).
+    Listed,
+    /// A stored description: each key stands for itself.
+    Stored,
 }
 
 /// The surface a face wears, or a description names, once a re-chart
 /// lands: a key the body already holds, or the chart the call mints at
 /// that position — which has no key until the mutation phase.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Slot {
+pub(crate) enum Slot {
     Kept(SurfaceKey),
     Minted(usize),
 }
 
+impl Slot {
+    /// The surface a face given `spec` wears, `own` being the key
+    /// `Inherit` keeps; a `New` surface is the one chart its door mints.
+    pub(crate) fn of_spec<T: Real>(spec: &FaceSurface<T>, own: SurfaceKey) -> Self {
+        match spec {
+            FaceSurface::Inherit => Self::Kept(own),
+            FaceSurface::New { .. } => Self::Minted(0),
+            FaceSurface::Shared { key, .. } => Self::Kept(*key),
+        }
+    }
+}
+
+/// Where a keys-only door's moving boundary lands ([`Body::vouch_move`]):
+/// the key it leaves, the surface its face wears after the move, and
+/// whether that surface is the "no chart yet" placeholder
+/// ([`geom::Surface::is_placeholder_chart`]), which no description names
+/// and no certificate vouches on.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Landing {
+    pub(crate) old: SurfaceKey,
+    pub(crate) after: Slot,
+    pub(crate) chartless: bool,
+}
+
+impl<T: Decide> Body<T> {
+    /// The landing of a boundary leaving `old` for a face given `spec`
+    /// (`Inherit` keeping `old`).
+    pub(crate) fn landing_of_spec(&self, old: SurfaceKey, spec: &FaceSurface<T>) -> Landing {
+        let chartless = match spec {
+            FaceSurface::Inherit => self.wears_no_chart(old),
+            FaceSurface::New { surface, .. } => surface.is_placeholder_chart(),
+            FaceSurface::Shared { key, .. } => self.wears_no_chart(*key),
+        };
+        Landing {
+            old,
+            after: Slot::of_spec(spec, old),
+            chartless,
+        }
+    }
+
+    /// The landing of a boundary leaving `old` for a face wearing `key`.
+    pub(crate) fn landing_on(&self, old: SurfaceKey, key: SurfaceKey) -> Landing {
+        Landing {
+            old,
+            after: Slot::Kept(key),
+            chartless: self.wears_no_chart(key),
+        }
+    }
+
+    /// Whether `key` is the "no chart yet" placeholder. A key that does
+    /// not resolve is not: the door's own lookups refuse it.
+    pub(crate) fn wears_no_chart(&self, key: SurfaceKey) -> bool {
+        self.surfaces
+            .get(key)
+            .is_some_and(Surface::is_placeholder_chart)
+    }
+}
+
+/// The move a kill ([`Body::kef`], [`Body::kfmrh`] and their describing
+/// twins) makes, as its plan phase proved it: the half-edges `moving`
+/// leave a face wearing `old` for `face`, wearing `onto`; `edges` are
+/// the edges they are halves of, once each, in move order; `one_payload`
+/// says whether the two keys share one payload ([`Body::same_chart`]).
+/// The door and its restater read it from one plan, so the set the
+/// restater states is the set the door moves.
+pub(crate) struct KillMove {
+    pub(crate) face: FaceKey,
+    pub(crate) old: SurfaceKey,
+    pub(crate) onto: SurfaceKey,
+    pub(crate) edges: Vec<EdgeKey>,
+    pub(crate) moving: Vec<HalfEdgeKey>,
+    pub(crate) one_payload: bool,
+}
+
+impl KillMove {
+    /// `moving` leaving a face wearing `old` for `face`, wearing `onto`.
+    pub(crate) fn of<T: Decide>(
+        body: &Body<T>,
+        face: FaceKey,
+        (old, onto): (SurfaceKey, SurfaceKey),
+        moving: Vec<HalfEdgeKey>,
+    ) -> Self {
+        Self {
+            face,
+            old,
+            onto,
+            edges: body.run_edges(&moving),
+            one_payload: body.same_chart(old, onto),
+            moving,
+        }
+    }
+}
+
+impl<T: Decide> Body<T> {
+    /// A keys-only kill's vouch ([`Body::vouch_move`]): it re-describes
+    /// nothing.
+    pub(crate) fn vouch_kill(
+        &self,
+        door: RechartDoor,
+        m: &KillMove,
+    ) -> Result<Vec<(EdgeKey, EdgeCurve<T>)>, EulerOpError> {
+        self.vouch_move(
+            door,
+            m.face,
+            self.landing_on(m.old, m.onto),
+            m.edges.iter().copied(),
+            |he, _, _| m.moving.contains(&he),
+            m.one_payload,
+            None,
+        )?;
+        Ok(Vec::new())
+    }
+
+    /// A describing kill's vouch ([`Body::vouch_described_move`]) with
+    /// `redescriptions` under `tol`'s band.
+    pub(crate) fn vouch_described_kill(
+        &self,
+        door: RechartDoor,
+        m: &KillMove,
+        redescriptions: &[(EdgeKey, EdgeDescriptionSpec<T>)],
+        tol: Tol,
+    ) -> Result<Vec<(EdgeKey, EdgeCurve<T>)>, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        self.vouch_described_move(
+            door,
+            m.face,
+            (m.old, m.onto),
+            &m.edges,
+            |he, _, _| m.moving.contains(&he),
+            m.one_payload,
+            redescriptions,
+            tol,
+        )
+    }
+
+    /// [`Body::kill_carried_redescriptions`] for a kill's move.
+    pub(crate) fn carried_by_kill(&self, m: &KillMove) -> Vec<(EdgeKey, EdgeDescriptionSpec<T>)> {
+        self.kill_carried_redescriptions((m.old, m.onto), &m.edges, |he, _, _| {
+            m.moving.contains(&he)
+        })
+    }
+}
+
 /// The surfaces an edge description names, in the shape the adjacency
 /// rule reads them — one reading for the stored description and the
-/// spec, so the attach doors cannot drift apart.
+/// spec, so the attach doors cannot drift apart, and the one reading of
+/// a description's surface references ([`Named::keys`]) that orphan
+/// hygiene and the validator's referential-integrity pass take.
 #[derive(Clone, Copy)]
-enum Named {
+pub(crate) enum Named {
     /// An intrinsic description's two operands (`Intersection` and
     /// `TangentIntersection` alike: the described pair IS the faces'
     /// pair).
     Pair(SurfaceKey, SurfaceKey),
-    /// A chart image's chart, and whether the image claims to be the
-    /// chart's parameterization seam.
-    Chart { surface: SurfaceKey, seam: bool },
+    /// A chart image's chart, and whether the edge is a wrap edge of a
+    /// face on it (D1).
+    Chart { surface: SurfaceKey, wrap: bool },
     /// A scaffold, or a null edge: there is no surface to name.
     Nothing,
 }
 
 impl Named {
-    fn of<T: Real>(curve: &crate::CurveGeom<T>) -> Self {
-        let Some(curve) = curve.certified() else {
-            return Self::Nothing;
-        };
-        match curve.description() {
+    /// What `curve` names: a null edge has no description and names
+    /// nothing.
+    pub(crate) fn of<T: Real>(curve: &crate::CurveGeom<T>) -> Self {
+        curve.certified().map_or(Self::Nothing, |curve| {
+            Self::of_description(curve.description())
+        })
+    }
+
+    fn of_description<T: Real>(description: &geom_brep::EdgeDescription<T>) -> Self {
+        match description {
             geom_brep::EdgeDescription::Intersection { s1, s2, .. }
             | geom_brep::EdgeDescription::TangentIntersection { s1, s2, .. } => {
                 Self::Pair(*s1, *s2)
             }
             geom_brep::EdgeDescription::Chart(c) => Self::Chart {
                 surface: c.surface,
-                seam: c.seam,
+                wrap: c.wrap,
             },
             geom_brep::EdgeDescription::Scaffold(_) => Self::Nothing,
         }
@@ -1274,14 +1982,17 @@ impl Named {
             | geom_brep::EdgeDescriptionSpec::TangentIntersection { s1, s2, .. } => {
                 Self::Pair(s1, s2)
             }
-            geom_brep::EdgeDescriptionSpec::Chart { surface, seam, .. } => {
-                Self::Chart { surface, seam }
+            geom_brep::EdgeDescriptionSpec::Chart { surface, wrap, .. } => {
+                Self::Chart { surface, wrap }
             }
             geom_brep::EdgeDescriptionSpec::Scaffold(_) => Self::Nothing,
         }
     }
 
-    fn keys(self) -> impl Iterator<Item = SurfaceKey> {
+    /// The surface keys the description references: the intrinsic
+    /// arms' pair, a chart image's chart, none for a scaffold (whose
+    /// pushforward carries its own defining data) or a null edge.
+    pub(crate) fn keys(self) -> impl Iterator<Item = SurfaceKey> {
         let (a, b) = match self {
             Self::Pair(s1, s2) => (Some(s1), Some(s2)),
             Self::Chart { surface, .. } => (Some(surface), None),
@@ -1294,18 +2005,17 @@ impl Named {
     /// and `minus`, its own keys read through `slot_of`. A chart image
     /// names ONE of the two faces' surfaces (a wall–wall seam is the
     /// u-boundary iso of either wall, and the minted convention picks
-    /// one); an image that claims to BE the chart's parameterization
-    /// seam names the one surface on both sides, by what a seam is; a
-    /// scaffold names none.
+    /// one); a wrap edge names the one surface on both sides, its two
+    /// halves bounding one face on it (D1); a scaffold names none.
     fn adjacent_to(self, [plus, minus]: [Slot; 2], slot_of: impl Fn(SurfaceKey) -> Slot) -> bool {
         match self {
             Self::Pair(s1, s2) => {
                 let (s1, s2) = (slot_of(s1), slot_of(s2));
                 (s1 == plus && s2 == minus) || (s1 == minus && s2 == plus)
             }
-            Self::Chart { surface, seam } => {
+            Self::Chart { surface, wrap } => {
                 let surface = slot_of(surface);
-                if seam {
+                if wrap {
                     surface == plus && surface == minus
                 } else {
                     surface == plus || surface == minus
@@ -1325,8 +2035,8 @@ mod tests {
 
     use super::Rechart;
     use crate::body::Body;
-    use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary};
-    use crate::euler::{EulerOpError, FaceSurface};
+    use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
+    use crate::euler::{EulerOpError, FaceSurface, MefSite, RechartDoor};
     use crate::fixtures::{assert_err_deep_unchanged, deep_snapshot};
     use crate::geometry::SurfaceKey;
     use crate::test_support_fixtures::{brick, plant_ring_face};
@@ -1345,10 +2055,7 @@ mod tests {
         body.faces()
             .find(|(_, f)| match body.get_surface(f.surface) {
                 Some(Surface::Plane { origin, normal, .. }) => {
-                    let (o, n) = (
-                        [origin.x, origin.y, origin.z],
-                        [normal.x, normal.y, normal.z],
-                    );
+                    let (o, n) = (origin.to_array(), normal.to_array());
                     n[axis].abs() > 0.5 && o[axis] == value
                 }
                 _ => false,
@@ -1401,8 +2108,9 @@ mod tests {
     fn edges_naming(body: &Body<f64>, surface: SurfaceKey) -> Vec<EdgeKey> {
         body.edges()
             .filter(|(_, e)| {
-                Body::<f64>::description_surfaces(body.get_curve_geom(e.curve).unwrap())
-                    .contains(&surface)
+                super::Named::of(body.get_curve_geom(e.curve).unwrap())
+                    .keys()
+                    .any(|k| k == surface)
             })
             .map(|(k, _)| k)
             .collect()
@@ -1410,11 +2118,8 @@ mod tests {
 
     /// `edge`'s two faces, `he_plus`'s first.
     fn faces_of(body: &Body<f64>, edge: EdgeKey) -> [FaceKey; 2] {
-        let e = body.get_edge(edge).unwrap();
-        [
-            body.face_of_half_edge(e.he_plus).unwrap(),
-            body.face_of_half_edge(e.he_minus).unwrap(),
-        ]
+        let (plus, minus) = crate::readback::edge_sides(body, edge).unwrap().faces();
+        [plus, minus]
     }
 
     /// The edges with a half on `face`, in edge-arena order.
@@ -1460,11 +2165,12 @@ mod tests {
     }
 
     /// The unit brick with a square membrane planted in its top cap: a
-    /// ring face on the cap's key, every one of its edges an image in
-    /// that chart — an inlay whose every edge is smooth, so no edge of
-    /// it names a surface only the membrane wears. After the review's
-    /// C1 probe (PR 3580).
-    fn brick_with_inlay() -> (Body<f64>, FaceKey, FaceKey) {
+    /// ring face on the cap's key, whose four edges are scaffolds until
+    /// [`brick_with_inlay`] describes each as an image in that chart —
+    /// an inlay whose every edge is smooth, so no edge of it names a
+    /// surface only the membrane wears. After the review's C1 probe
+    /// (PR 3580).
+    fn brick_with_scaffold_inlay() -> (Body<f64>, FaceKey, FaceKey) {
         let mut body = unit_brick();
         let top = face_at(&body, 2, 1.0);
         let LoopBoundary::Cycle { first } = body
@@ -1487,6 +2193,14 @@ mod tests {
             cap,
             "the membrane is on the cap's key"
         );
+        (body, top, membrane)
+    }
+
+    /// [`brick_with_scaffold_inlay`] with every membrane edge described
+    /// as an image in the cap's chart.
+    fn brick_with_inlay() -> (Body<f64>, FaceKey, FaceKey) {
+        let (mut body, top, membrane) = brick_with_scaffold_inlay();
+        let cap = surf(&body, top);
         for edge in edges_of_face(&body, membrane) {
             let mut spec = restated(&body, edge);
             spec.description = EdgeDescriptionSpec::chart(cap);
@@ -1498,7 +2212,7 @@ mod tests {
     /// **The keys-only door refuses the swap it used to strand.** A
     /// swap of the top cap onto a fresh key leaves its four edges'
     /// `Intersection`s naming the key the cap left: the door names all
-    /// four and writes nothing. The stranding door returns `Ok` on the
+    /// four and writes nothing. The unvouched door returns `Ok` on the
     /// same swap, and tier 3 reports exactly those four at rest.
     #[test]
     fn a_swap_that_strands_an_edge_refuses_naming_every_one_and_writes_nothing() {
@@ -1513,9 +2227,9 @@ mod tests {
         };
 
         let mut stranded = body.clone();
-        // Lifts both refusals: the stranded state tier 3 reports at rest is the row.
+        // Lifts RechartStrandsDescriptions: the stranded state tier 3 reports at rest is the row.
         stranded
-            .set_face_surface_stranding_for_tests(top, swap())
+            .set_face_surface_unvouched_for_tests(top, swap())
             .unwrap();
         let errs = validate_geometric(&stranded, tol()).unwrap_err();
         let at_rest: Vec<EdgeKey> = errs
@@ -1530,6 +2244,7 @@ mod tests {
         assert_err_deep_unchanged(
             &mut body,
             &EulerOpError::RechartStrandsDescriptions {
+                door: RechartDoor::SetFaceSurface,
                 edges: named.clone(),
             },
             |b| b.set_face_surface(top, swap()).unwrap_err(),
@@ -1543,6 +2258,38 @@ mod tests {
     /// re-certified on the new key and the body is valid at rest. Onto a
     /// plane a thousand `eps` above the cap, the first of them does not
     /// certify and the door refuses, naming it, with the body untouched.
+    /// `describe_at_rest`'s two keys are both arguments: a dead chart
+    /// is the caller's `StaleGeometry` under the role `chart`, as a dead
+    /// edge is its `Stale` under `edge`, and neither writes.
+    #[test]
+    fn describe_at_rest_refuses_a_dead_chart_as_its_argument() {
+        let (mut body, top) = brick_and_top();
+        let chart = surf(&body, top);
+        let edge = edges_naming(&body, chart)[0];
+        assert_err_deep_unchanged(
+            &mut body,
+            &EulerOpError::Argument(crate::BadArgument::StaleGeometry {
+                role: "chart",
+                key: crate::GeomRef::Surface(SurfaceKey::default()),
+            }),
+            |b| {
+                b.describe_at_rest(edge, SurfaceKey::default(), tol())
+                    .unwrap_err()
+            },
+        );
+        assert_err_deep_unchanged(
+            &mut body,
+            &EulerOpError::Argument(crate::BadArgument::Stale {
+                role: "edge",
+                key: EntityId::Edge(EdgeKey::default()),
+            }),
+            |b| {
+                b.describe_at_rest(EdgeKey::default(), chart, tol())
+                    .unwrap_err()
+            },
+        );
+    }
+
     #[test]
     fn the_describing_door_takes_only_what_it_is_handed_and_refuses_where_it_goes_stale() {
         let (mut body, top) = brick_and_top();
@@ -1554,6 +2301,7 @@ mod tests {
         assert_err_deep_unchanged(
             &mut body,
             &EulerOpError::RechartUndescribed {
+                door: RechartDoor::SetFaceSurfacesDescribing,
                 edges: named.clone(),
             },
             |b| {
@@ -1656,6 +2404,7 @@ mod tests {
             body.clone()
                 .set_face_surface(top, FaceSurface::Shared { key: shared, sense }),
             Err(EulerOpError::RechartStrandsDescriptions {
+                door: RechartDoor::SetFaceSurface,
                 edges: named.clone()
             }),
         );
@@ -1720,7 +2469,7 @@ mod tests {
             let mut unvouched = body.clone();
             // Lifts RechartUnvouched: tier 3's verdict on the membrane off its own boundary is the row.
             unvouched
-                .set_face_surface_stranding_for_tests(membrane, plain.clone())
+                .set_face_surface_unvouched_for_tests(membrane, plain.clone())
                 .unwrap();
             let at_rest = kinds(&unvouched);
             assert!(
@@ -1732,14 +2481,17 @@ mod tests {
             assert_err_deep_unchanged(
                 &mut body,
                 &EulerOpError::RechartUnvouched {
+                    door: RechartDoor::SetFaceSurface,
                     face: membrane,
                     edges: rim.clone(),
+                    chord: false,
                 },
                 |b| b.set_face_surface(membrane, plain).unwrap_err(),
             );
             assert_err_deep_unchanged(
                 &mut body,
                 &EulerOpError::RechartOffBoundary {
+                    door: RechartDoor::SetFaceSurfacesDescribing,
                     face: membrane,
                     on: EntityId::Vertex(first_vertex),
                 },
@@ -1787,8 +2539,10 @@ mod tests {
         assert_err_deep_unchanged(
             &mut body,
             &EulerOpError::RechartUnvouched {
+                door: RechartDoor::SetFaceSurface,
                 face: membrane,
                 edges: rim.clone(),
+                chord: false,
             },
             |b| {
                 let again = cap_at(b, top, 0.0);
@@ -1810,11 +2564,12 @@ mod tests {
         assert_eq!(validate_geometric(&body, tol()), Ok(()));
     }
 
-    /// **A scaffold vouches for nothing and is not asked.** The inlay
-    /// with one rim edge re-described as a scaffold: the swap off the
-    /// cap's plane refuses, naming the three certified edges and not
-    /// the scaffold. With all four scaffolds, nothing is certified on
-    /// any chart and the keys-only door takes the swap.
+    /// **A scaffold vouches for nothing and is not asked, by either
+    /// door.** The inlay with one rim edge re-described as a scaffold:
+    /// the swap off the cap's plane refuses, naming the three certified
+    /// edges and not the scaffold, and the describing door refuses on a
+    /// certified edge's residual. With all four scaffolds, nothing is
+    /// certified on any chart and both doors take the swap.
     #[test]
     fn a_scaffold_on_the_face_vouches_for_nothing_and_is_not_asked() {
         let (mut body, _, membrane) = brick_with_inlay();
@@ -1826,7 +2581,7 @@ mod tests {
         };
         let rim = edges_of_face(&body, membrane);
         let scaffold = |b: &mut Body<f64>, edge: EdgeKey| {
-            let (p0, p1) = b.edge_endpoints(edge).unwrap();
+            let (p0, p1) = b.edge_endpoints(edge);
             b.set_edge_curve(edge, EdgeCurveSpec::line_between(p0, p1), tol())
                 .unwrap();
         };
@@ -1835,15 +2590,37 @@ mod tests {
         assert_err_deep_unchanged(
             &mut body,
             &EulerOpError::RechartUnvouched {
+                door: RechartDoor::SetFaceSurface,
                 face: membrane,
                 edges: rim[1..].to_vec(),
+                chord: false,
             },
             |b| b.set_face_surface(membrane, swap()).unwrap_err(),
         );
 
+        let describe = |b: &mut Body<f64>| {
+            b.set_face_surfaces_describing(
+                vec![Rechart::new(far.clone(), membrane, sense)],
+                &[],
+                tol(),
+            )
+        };
+        let before = deep_snapshot(&body);
+        let off = describe(&mut body);
+        assert!(
+            matches!(
+                off,
+                Err(EulerOpError::RechartOffBoundary { face, on: EntityId::Vertex(_) | EntityId::Edge(_), .. })
+                    if face == membrane
+            ),
+            "{off:?}"
+        );
+        assert_eq!(deep_snapshot(&body), before, "body changed on Err");
+
         for &edge in &rim[1..] {
             scaffold(&mut body, edge);
         }
+        assert!(describe(&mut body.clone()).is_ok());
         assert!(body.set_face_surface(membrane, swap()).is_ok());
     }
 
@@ -1864,30 +2641,38 @@ mod tests {
         ))
     }
 
-    /// **On a curved chart the keys-only door refuses, and the
-    /// describing door takes the swap whether or not the boundary lies
-    /// on it** (adopted from the PR 3598 review's
-    /// `offr_p1_curved_swaps`). The membrane onto a patch that is the
-    /// cap's plane, onto the same patch raised to z = 5, and onto a
-    /// cylinder off the brick: the keys-only door refuses each, naming
-    /// all four rim edges, with the body untouched. The describing door,
-    /// handed no re-descriptions, returns `Ok` on all three. The two off
-    /// the boundary are #638's residual
-    /// (`work/restfront/validate-tier3-curved-boundary-containment`):
-    /// once a curved chart's containment is asked, their `Ok` is what
-    /// this row reports.
+    /// The edges of `face`'s outer loop, in its cycle order.
+    fn cycle_edges(body: &Body<f64>, face: FaceKey) -> Vec<EdgeKey> {
+        outer_cycle(body, face)
+            .into_iter()
+            .map(|he| body.get_half_edge(he).unwrap().edge)
+            .collect()
+    }
+
+    /// **A curved chart no edge names is refused by both doors, and one
+    /// its edges are re-described on is taken** (adopted from the PR
+    /// 3598 review's `offr_p1_curved_swaps`). The membrane onto a patch
+    /// that is the cap's plane, onto the same patch raised to z = 5,
+    /// and onto a cylinder off the brick: no door reads a curved
+    /// chart's residuals and no edge names the new key, so both refuse
+    /// `RechartUnvouched` naming all four rim edges — the keys-only
+    /// door in edge-arena order, the describing door in the membrane's
+    /// cycle order, ending in its own lever — with the body untouched,
+    /// whether or not the boundary lies on the chart. A cylinder wall
+    /// onto a fresh copy of its cylinder, its rim restated there
+    /// ([`Body::carried_redescriptions`]), is vouched for by the rim.
     #[test]
-    fn a_curved_swap_is_refused_keys_only_and_taken_unchecked_by_the_describing_door() {
+    fn a_curved_chart_no_edge_names_is_refused_by_both_doors() {
         let cylinder = Surface::Cylinder {
             origin: Point3::new(10.0, 10.0, 10.0),
             axis: Vec3::unit_z(),
             radius: 0.5,
             u_ref: Vec3::unit_x(),
         };
-        for (label, surface, on_boundary) in [
-            ("the patch through the cap", nurbs_plane(1.0), true),
-            ("the patch at z = 5", nurbs_plane(5.0), false),
-            ("the cylinder off the brick", cylinder, false),
+        for (label, surface) in [
+            ("the patch through the cap", nurbs_plane(1.0)),
+            ("the patch at z = 5", nurbs_plane(5.0)),
+            ("the cylinder off the brick", cylinder),
         ] {
             let (mut body, _, membrane) = brick_with_inlay();
             let sense = sense(&body, membrane);
@@ -1895,8 +2680,10 @@ mod tests {
             assert_err_deep_unchanged(
                 &mut body,
                 &EulerOpError::RechartUnvouched {
+                    door: RechartDoor::SetFaceSurface,
                     face: membrane,
                     edges: rim,
+                    chord: false,
                 },
                 |b| {
                     b.set_face_surface(
@@ -1909,24 +2696,141 @@ mod tests {
                     .unwrap_err()
                 },
             );
-            let got = body.set_face_surfaces_describing(
-                vec![Rechart::new(surface, membrane, sense)],
-                &[],
-                tol(),
+            let describing = EulerOpError::RechartUnvouched {
+                door: RechartDoor::SetFaceSurfacesDescribing,
+                face: membrane,
+                edges: cycle_edges(&body, membrane),
+                chord: false,
+            };
+            assert_err_deep_unchanged(&mut body, &describing, |b| {
+                b.set_face_surfaces_describing(
+                    vec![Rechart::new(surface, membrane, sense)],
+                    &[],
+                    tol(),
+                )
+                .unwrap_err()
+            });
+            let text = describing.to_string();
+            assert!(
+                text.starts_with("set_face_surfaces_describing: ")
+                    && text.ends_with("or move the face onto a chart they name"),
+                "{label}: {text}"
             );
-            if on_boundary {
-                assert!(
-                    got.is_ok(),
-                    "{label}: a curved swap onto the boundary: {got:?}"
-                );
+        }
+
+        let (mut body, seed, [cyl, _, cap], _) = cylinder_seed();
+        body.mef(
+            MefSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            rim(cyl, cap),
+            FaceSurface::Shared {
+                key: cap,
+                sense: true,
+            },
+            tol(),
+        )
+        .unwrap();
+        let wall = body.get_surface(cyl).unwrap().clone();
+        let charts = vec![Rechart::new(wall, seed.face, true)];
+        let specs = body.carried_redescriptions(&charts).unwrap();
+        assert_eq!(specs.len(), 1, "the rim, restated on the copy");
+        let got = body.set_face_surfaces_describing(charts, &specs, tol());
+        assert!(got.is_ok(), "the wall onto a copy of its cylinder: {got:?}");
+    }
+
+    /// **A listed re-description names the chart its face moves onto by
+    /// the key the face leaves.** A cylinder wall, its rim the
+    /// intersection of the wall and a cap, onto a sphere the rim lies
+    /// on: handed nothing, the describing door refuses the rim, whose
+    /// intersection names the key the wall leaves; handed the rim
+    /// spelled with that key, it reads the key as the sphere
+    /// ([`Sides::repoint`]), takes the move, and stores the rim naming
+    /// the sphere's key.
+    #[test]
+    fn a_listed_spec_names_the_minted_chart_by_the_key_its_face_leaves() {
+        let (mut body, seed, [cyl, _, cap], _) = cylinder_seed();
+        body.mef(
+            MefSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            rim(cyl, cap),
+            FaceSurface::Shared {
+                key: cap,
+                sense: true,
+            },
+            tol(),
+        )
+        .unwrap();
+        let edges = cycle_edges(&body, seed.face);
+        assert_eq!(edges.len(), 1, "the wall is bounded by its rim alone");
+        let sphere = Surface::Sphere {
+            center: Point3::origin(),
+            radius: 1.0,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let charts = || vec![Rechart::new(sphere.clone(), seed.face, true)];
+        assert_err_deep_unchanged(
+            &mut body,
+            &EulerOpError::RechartUndescribed {
+                door: RechartDoor::SetFaceSurfacesDescribing,
+                edges: edges.clone(),
+            },
+            |b| {
+                b.set_face_surfaces_describing(charts(), &[], tol())
+                    .unwrap_err()
+            },
+        );
+        let minted = body
+            .set_face_surfaces_describing(charts(), &[(edges[0], rim(cyl, cap))], tol())
+            .unwrap();
+        assert_eq!(
+            surf(&body, seed.face),
+            minted[0],
+            "the wall wears the sphere"
+        );
+        assert_eq!(
+            edges_naming(&body, minted[0]),
+            edges,
+            "the rim names the sphere's key"
+        );
+    }
+
+    /// **An empty loop's lone vertex carries no certificate, and neither
+    /// door asks it** (the PR 3598 review's probe). An `mvfs` seed at
+    /// the origin, moved onto a plane five units up: both doors take
+    /// the swap, as both take a scaffold-bounded face's
+    /// ([`a_scaffold_on_the_face_vouches_for_nothing_and_is_not_asked`]).
+    /// The certificate that later puts the vertex on a chart is the
+    /// first edge's, minted against the chart it names.
+    #[test]
+    fn neither_door_asks_a_lone_vertex() {
+        let far = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 5.0),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        for describing in [false, true] {
+            let mut body = Body::<f64>::new();
+            let seed = body.mvfs(Point3::origin(), true).unwrap();
+            let got = if describing {
+                body.set_face_surfaces_describing(
+                    vec![Rechart::new(far.clone(), seed.face, true)],
+                    &[],
+                    tol(),
+                )
+                .map(|keys| keys[0])
             } else {
-                assert!(
-                    got.is_ok(),
-                    "{label}: the describing door no longer takes a curved swap off the \
-                     boundary unchecked, so #638's residual has moved and this row with it: \
-                     {got:?}"
-                );
-            }
+                body.set_face_surface(
+                    seed.face,
+                    FaceSurface::New {
+                        surface: far.clone(),
+                        sense: true,
+                    },
+                )
+            };
+            assert!(got.is_ok(), "describing: {describing}: {got:?}");
         }
     }
 
@@ -1981,26 +2885,22 @@ mod tests {
     /// `z = 1 + d`: the brick's front and top pushed out by `d`, their
     /// charts not yet moved.
     fn push_out_top_and_front(body: &mut Body<f64>, d: f64) {
-        let vertices: Vec<_> = body.vertices().map(|(k, _)| k).collect();
-        for v in vertices {
-            let old = body.get_vertex(v).unwrap().point;
-            let mut p = *body.get_point(old).unwrap();
+        let rows: Vec<_> = body.vertex_points().collect();
+        for (v, mut p) in rows {
             if p.y == 0.0 {
                 p.y = -d;
             }
             if p.z == 1.0 {
                 p.z = 1.0 + d;
             }
-            let new = body.add_point(p);
-            body.get_vertex_mut(v).unwrap().point = new;
-            body.remove_point_if_orphaned(old);
+            body.move_vertices(&[v], p).unwrap();
         }
     }
 
     /// `edge` as the line between its endpoints, described as the
     /// intersection of the surfaces its faces wear now.
     fn intersection_line(body: &Body<f64>, edge: EdgeKey) -> EdgeCurveSpec<f64> {
-        let (p0, p1) = body.edge_endpoints(edge).unwrap();
+        let (p0, p1) = body.edge_endpoints(edge);
         let [plus, minus] = faces_of(body, edge);
         let mut spec = EdgeCurveSpec::line_between(p0, p1);
         spec.description = EdgeDescriptionSpec::Intersection {
@@ -2099,7 +2999,7 @@ mod tests {
         }
 
         let mut seq = body.clone();
-        let (p0, p1) = seq.edge_endpoints(shared).unwrap();
+        let (p0, p1) = seq.edge_endpoints(shared);
         let first: Vec<_> = specs_of(&seq, top)
             .into_iter()
             .map(|(e, s)| {
@@ -2196,9 +3096,10 @@ mod tests {
         );
         assert_err_deep_unchanged(
             &mut body,
-            &EulerOpError::StaleKey {
+            &EulerOpError::Argument(crate::BadArgument::Stale {
+                role: "charts",
                 key: EntityId::Face(FaceKey::default()),
-            },
+            }),
             |b| {
                 refuses(
                     b,
@@ -2209,9 +3110,10 @@ mod tests {
         );
         assert_err_deep_unchanged(
             &mut body,
-            &EulerOpError::StaleGeometry {
+            &EulerOpError::Argument(crate::BadArgument::StaleGeometry {
+                role: "surface",
                 key: crate::GeomRef::Surface(SurfaceKey::default()),
-            },
+            }),
             |b| {
                 refuses(
                     b,
@@ -2232,9 +3134,10 @@ mod tests {
         let stale_edge = vec![(EdgeKey::default(), restated(&body, edge))];
         assert_err_deep_unchanged(
             &mut body,
-            &EulerOpError::StaleKey {
+            &EulerOpError::Argument(crate::BadArgument::Stale {
+                role: "redescriptions",
                 key: EntityId::Edge(EdgeKey::default()),
-            },
+            }),
             |b| refuses(b, vec![chart()], &stale_edge),
         );
         let bottom = surf(&body, face_at(&body, 2, 0.0));
@@ -2247,7 +3150,7 @@ mod tests {
         let far_pair = vec![(edge, far_pair)];
         assert_err_deep_unchanged(
             &mut body,
-            &EulerOpError::DescriptionNotAdjacent { edge },
+            &EulerOpError::DescriptionNotAdjacent { edge: Some(edge) },
             |b| refuses(b, vec![chart()], &far_pair),
         );
 
@@ -2260,7 +3163,7 @@ mod tests {
             )
             .unwrap();
         let face = body.face_of_half_edge(null.he_plus).unwrap();
-        let (p0, p1) = body.edge_endpoints(null.edge).unwrap();
+        let (p0, p1) = body.edge_endpoints(null.edge);
         let null_spec = vec![(null.edge, EdgeCurveSpec::line_between(p0, p1))];
         let own = body.get_surface(surf(&body, face)).unwrap().clone();
         let face_sense = self::sense(&body, face);
@@ -2272,5 +3175,1302 @@ mod tests {
                 &null_spec,
             )
         });
+    }
+
+    // -----------------------------------------------------------------
+    // The Euler doors' keys-only re-chart refusals (`Body::vouch_move`).
+    // -----------------------------------------------------------------
+
+    /// `face`'s outer loop, in cycle order from its first half-edge.
+    fn outer_cycle(body: &Body<f64>, face: FaceKey) -> Vec<HalfEdgeKey> {
+        let LoopBoundary::Cycle { first } = body
+            .get_loop(body.get_face(face).unwrap().outer)
+            .unwrap()
+            .boundary
+        else {
+            panic!("the face's outer loop is a cycle")
+        };
+        body.loop_cycle(first).unwrap()
+    }
+
+    fn start_point(body: &Body<f64>, he: HalfEdgeKey) -> Point3<f64> {
+        let v = body.get_half_edge(he).unwrap().start;
+        *body.get_point(body.get_vertex(v).unwrap().point).unwrap()
+    }
+
+    /// The diagonal `mef` across `face`'s four-cornered outer loop: from
+    /// its first half-edge's start to the corner two steps on, with a
+    /// scaffold chord. Returns the site, the chord, and the two edges of
+    /// the run `[he1 .. he2)` the new face takes, in run order.
+    fn diagonal(body: &Body<f64>, face: FaceKey) -> (MefSite, EdgeCurveSpec<f64>, Vec<EdgeKey>) {
+        let cycle = outer_cycle(body, face);
+        assert_eq!(cycle.len(), 4, "a four-cornered loop");
+        let (he1, he2) = (cycle[0], cycle[2]);
+        let chord = EdgeCurveSpec::line_between(start_point(body, he1), start_point(body, he2));
+        let run = cycle[..2]
+            .iter()
+            .map(|&he| body.get_half_edge(he).unwrap().edge)
+            .collect();
+        (MefSite::Chords { he1, he2 }, chord, run)
+    }
+
+    /// The membrane's loop as a ring of the cap (`kfmrh`), and its four
+    /// edges in cycle order.
+    fn demoted(body: &mut Body<f64>, top: FaceKey, membrane: FaceKey) -> (LoopKey, Vec<EdgeKey>) {
+        let edges: Vec<EdgeKey> = outer_cycle(body, membrane)
+            .into_iter()
+            .map(|he| body.get_half_edge(he).unwrap().edge)
+            .collect();
+        let ring = body.kfmrh(top, membrane).unwrap().ring;
+        (ring, edges)
+    }
+
+    fn tier3_kinds_include(body: &Body<f64>, want: &[&str], label: &str) {
+        let at_rest = kinds(body);
+        for kind in want {
+            assert!(
+                at_rest.contains(&(*kind).to_string()),
+                "{label}: tier 3 reports {kind} at rest: {at_rest:?}"
+            );
+        }
+    }
+
+    /// **`mef` onto a chart of its own strands the run it moves** (the
+    /// row's first witness). Across the brick's top cap between opposite
+    /// corners, with `New` holding the cap's own plane, the run's two
+    /// rim edges keep `Intersection`s naming the cap's key, which the
+    /// new face no longer wears. The door refuses, naming both in run
+    /// order, and writes nothing; through the lift the same call lands
+    /// and tier 3 reports exactly those two at rest.
+    #[test]
+    fn mef_across_the_top_cap_onto_a_chart_of_its_own_strands_the_run() {
+        let (mut body, top) = brick_and_top();
+        let (site, chord, run) = diagonal(&body, top);
+        let (cap, sense) = (cap_at(&body, top, 0.0), sense(&body, top));
+        let swap = || FaceSurface::New {
+            surface: cap.clone(),
+            sense,
+        };
+
+        let mut lifted = body.clone();
+        // Lifts RechartStrandsDescriptions: the stranded run tier 3 reports at rest is the row.
+        lifted
+            .lifting_rechart_refusals_for_tests(|b| b.mef(site, chord.clone(), swap(), tol()))
+            .unwrap();
+        let errs = validate_geometric(&lifted, tol()).unwrap_err();
+        let mut at_rest: Vec<EdgeKey> = errs
+            .iter()
+            .filter_map(|e| match e {
+                ValidationError::DescriptionNotAdjacent { edge } => Some(*edge),
+                _ => None,
+            })
+            .collect();
+        at_rest.sort();
+        let mut want = run.clone();
+        want.sort();
+        assert_eq!(at_rest, want, "tier 3 reports the run at rest: {errs:?}");
+
+        assert_err_deep_unchanged(
+            &mut body,
+            &EulerOpError::RechartStrandsDescriptions {
+                door: RechartDoor::Mef,
+                edges: run,
+            },
+            |b| b.mef(site, chord, swap(), tol()).unwrap_err(),
+        );
+    }
+
+    /// **`mef` onto a chart its run's edges do not name is refused
+    /// unvouched** (the inlay's `mef(Chords)` probe). Across the
+    /// membrane between opposite corners onto a plane four units up, a
+    /// scaffold chord: the run's two edges are images in the cap's
+    /// chart, which the cap still wears, so nothing strands; neither
+    /// names the new face's key. The door names both, and not the
+    /// scaffold chord, and writes nothing; through the lift the call
+    /// lands and tier 3 reports the new face's residuals at rest.
+    #[test]
+    fn mef_across_the_membrane_onto_a_far_plane_is_refused_unvouched() {
+        let (mut body, _, membrane) = brick_with_inlay();
+        let (site, chord, run) = diagonal(&body, membrane);
+        let far = plane_moved(&body, membrane, Vec3::new(0.0, 0.0, 4.0));
+        let sense = sense(&body, membrane);
+        let swap = || FaceSurface::New {
+            surface: far.clone(),
+            sense,
+        };
+
+        let mut lifted = body.clone();
+        // Lifts RechartUnvouched: tier 3's verdict on the new face off its own boundary is the row.
+        lifted
+            .lifting_rechart_refusals_for_tests(|b| b.mef(site, chord.clone(), swap(), tol()))
+            .unwrap();
+        tier3_kinds_include(
+            &lifted,
+            &["PlanarFaceResidual", "PlanarBoundaryResidual"],
+            "mef",
+        );
+        assert!(!kinds(&lifted).contains(&"DescriptionNotAdjacent".to_string()));
+
+        assert_err_deep_unchanged(
+            &mut body,
+            &EulerOpError::RechartUnvouched {
+                door: RechartDoor::Mef,
+                face: membrane,
+                edges: run,
+                chord: false,
+            },
+            |b| b.mef(site, chord, swap(), tol()).unwrap_err(),
+        );
+    }
+
+    /// A cylinder seed with a lone vertex on its rim, and two more
+    /// shells whose seeds wear a second key on the same cylinder and a
+    /// plane key, so every key is worn: the body, the seed, and the
+    /// keys `(cylinder, second cylinder, plane)`, with the plane's
+    /// payload.
+    fn cylinder_seed() -> (
+        Body<f64>,
+        crate::euler::MvfsCreated,
+        [SurfaceKey; 3],
+        Surface<f64>,
+    ) {
+        let cylinder = Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let plane = Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let mut body = Body::<f64>::new();
+        let mut wear = |at: Point3<f64>, surface: &Surface<f64>| {
+            let seed = body.mvfs(at, true).unwrap();
+            let key = body
+                .set_face_surface(
+                    seed.face,
+                    FaceSurface::New {
+                        surface: surface.clone(),
+                        sense: true,
+                    },
+                )
+                .unwrap();
+            (seed, key)
+        };
+        let (seed, cyl) = wear(Point3::new(1.0, 0.0, 0.0), &cylinder);
+        let (_, cyl2) = wear(Point3::new(0.0, 1.0, 0.0), &cylinder);
+        let (_, cap) = wear(Point3::new(3.0, 0.0, 0.0), &plane);
+        (body, seed, [cyl, cyl2, cap], plane)
+    }
+
+    /// The unit rim circle at `z = 0`, described as the intersection of
+    /// `s1` and `s2`.
+    fn rim(s1: SurfaceKey, s2: SurfaceKey) -> EdgeCurveSpec<f64> {
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                s1,
+                s2,
+                witness: Point3::new(-1.0, 0.0, 0.0),
+            },
+            carrier: geom::Curve3::Circle {
+                center: Point3::origin(),
+                axis: Vec3::unit_z(),
+                radius: 1.0,
+                u_ref: Vec3::unit_x(),
+            },
+            param_start: 0.0,
+            param_end: core::f64::consts::TAU,
+        }
+    }
+
+    /// **`mef`'s chord bounding a face on another key is asked the
+    /// adjacency question [`Body::set_edge_curve`] asks, against the two
+    /// keys its faces will wear** (one decision, one variant). A lone
+    /// vertex on a cylinder seed, its self-loop the rim circle:
+    /// described as the cylinder's intersection with the plane, `mef`
+    /// mints the cap onto the plane's key (the no-over-refusal half).
+    /// Described against a second key on the same cylinder, which the
+    /// parent does not wear, `mef` refuses as `set_edge_curve` refuses
+    /// the same spec on the edge it minted; and onto a `New` key the
+    /// intersection names a key the new face does not wear. Each refusal
+    /// writes nothing. After the review's C3 probe (PR 3673).
+    #[test]
+    fn mefs_chord_is_asked_the_adjacency_question_set_edge_curve_asks() {
+        let (mut body, seed, [cyl, cyl2, cap], plane) = cylinder_seed();
+        let site = MefSite::Lone {
+            r#loop: seed.r#loop,
+        };
+        let shared = FaceSurface::Shared {
+            key: cap,
+            sense: true,
+        };
+        let refused = EulerOpError::DescriptionNotAdjacent { edge: None };
+
+        let mut minted = body.clone();
+        let made = minted
+            .mef(site, rim(cyl, cap), shared.clone(), tol())
+            .unwrap();
+        assert_eq!(surf(&minted, made.face), cap);
+        assert_err_deep_unchanged(
+            &mut minted,
+            &EulerOpError::DescriptionNotAdjacent {
+                edge: Some(made.edge),
+            },
+            |b| {
+                b.set_edge_curve(made.edge, rim(cyl2, cap), tol())
+                    .unwrap_err()
+            },
+        );
+
+        assert_err_deep_unchanged(&mut body, &refused, |b| {
+            b.mef(site, rim(cyl2, cap), shared.clone(), tol())
+                .unwrap_err()
+        });
+        assert_err_deep_unchanged(&mut body, &refused, |b| {
+            b.mef(
+                site,
+                rim(cyl, cap),
+                FaceSurface::New {
+                    surface: plane.clone(),
+                    sense: true,
+                },
+                tol(),
+            )
+            .unwrap_err()
+        });
+    }
+
+    /// **Where the new face keeps the parent's key, `mef` takes a chord
+    /// whose description names a key neither face wears, unasked** —
+    /// pinned as it stands: the boolean pipeline's chord joins rely on
+    /// it (`work/topo/minting-doors-take-a-callers-description-unasked-where-the-new-face-keeps-the-key`).
+    /// The rim circle described as the cylinder's intersection with the
+    /// plane, under `Inherit`, is `Ok`; and so is the chord across the
+    /// described membrane as an image in a second key holding the cap's
+    /// plane, which tier 3 reports `DescriptionNotAdjacent` at rest. The
+    /// unit that closes this half flips the row. After the review's C3
+    /// probe (PR 3673).
+    #[test]
+    fn under_inherit_mef_takes_a_chord_naming_a_key_neither_face_wears_unasked() {
+        let not_adjacent = |body: &Body<f64>| -> Vec<EdgeKey> {
+            validate_geometric(body, tol())
+                .err()
+                .unwrap_or_default()
+                .iter()
+                .filter_map(|e| match e {
+                    ValidationError::DescriptionNotAdjacent { edge } => Some(*edge),
+                    _ => None,
+                })
+                .collect()
+        };
+
+        let (mut body, seed, [cyl, _, cap], _) = cylinder_seed();
+        let site = MefSite::Lone {
+            r#loop: seed.r#loop,
+        };
+        let made = body.mef(site, rim(cyl, cap), FaceSurface::Inherit, tol());
+        assert!(made.is_ok(), "the rim: {made:?}");
+
+        let (mut body, top, membrane) = brick_with_inlay();
+        let own = body.add_surface(cap_at(&body, top, 0.0));
+        let (site, mut chord, _) = diagonal(&body, membrane);
+        chord.description = EdgeDescriptionSpec::chart(own);
+        let made = body.mef(site, chord, FaceSurface::Inherit, tol()).unwrap();
+        assert_eq!(not_adjacent(&body), vec![made.edge], "the membrane's chord");
+    }
+
+    /// **A certified chord that names only the parent's key does not
+    /// vouch for a face minted on another** — the chord's two arms of
+    /// [`EulerOpError::RechartUnvouched`]. The chord across the
+    /// membrane described as an image in the cap's chart is
+    /// adjacency-coherent (it names the key the parent keeps), and
+    /// names nothing the new face wears four units up. On the scaffold
+    /// inlay it is refused alone; on the described inlay with the run's
+    /// two edges, which name the cap too. Under `Inherit` it is taken.
+    #[test]
+    fn a_certified_chord_naming_only_the_parents_key_is_refused_unvouched() {
+        for (label, (mut body, top, membrane), run_is_named) in [
+            ("scaffold inlay", brick_with_scaffold_inlay(), false),
+            ("described inlay", brick_with_inlay(), true),
+        ] {
+            let (site, mut chord, run) = diagonal(&body, membrane);
+            chord.description = EdgeDescriptionSpec::chart(surf(&body, top));
+            let far = FaceSurface::New {
+                surface: plane_moved(&body, membrane, Vec3::new(0.0, 0.0, 4.0)),
+                sense: sense(&body, membrane),
+            };
+            let edges = if run_is_named { run } else { vec![] };
+            let (err, named) = if run_is_named {
+                (
+                    EulerOpError::RechartUnvouched {
+                        door: RechartDoor::Mef,
+                        face: membrane,
+                        edges: edges.clone(),
+                        chord: true,
+                    },
+                    format!("its certified edges {edges:?} and the chord it mints do not name"),
+                )
+            } else {
+                (
+                    EulerOpError::RechartUnvouched {
+                        door: RechartDoor::Mef,
+                        face: membrane,
+                        edges: vec![],
+                        chord: true,
+                    },
+                    "the certified chord it mints does not name".to_string(),
+                )
+            };
+            assert!(err.to_string().contains(&named), "{label}: {err}");
+            assert_err_deep_unchanged(&mut body, &err, |b| {
+                b.mef(site, chord.clone(), far.clone(), tol()).unwrap_err()
+            });
+            let made = body.mef(site, chord, FaceSurface::Inherit, tol());
+            assert!(made.is_ok(), "{label}: {made:?}");
+        }
+    }
+
+    /// **`mfkrh` onto a chart the ring's edges do not name is refused at
+    /// both doors that take a chart** (the inlay's `mfkrh` probe). The
+    /// membrane demoted into the cap (`kfmrh`, one key, so no move),
+    /// its ring promoted onto a plane four units up: no edge strands,
+    /// none names the new key. `mfkrh` and `mfkrh_minting` each name all
+    /// four, in cycle order, and write nothing; through the lift `mfkrh`
+    /// lands and tier 3 reports the promoted face's residuals at rest.
+    /// `mfkrh_plug` takes the same ring: its placeholder is chartless,
+    /// and nothing is asked to vouch on a face with no chart.
+    #[test]
+    fn mfkrh_onto_a_far_plane_is_refused_unvouched_where_a_chart_is_taken() {
+        let (mut body, top, membrane) = brick_with_inlay();
+        let sense = sense(&body, membrane);
+        let far = plane_moved(&body, membrane, Vec3::new(0.0, 0.0, 4.0));
+        let (ring, edges) = demoted(&mut body, top, membrane);
+        let swap = || FaceSurface::New {
+            surface: far.clone(),
+            sense,
+        };
+        let want = EulerOpError::RechartUnvouched {
+            door: RechartDoor::Mfkrh,
+            face: top,
+            edges,
+            chord: false,
+        };
+
+        let mut lifted = body.clone();
+        // Lifts RechartUnvouched: tier 3's verdict on the promoted face off its own boundary is the row.
+        lifted
+            .lifting_rechart_refusals_for_tests(|b| b.mfkrh(ring, swap()))
+            .unwrap();
+        tier3_kinds_include(
+            &lifted,
+            &["PlanarFaceResidual", "PlanarBoundaryResidual"],
+            "mfkrh",
+        );
+        assert!(!kinds(&lifted).contains(&"DescriptionNotAdjacent".to_string()));
+
+        assert_err_deep_unchanged(&mut body, &want, |b| b.mfkrh(ring, swap()).unwrap_err());
+        assert_err_deep_unchanged(&mut body, &want, |b| {
+            b.mfkrh_minting(ring, swap(), tol()).unwrap_err()
+        });
+        let plugged = body.mfkrh_plug(ring, sense);
+        assert!(
+            plugged.is_ok(),
+            "the plug's placeholder is chartless, so nothing is asked to vouch on it: {plugged:?}"
+        );
+    }
+
+    /// **`ring_move` onto a face on a chart the ring's edges do not name
+    /// is refused at both doors** (the inlay's `ring_move` probe). The
+    /// demoted membrane's ring moved onto the brick's front face: no
+    /// edge strands, none names the front's key. Both doors name all
+    /// four and write nothing; through the lift the move lands and tier
+    /// 3 reports the front's residuals at rest.
+    #[test]
+    fn ring_move_onto_the_front_face_is_refused_unvouched_at_both_doors() {
+        let (mut body, top, membrane) = brick_with_inlay();
+        let front = face_at(&body, 1, 0.0);
+        let (ring, edges) = demoted(&mut body, top, membrane);
+        let want = EulerOpError::RechartUnvouched {
+            door: RechartDoor::RingMove,
+            face: front,
+            edges,
+            chord: false,
+        };
+
+        let mut lifted = body.clone();
+        // Lifts RechartUnvouched: tier 3's verdict on the front face holding a ring off its plane is the row.
+        lifted
+            .lifting_rechart_refusals_for_tests(|b| b.ring_move(ring, front))
+            .unwrap();
+        tier3_kinds_include(
+            &lifted,
+            &["PlanarFaceResidual", "PlanarBoundaryResidual"],
+            "ring_move",
+        );
+
+        assert_err_deep_unchanged(&mut body, &want, |b| b.ring_move(ring, front).unwrap_err());
+        assert_err_deep_unchanged(&mut body, &want, |b| {
+            b.ring_move_minting(ring, front, tol()).unwrap_err()
+        });
+    }
+
+    /// **No over-refusal on scaffolds.** The same three moves on the
+    /// inlay before its edges are described: a scaffold carries no
+    /// certificate, so it neither strands nor vouches, and every door
+    /// takes the move.
+    #[test]
+    fn the_euler_doors_take_a_move_of_scaffold_edges_onto_any_chart() {
+        let (body, top, membrane) = brick_with_scaffold_inlay();
+        let far = plane_moved(&body, membrane, Vec3::new(0.0, 0.0, 4.0));
+        let sense = sense(&body, membrane);
+        let front = face_at(&body, 1, 0.0);
+
+        let mut b = body.clone();
+        let (site, chord, _) = diagonal(&b, membrane);
+        let made = b.mef(
+            site,
+            chord,
+            FaceSurface::New {
+                surface: far.clone(),
+                sense,
+            },
+            tol(),
+        );
+        assert!(made.is_ok(), "mef: {made:?}");
+
+        let mut b = body.clone();
+        let (ring, _) = demoted(&mut b, top, membrane);
+        let made = b.mfkrh(
+            ring,
+            FaceSurface::New {
+                surface: far,
+                sense,
+            },
+        );
+        assert!(made.is_ok(), "mfkrh: {made:?}");
+
+        let mut b = body;
+        let (ring, _) = demoted(&mut b, top, membrane);
+        assert_eq!(b.ring_move(ring, front), Ok(()), "ring_move");
+    }
+
+    /// **No over-refusal on a certified ring that names its new key.**
+    /// The membrane moved onto a key of its own holding the cap's plane,
+    /// its four edges re-described as images in that chart (the body is
+    /// valid at rest), then demoted into the cap and promoted back onto
+    /// that key: every edge names the face it lands on, so `mfkrh`
+    /// takes it, and the body is valid at rest again.
+    #[test]
+    fn mfkrh_takes_a_ring_back_onto_the_key_its_edges_name() {
+        let (mut body, top, membrane) = inlay_on_own_key();
+        let sense = sense(&body, membrane);
+        let own = surf(&body, membrane);
+        assert_eq!(validate_geometric(&body, tol()), Ok(()));
+
+        // Lifts RechartStrandsDescriptions: a ring on the cap whose edges name `own` is the row's premise.
+        let (ring, _) = body.lifting_rechart_refusals_for_tests(|b| demoted(b, top, membrane));
+        let made = body
+            .mfkrh(ring, FaceSurface::Shared { key: own, sense })
+            .unwrap();
+        assert_eq!(surf(&body, made.face), own);
+        assert_eq!(validate_geometric(&body, tol()), Ok(()));
+    }
+
+    /// **`kef` between two coplanar faces on distinct keys refuses the
+    /// strand, and `kef_describing` carries it.** The top cap split along
+    /// its diagonal, the chord described as an image in the cap's chart,
+    /// one half moved onto a key of its own holding the same plane with
+    /// its rim re-described there (valid at rest); then that half killed
+    /// into the other. `kef` refuses naming the two rim edges it would
+    /// move, which name the dying half's key; the describing twin
+    /// refuses them unlisted, and takes them as
+    /// [`Body::kef_carried_redescriptions`] states them, leaving the body
+    /// valid at rest.
+    #[test]
+    fn kef_between_coplanar_faces_on_distinct_keys_refuses_the_strand_and_the_twin_carries_it() {
+        let (mut body, top, half, he_minus) = half_cap_on_own_key();
+        assert_ne!(surf(&body, half), surf(&body, top));
+
+        let carried = body.kef_carried_redescriptions(he_minus).unwrap();
+        let moved: Vec<EdgeKey> = carried.iter().map(|(e, _)| *e).collect();
+        let mut rim = edges_naming(&body, surf(&body, half));
+        let mut sorted = moved.clone();
+        rim.sort();
+        sorted.sort();
+        assert_eq!(rim.len(), 2, "the half's two rim edges");
+        assert_eq!(
+            sorted, rim,
+            "the restater carries exactly the stranded rim edges"
+        );
+        assert_err_deep_unchanged(
+            &mut body,
+            &EulerOpError::RechartStrandsDescriptions {
+                door: RechartDoor::Kef,
+                edges: moved.clone(),
+            },
+            |b| b.kef(he_minus).unwrap_err(),
+        );
+        assert_err_deep_unchanged(
+            &mut body,
+            &EulerOpError::RechartUndescribed {
+                door: RechartDoor::KefDescribing,
+                edges: moved.clone(),
+            },
+            |b| b.kef_describing(he_minus, &[], tol()).unwrap_err(),
+        );
+        body.kef_describing(he_minus, &carried, tol()).unwrap();
+        assert_eq!(validate_geometric(&body, tol()), Ok(()));
+    }
+
+    /// The 4 × 2 × 2 block with one square through-hole, its faces
+    /// described as intersections, and its top face (`z = 2`), which
+    /// holds the hole's rim as a ring whose edges name the top's key and
+    /// a wall's: a promotion or a move off the top strands every one.
+    fn holed_top() -> (Body<f64>, FaceKey, LoopKey) {
+        let mut body = crate::test_support_fixtures::holed_block::<f64>(4.0, &[2.0], tol());
+        crate::test_support_fixtures::describe_as_intersections(&mut body, tol());
+        let top = face_at(&body, 2, 2.0);
+        let ring = body.get_face(top).unwrap().rings[0];
+        (body, top, ring)
+    }
+
+    /// [`brick_with_inlay`] with the membrane moved onto a key of its
+    /// own holding the cap's plane, its edges re-described as images in
+    /// that chart: valid at rest, and a demotion into the cap strands
+    /// every membrane edge.
+    fn inlay_on_own_key() -> (Body<f64>, FaceKey, FaceKey) {
+        let (mut body, top, membrane) = brick_with_inlay();
+        let sense = sense(&body, membrane);
+        let own = body.add_surface(cap_at(&body, top, 0.0));
+        let specs: Vec<(EdgeKey, EdgeCurveSpec<f64>)> = edges_of_face(&body, membrane)
+            .into_iter()
+            .map(|edge| {
+                let mut spec = restated(&body, edge);
+                spec.description = EdgeDescriptionSpec::chart(own);
+                (edge, spec)
+            })
+            .collect();
+        body.set_face_surfaces_describing(
+            vec![Rechart::shared(own, membrane, sense)],
+            &specs,
+            tol(),
+        )
+        .unwrap();
+        (body, top, membrane)
+    }
+
+    /// The brick with its top cap's back, left and right rim edges
+    /// described as images in their walls' charts, and the cap's half
+    /// of its front rim edge: a kill of that edge moves the three onto
+    /// the front face, which no description of theirs names, and
+    /// strands none.
+    fn top_over_front() -> (Body<f64>, FaceKey, HalfEdgeKey) {
+        let (mut body, top) = brick_and_top();
+        let front = face_at(&body, 1, 0.0);
+        let mut killed = None;
+        for he in outer_cycle(&body, top) {
+            let edge = body.get_half_edge(he).unwrap().edge;
+            let [plus, minus] = faces_of(&body, edge);
+            let wall = if plus == top { minus } else { plus };
+            if wall == front {
+                killed = Some(he);
+                continue;
+            }
+            let mut spec = restated(&body, edge);
+            spec.description = EdgeDescriptionSpec::chart(surf(&body, wall));
+            body.set_edge_curve(edge, spec, tol()).unwrap();
+        }
+        (body, front, killed.unwrap())
+    }
+
+    /// **`kfmrh_describing` carries the strand `kfmrh` refuses.** The
+    /// membrane on a key of its own, its edges images in that chart,
+    /// demoted into the cap: `kfmrh` refuses naming all four, and the
+    /// describing twin takes them as
+    /// [`Body::kfmrh_carried_redescriptions`] states them on the cap's
+    /// key, reaping the membrane's key, and tier 3 reports none of them
+    /// naming a chart neither side wears, where the lifted kill strands
+    /// all four. (The demoted ring winds as the outer loop it was, and
+    /// its edges bound the cap on both sides, which tier 3 reports
+    /// either way.)
+    #[test]
+    fn kfmrh_describing_carries_the_strand_kfmrh_refuses() {
+        let (mut body, top, membrane) = inlay_on_own_key();
+        let own = surf(&body, membrane);
+        let carried = body.kfmrh_carried_redescriptions(top, membrane).unwrap();
+        let moved: Vec<EdgeKey> = carried.iter().map(|(e, _)| *e).collect();
+        assert_eq!(moved.len(), 4, "the membrane's four edges");
+        assert_err_deep_unchanged(
+            &mut body,
+            &EulerOpError::RechartStrandsDescriptions {
+                door: RechartDoor::Kfmrh,
+                edges: moved.clone(),
+            },
+            |b| b.kfmrh(top, membrane).unwrap_err(),
+        );
+        assert_err_deep_unchanged(
+            &mut body,
+            &EulerOpError::RechartUndescribed {
+                door: RechartDoor::KfmrhDescribing,
+                edges: moved[1..].to_vec(),
+            },
+            |b| {
+                b.kfmrh_describing(top, membrane, &carried[..1], tol())
+                    .unwrap_err()
+            },
+        );
+        let mut lifted = body.clone();
+        // Lifts RechartStrandsDescriptions: the keys-only kill's strands are the contrast the row draws.
+        lifted
+            .lifting_rechart_refusals_for_tests(|b| b.kfmrh(top, membrane))
+            .unwrap();
+        let fused = body
+            .kfmrh_describing(top, membrane, &carried, tol())
+            .unwrap();
+        assert_eq!(
+            fused.killed_surface,
+            Some(own),
+            "nothing names the membrane's key"
+        );
+        let strands = |b: &Body<f64>| {
+            validate_geometric(b, tol())
+                .unwrap_err()
+                .into_iter()
+                .filter(|e| match e {
+                    ValidationError::DescriptionNotAdjacent { edge } => {
+                        let (plus, minus) =
+                            crate::readback::edge_sides(b, *edge).unwrap().surfaces();
+                        match restated(b, *edge).description {
+                            EdgeDescriptionSpec::Chart { surface, .. } => {
+                                surface != plus && surface != minus
+                            }
+                            _ => true,
+                        }
+                    }
+                    _ => false,
+                })
+                .count()
+        };
+        assert_eq!(
+            (strands(&lifted), strands(&body)),
+            (4, 0),
+            "the keys-only kill strands all four, the twin none"
+        );
+    }
+
+    /// **A describing kill re-describes only what it moves, and reads a
+    /// plane's residuals where no key vouches.** The cap's back, left
+    /// and right rim edges imaged in their walls' charts, the cap killed
+    /// into the front face: listing the bottom's edge, which the kill
+    /// does not move, is refused; with nothing listed, nothing strands
+    /// and the three moved edges lie off the front plane, which the
+    /// twin reads and refuses (`RechartOffBoundary`), where the keys-only
+    /// kill refuses them unvouched.
+    #[test]
+    fn a_describing_kill_lists_only_moved_edges_and_reads_a_planes_residuals() {
+        let (mut body, front, killed) = top_over_front();
+        let bottom = face_at(&body, 2, 0.0);
+        let unmoved = edges_of_face(&body, bottom)[0];
+        let spec = restated(&body, unmoved).description;
+        assert_err_deep_unchanged(
+            &mut body,
+            &EulerOpError::NotMovedEdge {
+                door: RechartDoor::KefDescribing,
+                edge: unmoved,
+            },
+            |b| {
+                b.kef_describing(killed, &[(unmoved, spec.clone())], tol())
+                    .unwrap_err()
+            },
+        );
+        let refused = body.kef_describing(killed, &[], tol()).unwrap_err();
+        assert!(
+            matches!(
+                refused,
+                EulerOpError::RechartOffBoundary {
+                    door: RechartDoor::KefDescribing,
+                    face,
+                    ..
+                } if face == front
+            ),
+            "{refused:?}"
+        );
+        assert!(
+            matches!(
+                body.kef(killed),
+                Err(EulerOpError::RechartUnvouched {
+                    door: RechartDoor::Kef,
+                    face,
+                    ..
+                }) if face == front
+            ),
+            "the keys-only kill reads no residual"
+        );
+    }
+
+    /// The brick with every edge of the front face and of the top cap
+    /// described as an image in a chart other than the cap's — a wall's,
+    /// the bottom's, or the front's for the edge they share — and the
+    /// front's half of that shared edge: a kill of it moves the front's
+    /// other three edges onto the cap, and strands none.
+    fn front_imaged_off_the_cap() -> (Body<f64>, FaceKey, FaceKey, HalfEdgeKey) {
+        let (mut body, top) = brick_and_top();
+        let front = face_at(&body, 1, 0.0);
+        let mut killed = None;
+        for he in outer_cycle(&body, front) {
+            let edge = body.get_half_edge(he).unwrap().edge;
+            if faces_of(&body, edge).contains(&top) {
+                killed = Some(he);
+            }
+        }
+        let mut edges = edges_of_face(&body, front);
+        edges.extend(edges_of_face(&body, top));
+        for edge in edges {
+            let [plus, minus] = faces_of(&body, edge);
+            let chart = match [plus, minus] {
+                [a, b] if [a, b].contains(&top) && [a, b].contains(&front) => front,
+                [a, b] if a == top || a == front => b,
+                [a, _] => a,
+            };
+            let mut spec = restated(&body, edge);
+            spec.description = EdgeDescriptionSpec::chart(surf(&body, chart));
+            body.set_edge_curve(edge, spec, tol()).unwrap();
+        }
+        (body, top, front, killed.unwrap())
+    }
+
+    /// **A kill onto a chartless face asks nothing to vouch on it.** The
+    /// front face killed into the cap: on the cap's own plane, the
+    /// front's three other edges land on a chart none of them names, and
+    /// `kef` refuses them unvouched; with the cap first moved onto the
+    /// "no chart yet" placeholder, which none of its edges names, the
+    /// same kill is taken, since nothing vouches on a face with no chart.
+    #[test]
+    fn a_kill_onto_a_chartless_face_asks_nothing_to_vouch_on_it() {
+        let (mut body, top, front, killed) = front_imaged_off_the_cap();
+        let refused = body.clone().kef(killed);
+        assert!(
+            matches!(
+                refused,
+                Err(EulerOpError::RechartUnvouched {
+                    door: RechartDoor::Kef,
+                    face,
+                    ..
+                }) if face == top
+            ),
+            "{refused:?}"
+        );
+        let sense = sense(&body, top);
+        body.set_face_surface(
+            top,
+            FaceSurface::New {
+                surface: Surface::nurbs_placeholder(),
+                sense,
+            },
+        )
+        .unwrap();
+        let fused = body.kef(killed).unwrap();
+        assert_eq!(fused.killed_face, front);
+    }
+
+    /// **Each Euler door's refusals end in its own lever** (D4 ¶1 (i)):
+    /// a minting door names the chart it mints the face on, a moving
+    /// door the face it moves the loop onto, a kill its describing twin,
+    /// and the plug, whose caller picks no chart, the door that takes
+    /// one. Each door's strand text and unvouched text is raised for
+    /// real, at that door, and pinned apart; the plug's face is
+    /// chartless, so it raises only the strand.
+    #[test]
+    fn the_euler_doors_refusals_end_in_their_own_lever() {
+        let mint = "Recourse: mint the face on a chart its certified edges name, or mint it on \
+                    its parent's chart and move it with set_face_surfaces_describing, which \
+                    certifies each re-description it is handed against the new chart";
+        let mint_strand = "Recourse: mint the face on the chart those edges name, then move it \
+                           onto its own (set_face_surfaces_describing takes their \
+                           re-descriptions under a band, and carried_redescriptions states the \
+                           stored ones there)";
+        let moving = "Recourse: move the loop onto a face on a chart its edges name";
+        let moving_strand = "Recourse: move the loop onto a face on the chart its edges name";
+        let kill = "Recourse: kill with kef_describing, which certifies each re-description it is \
+                    handed against that chart and reads a plane's residuals";
+        let kill_strand = "Recourse: kill the edge with kef_describing, which takes their \
+                           re-descriptions on the surviving face's chart under a band \
+                           (kef_carried_redescriptions states the stored ones there)";
+        let fuse = "Recourse: kill with kfmrh_describing, which certifies each re-description \
+                    it is handed against that chart and reads a plane's residuals";
+        let fuse_strand = "Recourse: kill the face with kfmrh_describing, which takes their \
+                           re-descriptions on the surviving face's chart under a band \
+                           (kfmrh_carried_redescriptions states the stored ones there)";
+        let plug_strand = "Recourse: promote the ring with mfkrh onto the chart those edges name";
+
+        let (mut body, top) = brick_and_top();
+        let (site, chord, _) = diagonal(&body, top);
+        let new = FaceSurface::New {
+            surface: cap_at(&body, top, 0.0),
+            sense: sense(&body, top),
+        };
+        let mef_strands = body.mef(site, chord, new, tol()).unwrap_err();
+
+        let (mut body, _, membrane) = brick_with_inlay();
+        let (site, chord, _) = diagonal(&body, membrane);
+        let far = FaceSurface::New {
+            surface: plane_moved(&body, membrane, Vec3::new(0.0, 0.0, 4.0)),
+            sense: true,
+        };
+        let mef = body.mef(site, chord, far.clone(), tol()).unwrap_err();
+
+        let (mut body, top, membrane) = brick_with_inlay();
+        let front = face_at(&body, 1, 0.0);
+        let (ring, _) = demoted(&mut body, top, membrane);
+        let mfkrh = body.mfkrh(ring, far.clone()).unwrap_err();
+        let ring_move = body.ring_move(ring, front).unwrap_err();
+
+        let (mut body, _, membrane) = brick_with_inlay();
+        let front = face_at(&body, 1, 0.0);
+        let kfmrh = body.kfmrh(front, membrane).unwrap_err();
+        let (mut body, top, membrane) = inlay_on_own_key();
+        let kfmrh_strands = body.kfmrh(top, membrane).unwrap_err();
+
+        let (mut body, _, killed) = top_over_front();
+        let kef = body.kef(killed).unwrap_err();
+        let (mut body, top) = brick_and_top();
+        let (site, chord, _) = diagonal(&body, top);
+        let split = body.mef(site, chord, FaceSurface::Inherit, tol()).unwrap();
+        let charts = vec![Rechart::new(
+            cap_at(&body, top, 0.0),
+            split.face,
+            sense(&body, top),
+        )];
+        let specs = body.carried_redescriptions(&charts).unwrap();
+        body.set_face_surfaces_describing(charts, &specs, tol())
+            .unwrap();
+        let kef_strands = body.kef(split.he_minus).unwrap_err();
+
+        let (mut body, top, ring) = holed_top();
+        let bottom = face_at(&body, 2, 0.0);
+        let lid = FaceSurface::New {
+            surface: cap_at(&body, top, 1.0),
+            sense: sense(&body, top),
+        };
+        let mfkrh_strands = body.mfkrh(ring, lid).unwrap_err();
+        let plug_strands = body.mfkrh_plug(ring, true).unwrap_err();
+        let ring_move_strands = body.ring_move(ring, bottom).unwrap_err();
+
+        for (label, err, door, strands, lever) in [
+            ("mef", mef_strands, RechartDoor::Mef, true, mint_strand),
+            ("mef", mef, RechartDoor::Mef, false, mint),
+            (
+                "mfkrh",
+                mfkrh_strands,
+                RechartDoor::Mfkrh,
+                true,
+                mint_strand,
+            ),
+            ("mfkrh", mfkrh, RechartDoor::Mfkrh, false, mint),
+            (
+                "mfkrh_plug",
+                plug_strands,
+                RechartDoor::MfkrhPlug,
+                true,
+                plug_strand,
+            ),
+            ("kef", kef_strands, RechartDoor::Kef, true, kill_strand),
+            ("kef", kef, RechartDoor::Kef, false, kill),
+            (
+                "kfmrh",
+                kfmrh_strands,
+                RechartDoor::Kfmrh,
+                true,
+                fuse_strand,
+            ),
+            ("kfmrh", kfmrh, RechartDoor::Kfmrh, false, fuse),
+            (
+                "ring_move",
+                ring_move_strands,
+                RechartDoor::RingMove,
+                true,
+                moving_strand,
+            ),
+            ("ring_move", ring_move, RechartDoor::RingMove, false, moving),
+        ] {
+            let raised = match err {
+                EulerOpError::RechartStrandsDescriptions { door, .. } => (door, true),
+                EulerOpError::RechartUnvouched { door, .. } => (door, false),
+                _ => panic!("{label}: a re-chart refusal, got {err:?}"),
+            };
+            assert_eq!(raised, (door, strands), "{label}: {err:?}");
+            let text = err.to_string();
+            assert!(text.starts_with(&format!("{label}: ")), "{label}: {text}");
+            assert!(text.ends_with(lever), "{label}: {text}");
+        }
+    }
+
+    /// **`mfkrh_plug` refuses only a strand, and its lever is the door
+    /// that takes a chart.** The plug refuses a ring its placeholder
+    /// strands (the hole's rim, whose edges' `Intersection`s name the
+    /// top), writing nothing; the move the refusal names, `mfkrh` onto
+    /// the chart the ring's edges name — here the demoting face's own,
+    /// `Inherit` — is taken. A ring whose edges are images in the cap's
+    /// chart (the demoted membrane) strands nothing on the placeholder,
+    /// and nothing is asked to vouch on a chartless face: the plug takes
+    /// it, and so does the describing door moving the membrane, so
+    /// promoted, onto a placeholder with no re-descriptions.
+    #[test]
+    fn mfkrh_plug_refuses_a_strand_and_asks_nothing_on_its_chartless_face() {
+        let (mut body, _, ring) = holed_top();
+        let stranded = body.mfkrh_plug(ring, true).unwrap_err();
+        assert!(
+            matches!(
+                stranded,
+                EulerOpError::RechartStrandsDescriptions {
+                    door: RechartDoor::MfkrhPlug,
+                    ..
+                }
+            ),
+            "{stranded:?}"
+        );
+        assert_err_deep_unchanged(&mut body, &stranded, |b| {
+            b.mfkrh_plug(ring, true).unwrap_err()
+        });
+        let made = body.mfkrh(ring, FaceSurface::Inherit);
+        assert!(made.is_ok(), "the hole's rim: {made:?}");
+
+        let (mut body, top, membrane) = brick_with_inlay();
+        let (ring, _) = demoted(&mut body, top, membrane);
+        let mut described = body.clone();
+        let plugged = body.mfkrh_plug(ring, true);
+        assert!(plugged.is_ok(), "the membrane's images: {plugged:?}");
+        let made = described.mfkrh(ring, FaceSurface::Inherit).unwrap();
+        let moved = described.set_face_surfaces_describing(
+            vec![Rechart::new(
+                Surface::nurbs_placeholder(),
+                made.face,
+                sense(&described, made.face),
+            )],
+            &[],
+            tol(),
+        );
+        assert!(
+            moved.is_ok(),
+            "the describing door asks nothing on a chartless face either: {moved:?}"
+        );
+    }
+
+    /// The cap split on its diagonal, the new half on a key of its own
+    /// holding the cap's plane, its two rim edges re-described as images
+    /// in that chart: valid at rest, and `kef` of the split's
+    /// `he_minus` strands both rim edges onto the cap's key.
+    fn half_cap_on_own_key() -> (Body<f64>, FaceKey, FaceKey, HalfEdgeKey) {
+        let (mut body, top) = brick_and_top();
+        let (site, chord, _) = diagonal(&body, top);
+        let sense = sense(&body, top);
+        let split = body.mef(site, chord, FaceSurface::Inherit, tol()).unwrap();
+        let cap = surf(&body, top);
+        let mut spec = restated(&body, split.edge);
+        spec.description = EdgeDescriptionSpec::chart(cap);
+        body.set_edge_curve(split.edge, spec, tol()).unwrap();
+        let charts = vec![Rechart::new(cap_at(&body, top, 0.0), split.face, sense)];
+        let specs = body.carried_redescriptions(&charts).unwrap();
+        body.set_face_surfaces_describing(charts, &specs, tol())
+            .unwrap();
+        assert_eq!(validate_geometric(&body, tol()), Ok(()));
+        (body, top, split.face, split.he_minus)
+    }
+
+    /// `op`'s refusal, with the body deep-unchanged by it.
+    fn refused(
+        body: &mut Body<f64>,
+        op: impl FnOnce(&mut Body<f64>) -> EulerOpError,
+    ) -> EulerOpError {
+        let before = deep_snapshot(body);
+        let err = op(body);
+        assert_eq!(deep_snapshot(body), before, "body changed on Err: {err:?}");
+        err
+    }
+
+    /// **A describing kill refuses a stale listing, then a duplicate,
+    /// then one not adjacent once the move lands**, at `kef_describing`,
+    /// and the first two at `kfmrh_describing`, each writing nothing.
+    /// Each listing is otherwise the restater's own, which the door
+    /// takes.
+    #[test]
+    fn a_describing_kill_refuses_a_stale_then_a_duplicate_then_a_non_adjacent_listing() {
+        let (mut body, _, _, he) = half_cap_on_own_key();
+        let carried = body.kef_carried_redescriptions(he).unwrap();
+        let (e0, d0) = carried[0].clone();
+        let stale = refused(&mut body, |b| {
+            b.kef_describing(he, &[(EdgeKey::default(), d0.clone())], tol())
+                .unwrap_err()
+        });
+        assert!(
+            matches!(
+                stale,
+                EulerOpError::Argument(crate::BadArgument::Stale { .. })
+            ),
+            "kef_describing, stale: {stale:?}"
+        );
+        let duplicate = refused(&mut body, |b| {
+            b.kef_describing(he, &[(e0, d0.clone()), (e0, d0.clone())], tol())
+                .unwrap_err()
+        });
+        assert_eq!(
+            duplicate,
+            EulerOpError::DuplicateRedescription { edge: e0 },
+            "kef_describing, duplicate"
+        );
+        let bottom = surf(&body, face_at(&body, 2, 0.0));
+        let apart = refused(&mut body, |b| {
+            b.kef_describing(he, &[(e0, EdgeDescriptionSpec::chart(bottom))], tol())
+                .unwrap_err()
+        });
+        assert_eq!(
+            apart,
+            EulerOpError::DescriptionNotAdjacent { edge: Some(e0) },
+            "kef_describing, not adjacent"
+        );
+
+        let (mut body, top, membrane) = inlay_on_own_key();
+        let carried = body.kfmrh_carried_redescriptions(top, membrane).unwrap();
+        let (e0, d0) = carried[0].clone();
+        let stale = refused(&mut body, |b| {
+            b.kfmrh_describing(top, membrane, &[(EdgeKey::default(), d0.clone())], tol())
+                .unwrap_err()
+        });
+        assert!(
+            matches!(
+                stale,
+                EulerOpError::Argument(crate::BadArgument::Stale { .. })
+            ),
+            "kfmrh_describing, stale: {stale:?}"
+        );
+        let duplicate = refused(&mut body, |b| {
+            b.kfmrh_describing(top, membrane, &[(e0, d0.clone()), (e0, d0.clone())], tol())
+                .unwrap_err()
+        });
+        assert_eq!(
+            duplicate,
+            EulerOpError::DuplicateRedescription { edge: e0 },
+            "kfmrh_describing, duplicate"
+        );
+        body.kfmrh_describing(top, membrane, &carried, tol())
+            .unwrap();
+    }
+
+    /// **A describing kill refuses a null edge listed**: a null spur
+    /// hung in the moving remnant has no certified curve to re-describe,
+    /// and the door writes nothing.
+    #[test]
+    fn a_describing_kill_refuses_a_null_edge_listed() {
+        let (mut body, _, half, he) = half_cap_on_own_key();
+        let at = outer_cycle(&body, half)[1];
+        let null = body
+            .mev_null(
+                crate::MevSite::Fan { he1: at, he2: at },
+                crate::NewVertexSide::Above,
+            )
+            .unwrap();
+        let null_edge = body.get_half_edge(null.he_plus).unwrap().edge;
+        let curve = body.get_edge(null_edge).unwrap().curve;
+        let chart = EdgeDescriptionSpec::chart(surf(&body, half));
+        let err = refused(&mut body, |b| {
+            b.kef_describing(he, &[(null_edge, chart)], tol())
+                .unwrap_err()
+        });
+        assert_eq!(err, EulerOpError::NullScaffoldCurve { curve });
+    }
+
+    /// **A describing kill refuses a listed spec that does not
+    /// certify**: a cap edge listed as an image in the front face's
+    /// chart, which it does not lie in, is `RechartFalsifies` naming
+    /// that edge, and the door writes nothing.
+    #[test]
+    fn a_describing_kill_refuses_a_listed_spec_that_does_not_certify() {
+        let (mut body, front, killed) = top_over_front();
+        let top = face_at(&body, 2, 1.0);
+        let killed_edge = body.get_half_edge(killed).unwrap().edge;
+        let moved = edges_of_face(&body, top)
+            .into_iter()
+            .find(|e| *e != killed_edge)
+            .unwrap();
+        let chart = EdgeDescriptionSpec::chart(surf(&body, front));
+        let err = refused(&mut body, |b| {
+            b.kef_describing(killed, &[(moved, chart)], tol())
+                .unwrap_err()
+        });
+        assert!(
+            matches!(
+                err,
+                EulerOpError::RechartFalsifies {
+                    door: RechartDoor::KefDescribing,
+                    edge,
+                    ..
+                } if edge == moved
+            ),
+            "{err:?}"
+        );
+    }
+
+    /// **A kill onto a curved chart no moved edge names is refused
+    /// unvouched at both doors**: the front face killed into the cap
+    /// after the cap moves onto a NURBS plane, whose residuals are not
+    /// read, so the describing twin listing nothing refuses as `kef`
+    /// does, each writing nothing.
+    #[test]
+    fn a_kill_onto_a_curved_chart_is_refused_unvouched_at_both_doors() {
+        let (mut body, top, _, killed) = front_imaged_off_the_cap();
+        let sense = sense(&body, top);
+        body.lifting_rechart_refusals_for_tests(|b| {
+            b.set_face_surface(
+                top,
+                FaceSurface::New {
+                    surface: nurbs_plane(1.0),
+                    sense,
+                },
+            )
+        })
+        .unwrap();
+        for (door, err) in [
+            (
+                RechartDoor::KefDescribing,
+                refused(&mut body, |b| {
+                    b.kef_describing(killed, &[], tol()).unwrap_err()
+                }),
+            ),
+            (
+                RechartDoor::Kef,
+                refused(&mut body, |b| b.kef(killed).unwrap_err()),
+            ),
+        ] {
+            assert!(
+                matches!(
+                    err,
+                    EulerOpError::RechartUnvouched { door: d, face, .. } if d == door && face == top
+                ),
+                "{door:?}: {err:?}"
+            );
+        }
+    }
+
+    /// **A chartless landing still asks the strand**: with the cap on
+    /// the "no chart yet" placeholder, the half's rim edges, images in
+    /// the half's own chart, are stranded by the kill all the same, so
+    /// `kef` refuses them as stranded and its twin listing nothing
+    /// refuses them undescribed.
+    #[test]
+    fn a_chartless_landing_still_asks_the_strand_at_both_kills() {
+        let (mut body, top, _, he) = half_cap_on_own_key();
+        let sense = sense(&body, top);
+        body.lifting_rechart_refusals_for_tests(|b| {
+            b.set_face_surface(
+                top,
+                FaceSurface::New {
+                    surface: Surface::nurbs_placeholder(),
+                    sense,
+                },
+            )
+        })
+        .unwrap();
+        assert!(body.wears_no_chart(surf(&body, top)));
+        let err = refused(&mut body, |b| b.kef(he).unwrap_err());
+        assert!(
+            matches!(
+                err,
+                EulerOpError::RechartStrandsDescriptions {
+                    door: RechartDoor::Kef,
+                    ..
+                }
+            ),
+            "{err:?}"
+        );
+        let err = refused(&mut body, |b| b.kef_describing(he, &[], tol()).unwrap_err());
+        assert!(
+            matches!(
+                err,
+                EulerOpError::RechartUndescribed {
+                    door: RechartDoor::KefDescribing,
+                    ..
+                }
+            ),
+            "{err:?}"
+        );
+    }
+
+    /// **The describing door moving a face onto an existing placeholder
+    /// key asks nothing**: the promoted membrane, its edges images in
+    /// the cap's chart, shared onto a "no chart yet" key already in the
+    /// arena, listing nothing, lands there.
+    #[test]
+    fn the_describing_door_onto_a_shared_placeholder_key_asks_nothing() {
+        let (mut body, top, membrane) = brick_with_inlay();
+        let (ring, _) = demoted(&mut body, top, membrane);
+        let made = body.mfkrh(ring, FaceSurface::Inherit).unwrap();
+        let placeholder = body.add_surface(Surface::nurbs_placeholder());
+        let sense = sense(&body, made.face);
+        let moved = body.set_face_surfaces_describing(
+            vec![Rechart::shared(placeholder, made.face, sense)],
+            &[],
+            tol(),
+        );
+        assert!(moved.is_ok(), "{moved:?}");
+        assert_eq!(surf(&body, made.face), placeholder);
+    }
+
+    /// **Every re-chart door's refusals render**, each leading with the
+    /// door's name and ending in a recourse: a caller can build either
+    /// refusal at any door, the describing ones' strand included.
+    #[test]
+    fn every_rechart_doors_refusals_render() {
+        let doors = [
+            RechartDoor::SetFaceSurface,
+            RechartDoor::Mef,
+            RechartDoor::Mfkrh,
+            RechartDoor::MfkrhPlug,
+            RechartDoor::RingMove,
+            RechartDoor::SetFaceSurfacesDescribing,
+            RechartDoor::Kef,
+            RechartDoor::KefDescribing,
+            RechartDoor::Kfmrh,
+            RechartDoor::KfmrhDescribing,
+        ];
+        for door in doors {
+            let strands = EulerOpError::RechartStrandsDescriptions {
+                door,
+                edges: vec![EdgeKey::default()],
+            }
+            .to_string();
+            let unvouched = EulerOpError::RechartUnvouched {
+                door,
+                face: FaceKey::default(),
+                edges: vec![EdgeKey::default()],
+                chord: false,
+            }
+            .to_string();
+            for text in [&strands, &unvouched] {
+                assert!(
+                    text.starts_with(&format!("{}: ", door.name())) && text.contains("Recourse: "),
+                    "{door:?}: {text}"
+                );
+            }
+        }
+        for (door, restater) in [
+            (
+                RechartDoor::SetFaceSurfacesDescribing,
+                "carried_redescriptions",
+            ),
+            (RechartDoor::KefDescribing, "kef_carried_redescriptions"),
+            (RechartDoor::KfmrhDescribing, "kfmrh_carried_redescriptions"),
+        ] {
+            let text = EulerOpError::RechartStrandsDescriptions {
+                door,
+                edges: vec![EdgeKey::default()],
+            }
+            .to_string();
+            assert!(
+                text.contains(&format!("({restater} states")),
+                "{door:?}: {text}"
+            );
+        }
     }
 }

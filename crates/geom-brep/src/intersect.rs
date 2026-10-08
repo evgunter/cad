@@ -40,11 +40,11 @@
 //!   splitting/boolean seam (rung 1, implemented — the table names it,
 //!   the pipelines execute it bit-identically); plane×cylinder's rim
 //!   case stays the rung-1 `Circle`.
-//! - **R1 is permanent until a PR moves it**: plane×cone generic tilt
-//!   routes to rung 3 *explicitly and permanently* — the conic trio
-//!   (parabola/hyperbola) does NOT land in M5, so the arm's generic
-//!   verdict is [`SectionError::RoutesToGeneralRung`], a documented
-//!   decision, not a TODO.
+//! - **Parabola and hyperbola are outside the conic inventory** (R1):
+//!   a plane×cone section of either kind refuses
+//!   [`SectionError::RoutesToGeneralRung`] naming its conic — a
+//!   documented decision, not a TODO. The ELLIPSE is in the inventory,
+//!   and a tilted plane×cone section of that kind is minted exactly.
 //!
 //! # The section arms
 //!
@@ -59,15 +59,16 @@
 //!    tangent line / empty.
 //! 2. [`plane_sphere_section`] — the `Circle`; the tangency is a POINT,
 //!    classification data refused as a carrier.
-//! 3. [`plane_cone_section`] — exact-degenerate cases only (R1):
-//!    apex-through plane (two generator lines / tangent line / apex
-//!    point), axis-normal cut (`Circle`); generic tilt refuses typed as
-//!    permanently routed to rung 3.
-//! 4. [`plane_torus_section`] — the two exact-degenerate poses: an
-//!    axis-CONTAINING plane's two meridian `Circle`s, an axis-NORMAL
-//!    plane's two concentric ones (or the tangency circle, as
-//!    classification data); every tilt — the spiric and the Villarceau
-//!    bitangent included — refuses typed.
+//! 3. [`plane_cone_section`] — apex-through plane (two generator
+//!    lines / tangent line / apex point); axis-normal cut (`Circle`);
+//!    a tilt meeting every generator ⇒ exact `Ellipse`; a parabolic or
+//!    hyperbolic tilt refuses typed, naming its conic (R1).
+//! 4. [`plane_torus_section`] — the axis-aligned poses: an
+//!    axis-CONTAINING plane's two meridian `Circle`s, an axis-PARALLEL
+//!    plane off the axis its two `Spiric` ovals (short of the inner
+//!    equator), an axis-NORMAL plane's two concentric circles (or the
+//!    tangency circle, as classification data); every tilt — the
+//!    Villarceau bitangent included — refuses typed.
 //! 5. [`cylinder_cylinder_section`] — equal radii (**structural or
 //!    declared ONLY, never inferred from values** — the caller passes
 //!    [`RadiusEvidence`] resolved through the coincidence ladder; the
@@ -109,112 +110,18 @@
 //! them (the split/boolean lanes do, typed).
 
 use geom::Surface;
-use geom::{Curve3, EllipseInvalid};
+use geom::{Curve3, EllipseInvalid, SpiricInvalid, SurfaceKind};
 use geom_core::{Band, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
-use crate::dihedral::decide;
+use crate::dihedral::{decide, decide_magnitude, decide_nonzero};
+use crate::extent::Reach;
 use crate::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite};
 use geom_core::Decide;
+use geom_core::k_stats::{Magnitude, NonzeroSign};
 
 // ---------------------------------------------------------------------
 // Kinds, rungs, routing
 // ---------------------------------------------------------------------
-
-/// The closed kind tag of a [`Surface`] variant — the table's index
-/// set. Mirrors the enum exactly (D3: closed, compiler-enumerated).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum SurfaceKind {
-    /// [`Surface::Plane`].
-    Plane,
-    /// [`Surface::Cylinder`].
-    Cylinder,
-    /// [`Surface::Cone`].
-    Cone,
-    /// [`Surface::Sphere`].
-    Sphere,
-    /// [`Surface::Torus`].
-    Torus,
-    /// [`Surface::Nurbs`] — the universal fallback kind.
-    Nurbs,
-    /// [`Surface::Approx`] — a fitted stand-in for a description.
-    ///
-    /// **Its own kind, not `Nurbs`.** The payload is a NURBS and every
-    /// evaluator delegates to it, but a pair table indexed by kind is
-    /// deciding what a *locus claim* about the pair means, and a claim
-    /// about an approximating surface is a claim about the fit, not
-    /// about the surface the modeller asked for. Collapsing the two
-    /// tags would let every such table answer for `Approx` silently —
-    /// the exact failure the closed enum exists to prevent.
-    Approx,
-}
-
-impl SurfaceKind {
-    /// The kind of a surface value.
-    pub fn of<T: Real>(s: &Surface<T>) -> Self {
-        match s {
-            Surface::Plane { .. } => Self::Plane,
-            Surface::Cylinder { .. } => Self::Cylinder,
-            Surface::Cone { .. } => Self::Cone,
-            Surface::Sphere { .. } => Self::Sphere,
-            Surface::Torus { .. } => Self::Torus,
-            Surface::Nurbs(_) => Self::Nurbs,
-            Surface::Approx(_) => Self::Approx,
-        }
-    }
-
-    /// The kind's display name.
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::Plane => "plane",
-            Self::Cylinder => "cylinder",
-            Self::Cone => "cone",
-            Self::Sphere => "sphere",
-            Self::Torus => "torus",
-            Self::Nurbs => "nurbs",
-            Self::Approx => "approx",
-        }
-    }
-}
-
-/// The closed kind tag of a [`Curve3`] variant, [`SurfaceKind`]'s
-/// carrier-side twin (D3: closed, compiler-enumerated).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum CurveKind {
-    /// [`Curve3::Line`].
-    Line,
-    /// [`Curve3::Circle`].
-    Circle,
-    /// [`Curve3::Ellipse`].
-    Ellipse,
-    /// [`Curve3::Spiric`].
-    Spiric,
-    /// [`Curve3::Nurbs`].
-    Nurbs,
-}
-
-impl CurveKind {
-    /// The kind of a curve value.
-    pub fn of<T: Real>(c: &Curve3<T>) -> Self {
-        match c {
-            Curve3::Line { .. } => Self::Line,
-            Curve3::Circle { .. } => Self::Circle,
-            Curve3::Ellipse { .. } => Self::Ellipse,
-            Curve3::Spiric { .. } => Self::Spiric,
-            Curve3::Nurbs(_) => Self::Nurbs,
-        }
-    }
-
-    /// The kind's display name.
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::Line => "line",
-            Self::Circle => "circle",
-            Self::Ellipse => "ellipse",
-            Self::Spiric => "spiric",
-            Self::Nurbs => "nurbs",
-        }
-    }
-}
 
 /// C1's three-rung intersection-locus ladder — where a pair's locus
 /// representation lives.
@@ -222,7 +129,8 @@ impl CurveKind {
 pub enum Rung {
     /// Rung 1: closed-form `Line`/`Circle` carriers (the M2 pairs).
     Closed,
-    /// Rung 2: exact conic carriers (`Ellipse`, M5 PR 5).
+    /// Rung 2: exact conic and quartic carriers (`Ellipse`, M5 PR 5;
+    /// the axis-parallel plane×torus `Spiric`, C1).
     Conic,
     /// Rung 3: march + fit (SSI, M5 PR 7) — the general rung.
     General,
@@ -274,12 +182,10 @@ impl PairRoute {
 /// `SurfaceKind` breaks this build at compile time (D3). Symmetric: the
 /// two orders of a pair share one arm via explicit `|` alternation.
 ///
-/// **Compile-break note (spec §6's doc-note, deliberately not a
-/// committed test)**: verified at spec time by adding a scratch
-/// seventh `SurfaceKind` variant — this match (and `SurfaceKind::of`
-/// / `name`) fail with E0004 non-exhaustive-patterns before anything
-/// else in the workspace; the no-wildcard grep row in
-/// `tests/pcurve_conic.rs` keeps the property pinned in CI.
+/// A variant added to [`Surface`] is a `SurfaceKind` by derivation, so
+/// it reaches this match as E0004 non-exhaustive-patterns; the
+/// no-wildcard grep row in `tests/pcurve_conic.rs` keeps the property
+/// pinned in CI.
 pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
     use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
     match (a, b) {
@@ -299,17 +205,16 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             note: "tilted cut is the exact Ellipse (plane_cylinder_section); the \
                    perpendicular cut stays the rung-1 rim Circle",
         },
-        // ---- Rung 2, exact-degenerates only (R1, PERMANENT): generic
-        // tilt routes to rung 3 until a future PR adds the conic trio.
-        // The routing itself is the decision — not a TODO. ----
+        // ---- Rung 2: the apex-through degenerates, the axis-normal
+        // Circle and the tilted Ellipse. Parabola and hyperbola are
+        // outside the conic inventory (R1) — a decision, not a TODO. ----
         (Plane, Cone) | (Cone, Plane) => PairRoute {
             rung: Rung::Conic,
             implemented: true,
-            note: "exact-degenerate cases only (apex-through lines/tangent/point, \
-                   axis-normal Circle); generic tilt routes to the general rung \
-                   PERMANENTLY (parabola and hyperbola are outside the conic \
-                   inventory by decision, not by omission) — a routing that no \
-                   general-rung arm retires",
+            note: "apex-through lines/tangent/point, the axis-normal Circle and the \
+                   tilted Ellipse (plane_cone_section); a parabolic or hyperbolic \
+                   section refuses naming its conic — parabola and hyperbola are \
+                   outside the conic inventory by decision, not by omission",
         },
         // ---- Rung 1, implemented (M5 S13): the closed-form Circle —
         // never a fitted chord (the die-pips premise). ----
@@ -340,19 +245,19 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
                    to the general rung, whose cylinder×cylinder arm has not retired \
                    (arms retire one at a time, each with its proof)",
         },
-        // ---- Rung 1, exact-degenerates only: the two axis-aligned
-        // configurations are closed-form Circles; every tilted
-        // configuration keeps its general-rung routing, named at the
-        // arm's own refusal. ----
+        // ---- Rung 2, axis-aligned poses only: the containing and
+        // normal planes cut closed-form Circles, the parallel one off
+        // the axis the exact Spiric; every tilted configuration keeps
+        // its general-rung routing, named at the arm's own refusal. ----
         (Plane, Torus) | (Torus, Plane) => PairRoute {
-            rung: Rung::Closed,
+            rung: Rung::Conic,
             implemented: true,
-            note: "exact-degenerate cases only: an axis-containing plane cuts the \
-                   two meridian Circles, an axis-normal plane the two concentric \
-                   Circles (or the tangency circle — classification data, not a \
-                   carrier; no production consumer takes it yet) \
-                   (plane_torus_section); everything tilted — the \
-                   axis-parallel offset plane's spiric section and the bitangent \
+            note: "axis-aligned cases only: an axis-containing plane cuts the two \
+                   meridian Circles, an axis-parallel plane off the axis the two \
+                   Spiric ovals (short of the inner equator), an axis-normal plane \
+                   the two concentric Circles (or the tangency circle — \
+                   classification data, not a carrier; no production consumer takes \
+                   it yet) (plane_torus_section); everything tilted — the bitangent \
                    Villarceau pair included — routes to the general rung with the \
                    ℝ³ IMPLICIT-PAIR trace shape, blocked on the torus's exact \
                    meters conversion (arms retire one at a time, each with its \
@@ -567,9 +472,21 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 /// exhaustive with no wildcard, as [`route`]'s is, so a kind added to
 /// the table is a compile-time visit here too.
 ///
-/// `extent` is the reach the consumer needs the pose read over — the
-/// arms' own operand extent, the lever their angular trileans are
-/// metered at (a tilt `θ` displaces the locus by `θ·extent` there).
+/// `reach` is what the consumer needs the pose read over: an edge's
+/// span ([`Reach::Span`]), the one variant its callers hand it, levered
+/// by its per-carrier farthest distance from a pivot ([`Reach::lever_from`]:
+/// exact at a line's endpoints and a NURBS net's control points, at
+/// most √2 over for a conic). The arms that take a scalar extent read
+/// their pose at an ANCHOR (a cone's apex, a sphere's or torus's
+/// centre) and get its lever from there (a tilt `θ` displaces the locus
+/// by `θ·extent` there). A cylinder has no anchor:
+/// its origin is any point of its axis, so a lever from it overstates
+/// the reach without bound, and the cone×cylinder arm reads its pose at
+/// the apex. The cylinder pair reads it from its axes' feet
+/// ([`cylinder_cylinder_section`]). No lever is a ball around the edge:
+/// on a two-sided trilean whose definite side is the SERVED class, a
+/// lever past the consumed extent decides an in-band reading as served
+/// (a near-parabola read as an ellipse).
 ///
 /// # Errors
 ///
@@ -584,11 +501,20 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 pub fn route_pose<T: Decide>(
     a: &Surface<T>,
     b: &Surface<T>,
-    extent: T,
+    reach: &Reach<T>,
     band: Band,
 ) -> Result<PairRoute, SectionError> {
     use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
-    let (ka, kb) = (SurfaceKind::of(a), SurfaceKind::of(b));
+    let extent = [a, b].into_iter().fold(T::zero(), |lever, s| match *s {
+        Surface::Cone { apex: anchor, .. }
+        | Surface::Sphere { center: anchor, .. }
+        | Surface::Torus { center: anchor, .. } => lever.max(reach.lever_from(anchor)),
+        Surface::Plane { .. }
+        | Surface::Cylinder { .. }
+        | Surface::Nurbs(_)
+        | Surface::Approx(_) => lever,
+    });
+    let (ka, kb) = (a.kind(), b.kind());
     let arm = route(ka, kb);
     let verdict = match (ka, kb) {
         (Plane, Cone) => plane_cone_section(a, b, extent, band).map(drop),
@@ -598,7 +524,7 @@ pub fn route_pose<T: Decide>(
         (Cone, Cylinder) => cone_cylinder_section(a, b, extent, band).map(drop),
         (Cylinder, Cone) => cone_cylinder_section(b, a, extent, band).map(drop),
         (Cylinder, Cylinder) => {
-            match cylinder_cylinder_section(a, b, RadiusEvidence::Declared, extent, band) {
+            match cylinder_cylinder_section(a, b, RadiusEvidence::Declared, reach, band) {
                 Err(SectionError::RadiusDeclarationContradicted) => {
                     Err(SectionError::RoutesToGeneralRung {
                         pair: "cylinder×cylinder",
@@ -639,7 +565,8 @@ pub fn route_pose<T: Decide>(
         | Err(
             SectionError::BeyondOperandExtent { .. }
             | SectionError::CoincidentSurfaces
-            | SectionError::Carrier(_),
+            | SectionError::Carrier(_)
+            | SectionError::Spiric(_),
         ) => Ok(arm),
         Err(SectionError::RoutesToGeneralRung { why, .. }) => refused(why),
         // Refused BEFORE the pose was classified: an operand guard the
@@ -688,8 +615,9 @@ pub enum SectionError {
     /// The configuration routes to the general rung — a documented arm
     /// decision (no runtime fallback exists; C5). The general rung is
     /// implemented; its arms retire one at a time, so a pair reaching
-    /// here is one whose arm has not retired — or one routed there
-    /// permanently (plane×cone generic tilt, R1).
+    /// here is one whose arm has not retired — or a section outside the
+    /// conic inventory by decision (a plane×cone parabola or
+    /// hyperbola, R1).
     RoutesToGeneralRung {
         /// The pair, for the message.
         pair: &'static str,
@@ -744,6 +672,10 @@ pub enum SectionError {
     /// degenerate axis) — the constructor is the one deciding door for
     /// axis ordering (spec §1) and its verdict stands.
     Carrier(EllipseInvalid),
+    /// The spiric carrier constructor refused a configuration the arm
+    /// classified as its own — the constructor is the one deciding door
+    /// for the spiric's regime and its verdict stands.
+    Spiric(SpiricInvalid),
 }
 
 impl From<EllipseInvalid> for SectionError {
@@ -814,6 +746,7 @@ impl core::fmt::Display for SectionError {
                  has a ring torus, so this one is corrupt"
             ),
             Self::Carrier(e) => write!(f, "the section's curve refused: {e}"),
+            Self::Spiric(e) => write!(f, "the section's spiric refused: {e}"),
         }
     }
 }
@@ -889,8 +822,10 @@ pub enum PlaneCylinderSection<T: Real> {
     },
     /// Axis in-plane, gap coincident with r: the tangency ruling —
     /// **classification data, not a constructible edge** (C7: tangent
-    /// loci are `TangentIntersection` territory, M5 PR 9; consumers
-    /// refuse typed).
+    /// loci are `TangentIntersection` territory, M5 PR 9; section
+    /// consumers refuse typed). The same ruling is the witness
+    /// [`crate::tangent_locus`] mints for a declared `Tangent` pair: a
+    /// line the declaration is verified along, never an edge.
     TangentLine(Curve3<T>),
     /// Axis in-plane, gap definitely > r: no intersection.
     Empty,
@@ -898,15 +833,27 @@ pub enum PlaneCylinderSection<T: Real> {
 
 /// Classifies and constructs the plane×cylinder section (spec §3.1).
 ///
+/// `reach` is where the section is consumed ([`Reach`]). The axis-in-plane
+/// rows read at the foot of its point on the cylinder's axis, so where
+/// the carrier's origin is stored does not enter them.
+///
 /// Trileans, in order (named lever arms per D4 ¶1):
 ///
-/// 1. `pc_axis_plane_parallel` — margin `(axis·normal)·extent` (the
-///    axis' angle off the plane, metered at the operand extent
-///    `extent`): Zero ⇒ the axis lies in the plane (the parallel
-///    degenerate lane, step 2); definite ⇒ a bounded cut (step 3).
-/// 2. `pc_parallel_gap` — margin `r − |signed axis-to-plane gap|`
-///    (meters): Positive ⇒ [`PlaneCylinderSection::ParallelLines`],
-///    Zero ⇒ [`PlaneCylinderSection::TangentLine`], Negative ⇒
+/// 1. `pc_axis_plane_parallel` — margin `c·lever`, `c = axis·normal`,
+///    the axis' angle off the plane levered over `reach` from the
+///    rulings' hinge, the line through the foot's projection on the
+///    plane: the consumed region's axial distance from the hinge's
+///    station ([`Reach::hinge_lever`]), plus its distance across the
+///    wall from the hinge at second order ([`Reach::turn_lever`]): Zero
+///    ⇒ the axis lies in the plane
+///    (the parallel degenerate lane, step 2); definite ⇒ a bounded cut
+///    (step 3).
+/// 2. `pc_parallel_gap` — margin `r − |signed axis-to-plane gap|` at
+///    the foot (meters), read across the reach with step 1's tilt
+///    displacement beside it ([`decide_across`]; `pc_parallel_gap_floor`
+///    decides the definite side): Positive ⇒
+///    [`PlaneCylinderSection::ParallelLines`], Zero ⇒
+///    [`PlaneCylinderSection::TangentLine`], Negative ⇒
 ///    [`PlaneCylinderSection::Empty`].
 /// 3. `pc_rim_alignment` — margin `‖axis×normal‖·r` (the tilt angle's
 ///    sine, metered at the rim radius): Zero ⇒
@@ -923,91 +870,159 @@ pub enum PlaneCylinderSection<T: Real> {
 pub fn plane_cylinder_section<T: Decide>(
     plane: &Surface<T>,
     cylinder: &Surface<T>,
-    extent: T,
+    reach: &Reach<T>,
     band: Band,
 ) -> Result<PlaneCylinderSection<T>, SectionError> {
+    let (pc, cyl_u) = plane_cylinder_data(plane, cylinder)?;
+    if let Some(ruled) = plane_cylinder_ruled(&pc, reach, band).map_err(SectionError::Escalated)? {
+        return Ok(match ruled {
+            RuledSection::ParallelLines { l1, l2 } => {
+                PlaneCylinderSection::ParallelLines { l1, l2 }
+            }
+            RuledSection::TangentLine { origin, dir } => {
+                PlaneCylinderSection::TangentLine(Curve3::Line { origin, dir })
+            }
+            RuledSection::Empty => PlaneCylinderSection::Empty,
+        });
+    }
+    let PlaneCylinder { q, n, o, a, r } = pc;
+    // Bounded cut: rim circle vs tilted ellipse.
+    let c = a.dot(n);
+    let sin_vec = a.cross(n);
+    let sin_norm = sin_vec.norm();
+    let t_star = (q - o).dot(n) / c;
+    let center = o + a * t_star;
+    match decide("pc_rim_alignment", Margin::levered(sin_norm, r), band)
+        .map_err(SectionError::Escalated)?
+    {
+        Sign::Zero => Ok(PlaneCylinderSection::Rim(Curve3::Circle {
+            center,
+            axis: a,
+            radius: r,
+            u_ref: cyl_u,
+        })),
+        // The margin is a norm: Negative is unreachable; both
+        // definite verdicts take the tilted lane.
+        Sign::Positive | Sign::Negative => {
+            let v_minor = sin_vec / sin_norm;
+            let u_major = v_minor.cross(n);
+            let e = Curve3::ellipse(center, n, r / c.abs(), r, u_major, band)?;
+            Ok(PlaneCylinderSection::TiltedEllipse(e))
+        }
+    }
+}
+
+/// The axis-in-plane answers of [`plane_cylinder_section`]: its
+/// `ParallelLines`, `TangentLine` and `Empty`, the only three steps 1–2
+/// can reach.
+#[derive(Clone, Debug)]
+pub(crate) enum RuledSection<T: Real> {
+    /// The gap is definitely under `r`: two rulings.
+    ParallelLines { l1: Curve3<T>, l2: Curve3<T> },
+    /// The gap is coincident with `r`: the tangency ruling
+    /// `origin + t·dir`, `origin` the axis' foot on the plane.
+    TangentLine { origin: Point3<T>, dir: Vec3<T> },
+    /// The gap is definitely over `r`.
+    Empty,
+}
+
+/// Steps 1–2 of [`plane_cylinder_section`]: the axis-in-plane lane.
+/// `None` where the axis definitely leaves the plane (step 3 not run).
+/// The gap is read at the foot of `reach`'s point on the axis and the
+/// tilt levered from there. The tangent-locus lane reads its ruling
+/// tangency here, so the section and the witness never decide it apart.
+pub(crate) fn plane_cylinder_ruled<T: Decide>(
+    pc: &PlaneCylinder<T>,
+    reach: &Reach<T>,
+    band: Band,
+) -> Result<Option<RuledSection<T>>, Indeterminate> {
+    let &PlaneCylinder { q, n, o, a, r } = pc;
+    let o = reach.foot_on(o, a);
+    let c = a.dot(n);
+    let gap_signed = (o - q).dot(n);
+    // The rulings this lane mints stand on the hinge through `o − n·gap`,
+    // `−gap·c` along the axis from the foot; the reach is levered from
+    // there (`geom_brep::extent`'s module docs).
+    let hinge = o - n * gap_signed;
+    let cos = (T::one() - c.powi(2)).max(T::zero()).sqrt();
+    let lever = reach.hinge_lever(o, -(gap_signed * c)) + reach.turn_lever(hinge, (n, a), c, cos);
+    match decide("pc_axis_plane_parallel", Margin::levered(c, lever), band)? {
+        Sign::Zero => {}
+        Sign::Positive | Sign::Negative => return Ok(None),
+    }
+    // A consumed point of the ruling stands off the plane by the tilt
+    // levered from the hinge, and the wall stands `r − |gap|` off the
+    // plane at the foot: the ruling stands at most their sum off the
+    // section, so the gap is read across the reach with the tilt beside it.
+    let section = match decide_across(
+        ["pc_parallel_gap", "pc_parallel_gap_floor"],
+        r - gap_signed.abs(),
+        Margin::levered(c, lever).value(),
+        band,
+    )? {
+        Sign::Positive => {
+            // Cross-section chord: the plane cuts the circle at
+            // foot ± w·half, foot the axis' plane projection.
+            let foot = o - n * gap_signed;
+            let half = (r.powi(2) - gap_signed.powi(2)).sqrt();
+            let w = a.cross(n).normalize();
+            RuledSection::ParallelLines {
+                l1: Curve3::Line {
+                    origin: foot + w * half,
+                    dir: a,
+                },
+                l2: Curve3::Line {
+                    origin: foot - w * half,
+                    dir: a,
+                },
+            }
+        }
+        Sign::Zero => RuledSection::TangentLine {
+            origin: o - n * gap_signed,
+            dir: a,
+        },
+        Sign::Negative => RuledSection::Empty,
+    };
+    Ok(Some(section))
+}
+
+/// A plane×cylinder pair: the plane's origin `q` and unit normal `n`,
+/// the cylinder's origin `o`, unit axis `a` and radius `r`.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct PlaneCylinder<T: Real> {
+    pub(crate) q: Point3<T>,
+    pub(crate) n: Vec3<T>,
+    pub(crate) o: Point3<T>,
+    pub(crate) a: Vec3<T>,
+    pub(crate) r: T,
+}
+
+/// The pair's data and the cylinder's seam, or the wrong-lane refusal.
+fn plane_cylinder_data<T: Real>(
+    plane: &Surface<T>,
+    cylinder: &Surface<T>,
+) -> Result<(PlaneCylinder<T>, Vec3<T>), SectionError> {
+    let wrong = || SectionError::WrongLane {
+        expected: "plane×cylinder",
+    };
     let &Surface::Plane {
         origin: q,
         normal: n,
         ..
     } = plane
     else {
-        return Err(SectionError::WrongLane {
-            expected: "plane×cylinder",
-        });
+        return Err(wrong());
     };
     let &Surface::Cylinder {
         origin: o,
         axis: a,
         radius: r,
-        u_ref: cyl_u,
+        u_ref,
     } = cylinder
     else {
-        return Err(SectionError::WrongLane {
-            expected: "plane×cylinder",
-        });
+        return Err(wrong());
     };
-
-    let c = a.dot(n);
-    match decide("pc_axis_plane_parallel", Margin::levered(c, extent), band)
-        .map_err(SectionError::Escalated)?
-    {
-        Sign::Zero => {
-            // The axis lies in the plane: line pair / tangent / empty
-            // by the axis-to-plane gap vs the radius.
-            let gap_signed = (o - q).dot(n);
-            let margin = Margin::of(r - gap_signed.abs());
-            match decide("pc_parallel_gap", margin, band).map_err(SectionError::Escalated)? {
-                Sign::Positive => {
-                    // Cross-section chord: the plane cuts the circle at
-                    // foot ± w·half, foot the axis' plane projection.
-                    let foot = o - n * gap_signed;
-                    let half = (r.powi(2) - gap_signed.powi(2)).sqrt();
-                    let w = a.cross(n).normalize();
-                    Ok(PlaneCylinderSection::ParallelLines {
-                        l1: Curve3::Line {
-                            origin: foot + w * half,
-                            dir: a,
-                        },
-                        l2: Curve3::Line {
-                            origin: foot - w * half,
-                            dir: a,
-                        },
-                    })
-                }
-                Sign::Zero => Ok(PlaneCylinderSection::TangentLine(Curve3::Line {
-                    origin: o - n * gap_signed,
-                    dir: a,
-                })),
-                Sign::Negative => Ok(PlaneCylinderSection::Empty),
-            }
-        }
-        Sign::Positive | Sign::Negative => {
-            // Bounded cut: rim circle vs tilted ellipse.
-            let sin_vec = a.cross(n);
-            let sin_norm = sin_vec.norm();
-            let t_star = (q - o).dot(n) / c;
-            let center = o + a * t_star;
-            match decide("pc_rim_alignment", Margin::levered(sin_norm, r), band)
-                .map_err(SectionError::Escalated)?
-            {
-                Sign::Zero => Ok(PlaneCylinderSection::Rim(Curve3::Circle {
-                    center,
-                    axis: a,
-                    radius: r,
-                    u_ref: cyl_u,
-                })),
-                // The margin is a norm: Negative is unreachable; both
-                // definite verdicts take the tilted lane.
-                Sign::Positive | Sign::Negative => {
-                    let v_minor = sin_vec / sin_norm;
-                    let u_major = v_minor.cross(n);
-                    let e = Curve3::ellipse(center, n, r / c.abs(), r, u_major, band)?;
-                    Ok(PlaneCylinderSection::TiltedEllipse(e))
-                }
-            }
-        }
-    }
+    Ok((PlaneCylinder { q, n, o, a, r }, u_ref))
 }
 
 // ---------------------------------------------------------------------
@@ -1359,17 +1374,17 @@ pub enum EqualCylinderSection<T: Real> {
         /// The ellipse in the `a1 + a2`-normal bisector plane.
         e2: Curve3<T>,
     },
-    /// Parallel axes, gap definitely < 2r: two parallel rulings.
+    /// Parallel axes, gap definitely < r₁ + r₂: two parallel rulings.
     ParallelLines {
         /// One ruling.
         l1: Curve3<T>,
         /// The other.
         l2: Curve3<T>,
     },
-    /// Parallel axes, gap coincident with 2r: the tangency ruling —
+    /// Parallel axes, gap coincident with r₁ + r₂: the tangency ruling —
     /// classification data, not a constructible edge (C7 / M5 PR 9).
     TangentLine(Curve3<T>),
-    /// Parallel axes, gap definitely > 2r: no intersection.
+    /// Parallel axes, gap definitely > r₁ + r₂: no intersection.
     Empty,
 }
 
@@ -1386,14 +1401,22 @@ pub enum EqualCylinderSection<T: Real> {
 ///    the declaration is verified — Zero required; definite ⇒
 ///    [`SectionError::RadiusDeclarationContradicted`]; in-band ⇒
 ///    escalated.
-/// 3. `cc_axes_parallel` — margin `‖a1×a2‖·extent`: Zero ⇒ the
-///    parallel lane (step 4); definite ⇒ the crossing lane (step 5).
-/// 4. `cc_coaxial` / `cc_parallel_gap` — axis-to-axis distance `d`:
-///    coincident-with-zero ⇒ [`SectionError::CoincidentSurfaces`];
-///    then margin `2r − d`: Positive ⇒ two rulings, Zero ⇒ tangent
-///    ruling, Negative ⇒ empty.
+/// 3. `cc_axes_parallel` — margin `‖a1×a2‖·lever`, the lever
+///    [`Reach::lever_between`] the axes by `reach`
+///    ([`cylinder_axes_parallel`]): Zero ⇒ the parallel lane (step 4);
+///    definite ⇒ the crossing lane (step 5).
+/// 4. `cc_coaxial` / `cc_parallel_gap` — axis-to-axis distance `d`,
+///    read between the feet of `reach`'s point on the two axes
+///    ([`Reach::foot_on`]), the same in either order, each read across
+///    the reach with the axes' distance's own range beside it
+///    ([`parallel_swing`], [`decide_across`]; the `_floor` rows decide
+///    the definite side):
+///    coincident-with-zero ⇒
+///    [`SectionError::CoincidentSurfaces`]; then margin `r₁ + r₂ − d`:
+///    Positive ⇒ two rulings, Zero ⇒ tangent ruling, Negative ⇒ empty.
 /// 5. `cc_axes_coplanar` — margin the signed axis-to-axis gap
-///    `(o2−o1)·(a1×a2)/‖a1×a2‖` (meters): Zero ⇒ intersecting axes ⇒
+///    `w·(a1×a2)/‖a1×a2‖` (meters), `w` between the axes' feet at
+///    `reach` ([`cylinder_axes_coplanar`]): Zero ⇒ intersecting axes ⇒
 ///    the two bisector-plane ellipses; definite ⇒ skew ⇒ typed rung-3
 ///    refusal.
 ///
@@ -1404,7 +1427,7 @@ pub fn cylinder_cylinder_section<T: Decide>(
     c1: &Surface<T>,
     c2: &Surface<T>,
     evidence: RadiusEvidence,
-    extent: T,
+    reach: &Reach<T>,
     band: Band,
 ) -> Result<EqualCylinderSection<T>, SectionError> {
     let &Surface::Cylinder {
@@ -1449,33 +1472,35 @@ pub fn cylinder_cylinder_section<T: Decide>(
         }
     }
 
-    let cross = a1.cross(a2);
-    let cross_norm = cross.norm();
-    match decide(
-        "cc_axes_parallel",
-        Margin::levered(cross_norm, extent),
-        band,
-    )
-    .map_err(SectionError::Escalated)?
+    match cylinder_axes_parallel(reach, (o1, a1), (o2, a2), band)
+        .map_err(SectionError::Escalated)?
     {
         Sign::Zero => {
             // Parallel axes: the cross-section is two equal circles at
             // center distance d.
-            let w0 = o2 - o1;
-            let d_vec = w0 - a1 * w0.dot(a1);
-            let d = d_vec.norm();
-            match decide("cc_coaxial", Margin::of(d), band).map_err(SectionError::Escalated)? {
+            let ParallelAxes { foot1, d_vec, d } = parallel_axes_at(reach, (o1, a1), (o2, a2));
+            // The axes stand within `d ± swing` of each other across the
+            // reach, so a coincidence stands at most their sum off.
+            let swing = parallel_swing(reach, (o1, a1), (o2, a2), d);
+            match decide_across(["cc_coaxial", "cc_coaxial_floor"], d, swing, band)
+                .map_err(SectionError::Escalated)?
+            {
                 Sign::Zero => return Err(SectionError::CoincidentSurfaces),
                 Sign::Positive | Sign::Negative => {}
             }
             let two = T::from_f64(2.0);
-            match decide("cc_parallel_gap", Margin::of(two * r1 - d), band)
+            let mid = foot1 + d_vec * T::from_f64(0.5);
+            match parallel_cylinder_gap((r1, r2), d, swing, band)
                 .map_err(SectionError::Escalated)?
             {
                 Sign::Positive => {
-                    let mid = o1 + d_vec * T::from_f64(0.5);
-                    let half = (r1.powi(2) - (d / two).powi(2)).sqrt();
-                    let h = a1.cross(d_vec / d);
+                    // The rulings stand `±half` off `mid` along `h`, both
+                    // ⊥ `a1`, so `half` is read from the perpendicular gap
+                    // `|d_vec|` as `mid` and `h` are: then each ruling lies
+                    // on the first wall exactly. `|d_vec| ≤ d < 2·r1`
+                    // here, so the root is real.
+                    let half = (r1.powi(2) - (d_vec.norm() / two).powi(2)).sqrt();
+                    let h = a1.cross(d_vec).normalize();
                     Ok(EqualCylinderSection::ParallelLines {
                         l1: Curve3::Line {
                             origin: mid + h * half,
@@ -1488,7 +1513,7 @@ pub fn cylinder_cylinder_section<T: Decide>(
                     })
                 }
                 Sign::Zero => Ok(EqualCylinderSection::TangentLine(Curve3::Line {
-                    origin: o1 + d_vec * T::from_f64(0.5),
+                    origin: mid,
                     dir: a1,
                 })),
                 Sign::Negative => Ok(EqualCylinderSection::Empty),
@@ -1496,9 +1521,7 @@ pub fn cylinder_cylinder_section<T: Decide>(
         }
         Sign::Positive | Sign::Negative => {
             // Crossing lane: coplanarity (intersecting vs skew).
-            let w0 = o2 - o1;
-            let gap = w0.dot(cross) / cross_norm;
-            match decide("cc_axes_coplanar", Margin::of(gap), band)
+            match cylinder_axes_coplanar(reach, (o1, a1), (o2, a2), band)
                 .map_err(SectionError::Escalated)?
             {
                 Sign::Zero => {}
@@ -1513,8 +1536,10 @@ pub fn cylinder_cylinder_section<T: Decide>(
             }
             // The axes' intersection point (closest point on axis 1;
             // the coplanarity verdict bounds the residual by ε).
-            let t1 = w0.cross(a2).dot(cross) / cross_norm.powi(2);
-            let p = o1 + a1 * t1;
+            let (foot1, w0) = axes_feet(reach, (o1, a1), (o2, a2));
+            let cross = a1.cross(a2);
+            let t1 = w0.cross(a2).dot(cross) / cross.norm().powi(2);
+            let p = foot1 + a1 * t1;
             // The two bisector planes through p. Each ellipse is the
             // tilted plane×cylinder cut of cylinder 1 (by symmetry it
             // lies on cylinder 2 as well).
@@ -1535,6 +1560,225 @@ pub fn cylinder_cylinder_section<T: Decide>(
     }
 }
 
+/// `cc_axes_parallel`: whether the cylinder axes `oᵢ + s·aᵢ` (`aᵢ`
+/// unit) are parallel by `reach`, their sine `‖a1×a2‖` levered at
+/// [`Reach::lever_between`]. Zero ⇒ parallel.
+///
+/// The ONE reading of the fact: the section table's step 3, the
+/// tangent-locus lane and topo's germ frame all ask it here, so the
+/// frame and the table it re-enters cannot disagree.
+///
+/// # Errors
+///
+/// The trilean's diagnostics where it lands in the band or poisons.
+pub fn cylinder_axes_parallel<T: Decide>(
+    reach: &Reach<T>,
+    line1: (Point3<T>, Vec3<T>),
+    line2: (Point3<T>, Vec3<T>),
+    band: Band,
+) -> Result<Sign, Indeterminate> {
+    decide(
+        "cc_axes_parallel",
+        Margin::levered(
+            line1.1.cross(line2.1).norm(),
+            reach.lever_between(line1, line2),
+        ),
+        band,
+    )
+}
+
+/// **How far two near-parallel axes' distance moves across the reach**
+/// from the `d` the parallel lane's rows read between the feet: the
+/// `swing` [`decide_across`] carries beside each of them.
+///
+/// From the foot `p` of one line (`p + s·a`, the consumed stations
+/// within that foot's lever `L` of it, [`Reach::foot_lever`]) to the
+/// other line `o + t·b` the distance is EXACTLY `|u + s·τ|`, `u` and `τ`
+/// the parts of `p − o` and `a` off `b` (`separation_range`). Its range
+/// over `|s| ≤ L` is read exactly, so a tilt's component across the
+/// offset moves it only by its second-order lift and its component along
+/// the offset by the full first-order travel. Every distance in that
+/// range stands within `max(|dmax − d|, |d − dmin|)` of `d`. Read from
+/// either foot it bounds the same separation across the reach (the
+/// argument [`Reach::lever_between`] makes), so the lesser holds and
+/// the answer does not depend on operand order.
+pub(crate) fn parallel_swing<T: Real>(
+    reach: &Reach<T>,
+    line1: (Point3<T>, Vec3<T>),
+    line2: (Point3<T>, Vec3<T>),
+    d: T,
+) -> T {
+    let from = |this: (Point3<T>, Vec3<T>), other: (Point3<T>, Vec3<T>)| {
+        let (foot, lever) = reach.foot_lever(this);
+        let (dmin, dmax) = separation_range((foot, this.1), other, lever);
+        (dmax - d).abs().max((d - dmin).abs())
+    };
+    from(line1, line2).min(from(line2, line1))
+}
+
+/// The least and greatest distance from the points `p + s·a`,
+/// `|s| ≤ lever`, to the line `o + t·b` (`a`, `b` unit): exactly
+/// `|u + s·τ|` with `u = (p − o)` and `τ = a` each less its part along
+/// `b`, a convex function of `s`, so its greatest is at an end and its
+/// least at the clamped stationary point `−(u·τ)/(τ·τ)`.
+fn separation_range<T: Real>(
+    (p, a): (Point3<T>, Vec3<T>),
+    (o, b): (Point3<T>, Vec3<T>),
+    lever: T,
+) -> (T, T) {
+    let off = |v: Vec3<T>| v - b * v.dot(b);
+    let (u, tau) = (off(p - o), off(a));
+    let dmax = (u + tau * lever).norm().max((u - tau * lever).norm());
+    let at = (T::zero() - u.dot(tau)) / tau.dot(tau).max(T::from_f64(f64::MIN_POSITIVE));
+    let dmin = (u + tau * at.max(T::zero() - lever).min(lever)).norm();
+    (dmin, dmax)
+}
+
+/// `cc_axes_coplanar`: whether two crossing cylinder axes `oᵢ + s·aᵢ`
+/// (`aᵢ` unit) meet, the margin their signed gap along the common
+/// perpendicular, `w·(a1×a2)/‖a1×a2‖`, `w` between their feet at `reach`
+/// (`axes_feet`). Zero ⇒ they meet; definite ⇒ skew.
+///
+/// Sliding either point along its axis leaves the gap unchanged, so the
+/// feet name the same gap as any stored origins, with less of the
+/// rounding a far-stored origin's coordinates carry. The division by
+/// `‖a1×a2‖` makes the margin the axis-to-axis LENGTH the band is
+/// denominated in.
+///
+/// The ONE reading, as [`cylinder_axes_parallel`] is: the section
+/// table's step 5 and topo's germ frame ask it here.
+///
+/// # Errors
+///
+/// The trilean's diagnostics where it lands in the band or poisons.
+pub fn cylinder_axes_coplanar<T: Decide>(
+    reach: &Reach<T>,
+    line1: (Point3<T>, Vec3<T>),
+    line2: (Point3<T>, Vec3<T>),
+    band: Band,
+) -> Result<Sign, Indeterminate> {
+    let (_, w) = axes_feet(reach, line1, line2);
+    let cross = line1.1.cross(line2.1);
+    decide(
+        "cc_axes_coplanar",
+        Margin::of(w.dot(cross) / cross.norm()),
+        band,
+    )
+}
+
+/// The feet of `reach`'s point on two axes `oᵢ + s·aᵢ` ([`Reach::foot_on`]):
+/// the first foot, and the offset from it to the second's. The one
+/// place the cylinder pair's rows read where its axes stand.
+fn axes_feet<T: Real>(
+    reach: &Reach<T>,
+    (o1, a1): (Point3<T>, Vec3<T>),
+    (o2, a2): (Point3<T>, Vec3<T>),
+) -> (Point3<T>, Vec3<T>) {
+    let foot1 = reach.foot_on(o1, a1);
+    (foot1, reach.foot_on(o2, a2) - foot1)
+}
+
+/// Two parallel axes read at their feet ([`axes_feet`]). Decisions read
+/// `d`, which is the same in either operand order; constructions read
+/// `d_vec`, which is ⊥ the first axis so a ruling laid across it lies on
+/// the first wall. They differ by the feet's axial offset, which the
+/// band's tilt allows.
+///
+/// A [`Reach::Span`] picks its pivot per axis, so the two feet are each
+/// axis's least-lever point rather than the feet of one point. "The same
+/// in either order" holds for the edges that reach this arm: an edge on
+/// two parallel walls of equal radius is a ruling, so it stands at one
+/// distance from both axes and its least-lever points are the feet of
+/// one axial station. Geometry that would split them (an edge on
+/// neither wall) does not come through a consumer.
+pub struct ParallelAxes<T: Real> {
+    /// The first axis's foot.
+    pub foot1: Point3<T>,
+    /// The feet's offset ⊥ the first axis.
+    pub d_vec: Vec3<T>,
+    /// The distance between the feet.
+    pub d: T,
+}
+
+/// [`ParallelAxes`] of the lines `oᵢ + s·aᵢ` (`aᵢ` unit) at `reach`.
+/// Shared with the tangent-locus lane and topo's radical plane of a
+/// parallel cylinder pair.
+#[must_use]
+pub fn parallel_axes_at<T: Real>(
+    reach: &Reach<T>,
+    line1: (Point3<T>, Vec3<T>),
+    line2: (Point3<T>, Vec3<T>),
+) -> ParallelAxes<T> {
+    let (foot1, w) = axes_feet(reach, line1, line2);
+    let a1 = line1.1;
+    ParallelAxes {
+        foot1,
+        d_vec: w - a1 * w.dot(a1),
+        d: w.norm(),
+    }
+}
+
+/// `cc_parallel_gap`: the external-tangency margin `r1 + r2 − d` of two
+/// parallel cylinders whose axes stand `d` apart at their feet, read
+/// across the reach with `swing` beside it ([`decide_across`],
+/// [`parallel_swing`]): the axes stand within `d ± swing` of each other
+/// at every consumed station, so a ruling the verdict serves stands at
+/// most `|r1 + r2 − d| + swing` off either wall there. Positive ⇒ the walls cross along two rulings, Zero ⇒
+/// they touch along one, Negative ⇒ they clear. Symmetric in the pair,
+/// so the verdict does not depend on which cylinder is first. Shared
+/// with the tangent-locus lane.
+pub(crate) fn parallel_cylinder_gap<T: Decide>(
+    (r1, r2): (T, T),
+    d: T,
+    swing: T,
+    band: Band,
+) -> Result<Sign, Indeterminate> {
+    decide_across(
+        ["cc_parallel_gap", "cc_parallel_gap_floor"],
+        r1 + r2 - d,
+        swing,
+        band,
+    )
+}
+
+/// **A two-sided row read across the consumed region**
+/// (`crate::extent`'s module docs): `datum` the row's signed margin
+/// where its pivot reads it, and `swing` a LENGTH, the most the term
+/// its routing row admitted (a tilt levered at the row's own reach, or
+/// a position the row is read beside) moves that reading at a consumed
+/// point; each caller derives its own. Across the region the reading stands inside
+/// `datum ± swing`, so each verdict is decided on its own side of that
+/// bracket, each the point deviation that flips it:
+///
+/// - `far`, `|datum| + swing`, the farthest a consumed point reads from
+///   the flip: Zero ⇒ [`Sign::Zero`] at every consumed point;
+/// - otherwise `floor`, the bracket's reading nearest the flip (`datum`
+///   shrunk toward zero by `swing`, zero where the bracket holds it): a
+///   definite sign holds at every consumed point. A floor decided Zero
+///   beside a definite far straddles the band, and escalates through
+///   the gate.
+///
+/// The two terms are never decided one at a time: each just inside the
+/// band would sum to nearly twice it.
+pub(crate) fn decide_across<T: Decide>(
+    [far, floor]: [&'static str; 2],
+    datum: T,
+    swing: T,
+    band: Band,
+) -> Result<Sign, Indeterminate> {
+    let swing = swing.abs();
+    match decide_magnitude(far, Margin::of(datum.abs() + swing), band)? {
+        Magnitude::Zero => Ok(Sign::Zero),
+        Magnitude::Positive => {
+            let near = (datum - swing).max(T::zero()) + (datum + swing).min(T::zero());
+            Ok(match decide_nonzero(floor, Margin::of(near), band)? {
+                NonzeroSign::Positive => Sign::Positive,
+                NonzeroSign::Negative => Sign::Negative,
+            })
+        }
+    }
+}
+
 // ---------------------------------------------------------------------
 // cylinder × sphere, DECLARED coaxial
 // ---------------------------------------------------------------------
@@ -1550,13 +1794,12 @@ pub fn cylinder_cylinder_section<T: Decide>(
 /// resolves the ladder; this module consumes the verdict, then
 /// *verifies* it against the geometry (declared ≠ unchecked).
 ///
-/// **No production caller can supply `Declared` today**, and that is
-/// stated rather than papered over: the honest carrier for a
-/// parameter-level identity between a cylinder's axis and a sphere's
-/// centre is the parameter-identity channel (#1372), which does not
-/// exist. Until it does, every in-tree consumer passes [`Self::None`]
-/// and the pair routes to the general rung — the arm below is reached
-/// only by direct tests.
+/// **No production caller can supply `Declared` today.** Coaxiality is
+/// a fact about placement (an axis, a centre), so its honest carrier is
+/// the axis-shaped identity channel (`docs/AXIS-DECLARATION-DESIGN.md`),
+/// which is unbuilt. Until it is, every in-tree consumer passes
+/// [`Self::None`] and the pair routes to the general rung — the arm
+/// below is reached only by direct tests.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CoaxialEvidence {
     /// Coaxiality is structural or declared through the ladder.
@@ -1776,12 +2019,13 @@ pub fn cylinder_sphere_section<T: Decide>(
 }
 
 // ---------------------------------------------------------------------
-// plane × cone, exact-degenerates only (spec §3.3, R1)
+// plane × cone (spec §3.3, R1)
 // ---------------------------------------------------------------------
 
-/// The classified plane×cone exact-degenerate section. Generic tilt is
+/// The classified plane×cone section. A parabola or hyperbola is
 /// deliberately NOT a variant: it refuses typed
-/// ([`SectionError::RoutesToGeneralRung`]) — R1's permanent routing.
+/// ([`SectionError::RoutesToGeneralRung`], naming the conic) — both are
+/// outside the conic inventory (R1).
 #[derive(Clone, Debug)]
 pub enum PlaneConeSection<T: Real> {
     /// Apex on the plane, plane cutting inside the cone: two generator
@@ -1799,12 +2043,24 @@ pub enum PlaneConeSection<T: Real> {
     ApexPoint(Point3<T>),
     /// Axis ∥ normal, apex off the plane: the rung-1 `Circle` cut.
     AxisNormalCircle(Curve3<T>),
+    /// Apex off the plane, plane tilted but meeting every generator:
+    /// the exact `Ellipse` (rung 2), carrier axis the plane normal,
+    /// zero-residual-by-construction.
+    ///
+    /// With `c = axis·n`, `δ = (apex − q)·n` and `K = c² − sin²α`
+    /// (positive exactly on this lane), the Dandelin construction gives
+    /// semi-major `|δ|·sin α·cos α / K` along the axis' in-plane
+    /// shadow, semi-minor `|δ|·sin α / √K` along `axis × n`, and centre
+    /// `apex − (δ/K)·(c·axis − sin²α·n)`. At `c² = 1` both semi-axes are
+    /// the axis-normal circle's `|h|·tan α` and the centre is its centre
+    /// — the circle is this form's boundary case.
+    TiltedEllipse(Curve3<T>),
 }
 
-/// Classifies and constructs the plane×cone exact-degenerate sections
-/// (spec §3.3). Generic tilt refuses typed — **permanently routed to
-/// rung 3** (R1: the conic trio does not land in M5; a future PR that
-/// adds parabola/hyperbola moves the arm, nothing else does).
+/// Classifies and constructs the plane×cone section (spec §3.3): the
+/// apex-through degenerates, the axis-normal circle and the tilted
+/// ellipse. A parabolic or hyperbolic section refuses typed, naming its
+/// conic (R1: neither is in the conic inventory).
 ///
 /// Trileans, in order:
 ///
@@ -1817,21 +2073,33 @@ pub enum PlaneConeSection<T: Real> {
 ///    classified.
 /// 1. `pn_apex_on_plane` — margin `(apex − q)·normal` (meters): Zero ⇒
 ///    the apex lane (step 2); definite ⇒ step 3.
-/// 2. `pn_apex_section` — margin `sin α·‖axis×normal‖ −
-///    cos α·|axis·normal|` metered at `extent` (the two-generator
-///    discriminant: positive exactly when the plane dips inside the
-///    cone): Positive ⇒ [`PlaneConeSection::ApexLinePair`], Zero ⇒
+/// 2. `pn_apex_section` — margin `D = sin α·‖axis×normal‖ −
+///    cos α·|axis·normal|` metered at `extent` (the conic-type
+///    discriminant, here at its degenerate column: positive exactly when
+///    the plane dips inside the cone), read with step 1's apex gap
+///    beside it ([`decide_across`]; `pn_apex_section_floor` decides the
+///    definite side): Positive ⇒
+///    [`PlaneConeSection::ApexLinePair`], Zero ⇒
 ///    [`PlaneConeSection::ApexTangentLine`], Negative ⇒
 ///    [`PlaneConeSection::ApexPoint`].
 /// 3. `pn_axis_normal` — margin `‖axis×normal‖·arm`, arm the would-be
 ///    circle radius `|h|·tan α` (h the apex-to-plane distance along
 ///    the axis): Zero ⇒ [`PlaneConeSection::AxisNormalCircle`];
-///    definite ⇒ the R1 refusal.
+///    definite ⇒ step 4.
+/// 4. `pn_conic_type` — the same margin `D`, metered at `extent`, off
+///    the apex: Negative ⇒ the plane meets every generator once and the
+///    section is [`PlaneConeSection::TiltedEllipse`] through the ellipse
+///    constructor (whose `ellipse_axes_distinct` gate is the final word
+///    on a near-circular tilt — the cylinder arm's double gate); Zero ⇒
+///    a parabola, Positive ⇒ a hyperbola, each refused naming its conic.
+///    An in-band `D` (a near-parabola) escalates; it is never snapped
+///    to either side.
 ///
 /// # Errors
 ///
 /// [`SectionError`] — wrong-lane kinds, the aperture guards, escalations
-/// (F6), or the R1 generic-tilt routing refusal.
+/// (F6), a carrier-constructor refusal, or the parabola/hyperbola
+/// refusal (R1).
 pub fn plane_cone_section<T: Decide>(
     plane: &Surface<T>,
     cone: &Surface<T>,
@@ -1890,15 +2158,31 @@ pub fn plane_cone_section<T: Decide>(
     let c = a.dot(n);
     let s_vec = a.cross(n);
     let s = s_vec.norm();
+    // The conic-type discriminant: its sign is the conic's type off the
+    // apex and the generator count through it.
+    let discr = sin_a * s - cos_a * c.abs();
 
     let apex_gap = (apex - q).dot(n);
     match decide("pn_apex_on_plane", Margin::of(apex_gap), band).map_err(SectionError::Escalated)? {
         Sign::Zero => {
             // Apex lane: generators g(u) = a·cosα + radial(u)·sinα with
-            // g·n = 0 ⇔ cos(u − φ) = −cosα·c / (sinα·s).
-            let discr = sin_a * s - cos_a * c.abs();
-            let verdict = decide("pn_apex_section", Margin::levered(discr, extent), band)
-                .map_err(SectionError::Escalated)?;
+            // g·n = 0 ⇔ cos(u − φ) = −cosα·c / (sinα·s). The datum is
+            // the discriminant levered at the extent: how far the plane
+            // through the apex dips into (or clears) the cone at the
+            // extent's generators. The real plane stands `apex_gap` off
+            // the apex, which moves its stand-off from every generator
+            // point by that much, so `apex_gap` is the swing: the
+            // tangent generator is served only where the two together
+            // stand inside the zero band, the line pair only where the
+            // plane dips in by more than the band past its offset, and
+            // the apex point only where it clears by as much.
+            let verdict = decide_across(
+                ["pn_apex_section", "pn_apex_section_floor"],
+                Margin::levered(discr, extent).value(),
+                apex_gap,
+                band,
+            )
+            .map_err(SectionError::Escalated)?;
             match verdict {
                 Sign::Positive | Sign::Zero => {
                     let v_ref = a.cross(cone_u);
@@ -1931,8 +2215,8 @@ pub fn plane_cone_section<T: Decide>(
             }
         }
         Sign::Positive | Sign::Negative => {
-            // Apex definitely off the plane: axis-normal circle or the
-            // R1 permanent routing.
+            // Apex definitely off the plane: axis-normal circle, else
+            // the conic the tilt makes.
             let h = (q - apex).dot(a);
             let rim_r = h.abs() * (sin_a / cos_a);
             match decide("pn_axis_normal", Margin::levered(s, rim_r), band)
@@ -1944,14 +2228,37 @@ pub fn plane_cone_section<T: Decide>(
                     radius: rim_r,
                     u_ref: cone_u,
                 })),
-                Sign::Positive | Sign::Negative => Err(SectionError::RoutesToGeneralRung {
-                    pair: "plane×cone",
-                    why: "generic tilt routes to the general rung PERMANENTLY — the \
-                          conic trio is outside the closed-form inventory by \
-                          decision, and only an arm that adds parabola/hyperbola \
-                          moves it. The general rung is implemented; this routing is \
-                          not waiting on it",
-                }),
+                Sign::Positive | Sign::Negative => {
+                    match decide("pn_conic_type", Margin::levered(discr, extent), band)
+                        .map_err(SectionError::Escalated)?
+                    {
+                        Sign::Negative => {
+                            // K = −D·(cos α·|c| + sin α·s) > 0 here.
+                            let k = c.powi(2) - sin_a.powi(2);
+                            let major = apex_gap.abs() * sin_a * cos_a / k;
+                            let minor = apex_gap.abs() * sin_a / k.sqrt();
+                            let center = apex - (a * c - n * sin_a.powi(2)) * (apex_gap / k);
+                            // The axis-normal trilean above made `s`
+                            // definite, so the minor direction is.
+                            let v_minor = s_vec / s;
+                            let u_major = v_minor.cross(n);
+                            let e = Curve3::ellipse(center, n, major, minor, u_major, band)?;
+                            Ok(PlaneConeSection::TiltedEllipse(e))
+                        }
+                        Sign::Zero => Err(SectionError::RoutesToGeneralRung {
+                            pair: "plane×cone",
+                            why: "the plane lies parallel to a generator, so the section \
+                                  is a PARABOLA — outside the conic inventory by decision \
+                                  (R1), not by omission",
+                        }),
+                        Sign::Positive => Err(SectionError::RoutesToGeneralRung {
+                            pair: "plane×cone",
+                            why: "the plane meets both nappes, so the section is a \
+                                  HYPERBOLA — outside the conic inventory by decision \
+                                  (R1), not by omission",
+                        }),
+                    }
+                }
             }
         }
     }
@@ -1961,14 +2268,13 @@ pub fn plane_cone_section<T: Decide>(
 // plane × torus
 // ---------------------------------------------------------------------
 
-/// The classified plane×torus section — the two exact-degenerate
-/// configurations' closed forms (rung 1: the trileans run before any
-/// rung, C5; **no fitted chord anywhere in this arm** — every
-/// constructible locus is an exact `Circle`). Everything tilted cuts a
-/// spiric QUARTIC and refuses typed as routed to the general rung; the
-/// bitangent (Villarceau) two-circle configuration is deliberately
-/// unclassified — a third classification no consumer configuration
-/// reaches.
+/// The classified plane×torus section — the axis-aligned
+/// configurations' closed forms (the trileans run before any rung, C5;
+/// **no fitted chord anywhere in this arm** — every constructible locus
+/// is an exact `Circle` or `Spiric`). Everything tilted refuses typed
+/// as routed to the general rung; the bitangent (Villarceau) two-circle
+/// configuration is deliberately unclassified — a classification no
+/// consumer configuration reaches.
 #[derive(Clone, Debug)]
 pub enum PlaneTorusSection<T: Real> {
     /// Axis-containing plane: the TWO meridian circles — radius `r`,
@@ -1983,6 +2289,18 @@ pub enum PlaneTorusSection<T: Real> {
         c1: Curve3<T>,
         /// The circle centred at `c − m·R`.
         c2: Curve3<T>,
+    },
+    /// Axis-parallel plane OFF the axis, short of the inner equator
+    /// (`0 < |d| < R − r` for the stand-off `d = n·q − n·c`): the
+    /// spiric's TWO ovals, each the [`Curve3::Spiric`]
+    /// [`Curve3::spiric`] mints from the torus and the plane's normal. Zero-residual-by-construction
+    /// against both implicit forms in ℝ.
+    SpiricOvals {
+        /// The oval on the `+a × n` side of the plane's trace of the
+        /// axis: `u_ref = n`, `offset = d`.
+        s1: Curve3<T>,
+        /// The oval on the `−a × n` side: `u_ref = −n`, `offset = −d`.
+        s2: Curve3<T>,
     },
     /// Axis-normal plane cutting the tube (`|h| < r` for
     /// `h = (q − c)·a`): TWO concentric circles — radii
@@ -2009,7 +2327,7 @@ pub enum PlaneTorusSection<T: Real> {
     Empty,
 }
 
-/// Classifies and constructs the plane×torus exact-degenerate sections.
+/// Classifies and constructs the plane×torus axis-aligned sections.
 ///
 /// Trileans, in order (named lever arms per D4 ¶1):
 ///
@@ -2034,21 +2352,29 @@ pub enum PlaneTorusSection<T: Real> {
 /// 2. `pt_axis_in_plane` — margin `(a·n)·extent` (the axis' angle off
 ///    the plane, metered at the operand extent): Zero ⇒ the axis
 ///    DIRECTION lies in the plane; then `pt_axis_plane_gap` — margin
-///    `(c − q)·n` (meters): Zero ⇒ the plane CONTAINS the axis ⇒
+///    the stand-off `d = n·q − n·c` (meters, the plane's constant less
+///    the centre's): Zero ⇒ the plane CONTAINS the axis ⇒
 ///    [`PlaneTorusSection::MeridianCircles`]; definite ⇒ the
-///    axis-parallel plane OFF the axis, whose section is a spiric
-///    quartic — the general-rung refusal.
+///    axis-parallel plane OFF the axis, and then `pt_spiric_two_ovals`
+///    — margin `(R − r) − |d|` (meters, `d` that same gap), read across
+///    the extent with that tilt displacement beside it
+///    ([`decide_across`], `pt_spiric_two_ovals_floor` deciding the
+///    definite side): Positive ⇒
+///    [`PlaneTorusSection::SpiricOvals`], minted through
+///    [`Curve3::spiric`]; otherwise the section is a node, a folded
+///    loop or empty, and refuses as routed to the general rung.
 /// 3. `pt_axis_normal` — margin `‖a×n‖·R` (the tilt angle's sine,
 ///    metered at the would-be circle radius): Zero ⇒ the plane is
 ///    perpendicular to the axis; then `pt_cap_gap` — margin `r − |h|`
-///    (meters, `h = (q − c)·a` the station's depth into the tube):
+///    (meters, `h = (q − c)·a` the station's depth into the tube), read
+///    with that tilt displacement beside it ([`decide_across`]):
 ///    Positive ⇒ [`PlaneTorusSection::ConcentricCircles`], Zero ⇒
 ///    [`PlaneTorusSection::TangentCircle`] (classification data),
 ///    Negative ⇒ [`PlaneTorusSection::Empty`].
 /// 4. Everything else ⇒ [`SectionError::RoutesToGeneralRung`], with
 ///    the bitangent (Villarceau) two-circle case NAMED as deliberately
 ///    unclassified — exactly as the cylinder×cylinder arm names skew
-///    and the plane×cone arm names the conic trio.
+///    and the plane×cone arm names the parabola and the hyperbola.
 ///
 /// The form is `atan2`-free and branch-cut-free by construction, so the
 /// `Interval` lane takes it unchanged: there is no lane fork here.
@@ -2056,7 +2382,8 @@ pub enum PlaneTorusSection<T: Real> {
 /// # Errors
 ///
 /// [`SectionError`] — wrong-lane kinds, the degenerate-torus guard,
-/// in-band escalations (F6), or the general-rung routing refusal.
+/// in-band escalations (F6), the general-rung routing refusal, or the
+/// spiric constructor's own refusal ([`SectionError::Spiric`]).
 pub fn plane_torus_section<T: Decide>(
     plane: &Surface<T>,
     torus: &Surface<T>,
@@ -2109,13 +2436,20 @@ pub fn plane_torus_section<T: Decide>(
     // the operand extent, ≥ R + r for any plane that reaches the
     // torus, so r/extent < 1 and the planarity error stays under ε.
     // The predicate-dimension-audit row carries the same caveat.
-    match decide("pt_axis_in_plane", Margin::levered(a.dot(n), extent), band)
-        .map_err(SectionError::Escalated)?
-    {
+    let tilt = Margin::levered(a.dot(n), extent);
+    match decide("pt_axis_in_plane", tilt, band).map_err(SectionError::Escalated)? {
         Sign::Zero => {
             // The axis direction lies in the plane: containing vs
-            // offset, by the centre-to-plane gap.
-            match decide("pt_axis_plane_gap", Margin::of((c - q).dot(n)), band)
+            // offset, by the stand-off `d` — the one spelling this arm
+            // decides on and mints from. The meridian circles are
+            // minted parallel to the plane, `d` off it at every point,
+            // and the tilt turns them about their own centres' radial
+            // line, along the torus rather than off it: only `d` is
+            // read here. An oval is minted in a plane that the tilt does
+            // move off the real one, so the two-oval row reads the tilt
+            // beside its gap.
+            let d = n.dot(q - Point3::origin()) - n.dot(c - Point3::origin());
+            match decide("pt_axis_plane_gap", Margin::of(d), band)
                 .map_err(SectionError::Escalated)?
             {
                 Sign::Zero => {
@@ -2135,28 +2469,64 @@ pub fn plane_torus_section<T: Decide>(
                         c2: circle_at(c - m * big_r),
                     })
                 }
-                Sign::Positive | Sign::Negative => Err(SectionError::RoutesToGeneralRung {
-                    pair: "plane×torus",
-                    why: "an axis-parallel plane OFF the axis cuts a spiric quartic, \
-                          not a circle, and the pair's general-rung arm has not \
-                          retired — blocked on the torus's exact meters conversion \
-                          (arms retire one at a time, each with its proof)",
-                }),
+                Sign::Positive | Sign::Negative => {
+                    // Off the axis: the spiric, two ovals while the
+                    // plane stays short of the inner equator — a
+                    // length, decided before any root is taken.
+                    match decide_across(
+                        ["pt_spiric_two_ovals", "pt_spiric_two_ovals_floor"],
+                        (big_r - r) - d.abs(),
+                        tilt.value(),
+                        band,
+                    )
+                    .map_err(SectionError::Escalated)?
+                    {
+                        Sign::Positive => {}
+                        Sign::Zero | Sign::Negative => {
+                            return Err(SectionError::RoutesToGeneralRung {
+                                pair: "plane×torus",
+                                why: "an axis-parallel plane at or past the torus's inner \
+                                      equator cuts a node, one folded loop or nothing — not \
+                                      the two ovals the spiric carries — and the pair's \
+                                      general-rung arm has not retired, blocked on the \
+                                      torus's exact meters conversion",
+                            });
+                        }
+                    }
+                    // `(a, n, d)` names the oval on the `+a × n` side
+                    // of the plane's trace, and `(a, −n, −d)` the other
+                    // (the variant's docs).
+                    let oval = |u: Vec3<T>, offset: T| {
+                        Curve3::spiric(c, a, u, big_r, r, offset, band).map_err(|e| match e {
+                            geom::SpiricInvalid::Escalated(diag) => SectionError::Escalated(diag),
+                            other => SectionError::Spiric(other),
+                        })
+                    };
+                    Ok(PlaneTorusSection::SpiricOvals {
+                        s1: oval(n, d)?,
+                        s2: oval(-n, -d)?,
+                    })
+                }
             }
         }
         Sign::Positive | Sign::Negative => {
-            let sin_norm = a.cross(n).norm();
-            match decide("pt_axis_normal", Margin::levered(sin_norm, big_r), band)
-                .map_err(SectionError::Escalated)?
-            {
+            let tilt = Margin::levered(a.cross(n).norm(), big_r);
+            match decide("pt_axis_normal", tilt, band).map_err(SectionError::Escalated)? {
                 Sign::Zero => {
                     // The plane is perpendicular to the axis: the
                     // concentric-circle lane, by the station's depth
-                    // into the tube.
+                    // into the tube. The tilt moves the plane's depth by
+                    // at most its displacement at the circles, so a
+                    // circle minted at `h` stands at most the sum off.
                     let h = (q - c).dot(a);
                     let center = c + a * h;
-                    match decide("pt_cap_gap", Margin::of(r - h.abs()), band)
-                        .map_err(SectionError::Escalated)?
+                    match decide_across(
+                        ["pt_cap_gap", "pt_cap_gap_floor"],
+                        r - h.abs(),
+                        tilt.value(),
+                        band,
+                    )
+                    .map_err(SectionError::Escalated)?
                     {
                         Sign::Positive => {
                             // The interval-square tripwire does not
@@ -2239,6 +2609,14 @@ pub enum ConeCylinderSection<T: Real> {
 ///
 /// Trileans, in order (named lever arms per D4 ¶1):
 ///
+/// **`extent` is measured from the apex**: the farthest the consumed
+/// region stands from it, which also bounds where the minted circles
+/// may stand (`coc_station_reach`). Every row reads the pose at the
+/// apex and levers its angles from there: the axes stand within
+/// `d ± θ·extent` of each other across the region, `d` the apex's
+/// distance from the cylinder's axis and `θ` the tilt
+/// `coc_axes_parallel` admits, and `coc_coaxial` decides that sum.
+///
 /// 1. `coc_cylinder_radius` — margin `R` (meters): the arm states both
 ///    circles at exactly that radius, so it must be a positive length.
 /// 2. `coc_aperture_sin` and `coc_aperture_cos`, each metered at
@@ -2254,11 +2632,14 @@ pub enum ConeCylinderSection<T: Real> {
 ///    general-rung refusal, a tilted cylinder cutting a quartic. Zero
 ///    covers the antiparallel pose too, which is the same
 ///    configuration read through the cylinder's opposite orientation.
-/// 4. `coc_coaxial` — margin the axis-to-axis distance
-///    `‖(o − apex) − a·((o − apex)·a)‖` (meters): Zero ⇒ coaxial;
-///    definite ⇒ the general-rung refusal, a parallel-but-OFFSET
-///    cylinder cutting a quartic. A norm is never negative, so this
-///    trilean has two live verdicts by construction.
+/// 4. `coc_coaxial` — margin the apex's distance from the cylinder's
+///    axis, `‖(apex − o) − b·((apex − o)·b)‖` (meters), read across the
+///    extent with the axes' distance's range over it and the circles'
+///    turn beside it ([`decide_across`]): Zero ⇒ coaxial, the circles
+///    standing at most that sum off the cylinder; `coc_coaxial_floor` definite ⇒ the
+///    general-rung refusal, a parallel-but-OFFSET cylinder cutting a
+///    quartic. A norm is never negative, so the floor has one live
+///    definite verdict by construction.
 /// 5. `coc_station_reach` — margin `extent − |R·cot α|` (meters), the
 ///    ADMISSION criterion and the last decision before the mint:
 ///    Positive ⇒ [`ConeCylinderSection::CoaxialCircles`], otherwise
@@ -2389,13 +2770,22 @@ pub fn cone_cylinder_section<T: Decide>(
         }
     }
 
-    // The axes are parallel: coaxial or merely parallel, by the
-    // axis-to-axis distance. `a` is unit by the surface's own
-    // invariant, so the rejection is the standard point-to-line
-    // distance and no division enters here.
-    let q = o - apex;
-    let d = (q - a * q.dot(a)).norm();
-    match decide("coc_coaxial", Margin::of(d), band).map_err(SectionError::Escalated)? {
+    // The axes are parallel: coaxial or merely parallel, by the apex's
+    // distance from the CYLINDER's axis, read at the pivot every row
+    // here is levered from. Against its own axis the cylinder's origin
+    // may stand anywhere on it. A point of a circle minted at `R` about
+    // the cone's axis, at station `s` from the apex, stands off the
+    // cylinder by at most the cone's axis point's distance from the
+    // cylinder's, `|u + s·τ|` (`separation_range`, read exactly over
+    // `|s| ≤ extent`), plus the circle's own turn off the cylinder's
+    // cross-section, `R·(1 − cos θ) ≤ R·sin²θ`. The swing is that range's
+    // reach from `d`, plus the turn.
+    let d = (apex - o).reject_from(b).norm();
+    let (near, far) = separation_range((apex, a), (o, b), extent);
+    let swing = (far - d).abs().max((d - near).abs()) + big_r * a.cross(b).norm().powi(2);
+    match decide_across(["coc_coaxial", "coc_coaxial_floor"], d, swing, band)
+        .map_err(SectionError::Escalated)?
+    {
         Sign::Zero => {
             // Coaxial. On the cone `S(u, v) = apex + a·(v·cos α) +
             // radial(u)·(v·sin α)`, so the circle of radius `R` sits at

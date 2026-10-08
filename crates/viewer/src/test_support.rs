@@ -20,11 +20,12 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use pncad::document::{
-    BooleanValue, CancelToken, ContentPin, Datum, Dimension, Doc, DocEdit, DocParam, DocRef,
-    DocumentId, EditError, EvalOptions, Evaluation, Expr, LoopProgram, Node, NodeErrorKind,
-    ParamName, PartFault, ProfileProgram, RecipeNodeId, RefusingReach, ValuePayload, apply,
-    evaluate,
+    AuthoredNode, BooleanValue, CancelToken, ContentPin, Datum, Dimension, Doc, DocEdit, DocRef,
+    DocumentId, EditError, EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, Node,
+    NodeErrorKind, PartFault, ProfileProgram, RecipeNodeId, RefusingReach, ValuePayload, VarName,
+    apply, evaluate,
 };
 use pncad::geom_core::{Point2, Tol};
 use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
@@ -48,23 +49,23 @@ pub use editor_core::test_support::{ang, len, len2, scl};
 /// A length literal that remembers it was WRITTEN in millimetres —
 /// `len` lowers canonically and carries no notation, which is what a
 /// row about the unit a literal keeps cannot use.
-pub fn len_mm(metres: f64) -> Expr {
-    Expr::literal_with_unit(metres, Dimension::Length, pncad::prelude::MM.def())
+pub fn len_mm(metres: f64) -> Formula {
+    Formula::literal_with_unit(metres, Dimension::Length, pncad::prelude::MM.def())
         .expect("a finite length")
 }
 
 /// Three length literals — a datum origin, a translation.
-pub fn len3(v: [f64; 3]) -> [Expr; 3] {
+pub fn len3(v: [f64; 3]) -> [Formula; 3] {
     [len(v[0]), len(v[1]), len(v[2])]
 }
 
 /// Three dimensionless literals — a normal, a direction, an axis.
-pub fn scl3(v: [f64; 3]) -> [Expr; 3] {
+pub fn scl3(v: [f64; 3]) -> [Formula; 3] {
     [scl(v[0]), scl(v[1]), scl(v[2])]
 }
 
 /// Two dimensionless literals — a direction in a sketch frame.
-pub fn scl2(v: [f64; 2]) -> [Expr; 2] {
+pub fn scl2(v: [f64; 2]) -> [Formula; 2] {
     [scl(v[0]), scl(v[1])]
 }
 
@@ -116,7 +117,7 @@ pub fn try_edited(
 /// and names that premise in its own `.expect(..)`.
 pub fn inserted(
     doc: &Doc<ProfileProgram>,
-    node: Node<ProfileProgram>,
+    node: AuthoredNode,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
     try_inserted(doc, node, tol).expect("the fixture's edit applies")
@@ -131,10 +132,17 @@ pub fn inserted(
 /// The document's own refusal of the insert, unaltered.
 pub fn try_inserted(
     doc: &Doc<ProfileProgram>,
-    node: Node<ProfileProgram>,
+    node: AuthoredNode,
     tol: Tol,
 ) -> Result<(Doc<ProfileProgram>, RecipeNodeId), EditError> {
-    let (doc, minted) = try_edited(doc, DocEdit::InsertNode { node }, tol)?;
+    let (doc, minted) = try_edited(
+        doc,
+        DocEdit::InsertNode {
+            node: Box::new(node),
+            fresh: Vec::new(),
+        },
+        tol,
+    )?;
     Ok((doc, minted.expect("an insert mints an id")))
 }
 
@@ -158,7 +166,7 @@ pub use editor_core::test_support::spoken;
 /// Unless `w` and `h` are both positive: a non-positive side would
 /// turn the winding or collapse the loop, and "lower-left,
 /// counter-clockwise" would stop being true of what it returns.
-pub fn rectangle_loop(origin: [f64; 2], w: f64, h: f64) -> LoopProgram {
+pub fn rectangle_loop(origin: [f64; 2], w: f64, h: f64) -> LoopProgram<Formula> {
     assert!(
         w > 0.0 && h > 0.0,
         "a rectangle has positive sides: {w} x {h}"
@@ -172,7 +180,7 @@ pub fn rectangle_loop(origin: [f64; 2], w: f64, h: f64) -> LoopProgram {
 /// [`rectangle_loop`] drawn on it. `square` is this with two equal
 /// sides at the plane origin, and a fixture whose block sits elsewhere
 /// moves `origin`.
-pub fn rectangle(plane: RecipeNodeId, origin: [f64; 2], w: f64, h: f64) -> Node<ProfileProgram> {
+pub fn rectangle(plane: RecipeNodeId, origin: [f64; 2], w: f64, h: f64) -> AuthoredNode {
     Node::Profile(ProfileProgram {
         plane,
         loops: vec![rectangle_loop(origin, w, h)],
@@ -182,26 +190,26 @@ pub fn rectangle(plane: RecipeNodeId, origin: [f64; 2], w: f64, h: f64) -> Node<
 
 /// A square profile node's payload on `plane`, `side` metres on a side,
 /// at the plane origin.
-pub fn square(plane: RecipeNodeId, side: f64) -> Node<ProfileProgram> {
+pub fn square(plane: RecipeNodeId, side: f64) -> AuthoredNode {
     rectangle(plane, [0.0, 0.0], side, side)
 }
 
 // --- documents built from the doors above ---------------------------
 
-/// **A document holding one declared parameter and nothing else** —
+/// **A document holding one declared variable and nothing else** —
 /// the fixture both panel suites build their parameter rows on.
 ///
 /// `label` is the document's derived name, so two fixtures in one
 /// binary cannot share an identity. No oracle: it is the spelling of
-/// `Doc::empty_derived` plus one `SetDocParam`, and what each row
+/// `Doc::empty_derived` plus one `DeclareVar`, and what each row
 /// asserts is about the `value` it handed in.
-pub fn declared(label: &str, name: &ParamName, value: DocParam, tol: Tol) -> Doc<ProfileProgram> {
+pub fn declared(label: &str, name: &VarName, value: FreeVar, tol: Tol) -> Doc<ProfileProgram> {
     let doc: Doc<ProfileProgram> = Doc::empty_derived(label, tol);
     edited(
         &doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: name.clone(),
-            value,
+            def: pncad::document::VarDecl::Free(value),
         },
         tol,
     )
@@ -212,11 +220,7 @@ pub fn declared(label: &str, name: &ParamName, value: DocParam, tol: Tol) -> Doc
 /// answer the minted id, for a fixture that threads one document
 /// through a sequence of edits rather than rebinding at each one.
 /// Same call and same refusal behaviour — only the caller differs.
-pub fn insert_into(
-    doc: &mut Doc<ProfileProgram>,
-    node: Node<ProfileProgram>,
-    tol: Tol,
-) -> RecipeNodeId {
+pub fn insert_into(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
     let (applied, id) = inserted(doc, node, tol);
     *doc = applied;
     id
@@ -273,6 +277,7 @@ pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeI
         Node::Extrude {
             profile: section,
             distance: len(depth),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -303,6 +308,7 @@ pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeI
         Node::Extrude {
             profile: disc,
             distance: len(BOSS_HEIGHT),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -321,9 +327,20 @@ pub fn boss_on_block_union_volume() -> f64 {
 /// verdict with the kernel's own. Answers the evaluation and the id.
 pub fn evaluated_insert(
     doc: &Doc<ProfileProgram>,
-    node: Node<ProfileProgram>,
+    node: AuthoredNode,
     tol: Tol,
 ) -> (Evaluation<f64>, RecipeNodeId) {
+    let (_, eval, id) = inserted_and_evaluated(doc, node, tol);
+    (eval, id)
+}
+
+/// [`evaluated_insert`] with the document the evaluation was taken of,
+/// for a row that speaks the evaluation's ids.
+pub fn inserted_and_evaluated(
+    doc: &Doc<ProfileProgram>,
+    node: AuthoredNode,
+    tol: Tol,
+) -> (Doc<ProfileProgram>, Evaluation<f64>, RecipeNodeId) {
     let (doc, id) = inserted(doc, node, tol);
     let eval = evaluate(
         &doc,
@@ -332,7 +349,7 @@ pub fn evaluated_insert(
         &EvalOptions::default(),
         tol,
     );
-    (eval, id)
+    (doc, eval, id)
 }
 
 /// **The volume of `node`'s single body in `eval`** — an extrude's, a

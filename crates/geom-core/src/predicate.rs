@@ -1022,12 +1022,41 @@ pub struct MarginDiag(Reading);
 /// The private reading of a [`MarginDiag`].
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Reading {
-    /// The classified `f64` margin, signed, exactly as submitted.
-    Value(f64),
+    /// The classified `f64` margin, signed, exactly as submitted, and
+    /// the gate's tag where a gate rejected it. The tag rides inside
+    /// the variant so the reading stays the size of its numbers.
+    Value(f64, Option<Rejection>),
     /// The classified enclosure's bounds, exactly as the interval
-    /// scalar held them.
-    Enclosure { lo: f64, hi: f64 },
+    /// scalar held them, and the gate's tag where a gate rejected it.
+    Enclosure {
+        lo: f64,
+        hi: f64,
+        tag: Option<Rejection>,
+    },
     /// The margin was poisoned.
+    Invalid,
+}
+
+/// What a gate door adds to the decided reading it rejects: the sign
+/// the classifier decided and the signs the gate passes. Minted only by
+/// [`MarginDiag::rejected_by`], which only `k_stats`' gate doors call.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Rejection {
+    sign: Sign,
+    passes: SizedPass,
+}
+
+/// Where a [`MarginDiag`] stands against a band, as classification
+/// places it: what the error text of an escalation may claim about it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Placement {
+    /// Decided zero: a gate that does not pass at zero rejected it.
+    ZeroBand,
+    /// Decided nonzero: a gate rejected the side it lies on.
+    Past,
+    /// Inside the ambiguity band, or an enclosure straddling a threshold.
+    Undecided,
+    /// Poisoned.
     Invalid,
 }
 
@@ -1058,7 +1087,9 @@ pub enum MarginKind {
     /// a domain violation somewhere in the computation (see the
     /// totality/NaN policy in [`crate::real`]). A poisoned value carries
     /// no sign information at all — this is not "too close to call", it
-    /// is "the question was never validly posed". For the subdivision
+    /// is "nothing was measured". It means poison and nothing else: a
+    /// definite sign a gate rejects carries the margin it was decided
+    /// on ([`crate::k_stats::decide_positive`]). For the subdivision
     /// driver the causes differ in curability: a domain-clamp `Invalid`
     /// (a `Trv` decoration from a partially out-of-domain enclosure) may
     /// cure under subdivision as the violating sub-box shrinks away,
@@ -1180,20 +1211,20 @@ impl MarginDiag {
     /// The reading of a point margin, as `f64` classification mints it.
     #[must_use]
     pub const fn value(m: f64) -> Self {
-        Self(Reading::Value(m))
+        Self(Reading::Value(m, None))
     }
 
     /// The reading of an enclosure, as interval classification mints it.
     #[must_use]
     pub const fn enclosure(lo: f64, hi: f64) -> Self {
-        Self(Reading::Enclosure { lo, hi })
+        Self(Reading::Enclosure { lo, hi, tag: None })
     }
 
     /// Which shape this reading has.
     #[must_use]
     pub fn kind(self) -> MarginKind {
         match self.0 {
-            Reading::Value(_) => MarginKind::Value,
+            Reading::Value(..) => MarginKind::Value,
             Reading::Enclosure { .. } => MarginKind::Enclosure,
             Reading::Invalid => MarginKind::Invalid,
         }
@@ -1205,6 +1236,66 @@ impl MarginDiag {
         self.kind() == MarginKind::Invalid
     }
 
+    /// This decided reading, as a gate that passes only `passes`
+    /// rejected its decided `sign` — the one mint of the tag
+    /// [`MarginDiag::rejected_sign`] reads.
+    pub(crate) const fn rejected_by(self, sign: Sign, passes: SizedPass) -> Self {
+        let tag = Some(Rejection { sign, passes });
+        Self(match self.0 {
+            Reading::Value(m, _) => Reading::Value(m, tag),
+            Reading::Enclosure { lo, hi, .. } => Reading::Enclosure { lo, hi, tag },
+            Reading::Invalid => Reading::Invalid,
+        })
+    }
+
+    /// The sign the classifier decided, where this reading is a gate's
+    /// rejection of it; `None` for every other reading (in band,
+    /// straddling, poisoned). A verdict, read as a sign — never the
+    /// number.
+    #[must_use]
+    pub fn rejected_sign(self) -> Option<Sign> {
+        self.tag().map(|r| r.sign)
+    }
+
+    /// The gate's tag, where a gate rejected this reading.
+    const fn tag(self) -> Option<Rejection> {
+        match self.0 {
+            Reading::Value(_, tag) | Reading::Enclosure { tag, .. } => tag,
+            Reading::Invalid => None,
+        }
+    }
+
+    /// The tolerance below which a smaller one decides this reading
+    /// passing `passes`, or `None` where none does: a poisoned reading,
+    /// one past the band (decided at this tolerance already), or one
+    /// whose sign no tolerance moves onto a side `passes` accepts.
+    fn tightens_below(self, band: Band, passes: SizedPass) -> Option<f64> {
+        if self.placement(band) == Placement::Past {
+            return None;
+        }
+        match self.0 {
+            Reading::Value(m, _) => passes.tightens(m).then(|| band.tolerance_deciding(m)),
+            Reading::Enclosure { lo, hi, .. } => passes.below(lo, hi, band),
+            Reading::Invalid => None,
+        }
+    }
+
+    /// Where this reading stands against `band`, as the classifier
+    /// would place it — for composing error text only.
+    fn placement(self, band: Band) -> Placement {
+        let (zero, escalate) = (band.zero, band.escalate);
+        match self.0 {
+            Reading::Value(m, _) if m.abs() <= zero => Placement::ZeroBand,
+            Reading::Enclosure { lo, hi, .. } if -zero <= lo && hi <= zero => Placement::ZeroBand,
+            Reading::Value(m, _) if m.abs() >= escalate => Placement::Past,
+            Reading::Enclosure { lo, hi, .. } if lo >= escalate || hi <= -escalate => {
+                Placement::Past
+            }
+            Reading::Value(..) | Reading::Enclosure { .. } => Placement::Undecided,
+            Reading::Invalid => Placement::Invalid,
+        }
+    }
+
     /// **The one door to the numbers, for error text only.** A call
     /// outside a message or a payload conversion is a decision on a
     /// reporting margin, which the type exists to prevent; production
@@ -1212,8 +1303,8 @@ impl MarginDiag {
     #[must_use]
     pub fn diagnostic_f64_for_error_text(self) -> ErrorTextReading {
         match self.0 {
-            Reading::Value(m) => ErrorTextReading::Value(m),
-            Reading::Enclosure { lo, hi } => ErrorTextReading::Enclosure { lo, hi },
+            Reading::Value(m, _) => ErrorTextReading::Value(m),
+            Reading::Enclosure { lo, hi, .. } => ErrorTextReading::Enclosure { lo, hi },
             Reading::Invalid => ErrorTextReading::Invalid,
         }
     }
@@ -1224,9 +1315,10 @@ impl MarginDiag {
     /// the margin passing — "or, if this {size} is intended, tighten
     /// the tolerance below `|m|/K`", `K` the band's multiplier. A point
     /// margin tightens where it is nonzero on a side the decision
-    /// accepts; an enclosure where both ends do, below its nearer end.
-    /// Otherwise the lever alone, with [`SizedWords::otherwise`] where
-    /// given; a poisoned margin adds [`UNREADABLE_MARGIN_NOTE`].
+    /// accepts; an enclosure where both ends do, below its nearer end;
+    /// neither where it lies past the band, decided at this tolerance
+    /// already. Otherwise the lever alone, with [`SizedWords::otherwise`]
+    /// where given; a poisoned margin adds [`UNREADABLE_MARGIN_NOTE`].
     ///
     /// The choice is made here, from the number, and only a sentence
     /// leaves. Because the sentence is chosen from the number, reading
@@ -1242,11 +1334,10 @@ impl MarginDiag {
             may_tighten,
             otherwise,
         } = words;
-        let below = match self.0 {
-            Reading::Value(m) => passes.tightens(m).then(|| band.tolerance_deciding(m)),
-            Reading::Enclosure { lo, hi } => passes.below(lo, hi, band),
-            Reading::Invalid => return format!("Recourse: {lever}; {UNREADABLE_MARGIN_NOTE}"),
-        };
+        if self.is_invalid() {
+            return format!("Recourse: {lever}; {UNREADABLE_MARGIN_NOTE}");
+        }
+        let below = self.tightens_below(band, passes);
         match (below, otherwise) {
             (Some(v), _) if may_tighten => format!(
                 "Recourse: {lever}, or, if this {size} is intended, tighten the tolerance below \
@@ -1265,21 +1356,28 @@ impl MarginDiag {
         num: fn(&f64, &mut fmt::Formatter<'_>) -> fmt::Result,
     ) -> fmt::Result {
         match self.0 {
-            Reading::Value(m) => num(&m, f),
-            Reading::Enclosure { lo, hi } => {
+            Reading::Value(m, _) => num(&m, f),
+            Reading::Enclosure { lo, hi, .. } => {
                 f.write_str("[")?;
                 num(&lo, f)?;
                 f.write_str(", ")?;
                 num(&hi, f)?;
                 f.write_str("]")
             }
-            Reading::Invalid => f.write_str("invalid (NaN or a poisoned enclosure)"),
+            Reading::Invalid => f.write_str("invalid (NaN or a refused enclosure)"),
         }
     }
 }
 
 /// The reading as text: `m`, `[lo, hi]`, or
-/// `invalid (NaN or a poisoned enclosure)`.
+/// `invalid (NaN or a refused enclosure)`.
+///
+/// **"Refused", not "poisoned", on the enclosure half.** The one way an
+/// enclosure reads [`MarginKind::Invalid`] is interval classification's
+/// uncertified arm, which a `Trv` clamp with ordinary endpoints reaches
+/// and which `Interval::is_poison` answers `false` for. Poison is the
+/// `f64` lane's word ([`crate::Real::is_poison`], a NaN margin), and it
+/// stays this reading's own name.
 impl fmt::Display for MarginDiag {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.render(f, fmt::Display::fmt)
@@ -1358,27 +1456,21 @@ pub struct Indeterminate {
 /// principle, D4 ¶1 addendum, #129): below ε_input, "exactly on the
 /// coincidence" and "in the ambiguity band" are ONE user situation —
 /// coincident at any precision the user could care about — with one
-/// three-lever recourse, phrased once, here. The margin rides the
-/// error payload as data; kernel semantics keep the distinction.
+/// recourse, phrased once, here. The margin rides the error payload as
+/// data; kernel semantics keep the distinction.
 ///
-/// Every site that refuses on a too-close-to-a-coincidence situation
-/// composes this fragment into its Display output — directly for
-/// definite arms (exactly-on refusals with no [`Indeterminate`]
-/// payload), or through [`Indeterminate`]'s own Display for escalated
-/// arms. Message-pinning tests pin the fragment with `contains`, never
-/// with full-string pins that rot.
+/// **The levers, and only the levers.** D4 ¶1 (i) offers *tighten the
+/// tolerance* on the band-decided arms alone, "phrased conditionally
+/// and with the value the margin gives", so no tolerance arm can be a
+/// `&'static str`: the value comes from the margin. A site holding the
+/// escalation composes the whole ending through
+/// [`Indeterminate::ending`], which adds that arm where the margin
+/// gives one; a site whose verdict is definite has no size to tighten
+/// below and composes this fragment alone.
+///
+/// Message-pinning tests pin the fragment with `contains`, never with
+/// full-string pins that rot.
 pub const COINCIDENCE_RECOURSE: &str = concat!(
-    crate::coincidence_declare_arm!(),
-    ", ",
-    crate::coincidence_move_arm!(),
-    ", or lower the tolerance"
-);
-
-/// [`COINCIDENCE_RECOURSE`] on a DEFINITE verdict of a coincidence a
-/// declaration settles: its declaration and geometry arms, without the
-/// tolerance, which a definite verdict gives no size to tighten below
-/// (D4 ¶1 (i)). The two are one spelling of the arms.
-pub const DEFINITE_COINCIDENCE_RECOURSE: &str = concat!(
     crate::coincidence_declare_arm!(),
     ", or ",
     crate::coincidence_move_arm!()
@@ -1393,11 +1485,11 @@ pub const DEFINITE_COINCIDENCE_RECOURSE: &str = concat!(
 pub const RANGE_RECOURSE: &str = "scale the geometry into the session's range";
 
 /// [`COINCIDENCE_RECOURSE`] at a door that takes no declaration: the
-/// two levers left, the geometry and the tolerance. The chord join
-/// that a split and a Boolean share composes it, since the join cannot
-/// know whether its caller declares; the Boolean's own wrapper adds the
-/// declaration back (`topo::BooleanError::Join`).
-pub const NO_DECLARATION_RECOURSE: &str = "move the geometry, or lower the tolerance";
+/// one lever left, the geometry. The chord join that a split and a
+/// Boolean share composes it, since the join cannot know whether its
+/// caller declares; the Boolean's own wrapper adds the declaration
+/// back (`topo::BooleanError::Join`).
+pub const NO_DECLARATION_RECOURSE: &str = crate::coincidence_move_arm!();
 
 /// What a direction-length decision decides, in words: the one subject
 /// every door that asks whether a direction vector has any length
@@ -1408,8 +1500,7 @@ pub const DIRECTION_LENGTH_SUBJECT: &str = "whether a direction has any length";
 
 /// [`NO_DECLARATION_RECOURSE`] at a split, whose plane is the first
 /// lever: a split takes no declarations (`topo::split`'s signature).
-pub const SPLIT_PLANE_RECOURSE: &str =
-    "move the split plane or the geometry, or lower the tolerance";
+pub const SPLIT_PLANE_RECOURSE: &str = "move the split plane or the geometry";
 
 /// The one ending of a refusal that only a kernel defect reaches:
 /// nothing the user changes in the model is a way through, so the
@@ -1579,30 +1670,35 @@ impl fmt::Display for IndeterminatePayload<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let (zero, escalate) = (self.0.band.zero, self.0.band.escalate);
         let margin = self.0.margin;
-        match margin.0 {
+        let noun = match margin.kind() {
+            MarginKind::Enclosure => "enclosure",
+            MarginKind::Value | MarginKind::Invalid => "margin",
+        };
+        match margin.placement(self.0.band) {
             // A zero verdict of a decision that does not pass at zero,
             // carried with the margin its band decided.
-            Reading::Value(m) if m.abs() <= zero => {
-                write!(f, "margin {margin:e} lies within the zero band (±{zero:e})")
+            Placement::ZeroBand => {
+                write!(f, "{noun} {margin:e} lies within the zero band (±{zero:e})")
             }
-            Reading::Enclosure { lo, hi } if -zero <= lo && hi <= zero => {
-                write!(
-                    f,
-                    "enclosure {margin:e} lies within the zero band (±{zero:e})"
-                )
-            }
-            Reading::Value(_) => write!(
+            // A decided sign on the side the decision does not pass, or
+            // a bound reported where it stands past the band (a declared
+            // pair's reach, read above as no sign passes).
+            Placement::Past => write!(
+                f,
+                "{noun} {margin:e} lies past the ambiguity band ({zero:e}, {escalate:e})"
+            ),
+            Placement::Undecided if margin.kind() == MarginKind::Value => write!(
                 f,
                 "margin {margin:e} lies inside the ambiguity band ({zero:e}, {escalate:e})"
             ),
-            Reading::Enclosure { .. } => write!(
+            Placement::Undecided => write!(
                 f,
                 "enclosure {margin:e} cannot be classified against the ambiguity \
                  band ({zero:e}, {escalate:e})"
             ),
-            Reading::Invalid => write!(
+            Placement::Invalid => write!(
                 f,
-                "margin is invalid (NaN or a poisoned enclosure) against the ambiguity \
+                "margin is invalid (NaN or a refused enclosure) against the ambiguity \
                  band ({zero:e}, {escalate:e})"
             ),
         }
@@ -1635,19 +1731,81 @@ impl Indeterminate {
     pub fn payload(&self) -> IndeterminatePayload<'_> {
         IndeterminatePayload(self)
     }
+
+    /// **The whole ending this escalation's refusal carries** (D4 ¶1
+    /// (i)): `levers` — the ones the door holding it has, such as
+    /// [`COINCIDENCE_RECOURSE`] — labelled `Recourse:`, and, where the
+    /// margin gives a value, the conditional tolerance arm below which
+    /// a smaller tolerance decides the margin passing.
+    ///
+    /// The classifier's escalation is a band-decided arm (the margin
+    /// lies inside the ambiguity band, or is unreadable) of a decision
+    /// that passes on a nonzero sign — a coincidence it could not rule
+    /// out — so the arm belongs here and its value is the margin's. A
+    /// gate's rejection carries the signs its gate passes, and the arm
+    /// is offered only where a smaller tolerance decides the margin onto
+    /// one of them: never for a decided sign the gate rejects, nor for a
+    /// zero on the side it rejects. The words are
+    /// [`MarginDiag::sized_recourse`]'s, which is also where a
+    /// straddling enclosure and an unreadable margin lose the offer:
+    /// neither names a tolerance that decides.
+    #[must_use]
+    pub fn ending(&self, levers: &str) -> String {
+        self.margin.sized_recourse(
+            self.band,
+            SizedWords {
+                lever: levers,
+                size: "size",
+                passes: self.passes(),
+                may_tighten: true,
+                otherwise: None,
+            },
+        )
+    }
 }
 
+impl Indeterminate {
+    /// The signs the refused decision passes: its gate's, on a gate's
+    /// rejection; a nonzero sign otherwise (a coincidence the classifier
+    /// could not rule out).
+    fn passes(&self) -> SizedPass {
+        self.margin.tag().map_or(SizedPass::NonZero, |r| r.passes)
+    }
+
+    /// Whether [`Indeterminate::ending`] offers a tolerance: a smaller
+    /// one decides the margin onto a sign the refused decision passes.
+    /// For a door that re-quotes an escalation at a reading it meters,
+    /// which only an escalation with a tolerance to offer can be.
+    #[must_use]
+    pub fn offers_tolerance(&self) -> bool {
+        self.margin
+            .tightens_below(self.band, self.passes())
+            .is_some()
+    }
+}
+
+/// The escalation's sentence under [`COINCIDENCE_RECOURSE`], except
+/// where the margin was decided past the band: that sign is certain,
+/// no declaration changes it (D4 ¶1 (i)), and the geometry is the one
+/// lever ([`NO_DECLARATION_RECOURSE`]).
 impl fmt::Display for Indeterminate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.under(COINCIDENCE_RECOURSE))
+        let levers = if self.margin.placement(self.band) == Placement::Past {
+            NO_DECLARATION_RECOURSE
+        } else {
+            COINCIDENCE_RECOURSE
+        };
+        write!(f, "{}", self.under(levers))
     }
 }
 
 /// An [`Indeterminate`] rendered with its margin kind's own advice and
-/// a recourse the door supplies in place of [`COINCIDENCE_RECOURSE`] —
+/// the LEVERS the door supplies in place of [`COINCIDENCE_RECOURSE`] —
 /// for a door that takes no declaration
-/// ([`NO_DECLARATION_RECOURSE`]). The bare [`Indeterminate`] Display
-/// is this view under [`COINCIDENCE_RECOURSE`].
+/// ([`NO_DECLARATION_RECOURSE`]). The ending itself, label and valued
+/// tolerance arm, is [`Indeterminate::ending`]'s; the bare
+/// [`Indeterminate`] Display is this view under
+/// [`COINCIDENCE_RECOURSE`].
 #[derive(Debug, Clone, Copy)]
 pub struct IndeterminateUnder<'a> {
     diag: &'a Indeterminate,
@@ -1665,22 +1823,75 @@ impl Indeterminate {
     }
 }
 
+impl<'a> IndeterminateUnder<'a> {
+    /// What this sentence says after its payload ([`Indeterminate::payload`]):
+    /// the reading's advice and its ending, for a sentence that says the
+    /// payload in a place of its own.
+    #[must_use]
+    pub fn tail(self) -> UnderTail<'a> {
+        UnderTail(self)
+    }
+}
+
+/// What an [`IndeterminateUnder`] says after its payload
+/// ([`IndeterminateUnder::tail`]).
+#[derive(Debug, Clone, Copy)]
+pub struct UnderTail<'a>(IndeterminateUnder<'a>);
+
 impl fmt::Display for IndeterminateUnder<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let recourse = self.recourse;
-        write!(f, "{}", self.diag.payload())?;
-        match self.diag.margin.kind() {
-            MarginKind::Value => write!(f, " — a near-coincidence; {recourse}"),
-            MarginKind::Enclosure => write!(
+        write!(f, "{}{}", self.diag.payload(), self.tail())
+    }
+}
+
+impl fmt::Display for UnderTail<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let UnderTail(under) = self;
+        let levers = under.recourse;
+        // Each reading's own first lever joins the door's, so everything
+        // the reader can act on sits under the one `Recourse:` label
+        // the ending carries: an undecided enclosure can be subdivided,
+        // and a margin nobody could read is a question about the
+        // inputs. A decided reading is neither: subdivision keeps its
+        // sign, a decided nonzero sign is sign-certain, and a zero on
+        // the side a gate rejects stays there at every smaller
+        // tolerance, so no tolerance arm rides with either (D4 ¶1 (i)).
+        let margin = under.diag.margin;
+        let band = under.diag.band;
+        match (margin.placement(band), margin.kind()) {
+            (Placement::Past, _) => write!(
                 f,
-                " — subdivide the parameter box for a tighter enclosure, or {recourse}"
+                " — a decided sign this decision cannot use; {}",
+                under.diag.ending(levers)
             ),
-            // Poison explains WHY the sign is indeterminate, but the
-            // user's levers at a coincidence site are unchanged — the
-            // Invalid arm carries the recourse like the others.
-            MarginKind::Invalid => write!(
+            (Placement::ZeroBand, _)
+                if margin.tag().is_some()
+                    && margin.tightens_below(band, under.diag.passes()).is_none() =>
+            {
+                write!(
+                    f,
+                    " — a decided zero no smaller tolerance moves onto a side this decision \
+                     passes; {}",
+                    under.diag.ending(levers)
+                )
+            }
+            (Placement::ZeroBand | Placement::Undecided, MarginKind::Value)
+            | (Placement::ZeroBand, _) => {
+                write!(f, " — a near-coincidence; {}", under.diag.ending(levers))
+            }
+            (Placement::Undecided, _) => write!(
                 f,
-                " — check the operation's inputs upstream, then {recourse}"
+                " — {}",
+                under.diag.ending(&format!(
+                    "subdivide the parameter box for a tighter enclosure, or {levers}"
+                ))
+            ),
+            (Placement::Invalid, _) => write!(
+                f,
+                " — {}",
+                under.diag.ending(&format!(
+                    "check the operation's inputs upstream, then {levers}"
+                ))
             ),
         }
     }
@@ -1829,6 +2040,51 @@ mod tests {
         Band::new(1e-9, 1e-8).unwrap()
     }
 
+    /// **The text places a reading where the classifier does.**
+    /// `placement` restates the classifier's thresholds for the error
+    /// text, so it is pinned against the classifier itself — `f64`'s and
+    /// `Interval`'s `sign_within` — at every edge of the band and one
+    /// ulp either side of it, both signs.
+    #[test]
+    fn placement_agrees_with_the_classifier_at_every_edge() {
+        let band = band_1e9();
+        let (z, e) = (band.zero(), band.escalate());
+        let place = |r: Result<Decided, Indeterminate>| match r {
+            Ok(Decided {
+                sign: Sign::Zero, ..
+            }) => Placement::ZeroBand,
+            Ok(_) => Placement::Past,
+            Err(d) if d.margin.is_invalid() => Placement::Invalid,
+            Err(_) => Placement::Undecided,
+        };
+        let mut points = vec![0.0, -0.0];
+        for edge in [z, e] {
+            for m in [edge.next_down(), edge, edge.next_up()] {
+                points.extend([m, -m]);
+            }
+        }
+        for &m in &points {
+            assert_eq!(
+                MarginDiag::value(m).placement(band),
+                place(m.sign_within(band)),
+                "point {m:e}"
+            );
+        }
+        for &lo in &points {
+            for &hi in &points {
+                if lo > hi {
+                    continue;
+                }
+                let iv = crate::Interval::from_bounds(lo, hi);
+                assert_eq!(
+                    MarginDiag::enclosure(lo, hi).placement(band),
+                    place(iv.sign_within(band)),
+                    "enclosure [{lo:e}, {hi:e}]"
+                );
+            }
+        }
+    }
+
     /// **Every outcome carries the margin it was classified on**: a
     /// definite `f64` verdict reports the margin as submitted, an
     /// interval one its enclosure, and the in-band and poisoned outcomes
@@ -1956,6 +2212,16 @@ mod tests {
                 "Recourse: L".to_owned(),
             ),
             (
+                MarginDiag::value(5e-8),
+                words(true, None),
+                "Recourse: L".to_owned(),
+            ),
+            (
+                MarginDiag::enclosure(2e-8, 5e-8),
+                words(true, None),
+                "Recourse: L".to_owned(),
+            ),
+            (
                 MarginDiag::enclosure(-2e-10, 3e-10),
                 words(true, Some("n")),
                 "Recourse: L; n".to_owned(),
@@ -1980,7 +2246,7 @@ mod tests {
         assert_eq!(format!("{}", MarginDiag::value(0.5)), "0.5");
         assert_eq!(
             MarginDiag::INVALID.to_string(),
-            "invalid (NaN or a poisoned enclosure)"
+            "invalid (NaN or a refused enclosure)"
         );
         assert_eq!(
             e.diagnostic_f64_for_error_text(),
@@ -2384,6 +2650,11 @@ mod tests {
 
     /// Golden strings: the Display output is the D4 ¶3 actionable error a
     /// user sees, so its exact wording is under test.
+    ///
+    /// An escalation is a band-decided arm, so its ending carries the
+    /// tolerance arm with THE VALUE ITS MARGIN GIVES (D4 ¶1 (i)) —
+    /// `|m|/K`, which at `K = 10` is `5e-10` for both margins here. The
+    /// levers are the constant's; the number is not, and cannot be.
     #[test]
     fn indeterminate_display_golden_strings() {
         let band = band_1e9();
@@ -2395,7 +2666,8 @@ mod tests {
             bare.to_string(),
             format!(
                 "margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8) — a \
-                 near-coincidence; {COINCIDENCE_RECOURSE}"
+                 near-coincidence; Recourse: {COINCIDENCE_RECOURSE}, or, if this size is \
+                 intended, tighten the tolerance below 5e-10 m"
             )
         );
 
@@ -2407,7 +2679,8 @@ mod tests {
             named.to_string(),
             format!(
                 "margin -5e-9 lies inside the ambiguity band (1e-9, 1e-8) — a \
-                 near-coincidence; {COINCIDENCE_RECOURSE}"
+                 near-coincidence; Recourse: {COINCIDENCE_RECOURSE}, or, if this size is \
+                 intended, tighten the tolerance below 5e-10 m"
             )
         );
         // The payload view is the same message minus the shared tail —
@@ -2421,11 +2694,15 @@ mod tests {
             .sign_within(band)
             .expect_err("NaN margin must be indeterminate")
             .with_predicate("transversality");
+        // An unreadable margin names no tolerance — no smaller one
+        // reads it — and the input check it wants first joins the levers
+        // under the one label.
         assert_eq!(
             invalid.to_string(),
             format!(
-                "margin is invalid (NaN or a poisoned enclosure) against the ambiguity \
-                 band (1e-9, 1e-8) — check the operation's inputs upstream, then {COINCIDENCE_RECOURSE}"
+                "margin is invalid (NaN or a refused enclosure) against the ambiguity \
+                 band (1e-9, 1e-8) — Recourse: check the operation's inputs upstream, then \
+                 {COINCIDENCE_RECOURSE}; {UNREADABLE_MARGIN_NOTE}"
             )
         );
 
@@ -2438,12 +2715,15 @@ mod tests {
             predicate: Some("side_of_plane"),
             terminal_sliver: false,
         };
+        // An enclosure straddling zero names no tolerance either (no
+        // smaller one decides BOTH ends onto the passing side), and
+        // subdividing is the lever that joins the door's.
         assert_eq!(
             enclosure.to_string(),
             format!(
                 "enclosure [-2e-9, 5e-9] cannot be classified against the ambiguity \
-                 band (1e-9, 1e-8) — subdivide the parameter box for a tighter enclosure, or \
-                 {COINCIDENCE_RECOURSE}"
+                 band (1e-9, 1e-8) — Recourse: subdivide the parameter box for a tighter \
+                 enclosure, or {COINCIDENCE_RECOURSE}"
             )
         );
     }

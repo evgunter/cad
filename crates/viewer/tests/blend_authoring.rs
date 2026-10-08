@@ -8,12 +8,7 @@
 //! A 10 mm cube authored through the creation vocabulary alone
 //! (`common::xy_box_in`: a rectangle profile, one extrude) — twelve edges, all
 //! straight, meeting three at a corner. Its whole-body blend is the
-//! shape a minimal instance has to take: the kernel's assembly admits
-//! only a fully-requested chain set, so a fillet of ONE box edge would
-//! terminate at a trivalent corner whose other two edges were never
-//! requested and refuse by name. That is not a limitation this unit
-//! works around — it is the freeze semantics' own consequence, and it
-//! is why the all-edges door exists.
+//! set these rows load, through the all-edges door.
 //!
 //! # Where the edge names come from
 //!
@@ -32,8 +27,8 @@ use crate::common;
 
 use common::{ang, len, len3, plate_index, scl3, session_insert};
 use pncad::document::{
-    Dimension, Doc, Node, NodeErrorKind, NodeResult, NodeStanding, ProfileProgram, RecipeNodeId,
-    SlotId,
+    Dimension, Doc, Formula, Node, NodeErrorKind, NodeResult, NodeStanding, ProfileProgram,
+    RecipeNodeId, Said, SlotId, Speaker,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{StableName, ValuePayload};
@@ -90,11 +85,11 @@ fn all_edge_names(session: &DocSession, node: RecipeNodeId) -> Vec<StableName> {
 /// narrowing.
 fn load_all(tools: &mut Tools, session: &DocSession, target: BlendTarget) -> Option<BlendEvent> {
     let index = plate_index(session);
-    let eval = session.evaluation().expect("the inline seam landed");
+    let (doc, eval) = session.landed_pair().expect("the inline seam landed");
     tools
         .blend_mut()
         .expect("the blend tool is open")
-        .load_all_edges(target, eval, &index)
+        .load_all_edges(target, doc, eval, &index)
 }
 
 /// The whole body of a node, as the blend tool's target.
@@ -208,7 +203,19 @@ fn a_box_fillet_authors_from_picks_with_a_canonical_selection() {
         panic!("the door minted a fillet");
     };
     assert_eq!(*stored_target, target);
-    assert_eq!(*radius, len(BLEND), "the radius is a literal Length slot");
+    assert!(
+        session.committed_doc().free(*radius).is_some(),
+        "the radius is a written Length: the slot's own free variable"
+    );
+    assert_eq!(
+        Formula::from(
+            session
+                .committed_doc()
+                .slot_expansion(fillet, SlotId::Radius)
+                .expect("the radius slot")
+        ),
+        len(BLEND)
+    );
     // CANONICAL: sorted, deduplicated, and equal as a set to what the
     // all-edges door answers — the same twelve names either way.
     let mut canonical = selection.clone();
@@ -253,7 +260,21 @@ fn the_chamfer_twin_authors_the_other_node_from_the_same_picks() {
         panic!("the door minted a chamfer");
     };
     assert_eq!(*stored_target, target);
-    assert_eq!(*distance, len(BLEND));
+    assert_eq!(
+        session
+            .committed_doc()
+            .slot(chamfer, SlotId::ChamferDistance),
+        Some(*distance)
+    );
+    assert_eq!(
+        Formula::from(
+            session
+                .committed_doc()
+                .slot_expansion(chamfer, SlotId::ChamferDistance)
+                .expect("the distance slot")
+        ),
+        len(BLEND)
+    );
     assert_eq!(*selection, all_edge_names(&session, target));
     // The size lands in the chamfer's OWN slot, which is what makes a
     // reader able to tell what the number means off the node kind.
@@ -451,12 +472,18 @@ fn losing_the_target_voids_the_whole_set_and_says_so() {
     assert_eq!(notices.len(), 1, "one notice for the whole set");
     let ToolNotice::Blend(BlendEvent::TargetLost {
         target: lost,
+        node,
         edges,
     }) = &notices[0]
     else {
         panic!("expected a lost target, got {notices:?}");
     };
     assert_eq!(lost.node, target);
+    assert_eq!(
+        node.kind(),
+        Some("Extrude"),
+        "the lost node is said as the document held it when it was picked: {node}"
+    );
     assert_eq!(*edges, BOX_EDGES);
     assert_eq!(blend(&tools).count(), 0);
     assert_eq!(blend(&tools).target(), None);
@@ -526,16 +553,13 @@ fn a_stranded_selection_refuses_typed_rather_than_shrinking() {
         Some(eval),
         &viewer::parts::PartFiles::default(),
     );
-    let row = rows
-        .iter()
-        .find(|row| row.id == fillet)
-        .expect("the fillet has a tree row");
+    let row = common::row_of(&rows, fillet);
     let RowStatus::Failed { message, .. } = &row.status else {
         panic!("the authored blend badges FAILED, got {:?}", row.status);
     };
     assert_eq!(
         *message,
-        error.to_string(),
+        error.spoken(session.committed_doc(), eval),
         "the badge is the typed error's own rendering"
     );
 }
@@ -573,12 +597,9 @@ fn a_blend_the_kernel_refuses_badges_on_the_authored_node() {
         Some(eval),
         &viewer::parts::PartFiles::default(),
     );
-    let row = rows
-        .iter()
-        .find(|row| row.id == fillet)
-        .expect("the fillet has a tree row");
+    let row = common::row_of(&rows, fillet);
     assert!(
-        matches!(&row.status, RowStatus::Failed { message, .. } if *message == error.to_string()),
+        matches!(&row.status, RowStatus::Failed { message, .. } if *message == error.spoken(session.committed_doc(), eval)),
         "the badge renders the typed refusal: {:?}",
         row.status
     );
@@ -653,11 +674,11 @@ fn the_blend_door_refuses_a_target_that_is_not_a_body() {
         assert!(outcome.committed.is_empty(), "nothing was authored");
         assert!(
             matches!(
-                outcome.refusal,
+                &outcome.refusal,
                 Some(Refusal::WrongNodeKind {
                     node,
                     wanted: NodeKindWanted::Body
-                }) if node == profile
+                }) if node.id() == profile
             ),
             "expected a body-seat refusal, got {:?}",
             outcome.refusal
@@ -1068,6 +1089,7 @@ fn the_strand_check_is_not_asked_without_an_answer() {
         .expect("the blend tool is open")
         .load_all_edges(
             whole(target),
+            session.doc(),
             session.evaluation().expect("the inline seam landed"),
             &index,
         );
@@ -1082,8 +1104,9 @@ fn the_strand_check_is_not_asked_without_an_answer() {
     assert_eq!(
         refused.map(|event| event.to_string()),
         Some(format!(
-            "{} has no edges to select: {standing}",
-            whole(target)
+            "{} has no edges to select: {}",
+            whole(target),
+            Said(&standing, Speaker::TAG.about(target))
         )),
     );
     assert_eq!(

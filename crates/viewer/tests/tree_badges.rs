@@ -17,6 +17,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::ExtrudeSide;
 
 use pncad::document::{BooleanOp, CancelToken, EvalOptions, NodeResult, evaluate};
 use pncad::geom_core::Tol;
@@ -34,10 +35,7 @@ fn a_failing_document_renders_failed_and_poisoned_from_the_typed_payloads() {
     let rows = session.tree_rows();
     assert!(tree::has_faults(&rows));
 
-    let failed = rows
-        .iter()
-        .find(|row| row.id == extrude)
-        .expect("the extrude has a row");
+    let failed = common::row_of(&rows, extrude);
     let RowStatus::Failed { message, .. } = &failed.status else {
         panic!("expected Failed, got {:?}", failed.status);
     };
@@ -50,12 +48,9 @@ fn a_failing_document_renders_failed_and_poisoned_from_the_typed_payloads() {
     let Some(NodeResult::Failed(error)) = evaluation.result(extrude) else {
         panic!("the evaluation should report the extrude as failed");
     };
-    assert_eq!(message, &error.to_string());
+    assert_eq!(message, &error.spoken(session.committed_doc(), evaluation));
 
-    let poisoned = rows
-        .iter()
-        .find(|row| row.id == moved)
-        .expect("the transform has a row");
+    let poisoned = common::row_of(&rows, moved);
     match &poisoned.status {
         RowStatus::Poisoned { through, message } => {
             assert_eq!(*through, extrude, "poison names the failure it came from");
@@ -64,7 +59,7 @@ fn a_failing_document_renders_failed_and_poisoned_from_the_typed_payloads() {
                 Some(
                     format!(
                         "upstream failure at Extrude {} — that row carries the cause",
-                        test_utils::refusal::tag(extrude.0)
+                        test_utils::refusal::tag(extrude.0.digest())
                     )
                     .as_str()
                 ),
@@ -130,6 +125,7 @@ fn an_independent_subgraph_completes_beside_a_failure() {
         pncad::document::Node::Extrude {
             profile: other_profile,
             distance: common::len(0.005),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -155,12 +151,7 @@ fn rows_before_the_first_result_read_as_unevaluated_rather_than_ok() {
         !tree::has_faults(&rows),
         "unevaluated is not a fault; it is an absence of measurement"
     );
-    assert_eq!(
-        rows.iter()
-            .find(|row| row.id == extrude)
-            .map(|row| row.status.badge()),
-        Some("—")
-    );
+    assert_eq!(common::row_of(&rows, extrude).status.badge(), "—");
 }
 
 #[test]
@@ -199,9 +190,7 @@ fn the_tree_marks_the_documents_product_roots() {
         "the extrude is the product; the profile it consumes is not"
     );
     assert_eq!(
-        rows.iter()
-            .find(|row| row.id == profile)
-            .and_then(|row| row.spoken.kind()),
+        common::row_of(&rows, profile).spoken.kind(),
         Some("Profile")
     );
 }
@@ -629,20 +618,33 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
         ),
         other => panic!("the mate tool drops its one pick, got {other:?}"),
     }
-    match viewer::session::face_frame_seat(Some((doc, ev)), Some(&face)) {
-        Err(FaceFrameFault::Unresolved {
-            error: InterrogateError::Standing(standing),
-        }) => assert_eq!(standing, post_a, "the sketch-on-face seat"),
+    // Each refusal carrying the standing whole says its nodes as the
+    // document holds them: post_a by its kind, never `node <tag>`.
+    let post_a_said = doc.spoken(bench.post_a).to_string();
+    let seat = viewer::session::face_frame_seat(Some((doc, ev)), Some(&face));
+    match &seat {
+        Err(
+            fault @ FaceFrameFault::Unresolved {
+                error: InterrogateError::Standing(standing),
+                ..
+            },
+        ) => {
+            assert_eq!(*standing, post_a, "the sketch-on-face seat");
+            assert!(
+                fault.to_string().contains(&post_a_said),
+                "the seat's refusal speaks post_a: {fault}"
+            );
+        }
         other => panic!("the seat refuses on the standing, got {other:?}"),
     }
-    match viewer::combine::duplicate_step(ev, bench.post_a, tol) {
-        Err(DuplicateFault::NoValue(standing)) => {
+    match viewer::combine::duplicate_step(doc, ev, bench.post_a, tol) {
+        Err(DuplicateFault::NoValue { standing, .. }) => {
             assert_eq!(standing, post_a, "the duplicate door, post_a");
         }
         other => panic!("the duplicate door refuses post_a, got {other:?}"),
     }
-    match viewer::combine::duplicate_step(ev, boolean, tol) {
-        Err(DuplicateFault::NoValue(standing)) => {
+    match viewer::combine::duplicate_step(doc, ev, boolean, tol) {
+        Err(DuplicateFault::NoValue { standing, .. }) => {
             assert_eq!(standing, two_hop, "the duplicate door, the boolean");
         }
         other => panic!("the duplicate door refuses the boolean, got {other:?}"),
@@ -651,7 +653,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
         node: bench.post_a,
         body: 0,
     };
-    match BlendTool::new().load_all_edges(target, ev, &index) {
+    match BlendTool::new().load_all_edges(target, doc, ev, &index) {
         Some(BlendEvent::TargetHasNoValue { standing, .. }) => {
             assert_eq!(standing, post_a, "the blend loader");
         }
@@ -668,11 +670,19 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
             body: 0,
         },
     );
-    match both.proposal(doc, ev, common::asm::seat_choice()) {
-        Err(MateToolError::Frame {
-            error: InterrogateError::Standing(standing),
-            ..
-        }) => assert_eq!(standing, post_a, "the mate tool's frame read"),
+    match &both.proposal(doc, ev, common::asm::seat_choice()) {
+        Err(
+            refused @ MateToolError::Frame {
+                error: InterrogateError::Standing(standing),
+                ..
+            },
+        ) => {
+            assert_eq!(*standing, post_a, "the mate tool's frame read");
+            assert!(
+                refused.to_string().contains(&post_a_said),
+                "the mate tool's refusal speaks post_a: {refused}"
+            );
+        }
         other => panic!("the mate tool refuses the frame read, got {other:?}"),
     }
 
@@ -681,15 +691,15 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
     let Err(refusal) = common::index_at(&session, common::asm::delta()) else {
         panic!("the index does not build over a root with no value");
     };
-    let badge = viewer::frame::index_badge(Some(&refusal), session.doc(), Some(ev))
+    let badge = viewer::frame::index_badge(Some(&refusal), session.doc(), session.landed_pair())
         .expect("a refusal badges");
     let detail = badge
         .detail()
         .expect("the badge defers its words to the tooltip");
     assert!(
         detail.contains(&format!(
-            "failure at node {}",
-            test_utils::refusal::tag(offender.0)
+            "failure at {}",
+            session.landed_pair().expect("landed").0.spoken(offender)
         )) && !detail.contains("ancestor"),
         "the pick index's tooltip names the offending mate: {detail}"
     );
@@ -926,7 +936,7 @@ const BAND_PROBE: &str = "TREE_BADGES_BAND_PROBE";
 ///
 /// The same value as `wire_band_cause.rs`'s `OVERFLOW_EPS`, which it
 /// was derived from; that both spellings exist is
-/// `work/tint/re-exec-child-harness-is-copied-per-suite-and-greens-when-it-does-not-run`.
+/// `work/helper/re-exec-child-harness-is-copied-per-suite-and-greens-when-it-does-not-run`.
 const BANDLESS_EPS: f64 = f64::MAX / 2.0;
 
 /// **What the child prints once it has run every assertion below.**
@@ -945,7 +955,7 @@ const BAND_PROBE_DONE: &str = "BAND-PROBE-COMPLETE";
 /// blames none of them, and points the eye nowhere** — and no mate
 /// can be INSERTED under it, since the edit door asks the solve's own
 /// admission, which begins with the band (a loaded snapshot can still
-/// hold one).
+/// hold one: [`child_band_snapshot_load`]).
 ///
 /// `MateFault::Band` is the one fault arm that reaches rows without
 /// naming a subject, so it is the one arm `blamed_mates` answers empty
@@ -1018,7 +1028,9 @@ fn child_band_refusal_rows() {
             path: Vec::new(),
         })
     };
-    let frame = MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
+    // The part base with no step: no band forms to author vectors
+    // through.
+    let frame = MateFrame::on_part(pncad::document::Placement::IDENTITY);
     // DOOR 2a — a mate cannot be INSERTED where no band exists: the
     // edit door refuses it with the solve's own `Band`. A snapshot
     // loaded under this tolerance can still hold one, and the solve
@@ -1027,7 +1039,7 @@ fn child_band_refusal_rows() {
     let refused = apply(
         &asm,
         &DocEdit::InsertNode {
-            node: Node::Mate {
+            node: Box::new(Node::Mate {
                 a: face_of(a),
                 b: face_of(b),
                 class: ContactClass::Rest,
@@ -1038,7 +1050,8 @@ fn child_band_refusal_rows() {
                     sense: AxisSense::Opposed,
                     clocking: None,
                 },
-            },
+            }),
+            fresh: Vec::new(),
         },
         tol,
         &pncad::document::RefusingReach,
@@ -1101,7 +1114,7 @@ fn child_band_refusal_rows() {
         };
         assert_eq!(
             status.message(),
-            Some(error.to_string().as_str()),
+            Some(error.spoken(&asm, &evaluation).as_str()),
             "{id:?} must carry the payload's own rendering, not a sentence this crate wrote"
         );
     }
@@ -1190,8 +1203,8 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
     use viewer::test_support::spoken;
 
     let row = |id: u64, status: RowStatus| tree::TreeRow {
-        id: RecipeNodeId(id),
-        spoken: spoken(RecipeNodeId(id), Some("Transform")),
+        id: RecipeNodeId::new(0, id),
+        spoken: spoken(RecipeNodeId::new(0, id), Some("Transform")),
         pose: None,
         depth: 0,
         root: false,
@@ -1206,7 +1219,7 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
         row(
             2,
             RowStatus::Poisoned {
-                through: RecipeNodeId(1),
+                through: RecipeNodeId::new(0, 1),
                 message: None,
             },
         ),
@@ -1228,14 +1241,14 @@ fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
     use std::collections::BTreeMap;
 
     use pncad::analysis::{BoxAxis, ParamBox};
-    use pncad::document::{Datum, Dimension, DocParam, Expr, Node, NodeErrorKind, ParamName};
+    use pncad::document::{Datum, Dimension, Formula, FreeVar, Node, NodeErrorKind, VarName};
 
     let tol = Tol::witness();
-    let span = ParamName::from_static("span");
+    let span = VarName::from_static("span");
     let doc = common::declared(
         "tree-frame-direction",
         &span,
-        DocParam::continuous(Dimension::Scalar, 0.0),
+        FreeVar::continuous(Dimension::Scalar, 0.0),
         tol,
     );
     let (doc, frame) = common::inserted(
@@ -1243,7 +1256,7 @@ fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
         Node::Datum(Datum::Frame {
             origin: common::len3([0.0; 3]),
             u: [
-                Expr::param(span.clone(), Dimension::Scalar),
+                Formula::named(span.clone(), Dimension::Scalar),
                 common::scl(0.0),
                 common::scl(0.0),
             ],
@@ -1253,7 +1266,10 @@ fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
     );
     let (doc, profile) = common::inserted(&doc, common::square(frame, 0.04), tol);
     let mut axes = BTreeMap::new();
-    axes.insert(span, BoxAxis::Varying { lo: 1.0, hi: 1.0 });
+    axes.insert(
+        doc.var_named(span.as_str()).expect("declared"),
+        BoxAxis::Varying { lo: 1.0, hi: 1.0 },
+    );
     let ev = evaluate::<f64>(
         &doc,
         None,
@@ -1274,22 +1290,30 @@ fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
     );
 
     let rows = tree::rows(&doc, Some(&ev), &viewer::parts::PartFiles::default());
-    let row = |id| {
-        rows.iter()
-            .find(|row| row.id == id)
-            .expect("every node has a row")
-    };
-    assert!(matches!(row(frame).status, RowStatus::Ok), "{rows:?}");
     assert!(
-        matches!(row(profile).status, RowStatus::Failed { .. }),
+        matches!(common::row_of(&rows, frame).status, RowStatus::Ok),
+        "{rows:?}"
+    );
+    assert!(
+        matches!(
+            common::row_of(&rows, profile).status,
+            RowStatus::Failed { .. }
+        ),
         "{rows:?}"
     );
     assert_eq!(
-        row(profile).repair_at.as_ref().map(|at| at.id()),
+        common::row_of(&rows, profile)
+            .repair_at
+            .as_ref()
+            .map(|at| at.id()),
         Some(frame),
         "the profile's row links to the frame whose slot refused"
     );
-    assert_eq!(row(frame).repair_at, None, "an `Ok` row links nowhere");
+    assert_eq!(
+        common::row_of(&rows, frame).repair_at,
+        None,
+        "an `Ok` row links nowhere"
+    );
 }
 
 /// **An empty value says so on its own row, and the node that refuses
@@ -1311,19 +1335,13 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         RecipeNodeId, SplitSide, ValuePayload,
     };
     use pncad::select::SplitHalf;
-    use viewer::tree::{Emptiness, Readout, TreeRow};
+    use viewer::tree::{Emptiness, Readout};
 
     let tol = Tol::witness();
     let run = |doc: &Doc<ProfileProgram>| {
         let ev = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
         let rows = tree::rows(doc, Some(&ev), &viewer::parts::PartFiles::default());
         (ev, rows)
-    };
-    let row = |rows: &[TreeRow], id: RecipeNodeId| -> TreeRow {
-        rows.iter()
-            .find(|row| row.id == id)
-            .cloned()
-            .expect("every node has a row")
     };
 
     let doc: Doc<ProfileProgram> = Doc::empty_derived("tree-empty-readout", tol);
@@ -1336,6 +1354,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
             Node::Extrude {
                 profile,
                 distance: common::len(0.02),
+                side: ExtrudeSide::Along,
             },
             tol,
         )
@@ -1348,7 +1367,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
             op: BooleanOp::Intersect,
             a: near,
             b: far,
-            declare: None,
+            declare: Vec::new(),
         },
         tol,
     );
@@ -1364,7 +1383,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         "the fixture's blocks do not meet: {:?}",
         ev.result(apart)
     );
-    let root = row(&rows, apart);
+    let root = common::row_of(&rows, apart);
     assert!(root.root, "the premise: the intersect is the product");
     assert!(matches!(root.status, RowStatus::Ok), "{root:?}");
     assert_eq!(
@@ -1378,7 +1397,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         "the phrase a reader sees"
     );
     assert_eq!(
-        row(&rows, near).readout,
+        common::row_of(&rows, near).readout,
         None,
         "a body's `Ok` says everything its value does"
     );
@@ -1425,7 +1444,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
             op: BooleanOp::Subtract,
             a: near,
             b: far,
-            declare: None,
+            declare: Vec::new(),
         },
         tol,
     );
@@ -1451,7 +1470,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         &doc,
         Node::Pattern {
             input: far,
-            count: pncad::document::Expr::count(3),
+            count: pncad::document::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
                 spacing: common::len(0.05),
@@ -1463,7 +1482,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         &doc,
         Node::Part {
             of: pattern,
-            select: PartSelect::Instance(pncad::document::Expr::count(3)),
+            select: PartSelect::Instance(pncad::document::Formula::count(3)),
         },
         tol,
     );
@@ -1509,7 +1528,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         ev.result(split)
     );
     assert_eq!(
-        row(&rows, split).readout,
+        common::row_of(&rows, split).readout,
         Some(Readout::Empty(Emptiness::Half(SplitHalf::Above))),
         "a split with an empty side says which"
     );
@@ -1528,7 +1547,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
             .strip_suffix(" half empty")
             .expect("the readout ends in its suffix");
         let kernel = NodeErrorKind::EmptyHalf {
-            input: RecipeNodeId(0),
+            input: RecipeNodeId::new(0, 0),
             half,
         }
         .to_string();
@@ -1538,12 +1557,12 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         );
     }
     assert_eq!(
-        row(&rows, apart).readout,
+        common::row_of(&rows, apart).readout,
         Some(Readout::Empty(Emptiness::Whole)),
         "the intersect still says so once it is no longer the root"
     );
     assert_eq!(
-        row(&rows, pattern).readout,
+        common::row_of(&rows, pattern).readout,
         None,
         "a pattern's count is authored, and the refusal's words state it"
     );
@@ -1556,7 +1575,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         ev.result(kept)
     );
     assert_eq!(
-        row(&rows, kept).readout,
+        common::row_of(&rows, kept).readout,
         None,
         "a boolean with a body says everything its value does"
     );
@@ -1572,7 +1591,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         ev.result(halved)
     );
     assert_eq!(
-        row(&rows, halved).readout,
+        common::row_of(&rows, halved).readout,
         None,
         "a split with two bodies says everything its value does"
     );
@@ -1598,7 +1617,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
             "the fixture raises {arm}: {:?}",
             ev.result(id)
         );
-        let failed = row(&rows, id);
+        let failed = common::row_of(&rows, id);
         assert!(
             matches!(failed.status, RowStatus::Failed { .. }),
             "{arm}: {failed:?}"
@@ -1610,11 +1629,304 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     }
 }
 
+/// **A mate's row says whether it placed its child or only declares**,
+/// carrying the solve's own role for that mate.
+///
+/// A second shelf seated on the bench's two posts exactly where the
+/// first one is — coincident with it, which is what keeps the loop
+/// consistent. The bench shelf is the group's root, the posts hang off
+/// it, and the second shelf hangs off one post, so its seat on the
+/// other post closes the loop and the solve reads that seat as a
+/// declaration. The row of every mate reads the role the solve
+/// recorded for it; both roles are on the rows.
+///
+/// The fixture is NOT at rest: the two shelves interfere, so it is no
+/// fixture for an at-rest row.
+#[test]
+fn a_mate_row_reads_whether_it_placed_its_child() {
+    use pncad::document::{Alignment, MateRole};
+    use viewer::tree::Readout;
+
+    let tol = Tol::witness();
+    let bench = common::asm::bench("auth16-role", tol);
+    let mut session = common::asm::open_bench(&bench, tol);
+    let middle = common::asm::middle_seat_alignment;
+    let quarter = || common::asm::seat_alignment(common::asm::SHELF_LENGTH / 4.0, None);
+    let seat =
+        |session: &mut DocSession, post, shelf, alignment: Alignment<pncad::document::Formula>| {
+            common::commit_mate(
+                session,
+                common::asm::seat_op_under(&bench, post, shelf, ContactClass::Rest, alignment),
+            )
+        };
+    let a_under_shelf = seat(&mut session, bench.post_a, bench.shelf_i, middle());
+    let b_under_shelf = seat(&mut session, bench.post_b, bench.shelf_i, quarter());
+    // The second shelf is the mate's FIRST operand, so the door clears
+    // the offset its insert authored and the bench shelf stays the root.
+    let upper = common::instance_in(&mut session, bench.shelf.id);
+    let upper_on_a = common::commit_mate(
+        &mut session,
+        common::asm::shelf_on_post_op(&bench, upper, bench.post_a, ContactClass::Rest, middle()),
+    );
+    let b_under_upper = seat(&mut session, bench.post_b, upper, quarter());
+
+    let doc = session.committed_doc().clone();
+    let poses = common::solve(&session, &doc, tol);
+    let rows = session.tree_rows();
+    let mut roles = Vec::new();
+    for mate in [a_under_shelf, b_under_shelf, upper_on_a, b_under_upper] {
+        let role: MateRole = poses
+            .role(mate)
+            .unwrap_or_else(|| panic!("the premise: the solve gave {mate:?} a role"));
+        let row = common::row_of(&rows, mate);
+        assert_eq!(
+            row.status,
+            RowStatus::Ok,
+            "{mate:?}: the loop is consistent"
+        );
+        assert_eq!(
+            row.readout,
+            Some(Readout::Role(role)),
+            "{mate:?}: the row reads the role the solve recorded"
+        );
+        roles.push(role);
+    }
+    let count = |want: MateRole| roles.iter().filter(|&&role| role == want).count();
+    assert_eq!(
+        (count(MateRole::Determining), count(MateRole::Declaring)),
+        (3, 1),
+        "the premise: three seats place a child and one closes the loop: {roles:?}"
+    );
+    std::fs::remove_dir_all(&bench.dir).expect("removable");
+}
+
 /// What a row downstream of a refused mate says, spelled from the
 /// mate's id alone: the mate as the document speaks it.
 fn downstream_at_mate(mate: pncad::document::RecipeNodeId) -> String {
     format!(
         "upstream failure at Mate {} — that row carries the cause",
-        test_utils::refusal::tag(mate.0)
+        test_utils::refusal::tag(mate.0.digest())
     )
+}
+
+// ---- A mate's band refusal, reached by a loaded snapshot ----
+
+/// The env var naming the child that AUTHORS the snapshot, at a sound
+/// tolerance, and prints it.
+const SNAPSHOT_AUTHOR: &str = "TREE_BADGES_BAND_SNAPSHOT_AUTHOR";
+
+/// The env var carrying the snapshot's text to the child that LOADS it
+/// where no band exists.
+const SNAPSHOT_TEXT: &str = "TREE_BADGES_BAND_SNAPSHOT_TEXT";
+
+/// The ε both children commit: a length whose band exists at the
+/// default K (16 m to 160 m) and overflows at [`SNAPSHOT_LOAD_K`]. A
+/// document records its ε and not its K, which is the process's
+/// (`CAD_AMBIGUITY_K`), so one file meets both.
+const SNAPSHOT_EPS: f64 = 16.0;
+
+/// The K the loading child commits: finite, so the run's validator
+/// admits it, and large enough that K·ε overflows at [`SNAPSHOT_EPS`].
+const SNAPSHOT_LOAD_K: f64 = f64::MAX / 2.0;
+
+/// Bracket the authored snapshot in the author child's stdout.
+const SNAPSHOT_BEGIN: &str = "BAND-SNAPSHOT-BEGIN";
+const SNAPSHOT_END: &str = "BAND-SNAPSHOT-END";
+
+/// What the loading child prints once its last assertion has run.
+const SNAPSHOT_LOAD_DONE: &str = "BAND-SNAPSHOT-LOAD-COMPLETE";
+
+/// The mate both instances carry: frame coincidence on the two parts'
+/// own frames.
+fn snapshot_mate(
+    a: pncad::document::RecipeNodeId,
+    b: pncad::document::RecipeNodeId,
+) -> pncad::document::AuthoredNode {
+    use pncad::document::{Alignment, AxisSense, MateFrame, MatePrimitive, Node};
+    use pncad::prelude::StableName;
+    use pncad::select::EntityKind;
+    let face_of = |instance| {
+        common::head(StableName {
+            kind: EntityKind::Face,
+            node: instance,
+            path: Vec::new(),
+        })
+    };
+    // The part base with no step: its frame is the part's own, which
+    // asks no direction of the band (an authored frame's literal is
+    // unit-length, and its re-minted axis does not clear a band of 16).
+    let frame = MateFrame::on_part(pncad::document::Placement::IDENTITY);
+    Node::Mate {
+        a: face_of(a),
+        b: face_of(b),
+        class: ContactClass::Rest,
+        alignment: Alignment {
+            a: frame.clone(),
+            b: frame,
+            primitive: MatePrimitive::FrameCoincidence,
+            sense: AxisSense::Opposed,
+            clocking: None,
+        },
+    }
+}
+
+/// CHILD MODE, the author. No-op unless [`SNAPSHOT_AUTHOR`] is set.
+/// At [`SNAPSHOT_EPS`] and the default K a band exists, so the edit
+/// door admits the mate; the document is saved through the save door
+/// and printed between the brackets.
+#[test]
+fn child_band_snapshot_author() {
+    use pncad::document::{DocRef, Node, ProfileDoc, content_pin, save};
+    use pncad::geom_core::Band;
+
+    if std::env::var(SNAPSHOT_AUTHOR).is_err() {
+        return;
+    }
+    let tol = Tol::witness();
+    Band::linear(tol).expect("the author's tolerance has a band");
+    let part = ProfileDoc::empty_derived("band-snapshot-part", tol);
+    let doc_ref = DocRef {
+        id: part.id(),
+        pin: content_pin(&part, tol).expect("the pin computes"),
+    };
+    let mut asm = ProfileDoc::empty_derived("band-snapshot-asm", tol);
+    let a = common::insert_into(&mut asm, Node::instantiate_part(doc_ref), tol);
+    let b = common::insert_into(&mut asm, Node::instantiate_part(doc_ref), tol);
+    common::insert_into(&mut asm, snapshot_mate(a, b), tol);
+    let text = save(&asm, &[], tol).expect("the document saves");
+    println!("{SNAPSHOT_BEGIN}\n{text}{SNAPSHOT_END}");
+}
+
+/// CHILD MODE, the loader. No-op unless [`SNAPSHOT_TEXT`] is set.
+///
+/// **A mate's band refusal, reached the way a state reaches it.** The
+/// insert door refuses a mate where no band exists
+/// ([`child_band_refusal_rows`]' DOOR 2a), so no edit and no replay
+/// lands one there; a SNAPSHOT is a state, and one authored where its
+/// ε had a band loads in a process whose K leaves it none. The mate's
+/// own value is then the solve's `Band`, and the tree draws its row
+/// FAILED in the payload's own words with nothing pointed at it: the
+/// fault names no mate, so `blamed_mates` answers empty for it.
+#[test]
+fn child_band_snapshot_load() {
+    use pncad::document::{MateFault, Node, NodeErrorKind, RecipeNodeId, load};
+    use pncad::geom_core::Band;
+
+    let Ok(text) = std::env::var(SNAPSHOT_TEXT) else {
+        return;
+    };
+    let tol = Tol::witness();
+    Band::linear(tol).expect_err("no band exists at the loader's K");
+    let loaded = load(&text, tol).expect("a state loads where an edit could not land");
+    let doc = loaded.doc;
+    let mates: Vec<RecipeNodeId> = doc
+        .ids()
+        .iter()
+        .copied()
+        .filter(|&id| matches!(doc.node(id), Some(Node::Mate { .. })))
+        .collect();
+    let [mate] = mates[..] else {
+        panic!("the snapshot holds one mate: {mates:?}");
+    };
+
+    let evaluation: pncad::document::Evaluation<f64> = pncad::document::evaluate(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
+    let Some(NodeResult::Failed(error)) = evaluation.result(mate) else {
+        panic!("the mate fails: {:?}", evaluation.result(mate));
+    };
+    assert!(
+        matches!(&error.kind, NodeErrorKind::Mate(f) if matches!(**f, MateFault::Band { .. })),
+        "the mate's own value is the solve's band refusal: {error:?}"
+    );
+
+    let rows = tree::rows(
+        &doc,
+        Some(&evaluation),
+        &viewer::parts::PartFiles::default(),
+    );
+    let status = common::status_of(&rows, mate);
+    assert_eq!(status.badge(), "FAILED", "{status:?}");
+    assert_eq!(
+        status.message(),
+        Some(error.spoken(&doc, &evaluation).as_str()),
+        "the mate row carries the payload's own rendering"
+    );
+    let pointed: Vec<RecipeNodeId> = rows
+        .iter()
+        .filter(|row| matches!(row.status, RowStatus::Poisoned { .. }))
+        .map(|row| row.id)
+        .collect();
+    assert_eq!(
+        pointed,
+        Vec::<RecipeNodeId>::new(),
+        "a band refusal blames no mate, so no row points at the mate or from it"
+    );
+    println!("{SNAPSHOT_LOAD_DONE}");
+}
+
+/// Runs the child `name` of this module with `envs` and the ambient
+/// tolerance variables removed, answering its stdout once it exits 0.
+///
+/// Another copy of the re-exec harness this file's band row and
+/// `wire_band_cause.rs` already spell, disclosed on
+/// `work/helper/re-exec-child-harness-is-copied-per-suite-and-greens-when-it-does-not-run`;
+/// its caller reads a sentinel, as that item asks.
+fn run_child(name: &str, envs: &[(&str, &str)]) -> String {
+    let exe = std::env::current_exe().expect("test exe path");
+    let probe = match module_path!().split_once("::") {
+        Some((_, m)) => format!("{m}::{name}"),
+        None => name.to_string(),
+    };
+    let mut command = std::process::Command::new(exe);
+    command
+        .args([probe.as_str(), "--exact", "--nocapture"])
+        .env_remove("CAD_TOLERANCE_EPS")
+        .env_remove("CAD_AMBIGUITY_K");
+    for (key, value) in envs {
+        command.env(key, value);
+    }
+    let out = command.output().expect("child spawns");
+    let text = String::from_utf8_lossy(&out.stdout).into_owned();
+    assert!(
+        out.status.success(),
+        "{name} failed:\n{text}\n{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    text
+}
+
+/// The parent of [`child_band_snapshot_author`] and
+/// [`child_band_snapshot_load`]: author at a sound tolerance, carry
+/// the saved text, load it where no band exists.
+#[test]
+fn a_loaded_snapshot_reaches_a_mates_band_refusal() {
+    let eps = format!("{SNAPSHOT_EPS:e}");
+    let k = format!("{SNAPSHOT_LOAD_K:e}");
+    let authored = run_child(
+        "child_band_snapshot_author",
+        &[(SNAPSHOT_AUTHOR, "1"), ("CAD_TOLERANCE_EPS", &eps)],
+    );
+    let snapshot = authored
+        .split_once(&format!("{SNAPSHOT_BEGIN}\n"))
+        .and_then(|(_, rest)| rest.split_once(SNAPSHOT_END))
+        .map(|(text, _)| text)
+        .unwrap_or_else(|| panic!("the author printed no snapshot:\n{authored}"));
+    let loaded = run_child(
+        "child_band_snapshot_load",
+        &[
+            (SNAPSHOT_TEXT, snapshot),
+            ("CAD_TOLERANCE_EPS", &eps),
+            ("CAD_AMBIGUITY_K", &k),
+        ],
+    );
+    assert!(
+        loaded.contains(SNAPSHOT_LOAD_DONE),
+        "the loader exited 0 without reaching its assertions — a filter that matches \
+         nothing greens. Child output:\n{loaded}"
+    );
 }

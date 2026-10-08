@@ -1,18 +1,11 @@
-//! **Reviewer probes for the rim door** ([`topo::query::rim_of`], PR
-//! 1821 review lane r2) — the rows that can go RED when the door's
-//! ORDER claim breaks.
+//! **Reviewer probes for the rim door** ([`topo::query::rim_of`]) —
+//! the rows that can go RED when the door's ORDER claim breaks.
 //!
-//! `rim_of`'s doc states two things about order: the answer starts at
-//! the seed, and it runs "in the direction `edge`'s carrier parameter
-//! increases". Every rim in the shipped corpus is ONE or TWO arcs
-//! (measured: ten rims, `{1: 4, 2: 6}`), and at two arcs both claims
-//! are satisfied by every possible answer — `[a, b]` and `[b, a]` are
-//! rotations of each other, and the only non-seed arc is the second
-//! one whichever way the walk runs. So no shipped row can distinguish
-//! the stated direction from its reverse.
-//!
-//! This fixture is a THREE-arc rim, where the two directions give
-//! different `Vec`s, and the row names the one the doc promises.
+//! The door's order is the walk along the half-edges on the pair's
+//! lower surface key, starting at the seed. At two arcs every possible
+//! answer is a rotation of every other, so a direction flip is
+//! invisible; this fixture is a THREE-arc rim, where the two directions
+//! give different `Vec`s, and the row names the one the doc promises.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -45,8 +38,7 @@ fn rim_circle() -> Curve3<f64> {
 }
 
 /// **A spherical cap whose rim is split into THREE arcs**, at
-/// parameters `0 → τ/3 → 2τ/3 → τ`, each arc stated on the SAME
-/// circle value bit for bit and each `he_plus`-forward in the
+/// parameters `0 → τ/3 → 2τ/3 → τ`, each `he_plus`-forward in the
 /// direction that parameter increases.
 ///
 /// Returns the arcs in the order the construction laid them down,
@@ -126,21 +118,41 @@ fn three_arc_rim() -> (Body<f64>, [EdgeKey; 3]) {
     (body, [a, b, c])
 }
 
-/// **A three-arc rim is answered in the carrier's positive direction,
+/// **A three-arc rim is answered along the lower surface's half-edges,
 /// from every one of its arcs.**
 ///
-/// The whole of the door's order contract, on the smallest fixture
-/// that can falsify it: the seed first, then the arc the seed's
-/// parameter runs INTO, then the next. At three arcs the reverse walk
-/// is a different `Vec` — `[a, c, b]` — so this row goes red on a
-/// direction flip, which no corpus row does.
+/// The lower surface key's loop runs the rim against the arcs' carrier
+/// direction here, so the
+/// answer is `[a, c, b]` and its rotations. The reverse walk is a
+/// different `Vec`, so this row goes red on a direction flip.
 #[test]
-fn a_three_arc_rim_is_ordered_in_the_carriers_positive_direction_from_every_seed() {
+fn a_three_arc_rim_is_ordered_along_the_lower_surfaces_half_edges_from_every_seed() {
     let (body, [a, b, c]) = three_arc_rim();
 
-    assert_eq!(rim_of(&body, a).unwrap(), vec![a, b, c], "seeded at arc 0");
-    assert_eq!(rim_of(&body, b).unwrap(), vec![b, c, a], "seeded at arc 1");
-    assert_eq!(rim_of(&body, c).unwrap(), vec![c, a, b], "seeded at arc 2");
+    let lower_runs = |k: EdgeKey| {
+        let sides = topo::readback::edge_sides(&body, k).unwrap();
+        let lower = if sides.plus.surface < sides.minus.surface {
+            sides.plus
+        } else {
+            sides.minus
+        };
+        let he = lower.half_edge;
+        (
+            body.get_half_edge(he).unwrap().start,
+            body.half_edge_end(he).unwrap(),
+        )
+    };
+    // The seed's lower-side half-edge ends where the answer's second
+    // edge begins, read off the body rather than assumed.
+    assert_eq!(
+        lower_runs(a).1,
+        lower_runs(c).0,
+        "c follows a on the lower side"
+    );
+
+    assert_eq!(rim_of(&body, a).unwrap(), vec![a, c, b], "seeded at arc 0");
+    assert_eq!(rim_of(&body, b).unwrap(), vec![b, a, c], "seeded at arc 1");
+    assert_eq!(rim_of(&body, c).unwrap(), vec![c, b, a], "seeded at arc 2");
 }
 
 /// **Determinism (D9): the same body and seed answer identically on

@@ -25,9 +25,11 @@ comment) — has no carrier to mint. The endpoint meter refuses
 `TogetherEdgeDisagreement` at millimetre gaps (0.64 mm on the conical
 wedge, `sf2b_r2_probes`; 1.34 mm on the three-quarter frustum,
 `shell7_seam_corner`). The kernel's stance is ratified at C5 R1
-(`crates/geom-brep/src/intersect.rs`): the plane×cone generic tilt
-routes to rung 3 "explicitly and permanently — the conic trio
-(parabola/hyperbola) does NOT land in M5", a documented decision
+(`crates/geom-brep/src/intersect.rs`'s plane×cone route): the tilted
+plane×cone ellipse is exact (Ev, 2026-10-01: "exact ellipses are
+certainly allowed there"), and a parabolic or hyperbolic section
+refuses naming its conic — "parabola and hyperbola are outside the
+conic inventory by decision, not by omission", a documented decision
 "permanent until a PR moves it". `Curve3` carries `Ellipse` (M5 PR 5)
 and `Nurbs`; a hyperbola arc is a rational quadratic, so either an
 `Ellipse` sibling or the existing `Nurbs` carrier could hold it

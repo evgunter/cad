@@ -15,11 +15,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeSet;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, Expr, MateFrame,
+    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, Formula, MateFrame,
     MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId, StableName, content_pin,
     derivation_nodes, split,
 };
@@ -42,6 +44,7 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -53,11 +56,17 @@ fn block_ref(label: &str) -> (DocRef, RecipeNodeId) {
     (DocRef { id: doc.id(), pin }, body)
 }
 
-fn mate_frame(origin: [f64; 3]) -> MateFrame {
-    MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
+fn mate_frame(origin: [f64; 3]) -> MateFrame<Formula> {
+    MateFrame::authored(
+        origin,
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        geom_core::Tol::witness(),
+    )
+    .expect("a definite frame")
 }
 
-fn seat(a: StableName, b: StableName) -> Node<editor_core::ProfileProgram> {
+fn seat(a: StableName, b: StableName) -> AuthoredNode {
     Node::Mate {
         a: crate::fixture::head(a),
         b: crate::fixture::head(b),
@@ -72,7 +81,7 @@ fn seat(a: StableName, b: StableName) -> Node<editor_core::ProfileProgram> {
     }
 }
 
-fn linear(spacing: f64) -> PatternKind {
+fn linear(spacing: f64) -> PatternKind<Formula> {
     PatternKind::Linear {
         direction: [scl(1.0), scl(0.0), scl(0.0)],
         spacing: len(spacing),
@@ -93,7 +102,7 @@ struct Sweep {
 /// is always empty, and any remainder mate whose ends straddle the cut
 /// is NOT an A12 edge.
 fn sweep_every_cut(doc: &editor_core::ProfileDoc, label: &str) -> Sweep {
-    let ids: Vec<RecipeNodeId> = doc.order().to_vec();
+    let ids: Vec<RecipeNodeId> = doc.ids().to_vec();
     assert!(ids.len() <= 12, "2^n: keep the recipe small");
     // A mate is an EDGE iff BOTH its heads resolve to members — which
     // the public A12 walk reports as two edges out of the mate.
@@ -136,7 +145,7 @@ fn sweep_every_cut(doc: &editor_core::ProfileDoc, label: &str) -> Sweep {
             interface.crossings.len(),
             interface.crossings
         );
-        for &id in doc.order() {
+        for id in doc.ids() {
             if cut.contains(&id) {
                 continue;
             }
@@ -170,7 +179,7 @@ fn three_shapes() -> ProfileDoc {
         doc,
         Node::Pattern {
             input: a,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: linear(2.0),
         },
     );
@@ -182,7 +191,7 @@ fn three_shapes() -> ProfileDoc {
         doc,
         Node::Pattern {
             input: c,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: linear(3.0),
         },
     );
@@ -190,7 +199,7 @@ fn three_shapes() -> ProfileDoc {
         doc,
         Node::Pattern {
             input: pc,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: linear(7.0),
         },
     );
@@ -198,10 +207,11 @@ fn three_shapes() -> ProfileDoc {
     let (doc, _) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat(
+            node: Box::new(seat(
                 in_copy(pa, 1, in_part(a, a_body, CapEnd::End)),
                 in_part(b, b_body, CapEnd::Start),
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     // A head the name UNDERQUALIFIES — one `Instance(i)` over a
@@ -237,7 +247,7 @@ fn foreign_master() -> ProfileDoc {
         doc,
         Node::Pattern {
             input: a,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: linear(2.0),
         },
     );

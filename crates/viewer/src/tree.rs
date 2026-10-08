@@ -5,8 +5,10 @@
 //! GQ2's ratified codomain is a per-node result — `Ok`, `Failed(e)`,
 //! `Poisoned { through }` — and the ratified error rule is that a
 //! failure is a typed value the GUI renders, never a string invented
-//! at the interaction layer. So a failing row's message is
-//! `NodeError`'s own `Display`, and nothing here composes a sentence
+//! at the interaction layer. So a failing row's message is the
+//! kernel's own rendering of the `NodeError`, its node spoken from the
+//! document the row is drawn over (`NodeError::spoken`), and nothing
+//! here composes a sentence
 //! about what went wrong. The two sentences this module writes ABOUT
 //! A FAILURE are a downstream row's pointer ([`downstream_wording`])
 //! and a failed row's link to the node to repair ([`link_wording`]),
@@ -39,7 +41,8 @@
 //! an `Ok` value says ([`Readout`]) — a measure's value, spelled when
 //! drawn as the chrome spells any computed value, or the kernel's typed
 //! reason it has none; what an assertion found of it ([`Asserted`]);
-//! and that a boolean, or a side of a split, holds no material.
+//! that a boolean, or a side of a split, holds no material; and
+//! whether a mate placed its child or only declares ([`MateRole`]).
 //!
 //! # A mate refusal poisons across the placement graph, not the DAG
 //!
@@ -180,9 +183,10 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    AssertionDir, AssertionVerdict, BooleanValue, CarriedIn, Datum, Doc, Evaluation, Expr, Label,
-    MateFault, MeasureUnavailableAt, Node, NodeError, NodeErrorKind, NodeResult, NodeStanding,
-    ProfileProgram, RecipeNodeId, SplitSide, SpokenNode, ValuePayload, node_kind_noun,
+    AssertionDir, AssertionVerdict, BooleanValue, CarriedIn, Datum, Dimension, Doc, Evaluation,
+    Expr, Formula, Label, MateFault, MateRole, MeasureUnavailableAt, Node, NodeError,
+    NodeErrorKind, NodeResult, NodeStanding, ProfileProgram, RecipeNodeId, SplitSide, SpokenNode,
+    ValuePayload, VarId, node_kind_noun,
 };
 use pncad::quantity::UnitDef;
 use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate, SplitHalf};
@@ -200,8 +204,8 @@ pub struct CarriedLine {
     /// The document, by file name ([`PartFiles::name`]), or
     /// [`THIS_DOCUMENT`] for the tree's own.
     pub document: String,
-    /// The node's refusal exactly as its own tree draws it:
-    /// `NodeError`'s `Display` for that node and kind.
+    /// The node's refusal exactly as its own tree draws it
+    /// (`CarriedLevel::line_in`).
     pub line: String,
 }
 
@@ -217,7 +221,7 @@ pub enum RowStatus {
     /// The node's own operation failed. `message` is the typed
     /// error's own rendering, and `carried` the refusals it carries.
     Failed {
-        /// `NodeError`'s `Display`.
+        /// `NodeError::spoken` over the tree's document.
         message: String,
         /// **The refusals `message` points at and does not quote**, one
         /// per level ([`carried_lines`]): another node's refusal, with
@@ -378,17 +382,18 @@ impl TreeRow {
     pub fn tone(&self) -> Tone {
         match &self.readout {
             Some(Readout::Asserted(asserted)) => asserted.tone(),
-            Some(Readout::Value(_) | Readout::Unavailable(_) | Readout::Empty(_)) | None => {
-                self.status.tone()
-            }
+            Some(
+                Readout::Value(_) | Readout::Unavailable(_) | Readout::Empty(_) | Readout::Role(_),
+            )
+            | None => self.status.tone(),
         }
     }
 }
 
 /// **What an `Ok` value says**, on its own row: a measure's value or
 /// the kernel's reason it has none, an assertion's verdict over that
-/// value, and a value that holds no material where the node could
-/// have made some.
+/// value, a value that holds no material where the node could have
+/// made some, and what a mate did in the solve.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Readout {
     /// The value, as a quantity: spelled when the row is DRAWN
@@ -405,6 +410,9 @@ pub enum Readout {
     /// holds no material. A legal value, and the one a consumer
     /// refuses as its input, so the row it came from says so.
     Empty(Emptiness),
+    /// A mate's role in the solve: it placed its child, or it only
+    /// declares a contact. Its `Display` is the kernel's sentence.
+    Role(MateRole),
 }
 
 /// **Which part of a value holds no material**, and its phrase.
@@ -561,13 +569,13 @@ pub fn headline(spoken: &SpokenNode, pose: Option<&str>) -> Headline {
 #[must_use]
 pub fn proposed_label(doc: &Doc<ProfileProgram>, noun: &str) -> Option<Label> {
     let of_kind = || {
-        doc.order().iter().filter(|id| {
-            doc.node(**id)
+        doc.ids().into_iter().filter(|&id| {
+            doc.node(id)
                 .is_some_and(|node| node_kind_noun(node) == noun)
         })
     };
     let taken: Vec<&str> = of_kind()
-        .filter_map(|id| doc.label(*id))
+        .filter_map(|id| doc.label(id))
         .map(Label::as_str)
         .collect();
     let text = (of_kind().count() + 1..)
@@ -589,17 +597,20 @@ pub fn proposed_label(doc: &Doc<ProfileProgram>, noun: &str) -> Option<Label> {
 ///
 /// So a component that is not a literal is not evaluated and not
 /// guessed: the label says the origin is driven and names no number. A
-/// [`Datum::FaceFrame`] says whose face it is read off; it cannot say
-/// WHICH face, because a face's identity is its role path and
-/// `RoleSeg` has no `Display` (`crate::idpass`'s note says so in as
-/// many words).
+/// [`Datum::FaceFrame`] says whose face it is read off, not which face.
 ///
 /// `None` is a node with no such sentence — every kind but the two
 /// frames.
 pub fn frame_pose(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Option<String> {
     match node {
         Node::Datum(Datum::Frame { origin, u, v }) => {
-            Some(match (plane_name(u, v), written_point(origin)) {
+            let written = |xs: &[VarId; 3], dim| xs.map(|var| doc.written(&Expr::var(var, dim)));
+            let (origin, u, v) = (
+                written(origin, Dimension::Length),
+                written(u, Dimension::Scalar),
+                written(v, Dimension::Scalar),
+            );
+            Some(match (plane_name(&u, &v), written_point(&origin)) {
                 (Some(plane), Some(at)) => format!("{plane} at {at}"),
                 (Some(plane), None) => format!("{plane}, origin driven"),
                 (None, Some(at)) => format!("at {at}"),
@@ -630,9 +641,9 @@ pub fn frame_pose(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Opt
         | Node::Pattern { .. }
         | Node::Part { .. }
         | Node::PlacedUnion { .. }
-        | Node::Declare { .. }
         | Node::InstantiatePart { .. }
         | Node::Mate { .. }
+        | Node::Gauge { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. } => None,
     }
@@ -646,7 +657,7 @@ pub fn frame_pose(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Opt
 /// rather than one that says something else: the origin still
 /// separates two frames, and a spelling for the oblique case would be
 /// a matrix, not a name.
-fn plane_name(u: &[Expr; 3], v: &[Expr; 3]) -> Option<&'static str> {
+fn plane_name(u: &[Formula; 3], v: &[Formula; 3]) -> Option<&'static str> {
     let (u, v) = (axis_name(u)?, axis_name(v)?);
     match (u, v) {
         ('x', 'y') => Some("xy"),
@@ -669,7 +680,7 @@ fn plane_name(u: &[Expr; 3], v: &[Expr; 3]) -> Option<&'static str> {
 /// that they typed the axis. A near-miss is a frame a shade off
 /// square, which is the case a person most needs the label not to
 /// paper over; evaluation normalizes it and this does not.
-fn axis_name(v: &[Expr; 3]) -> Option<char> {
+fn axis_name(v: &[Formula; 3]) -> Option<char> {
     let mut components = [0.0_f64; 3];
     for (slot, expr) in components.iter_mut().zip(v) {
         *slot = expr.literal_value()?;
@@ -694,7 +705,7 @@ fn axis_name(v: &[Expr; 3]) -> Option<char> {
 /// and against each number when they do not — a frame whose origin was
 /// typed in three notations is rare, and printing one of its units for
 /// all three would be wrong rather than terse.
-fn written_point(origin: &[Expr; 3]) -> Option<String> {
+fn written_point(origin: &[Formula; 3]) -> Option<String> {
     let mut written: Vec<(f64, UnitDef)> = Vec::with_capacity(origin.len());
     for expr in origin {
         let unit = expr.display_unit()?;
@@ -736,7 +747,7 @@ pub fn rows(
 ) -> Vec<TreeRow> {
     let order: Vec<RecipeNodeId> = match evaluation {
         Some(ev) => ev.order.clone(),
-        None => doc.order().to_vec(),
+        None => doc.ids().to_vec(),
     };
     let mut depths: BTreeMap<RecipeNodeId, usize> = BTreeMap::new();
     let roots = doc.roots();
@@ -827,8 +838,8 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
         | Node::Pattern { .. }
         | Node::Part { .. }
         | Node::PlacedUnion { .. }
-        | Node::Declare { .. }
         | Node::InstantiatePart { .. }
+        | Node::Gauge { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. } => None,
     }
@@ -839,7 +850,7 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
 /// whether there is one. `None` for a payload whose `Ok` is the whole
 /// of it: a body, a datum, a profile, a pattern's instances (its
 /// count is authored, and the words of any refusal state it), a
-/// declaration, a mate.
+/// declaration, a gauge.
 fn readout_of(
     doc: &Doc<ProfileProgram>,
     id: RecipeNodeId,
@@ -866,13 +877,13 @@ fn readout_of(
             }
             (SplitSide::Body(_), SplitSide::Body(_)) => None,
         },
+        ValuePayload::Mate(role) => Some(Readout::Role(*role)),
         ValuePayload::Body(_)
         | ValuePayload::Boolean(BooleanValue::Body { .. })
         | ValuePayload::Datum(_)
         | ValuePayload::Profile(_)
         | ValuePayload::Instances(_)
-        | ValuePayload::Declarations(_)
-        | ValuePayload::Mate(_) => None,
+        | ValuePayload::Gauge => None,
     }
 }
 
@@ -920,17 +931,22 @@ pub fn part_file(node: &Node<ProfileProgram>, files: &PartFiles) -> Option<Strin
 /// refusal — a part inside a part reads one level per document, and
 /// the last is the failing node's own refusal.
 ///
-/// Each line is that node's refusal exactly as its own tree draws it;
-/// the document it is in, whose numbering the line's node number is,
-/// is its label ([`CarriedLine::document`]).
-pub fn carried_lines(kind: &NodeErrorKind, files: &PartFiles) -> Vec<CarriedLine> {
+/// Each line is that node's refusal exactly as its own tree draws it,
+/// a node of `doc` spoken from it and a part's node as the pinned part
+/// holds it ([`pncad::document::CarriedLevel::line_in`]); the document
+/// it is in is its label ([`CarriedLine::document`]).
+pub fn carried_lines(
+    doc: &Doc<ProfileProgram>,
+    kind: &NodeErrorKind,
+    files: &PartFiles,
+) -> Vec<CarriedLine> {
     kind.carried_chain()
         .map(|level| CarriedLine {
             document: match level.document {
                 CarriedIn::ThisDocument => THIS_DOCUMENT.to_owned(),
-                CarriedIn::Part(doc_ref) => files.name(doc_ref.id).to_owned(),
+                CarriedIn::Part { doc_ref, .. } => files.name(doc_ref.id).to_owned(),
             },
-            line: level.line(),
+            line: level.line_in(doc),
         })
         .collect()
 }
@@ -943,8 +959,8 @@ enum Standing<'e> {
     Unevaluated,
     /// A usable value.
     Ok,
-    /// The row's own failure.
-    Failed(&'e NodeError),
+    /// The row's own failure, and the evaluation that raised it.
+    Failed(&'e NodeError, &'e Evaluation<f64>),
     /// Drawn downstream of `through`; `cause_known` is whether the
     /// chain ends at a failure, which is what earns the row its
     /// pointer ([`downstream_wording`]).
@@ -962,7 +978,7 @@ fn standing(id: RecipeNodeId, evaluation: Option<&Evaluation<f64>>) -> Standing<
         None => Standing::Unevaluated,
         Some(NodeResult::Ok(_)) => Standing::Ok,
         Some(NodeResult::Failed(error)) => {
-            downstream_of_mate(id, error).unwrap_or(Standing::Failed(error))
+            downstream_of_mate(id, error).unwrap_or(Standing::Failed(error, ev))
         }
         Some(NodeResult::Poisoned { through }) => poisoned_through(*through, ev),
     }
@@ -985,9 +1001,9 @@ fn status_of(
             through,
             message: cause_known.then(|| downstream_wording(&doc.spoken(through))),
         },
-        Standing::Failed(error) => RowStatus::Failed {
-            message: error.to_string(),
-            carried: carried_lines(&error.kind, files),
+        Standing::Failed(error, evaluation) => RowStatus::Failed {
+            message: error.spoken(doc, evaluation),
+            carried: carried_lines(doc, &error.kind, files),
         },
     }
 }
@@ -1013,7 +1029,7 @@ fn status_of(
 /// reports it as absence.
 pub fn cause_row(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<RecipeNodeId> {
     match standing(id, Some(evaluation)) {
-        Standing::Failed(_) => Some(id),
+        Standing::Failed(..) => Some(id),
         Standing::Downstream {
             through,
             cause_known: true,
@@ -1032,7 +1048,7 @@ pub fn cause_row(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<Recip
 /// ancestor's, and so is the row the tree sends a reader to.
 pub fn own_error(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<&NodeError> {
     match standing(id, Some(evaluation)) {
-        Standing::Failed(error) => Some(error),
+        Standing::Failed(error, _) => Some(error),
         Standing::Ok | Standing::Unevaluated | Standing::Downstream { .. } => None,
     }
 }
@@ -1153,19 +1169,31 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // sits on.
         NodeErrorKind::WrongOperand { .. }
         | NodeErrorKind::EmptyOperand { .. }
+        | NodeErrorKind::ProductOperand { .. }
         | NodeErrorKind::EmptyHalf { .. }
         | NodeErrorKind::InstanceOutOfRange { .. }
         | NodeErrorKind::AxisInDifferentPlane { .. } => None,
         // Names an id no live node holds, so there is no row to go to.
         NodeErrorKind::MissingInput { .. } => None,
+        // The input's door shipped a body that does not finish: a
+        // kernel defect, and no author's slot refused.
+        NodeErrorKind::UnfinishedOperand { .. } => None,
         // The lane cannot carry what the named nodes hold; neither
         // node is wrong, and the f64 lane builds them.
         NodeErrorKind::SeedPinnedSection { .. } | NodeErrorKind::DerivedFrameSection { .. } => None,
-        // Names the site the declaration chose, and the choice is the
-        // `Declare`'s, which the error does not name.
+        // Names the site the declaration chose, and the declaration is
+        // the erring node's own payload: no other row to go to.
         NodeErrorKind::DeclareSiteNotAnOperand { .. } => None,
         // Names the failing instance itself.
         NodeErrorKind::CrossingUnverified { .. } => None,
+        // The kernel's own words: "repair <the node>" — the gauge, or
+        // the root whose offset did not evaluate.
+        NodeErrorKind::PlacementRefused { node, .. } => Some(*node),
+        // Names the unplaced group's root as evidence of which space
+        // the node reached into. Either the reading node or the group
+        // is the repair — read within one space, or place the group —
+        // and one link would pick for the reader.
+        NodeErrorKind::Unplaced { .. } => None,
         // A payload that names a node does so as evidence: a name's
         // minting node, where the repair is the referring node's own
         // reference; an upstream table the naming pass found missing;
@@ -1173,7 +1201,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // no row of this tree is.
         NodeErrorKind::Part { .. }
         | NodeErrorKind::DeclareResolve { .. }
-        | NodeErrorKind::UndeclaredContact { .. }
+        | NodeErrorKind::UndeclaredCoincidence { .. }
         | NodeErrorKind::UndeclarableContact { .. }
         | NodeErrorKind::BlendSelectionResolve { .. }
         | NodeErrorKind::BlendSelectionKind { .. }
@@ -1212,6 +1240,10 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::VerbArity { .. }
         | NodeErrorKind::Escalated { .. }
         | NodeErrorKind::NonPositiveCount { .. }
+        | NodeErrorKind::NegativeSpacing { .. }
+        | NodeErrorKind::DegenerateSpacing
+        | NodeErrorKind::DegenerateStep
+        | NodeErrorKind::FullRangeStep { .. }
         | NodeErrorKind::PlacementsUncertified { .. }
         | NodeErrorKind::PlacementRule(_)
         | NodeErrorKind::UnschedulableCycle
@@ -1252,13 +1284,18 @@ fn repaired_at(fault: &MateFault) -> Option<RecipeNodeId> {
         | MateFault::ClassNotAdmitted { .. }
         | MateFault::TableLacks { .. }
         | MateFault::Indeterminate { .. }
+        | MateFault::PoseOutOfRange { .. }
         | MateFault::Under { .. }
         | MateFault::SelfMate { .. }
         | MateFault::Unleverable { .. }
         | MateFault::FaceUnresolved { .. }
+        | MateFault::FrameUnevaluated { .. }
         | MateFault::Contradictory { .. }
         | MateFault::Band { .. }
         | MateFault::PosesOfAnotherDocument { .. } => None,
+        // Sit on the instance whose offset is the statement, and name
+        // its root only as the group the solve placed it in.
+        MateFault::OffsetDisagrees { .. } | MateFault::OffsetUnchecked { .. } => None,
     }
 }
 
@@ -1293,8 +1330,9 @@ fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> Standing<'_>
 /// that holds for an arm naming a node an author may repair is stated
 /// once, in the module header's second section.
 ///
-/// Two arms name none, and they get an arm each because they are not
-/// the same case: one reaches rows and one cannot reach any.
+/// Four arms name none: `Band` reaches every row, the mispairing
+/// reaches none, and the two checked-offset arms reach only the
+/// instance that states the offset.
 fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
     match fault {
         MateFault::Frame { mate, .. }
@@ -1307,17 +1345,23 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         | MateFault::SelfMate { mate, .. }
         | MateFault::PartSelectsAnotherCopy { mate, .. }
         | MateFault::Unleverable { mate, .. }
-        | MateFault::FaceUnresolved { mate, .. } => vec![*mate],
+        | MateFault::FaceUnresolved { mate, .. }
+        | MateFault::FrameUnevaluated { mate, .. } => vec![*mate],
         // Names no mate and reaches EVERY row of the document — the
         // asymmetry with the arm below is stated once, on `MateFault`.
         MateFault::Band { .. } => Vec::new(),
         // Names no mate and reaches NO row (`MateFault`'s doc says
         // why); the empty answer here is unreachable, not a reading.
         MateFault::PosesOfAnotherDocument { .. } => Vec::new(),
-        // A contradiction is a claim about a PAIR of mates: neither is
-        // the wrong one on the fault's own telling, so both read as
-        // causes and the user picks which to relax.
-        MateFault::Contradictory { held, added, .. } => {
+        // Name no mate: the fault is the instance's own checked
+        // offset, so the instance's row keeps its own `Failed`.
+        MateFault::OffsetDisagrees { .. } | MateFault::OffsetUnchecked { .. } => Vec::new(),
+        // A contradiction is a claim about a PAIR of mates, and so is
+        // a meeting point past the format: neither is the wrong one on
+        // the fault's own telling, so both read as causes and the user
+        // picks which to relax.
+        MateFault::Contradictory { held, added, .. }
+        | MateFault::PoseOutOfRange { held, added } => {
             if held == added {
                 vec![*held]
             } else {

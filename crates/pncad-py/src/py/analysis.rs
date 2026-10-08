@@ -7,7 +7,7 @@
 //! evaluation, no content key and no predicate — the kernel and the
 //! geometry lanes never see a probability — and `pncad::analysis` is
 //! its ONE interpreter. So this module holds both halves: the value a
-//! `DocParam` carries, and the doors that read it.
+//! `FreeVar` carries, and the doors that read it.
 //!
 //! # The offsets are typed, and the parameter owns the dimension
 //!
@@ -171,7 +171,7 @@ fn agreed(py: Python<'_>, door: &'static str, parts: &[Offset]) -> PyResult<d::D
 /// The quantity boundary's `DimensionError`, raised for a DOOR whose
 /// arguments must share a dimension rather than for an operator.
 ///
-/// Shared with the `DocParam` constructors, which ask the same
+/// Shared with the `FreeVar` constructors, which ask the same
 /// question one rung up: a parameter's declaration and the annotation
 /// hung on it must agree about what dimension the offsets are in.
 pub(crate) fn dimension_mismatch(
@@ -260,7 +260,7 @@ fn measure_err(py: Python<'_>, err: &a::MeasureUnavailable) -> PyErr {
             ),
             (
                 "param",
-                PyString::new(py, param.as_str()).unbind().into_any(),
+                PyString::new(py, &param.to_string()).unbind().into_any(),
             ),
         ],
     )
@@ -298,8 +298,9 @@ fn quantity(py: Python<'_>, canonical: f64, dim: d::Dimension) -> PyResult<Py<Py
 /// limits and says every value between them is equally likely;
 /// `normal` states a spread with unbounded support; `truncated_normal`
 /// restricts a normal to a window and renormalizes it. A parameter
-/// with NO distribution is FIXED — annotation is opt-in and means
-/// something, and the analysis never guesses a spread nobody stated.
+/// with NO distribution is FIXED, a constant of the analysis and no
+/// axis of it (VR8) — annotation is opt-in and means something, and
+/// the analysis never guesses a spread nobody stated.
 ///
 /// The shape is `PatternKind`'s and `PartSelect`'s: a frozen value
 /// class of static constructors, one per kernel arm, spelled in snake
@@ -316,7 +317,7 @@ pub(crate) struct Distribution {
 }
 
 impl Distribution {
-    /// The kernel value with the dimension a `DocParam` declares.
+    /// The kernel value with the dimension a `FreeVar` declares.
     ///
     /// The read direction of the borrow the module header describes:
     /// an annotation off a document has no dimension of its own, and
@@ -467,7 +468,7 @@ impl Distribution {
     /// spellings of zero are the same offset. The dimension is part of
     /// the value: a Length band and a Scalar band of the same numbers
     /// are different annotations, exactly as a Length 1 and a Scalar 1
-    /// are different `DocParam`s.
+    /// are different `FreeVar`s.
     fn __eq__(&self, other: &Self) -> bool {
         self.dim == other.dim && self.inner == other.inner
     }
@@ -547,10 +548,9 @@ impl AnalysisPolicy {
 /// offset interval the analysis varies it over, and the distribution
 /// that interval came from.
 ///
-/// An unannotated continuous parameter is still an axis — a
-/// width-zero one at its nominal, with `distribution` `None`. That is
-/// the typed spelling of FIXED, and it is why a document says what it
-/// varies rather than having it inferred.
+/// A parameter with no tolerance is no axis (VR8): the analysis reads
+/// it as a constant at its nominal, so a document says what it varies
+/// rather than having it inferred.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct AnalyzedParam {
@@ -620,7 +620,7 @@ impl AnalyzedParam {
 }
 
 /// **The analyzed box**: one axis per CONTINUOUS document parameter,
-/// in name order. Derived on request from a document and a policy,
+/// in the order of the variables' minted ids. Derived on request from a document and a policy,
 /// never stored, and never seen by evaluation.
 ///
 /// `Count` parameters are not axes: a structural count is fixed under
@@ -628,48 +628,67 @@ impl AnalyzedParam {
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct AnalyzedBox(a::AnalyzedBox);
 
-#[pymethods]
 impl AnalyzedBox {
-    /// Every axis name, in the box's own order.
-    #[getter]
-    fn names(&self) -> Vec<super::doc::ParamName> {
+    /// The axis named `name`, if the box holds one.
+    fn axis(&self, name: &super::doc::VarName) -> Option<pncad::document::VarId> {
         self.0
             .params()
             .keys()
-            .map(|name| super::doc::ParamName(name.clone()))
+            .copied()
+            .find(|&id| self.0.spoken(id).name() == Some(&name.0))
+    }
+
+    /// The name of axis `id`, when its variable has one.
+    fn name_of(&self, id: pncad::document::VarId) -> Option<super::doc::VarName> {
+        self.0.spoken(id).name().cloned().map(super::doc::VarName)
+    }
+}
+
+#[pymethods]
+impl AnalyzedBox {
+    /// Every axis name, in the box's own order — the document's
+    /// declaration order.
+    #[getter]
+    fn names(&self) -> Vec<super::doc::VarName> {
+        self.0
+            .in_order()
+            .filter_map(|(id, _)| self.name_of(id))
             .collect()
     }
 
     /// The names of the axes that actually VARY — the box's
     /// non-degenerate dimensions.
     #[getter]
-    fn varying(&self) -> Vec<super::doc::ParamName> {
+    fn varying(&self) -> Vec<super::doc::VarName> {
         self.0
             .varying()
-            .map(|(name, _)| super::doc::ParamName(name.clone()))
+            .filter_map(|(id, _)| self.name_of(id))
             .collect()
     }
 
     /// One axis by name, or `None` when the document declares no such
     /// continuous parameter.
-    fn get(&self, name: &super::doc::ParamName) -> Option<AnalyzedParam> {
+    fn get(&self, name: &super::doc::VarName) -> Option<AnalyzedParam> {
         self.0
-            .get(&name.0)
+            .get(self.axis(name)?)
             .map(|inner| AnalyzedParam { inner: *inner })
     }
 
     /// **The tail mass of one axis**: what this box's own interval for
     /// `name` leaves outside.
     ///
-    /// `None` when the document declares no such continuous parameter.
-    /// An unannotated axis is FIXED and its tail is `0.0` — nothing was
-    /// declared to vary, so the analysis is leaving nothing out.
+    /// `None` when the box carries no such axis: a name the document
+    /// does not declare, or a parameter with no tolerance, which is a
+    /// constant of the analysis rather than an axis (VR8).
     ///
     /// Raises `MeasureUnavailable` when the axis carries a band whose
     /// support escapes the interval: how much of it escapes is
     /// precisely what a band does not say.
-    fn tail_mass(&self, py: Python<'_>, name: &super::doc::ParamName) -> PyResult<Option<f64>> {
-        match self.0.axis_tail_mass(&name.0) {
+    fn tail_mass(&self, py: Python<'_>, name: &super::doc::VarName) -> PyResult<Option<f64>> {
+        let Some(axis) = self.axis(name) else {
+            return Ok(None);
+        };
+        match self.0.axis_tail_mass(axis) {
             None => Ok(None),
             Some(Ok(mass)) => Ok(Some(mass)),
             Some(Err(err)) => Err(measure_err(py, &err)),
@@ -683,21 +702,23 @@ impl AnalyzedBox {
     /// in another dimension is a `DimensionError` — the pairing this
     /// door exists to make impossible, one rung out from the kernel's.
     ///
-    /// `None` when the document declares no such continuous parameter.
-    /// An unannotated axis is a point mass at its nominal, so it
-    /// answers `1.0` for any interval containing offset zero and `0.0`
-    /// otherwise. A band raises `MeasureUnavailable` unless the
-    /// interval covers its whole support or misses it entirely.
+    /// `None` when the box carries no such axis: a name the document
+    /// does not declare, or a parameter with no tolerance (VR8). A band
+    /// raises `MeasureUnavailable` unless the interval covers its whole
+    /// support or misses it entirely.
     fn box_mass(
         &self,
         py: Python<'_>,
-        name: &super::doc::ParamName,
+        name: &super::doc::VarName,
         lo: &Bound<'_, PyAny>,
         hi: &Bound<'_, PyAny>,
     ) -> PyResult<Option<f64>> {
         let (lo, hi) = (offset(lo)?, offset(hi)?);
         let dim = agreed(py, "AnalyzedBox.box_mass", &[lo, hi])?;
-        if let Some(axis) = self.0.get(&name.0)
+        let Some(id) = self.axis(name) else {
+            return Ok(None);
+        };
+        if let Some(axis) = self.0.get(id)
             && axis.dim != dim
         {
             return Err(dimension_mismatch(
@@ -707,7 +728,7 @@ impl AnalyzedBox {
                 dim,
             ));
         }
-        match self.0.axis_box_mass(&name.0, (lo.canonical, hi.canonical)) {
+        match self.0.axis_box_mass(id, (lo.canonical, hi.canonical)) {
             None => Ok(None),
             Some(Ok(mass)) => Ok(Some(mass)),
             Some(Err(err)) => Err(measure_err(py, &err)),
@@ -753,13 +774,13 @@ fn mc_err(py: Python<'_>, refusal: &a::McRefusal) -> PyErr {
     let text = |s: &str| PyString::new(py, s).unbind().into_any();
     let param = match refusal {
         a::McRefusal::BandHasNoMeasure(a::MeasureUnavailable::BandHasNoMeasure { param }) => {
-            text(param.as_str())
+            text(&param.to_string())
         }
         a::McRefusal::NoSamples | a::McRefusal::NominalDoesNotBuild { .. } => py.None(),
     };
     let (node, cause) = match refusal {
         a::McRefusal::NominalDoesNotBuild { node, cause } => (
-            match super::doc::NodeId(*node).into_pyobject(py) {
+            match super::doc::NodeId(node.id()).into_pyobject(py) {
                 Ok(id) => id.into_any().unbind(),
                 Err(failed) => return failed,
             },
@@ -989,32 +1010,49 @@ impl McAssertion {
 /// included, so it estimates the quantity the certified lane
 /// deliberately does not.
 #[pyclass(frozen, module = "pncad")]
-pub(crate) struct McReport(a::McReport);
+pub(crate) struct McReport {
+    report: a::McReport,
+    /// The document the run was drawn from, captured at `monte_carlo`:
+    /// the report's node ids are spelled in it, so `render` speaks them
+    /// from it and from no other, and a later edit or rename does not
+    /// reach a report already taken.
+    doc: d::ProfileDoc,
+}
 
 #[pymethods]
 impl McReport {
     /// How many samples were drawn.
     #[getter]
     fn samples(&self) -> usize {
-        self.0.samples
+        self.report.samples
     }
 
     /// The seed they were drawn from.
     #[getter]
     fn seed(&self) -> u64 {
-        self.0.seed
+        self.report.seed
     }
 
     /// Per measure node, in the document's own node order.
     #[getter]
     fn measures(&self) -> Vec<McMeasure> {
-        self.0.measures.iter().cloned().map(McMeasure).collect()
+        self.report
+            .measures
+            .iter()
+            .cloned()
+            .map(McMeasure)
+            .collect()
     }
 
     /// Per assertion node, in the document's own node order.
     #[getter]
     fn assertions(&self) -> Vec<McAssertion> {
-        self.0.assertions.iter().cloned().map(McAssertion).collect()
+        self.report
+            .assertions
+            .iter()
+            .cloned()
+            .map(McAssertion)
+            .collect()
     }
 
     /// The fraction of samples that landed OUTSIDE the analyzed box —
@@ -1022,7 +1060,7 @@ impl McReport {
     /// reader can check against the certified side.
     #[getter]
     fn outside_box(&self) -> f64 {
-        self.0.outside_box
+        self.report.outside_box
     }
 
     /// **The human form**, with the advisory label and the dials on
@@ -1033,17 +1071,19 @@ impl McReport {
     /// line does not survive. It is the kernel's own rendering, so the
     /// discipline E11.1 requires does not stop at the language
     /// boundary.
+    ///
+    /// Its nodes are spoken from the document the run was drawn from.
     fn render(&self) -> String {
-        self.0.render()
+        self.report.render(&self.doc)
     }
 
     fn __repr__(&self) -> String {
         format!(
             "McReport(ADVISORY, samples={}, seed={:#018x}, measures={}, assertions={})",
-            self.0.samples,
-            self.0.seed,
-            self.0.measures.len(),
-            self.0.assertions.len()
+            self.report.samples,
+            self.report.seed,
+            self.report.measures.len(),
+            self.report.assertions.len()
         )
     }
 }
@@ -1082,7 +1122,10 @@ fn monte_carlo(
     // price, so the interpreter runs while it is paid.
     let answer = py.detach(|| a::monte_carlo(recipe, box_, &config, tol));
     match answer {
-        Ok(report) => Ok(McReport(report)),
+        Ok(report) => Ok(McReport {
+            report,
+            doc: recipe.clone(),
+        }),
         Err(refusal) => Err(mc_err(py, &refusal)),
     }
 }
@@ -1108,11 +1151,13 @@ fn monte_carlo(
 #[pyfunction]
 fn sample_offset(
     py: Python<'_>,
-    param: &super::doc::ParamName,
+    param: &super::doc::VarName,
     dist: &Distribution,
     u: f64,
 ) -> PyResult<Py<PyAny>> {
-    match a::sample_offset(&param.0, &dist.inner, u) {
+    let spoken =
+        pncad::document::SpokenVar::new(pncad::document::VarId::new(0, 0), Some(param.0.clone()));
+    match a::sample_offset(&spoken, &dist.inner, u) {
         Ok(offset) => quantity(py, offset, dist.dim),
         Err(err) => Err(measure_err(py, &err)),
     }

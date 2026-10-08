@@ -22,6 +22,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::FRAC_PI_2;
+use pncad::document::ExtrudeSide;
 
 use pncad::authoring::{p2, validated};
 use pncad::geom::{Curve3, Surface};
@@ -63,7 +64,14 @@ use pncad::sweep::{
 #[path = "common/census.rs"]
 mod census;
 use census::{genus, rings};
-use pncad::topo::{Body, FaceKey, LoopBoundary, ReplaceFaceError, ShellError};
+use pncad::topo::{AtRestBody, Body, FaceKey, LoopBoundary, ReplaceFaceError, ShellError};
+
+/// `body` finished for the boolean doors, the panic naming `what` and
+/// the validator's findings where the gate refuses it.
+fn finished(what: &str, body: Body<f64>, tol: Tol) -> AtRestBody<f64> {
+    AtRestBody::validate(body, tol)
+        .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
+}
 
 /// A closed polygon through `$first` and the rest, on the `path`
 /// lattice (`RawLoop::polygon` is deliberately off pncad's presented
@@ -108,7 +116,10 @@ fn revolved_partial(lp: ConstructedLoop<f64>, theta: f64, tol: Tol) -> Body<f64>
 fn extruded(lp: ConstructedLoop<f64>, h: f64, tol: Tol) -> Body<f64> {
     extrude(
         &validated(SketchPlane::xy(), vec![lp], tol).expect("footprint validates"),
-        Extrusion::Distance(h),
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
         tol,
     )
     .expect("footprint extrudes")
@@ -182,9 +193,14 @@ fn r2_my_own_revolve_opens_at_a_chart_they_never_touch() {
     let body = revolved(lp, tol);
     let chart = plane_chart_at(&body, top);
     println!("[r2-1] my mouth chart is {} face(s)", chart.len());
-    let cup = pncad::topo::shell_open(&body, 0.021, &chart, tol)
-        .expect("shell_open returns a body")
-        .body;
+    let cup = pncad::topo::shell_open(
+        &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+        0.021,
+        &chart,
+        tol,
+    )
+    .expect("shell_open returns a body")
+    .body;
     println!(
         "[r2-1] tier3 = {:?}; shells = {}; rings = {}; genus = {}",
         pncad::topo::validate_geometric(&cup, tol),
@@ -237,7 +253,12 @@ fn r2_revolved_tube_separates_seam_from_axis() {
         body.faces().count(),
         chart.len()
     );
-    match pncad::topo::shell_open(&body, 0.05, &chart, tol) {
+    match pncad::topo::shell_open(
+        &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+        0.05,
+        &chart,
+        tol,
+    ) {
         Err(e) => println!("[r2-2] REFUSED: {e}"),
         Ok(pncad::topo::Shelled { body: cup, .. }) => {
             println!(
@@ -292,7 +313,11 @@ fn r2_partial_revolve_one_cap_face() {
     // The SEALED arm first: the wedge's meridian caps are planes
     // CONTAINING the cylinder's axis, which their stated surviving
     // class ("a plane NORMAL to a cylinder's axis") excludes.
-    match pncad::topo::shell(&body, 0.05, tol) {
+    match pncad::topo::shell(
+        &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+        0.05,
+        tol,
+    ) {
         Err(e) => println!("[r2-3] SEALED refuses: {}", offset_refusal(&e)),
         Ok(pncad::topo::Shelled { body: b, .. }) => println!(
             "[r2-3] SEALED hollows: shells = {}, genus = {}",
@@ -301,7 +326,12 @@ fn r2_partial_revolve_one_cap_face() {
         ),
     }
     if chart.len() == 1 {
-        match pncad::topo::shell_open(&body, 0.05, &chart, tol) {
+        match pncad::topo::shell_open(
+            &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+            0.05,
+            &chart,
+            tol,
+        ) {
             Err(e) => println!("[r2-3] OPEN refuses: {e}"),
             Ok(pncad::topo::Shelled { body: cup, .. }) => println!(
                 "[r2-3] OPEN Ok: rings = {}, genus = {}, mesh = {:?}",
@@ -339,9 +369,14 @@ fn r2_ring_anatomy_on_a_drum() {
         .into();
     let body = revolved(lp, tol);
     let chart = plane_chart_at(&body, h);
-    let cup = pncad::topo::shell_open(&body, t, &chart, tol)
-        .expect("the drum opens")
-        .body;
+    let cup = pncad::topo::shell_open(
+        &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+        t,
+        &chart,
+        tol,
+    )
+    .expect("the drum opens")
+    .body;
     println!(
         "[r2-4] drum cup: V/E/F = {}/{}/{}, shells = {}, rings = {}, genus = {}",
         cup.vertices().count(),
@@ -448,9 +483,14 @@ fn r2_box_control_is_right() {
         .map(|(k, _)| k)
         .collect();
     assert_eq!(top.len(), 1, "an extrusion's cap is ONE face");
-    let cup = pncad::topo::shell_open(&body, t, &top, tol)
-        .expect("a box opens at its top")
-        .body;
+    let cup = pncad::topo::shell_open(
+        &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+        t,
+        &top,
+        tol,
+    )
+    .expect("a box opens at its top")
+    .body;
     println!(
         "[r2-5] box cup: rings = {}, genus = {}, shells = {}, tier3 = {:?}",
         rings(&cup),
@@ -539,7 +579,11 @@ fn r2_oblique_plane_prisms_outside_their_table() {
         ("a CROSS prism (all square, non-convex)", cross),
     ] {
         let body = extruded(lp, 0.3, tol);
-        match pncad::topo::shell(&body, 0.02, tol) {
+        match pncad::topo::shell(
+            &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+            0.02,
+            tol,
+        ) {
             Err(e) => println!("[r2-6] {what}: REFUSES {}", offset_refusal(&e)),
             Ok(pncad::topo::Shelled { body: h, .. }) => println!(
                 "[r2-6] {what}: HOLLOWS (shells {}, genus {})",
@@ -553,8 +597,7 @@ fn r2_oblique_plane_prisms_outside_their_table() {
 /// **R2-7: the tangent bullet's second door, and WHICH of its two
 /// `what` strings fires.** The PR attributes the row to the mapped-arc
 /// description authored by `.tangent().tangent_arc_to(..)`. That is one
-/// of two `CarrierLaneUnsupported` sites in `replace_face.rs`; the
-/// other is a carrier that is neither a line nor a circle. The payload
+/// of several `CarrierLaneUnsupported` sites in `replace_face.rs`. The payload
 /// carries the string, so this is measurable and the PR did not
 /// measure it (its table records only the variant).
 #[test]
@@ -575,7 +618,11 @@ fn r2_tangent_bullet_which_door() {
         .expect("axis")
         .into();
     let body = revolved(lp, tol);
-    match pncad::topo::shell(&body, 1.0 / 128.0, tol) {
+    match pncad::topo::shell(
+        &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+        1.0 / 128.0,
+        tol,
+    ) {
         Err(e) => println!("[r2-7] bullet: {}", offset_refusal(&e)),
         Ok(pncad::topo::Shelled { body: h, .. }) => {
             println!("[r2-7] bullet HOLLOWS (genus {})", genus(&h))
@@ -607,7 +654,11 @@ fn r2_tangent_bullet_which_door() {
         .expect("axis")
         .into();
     let b2 = revolved(lp2, tol);
-    match pncad::topo::shell(&b2, 1.0 / 128.0, tol) {
+    match pncad::topo::shell(
+        &AtRestBody::validate(b2.clone(), tol).expect("a finished operand"),
+        1.0 / 128.0,
+        tol,
+    ) {
         Err(e) => println!(
             "[r2-7] NON-tangent dome (Center arc): {}",
             offset_refusal(&e)
@@ -661,7 +712,11 @@ fn r2_acceptance_corpus_sits_inside_the_class() {
         ("the vessel", vessel, 0.2),
         ("the tube", tube, 0.1),
     ] {
-        match pncad::topo::shell(&body, t, tol) {
+        match pncad::topo::shell(
+            &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+            t,
+            tol,
+        ) {
             Ok(pncad::topo::Shelled { body: h, .. }) => println!(
                 "[r2-8] {what} hollows (shells {}, genus {})",
                 h.shells().count(),
@@ -709,6 +764,10 @@ fn r2_the_two_union_walls_on_my_operands() {
     )
     .expect("tube builds")
     .body;
+    let (can, handle) = (
+        finished("the can", can, tol),
+        finished("the handle", handle, tol),
+    );
     println!(
         "[r2-9] can u handle: {:?}",
         pncad::topo::union(&can, &handle, tol).err()
@@ -736,6 +795,7 @@ fn r2_the_two_union_walls_on_my_operands() {
         tol,
     )
     .expect("placed");
+    let cone = finished("the cone", cone, tol);
     println!(
         "[r2-9] can u cone: {:?}",
         pncad::topo::union(&can, &cone, tol).err()
@@ -777,9 +837,13 @@ fn r2_annular_mouth_anatomy() {
         rings(&body),
         genus(&body)
     );
-    let sealed = pncad::topo::shell(&body, t, tol)
-        .expect("the tube hollows")
-        .body;
+    let sealed = pncad::topo::shell(
+        &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+        t,
+        tol,
+    )
+    .expect("the tube hollows")
+    .body;
     println!(
         "[r2-10] SEALED: shells = {}, rings = {}, genus = {}, mesh = {:?}",
         sealed.shells().count(),
@@ -792,9 +856,14 @@ fn r2_annular_mouth_anatomy() {
             .sum::<usize>())
     );
     let chart = plane_chart_at(&body, h);
-    let cup = pncad::topo::shell_open(&body, t, &chart, tol)
-        .expect("the tube opens")
-        .body;
+    let cup = pncad::topo::shell_open(
+        &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+        t,
+        &chart,
+        tol,
+    )
+    .expect("the tube opens")
+    .body;
     println!(
         "[r2-10] OPEN: V/E/F = {}/{}/{}, shells = {}, rings = {}, genus = {}, tier3 = {:?}",
         cup.vertices().count(),
@@ -848,7 +917,13 @@ fn r2_step_frontier_kind() {
         ),
         tol,
     );
-    let hollow = pncad::topo::shell(&pot, 0.1, tol).expect("hollows").body;
+    let hollow = pncad::topo::shell(
+        &AtRestBody::validate(pot.clone(), tol).expect("a finished operand"),
+        0.1,
+        tol,
+    )
+    .expect("hollows")
+    .body;
     let e = pncad::step_export::step_string(
         &hollow,
         &pncad::step_export::StepOptions {
@@ -925,9 +1000,13 @@ fn r2_the_scene_numbers() {
     println!(
         "[r2-12] sense-aware clearance = {clearance}; sense-BLIND = {blind} (inf = none found)"
     );
-    let pot = pncad::topo::shell(&sharp, wall, tol)
-        .expect("the pot hollows")
-        .body;
+    let pot = pncad::topo::shell(
+        &AtRestBody::validate(sharp.clone(), tol).expect("a finished operand"),
+        wall,
+        tol,
+    )
+    .expect("the pot hollows")
+    .body;
     println!(
         "[r2-12] pot: V/E/F = {}/{}/{}, shells = {}, genus = {}, tier3 = {:?}",
         pot.vertices().count(),
@@ -968,6 +1047,10 @@ fn r2_the_scene_numbers() {
     )
     .expect("handle")
     .body;
+    let (pot, handle) = (
+        finished("the pot", pot, tol),
+        finished("the handle", handle, tol),
+    );
     println!(
         "[r2-12] pot u handle: {:?}",
         pncad::topo::union(&pot, &handle, tol).err()
@@ -995,6 +1078,7 @@ fn r2_the_scene_numbers() {
         tol,
     )
     .expect("spout placed");
+    let spout = finished("the spout", spout, tol);
     let e = pncad::topo::union(&pot, &spout, tol).err();
     println!("[r2-12] pot u spout: {e:?}");
     if let Some(pncad::topo::BooleanError::CurvedPairUnsupported { other_face, .. }) = &e {

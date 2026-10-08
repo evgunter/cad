@@ -183,6 +183,9 @@ impl<T: Real> AxisFrame<T> {
 /// off-arc candidate is negated and never wins (`r_max ≥ 0`). A zero
 /// margin means the extremum is an endpoint, already folded.
 ///
+/// A one-segment loop's arc is a full turn, so both extrema are folded
+/// in without a membership margin.
+///
 /// Never topology-determining — this only meters angle-sliver margins
 /// (`revolve_angle`, `revolve_angle_headroom`), so it stays outside
 /// the `decide` funnel; deterministic per D9 (a pure `max`/`copysign`
@@ -193,6 +196,10 @@ pub(super) fn radial_extent<T: Real>(profile: &ValidatedProfile<T>, frame: &Axis
     let e_r = Vec2::new(frame.dir_sk.y, T::zero() - frame.dir_sk.x);
     let mut r_max = T::zero();
     for lp in profile.loops() {
+        // A one-segment loop is a full turn (D1): its arc is the whole
+        // carrier, so both radial extrema lie on it, and its chord —
+        // the apex's and the membership margin's — is zero.
+        let full_turn = lp.is_full_turn();
         for s in lp.segments() {
             r_max = r_max.max(frame.r(s.start).abs());
             if let SegmentKind::Arc { arc, .. } = s.kind {
@@ -201,6 +208,12 @@ pub(super) fn radial_extent<T: Real>(profile: &ValidatedProfile<T>, frame: &Axis
                     radius,
                     sweep,
                 } = arc;
+                if full_turn {
+                    for dir in [T::one(), T::zero() - T::one()] {
+                        r_max = r_max.max(frame.r(centre + e_r * (radius * dir)).abs());
+                    }
+                    continue;
+                }
                 let apex = arc.apex(s.start, s.end);
                 r_max = r_max.max(frame.r(apex).abs());
                 // Arc-interior radial extrema: the carrier points
@@ -273,7 +286,11 @@ impl<T: Real> WallClass<T> {
 #[derive(Clone, Copy, Debug)]
 pub(super) enum WallKind<T: Real> {
     /// Line ⊥ axis: a plane annulus/disc.
-    Plane,
+    Plane {
+        /// The swept chord runs away from the axis (its radial delta
+        /// decided positive), so its start is the wall's inner circle.
+        outward: bool,
+    },
     /// Line ∥ axis: a cylinder.
     Cylinder {
         /// Radius = the start vertex's radial coordinate.
@@ -433,7 +450,9 @@ fn classify_segment<T: Decide>(
             }
             if matches!(sz, Sign::Zero) {
                 return Ok(WallClass::Wall {
-                    kind: WallKind::Plane,
+                    kind: WallKind::Plane {
+                        outward: matches!(sr, Sign::Positive),
+                    },
                     sense: !matches!(canonical(sr), Sign::Positive),
                 });
             }
@@ -461,8 +480,9 @@ fn classify_segment<T: Decide>(
                     // Sphere class. Arc-interior half-plane checks: the
                     // r ≥ 0 half of an on-axis-centered carrier is
                     // exactly half its period, so a span definitely
-                    // beyond π must dip below; the apex pins which
-                    // half-circle branch the arc occupies.
+                    // beyond π must dip below — a full turn's 2π always
+                    // does, before its zero chord is read; the apex pins
+                    // which half-circle branch the arc occupies.
                     let span_margin = Margin::levered(T::pi() - arc_span(turn, arc), radius);
                     match decide("axis_arc_span", span_margin, band).map_err(escalated)? {
                         Sign::Positive | Sign::Zero => {}

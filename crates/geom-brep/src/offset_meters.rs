@@ -144,7 +144,7 @@
 use geom_core::Bounds;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::{div_down, norm_sq, norm_sup, sqrt_down, sqrt_up};
+use geom_core::interval::{div_down, norm_sq, norm_sup};
 use geom_core::{Band, Indeterminate, Margin, SupSpeed};
 
 use crate::dihedral::decide_reported;
@@ -152,6 +152,7 @@ use crate::patch_bound::{PatchBoundError, PatchCell, patch_cells_refined};
 use crate::recourse::{
     AtZero, Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
 };
+use crate::shape_operator::FundamentalForms;
 
 /// The refinement ladder the door walks, coarsest first (D9: a fixed
 /// geometric sequence in a fixed order — no value branch chooses it).
@@ -454,10 +455,11 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
     // A refused enclosure separates nothing from zero, and `0.0` is
     // the floor's conservative answer — asked by name, because a
     // refusal here carries real endpoints.
-    let a = if !sq.is_certified() {
+    let root_a = sq.sqrt();
+    let a = if !root_a.is_certified() {
         0.0
     } else {
-        sqrt_down(sq.lo())
+        root_a.lo()
     };
     // Assembly B: projection onto the enclosure's midpoint direction.
     // The direction is STRUCTURE (any direction is sound, and that is
@@ -498,11 +500,16 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
     // three components each carry the full width of two factors. On
     // the sphere-band fixture it is the assembly that moves the
     // certified curvature range from tens to fractions.
+    //
+    // The difference does not cancel in interval arithmetic, so its
+    // enclosure may reach below zero; Lagrange's identity is the
+    // outside fact that clamps it.
     let gram = norm_sq(&cell.s_u) * norm_sq(&cell.s_v) - dot(&cell.s_u, &cell.s_v).sqr();
-    let (c, gram_sup) = if !gram.is_certified() {
+    let root_c = gram.clamped_to(0.0, f64::INFINITY).sqrt();
+    let (c, gram_sup) = if !root_c.is_certified() {
         (0.0, f64::NAN)
     } else {
-        (sqrt_down(gram.lo()), sqrt_up(gram.hi()))
+        (root_c.lo(), root_c.hi())
     };
     let floor = if a > b { a } else { b };
     CellNormal {
@@ -699,6 +706,10 @@ pub struct PatchCollapse {
 /// `λ_min(I) ≥ det/tr` — is worse than either: it throws away every
 /// correlation between the two forms at once.
 ///
+/// The forms are [`FundamentalForms`], the shape operator's one home,
+/// read at interval cells here and at a point jet by the SSI point
+/// decisions.
+///
 /// `A` is taken from meter 1's own bounds (`[floor², sup²]`) rather
 /// than re-derived as `E·G − F·F`, because that difference does not
 /// cancel in interval arithmetic and the floor is the tighter — and
@@ -719,16 +730,17 @@ fn cell_curvature(cell: &PatchCell) -> Option<(f64, f64)> {
         dot(&unit, &cell.s_uv),
         dot(&unit, &cell.s_vv),
     );
-    let e = norm_sq(&cell.s_u);
-    let f = dot(&cell.s_u, &cell.s_v);
-    let g = norm_sq(&cell.s_v);
-    let two = Interval::point(2.0);
-    let a = Interval::from_bounds(n.floor, n.sup).sqr();
+    let forms = FundamentalForms {
+        e: norm_sq(&cell.s_u),
+        f: dot(&cell.s_u, &cell.s_v),
+        g: norm_sq(&cell.s_v),
+        l,
+        m,
+        n: nn,
+        a: Interval::from_bounds(n.floor, n.sup).sqr(),
+    };
     // Assembly A — the closed form `κ± = H ± √(H² − K)`.
-    let b = l * g - two * m * f + nn * e;
-    let c = l * nn - m.sqr();
-    let h = b / (two * a);
-    let k = c / a;
+    let (h, k) = (forms.mean(), forms.gauss());
     // **The refusal is asked here, not left to the finiteness check at
     // the end.** Both divisions above are by `A`, which is not proven
     // away from zero on a cell whose normal barely separated, and a
@@ -740,19 +752,20 @@ fn cell_curvature(cell: &PatchCell) -> Option<(f64, f64)> {
         return None;
     }
     // `H² − K` is nonnegative at every real point (the principal
-    // curvatures are real), so an enclosure whose upper end is
-    // negative is rounding, not geometry: the root is zero there.
-    let root = sqrt_up((h.sqr() - k).hi().max(0.0));
+    // curvatures are real): the outside fact that clamps the radicand.
+    // A sound enclosure of it reaches zero, so a refused root is a
+    // refused enclosure upstream, and it refuses the cell.
+    let root = (h.sqr() - k).clamped_to(0.0, f64::INFINITY).sqrt().mag();
+    if root.is_nan() {
+        return None;
+    }
     let (a_hi, a_lo) = (h.hi() + root, h.lo() - root);
     // Assembly B — Gershgorin on the shape operator `W = I⁻¹·II`,
     // `I⁻¹ = (1/A)·[[G, −F], [−F, E]]`. Its eigenvalues ARE the
     // principal curvatures (real, since `W` is similar to a symmetric
     // matrix), so every one lies within `|W₁₂|` of `W₁₁` or within
     // `|W₂₁|` of `W₂₂`.
-    let w11 = (g * l - f * m) / a;
-    let w12 = (g * m - f * nn) / a;
-    let w21 = (e * m - f * l) / a;
-    let w22 = (e * nn - f * m) / a;
+    let [[w11, w12], [w21, w22]] = forms.weingarten();
     // The same refusal, for the same reason, over Gershgorin's four
     // entries.
     if !w11.is_certified() || !w12.is_certified() || !w21.is_certified() || !w22.is_certified() {

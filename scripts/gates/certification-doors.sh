@@ -21,9 +21,12 @@
 # `Real::is_poison` (which answers `false` on a `Trv` bracket with real
 # endpoints: the certifying branch on a value that does not certify)
 # nor a transcendental (which certification does not call). The
-# compiler is then what refuses `x.is_poison()` or `x.sqrt()` on an
-# `Interval` in a listed file (E0599); the gate is what keeps `Real`
-# from being brought into scope to make them compile. Generic code over
+# compiler is then what refuses `x.is_poison()` or `x.exp()` on an
+# `Interval` in a listed file (E0599), and what resolves `x.sqrt()`
+# there to the door `Certification::sqrt`, which refuses a radicand
+# that may be negative; the gate is what keeps `Real` from being
+# brought into scope to make the first compile and the second
+# ambiguous. Generic code over
 # a lane scalar in the same file is another thing, and legitimate:
 # KNOWN GAP 6.
 #
@@ -212,8 +215,10 @@ CERT_IMPORTERS=(
   crates/geom-brep/src/offset_meters.rs
   crates/geom-brep/src/patch_bound.rs
   crates/geom-brep/src/props/quad.rs
+  crates/geom-brep/src/ssi/boundary.rs
   crates/geom-brep/src/ssi/enclose.rs
   crates/geom-brep/src/ssi/exhaust.rs
+  crates/geom-brep/src/ssi/section.rs
   crates/geom-core/src/spline/algebra.rs
   crates/geom-core/src/spline/compose.rs
   crates/geom-core/src/spline/compose/patch.rs
@@ -223,6 +228,7 @@ CERT_IMPORTERS=(
   crates/geom-core/src/sym/signed.rs
   crates/geom/src/curves/second_derivative.rs
   crates/mesh/src/chords.rs
+  crates/mesh/src/nurbs_cert.rs
   crates/topo/src/props/quad_lane.rs
 )
 
@@ -259,7 +265,7 @@ CERT_RULES=(UNLISTED REEXPORT STALE REAL GLOB EVALHULL POISON HOME INCLUDE MACRO
 
 cert_rule_message() {
   case "$1" in
-    UNLISTED) printf '%s' "a production file names geom_core::interval::certification and is not on this gate's importer list — add it to CERT_IMPORTERS (it is then held to every rule in this gate's header), or reach certification arithmetic from a file that is. Listing it also forbids use geom_core::Real, which rustc's own help suggests for sqrt and is_poison on an Interval: certification calls neither, and the Certification trait's module doc says what to write instead" ;;
+    UNLISTED) printf '%s' "a production file names geom_core::interval::certification and is not on this gate's importer list — add it to CERT_IMPORTERS (it is then held to every rule in this gate's header), or reach certification arithmetic from a file that is. Listing it also forbids use geom_core::Real, which rustc's own help suggests for is_poison and the transcendentals on an Interval: certification calls none of them — its root is Certification::sqrt, its refusal !is_certified() — and the Certification trait's module doc says what to write instead" ;;
     REEXPORT) printf '%s' "a pub-qualified use re-exports the certification doors (it names the certification module or the Certification trait) — a file importing through it names neither, so this gate's key, its importer list and the census cannot see it; import the trait by its own path, use geom_core::interval::certification::Certification, in each file that calls a door" ;;
     STALE) printf '%s' "a listed importer's production code no longer names geom_core::interval::certification — drop its entry in the change that stopped it importing the doors" ;;
     REAL) printf '%s' "a certification file names Real in its production code — a value typed Interval there can then reach Real::is_poison (a silent pass on a Trv bracket) and the transcendentals. Do not name Real here: build brackets through the Certification doors, evaluate on a lane T through the bound it already has (Bounds, CertifiedBounds, Decide), and cross a lane value into certification arithmetic through Interval::from_certified" ;;

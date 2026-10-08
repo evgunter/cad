@@ -142,7 +142,8 @@ pub struct Retired {
     /// output. `surgery::retire_fragment` is that rule's one home.
     pub edges: Vec<EdgeKey>,
     /// Source vertices that no longer exist: the sharp corners fused
-    /// under their octants, and the rim vertices.
+    /// under their octants, the joints a band was fused across, and the
+    /// rim vertices.
     pub vertices: Vec<VertexKey>,
 }
 
@@ -151,17 +152,25 @@ pub struct Retired {
 /// `(minted key, the source entity it was minted for, …)`, in the
 /// deterministic order the constructor visited them (D9).
 ///
-/// A request whose chains are all open fills `blends`, `corners`,
-/// `trims`, `feet`, `arcs` and `dead`, leaving every rim field empty;
+/// A request whose chains are all open fills `blends` (or
+/// `joined_blends`), `corners`, `trims`, `feet`, `arcs`, `mitres`,
+/// `turn_feet` and `dead`,
+/// leaving every rim field empty;
 /// a closed (rim) chain fills the rim phase as well.
 #[derive(Clone, Debug, Default)]
 pub struct BlendNaming {
     // ---- The open bands: the blank phase (plane–plane chains between
-    // corners) and the ruled band (between transverse caps). ----
+    // corners) and the ruled band (between plane caps). ----
     /// Blend face ← the source edge it replaces (the fillet's rolling
     /// band — about a corner-terminated or a cap-terminated spine — or
     /// the chamfer's ruled strip).
     pub blends: Vec<(FaceKey, EdgeKey)>,
+    /// Blend face ← the source edges of the open chain it spans, in
+    /// chain order, where that chain is SEVERAL links joined at joints
+    /// (consecutive links on the same two supports, carved as one band
+    /// face). A one-link band is a [`BlendNaming::blends`] row instead,
+    /// so every open band face has exactly one row between the two.
+    pub joined_blends: Vec<(FaceKey, Vec<EdgeKey>)>,
     /// Corner face ← the source (trivalent, sharp) vertex it
     /// replaces: the fillet's sphere octant, or the chamfer's flat
     /// triangular patch.
@@ -169,16 +178,26 @@ pub struct BlendNaming {
     /// Trimline edge ← (the source edge it parallels, the support
     /// face it lies in).
     pub trims: Vec<(EdgeKey, EdgeKey, FaceKey)>,
-    /// Foot vertex ← (the source corner or cap vertex it retracts from,
-    /// the support face it lies in). At a transverse cap the foot sits
+    /// Foot vertex ← (the source corner, joint or cap vertex it retracts from,
+    /// the support face it lies in). At a cut-off the foot sits
     /// on the cap's rim edge, where the support's trimline meets the
     /// cap plane.
     pub feet: Vec<(VertexKey, VertexKey, FaceKey)>,
     /// Corner boundary edge ← (the source corner vertex, the source
     /// edge whose blend it bounds): the fillet's corner ARC, the
-    /// chamfer's straight chord, or a ruled band's cut-off arc in its
-    /// cap — the row names the role, not the carrier shape.
+    /// chamfer's straight chord, or a cut-off's end curve in its end
+    /// face (a chord, or an arc of a circle or an ellipse) — the row
+    /// names the role, not the carrier shape.
     pub arcs: Vec<(EdgeKey, VertexKey, EdgeKey)>,
+    /// Mitre edge ← the source vertex two bands turn at: where the two
+    /// bands meet, from the trimlines' crossing on the face they share
+    /// (a [`BlendNaming::feet`] row on that face) down to the turn foot.
+    pub mitres: Vec<(EdgeKey, VertexKey)>,
+    /// Turn foot vertex ← the source vertex two bands turn at: where the
+    /// vertex's unrequested edge now ends, the mitre's lower end. The
+    /// edge's surviving piece is a [`BlendNaming::meridian_remnants`]
+    /// row.
+    pub turn_feet: Vec<(VertexKey, VertexKey)>,
 
     // ---- The rim phase (closed chains). ----
     /// Torus band face ← the band's identity: its closed chain's
@@ -199,8 +218,8 @@ pub struct BlendNaming {
     pub meridian_splits: Vec<(VertexKey, EdgeKey, Vec<EdgeKey>)>,
     /// The SURVIVING piece of a source edge the band's carve split ←
     /// that source edge: a seam meridian at a ladder rim's or an
-    /// annulus rim's crossing, or a cap rim at a ruled band's transverse
-    /// cap. (Present even when the surviving piece kept the source key —
+    /// annulus rim's crossing, a rim at either open band's cut-off, or
+    /// the third edge at a turn. (Present even when the surviving piece kept the source key —
     /// the piece is a fragment, so it is named as one.)
     pub meridian_remnants: Vec<(EdgeKey, EdgeKey)>,
     /// A band's SLIT ← (the source meridian whose upper piece became

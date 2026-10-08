@@ -20,8 +20,9 @@ use geom_brep::{EdgeDescriptionSpec, MappedCurve, SketchSegment, newell_plane};
 use geom_core::Tol;
 use geom_core::{Affine3, Arc2, Band, Decide, Point2, Point3, Vec3};
 use topo::{
-    Body, EdgeCurveSpec, EdgeDescription, EulerOpError, FaceSurface, MefSite, MevSite, SurfaceKey,
-    ValidationError, validate, validate_closed, validate_geometric,
+    BadArgument, Body, EdgeCurveSpec, EdgeDescription, EntityId, EulerOpError, FaceSurface,
+    GeomRef, MefSite, MevSite, SurfaceKey, ValidationError, validate, validate_closed,
+    validate_geometric,
 };
 
 use crate::common;
@@ -45,7 +46,8 @@ fn eps() -> f64 {
 
 /// The prism build, generic over the scalar lane. Sketch triangle
 /// a(0,0) b(1,0) c(0.3,0.8) placed at identity, extruded along +z by 1.
-fn triangle_prism<T: Decide>() -> (Body<T>, topo::MvfsCreated, [topo::MefCreated; 4]) {
+fn triangle_prism<T: Decide + topo::AtRestPolicy>()
+-> (Body<T>, topo::MvfsCreated, [topo::MefCreated; 4]) {
     let sp = |x: f64, y: f64| Point2::new(x, y).map(T::from_f64);
     let wp = common::identity_map::<T>;
     let (sa, sb, sc) = (sp(0.0, 0.0), sp(1.0, 0.0), sp(0.3, 0.8));
@@ -316,7 +318,13 @@ fn survives_atomicity_deep_snapshots_on_every_failure_path() {
             Tol::witness(),
         )
         .unwrap_err();
-    assert!(matches!(err, EulerOpError::StaleGeometry { .. }), "{err:?}");
+    assert_eq!(
+        err,
+        EulerOpError::Argument(BadArgument::StaleGeometry {
+            role: "surface",
+            key: GeomRef::Surface(stale_surface),
+        })
+    );
     assert_eq!(snapshot(&body), before, "stale Shared mutated body");
 
     // 3. mef whose curve fails certification (wrong carrier): the
@@ -353,7 +361,7 @@ fn survives_atomicity_deep_snapshots_on_every_failure_path() {
         )
         .unwrap();
     let mut spec = EdgeCurveSpec::line_between(p0, p1);
-    spec.description = EdgeDescriptionSpec::seam(foreign);
+    spec.description = EdgeDescriptionSpec::wrap(foreign);
     let err = body.set_edge_curve(ek, spec, Tol::witness()).unwrap_err();
     assert!(
         matches!(
@@ -384,7 +392,13 @@ fn survives_atomicity_deep_snapshots_on_every_failure_path() {
             },
         )
         .unwrap_err();
-    assert!(matches!(err, EulerOpError::StaleGeometry { .. }), "{err:?}");
+    assert_eq!(
+        err,
+        EulerOpError::Argument(BadArgument::StaleGeometry {
+            role: "surface",
+            key: GeomRef::Surface(stale_surface),
+        })
+    );
     assert_eq!(snapshot(&body), before, "surface setter mutated body");
 
     assert_eq!(validate(&body), Ok(()));
@@ -434,11 +448,14 @@ fn survives_surface_swap_behind_intersection_edges_detected_at_rest() {
     // body does not see the key slots a refusal could consume.
     assert_eq!(
         body.set_face_surface(t.seed.face, swap()),
-        Err(EulerOpError::RechartStrandsDescriptions { edges: rim }),
+        Err(EulerOpError::RechartStrandsDescriptions {
+            door: topo::RechartDoor::SetFaceSurface,
+            edges: rim
+        }),
     );
 
-    // Lifts both refusals: the stranded state tier 3 detects at rest is the row.
-    body.set_face_surface_stranding_for_tests(t.seed.face, swap())
+    // Lifts RechartStrandsDescriptions: the stranded state tier 3 detects at rest is the row.
+    body.set_face_surface_unvouched_for_tests(t.seed.face, swap())
         .unwrap();
 
     // Anchoring: the old plane is still referenced by four Intersection
@@ -906,6 +923,15 @@ fn fixed_self_loop_dihedral_and_containment_have_teeth_at_rest() {
                 face: circ.face,
                 edge: circ.edge,
             },
+            // The seed face passes B twice, once on each side of the
+            // circle, and both corners there are reflex: each sweeps
+            // round to the other's side of the circle, so the face
+            // crosses itself at B (check 9's corner arm).
+            ValidationError::PinchCornerCrossed {
+                face: seed.face,
+                vertex: seg.vertex,
+                edge: circ.edge,
+            },
         ]),
         "tier 3 must see the self-loop boundary leave its claimed plane"
     );
@@ -945,7 +971,13 @@ fn fixed_n4_raw_mev_precondition_paths() {
             Tol::witness(),
         )
         .unwrap_err();
-    assert!(matches!(err, EulerOpError::StaleKey { .. }), "{err:?}");
+    assert_eq!(
+        err,
+        EulerOpError::Argument(BadArgument::Stale {
+            role: "he1",
+            key: EntityId::HalfEdge(stale),
+        })
+    );
     assert_eq!(snapshot(&body), before, "stale Fan mutated body");
 
     // Fan halves starting at different vertices: FanStartMismatch.
@@ -1000,7 +1032,13 @@ fn fixed_n4_raw_mef_precondition_paths() {
             Tol::witness(),
         )
         .unwrap_err();
-    assert!(matches!(err, EulerOpError::StaleKey { .. }), "{err:?}");
+    assert_eq!(
+        err,
+        EulerOpError::Argument(BadArgument::Stale {
+            role: "he2",
+            key: EntityId::HalfEdge(stale),
+        })
+    );
     assert_eq!(snapshot(&body), before, "stale Chords mutated body");
 
     // Chords across two different loops: NotSameLoop.

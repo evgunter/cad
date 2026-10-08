@@ -2,10 +2,14 @@
 id: shell-refusals-short-of-the-shape-guard
 kind: issue
 title: shell: refusals the viewer draws that state no recourse, by the shape guard's census
-status: open
+status: closed
 opened: 2026-09-29
 priority: P2
 cost: M
+rides_with: replace-face-refusals-open-with-a-stage-prefix-and-name-keys
+pr: 4163
+branch: shell/refusal-text
+closed: 2026-10-06
 ---
 
 (CHROME `refusal-residue`, from the shape guard's zero-recourse check.)
@@ -24,7 +28,7 @@ These rows, raised through `ShellError` (`crates/topo/src/shell.rs`) and the rep
 by exact id, under the comment naming this file:
 
 - `crates/editor-core/tests/refusal_concision_chains.rs`, `FILED_NO_RECOURSE`:
-  12 feature-tree rows.
+  7 feature-tree rows.
 
 Families: `Shell`.
 
@@ -79,3 +83,7 @@ these arms render the whole `Indeterminate`, which ends in
 (`work/trim/trim-escalations-offer-a-declaration-the-door-cannot-take.md`).
 The repair is `payload()`, a subject in plain words and a routed
 recourse, as in `sweep::blend::BlendError::Escalated`'s `Display`.
+
+## Closed (SHELL orchestrator, 2026-10-06, PR 4163)
+
+Rode `replace-face-refusals-open-with-a-stage-prefix-and-name-keys`. See its closing note.

@@ -93,8 +93,9 @@ impl ViewerBehavior<'_> {
 /// its arcs, targets and split counts changed, exactly as a new one's
 /// are, and Apply commits the whole program as ONE
 /// [`SessionOp::EditProfile`] saying which committed step each held
-/// step is ([`ProfileEdit::ids`]). A name on a step the program drops
-/// is stranded; Apply says how many before it is clicked
+/// step is ([`ProfileEdit::ids`]). A name on a step the program drops,
+/// or on a kept step's piece it stops drawing, is stranded; Apply says
+/// how many before it is clicked
 /// ([`apply_and_revert`], from [`DocSession::edit_profile_report`]),
 /// and the op's outcome reports each after.
 ///
@@ -484,6 +485,7 @@ mod tests {
     #![allow(clippy::panic)]
 
     use eframe::egui;
+    use pncad::document::ExtrudeSide;
     use pncad::document::{Doc, Node, ProfileProgram};
     use pncad::geom_core::{Point2, Tol};
     use pncad::profile::{PathErrorKind, ProfileError, SketchPlane, Step, Target, TipState, Verb};
@@ -1128,6 +1130,7 @@ mod tests {
             Node::Extrude {
                 profile,
                 distance: crate::test_support::len(0.01),
+                side: ExtrudeSide::Along,
             },
             tol,
         );
@@ -1137,10 +1140,13 @@ mod tests {
         let wall = StableName {
             kind: EntityKind::Face,
             node: extrude,
-            path: vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
-                step: program.ids[0][named],
-                role: PieceRole::Leg,
-            })],
+            path: vec![RoleSeg::Lateral(
+                ProfileEdgeRef::Piece {
+                    step: program.ids[0][named],
+                    role: PieceRole::Leg,
+                }
+                .into(),
+            )],
         };
         let (doc, carrier) = inserted(
             &doc,
@@ -1225,8 +1231,11 @@ mod tests {
             panic!("a profile")
         };
         assert_eq!(program.ids[0].len(), 6);
-        let RoleSeg::Lateral(piece) = wall.path[0].clone() else {
+        let RoleSeg::Lateral(run) = wall.path[0].clone() else {
             unreachable!("built as a lateral wall")
+        };
+        let Some(piece) = run.single() else {
+            unreachable!("built as a one-piece wall")
         };
         let ProfileEdgeRef::Piece { step, role } = piece else {
             unreachable!("built as a piece")
@@ -1237,7 +1246,7 @@ mod tests {
             "the named step moved down a row, id and all"
         );
         let drawn = program
-            .pieces(&session.committed_doc().param_env::<f64>(), Tol::witness())
+            .pieces(&session.committed_doc().var_env::<f64>(), Tol::witness())
             .expect("the reshaped program replays");
         assert!(
             drawn.edges.iter().flatten().any(|edge| *edge == piece),
@@ -1292,16 +1301,21 @@ mod tests {
                 None,
             );
         });
+        let committed = session.committed_doc();
+        // The removal draws the named step nowhere, so the line says it
+        // by its tag, as against a document that draws no step at all.
+        let undrawn: Doc<ProfileProgram> = Doc::empty_derived("undrawn", Tol::witness());
         assert!(
             hovered.contains(&format!(
-                "node {} carries a {wall}",
-                test_utils::refusal::tag(carrier.0)
+                "{} carries a name for {}",
+                committed.spoken(carrier),
+                committed.spoken_name(&wall).steps_respoken(&undrawn)
             )),
-            "the hover names the carrier and the name: {hovered}"
+            "the hover speaks the carrier and the name's words: {hovered}"
         );
-        // Another step dropped instead strands nothing — what Apply
-        // says is asked again of every held state, not kept from the
-        // last one ...
+        // Dropping another step instead leaves the named leg drawn and
+        // strands nothing — what Apply says is asked again of every
+        // held state, not kept from the last one ...
         let (_, formed) = click_door(&session, &mut drafts, profile, "Revert", 0);
         assert!(formed.is_none());
         let (painted, _) = click_door(&session, &mut drafts, profile, GLYPH_REMOVE, 3);
@@ -1335,13 +1349,37 @@ mod tests {
         assert!(painted.contains(label), "{painted}");
         let (_, formed) = click_door(&session, &mut drafts, profile, label, 0);
         let op = formed.expect("Apply formed the op");
+        let before = session.committed_doc().clone();
         let out = session.perform(op.clone());
         assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        // The removed step is said by its tag: its old row is now
+        // another step's, and the line is read with the new program on
+        // screen.
+        let name = before
+            .spoken_name(&wall)
+            .steps_respoken(session.committed_doc());
+        assert!(
+            name.to_string().contains("the profile step "),
+            "a removed step is said by its tag: {name}"
+        );
         let expected = vec![Maintenance::Strand {
-            node: carrier,
-            name: wall,
+            node: before.spoken(carrier),
+            name,
+            took: pncad::document::Took::Step,
         }];
-        assert_eq!(out.maintenance, expected, "the door reports the strand");
+        // Beside the strand, the outcome carries the anonymous
+        // variables the rewritten arguments were written in, which the
+        // status line does not say (`frame::maintenance_notice`).
+        let (anonymous, named): (Vec<_>, Vec<_>) = out
+            .maintenance
+            .iter()
+            .cloned()
+            .partition(Maintenance::is_silent_retirement);
+        assert_eq!(named, expected, "the door reports the strand");
+        assert!(
+            !anonymous.is_empty(),
+            "the reshaping retires the variables it rewrote"
+        );
         let line: Vec<String> = crate::frame::outcome_notices(&out)
             .map(|notice| notice.text().to_owned())
             .collect();

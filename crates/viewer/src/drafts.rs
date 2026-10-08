@@ -14,8 +14,9 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    BooleanOp, Dimension, DimensionError, Doc, Expr, Label, LabelFault, LoopProgram, Maintenance,
-    Node, ParamName, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, StepId,
+    BooleanOp, Dimension, DimensionError, Doc, Formula, HeldNodes, Label, LabelFault, LoopProgram,
+    Maintenance, Node, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, StepId, VarId,
+    VarName,
 };
 use pncad::geom_core::Point2;
 use pncad::prelude::StableName;
@@ -54,26 +55,28 @@ pub(crate) struct Drafts {
     /// document's afterwards, so there is only one thing this layer
     /// has to remember: text a parse refusal sent back
     /// ([`crate::frame::retype_draft`]). Acting on the refusal — going off to
-    /// declare the parameter it named — must not cost the text that
+    /// declare the variable it named — must not cost the text that
     /// raised it, so the field keeps showing it until an expression
     /// edit for that slot lands.
     pub(crate) expr_target: Option<(RecipeNodeId, SlotId)>,
     /// The refused text itself.
     pub(crate) expr_text: String,
-    /// The add-parameter form's name field.
-    pub(crate) new_param_name: String,
+    /// The naming field, while it is open ([`NameDraft`]).
+    pub(crate) name_draft: Option<NameDraft>,
+    /// The add-variable form's name field.
+    pub(crate) new_variable_name: String,
     /// Its chosen dimension — `None` until the user picks one, and
     /// the Create button waits for the pick. The offer path lands
     /// here from an expression whose context does not determine the
-    /// new parameter's dimension, and a silently-defaulted one would
+    /// new variable's dimension, and a silently-defaulted one would
     /// be a guess none of this program's doors make.
-    pub(crate) new_param_dimension: Option<Dimension>,
+    pub(crate) new_variable_dimension: Option<Dimension>,
     /// Its value field.
-    pub(crate) new_param_value: f64,
-    /// The name an unknown-parameter refusal offered to create
+    pub(crate) new_variable_value: f64,
+    /// The name an unknown-variable refusal offered to create
     /// ([`crate::frame::creation_offer`]); shown over the form while the
     /// name field still says it.
-    pub(crate) new_param_offer: Option<ParamName>,
+    pub(crate) new_variable_offer: Option<VarName>,
     /// The mate tool's class/alignment choice, as widget state: an
     /// index into [`crate::matetool::admitted_classes`], an index into
     /// [`crate::forms::MATE_PRIMITIVES`], and the sense toggle. Draft chrome state
@@ -156,6 +159,12 @@ pub(crate) struct Drafts {
     /// `work/forms/a-creation-forms-held-pick-survives-a-document-swap`
     /// carries them.
     pub(crate) datum_face: Option<FaceSelection>,
+    /// The nodes [`Self::datum_face`] names, as the last document that
+    /// held them spoke them: the selection's when the face was copied
+    /// from it (`DocSession::selection_said`), spoken again from each
+    /// later document ([`Self::respeak`]). The form holds its face
+    /// after the selection moves on, so it keeps its own.
+    datum_face_said: HeldNodes,
     /// The frame-on-face form's spin, radians — sketch +x's rotation
     /// about the face's outward normal. Opens at zero, the
     /// carrier's own u-reference.
@@ -264,15 +273,15 @@ pub(crate) struct Drafts {
     pub(crate) creation_labels: BTreeMap<&'static str, String>,
 }
 
-/// **A label field's text, as the document's label**: blank clears
-/// (`None`); anything else is held to the label rule.
+/// **A label field's text, as the document's label**: a field that
+/// shows nothing ([`Label::is_blank`]) clears (`None`); anything else
+/// is held to the label rule.
 ///
 /// # Errors
 ///
-/// [`LabelFault`] for a text the rule refuses — one with a line break
-/// or another control character.
+/// [`LabelFault`] for a text the rule refuses.
 pub(crate) fn label_typed(text: &str) -> Result<Option<Label>, LabelFault> {
-    if text.trim().is_empty() {
+    if Label::is_blank(text) {
         return Ok(None);
     }
     Label::new(text).map(Some)
@@ -354,8 +363,9 @@ impl DoorLoops {
 pub(crate) struct ProfileEdit {
     /// The profile node.
     pub(crate) node: RecipeNodeId,
-    /// The committed program the loops were loaded from.
-    base: ProfileProgram,
+    /// The committed program the loops were loaded from, as written
+    /// ([`sketch::written_program`]).
+    base: ProfileProgram<Formula>,
     /// The loops as the editor holds them, in description order.
     loops: Vec<Vec<Step<f64>>>,
     /// Per held loop, per held step: the committed step it was loaded
@@ -375,7 +385,7 @@ pub(crate) struct ProfileEdit {
 #[derive(Debug)]
 struct HeldReport {
     at: HistoryId,
-    loops: Vec<LoopProgram>,
+    loops: Vec<LoopProgram<Formula>>,
     ids: Vec<Vec<Option<StepId>>>,
     rows: Vec<Maintenance>,
 }
@@ -383,8 +393,12 @@ struct HeldReport {
 impl ProfileEdit {
     /// The draft of `program`, held as `loops` ([`sketch::held_loops`]
     /// of it), every step loaded as itself.
-    fn load(node: RecipeNodeId, program: &ProfileProgram, loops: Vec<Vec<Step<f64>>>) -> Self {
-        let loaded_as = sketch::kept_in_place(program);
+    fn load(
+        node: RecipeNodeId,
+        program: ProfileProgram<Formula>,
+        loops: Vec<Vec<Step<f64>>>,
+    ) -> Self {
+        let loaded_as = program.kept_in_place();
         let shaped = program.ids.len() == loops.len()
             && program
                 .ids
@@ -406,7 +420,7 @@ impl ProfileEdit {
             .collect();
         Self {
             node,
-            base: program.clone(),
+            base: program,
             loops,
             loaded_as,
             base_steps,
@@ -423,7 +437,7 @@ impl ProfileEdit {
     /// The committed program the loops were loaded from — what
     /// `SessionOp::EditProfile` carries so the door can refuse numbers
     /// loaded from a program the document no longer holds.
-    pub(crate) fn base(&self) -> &ProfileProgram {
+    pub(crate) fn base(&self) -> &ProfileProgram<Formula> {
         &self.base
     }
 
@@ -475,7 +489,7 @@ impl ProfileEdit {
     pub(crate) fn report(
         &mut self,
         at: HistoryId,
-        door: impl FnOnce(Vec<LoopProgram>, Vec<Vec<Option<StepId>>>) -> Vec<Maintenance>,
+        door: impl FnOnce(Vec<LoopProgram<Formula>>, Vec<Vec<Option<StepId>>>) -> Vec<Maintenance>,
     ) -> &[Maintenance] {
         let Ok(loops) = self.programs(Notation::CANONICAL) else {
             return &[];
@@ -511,7 +525,7 @@ impl ProfileEdit {
     pub(crate) fn programs(
         &self,
         notation: Notation,
-    ) -> Result<Vec<LoopProgram>, RecordedProgramError> {
+    ) -> Result<Vec<LoopProgram<Formula>>, RecordedProgramError> {
         sketch::loop_programs(&self.shapes(), notation)
     }
 
@@ -535,7 +549,7 @@ impl ProfileEdit {
     /// rather than assumed: [`sketch::held_loops`]'s refusal.
     pub(crate) fn revert(&mut self, doc: &Doc<ProfileProgram>) -> Result<(), HeldRefusal> {
         let loops = sketch::held_loops(doc, self.node)?;
-        *self = Self::load(self.node, &self.base, loops);
+        *self = Self::load(self.node, self.base.clone(), loops);
         Ok(())
     }
 }
@@ -597,6 +611,28 @@ impl RowEdit {
     }
 }
 
+/// **The naming field**: the slot it is drawn under, the variable it
+/// was opened for, and the text in it — empty when it opens, since
+/// nothing proposes a name (Ev, PR 4247), and stored in the document
+/// only when the person commits it (VR2).
+///
+/// **It names the variable it was opened for, never the slot's reader
+/// at commit.** The field stands only while the slot still reads that
+/// variable and it is still unnamed; an accepted offer, a retype or an
+/// undo closes it, so a name typed for one variable can never land on
+/// another.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct NameDraft {
+    /// The node whose row the field is drawn under.
+    pub(crate) node: RecipeNodeId,
+    /// The slot of that row.
+    pub(crate) slot: SlotId,
+    /// The variable the field was opened for, and the one it names.
+    pub(crate) var: VarId,
+    /// The text in the field.
+    pub(crate) text: String,
+}
+
 impl Default for Drafts {
     /// The creation forms' sensible defaults (the GAUTH-1 spec):
     /// datum origin 0 with normal/direction +z, a 10 mm circle or
@@ -608,10 +644,11 @@ impl Default for Drafts {
             delta_text: None,
             expr_target: None,
             expr_text: String::new(),
-            new_param_name: String::new(),
-            new_param_dimension: None,
-            new_param_value: 0.0,
-            new_param_offer: None,
+            name_draft: None,
+            new_variable_name: String::new(),
+            new_variable_dimension: None,
+            new_variable_value: 0.0,
+            new_variable_offer: None,
             mate_class: 0,
             mate_primitive: 0,
             mate_opposed: false,
@@ -631,6 +668,7 @@ impl Default for Drafts {
             datum_in_frame_origin: Point2::origin(),
             datum_in_frame_direction: [0.0, 1.0],
             datum_face: None,
+            datum_face_said: HeldNodes::default(),
             datum_spin: 0.0,
             profile_shape: None,
             profile_path: vec![
@@ -819,13 +857,13 @@ impl Drafts {
         node: RecipeNodeId,
     ) -> Result<&mut ProfileEdit, HeldRefusal> {
         let current = match doc.node(node) {
-            Some(Node::Profile(program)) => Some(program),
+            Some(Node::Profile(program)) => Some(sketch::written_program(doc, program)),
             _ => None,
         };
         let fresh = self
             .profile_edit
             .as_ref()
-            .is_some_and(|held| held.node == node && current == Some(&held.base));
+            .is_some_and(|held| held.node == node && current.as_ref() == Some(&held.base));
         if !fresh {
             self.profile_edit = None;
             let loops = sketch::held_loops(doc, node)?;
@@ -920,7 +958,7 @@ impl Drafts {
     pub(crate) fn profile_programs(
         &self,
         notation: Notation,
-    ) -> Result<Vec<LoopProgram>, RecordedProgramError> {
+    ) -> Result<Vec<LoopProgram<Formula>>, RecordedProgramError> {
         sketch::loop_programs(&self.profile_loops(), notation)
     }
 
@@ -928,6 +966,28 @@ impl Drafts {
     /// in** (an open, a new document): the latch names nothing in it.
     pub(crate) fn document_replaced(&mut self) {
         self.datum_face = None;
+        self.datum_face_said = HeldNodes::default();
+    }
+
+    /// **The face-frame form takes the selection's face**, with its
+    /// nodes as the session has them spoken (`DocSession::selection_said`).
+    pub(crate) fn hold_datum_face(&mut self, face: FaceSelection, said: &HeldNodes) {
+        self.datum_face = Some(face);
+        self.datum_face_said = said.clone();
+    }
+
+    /// The held face's nodes as the last document that held them spoke
+    /// them; empty with no face held.
+    pub(crate) fn datum_face_said(&self) -> &HeldNodes {
+        &self.datum_face_said
+    }
+
+    /// **The held picks' nodes, spoken again from `doc`**, the session's
+    /// shown document after an operation (`SpokenNode::respoken`'s
+    /// rule): a node `doc` holds takes its label now, and one it no
+    /// longer holds keeps the last it had.
+    pub(crate) fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        self.datum_face_said = self.datum_face_said.respoken(doc);
     }
 
     /// **The face this form holds**: [`Self::datum_face`] while the
@@ -1016,16 +1076,16 @@ impl Drafts {
 /// Three dimensionless literals — a normal, a direction, a rotation
 /// axis. Not a [`Drafts`] method, because there is no notation to
 /// carry from the form: a dimensionless number has one spelling, and
-/// `Expr::literal` stores that row itself.
+/// `Formula::literal` stores that row itself.
 ///
 /// # Errors
 ///
 /// A non-finite component.
-pub(crate) fn scalars(v: [f64; 3]) -> Result<[Expr; 3], DimensionError> {
+pub(crate) fn scalars(v: [f64; 3]) -> Result<[Formula; 3], DimensionError> {
     Ok([
-        Expr::literal(v[0], Dimension::Scalar)?,
-        Expr::literal(v[1], Dimension::Scalar)?,
-        Expr::literal(v[2], Dimension::Scalar)?,
+        Formula::literal(v[0], Dimension::Scalar)?,
+        Formula::literal(v[1], Dimension::Scalar)?,
+        Formula::literal(v[2], Dimension::Scalar)?,
     ])
 }
 
@@ -1035,10 +1095,10 @@ pub(crate) fn scalars(v: [f64; 3]) -> Result<[Expr; 3], DimensionError> {
 /// # Errors
 ///
 /// A non-finite component.
-pub(crate) fn scalars2(v: [f64; 2]) -> Result<[Expr; 2], DimensionError> {
+pub(crate) fn scalars2(v: [f64; 2]) -> Result<[Formula; 2], DimensionError> {
     Ok([
-        Expr::literal(v[0], Dimension::Scalar)?,
-        Expr::literal(v[1], Dimension::Scalar)?,
+        Formula::literal(v[0], Dimension::Scalar)?,
+        Formula::literal(v[1], Dimension::Scalar)?,
     ])
 }
 
@@ -1085,7 +1145,8 @@ mod tests {
     #![allow(clippy::panic)]
 
     use pncad::document::{
-        CancelToken, Doc, DocEdit, EvalOptions, Expr, Node, ProfileProgram, RecipeNodeId, evaluate,
+        CancelToken, Doc, DocEdit, EvalOptions, Formula, Node, ProfileProgram, RecipeNodeId,
+        evaluate,
     };
     use pncad::geom_core::{Point2, Tol};
     use pncad::profile::{ArcData, Step, Target};
@@ -1114,7 +1175,7 @@ mod tests {
     /// this order.
     #[test]
     fn an_accepted_new_xy_leaves_the_form_on_the_frame_it_minted() {
-        let (frame, profile) = (RecipeNodeId(1), RecipeNodeId(2));
+        let (frame, profile) = (RecipeNodeId::new(0, 1), RecipeNodeId::new(0, 2));
         let mut drafts = Drafts {
             profile_plane: Some(ProfilePlane::NewXy),
             profile_shape: Some(ShapeKind::Circle),
@@ -1141,7 +1202,7 @@ mod tests {
     /// A rename draft survives only while its own node's field shows.
     #[test]
     fn a_rename_draft_is_dropped_when_the_pane_moves_off_its_node() {
-        let (typed_for, other) = (RecipeNodeId(3), RecipeNodeId(4));
+        let (typed_for, other) = (RecipeNodeId::new(0, 3), RecipeNodeId::new(0, 4));
         let mut drafts = Drafts {
             label_text: Some((typed_for, "lid".to_owned())),
             ..Drafts::default()
@@ -1205,7 +1266,7 @@ mod tests {
     /// one id it minted is the profile.
     #[test]
     fn an_accepted_add_on_an_existing_frame_leaves_the_pick_alone() {
-        let (plane, profile) = (RecipeNodeId(4), RecipeNodeId(9));
+        let (plane, profile) = (RecipeNodeId::new(0, 4), RecipeNodeId::new(0, 9));
         let mut drafts = Drafts {
             profile_plane: Some(ProfilePlane::Existing(plane)),
             profile_shape: Some(ShapeKind::Circle),
@@ -1271,14 +1332,14 @@ mod tests {
     fn picked(datum_kind: DatumKindChoice) -> Drafts {
         Drafts {
             datum_kind,
-            datum_frame: Some(RecipeNodeId(0)),
+            datum_frame: Some(RecipeNodeId::new(0, 0)),
             datum_face: Some(FaceSelection {
                 name: StableName {
                     kind: EntityKind::Face,
-                    node: RecipeNodeId(1),
+                    node: RecipeNodeId::new(0, 1),
                     path: vec![RoleSeg::Cap(CapEnd::End)],
                 },
-                node: RecipeNodeId(2),
+                node: RecipeNodeId::new(0, 2),
                 body: 0,
             }),
             ..Drafts::default()
@@ -1298,10 +1359,10 @@ mod tests {
     /// (`docm1_face_frame::at_is_the_node_the_ray_met_and_not_the_feature`).
     fn seated() -> (RecipeNodeId, StableName) {
         (
-            RecipeNodeId(3),
+            RecipeNodeId::new(0, 3),
             StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
+                node: RecipeNodeId::new(0, 1),
                 path: vec![RoleSeg::Cap(CapEnd::End)],
             },
         )
@@ -1331,6 +1392,11 @@ mod tests {
     #[test]
     fn a_label_field_reads_blank_as_clear_and_holds_the_rest_to_the_rule() {
         assert_eq!(super::label_typed(" \t "), Ok(None));
+        assert_eq!(
+            super::label_typed("\u{200b}"),
+            Ok(None),
+            "a field of a zero-width space shows nothing, so it clears"
+        );
         assert_eq!(
             super::label_typed(" lid ").map(|label| label.map(|l| l.as_str().to_owned())),
             Ok(Some(" lid ".to_owned()))
@@ -1379,7 +1445,13 @@ mod tests {
                 | NodeKindWanted::Frame => {}
             }
             assert!(
-                authorable.iter().any(|node| admits(Some(node), wanted)),
+                authorable.iter().any(|node| {
+                    let mut doc = Doc::empty_derived("seat", Tol::witness());
+                    admits(
+                        Some(&editor_core::test_support::stored(&mut doc, node)),
+                        wanted,
+                    )
+                }),
                 "the {} seat wants {} and no add-datum choice authors one",
                 seat.name(),
                 wanted.name(),
@@ -1548,9 +1620,9 @@ mod tests {
         };
         assert_eq!(at, seat.0, "the node the gate admitted");
         assert_ne!(at, held.node, "and not the node the form is displaying");
-        assert_ne!(at, held.feature(), "nor the feature that minted the name");
+        assert_ne!(at, held.feature(), "nor the feature that made the entity");
         assert_eq!(name, seat.1);
-        let want = Expr::written_angle(pncad::quantity::WrittenAngle::canonical_in(
+        let want = Formula::written_angle(pncad::quantity::WrittenAngle::canonical_in(
             core::f64::consts::FRAC_PI_2,
             pncad::quantity::DEG,
         ))
@@ -1600,6 +1672,7 @@ mod tests {
             node: edit.node,
             loops: edit.programs(notation).expect("finite"),
             ids: edit.ids(),
+            fresh: Vec::new(),
         };
         try_edited(doc, edit, Tol::witness())
             .expect("the edit door takes it")
@@ -1624,7 +1697,7 @@ mod tests {
         };
         assert!(
             sketch::is_committed(
-                current,
+                &sketch::written_program(&doc, current),
                 &edit.programs(notation).expect("finite"),
                 &edit.ids()
             ),
@@ -1675,7 +1748,11 @@ mod tests {
         drafts.abandon_profile_edit_off(None);
         assert!(drafts.profile_edit.is_none(), "selection left, draft gone");
         // A node the editor cannot hold leaves nothing stale behind.
-        assert!(drafts.profile_edit(&before, RecipeNodeId(0)).is_err());
+        assert!(
+            drafts
+                .profile_edit(&before, RecipeNodeId::new(0, 0))
+                .is_err()
+        );
         assert!(drafts.profile_edit.is_none());
     }
 
@@ -1795,7 +1872,7 @@ mod tests {
             Step::LineTo(Target::Start),
         ]);
         let edit = drafts.profile_edit(&doc, profile).expect("held");
-        let kept = sketch::kept_in_place(edit.base());
+        let kept = edit.base().kept_in_place();
         edit.steps_mut(0)[1] = Step::ArcTo(ArcData::Via {
             q: Point2::new(0.0, 0.01),
             target: Target::Point(Point2::new(0.01, 0.0)),
@@ -1810,7 +1887,7 @@ mod tests {
         };
         let (doc, mut drafts, profile) = held_path(vec![split(0.01, 3, 0.0)]);
         let edit = drafts.profile_edit(&doc, profile).expect("held");
-        let kept = sketch::kept_in_place(edit.base());
+        let kept = edit.base().kept_in_place();
         edit.steps_mut(0)[0] = split(0.02, 3, 0.5);
         assert_eq!(edit.ids(), kept, "a split circle's radius and phase moved");
         edit.steps_mut(0)[0] = split(0.02, 4, 0.5);

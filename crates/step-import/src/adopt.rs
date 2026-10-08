@@ -102,9 +102,9 @@ fn designate_faces(
     solid: &SolidSpec,
     asm: &Assembled,
 ) -> Result<Vec<FaceKey>, StepImportError> {
-    let op_err = |source| StepImportError::Assembly {
+    let op_err = |source: topo::EulerOpError| StepImportError::Assembly {
         id: solid.id,
-        source,
+        source: source.from_driver(),
     };
     // Normalize: promote every ring-designated realized loop.
     for l in 0..asm.target.loops.len() {
@@ -186,9 +186,9 @@ fn rotate_loop_firsts(
     asm: &Assembled,
     tol: Tol,
 ) -> Result<(), StepImportError> {
-    let op_err = |source| StepImportError::Assembly {
+    let op_err = |source: topo::EulerOpError| StepImportError::Assembly {
         id: solid.id,
-        source,
+        source: source.from_driver(),
     };
     for seq in &asm.target.loops {
         let t = asm.use_he[seq[0]];
@@ -302,9 +302,9 @@ fn attach_surfaces(
     solid: &SolidSpec,
     face_keys: &[FaceKey],
 ) -> Result<(), StepImportError> {
-    let op_err = |source| StepImportError::Assembly {
+    let op_err = |source: topo::EulerOpError| StepImportError::Assembly {
         id: solid.id,
-        source,
+        source: source.from_driver(),
     };
     let mut seen: std::collections::BTreeMap<Vec<u64>, topo::SurfaceKey> =
         std::collections::BTreeMap::new();
@@ -348,22 +348,20 @@ fn adopt_edges(
             .get_half_edge(he_plus)
             .ok_or(resolve("internal: a realized half-edge does not resolve"))?
             .edge;
-        let face_surface = |body: &Body<f64>, he| -> Result<topo::SurfaceKey, StepImportError> {
-            let loop_key = body
-                .get_half_edge(he)
-                .ok_or(resolve("internal: a realized half-edge does not resolve"))?
-                .parent_loop;
-            let face = body
-                .get_loop(loop_key)
-                .ok_or(resolve("internal: a realized loop does not resolve"))?
-                .face;
-            Ok(body
-                .get_face(face)
-                .ok_or(resolve("internal: a realized face does not resolve"))?
-                .surface)
-        };
-        let fs_plus = face_surface(body, he_plus)?;
-        let fs_minus = face_surface(body, he_minus)?;
+        let sides = topo::readback::edge_sides(body, edge_key).unwrap_or_else(|_| {
+            unreachable!(
+                "{he_plus:?}'s edge names {edge_key:?}, which does not resolve: every public \
+                 door keeps the body tier-1-valid"
+            )
+        });
+        // Assembly realizes a file edge's forward use as the edge's
+        // `he_plus`; the surface pair below is ordered by the file's uses.
+        if (sides.plus.half_edge, sides.minus.half_edge) != (he_plus, he_minus) {
+            return Err(resolve(
+                "internal: a realized edge's two uses are not its he_plus and he_minus",
+            ));
+        }
+        let (fs_plus, fs_minus) = sides.surfaces();
         let witness = spec.carrier.mid_point(spec.t0, spec.t1);
         let p_start = solid.vertices[&spec.start];
         let p_end = solid.vertices[&spec.end];
@@ -548,8 +546,12 @@ fn adopt_edges(
                         | Surface::Torus { .. }
                 )
             });
-            if periodic {
-                candidates.push((AdoptionCandidate::Seam, EdgeDescriptionSpec::seam(fs_plus)));
+            // A wrap edge is a fact about one face: both its uses bound
+            // it (D1). Two faces on one surface meet at an ordinary
+            // edge, which takes the conventional rung below.
+            let (f_plus, f_minus) = sides.faces();
+            if periodic && f_plus == f_minus {
+                candidates.push((AdoptionCandidate::Wrap, EdgeDescriptionSpec::wrap(fs_plus)));
             }
         }
         if conventional
@@ -595,15 +597,27 @@ fn adopt_edges(
             ));
         }
 
-        // A band-minted seam generator (M7-5, R1 fix pass m2): the
-        // mint's D1 statement is that this edge IS the surface's
-        // u_ref half-plane seam, so the only honest description is
-        // `Seam` — the conventional mapped-curve rung is withheld,
-        // and a seam that cannot certify refuses with the ladder's
-        // own typed report instead of silently downgrading to a
-        // certified body whose "seam" is off the half-plane.
+        // An edge both of whose uses bound one face is that face's wrap
+        // edge (D1), whichever rung describes it — a closed spline
+        // wall's boundary column as much as an analytic generator —
+        // and tier 3 refuses it described otherwise. Certification
+        // then decides whether the chart closes across it.
+        let (f_plus, f_minus) = sides.faces();
+        if f_plus == f_minus {
+            for (_, description) in &mut candidates {
+                if let EdgeDescriptionSpec::Chart { wrap, .. } = description {
+                    *wrap = true;
+                }
+            }
+        }
+
+        // A band-minted generator: the mint's D1 statement is that
+        // this edge is the band face's wrap edge, so the only honest
+        // description is a wrap — the conventional mapped-curve rung
+        // is withheld, and a generator that cannot certify as one
+        // refuses with the ladder's own typed report.
         if solid.band_seams.contains(&edge_id) {
-            candidates.retain(|(c, _)| matches!(c, AdoptionCandidate::Seam));
+            candidates.retain(|(c, _)| matches!(c, AdoptionCandidate::Wrap));
         }
 
         let mut attempts = Vec::new();
@@ -615,18 +629,18 @@ fn adopt_edges(
                 param_start: spec.t0,
                 param_end: spec.t1,
             };
-            // The plane × NURBS attach door (M7-8): the importer is
-            // exactly the caller that has a declared carrier and needs
-            // it certified against a described NURBS wall, and it runs
-            // at `f64`, which carries the lane. Every other rung is
-            // unaffected — the door differs only in whether that one
-            // certificate is reachable.
-            match body.set_edge_curve_nurbs_lane(edge_key, attempt, tol) {
+            // A declared carrier against a described NURBS wall (M7-8)
+            // certifies through the plane × NURBS lane, which `f64`'s
+            // policy holds and `set_edge_curve` reads.
+            match body.set_edge_curve(edge_key, attempt, tol) {
                 Ok(_) => {
                     adopted = true;
                     break;
                 }
-                Err(refusal) => attempts.push(AdoptionAttempt { candidate, refusal }),
+                Err(refusal) => attempts.push(AdoptionAttempt {
+                    candidate,
+                    refusal: refusal.from_driver(),
+                }),
             }
         }
         if !adopted {

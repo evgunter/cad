@@ -35,23 +35,19 @@
 //! |---|---|---|---|---|
 //! | 1–4 | `Interval` | refuses | `transform_rigid_col0_unit` | <0.01 s |
 //! | 1 | `Sym<Interval>` | **CERTIFIES** | — | 0.16 s |
-//! | 2 | `Sym<Interval>` | refuses | `dihedral_wedge`, margin poisoned | 0.31 s |
-//! | 3 | `Sym<Interval>` | refuses | `dihedral_arm`, `[0, 7.34e-3]` | 0.47 s |
-//! | 4 | `Sym<Interval>` | refuses | `dihedral_arm`, `[0, 7.34e-3]` | 0.73 s |
+//! | 2 | `Sym<Interval>` | refuses | `dihedral_wedge`: no tangent plane | 0.31 s |
+//! | 3 | `Sym<Interval>` | refuses | `dihedral_arm`, `[0, 7.34e-3]` | 0.51 s |
+//! | 4 | `Sym<Interval>` | refuses | `dihedral_arm`, `[0, 7.34e-3]` | 0.64 s |
 //!
 //! **That column is the first refusal at the WHOLE study, which is a
-//! different question from what bounds the certifiable box.** The two
-//! were conflated here until SYM-14's review measured them apart.
+//! different question from what bounds the certifiable box.**
 //! Evaluation order decides which refusal is reported first, and at
 //! the whole study the `dihedral_arm` straddle happens to come first
-//! at three and four links. Just above the WALL — at `1.02×` and
-//! `1.10×` of each link count's certifiable fraction, default ε and
-//! `1e-6` alike — the first refusal is `dihedral_wedge` with a
-//! POISONED margin, on `EdgeKey(1v1)` at sample 4, at two, three and
-//! four links (nodes 14, 21, 30). **The wedge is what bounds the box**
-//! (`work/sym/a-chain-of-two-or-more-joints-poisons-its-transversality-margin`);
-//! the arm's straddle is a second, ε-independent refusal that is first
-//! only over the whole study
+//! at three and four links. Just above the WALL the first refusal is
+//! the wedge on `EdgeKey(1v1)` at sample 4 at two, three and four links
+//! (nodes 14, 21, 30): **the wedge is what bounds the box**, as the
+//! next section says. The arm's straddle is a second, ε-independent
+//! refusal that is first only over the whole study
 //! (`work/sym/a-chain-of-three-joints-straddles-dihedral-arm`).
 //!
 //! **The plain interval lane does not carry a widened rotation angle
@@ -82,18 +78,39 @@
 //! doubles with it, to `3.81°`. The invariant across LINK COUNTS is
 //! real; the angle was not the invariant.
 //!
-//! **The mechanism is a hypothesis, not a measurement.** What is
-//! measured is the coincidence: the wall sits where the tip's
-//! certified box reaches half the pin radius, at every link count and
-//! at both radii tried. The reading that would explain it — the
-//! wedge's margin poisoning once the positional box reaches the pin's
-//! own cylinder gradient — comes from the review and has NOT been
-//! checked against the margin's own inputs here; it is written down as
-//! the first thing to look at, on
-//! `work/sym/a-chain-of-two-or-more-joints-poisons-its-transversality-margin`,
-//! and not as the reason. The one-link row is outside the pattern and
-//! says why: it is capped by the study itself (`f = 1` at `0.450` of
-//! the radius), the wall lying beyond it.
+//! **What sets the wall: this paragraph is the mechanism's one home.**
+//! The wall's edge is the tip pin's cap circle, a plane × cylinder
+//! `Intersection` the outer joint's transform re-certifies. Its point
+//! and its cylinder's axis are mapped and enclosed APART, each carrying
+//! the tip's lateral half-width `δ` across the chain, so the radial
+//! vector `p − origin` the cylinder's gradient is built from is enclosed
+//! `r ± 2δ` wide. Two things follow, from two different causes:
+//!
+//! - **The poison, at `2δ = r`.** The gradient's enclosure reaches zero,
+//!   no tangent plane is defined over the box, and the wedge refuses
+//!   with "the surfaces' tangent planes at sample 4 are undefined". The
+//!   box where that happens does not move with ε. It is set by the
+//!   transform enclosing the two images apart
+//!   (`work/shell/transform-rigid-recertifies-images-enclosed-apart`),
+//!   and at the default ε it is the wall, so the tip's certified box is
+//!   half the pin radius.
+//! - **The straddle, before it.** `sin θ = ‖n1 × n2‖/(‖n1‖·‖n2‖)`
+//!   carries the gradient's magnitude in both its numerator and its
+//!   denominator, so its enclosure's lower end falls toward zero as
+//!   `2δ` approaches `r`, although the true value over these boxes is
+//!   one. The box stops certifying where that lower end drops under
+//!   `K·ε`, which is why the fraction moves with ε. That width is the
+//!   formula's
+//!   (`work/props/interval-sin-theta-as-cross-over-norms-loses-the-shared-magnitude`).
+//!
+//! The enclosures, the model, and the fractions and first refusals at
+//! three ε are on
+//! `work/sym/a-chain-of-two-or-more-joints-poisons-its-transversality-margin`
+//! ("What Phase 1 found"). `geom_brep`'s
+//! `a_cylinder_gradient_reaching_zero_leaves_no_tangent_plane` is the
+//! poison on one plane and one cylinder. The one-link row is outside
+//! the pattern and says why: it is capped by the study itself (`f = 1`
+//! at `0.450` of the radius), the wall lying beyond it.
 //!
 //! At that box the drive certifies the whole box in ONE leaf — it
 //! splits nothing, because nothing refuses — and **the four-link tip's
@@ -116,7 +133,7 @@ use pncad::geom_core::{Bounds, Interval, Sym, SymBudget, SymCounts, SymRules, To
 
 use crate::chain::{
     CERTIFIABLE_FRACTION_BY_LINKS, CERTIFIED_PIN_BOX, Chain, JOINT_SIGMA, LINK_LENGTH, LINKS,
-    POSITION_BOUND, chain,
+    POSITION_BOUND, chain, study,
 };
 
 /// Metres to millimetres, for every printed number.
@@ -293,7 +310,7 @@ pub fn narration(tol: Tol) {
 
     let mut rows = Vec::new();
     for links in 1..=LINKS {
-        let built: Chain = chain(links, JOINT_SIGMA, POSITION_BOUND, tol);
+        let built: Chain = study(links, tol);
         for row in [
             interval_leaf(links, &built.doc),
             sym_leaf(links, &built.doc),
@@ -340,12 +357,9 @@ pub fn narration(tol: Tol) {
     }
 
     // **Whether that box still certifies HERE.** The fraction moves
-    // with ε — MEASURED, `1.083e-1` at ε = 1e-6 against `1.110e-1` at
-    // the default — and WHY it moves is not established: the refusal
-    // at the wall is the wedge's poisoned margin, which is not a
-    // quantity the band classifies
-    // (`work/sym/a-chain-of-two-or-more-joints-poisons-its-transversality-margin`).
-    // So the cell asks rather than reasoning: it declares the
+    // with ε — MEASURED, `1.083e-1` at ε = 1e-6 against `1.110e-1`
+    // at the default — for the reason the module header's "What sets
+    // the wall" gives. So the cell asks rather than reasoning: it declares the
     // frontier instead of assuming its own published number
     // (`demos/tour/tests/eps_regression.rs` on a declared frontier),
     // and one leaf is what it costs to know.
@@ -478,8 +492,11 @@ fn assert_row(row: &Row) {
                  {links} link(s) it was still the first refusal: {}",
                 first()
             );
+            // The predicate's exact name, as the refusal's diagnostics
+            // spell it: `dihedral_arm` is a prefix of `dihedral_arm_wedge`,
+            // so a substring would read either as the other.
             assert!(
-                first().contains(predicate),
+                first().contains(&format!("predicate: Some(\"{predicate}\")")),
                 "the table says the first refusal at {links} link(s) over the whole study \
                  is `{predicate}`; it was: {}",
                 first()
@@ -630,21 +647,18 @@ fn certifiable_fraction(links: usize, tol: Tol) -> f64 {
     // (`the_wall_is_the_wedge_not_the_arm`). What is ASSUMED is
     // monotonicity BELOW the answer — that no narrower box refuses.
     //
-    // That assumption used to be argued here from the shape of the
-    // refusal: a narrower box is a sub-box, so an enclosure that
-    // straddles a band stops straddling and cannot come back. **The
-    // argument does not survive the measurement.** The refusal at the
-    // wall is the wedge's POISONED margin — a NaN, which is not
-    // classified against a band at all — so nothing in the straddle
-    // argument transfers to it, and nothing here establishes that a
-    // poison cannot reappear at a narrower width. Why the boundary
-    // moves with ε at all is unestablished for the same reason
-    // (`work/sym/a-chain-of-two-or-more-joints-poisons-its-transversality-margin`).
+    // That assumption cannot be argued from the shape of the refusal at
+    // the default ε. The refusal at the wall is the wedge's POISONED
+    // margin (the module header's "What sets the wall") — a NaN, which
+    // is not classified against a band at all — so a straddle argument
+    // (a sub-box's enclosure lies inside the wider box's) does not
+    // transfer to it, and nothing here establishes that a poison
+    // cannot reappear at a narrower width.
     //
-    // So the assumption is carried as an assumption, with the check
-    // that would catch it RUN rather than described: the fractions
-    // row re-certifies each answer at 1/2 and 1/4 of its width, so a
-    // poison returning anywhere in that range reds. Outside it the
+    // So the assumption is carried as an assumption, and the guard is
+    // the half and quarter rows: the fractions row re-certifies each
+    // answer at 1/2 and 1/4 of its width, so a refusal returning
+    // anywhere in that range reds. Outside it the
     // claim the constants actually carry is the executed one —
     // certifies at this width, refuses 2% above.
     let mut lo = lo;
@@ -744,14 +758,14 @@ mod tests {
                 );
                 let first = row.first.expect("a refusing row names its first refusal");
                 assert!(
-                    first.contains("dihedral_wedge"),
+                    first.contains("predicate: Some(\"dihedral_wedge\")"),
                     "the header says the WALL is `dihedral_wedge`; at {links} links, \
                      {over}× the fraction, the first refusal was: {first}"
                 );
                 assert!(
-                    first.contains("margin is invalid"),
-                    "the header says the wall's margin is POISONED, not straddling; at \
-                     {links} links, {over}× the fraction: {first}"
+                    first.contains("tangent planes at sample") && first.contains("Invalid"),
+                    "the header says the wall's margin is POISONED (no tangent plane is \
+                     defined), not straddling; at {links} links, {over}× the fraction: {first}"
                 );
             }
         }
@@ -803,9 +817,8 @@ mod tests {
     ///
     /// The whole table is at the AMBIENT ε — `ci.yml` runs this row at
     /// the default — because the fractions move with ε: `1.110e-1` at
-    /// the default against `1.083e-1` at `1e-6`, measured. What makes
-    /// them move is not established; the wall's refusal is a poisoned
-    /// margin, which is not a quantity a band classifies.
+    /// the default against `1.083e-1` at `1e-6`, measured, for the
+    /// reason the module header's "What sets the wall" gives.
     ///
     /// It also runs the check the bisection's monotonicity assumption
     /// owes (see `certifiable_fraction`): each answer is re-certified
@@ -817,9 +830,8 @@ mod tests {
         let tol = Tol::witness();
         let measured: Vec<f64> = (1..=LINKS).map(|n| certifiable_fraction(n, tol)).collect();
         // The check the bisection's monotonicity assumption owes: a
-        // narrower box must still certify. The wall is a POISONED
-        // margin, so nothing argues it cannot come back — this is
-        // where it would be seen if it did.
+        // narrower box must still certify. A refusal other than the
+        // wall's would be seen here if one came back narrower.
         for (i, f) in measured.iter().enumerate() {
             let links = i + 1;
             for half in [0.5, 0.25] {

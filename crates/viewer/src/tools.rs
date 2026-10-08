@@ -35,7 +35,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId, Said, Say, Speaker};
 
 use crate::blend::{BlendEvent, BlendTool};
 use crate::combine::{BooleanTool, DuplicateTool, PartTool, PatternTool, SplitTool, TransformTool};
@@ -202,19 +202,23 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::Hover(_)
         | SessionOp::DeleteNode { .. }
         | SessionOp::SetSlot { .. }
+        | SessionOp::SetSlotVariable { .. }
+        | SessionOp::DeclineOffer { .. }
         | SessionOp::ProbeBounds { .. }
         | SessionOp::SetSlotUnit { .. }
         | SessionOp::SetSlotExpression { .. }
-        | SessionOp::SetParam { .. }
-        | SessionOp::SetParamUnit { .. }
-        | SessionOp::SetParamText { .. }
-        | SessionOp::CreateParam { .. }
+        | SessionOp::SetVariable { .. }
+        | SessionOp::SetVariableUnit { .. }
+        | SessionOp::SetVariableText { .. }
+        | SessionOp::DeclareVar { .. }
+        | SessionOp::RenameVar { .. }
+        | SessionOp::DeleteVar { .. }
         | SessionOp::BeginGesture { .. }
-        | SessionOp::BeginParamGesture { .. }
+        | SessionOp::BeginVariableGesture { .. }
         | SessionOp::PreviewGesture { .. }
         | SessionOp::CommitGesture { .. }
-        | SessionOp::PreviewParamGesture { .. }
-        | SessionOp::CommitParamGesture { .. }
+        | SessionOp::PreviewVariableGesture { .. }
+        | SessionOp::CommitVariableGesture { .. }
         | SessionOp::CancelGesture
         | SessionOp::Undo
         | SessionOp::Redo
@@ -259,14 +263,37 @@ pub enum ToolNotice {
     },
 }
 
-impl core::fmt::Display for ToolNotice {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// The mate and seated arms say the node their event carries
+/// (`SpokenNode`, kept by [`Tools::respeak`]), so the speaker reaches
+/// the blend arm alone, whose event holds bare ids.
+impl Say for ToolNotice {
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         let said = match self {
             Self::Mate(event) => ToolKind::Mate.says(event),
-            Self::Blend(event) => ToolKind::Blend.says(event),
+            Self::Blend(event) => ToolKind::Blend.says(&Said(event, by)),
             Self::Seated { tool, event } => tool.says(event),
         };
         f.write_str(&said)
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for ToolNotice {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.say(f, Speaker::TAG)
+    }
+}
+
+impl ToolNotice {
+    /// **The sentence the line shows**: each bare id said from the
+    /// landed document the tool's picks and loads were read off, each
+    /// name within its table in that document's evaluation
+    /// ([`Speaker::within`]); by its tag, in full, with nothing landed.
+    pub fn said(&self, landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>) -> String {
+        let by = landed.map_or(Speaker::TAG, |(doc, evaluation)| {
+            Speaker::of(doc).within(evaluation)
+        });
+        Said(self, by).to_string()
     }
 }
 
@@ -483,6 +510,16 @@ impl Tools {
         self.open_kind().is_some_and(|kind| kind.commits(op))
     }
 
+    /// **A document replaced this one**: the open tool starts over,
+    /// open, holding nothing ([`Tools::open`]). Its picks are ids of the
+    /// document they were made in, and the next document may hold a
+    /// node of the same id (`SpokenNode::respoken`'s premise).
+    pub fn document_replaced(&mut self) {
+        if let Some(kind) = self.open_kind() {
+            self.open(kind);
+        }
+    }
+
     /// **Feed one frame's operations to the open tool.**
     ///
     /// A selection is the only op a tool consumes, and the two
@@ -526,7 +563,7 @@ impl Tools {
                 }
                 Some(OpenTool::Blend(tool)) => {
                     if let Some(edge) = selection.edge() {
-                        notices.extend(tool.pick(edge).map(ToolNotice::Blend));
+                        notices.extend(tool.pick(doc, edge).map(ToolNotice::Blend));
                     }
                 }
                 Some(OpenTool::Revolve(tool)) => {
@@ -553,6 +590,26 @@ impl Tools {
             }
         }
         notices
+    }
+
+    /// **The open tool's held nodes, spoken again from `doc`**, the
+    /// shown document after an operation (`SpokenNode::respoken`'s
+    /// rule): a held node `doc` holds takes its label now, and one it
+    /// no longer holds keeps the last it had, so a drop or a refusal
+    /// about it says that label.
+    pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        match &mut self.open {
+            None => {}
+            Some(OpenTool::Mate(tool)) => tool.respeak(doc),
+            Some(OpenTool::Blend(tool)) => tool.respeak(doc),
+            Some(OpenTool::Revolve(tool)) => tool.respeak(doc),
+            Some(OpenTool::Boolean(tool)) => tool.respeak(doc),
+            Some(OpenTool::Split(tool)) => tool.respeak(doc),
+            Some(OpenTool::Transform(tool)) => tool.respeak(doc),
+            Some(OpenTool::Pattern(tool)) => tool.respeak(doc),
+            Some(OpenTool::Part(tool)) => tool.respeak(doc),
+            Some(OpenTool::Duplicate(tool)) => tool.respeak(doc),
+        }
     }
 
     /// **The survival step, once per frame** — the consumer obligation

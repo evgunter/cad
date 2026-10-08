@@ -134,10 +134,10 @@
 //! registrant states the identities ITS construction guarantees about
 //! nodes it builds identically to the consumer's, and the registry's
 //! alias is transitive, so facts stated at two constructions chain. A
-//! profile arc's lowering (`profile::lower_arc`, through
-//! `Arc2::register_endpoints`) states its endpoint facts in the sketch:
-//! the rim at each end is the radius, and the carrier's end is the far
-//! vertex. The sweep that places the arc states only rigidity
+//! profile arc's construction (the path door's, through
+//! `Arc2::register_endpoints`) states the endpoint facts its algebra
+//! proves in the sketch: the rim at each end is the radius, and the
+//! carrier's end is the far vertex. The sweep that places the arc states only rigidity
 //! (`sweep::swept::register_rigidity`, `register_placed_carrier_end`):
 //! the placed rim is the sketch rim, and the placed carrier at its span
 //! is the sketch carrier's end, placed — the latter same-object because
@@ -274,8 +274,10 @@
 //! 1.6e-4·s`, so the flip first enters the box at `s = 0.625`, while
 //! at the pinned ceiling `s ≈ 0.263` the true margin is `[5.79e-5,
 //! 1.42e-4] > 0` everywhere and the enclosure is `[−2.09e-9, 2.00e-4]`
-//! — widened by ~6e-5 on each side (pinned:
-//! `m10_10_pins_interval::m10_10_the_plates_ceiling_is_dependency_widening_not_a_flip`);
+//! — widened by ~6e-5 on each side (the extrude's closing pcurve mint
+//! now refuses the plate before the assertion is read, at `3.9e2·ε`:
+//! `work/sym/pcurve-certificate-checks-widen-past-the-band-over-a-parameter-box.md`,
+//! pinned at `m10_10_pins_interval::m10_10_the_plates_web_margin_is_real_and_the_closing_mint_refuses_first`);
 //! at `1e-6` the same widened enclosure sits in the band. The annulus
 //! is the same class: `arc_diameter_clearance` cannot be zero for any
 //! `r > 0` — the widening finding's second site. The plate's rows are
@@ -517,7 +519,7 @@
 //! the arms on or off (`m10_derived_frame_tilted_interval`'s
 //! `m10_the_start_cap_and_flip_z_certify_as_the_end_cap_does_and_rule_f_is_inert`
 //! gates that). The arm has no measured document consumer
-//! (`work/sym/the-negative-arm-lost-its-document-consumer`).
+//! (`work/rules/the-negative-arm-lost-its-document-consumer`).
 //!
 //! **What the reach IS, stated no wider than the documents behind
 //! it**: a `FaceFrame` whose `carrier_endpoint_end` residual carries
@@ -646,9 +648,16 @@
 //! that arm, and so does a `min`/`max` whose comparison is — `max(A,
 //! B)` IS `select(B − A, A, B)`. It is rule C's shape at the ops rule
 //! C never reached, counted the same way, and it is ordered BEHIND
-//! every value-free fold, because a read that runs before an atom is
-//! minted re-labels as a read anything the atom would have cancelled
-//! against. [`signed`] owns the enclosure and the argument.
+//! every value-free fold AT ITS NODE. Above its node it can re-label a
+//! cancellation: two nodes whose early forms are equal mint one atom
+//! with the read shut and cancel, while with it on each is read first
+//! and their difference is `sign_gated`
+//! (`work/decide/the-read-at-its-node-relabels-a-cancellation-above-it`).
+//! A zero that does not depend on the arm carries no gate from it: in
+//! the early walk where its zero arm is on, a product with an ungated
+//! zero factor, or a `copysign` of an ungated zero, is a theorem though
+//! a read settled the other operand (`zero_factors_gate`).
+//! [`signed`] owns the enclosure and the argument.
 //!
 //! # Node ids are CONTENT HASHES (D9)
 //!
@@ -923,8 +932,8 @@
 //!
 //! Two greps over `crates/` and `demos/` — one for the names handed to a
 //! funnel door, one for identity/gap-shaped string literals — and their
-//! union minus the bare filter words and the test-harness names. **107
-//! names.** The rule is written out in
+//! union minus the bare filter words and the test-harness names. **106
+//! names** at M10-7, **105** since one retired. The rule is written out in
 //! `work/sym/symbolic-tier-census.md`, which also carries the full
 //! table: one row per name, with its bucket, its evidence and its site.
 //! Only the counts and the two families that matter are here.
@@ -933,9 +942,9 @@
 //! | --- | --- |
 //! | IMPLICIT (S-CERT's frontier) | 4 |
 //! | NOT A PREDICATE | 8 |
-//! | EXPLICIT | 95 |
+//! | EXPLICIT | 93 |
 //!
-//! **107 and not the 66 the previous sweep reported**, because that
+//! **106 at M10-7, and not the 66 the previous sweep reported**, because that
 //! number is not re-derivable from a rule written down anywhere and this
 //! one states its own. The difference is filter width, not new
 //! predicates.
@@ -956,7 +965,7 @@
 //! (`topo/src/boolean/carrier_eq.rs`) — a structure contradiction, with
 //! no margin ever classified.
 //!
-//! **EXPLICIT — 95.** Closed forms in the parameters over analytic
+//! **EXPLICIT — 93.** Closed forms in the parameters over analytic
 //! carriers. Nine carry a MEASURED symbolic/numeric split from
 //! `editor-core/tests/m10_7_census_probe.rs` (at `Sym<Probe>`, through
 //! the same funnel, over the M10 fixtures and the tour's plate):
@@ -1161,21 +1170,17 @@ impl Hash128 {
     }
 }
 
-/// The symbol a document parameter enters the DAG as: a hash of its
-/// name, so two evaluations of the same document agree on it without
-/// carrying a string into a `Copy` scalar.
+/// The symbol a document variable enters the DAG as: its minted id
+/// (VARIABLES-DESIGN VR8), so two evaluations of the same document agree
+/// on it, and a rename, which moves no id, moves no symbol.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ParamSymbol(u64);
 
 impl ParamSymbol {
-    /// The symbol for a parameter name.
+    /// The symbol for the variable whose id is `id`.
     #[must_use]
-    pub fn of(name: &str) -> Self {
-        let mut h = Hash128::new().word(0x5359_4d5f_5041_5241);
-        for b in name.as_bytes() {
-            h = h.word(u64::from(*b));
-        }
-        Self(h.finish() as u64)
+    pub const fn new(id: u64) -> Self {
+        Self(id)
     }
 }
 
@@ -1505,7 +1510,7 @@ pub struct SymCounts {
     /// **A dispute names no predicate on the receipt**, which is a
     /// disclosed gap rather than a property: a reader sees that some
     /// decision disputed and cannot see which
-    /// (`work/sym/a-dispute-names-no-predicate-on-the-receipt`).
+    /// (`work/rules/a-dispute-names-no-predicate-on-the-receipt`).
     ///
     /// What a non-zero count means is that the form is a theorem of
     /// the reals which this channel's arithmetic cannot see — a far
@@ -1575,7 +1580,7 @@ pub struct SymCounts {
     /// **One reading is still the schedule's**, and it is inside the
     /// branch [`memo`]'s header has named since the memo landed: a
     /// freeze the TAINT caused, under a hit, is counted where the walk
-    /// made it (`work/sym/a-taint-induced-freeze-under-a-hit-still-reads-by-order`,
+    /// made it (`work/rules/a-taint-induced-freeze-under-a-hit-still-reads-by-order`,
     /// pinned by `geom-core`'s
     /// `sym_drive_memo::a_taint_induced_freeze_under_a_hit_is_read_by_order`).
     /// No leaf of a drive reaches it — a drive mints every node inside
@@ -1858,10 +1863,18 @@ pub struct SymRules {
     /// the BOX and not identically in the parameters, so a zero through
     /// it is `sign_gated` and never `symbolic_zero`.
     ///
-    /// **Ordered behind every value-free fold** — after A0, after rule
-    /// F, and over kids whose roots rule G has already minted — because
-    /// a read that runs before an atom is minted re-labels as a read
-    /// anything the atom would have cancelled against. Needs `early`.
+    /// **Ordered behind every value-free fold AT ITS NODE** — after A0,
+    /// after rule F, and over kids whose roots rule G has already
+    /// minted. Above the node it can re-label a cancellation the parent
+    /// would have made with the node left an atom: `max(x + Z, 3) −
+    /// max(x, 3)` with `Z` zero under rule A is `sign_gated`, and a
+    /// theorem with the read shut
+    /// (`work/decide/the-read-at-its-node-relabels-a-cancellation-above-it`).
+    /// A zero that does not depend on the arm carries no gate from it:
+    /// where the early walk's zero arm is on (`early_ab ||
+    /// trig_of_atan`), `0 · x` and `copysign(0, x)` with an ungated zero
+    /// stay theorems wherever the read answered inside `x`. Needs
+    /// `early`.
     pub decision_read: bool,
     /// **The REGISTERED-IDENTITY DOOR** (M10-9, ERROR-DESIGN E12's
     /// provenance reserve): the early walk consults the session's
@@ -1921,11 +1934,11 @@ impl SymRules {
     /// | A/B over the top residual (`sqrt_square`/`pythagoras` at `discharge`'s site, once the walks have declined) | none, alone or with rule D: the plate's nominal split is M10-9's under it alone and rule D's with D (`CAD_M10_10_RULES=top_only`, `d_top_only`); M10-8 measured it inert and it still is | +18% on the plate's `1e2·ε` leaf (0.131 → 0.154 s with rule D), +12% on the link (0.76 → 0.85 s) | ships only because it shares the per-node walk's dials — disclosed as M10-10's D17, not chosen |
     /// | C in the early walk (`signed_root`) | none; folds on no document at 256 bits | ~2× | no (inert; reads a value) |
     /// | E, the quotient's common factor (`common_factor`, SYM-5) | none on the five; R1's boss at bulge 2 `8.2611e2 → 9.3559e2 · ε` (1.13×), and a derived frame whose AXES carry a parameter certifies where its authored twin does, which no dial reached before | one whole-box leaf, release: plate 0.13 → 0.36 s, annulus 0.12 → 0.29, bracket 0.44 → 1.70, link 3.31 → 2.43, pad 3.85 → 14.40 | **yes**, with the bracket, the pad and the link over the 1.6 s line disclosed |
-    /// | F, the manifest sign (`manifest_sign`, SYM-8) | none: shut alone (every other rule as shipped) it moves no receipt, split or ceiling on the eight measured documents, the five `m10_9` studies or the tilted-frame family. It was measured on Duff's basis, whose `copysign(1, n.z)` it folded (the tilt-`u` frame's `carrier_endpoint_end` 24/0/0/1 → 33/0/0/0 then); the axis-order basis mints no `copysign`, and on this tree the rule has no measured document consumer (`work/sym/the-negative-arm-lost-its-document-consumer`) | one coefficient-sign scan per `abs`/`copysign` node; the six leaf numbers live once, in the module header's rule-F section | **yes** |
+    /// | F, the manifest sign (`manifest_sign`, SYM-8) | none: shut alone (every other rule as shipped) it moves no receipt, split or ceiling on the eight measured documents, the five `m10_9` studies or the tilted-frame family. It was measured on Duff's basis, whose `copysign(1, n.z)` it folded (the tilt-`u` frame's `carrier_endpoint_end` 24/0/0/1 → 33/0/0/0 then); the axis-order basis mints no `copysign`, and on this tree the rule has no measured document consumer (`work/rules/the-negative-arm-lost-its-document-consumer`) | one coefficient-sign scan per `abs`/`copysign` node; the six leaf numbers live once, in the module header's rule-F section | **yes** |
     /// | F's NEGATIVE arm (the same dial, SYM-12) | none, as rule F: the tilt-`u` cube's START cap and its `FlipZ` twin certify as the end cap does with the dial on or off (`m10_derived_frame_tilted_interval`'s `m10_the_start_cap_and_flip_z_certify_as_the_end_cap_does_and_rule_f_is_inert`); its Duff-era reach is in the module header | a negation plus the predicate only on a numerator whose every coefficient is negative; the release leaf instrument's reading is in the header's cost paragraph below the rule-F section, the one place those numbers live | **yes** |
     /// | G, the canonical root (`canonical_root`, DECIDE-3) | the tilted derived boss certifies at both halves and both lifts and the tilt-`u` one outright; the link, the bracket and the pad gain theorems and the plate's ledger loses its `Early/Assertion` and `Door/Decision` freezes | the differential is `without_canonical_root`; the numbers live in the PR that shipped it and in [`root`] | **yes** |
     /// | G's exact quotient (`root_quotient`, DECIDE-4) | R1's boss at bulge 2 `1.0309e3 · ε` → **0.5024 / 0.7267 / 0.7271 of its REAL study** at ε = 1e-6 / 1e-9 / 1e-12, bounded by `dihedral_wedge` (a real margin), its `arc_span` 5/0/0/1 → 6/0/0/0; no other split moves at the nominal on the plate, bracket, annulus, link, both D-tabs or the two controls; it trades the split spelling `sqrt(N)/sqrt(D)` of a re-keyed root (no measured document moves on it) | one whole-box leaf, release, best of 3, off → on: plate 0.339 → 0.349 s, plate at its real study 0.342 → 0.346, annulus 0.364 → 0.364, bracket 3.81 → 3.82, link 19.4 → 19.3, pad 144.5 → 145.7, boss 0.245 → 0.250; every receipt but the boss's unmoved | **yes**, with the bracket, the pad and the link over the 1.6 s line either way |
-    /// | the decision read (`decision_read`, DECIDE-3) | the frame's conditioning comparisons, which no form settles: `sign_gated` where it fires and never `symbolic_zero` | the deep enclosure runs at every `Select` and `min`/`max`; the pin suites' wall time is the cost row `work/decide/decision-read-triples-the-plate-pin-suites-wall-time` | **yes**, with that cost disclosed |
+    /// | the decision read (`decision_read`, DECIDE-3) | the frame's conditioning comparisons, which no form settles: `sign_gated` where a zero rests on the arm it took, and never `symbolic_zero`; a zero that rests on an ungated factor alone (`0 · x`, as `dihedral_wedge`'s `sin θ · arm` at a tangent join) stays a theorem where the early zero arm is on; it is ordered behind every value-free fold at its node only, and a cancellation above the node can come out `sign_gated` (`work/decide/the-read-at-its-node-relabels-a-cancellation-above-it`) | the deep enclosure runs at every `Select` and `min`/`max`; the pin suites' wall time is the cost row `work/decide/decision-read-triples-the-plate-pin-suites-wall-time` | **yes**, with that cost disclosed |
     ///
     /// The pins in `m10_8_pins_interval.rs`, `m10_9_pins_interval.rs`
     /// and `m10_10_pins_interval.rs` hold each layer to what it
@@ -3235,6 +3248,28 @@ fn constant_value(f: &Form) -> Option<Rat> {
     f.num.as_constant()?.mul(&f.den.as_constant()?.recip()?)
 }
 
+/// **The gate of a zero reached through zero factors**: gated exactly
+/// when every zero factor is gated. A product with a zero factor is the
+/// zero form whatever the other factors' forms are, so its claim is the
+/// zero factors' claim and not the others': one ungated zero factor
+/// makes it a theorem even where another factor came through a read.
+///
+/// Sound by the argument the early zero arm already rests on: a point
+/// where another factor has no value (a pole of its quotient) is one
+/// clause 1 has already refused, so `0 · x = 0` wherever the product is
+/// asked. And it agrees with the read shut, where the other factor is an
+/// ungated atom and the same zero is a theorem.
+///
+/// Called where the early walk's zero arm is on (`early_ab ||
+/// trig_of_atan`) and by `copysign`'s zero fold — `copysign(Y, X)` is
+/// `|Y|` times a sign, so `Y` is its one zero factor. Everywhere else a
+/// product ORs its factors' gates (`Form::mul`, `powi_form`,
+/// `algebra::apply`): the conservative direction
+/// (`work/decide/form-mul-carries-the-gate-of-a-factor-a-zero-annihilates`).
+fn zero_factors_gate(factors: &[&Form]) -> bool {
+    factors.iter().filter(|f| f.is_zero()).all(|f| f.gated)
+}
+
 /// The value an opaque UNARY atom takes at argument zero, where that
 /// value is expressible in the form's own vocabulary — the fold that
 /// lets `‖a − b‖` decide `Zero` when `a − b` does, which is the shape
@@ -3343,7 +3378,13 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
                 && !a.tainted(b)
                 && (a.is_zero() || b.is_zero()) =>
         {
-            let gated = a.gated || b.gated;
+            // A sum is its other operand, reached through the zero's
+            // claim, so it carries both gates; a product rests on its
+            // zero factors alone (`zero_factors_gate`).
+            let gated = match node.op {
+                SymOp::Mul => zero_factors_gate(&[a, b]),
+                _ => a.gated || b.gated,
+            };
             let mut f = match (node.op, a.is_zero()) {
                 (SymOp::Mul, _) => Form::zero(),
                 (SymOp::Add, true) => b.clone(),
@@ -3452,6 +3493,17 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
             if a.tainted(b) {
                 return Some(Form::poison());
             }
+            // `copysign` carries `a`'s MAGNITUDE, so a zero first
+            // argument is zero whatever the sign argument does (±0 is
+            // one real): `a` is its one zero factor
+            // (`zero_factors_gate`). Asked before rule F, whose arms
+            // would reach the same zero carrying the sign argument's
+            // gate too.
+            if node.op == SymOp::Copysign && a.is_zero() {
+                let mut z = Form::zero();
+                z.gated = zero_factors_gate(&[a]);
+                return Some(z);
+            }
             // **Rule F** (early walk): `copysign(Y, X) = |Y|` wherever
             // the FORM of `X` is manifestly POSITIVE — the sign the
             // node asks for is one the form already shows, so the
@@ -3479,9 +3531,7 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
                 return Some(m);
             }
             // min(0, 0) and max(0, 0) are zero; a one-sided zero says
-            // nothing, so only the both-zero fold is taken. copysign
-            // carries `a`'s MAGNITUDE, so a zero first argument is zero
-            // whatever the sign argument does (±0 is one real).
+            // nothing, so only the both-zero fold is taken.
             // atan2(0, x) is 0 or π depending on the sign of x, so the
             // fold below is taken ONLY where the sign is a fact of the
             // form: atan2(0, N) with N non-negative BY SYNTAX is 0 —
@@ -3529,7 +3579,6 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
             }
             let folds = match node.op {
                 SymOp::Min | SymOp::Max => a.is_zero() && b.is_zero(),
-                SymOp::Copysign => a.is_zero(),
                 SymOp::Atan2 => {
                     early && sess.rules.trig_of_atan && a.is_zero() && manifest::nonneg(b, sess)
                 }
@@ -5352,7 +5401,7 @@ mod tests {
 
     /// The parameter, at `f64`: a point value with a symbol on it.
     fn p(name: &str, v: f64) -> Sym<f64> {
-        Sym::param(ParamSymbol::of(name), v)
+        Sym::param(ParamSymbol::new(test_utils::symbol_id(name)), v)
     }
 
     fn decides_zero(m: Sym<f64>) -> bool {
@@ -6036,7 +6085,7 @@ mod tests {
     /// A parameter with its bracket recorded, at `f64` — the door rule C
     /// reads through ([`Sym::param_over`]).
     fn p_over(name: &str, v: f64, lo: f64, hi: f64) -> Sym<f64> {
-        Sym::param_over(ParamSymbol::of(name), v, lo, hi)
+        Sym::param_over(ParamSymbol::new(test_utils::symbol_id(name)), v, lo, hi)
     }
 
     /// **Rule C, clause 3: `sqrt(r²) − r` is a theorem CONDITIONAL on

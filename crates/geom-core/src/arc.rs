@@ -33,6 +33,32 @@ pub struct Arc2<T: Real> {
 }
 
 impl<T: Real> Arc2<T> {
+    /// **The arc on the chord `a → b` whose quarter-tangent is `x`**
+    /// (x = tan(Δθ/4), the bulge): the centre at apothem
+    /// `L·(1 − x²)/(4x)` along the chord's unit left normal from its
+    /// midpoint, the radius `|L·(1 + x²)/(4x)|`, and Δθ = `4·atan(x)`.
+    /// The one spelling of the chord lowering, shared by the sketch
+    /// layers; pure arithmetic in a fixed order (D9), so it is the same
+    /// expression at every scalar. Total: `x = 0` puts the centre at
+    /// infinity and a zero chord poisons the normal, for the caller's
+    /// own rule to have kept out.
+    #[must_use]
+    pub fn from_chord(a: Point2<T>, b: Point2<T>, x: T) -> Self {
+        let len = a.distance(b);
+        let unit = (b - a) / len;
+        let mid = a.lerp(b, T::from_f64(0.5));
+        let normal = Vec2::new(-unit.y, unit.x);
+        let x2 = x.powi(2);
+        let four_x = T::from_f64(4.0) * x;
+        let apothem = len * (T::one() - x2) / four_x;
+        let signed_radius = len * (T::one() + x2) / four_x;
+        Self {
+            centre: mid + normal * apothem,
+            radius: signed_radius.abs(),
+            sweep: T::from_f64(4.0) * x.atan(),
+        }
+    }
+
     /// The same arc read at another scalar: `f` applied to the centre's
     /// coordinates, then the radius, then the sweep. A structural map —
     /// no arithmetic, so it is exact whenever `f` is.
@@ -152,6 +178,13 @@ impl<T: Real> Arc2<T> {
         mid - normal * (len * self.quarter_tan() * T::from_f64(0.5))
     }
 
+    /// **The apex of a full turn started at `a`**: the carrier point
+    /// opposite `a`, `centre + (centre − a)` — the sweep's midpoint at
+    /// |Δθ| = 2π, where [`Arc2::apex`]'s chord is zero.
+    pub fn antipode(self, a: Point2<T>) -> Point2<T> {
+        self.centre + (self.centre - a)
+    }
+
     /// The carrier's point at the end of the sweep, reached from the
     /// direction of `a`: `centre + radius·R(sweep)·(a − centre)/‖a − centre‖`.
     ///
@@ -165,6 +198,42 @@ impl<T: Real> Arc2<T> {
         let u = (a - self.centre) / self.rim(a);
         let (sin, cos) = (self.sweep.sin(), self.sweep.cos());
         self.centre + Vec2::new(u.x * cos - u.y * sin, u.x * sin + u.y * cos) * self.radius
+    }
+
+    /// **Registers a tangency at a foot** ([`Real::register_equal`]),
+    /// per component: the centre IS `foot` moved `offset` along the
+    /// unit `dir`'s left normal — the arc touches the line through
+    /// `foot` along `dir` there, `offset` the radius signed by the side
+    /// it lies on. Each answer is handed back with the fact it states,
+    /// for the caller to handle by arm.
+    ///
+    /// **An axiom, not a check**, as [`Arc2::register_endpoints`] is:
+    /// sound only where the CALLER built the centre so that this holds
+    /// over the reals at every value of its inputs, and its doc comment
+    /// carries that proof — a fillet's centre spelled from its other
+    /// tangent foot, say. The identity's shape is spelled here, not by
+    /// the caller, so a registrant of any other identity is a new
+    /// function in this file.
+    #[must_use = "a registration can be REFUSED, and a refusal a caller \
+                  drops is a lie nobody sees"]
+    pub fn register_tangent_at(
+        self,
+        foot: Point2<T>,
+        dir: Vec2<T>,
+        offset: T,
+        tol: Tol,
+    ) -> [(&'static str, SymRegistration); 2] {
+        let other = foot + Vec2::new(-dir.y, dir.x) * offset;
+        [
+            (
+                "the centre's x from the tangent foot",
+                self.centre.x.register_equal(other.x, tol),
+            ),
+            (
+                "the centre's y from the tangent foot",
+                self.centre.y.register_equal(other.y, tol),
+            ),
+        ]
     }
 
     /// **Registers the endpoint facts** of this arc between `a` and `b`
@@ -393,6 +462,33 @@ mod tests {
         );
     }
 
+    /// **A tangency at a foot, and a planted lie, at the exact witness.**
+    /// The quarter circle about the origin touches the vertical line
+    /// through (1, 0) there, its centre the radius to the left of the
+    /// upward direction: witnessed in both components. Read on the
+    /// other side, the centre would be (2, 0): x is refused typed, and
+    /// y is not.
+    #[test]
+    fn register_tangent_at_refuses_a_planted_lie_at_the_exact_witness() {
+        let (arc, _, _) = quarter_circle::<Interval>();
+        let foot = Point2::new(Interval::from_f64(1.0), Interval::from_f64(0.0));
+        let up = Vec2::new(Interval::from_f64(0.0), Interval::from_f64(1.0));
+        let answers = |offset: f64| {
+            arc.register_tangent_at(foot, up, Interval::from_f64(offset), Tol::witness())
+                .map(|(_, a)| a)
+        };
+        assert_eq!(
+            answers(1.0),
+            [SymRegistration::Witnessed; 2],
+            "the tangency on its own side"
+        );
+        assert_eq!(
+            answers(-1.0),
+            [SymRegistration::Contradicted, SymRegistration::Witnessed],
+            "the tangency read on the other side"
+        );
+    }
+
     /// **A registered rim discharges through the Sym tier**, as a
     /// registered identity and inside a larger expression too.
     #[test]
@@ -406,7 +502,10 @@ mod tests {
         };
         let band = Band::linear(Tol::witness()).expect("the witness band");
         let ((after, inside), counts) = with_session_rules(budget, SymRules::shipped(), || {
-            let rho = Sym::param(ParamSymbol::of("rho"), Interval::from_bounds(1.0, 1.25));
+            let rho = Sym::param(
+                ParamSymbol::new(test_utils::symbol_id("rho")),
+                Interval::from_bounds(1.0, 1.25),
+            );
             let zero = <Sym<Interval> as Real>::zero();
             let arc = Arc2 {
                 centre: Point2::new(zero, zero),

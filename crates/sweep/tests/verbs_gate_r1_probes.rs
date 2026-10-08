@@ -18,12 +18,11 @@
 //! always standing in for, and the structural claim underneath both:
 //! the gate admits, and containment must then answer for every face.
 //!
-//! Rows 4–5 are behavioral box-soundness probes at TILTED axes — the
-//! pose the in-tree cylinder/cone locus and ceiling rows never take
-//! (they are all axis-aligned; only the torus rows tilt). The oracle
-//! is the gate itself: a probe brick parked ON the described locus
-//! must be refused (its box must reach the locus point); admitting it
-//! would mean the box under-encloses.
+//! Rows 4–6 pose a brick with one face relabelled to a cone or torus
+//! at a TILTED axis. Such a relabel leaves the face's boundary on the
+//! brick's lines, so the brick does not finish: the rows pin the
+//! at-rest gate's refusal on the relabelled face, the one place it
+//! stops.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -31,7 +30,7 @@ use core::f64::consts::PI;
 
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use topo::{Body, BooleanError};
 
 fn vol(body: &Body<f64>) -> f64 {
@@ -163,8 +162,12 @@ fn the_vase_fixture_actually_carries_a_torus_face() {
 #[test]
 fn a_granted_crossing_union_with_a_torus_band_completes_in_containment() {
     for sphere_caps in [true, false] {
-        let a = vase_with_caps(sphere_caps);
-        let b = brick((-1.0, 1.0), (0.55, 0.93), (-1.0, 1.0), Tol::witness());
+        let a = finished("the vase", vase_with_caps(sphere_caps), Tol::witness());
+        let b = finished(
+            "the brick",
+            brick((-1.0, 1.0), (0.55, 0.93), (-1.0, 1.0), Tol::witness()),
+            Tol::witness(),
+        );
         let out = match topo::union(&a, &b, Tol::witness()) {
             Err(
                 BooleanError::CurvedPairUnsupported { .. }
@@ -220,13 +223,17 @@ fn a_granted_crossing_union_with_a_torus_band_completes_in_containment() {
 /// the torus gate admission was told to expect, measured.
 #[test]
 fn the_same_union_posed_into_the_torus_band_stops_at_the_germ_frame() {
-    let a = vase();
-    let b = brick((-1.0, 1.0), (1.05, 1.45), (-1.0, 1.0), Tol::witness());
+    let a = finished("the vase", vase(), Tol::witness());
+    let b = finished(
+        "the brick",
+        brick((-1.0, 1.0), (1.05, 1.45), (-1.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
     let err =
         topo::union(&a, &b, Tol::witness()).expect_err("a torus × plane germ has no join arm");
     let BooleanError::GermFrameUnsupported {
-        a_kind: geom_brep::SurfaceKind::Torus,
-        b_kind: geom_brep::SurfaceKind::Plane,
+        a_kind: geom::SurfaceKind::Torus,
+        b_kind: geom::SurfaceKind::Plane,
         ..
     } = err
     else {
@@ -255,8 +262,12 @@ fn the_same_union_posed_into_the_torus_band_stops_at_the_germ_frame() {
 /// of a body whose only curved faces are torus faces.
 #[test]
 fn a_disjoint_union_with_a_torus_face_is_admitted_and_now_answered() {
-    let a = donut();
-    let b = brick((5.0, 6.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let a = finished("the donut", donut(), Tol::witness());
+    let b = finished(
+        "the brick",
+        brick((5.0, 6.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
     let out = match topo::union(&a, &b, Tol::witness()) {
         Err(
             BooleanError::CurvedPairUnsupported { .. }
@@ -295,11 +306,9 @@ fn a_disjoint_union_with_a_torus_face_is_admitted_and_now_answered() {
     );
 }
 
-/// A brick whose `x = x1` face is relabelled to `surface` — the
-/// operand-gate fixture: the gate reads the DESCRIPTION plus the
-/// face's boundary, so a relabel is exactly what its box arithmetic
-/// sees.
-fn brick_with_face(surface: geom::Surface<f64>) -> Body<f64> {
+/// A brick whose `x = x1` face is relabelled to `surface`, the face's
+/// boundary left on the brick's lines, and that face.
+fn brick_with_face(surface: geom::Surface<f64>) -> (Body<f64>, topo::FaceKey) {
     let mut b = brick::<f64>((2.0, 3.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let face = b
         .faces()
@@ -311,8 +320,8 @@ fn brick_with_face(surface: geom::Surface<f64>) -> Body<f64> {
         })
         .map(|(k, _)| k)
         .expect("the brick has an x = 3 face");
-    // Lifts both refusals: a relabel is exactly what the operand gate's box arithmetic sees.
-    b.set_face_surface_stranding_for_tests(
+    // Lifts RechartStrandsDescriptions: the relabel is the at-rest gate's input.
+    b.set_face_surface_unvouched_for_tests(
         face,
         topo::FaceSurface::New {
             surface,
@@ -320,199 +329,149 @@ fn brick_with_face(surface: geom::Surface<f64>) -> Body<f64> {
         },
     )
     .unwrap();
-    b
+    (b, face)
 }
 
-/// A small probe brick centred at `p`.
-fn probe_at(p: Point3<f64>) -> Body<f64> {
-    let s = 0.02;
-    brick(
-        (p.x - s, p.x + s),
-        (p.y - s, p.y + s),
-        (p.z - s, p.z + s),
-        Tol::witness(),
-    )
+/// The relabelled brick's at-rest refusal, checked to sit on the
+/// relabelled face and nowhere else: one `DescriptionNotAdjacent` for
+/// each of the face's four boundary edges (lines the relabelled
+/// surface does not hold), and one pcurve finding on one of the face's
+/// own half-edges, which is returned.
+fn refused_on_the_relabelled_face(b: Body<f64>, face: topo::FaceKey) -> topo::PcurveMintError {
+    let outer = b.get_face(face).unwrap().outer;
+    let topo::LoopBoundary::Cycle { first } = b.get_loop(outer).unwrap().boundary else {
+        panic!("the relabelled face's outer loop is a cycle")
+    };
+    let hes = b.loop_cycle(first).unwrap();
+    let mut edges: Vec<_> = hes
+        .iter()
+        .map(|&he| b.get_half_edge(he).unwrap().edge)
+        .collect();
+    edges.sort();
+    assert_eq!(edges.len(), 4);
+    let errors = topo::AtRestBody::validate(b, Tol::witness())
+        .expect_err("a relabel over a brick's lines does not finish");
+    assert_eq!(errors.len(), 5, "four edges and one pcurve: {errors:?}");
+    let mut not_adjacent: Vec<_> = errors
+        .iter()
+        .filter_map(|e| match e {
+            topo::ValidationError::DescriptionNotAdjacent { edge } => Some(*edge),
+            _ => None,
+        })
+        .collect();
+    not_adjacent.sort();
+    assert_eq!(not_adjacent, edges, "{errors:?}");
+    let [finding] = &errors
+        .iter()
+        .filter_map(|e| match e {
+            topo::ValidationError::Pcurve { finding } => Some(finding.clone()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()[..]
+    else {
+        panic!("one pcurve finding: {errors:?}")
+    };
+    let half_edge = match finding {
+        topo::PcurveMintError::LoopDiscontinuity { half_edge }
+        | topo::PcurveMintError::Certify { half_edge, .. } => *half_edge,
+        other => panic!("a loop or certification finding, got {other:?}"),
+    };
+    assert!(
+        hes.contains(&half_edge),
+        "the pcurve finding sits on the relabelled face's loop: {errors:?}"
+    );
+    finding.clone()
 }
 
-/// **Row 4 — cone-slab soundness at a TILTED axis**, the pose no
-/// in-tree cylinder/cone box row takes. The cone face's box must
-/// contain every locus point whose axial coordinate lies inside the
-/// boundary's own axial range; a probe brick parked on such a point
-/// must therefore be REFUSED (box overlap), never admitted. The
-/// azimuth sweep stresses the perpendicular room `r·√(1 − axisᵢ²)` at
-/// axis components strictly between 0 and 1, where a wrong formula
-/// (e.g. `1 − |aᵢ|`, or a swapped bound) parts company with the right
-/// one.
+/// The tilted cone of rows 4 and 6, relabelled onto the brick's
+/// `x = 3` face.
+fn tilted_cone_brick() -> (Body<f64>, topo::FaceKey) {
+    brick_with_face(geom::Surface::Cone {
+        apex: Point3::new(2.5, 0.5, 2.0),
+        axis: Vec3::new(0.6, 0.0, 0.8), // unit
+        half_angle: 0.4,
+        u_ref: Vec3::new(0.8, 0.0, -0.6),
+    })
+}
+
+/// **Row 4 — the cone at a TILTED axis**: the cone-relabelled brick
+/// does not finish, so no probe meets its face's box at the boolean.
+/// The at-rest gate refuses it on the relabelled face: its four lines
+/// lie off the cone, and a line's chart image does not map back onto
+/// the line (check 4's map residual). The loop walk decides each joint's
+/// element as integers and leaves the joint's coincidence to the rows'
+/// certificates, so the certificate, not a chart-space gap, is what
+/// refuses it.
 #[test]
 fn a_probe_on_a_tilted_cones_locus_is_always_refused() {
-    let axis = Vec3::new(0.6, 0.0, 0.8); // unit
-    let apex = Point3::new(2.5, 0.5, 2.0);
-    let half_angle = 0.4_f64;
-    let a = brick_with_face(geom::Surface::Cone {
-        apex,
-        axis,
-        half_angle,
-        u_ref: Vec3::new(0.8, 0.0, -0.6),
-    });
-    // The relabelled face's boundary is the x = 3 square,
-    // y, z ∈ [0, 1]: axial range of (corner − apex)·axis over its
-    // corners. Take a v safely INSIDE it.
-    let corners = [
-        Point3::new(3.0, 0.0, 0.0),
-        Point3::new(3.0, 1.0, 0.0),
-        Point3::new(3.0, 0.0, 1.0),
-        Point3::new(3.0, 1.0, 1.0),
-    ];
-    let hs: Vec<f64> = corners.iter().map(|c| (*c - apex).dot(axis)).collect();
-    let (h_lo, h_hi) = (
-        hs.iter().cloned().fold(f64::INFINITY, f64::min),
-        hs.iter().cloned().fold(f64::NEG_INFINITY, f64::max),
-    );
-    let h_mid = 0.5 * (h_lo + h_hi);
-    let v = h_mid / half_angle.cos(); // axial coord v·cos α = h_mid ∈ [h_lo, h_hi]
-    let u_ref = Vec3::new(0.8, 0.0, -0.6);
-    let v_ref = axis.cross(u_ref);
-    for k in 0..8 {
-        let t = 2.0 * PI * f64::from(k) / 8.0;
-        let u_hat = u_ref * t.cos() + v_ref * t.sin();
-        let p = apex + (axis * half_angle.cos() + u_hat * half_angle.sin()) * v;
-        let err = topo::boolean_reduce(
-            topo::boolean::BooleanOp::Union,
-            &probe_at(p),
-            &a,
-            Tol::witness(),
-        )
-        .expect_err(&format!(
-            "a probe ON the cone locus (azimuth {t:.2}) must overlap the cone's \
-             box — admitting it means the slab under-encloses at a tilted axis"
-        ));
-        assert!(
-            matches!(
-                err,
-                BooleanError::CurvedPairUnsupported {
-                    kind: geom_brep::SurfaceKind::Cone,
+    let (a, face) = tilted_cone_brick();
+    let finding = refused_on_the_relabelled_face(a, face);
+    assert!(
+        matches!(
+            finding,
+            topo::PcurveMintError::Certify {
+                error: geom_brep::PcurveCertifyError::ResidualExceeded {
+                    check: geom_brep::PcurveCheck::MapResidual,
                     ..
-                }
-            ),
-            "azimuth {t:.2}: expected the cone pair refusal, got {err:?}"
-        );
-    }
+                },
+                ..
+            }
+        ),
+        "{finding:?}"
+    );
 }
 
-/// **Row 5 — the torus twin.** Every point of the tube of a TILTED
-/// torus must be inside its box; the extreme in-plane points
-/// `center + (R + r)·û` are the ones a wrong perpendicular bound
-/// (`(R + r)·√(1 − aᵢ²) + r·|aᵢ|` mis-derived) drops first. The torus
-/// is on the union's KIND roster, so the witness is the sweep's
-/// candidate set rather than the gate: each probe must be EXAMINED
-/// against the torus face.
+/// **Row 5 — the torus twin**: the brick with a TILTED torus relabelled
+/// onto its face does not finish either. The at-rest gate refuses it
+/// on that face: its four lines lie off the torus, and a line pcurve
+/// cannot be charted on a torus at all (`CarrierOffChart`, torus chart,
+/// line carrier).
 #[test]
 fn a_probe_on_a_tilted_toruss_locus_is_always_examined() {
     let axis = Vec3::new(1.0, 2.0, 2.0).normalize();
-    let center = Point3::new(2.5, 0.5, 3.0);
-    let (major, minor) = (0.8, 0.2);
-    let a = brick_with_face(geom::Surface::Torus {
-        center,
+    let (a, face) = brick_with_face(geom::Surface::Torus {
+        center: Point3::new(2.5, 0.5, 3.0),
         axis,
-        major_radius: major,
-        minor_radius: minor,
+        major_radius: 0.8,
+        minor_radius: 0.2,
         u_ref: axis.orthonormal_basis().0,
     });
-    let torus_face = a
-        .faces()
-        .find(|(_, f)| matches!(a.get_surface(f.surface), Some(geom::Surface::Torus { .. })))
-        .map(|(k, _)| k)
-        .expect("the brick carries the torus face");
-    let u_ref = axis.orthonormal_basis().0;
-    let v_ref = axis.cross(u_ref);
-    for k in 0..8 {
-        let t = 2.0 * PI * f64::from(k) / 8.0;
-        let u_hat = u_ref * t.cos() + v_ref * t.sin();
-        for (radial, axial) in [(major + minor, 0.0), (major, minor), (major - minor, 0.0)] {
-            let p = center + u_hat * radial + axis * axial;
-            let err = topo::boolean_reduce(
-                topo::boolean::BooleanOp::Union,
-                &probe_at(p),
-                &a,
-                Tol::witness(),
-            )
-            .expect_err(&format!(
-                "a probe ON the torus tube (azimuth {t:.2}, radial {radial}) must \
-                 overlap the torus box"
-            ));
-            // The torus is on the union's KIND roster, so the gate is
-            // no longer the oracle. The sweep is: a probe edge examined
-            // against the torus face is a pair the face's box let
-            // through, and on this relabelled face (its boundary is
-            // not on the torus) the crossing layer refuses naming that
-            // very face. A probe the box excluded would reduce clean.
-            // At a coarse band the quartic itself may escalate on the
-            // pose, which is the same evidence: only an examined pair
-            // runs the torus root lane.
-            let examined = match &err {
-                BooleanError::CurvedPierceUnsupported {
-                    operand: topo::Operand::A,
-                    face,
+    let finding = refused_on_the_relabelled_face(a, face);
+    assert!(
+        matches!(
+            finding,
+            topo::PcurveMintError::Certify {
+                error: geom_brep::PcurveCertifyError::CarrierOffChart {
+                    chart: geom::SurfaceKind::Torus,
+                    carrier: geom::CurveKind::Line,
                     ..
-                } => *face == torus_face,
-                BooleanError::Escalated { diag, .. } => diag
-                    .predicate
-                    .is_some_and(|p| p.starts_with("bool_ray_torus")),
-                _ => false,
-            };
-            assert!(
-                examined,
-                "azimuth {t:.2}: expected the probe to be examined against the \
-                 torus face, got {err:?}"
-            );
-        }
-    }
+                },
+                ..
+            }
+        ),
+        "{finding:?}"
+    );
 }
 
-/// **Row 6 — the admit side at a tilted axis**: a probe parked well
-/// OUTSIDE the tilted cone's ideal slab (beyond the perpendicular
-/// room plus pad on the coordinate where the slab is thinnest) must
-/// be admitted — the conservative direction has a ceiling too, and
-/// this red-lines a box that quietly grew (e.g. the old axial `+ r`).
+/// **Row 6 — the admit side at a tilted axis**: no probe is admitted
+/// against the cone-relabelled brick, however far clear of the cone's
+/// slab, because the brick itself does not finish; the at-rest gate
+/// refuses it on the relabelled face, as in row 4.
 #[test]
-fn a_probe_well_clear_of_the_tilted_cone_is_admitted() {
-    let axis = Vec3::new(0.6, 0.0, 0.8);
-    let apex = Point3::new(2.5, 0.5, 2.0);
-    let half_angle = 0.4_f64;
-    let a = brick_with_face(geom::Surface::Cone {
-        apex,
-        axis,
-        half_angle,
-        u_ref: Vec3::new(0.8, 0.0, -0.6),
-    });
-    // The slab's y extent: apex.y + h·axis.y ± r·√(1 − 0²) with
-    // axis.y = 0 — i.e. y ∈ 0.5 ± r_max. r_max = max generator
-    // length · sin α ≤ reach(apex → boundary corners) · sin α.
-    let corners = [
-        Point3::new(3.0, 0.0, 0.0),
-        Point3::new(3.0, 1.0, 0.0),
-        Point3::new(3.0, 0.0, 1.0),
-        Point3::new(3.0, 1.0, 1.0),
-    ];
-    let r_max = corners
-        .iter()
-        .map(|c| (*c - apex).norm())
-        .fold(0.0_f64, f64::max)
-        * half_angle.sin();
-    // Park the probe 0.5 beyond the widest possible slab in y, at an
-    // x inside the slab's x-range — so y alone must separate.
-    let p = Point3::new(2.5, 0.5 + r_max + 0.5, 2.0);
-    let red = topo::boolean_reduce(
-        topo::boolean::BooleanOp::Union,
-        &probe_at(p),
-        &a,
-        Tol::witness(),
-    );
+fn a_cone_relabelled_brick_clear_of_the_probe_is_refused_at_rest() {
+    let (a, face) = tilted_cone_brick();
+    let finding = refused_on_the_relabelled_face(a, face);
     assert!(
-        red.is_ok(),
-        "a probe {:.2} beyond the cone slab's own widest y reach must be admitted \
-         — refusing it means the box grew past its rule: {:?}",
-        0.5,
-        red.err()
+        matches!(
+            finding,
+            topo::PcurveMintError::Certify {
+                error: geom_brep::PcurveCertifyError::ResidualExceeded {
+                    check: geom_brep::PcurveCheck::MapResidual,
+                    ..
+                },
+                ..
+            }
+        ),
+        "{finding:?}"
     );
 }

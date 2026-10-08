@@ -142,12 +142,13 @@
 //! escalates typed.
 
 use geom::Surface;
+use geom_core::k_stats::{Magnitude, decide_magnitude};
 use geom_core::{Band, Bounds, CertifiedBounds, Decide, Indeterminate, Margin, Point2, Sign, Vec2};
 
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
 use crate::null::CurveGeom;
-use crate::ray_parity::{self, ParityRows};
+use crate::ray_walk::{self, ParityRows, RayFault};
 use crate::validate::decide;
 
 /// The certified overlap answer (both outcomes are *definite*; every
@@ -272,10 +273,10 @@ pub enum ChartRegionError {
     /// certifying a false overlap.
     PeriodFold,
     /// A declared pair's two carrier DESCRIPTIONS are definitely apart
-    /// somewhere over the pair's OWN extent. Door 1 certified the
-    /// carriers at its pinned 1 m arm; at this pair's actual size they
-    /// do not agree, so neither description can stand as the pair's
-    /// representative chart. Emitters, each metering its own quantity:
+    /// somewhere over the pair's OWN extent. Door 1 bounds the tilt
+    /// over a ball enclosing both faces; measured at the trims here,
+    /// the descriptions do not agree, so neither can stand as the
+    /// pair's representative chart. Emitters, each metering its own quantity:
     /// the planar arm's `chart_region_carrier_tilt` (the carriers'
     /// separation at the trims' own vertices) and the cylinder arm's
     /// `chart_region_cyl_radius` / `chart_region_cyl_tilt` /
@@ -300,8 +301,8 @@ pub enum ChartRegionError {
     /// A margin landed in the sliver band (in-band overlap, in-band
     /// crossing, in-band area) — the genuine escalation.
     Escalated(Indeterminate),
-    /// Every ray of the fixed 2-D schedule grazed — an
-    /// ill-conditioned containment query at this ε.
+    /// Every ray of the fixed 2-D schedule grazed the polygon
+    /// ([`crate::ray_walk::NoRaySettled`]).
     RayExhausted,
     /// The interior-witness schedule was cut off by its BUDGET before
     /// it could finish ([`WITNESS_BUDGET`]): the pair's arrangement is
@@ -415,14 +416,7 @@ impl core::fmt::Display for ChartRegionError {
                 "chart-region: a decision about how the two faces' regions overlap is too \
                  close to call: {diag}"
             ),
-            Self::RayExhausted => write!(
-                f,
-                "chart-region: every schedule ray grazed — ill-conditioned \
-                 containment query at this ε. Every direction the schedule offers \
-                 lands in the band, so move the point off the boundary it grazes, \
-                 or read the pair at a tighter ε; a longer schedule does not \
-                 decide a query whose margins are all in-band"
-            ),
+            Self::RayExhausted => write!(f, "chart-region: {}", ray_walk::NoRaySettled),
             Self::WitnessBudgetExhausted { segments, cells } => write!(
                 f,
                 "chart-region: the interior-witness schedule ran out of budget on a \
@@ -969,7 +963,7 @@ fn overlap_of_uv<T: Decide + Bounds>(
 /// # What the lemma does NOT claim (stated because it matters)
 ///
 /// The CERTIFIED answers are invariant. The REFUSAL boundary is not
-/// exactly: [`crate::ray_parity`]'s schedule is a fixed table of
+/// exactly: [`crate::ray_walk`]'s schedule is a fixed table of
 /// directions in CHART coordinates, so which ray fires — and whether a
 /// near-grazing configuration escalates or decides — rotates with the
 /// frame; and `ψ` is not exactly representable in `f64`, so a margin
@@ -1079,15 +1073,14 @@ fn face_boundary_points<T: Decide>(
 /// attained at a vertex: `m` is EXACT over the region, not a
 /// small-angle bound.
 ///
-/// **The lever is not a constant.** Door 1 meters the same
-/// disagreement as an angle at a PINNED 1 m arm (`bool_plane_parallel`
-/// via `carrier_pair_verdict`'s `T::one()`), which prices a peg and a
-/// table identically. Here the tilt's contribution to each term is
-/// `r·sin θ` with `r` that vertex's own distance from the carrier
-/// origin — so the pair's own extent IS the lever, per vertex, and the
-/// offset term rides in the same length. A tilt a peg absorbs and a
-/// tilt that opens a millimetre across a table get different answers,
-/// which is the whole point.
+/// **The lever is the pair's own extent, per vertex.** Door 1 reads
+/// the same disagreement as one displacement over a ball enclosing both
+/// faces, the tilt levered to the ball's far reach and summed with the
+/// offset (`bool_plane_reach` via `carrier_eq::declared_reading`).
+/// Here the tilt's contribution to each term is `r·sin θ` with `r` that
+/// vertex's own distance from the carrier origin, and the offset term
+/// rides in the same length. A tilt a peg absorbs and a tilt that opens
+/// a millimetre across a table get different answers.
 ///
 /// **The margin is symmetric BY CONSTRUCTION** (the argument-order
 /// obligation): the vertex set is a UNION and both plane-distance
@@ -1110,9 +1103,8 @@ fn face_boundary_points<T: Decide>(
 ///   simply too big for it.
 /// - in-band — [`ChartRegionError::Escalated`], the genuine residue.
 ///
-/// A definitely-NEGATIVE margin is unreachable (a max of absolute
-/// values), so it is poisoned input and escalates as `Invalid` — the
-/// `bool_plane_parallel` precedent.
+/// The margin is a max of absolute values from zero: a magnitude
+/// ([`geom_core::k_stats::decide_magnitude`]), with no negative sign.
 ///
 /// # Errors
 ///
@@ -1135,15 +1127,9 @@ fn carrier_agreement<T: Decide + Bounds>(
                 .max((p - o_b).dot(n_b).abs());
         }
     }
-    match decide("chart_region_carrier_tilt", Margin::of(worst), band) {
-        Ok(Sign::Zero) => Ok(()),
-        Ok(Sign::Positive) => Err(ChartRegionError::CarrierTilt),
-        Ok(Sign::Negative) => Err(ChartRegionError::Escalated(Indeterminate {
-            margin: geom_core::MarginDiag::INVALID,
-            band,
-            predicate: Some("chart_region_carrier_tilt"),
-            terminal_sliver: false,
-        })),
+    match decide_magnitude("chart_region_carrier_tilt", Margin::of(worst), band) {
+        Ok(Magnitude::Zero) => Ok(()),
+        Ok(Magnitude::Positive) => Err(ChartRegionError::CarrierTilt),
         Err(diag) => Err(ChartRegionError::Escalated(diag)),
     }
 }
@@ -1212,12 +1198,13 @@ fn cyl_frame<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<CylFrame<T>, Ch
 ///
 /// # The carrier gates (the cylinder `carrier_agreement`)
 ///
-/// Door 1's ladder decided the same data at its pinned 1 m arm
-/// (`carrier_cyl_axis_parallel`·1 m, `carrier_cyl_axis_offset`,
-/// `carrier_cyl_radius`); as with the planar arm, that prices a peg
-/// and a table identically, so the enclosure re-decides at the PAIR'S
-/// OWN EXTENT (fixed order, D9). The quantity the gates must bound is
-/// the TRANSFER ERROR `E(p) = φ_A(T(u, v)) − p` — not merely the
+/// Door 1's ladder read the same data as one displacement over a ball
+/// enclosing both faces (`carrier_cyl_reach` via
+/// `carrier_eq::declared_reading`: the axis offset at a pivot, the tilt
+/// levered from it, the radius difference, summed); the enclosure
+/// re-decides at the PAIR'S OWN
+/// TRIMS (fixed order, D9). The quantity the gates must bound is the
+/// TRANSFER ERROR `E(p) = φ_A(T(u, v)) − p` — not merely the
 /// carriers' radial separation — and to first order it decomposes as
 /// `|E| ≤ |Δr| + g⊥ + sin θ · ‖p − o_b‖`, where the last term is the
 /// displacement of `p` under the rigid rotation aligning the two
@@ -1246,10 +1233,9 @@ fn cyl_frame<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<CylFrame<T>, Ch
 /// All three `Zero` bound `E` everywhere on the trims — vertices AND
 /// interiors, because each term is a description-level bound, not a
 /// sample. A definite nonzero refuses
-/// [`ChartRegionError::CarrierTilt`]; a definite Negative on an
-/// unsigned (norm) margin is poisoned input and escalates `Invalid`
-/// (the `chart_region_carrier_tilt` precedent); in-band escalates
-/// named.
+/// [`ChartRegionError::CarrierTilt`]; the unsigned (norm) margins are
+/// magnitudes ([`geom_core::k_stats::decide_magnitude`]), with no
+/// negative sign; in-band escalates named.
 ///
 /// # The measured discharge (`chart_region_cyl_transfer`)
 ///
@@ -1453,19 +1439,12 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
             Err(diag) => Err(ChartRegionError::Escalated(diag)),
         }
     };
-    // A gate over an UNSIGNED margin (a norm): a definite Negative is
-    // unreachable, so it is poisoned input and escalates `Invalid` —
-    // the `chart_region_carrier_tilt` precedent.
+    // A gate over an UNSIGNED margin (a norm, or a max of norms from
+    // zero): a magnitude, with no negative sign.
     let norm_gate = |name: &'static str, margin: Margin<T>| -> Result<(), ChartRegionError> {
-        match decide(name, margin, gate_band) {
-            Ok(Sign::Zero) => Ok(()),
-            Ok(Sign::Positive) => Err(ChartRegionError::CarrierTilt),
-            Ok(Sign::Negative) => Err(ChartRegionError::Escalated(Indeterminate {
-                margin: geom_core::MarginDiag::INVALID,
-                band: gate_band,
-                predicate: Some(name),
-                terminal_sliver: false,
-            })),
+        match decide_magnitude(name, margin, gate_band) {
+            Ok(Magnitude::Zero) => Ok(()),
+            Ok(Magnitude::Positive) => Err(ChartRegionError::CarrierTilt),
             Err(diag) => Err(ChartRegionError::Escalated(diag)),
         }
     };
@@ -1868,11 +1847,14 @@ fn interior_witness<T: Decide + Bounds>(
     let Ok((_, normal_b)) = plane_frame(body_b, face_b) else {
         return WitnessOutcome::Declined;
     };
-    let inside = |body: &Body<T>, face: FaceKey, n, q| {
-        matches!(
-            crate::boolean::contfp(body, face, n, q, band),
-            Ok(crate::boolean::FaceContainment::In)
-        )
+    let inside = |body: &Body<T>, face: FaceKey, n, q| match crate::boolean::contfp(
+        body, face, n, q, band,
+    ) {
+        Ok(at) => at == crate::boolean::FaceContainment::In,
+        Err(crate::boolean::ContainError::StaleFace(face)) => {
+            crate::boolean::driver_face_stale(face)
+        }
+        Err(_) => false,
     };
     let strictly_inside_both = |x: T, y: T| -> bool {
         let q = origin + u_ref * x + v_ref * y;
@@ -2394,6 +2376,10 @@ fn pcurve_entry<T: Decide + Bounds>(
         // cap can enter it, which is the props/tessellation frontier,
         // not a missing arm here.
         Pcurve::Spiric { .. } => Err("Spiric image is not a straight segment"),
+        // A focal section's image is a genuine chart curve (its azimuth
+        // a Kepler anomaly) — the cone's and torus's twin of the
+        // cylinder's tilted-cut sinusoid above.
+        Pcurve::FocalSection(_) => Err("FocalSection image is not a straight segment"),
     }
 }
 
@@ -2414,7 +2400,15 @@ fn loop_uv_polygon<T: Decide + Bounds>(
         return Err(ChartRegionError::Corrupt); // an empty loop bounds no region
     };
     let mut poly = Vec::new();
-    for he in body.loop_cycle(first).ok_or(ChartRegionError::Corrupt)? {
+    let cycle = body.loop_cycle(first).ok_or(ChartRegionError::Corrupt)?;
+    // The minted rows as the loop's lift places them
+    // ([`crate::Body::loop_lift`]); a loop with no lift reads as rowless
+    // here, and each half refuses or derives below.
+    let lifted = match read {
+        ChartRead::Minted => crate::pcurves::lifted_images(body, &cycle),
+        ChartRead::WorldCarrier => vec![None; cycle.len()],
+    };
+    for (he, image) in cycle.into_iter().zip(lifted) {
         let he_data = body.get_half_edge(he).ok_or(ChartRegionError::Corrupt)?;
         let edge = body
             .get_edge(he_data.edge)
@@ -2425,12 +2419,10 @@ fn loop_uv_polygon<T: Decide + Bounds>(
             half_edge: he,
             what,
         };
-        let cache = (read == ChartRead::Minted)
-            .then(|| body.pcurve(he))
-            .flatten();
-        let entry = if let Some(cache) = cache {
+        let cache = body.pcurve(he).zip(image);
+        let entry = if let Some((cache, image)) = cache {
             let (t0, t1) = cache.params();
-            pcurve_entry(cache.pcurve(), t0, t1, forward).map_err(refuse)?
+            pcurve_entry(&image, t0, t1, forward).map_err(refuse)?
         } else if matches!(surface, Surface::Plane { .. }) {
             // Derive-on-demand affine image (C4's standing plane
             // status). A plane chart has no branches, so the
@@ -2814,7 +2806,7 @@ fn bit_equal_cyclic<T: Decide + Bounds>(a: &[Point2<T>], b: &[Point2<T>]) -> boo
     (0..n).any(|shift| (0..n).all(|i| ea[i] == eb[(i + shift) % n]))
 }
 
-/// The trilean 2-D point-in-polygon verdict — [`crate::ray_parity`]'s
+/// The trilean 2-D point-in-polygon verdict — [`crate::ray_walk`]'s
 /// walk in chart space, with its own direction schedule and its own
 /// K rows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2862,9 +2854,9 @@ pub(crate) const SCHEDULE_2D: [Vec2<f64>; 16] = [
     Vec2::new(1.0, -0.75),
 ];
 
-/// This consumer's K rows for the shared walk ([`crate::ray_parity`]),
+/// This consumer's K rows for the shared walk ([`crate::ray_walk`]),
 /// and the greppable roster entry for all four (see
-/// [`crate::ray_parity::ParityRows`]).
+/// [`crate::ray_walk::ParityRows`]).
 /// Chart-space margins are metered separately from the 3-D loop's —
 /// the polygon is metred by the exact arms, but it is a different
 /// population — so the names stay distinct even though the walk is one.
@@ -2877,8 +2869,8 @@ const ROWS: ParityRows = ParityRows {
 
 /// Ray-parity containment of `q` in the (CCW, metred) `poly`.
 ///
-/// The walk is [`crate::ray_parity`]'s, shared with the 3-D
-/// `point_in_loop`; what this function owns is the 2-D frame, which
+/// The walk is [`crate::ray_walk`]'s, shared with the 3-D
+/// `point_in_vertex_polygon`; what this function owns is the 2-D frame, which
 /// needs no arm gate (see [`SCHEDULE_2D`]).
 ///
 /// # Rows (margins re-derived for chart space; all metres because the
@@ -2897,6 +2889,9 @@ const ROWS: ParityRows = ParityRows {
 ///   `over_lever(x_i·y_j − x_j·y_i, y_j − y_i)` — a 2×2 determinant
 ///   (m²) over its straddle height (m); Zero would contradict the
 ///   boundary pre-pass ⇒ next ray.
+///
+/// The last two are facts about one ray: an in-band reading on either
+/// sets the ray aside ([`ray_walk::walk`]).
 fn point_in_polygon<T: Decide>(
     poly: &[Point2<T>],
     q: Point2<T>,
@@ -2904,25 +2899,26 @@ fn point_in_polygon<T: Decide>(
 ) -> Result<PolyContainment, ChartRegionError> {
     let escalate = ChartRegionError::Escalated;
 
-    if ray_parity::on_boundary(poly, q, &ROWS, band).map_err(escalate)? {
+    if ray_walk::on_boundary(poly, q, &ROWS, band).map_err(escalate)? {
         return Ok(PolyContainment::OnBoundary);
     }
-
-    // Ray parity with the fixed schedule.
-    for r in &SCHEDULE_2D {
-        let d = r.map(T::from_f64).normalize();
-        let side_axis = Vec2::new(T::zero() - d.y, d.x); // in-plane ⟂, unit
-        if let Some(inside) =
-            ray_parity::ray_verdict(poly, q, d, side_axis, &ROWS, band).map_err(escalate)?
-        {
-            return Ok(if inside {
-                PolyContainment::In
-            } else {
-                PolyContainment::Out
-            });
-        }
-    }
-    Err(ChartRegionError::RayExhausted)
+    let inside = ray_walk::walk(
+        &SCHEDULE_2D,
+        |r| {
+            let d = r.map(T::from_f64).normalize();
+            let side_axis = Vec2::new(T::zero() - d.y, d.x); // in-plane ⟂, unit
+            RayFault::of(
+                ray_walk::ray_verdict(poly, q, d, side_axis, &ROWS, band),
+                escalate,
+            )
+        },
+        || ChartRegionError::RayExhausted,
+    )?;
+    Ok(if inside {
+        PolyContainment::In
+    } else {
+        PolyContainment::Out
+    })
 }
 
 /// A proper (transverse, segment-interior) boundary crossing between
@@ -3002,7 +2998,7 @@ struct Crossing<T: Decide> {
 ///   one it would protect.
 ///
 /// What is NOT claimed, and is the module's standing posture: the ray
-/// schedule in [`crate::ray_parity`] is fixed in CHART coordinates, so
+/// schedule in [`crate::ray_walk`] is fixed in CHART coordinates, so
 /// which configurations refuse rather than decide still rotates with
 /// the frame.
 fn proper_crossings<T: Decide>(
@@ -3488,6 +3484,37 @@ mod tests {
 
     pub(super) fn band() -> Band {
         Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    /// **A ray read in band is set aside, and a later ray answers**
+    /// (`work/chart/chart-region-polygon-walk-refuses-on-a-ray-level-margin`).
+    /// The square's right side carries a vertex `3e-9` off the `+x` ray
+    /// line from its centre — in the band of the first schedule member's
+    /// `chart_region_side` row — and `+y` reads the centre inside.
+    #[test]
+    fn a_ray_read_in_band_is_set_aside_and_a_later_ray_answers() {
+        let poly = [
+            Point2::new(0.0, 0.0),
+            Point2::new(2.0, 0.0),
+            Point2::new(2.0, 1.0 + 3e-9),
+            Point2::new(2.0, 2.0),
+            Point2::new(0.0, 2.0),
+        ];
+        let q = Point2::new(1.0, 1.0);
+        let first = ray_walk::ray_verdict(
+            &poly,
+            q,
+            Vec2::new(1.0, 0.0),
+            Vec2::new(0.0, 1.0),
+            &ROWS,
+            band(),
+        );
+        assert!(first.is_err(), "the first ray reads in band: {first:?}");
+        assert_eq!(point_in_polygon(&poly, q, band()), Ok(PolyContainment::In));
+        assert_eq!(
+            point_in_polygon(&poly, Point2::new(3.0, 1.0), band()),
+            Ok(PolyContainment::Out)
+        );
     }
 
     /// **`ChartRegionError`'s header claim, made enforceable.** The
@@ -4365,13 +4392,11 @@ mod tests {
             "the tilted section's v channel is a live cosine — the class the gate excludes"
         );
         let (t0, t1) = (0.2, 1.6);
-        let window = pcurve.chart_box(t0, t1);
-        let cache =
-            geom_brep::PcurveCache::certify(pcurve, t0, t1, &ellipse, &surface, window, band())
-                .expect(
-                    "the sinusoid image itself certifies (C5 row) — the exclusion is the \
+        let cache = geom_brep::PcurveCache::certify(pcurve, t0, t1, &ellipse, &surface, band())
+            .expect(
+                "the sinusoid image itself certifies (C5 row) — the exclusion is the \
                          REGION machinery's, not the cache's",
-                );
+            );
         // Plant it on the wall's bottom rim: the region query must
         // refuse typed at the inventory gate.
         let bottom_he = {

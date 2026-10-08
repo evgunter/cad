@@ -28,8 +28,9 @@ pub enum AdoptionCandidate {
     Intersection,
     /// Tangential contact locus of the two adjacent surfaces.
     TangentIntersection,
-    /// The parameterization seam of one closed surface.
-    Seam,
+    /// A wrap edge: the edge both of whose uses bound one face, across
+    /// which that face's periodic chart closes (D1).
+    Wrap,
     /// A NURBS wall's own `u ∈ {0, 1}` boundary iso-curve (M7-3): the
     /// loft/sweep wall–wall seam class, offered when the parsed
     /// carrier bitwise-matches an adjacent wall's boundary column.
@@ -44,7 +45,7 @@ impl fmt::Display for AdoptionCandidate {
         f.write_str(match self {
             Self::Intersection => "intersection",
             Self::TangentIntersection => "tangent intersection",
-            Self::Seam => "seam",
+            Self::Wrap => "wrap edge",
             Self::IsoCurve => "boundary iso-curve",
             Self::MappedCurve => "mapped curve",
         })
@@ -154,28 +155,6 @@ pub enum StepImportError {
         /// How many candidate vertices were found within ε_in of the
         /// anchor (a vertex-rest anchor needs exactly two).
         found: usize,
-    },
-    /// A vertex of the assembled body carries a point key that does
-    /// not resolve in that body's own point arena, found while
-    /// resolving a position-anchored declaration
-    /// ([`crate::ImportContact`]).
-    ///
-    /// Such a vertex has no position to compare against the anchor,
-    /// and passing over it would understate the anchor's coincidence
-    /// count — a resolvable anchor would report as
-    /// [`StepImportError::DeclarationUnresolved`] with the wrong
-    /// `found`, and a three-way coincidence would resolve as exactly
-    /// two. The resolution refuses instead: a corrupt body is
-    /// announced, never silently miscounted.
-    VertexWithoutPoint {
-        /// The offending vertex — the only name the assembled body has
-        /// for it, and the half of this diagnosis that can be acted
-        /// on. Rendered like the arena keys `TierInvalid` already
-        /// forwards from the kernel's own validator.
-        vertex: topo::VertexKey,
-        /// The anchor position being resolved when the dangling point
-        /// key was found.
-        anchor: [f64; 3],
     },
     /// A real token failed to parse as an f64.
     MalformedReal {
@@ -298,11 +277,9 @@ pub enum StepImportError {
     },
     /// A placed assembly instance refused to graft into the result
     /// body at the kernel's own [`topo::graft_disjoint`] door — the
-    /// transplant found the placed component ill-formed, or a
-    /// transplanted edge description did not re-certify against the
-    /// destination's surfaces. Both are kernel-side refusals about a
-    /// body this reader had already built and gated; neither is
-    /// silently absorbed.
+    /// transplant found the placed component ill-formed. That is a
+    /// kernel-side refusal about a body this reader had already built
+    /// and gated, and it is not silently absorbed.
     Instance {
         /// The `MANIFOLD_SOLID_BREP` whose instance was being placed.
         solid: u64,
@@ -398,13 +375,6 @@ impl fmt::Display for StepImportError {
                  coincident vertices on the assembled body (a vertex-rest anchor needs \
                  exactly two) — fix the anchor or remove the declaration; unresolved \
                  intent never silently drops"
-            ),
-            Self::VertexWithoutPoint { vertex, anchor } => write!(
-                f,
-                "step import: resolving the declared contact anchored at {anchor:?} found \
-                 vertex {vertex:?} of the assembled body, whose point key does not resolve — \
-                 the body is corrupt, and skipping the vertex would miscount the anchor's \
-                 coincidences"
             ),
             Self::MalformedReal { id, token } => write!(
                 f,

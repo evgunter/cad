@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-30
 priority: P3
 cost: M
-refs: [a-close-refused-on-its-geometry-draws-nothing, a-last-leg-onto-the-start-is-dropped-unless-the-loop-opens-with-at, a-last-leg-no-close-can-follow-is-dropped]
+refs: [a-last-leg-no-close-can-follow-is-dropped]
 ---
 
 
@@ -26,7 +26,7 @@ So the first refusal names a cause (a tangent seam) and a recourse that are not 
 
 ## Why the viewer cares
 
-The profile editor's preview says a geometry-refused close in the driver's own words (`viewer::sketch::PreviewError::Geometry`, AUTH-13). A chain whose last leg lands on the start but cannot be re-spelled as the close reads this sentence under its step list. That is a `line` by length, a far-end anchor (no `Start` form), an arc spec with no target, or a `line_to` a hair off the start. Nor can the viewer draw that leg: no close replays from a tip on the start, and `replay` exposes no tip of a chain that does not close. The drawing half is `work/author/a-last-leg-no-close-can-follow-is-dropped`.
+The profile editor's preview says a geometry-refused close in the driver's own words (`viewer::sketch::PreviewError::Geometry`, AUTH-13). A chain whose last leg lands on the start but cannot be re-spelled as the close reads this sentence under its step list. That is a `line` by length, a far-end anchor (no `Start` form), an arc spec with no target, or a `line_to` a hair off the start. Nor can the viewer draw that leg: no close replays from a tip on the start, and `replay` exposes no tip of a chain that does not close. The drawing half is `work/authtail/a-last-leg-no-close-can-follow-is-dropped`.
 
 ## Shape of a fix
 

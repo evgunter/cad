@@ -2,12 +2,14 @@
 id: name-order-was-insertion-order-under-the-counter
 kind: issue
 title: Where a name's canonical form picks the least name, the counter made that the earliest-inserted node and the mint makes it an arbitrary one
-status: open
+status: closed
 opened: 2026-09-30
+closed: 2026-10-07
 priority: P2
 cost: M
-design: true
 parent: sibling-branches-mint-one-node-id-for-different-nodes
+branch: emit/ordinal-ids
+pr: 4244
 ---
 
 
@@ -76,3 +78,93 @@ far, unweighed:
 evidence order were restated in `Doc::order` on the same branch,
 because they have the document in hand. The emitter works from a
 node's inputs and does not.
+
+## Reachability (designer runs, 2026-10-06)
+
+The re-authored-member loss in "Evidence" is not reachable through
+today's doors. `DeleteNode` of a live union member is refused
+(`DeleteWouldDangle`). Re-declaring a re-drawn member that `SetMembers`
+added is refused `DeclaredNameNotUpstream` by `declared_side_fault`
+(`node.rs`), which reads document position where it means "an operand
+can hold this name". The loss becomes reachable once that refusal reads
+membership. What is visible today, with no edit: digest order names a
+flush stretch for the later-placed member about half the time.
+
+## Ruled (Ev, PR 4156, 2026-10-06)
+
+Ev approved putting seniority in the id, and removing `Doc::order`. On the
+form: "hopefully you can use some custom type instead of doing weird bit
+packing stuff directly in the integer field. (i'm fine with a like
+(32, 64) for (order, id) also, unless there's a specific need to have it
+fit in one integer)". The names README (N1's id clause, the flush
+paragraph) states the pair; fork-log row 74 records it.
+
+**What to build:**
+- **The id type.** `RecipeNodeId`, `StepId` and `VarId` become a pair
+  `(ordinal: u32, digest: u64)`. The ordinal is the mint log's length when
+  the id is drawn, plus one, and the digest is the first 64 bits of the
+  chain digest. `Ord` compares the ordinal first. Make it one shared type
+  if that fits.
+  - Before choosing the representation, check every place that relies on an
+    id being one integer: serde and wire formats, display tags (the
+    high-48-bit tag), hashing, the Python bindings, slotmap/BTreeMap keys,
+    and golden digests.
+  - If one of them genuinely needs a single integer, stop and report it
+    before working around it; that is the exception Ev named.
+- **Retire stored order.** Delete `Doc::order`, `Doc::positions` and
+  `Doc::var_order`, deriving each from the ids. Repoint every reader to id
+  order: `eval::schedule`, the mate solve's tree edge, the resolve lanes'
+  evidence order, the refactor, `check_declared_sides`, and pncad-py's
+  node map. Retire `VarOrderMismatch` and the `order` list on the wire.
+- **Collision refusals.** `NodeIdCollides`, `VarIdCollides` and
+  `StepIdFault::Collides` become unreachable within a document; remove
+  them. Keep the load door's check that the mint log ascends.
+- **`emit_union::Flush`** keeps "least", which now means first minted. Its
+  docs change to say so.
+- **Re-baseline** every id-bearing corpus document and golden, and say in
+  the PR what moved. On the corpus, `name_tables_by_position` should not
+  move.
+- **Test:** re-drawing another member never takes a held flush stretch. Use
+  the designers' fixture, with `declared_side_fault`'s refusal set aside, or
+  wait for the doors row that relaxes it.
+
+## Built (branch `emit/ordinal-ids`)
+
+- `MintId { ordinal: u32, digest: u64 }` (`mint.rs`) is the one inner
+  type of `RecipeNodeId`, `StepId` and `VarId`; its derived `Ord`
+  compares the ordinal first. On the wire it is a string,
+  `<ordinal>:<16 hex digest>`, `FullId`'s spelling. The display tag
+  stays the digest's high 48 bits.
+- `Doc::order`, `Doc::positions` and `Doc::var_order` are gone;
+  `Doc::ids` and `Doc::var_ids` derive from the maps' keys.
+  `OrderMismatch`, `VarOrderMismatch`, `NodeIdCollides`, `VarIdCollides`
+  and `StepIdFault::Collides` are retired. `MintLogOrder` now refuses
+  a log whose ordinals do not count up from one.
+- `docm7_union_declare::redrawing_another_member_never_takes_a_held_flush_stretch`
+  holds the rule through the doors.
+- Corpus: `name_tables_by_position` against main moves only the
+  `Borders` wall order in the three `nested_islands` documents; every
+  `FromMember` holder and every value channel is unchanged.
+- Filed: `work/wire/id-lowerings-to-u64-tokens-drop-the-ordinal.md`,
+  `work/flux/analysis-boxes-keep-an-axis-order-the-ids-already-give.md`.
+
+## Closed (PR 4244, 2026-10-07)
+
+PR 4244 builds the ruling. `RecipeNodeId`, `StepId` and `VarId` each wrap
+one `MintId { ordinal: u32, digest: u64 }`, which orders by ordinal
+first. On the wire an id is spelled `"<ordinal>:<16 hex>"`, because
+snapshot maps are keyed by id.
+
+`Doc::order`, `positions` and `var_order` are gone, and so are the
+collision refusals. The load door's mint-log check is now exact: the
+ordinals must count up from one. "Least" in `Flush` means first minted,
+and `redrawing_another_member_never_takes_a_held_flush_stretch` holds it
+in both list orders.
+
+Nothing needed a single integer. The kernel's u64 tokens take the digest;
+the residue is filed as `work/wire/id-lowerings-to-u64-tokens-drop-the-ordinal.md`.
+
+Review surfaced one defect main shares: a member that `SetMembers` adds
+after its union points forward, so save and cascade delete break. It is
+filed as `work/doors/a-member-set-after-its-union-points-forward-so-save-and-cascade-delete-break.md`.
+

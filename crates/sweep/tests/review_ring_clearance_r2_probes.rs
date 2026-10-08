@@ -1,6 +1,7 @@
 //! **BLEND-6 (ring clearance) R2 review probes** — what the unit's own
-//! rows leave unmeasured about the two CONTAINMENT relations of
-//! `CircleMargins`. Every fixture the unit rows is COAXIAL: the ring or
+//! rows leave unmeasured about the two CONTAINMENT relations of the
+//! ring carry-through meter (`support_boundary_clearance`'s `si − far`
+//! and `near − si`). Every fixture the unit rows is COAXIAL: the ring or
 //! the boundary shares the trim circle's centre, so `‖cj − ci‖` is zero
 //! at every reading and two coaxial circles never cross. The fixture
 //! here is a cylinder with an off-axis spherical PIP, which puts a
@@ -37,9 +38,9 @@ use geom_core::{Affine3, Point2, Sign, Tol, Vec3};
 use sweep::Revolution;
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::{revolved_about_y, rim_arcs_at};
-use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::{Body, BooleanDeclarations, FaceKey, validate_geometric};
+use sweep::test_support::{realized, revolved_about_y, rim_arcs_at};
+use topo::boolean::BooleanOp;
+use topo::{Body, FaceKey, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -79,19 +80,7 @@ fn pipped(dc: f64, pr: f64) -> Body<f64> {
     );
     let ball = topo::transform_rigid(&ball, &Affine3::translation(Vec3::new(dc, 1.0, 0.0)), tol())
         .expect("the pip's rigid motion");
-    boolean_op_with(
-        BooleanOp::Subtract,
-        &cylinder(),
-        &ball,
-        &BooleanDeclarations::none(),
-        SweepStrategy::Realized,
-        tol(),
-    )
-    .expect("the pip subtracts")
-    .body()
-    .expect("a body")
-    .body
-    .clone()
+    realized(BooleanOp::Subtract, &cylinder(), &ball, tol())
 }
 
 /// The top face of the pipped cylinder: the plane host whose outer
@@ -137,7 +126,8 @@ fn a_non_coaxial_ring_carries_through_the_hostless_annulus_trim() {
         "the containment margin is definitely positive"
     );
     let arcs = rim_arcs_at(&body, 1.0, 1.0);
-    let out = fillet_edges(&body, &arcs, r, tol()).expect("the top rim carves over a pip");
+    let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
+        .expect("the top rim carves over a pip");
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
     assert_eq!(
         out.body.get_face(host).map_or(0, |fd| fd.rings.len()),
@@ -177,7 +167,7 @@ fn the_boolean_route_to_the_exact_containment_backstop_is_blocked() {
     );
     let body = pipped(dc, pr);
     let arcs = rim_arcs_at(&body, 1.0, 1.0);
-    let err = fillet_edges(&body, &arcs, r, tol())
+    let err = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
         .expect_err("a ring outside the trim circle refuses")
         .error;
     let BlendError::FaceClearanceUncertified { margin, .. } = err else {
@@ -227,7 +217,13 @@ fn a_non_coaxial_ladder_trim_circle_carves_inside_its_boundary_and_refuses_outsi
     );
     let arcs = rim_arcs_at(&carves, pr, 1.0);
     assert_eq!(arcs.len(), 2, "the pip rim is two arcs");
-    let out = fillet_edges(&carves, &arcs, r, tol()).expect("the nested trim circle carves");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&carves, tol()),
+        &arcs,
+        r,
+        tol(),
+    )
+    .expect("the nested trim circle carves");
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
 
     let refuses = pipped(0.68, pr);
@@ -237,9 +233,14 @@ fn a_non_coaxial_ladder_trim_circle_carves_inside_its_boundary_and_refuses_outsi
         "the containment margin is definitely negative"
     );
     let arcs = rim_arcs_at(&refuses, pr, 1.0);
-    let err = fillet_edges(&refuses, &arcs, r, tol())
-        .expect_err("a trim circle crossing its host's boundary refuses")
-        .error;
+    let err = fillet_edges(
+        &sweep::test_support::at_rest(&refuses, tol()),
+        &arcs,
+        r,
+        tol(),
+    )
+    .expect_err("a trim circle crossing its host's boundary refuses")
+    .error;
     let BlendError::FaceClearanceUncertified { margin, .. } = err else {
         panic!("the sampled screen answers first on this pair, got {err:?}");
     };

@@ -20,11 +20,12 @@
 
 use crate::common;
 use crate::common::plate_index;
+use pncad::document::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    Doc, Evaluation, Expr, Frame, Node, PatternKind, ProfileProgram, RecipeNodeId, SlotId,
+    Doc, Evaluation, Formula, Frame, Node, PatternKind, ProfileProgram, RecipeNodeId, SlotId,
 };
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{HitTestError, Ray, Resolution};
@@ -64,6 +65,7 @@ fn patterned_blocks(tol: Tol, count: i64) -> (Doc<ProfileProgram>, RecipeNodeId,
         Node::Extrude {
             profile,
             distance: common::len(0.01),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -71,7 +73,7 @@ fn patterned_blocks(tol: Tol, count: i64) -> (Doc<ProfileProgram>, RecipeNodeId,
         &doc,
         Node::Pattern {
             input: extrude,
-            count: Expr::count(count),
+            count: Formula::count(count),
             kind: PatternKind::Linear {
                 direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
                 spacing: common::len(0.05),
@@ -215,7 +217,7 @@ fn distinct_patches_never_share_an_id_across_bodies() {
 #[test]
 fn nothing_is_reserved_and_a_repeated_patch_is_refused() {
     let key = PatchId {
-        node: RecipeNodeId(1),
+        node: RecipeNodeId::new(0, 1),
         body: 0,
         patch: 0,
     };
@@ -722,7 +724,7 @@ fn a_structural_edit_that_consumes_the_selected_face_leaves_it_unresolved() {
     session.perform(SessionOp::Select(Selection::Face(face.clone())));
     assert!(session.standing().live());
 
-    // The parameter edit that consumes it: two instances, no third.
+    // The variable edit that consumes it: two instances, no third.
     let outcome = session.perform(SessionOp::SetSlot {
         node: pattern,
         slot: SlotId::Count,
@@ -925,6 +927,7 @@ fn two_boxes(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
             Node::Extrude {
                 profile,
                 distance: common::len(0.01),
+                side: ExtrudeSide::Along,
             },
             tol,
         )
@@ -1048,6 +1051,6 @@ fn two_coincident_faces_across_groups_refuse_with_both() {
     );
     assert_eq!(
         hits[0].t, hits[1].t,
-        "the two faces are coincident, so they answer one parameter: {hits:?}"
+        "the two faces are coincident, so they answer one variable: {hits:?}"
     );
 }

@@ -10,12 +10,11 @@
 
 use pncad::authoring::{p2, validated};
 use pncad::geom::Surface;
-use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Point2, Tol, Vec2};
 use pncad::prelude::{ArcSweep, BlendError, Center, ConstructedLoop, Open, SketchPlane, Start};
 use pncad::prelude::{fillet_edges, mass_properties, subtract, validate_geometric};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
-use pncad::topo::{Body, EdgeKey};
+use pncad::topo::{AtRestBody, Body, EdgeKey};
 
 #[path = "common/rim_select.rs"]
 mod rim_select;
@@ -62,8 +61,9 @@ fn vase() -> Body<f64> {
 }
 
 /// A ball of radius `rad` centred at `(x, y, 0)`, authored as a
-/// pole-touching revolve (its equator is two half-walls).
-fn ball(x: f64, y: f64, rad: f64) -> Body<f64> {
+/// pole-touching revolve (its equator is two half-walls), finished as a
+/// boolean operand.
+fn ball(x: f64, y: f64, rad: f64) -> AtRestBody<f64> {
     let t = tol();
     let meridian: ConstructedLoop<f64> = Open
         .at(Point2::new(0.0, -rad))
@@ -91,12 +91,13 @@ fn ball(x: f64, y: f64, rad: f64) -> Body<f64> {
     )
     .expect("the ball revolves")
     .body;
-    pncad::prelude::transform_rigid(
+    let moved = pncad::prelude::transform_rigid(
         &b,
         &pncad::geom_core::Affine3::translation(pncad::geom_core::Vec3::new(x, y, 0.0)),
         t,
     )
-    .expect("the ball moves")
+    .expect("the ball moves");
+    AtRestBody::validate(moved, t).expect("the ball is a finished body")
 }
 
 fn volume(body: &Body<f64>) -> f64 {
@@ -121,7 +122,7 @@ fn face_shapes(body: &Body<f64>) -> Vec<String> {
             Some(Surface::Cylinder { radius, .. }) => format!("cyl {radius:.17e}"),
             Some(Surface::Cone { half_angle, .. }) => format!("cone {half_angle:.17e}"),
             Some(Surface::Plane { .. }) => "plane".to_string(),
-            other => format!("{:?}", other.map(SurfaceKind::of)),
+            other => format!("{:?}", other.map(Surface::kind)),
         })
         .collect();
     out.sort();
@@ -147,7 +148,7 @@ fn p1_four_chained_rims_carve_in_one_call_through_the_facade() {
         assert_eq!(r.len(), 1, "one closed rim at y = {y}, got {}", r.len());
         all.extend(r);
     }
-    let one = fillet_edges(&src, &all, ROLL, tol())
+    let one = fillet_edges(&finished("src", src.clone(), tol()), &all, ROLL, tol())
         .unwrap_or_else(|e| panic!("four chained rims in one call, got {e:?}"));
     assert_eq!(one.band_faces.len(), 4, "one band per rim");
     validate_geometric(&one.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
@@ -157,7 +158,7 @@ fn p1_four_chained_rims_carve_in_one_call_through_the_facade() {
         for &(y, rad) in order {
             let r = rim_at(&b, rad, y, Seeds::Closed);
             assert_eq!(r.len(), 1, "one rim at y = {y} before its carve");
-            b = fillet_edges(&b, &r, ROLL, tol())
+            b = fillet_edges(&finished("b", b.clone(), tol()), &r, ROLL, tol())
                 .unwrap_or_else(|e| panic!("the y = {y} rim fillets sequentially, got {e:?}"))
                 .body;
         }
@@ -187,12 +188,18 @@ fn p2_one_call_and_sequential_carry_the_same_face_shapes() {
         .iter()
         .flat_map(|&(y, r)| rim_at(&src, r, y, Seeds::Closed))
         .collect();
-    let one = fillet_edges(&src, &all, ROLL, tol()).expect("one call");
+    let one =
+        fillet_edges(&finished("src", src.clone(), tol()), &all, ROLL, tol()).expect("one call");
     let mut b = vase();
     for &(y, rad) in &ys {
-        b = fillet_edges(&b, &rim_at(&b, rad, y, Seeds::Closed), ROLL, tol())
-            .expect("sequential")
-            .body;
+        b = fillet_edges(
+            &finished("b", b.clone(), tol()),
+            &rim_at(&b, rad, y, Seeds::Closed),
+            ROLL,
+            tol(),
+        )
+        .expect("sequential")
+        .body;
     }
     assert_eq!(
         face_shapes(&one.body),
@@ -232,7 +239,7 @@ fn p3_the_boundary_refusal_names_the_split_exactly_when_it_is_splittable() {
     let mut found = None;
     let mut r = 0.05f64;
     while r < 0.45 {
-        if let Err(e) = fillet_edges(&src, &all, r, tol()) {
+        if let Err(e) = fillet_edges(&finished("src", src.clone(), tol()), &all, r, tol()) {
             found = Some((r, e));
             break;
         }
@@ -244,7 +251,12 @@ fn p3_the_boundary_refusal_names_the_split_exactly_when_it_is_splittable() {
     let mut b = vase();
     let mut sequential_ok = true;
     for &(y, rad) in &ys {
-        match fillet_edges(&b, &rim_at(&b, rad, y, Seeds::Closed), r, tol()) {
+        match fillet_edges(
+            &finished("b", b.clone(), tol()),
+            &rim_at(&b, rad, y, Seeds::Closed),
+            r,
+            tol(),
+        ) {
             Ok(out) => b = out.body,
             Err(e) => {
                 println!("   [blend2-r1] sequential also refuses at y = {y}: {e}");
@@ -288,7 +300,8 @@ fn p3_the_boundary_refusal_names_the_split_exactly_when_it_is_splittable() {
 /// pinned rather than asserted.
 #[test]
 fn p4_no_public_door_builds_a_mixed_ladder_and_annulus_support() {
-    let out = subtract(&vase(), &ball(0.45, 1.8, 0.08), tol());
+    let vase = AtRestBody::validate(vase(), tol()).expect("the vase is a finished body");
+    let out = subtract(&vase, &ball(0.45, 1.8, 0.08), tol());
     match out {
         Ok(_) => panic!(
             "a ball subtracted into a revolve's cap BUILT — the mixed ladder+annulus \
@@ -354,11 +367,16 @@ fn p5_the_spool_refuses_identically_both_ways_and_names_the_split() {
     let mut first_seq: Option<f64> = None;
     let mut r = 0.30f64;
     while r < 0.60 {
-        let one = fillet_edges(&src, &both, r, tol());
+        let one = fillet_edges(&finished("src", src.clone(), tol()), &both, r, tol());
         let mut b = pinched_vase();
         let mut seq_ok = true;
         for &(y, rad) in &pair {
-            match fillet_edges(&b, &rim_at(&b, rad, y, Seeds::Closed), r, tol()) {
+            match fillet_edges(
+                &finished("b", b.clone(), tol()),
+                &rim_at(&b, rad, y, Seeds::Closed),
+                r,
+                tol(),
+            ) {
                 Ok(out) => b = out.body,
                 Err(_) => {
                     seq_ok = false;
@@ -395,4 +413,10 @@ fn p5_the_spool_refuses_identically_both_ways_and_names_the_split() {
         "the spool's cross-chain clearance refusal names the split recourse: {one_text}"
     );
     println!("   [blend2-r1] spool boundary identical both ways at r = {one_r}: {one_text}");
+}
+
+/// `body` finished for a blend door, which takes finished bodies only.
+fn finished(what: &str, body: Body<f64>, tol: Tol) -> AtRestBody<f64> {
+    AtRestBody::validate(body, tol)
+        .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
 }

@@ -20,9 +20,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::TAU;
+use sweep::ExtrudeSide;
 
 use geom::Surface;
-use geom_brep::{Pcurve, PcurveCache};
+use geom_brep::{FocalImage, Pcurve, PcurveCache};
 use geom_core::{Band, Point2, Tol};
 use mesh::{PatchMemo, Tessellation, tessellate, tessellate_with};
 use profile::{ProfileLoop, RawLoop};
@@ -435,7 +436,10 @@ fn a_moved_vertex_misses_exactly_the_faces_whose_carriers_changed() {
         ]);
         extrude(
             &validated(vec![lp]),
-            Extrusion::Distance(1.0),
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
             Tol::witness(),
         )
         .unwrap()
@@ -617,6 +621,27 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
                     }
                 },
             },
+            // Likewise no cone or torus chart here; `u0` is the one
+            // field.
+            Pcurve::FocalSection(FocalImage {
+                u0,
+                t0,
+                v0,
+                va,
+                vb,
+                vl,
+                beta,
+                sense,
+            }) => Pcurve::FocalSection(FocalImage {
+                u0: u0 + TAU,
+                t0,
+                v0,
+                va,
+                vb,
+                vl,
+                beta,
+                sense,
+            }),
         };
         let (t0, t1) = cache.params();
         let he = base.get_half_edge(hek).unwrap();
@@ -634,7 +659,6 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
             t1,
             &carrier,
             &surface,
-            shifted.chart_box(t0, t1),
             Band::linear(tol).unwrap(),
         )
         .expect("the shifted pcurve certifies on the periodic chart");
@@ -712,15 +736,19 @@ fn the_trimmed_nurbs_lane_misses_when_its_surface_changes() {
     // face at all, so the body it needs is the one that carries the old
     // rows under the new fit — put back deliberately, through the
     // caller's own row-level door, rather than left behind by a silence.
-    let saved: Vec<(HalfEdgeKey, PcurveCache<f64>)> = base
+    let saved: Vec<(HalfEdgeKey, PcurveCache<f64>, Option<topo::JointElement>)> = base
         .half_edges()
         .filter(|(_, he)| base.get_loop(he.parent_loop).unwrap().face == fk)
-        .filter_map(|(hek, _)| base.pcurve(hek).cloned().map(|cache| (hek, cache)))
+        .filter_map(|(hek, _)| {
+            base.pcurve(hek)
+                .cloned()
+                .map(|cache| (hek, cache, base.joint(hek)))
+        })
         .collect();
     assert!(!saved.is_empty(), "the wall's loop carries stored pcurves");
-    // Lifts both refusals: the memo must miss when the surface changes under the same edges.
+    // Lifts RechartStrandsDescriptions: the memo must miss when the surface changes under the same edges.
     after
-        .set_face_surface_stranding_for_tests(
+        .set_face_surface_unvouched_for_tests(
             fk,
             FaceSurface::New {
                 surface: Surface::Nurbs(std::sync::Arc::new(moved)),
@@ -728,8 +756,11 @@ fn the_trimmed_nurbs_lane_misses_when_its_surface_changes() {
             },
         )
         .unwrap();
-    for (hek, cache) in saved {
+    for (hek, cache, joint) in saved {
         after.attach_pcurve(hek, cache);
+        if let Some(joint) = joint {
+            after.attach_joint(hek, joint);
+        }
     }
     // The chord pass reads a NURBS face's certified bound to size the
     // chords of its edges (`chords::nurbs_tighten`), so the wall's

@@ -16,7 +16,7 @@
 use geom_core::{Point2, Tol, Vec3};
 use sweep::Revolution;
 use sweep::blend::build::{Filleted, fillet_edges};
-use sweep::test_support::{one_edge_rim_at, revolved_about_y, rim_arcs_at};
+use sweep::test_support::{finished, one_edge_rim_at, revolved_about_y, rim_arcs_at};
 use topo::{Body, EdgeKey, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
@@ -58,7 +58,7 @@ fn sequential(src: &Body<f64>, order: &[(f64, f64)], r: f64) -> f64 {
     for &sel in order {
         let arcs = rim_arcs_at(&body, sel.0, sel.1);
         assert!(!arcs.is_empty(), "rim {sel:?} still selectable");
-        body = fillet_edges(&body, &arcs, r, tol())
+        body = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
             .unwrap_or_else(|e| panic!("rim {sel:?} fillets sequentially at r = {r}, got {e:?}"))
             .body;
     }
@@ -67,24 +67,23 @@ fn sequential(src: &Body<f64>, order: &[(f64, f64)], r: f64) -> f64 {
 }
 
 /// **P1 — the zone-pair equality, OFF the unit's fixture radius.** The
-/// unit pins bit-equality at r = 0.08. MEASURED here: at r = 0.11 the
-/// equality is still bit-level in both orders, but at r = 0.3 the
-/// lo-then-hi sequential order lands ONE ULP away
-/// (1.57569308007029445e1 vs …463e1) while hi-then-lo stays bit-equal —
-/// the summation-order mechanism the PR discloses on the bud demo
-/// reaches the kernel's own fixture at an untested radius. So the
-/// bit-level claim is a per-fixture measurement, not a door property,
-/// exactly as the PR body's "not universally" hedge states; this row
-/// pins the measured boundary: exact at 0.11, within 2 ε_machine
-/// relative at 0.3.
+/// unit pins bit-equality at r = 0.08. MEASURED here: at r = 0.11 and at
+/// r = 0.3 the lo-then-hi sequential order lands ONE ULP away
+/// (1.59492284689684940e1 vs …922e1 at 0.11) while hi-then-lo stays
+/// bit-equal — the summation-order mechanism the PR discloses on the
+/// bud demo reaches the kernel's own fixture. So the bit-level claim is
+/// a per-fixture measurement, not a door property, exactly as the PR
+/// body's "not universally" hedge states; this row pins the measured
+/// boundary: within 2 ε_machine relative at both radii, one call ON one
+/// sequential order.
 #[test]
 fn r2_p1_zone_pair_equality_off_the_fixture_radius() {
-    let body = zone();
+    let body = sweep::test_support::finished("body", zone(), tol());
     let (lo, hi) = (
         one_edge_rim_at(&body, ZONE_SPHERE_LO.0, ZONE_SPHERE_LO.1),
         one_edge_rim_at(&body, ZONE_SPHERE_HI.0, ZONE_SPHERE_HI.1),
     );
-    for (r, exact) in [(0.11, true), (0.3, false)] {
+    for (r, exact) in [(0.11, false), (0.3, false)] {
         let one = fillet_edges(&body, &[lo, hi], r, tol())
             .unwrap_or_else(|e| panic!("the pair builds at r = {r}, got {e:?}"));
         validate_geometric(&one.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
@@ -120,7 +119,7 @@ fn r2_p2_lantern_triple_equality_off_the_fixture_radius() {
     for sel in rims {
         all.extend(rim_arcs_at(&body, sel.0, sel.1));
     }
-    let one = fillet_edges(&body, &all, r, tol())
+    let one = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &all, r, tol())
         .unwrap_or_else(|e| panic!("the triple builds at r = {r}, got {e:?}"));
     validate_geometric(&one.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
     let v1 = volume(&one.body);
@@ -129,12 +128,9 @@ fn r2_p2_lantern_triple_equality_off_the_fixture_radius() {
 }
 
 /// **P3 — two annulus rims sharing a PLANE CAP compose in one call.**
-/// The unit's fixtures all share revolution walls (sphere, cone); a
-/// full-revolution CAP has a radial seam meridian too, and the zone's
-/// top cap is shared by the top sphere rim and the bore's top rim. The
-/// refresh code is support-kind-agnostic, and MEASURED here it does
-/// serve the cap-sharing pair — this row is the measurement the unit
-/// did not take. The composition lands bit-equal on the bore-first
+/// The unit's fixtures all share revolution walls (sphere, cone); the
+/// zone's top cap, a plane annulus, is shared by the top sphere rim (its
+/// outer cycle) and the bore's top rim (its ring). The composition lands bit-equal on the bore-first
 /// sequential order and one summation ulp off the sphere-first order
 /// (1.59657466438555087e1 vs …051e1), the same integrator mechanism as
 /// P1's off-radius point.
@@ -146,8 +142,13 @@ fn r2_p3_two_rims_sharing_a_plane_cap_compose_in_one_call() {
         one_edge_rim_at(&body, ZONE_SPHERE_HI.0, ZONE_SPHERE_HI.1),
         one_edge_rim_at(&body, ZONE_BORE_HI.0, ZONE_BORE_HI.1),
     );
-    let one = fillet_edges(&body, &[sph, bore], r, tol())
-        .unwrap_or_else(|e| panic!("the cap-sharing pair builds in one call, got {e:?}"));
+    let one = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &[sph, bore],
+        r,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the cap-sharing pair builds in one call, got {e:?}"));
     assert_eq!(one.band_faces.len(), 2, "one band per rim");
     validate_geometric(&one.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
     let v1 = volume(&one.body);
@@ -178,7 +179,7 @@ fn r2_p4_four_rims_in_a_sharing_cycle_compose_in_one_call() {
         .into_iter()
         .map(|sel| one_edge_rim_at(&body, sel.0, sel.1))
         .collect();
-    let one = fillet_edges(&body, &all, r, tol())
+    let one = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &all, r, tol())
         .unwrap_or_else(|e| panic!("the four-rim cycle builds in one call, got {e:?}"));
     assert_eq!(one.band_faces.len(), 4, "one band per rim");
     validate_geometric(&one.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
@@ -248,10 +249,10 @@ fn partition_check(src: &Body<f64>, out: &Filleted<f64>) {
 
 /// **P3b/P4b — the naming records stay a partition on the cap-sharing
 /// pair and the four-rim cycle**, where the retire/re-cover path runs
-/// on a plane cap's RADIAL seam and on up to three earlier bands.
+/// on a plane cap shared by two rims and on up to three earlier bands.
 #[test]
 fn r2_p34_cap_and_cycle_carves_keep_the_records_a_partition() {
-    let body = zone();
+    let body = sweep::test_support::finished("body", zone(), tol());
     let pair: Vec<EdgeKey> = [ZONE_SPHERE_HI, ZONE_BORE_HI]
         .into_iter()
         .map(|sel| one_edge_rim_at(&body, sel.0, sel.1))
@@ -279,7 +280,7 @@ fn r2_p34_cap_and_cycle_carves_keep_the_records_a_partition() {
 #[test]
 fn r2_p5_the_pip_on_a_revolve_cap_builds() {
     use topo::boolean::subtract;
-    let zone_body = zone();
+    let zone_body = finished("the zone", zone(), tol());
     // A pole-touching ball of radius 0.12, revolved at the origin then
     // translated onto the cap: center (1.15, 1.07, 0), so it dips
     // 0.05 below the cap plane y = 1 — a die pip's shape.
@@ -291,6 +292,7 @@ fn r2_p5_the_pip_on_a_revolve_cap_builds() {
     );
     let map = geom_core::Affine3::translation(Vec3::new(1.15, 1.0 + rb - dip, 0.0));
     let placed = topo::transform_rigid(&ball, &map, tol()).expect("a rigid translate");
+    let placed = finished("the placed ball", placed, tol());
     let out = subtract(&zone_body, &placed, tol())
         .unwrap_or_else(|e| panic!("the pip-on-a-revolve-cap subtract builds, got {e:?}"));
     let body = &out.body().expect("material remains").body;

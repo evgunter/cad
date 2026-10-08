@@ -1,7 +1,7 @@
-//! The expression TEXT door (LIB-U8a): `&str` → [`Expr`], checking.
+//! The expression TEXT door (LIB-U8a): `&str` → [`Formula`], checking.
 //!
 //! This is the wire.rs strict-door philosophy at the text door: every
-//! reduction goes through [`Expr`]'s fallible smart constructors, so
+//! reduction goes through [`Formula`]'s fallible smart constructors, so
 //! the parser can never mint a tree the constructors refuse — an
 //! ill-dimensioned SOURCE STRING is a typed [`ParseError`] carrying
 //! the [`DimensionError`] that caused it, never a mis-built tree.
@@ -14,32 +14,51 @@
 //! expr    := term (('+' | '-') term)*                 left-assoc
 //! term    := unary (('*' | '/') unary)*               left-assoc
 //! unary   := '-' NUMBER [UNIT] | '-' unary | primary  first match
-//! primary := NUMBER [UNIT]                            literals
+//! primary := NUMBER [UNIT]                            numbers
+//!          | INT '/' INT                              ratios, unspaced
+//!          | 'turn'                                   one full rotation
 //!          | IDENT '(' expr (',' expr)* ')'           calls
 //!          | IDENT                                    param refs
 //!          | '(' expr ')'
 //! ```
 //!
-//! LITERAL SEMANTICS (the ruled fork; quantity's `fmt` module docs
-//! carry the other half): a unit-suffixed number (`25 mm`, unit
-//! symbols from quantity's closed [`quantity::UNITS`] table) is the
-//! decimal's correctly-rounded f64 times the unit factor — ONE f64
-//! multiply — landing in canonical kernel units (meters/radians).
+//! NUMBER SEMANTICS (VARIABLES-DESIGN VR5, VR6; quantity's `fmt` module
+//! docs carry the other half): a unit-suffixed number (`25 mm`, unit
+//! symbols from quantity's closed [`quantity::UNITS`] table) is a
+//! WRITTEN QUANTITY, the decimal's correctly-rounded f64 times the unit
+//! factor — ONE f64 multiply — landing in canonical kernel units
+//! (meters/radians); the edit door mints a variable for it.
 //! A UNIT is one or TWO identifier tokens, longest match against the
 //! closed table (`pi rad` is a two-word symbol), and nothing but a
 //! unit can follow a number here.
-//! A BARE INTEGER is a [`Dimension::Count`] literal (exact `i64`); a
-//! bare real (`2.0`, `1e3`) is `Scalar`. A unit suffix is the only
-//! way a literal acquires a continuous dimension. Count→Scalar
+//! A bare number is an exact CONSTANT: a bare integer is a
+//! [`Dimension::Count`] (exact `i64`), a bare real (`2.0`, `1e3`) the
+//! `Scalar` rational it spells exactly (`0.1` is 1/10), and two
+//! integers joined by a slash with no space around it (`1/3`) the
+//! rational they spell — except as the right operand of `/`, where the
+//! slashes divide left to right (`w/2/3` is `(w/2)/3`); a ratio's parts
+//! are integers, so `2/3.5` refuses
+//! ([`ParseError::RatioPartNotInteger`]). `turn` is the `Angle` constant one full
+//! rotation, so a right angle is `turn/4`; it is a keyword, so no
+//! parameter is named `turn`. A count of integer constants alone
+//! beside an operand that is no count reads as the scalar it equals,
+//! where a count could not stand (`turn/4`, `w * 2`, `2 * 3 * w`); a
+//! count reading a variable is promoted only by `scalar(n)`. A decimal no constant in range spells
+//! exactly (a reduced numerator or denominator past 2^53: `1e-20`,
+//! `0.30000000000000004`) refuses
+//! [`DimensionError::ConstantOutOfRange`] inside a formula; the whole
+//! text one such decimal is a value, the written `Scalar` its
+//! correctly-rounded double is. A unit suffix is the only way a number
+//! acquires a continuous dimension other than `Scalar`. Count→Scalar
 //! promotion is spelled `scalar(n)` — the one call not in the trig/
 //! minmax family, chosen as the round-trip fixed point for
 //! [`Expr::count_to_scalar`].
 //!
-//! A minus sign directly before a number is that literal's own sign:
-//! `-25 mm` is the literal −25 mm, and the negation of 25 mm is
-//! spelled `-(25 mm)`. Every literal the constructors admit therefore
-//! has a spelling, and [`crate::unparse`]'s text reads back as the tree
-//! it came from, node for node.
+//! A minus sign directly before a number is that number's own sign:
+//! `-25 mm` is the quantity −25 mm, and the negation of 25 mm is
+//! spelled `-(25 mm)`. Every leaf the constructors admit therefore has
+//! a spelling, and [`crate::unparse`]'s text reads back as the tree it
+//! came from, node for node.
 //!
 //! Functions are `sin cos tan` (Angle→Scalar), `atan2 min max`
 //! (binary), `scalar` (Count→Scalar). `-` is both unary and binary
@@ -56,8 +75,9 @@ use std::collections::BTreeMap;
 
 use quantity::{UnitDef, unit_by_symbol};
 
-use crate::doc::ParamName;
-use crate::expr::{Dimension, DimensionError, Expr, UnitSym};
+use crate::doc::VarName;
+use crate::expr::{Dimension, DimensionError, UnitSym};
+use crate::formula::Formula;
 
 /// Typed refusal from the text door. Positions are byte offsets into
 /// the source string.
@@ -98,6 +118,15 @@ pub enum ParseError {
         /// Byte offset of the number.
         pos: usize,
         /// Its text.
+        text: String,
+    },
+    /// Two numbers joined by an unspaced slash, one of them not an
+    /// integer (`2/3.5`): an unspaced slash between numbers spells a
+    /// ratio, whose parts are integers.
+    RatioPartNotInteger {
+        /// Byte offset of the first number.
+        pos: usize,
+        /// The text, both numbers and the slash.
         text: String,
     },
     /// A bare integer literal outside `i64`, read with its sign — Count
@@ -173,7 +202,7 @@ pub enum ParseError {
 // symbol, a parameter name — and the delimiter is what says where that
 // text began and ended, which matters most when the reason it failed
 // is a typo or a stray space. A parameter name is bare everywhere else
-// in this crate (`ParamName`'s `Display`), because every other door
+// in this crate (`VarName`'s `Display`), because every other door
 // names a parameter the DOCUMENT holds rather than bytes it was handed.
 impl core::fmt::Display for ParseError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -202,6 +231,11 @@ impl core::fmt::Display for ParseError {
             Self::MalformedNumber { pos, text } => write!(
                 f,
                 "parse: byte {pos}: the number {text:?} is malformed and does not read"
+            ),
+            Self::RatioPartNotInteger { pos, text } => write!(
+                f,
+                "parse: byte {pos}: {text:?} is a ratio, whose parts are integers — write the \
+                 decimal it means, or space the slash to divide"
             ),
             Self::IntegerOverflow { pos, text } => write!(
                 f,
@@ -249,6 +283,12 @@ enum Tok {
         text: String,
         integral: bool,
     },
+    /// Two integers joined by an unspaced slash, `p/q`: one rational.
+    Fraction(String),
+    /// Two numbers joined by an unspaced slash, one of them not an
+    /// integer (`2/3.5`): the parser refuses it
+    /// ([`ParseError::RatioPartNotInteger`]).
+    NotARatio(String),
     Ident(String),
     Plus,
     Minus,
@@ -263,7 +303,10 @@ impl Tok {
     /// A short rendering for error text.
     fn describe(&self) -> String {
         match self {
-            Self::Number { text, .. } | Self::Ident(text) => text.clone(),
+            Self::Number { text, .. }
+            | Self::Fraction(text)
+            | Self::NotARatio(text)
+            | Self::Ident(text) => text.clone(),
             Self::Plus => "+".to_string(),
             Self::Minus => "-".to_string(),
             Self::Star => "*".to_string(),
@@ -275,11 +318,54 @@ impl Tok {
     }
 }
 
+/// One number's text from `it`: digits, an optional fraction and an
+/// optional exponent, and whether it is pure digits (the lexer's
+/// integer-vs-real decision).
+fn lex_number(it: &mut core::iter::Peekable<core::str::CharIndices<'_>>) -> (String, bool) {
+    let mut text = String::new();
+    let mut integral = true;
+    let digits = |it: &mut core::iter::Peekable<core::str::CharIndices<'_>>, text: &mut String| {
+        while let Some(&(_, d)) = it.peek() {
+            if d.is_ascii_digit() {
+                text.push(d);
+                it.next();
+            } else {
+                break;
+            }
+        }
+    };
+    digits(it, &mut text);
+    if let Some(&(_, '.')) = it.peek() {
+        integral = false;
+        text.push('.');
+        it.next();
+        digits(it, &mut text);
+    }
+    // An exponent marker only counts when digits (or a signed digit)
+    // actually follow — otherwise the `e` starts an identifier token
+    // (e.g. a unit suffix).
+    let mut ahead = it.clone();
+    if let Some((_, 'e' | 'E')) = ahead.next() {
+        let mut exp = String::from("e");
+        if let Some(&(_, s @ ('+' | '-'))) = ahead.peek() {
+            exp.push(s);
+            ahead.next();
+        }
+        if matches!(ahead.peek(), Some(&(_, d)) if d.is_ascii_digit()) {
+            integral = false;
+            text.push_str(&exp);
+            *it = ahead;
+            digits(it, &mut text);
+        }
+    }
+    (text, integral)
+}
+
 /// Lex the whole source (byte positions retained per token). The one
 /// way it refuses is a character outside the alphabet, returned as
-/// the offset and the character: [`parse_expr`] words it as
+/// the offset and the character: [`parse_formula`] words it as
 /// [`ParseError::UnexpectedChar`] and [`param_name_reason`] as
-/// [`ParamNameReason::OutsideAlphabet`], each in its own vocabulary
+/// [`VarNameReason::OutsideAlphabet`], each in its own vocabulary
 /// over the same fact.
 fn lex(src: &str) -> Result<Vec<(usize, Tok)>, (usize, char)> {
     let mut out = Vec::new();
@@ -305,52 +391,34 @@ fn lex(src: &str) -> Result<Vec<(usize, Tok)>, (usize, char)> {
                 ));
             }
             c if c.is_ascii_digit() => {
-                let mut text = String::new();
-                let mut integral = true;
-                while let Some(&(_, d)) = it.peek() {
-                    if d.is_ascii_digit() {
-                        text.push(d);
-                        it.next();
-                    } else {
-                        break;
-                    }
-                }
-                if let Some(&(_, '.')) = it.peek() {
-                    integral = false;
-                    text.push('.');
-                    it.next();
-                    while let Some(&(_, d)) = it.peek() {
-                        if d.is_ascii_digit() {
-                            text.push(d);
-                            it.next();
-                        } else {
-                            break;
-                        }
-                    }
-                }
-                // An exponent marker only counts when digits (or a
-                // signed digit) actually follow — otherwise the `e`
-                // starts an identifier token (e.g. a unit suffix).
+                let (text, integral) = lex_number(&mut it);
+                // Two numbers joined by an unspaced slash are one
+                // rational constant (`1/3`), the text `unparse` writes a
+                // constant whose decimal does not terminate as — except
+                // as the right operand of `/`, signed or not, so `w/2/3`
+                // is `(w/2)/3` (left-associative). A ratio's parts are
+                // integers.
                 let mut ahead = it.clone();
-                if let Some((_, 'e' | 'E')) = ahead.next() {
-                    let mut exp = String::from("e");
-                    if let Some(&(_, s @ ('+' | '-'))) = ahead.peek() {
-                        exp.push(s);
-                        ahead.next();
-                    }
-                    if matches!(ahead.peek(), Some(&(_, d)) if d.is_ascii_digit()) {
-                        integral = false;
-                        text.push_str(&exp);
-                        it = ahead;
-                        while let Some(&(_, d)) = it.peek() {
-                            if d.is_ascii_digit() {
-                                text.push(d);
-                                it.next();
-                            } else {
-                                break;
-                            }
-                        }
-                    }
+                let divisor = matches!(
+                    out.iter().rev().find(|(_, t)| *t != Tok::Minus),
+                    Some((_, Tok::Slash))
+                );
+                if !divisor
+                    && let Some((_, '/')) = ahead.next()
+                    && matches!(ahead.peek(), Some(&(_, d)) if d.is_ascii_digit())
+                {
+                    it = ahead;
+                    let (den, den_integral) = lex_number(&mut it);
+                    let text = format!("{text}/{den}");
+                    out.push((
+                        pos,
+                        if integral && den_integral {
+                            Tok::Fraction(text)
+                        } else {
+                            Tok::NotARatio(text)
+                        },
+                    ));
+                    continue;
                 }
                 out.push((pos, Tok::Number { text, integral }));
             }
@@ -374,24 +442,24 @@ fn lex(src: &str) -> Result<Vec<(usize, Tok)>, (usize, char)> {
 
 /// Why a text is not a parameter name, with the text that was offered.
 ///
-/// What [`ParamName::new`] answers. The rule is the parser's, asked
-/// once by `param_name_fault`: a parameter exists to be referenced
+/// What [`VarName::new`] answers. The rule is the parser's, asked
+/// once by `var_name_fault`: a parameter exists to be referenced
 /// from an expression, so a name is admissible exactly when the
 /// expression parser reads the text back as a reference to that same
 /// parameter — one identifier token covering the whole text, and
 /// nothing else. Every door that turns text into a name renders this
 /// one sentence: the constructor, the load door (through
-/// `ParamName`'s `Deserialize`, which is the same constructor) and
+/// `VarName`'s `Deserialize`, which is the same constructor) and
 /// the bindings above them.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParamNameFault {
+pub struct VarNameFault {
     /// The text offered as a name, verbatim.
     pub offered: String,
     /// What the lexer found in it.
-    pub reason: ParamNameReason,
+    pub reason: VarNameReason,
 }
 
-impl core::fmt::Display for ParamNameFault {
+impl core::fmt::Display for VarNameFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         // Quoted, because this is the one class of sentence that echoes
         // bytes an author typed rather than framing a name the document
@@ -400,14 +468,14 @@ impl core::fmt::Display for ParamNameFault {
     }
 }
 
-impl core::error::Error for ParamNameFault {}
+impl core::error::Error for VarNameFault {}
 
 /// The lexer's finding in a text that is not a parameter name: each
 /// arm names what was read and where, so a reader knows what to
 /// change. Rendered as a predicate phrase after the quoted text
-/// ([`ParamNameFault`]'s `Display`).
+/// ([`VarNameFault`]'s `Display`).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ParamNameReason {
+pub enum VarNameReason {
     /// No token at all: the text is empty or whitespace.
     Blank,
     /// A character the expression alphabet has no token for.
@@ -437,9 +505,12 @@ pub enum ParamNameReason {
     /// text back as the trimmed name, which is a different key from
     /// the one offered.
     Padded,
+    /// A keyword of the grammar (`turn`), which an expression reads as
+    /// itself, never as a reference.
+    Keyword,
 }
 
-impl core::fmt::Display for ParamNameReason {
+impl core::fmt::Display for VarNameReason {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Blank => f.write_str("is blank — a parameter name is one identifier"),
@@ -462,24 +533,27 @@ impl core::fmt::Display for ParamNameReason {
                 "is padded with whitespace, which an expression would not read back as part \
                  of the name",
             ),
+            Self::Keyword => f.write_str(
+                "is a keyword, which an expression reads as itself rather than as a parameter",
+            ),
         }
     }
 }
 
 /// **The one admissibility rule for a parameter name**, asked of the
-/// parser itself: `None` exactly when [`parse_expr`] over an empty
+/// parser itself: `None` exactly when [`parse_formula`] over an empty
 /// table reads the whole text as one unresolved reference to that
 /// same text, otherwise what the lexer finds wrong with it
 /// ([`param_name_reason`]).
 ///
-/// The parser has no reserved words — `sin` is a call only when `(`
-/// follows it, and a bare `sin` is looked up as a parameter — and no
-/// constants, so a function word or a unit symbol is admissible
+/// The parser has one reserved word, the constant `turn`; `sin` is a
+/// call only when `(` follows it, and a bare `sin` is looked up as a
+/// parameter, so a function word or a unit symbol is admissible
 /// because this is the parser's own reading, not a second grammar.
 /// No name is minted to ask: the table is empty, and the parser looks
 /// an identifier up by its lexed text.
-pub(crate) fn param_name_fault(text: &str) -> Option<ParamNameReason> {
-    match parse_expr(text, &BTreeMap::new()) {
+pub(crate) fn var_name_fault(text: &str) -> Option<VarNameReason> {
+    match parse_formula(text, &BTreeMap::new()) {
         Err(ParseError::UnknownParam { name, .. }) if name == text => None,
         _ => Some(param_name_reason(text)),
     }
@@ -488,34 +562,40 @@ pub(crate) fn param_name_fault(text: &str) -> Option<ParamNameReason> {
 /// Why a text the parser does not read back as a reference to itself
 /// is not a name, as the lexer sees it: the first thing that breaks
 /// "one identifier token covering the whole text".
-fn param_name_reason(text: &str) -> ParamNameReason {
+fn param_name_reason(text: &str) -> VarNameReason {
     let toks = match lex(text) {
         Ok(toks) => toks,
-        Err((pos, ch)) => return ParamNameReason::OutsideAlphabet { pos, ch },
+        Err((pos, ch)) => return VarNameReason::OutsideAlphabet { pos, ch },
     };
     let mut it = toks.into_iter();
     let Some((pos, first)) = it.next() else {
-        return ParamNameReason::Blank;
+        return VarNameReason::Blank;
     };
     let Tok::Ident(_) = first else {
-        return ParamNameReason::NotAnIdentifier {
+        return VarNameReason::NotAnIdentifier {
             pos,
             found: first.describe(),
         };
     };
     if let Some((pos, second)) = it.next() {
-        return ParamNameReason::NotOneToken {
+        return VarNameReason::NotOneToken {
             pos,
             found: second.describe(),
         };
     }
+    if text == TURN {
+        return VarNameReason::Keyword;
+    }
     // One identifier the parser did not read back as the whole text:
     // an identifier carries no whitespace of its own, so the rest of
     // the text is whitespace around it.
-    ParamNameReason::Padded
+    VarNameReason::Padded
 }
 
-/// Parse `src` into a dimension-checked [`Expr`] (module docs: the
+/// The keyword for one full rotation (module docs).
+const TURN: &str = "turn";
+
+/// Parse `src` into a dimension-checked [`Formula`] (module docs: the
 /// grammar, the literal semantics, the checking discipline). `params`
 /// is the declared parameter table refs resolve against — a document's
 /// would be its params' names and dimensions.
@@ -534,13 +614,36 @@ fn param_name_reason(text: &str) -> ParamNameReason {
 /// dimensional rather than syntactic, and
 /// [`DimensionError::NestedTooDeep`] for an expression nested past the
 /// bound.
-pub fn parse_expr(src: &str, params: &BTreeMap<ParamName, Dimension>) -> Result<Expr, ParseError> {
+pub fn parse_formula(
+    src: &str,
+    params: &BTreeMap<VarName, Dimension>,
+) -> Result<Formula, ParseError> {
     let toks = lex(src).map_err(|(pos, ch)| ParseError::UnexpectedChar { pos, ch })?;
+    let lone = matches!(
+        toks.as_slice(),
+        [(
+            _,
+            Tok::Number {
+                integral: false,
+                ..
+            }
+        )] | [
+            (_, Tok::Minus),
+            (
+                _,
+                Tok::Number {
+                    integral: false,
+                    ..
+                }
+            )
+        ]
+    );
     Parser {
         toks,
         i: 0,
         end: src.len(),
         params,
+        lone,
     }
     .expr()
 }
@@ -549,11 +652,14 @@ struct Parser<'a> {
     toks: Vec<(usize, Tok)>,
     i: usize,
     end: usize,
-    params: &'a BTreeMap<ParamName, Dimension>,
+    params: &'a BTreeMap<VarName, Dimension>,
+    /// Whether the whole text is one bare decimal: a value (VR6), so
+    /// one no constant spells exactly is the written value it reads.
+    lone: bool,
 }
 
 /// A binary smart constructor, as the grammar's operators name them.
-type Make = fn(Expr, Expr) -> Result<Expr, DimensionError>;
+type Make = fn(Formula, Formula) -> Result<Formula, DimensionError>;
 
 /// What closes a bracket level.
 enum Close {
@@ -567,7 +673,7 @@ enum Close {
         pos: usize,
         canonical: &'static str,
         arity: usize,
-        args: Vec<Expr>,
+        args: Vec<Formula>,
     },
 }
 
@@ -579,9 +685,9 @@ struct Level {
     close: Close,
     /// The sum so far, with the `+`/`-` (and its offset) that waits for
     /// the next term.
-    sum: Option<(Expr, usize, Make)>,
+    sum: Option<(Formula, usize, Make)>,
     /// The term so far, with the `*`/`/` that waits for the next unary.
-    term: Option<(Expr, usize, Make)>,
+    term: Option<(Formula, usize, Make)>,
     /// The tokens of the minus signs before the operand in progress.
     signs: core::ops::Range<usize>,
 }
@@ -597,14 +703,55 @@ impl Level {
     }
 }
 
+/// The scalar a count built of integer constants alone equals, node
+/// for node (each integer the rational it is); `None` for any other
+/// formula.
+fn constant_scalar(f: &Formula) -> Option<Formula> {
+    use crate::expr::ExprKind as K;
+    if f.dim() != Dimension::Count {
+        return None;
+    }
+    match f.kind() {
+        &K::Integer(n) => Formula::ratio(n, 1).ok(),
+        K::Neg(a) => Formula::neg(constant_scalar(a)?).ok(),
+        K::Add(a, b) => Formula::add(constant_scalar(a)?, constant_scalar(b)?).ok(),
+        K::Sub(a, b) => Formula::sub(constant_scalar(a)?, constant_scalar(b)?).ok(),
+        K::Mul(a, b) => Formula::mul(constant_scalar(a)?, constant_scalar(b)?).ok(),
+        K::Min(a, b) => Formula::min(constant_scalar(a)?, constant_scalar(b)?).ok(),
+        K::Max(a, b) => Formula::max(constant_scalar(a)?, constant_scalar(b)?).ok(),
+        _ => None,
+    }
+}
+
 /// Folds a pending operator's left side into `rhs`, refusing at the
 /// operator's offset.
-fn fold(pending: Option<(Expr, usize, Make)>, rhs: Expr) -> Result<Expr, ParseError> {
-    match pending {
-        None => Ok(rhs),
-        Some((lhs, pos, make)) => {
-            make(lhs, rhs).map_err(|error| ParseError::Dimension { pos, error })
-        }
+fn fold(pending: Option<(Formula, usize, Make)>, rhs: Formula) -> Result<Formula, ParseError> {
+    let Some((lhs, pos, make)) = pending else {
+        return Ok(rhs);
+    };
+    // A count of integer constants alone beside an operand that is no
+    // count reads as the scalar it equals, where a count could not
+    // stand: `turn/4` is a right angle, and `w * 2 * 3` and `2 * 3 * w`
+    // are both six `w`, whichever side the constants fold on. A count
+    // that reads a variable is promoted only explicitly (`scalar(n)`).
+    // Where the scalar cannot stand either, the refusal is the one the
+    // text as written earns.
+    let scalar = |f: &Formula, other: &Formula| {
+        (other.dim() != Dimension::Count)
+            .then(|| constant_scalar(f))
+            .flatten()
+    };
+    let coerced = match (scalar(&lhs, &rhs), scalar(&rhs, &lhs)) {
+        (None, None) => None,
+        (l, r) => make(
+            l.unwrap_or_else(|| lhs.clone()),
+            r.unwrap_or_else(|| rhs.clone()),
+        )
+        .ok(),
+    };
+    match coerced {
+        Some(built) => Ok(built),
+        None => make(lhs, rhs).map_err(|error| ParseError::Dimension { pos, error }),
     }
 }
 
@@ -649,14 +796,18 @@ impl Parser<'_> {
     /// same offset. Minus signs apply innermost first, after their
     /// operand and before any `*` or `/` takes it; the innermost one is
     /// the literal's own sign when a number follows it.
-    fn expr(&mut self) -> Result<Expr, ParseError> {
+    fn expr(&mut self) -> Result<Formula, ParseError> {
         let mut levels = vec![Level::new(Close::End)];
         loop {
             let first = self.i;
             while let Some((_, Tok::Minus)) = self.peek() {
                 self.i += 1;
             }
-            let signed = self.i > first && matches!(self.peek(), Some((_, Tok::Number { .. })));
+            let signed = self.i > first
+                && matches!(
+                    self.peek(),
+                    Some((_, Tok::Number { .. } | Tok::Fraction(_)))
+                );
             let Some(level) = levels.last_mut() else {
                 unreachable!("the text's own level stays open until the text is read")
             };
@@ -675,14 +826,14 @@ impl Parser<'_> {
                 };
                 for at in level.signs.clone().rev() {
                     let pos = self.toks[at].0;
-                    value =
-                        Expr::neg(value).map_err(|error| ParseError::Dimension { pos, error })?;
+                    value = Formula::neg(value)
+                        .map_err(|error| ParseError::Dimension { pos, error })?;
                 }
                 level.signs = 0..0;
                 value = fold(level.term.take(), value)?;
                 let make: Option<Make> = match self.peek() {
-                    Some((_, Tok::Star)) => Some(Expr::mul),
-                    Some((_, Tok::Slash)) => Some(Expr::div),
+                    Some((_, Tok::Star)) => Some(Formula::mul),
+                    Some((_, Tok::Slash)) => Some(Formula::div),
                     _ => None,
                 };
                 if let Some(make) = make {
@@ -692,8 +843,8 @@ impl Parser<'_> {
                 }
                 value = fold(level.sum.take(), value)?;
                 let make: Option<Make> = match self.peek() {
-                    Some((_, Tok::Plus)) => Some(Expr::add),
-                    Some((_, Tok::Minus)) => Some(Expr::sub),
+                    Some((_, Tok::Plus)) => Some(Formula::add),
+                    Some((_, Tok::Minus)) => Some(Formula::sub),
                     _ => None,
                 };
                 if let Some(make) = make {
@@ -750,10 +901,17 @@ impl Parser<'_> {
         &mut self,
         levels: &mut Vec<Level>,
         negative: bool,
-    ) -> Result<Option<Expr>, ParseError> {
+    ) -> Result<Option<Formula>, ParseError> {
         match self.next() {
             Some((pos, Tok::Number { text, integral })) => {
                 self.literal(pos, &text, integral, negative).map(Some)
+            }
+            Some((pos, Tok::Fraction(text))) => self.fraction(pos, &text, negative).map(Some),
+            Some((pos, Tok::NotARatio(text))) => Err(ParseError::RatioPartNotInteger { pos, text }),
+            Some((_, Tok::Ident(name)))
+                if name == TURN && !matches!(self.peek(), Some((_, Tok::LParen))) =>
+            {
+                Ok(Some(Formula::turn()))
             }
             Some((pos, Tok::Ident(name))) => {
                 if let Some((_, Tok::LParen)) = self.peek() {
@@ -767,13 +925,13 @@ impl Parser<'_> {
                     }));
                     Ok(None)
                 } else {
-                    // Looked up by the lexed text (`ParamName:
+                    // Looked up by the lexed text (`VarName:
                     // Borrow<str>`), so the parser never mints a name
                     // of its own: the reference it builds is the
                     // table's key, and an identifier the table lacks
                     // is echoed as the bytes read.
                     match self.params.get_key_value(name.as_str()) {
-                        Some((key, &dim)) => Ok(Some(Expr::param(key.clone(), dim))),
+                        Some((key, &dim)) => Ok(Some(Formula::named(key.clone(), dim))),
                         None => Err(ParseError::UnknownParam { pos, name }),
                     }
                 }
@@ -837,7 +995,7 @@ impl Parser<'_> {
         text: &str,
         integral: bool,
         negative: bool,
-    ) -> Result<Expr, ParseError> {
+    ) -> Result<Formula, ParseError> {
         let signed = |value: f64| if negative { -value } else { value };
         // An identifier DIRECTLY after a number can only be a unit
         // suffix — juxtaposition means nothing else in this grammar.
@@ -874,7 +1032,7 @@ impl Parser<'_> {
             // The literal REMEMBERS its authored unit (LIB-SWITCH §4g,
             // U8b): canonical value from the one multiply, display
             // unit stored as presentation metadata for the formatter.
-            return Expr::literal_with_unit(value * unit.factor(), dim, unit)
+            return Formula::literal_with_unit(value * unit.factor(), dim, unit)
                 .map_err(|error| ParseError::Dimension { pos, error });
         }
         if integral {
@@ -888,14 +1046,58 @@ impl Parser<'_> {
                 pos,
                 text: text.to_string(),
             })?;
-            return Ok(Expr::count(value));
+            return Ok(Formula::count(value));
         }
-        let value: f64 = text.parse().map_err(|_| ParseError::MalformedNumber {
+        let written = if negative {
+            format!("-{text}")
+        } else {
+            text.to_string()
+        };
+        let value: f64 = written.parse().map_err(|_| ParseError::MalformedNumber {
             pos,
             text: text.to_string(),
         })?;
-        Expr::literal(signed(value), Dimension::Scalar)
-            .map_err(|error| ParseError::Dimension { pos, error })
+        // The constant the decimal spells exactly ([`Ratio::from_decimal`],
+        // the one copy of the rule), refused where it is out of range —
+        // a number inside a formula is a constant (VR6). A bare decimal
+        // alone is a value, so there the refusal is the written value
+        // the decimal reads, its correctly-rounded double.
+        //
+        // [`Ratio::from_decimal`]: crate::expr::Ratio::from_decimal
+        match crate::expr::Ratio::from_decimal(&written) {
+            Ok(ratio) => Ok(Formula::ratio_leaf(ratio)),
+            Err(_) if self.lone => {
+                Formula::scalar(value).map_err(|error| ParseError::Dimension { pos, error })
+            }
+            Err(error) => Err(ParseError::Dimension { pos, error }),
+        }
+    }
+
+    /// `INT '/' INT`: the rational constant, `negative` the sign
+    /// written before it. A unit cannot follow a constant.
+    fn fraction(&mut self, pos: usize, text: &str, negative: bool) -> Result<Formula, ParseError> {
+        if let Some((upos, unit)) = self.peeked_ident() {
+            return Err(ParseError::UnexpectedToken {
+                pos: upos,
+                found: unit,
+                expected: "an operator after a constant (a unit suffixes a decimal, not a ratio)",
+            });
+        }
+        let out = || ParseError::Dimension {
+            pos,
+            error: DimensionError::ConstantOutOfRange {
+                text: text.to_string(),
+            },
+        };
+        let (num, den) = text.split_once('/').ok_or_else(out)?;
+        let num: i64 = if negative {
+            format!("-{num}").parse()
+        } else {
+            num.parse()
+        }
+        .map_err(|_| out())?;
+        let den: u64 = den.parse().map_err(|_| out())?;
+        Formula::ratio(num, den).map_err(|error| ParseError::Dimension { pos, error })
     }
 
     /// A call's function applied to the arguments read inside its
@@ -904,8 +1106,8 @@ impl Parser<'_> {
         pos: usize,
         canonical: &'static str,
         arity: usize,
-        args: Vec<Expr>,
-    ) -> Result<Expr, ParseError> {
+        args: Vec<Formula>,
+    ) -> Result<Formula, ParseError> {
         if args.len() != arity {
             return Err(ParseError::WrongArity {
                 pos,
@@ -926,13 +1128,13 @@ impl Parser<'_> {
             });
         };
         let built = match (canonical, b) {
-            ("sin", None) => Expr::sin(a),
-            ("cos", None) => Expr::cos(a),
-            ("tan", None) => Expr::tan(a),
-            ("scalar", None) => Expr::count_to_scalar(a),
-            ("atan2", Some(b)) => Expr::atan2(a, b),
-            ("min", Some(b)) => Expr::min(a, b),
-            ("max", Some(b)) => Expr::max(a, b),
+            ("sin", None) => Formula::sin(a),
+            ("cos", None) => Formula::cos(a),
+            ("tan", None) => Formula::tan(a),
+            ("scalar", None) => Formula::count_to_scalar(a),
+            ("atan2", Some(b)) => Formula::atan2(a, b),
+            ("min", Some(b)) => Formula::min(a, b),
+            ("max", Some(b)) => Formula::max(a, b),
             // Arity was just checked; unreachable, kept typed.
             (_, _) => {
                 return Err(ParseError::WrongArity {
@@ -995,8 +1197,8 @@ mod tests {
                     // The innermost sign is the literal's own.
                     (format!("{}1", "-".repeat(MAX_NESTING)), MAX_NESTING),
                 ] {
-                    let parsed = parse_expr(&text, &BTreeMap::new());
-                    assert_eq!(parsed.map(|e| e.nesting()), Ok(nesting));
+                    let parsed = parse_formula(&text, &BTreeMap::new());
+                    assert_eq!(parsed.map(|e| crate::Slot::nesting(&e)), Ok(nesting));
                 }
             })
             .expect("the thread starts")

@@ -52,17 +52,38 @@ pub struct UnnamedEntity {
 // never `Debug` — an arena key is editor-core-private (N4) and means
 // nothing to a person — so the sentence names the kind and the body
 // index and calls the violation what it is.
-impl core::fmt::Display for UnnamedEntity {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::spoken::Say for UnnamedEntity {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         write!(
             f,
-            "name lookup: node {}'s {} in output body {} evaluated but \
+            "name lookup: {}'s {} in output body {} evaluated but \
              has no name in its table — naming emission is total, so \
              this is a kernel bug",
-            self.node,
+            by.node(self.node),
             self.entity.key.kind().noun(),
             self.entity.body
         )
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for UnnamedEntity {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl UnnamedEntity {
+    /// **The refusal as the frame holding the evaluated document says it**:
+    /// each node as `doc` holds it now ([`crate::Doc::spoken`]). The door
+    /// reads an evaluation alone, so the refusal holds ids, never a label.
+    #[must_use]
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> String {
+        crate::spoken::spoken_by(self, doc)
     }
 }
 
@@ -115,6 +136,17 @@ pub enum HitTestError {
     /// THE BUG (spec D4): the node evaluated, but the entity has no
     /// name in its table — the lookup's own refusal, carried whole.
     Unnamed(UnnamedEntity),
+    /// **The targets live in different spaces** (A9, A11 (2)): one is
+    /// in an unplaced group's own space, so no ray in one set of
+    /// coordinates meets both, and nothing outside the group is
+    /// ordered against it. A caller that draws each space somewhere
+    /// picks each space by itself.
+    AcrossSpaces {
+        /// The unplaced group, by its root.
+        group: RecipeNodeId,
+        /// Why nothing places it.
+        cause: crate::mate::Unplaced,
+    },
 }
 
 /// The node's standing, at the door that needed its table.
@@ -152,10 +184,16 @@ impl From<crate::ident::Mispaired> for HitTestError {
 // a user has one. The `Standing` and `Unnamed` arms forward their
 // payload's own sentence under this door's prefix: the hit test ran,
 // and the node it needed had no table, or its lookup refused.
-impl core::fmt::Display for HitTestError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::spoken::Say for HitTestError {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         match self {
-            Self::Standing(standing) => write!(f, "hit test: {standing}"),
+            Self::Standing(standing) => {
+                write!(f, "hit test: {}", crate::spoken::Said(standing, by))
+            }
             Self::EvaluationOfAnotherDocument { expected, found } => write!(
                 f,
                 "hit test: the evaluation is of document {found}, not \
@@ -163,28 +201,74 @@ impl core::fmt::Display for HitTestError {
                  is read against are of two documents"
             ),
             Self::Ambiguous { hits } => {
-                write!(
-                    f,
-                    "hit test: the ray is tied between {} faces the arithmetic cannot order — ",
-                    hits.len()
-                )?;
-                // The ordinal is what ties each phrase to its entry
-                // in `hits`, where the role path two faces of one node
-                // differ by IS carried.
-                for (i, hit) in hits.iter().enumerate() {
+                f.write_str("hit test: the ray is tied between ")?;
+                // A name does not say the node holding it, so two copies
+                // of one body hold names alike: then each face is said
+                // with the node it was hit on.
+                let said: Vec<String> = hits
+                    .iter()
+                    .map(|hit| by.name(&hit.name).to_string())
+                    .collect();
+                let alike = said
+                    .iter()
+                    .enumerate()
+                    .any(|(i, one)| said[i + 1..].contains(one));
+                for (i, (hit, words)) in hits.iter().zip(&said).enumerate() {
                     if i > 0 {
-                        f.write_str(", ")?;
+                        f.write_str(if i + 1 == hits.len() { " and " } else { ", " })?;
                     }
-                    write!(f, "({}) {}", i + 1, hit.name)?;
+                    f.write_str(words)?;
+                    if alike {
+                        write!(f, " on {}", by.node(hit.node))?;
+                    }
                 }
                 write!(
                     f,
-                    " — so the pick names none of them; aim away from the shared edge, or \
-                     choose one of the tied faces, which this refusal lists in full"
+                    ", so the pick names {}. {}",
+                    if hits.len() == 2 {
+                        "neither"
+                    } else {
+                        "none of them"
+                    },
+                    crate::sentence::Recourse("aim away from the shared edge, or pick one of them")
                 )
             }
-            Self::Unnamed(unnamed) => write!(f, "hit test: {unnamed}"),
+            Self::Unnamed(unnamed) => {
+                write!(f, "hit test: {}", crate::spoken::Said(unnamed, by))
+            }
+            Self::AcrossSpaces { group, cause } => write!(
+                f,
+                "hit test: the targets live in different spaces — one is in the own space of the \
+                 group rooted at {}, unplaced because {}, and nothing outside an \
+                 unplaced group is ordered against it. {}",
+                by.node(*group),
+                crate::spoken::Said(cause, by),
+                crate::sentence::Recourse("pick each space by itself, or place the group")
+            ),
         }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for HitTestError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl HitTestError {
+    /// **The refusal as the frame holding the evaluated document says it**:
+    /// each node as `doc` holds it now ([`crate::Doc::spoken`]), each
+    /// name within the table `evaluation` holds it in
+    /// ([`crate::Speaker::within`]). The door reads an evaluation alone,
+    /// so the refusal holds ids, never a label.
+    #[must_use]
+    pub fn spoken<P: crate::ProfilePayload>(
+        &self,
+        doc: &crate::doc::Doc<P>,
+        evaluation: &dyn crate::NameTables,
+    ) -> String {
+        crate::spoken::spoken_within(self, doc, evaluation)
     }
 }
 

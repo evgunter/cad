@@ -338,8 +338,10 @@ pub enum StepExportError {
         shell: ShellKey,
         /// The face whose geometry left the closed forms.
         face: FaceKey,
-        /// What that face carries (surface or carrier variant name).
-        kind: &'static str,
+        /// What that face carries: a surface kind's name followed by
+        /// `surface` (`"torus surface"`), or an edge carrier's followed
+        /// by `curve` (`"circle curve"`).
+        kind: String,
     },
     /// An explicit [`StepOptions::uncertainty_m`] is not finite and
     /// strictly positive.

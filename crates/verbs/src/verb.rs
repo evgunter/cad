@@ -64,15 +64,17 @@ pub enum Verb<T: Real> {
     /// Extrudes the operand profile along its sketch normal.
     ///
     /// The payload is the door's parameter list minus the operand:
-    /// the signed distance alone. The door's second extrusion form —
+    /// the depth and the side it goes toward. The door's second extrusion form —
     /// an explicit world VECTOR — is deliberately absent: no recipe
     /// spells one, so a variant for it would be an arm every
     /// commitment on this vocabulary (content tag, wire spelling,
     /// Python constructor, viewer label) had to name and no document
     /// could ever reach.
     Extrude {
-        /// The signed distance along the profile plane's normal.
+        /// The depth, a size (`sweep::Extrusion::Distance`).
         distance: T,
+        /// Which side of the profile plane the depth goes toward.
+        side: sweep::ExtrudeSide,
     },
     /// Revolves the operand profile about an axis written in its own
     /// sketch plane.
@@ -348,7 +350,16 @@ impl VerbKind {
 /// the verb and names a door that does not exist.
 impl fmt::Display for VerbKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
+        f.write_str(self.noun())
+    }
+}
+
+impl VerbKind {
+    /// The verb's word, the one its `Display` writes, for a sentence
+    /// that says it as a node's kind (`Subtract 1669`).
+    #[must_use]
+    pub const fn noun(self) -> &'static str {
+        match self {
             Self::Fillet => "Fillet",
             Self::Chamfer => "Chamfer",
             Self::Extrude => "Extrude",
@@ -358,7 +369,7 @@ impl fmt::Display for VerbKind {
             Self::Boolean(BooleanOp::Subtract) => "Subtract",
             Self::Split => "Split",
             Self::Shell => "Shell",
-        })
+        }
     }
 }
 

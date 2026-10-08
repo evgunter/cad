@@ -628,8 +628,8 @@ fn t9_a_nurbs_carrier_on_a_plane_chart_refuses_typed() {
             err,
             PcurveMintError::Certify {
                 error: PcurveCertifyError::UnsupportedCarrier {
-                    chart: geom_brep::SurfaceKind::Plane,
-                    carrier: geom_brep::CurveKind::Nurbs,
+                    chart: geom::SurfaceKind::Plane,
+                    carrier: geom::CurveKind::Nurbs,
                     class: geom_brep::UncoveredClass::SplineCarrier,
                 },
                 ..

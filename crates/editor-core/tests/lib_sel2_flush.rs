@@ -16,18 +16,20 @@
 //!    neither reported nor dropped: `SelectRefusal::PairInBand` names
 //!    the pair (§3a / §2's honesty obligation).
 //! 4. **The sugar is thin and never detects.** `declare`/`declare_all`
-//!    insert a `Node::Declare` from findings the CALLER passes;
-//!    an empty set refuses (`NoFindings`) rather than inserting a
-//!    pretend-declaration.
+//!    set a live Boolean's or Union's declared pairs (`SetDeclare`)
+//!    from findings the CALLER passes; an empty set refuses
+//!    (`NoFindings`) rather than recording a pretend-declaration, and
+//!    a node that declares nothing refuses typed.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, ContactClass, DeclareError, EvalOptions, FlushRung, Node,
-    NodeErrorKind, NodeResult, NodeStanding, ProfileDoc, RecipeNodeId, SelectRefusal, ValuePayload,
-    declare, declare_all, evaluate, find_flush_candidates,
+    BooleanCoincidence, BooleanOp, BooleanValue, CancelToken, DeclareError, EditError, EvalOptions,
+    FlushRung, Node, NodeErrorKind, NodeResult, NodeStanding, ProfileDoc, RecipeNodeId,
+    SelectRefusal, ValuePayload, declare, declare_all, evaluate, find_flush_candidates,
 };
 use topo::{PlaneRelation, mass_properties};
 
@@ -64,6 +66,7 @@ fn box_at(
         Node::Extrude {
             profile: p,
             distance: len(height),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -98,7 +101,7 @@ fn resting_contact_is_one_same_opposite_finding() {
     let findings = find_flush_candidates(&ev, base, top, Tol::witness()).unwrap();
     assert_eq!(findings.len(), 1, "{findings:?}");
     let f = &findings[0];
-    assert_eq!(f.class, ContactClass::Rest);
+    assert_eq!(f.class, BooleanCoincidence::REST);
     assert_eq!(f.evidence.relation, PlaneRelation::SameOpposite);
     assert_eq!(f.evidence.rung, FlushRung::DecidedCoincident);
     // Names, never keys — and each side names its OWN node's face,
@@ -110,7 +113,7 @@ fn resting_contact_is_one_same_opposite_finding() {
 
 /// Flush WALLS (corner-table shape): a post overlapping a slab with
 /// three shared outer wall planes plus the shared floor — every
-/// finding is the merge-stage flavor, `SameOriented`.
+/// finding is `SameOriented`, so every class is a continuation.
 #[test]
 fn flush_walls_are_same_oriented_findings() {
     let (doc, slab) = box_at(
@@ -126,7 +129,7 @@ fn flush_walls_are_same_oriented_findings() {
     // x = 0, y = 0, y = 1 walls, and the two z = 0 floors.
     assert_eq!(findings.len(), 4, "{findings:?}");
     for f in &findings {
-        assert_eq!(f.class, ContactClass::Rest);
+        assert_eq!(f.class, BooleanCoincidence::Continuation);
         assert_eq!(f.evidence.relation, PlaneRelation::SameOriented, "{f:?}");
     }
 }
@@ -155,7 +158,7 @@ fn separated_answers_empty_and_a_node_with_no_value_refuses() {
             .is_empty()
     );
     // A foreign id has no value here, and says which standing.
-    let foreign = RecipeNodeId(999);
+    let foreign = RecipeNodeId::new(0, 999);
     let standing = NodeStanding::NotInDocument { node: foreign };
     let refusal = find_flush_candidates(&ev, base, foreign, Tol::witness())
         .expect_err("a node with no value refuses");
@@ -176,9 +179,8 @@ fn separated_answers_empty_and_a_node_with_no_value_refuses() {
 /// The protocol end to end, against the SAME geometry: the undeclared
 /// union refuses with the typed MENU (`UndeclaredContact`, R3 — the
 /// declare arm is this module; the move-the-geometry arm is the
-/// recipe's); the
-/// declared union — declarations authored FROM the findings through
-/// the sugar — succeeds with the exact volume. Detect-then-declare
+/// recipe's); the same union, declared FROM the findings through the
+/// sugar, succeeds with the exact volume. Detect-then-declare
 /// cannot disagree with verify-at-use because both are the same doors.
 #[test]
 fn detect_declare_boolean_round_trip() {
@@ -186,12 +188,12 @@ fn detect_declare_boolean_round_trip() {
 
     // Arm zero: no declaration — the boolean refuses, loudly.
     let (undeclared, refused) = insert(
-        doc.clone(),
+        doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a: base,
             b: top,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = eval(&undeclared);
@@ -201,10 +203,10 @@ fn detect_declare_boolean_round_trip() {
             // candidate declaration in the detector's own value shape,
             // built from what the raise site held (no re-detection on
             // the error path).
-            NodeErrorKind::UndeclaredContact { finding, diag, .. } => {
-                // Exactly-on contact: the verifier's decided-zero
-                // encoding, on the verify door's own site.
-                assert!(diag.margin.is_invalid(), "{diag:?}");
+            NodeErrorKind::UndeclaredCoincidence { finding, diag, .. } => {
+                // Exactly-on contact: the verifier's decided zero, its
+                // decided margin riding, on the verify door's own site.
+                assert_eq!(diag.margin.kind(), geom_core::MarginKind::Value, "{diag:?}");
                 assert_eq!(diag.predicate, Some("bool_plane_offset"));
                 (**finding).clone()
             }
@@ -214,8 +216,7 @@ fn detect_declare_boolean_round_trip() {
     };
 
     // The declare arm: findings (values, inspected above) → sugar →
-    // Declare node → the boolean's declare input.
-    let ev = eval(&doc);
+    // the refused union's own declared pairs.
     let findings = find_flush_candidates(&ev, base, top, Tol::witness()).unwrap();
     // Menu/detector parity: the refusal named a pair the detector
     // also reports, name for name, relation for relation — same
@@ -224,19 +225,10 @@ fn detect_declare_boolean_round_trip() {
         findings.contains(&menu),
         "menu payload {menu:?} not among the detector's findings {findings:?}"
     );
-    let (applied, decl) = declare_all(&doc, &findings, Tol::witness()).unwrap();
-    let doc = applied.doc;
-    let (doc, union) = insert(
-        doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: base,
-            b: top,
-            declare: Some(decl),
-        },
-    );
-    let ev = eval(&doc);
-    match &ev.value(union).expect("declared union evaluates").payload {
+    let applied = declare_all(&undeclared, refused, &findings, Tol::witness()).unwrap();
+    assert_eq!(applied.record.minted, None, "declaring mints no node");
+    let ev = eval(&applied.doc);
+    match &ev.value(refused).expect("declared union evaluates").payload {
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
             let m = mass_properties(body, Tol::witness()).expect("mass properties");
             // 1³ + 0.5² · 0.5 (dyadic, exact).
@@ -268,56 +260,111 @@ fn in_band_gap_refuses_pair_in_band() {
     );
     let (doc, top) = box_at(doc, 1.0 + gap, (0.25, 0.25), (0.75, 0.75), 0.5);
     let ev = eval(&doc);
-    match find_flush_candidates(&ev, base, top, Tol::witness()) {
-        Err(SelectRefusal::PairInBand {
-            pair, predicate, ..
+    let refusal = find_flush_candidates(&ev, base, top, Tol::witness()).err();
+    let text = refusal.as_ref().map(ToString::to_string);
+    match refusal {
+        Some(SelectRefusal::PairInBand {
+            pair,
+            at,
+            predicate,
+            ..
         }) => {
             assert_eq!(pair.0.node, base);
             assert_eq!(pair.1.node, top);
+            assert_eq!(at, (base, top), "each face is held where the query read it");
             assert_eq!(predicate, "bool_plane_offset");
         }
         other => panic!("expected PairInBand, got {other:?}"),
     }
+    // The sentence tells the two faces apart by what they are and the
+    // feature that made each.
+    let text = text.unwrap_or_default();
+    assert!(
+        text.contains(&format!(
+            "the end cap of node {base} and the start cap of node {top}"
+        )),
+        "the pair is said as the base's end cap and the top's start cap: {text}"
+    );
 }
 
 // ------------------------------------------------------------------
 // 4. The sugar is thin, and refuses emptiness.
 // ------------------------------------------------------------------
 
-/// `declare_all` on nothing is a refusal, not an empty Declare node:
-/// inserting one would record the LOOK of declared intent with no
-/// content.
+/// `declare_all` on nothing is a refusal, not an empty declaration:
+/// setting one would record the LOOK of declared intent with no
+/// content (clearing is `SetDeclare` with an empty list, said
+/// outright).
 #[test]
 fn empty_findings_refuse() {
-    let doc = ProfileDoc::empty_derived("lib_sel2_flush", Tol::witness());
+    let (doc, base, top) = stacked();
+    let (doc, union) = undeclared_union(doc, base, top);
     assert!(matches!(
-        declare_all(&doc, &[], Tol::witness()),
+        declare_all(&doc, union, &[], Tol::witness()),
         Err(DeclareError::NoFindings)
     ));
 }
 
-/// `declare(finding)` inserts exactly the finding's pair as a
-/// `Node::Declare` — the single-finding arm of the ruled
+/// `declare(finding)` sets exactly the finding's pair as the union's
+/// declared list — the single-finding arm of the ruled
 /// both-arities-ship boundary.
 #[test]
-fn declare_inserts_the_pair() {
+fn declare_sets_the_pair() {
     let (doc, base, top) = stacked();
     let ev = eval(&doc);
     let findings = find_flush_candidates(&ev, base, top, Tol::witness()).unwrap();
-    let (applied, decl) = declare(&doc, &findings[0], Tol::witness()).unwrap();
-    let doc = applied.doc;
-    match doc.node(decl) {
-        Some(Node::Declare { pairs }) => {
-            assert_eq!(pairs, &[(findings[0].pair.clone(), findings[0].class)])
+    let (doc, union) = undeclared_union(doc, base, top);
+    let doc = declare(&doc, union, &findings[0], Tol::witness())
+        .unwrap()
+        .doc;
+    match doc.node(union) {
+        Some(Node::Boolean { declare, .. }) => {
+            assert_eq!(declare, &[(findings[0].pair.clone(), findings[0].class)])
         }
-        other => panic!("expected a Declare node, got {other:?}"),
+        other => panic!("expected the Boolean, got {other:?}"),
     }
+}
+
+/// The sugar aimed at a node that declares no contacts refuses with
+/// the edit's own typed error — an extrude has no declared-pair list
+/// to set.
+#[test]
+fn declare_on_a_non_declaring_node_refuses_typed() {
+    let (doc, base, top) = stacked();
+    let ev = eval(&doc);
+    let findings = find_flush_candidates(&ev, base, top, Tol::witness()).unwrap();
+    match declare_all(&doc, base, &findings, Tol::witness()) {
+        Err(DeclareError::Edit(EditError::SetDeclareOnNonDeclaring { node })) => {
+            assert_eq!(node.id(), base);
+            assert_eq!(node.kind(), Some("Extrude"), "the refusal names the kind");
+        }
+        other => panic!("expected SetDeclareOnNonDeclaring, got {other:?}"),
+    }
+}
+
+/// The union of `a` and `b`, declaring nothing.
+fn undeclared_union(
+    doc: ProfileDoc,
+    a: RecipeNodeId,
+    b: RecipeNodeId,
+) -> (ProfileDoc, RecipeNodeId) {
+    insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a,
+            b,
+            declare: Vec::new(),
+        },
+    )
 }
 
 /// **The verification-arm falsifier** (adopted from the #304 review's
 /// planted-drift probe, then aimed both ways). Two resting pairs
-/// TILTED so their angular margins, levered at the SHARED
-/// verification arm, land just inside the ambiguity band's two ends:
+/// TILTED so their angular margins, levered at the pair's consumed
+/// extent — the ball enclosing both faces, about the base's 1 m × 1 m
+/// top centre out to its corner, `√2/2` m — land just inside the
+/// ambiguity band's two ends:
 /// at the correct arm BOTH refuse `PairInBand` at
 /// `bool_plane_parallel`. An arm drifted UP by ~2% turns the
 /// near-escalate tilt definite (silent empty result); an arm drifted
@@ -327,7 +374,8 @@ fn declare_inserts_the_pair() {
 #[test]
 fn tilted_in_band_pairs_pin_the_verification_arm() {
     let tol = geom_core::Tol::witness().get();
-    for theta in [1.01 * tol.eps, 0.99 * tol.k * tol.eps] {
+    let arm = 0.5f64.sqrt();
+    for theta in [1.01 * tol.eps / arm, 0.99 * tol.k * tol.eps / arm] {
         let (c, s) = (theta.cos(), theta.sin());
         let (doc, base) = box_at(
             ProfileDoc::empty_derived("lib_sel2_flush", Tol::witness()),
@@ -350,6 +398,7 @@ fn tilted_in_band_pairs_pin_the_verification_arm() {
             Node::Extrude {
                 profile: p,
                 distance: len(0.5),
+                side: ExtrudeSide::Along,
             },
         );
         let ev = eval(&doc);

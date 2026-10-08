@@ -117,7 +117,7 @@ fn a_profile_on_a_turned_offset_plane_is_drawn_on_that_plane() {
         .iter()
         .map(|[x, y]| {
             let world = committed.plane.to_world(Point2::new(*x, *y));
-            [world.x, world.y, world.z]
+            world.to_array()
         })
         .collect();
     let expected: Vec<[f64; 3]> = [[0.0, 0.0], [SIDE, 0.0], [SIDE, SIDE], [0.0, SIDE]]

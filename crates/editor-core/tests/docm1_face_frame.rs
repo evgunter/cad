@@ -18,17 +18,19 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 
 use crate::fixture::{ang, len};
 use editor_core::persist::{load, save};
 use editor_core::{
     CancelToken, CapEnd, Datum, Dimension, DocEdit, EditError, EntityKey, EntityKind, Entry,
-    EvalOptions, Expr, InterrogateError, Node, NodeError, NodeErrorKind, NodeResult, ProfileDoc,
+    EvalOptions, Formula, InterrogateError, Node, NodeError, NodeErrorKind, NodeResult, ProfileDoc,
     ProfileProgram, RecipeNodeId, ResolveError, RoleSeg, SlotId, StableName, ValuePayload,
     all_edges, all_faces, apply, edge_carrier_kind, edge_frame, evaluate, face_carrier_kind,
     face_frame,
 };
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::{Tol, UnitVec3, Vec3};
 use topo::readback;
 use topo::{CurveKind, DatumValue};
@@ -57,6 +59,7 @@ fn box_doc() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -447,7 +450,7 @@ fn name_of_key(
         .expect("every face of a corpus body is named")
 }
 
-fn face_frame_node(at: RecipeNodeId, face: StableName, spin: f64) -> Node<ProfileProgram> {
+fn face_frame_node(at: RecipeNodeId, face: StableName, spin: f64) -> AuthoredNode {
     Node::Datum(Datum::FaceFrame {
         at,
         face,
@@ -475,7 +478,7 @@ fn a1_the_frame_moves_with_the_face_and_the_memo_recomputes_the_cone() {
     );
     let frame = cd
         .doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .find(|id| matches!(cd.doc.node(*id), Some(Node::Datum(Datum::FaceFrame { .. }))))
@@ -586,13 +589,14 @@ fn a3_spin_rotates_about_the_outward_normal_and_is_a_continuous_angle_slot() {
     assert_eq!(node.slots(), vec![SlotId::Spin]);
     assert_eq!(SlotId::Spin.dimension(), Dimension::Angle);
     assert!(!SlotId::Spin.is_structural());
-    let set = |expr: Expr| {
+    let set = |expr: Formula| {
         apply(
             &doc,
             &DocEdit::SetParam {
                 node: frame,
                 slot: SlotId::Spin,
                 expr,
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -668,6 +672,7 @@ fn a4_a_vanished_face_fails_the_frame_typed_and_poisons_the_sketch_and_rebind_re
         Node::Extrude {
             profile,
             distance: len(0.3),
+            side: ExtrudeSide::Along,
         },
     );
     assert!(corpus::failures(&eval(&doc)).is_empty());
@@ -676,7 +681,7 @@ fn a4_a_vanished_face_fails_the_frame_typed_and_poisons_the_sketch_and_rebind_re
     // its node is live, and the table lacks it — N5's `Vanished`.
     let gone = fixture::fname(
         cube,
-        editor_core::RoleSeg::Lateral(fixture::no_piece_of(&doc)),
+        editor_core::RoleSeg::Lateral(fixture::no_piece_of(&doc).into()),
     );
     let rebind = |doc: &ProfileDoc, from: StableName, to: StableName| {
         apply(
@@ -799,7 +804,7 @@ fn a8_a_document_with_a_derived_frame_round_trips_bit_identical() {
     assert_eq!(text, again, "save ∘ load is a fixpoint, byte for byte");
     let frames: Vec<_> = loaded
         .doc
-        .order()
+        .ids()
         .iter()
         .filter_map(|id| match loaded.doc.node(*id) {
             Some(Node::Datum(Datum::FaceFrame { at, face, .. })) => Some((*at, face.clone())),
@@ -808,7 +813,7 @@ fn a8_a_document_with_a_derived_frame_round_trips_bit_identical() {
         .collect();
     let original: Vec<_> = cd
         .doc
-        .order()
+        .ids()
         .iter()
         .filter_map(|id| match cd.doc.node(*id) {
             Some(Node::Datum(Datum::FaceFrame { at, face, .. })) => Some((*at, face.clone())),
@@ -857,7 +862,7 @@ pub(crate) fn lofted_on_face_frame() -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Loft {
             profiles: vec![lower, upper],
-            v_degree: Expr::count(1),
+            v_degree: Formula::count(1),
         },
     )
 }

@@ -7,12 +7,13 @@ Opened 2026-09-20 by SYM's priority-seam cut
 
 ## The slate
 
-**22.5 budget points** of dispatchable work against a ceiling of 30, at DECIDE-8's close (2026-10-01): the apothem's row (H) closed on Ev's ruling on #3283, and its follow-ups are a PATHS row and a P3; the derived-frame refusal row (2.5) is open and not on this table.
+At DECIDE-9's close (2026-10-02), the budget counts `open` and `spec` rows only (`work/README.md`, Track size). The two P1 rows below are gated (the declared tangency is parked on ROUND's fillet row, the revolve carriers deferred under E6) and do not count; DECIDE-9 added the read-above-its-node P2.
 
 | pri | item | cost | title |
 |---|---|---|---|
 | P1 | `declared-tangency-needs-the-registered-identity-door` | H | a constructor-declared tangency (Fillet's carrier_line_circle) is a live consumer for the registered-identity door M10-8 left unbuilt |
 | P1 | `revolve-carriers-state-only-the-rim` | H | the revolve latitude carriers register the rim identity but cannot state the span one: the builder is never handed the far endpoint |
+| P2 | `the-read-at-its-node-relabels-a-cancellation-above-it` | — | the read answers at its min/max node, so a cancellation above it (max(x+Z,3) − max(x,3)) reads sign_gated, a theorem with the read shut |
 | P2 | `rule-g-trades-sixteen-of-the-links-carrier-on-surface-2` | H | rule G costs the link's carrier_on_surface_2 four theorems at one attempt per rung (88 -> 84, eight more through the door); with the kept-atom ladder the predicate reads 88/0/8/12, the eight to the door on the coefficient ring and two numeric on the term budget |
 | P2 | `the-exact-quotient-re-keys-a-root-the-split-met` | H | DECIDE-4's exact quotient re-keys a root to sqrt(Q), so it no longer meets the split spelling sqrt(N)/sqrt(D): a canonical factorisation of a root's argument is the remedy |
 
@@ -46,6 +47,15 @@ recomputing a shared vertex, so they are fixed in PATHS' code
 (`an-adjacent-pairs-shared-vertex-is-recomputed-as-a-root`), not in the
 tier. The bracket's 28 owe a structural look first
 (`the-brackets-fillet-decisions-owe-a-structural-look`, P3).
+DECIDE-9 merged 2026-10-02 (#3807): the pad's 32 and the bracket's 16
+read-gated theorems were `dihedral_wedge` zero products carrying the
+arm's read gate; a zero product now rests on its zero factors' gates
+alone. The class the spec suspected (the read answering at its node
+ahead of a cancellation above it) is real in the tier, absent from the
+measured documents, and filed as
+`the-read-at-its-node-relabels-a-cancellation-above-it`.
+`the-decision-read-answers-theorems-the-must-carry-stations-would-prove`
+closed with it.
 `a0-leaves-max-and-min-of-constants-opaque` closed with DECIDE-3 and
 `coefficient-ring-width-is-not-monotone-in-reach` (SYM's) with SYM-9.
 

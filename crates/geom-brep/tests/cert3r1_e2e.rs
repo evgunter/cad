@@ -33,10 +33,7 @@ fn r1_f64_nested_restrict_round_trip() {
     for s in [0.0, 0.25, 1.0] {
         let via = r2.eval(s);
         let direct = curve.eval(0.5 + 0.2 * s);
-        let d = (via.x - direct.x)
-            .abs()
-            .max((via.y - direct.y).abs())
-            .max((via.z - direct.z).abs());
+        let d = (via - direct).norm_inf();
         println!("f64 nested restrict s={s}: |via - direct| = {d:e}");
         assert!(d <= 1e-12, "nested restrict drifted {d:e} from direct eval");
     }
@@ -50,10 +47,7 @@ fn r1_f64_nested_restrict_round_trip() {
     };
     let p0 = tiny.eval(0.0);
     let p1 = tiny.eval(1.0);
-    let d = (p1.x - p0.x)
-        .abs()
-        .max((p1.y - p0.y).abs())
-        .max((p1.z - p0.z).abs());
+    let d = (p1 - p0).norm_inf();
     println!("f64 near-zero revolve: |eval(1) - eval(0)| = {d:e}");
     assert!(d <= 1.0e-7, "a 1e-8 revolve moved the point {d:e}");
     assert!(d > 0.0, "a 1e-8 revolve moved nothing at all — suspicious");

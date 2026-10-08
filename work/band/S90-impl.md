@@ -1,14 +1,16 @@
 ---
 id: S90-impl
 kind: unit
-title: Tighten the blend seam's three doors to CertifiedBounds — the ruled S90 implementation, with #883 parked here
-status: open
+title: Pin the blend's dual tangents — the doors stay generic under DL5 (Ev, 2026-10-01); a sweep row and a stack-up row that differentiate through a 3D blend
+status: closed
 opened: 2026-08-21
 track: M
-pr: 883
+pr: 3764
 refs: [867, 886]
 priority: P1
-cost: H
+cost: M
+closed: 2026-10-02
+branch: band/dual-blend-tangent-pins
 ---
 
 ## What
@@ -30,7 +32,7 @@ Track H.
 
 `Bounds` has a `Dual` impl since D1 and these are `pub` doors on an API-first kernel, so the seam is instantiable at a dual. What made that a finding was that the D1 ruling's three *smaller* residues each got a number (`ContentBits for Dual` → #687, the census box duplication → #700, the `Enclosure` gate gap → #701) and the one seam it left unguarded got prose. **Both halves of that premise have since moved**: the seam's written reason for needing no lane exists in one home — `real.rs`'s delegation rule (DUAL-DESIGN DL5), which `scripts/gates/bounds-allowlist.sh` points at rather than restating — and the ruled tightening is rowed as **`S90-impl` on Track M**, which carries #883. What stays open is the tightening itself, at these three doors.
 
-**Verdict: ANSWERED — Ev, 2026-08-21: *"tightening to `CertifiedBounds` works at least for now."* Answer (4).** The fillet seam's three public entry points take `<T: Decide + CertifiedBounds>`, which makes an external `Dual64` instantiation a **compile error** rather than a thing an audit has to keep being true about. *"At least for now"* is part of the ruling and is recorded as such: this closes the seam, it does not settle whether a fillet battery should ever be differentiable.
+**Verdict: the blend doors stay generic — `fillet_edges`/`chamfer_edges` at `T: Decide + Bounds + topo::AtRestPolicy`, `run_battery` and the battery predicates at `T: Decide + Bounds` — under DUAL-DESIGN DL5's delegation rule (the `real.rs` ledger's edge-blend entry), and the fillet third of the 2026-08-21 tightening (H-R3, *"tightening to `CertifiedBounds` works at least for now"*) is retired.** The blend certifies nothing: its battery decides on the value channel, its 18 bracket reads are payloads, discrete selections and value-channel refusal gates (DL5 (a)/(b)), and it mints no certificate. Its doors sit beneath `editor_core::eval::evaluate<T>`, which the E4 sensitivity tier runs at `Dual64` (DL3), so a `CertifiedBounds` bound would remove a working capability — measured: a filleted cube's `Dual64` volume tangent matches central differences of the `f64` build to ~1e-11, for the fillet radius and for parameters upstream of it. H-R3's other two doors (`chart_region_overlap`, the projection doors, #886) and its "the passes keep their lanes" half stand. What a dual blend owes is a pin: a tangent row against finite differences on `die_fillet`/`die_chamfer`, and a stack-up row that differentiates through a 3D blend.
 
 **What the ruling does NOT do — and the distinction is Ev's, drawn on the evidence:** it does **not** delete the four lane traits. `CertifiedBounds` refuses at the **function**; a lane trait refuses at a **sub-operation inside a function that has non-certifying work to do**, and no bound on a whole function can say *"this arm needs certification, the rest does not"*. All four lane traits gate mixed passes, and `topo/tests/geometric_cube.rs:236` calls `validate_geometric` at `Dual64` and asserts it **succeeds**. Bounding that pass on `CertifiedBounds` would delete `Body<Dual64>`'s ability to go through a validation pass at all. **The doors tighten; the passes keep their lanes.** Full ruling and its scope: `docs/SMELL-H-LOG.md`, **H-R3**.
 
@@ -178,3 +180,47 @@ Totals: 9 payload reads, 7 selection reads, 2 decision reads.
 `spine_regularity`, `convexity_at`, `chain_g1`, `corner_config`,
 `face_clearance`, `run_battery_for` and `cap_transverse`. Whatever
 tightens `run_battery` should tighten them in the same edit.
+
+## Ruled (Ev, 2026-10-01, PR 3724): the blend stays differentiable
+
+"if answers are correct there then great, of course we want to allow it!"
+The doors are not tightened; the fillet third of H-R3 is retired. What
+remains on this row is the pin: a `sweep` row asserting a fillet's and a
+chamfer's `Dual64` volume tangent against central differences (and the
+closed form for the filleted cube), and an `editor-core` stack-up row
+whose measure differentiates through a 3D blend.
+
+## Closed
+
+The pin the ruling owed is in, as two rows that read the tangent and
+not the value channel.
+
+- `crates/sweep/tests/blend_dual_tangent.rs`: the unit cube filleted
+  and chamfered on all twelve edges at `Dual64`, the volume read
+  through `topo::mass_properties_structural`. Seeded on the blend
+  size (r = 0.1, 0.15, 0.3), the volume tangent matches central
+  differences of the `f64` build (h = 1e-6, tolerance 1e-7 absolute;
+  measured disagreement at most 2.6e-10) for both verbs, and the
+  fillet's matches the closed form
+  `dV/dr = −12(1−π/4)(2r−6r²) − 24(1−π/6)r²` to 1e-12 (measured
+  9e-16). Seeded upstream on the cube's side through the profile and
+  the extrusion distance, the tangent matches central differences for
+  both verbs and the fillet's closed form `3c² + 12rc + 3πr²`,
+  `c = L − 2r`.
+- `crates/editor-core/tests/blend_dual_sensitivity.rs`:
+  `stackup::sensitivities` over a document whose extrude depth and
+  fillet radius are continuous parameters and whose measure is the
+  distance between two vertices the fillet mints; both entries match
+  central differences of the `f64` evaluation and the closed form
+  `∂m/∂r = −4(1 − 2r)/m`, `∂m/∂d = d/m`.
+
+Mutants, each run and reverted: reading the surgery's radius through
+`lo()` into an `f64` and back (`blend/surgery.rs`, `let radius =
+verdict.size`) reds the fillet size rows in `sweep` and the radius
+entry in `editor-core` (tangent 0 vs −2.06); the same at the chamfer
+strip's distance (`battery::classify_arm`) reds the chamfer size row
+(tangent 0); freezing the arm's edge point `p` in `classify_arm` reds
+the upstream row for both verbs and leaves the size rows green. The
+`editor-core` row does not see the frozen `p` (its vertices are minted
+from the supports, not the arm), which is why the upstream seed is
+pinned on volume in `sweep`.

@@ -99,3 +99,55 @@ constituent's operand face holds the chord as a region, on a cylinder.
 `topo::point_in_face` answers for planar faces only
 (`KindUnsupported` otherwise), so the pick needs a curved in-face test
 or a combinatorial record of which pre-merge face the chord bordered.
+
+A `PlacedUnion` operand reaches it with planar faces only (SHOW,
+2026-10-02, measured against the heat-sink recipe of
+`demos/tour/src/heatsink.rs`): a `3 × 1 × 0.25` base and five
+`0.1875 × 1` fins standing flush on it and running its full depth, so
+each fin's two end faces are coplanar with the base's long side faces.
+`find_flush_candidates(base, group)` reports 15 pairs (five feet
+`Rest`, ten end walls `SameOriented`); declaring all 15 and unioning
+refuses `Naming(MergedChordConstituents { several: 5 })`. Each merged
+side face holds the five fins' end faces from the one group operand.
+This is the shape a real extruded heat sink has; the tour's scene
+stops its fins 1/8 short of the long sides.
+
+## Now on the document crosslap's path (REACH, 2026-10-01)
+
+Since the continuation ruling (PR 3613, built on
+`reach/cosurface-continuation`) an undeclared continuation refuses at
+the reduction. The north-star crosslap's beams have four: their tops
+and bottoms carry on into each other across the notch edges. Declaring
+only the mate (the five `Rest` findings) now refuses
+`undeclared_contact` on one of them, and following the menu to its end
+(all nine findings declared) reaches this row's
+`merged_chord_constituents`. So the document-layer crosslap, which used
+to glue on the mate alone (to a body whose coplanar tops and bottoms
+were left unmerged), waits on this rule. The kernel tour's crosslap
+declares the whole inventory and glues; only the naming layer stops.
+Pinned in `crates/pncad-py/tests/test_north_star.py`
+(`TestCrosslapAtTheNamingWall`).
+
+## More orders once declarations stop refusing by order (EMIT, 2026-10-06)
+
+Once `DeclareResolve` stops refusing by order (INTENT's stage 4, or a
+fan-out), `NamingError::SeamVertexParentage` gains `near` (the ZIP
+document, `emit_union_flush_names.rs`) `[0,2,1]` and `[2,0,1]`, which
+refuse `DeclareResolve` today. Measured in
+`work/emit/union-refuses-in-some-member-orders-and-publishes-in-others.md`,
+"Re-measured on main (2026-10-06)".
+
+## The arm loses its witnesses again (FUSE, 2026-10-06, `fuse/set-names`)
+
+With maximal edges at every boolean output stage (PR 4140) and joined
+edges named for the set of the edges they cover, every
+`SeamVertexParentage` order in the three
+`wire_legal_union_refusals::no_order_of_…_refuses_a_fold_contact` rows
+fuses at the volume the geometry says: 2 of 6, 8 of 24 and 18 of 24
+orders flip to `Fused`. The vertex the arm refused was a cut vertex
+the join now removes, or a vertex on a joined edge that the set's
+constituents now name. No document in the editor-core suite reaches
+`emit_topo`'s `([_], [], _, _)` arm on that branch; only
+`display_contract` and the concision rows pin its sentence. The
+`MergedChordConstituents` orders of the split fixture (`[c,s,a,big]`)
+remain, and are this row's subject.

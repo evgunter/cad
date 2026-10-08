@@ -2,10 +2,12 @@
 id: swept-continuation-walls-reach-the-boolean-unmerged
 kind: issue
 title: sweep: a declared continuation's two walls share one plane key but reach the boolean unmerged, and the recourse (merge_coplanar_faces) has no door above the kernel
-status: open
+status: closed
 opened: 2026-09-25
 priority: P0
 cost: D
+pr: 3736
+closed: 2026-10-02
 ---
 
 

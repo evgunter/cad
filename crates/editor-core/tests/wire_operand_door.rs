@@ -27,13 +27,12 @@
 //!   negation of its own `expected:` (*"not a datum frame"*), fails
 //!   while the phrase beside it stays right.
 //!
-//! **Three rows never reach evaluation**, and that is the finding they
-//! carry: the edit door refuses an assertion over a non-measure and a
-//! declare reference that is not a `Declare`, so `wire_assertion`'s and
-//! `declared_pairs`' kind refusals are defences behind a door rather
-//! than sentences a document author can read. They are asserted as
-//! edit-door refusals, so a door that stopped refusing them — and
-//! started shipping those refusals to users — reds here.
+//! **One row never reaches evaluation**, and that is the finding it
+//! carries: the edit door refuses an assertion over a non-measure, so
+//! `wire_assertion`'s kind refusal is a defence behind a door rather
+//! than a sentence a document author can read. It is asserted as an
+//! edit-door refusal, so a door that stopped refusing it — and started
+//! shipping that refusal to users — reds here.
 //!
 //! These refusals are DOCUMENT-REACHABLE: the strings here are what an
 //! author reads. The SOURCE rules behind them (one construction site,
@@ -43,10 +42,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
-    AssertionDir, Datum, DocEdit, EvalOptions, Expr, Node, NodeErrorKind, PartSelect, PatternKind,
-    ProfileDoc, ProfileProgram, RecipeNodeId, SplitHalf, TubeWindow,
+    AssertionDir, Datum, DocEdit, EvalOptions, Formula, Node, NodeErrorKind, PartSelect,
+    PatternKind, ProfileDoc, RecipeNodeId, SplitHalf, TubeWindow,
 };
 use fixture::{ang, desc, insert, len, on_frame_keeping, scl, square};
 use geom_core::Tol;
@@ -103,13 +104,7 @@ fn wired() -> (
         Node::Extrude {
             profile,
             distance: len(1.0),
-        },
-    );
-    let (doc, body2) = insert(
-        doc,
-        Node::Extrude {
-            profile,
-            distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, plane) = insert(
@@ -130,7 +125,7 @@ fn wired() -> (
         doc,
         Node::Pattern {
             input: body,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(3.0),
@@ -145,11 +140,14 @@ fn wired() -> (
                rows: &mut Vec<Row>,
                what: &'static str,
                owes: Owes,
-               node: Node<ProfileProgram>,
+               node: AuthoredNode,
                input: RecipeNodeId|
      -> ProfileDoc {
         match d.apply(
-            &DocEdit::InsertNode { node },
+            &DocEdit::InsertNode {
+                node: Box::new(node),
+                fresh: Vec::new(),
+            },
             Tol::witness(),
             &editor_core::RefusingReach,
         ) {
@@ -207,7 +205,7 @@ fn wired() -> (
         Owes::Refusal("body or instances", "profile"),
         Node::Pattern {
             input: profile,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(3.0),
@@ -239,6 +237,7 @@ fn wired() -> (
         Node::Extrude {
             profile: plane,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
         plane,
     );
@@ -332,33 +331,9 @@ fn wired() -> (
         Owes::Refusal("instances", "body"),
         Node::Part {
             of: body,
-            select: PartSelect::Instance(Expr::count(0)),
+            select: PartSelect::Instance(Formula::count(0)),
         },
         body,
-    );
-    doc = add(
-        doc,
-        &mut rows,
-        "declared_pairs on the union road — behind the edit door",
-        Owes::EditDoor,
-        Node::Union {
-            members: vec![body, body2],
-            declare: Some(plane),
-        },
-        plane,
-    );
-    doc = add(
-        doc,
-        &mut rows,
-        "declared_pairs on the boolean road — behind the edit door",
-        Owes::EditDoor,
-        Node::Boolean {
-            op: editor_core::BooleanOp::Union,
-            a: body,
-            b: body2,
-            declare: Some(plane),
-        },
-        plane,
     );
     doc = add(
         doc,
@@ -367,7 +342,7 @@ fn wired() -> (
         Owes::Refusal("datum axis", "datum"),
         Node::Pattern {
             input: body,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Circular {
                 axis: plane,
                 step: ang(0.5),
@@ -385,7 +360,7 @@ fn wired() -> (
         Owes::Refusal("profile", "body"),
         Node::Loft {
             profiles: vec![profile, body],
-            v_degree: Expr::count(1),
+            v_degree: Formula::count(1),
         },
         body,
     );
@@ -396,7 +371,7 @@ fn wired() -> (
         Owes::Refusal("profile", "datum"),
         Node::Loft {
             profiles: vec![profile, sketch],
-            v_degree: Expr::count(1),
+            v_degree: Formula::count(1),
         },
         sketch,
     );
@@ -408,8 +383,8 @@ fn wired() -> (
         Node::Sweep {
             profile: body,
             path: profile,
-            stations: Expr::count(3),
-            v_degree: Expr::count(1),
+            stations: Formula::count(3),
+            v_degree: Formula::count(1),
         },
         body,
     );

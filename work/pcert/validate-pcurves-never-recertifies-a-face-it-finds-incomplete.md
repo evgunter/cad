@@ -2,12 +2,15 @@
 id: validate-pcurves-never-recertifies-a-face-it-finds-incomplete
 kind: issue
 title: validate_pcurves skips its re-certification and continuity passes on any face missing a row, so a stale row on an incomplete face is never measured
-status: open
+status: closed
 opened: 2026-09-13
 refs: [S331]
 priority: P0
 cost: M
-design: true
+parent: S331
+branch: pcert/at-rest-rows-mandatory
+closed: 2026-10-02
+pr: 3759
 ---
 
 
@@ -53,3 +56,7 @@ Whether the fix is to run pass 2 over the rows that ARE present (with a
 window hulled from those rows, as pass 1 already builds it) or to state
 the narrower claim at the entry is this program's call. Sibling row on
 the neighbouring question of what an at-rest absence may claim: `S331`.
+
+## Closed
+
+Closed by PR 3759 (`pcert/at-rest-rows-mandatory`, merged 82b52c36c): on every curved chart a face's pcurve rows are mandatory at rest (C4). Tier 3 dry-mints a rowless face and reports `Unminted` or the derivation's refusal, re-certifies and continuity-checks a half-minted face's stored rows like a complete one's (with `RowInterval`), reads an excused face whole before excusing it, and `sweep::extrude` closes with `topo::mint_pcurves`. Residue has its own rows: the four uncovered-class `mint-has-no-route-*` rows and `at-rest-trim-containment-checks-against-the-stored-hull`.

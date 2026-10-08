@@ -27,7 +27,7 @@ pub(super) fn wall_surface<T: Real>(
     frame: &AxisFrame<T>,
 ) -> Surface<T> {
     match *kind {
-        WallKind::Plane => Surface::Plane {
+        WallKind::Plane { .. } => Surface::Plane {
             origin: frame.world(seg.a),
             normal: frame.a3,
             u_ref: frame.u3,

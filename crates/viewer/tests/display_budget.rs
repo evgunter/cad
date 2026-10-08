@@ -558,20 +558,20 @@ const ANSWERS: &[Answer] = &[
         document: "corner_table",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 76,
+        predicted: 60,
         requested_cost: None,
-        largest_probe: 76,
-        probe_triangles: 228,
+        largest_probe: 60,
+        probe_triangles: 180,
         stop: ProbeStop::Flat,
     },
     Answer {
         document: "corner_table",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 76,
+        predicted: 60,
         requested_cost: None,
-        largest_probe: 76,
-        probe_triangles: 228,
+        largest_probe: 60,
+        probe_triangles: 180,
         stop: ProbeStop::Flat,
     },
     Answer {
@@ -698,20 +698,20 @@ const ANSWERS: &[Answer] = &[
         document: "kitchen_sink",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 3392,
+        predicted: 2880,
         requested_cost: None,
-        largest_probe: 424,
-        probe_triangles: 804,
+        largest_probe: 360,
+        probe_triangles: 628,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
         document: "kitchen_sink",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 8032,
+        predicted: 7520,
         requested_cost: None,
-        largest_probe: 1004,
-        probe_triangles: 1384,
+        largest_probe: 940,
+        probe_triangles: 1208,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
@@ -898,20 +898,20 @@ const ANSWERS: &[Answer] = &[
         document: "part_select",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 32,
+        predicted: 24,
         requested_cost: None,
-        largest_probe: 32,
-        probe_triangles: 96,
+        largest_probe: 24,
+        probe_triangles: 72,
         stop: ProbeStop::Flat,
     },
     Answer {
         document: "part_select",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 32,
+        predicted: 24,
         requested_cost: None,
-        largest_probe: 32,
-        probe_triangles: 96,
+        largest_probe: 24,
+        probe_triangles: 72,
         stop: ProbeStop::Flat,
     },
     Answer {
@@ -1282,7 +1282,7 @@ fn extent_of(body: &pncad::topo::Body<f64>, delta: f64, tol: Tol) -> f64 {
     let mesh = pncad::mesh::tessellate(body, delta, tol).expect("a body tessellates");
     let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
     for p in &mesh.positions {
-        for (axis, value) in [p.x, p.y, p.z].into_iter().enumerate() {
+        for (axis, value) in p.to_array().into_iter().enumerate() {
             lo[axis] = lo[axis].min(value);
             hi[axis] = hi[axis].max(value);
         }

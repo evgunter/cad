@@ -51,6 +51,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use crate::fixture::len;
 use editor_core::NodeStanding;
@@ -101,6 +102,7 @@ fn box_doc() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -194,7 +196,7 @@ fn a_foreign_node_id_refuses_typed_and_differs_from_an_unknown_name() {
     let (doc, node) = box_doc();
     let ev = eval(&doc);
     let name = all_faces(&ev, node)[0].clone();
-    let foreign = RecipeNodeId(4242);
+    let foreign = RecipeNodeId::new(0, 4242);
 
     assert_eq!(
         face_frame(&ev, foreign, &name).unwrap_err(),
@@ -353,6 +355,7 @@ fn box_with_a_failed_and_a_poisoned_node() -> (ProfileDoc, RecipeNodeId, RecipeN
         Node::Extrude {
             profile: square,
             distance: len(0.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, poisoned) = fixture::insert(
@@ -361,7 +364,7 @@ fn box_with_a_failed_and_a_poisoned_node() -> (ProfileDoc, RecipeNodeId, RecipeN
             op: editor_core::BooleanOp::Union,
             a: failed,
             b: good,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     (doc, good, failed, poisoned)
@@ -392,9 +395,7 @@ fn a_frameless_carrier(
             names.into_iter().map(move |name| (node, name))
         })
         .find(|(node, name)| match kind {
-            EntityKind::Face => {
-                face_carrier_kind(ev, *node, name) == Ok(geom_brep::SurfaceKind::Nurbs)
-            }
+            EntityKind::Face => face_carrier_kind(ev, *node, name) == Ok(geom::SurfaceKind::Nurbs),
             _ => edge_carrier_kind(ev, *node, name) == Ok(editor_core::CurveKind::Nurbs),
         })
         .expect("the loft's skinned walls are NURBS, and so are the curves that bound them")
@@ -580,7 +581,7 @@ fn the_reachable_ladder_is_driven_through_its_doors() {
     let face = all_faces(&ev, good)[0].clone();
     let edge = all_edges(&ev, good)[0].clone();
     let body = all_bodies(&ev, good)[0].clone();
-    let foreign = RecipeNodeId(4242);
+    let foreign = RecipeNodeId::new(0, 4242);
     let stranger = a_name_no_face_answers_to(good);
 
     // The N2 tie, from the fixture that mints one.

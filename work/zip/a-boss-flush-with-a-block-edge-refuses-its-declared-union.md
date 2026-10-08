@@ -2,11 +2,14 @@
 id: a-boss-flush-with-a-block-edge-refuses-its-declared-union
 kind: issue
 title: A boss drawn on a block's top flush with its side wall refuses the declared union: seam chord between two isolated pierce points
-status: open
+status: closed
 opened: 2026-09-30
+closed: 2026-10-06
+pr: 4130
+branch: zip/chord-rows
 priority: P1
 cost: H
-refs: [addboolean-doc-names-a-vocabulary-that-does-not-exist, m9-3-semantic-residues, a-rest-zip-refusal-tells-a-declared-contact-to-declare-the-coincidence]
+refs: [m9-3-semantic-residues, a-rest-zip-refusal-tells-a-declared-contact-to-declare-the-coincidence]
 ---
 
 
@@ -81,3 +84,45 @@ zip. The same operands evaluate correctly as subtract
 (V = 7.2146e-6 m³) and intersect (7.854e-7 m³). This is a different
 rung from the seam chord above, reached by the same gesture, and it
 carries the same recourse.
+
+## Measured on main (2026-10-06)
+
+Measured on `origin/main` 3f1e3b0d by the ZIP lane `zip-chord`, at
+the 1e-9, 1e-6 and 1e-12 rows, both operand orders. The scene was
+built four ways: the sweep extrusion and the brick door, each at 1 and
+at 1e-3 (millimetres in metres), and through the op vocabulary
+(`Datum::FaceFrame`, spin 0, off the block's `Cap(End)`).
+
+- Undeclared, and with only the resting cap pair declared, the union
+  refuses `UndeclaredCoincidence { relation: SameOriented }` naming
+  the two `+x` walls (`bool_plane_offset`, margin 0). The flush walls
+  are the first contact reported, so the "Folded" paragraph above no
+  longer describes main.
+- Declaring what the refusals name, one at a time (the walls as a
+  continuation, then the caps as `Rest`), builds the union in the
+  chord join at the closed form `8000 + 400` (one shell, tier 3, the
+  census). The declared-REST zip is not entered.
+- AUTH-9's through-cylinder scene (a cylinder of radius 5 through the
+  40 × 20 × 10 block, its caps flush with the block's top and bottom)
+  was not measured when it was written up. Measured now: each cap pair
+  refuses in turn as `SameOriented`, and with both declared as
+  continuations the union builds at the block's volume, 8000, with the
+  rim authored as two arcs and as three.
+
+No declaration, door, scale, order or eps row reproduces the seam-chord
+refusal. The viewer binary itself, and the AUTH-9 branch the scene was
+found on, were not run.
+
+## Closed (2026-10-06)
+
+Pinned by `crates/sweep/tests/boss_flush_with_a_block_edge.rs`:
+- `the_flush_walls_are_reported_before_and_after_the_cap_pair_is_declared`;
+- `declaring_what_the_refusals_name_builds_the_union_at_its_closed_form`;
+- `a_cylinder_through_the_block_with_flush_caps_unions_to_the_block`.
+
+The op-vocabulary build is pinned by
+`crates/editor-core/tests/boss_flush_offer.rs`
+(`accepting_each_offer_in_turn_builds_the_flush_boss_union`).
+
+The recourse sentence stays its own row
+(`a-rest-zip-refusal-tells-a-declared-contact-to-declare-the-coincidence`).

@@ -19,8 +19,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanValue, CancelToken, Datum, DocEdit, DocumentId, EvalOptions, Evaluation, Expr, Frame,
+    BooleanValue, CancelToken, Datum, DocEdit, DocumentId, EvalOptions, Evaluation, Formula, Frame,
     Node, NodeResult, PatternKind, ProductError, ProfileDoc, RecipeNodeId, SourceFinding,
     SplitHalf, SplitSide, ValuePayload, evaluate, product_recorded,
 };
@@ -102,6 +103,7 @@ fn block(doc: ProfileDoc, cx: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -129,7 +131,7 @@ fn flip_one_face(ev: &mut Evaluation<f64>, node: RecipeNodeId) -> usize {
 /// slot.
 fn turn_inside_out(ev: &mut Evaluation<f64>, node: RecipeNodeId) {
     let body = slot(ev, node);
-    let reversed = body.revert().expect("an evaluated block reverses");
+    let reversed = body.revert();
     *body = Arc::new(reversed);
 }
 
@@ -193,9 +195,12 @@ fn a_lone_multi_solid_source_is_named() {
         let (next, id) = insert(sub, Node::instantiate_part(p));
         let (next, _) = step(
             next,
-            DocEdit::SetPlacement {
-                node: id,
-                frame: Frame::translation([dx, 0.0, 0.0]),
+            DocEdit::SetOffset {
+                instance: id,
+                offset: Some(editor_core::Placement::literal(&Frame::translation([
+                    dx, 0.0, 0.0,
+                ]))),
+                fresh: Vec::new(),
             },
         );
         sub = next;
@@ -271,8 +276,13 @@ fn a_defect_that_stops_check_7_does_not_hide_another_roots_inside_out_body() {
     assert!(of_b.iter().any(is_inside_out), "b's own finding: {of_b:?}");
     let text = err.to_string();
     assert!(
-        text.contains(&format!("root {} output 0", test_utils::refusal::tag(a.0)))
-            && text.contains(&format!("root {} output 0", test_utils::refusal::tag(b.0))),
+        text.contains(&format!(
+            "root {} output 0",
+            test_utils::refusal::tag(a.0.digest())
+        )) && text.contains(&format!(
+            "root {} output 0",
+            test_utils::refusal::tag(b.0.digest())
+        )),
         "the message names both roots: {text}"
     );
 }
@@ -300,7 +310,7 @@ fn a_pattern_root_names_each_failing_instance() {
         doc,
         Node::Pattern {
             input: a,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(3.0),

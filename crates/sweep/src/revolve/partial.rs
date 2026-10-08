@@ -8,27 +8,32 @@
 //! Phase order (fixed, D9): start lamina (outer chain + closing `mef`
 //! carrying the start cap's Newell plane), holes (bridge `mev` +
 //! `kemr` + chain + closing `mef` + same-shell `kfmrh` — extrude's
-//! shape), per-loop sweep (struts at off-axis vertices, walls for
-//! off-axis segments, latitude-join classification), end cap plane,
-//! then the upgrade pass (cap–wall meridians, cap–cap axis edges).
+//! shape), per-loop sweep (struts at off-axis vertices, one wall per
+//! off-axis segment, latitude-join classification), end cap plane, then
+//! the upgrade pass (cap–wall meridians, cap–cap axis edges). Every
+//! phase builds the loops with their runs collapsed ([`Collapsed`]), so
+//! a station inside a run has no entity.
 
-use geom_brep::newell_plane;
 use geom_core::{Affine3, Band, Decide, Point3, Sign};
-use topo::{Body, EdgeKey, FaceKey, FaceSurface, MefSite, MevSite};
+use topo::{Body, EdgeKey, FaceKey, FaceSurface, MevSite};
 
 use super::axis::{AxisFrame, LoopClasses, WallClass};
 use super::chain::build_chain;
+use super::runs::{Collapsed, collapse_runs};
 use super::surfaces::{revolved_strut_spec, wall_surface};
+use super::turn::{TurnEnds, sweep_turn};
 use super::upgrade::upgrade_intersection;
-use super::{RevolveError, Revolved, RevolvedKind, SweptSeg, WALL_COSURFACE};
-use crate::swept::{cap_points, cosurface, face_surface_key, placed_segment_spec, turn_axis};
+use super::{RevolveError, Revolved, RevolvedKind, SweptSeg};
+use crate::swept::{
+    CapEnd, cap_plane, cap_points, face_surface_key, placed_segment_spec, turn_axis,
+};
 use geom_core::Tol;
 
 /// Builds the wedge solid (file docs). `reverse` is the already-decided
 /// sign class of θ (`true` ⇔ θ definitely positive — module docs'
 /// winding convention); it selects the θ-signed rim-carrier axis
 /// structurally (no re-inspection of θ).
-pub(super) fn build_partial<T: Decide>(
+pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
     frame: &AxisFrame<T>,
     loops: &[Vec<SweptSeg<T>>],
     classes: &[LoopClasses<T>],
@@ -50,6 +55,16 @@ pub(super) fn build_partial<T: Decide>(
         frame.a3,
     );
 
+    // Each loop with its runs collapsed: a station inside a run has no
+    // entity, so a cap carries a run as one meridian edge.
+    let cols = loops
+        .iter()
+        .zip(classes)
+        .enumerate()
+        .map(|(li, (segs, cls))| collapse_runs(segs, cls, li, band))
+        .collect::<Result<Vec<_>, _>>()?;
+    let loops: Vec<&[SweptSeg<T>]> = cols.iter().map(|c| &c.segs[..]).collect();
+
     // World points: start chain, and end chain (pinned vertices are
     // fixed by the rotation — their end point IS the start point, so
     // no drift enters the shared entities).
@@ -57,14 +72,14 @@ pub(super) fn build_partial<T: Decide>(
         .iter()
         .map(|segs| segs.iter().map(|s| frame.world(s.a)).collect())
         .collect();
-    let rpoints: Vec<Vec<Point3<T>>> = loops
+    let rpoints: Vec<Vec<Point3<T>>> = cols
         .iter()
-        .zip(classes)
-        .map(|(segs, cls)| {
-            segs.iter()
+        .map(|col| {
+            col.segs
+                .iter()
                 .enumerate()
                 .map(|(j, s)| {
-                    if cls.verts[j].pinned {
+                    if col.cls.verts[j].pinned {
                         frame.world(s.a)
                     } else {
                         rot.transform_point(frame.world(s.a))
@@ -75,7 +90,7 @@ pub(super) fn build_partial<T: Decide>(
         .collect();
 
     // ---- Phase 1: start lamina (outer loop; extrude's shape). ----
-    let outer = &loops[0];
+    let outer = loops[0];
     let qs = &points[0];
     // One surgery scope for the whole build (`topo::surgery`): tier 1
     // is this door's postcondition and the tier-2 check below subsumes
@@ -83,72 +98,117 @@ pub(super) fn build_partial<T: Decide>(
     // the scope by dropping it.
     let mut built = Body::<T>::new();
     let mut body = built.begin_surgery();
-    let seed = body.mvfs(qs[0], true)?;
-    // Start cap plane: the mef face's loop runs the chain reversed;
-    // first point kept, rest reversed (extrude's bottom-cap order).
-    // Derived from the sketch data alone — it reads no entity and
-    // mints none — so the closing surface can be in hand before the
-    // chain that will carry it.
-    let forward = cap_points(outer, qs, place);
-    let mut start_order: Vec<Point3<T>> = Vec::with_capacity(forward.len());
-    if let Some(&p0) = forward.first() {
-        start_order.push(p0);
-    }
-    for &p in forward.iter().skip(1).rev() {
-        start_order.push(p);
-    }
-    let start_plane =
-        newell_plane(&start_order, band).map_err(|source| RevolveError::CapPlane { source })?;
-    let start = build_chain(
-        &mut body,
-        frame,
-        seed.r#loop,
-        seed.vertex,
-        outer,
-        qs,
-        // Newell over the loop the cap runs: outward, as extrude's.
-        FaceSurface::New {
-            surface: start_plane,
-            sense: true,
+    // A one-segment loop (D1's full turn) is swept whole in phases 1–2,
+    // far end first (`turn::sweep_turn`), so its seed is the far vertex.
+    let ends = |li: usize| TurnEnds {
+        near: points[li][0],
+        far: rpoints[li][0],
+        place_far: place_end,
+        n_far: n_end,
+    };
+    let seed = body.mvfs(
+        if profile::is_full_turn(outer) {
+            rpoints[0][0]
+        } else {
+            qs[0]
         },
-        tol,
+        true,
     )?;
-    let end_face = seed.face;
-    let start_face = start.face;
-    let start_surface = face_surface_key(&body, start_face)?;
+    // Start cap plane: derived from the sketch data alone — it reads no
+    // entity and mints none — so the closing surface can be in hand
+    // before the chain that will carry it.
+    let start_plane = cap_plane(
+        &cap_points(outer, qs, place),
+        place,
+        reverse,
+        CapEnd::Start,
+        band,
+    )
+    .map_err(|source| RevolveError::CapPlane { source })?;
+    let start_cap = FaceSurface::New {
+        surface: start_plane,
+        sense: true,
+    };
+    let mut swept_early: Vec<Option<LoopSwept>> = (0..loops.len()).map(|_| None).collect();
     let mut bases = Vec::with_capacity(loops.len());
-    bases.push(start.hes);
     let mut verts = Vec::with_capacity(loops.len());
-    verts.push(start.verts);
+    let (start_face, anchor) = if profile::is_full_turn(outer) {
+        let (turn, swept) = sweep_turn(
+            &mut body,
+            frame,
+            &cols[0].cls,
+            &outer[0],
+            seed.r#loop,
+            &ends(0),
+            theta,
+            axis_c,
+            start_cap,
+            tol,
+        )?;
+        bases.push(vec![turn.near_in_wall]);
+        verts.push(vec![he_start(&body, turn.near_in_wall)]);
+        swept_early[0] = Some(swept);
+        (turn.near_face, turn.far_kept)
+    } else {
+        let start = build_chain(
+            &mut body,
+            frame,
+            seed.r#loop,
+            seed.vertex,
+            outer,
+            qs,
+            start_cap,
+            tol,
+        )?;
+        let anchor = start.hes[0];
+        bases.push(start.hes);
+        verts.push(start.verts);
+        (start.face, anchor)
+    };
+    let end_face = seed.face;
+    let start_surface = face_surface_key(&body, start_face);
 
     // ---- Phase 2: holes (rings in the seed face + kfmrh into the
     // start cap; extrude's shape — hole vertices are never on-axis for
     // a validated profile, so the generic sweep handles them). ----
-    let anchor = bases[0][0];
     for (li, segs) in loops.iter().enumerate().skip(1) {
         let hq = &points[li];
-        let bridge = body.mev_line(
-            MevSite::Fan {
-                he1: anchor,
-                he2: anchor,
-            },
-            hq[0],
-            tol,
-        )?;
-        let ring = body.kemr(bridge.he_plus, bridge.he_minus)?.ring;
+        if profile::is_full_turn(segs) {
+            let (turn, swept) = crate::swept::full_turn_hole(
+                &mut body,
+                anchor,
+                rpoints[li][0],
+                start_face,
+                tol,
+                |b, ring, disc| {
+                    sweep_turn(
+                        b,
+                        frame,
+                        &cols[li].cls,
+                        &segs[0],
+                        ring,
+                        &ends(li),
+                        theta,
+                        axis_c,
+                        disc,
+                        tol,
+                    )
+                },
+            )?;
+            bases.push(vec![turn.near_in_wall]);
+            verts.push(vec![he_start(&body, turn.near_in_wall)]);
+            swept_early[li] = Some(swept);
+            continue;
+        }
+        let (ring, ring_vertex) = crate::swept::plant_hole_ring(&mut body, anchor, hq[0], tol)?;
         let hole = build_chain(
             &mut body,
             frame,
             ring,
-            bridge.vertex,
+            ring_vertex,
             segs,
             hq,
-            // The disc is transient: `kfmrh` kills it at once, and
-            // nothing reads its bit.
-            FaceSurface::Shared {
-                key: start_surface,
-                sense: false,
-            },
+            crate::swept::transient_disc(start_surface),
             tol,
         )?;
         body.kfmrh(start_face, hole.face)?;
@@ -168,32 +228,39 @@ pub(super) fn build_partial<T: Decide>(
     let mut walls_all: Vec<Vec<Option<FaceKey>>> = Vec::with_capacity(loops.len());
     let mut rims_all: Vec<Vec<Option<EdgeKey>>> = Vec::with_capacity(loops.len());
     let mut tops_all: Vec<Vec<Option<EdgeKey>>> = Vec::with_capacity(loops.len());
-    for (li, (segs, hes)) in loops.iter().zip(&bases).enumerate() {
-        let swept = sweep_loop(
-            &mut body,
-            li,
-            segs,
-            &classes[li],
-            hes,
-            &points[li],
-            &rpoints[li],
-            frame,
-            theta,
-            axis_c,
-            place_end,
-            n_end,
-            band,
-            tol,
-        )?;
+    for (li, (col, hes)) in cols.iter().zip(&bases).enumerate() {
+        let swept = match swept_early[li].take() {
+            Some(swept) => swept,
+            None => sweep_loop(
+                &mut body,
+                li,
+                col,
+                hes,
+                &points[li],
+                &rpoints[li],
+                frame,
+                theta,
+                axis_c,
+                place_end,
+                n_end,
+                band,
+                tol,
+            )?,
+        };
         walls_all.push(swept.faces);
         rims_all.push(swept.rims);
         tops_all.push(swept.tops);
     }
 
     // ---- Phase 4: the swept face survives as the end cap. ----
-    let far_loop = cap_points(&loops[0], &rpoints[0], place_end);
-    let end_plane =
-        newell_plane(&far_loop, band).map_err(|source| RevolveError::CapPlane { source })?;
+    let end_plane = cap_plane(
+        &cap_points(loops[0], &rpoints[0], place_end),
+        place_end,
+        reverse,
+        CapEnd::End,
+        band,
+    )
+    .map_err(|source| RevolveError::CapPlane { source })?;
     let end_surface = body.set_face_surface(
         end_face,
         FaceSurface::New {
@@ -208,8 +275,7 @@ pub(super) fn build_partial<T: Decide>(
     // caps against each other (module docs). ----
     finish_partial(
         &mut body,
-        loops,
-        classes,
+        &cols,
         &bases,
         &walls_all,
         &tops_all,
@@ -234,26 +300,28 @@ pub(super) fn build_partial<T: Decide>(
     let mut start_mer = Vec::with_capacity(loops.len());
     let mut end_mer = Vec::with_capacity(loops.len());
     let mut poles_c = Vec::with_capacity(loops.len());
-    for (li, segs) in loops.iter().enumerate() {
-        let n = segs.len();
+    for (li, col) in cols.iter().enumerate() {
+        let n = col.n_canon;
         let mut wc = vec![None; n];
         let mut rc = vec![None; n];
         let mut sm = vec![None; n];
         let mut em = vec![None; n];
         let mut pc = vec![None; n];
-        for (j, s) in segs.iter().enumerate() {
-            wc[s.canonical_segment] = walls_all[li][j];
+        for (j, s) in col.segs.iter().enumerate() {
             rc[s.canonical_vertex] = rims_all[li][j];
             // A pinned vertex is fixed by the rotation, so its start-
             // chain vertex IS the end chain's: the pole.
-            if classes[li].verts[j].pinned {
+            if col.cls.verts[j].pinned {
                 pc[s.canonical_vertex] = Some(verts[li][j]);
             }
-            let bottom = he_edge(&body, bases[li][j])?;
-            sm[s.canonical_segment] = Some(bottom);
-            em[s.canonical_segment] = Some(tops_all[li][j].unwrap_or(bottom));
+            let bottom = he_edge(&body, bases[li][j]);
+            for &m in &col.members[j] {
+                wc[m] = walls_all[li][j];
+                sm[m] = Some(bottom);
+                em[m] = Some(tops_all[li][j].unwrap_or(bottom));
+            }
         }
-        walls_c.push(wc);
+        walls_c.push(super::bands_of(&wc, &col.members));
         rims_c.push(rc);
         poles_c.push(pc);
         // Meridian chains are total per segment (`Option` only bridges
@@ -267,7 +335,7 @@ pub(super) fn build_partial<T: Decide>(
         solid: seed.solid,
         shell: seed.shell,
         cavities: Vec::new(),
-        walls: walls_c,
+        bands: walls_c,
         rims: rims_c,
         poles: poles_c,
         kind: RevolvedKind::Partial {
@@ -279,17 +347,38 @@ pub(super) fn build_partial<T: Decide>(
     })
 }
 
-/// An half-edge's edge key (total).
-pub(super) fn he_edge<T: Decide>(
-    body: &Body<T>,
-    he: topo::HalfEdgeKey,
-) -> Result<EdgeKey, RevolveError> {
-    Ok(body
-        .get_half_edge(he)
-        .ok_or(topo::EulerOpError::StaleKey {
-            key: topo::EntityId::HalfEdge(he),
-        })?
-        .edge)
+/// The start vertex of `he`, a half-edge the calling driver minted.
+///
+/// # Panics
+///
+/// If `he` is not live: every caller passes a half-edge its own driver
+/// minted and reads it before any step that kills it.
+#[track_caller]
+fn he_start<T: Decide>(body: &Body<T>, he: topo::HalfEdgeKey) -> topo::VertexKey {
+    body.get_half_edge(he)
+        .unwrap_or_else(|| {
+            unreachable!(
+                "half-edge {he:?} was minted by this driver and is read before any kill of it"
+            )
+        })
+        .start
+}
+
+/// The edge of `he`, a chain half-edge the calling driver minted.
+///
+/// # Panics
+///
+/// If `he` is not live: every caller passes a half-edge its own driver
+/// minted and reads it before any step that kills it.
+#[track_caller]
+pub(super) fn he_edge<T: Decide>(body: &Body<T>, he: topo::HalfEdgeKey) -> EdgeKey {
+    body.get_half_edge(he)
+        .unwrap_or_else(|| {
+            unreachable!(
+                "half-edge {he:?} was minted by this driver and is read before any kill of it"
+            )
+        })
+        .edge
 }
 
 /// The rim-upgrade pass (phase 5): per walled segment the start-chain
@@ -298,10 +387,9 @@ pub(super) fn he_edge<T: Decide>(
 /// each other — `Intersection { start, end }` when definitely
 /// transverse (θ ≠ π), conventional when definitely smooth (θ = π).
 #[allow(clippy::too_many_arguments)] // one internal call site.
-fn finish_partial<T: Decide>(
+fn finish_partial<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
-    loops: &[Vec<SweptSeg<T>>],
-    classes: &[LoopClasses<T>],
+    cols: &[Collapsed<T>],
     bases: &[Vec<topo::HalfEdgeKey>],
     walls_all: &[Vec<Option<FaceKey>>],
     tops_all: &[Vec<Option<EdgeKey>>],
@@ -310,26 +398,25 @@ fn finish_partial<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<(), RevolveError> {
-    for (li, segs) in loops.iter().enumerate() {
-        let n = segs.len();
-        for j in 0..n {
-            let segment_index = segs[j].canonical_segment;
+    for (li, col) in cols.iter().enumerate() {
+        for (j, seg) in col.segs.iter().enumerate() {
+            let segment_index = seg.canonical_segment;
             let sliver = |source| RevolveError::SliverRim {
                 loop_index: li,
                 segment_index,
                 source,
             };
-            let bottom = he_edge(body, bases[li][j])?;
+            let bottom = he_edge(body, bases[li][j]);
             match walls_all[li][j] {
                 Some(wall_face) => {
-                    let wall = face_surface_key(body, wall_face)?;
+                    let wall = face_surface_key(body, wall_face);
                     upgrade_intersection(body, bottom, start_surface, wall, band, sliver, tol)?;
                     if let Some(top) = tops_all[li][j] {
                         upgrade_intersection(body, top, end_surface, wall, band, sliver, tol)?;
                     }
                 }
                 None => {
-                    debug_assert!(matches!(classes[li].walls[j], WallClass::OnAxis));
+                    debug_assert!(matches!(col.cls.walls[j], WallClass::OnAxis));
                     upgrade_intersection(
                         body,
                         bottom,
@@ -346,23 +433,24 @@ fn finish_partial<T: Decide>(
     Ok(())
 }
 
-/// One loop's sweep products, swept-indexed (`None` = on-axis class).
+/// One loop's sweep products, per collapsed segment (`None` = on-axis
+/// class).
 pub(super) struct LoopSwept {
     pub(super) faces: Vec<Option<FaceKey>>,
     pub(super) rims: Vec<Option<EdgeKey>>,
     pub(super) tops: Vec<Option<EdgeKey>>,
 }
 
-/// Sweeps one loop of the seed face: struts at off-axis vertices,
-/// walls for off-axis segments (site addressing per the pinned-run
-/// derivation — see M2-LOG PR 5), latitude-join classification.
+/// Sweeps one collapsed loop of the seed face: struts at off-axis
+/// vertices, walls for off-axis segments (site addressing per the
+/// pinned-run derivation — see M2-LOG PR 5), latitude-join
+/// classification.
 #[allow(clippy::too_many_arguments)] // one internal call site; the
 // arguments are the sweep's fixed context.
-pub(super) fn sweep_loop<T: Decide>(
+pub(super) fn sweep_loop<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     loop_index: usize,
-    segs: &[SweptSeg<T>],
-    cls: &LoopClasses<T>,
+    col: &Collapsed<T>,
     hes: &[topo::HalfEdgeKey],
     qs: &[Point3<T>],
     rq: &[Point3<T>],
@@ -374,29 +462,10 @@ pub(super) fn sweep_loop<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<LoopSwept, RevolveError> {
+    let (segs, cls) = (&col.segs[..], &col.cls);
     let n = segs.len();
-    let walled: Vec<bool> = cls.walls.iter().map(|w| w.kind().is_some()).collect();
 
-    // Cosurface run structure, decided up front for the whole loop —
-    // including the wrap pair — before any wall is minted (the PR 4
-    // SHOULD-1 lesson). Pairs across a pinned (on-axis) segment are
-    // structurally false: the run is broken by the axis contact.
-    let mut pair = Vec::with_capacity(n);
-    for j in 0..n {
-        let p = (j + n - 1) % n;
-        let linked = walled[p]
-            && walled[j]
-            && cosurface(&segs[p], &segs[j], WALL_COSURFACE, band).map_err(|source| {
-                RevolveError::CosurfaceEscalated {
-                    loop_index,
-                    vertex_index: segs[j].canonical_vertex,
-                    source,
-                }
-            })?;
-        pair.push(linked);
-    }
-
-    // Struts: one latitude arc per off-axis vertex, traversal order.
+    // Struts: one latitude arc per off-axis vertex, in traversal order.
     let mut struts: Vec<Option<topo::MevCreated>> = Vec::with_capacity(n);
     for j in 0..n {
         if cls.verts[j].pinned {
@@ -415,80 +484,46 @@ pub(super) fn sweep_loop<T: Decide>(
         struts.push(Some(m));
     }
 
-    // Walls: per off-axis segment, ascending; the new edge is the end
-    // (rotated) chain edge, the new face the wall. Site derivation:
-    // he1 = the strut minus at v_j (or hes[j] when v_j is pinned);
-    // he2 = the strut minus at v_{j+1} (or hes[j+1] when pinned; at
-    // the wrap, the first wall's plus half if segment 0 was walled,
-    // else hes[0]).
-    let mut faces: Vec<Option<FaceKey>> = Vec::with_capacity(n);
-    let mut tops: Vec<Option<EdgeKey>> = Vec::with_capacity(n);
-    let mut first_top: Option<topo::HalfEdgeKey> = None;
-    for j in 0..n {
-        let WallClass::Wall { kind, sense } = cls.walls[j] else {
-            faces.push(None);
-            tops.push(None);
-            continue;
-        };
-        let he1 = match &struts[j] {
-            Some(s) => s.he_minus,
-            None => hes[j],
-        };
-        let next = (j + 1) % n;
-        let he2 = if j + 1 < n {
-            match &struts[next] {
-                Some(s) => s.he_minus,
-                None => hes[next],
-            }
-        } else {
-            match first_top {
-                Some(top) => top,
-                // Segment 0 is on-axis (or this loop's only wall is
-                // segment n−1): the wrap representative is hes[0],
-                // still in the seed loop.
-                None => hes[0],
-            }
-        };
-        // Sharing shape (PR 4 SHOULD-1's precompute): `pair[j]` shares
-        // the previous wall's key; a run reaching segment 0 through
-        // the wrap shares the first wall's key. The `None` fallbacks
-        // are unreachable (pair implies walled) and mint an
-        // identical-by-construction surface defensively rather than
-        // erroring on a phantom state.
-        let shared = if pair[j] && j > 0 {
-            faces[(j + n - 1) % n]
-        } else if j > 0 && pair[0] && ((j + 1)..n).all(|k| pair[k]) {
-            faces[0]
-        } else {
-            None
-        };
-        // A wall whose material lies against its revolution surface's
-        // chart normal (bore cylinder, inward cone, under-side plane
-        // annulus, concave sphere/torus band) states `sense: false`,
-        // classified from the profile's stored winding structure
-        // (`WallClass::Wall::sense`).
-        let surface = match shared {
-            Some(f) => FaceSurface::Shared {
-                key: face_surface_key(body, f)?,
-                sense,
-            },
-            None => FaceSurface::New {
-                surface: wall_surface(&kind, &segs[j], frame),
-                sense,
-            },
-        };
-        let mef = body.mef(
-            MefSite::Chords { he1, he2 },
-            placed_segment_spec(&segs[j], place_end, n_end, rq[j], rq[next], tol),
-            surface,
-            tol,
-        )?;
-        if j == 0 {
-            first_top = Some(mef.he_plus);
-        }
-        faces.push(Some(mef.face));
-        tops.push(Some(mef.edge));
-    }
+    // Walls, one per walled segment (`swept::build_walls`): the
+    // far-side edge is the end (rotated) meridian. A segment's ends are
+    // its struts' minus halves, or the seed half-edge where the vertex
+    // is pinned (on the axis, no strut).
+    let at = |j: usize| match &struts[j] {
+        Some(s) => s.he_minus,
+        None => hes[j],
+    };
+    let walls = crate::swept::build_walls(
+        body,
+        n,
+        at,
+        |body, j, faces| {
+            let WallClass::Wall { kind, sense } = cls.walls[j] else {
+                return Ok(None);
+            };
+            // Cocircular arcs of a circle cut into arcs share one key
+            // across their walls (`swept::shared_wall`). A wall whose
+            // material lies against its revolution surface's chart
+            // normal (bore cylinder, inward cone, under-side plane
+            // annulus, concave sphere/torus band) states `sense: false`,
+            // classified from the profile's stored winding structure
+            // (`WallClass::Wall::sense`).
+            let surface = match crate::swept::shared_wall(&col.joins, faces, j) {
+                Some(f) => FaceSurface::Shared {
+                    key: face_surface_key(body, f),
+                    sense,
+                },
+                None => FaceSurface::New {
+                    surface: wall_surface(&kind, &segs[j], frame),
+                    sense,
+                },
+            };
+            let end = (j + 1) % n;
+            let far = placed_segment_spec(&segs[j], place_end, n_end, rq[j], rq[end], tol);
+            Ok::<_, RevolveError>(Some((far, surface)))
+        },
+        tol,
+    )?;
+    let (faces, tops) = (walls.faces, walls.tops);
 
     // Latitude joins: strut j joins the walls of segments j−1 and j
     // (both exist whenever the strut does — a vertex flanked by an
@@ -506,8 +541,8 @@ pub(super) fn sweep_loop<T: Decide>(
         let (Some(fp), Some(fnx)) = (f_prev, f_next) else {
             continue; // unreachable by the pinned-adjacency argument
         };
-        let k_prev = face_surface_key(body, fp)?;
-        let k_next = face_surface_key(body, fnx)?;
+        let k_prev = face_surface_key(body, fp);
+        let k_next = face_surface_key(body, fnx);
         if k_prev == k_next {
             body.describe_at_rest(strut.edge, k_prev, tol)?;
             continue;

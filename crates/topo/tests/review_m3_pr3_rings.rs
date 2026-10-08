@@ -8,7 +8,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::holed_block;
+use crate::common::{self, holed_block};
 use geom_core::Tol;
 use geom_core::{Point3, Real, Vec3};
 use topo::readback::euler_counts;
@@ -18,11 +18,22 @@ fn body_of<T: Real>(part: &SplitPart<T>) -> &Body<T> {
     part.body().expect("side has material")
 }
 
+/// The holed block, described and finished.
+fn holed<T: geom_core::Decide + topo::AtRestPolicy>(
+    len: f64,
+    holes: &[f64],
+) -> topo::AtRestBody<T> {
+    let mut body = holed_block::<T>(len, holes, Tol::witness());
+    common::describe_as_intersections(&mut body, Tol::witness());
+    common::finished("the holed block", body, Tol::witness())
+}
+
 fn plane_x<T: geom_core::Decide>(c: f64) -> SplitPlane<T> {
-    SplitPlane {
-        origin: Point3::new(T::from_f64(c), T::from_f64(0.0), T::from_f64(0.0)),
-        normal: Vec3::new(T::from_f64(1.0), T::from_f64(0.0), T::from_f64(0.0)),
-    }
+    topo::test_support::split_plane(
+        Point3::new(T::from_f64(c), T::from_f64(0.0), T::from_f64(0.0)),
+        Vec3::new(T::from_f64(1.0), T::from_f64(0.0), T::from_f64(0.0)),
+        geom_core::Tol::witness(),
+    )
 }
 
 /// The multi-ring `laringmv` sweep: two holes, split between them —
@@ -31,7 +42,7 @@ fn plane_x<T: geom_core::Decide>(c: f64) -> SplitPlane<T> {
 /// in one sweep; each side ends up an independent genus-1 body.
 #[test]
 fn two_hole_box_split_between_rehomes_both_ways() {
-    let body = holed_block::<f64>(6.0, &[1.0, 5.0], Tol::witness());
+    let body = holed::<f64>(6.0, &[1.0, 5.0]);
     assert_eq!(validate_closed(&body), Ok(()));
     let rings = |b: &Body<f64>| euler_counts(b).r;
     assert_eq!(rings(&body), 4, "top and bottom carry two rings each");
@@ -60,7 +71,7 @@ fn two_hole_box_split_between_rehomes_both_ways() {
 /// side comes out genus-0-with-a-channel plus the other side's hole.
 #[test]
 fn split_through_hole_two_section_polygons() {
-    let body = holed_block::<f64>(6.0, &[1.0, 5.0], Tol::witness());
+    let body = holed::<f64>(6.0, &[1.0, 5.0]);
     let s = topo::plane_section(&body, &plane_x::<f64>(1.0), Tol::witness()).unwrap();
     assert_eq!(s.regions.len(), 2, "channel splits the section in two");
     assert!(s.regions.iter().all(|r| r.holes.is_empty()));
@@ -90,7 +101,7 @@ fn split_through_hole_two_section_polygons() {
 #[test]
 fn interval_lane_ring_rehoming() {
     use geom_core::Interval;
-    let body = holed_block::<Interval>(6.0, &[1.0, 5.0], Tol::witness());
+    let body = holed::<Interval>(6.0, &[1.0, 5.0]);
     assert_eq!(validate_closed(&body), Ok(()));
     match split(&body, &plane_x::<Interval>(3.0), Tol::witness()) {
         Ok(r) => {

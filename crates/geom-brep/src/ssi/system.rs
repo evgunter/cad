@@ -74,6 +74,18 @@ pub(crate) trait LocalSystem<const M: usize, const N: usize> {
     /// state carries two charts and only the carrier-primary one
     /// generates the 3-D curve.
     fn tangent_speed(&self, x: &[f64; N], d: &[f64; N]) -> f64;
+
+    /// The carrier's first three derivatives `[C′, C″, C‴]` along the
+    /// state curve `x + s·d₁ + s²/2·d₂ + s³/6·d₃` at `s = 0`, in metres
+    /// per power of the state parameter: the 3-D curve the march's step
+    /// rungs bound, read through the chart [`LocalSystem::point`] reads.
+    fn carrier_jet(
+        &self,
+        x: &[f64; N],
+        d1: &[f64; N],
+        d2: &[f64; N],
+        d3: &[f64; N],
+    ) -> [Vec3<f64>; 3];
 }
 
 // ---------------------------------------------------------------------
@@ -135,6 +147,16 @@ impl LocalSystem<2, 3> for ImplicitPairR3<'_> {
     fn tangent_speed(&self, _x: &[f64; 3], d: &[f64; 3]) -> f64 {
         // The state IS the point: the speed is the tangent's length.
         Vec3::from_array(*d).norm()
+    }
+
+    fn carrier_jet(
+        &self,
+        _x: &[f64; 3],
+        d1: &[f64; 3],
+        d2: &[f64; 3],
+        d3: &[f64; 3],
+    ) -> [Vec3<f64>; 3] {
+        [*d1, *d2, *d3].map(Vec3::from_array)
     }
 }
 
@@ -327,6 +349,24 @@ impl LocalSystem<3, 4> for ParametricPairR4<'_> {
         let ja = self.a.jet3(x[0], x[1]);
         (ja.jet.du * d[0] + ja.jet.dv * d[1]).norm()
     }
+
+    fn carrier_jet(
+        &self,
+        x: &[f64; 4],
+        d1: &[f64; 4],
+        d2: &[f64; 4],
+        d3: &[f64; 4],
+    ) -> [Vec3<f64>; 3] {
+        // Carrier-primary, as `tangent_speed`: only chart A's coordinates
+        // move the 3-D point, so chart B's bending never reaches it.
+        let ja = self.a.jet3(x[0], x[1]);
+        let along = |d: &[f64; 4]| ja.jet.du * d[0] + ja.jet.dv * d[1];
+        [
+            along(d1),
+            along(d2) + chart_d2(&ja, d1[0], d1[1]),
+            along(d3) + chart_d3(&ja, d1[0], d1[1], d2[0], d2[1]),
+        ]
+    }
 }
 
 impl super::march::TransversalityData<3> for ImplicitPairR3<'_> {
@@ -338,8 +378,12 @@ impl super::march::TransversalityData<3> for ImplicitPairR3<'_> {
         )
     }
 
-    fn lever_arm(&self, x: &[f64; 3]) -> f64 {
-        crate::dihedral::pair_lever_arm(self.a, self.b, Point3::from_array(*x))
+    fn max_curvature(&self, x: &[f64; 3]) -> f64 {
+        let p = Point3::from_array(*x);
+        Real::max(
+            crate::implicit::implicit_max_normal_curvature(self.a, p),
+            crate::implicit::implicit_max_normal_curvature(self.b, p),
+        )
     }
 }
 
@@ -350,26 +394,10 @@ impl super::march::TransversalityData<4> for ParametricPairR4<'_> {
         (ja.jet.du.cross(ja.jet.dv), jb.jet.du.cross(jb.jet.dv))
     }
 
-    fn lever_arm(&self, x: &[f64; 4]) -> f64 {
-        // Chart curvature is not bounded in closed form for a NURBS
-        // patch, so the honest arm at this shape is the CHART SPEED
-        // over the second-derivative magnitude — the local radius of
-        // curvature of the two parameter lines, folded min-wins, with
-        // `f64::MAX` where the chart is flat (the plane identity). A
-        // flat line never shrinks the arm; a poisoned one makes it
-        // poison.
-        let mut arm = f64::MAX;
-        for j in [self.a.jet3(x[0], x[1]), self.b.jet3(x[2], x[3])] {
-            for (speed, second) in [
-                (j.jet.du.norm(), j.jet.duu.norm()),
-                (j.jet.dv.norm(), j.jet.dvv.norm()),
-            ] {
-                if second != 0.0 {
-                    arm = Real::min(arm, speed * speed / second);
-                }
-            }
-        }
-        arm
+    fn max_curvature(&self, x: &[f64; 4]) -> f64 {
+        let [a, b] = [self.a.jet3(x[0], x[1]), self.b.jet3(x[2], x[3])]
+            .map(|j| crate::shape_operator::max_principal_curvature(&j.jet));
+        Real::max(a, b)
     }
 }
 
@@ -432,32 +460,85 @@ mod tests {
         assert_eq!(j[0][2].to_bits(), g.z.to_bits());
     }
 
-    /// **The ℝ³ arm is poison when either operand's is**: a NURBS
-    /// operand has no curvature lever arm, and the fold must hand that
-    /// to the march's arm guard rather than the sphere's radius.
+    /// **The ℝ³ curvature is poison when either operand's is**: a NURBS
+    /// operand has no implicit form, and the fold must hand that to the
+    /// march's arm guard rather than the sphere's curvature.
     #[test]
-    fn r3_lever_arm_with_a_nurbs_operand_is_poison() {
+    fn r3_curvature_with_a_nurbs_operand_is_poison() {
         use super::super::march::TransversalityData;
         let (s, n) = (sphere(), Surface::nurbs_placeholder());
         let x = [0.8, 0.3, 0.2];
         for (a, b) in [(&s, &n), (&n, &s)] {
-            let arm = ImplicitPairR3 { a, b }.lever_arm(&x);
+            let kappa = ImplicitPairR3 { a, b }.max_curvature(&x);
             assert!(
-                arm.is_nan(),
-                "a NURBS operand folded to {arm:e}, not poison"
+                kappa.is_nan(),
+                "a NURBS operand folded to {kappa:e}, not poison"
             );
         }
-        let arm = ImplicitPairR3 { a: &s, b: &s }.lever_arm(&x);
-        assert_eq!(arm, 1.0, "two spheres lever against their radius");
     }
 
-    /// **The ℝ⁴ arm is poison when either chart's jet is**. The healthy
-    /// bilinear chart bends only along `u`, where at `u = ½` the speed
-    /// is 1 and the second derivative 0.4: an arm of 2.5. A chart
-    /// whose weights underflow to `0/0` at the midpoint has a poisoned
-    /// jet, and the arm is poison rather than its sibling's 2.5.
+    /// **The ℝ³ curvature is the surfaces' largest principal curvature**,
+    /// not a kind's own length scale: on the fat torus `R` 1, `r` 0.8 the
+    /// inner equator bends at `1/(R − r)` = 5, harder than the tube's
+    /// `1/r`, which is what [`crate::curvature_lever_arm`] reads there; on
+    /// a cone of half-angle `α` it is `cos α / w` at distance `w` from the
+    /// axis; on a sphere it is the reciprocal radius. The pair takes the
+    /// larger.
     #[test]
-    fn r4_lever_arm_is_poison_when_a_chart_jet_is() {
+    fn r3_curvature_is_the_largest_principal_curvature() {
+        use super::super::march::TransversalityData;
+        let torus = Surface::Torus {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            major_radius: 1.0,
+            minor_radius: 0.8,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let alpha = std::f64::consts::FRAC_PI_6;
+        let cone = Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: alpha,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 1.0, 0.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let inner = [0.2, 0.0, 0.0];
+        assert_eq!(
+            crate::curvature_lever_arm(&torus, Point3::from_array(inner)),
+            0.8,
+            "FIXTURE: the kind's length scale is the tube radius"
+        );
+        let w = alpha.tan();
+        let flank = [w, 0.0, 1.0];
+        for (what, a, x, truth) in [
+            ("the torus's inner equator", &torus, inner, 5.0),
+            ("the cone", &cone, flank, alpha.cos() / w),
+            ("the sphere", &sphere(), [0.6, 0.0, 0.8], 1.0),
+        ] {
+            for sys in [
+                ImplicitPairR3 { a, b: &plane },
+                ImplicitPairR3 { a: &plane, b: a },
+            ] {
+                let kappa = sys.max_curvature(&x);
+                assert!(
+                    (kappa / truth - 1.0).abs() <= 1e-9,
+                    "{what}: κ {kappa:e}, truth {truth:e}"
+                );
+            }
+        }
+    }
+
+    /// **The ℝ⁴ curvature is poison when either chart's jet is**. The
+    /// healthy bilinear chart is the cylinder `z = 0.2x(1 − x)`, whose
+    /// principal curvature at `x = ½` is 0.4. A chart whose weights
+    /// underflow to `0/0` at the midpoint has a poisoned jet, and the
+    /// fold is poison rather than its sibling's 0.4.
+    #[test]
+    fn r4_curvature_is_poison_when_a_chart_jet_is() {
         use super::super::march::TransversalityData;
         let healthy = bilinear();
         let poisoned = bilinear_weighted(f64::from_bits(1));
@@ -466,10 +547,10 @@ mod tests {
             a: Chart::Nurbs(&healthy),
             b: Chart::Nurbs(&healthy),
         };
-        let arm = both.lever_arm(&x);
+        let kappa = both.max_curvature(&x);
         assert!(
-            (arm - 2.5).abs() <= 1e-12,
-            "the bilinear chart's arm: {arm:e}"
+            (kappa - 0.4).abs() <= 1e-12,
+            "the healthy chart's curvature: {kappa:e}"
         );
         assert!(
             Chart::Nurbs(&poisoned)
@@ -490,11 +571,149 @@ mod tests {
                 b: Chart::Nurbs(&poisoned),
             },
         ] {
-            let arm = sys.lever_arm(&x);
+            let kappa = sys.max_curvature(&x);
             assert!(
-                arm.is_nan(),
-                "a poisoned chart folded to {arm:e}, not poison"
+                kappa.is_nan(),
+                "a poisoned chart folded to {kappa:e}, not poison"
             );
+        }
+    }
+
+    /// A biquadratic patch from its 3×3 control net (row-major in `u`)
+    /// and per-`u`-row weights.
+    fn biquadratic(control: [[Point3<f64>; 3]; 3], w: [f64; 3]) -> NurbsSurface<f64> {
+        let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let weights = w.iter().flat_map(|&wi| [wi; 3]).collect();
+        NurbsSurface::new(k.clone(), k, control.concat(), weights).unwrap()
+    }
+
+    /// The parameter lines' own radius, speed² over acceleration: what a
+    /// chart reads, folded min-wins over both lines.
+    fn parameter_line_radius(j: &geom::SurfaceJet<f64>) -> f64 {
+        let along = |d: Vec3<f64>, dd: Vec3<f64>| d.dot(d) / dd.norm();
+        along(j.du, j.duu).min(along(j.dv, j.dvv))
+    }
+
+    /// **The ℝ⁴ curvature is the surfaces', whatever the chart.** A flat
+    /// wall whose parameter lines bunch and shear reads 0, and a cylinder
+    /// of radius `r` reads `1/r` under two charts of it, the rational quarter circle and
+    /// the same arc with its weights rescaled by powers of 3 (a Möbius
+    /// reparameterisation), each run unevenly along the axis. Every
+    /// chart here has parameter lines whose own radius is not the
+    /// surface's, so a chart's reading would fail the row.
+    #[test]
+    fn r4_curvature_is_the_surfaces_whatever_the_chart() {
+        use super::super::march::TransversalityData;
+        let p = Point3::new;
+        let flat = biquadratic(
+            [
+                [p(0.0, 0.0, 0.0), p(0.05, 0.4, 0.0), p(0.0, 1.0, 0.0)],
+                [p(0.1, 0.0, 0.0), p(0.5, 0.3, 0.0), p(0.2, 0.9, 0.0)],
+                [p(1.0, 0.1, 0.0), p(1.1, 0.6, 0.0), p(0.9, 1.0, 0.0)],
+            ],
+            [1.0; 3],
+        );
+        let r = 0.3;
+        let arc = |z: f64| [p(r, 0.0, z), p(r, r, z), p(0.0, r, z)];
+        let rows = |z: [f64; 3]| {
+            let [a, b, c] = z.map(arc);
+            [0, 1, 2].map(|i| [a[i], b[i], c[i]])
+        };
+        let h = std::f64::consts::FRAC_1_SQRT_2;
+        let uneven = [0.0, 0.05, 1.0];
+        let cylinders = [
+            biquadratic(rows(uneven), [1.0, h, 1.0]),
+            biquadratic(rows(uneven), [1.0, 3.0 * h, 9.0]),
+        ];
+        let at = [0.13, 0.5, 0.81];
+        let mut chart_reads_r = [true; 2];
+        for u in at {
+            for v in at {
+                let x = [u, v, u, v];
+                let jet = Chart::Nurbs(&flat).jet3(u, v).jet;
+                assert!(
+                    parameter_line_radius(&jet) < 1e3,
+                    "FIXTURE: the flat wall's parameter lines bend at ({u}, {v})"
+                );
+                let kappa = ParametricPairR4 {
+                    a: Chart::Nurbs(&flat),
+                    b: Chart::Nurbs(&flat),
+                }
+                .max_curvature(&x);
+                assert_eq!(kappa, 0.0, "the flat wall at ({u}, {v}): {kappa:e}");
+                for (k, cylinder) in cylinders.iter().enumerate() {
+                    let jet = Chart::Nurbs(cylinder).jet3(u, v).jet;
+                    chart_reads_r[k] &= (parameter_line_radius(&jet) - r).abs() <= 1e-2 * r;
+                    for sys in [
+                        ParametricPairR4 {
+                            a: Chart::Nurbs(cylinder),
+                            b: Chart::Nurbs(&flat),
+                        },
+                        ParametricPairR4 {
+                            a: Chart::Nurbs(&flat),
+                            b: Chart::Nurbs(cylinder),
+                        },
+                    ] {
+                        let kappa = sys.max_curvature(&x);
+                        assert!(
+                            (kappa * r - 1.0).abs() <= 1e-9,
+                            "cylinder chart {k} at ({u}, {v}): κ {kappa:e}, radius {r:e}"
+                        );
+                    }
+                }
+            }
+        }
+        assert_eq!(
+            chart_reads_r, [false; 2],
+            "FIXTURE: each cylinder chart's parameter lines miss the radius somewhere"
+        );
+    }
+
+    /// **The march's refusal names the length that levered it.** A
+    /// plane turned from a wall's tangent plane by `sin θ = ε/2` over the
+    /// arm the decision should read: on a cylinder of radius 1 mm the
+    /// arm is the radius and the refusal says so; on a flat wall it is
+    /// the extent of 1 m. Both margins are `ε/2`, inside the band.
+    #[test]
+    fn the_marchs_transversality_refusal_names_its_lever() {
+        use super::super::march::decide_transversality;
+        use crate::ssi::{PointLever, SsiError};
+        let p = Point3::new;
+        let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+        let rho = 1e-3;
+        let arc = |z: f64| [p(rho, 0.0, z), p(rho, rho, z), p(0.0, rho, z)];
+        let [a, b, c] = [0.0, 0.5, 1.0].map(arc);
+        let h = std::f64::consts::FRAC_1_SQRT_2;
+        let cylinder = biquadratic([0, 1, 2].map(|i| [a[i], b[i], c[i]]), [1.0, h, 1.0]);
+        let flat = biquadratic(
+            [0.0, 0.5, 1.0].map(|y| [p(0.0, y, 0.0), p(0.0, y, 0.5), p(0.0, y, 1.0)]),
+            [1.0; 3],
+        );
+        for (what, wall, arm, lever) in [
+            ("the cylinder", &cylinder, rho, PointLever::CurvatureRadius),
+            ("the flat wall", &flat, 1.0, PointLever::Extent),
+        ] {
+            let sin = band.zero() / (2.0 * arm);
+            let cos = (1.0 - sin * sin).sqrt();
+            let sys = ParametricPairR4 {
+                a: Chart::Plane {
+                    origin: p(0.0, 0.0, 0.0),
+                    du: Vec3::new(-sin, cos, 0.0),
+                    dv: Vec3::new(0.0, 0.0, 1.0),
+                    u_range: (-1.0, 1.0),
+                    v_range: (-1.0, 1.0),
+                },
+                b: Chart::Nurbs(wall),
+            };
+            match decide_transversality(&sys, &[0.0, 0.5, 0.0, 0.5], 0.0, 1.0, band) {
+                Err(SsiError::TransversalityBand {
+                    lever: got, arm: a, ..
+                }) => {
+                    assert_eq!(got, lever, "{what}: the lever, arm {a:e}");
+                    assert!((a / arm - 1.0).abs() <= 1e-9, "{what}: the arm {a:e}");
+                }
+                other => panic!("{what}: expected the band, got {other:?}"),
+            }
         }
     }
 

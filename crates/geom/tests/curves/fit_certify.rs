@@ -53,7 +53,7 @@ fn hull_bound(curve: &NurbsCurve3<f64>) -> f64 {
     let form = compose::implicit_composite(
         &data,
         &ImplicitSurface::Sphere {
-            center: [c.x, c.y, c.z],
+            center: c.to_array(),
             radius: R,
         },
     )

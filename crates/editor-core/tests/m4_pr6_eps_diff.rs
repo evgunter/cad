@@ -144,12 +144,13 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
     // never which predicates flip. Exactly ONE differing node — the
     // profile — both runs Ok. The populations are the profile node's
     // WHOLE log, which under the pinned lift is its pre-pass's one f64
-    // validation. The ε re-classification reports as EXACTLY these net
-    // flips (the thin segment_straightness margin, twice decided per
-    // validation pass, plus the line_span probes the collapsed arc now
-    // answers at Zero), and the arc→straight branch change
+    // validation. The ε re-classification reports as EXACTLY this net
+    // flip (the thin segment_straightness margin, twice decided per
+    // validation pass), and the arc→straight branch change
     // reports its reshaped decision structure as loud DIVERGENCE
-    // rows (arc-only predicates leaving, chord probes recounting) —
+    // rows (arc-only predicates leaving, chord and span probes
+    // recounting: the arc's pair reads, which miss a far crossing of
+    // the side carriers and so read the segment ends, are gone) —
     // never absorbed, never guessed about (vdiff module docs).
     assert_eq!(
         flips.nodes.len(),
@@ -158,25 +159,17 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
     );
     // The profile is the fixture's second node: the frame it is drawn
     // on goes in first. The children built the same document.
-    let profile = thin_profile_doc().order()[1];
+    let profile = thin_profile_doc().ids()[1];
     let delta = flips.nodes.get(&profile).expect("profile node delta");
     let expected = editor_core::SummaryDelta {
         old_status: RunStatus::Ok,
         new_status: RunStatus::Ok,
-        flips: vec![
-            editor_core::SummaryFlip {
-                predicate: "line_span".into(),
-                from: Sign::Negative,
-                to: Sign::Zero,
-                count: 2,
-            },
-            editor_core::SummaryFlip {
-                predicate: "segment_straightness".into(),
-                from: Sign::Positive,
-                to: Sign::Zero,
-                count: 2,
-            },
-        ],
+        flips: vec![editor_core::SummaryFlip {
+            predicate: "segment_straightness".into(),
+            from: Sign::Positive,
+            to: Sign::Zero,
+            count: 2,
+        }],
         diverged: vec![
             editor_core::SummaryDivergence {
                 predicate: "arc_diameter_clearance".into(),
@@ -185,7 +178,7 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
             },
             editor_core::SummaryDivergence {
                 predicate: "arc_span".into(),
-                old_count: 6,
+                old_count: 8,
                 new_count: 0,
             },
             editor_core::SummaryDivergence {
@@ -195,17 +188,22 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
             },
             editor_core::SummaryDivergence {
                 predicate: "chord_side".into(),
-                old_count: 14,
+                old_count: 20,
                 new_count: 28,
             },
             editor_core::SummaryDivergence {
-                predicate: "contact_at_shared_vertex".into(),
+                predicate: "circle_side".into(),
                 old_count: 6,
+                new_count: 0,
+            },
+            editor_core::SummaryDivergence {
+                predicate: "contact_at_shared_vertex".into(),
+                old_count: 10,
                 new_count: 8,
             },
             editor_core::SummaryDivergence {
                 predicate: "line_span".into(),
-                old_count: 10,
+                old_count: 12,
                 new_count: 8,
             },
         ],
@@ -213,7 +211,7 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
     assert_eq!(delta, &expected, "the ε audit's goldened report drifted");
     // The report surface: exactly the flipped predicates, in order.
     let report = flips.report();
-    assert_eq!(report.len(), 2);
+    assert_eq!(report.len(), 1);
     assert!(report.iter().all(|(node, _)| *node == profile));
 
     // The no-edit control: a summary diffs empty against itself.
@@ -230,9 +228,7 @@ fn set_tolerance_round_trips_and_gates_replay() {
     let doc = thin_profile_doc();
     let text = save(
         &doc,
-        &[editor_core::LoggedEdit::bare(
-            editor_core::DocEdit::SetTolerance { eps: 1e-4 },
-        )],
+        &[editor_core::DocEdit::SetTolerance { eps: 1e-4 }],
         Tol::witness(),
     )
     .expect("save");

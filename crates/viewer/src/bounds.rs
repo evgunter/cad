@@ -6,7 +6,7 @@
 //! A user about to change a dimension wants to know the room they have
 //! — "if I set any number between these two, nothing new goes wrong;
 //! immediately outside either, something does". This module answers
-//! that for one slot or one document parameter, as a value.
+//! that for one slot or one document variable, as a value.
 //!
 //! **"Nothing NEW"** is the load-bearing word. A document that is
 //! already failing somewhere does not have to be repaired before its
@@ -54,9 +54,9 @@
 //! a door this module cannot open for itself:
 //!
 //! * **A widened binding reaches evaluation as one.**
-//!   `editor_core::analysis::param_env_over` binds an axis as
+//!   `editor_core::analysis::var_env_over` binds an axis as
 //!   `nominal + [lo, hi]` in the scalar's own arithmetic, where
-//!   `Doc::param_env` binds `T::from_f64` of the nominal alone and
+//!   `Doc::var_env` binds `T::from_f64` of the nominal alone and
 //!   every binding is therefore degenerate.
 //! * **A node SLOT has a name to widen.**
 //!   `editor_core::range::RangeField::Slot` names one, and the

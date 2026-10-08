@@ -45,9 +45,9 @@ fn cone() -> Surface<f64> {
 fn two_axis_faces() -> (Body<f64>, [SurfaceKey; 2]) {
     let mut b = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let faces: Vec<_> = b.faces().map(|(k, _)| k).take(2).collect();
-    // Lifts both refusals: the rows read the axis-bearing surfaces' keys, not the brick's edges.
+    // Lifts RechartStrandsDescriptions: the rows read the axis-bearing surfaces' keys, not the brick's edges.
     let cyl = b
-        .set_face_surface_stranding_for_tests(
+        .set_face_surface_unvouched_for_tests(
             faces[0],
             FaceSurface::New {
                 surface: cylinder(),
@@ -55,9 +55,9 @@ fn two_axis_faces() -> (Body<f64>, [SurfaceKey; 2]) {
             },
         )
         .unwrap();
-    // Lifts both refusals: the rows read the axis-bearing surfaces' keys, not the brick's edges.
+    // Lifts RechartStrandsDescriptions: the rows read the axis-bearing surfaces' keys, not the brick's edges.
     let cone = b
-        .set_face_surface_stranding_for_tests(
+        .set_face_surface_unvouched_for_tests(
             faces[1],
             FaceSurface::New {
                 surface: cone(),
@@ -113,7 +113,7 @@ fn the_attach_door_takes_axes_and_refuses_planes_and_stale_keys() {
         .map(|(k, _)| k)
         .unwrap();
     // Lifts RechartUnvouched: the attach door's answer on a cone is the row, not the brick's boundary.
-    b.set_face_surface_stranding_for_tests(
+    b.set_face_surface_unvouched_for_tests(
         face,
         FaceSurface::New {
             surface: cone(),
@@ -205,7 +205,7 @@ fn a_cleared_row_survives_a_second_transform_and_a_revert() {
     let (b, keys, _) = stamped();
     let once = transform_rigid(&b, &aside(), Tol::witness()).unwrap();
     let twice = transform_rigid(&once, &aside(), Tol::witness()).unwrap();
-    let reverted = twice.revert().unwrap();
+    let reverted = twice.revert();
     for k in keys {
         assert_eq!(reverted.surface_axis_record(k), Some(&AxisRecord::Cleared));
     }
@@ -216,7 +216,7 @@ fn a_cleared_row_survives_a_second_transform_and_a_revert() {
 #[test]
 fn a_revert_carries_the_axis_rows_verbatim() {
     let (b, keys, axis) = stamped();
-    let reverted = b.revert().unwrap();
+    let reverted = b.revert();
     for k in keys {
         assert_eq!(reverted.surface_axis_source(k), Some(&axis));
     }
@@ -266,7 +266,7 @@ fn the_orphan_door_drops_the_row() {
         .unwrap();
     // Lifts RechartUnvouched: the orphaned key's dropped row is the subject, not the brick's boundary.
     let fresh = b
-        .set_face_surface_stranding_for_tests(
+        .set_face_surface_unvouched_for_tests(
             face,
             FaceSurface::New {
                 surface: Surface::Cylinder {

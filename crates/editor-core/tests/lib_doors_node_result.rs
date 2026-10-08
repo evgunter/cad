@@ -10,17 +10,19 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 use test_utils::refusal::tagged;
 
 use crate::fixture::len;
 use editor_core::{
-    BooleanOp, CancelToken, Dimension, DocEdit, EvalOptions, Expr, LoopProgram, Node, NodeResult,
-    ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, evaluate,
+    BooleanOp, CancelToken, Dimension, DocEdit, EvalOptions, Formula, LoopProgram, Node,
+    NodeResult, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, evaluate,
 };
 use geom_core::Tol;
 
 /// A square profile `[0,s]²` on `plane`, as a loop program.
-fn square(plane: RecipeNodeId, s: f64) -> Node<ProfileProgram> {
+fn square(plane: RecipeNodeId, s: f64) -> AuthoredNode {
     Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::Chain(vec![
@@ -43,7 +45,10 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let insert = |doc: &mut ProfileDoc, node| {
         let applied = doc
             .apply(
-                &DocEdit::InsertNode { node },
+                &DocEdit::InsertNode {
+                    node,
+                    fresh: Vec::new(),
+                },
                 Tol::witness(),
                 &editor_core::RefusingReach,
             )
@@ -53,40 +58,42 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     };
     // Both boxes are sketched on the same plane — that is the whole
     // point of the row — so they name ONE frame between them.
-    let plane = insert(&mut doc, fixture::xy_frame());
-    let outer_profile = insert(&mut doc, square(plane, 2.0));
+    let plane = insert(&mut doc, Box::new(fixture::xy_frame()));
+    let outer_profile = insert(&mut doc, Box::new(square(plane, 2.0)));
     let outer = insert(
         &mut doc,
-        Node::Extrude {
+        Box::new(Node::Extrude {
             profile: outer_profile,
             distance: len(2.0),
-        },
+            side: ExtrudeSide::Along,
+        }),
     );
-    let inner_profile = insert(&mut doc, square(plane, 1.0));
+    let inner_profile = insert(&mut doc, Box::new(square(plane, 1.0)));
     let inner = insert(
         &mut doc,
-        Node::Extrude {
+        Box::new(Node::Extrude {
             profile: inner_profile,
             distance: len(1.0),
-        },
+            side: ExtrudeSide::Along,
+        }),
     );
     let cut = insert(
         &mut doc,
-        Node::Boolean {
+        Box::new(Node::Boolean {
             op: BooleanOp::Subtract,
             a: outer,
             b: inner,
-            declare: None,
-        },
+            declare: Vec::new(),
+        }),
     );
     let downstream = insert(
         &mut doc,
-        Node::Boolean {
+        Box::new(Node::Boolean {
             op: BooleanOp::Union,
             a: cut,
             b: outer,
-            declare: None,
-        },
+            declare: Vec::new(),
+        }),
     );
     (doc, cut, downstream)
 }
@@ -142,7 +149,7 @@ fn ok_and_absent_nodes_answer_none() {
     assert!(ev.value(ok_node).is_some());
     assert!(matches!(ev.result(ok_node), Some(NodeResult::Ok(_))));
     assert!(ev.node_error(ok_node).is_none());
-    let absent = RecipeNodeId(u64::MAX);
+    let absent = RecipeNodeId::new(0, u64::MAX);
     assert!(ev.result(absent).is_none());
     assert!(ev.node_error(absent).is_none());
 }
@@ -160,7 +167,7 @@ fn refusals_render_as_prose_not_debug_guts() {
     use editor_core::{DimensionError, EditError};
 
     let edit = EditError::UnknownNode {
-        id: RecipeNodeId(tagged(7)),
+        id: editor_core::SpokenNode::absent(RecipeNodeId::new(0, tagged(7))),
     };
     // No `edit: ` opening: the frame belongs to whoever received the
     // refusal (the viewer composes "the edit was refused: …", the
@@ -171,7 +178,7 @@ fn refusals_render_as_prose_not_debug_guts() {
         "node 000000000007 is not live. Recourse: aim the edit at a node the document holds"
     );
 
-    let literal = Expr::literal(f64::NAN, Dimension::Length).expect_err("NaN refuses");
+    let literal = Formula::literal(f64::NAN, Dimension::Length).expect_err("NaN refuses");
     assert!(matches!(literal, DimensionError::NonFiniteLiteral));
     assert_eq!(literal.to_string(), "a literal value must be finite");
 
@@ -198,15 +205,15 @@ fn refusals_render_as_prose_not_debug_guts() {
     assert!(
         message.starts_with(&format!(
             "node {} failed: ",
-            test_utils::refusal::tag(cut.0)
+            test_utils::refusal::tag(cut.0.digest())
         )),
         "{message}"
     );
     assert!(
-        message.contains("Boolean refused an undeclared contact"),
+        message.contains("Boolean refused an undeclared coincidence"),
         "{message}"
     );
-    assert!(message.contains("declare the candidate pair"), "{message}");
+    assert!(message.contains("add the candidate pair"), "{message}");
     for guts in [
         "UndeclaredCoincidence",
         "UndeclaredContact",
@@ -249,11 +256,11 @@ fn refusals_render_as_prose_not_debug_guts() {
         ),
     ] {
         let message = EditError::MetaUnversioned {
-            name: editor_core::StableName {
+            name: editor_core::SpokenName::absent(editor_core::StableName {
                 kind: editor_core::EntityKind::Body,
-                node: RecipeNodeId(tagged(1)),
+                node: RecipeNodeId::new(0, tagged(1)),
                 path: vec![editor_core::RoleSeg::OutputBody],
-            },
+            }),
             key: "provenance".to_string(),
             error,
         }
@@ -276,7 +283,7 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
     use editor_core::NodeErrorKind as K;
     let name = |kind| editor_core::StableName {
         kind,
-        node: RecipeNodeId(tagged(3)),
+        node: RecipeNodeId::new(0, tagged(3)),
         path: vec![editor_core::RoleSeg::OutputBody],
     };
     vec![
@@ -289,9 +296,10 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
             error: Box::new(editor_core::ResolveError::NodeGone {
                 name: name(editor_core::EntityKind::Face),
                 edit: editor_core::RecipeEditRef::NodeDeleted {
-                    node: RecipeNodeId(tagged(3)),
+                    node: RecipeNodeId::new(0, tagged(3)),
                 },
             }),
+            reference: 0,
         },
         K::BlendSelectionResolve {
             verb: sweep::blend::BlendKind::Fillet,
@@ -299,11 +307,12 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
                 name: name(editor_core::EntityKind::Edge),
                 candidates: vec![],
                 tie: editor_core::TieWitness {
-                    node: RecipeNodeId(tagged(3)),
+                    node: RecipeNodeId::new(0, tagged(3)),
                     at: name(editor_core::EntityKind::Edge),
                     width: 2,
                 },
             }),
+            reference: 0,
         },
         K::WitnessBifurcation(editor_core::WitnessBifurcation {
             kind: editor_core::BifurcationKind::FoldProximity,
@@ -371,7 +380,7 @@ fn a_kernel_payload_arm_forwards_the_payloads_own_message() {
         let payload = match &kind {
             K::Profile(e) => e.to_string(),
             K::Expr { source, .. } => source.to_string(),
-            K::DeclareResolve { error } => error.to_string(),
+            K::DeclareResolve { error, .. } => error.to_string(),
             K::BlendSelectionResolve { error, .. } => error.to_string(),
             K::WitnessBifurcation(e) => e.to_string(),
             K::PlacementRule(e) => e.to_string(),
@@ -501,23 +510,26 @@ fn a_nested_source_under_a_payload_arm_survives_into_the_message() {
 #[test]
 fn the_document_layers_own_payloads_render_their_own_stories() {
     use editor_core::{
-        BifurcationKind, BranchMarginEvidence, Diagnosis, EntityKind, EvalError, ParamName,
+        BifurcationKind, BranchMarginEvidence, Diagnosis, EntityKind, EvalError,
         PlacementRuleFault, RecipeEditRef, ResolveError, RoleSeg, StableName, WitnessAge,
         WitnessBifurcation,
     };
 
     let name = |kind| StableName {
         kind,
-        node: RecipeNodeId(tagged(5)),
+        node: RecipeNodeId::new(0, tagged(5)),
         path: vec![RoleSeg::OutputBody],
     };
     let cases: Vec<(String, &[&str])> = vec![
         (
-            EvalError::UnknownParam(ParamName::from_static("width")).to_string(),
+            EvalError::UnresolvedVar {
+                var: editor_core::VarId::new(0, tagged(7)),
+            }
+            .to_string(),
             &[
-                "parameter width",
+                "variable #0:0000000000070000",
                 "has no binding",
-                "declare the document parameter",
+                "point the reader at a live variable",
             ],
         ),
         (
@@ -536,7 +548,7 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
             }
             .to_string(),
             &[
-                "face name minted by node 000000000005",
+                "the output body of node 000000000005",
                 "no longer resolves",
                 "the margin deciding the order of two crossings along an edge flipped from zero to \
                  positive",
@@ -546,14 +558,14 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
             ResolveError::NodeGone {
                 name: name(EntityKind::Vertex),
                 edit: RecipeEditRef::NodeDeleted {
-                    node: RecipeNodeId(tagged(5)),
+                    node: RecipeNodeId::new(0, tagged(5)),
                 },
             }
             .to_string(),
             &[
-                "vertex name",
-                "node 000000000005 was deleted",
-                "explicit rebind",
+                "the output body of node 000000000005",
+                "is stranded: node 000000000005 was deleted",
+                "Recourse: rebind it",
             ],
         ),
         (
@@ -578,7 +590,10 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
             ],
         ),
         (
-            PlacementRuleFault::CountSpelling.to_string(),
+            PlacementRuleFault::CountSpelling {
+                shape: editor_core::CountMismatch::ListedOnPattern,
+            }
+            .to_string(),
             &["disagree about how many placements"],
         ),
         (

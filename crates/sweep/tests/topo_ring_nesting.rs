@@ -20,6 +20,8 @@
 
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
+use sweep::test_support::finished;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, FaceKey, FaceSurface, LoopKey, ValidationError};
 
@@ -37,9 +39,16 @@ fn plate(loops: &[&[(f64, f64, f64)]], h: f64) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), loops)
         .validate(tol())
         .expect("a valid profile");
-    extrude(&profile, Extrusion::Distance(h), tol())
-        .expect("the plate extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .expect("the plate extrudes")
+    .body
 }
 
 fn rect(x0: f64, y0: f64, x1: f64, y1: f64) -> Vec<(f64, f64, f64)> {
@@ -51,7 +60,7 @@ fn circle(cx: f64, cy: f64, r: f64) -> Vec<(f64, f64, f64)> {
     vec![(cx - r, cy, 1.0), (cx + r, cy, 1.0)]
 }
 
-/// Check 9's four words in a structural report.
+/// Check 9's words in a structural report.
 fn check_9_words(body: &Body<f64>) -> Vec<String> {
     match topo::validate_geometric_structural(body, tol()) {
         Ok(()) => Vec::new(),
@@ -64,6 +73,10 @@ fn check_9_words(body: &Body<f64>) -> Vec<String> {
                         | ValidationError::RingContactEscalated { .. }
                         | ValidationError::RingOutsideOuter { .. }
                         | ValidationError::RingNestingUndecided { .. }
+                        | ValidationError::RingMeetsRing { .. }
+                        | ValidationError::RingPairContactEscalated { .. }
+                        | ValidationError::PinchCornerCrossed { .. }
+                        | ValidationError::PinchCornerEscalated { .. }
                 )
             })
             .map(|e| format!("{e:?}"))
@@ -373,9 +386,14 @@ fn a_shelled_vessel_of_revolution_certifies_and_its_inverted_rim_does_not() {
         })
         .map(|(k, _)| k)
         .collect();
-    let cup = topo::shell_open(&vessel, t, &top, tol())
-        .expect("the vessel opens")
-        .body;
+    let cup = topo::shell_open(
+        &finished("the operand", vessel.clone(), tol()),
+        t,
+        &top,
+        tol(),
+    )
+    .expect("the vessel opens")
+    .body;
     let ringed: Vec<FaceKey> = cup
         .faces()
         .filter(|(_, f)| !f.rings.is_empty())
@@ -440,7 +458,7 @@ fn revert_does_not_move_the_verdict() {
                     .map(|w| w.split_whitespace().next().unwrap_or("").to_string())
                     .collect()
             };
-            let reverted = body.revert().expect("the body reverts");
+            let reverted = body.revert();
             assert_eq!(
                 variants(&body).is_empty(),
                 tag == "honest",

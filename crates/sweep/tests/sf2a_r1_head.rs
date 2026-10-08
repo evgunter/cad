@@ -18,9 +18,14 @@ use topo::{Body, ChartMove, FaceKey, ReplaceFaceError};
 fn chamfered_cube() -> Body<f64> {
     let body = sweep::test_support::cube(1.0, Tol::witness());
     let edges: Vec<topo::EdgeKey> = body.edges().map(|(k, _)| k).collect();
-    sweep::chamfer::chamfer_edges(&body, &edges, 0.1, Tol::witness())
-        .expect("a cube chamfers")
-        .body
+    sweep::chamfer::chamfer_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &edges,
+        0.1,
+        Tol::witness(),
+    )
+    .expect("a cube chamfers")
+    .body
 }
 
 /// One chart as this file reads it: the faces wearing it, and the
@@ -44,12 +49,7 @@ fn charts(body: &Body<f64>) -> Vec<Chart> {
 }
 
 fn centroid(body: &Body<f64>) -> Point3<f64> {
-    let pts: Vec<Point3<f64>> = body
-        .vertices()
-        .filter_map(|(k, _)| body.get_vertex(k))
-        .filter_map(|v| body.get_point(v.point))
-        .copied()
-        .collect();
+    let pts: Vec<Point3<f64>> = body.vertex_points().map(|(_, p)| p).collect();
     let n = pts.len() as f64;
     let mut s = Vec3::new(0.0, 0.0, 0.0);
     for p in &pts {
@@ -60,9 +60,8 @@ fn centroid(body: &Body<f64>) -> Point3<f64> {
 
 fn sorted_points(body: &Body<f64>) -> Vec<(f64, f64, f64)> {
     let mut pts: Vec<(f64, f64, f64)> = body
-        .vertices()
-        .filter_map(|(k, _)| body.get_vertex(k))
-        .filter_map(|v| body.get_point(v.point))
+        .vertex_points()
+        .map(|(_, p)| p)
         .map(|p| (p.x, p.y, p.z))
         .collect();
     pts.sort_by(|a, b| a.partial_cmp(b).expect("finite"));
@@ -74,8 +73,7 @@ fn sorted_points(body: &Body<f64>) -> Vec<(f64, f64, f64)> {
 /// planes.
 fn worst_incidence(body: &Body<f64>) -> f64 {
     let mut worst: f64 = 0.0;
-    for (vk, v) in body.vertices() {
-        let p = *body.get_point(v.point).unwrap();
+    for (vk, p) in body.vertex_points() {
         for fk in body.faces_of_vertex(vk).expect("orbit") {
             let f = body.get_face(fk).unwrap();
             if let Some(geom::Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface) {
@@ -112,7 +110,7 @@ fn h1_valence_four_concurring_corners_must_solve() {
     println!("[h1] {} charts, {} vertices", moves.len(), before.len());
     let r = topo::offset_planes_together(&mut body, &moves, band(), Tol::witness());
     match r {
-        Ok(()) => {
+        Ok(_) => {
             let vol = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
             let after = sorted_points(&body);
             // Every vertex must be the λ-scaled original.
@@ -173,7 +171,7 @@ fn h2_valence_four_non_concurring_corners_must_refuse_typed() {
         .collect();
     let r = topo::offset_planes_together(&mut body, &moves, band(), Tol::witness());
     match r {
-        Ok(()) => panic!("[h2] a NON-concurring valence-4 corner BUILT"),
+        Ok(_) => panic!("[h2] a NON-concurring valence-4 corner BUILT"),
         Err(e) => {
             println!("[h2] REFUSES: {e}");
             assert!(
@@ -208,7 +206,7 @@ fn h3_the_conditioning_meter_is_a_function_of_the_offset() {
             })
             .collect();
         match topo::offset_planes_together(&mut body, &moves, band(), Tol::witness()) {
-            Ok(()) => println!("[h3] CUBE, inward {d:e}: solves"),
+            Ok(_) => println!("[h3] CUBE, inward {d:e}: solves"),
             Err(e) => println!("[h3] CUBE, inward {d:e}: REFUSES {e}"),
         }
     }
@@ -241,7 +239,7 @@ fn h4_a_face_named_twice() {
     moves.push(dup);
     let vol0 = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     match topo::offset_planes_together(&mut body, &moves, band(), Tol::witness()) {
-        Ok(()) => {
+        Ok(_) => {
             let vol = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
             println!(
                 "[h4] a face named TWICE was accepted: V0={vol0:.17e} V={vol:.17e}; \

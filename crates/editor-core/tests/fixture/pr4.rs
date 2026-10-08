@@ -7,10 +7,11 @@
 //! diagnosis is a function of both).
 #![allow(dead_code)] // shared across test binaries
 
+use editor_core::ExtrudeSide;
 use editor_core::{
     BooleanOp, CancelToken, CapEnd, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, Node,
-    ProfileDoc, Qualifier, RecipeNodeId, Resolution, RoleSeg, RunCtx, SitedRef, SlotId, StableName,
-    evaluate, resolve, resolve_with_prior,
+    ProfileDoc, Qualifier, RecipeNodeId, Resolution, RoleSeg, RunCtx, SlotId, StableName, evaluate,
+    resolve, resolve_with_prior,
 };
 
 use super::{ang, insert, len, minted, on_frame, scl, step};
@@ -20,11 +21,13 @@ use geom_core::Tol;
 /// per Ev's 2026-07-29 ruling on the M5 PR 8 diagnosis question:
 /// the diagnosis ACCEPTANCE artifacts (this corpus + the golden
 /// digest in `m4_pr4_ci`) pin what production users actually get.
-/// Scenario A's flip-vanish row therefore exercises the AMENDED N5
-/// semantics: the disjoint run's pair space is pruned and no flip
-/// evidence is computed. The vanished name is a rim-edge piece named by
-/// its ends, whose group went from two to one, so the row diagnoses
-/// to `GroupResized` (`resolve::group_resized`'s docs). Engine-behavior tests
+/// Scenario A's flip-vanish row: the vanished name is a rim-edge piece
+/// named by its ends, whose group went from two to one when the slab
+/// that cut it slid clear. The disjoint run's pair space is pruned
+/// (the AMENDED N5 semantics), but the slab's wall, which the piece's
+/// end vertex cites, is still classified against `a` and flips from
+/// inside to outside, so the row diagnoses to that `PredicateFlip`,
+/// which outranks the group-size rung. Engine-behavior tests
 /// that are genuinely about behavior-GIVEN-verdicts stay under the
 /// idealized sweep (`m4_pr4_diff`, `m4_pr4_resolve` — see their
 /// headers); `m4_pr4_banked` pins both strategies side by side.
@@ -60,6 +63,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -75,10 +79,14 @@ where
 {
     let mut out = Vec::new();
 
-    // ---- Scenario A: sliding union (flip-vanish + cascade). ----
+    // ---- Scenario A: a sliding slab (flip-vanish + cascade). ----
+    // The slab crosses both of `a`'s top rims along x, whose genuine
+    // valence-3 cuts at x = 0.45 and 0.55 hold each in two pieces named
+    // by their ends; slid clear of `a`, it leaves the rims whole. No
+    // vertex of the slab lies inside `a` in either run.
     let doc = ProfileDoc::empty_derived("pr4", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b0) = block(doc, (-0.05, 0.05), (-1.0, 2.0), 0.5, 2.5);
     let (doc, tr) = insert(
         doc,
         Node::transform(
@@ -90,25 +98,20 @@ where
             },
         ),
     );
-    // M4 PR 5: the sliding overlap's flush planes are DECLARED (the
-    // recipe intent; the retired bit rung no longer infers them). The
-    // B side is read at the TRANSFORM, which is the boolean's operand
-    // and carries `b0`'s names verbatim (N1).
-    let (doc, decl) = super::declare_x_offset_flush_at(doc, (a, a), (tr, b0));
     let (doc, u) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
             b: tr,
-            declare: Some(decl),
+            declare: Vec::new(),
         },
     );
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
             input: u,
-            count: editor_core::Expr::count(2),
+            count: editor_core::Formula::count(2),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
                 spacing: len(5.0),
@@ -144,6 +147,7 @@ where
             node: tr,
             slot: SlotId::Translation(editor_core::Axis3::X),
             expr: len(2.5),
+            fresh: Vec::new(),
         },
     );
     let ev2 = run::<T>(&doc2, Some(&ev1));
@@ -164,7 +168,8 @@ where
         DocEdit::SetStructuralParam {
             node: pat,
             slot: SlotId::Count,
-            expr: editor_core::Expr::count(1),
+            expr: editor_core::Formula::count(1),
+            fresh: Vec::new(),
         },
     );
     let ev3 = run::<T>(&doc3, Some(&ev1));
@@ -180,18 +185,11 @@ where
         ),
     ));
 
-    // ---- Scenario C: Declare stranded by DeleteNode (NodeGone). ----
+    // ---- Scenario C: a name minted by a deleted node (NodeGone). ----
     let docd = ProfileDoc::empty_derived("pr4", Tol::witness());
-    let (docd, da) = block(docd, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (docd, _) = block(docd, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (docd, db) = block(docd, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
     let cap_b = minted(EntityKind::Face, db, RoleSeg::Cap(CapEnd::End));
-    let (docd, _) = insert(
-        docd,
-        Node::declare_rest(vec![(
-            SitedRef::new(da, minted(EntityKind::Face, da, RoleSeg::Cap(CapEnd::End))),
-            SitedRef::new(db, cap_b.clone()),
-        )]),
-    );
     let (docd, _) = step(docd, DocEdit::DeleteNode { id: db });
     let evd = run::<T>(&docd, None);
     out.push((
@@ -229,6 +227,7 @@ where
         Node::Extrude {
             profile: up,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (docu, us) = insert(
@@ -237,7 +236,7 @@ where
             op: BooleanOp::Subtract,
             a: ua,
             b: ub,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let evu = run::<T>(&docu, None);

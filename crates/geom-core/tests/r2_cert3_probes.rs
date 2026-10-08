@@ -63,7 +63,7 @@ fn r2_zero_angle_independence_swept_hard() {
         for h in [0.0f64, 1.0e-15, 1.0e-9, 1.0e-3, 1.0, 1.0e6] {
             let wi = |c: f64| Interval::from_bounds(c - h, c + h);
             let anchor = Point3::new(wi(1.0), wi(2.0), wi(-3.0));
-            let axis = Vec3::new(ax[0], ax[1], ax[2]).map(Interval::from_f64);
+            let axis = Vec3::from_array(ax).map(Interval::from_f64);
             let r = Affine3::rotation_about_axis(anchor, axis, Interval::zero());
             let tw = w(r.translation.x)
                 .max(w(r.translation.y))
@@ -129,8 +129,8 @@ fn r2_degenerate_axis_refuses_at_zero_angle() {
             ),
         ] {
             let m = Mat3::identity_minus_rotation_about(axis, Interval::from_f64(angle));
-            for v in [m.c0, m.c1, m.c2] {
-                for e in [v.x, v.y, v.z] {
+            for v in m.cols() {
+                for e in v.to_array() {
                     let refused = !e.is_certified() || e.lo().is_nan() || e.hi().is_nan();
                     assert!(
                         refused,
@@ -183,7 +183,7 @@ fn r2_operator_agrees_with_identity_minus_rotation_f64() {
         [-3.0, 1.0, 0.5],
         [0.1, 0.2, -0.97],
     ] {
-        let axis = Vec3::new(ax[0], ax[1], ax[2]);
+        let axis = Vec3::from_array(ax);
         for &angle in &[
             1.0e-12,
             1.0e-6,
@@ -254,7 +254,7 @@ fn r2_diagonal_equivalence_under_inexact_normalization() {
         [3.0, 4.0, 0.0],
         [1.0, 2.0, 3.0],
     ] {
-        let axis = Vec3::new(ax[0], ax[1], ax[2]);
+        let axis = Vec3::from_array(ax);
         let n = axis.normalize();
         let sq = n.x * n.x + n.y * n.y + n.z * n.z;
         for &angle in &[1.0e-8, 0.3, 1.0, 3.0] {
@@ -296,13 +296,13 @@ fn r2_bit_movement_and_fixed_point_residual() {
     let mut res_old = 0.0f64;
     let mut res_new = 0.0f64;
     for ax in [[0.0, 0.0, 1.0], [1.0, -2.0, 2.0], [1.0, 0.0, 0.0]] {
-        let axis = Vec3::new(ax[0], ax[1], ax[2]);
+        let axis = Vec3::from_array(ax);
         for anchor in [
             [1.0, 2.0, -3.0],
             [100.0, -250.0, 30.0],
             [0.001, 0.002, -0.003],
         ] {
-            let p = Point3::new(anchor[0], anchor[1], anchor[2]);
+            let p = Point3::from_array(anchor);
             let q = p - Point3::origin();
             let mag = (q.x * q.x + q.y * q.y + q.z * q.z).sqrt();
             for &angle in &[
@@ -371,7 +371,7 @@ fn r2_anchor_fixed_point_under_degenerate_normalization() {
         ("subnormal-scale", [1.0e-160, 1.0e-160, 1.0e-160]),
         ("subnormal-2", [1.0e-170, 0.0, 0.0]),
     ] {
-        let axis = Vec3::new(ax[0], ax[1], ax[2]);
+        let axis = Vec3::from_array(ax);
         let n = axis.normalize();
         let nsq = n.x * n.x + n.y * n.y + n.z * n.z;
         for &angle in &[1.0e-8f64, 1.0, 3.0] {

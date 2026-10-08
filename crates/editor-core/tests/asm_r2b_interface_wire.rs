@@ -46,24 +46,33 @@ fn doc_with_a_crossing() -> ProfileDoc {
     let push = |doc: &ProfileDoc, node| {
         apply(
             doc,
-            &DocEdit::InsertNode { node },
+            &DocEdit::InsertNode {
+                node,
+                fresh: Vec::new(),
+            },
             Tol::witness(),
             &RefusingReach,
         )
         .expect("the fixture's nodes insert")
         .doc
     };
-    host = push(&host, Node::instantiate_part(doc_ref));
-    host = push(&host, Node::instantiate_part(doc_ref));
-    let (first, second) = (host.order()[0], host.order()[1]);
+    host = push(&host, Box::new(Node::instantiate_part(doc_ref)));
+    host = push(&host, Box::new(Node::instantiate_part(doc_ref)));
+    let (first, second) = (host.ids()[0], host.ids()[1]);
     let sited = |node, cap| SitedFace {
         at: node,
         name: face(node, cap),
     };
-    let frame = MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
+    let frame = MateFrame::authored(
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        geom_core::Tol::witness(),
+    )
+    .expect("a definite frame");
     host = push(
         &host,
-        Node::Mate {
+        Box::new(Node::Mate {
             a: sited(first, CapEnd::End),
             b: sited(second, CapEnd::Start),
             class: ContactClass::Rest,
@@ -74,7 +83,7 @@ fn doc_with_a_crossing() -> ProfileDoc {
                 sense: AxisSense::Aligned,
                 clocking: None,
             },
-        },
+        }),
     );
     let record = InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
@@ -86,10 +95,18 @@ fn doc_with_a_crossing() -> ProfileDoc {
             // that round-trips it round-trips a reference NO door
             // here resolves — which is the distinction the record
             // exists to carry across the seam.
-            inner: face(RecipeNodeId(7), CapEnd::Start),
+            inner: face(RecipeNodeId::new(0, 7), CapEnd::Start),
         }],
     };
-    push(&host, Node::instantiate_part_with(doc_ref, record))
+    push(
+        &host,
+        Box::new(Node::instantiate_part_with(
+            doc_ref,
+            record,
+            None,
+            Some(editor_core::Placement::IDENTITY),
+        )),
+    )
 }
 
 /// The record is ON THE WIRE (it was unspellable while the enum was
@@ -123,7 +140,8 @@ fn an_empty_record_stays_absent_from_the_wire() {
     let doc = apply(
         &ProfileDoc::empty(DocumentId::derive("asm-r2b-schema-empty"), Tol::witness()),
         &DocEdit::InsertNode {
-            node: Node::instantiate_part(doc_ref),
+            node: Box::new(Node::instantiate_part(doc_ref)),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -152,7 +170,7 @@ fn crossing_of(wire: &mut serde_json::Value, instance: RecipeNodeId) -> &mut ser
 /// record.
 fn saved_crossing() -> (String, RecipeNodeId) {
     let doc = doc_with_a_crossing();
-    let instance = *doc.order().last().expect("the fixture has nodes");
+    let instance = *doc.ids().last().expect("the fixture has nodes");
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     (text, instance)
 }

@@ -451,8 +451,8 @@ fn r1_the_near_perpendicular_ray_keeps_its_roots() {
     let pinned = Band::new(1e-12, 1e-11).unwrap();
     let (c, a) = centre_and_axis();
     let f64_roots = match line_torus_roots(
-        Point3::new(o[0], o[1], o[2]),
-        Vec3::new(d[0], d[1], d[2]),
+        Point3::from_array(o),
+        Vec3::from_array(d),
         c,
         a,
         1.0,
@@ -629,14 +629,8 @@ fn r1_the_q_zero_surface_certifies_on_both_sides() {
             if q_iv.lo() <= 0.0 && 0.0 <= q_iv.hi() {
                 straddles += 1;
             }
-            let (truth, _) = oracle_roots(
-                Point3::new(o[0], o[1], o[2]),
-                Vec3::new(d[0], d[1], d[2]),
-                c,
-                a,
-                1.0,
-                0.9,
-            );
+            let (truth, _) =
+                oracle_roots(Point3::from_array(o), Vec3::from_array(d), c, a, 1.0, 0.9);
             assert_eq!(
                 truth.len(),
                 2,
@@ -644,8 +638,8 @@ fn r1_the_q_zero_surface_certifies_on_both_sides() {
             );
             let at = format!("base {k}, step {h:e}");
             match line_torus_roots(
-                Point3::new(o[0], o[1], o[2]),
-                Vec3::new(d[0], d[1], d[2]),
+                Point3::from_array(o),
+                Vec3::from_array(d),
                 c,
                 a,
                 1.0,

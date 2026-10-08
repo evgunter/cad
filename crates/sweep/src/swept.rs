@@ -44,13 +44,17 @@
 //! **says so at its own site**; that marker is the only thing tying
 //! the two together, and it is deliberately not deleted.
 
-use geom::Curve3;
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, SketchSegment};
+use geom::{Curve3, Surface};
+use geom_brep::{
+    EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, NewellError, SketchSegment, newell_plane,
+};
 use geom_core::{
     Affine3, Arc2, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
 };
 use profile::SegmentKind;
-use topo::{Body, EulerOpError, FaceKey, SurfaceKey};
+use topo::{
+    Body, EdgeKey, EulerOpError, FaceKey, FaceSurface, HalfEdgeKey, MefSite, MevSite, SurfaceKey,
+};
 
 /// The classification funnel of this shared lowering, and of `extrude`
 /// and `revolve` above it (the `geom-brep` pattern).
@@ -91,6 +95,18 @@ pub(crate) fn decide<T: Decide>(
     band: Band,
 ) -> Result<Sign, Indeterminate> {
     geom_core::k_stats::decide(name, margin, band)
+}
+
+/// [`decide`], keeping the reporting margin the classifier decided on,
+/// for a refusal that quotes the value it refused
+/// ([`geom_core::k_stats::decide_reported`]). Classification and
+/// recording are [`decide`]'s.
+pub(crate) fn decide_reported<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<geom_core::Decided, Indeterminate> {
+    geom_core::k_stats::decide_reported(name, margin, band)
 }
 
 /// Whether an arc's carrier centre lies on the material side of its
@@ -174,6 +190,33 @@ impl<T: Real> Traversed<T> {
         Self(SegmentKind::Arc { arc, turn })
     }
 
+    /// The run this traversal continues into `next` on one carrier
+    /// (the full revolve's collapsed run, `revolve::full::Collapsed`):
+    /// a line stays a line; an arc keeps ITS centre, radius and turn —
+    /// `next`'s carrier is the same one only within the cosurface
+    /// margin — and its sweep is the two summed (same turn, so same
+    /// sign). The end the summed sweep implies therefore differs from
+    /// the run's stored last endpoint by at most that margin plus
+    /// rounding; the collapsed segment keeps the stored endpoint, and
+    /// certification meters the carrier against it. A pair of
+    /// different kinds is no run: the cosurface verdict never joins
+    /// one.
+    pub(crate) fn continued(self, next: Self) -> Self {
+        Self(match (self.0, next.0) {
+            (SegmentKind::Line, SegmentKind::Line) => SegmentKind::Line,
+            (SegmentKind::Arc { arc, turn }, SegmentKind::Arc { arc: more, .. }) => {
+                SegmentKind::Arc {
+                    arc: Arc2 {
+                        sweep: arc.sweep + more.sweep,
+                        ..arc
+                    },
+                    turn,
+                }
+            }
+            _ => unreachable!("a run never joins a line and an arc"),
+        })
+    }
+
     /// The carrier class, in this traversal's orientation.
     pub(crate) fn get(self) -> SegmentKind<T> {
         self.0
@@ -241,6 +284,17 @@ impl<T: Real> SweptChord<T> for SweptSeg<T> {
 }
 
 impl<T: Real> SweptSeg<T> {
+    /// This segment continued into `next` on one carrier: `next`'s end,
+    /// the kind [`Traversed::continued`], and this segment's start and
+    /// canonical indices (a collapsed run's, [`collapse_runs`]).
+    pub(crate) fn continued(self, next: &Self) -> Self {
+        Self {
+            b: next.b,
+            kind: self.kind.continued(next.kind),
+            ..self
+        }
+    }
+
     /// Segment `j` of the FORWARD traversal of `lp` — canonical segment
     /// `j` as itself, which is what the loft's walls read
     /// (`skin::vertex_segment`) outside a swept loop, and what
@@ -541,10 +595,14 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
 
 /// The world points determining a cap plane, in forward swept order:
 /// every loop vertex, plus every arc segment's apex. The apexes keep
-/// 2-vertex loops (the minimal circle) plane-determining — Newell needs
-/// three points and a 2-vertex cap has only two vertices — and they
-/// carry the traversal's winding faithfully (each sits between its
-/// segment's endpoints in loop order).
+/// 2-vertex loops plane-determining — Newell needs three points and a
+/// 2-vertex cap has only two vertices. A one-segment loop is a full
+/// turn at its one vertex (D1), whose chord has no apex: its carrier
+/// points a quarter of the way round, its antipode
+/// ([`geom_core::Arc2::antipode`]) and three quarters of the way round
+/// stand in, in the same order. The polygon is inscribed in the region,
+/// so its winding is not necessarily the region's: [`cap_plane`]
+/// orients its plane by the region's.
 ///
 /// `qs` are the world vertices and `place` the matching placement, so
 /// a rotated or translated cap passes the rotated or translated pair.
@@ -553,15 +611,329 @@ pub(crate) fn cap_points<T: Real, S: SweptChord<T>>(
     qs: &[Point3<T>],
     place: Affine3<T>,
 ) -> Vec<Point3<T>> {
-    let mut pts = Vec::with_capacity(segs.len() * 2);
+    let placed = |p: Point2<T>| place.transform_point(Point3::new(p.x, p.y, T::zero()));
+    let mut pts = Vec::with_capacity(segs.len() * 2 + 2);
     for (j, s) in segs.iter().enumerate() {
         pts.push(qs[j]);
         if let SegmentKind::Arc { arc, .. } = s.kind().get() {
-            let apex = arc.apex(s.a(), s.b());
-            pts.push(place.transform_point(Point3::new(apex.x, apex.y, T::zero())));
+            if profile::is_full_turn(segs) {
+                pts.push(placed(arc.point_from(s.a(), T::from_f64(0.25))));
+                pts.push(placed(arc.antipode(s.a())));
+                pts.push(placed(arc.point_from(s.a(), T::from_f64(0.75))));
+            } else {
+                pts.push(placed(arc.apex(s.a(), s.b())));
+            }
         }
     }
     pts
+}
+
+/// Which end of a sweep a cap closes. The start cap's loop runs the
+/// swept chain reversed (the closing `mef` of the start lamina), the end
+/// cap's runs it forward (the swept face that survives).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CapEnd {
+    /// The cap at the sketch's own station: outward normal opposite the
+    /// sweep.
+    Start,
+    /// The cap the sweep carries to its far station: outward normal
+    /// along the sweep.
+    End,
+}
+
+/// Why a cap's plane could not be built (every verb's `CapPlane`
+/// payload). Unreachable from a validated profile; surfaced rather than
+/// trusted.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum CapPlaneError {
+    /// The cap's points failed Newell certification.
+    Newell(NewellError),
+    /// Whether Newell's normal points along the region's normal or
+    /// against it was too close to call.
+    Orientation(Indeterminate),
+    /// Newell's normal lies definitely in the sketch plane: the cap's
+    /// plane is edge-on to the region it closes.
+    EdgeOn,
+}
+
+impl core::fmt::Display for CapPlaneError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Newell(e) => write!(f, "a cap is not planar: {e}"),
+            Self::Orientation(cause) => write!(
+                f,
+                "whether a cap's plane faces along the profile's winding or against it could \
+                 not be decided: {}. {}",
+                cause.payload(),
+                geom_core::KERNEL_DEFECT_ENDING
+            ),
+            Self::EdgeOn => write!(
+                f,
+                "a cap's plane stands edge-on to the profile's own plane. {}",
+                geom_core::KERNEL_DEFECT_ENDING
+            ),
+        }
+    }
+}
+
+impl std::error::Error for CapPlaneError {}
+
+/// The certified plane of a sweep's cap.
+///
+/// The plane is Newell's over [`cap_points`] — origin, normal, `u_ref`
+/// and residual certification — oriented by the REGION's winding, not
+/// the polygon's. A validated outer loop winds counterclockwise about
+/// its sketch normal (`profile` decides it arc-exactly at validation),
+/// so the swept chain's region normal is `place`'s sketch normal,
+/// negated when the traversal `reversed` the canonical chain; the start
+/// cap faces opposite it, the end cap along it. The polygon is
+/// inscribed in the region and a large convex arc can make it wind the
+/// other way, so when Newell's normal opposes the region's the plane is
+/// flipped (`u_ref` re-derived from the flipped normal, as Newell
+/// derives it).
+///
+/// `forward` is `cap_points` of the swept chain at this cap's station.
+///
+/// **Precondition: `place` is a rigid, right-handed frame**
+/// (`c2 = c0 × c1`, unit and orthogonal), so that "counterclockwise in
+/// the sketch" means "counterclockwise about `c2`". Nothing enforces it
+/// at the public doors yet — `profile::SketchPlane::new` and the loft's
+/// placements admit a reflected or skewed map, which reaches the
+/// orientation decision's refusals with a kernel-defect ending when the
+/// cause is the caller's frame
+/// (`work/paths/sketch-plane-holds-the-affine-and-the-witness-dies-at-the-read-boundary.md`).
+pub(crate) fn cap_plane<T: Decide>(
+    forward: &[Point3<T>],
+    place: Affine3<T>,
+    reversed: bool,
+    end: CapEnd,
+    band: Band,
+) -> Result<Surface<T>, CapPlaneError> {
+    // The start cap's loop order: first point kept, the rest reversed —
+    // the order the minted face runs, so a residual refusal names its
+    // vertex in the face's own order.
+    let ordered: Vec<Point3<T>> = match end {
+        CapEnd::End => forward.to_vec(),
+        CapEnd::Start => forward
+            .first()
+            .into_iter()
+            .chain(forward.iter().skip(1).rev())
+            .copied()
+            .collect(),
+    };
+    let plane = newell_plane(&ordered, band).map_err(CapPlaneError::Newell)?;
+    let Surface::Plane { origin, normal, .. } = plane else {
+        unreachable!("newell_plane mints a plane")
+    };
+    let sketch_normal = place.linear.c2.normalize();
+    let expected_outward = if reversed == (end == CapEnd::Start) {
+        sketch_normal
+    } else {
+        -sketch_normal
+    };
+    // Margin: the cosine between the two normals, levered by the cap's
+    // half-perimeter (it bounds the cap's diameter, the arm a tilt of
+    // the normal moves a cap point through). Never near the band: every
+    // cap point lies in the sketch plane, and Newell certified them all
+    // within ε of its own plane, so for a region of mean width w ≫ ε
+    // the two planes meet at an angle of order ε/w and the cosine is
+    // ±1 to that order. Under the precondition above an escalation
+    // here is a kernel defect.
+    let mut half_perimeter = T::zero();
+    for (i, &p) in ordered.iter().enumerate() {
+        half_perimeter = half_perimeter + (ordered[(i + 1) % ordered.len()] - p).norm();
+    }
+    half_perimeter = half_perimeter * T::from_f64(0.5);
+    let agrees = decide(
+        "cap_plane_orientation",
+        Margin::levered(normal.dot(expected_outward), half_perimeter),
+        band,
+    )
+    .map_err(CapPlaneError::Orientation)?;
+    match agrees {
+        Sign::Positive => return Ok(plane),
+        Sign::Zero => return Err(CapPlaneError::EdgeOn),
+        Sign::Negative => {}
+    }
+    let flipped = -normal;
+    let (u_ref, _) = flipped.orthonormal_basis();
+    Ok(Surface::Plane {
+        origin,
+        normal: flipped,
+        u_ref,
+    })
+}
+
+/// What [`build_full_turn`] minted.
+pub(crate) struct FullTurn {
+    /// The far rim's plus half, kept by the loop the turn was built in.
+    pub(crate) far_kept: HalfEdgeKey,
+    /// The far rim.
+    pub(crate) far: EdgeKey,
+    /// The wall.
+    pub(crate) wall: FaceKey,
+    /// The strut, from the far vertex to the near one.
+    pub(crate) strut: EdgeKey,
+    /// The near rim's plus half, in the wall.
+    pub(crate) near_in_wall: HalfEdgeKey,
+    /// The near rim.
+    pub(crate) near: EdgeKey,
+    /// The face holding the near rim's minus half.
+    pub(crate) near_face: FaceKey,
+}
+
+/// **Sweeps a one-segment loop** — D1's full turn, one vertex and one
+/// self-loop edge — whose far copy is the lone vertex of the empty loop
+/// `r#loop`, and whose near copy is `near`.
+///
+/// **Far first**, because the new face of a self-loop `mef` is always
+/// the one-half-edge loop. `mef(Lone)` lays the far rim (`far_spec`):
+/// `r#loop` keeps its plus half and the new face, minted on `wall`,
+/// takes the minus. A strut `mev` runs from the far vertex back to
+/// `near` (`strut_spec` reads far to near). A self-loop `mef` at the
+/// near vertex lays the near rim (`near_spec`): the new face, on
+/// `near_cap`, takes its minus half and the wall its plus. So the face
+/// that held `r#loop` keeps the far rim — the seed face stays the far
+/// cap and a ring stays its ring — and the wall's cycle is strut⁺
+/// (down), near rim⁺, strut⁻ (up), far rim⁻: a quad wall's, with both
+/// strut halves in it.
+///
+/// Both rim specs run in the swept traversal's direction, so the far
+/// cap runs its rim forward and the near face backward, as the chain
+/// builders leave them.
+#[allow(clippy::too_many_arguments)] // the specs and surfaces each verb supplies
+pub(crate) fn build_full_turn<T: Decide + topo::AtRestPolicy>(
+    body: &mut Body<T>,
+    r#loop: topo::LoopKey,
+    near: Point3<T>,
+    far_spec: EdgeCurveSpec<T>,
+    wall: FaceSurface<T>,
+    strut_spec: EdgeCurveSpec<T>,
+    near_spec: EdgeCurveSpec<T>,
+    near_cap: FaceSurface<T>,
+    tol: Tol,
+) -> Result<FullTurn, EulerOpError> {
+    let far = body.mef(MefSite::Lone { r#loop }, far_spec, wall, tol)?;
+    let strut = body.mev(
+        MevSite::Fan {
+            he1: far.he_minus,
+            he2: far.he_minus,
+        },
+        near,
+        strut_spec,
+        tol,
+    )?;
+    let near = body.mef(
+        MefSite::Chords {
+            he1: strut.he_minus,
+            he2: strut.he_minus,
+        },
+        near_spec,
+        near_cap,
+        tol,
+    )?;
+    Ok(FullTurn {
+        far_kept: far.he_plus,
+        far: far.edge,
+        wall: far.face,
+        strut: strut.edge,
+        near_in_wall: near.he_plus,
+        near: near.edge,
+        near_face: near.face,
+    })
+}
+
+/// **Plants a hole's ring** in the face `anchor` runs in (§9.3's
+/// state): a bridge strut from `anchor`'s start to `at`, killed at once
+/// into an empty ring whose lone vertex, returned beside it, sits at
+/// `at`. The bridge is construction scaffolding and does not outlive
+/// this call.
+pub(crate) fn plant_hole_ring<T: Decide + topo::AtRestPolicy>(
+    body: &mut Body<T>,
+    anchor: HalfEdgeKey,
+    at: Point3<T>,
+    tol: Tol,
+) -> Result<(topo::LoopKey, topo::VertexKey), EulerOpError> {
+    let bridge = body.mev_line(
+        MevSite::Fan {
+            he1: anchor,
+            he2: anchor,
+        },
+        at,
+        tol,
+    )?;
+    let ring = body.kemr(bridge.he_plus, bridge.he_minus)?.ring;
+    Ok((ring, bridge.vertex))
+}
+
+/// The transient disc a hole closes in its ring, on its cap's surface
+/// `cap`: `kfmrh` consumes it into that cap at once, so nothing reads
+/// its bit.
+pub(crate) fn transient_disc<T: Real>(cap: SurfaceKey) -> FaceSurface<T> {
+    FaceSurface::Shared {
+        key: cap,
+        sense: false,
+    }
+}
+
+/// **A one-segment hole, whole**: its ring planted at its FAR vertex
+/// `far` ([`plant_hole_ring`]) — it is swept whole there, far rim first
+/// ([`build_full_turn`]), so the ring keeps the far rim — the turn
+/// swept into that ring by `sweep`, handed the [`transient_disc`] on
+/// `near_cap`'s surface as its near face, and that disc consumed into
+/// `near_cap`: its loop becomes the cap's ring.
+pub(crate) fn full_turn_hole<T, S, E>(
+    body: &mut Body<T>,
+    anchor: HalfEdgeKey,
+    far: Point3<T>,
+    near_cap: FaceKey,
+    tol: Tol,
+    sweep: impl FnOnce(&mut Body<T>, topo::LoopKey, FaceSurface<T>) -> Result<(FullTurn, S), E>,
+) -> Result<(FullTurn, S), E>
+where
+    T: Decide + topo::AtRestPolicy,
+    E: From<EulerOpError>,
+{
+    let (ring, _) = plant_hole_ring(body, anchor, far, tol)?;
+    let disc = transient_disc(face_surface_key(body, near_cap));
+    let (turn, swept) = sweep(body, ring, disc)?;
+    body.kfmrh(near_cap, turn.near_face)?;
+    Ok((turn, swept))
+}
+
+/// Re-describes `edge`, both of whose halves bound one face on `wall`,
+/// as that face's wrap edge (D1, `EdgeDescriptionSpec::wrap`): the
+/// certified carrier and interval kept verbatim. A one-segment loop's
+/// strut — extrude's and a revolve's — and a full revolve's periodic
+/// meridian all go through here.
+pub(crate) fn describe_wrap_edge<T: Decide + topo::AtRestPolicy>(
+    body: &mut Body<T>,
+    edge: EdgeKey,
+    wall: SurfaceKey,
+    tol: Tol,
+) -> Result<(), EulerOpError> {
+    let curve_key = body
+        .get_edge(edge)
+        .unwrap_or_else(|| unreachable!("edge {edge:?} was minted by this sweep and is live"))
+        .curve;
+    let curve = body
+        .get_curve_geom(curve_key)
+        .unwrap_or_else(|| unreachable!("curve {curve_key:?} is held by live edge {edge:?}"))
+        .certified()
+        .ok_or(EulerOpError::NullScaffoldCurve { curve: curve_key })?;
+    let carrier = curve.carrier().clone();
+    let (param_start, param_end) = curve.params();
+    body.set_edge_curve(
+        edge,
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::wrap(wall),
+            carrier,
+            param_start,
+            param_end,
+        },
+        tol,
+    )?;
+    Ok(())
 }
 
 /// The predicate names one verb's cosurface decision reports under —
@@ -625,19 +997,260 @@ pub(crate) fn cosurface<T: Decide, S: SweptChord<T>>(
     }
 }
 
-/// Resolves a face's surface key (total: a stale key surfaces as the
-/// operator-layer typed error, which every sweep verb's error enum
-/// absorbs through its `From<EulerOpError>`).
-pub(crate) fn face_surface_key<T: Real>(
-    body: &Body<T>,
-    face: FaceKey,
-) -> Result<SurfaceKey, EulerOpError> {
-    Ok(body
-        .get_face(face)
-        .ok_or(EulerOpError::StaleKey {
-            key: topo::EntityId::Face(face),
-        })?
-        .surface)
+/// One wall's run of a swept loop (crate README, "Walls: one per
+/// run"): segments `first, first + 1, …, first + len − 1` (mod n) in
+/// swept order. Vertex `first` leads the run; the `len − 1` vertices
+/// after it are the run's stations.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Run {
+    /// The run's first segment (and leading vertex), swept order.
+    pub(crate) first: usize,
+    /// How many segments the run holds (≥ 1).
+    pub(crate) len: usize,
+}
+
+impl Run {
+    /// The run's segments, swept order, wrapping at `n`.
+    pub(crate) fn segments(self, n: usize) -> impl Iterator<Item = usize> {
+        (0..self.len).map(move |k| (self.first + k) % n)
+    }
+}
+
+/// How segment `j`'s wall meets segment `j − 1 mod n`'s, by swept
+/// position (`joins[0]` is the wrap join): which joins a run crosses.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Join {
+    /// Two carriers, or a side that sweeps no wall: the joint is a
+    /// corner between walls on their own surfaces.
+    Corner,
+    /// One carrier, inside a run: one wall crosses the joint, and the
+    /// station has no strut.
+    Run,
+    /// One carrier, two walls: a strut between walls that share one
+    /// surface key — a circle's canonical cut (C12.5).
+    Cut,
+}
+
+/// A loop's [`Join`]s, read off its cosurface verdicts `pair`
+/// ([`cosurface_pairs`], which is false across a side that sweeps no
+/// wall): a one-carrier join is a [`Join::Run`]. A loop whose every
+/// join continues one carrier is a circle cut into arcs — collinear
+/// lines cannot close a simple loop — and it keeps its canonical cut
+/// (C12.5): every join a `Cut`.
+pub(crate) fn joins<T: Real, S: SweptChord<T>>(segs: &[S], pair: &[bool]) -> Vec<Join> {
+    if pair.iter().all(|&p| p) {
+        // A cosurface pair never mixes kinds, so the loop is all lines
+        // or all arcs.
+        if matches!(segs[0].kind().get(), SegmentKind::Line) {
+            unreachable!(
+                "a run of collinear lines closes the whole loop, which validation refuses"
+            );
+        }
+        return vec![Join::Cut; pair.len()];
+    }
+    pair.iter()
+        .map(|&p| if p { Join::Run } else { Join::Corner })
+        .collect()
+}
+
+/// The wall runs of one swept loop, in ascending order of their first
+/// segment: a run starts at every join that is not a [`Join::Run`]
+/// (crate README, "Walls: one per run").
+///
+/// No run is the whole loop. That needs every join but one to continue
+/// one carrier while the last does not, and the carrier closes through
+/// it: a circle's arcs all lie on it, a line's collinear pieces cannot
+/// close. The verdicts at the joins only part from the geometry inside
+/// the cosurface band, and profile validation escalates a carrier pair
+/// that near-coincides before any sweep sees it, so such a loop is a
+/// kernel defect, refused here rather than built as one full-period
+/// wall with one strut. A one-segment loop never reaches here: each
+/// verb sweeps it whole or refuses it before its runs are read.
+pub(crate) fn wall_runs(joins: &[Join]) -> Vec<Run> {
+    let n = joins.len();
+    let starts: Vec<usize> = (0..n).filter(|&j| joins[j] != Join::Run).collect();
+    if starts.len() == 1 {
+        unreachable!(
+            "joint {} is the loop's one corner and every other joint continues one carrier: \
+             profile validation escalates the carrier pair this needs",
+            starts[0]
+        );
+    }
+    starts
+        .iter()
+        .enumerate()
+        .map(|(i, &first)| {
+            let next = starts.get(i + 1).copied().unwrap_or(starts[0] + n);
+            Run {
+                first,
+                len: next - first,
+            }
+        })
+        .collect()
+}
+
+/// A loop's cosurface verdicts, decided UP FRONT from the segments
+/// alone (deterministic — no body state) and before any wall is minted:
+/// `pair[j]` says whether segment `j` continues segment `j − 1 mod n`'s
+/// carrier, so `pair[0]` is the wrap join. A pair across an unwalled
+/// segment (`walled`) is structurally false. Deciding all n first is
+/// what lets a run crossing the canonical start vertex resolve to ONE
+/// wall. `escalated(j, source)` is the verb's typed refusal for an
+/// in-band verdict at vertex `j`.
+pub(crate) fn cosurface_pairs<T: Decide, S: SweptChord<T>, E>(
+    segs: &[S],
+    walled: impl Fn(usize) -> bool,
+    names: CosurfaceNames,
+    band: Band,
+    escalated: impl Fn(usize, Indeterminate) -> E,
+) -> Result<Vec<bool>, E> {
+    let n = segs.len();
+    (0..n)
+        .map(|j| {
+            let p = (j + n - 1) % n;
+            if !(walled(p) && walled(j)) {
+                return Ok(false);
+            }
+            cosurface(&segs[p], &segs[j], names, band).map_err(|source| escalated(j, source))
+        })
+        .collect()
+}
+
+/// A swept loop with each wall run collapsed to one segment (crate
+/// README, "Walls: one per run"), so a station inside a run reaches no
+/// builder: the run's wall is one face and each of its rims one edge.
+pub(crate) struct Collapsed<S> {
+    /// The collapsed segments, in run order: each run's first segment
+    /// continued to the run's end.
+    pub(crate) segs: Vec<S>,
+    /// Per collapsed segment, how its wall meets the previous one's: a
+    /// [`Join::Corner`], or a [`Join::Cut`] on a circle cut into arcs.
+    pub(crate) joins: Vec<Join>,
+    /// Per collapsed segment, the swept positions its run holds, in
+    /// swept order.
+    pub(crate) members: Vec<Vec<usize>>,
+}
+
+impl<S> Collapsed<S> {
+    /// [`Collapsed::members`] with each swept position read through
+    /// `canonical` (a swept position's canonical segment): per
+    /// collapsed segment, the canonical segments its run holds.
+    pub(crate) fn canonical_members(&self, canonical: impl Fn(usize) -> usize) -> Vec<Vec<usize>> {
+        self.members
+            .iter()
+            .map(|run| run.iter().map(|&s| canonical(s)).collect())
+            .collect()
+    }
+}
+
+/// Collapses a swept loop's wall runs ([`Collapsed`]), from its
+/// [`Join`]s. `continued(seg, next)` is `seg` continued into `next` on
+/// one carrier ([`SweptSeg::continued`]); the cosurface verdict made
+/// the run one carrier, so nothing is re-decided.
+pub(crate) fn collapse_runs<S: Copy>(
+    segs: &[S],
+    joins: &[Join],
+    continued: impl Fn(S, &S) -> S,
+) -> Collapsed<S> {
+    let n = segs.len();
+    let runs = wall_runs(joins);
+    Collapsed {
+        segs: runs
+            .iter()
+            .map(|run| {
+                run.segments(n)
+                    .skip(1)
+                    .fold(segs[run.first], |seg, s| continued(seg, &segs[s]))
+            })
+            .collect(),
+        joins: runs.iter().map(|run| joins[run.first]).collect(),
+        members: runs.iter().map(|run| run.segments(n).collect()).collect(),
+    }
+}
+
+/// The wall whose SURFACE KEY wall `j` of a [`Collapsed`] loop shares,
+/// across a [`Join::Cut`]: the previous wall's, and for a chain of cuts
+/// reaching wall 0 through the wrap, wall 0's. Wall 0 shares nothing.
+/// `faces` holds the walls minted so far.
+pub(crate) fn shared_wall(joins: &[Join], faces: &[Option<FaceKey>], j: usize) -> Option<FaceKey> {
+    let n = joins.len();
+    let cut = |k: usize| joins[k] == Join::Cut;
+    if j == 0 {
+        None
+    } else if cut(j) {
+        faces[j - 1]
+    } else if cut(0) && ((j + 1)..n).all(cut) {
+        faces[0]
+    } else {
+        None
+    }
+}
+
+/// What [`build_walls`] minted, by position in the collapsed loop:
+/// each wall, and its far-side edge (extrude's top rim, a partial
+/// revolve's end meridian). `None` where a segment sweeps no wall.
+pub(crate) struct Walls {
+    pub(crate) faces: Vec<Option<FaceKey>>,
+    pub(crate) tops: Vec<Option<EdgeKey>>,
+}
+
+/// **The one wall builder** extrude and the partial revolve share,
+/// over a [`Collapsed`] loop of `n` segments: for each segment in
+/// order, one `mef` from `at(j)` — the strut's minus half at its lead —
+/// lays its far-side edge and splits the wall off. It closes against
+/// the far-side half the first wall laid when the segment ends at
+/// vertex 0 (the strut minus there was consumed), and against
+/// `at(j + 1)` otherwise. `wall(body, j, faces)` gives the far-side
+/// edge's spec and the wall's surface, or `None` for a segment that
+/// sweeps no wall (a revolve's on-axis segment).
+pub(crate) fn build_walls<T: Decide + topo::AtRestPolicy, E: From<EulerOpError>>(
+    body: &mut Body<T>,
+    n: usize,
+    at: impl Fn(usize) -> HalfEdgeKey,
+    mut wall: impl FnMut(
+        &mut Body<T>,
+        usize,
+        &[Option<FaceKey>],
+    ) -> Result<Option<(EdgeCurveSpec<T>, FaceSurface<T>)>, E>,
+    tol: Tol,
+) -> Result<Walls, E> {
+    let mut faces: Vec<Option<FaceKey>> = vec![None; n];
+    let mut tops: Vec<Option<EdgeKey>> = vec![None; n];
+    let mut first_top: Option<HalfEdgeKey> = None;
+    for j in 0..n {
+        let Some((far, surface)) = wall(body, j, &faces)? else {
+            continue;
+        };
+        let end = (j + 1) % n;
+        let he2 = match first_top {
+            Some(top) if end == 0 => top,
+            _ => at(end),
+        };
+        let mef = body.mef(MefSite::Chords { he1: at(j), he2 }, far, surface, tol)?;
+        if j == 0 {
+            first_top = Some(mef.he_plus);
+        }
+        tops[j] = Some(mef.edge);
+        faces[j] = Some(mef.face);
+    }
+    Ok(Walls { faces, tops })
+}
+
+/// The surface key of `face`, a face the calling driver minted.
+///
+/// # Panics
+///
+/// If `face` is not live: every caller passes a face its own driver
+/// minted and never killed, so a miss is a kernel bug.
+#[track_caller]
+pub(crate) fn face_surface_key<T: Real>(body: &Body<T>, face: FaceKey) -> SurfaceKey {
+    body.get_face(face)
+        .unwrap_or_else(|| {
+            unreachable!(
+                "face {face:?} was minted by this driver and no step kills it before this read"
+            )
+        })
+        .surface
 }
 
 /// Every edge of `face` still described through the **scaffolding
@@ -659,38 +1272,52 @@ pub(crate) fn face_surface_key<T: Real>(
 /// every edge is a cap–wall rim between a plane and a `Surface::Nurbs`
 /// wall; D2 exempts NURBS-adjacent edges from the must-carry demand,
 /// and loft's module doc says these rims are never classified.
-pub(crate) fn describe_face_rim_at_rest<T: Decide>(
+pub(crate) fn describe_face_rim_at_rest<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     face: FaceKey,
     tol: Tol,
 ) -> Result<(), EulerOpError> {
-    let chart = face_surface_key(body, face)?;
-    let stale = || EulerOpError::StaleKey {
-        key: topo::EntityId::Face(face),
-    };
-    let face_data = body.get_face(face).ok_or_else(stale)?.clone();
+    let chart = face_surface_key(body, face);
+    let face_data = body
+        .get_face(face)
+        .unwrap_or_else(|| unreachable!("face {face:?} resolved just above"))
+        .clone();
     let mut edges: Vec<topo::EdgeKey> = Vec::new();
     for lk in core::iter::once(&face_data.outer).chain(&face_data.rings) {
-        let topo::LoopBoundary::Cycle { first } = body.get_loop(*lk).ok_or_else(stale)?.boundary
+        let topo::LoopBoundary::Cycle { first } = body
+            .get_loop(*lk)
+            .unwrap_or_else(|| {
+                unreachable!("loop {lk:?} is listed by live face {face:?} on a tier-1-valid body")
+            })
+            .boundary
         else {
             continue;
         };
-        for he in body.loop_cycle(first).ok_or_else(stale)? {
-            edges.push(body.get_half_edge(he).ok_or_else(stale)?.edge);
+        let cycle = body.loop_cycle(first).unwrap_or_else(|| {
+            unreachable!("loop {lk:?}'s cycle from {first:?} closes on a tier-1-valid body")
+        });
+        for he in cycle {
+            edges.push(
+                body.get_half_edge(he)
+                    .unwrap_or_else(|| {
+                        unreachable!("half-edge {he:?} is on loop {lk:?}'s closed cycle")
+                    })
+                    .edge,
+            );
         }
     }
     for edge in edges {
         let curve_key = body
             .get_edge(edge)
-            .ok_or(EulerOpError::StaleKey {
-                key: topo::EntityId::Edge(edge),
-            })?
+            .unwrap_or_else(|| {
+                unreachable!("edge {edge:?} was read off a live half-edge of face {face:?}")
+            })
             .curve;
         let scaffolded = body
             .get_curve_geom(curve_key)
             .and_then(topo::CurveGeom::certified)
             // Null scaffolding carries no description at all.
-            .is_some_and(|c| matches!(c.description(), geom_brep::EdgeDescription::Scaffold(_)));
+            .is_some_and(|c| c.description().is_scaffold());
         if !scaffolded {
             continue;
         }
@@ -705,6 +1332,34 @@ mod tests {
     use super::*;
     use geom_core::sym::{session_counts, with_session};
     use geom_core::{Bounds, Interval, ParamSymbol, Sym, SymBudget};
+
+    /// A run starts at every join that is not [`Join::Run`]; a loop of
+    /// cuts is one run per segment.
+    #[test]
+    fn runs_start_at_every_join_a_run_does_not_cross() {
+        use Join::{Corner, Cut, Run as R};
+        let runs = |j: &[Join]| {
+            wall_runs(j)
+                .iter()
+                .map(|r| (r.first, r.len))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(runs(&[Corner, R, Corner, R]), vec![(0, 2), (2, 2)]);
+        assert_eq!(
+            runs(&[R, Corner, Cut, R]),
+            vec![(1, 1), (2, 3)],
+            "a run wraps the start"
+        );
+        assert_eq!(runs(&[Cut, Cut, Cut]), vec![(0, 1), (1, 1), (2, 1)]);
+    }
+
+    /// One corner and every other join a run would be one full-period
+    /// wall with one strut; it is a kernel defect and panics.
+    #[test]
+    #[should_panic(expected = "the loop's one corner")]
+    fn a_loop_with_one_corner_is_refused() {
+        wall_runs(&[Join::Run, Join::Corner, Join::Run]);
+    }
 
     /// **The cap apex stays at the chord's scale at `Interval`.** Over
     /// the shallow-arc grid (chord `L` ∈ {1e-3, 1, 50}, bulge down to
@@ -780,7 +1435,10 @@ mod tests {
                     // A clockwise arc bowing up off the top of a unit
                     // square, over a bulge box wide enough that the
                     // numeric channel cannot decide the rim.
-                    let b = S::param(ParamSymbol::of("b"), Interval::from_bounds(-0.55, -0.45));
+                    let b = S::param(
+                        ParamSymbol::new(test_utils::symbol_id("b")),
+                        Interval::from_bounds(-0.55, -0.45),
+                    );
                     let closed = Open
                         .at(Point2::new(lit(0.0), lit(0.0)))
                         .arc_to(
@@ -965,10 +1623,9 @@ mod tests {
     }
 
     /// One arc at the bulge `bulge` (a form) with the turn `turn`, on
-    /// the chord `(0, 0) → (2, 0)`, lowered through
-    /// [`placed_segment_spec`] at the identity placement. The sweep is
-    /// the lowering's `4·atan b`, and the centre and radius are the
-    /// sagitta closed forms, so the two registrants the arm runs state
+    /// the chord `(0, 0) → (2, 0)`, lowered from the chord
+    /// ([`Arc2::from_chord`]) and through [`placed_segment_spec`] at the
+    /// identity placement, so the two registrants the arm runs state
     /// true identities.
     fn lowered<T: Real>(bulge: T, turn: Sign) -> EdgeCurveSpec<T> {
         let lit = T::from_f64;
@@ -976,18 +1633,11 @@ mod tests {
             Point2::new(lit(0.0), lit(0.0)),
             Point2::new(lit(2.0), lit(0.0)),
         );
-        let len = lit(2.0);
-        let apothem = len * (lit(1.0) - bulge * bulge) / (lit(4.0) * bulge);
-        let radius = (len * (lit(1.0) + bulge * bulge) / (lit(4.0) * bulge)).abs();
         let seg = SweptSeg {
             a,
             b,
             kind: Traversed::forward(SegmentKind::Arc {
-                arc: Arc2 {
-                    centre: Point2::new(lit(1.0), apothem),
-                    radius,
-                    sweep: lit(4.0) * bulge.atan(),
-                },
+                arc: Arc2::from_chord(a, b, bulge),
                 turn,
             }),
             canonical_vertex: 0,
@@ -1057,7 +1707,8 @@ mod tests {
         for (name, negative, reversed, turn) in cases {
             let at = |b: f64| if negative { -b } else { b };
             let (rows, counts) = with_session(budget(), || {
-                let b = Sym::<f64>::param(ParamSymbol::of("bulge"), at(0.7));
+                let b =
+                    Sym::<f64>::param(ParamSymbol::new(test_utils::symbol_id("bulge")), at(0.7));
                 let bulge = if reversed { Sym::zero() - b } else { b };
                 samples(&lowered(bulge, turn), turn)
             });
@@ -1072,8 +1723,10 @@ mod tests {
                 (0.63, 0.77)
             };
             let (rows, counts) = with_session(budget(), || {
-                let b =
-                    Sym::<Interval>::param(ParamSymbol::of("bulge"), Interval::from_bounds(lo, hi));
+                let b = Sym::<Interval>::param(
+                    ParamSymbol::new(test_utils::symbol_id("bulge")),
+                    Interval::from_bounds(lo, hi),
+                );
                 let bulge = if reversed { Sym::zero() - b } else { b };
                 samples(&lowered(bulge, turn), turn)
             });
