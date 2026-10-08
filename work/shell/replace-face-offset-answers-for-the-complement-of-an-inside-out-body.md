@@ -2,11 +2,13 @@
 id: replace-face-offset-answers-for-the-complement-of-an-inside-out-body
 kind: issue
 title: replace_face_offset takes any &mut Body, so an inside-out body's face moves the complement's way and returns Ok
-status: dispatched
+status: closed
 opened: 2026-10-06
 priority: P2
 cost: M
 branch: shell/face-door-at-rest
+closed: 2026-10-08
+pr: 4315
 ---
 
 
@@ -86,3 +88,20 @@ work, not this fix. Reading check 7 per door is rejected.
    lane measures a row where an untyped failure surfaces today.
 
 Close as a premise correction once that lands.
+
+## Closed (PR 4315, 2026-10-08): premise correction
+
+The doors keep `&mut Body` and read `d` along each chart's stored
+normal. The rule is stated in each door's module doc and in
+`crates/topo/README.md`'s "Shell and offset surgery" row. Pins:
+`crates/topo/tests/offset_doors_read_charts_not_material.rs` (the wedge
+in both windings through `replace_face_offset` and
+`offset_planes_together`: ΔV exactly `+A·d` each way, and the clockwise
+operand and result refuse `NegativeVolume` alone) and
+`crates/sweep/tests/offset_axial_door_reads_charts_not_material.rs`. The
+revolve door winds a clockwise meridian right-way round, so the only
+inside-out body of revolution is `Body::revert()`. That body keeps the
+wall's chart and flips its sense, so the same move gives the negated
+signed ΔV. The general form is signed ΔV = Σ sense·A·d. The optional
+typed tier-2 entry refusal was not built: every slit-dome strut operand
+through `replace_faces_offset` refused typed, with no panic.
