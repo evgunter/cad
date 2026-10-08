@@ -1840,9 +1840,16 @@ mod tests {
         ] {
             for (x, y) in [(&body, other), (other, &body)] {
                 assert_eq!(
-                    crate::boolean::carrier_pair::carrier_pair_relation(x, face, y, face, false, band())
-                        .unwrap()
-                        .unwrap(),
+                    crate::boolean::carrier_pair::carrier_pair_relation(
+                        x,
+                        face,
+                        y,
+                        face,
+                        false,
+                        band()
+                    )
+                    .unwrap()
+                    .unwrap(),
                     rung,
                     "the curved rung, a face against {name}"
                 );

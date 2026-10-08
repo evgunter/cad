@@ -2,9 +2,8 @@
 id: peg-in-socket-union-refuses-join-desync-at-a-coarse-eps
 kind: issue
 title: The torus peg-in-socket union's chord join cannot read its section loops' roles above eps 2e-7
-status: parked
+status: open
 opened: 2026-10-02
-blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -34,3 +33,7 @@ I have not measured which witness reads in band above 2e-7, or whether a witness
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: it builds only because the declared-REST zip takes over SectionLoopUndecided at ε≥3e-7; stage 4 retires that zip. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released (2026-10-08, INTENT stage 4 A (`intent/s4-a-join`))
+
+The zip that built this union at ε ≥ 3e-7 is deleted, so the join's `Join(SectionLoopUndecided)` stands there again, as the stage-4 spec says it does (§2: a band escalation that stays a refusal). `mate7a_torus_rest.rs`'s `peg_in_socket_union_holds` requires the build below 3e-7 and that refusal from it. No stage-4 unit fixes it: the open question is this row's, which witness reads in band above 2e-7.

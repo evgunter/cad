@@ -2362,17 +2362,15 @@ impl<T: Decide> Body<T> {
             // declaration. A face whose extent does not read has no
             // reach to settle, which the reach decision names.
             let (on1, on2) = (self.boundary_points(f1), self.boundary_points(f2));
-            let reach =
-                crate::boolean::carrier_pair::pair_extent(self, f1, self, f2, band).map_err(|_| {
-                    MergeCoplanarError::Escalated {
-                        decision: MergeDecision::DeclaredReach,
-                        diag: Indeterminate {
-                            margin: geom_core::MarginDiag::INVALID,
-                            band,
-                            predicate: Some("merge_declared_extent"),
-                            terminal_sliver: false,
-                        },
-                    }
+            let reach = crate::boolean::carrier_pair::pair_extent(self, f1, self, f2, band)
+                .map_err(|_| MergeCoplanarError::Escalated {
+                    decision: MergeDecision::DeclaredReach,
+                    diag: Indeterminate {
+                        margin: geom_core::MarginDiag::INVALID,
+                        band,
+                        predicate: Some("merge_declared_extent"),
+                        terminal_sliver: false,
+                    },
                 })?;
             let extent = crate::boolean::ConsumedExtent {
                 reach: reach.reach,

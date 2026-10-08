@@ -1316,12 +1316,7 @@ fn a_sharp_plate_offset_over_a_rounded_one_unions_in_either_order() {
             ("lower ∪ upper", &lower, &upper),
         ] {
             let (rest, cont) = findings(a, b);
-            union_honest(
-                &format!("({dx}, {dy}), {order}"),
-                a,
-                b,
-                &with(&rest, &cont),
-            );
+            union_honest(&format!("({dx}, {dy}), {order}"), a, b, &with(&rest, &cont));
         }
     }
 }

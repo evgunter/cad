@@ -422,8 +422,7 @@ fn probe_ring_count_mismatch_never_silent() {
             assert!(
                 matches!(
                     err,
-                    BooleanError::Join(_)
-                        | BooleanError::ZipCorrespondence { .. }
+                    BooleanError::Join(_) | BooleanError::ZipCorrespondence { .. }
                 ),
                 "typed only: {err:?}"
             );

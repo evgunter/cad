@@ -2,10 +2,11 @@
 id: the-join-builds-what-the-rest-zip-builds
 kind: issue
 title: D10 stage 4 PR A: the join gains the three arms the declared-REST zip covers (partner-edge chord, curved-chart ring re-homing, the mekr NotSameFace cause), then boolean/rest.rs's surgery is deleted
-status: open
+status: review
 opened: 2026-10-08
 priority: P0
 cost: H
+branch: intent/s4-a-join
 ---
 
 INTENT stage 4, PR A. Spec: `docs/INTENT-STAGE4-SPEC.md` §2. Needs nothing from stage 2 or 3; dispatchable now.

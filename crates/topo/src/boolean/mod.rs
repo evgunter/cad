@@ -114,8 +114,8 @@ pub(crate) mod refusal_routes;
 pub(crate) use refusal_routes::PlaneDoor;
 pub use refusal_routes::{
     BooleanDecision, Coincide, Contradiction, CrossingDecision, DeclarationRead, LeverArm,
-    NeighbourOffset, PlaneRung, SectionRadius, SectorRung, SelfCheck, Settling,
-    SphereQuestion, TorusConvention, WallRung,
+    NeighbourOffset, PlaneRung, SectionRadius, SectorRung, SelfCheck, Settling, SphereQuestion,
+    TorusConvention, WallRung,
 };
 mod rim_wedge;
 pub(crate) mod sectors;
@@ -173,11 +173,11 @@ pub use zip::take_shared_points;
 // verify door — descriptions, oriented sources and the verification
 // arm in one function, shared by verify-at-use and the detector's
 // candidate-generation mode BY CONSTRUCTION.
-pub use contact_verify::{contact_pair_verdict, tangent_pair_relation};
 pub use carrier_pair::{
     PairFace, PairUnread, carrier_pair_relation, carrier_pair_verdict, face_carrier,
     flush_pair_relation,
 };
+pub use contact_verify::{contact_pair_verdict, tangent_pair_relation};
 pub use solid_contain::{
     PointInSolidError, SolidContainment, SolidFaces, point_in_solid, point_in_solid_faces,
     point_in_solid_of,

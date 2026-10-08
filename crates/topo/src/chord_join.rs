@@ -3715,9 +3715,8 @@ fn chart_ring_side<T: Decide>(
                 if s0 == Sign::Zero && s1 == Sign::Zero {
                     // A row along the ray: the ray misses it unless the
                     // vertex is on it.
-                    let ends = [v0, v1].map(|v| {
-                        decide_r("split_ring_chart_ray_along", Margin::of(v - v_p))
-                    });
+                    let ends = [v0, v1]
+                        .map(|v| decide_r("split_ring_chart_ray_along", Margin::of(v - v_p)));
                     match ends {
                         [Ok(e0), Ok(e1)] if e0 == e1 && e0 != Sign::Zero => continue,
                         [Ok(_), Ok(_)] => return Ok(Ok(None)),

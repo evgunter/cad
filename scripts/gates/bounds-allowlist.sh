@@ -507,7 +507,6 @@ BOUNDS_ALLOWLIST=(
   # Three more ride to `carrier_touch::off_face` the same way:
   # `curved_face_arm`, `wall_crossing` and `settle_deferred`. 5 + 3 = 8.
   'crates/topo/src/boolean/reduce.rs 8 2026-07-29 (M5 PR 8), the driver amendment'
-  'crates/topo/src/boolean/rest.rs 1 2026-07-29 (M5 PR 8), the driver amendment'
   # `separation.rs` is FOUR and the ledger entry enumerates THREE
   # (`Separation::of`, `Separation::certify`, `image`). The fourth,
   # `SolidSeparation::of`, is argued in that struct's own doc as

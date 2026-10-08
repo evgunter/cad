@@ -179,8 +179,8 @@ fn a_tangent_sites_controls_build_sound() {
 /// contact, where the dip's boundary on the plate's top is the slab's
 /// own edges and no section segment marks it
 /// (`work/zip/a-dip-inside-a-rest-contact-is-refused-by-the-result-gate.md`).
-/// Each refuses or builds at box arithmetic. The control, a box above
-/// the plate, joins and builds in both orders.
+/// Each builds sound at box arithmetic, in both orders. The control, a
+/// box above the plate, joins too.
 #[test]
 fn a_box_dipping_into_a_plate_at_a_tangent_site_never_ships_the_overlap_twice() {
     let t = tol();
@@ -215,7 +215,7 @@ fn a_box_dipping_into_a_plate_at_a_tangent_site_never_ships_the_overlap_twice() 
                 "{what}: the control's join connects"
             );
             let built = never_twice(&what, topo::union_with(p, q, &d, t), want, overlap);
-            assert!(built || !control, "{what}: the control refused");
+            assert!(built, "{what}: refused");
         }
     }
 }

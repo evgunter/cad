@@ -1495,7 +1495,6 @@ type Germ<T> = (usize, (SideCode, SideCode), Cells, Vec3<T>);
 /// A germ's `(A face, B face)` and `(A locus, B locus)`.
 pub(super) type Cells = ((FaceKey, FaceKey), (super::Locus, super::Locus));
 
-
 /// Where [`mint_directed`] mints a run: in `operand` at `vertex`, the
 /// plan's own or the copy of the innermost fan of its plan that holds it,
 /// whose null half from that copy is `fan_half` ([`corner_bound`]).
