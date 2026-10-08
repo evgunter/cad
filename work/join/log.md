@@ -1211,6 +1211,6 @@ Signed (JOIN orchestrator).
   - The next M-tier miss owes a short FYI readout.
   - The next full readout comes at twenty M-tier units or at two more M-tier misses.
 - **Where it is recorded.** Rule 9 of `docs/DUAL-REVIEW-PROTOCOL.md`, and a dated note in `docs/DUAL-REVIEW-LOG.md`.
-- **Tracker.** `the-dual-review-streams-third-readout-is-owed` is closed, and PR 4283 is closed unmerged (rule 10).
+- **Tracker.** PR 4283 is closed unmerged (rule 10). `the-dual-review-streams-third-readout-is-owed` keeps `needs_ev` until Ev signs off the rule-9 wording.
 
 Signed (JOIN orchestrator).
