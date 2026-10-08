@@ -1400,12 +1400,16 @@ pub(super) fn pair_search<T: Decide>(
 
 /// What [`wedge_classes`] read: each edge's class, and which side of
 /// the other body's boundary there is its cone. The cone is the
-/// material where `met` (a convex corner, or a polygon cone whose
-/// material lies in a half-space), and the material's complement where
-/// not (a hollow corner, or a polygon cone whose complement lies in
-/// one). `pointed` says the cone lies in an open half-space, as a
-/// convex corner's does and as [`cone_read`] reads; where it does not,
-/// the cone is the material.
+/// material where `met` and the material's complement where not.
+///
+/// `pointed` says which side was read as the cone: the convex side of
+/// a convex or hollow corner, and for a polygon cone the side `−c` does
+/// not lie in ([`cone_read`]). It is not a half-space test: a saddle
+/// whose mean bound has a decided length reads pointed too. Where the
+/// link lies in an open half-space, the side so read is the one in it;
+/// a touch's partner's link does, since `vtxfac::partner_side` refuses
+/// any other first, which is why only a touch reads `pointed`. Where it
+/// is false, the cone is the material.
 #[derive(Clone, Debug)]
 pub(super) struct WedgeRead {
     pub met: bool,
@@ -1537,14 +1541,15 @@ pub(super) fn wedge_classes<T: Decide>(
 /// has no reference to read it by.
 ///
 /// Which side of the corner's link is its cone is read off the link's
-/// mean direction `c` (the mean of its sectors' unit bounds). Where the
-/// link lies in an open half-space, one side of it does too, and `−c`
-/// lies strictly outside that side, since every bound leans into the
-/// half-space and `c` with them: that side is the cone, the material
-/// where `−c` reads `Out` and its complement where `−c` reads `In`.
-/// Where `c` is no decided length, or `−c` reads on the link or in band,
-/// no side is read as lying in a half-space, and the cone is the
-/// material (`pointed` false).
+/// mean direction `c` (the mean of its sectors' unit bounds): the side
+/// `−c` does not lie in, the material where `−c` reads `Out` and its
+/// complement where `−c` reads `In`. Where the link lies in an open
+/// half-space, one side of it does too, and `−c` lies strictly outside
+/// that side, since every bound leans into the half-space and `c` with
+/// them, so the cone is that side. Where `c` is no decided length, or
+/// `−c` reads on the link, refuses or reads nothing, the cone is the
+/// material (`pointed` false); a touch refuses beside such a partner,
+/// and pairs alone read the same under either labelling.
 pub(super) fn cone_read<T: Decide>(
     own: &[BoolSector<T>],
     other: &[BoolSector<T>],
@@ -1565,10 +1570,12 @@ pub(super) fn cone_read<T: Decide>(
         .fold(Vec3::zero(), |acc, s| acc + s.start + s.end);
     let mean = sum / T::from_f64(2.0 * other.len() as f64);
     let away = match decide("bool_cone_pointed", Margin::levered(mean.norm(), arm), band) {
-        Ok(Sign::Positive) => cone_side(-mean, Reach::Bisector(arm), other, band)
-            .ok()
-            .flatten(),
-        _ => None,
+        // An in-band `−c` labels nothing, as no side read does: the cone
+        // is the material.
+        Ok(Sign::Positive) => {
+            cone_side(-mean, Reach::Bisector(arm), other, band).unwrap_or_default()
+        }
+        Ok(Sign::Zero | Sign::Negative) | Err(_) => None,
     };
     let (met, pointed) = match away {
         Some(SideCode::Out) => (true, true),
@@ -1582,59 +1589,71 @@ pub(super) fn cone_read<T: Decide>(
 /// read as `reach` allows, against `other`'s sectors, each a face's
 /// corner of under 180°.
 ///
-/// A direction on a face's plane within its sector is `On`. Any other
-/// is read along the great arc to a reference `p`, the direction
-/// halfway between one sector's bounds, where the direction lies
-/// strictly to one side of that sector's plane. Beside `p` on the
+/// A direction on a face's plane within its sector ([`in_sector`]) is
+/// `On`. Any other is read along the great arc to a reference `p`, the
+/// direction halfway between one sector's bounds, where the direction
+/// lies strictly to one side of that sector's plane. Beside `p` on the
 /// direction's side, the material is that face's inner half-space, so
 /// the side starts as the direction's side of the face, and flips at
-/// each sector the arc crosses. No face but `p`'s own passes through
-/// `p` within the band, so no other face bounds the material there.
+/// each sector the arc crosses.
 ///
 /// The arc crosses sector `S`, bounds `u` and `v` and normal `n`, iff
 /// the direction and `p` lie strictly on opposite sides of `S`'s plane,
 /// and `u` lies on `p`'s side and `v` on the direction's side of the
-/// plane through the direction and `p` (the arcs `d→p` and `u→v` cross
-/// iff `det(d,p,u) = −det(d,p,v) = −det(u,v,d) = det(u,v,p)`, all
-/// nonzero, and `det(u,v,x)` is `x·n`'s sign). A face whose plane the
-/// direction lies on, or in band of, outside its sector, meets the arc
-/// only there and is not crossed; one whose plane `p` lies on meets it
-/// only at `p`, which no other face holds.
+/// plane through the direction and `p`: two minor arcs `d→p` and `u→v`
+/// cross iff `det(d,p,u) = −det(d,p,v) = −det(u,v,d) = det(u,v,p)`, all
+/// nonzero, and `det(u,v,x)` is `x·n`'s sign. Endpoints strictly on one
+/// side of a plane put the whole arc there, so that face is not
+/// crossed. Every other face is passed over only on a decided reading:
+/// - `S` on `p`'s own face: `p` lies on that plane, in its own sector,
+///   which no other sector of the face shares.
+/// - `p` on `S`'s plane (within the zero band), where [`in_sector`]
+///   decides `p` outside `S`'s sector: the arc meets that plane only
+///   beside `p`, outside `S`.
+/// - The direction on or in band of `S`'s plane, outside `S`'s sector
+///   as read at the direction, where [`in_sector`] decides outside `S`
+///   the point at which the arc meets the plane,
+///   `|p̂·n|·d̂ − sgn(p̂·n)(d̂·n)·p̂`.
+///
+/// Where any of those is not decided — `p` inside `S`'s sector or in
+/// band of it, as at a thin fin folded at a short edge — the reference
+/// is passed over for the next. The class is decided only where some
+/// reference's every reading is.
 ///
 /// Every decision is a point deviation, as `side_code` reads one: the
-/// direction's side of a face's plane is `side_code`'s; its side of the
-/// plane through `p` and a bound is its far point's offset from that
-/// plane (`"bool_cone_arc"`, [`Reach::departure`]), where that plane
-/// has a normal (`"bool_cone_arc_span"`, the sine between `p` and the
-/// bound levered at the crossed sector's arm); `p`'s side of a face's
-/// plane is a bisector's, levered at its sector's arm. A reference any
-/// of whose readings is zero or in band is passed over for the next;
-/// where none reads, the first escalation refuses, and `None` where
-/// none escalated (every arc runs through the link).
+/// direction's side of a face's plane is `side_code`'s, and `p`'s a
+/// bisector's, levered at its sector's arm; the arc's side of a bound
+/// is [`arc_side`]'s. A reference any of whose readings is zero or in
+/// band is passed over for the next; where none reads, the first
+/// escalation refuses, and `None` where none escalated (every arc runs
+/// through the link).
 fn cone_side<T: Decide>(
     dir: Vec3<T>,
     reach: Reach<T>,
     other: &[BoolSector<T>],
     band: Band,
 ) -> Result<Option<SideCode>, BooleanError> {
+    let d = dir.normalize();
+    // A face's strict side, or `None` where the direction lies on or in
+    // band of its plane outside its sector.
     let mut codes = Vec::with_capacity(other.len());
     for s in other {
-        let within = || within(s, dir, false, DeclarationRead::Moot, band);
+        let in_sector = || in_sector(s, d, reach.length(), band);
         codes.push(match plane_side_code(dir, reach, s.normal, band) {
-            Ok(SideCode::On) if within()? => return Ok(Some(SideCode::On)),
+            Ok(SideCode::On) if in_sector()? => return Ok(Some(SideCode::On)),
             Ok(SideCode::On) => None,
             Ok(code) => Some(code),
-            Err(e) if within()? => return Err(e),
+            Err(e) if in_sector()? => return Err(e),
             Err(_) => None,
         });
     }
     let mut escalation = None;
     'reference: for (s0, base) in other.iter().zip(&codes) {
         let Some(base) = *base else { continue };
-        let (p, p_reach) = (s0.start + s0.end, Reach::Bisector(s0.arm));
+        let p = (s0.start + s0.end).normalize();
+        let p_reach = Reach::Bisector(s0.arm);
         let mut held = base == SideCode::In;
         for (s, code) in other.iter().zip(&codes) {
-            let Some(code) = *code else { continue };
             if s.face == s0.face {
                 continue;
             }
@@ -1645,12 +1664,42 @@ fn cone_side<T: Decide>(
                     continue 'reference;
                 }
             };
-            if side == SideCode::On || side == code {
-                continue;
+            // A crossing the readings put beside an endpoint passes
+            // over only where `within` decides it outside the sector.
+            let beside = match (side, *code) {
+                (SideCode::On, None) => continue 'reference,
+                (SideCode::On, Some(_)) => Some(p),
+                (_, None) => {
+                    let n = s.normal.vec();
+                    let (pn, dn) = (p.dot(n), d.dot(n));
+                    let toward = if side == SideCode::Out { -dn } else { dn };
+                    Some(d * pn.abs() + p * toward)
+                }
+                (_, Some(code)) if code == side => continue,
+                (_, Some(_)) => None,
+            };
+            if let Some(x) = beside {
+                match in_sector(s, x, reach.length().min(s0.arm), band) {
+                    Ok(false) => continue,
+                    Ok(true) => continue 'reference,
+                    Err(e) => {
+                        escalation.get_or_insert(e);
+                        continue 'reference;
+                    }
+                }
             }
+            let Some(code) = *code else { continue };
             let mut crosses = true;
-            for (bound, want) in [(s.start, side), (s.end, code)] {
-                match arc_side(dir, reach, p, bound, s.arm, band) {
+            for (bound, bound_reach, want) in
+                [(s.start, s.start_reach, side), (s.end, s.end_reach, code)]
+            {
+                let arc = Arc {
+                    dir,
+                    reach,
+                    p,
+                    p_arm: s0.arm,
+                };
+                match arc_side(arc, bound, bound_reach, s.arm, band) {
                     Ok(Some(got)) => crosses &= got == want,
                     Ok(None) => continue 'reference,
                     Err(e) => {
@@ -1666,28 +1715,90 @@ fn cone_side<T: Decide>(
     escalation.map_or(Ok(None), Err)
 }
 
-/// The sign of `det(dir, p, bound)` as a side code (`Out` positive):
-/// `dir`'s far point's side of the plane through `p` and `bound`.
-/// `None` where the plane has no decided normal or the point lies on
-/// it ([`cone_side`]).
-fn arc_side<T: Decide>(
+/// Whether a direction on or beside `s`'s plane lies within its
+/// sector, read as a point `lever` out along it: between the planes
+/// through each bound square to the face (`"bool_cone_within"`, the
+/// sine of its angle past each, levered), and facing the sector's
+/// middle (`"bool_cone_facing"`, the cosine, levered), which a
+/// direction opposite a thin sector, between those planes too, does
+/// not. A zero past a bound is within; a zero facing is not.
+fn in_sector<T: Decide>(
+    s: &BoolSector<T>,
+    dir: Vec3<T>,
+    lever: T,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
+    let (d, n) = (dir.normalize(), s.normal.vec());
+    for sine in [s.start.cross(d).dot(n), d.cross(s.end).dot(n)] {
+        let past = decide("bool_cone_within", Margin::levered(sine, lever), band);
+        if past.map_err(escalate)? == Sign::Negative {
+            return Ok(false);
+        }
+    }
+    let middle = (s.start + s.end).normalize();
+    let facing = decide(
+        "bool_cone_facing",
+        Margin::levered(d.dot(middle), lever),
+        band,
+    );
+    Ok(facing.map_err(escalate)? == Sign::Positive)
+}
+
+/// The arc [`cone_side`] reads along: from `dir`, read as `reach`
+/// allows, to the unit reference `p`, a direction levered at `p_arm`.
+#[derive(Clone, Copy)]
+struct Arc<T: geom_core::Real> {
     dir: Vec3<T>,
     reach: Reach<T>,
     p: Vec3<T>,
+    p_arm: T,
+}
+
+/// The sign of `det(dir, p, bound)` as a side code (`Out` positive):
+/// which side of the plane through the arc's ends `bound` lies on.
+/// `None` where the plane through `p` and `bound` has no decided normal
+/// (`"bool_cone_arc_span"`, the sine between them levered at the
+/// shorter of the two sectors' arms), or the determinant is decided
+/// zero.
+///
+/// The margin (`"bool_cone_arc"`) is the least displacement of any of
+/// the three points the determinant reads that flips its sign: the
+/// direction's far point off the plane through `p` and `bound`,
+/// `|det|·L_d/|p̂×b̂|`; `bound`'s far point off the plane through the
+/// direction and `p`, `|det|·L_b/|d̂×p̂|`; and `p` levered at its arm
+/// off the plane through the direction and `bound`, `|det|·arm/|d̂×b̂|`,
+/// each `L` the bound's own reach. A displacement along a plane that
+/// holds the other two points never flips it, so a zero sine drops
+/// that point.
+fn arc_side<T: Decide>(
+    arc: Arc<T>,
     bound: Vec3<T>,
+    bound_reach: Reach<T>,
     arm: T,
     band: Band,
 ) -> Result<Option<SideCode>, BooleanError> {
     let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
-    let normal = p.normalize().cross(bound.normalize());
-    let span = normal.norm();
-    match decide("bool_cone_arc_span", Margin::levered(span, arm), band).map_err(escalate)? {
+    let (d, b) = (arc.dir.normalize(), bound.normalize());
+    let pb = arc.p.cross(b);
+    let span = pb.norm();
+    let gate = Margin::levered(span, arm.min(arc.p_arm));
+    match decide("bool_cone_arc_span", gate, band).map_err(escalate)? {
         Sign::Positive => {}
         _ => return Ok(None),
     }
-    let offset = reach.departure(dir, normal / span);
+    let det = d.dot(pb);
+    let mut lever = arc.reach.length() / span;
+    for (length, sine) in [
+        (bound_reach.length(), d.cross(arc.p).norm()),
+        (arc.p_arm, d.cross(b).norm()),
+    ] {
+        if geom_core::is_finite_length(length / sine) {
+            lever = lever.min(length / sine);
+        }
+    }
     Ok(
-        match decide("bool_cone_arc", Margin::of(offset), band).map_err(escalate)? {
+        match decide("bool_cone_arc", Margin::of(det * lever), band).map_err(escalate)? {
             Sign::Positive => Some(SideCode::Out),
             Sign::Negative => Some(SideCode::In),
             Sign::Zero => None,
@@ -1907,6 +2018,62 @@ mod tests {
             "below the saddle In"
         );
         assert!(read.met && !read.pointed, "a saddle's cone is its material");
+        // A touch beside it would refuse rather than layer it.
+        let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
+        let partner = crate::entity::VertexKey::from(key(77));
+        let first = read.rows[0].0;
+        let pair = super::super::vtxfac::PairRead {
+            partner,
+            side: Some(SideCode::Out),
+            read: Some(read),
+            sectors: saddle,
+        };
+        assert_eq!(
+            super::super::vtxfac::touch_classes(&[(first, SideCode::Out)], &[pair]),
+            Err(Some(partner)),
+            "a touch beside a saddle refuses"
+        );
+    }
+
+    /// **An asymmetric saddle reads as its polygon cone too**: its mean
+    /// bound has a decided length and `−c` reads decidedly, so it is
+    /// labelled `pointed` though its link lies in no half-space (the
+    /// label only a touch reads, and no touch's partner is a saddle);
+    /// its rows are the cone's either way.
+    #[test]
+    fn an_asymmetric_saddle_reads_as_its_polygon_cone() {
+        let ring: Vec<_> = [
+            (1.0, 0.0, 0.4),
+            (0.0, 1.0, -0.4),
+            (-1.0, 0.0, 0.9),
+            (0.0, -1.0, -0.1),
+        ]
+        .iter()
+        .map(|&(x, y, z)| Vec3::new(x, y, z))
+        .collect();
+        let dirs = [
+            Vec3::new(1.0, 0.0, 0.2),
+            Vec3::new(1.0, 0.0, 0.6),
+            Vec3::new(0.0, 1.0, -0.5),
+            Vec3::new(0.0, 1.0, -0.3),
+            Vec3::new(-1.0, 0.0, 0.8),
+            Vec3::new(-1.0, 0.0, 1.0),
+            Vec3::new(0.0, -1.0, -0.2),
+            Vec3::new(0.0, -1.0, 0.0),
+        ];
+        use SideCode::{In, Out};
+        let read = wedge_classes(&probes(&dirs), &cone_sectors(&ring, true), band())
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            classes(&read),
+            [In, Out, In, Out, In, Out, In, Out],
+            "below the saddle In"
+        );
+        assert!(
+            read.pointed && !read.met,
+            "`−c` points down into the material, so the cone read is the complement"
+        );
     }
 
     /// **A reflex edge read in band refuses while the corner may still be
@@ -1925,6 +2092,1001 @@ mod tests {
             }
             other => panic!("an in-band reflex edge escalates, got {other:?}"),
         }
+    }
+
+    /// A cone from fuzz rows, one per sector: its start, end and
+    /// outward normal, whether each bound is an edge, each edge's far
+    /// point, its arm, and its face.
+    fn fuzz_cone(rows: &[[f64; 19]]) -> Vec<BoolSector<f64>> {
+        let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let v = |x: &[f64]| Vec3::new(x[0], x[1], x[2]);
+        rows.iter()
+            .enumerate()
+            .map(|(k, f)| {
+                let reach = |edge: f64, far: &[f64]| {
+                    if edge > 0.5 {
+                        Reach::Chord {
+                            base: o,
+                            far: o + v(far),
+                        }
+                    } else {
+                        Reach::Bisector(f[17])
+                    }
+                };
+                BoolSector {
+                    he: HalfEdgeKey::from(key(k as u64 + 1)),
+                    start: v(&f[0..3]),
+                    end: v(&f[3..6]),
+                    normal: OutwardNormal::from_chart(v(&f[6..9]), true),
+                    start_reach: reach(f[9], &f[11..14]),
+                    end_reach: reach(f[10], &f[14..17]),
+                    face: FaceKey::from(key(1000 + f[18] as u64)),
+                    arm: f[17],
+                }
+            })
+            .collect()
+    }
+
+    /// The band the review's fuzz read its cones at, ε = 1e-9: the
+    /// rows drawn from it are witnesses at that band, whatever ε the run
+    /// reads.
+    fn fuzz_band() -> Band {
+        Band::linear_at(Tol::witness(), 1e-9).unwrap()
+    }
+
+    /// Each probe, a direction's far point, read against `cone` as a
+    /// polygon cone ([`cone_read`]) at [`fuzz_band`], as its exact class.
+    fn reads_exactly(what: &str, cone: &[BoolSector<f64>], want: &[(Vec3<f64>, SideCode)]) {
+        for (k, &(far, class)) in want.iter().enumerate() {
+            match cone_read(&probes(&[far]), cone, fuzz_band()) {
+                Ok(Some(read)) => assert_eq!(classes(&read), [class], "{what}, probe {k}"),
+                other => panic!("{what}, probe {k}: reads {class:?}, got {other:?}"),
+            }
+        }
+    }
+
+    /// **A thin fin reads as its polygon cone**: a crown whose two faces
+    /// fold at a short edge (1 mm), corners 1e-5° apart, so a reference
+    /// halfway along a fin face lies on the other fin face's plane
+    /// within the band and inside its sector. Such a reference is passed
+    /// over; read through it, the crossing beside it went uncounted and
+    /// these read the other way. The exact classes are the review's
+    /// rational oracle's (fuzz seed 1, cone 88).
+    #[test]
+    fn a_thin_fin_reads_as_its_polygon_cone() {
+        use SideCode::{In, Out};
+        let cone = fuzz_cone(&[
+            [
+                0.17364817766692978,
+                1.515366220188009e-08,
+                0.9848077530122081,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.9999999999999999,
+                -1.5387431867316176e-08,
+                1.0,
+                1.0,
+                0.00017364817766692977,
+                1.5153662201880093e-11,
+                0.0009848077530122082,
+                0.5,
+                0.0,
+                0.0,
+                0.001,
+                0.0,
+            ],
+            [
+                0.9999999999999848,
+                1.745329251994321e-07,
+                0.0,
+                0.17364817766692978,
+                1.515366220188009e-08,
+                0.9848077530122081,
+                1.745329251994321e-07,
+                -0.9999999999999847,
+                -1.5387431867316176e-08,
+                1.0,
+                1.0,
+                0.4999999999999924,
+                8.726646259971605e-08,
+                0.0,
+                0.00017364817766692977,
+                1.5153662201880093e-11,
+                0.0009848077530122082,
+                0.001,
+                1.0,
+            ],
+            [
+                -0.49240387650610384,
+                0.8528685319524434,
+                -0.17364817766693036,
+                0.9999999999999848,
+                1.745329251994321e-07,
+                0.0,
+                3.482131941837936e-08,
+                -0.19951146397500552,
+                -0.9798954922554491,
+                1.0,
+                1.0,
+                -0.24620193825305192,
+                0.4264342659762217,
+                -0.08682408883346518,
+                0.4999999999999924,
+                8.726646259971605e-08,
+                0.0,
+                0.5,
+                2.0,
+            ],
+            [
+                -0.4924038765061045,
+                -0.852868531952443,
+                0.17364817766693036,
+                -0.49240387650610384,
+                0.8528685319524434,
+                -0.17364817766693036,
+                -6.476292310140301e-17,
+                -0.19951148327886362,
+                -0.9798954883250905,
+                1.0,
+                1.0,
+                -0.24620193825305225,
+                -0.4264342659762215,
+                0.08682408883346518,
+                -0.24620193825305192,
+                0.4264342659762217,
+                -0.08682408883346518,
+                0.5,
+                3.0,
+            ],
+            [
+                1.0,
+                0.0,
+                0.0,
+                -0.4924038765061045,
+                -0.852868531952443,
+                0.17364817766693036,
+                0.0,
+                -0.19951148327886364,
+                -0.9798954883250907,
+                1.0,
+                1.0,
+                0.5,
+                0.0,
+                0.0,
+                -0.24620193825305225,
+                -0.4264342659762215,
+                0.08682408883346518,
+                0.5,
+                4.0,
+            ],
+        ]);
+        let probes = [
+            // probe 0 (rand), 0.722 rad off the link: read Out before
+            (
+                Vec3::new(-0.7012307789035112, 0.04346165651255412, 0.745409981040932),
+                In,
+            ),
+            // probe 2 (rand), 0.264 rad off the link: read Out before
+            (
+                Vec3::new(
+                    -0.038538121019496815,
+                    0.0893661290694972,
+                    0.6785667375726702,
+                ),
+                In,
+            ),
+            // probe 9 (rand), 0.547 rad off the link: read In before
+            (
+                Vec3::new(-1.0832989362525558, 0.8839922290405432, -1.213883580710491),
+                Out,
+            ),
+            // probe 30 (out1e-06), 1.02e-06 rad off the link: read In before
+            (
+                Vec3::new(
+                    -0.055517245066364046,
+                    1.8521729957714668,
+                    -0.37711335246230726,
+                ),
+                Out,
+            ),
+            // probe 31 (out-1e-06), 9.81e-07 rad off the link: read Out before
+            (
+                Vec3::new(
+                    -0.025275208515307724,
+                    0.8432348847632849,
+                    -0.17168584171430507,
+                ),
+                In,
+            ),
+        ];
+        reads_exactly("the fin", &cone, &probes);
+    }
+
+    /// **A direction beside a face's plane, outside its sector, reads
+    /// where the arc meets that plane**: within the band of the plane
+    /// the arc crosses it beside the direction, and whether that point
+    /// lies in the sector decides, not the direction itself. Here that
+    /// point lies in band of the sector's bound, so every reference is
+    /// passed over and the reading escalates, typed, where it read `In`
+    /// (exactly `Out`) on the direction alone (fuzz seed 1, cone 157,
+    /// probe 66, 3.6e-8 rad off the link).
+    #[test]
+    fn a_direction_beside_a_face_reads_the_arcs_crossing_point() {
+        let cone = fuzz_cone(&[
+            [
+                0.09849712864578242,
+                0.31922617021914795,
+                0.9425460030660316,
+                0.7287911791219575,
+                0.6774676576302496,
+                0.09950371902099893,
+                -0.6565251074459609,
+                0.7326296871969556,
+                -0.17952304790962156,
+                1.0,
+                1.0,
+                0.1911579844210296,
+                0.6195371592301719,
+                1.8292431124378283,
+                1.002102141786668,
+                0.9315312947673083,
+                0.13681956204082388,
+                1.375019581046513,
+                0.0,
+            ],
+            [
+                -0.26698249053549805,
+                -0.4499373456801624,
+                0.8522187129544578,
+                0.09849712864578242,
+                0.31922617021914795,
+                0.9425460030660316,
+                -0.8995360624606991,
+                0.43363616247784187,
+                -0.052863512219601394,
+                1.0,
+                1.0,
+                -0.3198402037772413,
+                -0.5390168173227081,
+                1.0209426328573807,
+                0.1911579844210296,
+                0.6195371592301719,
+                1.8292431124378283,
+                1.1979819468150301,
+                1.0,
+            ],
+            [
+                0.11177848716856556,
+                -0.39914741906534357,
+                0.910047750208626,
+                -0.26698249053549805,
+                -0.4499373456801624,
+                0.8522187129544578,
+                0.1827548372450386,
+                -0.8919098333756266,
+                -0.413639358126619,
+                1.0,
+                1.0,
+                0.06237442965805327,
+                -0.22273152235581717,
+                0.5078232030037773,
+                -0.3198402037772413,
+                -0.5390168173227081,
+                1.0209426328573807,
+                0.5580181950753245,
+                2.0,
+            ],
+            [
+                0.7287911791219575,
+                0.6774676576302496,
+                0.09950371902099893,
+                0.11177848716856556,
+                -0.39914741906534357,
+                0.910047750208626,
+                0.6594444449145949,
+                -0.6552921237288362,
+                -0.36840908871827976,
+                1.0,
+                1.0,
+                1.002102141786668,
+                0.9315312947673083,
+                0.13681956204082388,
+                0.06237442965805327,
+                -0.22273152235581717,
+                0.5078232030037773,
+                0.5580181950753245,
+                3.0,
+            ],
+        ]);
+        let far = Vec3::new(0.6272258333617353, 0.5830548321982457, 0.08563671260550405);
+        match cone_read(&probes(&[far]), &cone, fuzz_band()) {
+            Err(BooleanError::Escalated { diag, .. }) => {
+                assert_eq!(diag.predicate, Some("bool_cone_within"), "{diag:?}");
+            }
+            other => panic!("the crossing point in band escalates, got {other:?}"),
+        }
+    }
+
+    /// **An arc through a link vertex passes over its reference**: a fin
+    /// 1e-3° wide whose short edge lies on the arc from a direction to
+    /// its first reference, so the arc's side of that bound reads zero.
+    /// The crossing there is neither counted nor dropped; the next
+    /// reference reads (fuzz seed 1, cone 76).
+    #[test]
+    fn an_arc_through_a_link_vertex_passes_over_its_reference() {
+        use SideCode::Out;
+        let cone = fuzz_cone(&[
+            [
+                0.1736481776603184,
+                1.5153662201687772e-06,
+                0.9848077530122081,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.9999999999988161,
+                -1.5387431867102676e-06,
+                1.0,
+                1.0,
+                0.0001736481776603184,
+                1.5153662201687773e-09,
+                0.0009848077530122082,
+                0.5,
+                0.0,
+                0.0,
+                0.001,
+                0.0,
+            ],
+            [
+                0.9999999998476913,
+                1.7453292519057202e-05,
+                0.0,
+                0.1736481776603184,
+                1.5153662201687772e-06,
+                0.9848077530122081,
+                1.7453292519036538e-05,
+                -0.9999999998465073,
+                -1.5387431867102678e-06,
+                1.0,
+                1.0,
+                0.49999999992384564,
+                8.726646259528601e-06,
+                0.0,
+                0.0001736481776603184,
+                1.5153662201687773e-09,
+                0.0009848077530122082,
+                0.001,
+                1.0,
+            ],
+            [
+                -0.49240387650610384,
+                0.8528685319524434,
+                -0.17364817766693036,
+                0.9999999998476913,
+                1.7453292519057202e-05,
+                0.0,
+                3.4820985878143478e-06,
+                -0.19950955290996816,
+                -0.9798958813494113,
+                1.0,
+                1.0,
+                -0.24620193825305192,
+                0.4264342659762217,
+                -0.08682408883346518,
+                0.49999999992384564,
+                8.726646259528601e-06,
+                0.0,
+                0.5,
+                2.0,
+            ],
+            [
+                -0.4924038765061045,
+                -0.852868531952443,
+                0.17364817766693036,
+                -0.49240387650610384,
+                0.8528685319524434,
+                -0.17364817766693036,
+                -6.476292310140301e-17,
+                -0.19951148327886362,
+                -0.9798954883250905,
+                1.0,
+                1.0,
+                -0.24620193825305225,
+                -0.4264342659762215,
+                0.08682408883346518,
+                -0.24620193825305192,
+                0.4264342659762217,
+                -0.08682408883346518,
+                0.5,
+                3.0,
+            ],
+            [
+                1.0,
+                0.0,
+                0.0,
+                -0.4924038765061045,
+                -0.852868531952443,
+                0.17364817766693036,
+                0.0,
+                -0.19951148327886364,
+                -0.9798954883250907,
+                1.0,
+                1.0,
+                0.5,
+                0.0,
+                0.0,
+                -0.24620193825305225,
+                -0.4264342659762215,
+                0.08682408883346518,
+                0.5,
+                4.0,
+            ],
+        ]);
+        let probes = [
+            // probe 29 (out-2e-08), 0.899 rad off the link
+            (
+                Vec3::new(
+                    0.6927479537076511,
+                    -2.489147207621945e-06,
+                    -1.5950468525226076,
+                ),
+                Out,
+            ),
+            // probe 39 (nearantip), 0.63 rad off the link
+            (
+                Vec3::new(
+                    -0.4386568833047421,
+                    -6.017838887455884e-07,
+                    -0.36807733841532486,
+                ),
+                Out,
+            ),
+        ];
+        reads_exactly("the fin", &cone, &probes);
+    }
+
+    /// **A direction outside a sector at its own reach is outside it,
+    /// however short the sector's arm**: a hollow fin whose short edge
+    /// is 1 cm, and a direction 1.5e-7 m below the fin's base edge at
+    /// its own reach, which `within` at the sector's arm reads on the
+    /// bound (fuzz seed 1, cone 85).
+    #[test]
+    fn a_direction_off_a_short_armed_sector_is_off_it() {
+        use SideCode::In;
+        let cone = fuzz_cone(&[
+            [
+                1.0,
+                0.0,
+                0.0,
+                0.17364817766686433,
+                1.5153662201878184e-07,
+                0.9848077530122081,
+                0.0,
+                -0.9999999999999881,
+                1.5387431867314058e-07,
+                1.0,
+                1.0,
+                0.5,
+                0.0,
+                0.0,
+                0.0017364817766686432,
+                1.5153662201878184e-09,
+                0.009848077530122082,
+                0.01,
+                0.0,
+            ],
+            [
+                0.17364817766686433,
+                1.5153662201878184e-07,
+                0.9848077530122081,
+                0.999999999998477,
+                1.7453292519934438e-06,
+                0.0,
+                -1.745329251993423e-06,
+                0.999999999998465,
+                1.5387431867314066e-07,
+                1.0,
+                1.0,
+                0.0017364817766686432,
+                1.5153662201878184e-09,
+                0.009848077530122082,
+                0.4999999999992385,
+                8.726646259967219e-07,
+                0.0,
+                0.01,
+                1.0,
+            ],
+            [
+                0.999999999998477,
+                1.7453292519934438e-06,
+                0.0,
+                -0.49240387650610384,
+                0.8528685319524434,
+                -0.17364817766693036,
+                -3.4821289096011875e-07,
+                0.1995112902404368,
+                0.9798955276285707,
+                1.0,
+                1.0,
+                0.4999999999992385,
+                8.726646259967219e-07,
+                0.0,
+                -0.24620193825305192,
+                0.4264342659762217,
+                -0.08682408883346518,
+                0.5,
+                2.0,
+            ],
+            [
+                -0.49240387650610384,
+                0.8528685319524434,
+                -0.17364817766693036,
+                -0.4924038765061045,
+                -0.852868531952443,
+                0.17364817766693036,
+                6.476292310140301e-17,
+                0.19951148327886362,
+                0.9798954883250905,
+                1.0,
+                1.0,
+                -0.24620193825305192,
+                0.4264342659762217,
+                -0.08682408883346518,
+                -0.24620193825305225,
+                -0.4264342659762215,
+                0.08682408883346518,
+                0.5,
+                3.0,
+            ],
+            [
+                -0.4924038765061045,
+                -0.852868531952443,
+                0.17364817766693036,
+                1.0,
+                0.0,
+                0.0,
+                -0.0,
+                0.19951148327886364,
+                0.9798954883250907,
+                1.0,
+                1.0,
+                -0.24620193825305225,
+                -0.4264342659762215,
+                0.08682408883346518,
+                0.5,
+                0.0,
+                0.0,
+                0.5,
+                4.0,
+            ],
+        ]);
+        let probes = [
+            // probe 64 (nearbound), 7.94e-08 rad off the link
+            (
+                Vec3::new(
+                    1.9466554485576073,
+                    2.698130705263507e-10,
+                    -1.546282621768826e-07,
+                ),
+                In,
+            ),
+        ];
+        reads_exactly("the hollow fin", &cone, &probes);
+    }
+
+    /// **A reference read in band is passed over, not taken as clear**:
+    /// a dart notched to within 1e-8 of its tip, two faces folded on two
+    /// others, so every reference lies in band of a folded face. The
+    /// reading escalates, typed, where taking the in-band face as not
+    /// crossed read `In` (exactly `Out`, 0.42 rad off the link; fuzz
+    /// seed 1, cone 12, probe 0).
+    #[test]
+    fn a_reference_read_in_band_is_passed_over() {
+        let cone = fuzz_cone(&[
+            [
+                0.0,
+                0.7071067811865475,
+                0.7071067811865475,
+                0.7071067811865475,
+                0.0,
+                0.7071067811865475,
+                0.5773502691896257,
+                0.5773502691896257,
+                -0.5773502691896257,
+                1.0,
+                1.0,
+                0.0,
+                1.298868870099869,
+                1.298868870099869,
+                0.891259722645434,
+                0.0,
+                0.891259722645434,
+                1.260431587362056,
+                0.0,
+            ],
+            [
+                0.7071067776510136,
+                0.0,
+                0.7071067847220814,
+                0.0,
+                0.7071067811865475,
+                0.7071067811865475,
+                -0.5773502730386275,
+                -0.5773502672651248,
+                0.5773502672651248,
+                1.0,
+                1.0,
+                1.0814416594477672,
+                0.0,
+                1.0814416702621839,
+                0.0,
+                1.298868870099869,
+                1.298868870099869,
+                1.5293894693532457,
+                1.0,
+            ],
+            [
+                0.0,
+                -0.7071067811865475,
+                0.7071067811865475,
+                0.7071067776510136,
+                0.0,
+                0.7071067847220814,
+                -0.5773502730386275,
+                0.5773502672651248,
+                0.5773502672651248,
+                1.0,
+                1.0,
+                0.0,
+                -1.0428525624262577,
+                1.0428525624262577,
+                1.0814416594477672,
+                0.0,
+                1.0814416702621839,
+                1.4748162373387486,
+                2.0,
+            ],
+            [
+                0.7071067811865475,
+                0.0,
+                0.7071067811865475,
+                0.0,
+                -0.7071067811865475,
+                0.7071067811865475,
+                0.5773502691896257,
+                -0.5773502691896257,
+                -0.5773502691896257,
+                1.0,
+                1.0,
+                0.891259722645434,
+                0.0,
+                0.891259722645434,
+                0.0,
+                -1.0428525624262577,
+                1.0428525624262577,
+                1.260431587362056,
+                3.0,
+            ],
+        ]);
+        let far = Vec3::new(
+            -0.21445403262747445,
+            0.37346455774909554,
+            0.8499197060265414,
+        );
+        match cone_read(&probes(&[far]), &cone, fuzz_band()) {
+            Err(BooleanError::Escalated { .. }) => {}
+            other => panic!("every reference in band escalates, got {other:?}"),
+        }
+    }
+
+    /// **A direction opposite a thin sector is not within it**: the
+    /// direction lies on the sector's plane between the planes through
+    /// its two bounds square to it, as a direction inside does, but
+    /// faces away from its middle. At ε = 1e-6 a sector under a band
+    /// wide read it on the face, `On`, 0.38 rad off the link (fuzz seed
+    /// 1, cone 421, probe 81).
+    #[test]
+    fn a_direction_opposite_a_thin_sector_is_not_within_it() {
+        let cone = fuzz_cone(&[
+            [
+                -0.6614418098433579,
+                0.7261333654521895,
+                -0.18768342432996074,
+                -0.6924786207552645,
+                0.7153826686785647,
+                -0.09327913566935259,
+                0.6664551756483287,
+                0.6838413138391651,
+                0.2969824175574708,
+                1.0,
+                1.0,
+                -0.5670774986384223,
+                0.6225398613009403,
+                -0.16090764935184948,
+                -0.8092522502095967,
+                0.8360186394746161,
+                -0.10900892558343428,
+                0.8573354302666731,
+                0.0,
+            ],
+            [
+                -0.5722075433895275,
+                0.7764973150445121,
+                -0.26387581741566607,
+                -0.6614418098433579,
+                0.7261333654521895,
+                -0.18768342432996074,
+                0.35999205060076545,
+                0.526918713477677,
+                0.7699106395493478,
+                1.0,
+                1.0,
+                -0.6513101717614873,
+                0.8838411962173216,
+                -0.30035431365801496,
+                -0.5670774986384223,
+                0.6225398613009403,
+                -0.16090764935184948,
+                0.8573354302666731,
+                1.0,
+            ],
+            [
+                -0.2880801681515998,
+                -0.207823551037667,
+                -0.9347829632336269,
+                -0.5722075433895275,
+                0.7764973150445121,
+                -0.26387581741566607,
+                0.8063282199588498,
+                0.47393837170939157,
+                -0.35386045486807816,
+                1.0,
+                1.0,
+                -0.2358595371029621,
+                -0.1701511314067377,
+                -0.7653337555815157,
+                -0.6513101717614873,
+                0.8838411962173216,
+                -0.30035431365801496,
+                0.8187288233560144,
+                2.0,
+            ],
+            [
+                0.23849063399021297,
+                -0.8137918338720428,
+                0.5299670448453598,
+                -0.2880801681515998,
+                -0.207823551037667,
+                -0.9347829632336269,
+                0.9479368002201074,
+                0.07648295073682806,
+                -0.3091378026625862,
+                1.0,
+                1.0,
+                0.1490580396013985,
+                -0.5086246506668751,
+                0.33123249930744686,
+                -0.2358595371029621,
+                -0.1701511314067377,
+                -0.7653337555815157,
+                0.6250058423993097,
+                3.0,
+            ],
+            [
+                0.2384906346471053,
+                -0.8137918298957801,
+                0.5299670506555085,
+                0.23849063399021297,
+                -0.8137918338720428,
+                0.5299670448453598,
+                0.9666912988820815,
+                0.14672957265931263,
+                -0.20971019329753562,
+                1.0,
+                1.0,
+                0.1890247090833439,
+                -0.6450012770022163,
+                0.4200452890829321,
+                0.1490580396013985,
+                -0.5086246506668751,
+                0.33123249930744686,
+                0.6250058423993097,
+                4.0,
+            ],
+            [
+                -0.6924786207552645,
+                0.7153826686785647,
+                -0.09327913566935259,
+                0.2384906346471053,
+                -0.8137918298957801,
+                0.5299670506555085,
+                0.5017699818753559,
+                0.5704862301260616,
+                0.650209463577207,
+                1.0,
+                1.0,
+                -0.8092522502095967,
+                0.8360186394746161,
+                -0.10900892558343428,
+                0.1890247090833439,
+                -0.6450012770022163,
+                0.4200452890829321,
+                0.792587555327042,
+                5.0,
+            ],
+        ]);
+        let band = Band::linear_at(Tol::witness(), 1e-6).unwrap();
+        let far = Vec3::new(-0.3057757217779084, 1.0433859762840192, -0.6794860436367299);
+        let read = cone_read(&probes(&[far]), &cone, band).unwrap().unwrap();
+        assert_eq!(classes(&read), [SideCode::Out], "opposite the thin sector");
+    }
+
+    /// **An arc's side of a bound is decided at its least deviation**:
+    /// `det(d,p,b)` flips as soon as any of its three points moves off
+    /// the plane through the other two. Read at the direction's far
+    /// point alone it read decided where the bound's own far point, a
+    /// 3e-9 jitter away, flips it, and this direction 1.6 rad from the
+    /// link read `Out` (exactly `In`; the review's perturbation fuzz,
+    /// seed 1 cone 742 jittered, probe 28).
+    #[test]
+    fn an_arcs_side_of_a_bound_is_decided_at_its_least_deviation() {
+        let cone = fuzz_cone(&[
+            [
+                0.2944223632806079,
+                0.11539269086588769,
+                0.9486832974681232,
+                0.3715470460896104,
+                0.186857846147052,
+                0.9094157123534701,
+                -0.6454407765086191,
+                0.756086979394373,
+                0.1083452057556961,
+                1.0,
+                1.0,
+                0.28440659311143385,
+                0.11146721911150957,
+                0.9164106339214383,
+                0.4797224960355556,
+                0.24126127041223222,
+                1.1741909404359516,
+                0.9659816275845734,
+                0.0,
+            ],
+            [
+                0.3715470460896104,
+                0.186857846147052,
+                0.9094157123534701,
+                0.10380788962390015,
+                0.32714454559678724,
+                0.9392552200217488,
+                -0.40639005025933034,
+                -0.8479772651916408,
+                0.34026707858434485,
+                1.0,
+                1.0,
+                0.4797224960355556,
+                0.24126127041223222,
+                1.1741909404359516,
+                0.18532528694754818,
+                0.5840418970630067,
+                1.6768257576391064,
+                1.2911487291928618,
+                1.0,
+            ],
+            [
+                0.10380788962390015,
+                0.32714454559678724,
+                0.9392552200217488,
+                0.07999406086409815,
+                0.43752685769436445,
+                0.8956401057470386,
+                -0.976126507106398,
+                -0.14764241799541128,
+                0.15930712015704615,
+                1.0,
+                1.0,
+                0.18532528694754818,
+                0.5840418970630067,
+                1.6768257576391064,
+                0.15628581305765818,
+                0.854803968578311,
+                1.749827932495235,
+                1.7852716948329268,
+                2.0,
+            ],
+            [
+                0.07999406086409815,
+                0.43752685769436445,
+                0.8956401057470386,
+                -0.8784540743273178,
+                0.29988474044443497,
+                0.37200481414399605,
+                -0.1151467464631772,
+                -0.8884483860490664,
+                0.4442979767067974,
+                1.0,
+                1.0,
+                0.15628581305765818,
+                0.854803968578311,
+                1.749827932495235,
+                -0.4456480797408382,
+                0.15213437176551342,
+                0.18872156885898547,
+                0.5073094787309883,
+                3.0,
+            ],
+            [
+                -0.8784540743273178,
+                0.29988474044443497,
+                0.37200481414399605,
+                -0.35833223316335583,
+                -0.928276370693129,
+                0.099503719975461,
+                0.376178140715824,
+                -0.0460160542549421,
+                0.9254039816201312,
+                1.0,
+                1.0,
+                -0.4456480797408382,
+                0.15213437176551342,
+                0.18872156885898547,
+                -0.3250539754835754,
+                -0.8420674913264363,
+                0.09026282527780048,
+                0.5073094787309883,
+                4.0,
+            ],
+            [
+                -0.35833223316335583,
+                -0.928276370693129,
+                0.099503719975461,
+                0.14412110609971684,
+                -0.3262473517414647,
+                0.9342332536675597,
+                -0.889078057441372,
+                0.37182122291624414,
+                0.26700034824948266,
+                1.0,
+                1.0,
+                -0.3250539754835754,
+                -0.8420674913264363,
+                0.09026282527780048,
+                0.179053944772201,
+                -0.4053249165349545,
+                1.16067766847977,
+                0.9071301576064402,
+                5.0,
+            ],
+            [
+                0.14412110609971684,
+                -0.3262473517414647,
+                0.9342332536675597,
+                0.2944223632806079,
+                0.11539269086588769,
+                0.9486832974681232,
+                -0.9194840664623023,
+                0.30479994594401605,
+                0.24828621482972682,
+                1.0,
+                1.0,
+                0.179053944772201,
+                -0.4053249165349545,
+                1.16067766847977,
+                0.28440659311143385,
+                0.11146721911150957,
+                0.9164106339214383,
+                0.9659816275845734,
+                6.0,
+            ],
+        ]);
+        let far = Vec3::new(0.5908476894119604, 0.612583177120514, -0.7550767842041842);
+        let read = cone_read(&probes(&[far]), &cone, fuzz_band())
+            .unwrap()
+            .unwrap();
+        assert_eq!(classes(&read), [SideCode::In], "1.6 rad inside");
     }
 
     /// **A direction's membership in a sector names no declaration**: a

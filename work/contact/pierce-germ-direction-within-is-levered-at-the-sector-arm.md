@@ -30,3 +30,13 @@ with 1 m edges answers.
 
 **The fix's shape.** Read the germ direction's membership at the
 bounds' reaches: the metric twin of the germ-line gate.
+
+**The same lever, seen from the polygon-cone reader** (TANG, PR 4289's
+review, n3): `sectors::within` levers a direction's angle past each
+bound at the sector's arm, the shorter of its two chords. Where a face
+has a short edge (a fin 1 mm long), a direction 1.5e-7 m outside the
+sector at its own reach reads `Zero` past the bound, so `within`. The
+polygon-cone reader read such a direction `On`, wrongly (the exact
+oracle's fuzz, seed 1, cone 85, probe 64). It now reads its own
+`in_sector`, levered at the direction's reach. `within` itself, and its
+other callers, are unchanged.

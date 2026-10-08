@@ -723,6 +723,28 @@ pub fn apex_pyramid(base: &[[f64; 3]], pose: &Pose, tol: Tol) -> AtRestBody<f64>
     posed_pyramid(&at, MEET, pose, tol)
 }
 
+/// The ring of a [`posed_crown`] with a thin fin: two faces folded at
+/// a short edge 1 mm long, risen 2° between corners 1e-4° apart, so a
+/// reference halfway along one fin face lies on the other's plane
+/// within the band and inside its sector. With a bottom at
+/// `(0, 0.2, −0.6)` it lies inside the block `[1, 2] × [0.5, 1.5] ×
+/// [0.3, 1.5]`.
+#[must_use]
+pub fn fin() -> Vec<[f64; 3]> {
+    let sph = |az: f64, el: f64, l: f64| {
+        let (sa, ca) = az.to_radians().sin_cos();
+        let (se, ce) = el.to_radians().sin_cos();
+        [l * ca * ce, l * sa * ce, l * se]
+    };
+    vec![
+        sph(0.0, 0.0, 0.4),
+        sph(5e-5, 2.0, 1e-3),
+        sph(1e-4, 0.0, 0.4),
+        sph(120.0, -15.0, 0.4),
+        sph(240.0, 10.0, 0.4),
+    ]
+}
+
 /// **A crown on [`MEET`]**: the solid between a fan of triangles from
 /// `MEET` to the closed `ring` and a fan from `bottom` to it (both
 /// relative to `MEET`), placed by `pose`. The ring runs counterclockwise

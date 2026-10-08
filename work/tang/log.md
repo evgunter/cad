@@ -733,6 +733,24 @@ missing and 0 doubled at ε 1e-9 and 1e-6 (main: 270 wrong, 855
 missing, 180 cells refused). A touching vertex beside a dart now builds.
 Evidence added to CONTACT's `a-touch-at-a-saddle-corner-refuses-unanalysed`.
 
+PR 4289's first FULL review (REQUEST-CHANGES, MAJOR 1). The fix pass:
+- **M1.** Two exemptions in `cone_side` held only for an exact zero.
+  They now pass a face over only on a decided reading: `p` on a face's
+  plane must lie decidedly outside its sector, and a direction beside a
+  plane is read at the arc's crossing point.
+- **Also fixed, from the same fuzz:**
+  - a direction opposite a thin sector read "within";
+  - `within`'s arm lever.
+  `cone_side` now reads its own `in_sector`, levered at the reading's
+  reach.
+- **Margins.** The arc margin is the least of its three point
+  deviations.
+- **Result.** The review's exact-oracle fuzz (1 836 cones, 235 784
+  probes) reads 0 wrong at ε 1e-9 and 1e-6, and no decided reading
+  flips under a 3e-9 jitter.
+- **Filed:** `great-arc-parity-is-read-twice-with-two-degeneracy-rules`
+  (P3).
+
 ## 2026-10-07 — position and tilt as one sum (TANG implementer)
 
 The section classifiers decide a served verdict's position datum and

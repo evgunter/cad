@@ -11,7 +11,8 @@
 //! partners whose corner is neither convex nor hollow, read as polygon
 //! cones (`sectors::cone_read`): darts of four and five faces, whose
 //! apex is a reflex edge, on the plate, bare, and beside an arch; the
-//! apex of a pyramid over an L; a saddle, bare and under an arch; and
+//! apex of a pyramid over an L; a saddle, bare and under an arch; a
+//! crown with a thin fin folded at a short edge, bare and buried; and
 //! near-flat quadrilateral voids, dented 1e-3 and ten zero bands (1e-8
 //! at the default ε) either way, buried with an island and under the
 //! plate's top. Every scene builds in every op and classes every edge
@@ -22,7 +23,7 @@
 use crate::common;
 
 use common::meeting::{
-    MEET, PLATE, Pose, apex_pyramid, at, bearing, corners, mix, near_flat, nest, nest_polygon,
+    MEET, PLATE, Pose, apex_pyramid, at, bearing, corners, fin, mix, near_flat, nest, nest_polygon,
     posed_box, posed_crown, poses,
 };
 use geom_core::{Band, Tol, Vec3};
@@ -708,6 +709,51 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
                 (&arch_saddle_b, &arch_saddle),
             ),
         ];
+        // The fin, bare and as a void buried in the block, each against
+        // pyramids standing and hanging at three bearings. A pyramid
+        // hanging at 10° refuses `CrossingInsertion` in every op, as on
+        // main, so it is left out. The fin's fold is 1e-4° wide, in band
+        // at ε = 1e-6, where no crown builds; it is read where it builds.
+        let fin_builds = Band::linear(t()).unwrap().zero() < 1e-8;
+        if !fin_builds && pose.label == poses()[0].label {
+            println!("SKIPPED at this ε: the fin's fold is in band and its crown does not build");
+        }
+        let fin_scene = fin_builds.then(|| {
+            let fin_b = posed_crown(&fin(), [0.0, 0.2, -0.6], &pose, t());
+            let fin_void_b = built("a fin void buried", subtract(&block_b, &fin_b, t()));
+            (fin_b, fin_void_b)
+        });
+        let fin_g = G::Crown(fin());
+        let fin_void_g = dd(G::All, fin_g.clone());
+        let fin_probes: Vec<_> = [
+            (10.0, 0.3),
+            (130.0, 0.3),
+            (130.0, -0.3),
+            (250.0, 0.3),
+            (250.0, -0.3),
+        ]
+        .iter()
+        .map(|&(b, rise)| pyr(corners(b, rise, 0.5)))
+        .collect();
+        let fin_labels: Vec<&'static str> = (0..fin_probes.len())
+            .flat_map(|k| {
+                [
+                    format!("a fin, probe {k}"),
+                    format!("a fin void, probe {k}"),
+                ]
+            })
+            .map(|l| &*Box::leak(l.into_boxed_str()))
+            .collect();
+        if let Some((fin_b, fin_void_b)) = &fin_scene {
+            for (k, probe) in fin_probes.iter().enumerate() {
+                scenes.push((fin_labels[2 * k], pick(probe), (fin_b, &fin_g)));
+                scenes.push((
+                    fin_labels[2 * k + 1],
+                    pick(probe),
+                    (fin_void_b, &fin_void_g),
+                ));
+            }
+        }
         let dents = ["-1e-3", "+1e-3", "-ten zero bands", "+ten zero bands"];
         let labels: Vec<_> = dents
             .iter()
