@@ -2,12 +2,14 @@
 id: a-run-holding-another-whole-is-spelled-three-ways-in-insert
 kind: issue
 title: insert.rs spells 'run m holds run k whole' three ways: b_runs' interval holds, holds_whole, and both cuts under held_cut
-status: open
+status: closed
 opened: 2026-10-07
 priority: P3
 cost: M
 refs: [a-vertex-orbits-walk-order-and-run-rule-are-spelled-several-times]
 branch: join/insert-one-walk-order
+closed: 2026-10-08
+pr: 4317
 ---
 
 
