@@ -245,10 +245,14 @@ fn a_corner_with_no_profile_constraint_refuses_typed_on_a_hand_split_wedge() {
 /// plane, so the drum's cylinder seam is split by hand at mid-height:
 /// the new vertex's faces are the one cylinder, its profile is the
 /// wall's line `ρ = r`, no plane contains the axis at it, and its
-/// image is the perpendicular foot on the moved line — `(r − t, h/2)`
-/// exactly, the azimuth carried — with the two half-seams translated
-/// radially onto the moved wall. The split changes no geometry, so the
-/// wall's volume is the unsplit drum's closed form.
+/// image is the perpendicular foot on the moved line, the azimuth
+/// carried, with the two half-seams translated radially onto the moved
+/// wall. The shell ends with the join (`docs/DESIGN.md`, maximal
+/// edges), which takes the image only because the two half-seams lie
+/// on one generator of the moved wall; so the row reads the arm through
+/// that join and the seam it leaves whole. The image's height is not
+/// read: it does not survive the join. The split changes no geometry,
+/// so the wall's volume is the unsplit drum's closed form.
 ///
 /// A hand-made operand owes what every door's operand has: its pcurve
 /// rows. `Body::split_edge` mints none for its two children, and
@@ -282,36 +286,35 @@ fn the_line_arm_carries_a_hand_split_drum_seam_to_its_foot() {
         .copied()
         .find(|(_, old)| *old == split)
         .expect("the split vertex has an image");
-    let (rho, hh) = axial(point(cavity, new));
+    // The shell ends with the join: the image stands between the two
+    // half-seams on one generator of the moved wall, so the join takes
+    // it, and the seam is whole again on the moved wall.
+    let join = out
+        .naming
+        .edge_joins
+        .iter()
+        .find(|j| j.vertex == new)
+        .expect("the split vertex's image is joined away");
+    assert!(cavity.get_vertex(new).is_none(), "the image is dead");
+    let (c, (t0, t1)) = carrier(cavity, join.kept);
+    let Curve3::Line { origin, dir } = c else {
+        panic!("a cylinder seam is a line, got {c:?}");
+    };
     assert!(
-        (rho - (r - T)).abs() <= 1e-15 && hh == h / 2.0,
-        "the foot on the moved wall: got ({rho}, {hh}), want ({}, {})",
-        r - T,
-        h / 2.0
+        (axial(origin).0 - (r - T)).abs() <= 1e-15 && dir.dot(Vec3::unit_y()).abs() >= 1.0 - 1e-15,
+        "the joined seam is a generator on the moved wall, got {c:?}"
     );
-    // The two half-seams: generator lines on the moved wall, ending at
-    // the split vertex's image.
-    let mut halves = 0;
-    for (e, data) in cavity.edges() {
-        let start = cavity.get_half_edge(data.he_plus).expect("he").start;
-        let end = cavity.half_edge_end(data.he_plus).expect("end");
-        if start != new && end != new {
-            continue;
-        }
-        halves += 1;
-        let (c, (t0, t1)) = carrier(cavity, e);
-        let Curve3::Line { origin, dir } = c else {
-            panic!("{e:?}: a cylinder seam is a line, got {c:?}");
-        };
-        assert!(
-            (axial(origin).0 - (r - T)).abs() <= 1e-15
-                && dir.dot(Vec3::unit_y()).abs() >= 1.0 - 1e-15,
-            "{e:?}: a generator on the moved wall, got {c:?}"
-        );
-        let ends = (point(cavity, start), point(cavity, end));
-        assert!(c.eval(t0).distance(ends.0) <= 1e-13 && c.eval(t1).distance(ends.1) <= 1e-13);
-    }
-    assert_eq!(halves, 2, "two half-seams end at the split vertex");
+    let he = cavity.get_edge(join.kept).expect("the kept seam").he_plus;
+    let ends = (
+        point(cavity, cavity.get_half_edge(he).expect("he").start),
+        point(cavity, cavity.half_edge_end(he).expect("end")),
+    );
+    assert!(c.eval(t0).distance(ends.0) <= 1e-13 && c.eval(t1).distance(ends.1) <= 1e-13);
+    let span = (axial(ends.0).1 - axial(ends.1).1).abs();
+    assert!(
+        (span - (h - 2.0 * T)).abs() <= 1e-13,
+        "the whole moved seam, cap to cap: got {span}"
+    );
     let props = topo::mass_properties(cavity, tol()).expect("props");
     let want = PI * (r * r * h - (r - T) * (r - T) * (h - 2.0 * T));
     assert!(
