@@ -379,6 +379,26 @@ fn a_two_face_window_that_does_not_wrap_opens_to_a_ring() {
         Some(1),
         "and the rim carries the ring"
     );
+    // The merge leaves each split arc's vertex between two edges of one
+    // circle, on the ring and on its cavity twin; the shell ends with
+    // the join, so the result holds the unsplit window's cells.
+    assert_eq!(
+        shelled.naming.edge_joins.len(),
+        4,
+        "each split arc joined back"
+    );
+    let whole = open(
+        &d_section(r, h),
+        &faces_on(&d_section(r, h), geom::SurfaceKind::Cylinder),
+        t,
+    )
+    .expect("the unsplit window opens")
+    .body;
+    assert_eq!(
+        (cut.vertices().count(), cut.edges().count()),
+        (whole.vertices().count(), whole.edges().count()),
+        "the unsplit window's cells"
+    );
     let segment = r * r * (t / r).acos() - t * (r * r - t * t).sqrt();
     let want = PI * r * r / 2.0 * h - segment * (h - 2.0 * t);
     let props = topo::mass_properties(cut, tol).expect("props");
