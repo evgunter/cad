@@ -166,7 +166,8 @@ body's own (the body is the only change since), with
 | test-utils | 89 run, 89 passed |
 | clippy `--workspace --exclude viewer --all-targets --all-features -D warnings` | ok |
 | clippy `-p pncad-py --features python` | ok |
-| `scripts/gates/*.sh`, payload-rung sweep, `work.py lint`, python lint | ok |
+| `scripts/gates/*.sh`, payload-rung sweep, `work.py lint` | ok |
+| python lint (`check-python-lint.py`) | SKIPPED locally: this box has ruff 0.15.8 and CI pins 0.16.1. The diff touches no Python file. |
 | Python suite (maturin wheel, unittest) | 950 tests, OK |
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
