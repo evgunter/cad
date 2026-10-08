@@ -279,3 +279,53 @@ fn the_analytic_refusal_names_its_own_pair() {
     );
     let _: Band = band();
 }
+
+/// Confirming-review probe (4304): an edge over `[0, 1/2]` of a carrier
+/// that is flat on the plane there and bumped off it only over
+/// `(1/2, 1]`. The edge's own interval is on both surfaces; C4's rule
+/// is that the net past the edge's ends is not the edge's. Does limb 2
+/// (whole knot domain) refuse it anyway?
+#[test]
+fn confirm_probe_limb2_reads_past_the_edges_interval() {
+    let bumped = bulged(16, 2e-3);
+    let flat = bulged(16, 0.0);
+    // Splice: controls of `flat` for the first half (8 sub-arcs = 17
+    // controls), `bumped` after.
+    let ctl: Vec<_> = flat.control()[..17]
+        .iter()
+        .chain(&bumped.control()[17..])
+        .copied()
+        .collect();
+    let carrier =
+        NurbsCurve3::new(flat.knots().clone(), ctl, flat.weights().to_vec()).unwrap();
+    for k in 0..=64 {
+        let t = 0.5 * f64::from(k) / 64.0;
+        assert!(carrier.eval(t).z.abs() < 1e-15, "flat on the edge's interval at {t}");
+    }
+    assert!(carrier.eval(0.5 + 1.0 / 32.0).z > 5e-4, "bumped past it");
+    let c = Curve3::Nurbs(Arc::new(carrier.clone()));
+    let (t0, t1) = (0.0, 0.5);
+    let mut arena: SlotMap<SurfaceKey, Surface<f64>> = SlotMap::with_key();
+    let (k1, k2) = (arena.insert(plane()), arena.insert(cylinder_z()));
+    let spec = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::Intersection {
+            s1: k1,
+            s2: k2,
+            witness: c.eval(0.25),
+        },
+        carrier: c.clone(),
+        param_start: t0,
+        param_end: t1,
+    };
+    let got = EdgeCurve::certify_via(
+        spec,
+        c.eval(t0),
+        c.eval(t1),
+        |k| arena.get(k).cloned(),
+        band(),
+        Some(NurbsLane::certified()),
+    )
+    .map(|_| ());
+    eprintln!("CONFIRM-PROBE: edge [0, 1/2] of a carrier bumped only past it: {got:?}");
+    assert!(got.is_ok(), "the edge's own interval is clean, yet: {got:?}");
+}
