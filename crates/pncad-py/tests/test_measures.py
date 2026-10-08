@@ -672,7 +672,7 @@ class TestTheRefusals(unittest.TestCase):
         doc, node, _ = self.one_face()
         with self.assertRaises(EditError) as caught:
             doc.insert(Node.assertion(node, AssertionDir.AtLeast, doc.parse_formula("1 m")))
-        self.assertEqual(caught.exception.variant, "assertion_target")
+        self.assertEqual(caught.exception.variant, "operand_var_kind")
 
     def test_an_assertion_compares_like_with_like_or_not_at_all(self):
         """The bound's dimension is the MEASURE's, and the edit door is
@@ -699,14 +699,15 @@ class TestTheRefusals(unittest.TestCase):
         # about the mismatch rather than about assertions on angles.
         doc.insert(Node.assertion(measure, AssertionDir.AtMost, doc.parse_formula("4 rad")))
 
-    def test_deleting_a_referenced_node_is_refused(self):
+    def test_deleting_a_referenced_node_strands_the_measure(self):
         """A measure CONSUMES the values it names, so its references
-        are recipe edges — the one place this node kind departs from
-        the declared-pair/`Mate` name carve-out."""
+        are recipe edges — and, like every read, deleting what they
+        name is accepted and reported on the measure, which refuses at
+        evaluation until rebound."""
         doc = Doc()
         node = slab(doc, 0.0)
         ev = evaluate(doc)
-        doc.insert(
+        measure = doc.insert(
             Node.measure(
                 MeasureExpr.primitive(MeasurePrimitive.gap(0, 1)),
                 [
@@ -715,9 +716,17 @@ class TestTheRefusals(unittest.TestCase):
                 ],
             )
         )
-        with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.delete_node(node))
-        self.assertEqual(caught.exception.variant, "delete_would_dangle")
+        doc.apply(DocEdit.delete_node(node))
+        self.assertEqual(
+            {
+                (m.variant, m.node)
+                for m in doc.last_maintenance
+                if m.variant != "anonymous_var_removed"
+            },
+            {("strand", measure)},
+        )
+        with self.assertRaises(EvaluationError):
+            evaluate(doc).value(measure)
 
     def test_a_carrier_pair_with_no_closed_form_refuses_naming_the_pair(self):
         """A whole BODY has no carrier, and the refusal names the pair

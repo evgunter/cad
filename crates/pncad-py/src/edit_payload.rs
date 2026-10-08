@@ -44,8 +44,18 @@ use pncad::document::{
 use pncad::prelude::StableName;
 use pncad::select::EntityKind;
 
-use crate::errors::{dimension_tag, var_kind_tag};
-use crate::tags::{attr_kind_tag, slot_id_tag};
+use crate::errors::{dimension_tag, operand_kind_tag, var_kind_tag};
+use crate::tags::{attr_kind_tag, operand_slot_tag, slot_id_tag};
+
+/// The position an operand slot names inside its list, for a loft's
+/// section or a union's member.
+fn operand_index(slot: &pncad::document::OperandSlot) -> Option<usize> {
+    use pncad::document::OperandSlot as S;
+    match slot {
+        S::Section(i) | S::Member(i) => usize::try_from(*i).ok(),
+        _ => None,
+    }
+}
 
 /// What one [`EditError`] arm carries, every field present.
 ///
@@ -61,8 +71,7 @@ pub struct EditPayload<'a> {
     /// input reached twice, the measure an assertion constrains.
     pub input: Option<RecipeNodeId>,
     /// A node DOWNSTREAM of [`Self::node`] that references it — the
-    /// live consumer a delete would dangle, the descendant root that
-    /// makes an ancestor root redundant.
+    /// descendant root that makes an ancestor root redundant.
     pub referenced_by: Option<RecipeNodeId>,
     /// The named expression slot the refusal is about
     /// ([`crate::tags::slot_id_tag`]).
@@ -382,16 +391,40 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             count: Some(*found),
             ..none
         },
-        EditError::DeleteWouldDangle {
-            id: node,
-            referenced_by,
-        }
-        | EditError::FoldWouldDangle {
+        // An operand's slot rides `slot` in the operand vocabulary
+        // ([`operand_slot_tag`]), and a section's or a member's position
+        // rides `index`.
+        EditError::OperandUnresolved { node, slot, read: _ }
+        | EditError::UnknownOperand { node, slot } => EditPayload {
+            node: Some(node.id()),
+            slot: Some(operand_slot_tag(slot)),
+            index: operand_index(slot),
+            ..none
+        },
+        EditError::OperandVarKind {
+            var: _,
             node,
-            referenced_by,
+            slot,
+            found,
+            expected,
         } => EditPayload {
             node: Some(node.id()),
-            referenced_by: Some(referenced_by.id()),
+            slot: Some(operand_slot_tag(slot)),
+            index: operand_index(slot),
+            expected: Some(operand_kind_tag(*expected)),
+            found: Some(var_kind_tag(*found)),
+            ..none
+        },
+        EditError::AmbiguousOutput { input, slot } | EditError::DefinesNothing { input, slot } => {
+            EditPayload {
+                input: Some(input.id()),
+                slot: Some(operand_slot_tag(slot)),
+                index: operand_index(slot),
+                ..none
+            }
+        }
+        EditError::PartHalfPort { node, .. } => EditPayload {
+            node: Some(node.id()),
             ..none
         },
         EditError::UnknownSlot { id, slot } => EditPayload {

@@ -104,12 +104,14 @@ pub use editor_core::cascade_delete_order;
 // carries directly; it is re-exported here so document-layer code can
 // spell the whole node vocabulary through one module. `CountMismatch`
 // rides with `PlacementRuleFault`: it is what that fault and
-// `EditError::PlacementRuleMismatch` carry.
+// `EditError::PlacementRuleMismatch` carry. An operand field is an
+// `Operand` read, written at an `OperandSlot` that admits an
+// `OperandKind`.
 pub use editor_core::{
     Axis3, BooleanOp, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault, ListFault,
-    MeasureNodeFault, MintId, Node, OutputPort, PartSelect, PatternKind, PlacementRuleFault,
-    PortKind, RecipeNodeId, RigidArg, SlotId, TubeWindow, VectorSlot, declare_continuation,
-    declare_rest,
+    MeasureNodeFault, MintId, Node, Operand, OperandKind, OperandSlot, OutputPort, PartSelect,
+    PatternKind, PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SlotId, TubeWindow,
+    VectorSlot, declare_continuation, declare_rest,
 };
 
 // How a sentence names a node: the kind noun and tag a person reads, the

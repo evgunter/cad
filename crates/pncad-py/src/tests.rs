@@ -65,7 +65,7 @@ fn xy_frame() -> pncad::document::AuthoredNode {
 fn square(plane: pncad::document::RecipeNodeId, s: f64) -> pncad::document::AuthoredNode {
     use pncad::document::{LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget};
     Node::Profile(ProfileProgram {
-        plane,
+        plane: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(0.0), len(0.0)]),
             ProgramStep::LineTo(ProgramTarget::Point([len(s), len(0.0)])),
@@ -113,7 +113,7 @@ fn box_doc(
     let (doc, body) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.5),
             side: ExtrudeSide::Along,
         },
@@ -165,6 +165,22 @@ fn var_kind_tags_are_stable() {
             "bodies",
             "profile"
         ]
+    );
+}
+
+/// What an operand slot admits is a kind's own word, or one of two
+/// words of its own: the placers' `placeable` and the assertion's
+/// `measured`.
+#[test]
+fn operand_kind_tags_are_stable() {
+    use pncad::document::{OperandKind, VarKind};
+    assert_eq!(
+        crate::errors::operand_kind_tag(OperandKind::Is(VarKind::Frame)),
+        var_kind_tag(VarKind::Frame)
+    );
+    assert_eq!(
+        [OperandKind::Placeable, OperandKind::Measured].map(crate::errors::operand_kind_tag),
+        ["placeable", "measured"]
     );
 }
 
@@ -1491,7 +1507,7 @@ fn resolution_status_tags_are_stable() {
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            plane: plane.into(),
             loops: vec![
                 LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                     .expect("finite corners"),
@@ -1502,7 +1518,7 @@ fn resolution_status_tags_are_stable() {
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -2064,7 +2080,7 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
     let plane = framed.record.minted.expect("a frame id");
     let profile = DocEdit::InsertNode {
         node: Box::new(Node::Profile(ProfileProgram {
-            plane,
+            plane: plane.into(),
             loops: vec![square],
             ids: Vec::new(),
         })),
@@ -2412,6 +2428,7 @@ fn node_error_tags_are_the_published_words() {
         Seed => "seed",
         SeedPinnedSection => "seed_pinned_section",
         WrongOperand => "wrong_operand",
+        UnresolvedRead => "unresolved_read",
         EmptyOperand => "empty_operand",
         ProductOperand => "product_operand",
         UnfinishedOperand => "unfinished_operand",
@@ -2922,30 +2939,71 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         },
         &["node", "input"],
     );
+    // ---- operands ----
+    use pncad::document::{Operand, OperandKind, OperandSlot, VarKind};
     carries(
-        &E::DeleteWouldDangle {
-            id: sp(1),
-            referenced_by: sp(2),
+        &E::OperandUnresolved {
+            node: sp(1),
+            slot: OperandSlot::Profile,
+            read: Operand::Node(id(2)),
         },
-        &["node", "referenced_by"],
+        &["node", "slot"],
     );
     carries(
-        &E::FoldWouldDangle {
+        &E::UnknownOperand {
             node: sp(1),
-            referenced_by: sp(2),
+            slot: OperandSlot::Member(3),
         },
-        &["node", "referenced_by"],
+        &["node", "slot", "index"],
+    );
+    carries(
+        &E::OperandVarKind {
+            var: Box::new(pncad::document::SpokenVar::new(
+                pncad::document::VarId(id(2).0),
+                None,
+            )),
+            node: sp(1),
+            slot: OperandSlot::Tool,
+            found: VarKind::Axis,
+            expected: OperandKind::Is(VarKind::Plane),
+        },
+        &["node", "slot", "expected", "found"],
+    );
+    carries(
+        &E::AmbiguousOutput {
+            input: sp(2),
+            slot: OperandSlot::Section(1),
+        },
+        &["input", "slot", "index"],
+    );
+    carries(
+        &E::DefinesNothing {
+            input: sp(2),
+            slot: OperandSlot::B,
+        },
+        &["input", "slot"],
+    );
+    carries(
+        &E::PartHalfPort {
+            node: sp(1),
+            half: pncad::select::SplitHalf::Above,
+            var: Box::new(pncad::document::SpokenVar::new(
+                pncad::document::VarId(id(2).0),
+                None,
+            )),
+        },
+        &["node"],
     );
 
     // The two-node arms answer with the ids they were given, not with
     // the first id twice: the roles are what a caller acts on.
-    let dangle = E::DeleteWouldDangle {
-        id: sp(4),
-        referenced_by: sp(9),
+    let twice = E::DuplicateInput {
+        node: sp(4),
+        input: sp(9),
     };
-    let payload = edit_payload(&dangle);
+    let payload = edit_payload(&twice);
     assert_eq!(payload.node, Some(id(4)));
-    assert_eq!(payload.referenced_by, Some(id(9)));
+    assert_eq!(payload.input, Some(id(9)));
 
     // ---- slots and dimensions ----
     carries(
@@ -5031,6 +5089,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "edit_error_tag",
         values: &[
+            "ambiguous_output",
             "anonymous_var_unread",
             "appearance_names_missing_node",
             "appearance_not_set",
@@ -5041,13 +5100,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "declare_names_missing_node",
             "declared_name_not_upstream",
             "declared_site_not_an_operand",
+            "defines_nothing",
             "definition_cycle",
             "definition_too_large",
             "definition_unknown_var_name",
             "definition_unresolved_var",
             "definition_var_kind",
             "delete_anonymous_var",
-            "delete_would_dangle",
             "dimension",
             "duplicate_input",
             "duplicate_witness_entry",
@@ -5055,7 +5114,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "empty_witness_bulk",
             "evaluation_of_another_document",
             "fold_on_non_gauge",
-            "fold_would_dangle",
             "fold_would_start_placing",
             "fresh_kind",
             "fresh_unheld",
@@ -5082,6 +5140,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_a_gauge",
             "not_structural_slot",
             "offset_on_non_instance",
+            "operand_unresolved",
+            "operand_var_kind",
+            "part_half_port",
             "path_off_tree",
             "payload_unknown_var_name",
             "payload_unresolved_var",
@@ -5116,6 +5177,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "structural_slot_needs_structural_edit",
             "too_few_members",
             "unknown_node",
+            "unknown_operand",
             "unknown_slot",
             "unknown_var",
             "unresolved_input",
@@ -5386,6 +5448,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "offset_cleared",
             "strand",
             "stranded_appearance",
+            "stranded_read",
         ],
         delegates: &[],
     },
@@ -5574,6 +5637,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "underflowed_direction",
             "unfinished_operand",
             "unplaced",
+            "unresolved_read",
             "unschedulable_cycle",
             "verb_arity",
             "witness_bifurcation",
@@ -5652,6 +5716,27 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unleverable",
             "unmeasurable",
             "unreached",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "operand_slot_tag",
+        values: &[
+            "a",
+            "at",
+            "axis",
+            "b",
+            "frame",
+            "input",
+            "measure",
+            "member",
+            "of",
+            "path",
+            "plane",
+            "profile",
+            "section",
+            "target",
+            "tool",
         ],
         delegates: &[],
     },
@@ -6098,16 +6183,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "anonymous_var_unread",
             "assertion_bound",
             "assertion_target",
-            "dangling_input",
             "declared_name_not_upstream",
-            "declared_site_not_an_operand",
             "definition_cycle",
             "definition_reads_unminted_var",
             "definition_too_large",
             "definition_var_kind",
             "duplicate_input",
             "epsilon_invalid",
-            "forward_input",
             "gauge_cycle",
             "input_list",
             "label_on_missing_node",
@@ -6119,12 +6201,16 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "name_step_not_minted",
             "node_not_minted",
             "not_a_gauge",
+            "operand_unminted",
+            "operand_var_kind",
             "output_signature",
+            "part_half_port",
             "payload_var_kind",
             "placement_improper",
             "placement_non_finite",
             "placement_non_rigid",
             "placement_rule",
+            "read_cycle",
             "reader_of_unminted_var",
             "slot_var_kind",
             "step_ids",
@@ -6523,7 +6609,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact at two doors: `node::declared_side_fault`, asked by the
     // edit doors and by the load door.
     ("declared_name_not_upstream", 2),
-    ("declared_site_not_an_operand", 2),
     // One fact (VR3) at the edit and load doors: a definition that
     // reads its own variable back.
     ("definition_cycle", 2),
@@ -6611,7 +6696,15 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("not_an_instance", 3),
     ("null_scaffold_edge", 2),
     ("op", 3),
+    // One fact at the edit and load doors: an operand reads a variable
+    // of a kind its slot does not admit (`OperandKind::admits`).
+    ("operand_var_kind", 2),
+    // One fact at the edit and load doors: a part over a split reads
+    // the half it does not select.
+    ("part_half_port", 2),
     ("part_unresolved", 3),
+    // A coincidence: a sweep's path operand and a replay's path fault.
+    ("path", 2),
     // ONE concept, and pinned as one: the variable-read convention
     // `editor_core::EditError`'s enum doc states. That the two maps
     // agree word for word is held by
@@ -6628,8 +6721,13 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // the instance's own row, and why its checked offset went unchecked.
     ("placement_refused", 2),
     ("placement_rule_mismatch", 2),
+    // A coincidence: a profile's sketch-plane operand and a promoted
+    // gauge's kind.
+    ("plane", 2),
     ("poisoned", 2),
-    ("profile", 2),
+    // The profile operand, the profile slot and the profile node's own
+    // evaluation class: one word for the one node kind.
+    ("profile", 3),
     ("revolve", 2),
     // One fact, as `inside_out_operand`: `topo::Unfinished::Scaffolding`.
     ("scaffolding_operand", 2),
@@ -8280,6 +8378,14 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
             name: "the_two_dimension_alphabets_are_one_list_in_two_cases",
             holds: "the four words as the capitalised spelling of `dimension_tag`'s, \
                     over `Dimension::ALL`",
+        }],
+    },
+    MintingItem {
+        owner: "operand_kind_tag",
+        literals: 2,
+        held_by: &[Holder::Test {
+            name: "operand_kind_tags_are_stable",
+            holds: "the two words of its own, and a kind's word as `var_kind_tag`'s",
         }],
     },
     MintingItem {

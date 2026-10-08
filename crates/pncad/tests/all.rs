@@ -2081,7 +2081,7 @@ fn xy_frame() -> pncad::document::AuthoredNode {
 fn square(plane: pncad::document::RecipeNodeId, s: f64) -> pncad::document::AuthoredNode {
     use pncad::document::{LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget};
     Node::Profile(ProfileProgram {
-        plane,
+        plane: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(0.0), len(0.0)]),
             ProgramStep::LineTo(ProgramTarget::Point([len(s), len(0.0)])),
@@ -2129,7 +2129,7 @@ fn box_doc(
     let (doc, body) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.5),
             side: ExtrudeSide::Along,
         },
@@ -2258,7 +2258,7 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            plane: plane.into(),
             loops: vec![lifted],
             ids: Vec::new(),
         }),
@@ -2266,7 +2266,7 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
     let (doc, body) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(8.0),
             side: ExtrudeSide::Along,
         },
@@ -2380,7 +2380,7 @@ fn square_at(
 ) -> pncad::document::AuthoredNode {
     use pncad::document::{LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget};
     Node::Profile(ProfileProgram {
-        plane,
+        plane: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(x), len(0.0)]),
             ProgramStep::LineTo(ProgramTarget::Point([len(x + s), len(0.0)])),
@@ -2405,7 +2405,7 @@ fn the_document_export_door_ships_the_multi_solid_product() {
     let (doc, b0) = insert(
         doc,
         Node::Extrude {
-            profile: p0,
+            profile: p0.into(),
             distance: len(1.5),
             side: ExtrudeSide::Along,
         },
@@ -2415,7 +2415,7 @@ fn the_document_export_door_ships_the_multi_solid_product() {
     let (doc, b1) = insert(
         doc,
         Node::Extrude {
-            profile: p1,
+            profile: p1.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -2473,7 +2473,7 @@ fn the_export_door_refuses_typed_not_vaguely() {
     let (doc, second_box) = insert(
         doc,
         Node::Extrude {
-            profile: second_profile,
+            profile: second_profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -2482,8 +2482,8 @@ fn the_export_door_refuses_typed_not_vaguely() {
         doc,
         Node::Boolean {
             op: pncad::document::BooleanOp::Subtract,
-            a: first_box,
-            b: second_box,
+            a: first_box.into(),
+            b: second_box.into(),
             declare: Vec::new(),
         },
     );
@@ -2491,8 +2491,8 @@ fn the_export_door_refuses_typed_not_vaguely() {
         doc,
         Node::Boolean {
             op: pncad::document::BooleanOp::Union,
-            a: cut,
-            b: first_box,
+            a: cut.into(),
+            b: first_box.into(),
             declare: Vec::new(),
         },
     );
@@ -2591,7 +2591,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            plane: plane.into(),
             loops: vec![outline, hole(1.0, 1.0), hole(2.2, 1.0)],
             ids: Vec::new(),
         }),
@@ -2599,7 +2599,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
     let (doc, plate) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(0.5),
             side: ExtrudeSide::Along,
         },
@@ -2617,7 +2617,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
     let (doc, tab_p) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: tab_plane,
+            plane: tab_plane.into(),
             loops: vec![
                 LoopProgram::polygon([(3.5, 1.75), (4.5, 1.75), (4.5, 2.5), (3.5, 2.5)])
                     .expect("finite tab corners"),
@@ -2628,7 +2628,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
     let (doc, tab) = insert(
         doc,
         Node::Extrude {
-            profile: tab_p,
+            profile: tab_p.into(),
             distance: len(0.25),
             side: ExtrudeSide::Along,
         },
@@ -2637,8 +2637,8 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: plate,
-            b: tab,
+            a: plate.into(),
+            b: tab.into(),
             declare: Vec::new(),
         },
     );
@@ -2711,7 +2711,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
     let (doc, _) = insert(
         doc,
         Node::Assertion {
-            measure,
+            measure: measure.into(),
             bound: len(0.0),
             dir: pncad::document::AssertionDir::AtLeast,
         },
@@ -2852,7 +2852,7 @@ fn ws_doc_and_body(
     let (doc, body) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.5),
             side: ExtrudeSide::Along,
         },
@@ -3565,7 +3565,7 @@ fn asm2a_row5b_stale_pin_refuses_through_the_real_store() {
         let (doc, _) = insert(
             doc,
             pncad::document::Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(1.5),
                 side: ExtrudeSide::Along,
             },
@@ -4343,7 +4343,7 @@ fn asm_upd_resave_part(
     let (doc, _) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.5),
             side: ExtrudeSide::Along,
         },
@@ -6463,7 +6463,7 @@ mod the_hollowed_box_through_the_facade {
         let (doc, profile) = super::insert(
             doc,
             Node::Profile(ProfileProgram {
-                plane,
+                plane: plane.into(),
                 loops: vec![square],
                 ids: Vec::new(),
             }),
@@ -6471,7 +6471,7 @@ mod the_hollowed_box_through_the_facade {
         let (doc, blank) = super::insert(
             doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: super::len(1.0),
                 side: ExtrudeSide::Along,
             },

@@ -543,6 +543,30 @@ pub fn attr_kind_tag(kind: &AttrKind) -> &'static str {
     }
 }
 
+/// The stable tag for an operand slot — the field a node reads an
+/// output through. A loft's section and a union's member are one word
+/// each: the position rides the payload's `index`.
+pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
+    use pncad::document::OperandSlot as S;
+    match slot {
+        S::Profile => "profile",
+        S::Section(_) => "section",
+        S::Path => "path",
+        S::Axis => "axis",
+        S::Frame => "frame",
+        S::Target => "target",
+        S::Tool => "tool",
+        S::A => "a",
+        S::B => "b",
+        S::Member(_) => "member",
+        S::Input => "input",
+        S::Of => "of",
+        S::Measure => "measure",
+        S::Plane => "plane",
+        S::At => "at",
+    }
+}
+
 /// The stable tag for an edit refusal.
 ///
 /// Its variable-kind words are the ones [`snapshot_error_tag`] mints,
@@ -569,7 +593,16 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::SetExtrudeSideOnNonExtrude { .. } => "set_extrude_side_on_non_extrude",
         EditError::StepIdsRefused { .. } => "step_ids_refused",
         EditError::TooFewMembers { .. } => "too_few_members",
-        EditError::DeleteWouldDangle { .. } => "delete_would_dangle",
+        // The operand doors: a read that resolves to no output, one
+        // of a kind its slot does not admit, a node named alone that
+        // defines two or nothing, a part over a split reading the other
+        // half, and a re-point at an operand the node lacks.
+        EditError::OperandUnresolved { .. } => "operand_unresolved",
+        EditError::OperandVarKind { .. } => "operand_var_kind",
+        EditError::AmbiguousOutput { .. } => "ambiguous_output",
+        EditError::DefinesNothing { .. } => "defines_nothing",
+        EditError::PartHalfPort { .. } => "part_half_port",
+        EditError::UnknownOperand { .. } => "unknown_operand",
         EditError::UnknownSlot { .. } => "unknown_slot",
         EditError::SlotDimensionMismatch { .. } => "slot_dimension_mismatch",
         EditError::StructuralSlotNeedsStructuralEdit { .. } => {
@@ -648,7 +681,6 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::PromoteMemberOffset { .. } => "promote_member_offset",
         EditError::FoldOnNonGauge { .. } => "fold_on_non_gauge",
         EditError::FoldWouldStartPlacing { .. } => "fold_would_start_placing",
-        EditError::FoldWouldDangle { .. } => "fold_would_dangle",
         EditError::PlacementRuleMismatch { .. } => "placement_rule_mismatch",
         EditError::EmptyPlacementList { .. } => "empty_placement_list",
         EditError::ImproperPlacement { .. } => "improper_placement",
@@ -975,6 +1007,9 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // the scalar's.
         C::SeedPinnedSection => "seed_pinned_section",
         C::WrongOperand => "wrong_operand",
+        // An operand reads a variable its operation no longer defines:
+        // the delete that removed it reported the strand.
+        C::UnresolvedRead => "unresolved_read",
         C::EmptyOperand => "empty_operand",
         C::ProductOperand => "product_operand",
         C::UnfinishedOperand => "unfinished_operand",
@@ -1163,6 +1198,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::Seed { source } => Some(seed_error_tag(source)),
         NodeErrorKind::SeedPinnedSection { .. } => None,
         NodeErrorKind::WrongOperand { .. } => None,
+        NodeErrorKind::UnresolvedRead { .. } => None,
         NodeErrorKind::EmptyOperand { .. } => None,
         NodeErrorKind::ProductOperand { .. } => None,
         NodeErrorKind::UnfinishedOperand { .. } => None,
@@ -1279,7 +1315,12 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         // What is wrong with the ids is the arm.
         EditError::StepIdsRefused { fault, .. } => Some(step_id_fault_tag(fault)),
         EditError::TooFewMembers { .. } => None,
-        EditError::DeleteWouldDangle { .. } => None,
+        EditError::OperandUnresolved { .. } => None,
+        EditError::OperandVarKind { .. } => None,
+        EditError::AmbiguousOutput { .. } => None,
+        EditError::DefinesNothing { .. } => None,
+        EditError::PartHalfPort { .. } => None,
+        EditError::UnknownOperand { .. } => None,
         EditError::UnknownSlot { .. } => None,
         EditError::SlotDimensionMismatch { .. } => None,
         EditError::StructuralSlotNeedsStructuralEdit { .. } => None,
@@ -1348,7 +1389,6 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::PromoteMemberOffset { .. } => None,
         EditError::FoldOnNonGauge { .. } => None,
         EditError::FoldWouldStartPlacing { .. } => None,
-        EditError::FoldWouldDangle { .. } => None,
         // Which answer the rule gives twice is the arm.
         EditError::PlacementRuleMismatch { shape, .. } => Some(count_mismatch_tag(shape)),
         EditError::EmptyPlacementList { .. } => None,
@@ -2002,10 +2042,11 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::StepIds { .. } => "step_ids",
         SnapshotError::MintLogOrder { .. } => "mint_log_order",
         SnapshotError::NameStepNotMinted { .. } => "name_step_not_minted",
-        SnapshotError::DeclaredSiteNotAnOperand { .. } => "declared_site_not_an_operand",
         SnapshotError::DeclaredNameNotUpstream { .. } => "declared_name_not_upstream",
-        SnapshotError::DanglingInput { .. } => "dangling_input",
-        SnapshotError::ForwardInput { .. } => "forward_input",
+        SnapshotError::OperandUnminted { .. } => "operand_unminted",
+        SnapshotError::OperandVarKind { .. } => "operand_var_kind",
+        SnapshotError::PartHalfPort { .. } => "part_half_port",
+        SnapshotError::ReadCycle { .. } => "read_cycle",
         SnapshotError::WitnessSite { .. } => "witness_site",
         SnapshotError::WitnessOnMissingNode { .. } => "witness_on_missing_node",
         SnapshotError::LabelOnMissingNode { .. } => "label_on_missing_node",
@@ -3342,6 +3383,7 @@ pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
     match maintenance {
         Maintenance::OffsetCleared { .. } => "offset_cleared",
         Maintenance::Strand { .. } => "strand",
+        Maintenance::StrandedRead { .. } => "stranded_read",
         Maintenance::StrandedAppearance { .. } => "stranded_appearance",
         Maintenance::LabelDropped { .. } => "label_dropped",
         Maintenance::AnonymousVarRemoved { .. } => "anonymous_var_removed",

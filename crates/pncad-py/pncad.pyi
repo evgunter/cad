@@ -82,6 +82,7 @@ downstream door: `Node.pattern` says the unfused family and
 says the same family fused into one.
 """
 
+from collections.abc import Sequence
 from typing import Any, Final, Generic, Literal, Optional, TypeAlias, TypeVar, overload
 
 # --- errors -----------------------------------------------------------
@@ -111,14 +112,19 @@ class EditError(PncadError):
       graph). `input` is a node the subject NAMES — an operand that
       does not resolve, an input reached twice, the measure an
       assertion constrains. `referenced_by` is a node DOWNSTREAM of
-      `node` that references it: the live consumer a delete would
-      dangle, the descendant root that makes an ancestor redundant.
+      `node` that references it: the descendant root that makes an
+      ancestor redundant.
     - `expected` and `found` are the DIMENSION pair — what the door
       required and what it was offered — under every spelling the
       kernel gives them (`expected`/`found`, `declared`/`referenced`,
       `measured`/`bound`). They are dimension words (`length`,
       `angle`, `count`, `scalar`), the same alphabet `Formula.dimension`
-      answers in.
+      answers in. An operand refusal (`operand_var_kind`) spells them
+      as kinds: `found` the kind read, `expected` the kind its slot
+      admits (`body`, `profile`, ..., or `placeable`, `measured`).
+    - `slot` is an operand's word at an operand refusal (`profile`,
+      `target`, `a`, `member`, ...), with `index` the position of a
+      section or a member.
     - `count` is how many entries a short list would have had. It is
       NOT `found`: a count and a dimension are two types, and one
       attribute carries one.
@@ -2097,7 +2103,7 @@ class PatternKind:
         it."""
 
     @staticmethod
-    def circular(axis: NodeId, step: _AngleArg) -> PatternKind:
+    def circular(axis: _Operand, step: _AngleArg) -> PatternKind:
         """Stepped around `axis`, an upstream `datum_axis` node. The
         step is signed by the right-hand rule about the axis and lies
         within a turn: zero raises EvaluationError (`degenerate_step`),
@@ -2308,17 +2314,17 @@ class Node:
     @staticmethod
     def polygon(
         points: list[tuple[_LengthArg, _LengthArg]],
-        plane: NodeId,
+        plane: _Operand,
     ) -> Node: ...
     @overload
     @staticmethod
-    def profile(outline: ClosedLoop, plane: NodeId) -> Node: ...
+    def profile(outline: ClosedLoop, plane: _Operand) -> Node: ...
     @overload
     @staticmethod
-    def profile(outline: list[ClosedLoop], plane: NodeId) -> Node: ...
+    def profile(outline: list[ClosedLoop], plane: _Operand) -> Node: ...
     @staticmethod
     def extrude(
-        profile: NodeId, distance: _LengthArg, side: ExtrudeSide = ExtrudeSide.Along
+        profile: _Operand, distance: _LengthArg, side: ExtrudeSide = ExtrudeSide.Along
     ) -> Node:
         """Extrude a profile to one side of its sketch plane.
 
@@ -2332,22 +2338,21 @@ class Node:
         `set_var_value` per value."""
 
     @staticmethod
-    def revolve(profile: NodeId, axis: NodeId, angle: _AngleArg) -> Node:
+    def revolve(profile: _Operand, axis: _Operand, angle: _AngleArg) -> Node:
         """Revolve a profile about a datum axis. `angle` mints a
         literal in the node's `revolve_angle` slot, driven afterwards
         by `DocEdit.set_param` as an extrude's `distance` is."""
     @staticmethod
     def tube(
-        spine: NodeId,
-        u_ref: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
+        frame: _Operand,
         major_radius: _LengthArg,
         window: TubeWindow,
         minor_radius: _LengthArg,
     ) -> Node:
         """A solid ring torus, or an elbow of one, from its intent parameters.
 
-        `spine` is a `Node.datum_axis`: its origin is the tube's centre
-        and its direction the spine axis. `u_ref` is the reference
+        `frame` is a `Node.datum_frame`: its origin is the tube's centre,
+        its normal (`u x v`) the spine axis, and its `u` the reference
         direction the window's angles are measured from. Every number
         is STORED, never reconstructed, so `minor_radius` comes back
         out of the body bit for bit.
@@ -2358,8 +2363,7 @@ class Node:
 
     @staticmethod
     def hollow_tube(
-        spine: NodeId,
-        u_ref: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
+        frame: _Operand,
         major_radius: _LengthArg,
         window: TubeWindow,
         minor_radius: _LengthArg,
@@ -2377,9 +2381,9 @@ class Node:
         """
 
     @staticmethod
-    def loft(profiles: list[NodeId], v_degree: _CountArg) -> Node: ...
+    def loft(profiles: Sequence[_Operand], v_degree: _CountArg) -> Node: ...
     @staticmethod
-    def chamfer(target: NodeId, distance: _LengthArg, selection: list[str]) -> Node:
+    def chamfer(target: _Operand, distance: _LengthArg, selection: list[str]) -> Node:
         """Equal-setback flat chamfers on named edges of `target`.
 
         `Node.fillet`'s twin: `selection` is edge names as TEXT and the
@@ -2392,7 +2396,7 @@ class Node:
         """
 
     @staticmethod
-    def shell(target: NodeId, thickness: _LengthArg, open: list[str]) -> Node:
+    def shell(target: _Operand, thickness: _LengthArg, open: list[str]) -> Node:
         """Hollow `target` to a wall of `thickness`, opening the faces in
         `open` into rims.
 
@@ -2417,7 +2421,7 @@ class Node:
     ) -> Node: ...
     @staticmethod
     def datum_axis_in_plane(
-        plane: NodeId,
+        plane: _Operand,
         origin: tuple[_LengthArg, _LengthArg],
         direction: tuple[_ScalarArg, _ScalarArg],
     ) -> Node:
@@ -2444,7 +2448,7 @@ class Node:
         non-finite coordinate raises `LiteralError` here.
         """
     @staticmethod
-    def datum_face_frame(at: NodeId, face: str, spin: _AngleArg) -> Node:
+    def datum_face_frame(at: _Operand, face: str, spin: _AngleArg) -> Node:
         """A sketch frame DERIVED from a face — "sketch on this face".
 
         `at` is the body-denoting node the face is read out of, and a
@@ -2491,7 +2495,7 @@ class Node:
         """
 
     @staticmethod
-    def fillet(target: NodeId, radius: _LengthArg, selection: list[str]) -> Node:
+    def fillet(target: _Operand, radius: _LengthArg, selection: list[str]) -> Node:
         """Constant-radius blends on named edges of `target`.
 
         `selection` is edge names as TEXT — the strings
@@ -2506,13 +2510,13 @@ class Node:
         """
 
     @staticmethod
-    def split(target: NodeId, tool: NodeId) -> Node:
+    def split(target: _Operand, tool: _Operand) -> Node:
         """Split `target` by `tool` (a `datum_plane`). The value is a
         split — read it with `Value.split()`, not `Value.body()`."""
 
     @staticmethod
     def transform(
-        input: NodeId,
+        input: _Operand,
         translation: tuple[_LengthArg, _LengthArg, _LengthArg],
         rotation_axis: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
         rotation_angle: _AngleArg,
@@ -2524,7 +2528,7 @@ class Node:
         """
 
     @staticmethod
-    def transform_by(input: NodeId, placement: Placement) -> Node:
+    def transform_by(input: _Operand, placement: Placement) -> Node:
         """A placement of an upstream body by a `Placement` chain.
         `Node.transform` is this with one rigid step. Every rigid step's
         components are checked against the slot they land in (EditError
@@ -2532,7 +2536,7 @@ class Node:
 
     @staticmethod
     def boolean(
-        op: BooleanOp, a: NodeId, b: NodeId, declare: list[FlushFinding] = []
+        op: BooleanOp, a: _Operand, b: _Operand, declare: list[FlushFinding] = []
     ) -> Node:
         """A Boolean of two upstream solids. `declare` is its declared
         contact pairs, given as the INSPECTED findings (each carries
@@ -2553,7 +2557,7 @@ class Node:
         `inner_kind == "coincident_shell"`."""
 
     @staticmethod
-    def union(members: list[NodeId], declare: list[FlushFinding] = []) -> Node:
+    def union(members: Sequence[_Operand], declare: list[FlushFinding] = []) -> Node:
         """The N-ARY union: two or more member bodies folded into ONE
         body, in the LIST's order.
 
@@ -2572,7 +2576,7 @@ class Node:
         question at `evaluate`."""
 
     @staticmethod
-    def pattern(input: NodeId, count: _CountArg, kind: PatternKind) -> Node:
+    def pattern(input: _Operand, count: _CountArg, kind: PatternKind) -> Node:
         """One prototype, `count` placements stepped by `kind`, N
         BODIES OUT — the replicated family with nothing fused.
 
@@ -2591,7 +2595,7 @@ class Node:
         `listed_on_pattern`), since it carries its own placements."""
 
     @staticmethod
-    def part(of: NodeId, select: PartSelect) -> Node:
+    def part(of: _Operand, select: PartSelect) -> Node:
         """ONE body out of a multi-body value — a split's half or a
         pattern's instance.
 
@@ -2603,7 +2607,7 @@ class Node:
         `instance_out_of_range`."""
 
     @staticmethod
-    def placed_union(input: NodeId, count: _CountArg, kind: PatternKind) -> Node:
+    def placed_union(input: _Operand, count: _CountArg, kind: PatternKind) -> Node:
         """The group boolean over a PARAMETRIC rule: one prototype,
         `count` placements stepped by `kind`, ONE body out.
 
@@ -2623,7 +2627,7 @@ class Node:
         count, and `placed_union_at` is its door."""
 
     @staticmethod
-    def placed_union_at(input: NodeId, frames: list[Frame]) -> Node:
+    def placed_union_at(input: _Operand, frames: list[Frame]) -> Node:
         """The group boolean over LISTED absolute frames. No count
         argument, because the list IS the count. An empty list, a
         non-finite frame, or an improper one raises EditError at
@@ -2736,9 +2740,9 @@ class Node:
         they are different questions.
 
         These references ARE recipe edges, unlike a boolean's declared
-        pairs and `Node.mate`'s names: a measure consumes the values it names, so
-        deleting a referenced node is refused at the delete door
-        (`delete_would_dangle`) like any other consumer's input.
+        pairs and `Node.mate`'s names: a measure consumes the values it
+        names, so deleting a referenced node is accepted and reported
+        as a `strand` on the measure, like any other reader's.
 
         Every index is checked HERE, through the kernel's one
         construction door, so a leaf pointing past the end of `refs`
@@ -2751,7 +2755,7 @@ class Node:
         `evaluate`."""
 
     @staticmethod
-    def assertion(measure: NodeId, dir: AssertionDir, bound: Formula) -> Node:
+    def assertion(measure: _Operand, dir: AssertionDir, bound: Formula) -> Node:
         """A recorded tolerance requirement: design intent as document
         data, in the versioned recipe rather than in a script beside
         it.
@@ -2793,6 +2797,11 @@ _LengthArg: TypeAlias = Var | Formula | WrittenLength | Length
 _AngleArg: TypeAlias = Var | Formula | WrittenAngle | Angle
 _ScalarArg: TypeAlias = Var | Formula | float
 _CountArg: TypeAlias = Var | Formula | int
+_Operand: TypeAlias = NodeId | Var
+"""What an operand takes: a node, read at its first output (a node with
+two outputs of one kind, a split, refuses `ambiguous_output`), or a
+variable — an output by `Doc.output`, or a named one. The slot admits
+one kind, and a read of another refuses `operand_var_kind`."""
 
 class Formula:
     """A dimension-checked expression — the recipe's arithmetic, as a
@@ -3401,7 +3410,7 @@ class DocEdit:
         document does not hold (`unknown_node`) or an edit that would
         leave the label as it is (`label_unchanged`)."""
     @staticmethod
-    def set_members(node: NodeId, members: list[NodeId]) -> DocEdit:
+    def set_members(node: NodeId, members: Sequence[_Operand]) -> DocEdit:
         """Replace a node's whole LIST input — a `Node.union`'s
         members, a `Node.loft`'s sections — with the list stated in
         full.
@@ -3610,9 +3619,8 @@ class DocEdit:
         instance with no offset keeps none; a lone unlabelled dependent
         takes the gauge's label, and otherwise the label goes, reported
         as `label_dropped` maintenance. Refuses typed on `EditError`:
-        `fold_on_non_gauge`, `fold_would_dangle` (`referenced_by` reads
-        the gauge as an input), and `fold_would_start_placing` (`input`
-        is the mate that would start placing)."""
+        `fold_on_non_gauge` and `fold_would_start_placing` (`input` is
+        the mate that would start placing)."""
 
     @staticmethod
     def update_reference(node: NodeId, new_pin: ContentPin) -> DocEdit:
@@ -6282,14 +6290,20 @@ class Maintenance:
     because the store carries it and no node does; the attachment is
     left exactly where it was, since the report never repairs.
 
+    A `stranded_read` names, on `node`, a node whose operand reads an
+    output the delete removed with its operation: the delete is legal,
+    and the node refuses `unresolved_read` at evaluation until the
+    operand is re-pointed (`DocEdit.set_members` for a list) or the
+    delete undone.
+
     A `label_dropped` names, on `node`, a gauge `DocEdit.fold` took out
     of the document whose label went with it: no single unlabelled
     node stood in for it. The label is in the row's message."""
 
     @property
     def variant(self) -> str:
-        """`offset_cleared`, `strand`, `stranded_appearance`, or
-        `label_dropped`."""
+        """`offset_cleared`, `strand`, `stranded_read`,
+        `stranded_appearance`, or `label_dropped`."""
 
     @property
     def node(self) -> Optional[NodeId]: ...

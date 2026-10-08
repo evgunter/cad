@@ -280,13 +280,13 @@ class TestTheSelectorAndTheValueMustAgree(unittest.TestCase):
     """A half against a split, an index against a pattern's instances,
     and any other pairing refuses `wrong_operand` at evaluation.
 
-    Not at construction: which value a node id carries is not known
-    until the document runs, so the door takes the pairing and the
-    evaluator judges it. All four crossings, as `docm2_part.rs`'s A4
-    asserts them.
+    Not at construction: the read's kind admits a body or a list of
+    them, and which selector the value takes is the evaluator's to
+    judge. The crossings `docm2_part.rs`'s A4 asserts, and a split
+    named alone, which the door refuses before any selector is read.
     """
 
-    def test_all_four_mismatches_refuse(self):
+    def test_every_mismatch_refuses(self):
         doc = Doc()
         cube = box(doc)
         split = split_at(doc, cube)
@@ -295,13 +295,17 @@ class TestTheSelectorAndTheValueMustAgree(unittest.TestCase):
         index = PartSelect.instance(Formula.count(0))
         for of, select, label in (
             (family, half, "a half of a pattern"),
-            (split, index, "an index of a split"),
             (cube, half, "a half of a plain body"),
             (cube, index, "an index of a plain body"),
         ):
             with self.subTest(case=label):
                 node = doc.insert(Node.part(of, select))
                 self.assertEqual(refusal(self, doc, node), "wrong_operand")
+        # A split named alone is either of its two halves, so the door
+        # refuses the read before any selector is judged.
+        with self.assertRaises(EditError) as caught:
+            doc.insert(Node.part(split, index))
+        self.assertEqual(caught.exception.variant, "ambiguous_output")
 
 
 class TestTheRefusalsAreTyped(unittest.TestCase):
@@ -466,13 +470,16 @@ class TestTheReadSide(unittest.TestCase):
         self.assertEqual(doc.node_kind(one), "part")
         self.assertEqual(doc.node_kind(split), "split")
 
-    def test_the_selected_value_is_a_dag_input(self):
+    def test_the_selected_value_is_a_read(self):
+        """Deleting the pattern a part reads is accepted, says the read
+        it strands, and leaves the part refusing until re-pointed."""
         doc = Doc()
         family = pattern_of(doc, box(doc))
-        doc.insert(Node.part(family, PartSelect.instance(Formula.count(0))))
-        with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.delete_node(family))
-        self.assertEqual(caught.exception.variant, "delete_would_dangle")
+        one = doc.insert(Node.part(family, PartSelect.instance(Formula.count(0))))
+        doc.apply(DocEdit.delete_node(family))
+        stranded = [m for m in doc.last_maintenance if m.variant == "stranded_read"]
+        self.assertEqual([m.node for m in stranded], [one])
+        self.assertEqual(refusal(self, doc, one), "unresolved_read")
 
 
 if __name__ == "__main__":
