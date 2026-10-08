@@ -946,9 +946,9 @@ fn measured<T: Decide, P>(
     output: crate::VarId,
 ) -> Result<Observed<T>, ObservedRefusal> {
     let Some(node) = doc.operation_of(output) else {
-        return Err(ObservedRefusal::Expr(crate::expr::EvalError::UnresolvedVar {
-            var: output,
-        }));
+        return Err(ObservedRefusal::Expr(
+            crate::expr::EvalError::UnresolvedVar { var: output },
+        ));
     };
     let value = super::usable_in(results, node, || super::NodeStanding::NotEvaluated { node })
         .map_err(ObservedRefusal::Measure)?;

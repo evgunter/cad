@@ -306,7 +306,7 @@ fn a_document_broken_in_a_slot_and_in_a_payload_reads_the_slot_refusal() {
         &DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
-            expr: Formula::named(name.clone(), Dimension::Length),
+            value: Formula::named(name.clone(), Dimension::Length).into(),
             fresh: Vec::new(),
         },
         Tol::witness(),

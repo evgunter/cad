@@ -572,7 +572,7 @@ fn the_anonymous_lifecycle_cascades_through_definitions() {
         DocEdit::SetParam {
             node: extrude,
             slot: editor_core::SlotId::Distance,
-            expr: len(1.0),
+            value: len(1.0).into(),
             fresh: Vec::new(),
         },
     );

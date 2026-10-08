@@ -128,7 +128,7 @@ fn slide(s: &Slot, axis: Axis3, to: f64) -> ProfileDoc {
         DocEdit::SetParam {
             node: s.tr,
             slot: SlotId::Translation(axis),
-            expr: len(to),
+            value: len(to).into(),
             fresh: Vec::new(),
         },
     )

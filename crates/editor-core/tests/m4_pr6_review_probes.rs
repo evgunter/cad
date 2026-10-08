@@ -374,7 +374,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         DocEdit::SetParam {
             node: e1,
             slot: SlotId::Distance,
-            expr: len(2.0),
+            value: len(2.0).into(),
             fresh: Vec::new(),
         },
     );

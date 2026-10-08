@@ -35,5 +35,5 @@ Part 1:e59557703615f3f8
 InstantiatePart 8:1e58c21bab8525f2
 Gauge 8:8169e9c9fbdcbd7e
 Mate 8:e09e8b68c2c657de
-Measure 2:f2a7c5b8ab1ad201
-Assertion 2:2c15deb2f2c48a7e
+Measure 1:2cf198357f078d63
+Assertion 3:4d9ac3e2e3535ab1

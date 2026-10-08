@@ -462,12 +462,18 @@ pub const STEP_IMPORT_WIREFRAME: &str = "wireframe";
 /// slots and a caller branching on it could not tell which expression
 /// refused.
 ///
-/// `profile` and `placement_step` are the two arms that stop one level,
-/// and they stop for the reason [`profile_error_tag`]'s family does:
-/// what is left below them — a profile's loop index, step index and
-/// argument role; a later placement step's index and component — holds
-/// an integer, and no `&'static str` carries one. The address is in the
-/// refusal's prose; the word says which kind of slot it is.
+/// An operand is a slot too (D10): its word is the field's own
+/// ([`operand_slot_tag`]), `profile`, `target`, `input`.
+///
+/// `program`, `placement_step` and `mate_frame_step` are the arms that
+/// stop one level, and they stop for the reason [`profile_error_tag`]'s
+/// family does: what is left below them — a profile program's loop
+/// index, step index and argument role; a later placement step's index
+/// and component; a mate side's offset step — holds an integer, and no
+/// `&'static str` carries one. A loft's `section` and a union's
+/// `member` stop the same way, their position riding the payload's
+/// `index`. The address is in the refusal's prose; the word says which
+/// kind of slot it is.
 pub fn slot_id_tag(slot: &SlotId) -> &'static str {
     match slot {
         SlotId::Origin(axis) => match axis {
@@ -523,7 +529,8 @@ pub fn slot_id_tag(slot: &SlotId) -> &'static str {
         SlotId::Instance => "instance",
         SlotId::VDegree => "v_degree",
         SlotId::Stations => "stations",
-        SlotId::Profile { .. } => "profile",
+        SlotId::Profile { .. } => "program",
+        SlotId::Operand(operand) => operand_slot_tag(operand),
         SlotId::PlacementStep { .. } => "placement_step",
         SlotId::MateFrameStep { .. } => "mate_frame_step",
     }
@@ -593,16 +600,14 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::SetExtrudeSideOnNonExtrude { .. } => "set_extrude_side_on_non_extrude",
         EditError::StepIdsRefused { .. } => "step_ids_refused",
         EditError::TooFewMembers { .. } => "too_few_members",
-        // The operand doors: a read that resolves to no output, one
-        // of a kind its slot does not admit, a node named alone that
-        // defines two or nothing, a part over a split reading the other
-        // half, and a re-point at an operand the node lacks.
+        // The read doors: a read that resolves to no output, a node
+        // named alone that defines two or nothing, and a part over a
+        // split reading the other half. A read of a kind its slot does
+        // not admit is `slot_var_kind`, at any slot.
         EditError::OperandUnresolved { .. } => "operand_unresolved",
-        EditError::OperandVarKind { .. } => "operand_var_kind",
         EditError::AmbiguousOutput { .. } => "ambiguous_output",
         EditError::DefinesNothing { .. } => "defines_nothing",
         EditError::PartHalfPort { .. } => "part_half_port",
-        EditError::UnknownOperand { .. } => "unknown_operand",
         EditError::UnknownSlot { .. } => "unknown_slot",
         EditError::SlotDimensionMismatch { .. } => "slot_dimension_mismatch",
         EditError::StructuralSlotNeedsStructuralEdit { .. } => {
@@ -1316,11 +1321,9 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::StepIdsRefused { fault, .. } => Some(step_id_fault_tag(fault)),
         EditError::TooFewMembers { .. } => None,
         EditError::OperandUnresolved { .. } => None,
-        EditError::OperandVarKind { .. } => None,
         EditError::AmbiguousOutput { .. } => None,
         EditError::DefinesNothing { .. } => None,
         EditError::PartHalfPort { .. } => None,
-        EditError::UnknownOperand { .. } => None,
         EditError::UnknownSlot { .. } => None,
         EditError::SlotDimensionMismatch { .. } => None,
         EditError::StructuralSlotNeedsStructuralEdit { .. } => None,
@@ -2044,7 +2047,6 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::NameStepNotMinted { .. } => "name_step_not_minted",
         SnapshotError::DeclaredNameNotUpstream { .. } => "declared_name_not_upstream",
         SnapshotError::OperandUnminted { .. } => "operand_unminted",
-        SnapshotError::OperandVarKind { .. } => "operand_var_kind",
         SnapshotError::PartHalfPort { .. } => "part_half_port",
         SnapshotError::ReadCycle { .. } => "read_cycle",
         SnapshotError::WitnessSite { .. } => "witness_site",

@@ -127,8 +127,8 @@ pub use drive::{
 };
 pub use edit::{
     Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, EditError, EditRecord, Maintenance,
-    MaintenanceNet, MeasureOutcome, Measured, Recorded, Recording, RegaugeThenMateOutcome, Took,
-    apply, apply_replayed, cascade_delete_order, measure, regauge_then_mate,
+    MaintenanceNet, MeasureOutcome, Measured, Recorded, Recording, RegaugeThenMateOutcome,
+    SlotValue, Took, apply, apply_replayed, cascade_delete_order, measure, regauge_then_mate,
 };
 pub use eval::measure::{Observed, ObservedRefusal};
 pub use eval::{
@@ -197,7 +197,7 @@ pub use node::{
     PatternKind, PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SitedFace, SitedRef, SlotId,
     StepArg, StepId, TubeWindow, VectorSlot, declare_continuation, declare_rest,
 };
-pub use operand::{Operand, OperandKind, OperandSlot};
+pub use operand::{Operand, OperandSlot, SlotKind};
 pub use parse::{ParseError, VarNameFault, VarNameReason, parse_formula};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
 pub use persist::{

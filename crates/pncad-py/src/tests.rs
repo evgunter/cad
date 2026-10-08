@@ -172,14 +172,14 @@ fn var_kind_tags_are_stable() {
 /// words of its own: the placers' `placeable` and the assertion's
 /// `measured`.
 #[test]
-fn operand_kind_tags_are_stable() {
-    use pncad::document::{OperandKind, VarKind};
+fn slot_kind_tags_are_stable() {
+    use pncad::document::{SlotKind, VarKind};
     assert_eq!(
-        crate::errors::operand_kind_tag(OperandKind::Is(VarKind::Frame)),
+        crate::errors::slot_kind_tag(SlotKind::Is(VarKind::Frame)),
         var_kind_tag(VarKind::Frame)
     );
     assert_eq!(
-        [OperandKind::Placeable, OperandKind::Measured].map(crate::errors::operand_kind_tag),
+        [SlotKind::Placeable, SlotKind::Measured].map(crate::errors::slot_kind_tag),
         ["placeable", "measured"]
     );
 }
@@ -2940,46 +2940,46 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &["node", "input"],
     );
     // ---- operands ----
-    use pncad::document::{Operand, OperandKind, OperandSlot, VarKind};
+    use pncad::document::{Operand, OperandSlot, SlotKind, VarKind};
     carries(
         &E::OperandUnresolved {
             node: sp(1),
-            slot: OperandSlot::Profile,
+            slot: SlotId::Operand(OperandSlot::Profile),
             read: Operand::Node(id(2)),
         },
         &["node", "slot"],
     );
     carries(
-        &E::UnknownOperand {
-            node: sp(1),
-            slot: OperandSlot::Member(3),
+        &E::UnknownSlot {
+            id: sp(1),
+            slot: SlotId::Operand(OperandSlot::Member(3)),
         },
         &["node", "slot", "index"],
     );
     carries(
-        &E::OperandVarKind {
+        &E::SlotVarKind {
             var: Box::new(pncad::document::SpokenVar::new(
                 pncad::document::VarId(id(2).0),
                 None,
             )),
             node: sp(1),
-            slot: OperandSlot::Tool,
+            slot: SlotId::Operand(OperandSlot::Tool),
             found: VarKind::Axis,
-            expected: OperandKind::Is(VarKind::Plane),
+            expected: SlotKind::Is(VarKind::Plane),
         },
         &["node", "slot", "expected", "found"],
     );
     carries(
         &E::AmbiguousOutput {
             input: sp(2),
-            slot: OperandSlot::Section(1),
+            slot: SlotId::Operand(OperandSlot::Section(1)),
         },
         &["input", "slot", "index"],
     );
     carries(
         &E::DefinesNothing {
             input: sp(2),
-            slot: OperandSlot::B,
+            slot: SlotId::Operand(OperandSlot::B),
         },
         &["input", "slot"],
     );
@@ -3016,7 +3016,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::SlotDimensionMismatch {
             slot: SlotId::Distance,
-            expected: Dimension::Length,
+            expected: pncad::document::SlotKind::Is(pncad::document::VarKind::Length),
             found: Dimension::Angle,
         },
         &["slot", "expected", "found"],
@@ -3043,11 +3043,11 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &["node", "input", "expected", "found"],
     );
 
-    // `expected`/`found` are the DIMENSION pair under every spelling
-    // the kernel gives them, and they are tag words rather than prose.
+    // `expected`/`found` are the slot's kind and the offered DIMENSION,
+    // and they are tag words rather than prose.
     let mismatch = E::SlotDimensionMismatch {
         slot: SlotId::Origin(Axis3::Y),
-        expected: Dimension::Length,
+        expected: pncad::document::SlotKind::Is(pncad::document::VarKind::Length),
         found: Dimension::Count,
     };
     let payload = edit_payload(&mismatch);
@@ -3103,8 +3103,8 @@ fn every_edit_arm_projects_the_payload_it_carries() {
             var: Box::new(spv()),
             node: sp(1),
             slot: SlotId::Count,
-            declared: pncad::document::VarKind::Count,
-            referenced: Dimension::Length,
+            found: pncad::document::VarKind::Count,
+            expected: pncad::document::SlotKind::Is(pncad::document::VarKind::Length),
         },
         &["node", "slot", "param", "expected", "found"],
     );
@@ -4688,15 +4688,15 @@ fn the_edit_and_snapshot_maps_agree_on_the_var_read_words() {
                 var: Box::new(var()),
                 node: spoken.clone(),
                 slot: SlotId::Radius,
-                declared: pncad::document::VarKind::Length,
-                referenced: Dimension::Angle,
+                found: pncad::document::VarKind::Length,
+                expected: pncad::document::SlotKind::Is(pncad::document::VarKind::Angle),
             },
             SnapshotError::SlotVarKind {
                 node: spoken.clone(),
                 slot: SlotId::Radius,
-                var: var(),
-                declared: pncad::document::VarKind::Length,
-                referenced: Dimension::Angle,
+                var: Box::new(var()),
+                found: pncad::document::VarKind::Length,
+                expected: pncad::document::SlotKind::Is(pncad::document::VarKind::Angle),
             },
         ),
         (
@@ -5141,7 +5141,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_structural_slot",
             "offset_on_non_instance",
             "operand_unresolved",
-            "operand_var_kind",
             "part_half_port",
             "path_off_tree",
             "payload_unknown_var_name",
@@ -5177,7 +5176,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "structural_slot_needs_structural_edit",
             "too_few_members",
             "unknown_node",
-            "unknown_operand",
             "unknown_slot",
             "unknown_var",
             "unresolved_input",
@@ -6189,7 +6187,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "node_not_minted",
             "not_a_gauge",
             "operand_unminted",
-            "operand_var_kind",
             "output_signature",
             "part_half_port",
             "payload_var_kind",
@@ -6683,9 +6680,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("not_an_instance", 3),
     ("null_scaffold_edge", 2),
     ("op", 3),
-    // One fact at the edit and load doors: an operand reads a variable
-    // of a kind its slot does not admit (`OperandKind::admits`).
-    ("operand_var_kind", 2),
     // One fact at the edit and load doors: a part over a split reads
     // the half it does not select.
     ("part_half_port", 2),
@@ -8368,10 +8362,10 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
         }],
     },
     MintingItem {
-        owner: "operand_kind_tag",
+        owner: "slot_kind_tag",
         literals: 2,
         held_by: &[Holder::Test {
-            name: "operand_kind_tags_are_stable",
+            name: "slot_kind_tags_are_stable",
             holds: "the two words of its own, and a kind's word as `var_kind_tag`'s",
         }],
     },

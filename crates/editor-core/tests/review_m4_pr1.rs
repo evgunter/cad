@@ -496,7 +496,7 @@ fn r3_referent_survives_out_of_claim_edits_bitwise() {
             &Edit::SetParam {
                 node: id,
                 slot: SlotId::Origin(Axis3::Z),
-                expr: len(6.0),
+                value: len(6.0).into(),
                 fresh: Vec::new(),
             },
             Tol::witness(),
@@ -774,7 +774,7 @@ fn r5_apply_pure_and_deterministic_bitwise() {
     let e = Edit::SetParam {
         node: ids[0],
         slot: SlotId::Origin(editor_core::Axis3::Y),
-        expr: len(f64::from_bits(0x3FF0000000000001)),
+        value: len(f64::from_bits(0x3FF0000000000001)).into(),
         fresh: Vec::new(),
     };
     let a1 = doc

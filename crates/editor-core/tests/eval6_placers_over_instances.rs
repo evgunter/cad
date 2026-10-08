@@ -379,7 +379,7 @@ fn a_part_over_a_nested_pattern_indexes_the_flat_list() {
 /// door.
 #[test]
 fn the_placers_admit_a_body_or_instances_and_the_boolean_one_body() {
-    use editor_core::{EditError, OperandKind, OperandSlot, VarKind};
+    use editor_core::{EditError, OperandSlot, SlotKind, VarKind};
     let (doc, cube) = cube_doc("eval6-door");
     let (doc, plane) = insert(
         doc,
@@ -401,7 +401,7 @@ fn the_placers_admit_a_body_or_instances_and_the_boolean_one_body() {
         assert!(
             matches!(
                 &refusal,
-                EditError::AmbiguousOutput { input, slot: OperandSlot::Input } if input.id() == split
+                EditError::AmbiguousOutput { input, slot: editor_core::SlotId::Operand(OperandSlot::Input) } if input.id() == split
             ),
             "a split named alone: {refusal:?}"
         );
@@ -410,10 +410,10 @@ fn the_placers_admit_a_body_or_instances_and_the_boolean_one_body() {
     assert!(
         matches!(
             &refusal,
-            EditError::OperandVarKind {
-                slot: OperandSlot::Input,
+            EditError::SlotVarKind {
+                slot: editor_core::SlotId::Operand(OperandSlot::Input),
                 found: VarKind::Plane,
-                expected: OperandKind::Placeable,
+                expected: SlotKind::Placeable,
                 ..
             }
         ),
@@ -433,10 +433,10 @@ fn the_placers_admit_a_body_or_instances_and_the_boolean_one_body() {
     assert!(
         matches!(
             &refusal,
-            EditError::OperandVarKind {
-                slot: OperandSlot::A,
+            EditError::SlotVarKind {
+                slot: editor_core::SlotId::Operand(OperandSlot::A),
                 found: VarKind::Bodies,
-                expected: OperandKind::Is(VarKind::Body),
+                expected: SlotKind::Is(VarKind::Body),
                 ..
             }
         ),

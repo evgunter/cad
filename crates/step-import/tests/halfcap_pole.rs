@@ -95,3 +95,108 @@ fn a_split_vertex_a_hair_off_the_pole_certifies_through_the_door() {
     certifies_exactly("halfcap_eps6.step");
     certifies_exactly("halfcap_eps7.step");
 }
+
+/// The imported solid of fixture `name`, at the run's tolerance.
+fn imported(name: &str) -> topo::Body<f64> {
+    let Ok(StepImport::Solid { body, .. }) =
+        import_step(&fixture(name), &ImportOptions::default(), Tol::witness())
+    else {
+        panic!("{name} must import as a solid");
+    };
+    body
+}
+
+/// **The join door refuses whole** (`Body::join_edges`).
+/// `halfcap_nosplit`'s meridian is one arc through the pole; split it
+/// once at an ordinary point (a joinable vertex, first in arena order)
+/// and once inside the band from the pole (a vertex whose distance from
+/// the chart's singular set reads in the band). The door refuses
+/// `JoinUndecided` before any kill, so the ordinary vertex is not
+/// joined either and the body is exactly as it was.
+#[test]
+fn a_join_refused_in_the_band_leaves_the_body_as_found() {
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
+    let mut body = imported("halfcap_nosplit.step");
+    let (sphere_centre, sphere_axis) = body
+        .faces()
+        .find_map(|(_, f)| match body.get_surface(f.surface) {
+            Some(geom::Surface::Sphere { center, axis, .. }) => Some((*center, *axis)),
+            _ => None,
+        })
+        .expect("a sphere face");
+    // The arc through the pole: a circle edge whose span holds the pole
+    // in its interior; `t_pole` is the pole's parameter on it.
+    let (arc, (t0, t1), t_pole, radius) = body
+        .edges()
+        .find_map(|(e, d)| {
+            let c = body.get_curve_geom(d.curve)?.certified()?;
+            let geom::Curve3::Circle { radius, .. } = c.carrier() else {
+                return None;
+            };
+            let (t0, t1) = c.params();
+            [1.0, -1.0].into_iter().find_map(|s| {
+                let pole = sphere_centre + sphere_axis * (s * radius);
+                let t = c.carrier().param_near(pole, 0.5 * (t0 + t1))?;
+                let on = (c.carrier().eval(t) - pole).norm() < 1e-12 && t0 < t && t < t1;
+                on.then_some((e, (t0, t1), t, *radius))
+            })
+        })
+        .expect("the meridian arc through the pole");
+    // An ordinary point halfway from the arc's start to the pole, then a
+    // point a mid-band distance past the pole.
+    let ordinary = body.split_edge(arc, 0.5 * (t0 + t_pole), tol).unwrap();
+    let near = 0.5 * (band.zero() + band.escalate());
+    let tail = body
+        .edges()
+        .map(|(e, _)| e)
+        .find(|&e| {
+            body.get_curve_geom(body.get_edge(e).unwrap().curve)
+                .and_then(topo::CurveGeom::certified)
+                .is_some_and(|c| {
+                    let (a, b) = c.params();
+                    a < t_pole && t_pole < b && b <= t1
+                })
+        })
+        .expect("the piece through the pole");
+    body.split_edge(tail, t_pole + near / radius, tol).unwrap();
+    assert_eq!(
+        topo::joinable_vertices(&body, geom_core::Band::new(1e-300, 2e-300).unwrap())
+            .unwrap()
+            .first(),
+        Some(&ordinary.vertex),
+        "the ordinary vertex comes first in arena order"
+    );
+    let before = format!("{body:?}");
+    assert!(matches!(
+        body.join_edges(band, tol),
+        Err(topo::BooleanError::JoinUndecided(_))
+    ));
+    assert_eq!(format!("{body:?}"), before, "refused, so untouched");
+}
+
+/// **A curved join leaves no row on a dead cell.** `halfcap.step`
+/// splits the meridian arc with one ordinary vertex; the join door
+/// takes it back into one arc of the sphere's chart, and every pcurve
+/// and joint row the body carries afterwards is keyed by a live
+/// half-edge, the body passing tier 3.
+#[test]
+fn a_curved_join_leaves_no_row_on_a_dead_cell() {
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
+    let mut body = imported("halfcap.step");
+    assert!(body.pcurves().next().is_some(), "the import carries rows");
+    let joins = body.join_edges(band, tol).unwrap();
+    assert_eq!(joins.len(), 1, "the ordinary split vertex is joined");
+    assert!(body.get_vertex(joins[0].vertex).is_none());
+    for (h, _) in body.pcurves() {
+        assert!(
+            body.get_half_edge(h).is_some(),
+            "a pcurve row on dead {h:?}"
+        );
+    }
+    for (h, _) in body.joints() {
+        assert!(body.get_half_edge(h).is_some(), "a joint row on dead {h:?}");
+    }
+    topo::validate_geometric(&body, tol).unwrap();
+}

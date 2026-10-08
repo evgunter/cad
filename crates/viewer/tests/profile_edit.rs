@@ -623,7 +623,7 @@ fn a_move_whose_first_argument_alone_crosses_still_lands() {
             step: 0,
             arg: StepArg::PointX,
         },
-        expr: common::len(0.02),
+        value: common::len(0.02).into(),
         fresh: Vec::new(),
     };
     assert!(

@@ -15,7 +15,7 @@ The recipe admits three reference shapes, and every node is built from them:
 - **A DAG edge**: an operand's read of an output variable (D10), typed
   by the kind its slot admits, liveness- and cycle-checked at the edit
   door (`edit.rs`, `lower_operand`: `OperandUnresolved`,
-  `OperandVarKind`, `WouldCycle`), enumerated by `Doc::upstream`. Ids are
+  `SlotVarKind`, `WouldCycle`), enumerated by `Doc::upstream`. Ids are
   minted from the document's mint chain and never reused (D3, N1; `mint.rs`).
 - **A frozen `StableName`**: `{ kind, node, path }` (N1, `names/role.rs`),
   stored at authoring and resolved at evaluation through a name table under
@@ -317,7 +317,8 @@ hand-written snapshot never passes an edit door. Refusal:
 `EditError::DuplicateInput { node, input }` at the edit doors, the
 validator's own `SnapshotError` arm at load.
 
-Distinctness is over reads, and only reads. Two distinct nodes that
+Distinctness is over the operations read, and only those: two outputs of
+one operation are that node reached twice. Two distinct nodes that
 evaluate to one body — two `Part`s selecting one half of a split, or
 `Part(Instance(0))` beside its master — meet DM5, and the boolean answers
 them as it answers any operands whose shells coincide by structure or by
@@ -330,7 +331,7 @@ result.
 
 A read changes only by an edit that names its new variable in full. An
 operand slot is written by the one slot door every slot has: the formula
-lowers to a read of the slot's kind (`OperandVarKind` otherwise), the read is
+lowers to a read of the slot's kind (`SlotVarKind` otherwise), the read is
 live, and the rewritten node passes the checks the insert door and
 `SetMembers` already make of a node's reads (DM5's distinctness,
 acyclicity over reads). A list operand is the same door with a list. The

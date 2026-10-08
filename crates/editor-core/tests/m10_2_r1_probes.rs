@@ -859,9 +859,9 @@ fn r1_ops_refuse_measurement_operands_typed() {
     assert!(
         matches!(
             &refusal,
-            editor_core::EditError::OperandVarKind {
+            editor_core::EditError::SlotVarKind {
                 found: editor_core::VarKind::Length,
-                expected: editor_core::OperandKind::Placeable,
+                expected: editor_core::SlotKind::Placeable,
                 ..
             }
         ),

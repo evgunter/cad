@@ -423,7 +423,7 @@ fn a_parameter_drives_a_rigid_steps_angle() {
         DocEdit::SetParam {
             node: placed,
             slot: angle,
-            expr: ang(quarter),
+            value: ang(quarter).into(),
             fresh: Vec::new(),
         },
     );
@@ -437,7 +437,7 @@ fn a_parameter_drives_a_rigid_steps_angle() {
         &DocEdit::SetParam {
             node: placed,
             slot: SlotId::RotationAngle,
-            expr: ang(quarter),
+            value: ang(quarter).into(),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -535,7 +535,7 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
     let set = DocEdit::SetParam {
         node: t,
         slot: SlotId::rigid(2, RigidArg::Translation(Axis3::Y)),
-        expr: len(-0.0),
+        value: len(-0.0).into(),
         fresh: Vec::new(),
     };
     let (doc, _) = step(doc, set.clone());
@@ -562,7 +562,7 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
                 DocEdit::SetParam {
                     node: t,
                     slot: SlotId::rigid(1, RigidArg::RotationAngle),
-                    expr: ang(0.5),
+                    value: ang(0.5).into(),
                     fresh: Vec::new(),
                 }
             ),

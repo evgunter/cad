@@ -205,7 +205,7 @@ fn p4_thick_wall_bump_refuses_typed_with_numbers() {
             &DocEdit::SetParam {
                 node: shell,
                 slot: SlotId::ShellThickness,
-                expr: fixture::len(t),
+                value: fixture::len(t).into(),
                 fresh: Vec::new(),
             },
             Tol::witness(),

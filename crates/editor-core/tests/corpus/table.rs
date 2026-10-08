@@ -174,7 +174,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: first_leg,
             slot: SlotId::Distance,
-            expr: len(1.0625),
+            value: len(1.0625).into(),
             fresh: Vec::new(),
         },
         bump_root: first_leg,

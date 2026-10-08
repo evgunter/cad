@@ -264,20 +264,20 @@ fn split_through_a_reflex_corner_names_its_copy_on_each_half() {
     );
 }
 
-// ---- R7: pattern of a multi-body master must refuse TYPED (never
-// silently conflate the split halves under instance body indices). ----
+// ---- R7: a pattern never conflates a split's halves under instance
+// body indices. ----
 //
-// **R7 register, narrowed (ASM-2K, PR #381).** This row is the whole
-// of what R7 still defers. The refusal is scoped to a master with
-// several output BODIES — body index is the instance index there, so
-// admitting one needs a ratified instance×body layout. A master whose
-// single body holds several SOLIDS is NOT this case and is admitted:
-// `Instance(i)` wraps every name uniformly, pinned by
-// `names::emit::pattern_tests` (the rule is stated at `name_pattern`'s
-// docs). The multi-solid reading of R7 retires there; this row stands.
+// **R7 register, closed by reads (INTENT stage 2 unit B).** The
+// deferral was a master with several output BODIES — body index is
+// the instance index there. A split named alone is either of its two
+// bodies, so the door refuses it as a pattern's operand
+// (`AmbiguousOutput`), and a read of one port IS that half: the
+// pattern is a pattern of one body, named as the pattern of
+// `Part { SplitHalf }` is. A master whose single body holds several
+// SOLIDS was always admitted (`names::emit::pattern_tests`).
 
 #[test]
-fn pattern_of_split_output_refuses_typed_never_misnames() {
+fn a_pattern_of_a_split_port_is_the_pattern_of_its_half() {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_rework", Tol::witness());
     let (doc, d) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 2.0);
     let (doc, plane) = insert(
@@ -294,29 +294,44 @@ fn pattern_of_split_output_refuses_typed_never_misnames() {
             tool: plane.into(),
         },
     );
-    let (doc, pat) = insert(
+    let pattern = |input: editor_core::Operand| Node::Pattern {
+        input,
+        count: editor_core::Formula::count(2),
+        kind: editor_core::PatternKind::Linear {
+            direction: [scl(1.0), scl(0.0), scl(0.0)],
+            spacing: len(5.0),
+        },
+    };
+    let refusal = crate::fixture::insert_refused(&doc, pattern(sp.into()));
+    assert!(
+        matches!(&refusal, editor_core::EditError::AmbiguousOutput { input, .. } if input.id() == sp),
+        "a split named alone is either half: {refusal:?}"
+    );
+    let (doc, half) = insert(
         doc,
-        Node::Pattern {
-            // One half, by its port: a split named alone is either.
-            input: editor_core::Operand::Output { node: sp, port: 0 },
-            count: editor_core::Formula::count(2),
-            kind: editor_core::PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(5.0),
-            },
+        Node::Part {
+            of: sp.into(),
+            select: editor_core::PartSelect::SplitHalf(editor_core::SplitHalf::Above),
         },
     );
-    let ev = run(&doc);
-    assert!(
-        ev.value(pat).is_none(),
-        "pattern of a split output must refuse (typed), got a value"
+    let (doc, by_port) = insert(
+        doc,
+        pattern(editor_core::Operand::Output { node: sp, port: 0 }),
     );
-    let err = format!("{:?}", ev.nodes.get(&pat));
-    assert!(
-        matches!(
-            ev.node_error(pat).map(|e| e.kind.class()),
-            Some(NodeErrorClass::WrongOperand | NodeErrorClass::Naming)
-        ),
-        "expected a typed refusal, got: {err}"
+    let (doc, by_part) = insert(doc, pattern(half.into()));
+    let ev = run(&doc);
+    let (port, part) = (
+        ev.value(by_port)
+            .unwrap_or_else(|| panic!("{:?}", ev.nodes.get(&by_port))),
+        ev.value(by_part).expect("the part spelling patterns"),
+    );
+    // Each pattern mints its own copies' names; read the port
+    // spelling's as the part spelling's, and the two are one.
+    let as_part = format!("{:?}", port.name_table)
+        .replace(&format!("{:?}", by_port.0), &format!("{:?}", by_part.0));
+    assert_eq!(
+        as_part,
+        format!("{:?}", part.name_table),
+        "the port's copies are named as the half's"
     );
 }

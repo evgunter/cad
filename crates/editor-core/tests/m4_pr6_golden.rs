@@ -436,8 +436,9 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     let edits = vec![DocEdit::SetParam {
         node: bulged,
         slot: editor_core::SlotId::Distance,
-        expr: editor_core::parse_formula("500 mm", &std::collections::BTreeMap::new())
-            .expect("golden unit literal"),
+        value: editor_core::parse_formula("500 mm", &std::collections::BTreeMap::new())
+            .expect("golden unit literal")
+            .into(),
         fresh: Vec::new(),
     }];
     (doc, edits)

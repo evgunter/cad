@@ -100,7 +100,7 @@ fn a_second_cut_on_a_seam_leaves_the_other_pieces_names() {
         DocEdit::SetParam {
             node: tr,
             slot: SlotId::Translation(Axis3::Y),
-            expr: len(-4.0),
+            value: len(-4.0).into(),
             fresh: Vec::new(),
         },
     );
@@ -198,7 +198,7 @@ fn a_second_crossing_by_the_same_face_keeps_the_first_crossing_and_its_pieces_na
         DocEdit::SetParam {
             node: tool,
             slot: SlotId::Normal(Axis3::X),
-            expr: scl(nx),
+            value: scl(nx).into(),
             fresh: Vec::new(),
         },
     );
@@ -207,7 +207,7 @@ fn a_second_crossing_by_the_same_face_keeps_the_first_crossing_and_its_pieces_na
         DocEdit::SetParam {
             node: tool,
             slot: SlotId::Normal(Axis3::Y),
-            expr: scl(ny),
+            value: scl(ny).into(),
             fresh: Vec::new(),
         },
     );

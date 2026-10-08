@@ -420,7 +420,7 @@ pub fn held_program(
             Some(&var) if doc.is_typed_value(var) => None,
             Some(&var) => Some((
                 slot,
-                doc.unparse(&doc.written(&Expr::var(var, slot.dimension()))),
+                doc.unparse(&doc.written(&Expr::var(var, slot.expr_dimension()))),
             )),
             None => Some((slot, String::new())),
         })

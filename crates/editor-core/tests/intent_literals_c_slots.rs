@@ -218,7 +218,7 @@ fn a_rewritten_slot_retires_the_variable_its_formula_minted() {
         DocEdit::SetParam {
             node: blend,
             slot: SlotId::Radius,
-            expr: named("w"),
+            value: named("w").into(),
             fresh: Vec::new(),
         },
     );
@@ -806,8 +806,8 @@ fn the_load_door_reads_every_slots_variable() {
         Err(PersistError::Snapshot(SnapshotError::SlotVarKind {
             node,
             slot,
-            declared,
-            referenced,
+            found: declared,
+            expected: editor_core::SlotKind::Is(referenced),
             ..
         })) => assert_eq!(
             (node.id(), slot, declared, referenced),
@@ -815,7 +815,7 @@ fn the_load_door_reads_every_slots_variable() {
                 point,
                 SlotId::Origin(editor_core::Axis3::Y),
                 editor_core::VarKind::Count,
-                Dimension::Length
+                editor_core::VarKind::Length
             )
         ),
         other => panic!("a length slot reading a count refuses, got {other:?}"),
@@ -856,8 +856,8 @@ fn the_load_door_reads_every_slots_variable() {
         Err(PersistError::Snapshot(SnapshotError::SlotVarKind {
             node,
             slot,
-            declared,
-            referenced,
+            found: declared,
+            expected: editor_core::SlotKind::Is(referenced),
             ..
         })) => assert_eq!(
             (node.id(), slot, declared, referenced),
@@ -865,7 +865,7 @@ fn the_load_door_reads_every_slots_variable() {
                 pattern,
                 SlotId::Count,
                 editor_core::VarKind::Length,
-                Dimension::Count
+                editor_core::VarKind::Count
             )
         ),
         other => panic!("a count slot reading a length refuses, got {other:?}"),

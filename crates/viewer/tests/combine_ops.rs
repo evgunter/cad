@@ -1862,7 +1862,7 @@ fn a_tool_closes_on_its_own_committed_edit() {
 ///
 /// The check drives the REAL door: each candidate node is offered as a
 /// `Node::Shell`'s target, a slot that reads one `Body`, and the edit
-/// door's answer is the verdict — a kind refusal (`OperandVarKind`, or
+/// door's answer is the verdict — a kind refusal (`SlotVarKind`, or
 /// `AmbiguousOutput` for a node of two bodies named alone) means the
 /// door refused the candidate as an operand, and acceptance means it
 /// did not. Both directions are asserted as one equality: a kind the
@@ -2179,7 +2179,7 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
         );
         let refused_as_operand = matches!(
             probe,
-            Err(EditError::OperandVarKind { .. } | EditError::AmbiguousOutput { .. })
+            Err(EditError::SlotVarKind { .. } | EditError::AmbiguousOutput { .. })
         );
         assert_eq!(
             admitted,

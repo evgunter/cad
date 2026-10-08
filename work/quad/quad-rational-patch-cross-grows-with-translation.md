@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-02
 priority: P2
 cost: M
-refs: [rational-chart-sup-speed-grows-with-translation, a-translated-arc-prism-panics-the-area-gauge-through-mass-properties, 3863]
+refs: [a-translated-arc-prism-panics-the-area-gauge-through-mass-properties, 3863]
 ---
 
 

@@ -159,7 +159,7 @@ fn slide_to(s: &Slide, tx: f64) -> ProfileDoc {
         DocEdit::SetParam {
             node: s.transform,
             slot: SlotId::Translation(editor_core::Axis3::X),
-            expr: len(tx),
+            value: len(tx).into(),
             fresh: Vec::new(),
         },
     );
@@ -656,7 +656,7 @@ fn instance_of_vanished_master_name_diagnoses_cascade() {
         DocEdit::SetParam {
             node: s.transform,
             slot: SlotId::Translation(editor_core::Axis3::X),
-            expr: len(2.5),
+            value: len(2.5).into(),
             fresh: Vec::new(),
         },
     );
@@ -731,7 +731,7 @@ fn failed_and_poisoned_targets_resolve_indeterminate_not_vanished() {
         DocEdit::SetParam {
             node: a,
             slot: SlotId::Distance,
-            expr: len(0.0),
+            value: len(0.0).into(),
             fresh: Vec::new(),
         },
     );

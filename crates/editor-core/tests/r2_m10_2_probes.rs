@@ -1136,9 +1136,9 @@ fn r2_a_transform_has_no_emission_to_measure() {
 // ===============================================================
 
 /// **A corrupt v16 file is refused typed at the LOAD door**, for each
-/// of the three structural faults the edit door refuses: an
-/// out-of-range primitive index, a dimension-mismatched assertion
-/// bound, and an assertion pointed at something that is not a measure.
+/// of the structural faults the edit door refuses: a
+/// dimension-mismatched assertion bound, and an assertion reading
+/// something that is no value.
 ///
 /// The corruption is done on the SERIALIZED text, not by building an
 /// illegal document in memory, so this exercises the door a real
@@ -1172,30 +1172,9 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
     );
     eprintln!("R2/load: saved file is\n{text}");
 
-    // (a) index out of range: rewrite the primitive's `b` index to a
-    // reference the node does not carry. The exact spelling depends on
-    // the wire shape, so several candidates are tried and the row
-    // requires that at least one corruption applied AND was refused.
-    let mut applied = 0usize;
-    for (from, to) in [
-        ("\"b\": 1", "\"b\": 9"),
-        ("\"b\":1", "\"b\":9"),
-        ("\"inner\": 1", "\"inner\": 9"),
-    ] {
-        let corrupt = text.replacen(from, to, 1);
-        if corrupt == text {
-            continue;
-        }
-        applied += 1;
-        match editor_core::load(&corrupt, Tol::witness()) {
-            Err(e) => eprintln!("R2/load: out-of-range index refused: {e}"),
-            Ok(_) => panic!("an out-of-range primitive index LOADED ({from} -> {to})"),
-        }
-    }
-    assert!(
-        applied > 0,
-        "no index corruption applied; the wire shape moved"
-    );
+    // (a) was an out-of-range primitive index. A primitive carries its
+    // references since D10's one-primitive measure, so there is no
+    // index left to put out of range; the row keeps its letters.
 
     // (b) and (c): the edit door's own refusals, which the load door
     // re-runs verbatim through the same `validate_snapshot` walk.
@@ -1445,10 +1424,14 @@ fn r2_a_measured_quotient_that_is_not_finite_refuses() {
         MeasureExpr::value(Formula::named(VarName::from_static("s"), Dimension::Scalar)),
     )
     .expect("Length / Scalar is a Length");
-    let (d2, measured) = crate::fixture::measure(d1.clone(), &expr, &[
-        SitedRef::at_mint(vs[0].clone()),
-        SitedRef::at_mint(vs[7].clone()),
-    ]);
+    let (d2, measured) = crate::fixture::measure(
+        d1.clone(),
+        &expr,
+        &[
+            SitedRef::at_mint(vs[0].clone()),
+            SitedRef::at_mint(vs[7].clone()),
+        ],
+    );
     let d3 = push(
         &d2,
         &DocEdit::InsertNode {
@@ -1509,10 +1492,14 @@ fn r2_an_assertion_over_a_non_finite_measure() {
         MeasureExpr::value(Formula::named(VarName::from_static("s"), Dimension::Scalar)),
     )
     .expect("Length / Scalar");
-    let (d2, measured) = crate::fixture::measure(d1.clone(), &expr, &[
-        SitedRef::at_mint(vs[0].clone()),
-        SitedRef::at_mint(vs[7].clone()),
-    ]);
+    let (d2, measured) = crate::fixture::measure(
+        d1.clone(),
+        &expr,
+        &[
+            SitedRef::at_mint(vs[0].clone()),
+            SitedRef::at_mint(vs[7].clone()),
+        ],
+    );
     let Ok(d3) = try_push(
         &d2,
         &DocEdit::InsertNode {

@@ -565,7 +565,7 @@ fn a_gauge_is_read_by_no_operand_and_folds_cleanly() {
         },
     );
     assert!(
-        matches!(&err, EditError::DefinesNothing { input, slot: editor_core::OperandSlot::Plane } if input.id() == g),
+        matches!(&err, EditError::DefinesNothing { input, slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Plane) } if input.id() == g),
         "{err:?}"
     );
     let folded = fold(doc, g);

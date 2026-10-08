@@ -100,15 +100,26 @@ fn measure_arithmetic_is_a_definition_the_assertion_reads() {
     assert!(held.def().defined().is_some(), "arithmetic is a definition");
     assert_eq!(doc.var_name(value), None, "an anonymous one");
     assert_eq!(held.kind().dimension(), Some(Dimension::Length));
-    assert!(doc.observed().contains(&value), "a definition over outputs is observed");
+    assert!(
+        doc.observed().contains(&value),
+        "a definition over outputs is observed"
+    );
 
     let ev = crate::corpus::eval::<f64>(&doc);
     let reading = |out| fixture::reading(&doc, &ev, out).expect("a measure reads");
     let (deep, unit) = (reading(measured.outputs[0]), reading(measured.outputs[1]));
-    assert_eq!((deep, unit), (2.5, 1.0), "each measure is its own slab's depth");
+    assert_eq!(
+        (deep, unit),
+        (2.5, 1.0),
+        "each measure is its own slab's depth"
+    );
     match verdict(&ev, assertion) {
         AssertionVerdict::Holds { measured, bound } => {
-            assert_eq!(measured.to_bits(), (deep - unit).to_bits(), "the operands in order");
+            assert_eq!(
+                measured.to_bits(),
+                (deep - unit).to_bits(),
+                "the operands in order"
+            );
             assert_eq!(bound.to_bits(), 1.0f64.to_bits());
         }
         other => panic!("1.5 >= 1 holds, got {other:?}"),
@@ -132,7 +143,7 @@ fn measure_arithmetic_is_a_definition_the_assertion_reads() {
         DocEdit::SetParam {
             node: b,
             slot: SlotId::Distance,
-            expr: Formula::named(VarName::new("h").unwrap(), Dimension::Length),
+            value: Formula::named(VarName::new("h").unwrap(), Dimension::Length).into(),
             fresh: Vec::new(),
         },
     )
@@ -148,10 +159,17 @@ fn measure_arithmetic_is_a_definition_the_assertion_reads() {
         Tol::witness(),
     );
     let lane = |var| fixture::reading(&doc, &seeded, var).expect("reads at Dual64");
-    let (web, deep, unit) = (lane(value), lane(measured.outputs[0]), lane(measured.outputs[1]));
+    let (web, deep, unit) = (
+        lane(value),
+        lane(measured.outputs[0]),
+        lane(measured.outputs[1]),
+    );
     assert_eq!(web.value.to_bits(), (deep.value - unit.value).to_bits());
     assert_eq!(web.deriv.to_bits(), (deep.deriv - unit.deriv).to_bits());
-    assert_eq!(web.deriv, 1.0, "the deep slab's depth is the seeded variable");
+    assert_eq!(
+        web.deriv, 1.0,
+        "the deep slab's depth is the seeded variable"
+    );
 }
 
 /// **(D, test 14) Observed is read only by an assertion.** A
@@ -169,16 +187,19 @@ fn an_observed_variable_is_read_only_by_an_assertion() {
         caps(a).to_vec(),
     );
     let out = fixture::output(&doc, measure);
-    let refused = |doc: &ProfileDoc, edit: DocEdit<editor_core::ProfileProgram>| {
-        match apply(doc, &edit, Tol::witness(), &editor_core::RefusingReach) {
-            Ok(_) => panic!("a construction reading a measured value was accepted"),
-            Err(refusal) => refusal,
-        }
+    let refused = |doc: &ProfileDoc, edit: DocEdit<editor_core::ProfileProgram>| match apply(
+        doc,
+        &edit,
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    ) {
+        Ok(_) => panic!("a construction reading a measured value was accepted"),
+        Err(refusal) => refusal,
     };
     let set_depth = |expr: Formula| DocEdit::SetParam {
         node: b,
         slot: SlotId::Distance,
-        expr,
+        value: expr.into(),
         fresh: Vec::new(),
     };
 
@@ -188,6 +209,23 @@ fn an_observed_variable_is_read_only_by_an_assertion() {
             assert_eq!((node.id(), slot, var.id()), (b, SlotId::Distance, out));
         }
         other => panic!("a slot reading a measure's output refuses, got {other:?}"),
+    }
+    // As a read, written.
+    match apply(
+        &doc,
+        &DocEdit::SetParam {
+            node: b,
+            slot: SlotId::Distance,
+            value: editor_core::Operand::from(out).into(),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    ) {
+        Err(EditError::ConstructionReadsObserved { node, slot, var }) => {
+            assert_eq!((node.id(), slot, var.id()), (b, SlotId::Distance, out));
+        }
+        other => panic!("a slot's read of a measure's output refuses, got {other:?}"),
     }
     // Through a definition the slot's own formula defines.
     let doc = fixture::step(
@@ -223,7 +261,10 @@ fn an_observed_variable_is_read_only_by_an_assertion() {
     .0;
     let doc = fixture::step(
         doc,
-        set_depth(Formula::named(VarName::new("depth").unwrap(), Dimension::Length)),
+        set_depth(Formula::named(
+            VarName::new("depth").unwrap(),
+            Dimension::Length,
+        )),
     )
     .0;
     match refused(
@@ -267,7 +308,11 @@ fn an_observed_variable_is_read_only_by_an_assertion() {
     load(&text, Tol::witness()).expect("its own bytes load");
     let corrupt = doctored(&text, |wire| {
         let field = &mut wire["snapshot"]["nodes"][b.0.to_string()]["Extrude"]["distance"];
-        assert_eq!(*field, serde_json::json!(depth.0), "aimed at the extrude's depth");
+        assert_eq!(
+            *field,
+            serde_json::json!(depth.0),
+            "aimed at the extrude's depth"
+        );
         *field = serde_json::json!(out.0);
     });
     match load(&corrupt, Tol::witness()) {
@@ -287,9 +332,7 @@ fn a_measure_key_reads_its_sites_by_content_not_by_id() {
     let (doc, a, _) = slabs("s2d-key", 2.5);
     let (doc, first) = insert(doc, xform(a, [0.0; 3], [0.0, 0.0, 1.0], 0.0));
     let (doc, second) = insert(doc, xform(a, [0.0; 3], [0.0, 0.0, 1.0], 0.0));
-    let at = |site| {
-        caps(a).map(|r| editor_core::SitedRef::new(site, r.name))
-    };
+    let at = |site| caps(a).map(|r| editor_core::SitedRef::new(site, r.name));
     let distance = |[a, b]: [editor_core::SitedRef; 2]| Node::Measure {
         primitive: MeasurePrimitive::Distance { a, b },
     };

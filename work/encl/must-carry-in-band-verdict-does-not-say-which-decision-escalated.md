@@ -4,6 +4,7 @@ kind: issue
 title: geom-brep: MustCarryVerdict::InBand carries a station's escalation without saying whether the wedge or the second-order question escalated
 status: open
 opened: 2026-10-01
+priority: P3
 ---
 
 

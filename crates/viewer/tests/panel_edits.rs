@@ -242,7 +242,7 @@ fn the_edit_doors_refuse_both_directions_of_the_count_divide() {
         &DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
-            expr: pncad::document::Formula::count(3),
+            value: pncad::document::Formula::count(3).into(),
             fresh: Vec::new(),
         },
         tol,
@@ -258,7 +258,10 @@ fn the_edit_doors_refuse_both_directions_of_the_count_divide() {
             // reading of itself: this is the row that says WHICH
             // dimensions the door reported.
             assert_eq!(slot, SlotId::Distance);
-            assert_eq!(expected, Dimension::Length);
+            assert_eq!(
+                expected,
+                pncad::document::SlotKind::Is(pncad::document::VarKind::Length)
+            );
             assert_eq!(found, Dimension::Count);
         }
         other => panic!("a Count literal in a Length slot must be refused, got {other:?}"),
@@ -282,7 +285,10 @@ fn the_edit_doors_refuse_both_directions_of_the_count_divide() {
             found,
         }) => {
             assert_eq!(slot, SlotId::Count);
-            assert_eq!(expected, Dimension::Count);
+            assert_eq!(
+                expected,
+                pncad::document::SlotKind::Is(pncad::document::VarKind::Count)
+            );
             assert_eq!(found, Dimension::Length);
         }
         other => panic!("a Length literal in a Count slot must be refused, got {other:?}"),
@@ -314,15 +320,18 @@ fn the_load_door_refuses_a_count_literal_in_a_continuous_slot() {
             pncad::document::SnapshotError::SlotVarKind {
                 node,
                 slot,
-                declared,
-                referenced,
+                found,
+                expected,
                 ..
             },
         )) => {
             assert_eq!(node.id(), extrude);
             assert_eq!(slot, SlotId::Distance);
-            assert_eq!(declared, pncad::document::VarKind::Count);
-            assert_eq!(referenced, Dimension::Length);
+            assert_eq!(found, pncad::document::VarKind::Count);
+            assert_eq!(
+                expected,
+                pncad::document::SlotKind::Is(pncad::document::VarKind::Length)
+            );
         }
         other => panic!("the load door must refuse a Count distance, got {other:?}"),
     }
@@ -1680,7 +1689,7 @@ fn a_count_slot_refuses_a_value_that_is_not_a_number() {
     ] {
         assert!(slot.is_structural(), "{slot:?} is not a structural slot");
         assert!(
-            SlotValue::of(slot.dimension(), f64::INFINITY).is_err(),
+            SlotValue::of(slot.expr_dimension(), f64::INFINITY).is_err(),
             "{slot:?} took an infinite count"
         );
     }

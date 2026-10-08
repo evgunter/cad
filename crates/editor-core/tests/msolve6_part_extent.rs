@@ -92,7 +92,7 @@ fn resized(part: ProfileDoc, half: f64, height: f64) -> ProfileDoc {
         DocEdit::SetParam {
             node: body,
             slot: editor_core::SlotId::Distance,
-            expr: len(height),
+            value: len(height).into(),
             fresh: Vec::new(),
         },
     );

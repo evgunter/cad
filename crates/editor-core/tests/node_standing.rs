@@ -90,7 +90,7 @@ impl Standings {
             DocEdit::SetParam {
                 node: failed,
                 slot: SlotId::Distance,
-                expr: len(0.0),
+                value: len(0.0).into(),
                 fresh: Vec::new(),
             },
         );
@@ -545,7 +545,7 @@ fn reads(code: &str) -> usize {
 /// [`reads`]'s hits in the file's code; a hit added anywhere reds, and
 /// the answer is to read through `Evaluation::usable` or to give the
 /// file its line here.
-const READERS: [(&str, usize, &str); 11] = [
+const READERS: [(&str, usize, &str); 12] = [
     (
         "crates/editor-core/src/eval/mod.rs",
         25,
@@ -553,8 +553,16 @@ const READERS: [(&str, usize, &str); 11] = [
     ),
     (
         "crates/editor-core/src/eval/wire.rs",
+        7,
+        "the op wiring holds the result map as it is written, and reads it through `usable_in`; \
+         a read of a split's port copies the standing entries and writes the half it projects \
+         (`split_ports_projected`), every read still through `value_of`",
+    ),
+    (
+        "crates/editor-core/src/eval/measure.rs",
         2,
-        "the op wiring holds the result map as it is written, and reads it through `usable_in`",
+        "the observed binding holds the result map by type, as the op wiring does, and reads \
+         a measure's row only through `usable_in`",
     ),
     ("crates/editor-core/src/lib.rs", 1, "re-exports the type"),
     (

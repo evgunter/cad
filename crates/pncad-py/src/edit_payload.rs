@@ -44,15 +44,15 @@ use pncad::document::{
 use pncad::prelude::StableName;
 use pncad::select::EntityKind;
 
-use crate::errors::{dimension_tag, operand_kind_tag, var_kind_tag};
-use crate::tags::{attr_kind_tag, operand_slot_tag, slot_id_tag};
+use crate::errors::{dimension_tag, slot_kind_tag, var_kind_tag};
+use crate::tags::{attr_kind_tag, slot_id_tag};
 
-/// The position an operand slot names inside its list, for a loft's
-/// section or a union's member.
-fn operand_index(slot: &pncad::document::OperandSlot) -> Option<usize> {
+/// The position a slot names inside a list, for a loft's section or a
+/// union's member.
+fn operand_index(slot: &pncad::document::SlotId) -> Option<usize> {
     use pncad::document::OperandSlot as S;
     match slot {
-        S::Section(i) | S::Member(i) => usize::try_from(*i).ok(),
+        pncad::document::SlotId::Operand(S::Section(i) | S::Member(i)) => usize::try_from(*i).ok(),
         _ => None,
     }
 }
@@ -391,34 +391,19 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             count: Some(*found),
             ..none
         },
-        // An operand's slot rides `slot` in the operand vocabulary
-        // ([`operand_slot_tag`]), and a section's or a member's position
-        // rides `index`.
-        EditError::OperandUnresolved { node, slot, read: _ }
-        | EditError::UnknownOperand { node, slot } => EditPayload {
+        // An operand's slot rides `slot` in the slot vocabulary, its
+        // field's word, and a section's or a member's position rides
+        // `index`.
+        EditError::OperandUnresolved { node, slot, read: _ } => EditPayload {
             node: Some(node.id()),
-            slot: Some(operand_slot_tag(slot)),
+            slot: Some(slot_id_tag(slot)),
             index: operand_index(slot),
-            ..none
-        },
-        EditError::OperandVarKind {
-            var: _,
-            node,
-            slot,
-            found,
-            expected,
-        } => EditPayload {
-            node: Some(node.id()),
-            slot: Some(operand_slot_tag(slot)),
-            index: operand_index(slot),
-            expected: Some(operand_kind_tag(*expected)),
-            found: Some(var_kind_tag(*found)),
             ..none
         },
         EditError::AmbiguousOutput { input, slot } | EditError::DefinesNothing { input, slot } => {
             EditPayload {
                 input: Some(input.id()),
-                slot: Some(operand_slot_tag(slot)),
+                slot: Some(slot_id_tag(slot)),
                 index: operand_index(slot),
                 ..none
             }
@@ -430,6 +415,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         EditError::UnknownSlot { id, slot } => EditPayload {
             node: Some(id.id()),
             slot: Some(slot_id_tag(slot)),
+            index: operand_index(slot),
             ..none
         },
         EditError::SlotDimensionMismatch {
@@ -438,7 +424,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             found,
         } => EditPayload {
             slot: Some(slot_id_tag(slot)),
-            expected: Some(dim(*expected)),
+            expected: Some(slot_kind_tag(*expected)),
             found: Some(dim(*found)),
             ..none
         },
@@ -473,18 +459,21 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             slot: Some(slot_id_tag(slot)),
             ..none
         },
+        // What the slot takes and the kind it was offered, at an
+        // expression's slot as at an operand's.
         EditError::SlotVarKind {
             var,
             node,
             slot,
-            declared,
-            referenced,
+            found,
+            expected,
         } => EditPayload {
             node: Some(node.id()),
             param: var.name(),
             slot: Some(slot_id_tag(slot)),
-            expected: Some(var_kind_tag(*declared)),
-            found: Some(dim(*referenced)),
+            index: operand_index(slot),
+            expected: Some(slot_kind_tag(*expected)),
+            found: Some(var_kind_tag(*found)),
             ..none
         },
         EditError::ContinuousVarCannotBeCount { var }

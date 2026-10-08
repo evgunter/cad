@@ -204,7 +204,7 @@ fn row4_node_edit_moves_pin() {
         DocEdit::SetParam {
             node: extrude,
             slot: editor_core::SlotId::Distance,
-            expr: len(0.625),
+            value: len(0.625).into(),
             fresh: Vec::new(),
         },
     );

@@ -454,7 +454,7 @@ fn r1_a_stale_verdict_still_mints_a_chamber_certificate() {
                 .nth(1)
                 .expect("the shaft has a boss extrude"),
             slot: editor_core::SlotId::Distance,
-            expr: len(0.75),
+            value: len(0.75).into(),
             fresh: Vec::new(),
         },
         Tol::witness(),

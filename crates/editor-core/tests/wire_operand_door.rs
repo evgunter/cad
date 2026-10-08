@@ -17,7 +17,7 @@
 //! **Most rows never reach evaluation**, and that is the finding they
 //! carry: an operand slot is typed by the kind of variable it reads,
 //! so the edit door refuses a read of the wrong kind
-//! ([`editor_core::EditError::OperandVarKind`]) before any operand
+//! ([`editor_core::EditError::SlotVarKind`]) before any operand
 //! door runs, and those `wire` refusals are defences behind a door
 //! rather than sentences a document author can read. Each is asserted
 //! as that edit-door refusal, both halves — the kind found and the
@@ -41,8 +41,8 @@ use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Datum, DocEdit, EditError, EvalOptions, Formula, Node, NodeErrorKind, OperandKind, PartSelect,
-    PatternKind, ProfileDoc, RecipeNodeId, SplitHalf, TubeWindow, VarKind,
+    Datum, DocEdit, EditError, EvalOptions, Formula, Node, NodeErrorKind, PartSelect, PatternKind,
+    ProfileDoc, RecipeNodeId, SlotKind, SplitHalf, TubeWindow, VarKind,
 };
 use fixture::{ang, desc, insert, len, on_frame_keeping, scl, square};
 use geom_core::Tol;
@@ -55,7 +55,7 @@ enum Owes {
     /// The edit door refuses the node's read, the kind found against
     /// the kind its slot admits, so no evaluation happens and the
     /// operand door behind it is unreachable from a document.
-    EditDoor(VarKind, OperandKind),
+    EditDoor(VarKind, SlotKind),
 }
 
 /// A miswired node: what it is, what it owes, and the operand the
@@ -174,7 +174,7 @@ fn wired() -> (
         doc,
         &mut rows,
         "body_operand over a plane datum (Shell)",
-        Owes::EditDoor(VarKind::Plane, OperandKind::Is(VarKind::Body)),
+        Owes::EditDoor(VarKind::Plane, SlotKind::Is(VarKind::Body)),
         Node::Shell {
             target: plane.into(),
             thickness: len(0.1),
@@ -186,7 +186,7 @@ fn wired() -> (
         doc,
         &mut rows,
         "body_operand over instances (Shell of a pattern)",
-        Owes::EditDoor(VarKind::Bodies, OperandKind::Is(VarKind::Body)),
+        Owes::EditDoor(VarKind::Bodies, SlotKind::Is(VarKind::Body)),
         Node::Shell {
             target: pattern.into(),
             thickness: len(0.1),
@@ -198,7 +198,7 @@ fn wired() -> (
         doc,
         &mut rows,
         "placeable_operand over a profile (Pattern)",
-        Owes::EditDoor(VarKind::Profile, OperandKind::Placeable),
+        Owes::EditDoor(VarKind::Profile, SlotKind::Placeable),
         Node::Pattern {
             input: profile.into(),
             count: Formula::count(2),
@@ -213,7 +213,7 @@ fn wired() -> (
         doc,
         &mut rows,
         "profile_plane_f64 (a profile drawn on a plane datum)",
-        Owes::EditDoor(VarKind::Plane, OperandKind::Is(VarKind::Frame)),
+        Owes::EditDoor(VarKind::Plane, SlotKind::Is(VarKind::Frame)),
         Node::Profile(desc(plane, vec![square(0.0, 0.0, 1.0)])),
         plane,
     );
@@ -221,7 +221,7 @@ fn wired() -> (
         doc,
         &mut rows,
         "frame_value (an in-plane axis written against a body)",
-        Owes::EditDoor(VarKind::Body, OperandKind::Is(VarKind::Frame)),
+        Owes::EditDoor(VarKind::Body, SlotKind::Is(VarKind::Frame)),
         fixture::axis_in_plane(body, (0.0, 0.0), (1.0, 0.0)),
         body,
     );
@@ -229,7 +229,7 @@ fn wired() -> (
         doc,
         &mut rows,
         "wire_swept (an Extrude of a plane datum)",
-        Owes::EditDoor(VarKind::Plane, OperandKind::Is(VarKind::Profile)),
+        Owes::EditDoor(VarKind::Plane, SlotKind::Is(VarKind::Profile)),
         Node::Extrude {
             profile: plane.into(),
             distance: len(1.0),
@@ -241,7 +241,7 @@ fn wired() -> (
         doc,
         &mut rows,
         "wire_revolve's profile pre-check (a Revolve of a plane datum)",
-        Owes::EditDoor(VarKind::Plane, OperandKind::Is(VarKind::Profile)),
+        Owes::EditDoor(VarKind::Plane, SlotKind::Is(VarKind::Profile)),
         Node::Revolve {
             profile: plane.into(),
             axis: axis3.into(),
@@ -265,7 +265,7 @@ fn wired() -> (
         doc,
         &mut rows,
         "tube_args (a Tube built in a profile) — behind the edit door",
-        Owes::EditDoor(VarKind::Profile, OperandKind::Is(VarKind::Frame)),
+        Owes::EditDoor(VarKind::Profile, SlotKind::Is(VarKind::Frame)),
         Node::Tube {
             frame: profile.into(),
             major_radius: len(2.0),
@@ -278,7 +278,7 @@ fn wired() -> (
         doc,
         &mut rows,
         "wire_split's tool (a Split tooled by a profile)",
-        Owes::EditDoor(VarKind::Profile, OperandKind::Is(VarKind::Plane)),
+        Owes::EditDoor(VarKind::Profile, SlotKind::Is(VarKind::Plane)),
         Node::Split {
             target: body.into(),
             tool: profile.into(),
@@ -289,7 +289,7 @@ fn wired() -> (
         doc,
         &mut rows,
         "wire_split's tool (a Split tooled by a 3-D axis datum)",
-        Owes::EditDoor(VarKind::Axis, OperandKind::Is(VarKind::Plane)),
+        Owes::EditDoor(VarKind::Axis, SlotKind::Is(VarKind::Plane)),
         Node::Split {
             target: body.into(),
             tool: axis3.into(),
@@ -322,7 +322,7 @@ fn wired() -> (
         doc,
         &mut rows,
         "stepped_map's circular axis (a Pattern about a plane datum)",
-        Owes::EditDoor(VarKind::Plane, OperandKind::Is(VarKind::Axis)),
+        Owes::EditDoor(VarKind::Plane, SlotKind::Is(VarKind::Axis)),
         Node::Pattern {
             input: body.into(),
             count: Formula::count(3),
@@ -340,7 +340,7 @@ fn wired() -> (
         doc,
         &mut rows,
         "section_of (a Loft over a body)",
-        Owes::EditDoor(VarKind::Body, OperandKind::Is(VarKind::Profile)),
+        Owes::EditDoor(VarKind::Body, SlotKind::Is(VarKind::Profile)),
         Node::Loft {
             profiles: vec![profile.into(), body.into()],
             v_degree: Formula::count(1),
@@ -351,7 +351,7 @@ fn wired() -> (
         doc,
         &mut rows,
         "section_of (a Loft over a frame datum)",
-        Owes::EditDoor(VarKind::Frame, OperandKind::Is(VarKind::Profile)),
+        Owes::EditDoor(VarKind::Frame, SlotKind::Is(VarKind::Profile)),
         Node::Loft {
             profiles: vec![profile.into(), sketch.into()],
             v_degree: Formula::count(1),
@@ -362,7 +362,7 @@ fn wired() -> (
         doc,
         &mut rows,
         "section_of on the sweep road (a Sweep whose profile is a body)",
-        Owes::EditDoor(VarKind::Body, OperandKind::Is(VarKind::Profile)),
+        Owes::EditDoor(VarKind::Body, SlotKind::Is(VarKind::Profile)),
         Node::Sweep {
             profile: body.into(),
             path: profile.into(),
@@ -392,7 +392,7 @@ fn every_operand_refusal_names_the_phrase_asked_for_and_the_family_found() {
     }
     let mut phrases: Vec<&'static str> = Vec::new();
     let mut families: Vec<&'static str> = Vec::new();
-    let mut doors: Vec<(VarKind, OperandKind)> = Vec::new();
+    let mut doors: Vec<(VarKind, SlotKind)> = Vec::new();
     for row in &rows {
         match (&row.owes, &row.edit) {
             // REFUSED, and for the reason owed: an edit that succeeded
@@ -401,7 +401,7 @@ fn every_operand_refusal_names_the_phrase_asked_for_and_the_family_found() {
             // of had stopped refusing.
             (Owes::EditDoor(found, expected), edit) => {
                 match edit {
-                    Err(EditError::OperandVarKind {
+                    Err(EditError::SlotVarKind {
                         found: f,
                         expected: e,
                         ..
@@ -444,7 +444,7 @@ fn every_operand_refusal_names_the_phrase_asked_for_and_the_family_found() {
     // reached a single phrase, family or kind would pin neither half
     // against a door that answers a constant.
     assert_eq!(phrases.len(), 3, "the document-reachable rows");
-    assert_eq!(doors.len(), 15, "the rows the edit door refuses");
+    assert_eq!(doors.len(), 14, "the rows the edit door refuses");
     phrases.sort_unstable();
     phrases.dedup();
     families.sort_unstable();
@@ -458,7 +458,7 @@ fn every_operand_refusal_names_the_phrase_asked_for_and_the_family_found() {
     let mut found: Vec<VarKind> = doors.iter().map(|d| d.0).collect();
     found.sort_unstable_by_key(|k| format!("{k:?}"));
     found.dedup();
-    let mut admitted: Vec<OperandKind> = doors.iter().map(|d| d.1).collect();
+    let mut admitted: Vec<SlotKind> = doors.iter().map(|d| d.1).collect();
     admitted.sort_unstable_by_key(|k| format!("{k:?}"));
     admitted.dedup();
     assert!(

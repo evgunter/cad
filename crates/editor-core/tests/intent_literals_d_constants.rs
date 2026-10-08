@@ -405,7 +405,7 @@ fn a_definitions_quantities_mint_first_and_retire_after_it() {
         DocEdit::SetParam {
             node: blend,
             slot: SlotId::Radius,
-            expr: named("w"),
+            value: named("w").into(),
             fresh: Vec::new(),
         },
     );
@@ -454,7 +454,7 @@ fn a_definitions_quantity_is_in_its_edits_mint_log() {
         DocEdit::SetParam {
             node: blend,
             slot: SlotId::Radius,
-            expr: named("w"),
+            value: named("w").into(),
             fresh: Vec::new(),
         },
     )

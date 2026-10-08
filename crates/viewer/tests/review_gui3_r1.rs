@@ -510,13 +510,13 @@ fn r1_a_replayed_history_opens_at_the_tip_with_the_log_undoable() {
         DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
-            expr: len(0.011),
+            value: len(0.011).into(),
             fresh: Vec::new(),
         },
         DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
-            expr: len(0.013),
+            value: len(0.013).into(),
             fresh: Vec::new(),
         },
     ];

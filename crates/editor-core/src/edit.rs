@@ -33,6 +33,30 @@ use crate::var::{Var, VarDecl, VarDef, VarId, VarKind, VarRef, WrittenDef};
 use crate::witness::{BranchCertification, WitnessDatum};
 use geom_core::Tol;
 
+/// **What [`DocEdit::SetParam`] writes into a slot**: a formula at a
+/// scalar slot, a read at an operand ([`SlotId::kind`] says which a
+/// slot takes). A read at a scalar slot is the formula of that one
+/// variable.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum SlotValue {
+    /// An expression, lowered to the variable the slot reads.
+    Formula(Formula),
+    /// A read of a variable, as written.
+    Read(crate::Operand),
+}
+
+impl From<Formula> for SlotValue {
+    fn from(formula: Formula) -> Self {
+        Self::Formula(formula)
+    }
+}
+
+impl From<crate::Operand> for SlotValue {
+    fn from(read: crate::Operand) -> Self {
+        Self::Read(read)
+    }
+}
+
 /// The recorded edit vocabulary (spec D6): a closed set of intents over
 /// a document value, every arm plain data, applied by the pure
 /// [`apply`] (spec D2), which answers a new document and leaves its
@@ -96,15 +120,15 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         id: RecipeNodeId,
     },
     /// **Replace a node's whole LIST input** (DM4) — a union's members,
-    /// a loft's sections ([`Node::list_input`]): [`DocEdit::SetOperand`]'s
-    /// door on a list slot. The new list is stated in full, so nothing
+    /// a loft's sections ([`Node::list_input`]): the slot door
+    /// ([`DocEdit::SetParam`] with a [`SlotValue::Read`]) on a list. The new list is stated in full, so nothing
     /// is inferred about which of the old entries survived, moved or
     /// was meant.
     ///
     /// Every check the insert door makes of a node's reads is made
     /// here, of the REWRITTEN node, through the same functions: each
     /// entry's lowering at its seat's kind ([`EditError::UnresolvedInput`],
-    /// [`EditError::OperandVarKind`]), acyclicity
+    /// [`EditError::SlotVarKind`]), acyclicity
     /// ([`EditError::WouldCycle`]), pairwise distinctness
     /// ([`EditError::DuplicateInput`]) and the list's own floor
     /// ([`EditError::TooFewMembers`]). A node with no list input
@@ -113,25 +137,8 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// The node whose list is replaced.
         node: RecipeNodeId,
         /// The whole new list, in order (D9: the order is data), each
-        /// entry lowered as [`DocEdit::SetOperand`]'s read is.
+        /// entry lowered as [`DocEdit::SetParam`]'s read is.
         members: Vec<crate::Operand>,
-    },
-    /// **Write one operand** (DM6, "no edit infers a re-point"): the
-    /// slot door on an operand slot. `read` lowers to a read of the
-    /// slot's kind ([`EditError::OperandVarKind`] otherwise), the read
-    /// is live, and the rewritten node passes the checks the insert
-    /// door makes of a node's reads: DM5's distinctness and acyclicity
-    /// over reads. A placer's operand keeps the shape its output was
-    /// minted with. The write reports, and never refuses, the payload
-    /// names it strands ([`Maintenance::Strand`]); [`DocEdit::Rebind`]
-    /// repairs them. [`DocEdit::SetMembers`] is this door on a list.
-    SetOperand {
-        /// The reading node.
-        node: RecipeNodeId,
-        /// The operand written.
-        slot: crate::OperandSlot,
-        /// What it reads.
-        read: crate::Operand,
     },
     /// **Replace a live Boolean's or Union's whole DECLARED PAIRS**
     /// ([`crate::DeclaredPair`]) — [`DocEdit::SetMembers`]'s shape: the
@@ -233,15 +240,28 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         fresh: Vec<VarDecl>,
     },
-    /// Replace a CONTINUOUS slot's expression (Length/Angle/Scalar
-    /// slots; spec D3's continuous parameters).
+    /// **The slot door**: replace a CONTINUOUS slot's value
+    /// (Length/Angle/Scalar slots; spec D3's continuous parameters) or
+    /// write an operand (DM6, "no edit infers a re-point").
+    ///
+    /// At a scalar slot the value is a formula, its dimension re-checked
+    /// (a read there is the formula of one variable). At an operand
+    /// ([`SlotId::Operand`]) it is a read, lowered to a variable of the
+    /// slot's kind ([`SlotId::kind`]; [`EditError::SlotVarKind`]
+    /// otherwise) that is live, and the rewritten node passes the checks
+    /// the insert door makes of a node's reads: DM5's distinctness and
+    /// acyclicity over reads. A placer's operand keeps the shape its
+    /// output was minted with. An operand write reports, and never
+    /// refuses, the payload names it strands ([`Maintenance::Strand`]);
+    /// [`DocEdit::Rebind`] repairs them. [`DocEdit::SetMembers`] is this
+    /// door on a list.
     SetParam {
         /// The node owning the slot.
         node: RecipeNodeId,
         /// The named slot (spec D5: never an index).
         slot: SlotId,
-        /// The replacement expression (dimension re-checked).
-        expr: Formula,
+        /// What the slot is to hold.
+        value: SlotValue,
         /// The edit's fresh table (VR6): the variables it mints for its
         /// formulas to read as [`Formula::fresh`], entry by entry and
         /// before anything else it mints. An entry's definition may
@@ -684,7 +704,6 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
             Self::SetProgram { .. } => false,
             Self::DeleteNode { .. }
             | Self::SetMembers { .. }
-            | Self::SetOperand { .. }
             | Self::SetDeclare { .. }
             | Self::Rebind { .. }
             | Self::SetOffset { .. }
@@ -1131,10 +1150,10 @@ fn lower_reads<P: crate::ProfilePayload>(
         &mut |_| Ok::<_, EditError>(VarId::new(0, 0)),
         &mut |slot, read| {
             let expected = match (slot, fixed) {
-                (crate::OperandSlot::Input, Some(kind)) => crate::OperandKind::Is(kind),
+                (crate::OperandSlot::Input, Some(kind)) => crate::SlotKind::Is(kind),
                 _ => slot.kind(),
             };
-            let var = lower_operand(doc, spoken, slot, read, half, expected)?;
+            let var = lower_operand(doc, spoken, SlotId::Operand(slot), read, half, expected)?;
             reads.push(var);
             Ok(var)
         },
@@ -1153,10 +1172,10 @@ fn lower_reads<P: crate::ProfilePayload>(
 fn lower_operand<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     spoken: &impl Fn() -> SpokenNode,
-    slot: crate::OperandSlot,
+    slot: SlotId,
     read: &crate::Operand,
     half: Option<crate::SplitHalf>,
-    expected: crate::OperandKind,
+    expected: crate::SlotKind,
 ) -> Result<VarId, EditError> {
     let unresolved = || EditError::OperandUnresolved {
         node: spoken(),
@@ -1214,17 +1233,17 @@ fn lower_operand<P: crate::ProfilePayload>(
 fn check_read<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     spoken: &impl Fn() -> SpokenNode,
-    slot: crate::OperandSlot,
+    slot: SlotId,
     var: VarId,
     half: Option<crate::SplitHalf>,
-    expected: crate::OperandKind,
+    expected: crate::SlotKind,
     unresolved: impl Fn() -> EditError,
 ) -> Result<VarId, EditError> {
     let Some(held) = doc.var(var) else {
         return Err(unresolved());
     };
     if !expected.admits(held) {
-        return Err(EditError::OperandVarKind {
+        return Err(EditError::SlotVarKind {
             var: Box::new(doc.spoken_var(var)),
             node: spoken(),
             slot,
@@ -1421,8 +1440,8 @@ fn read_refusal<P>(
             var: Box::new(doc.spoken_var(var)),
             node,
             slot,
-            declared,
-            referenced,
+            found: declared,
+            expected: crate::SlotKind::Is(VarKind::from(referenced)),
         },
         (
             ExprSite::Payload,
@@ -1656,50 +1675,34 @@ pub enum EditError {
         /// The dangling upstream reference.
         input: SpokenNode,
     },
-    /// An operand an edit writes reads a variable the document does not
-    /// hold — a deleted one, an id it never minted, a name nothing
+    /// A read an edit writes into a slot names a variable the document
+    /// does not hold — a deleted one, an id it never minted, a name nothing
     /// holds — or a port the node's signature lacks (DM6: the read is
     /// live).
     OperandUnresolved {
         /// The reading node.
         node: SpokenNode,
-        /// The operand.
-        slot: crate::OperandSlot,
+        /// The slot.
+        slot: SlotId,
         /// What it reads, as written.
         read: crate::Operand,
     },
-    /// An operand an edit writes reads a variable of a kind its seat
-    /// does not admit (DM6: the formula lowers to a read of the slot's
-    /// kind), or a placer's operand re-pointed at the other shape,
-    /// whose output's kind was fixed at minting.
-    OperandVarKind {
-        /// The variable read, boxed so the refusal stays a small `Err`.
-        var: Box<SpokenVar>,
-        /// The reading node.
-        node: SpokenNode,
-        /// The operand.
-        slot: crate::OperandSlot,
-        /// The variable's kind.
-        found: VarKind,
-        /// What the seat admits.
-        expected: crate::OperandKind,
-    },
-    /// An operand names a node by itself, and the node defines several
+    /// A read names a node by itself, and the node defines several
     /// outputs the seat could read (a split's two halves): the read
     /// names its port ([`crate::Operand::Output`]).
     AmbiguousOutput {
         /// The node named.
         input: SpokenNode,
-        /// The operand.
-        slot: crate::OperandSlot,
+        /// The slot.
+        slot: SlotId,
     },
-    /// An operand names a node that defines nothing to read: an
+    /// A read names a node that defines nothing to read: an
     /// assertion, a mate or a gauge.
     DefinesNothing {
         /// The node named.
         input: SpokenNode,
-        /// The operand.
-        slot: crate::OperandSlot,
+        /// The slot.
+        slot: SlotId,
     },
     /// A part projection over a split reads the split's other half: the
     /// read and the selection name one half.
@@ -1710,14 +1713,6 @@ pub enum EditError {
         half: crate::SplitHalf,
         /// The output it reads, boxed so the refusal stays a small `Err`.
         var: Box<SpokenVar>,
-    },
-    /// A [`DocEdit::SetOperand`] names an operand the node does not
-    /// have.
-    UnknownOperand {
-        /// The node.
-        node: SpokenNode,
-        /// The operand it lacks.
-        slot: crate::OperandSlot,
     },
     /// The recipe graph would contain a cycle (defensive: insertion
     /// referencing only pre-existing nodes cannot cycle, but the
@@ -1852,12 +1847,14 @@ pub enum EditError {
         slot: SlotId,
     },
     /// The expression's dimension does not match the slot's required
-    /// dimension (checks re-run on every touched expression, spec D6).
+    /// dimension (checks re-run on every touched expression, spec D6),
+    /// or the slot is an operand, which holds a read and no expression.
     SlotDimensionMismatch {
         /// The slot.
         slot: SlotId,
-        /// The slot's required dimension.
-        expected: Dimension,
+        /// What the slot takes: its dimension's kind, or an operand's
+        /// kind, which no expression has.
+        expected: crate::SlotKind,
         /// The offered expression's dimension.
         found: Dimension,
     },
@@ -1884,9 +1881,13 @@ pub enum EditError {
         /// The reading slot.
         slot: SlotId,
     },
-    /// A SLOT expression the edit writes reads a variable at another
-    /// dimension than its kind — by a name, or by a reader whose cached
-    /// kind disagrees with the table.
+    /// A slot the edit writes reads a variable of a kind it does not
+    /// admit: an expression reads one at another dimension than its kind
+    /// (by a name, or by a reader whose cached kind disagrees with the
+    /// table), or an operand reads one its field does not take (DM6:
+    /// the read is of the slot's kind) — a placer's operand re-pointed
+    /// at the other shape among them, whose output's kind was fixed at
+    /// minting.
     SlotVarKind {
         /// The variable, boxed so the refusal stays a small `Err`.
         var: Box<SpokenVar>,
@@ -1894,10 +1895,11 @@ pub enum EditError {
         node: SpokenNode,
         /// The reading slot.
         slot: SlotId,
-        /// The dimension the variable's kind reads at.
-        declared: VarKind,
-        /// The dimension the expression reads it at.
-        referenced: Dimension,
+        /// The variable's kind.
+        found: VarKind,
+        /// What the read there takes: for an expression, the kind of
+        /// the dimension it reads the variable at.
+        expected: crate::SlotKind,
     },
     /// A SLOT expression the edit writes reads a variable the document
     /// does not hold: a deleted one, or an id it never minted.
@@ -2929,8 +2931,8 @@ impl EditError {
                 node,
                 var,
                 slot: _,
-                declared: _,
-                referenced: _,
+                found: _,
+                expected: _,
             } => {
                 *node = node.respoken(doc);
                 **var = var.respoken(doc);
@@ -3014,18 +3016,7 @@ impl EditError {
                 node,
                 slot: _,
                 read: _,
-            }
-            | Self::UnknownOperand { node, slot: _ } => *node = node.respoken(doc),
-            Self::OperandVarKind {
-                var,
-                node,
-                slot: _,
-                found: _,
-                expected: _,
-            } => {
-                *node = node.respoken(doc);
-                **var = var.respoken(doc);
-            }
+            } => *node = node.respoken(doc),
             Self::PartHalfPort { node, half: _, var } => {
                 *node = node.respoken(doc);
                 **var = var.respoken(doc);
@@ -3303,20 +3294,6 @@ impl EditError {
                     format_args!("read an output of {HELD_NODE}, by its node or its port"),
                 )
             }
-            Self::OperandVarKind {
-                var,
-                node,
-                slot,
-                found,
-                expected,
-            } => {
-                write!(
-                    f,
-                    "{node}'s {slot} reads {var}, which is {} {found}, where it takes {expected}",
-                    crate::sentence::article(&found.to_string()),
-                )?;
-                tail.recourse(f, format_args!("read {expected} there"))
-            }
             Self::AmbiguousOutput { input, slot } => {
                 write!(
                     f,
@@ -3334,10 +3311,6 @@ impl EditError {
             Self::PartHalfPort { node, half, var } => {
                 write!(f, "{node} selects the {} half but reads {var}", half.name())?;
                 tail.recourse(f, format_args!("read the split's {} output", half.name()))
-            }
-            Self::UnknownOperand { node, slot } => {
-                write!(f, "{node} has no operand {slot}")?;
-                tail.recourse(f, format_args!("aim the edit at an operand the node reads"))
             }
             Self::UnknownSlot { id, slot } => {
                 write!(f, "{id} has no slot {}", slot.label())?;
@@ -3466,17 +3439,28 @@ impl EditError {
                 var,
                 node,
                 slot,
-                declared,
-                referenced,
-            } => {
-                write!(
-                    f,
-                    "{var} is declared {declared} but {} (slot {}) reads it as {referenced}",
-                    node,
-                    slot.label(),
-                )?;
-                tail.recourse(f, format_args!("{}", ParamDimensionRecourse(*referenced)))
-            }
+                found,
+                expected,
+            } => match expected {
+                crate::SlotKind::Is(kind) if let Some(referenced) = kind.dimension() => {
+                    write!(
+                        f,
+                        "{var} is declared {found} but {} (slot {}) reads it as {referenced}",
+                        node,
+                        slot.label(),
+                    )?;
+                    tail.recourse(f, format_args!("{}", ParamDimensionRecourse(referenced)))
+                }
+                _ => {
+                    write!(
+                        f,
+                        "{node}'s {} reads {var}, which is {} {found}, where it takes {expected}",
+                        slot.label(),
+                        crate::sentence::article(&found.to_string()),
+                    )?;
+                    tail.recourse(f, format_args!("read {expected} there"))
+                }
+            },
             Self::SlotUnresolvedVar { var, node, slot } => {
                 write!(
                     f,
@@ -4300,7 +4284,7 @@ pub enum Maintenance {
     /// output of the operation the edit deleted. The read keeps its id
     /// and is never re-pointed: evaluation refuses `node` as
     /// [`crate::NodeErrorKind::UnresolvedRead`] until an edit names a
-    /// new read for the slot ([`DocEdit::SetOperand`],
+    /// new read for the slot ([`DocEdit::SetParam`],
     /// [`DocEdit::SetMembers`]) or deletes `node`.
     StrandedRead {
         /// The surviving reader.
@@ -5373,7 +5357,7 @@ fn check_node_slots<P: crate::ProfilePayload>(
     // the read's kind fault. The formulas' own dimensions are the
     // lowering's question, asked before it.
     for (slot, &var) in node.rows() {
-        let reader = Expr::var(var, slot.dimension());
+        let reader = Expr::var(var, slot.expr_dimension());
         check_reads(
             doc,
             &written(before, id, node),
@@ -5421,7 +5405,7 @@ fn check_node_inputs<P: crate::ProfilePayload>(
     id: RecipeNodeId,
     node: &Node<P>,
 ) -> Result<(), EditError> {
-    let Some(fault) = node.input_fault() else {
+    let Some(fault) = node.input_fault(|var| doc.operation_of(var)) else {
         return Ok(());
     };
     let subject = written(doc, id, node);
@@ -5531,6 +5515,51 @@ fn check_declared_sides<'p, P: crate::ProfilePayload>(
             })
         }
     }
+}
+
+/// **[`DocEdit::SetParam`] at an operand** (DM6): `read` lowered at
+/// the slot's kind — a placer's operand at the shape its output was
+/// minted with (VR3) — and written over the node's read, under every
+/// check the insert door makes of a node's reads ([`write_reads`]).
+fn set_operand<P: Clone + crate::ProfilePayload>(
+    doc: &Doc<P>,
+    new: &mut Doc<P>,
+    reported: &mut Vec<Maintenance>,
+    node: RecipeNodeId,
+    slot: crate::OperandSlot,
+    read: &crate::Operand,
+) -> Result<EditRecord, EditError> {
+    let Some(current) = new.nodes.get(&node) else {
+        return Err(EditError::UnknownNode {
+            id: SpokenNode::absent(node),
+        });
+    };
+    if !current.operand_rows().iter().any(|(at, _)| *at == slot) {
+        return Err(EditError::UnknownSlot {
+            id: doc.spoken(node),
+            slot: SlotId::Operand(slot),
+        });
+    }
+    let half = match current {
+        Node::Part {
+            select: crate::PartSelect::SplitHalf(half),
+            ..
+        } => Some(*half),
+        _ => None,
+    };
+    let expected = match (current, new.output(node, 0).and_then(|v| new.var(v))) {
+        (Node::Transform { .. }, Some(output)) => crate::SlotKind::Is(output.kind()),
+        _ => slot.kind(),
+    };
+    let spoken = || doc.spoken(node);
+    let var = lower_operand(new, &spoken, SlotId::Operand(slot), read, half, expected)?;
+    let mut rewritten = current.clone();
+    for (at, held) in rewritten.operand_rows_mut() {
+        if at == slot {
+            *held = var;
+        }
+    }
+    write_reads(doc, new, reported, node, rewritten)
 }
 
 /// **The slot door's common half on an operand** (DM6: no edit infers
@@ -5962,6 +5991,18 @@ fn door<P: Clone + crate::ProfilePayload, T>(
             distribution: doc.free(var).and_then(FreeVar::distribution).copied(),
         });
     }
+    // D10, on EVERY arm: a construction reads what was written. A slot
+    // write, a read's repoint and a redefinition can each make a
+    // construction's slot read an observed variable, and this is the
+    // one place that refuses it — before the D-2 backstop, which would
+    // otherwise name the measure an ancestor of its reader.
+    if let Some((node, slot, var)) = new.observed_read_fault() {
+        return Err(EditError::ConstructionReadsObserved {
+            node: spoken_before_else_after(doc, &new, node),
+            slot,
+            var: Box::new(new.spoken_var(var)),
+        });
+    }
     // The D-2 backstop, on EVERY arm: the maintenance rules make the
     // invariant-violating states unreachable, and this is what says so
     // rather than assuming it.
@@ -6255,7 +6296,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 list.push(lower_operand(
                     new,
                     &spoken,
-                    slot,
+                    SlotId::Operand(slot),
                     member,
                     None,
                     slot.kind(),
@@ -6264,41 +6305,6 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             let mut rewritten = current.clone();
             if !rewritten.set_list_input(list) {
                 unreachable!("a union and a loft hold a list")
-            }
-            write_reads(doc, new, reported, *node, rewritten)?
-        }
-        DocEdit::SetOperand { node, slot, read } => {
-            let Some(current) = new.nodes.get(node) else {
-                return Err(EditError::UnknownNode {
-                    id: SpokenNode::absent(*node),
-                });
-            };
-            if !current.operand_rows().iter().any(|(at, _)| at == slot) {
-                return Err(EditError::UnknownOperand {
-                    node: doc.spoken(*node),
-                    slot: *slot,
-                });
-            }
-            let half = match current {
-                Node::Part {
-                    select: crate::PartSelect::SplitHalf(half),
-                    ..
-                } => Some(*half),
-                _ => None,
-            };
-            // A placer's output kind was fixed at minting (VR3): its
-            // operand keeps that shape.
-            let expected = match (current, new.output(*node, 0).and_then(|v| new.var(v))) {
-                (Node::Transform { .. }, Some(output)) => crate::OperandKind::Is(output.kind()),
-                _ => slot.kind(),
-            };
-            let spoken = || doc.spoken(*node);
-            let var = lower_operand(new, &spoken, *slot, read, half, expected)?;
-            let mut rewritten = current.clone();
-            for (at, held) in rewritten.operand_rows_mut() {
-                if at == *slot {
-                    *held = var;
-                }
             }
             write_reads(doc, new, reported, *node, rewritten)?
         }
@@ -6443,13 +6449,34 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
         DocEdit::SetParam {
             node,
             slot,
-            expr,
+            value,
             fresh,
         } => {
             if slot.is_structural() {
                 return Err(EditError::StructuralSlotNeedsStructuralEdit { slot: *slot });
             }
-            let fresh = set_slot(new, doc, *node, *slot, expr, fresh)?;
+            let formula = match (slot, value) {
+                (SlotId::Operand(operand), SlotValue::Read(read)) => {
+                    if !fresh.is_empty() {
+                        return Err(EditError::FreshUnread { index: 0 });
+                    }
+                    return set_operand(doc, new, reported, *node, *operand, read);
+                }
+                (_, SlotValue::Formula(formula)) => std::borrow::Cow::Borrowed(formula),
+                // A read at a scalar slot is the formula of the one
+                // variable it resolves to, held to every rule a formula
+                // is.
+                (_, SlotValue::Read(read)) => {
+                    let spoken = || doc.spoken(*node);
+                    let var = lower_operand(new, &spoken, *slot, read, None, slot.kind())?;
+                    std::borrow::Cow::Owned(Formula::var(
+                        var,
+                        slot.dimension()
+                            .unwrap_or_else(|| unreachable!("an operand slot is answered above")),
+                    ))
+                }
+            };
+            let fresh = set_slot(new, doc, *node, *slot, &formula, fresh)?;
             check_profile_after_slot_edit(new, doc, *node, *slot, tol)?;
             if edit.writes_a_mates_datum() {
                 admit_written_mate(new, *node, tol, reach)?;
@@ -6524,7 +6551,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 .vars
                 .get(&var)
                 .and_then(|v| v.kind().dimension())
-                .unwrap_or(path.slot.dimension());
+                .unwrap_or_else(|| path.slot.expr_dimension());
             let off_tree = || EditError::PathOffTree {
                 node: doc.spoken(path.node),
                 slot: path.slot,
@@ -6609,15 +6636,6 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     check_var_def(&spoken, &def)?;
                     new.vars.insert(id, Var::written(def));
                     check_definition(new, id)?;
-                    // A definition reading a measured value is observed,
-                    // and so is every construction slot reading it.
-                    if let Some((node, slot, var)) = new.observed_read_fault() {
-                        return Err(EditError::ConstructionReadsObserved {
-                            node: new.spoken(node),
-                            slot,
-                            var: Box::new(new.spoken_var(var)),
-                        });
-                    }
                     EditRecord {
                         minted: None,
                         minted_var: None,
@@ -7602,7 +7620,11 @@ fn set_slot<P: Clone + crate::ProfilePayload>(
     // subject is an address a caller named, and `SetParam` aimed at a
     // radius on an extrude is a reachable mistake rather than the
     // node-layer invariant `Node::formula_dimension_fault` asserts.
-    if node.expr(slot).is_none() {
+    let holds = match slot {
+        SlotId::Operand(operand) => node.operand_rows().iter().any(|(at, _)| *at == operand),
+        _ => node.expr(slot).is_some(),
+    };
+    if !holds {
         return Err(EditError::UnknownSlot { id: spoken, slot });
     }
     // D6's comparison, from its one home (`SlotId::dimension_fault`) —
@@ -7624,7 +7646,7 @@ fn set_slot<P: Clone + crate::ProfilePayload>(
     let var = lowering
         .slot(new, formula)
         .map_err(|fault| fault.at(new, spoken.clone(), ExprSite::Slot(slot)))?;
-    let reader = Expr::var(var, slot.dimension());
+    let reader = Expr::var(var, slot.expr_dimension());
     check_reads(new, &spoken, ExprSite::Slot(slot), &reader)?;
     let Some(target) = new.nodes.get_mut(&id).and_then(|n| n.expr_mut(slot)) else {
         return Err(EditError::UnknownSlot { id: spoken, slot });
@@ -7735,7 +7757,7 @@ mod tests {
             DocEdit::SetParam {
                 node: id,
                 slot: step,
-                expr: crate::test_support::ang(0.5),
+                value: crate::test_support::ang(0.5).into(),
                 fresh: Vec::new(),
             },
             DocEdit::SetExpression {
@@ -7770,7 +7792,7 @@ mod tests {
             DocEdit::SetParam {
                 node: id,
                 slot: crate::node::SlotId::RotationAngle,
-                expr: crate::test_support::ang(0.5),
+                value: crate::test_support::ang(0.5).into(),
                 fresh: Vec::new(),
             },
         ];

@@ -466,6 +466,13 @@ pub enum SlotId {
     /// the path is instantiated at before skinning (Book §10.4) —
     /// STRUCTURAL, same rule.
     Stations,
+    /// An OPERAND field (D10: an operand is a read): the slot holds a
+    /// read of a variable of [`crate::OperandSlot::kind`]'s kind, written
+    /// through the same door as an expression slot
+    /// ([`crate::DocEdit::SetParam`] with a [`crate::SlotValue::Read`]).
+    /// It has a kind and no dimension ([`SlotId::kind`],
+    /// [`SlotId::dimension`]).
+    Operand(crate::OperandSlot),
     /// One expression inside a profile PROGRAM (LIB-SWITCH §4c): loop
     /// index, step index, argument role. The LOOP coordinate is a VQ3
     /// sharpening of the design's `(step, arg)` sketch — a profile is
@@ -646,15 +653,33 @@ impl VectorSlot {
     /// to one `SlotId` arm, and that arm's dimension does not depend on
     /// the axis).
     pub fn dimension(self) -> Dimension {
-        self.slot(Axis3::X).dimension()
+        self.slot(Axis3::X)
+            .dimension()
+            .unwrap_or_else(|| unreachable!("a vector family's components are scalar slots"))
     }
 }
 
 impl SlotId {
+    /// **The kinds a value in this slot may have** — total over the
+    /// vocabulary: a scalar slot holds exactly its dimension's kind
+    /// ([`SlotKind::Is`]), an operand its field's
+    /// ([`crate::OperandSlot::kind`]). Every door that writes a slot
+    /// asks this of what the write reads.
+    ///
+    /// [`SlotKind::Is`]: crate::SlotKind::Is
+    pub fn kind(self) -> crate::SlotKind {
+        match (self, self.dimension()) {
+            (Self::Operand(operand), _) => operand.kind(),
+            (_, Some(dim)) => crate::SlotKind::Is(crate::VarKind::from(dim)),
+            (_, None) => unreachable!("every slot but an operand has a dimension"),
+        }
+    }
+
     /// The dimension an expression in this slot must have (checked by
-    /// `apply` on insert and on every expression edit, spec D6).
-    pub fn dimension(self) -> Dimension {
-        match self {
+    /// `apply` on insert and on every expression edit, spec D6), `None`
+    /// for an operand, which holds a read and no expression.
+    pub fn dimension(self) -> Option<Dimension> {
+        Some(match self {
             Self::Origin(_)
             | Self::Distance
             | Self::Radius
@@ -679,7 +704,7 @@ impl SlotId {
             Self::Count | Self::VDegree | Self::Stations | Self::Instance => Dimension::Count,
             // A later step's component has its step-0 twin's dimension.
             Self::PlacementStep { arg, .. } | Self::MateFrameStep { arg, .. } => {
-                SlotId::rigid(0, arg).dimension()
+                return SlotId::rigid(0, arg).dimension();
             }
             // Profile-program roles carry V2's per-role table; none is
             // Count, so `is_structural` stays false for every StepArg:
@@ -689,7 +714,17 @@ impl SlotId {
             // new program does not draw, unless the old one under the
             // current values did not draw it either (DM7).
             Self::Profile { arg, .. } => arg.dimension(),
-        }
+            Self::Operand(_) => return None,
+        })
+    }
+
+    /// The dimension of an EXPRESSION slot — a slot a node holds a
+    /// formula in ([`Node::expr`], every slot [`Node::slots`] lists),
+    /// which an operand never is. Asked of an operand, it panics: the
+    /// caller had a read in hand and took it for an expression.
+    pub fn expr_dimension(self) -> Dimension {
+        self.dimension()
+            .unwrap_or_else(|| unreachable!("{self} is an operand, which holds no expression"))
     }
 
     /// **Spec D6's slot rule over ONE address and one candidate
@@ -705,9 +740,9 @@ impl SlotId {
         self,
         expr: &crate::expr::ExprTree<L>,
     ) -> Option<SlotDimensionFault> {
-        (expr.dim() != self.dimension()).then(|| SlotDimensionFault {
+        (self.dimension() != Some(expr.dim())).then(|| SlotDimensionFault {
             slot: self,
-            expected: self.dimension(),
+            expected: self.kind(),
             found: expr.dim(),
         })
     }
@@ -716,7 +751,7 @@ impl SlotId {
     /// structural/continuous distinction is typed, not emergent —
     /// structural slots are exactly the Count-dimensioned ones).
     pub fn is_structural(self) -> bool {
-        self.dimension() == Dimension::Count
+        self.dimension() == Some(Dimension::Count)
     }
 
     /// A prose label — the one spelling a user-facing rendering uses,
@@ -750,6 +785,7 @@ impl SlotId {
             Self::Instance => "instance".to_owned(),
             Self::VDegree => "v degree".to_owned(),
             Self::Stations => "stations".to_owned(),
+            Self::Operand(operand) => operand.label(),
             Self::Profile { loop_, step, arg } => {
                 format!("loop {loop_} step {step} · {}", arg.label())
             }
@@ -828,6 +864,7 @@ impl SlotId {
             | Self::Instance
             | Self::VDegree
             | Self::Stations
+            | Self::Operand(_)
             | Self::Profile { .. } => None,
         }
     }
@@ -865,6 +902,12 @@ impl SlotId {
             Self::PlacementStep { step, arg } => Some((step.get(), arg)),
             _ => None,
         }
+    }
+}
+
+impl core::fmt::Display for SlotId {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(&self.label())
     }
 }
 
@@ -1814,8 +1857,9 @@ impl core::error::Error for MeasureNodeFault {}
 pub(crate) struct SlotDimensionFault {
     /// The offending slot.
     pub slot: SlotId,
-    /// The dimension the address fixes.
-    pub expected: Dimension,
+    /// The kind the address fixes: a scalar slot's dimension, or an
+    /// operand's kind, which no expression has.
+    pub expected: crate::SlotKind,
     /// The expression's dimension.
     pub found: Dimension,
 }
@@ -1827,13 +1871,21 @@ impl core::fmt::Display for SlotDimensionFault {
             expected,
             found,
         } = self;
-        write!(
-            f,
-            "slot {} needs {} {expected} expression, got {} {found}",
-            slot.label(),
-            expected.article(),
-            found.article()
-        )
+        match expected {
+            crate::SlotKind::Is(kind) if let Some(dim) = kind.dimension() => write!(
+                f,
+                "slot {} needs {} {dim} expression, got {} {found}",
+                slot.label(),
+                dim.article(),
+                found.article()
+            ),
+            _ => write!(
+                f,
+                "slot {} reads {expected}, not {} {found} expression",
+                slot.label(),
+                found.article()
+            ),
+        }
     }
 }
 
@@ -3568,7 +3620,14 @@ impl<P> Node<P> {
     ///   and there is nothing to generalize. What is general is that
     ///   each is asked HERE, so the form a construction door
     ///   establishes is the form every door admits.
-    pub fn input_fault(&self) -> Option<InputFault>
+    ///
+    /// Distinctness is over the operations the reads name
+    /// (`operation_of`; a read it cannot place is its own key): two
+    /// outputs of one operation are one node reached twice.
+    pub fn input_fault(
+        &self,
+        operation_of: impl Fn(VarId) -> Option<RecipeNodeId>,
+    ) -> Option<InputFault>
     where
         P: crate::ProfilePayload,
     {
@@ -3577,11 +3636,11 @@ impl<P> Node<P> {
         {
             return Some(InputFault::TooFew { found: list.len() });
         }
-        let mut seen: std::collections::BTreeSet<VarId> = std::collections::BTreeSet::new();
+        let mut seen = std::collections::BTreeSet::new();
         if let Some((_, input)) = self
             .operand_rows()
             .into_iter()
-            .find(|(_, input)| !seen.insert(*input))
+            .find(|(_, input)| !seen.insert(operation_of(*input).ok_or(*input)))
         {
             return Some(InputFault::Duplicate { input });
         }
@@ -4418,7 +4477,7 @@ impl<P: crate::ProfilePayload> Node<P> {
         let mut dims: BTreeMap<VarId, Dimension> = self
             .rows()
             .into_iter()
-            .map(|(slot, &var)| (var, slot.dimension()))
+            .map(|(slot, &var)| (var, slot.expr_dimension()))
             .collect();
         dims.extend(self.payload_reads(doc).into_iter().flatten());
         let mut payload = None;

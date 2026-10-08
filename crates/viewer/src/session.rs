@@ -139,7 +139,7 @@ impl GestureTarget {
     /// variable's from its declaration.
     fn dimension(&self) -> Dimension {
         match self {
-            Self::Slot { slot, .. } => slot.dimension(),
+            Self::Slot { slot, .. } => slot.expr_dimension(),
             Self::Variable { dimension, .. } => *dimension,
         }
     }
@@ -2059,7 +2059,7 @@ impl DocSession {
             DocEdit::SetParam {
                 node,
                 slot,
-                expr,
+                value: expr.into(),
                 fresh: Vec::new(),
             }
         };
@@ -3090,13 +3090,23 @@ impl DocSession {
             // compared as written, its name leaves read as the variables
             // they name, since the slot's written form reads ids.
             DocEdit::SetParam {
-                node, slot, expr, ..
+                node,
+                slot,
+                value: pncad::document::SlotValue::Formula(expr),
+                ..
             }
             | DocEdit::SetStructuralParam {
                 node, slot, expr, ..
             } => doc
                 .resolve(expr)
                 .is_ok_and(|offered| doc.slot_expansion(*node, *slot) == Some(offered)),
+            // A read is lowered by the door, against the document it
+            // enters; no panel offers one, so it is never a field's
+            // standing value.
+            DocEdit::SetParam {
+                value: pncad::document::SlotValue::Read(_),
+                ..
+            } => false,
             // A declaration's two independent fields, each against
             // its own half. A kind that does not match is no match:
             // the edit is a redeclaration and the door refuses it.
@@ -3129,7 +3139,6 @@ impl DocSession {
             DocEdit::InsertNode { .. }
             | DocEdit::DeleteNode { .. }
             | DocEdit::SetMembers { .. }
-            | DocEdit::SetOperand { .. }
             | DocEdit::SetDeclare { .. }
             // A profile's program replaced whole: structure, not a
             // panel field's value — and the identity program keeping

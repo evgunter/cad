@@ -81,7 +81,7 @@ fn set(doc: ProfileDoc, node: RecipeNodeId, slot: SlotId, to: f64) -> ProfileDoc
         DocEdit::SetParam {
             node,
             slot,
-            expr,
+            value: expr.into(),
             fresh: Vec::new(),
         },
     )

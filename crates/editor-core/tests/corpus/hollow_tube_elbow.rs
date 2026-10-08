@@ -76,7 +76,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: elbow,
             slot: SlotId::TubeWall,
-            expr: len(WALL_BUMPED),
+            value: len(WALL_BUMPED).into(),
             fresh: Vec::new(),
         },
         bump_root: elbow,

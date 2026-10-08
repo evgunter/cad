@@ -215,6 +215,8 @@ where
         + crate::mate::SolveScalar,
 {
     use crate::OperandSlot as O;
+    let projected = split_ports_projected(node, doc, results)?;
+    let results = projected.as_ref().unwrap_or(results);
     // An operand reads an output; the op reads the operation's value.
     // Every read resolves here: an unresolved one refused the node
     // before its op was reached (`eval::read_at`).
@@ -2701,19 +2703,7 @@ fn wire_part<T: Decide>(
     let value = value_of(results, of)?;
     let (body, index) = match (select, &value.payload) {
         (PartSelect::SplitHalf(half), ValuePayload::Split { above, below }) => {
-            let side = match half {
-                SplitHalf::Above => above,
-                SplitHalf::Below => below,
-            };
-            match side {
-                SplitSide::Body(b) => (Arc::clone(b), half.output_body()),
-                SplitSide::Empty => {
-                    return Err(NodeErrorKind::EmptyHalf {
-                        input: of,
-                        half: *half,
-                    });
-                }
-            }
+            (split_side(of, *half, above, below)?, half.output_body())
         }
         (PartSelect::Instance(_), ValuePayload::Instances(instances)) => {
             let index = slots::count(vals, SlotId::Instance).ok_or(NodeErrorKind::MissingSlot {
@@ -2747,6 +2737,88 @@ fn wire_part<T: Decide>(
         .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
     names::check_total(&table, &body, 0).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(ValuePayload::Body(body), Arc::new(table)).carrying(value.parts))
+}
+
+/// One half of a split's value, or [`NodeErrorKind::EmptyHalf`].
+fn split_side<T: Decide>(
+    of: RecipeNodeId,
+    half: SplitHalf,
+    above: &SplitSide<T>,
+    below: &SplitSide<T>,
+) -> Result<Arc<Body<T>>, NodeErrorKind> {
+    match match half {
+        SplitHalf::Above => above,
+        SplitHalf::Below => below,
+    } {
+        SplitSide::Body(b) => Ok(Arc::clone(b)),
+        SplitSide::Empty => Err(NodeErrorKind::EmptyHalf { input: of, half }),
+    }
+}
+
+/// **A read of a split's port is that half** (FORK-1: a split defines
+/// two bodies): `results` with each split `node` reads by port
+/// replaced by the half the port is, projected exactly as
+/// [`wire_part`] projects `Part { SplitHalf }` — the half's body, the
+/// table's rows for that output, the split's part count — so the two
+/// spellings give one value. `None` when `node` reads no split by port.
+/// A part projection reads the split whole: its selector is the half.
+fn split_ports_projected<T: Decide>(
+    node: &Node<ProfileProgram>,
+    doc: &crate::doc::Doc<ProfileProgram>,
+    results: &Results<T>,
+) -> Result<Option<Results<T>>, NodeErrorKind> {
+    if matches!(node, Node::Part { .. }) {
+        return Ok(None);
+    }
+    let ports: Vec<(RecipeNodeId, u8)> = node
+        .operand_rows()
+        .into_iter()
+        .filter_map(|(_, var)| doc.var(var)?.def().output())
+        .filter(|(split, _)| matches!(doc.node(*split), Some(Node::Split { .. })))
+        .collect();
+    if ports.is_empty() {
+        return Ok(None);
+    }
+    // The values this op can read: every entry that stands, cloned (a
+    // value's geometry and tables are shared, not copied). The failed
+    // ones are left out: every read goes through `value_of`, which
+    // answers a failed entry and an absent one alike.
+    let mut local: Results<T> = results
+        .iter()
+        .filter_map(|(&id, result)| match result {
+            NodeResult::Ok(value) => Some((id, NodeResult::Ok(value.clone()))),
+            NodeResult::Poisoned { through } => {
+                Some((id, NodeResult::Poisoned { through: *through }))
+            }
+            _ => None,
+        })
+        .collect();
+    for (split, port) in ports {
+        let half = SplitHalf::ALL
+            .into_iter()
+            .find(|h| h.output_body() == u32::from(port))
+            .unwrap_or_else(|| unreachable!("a split defines a port per half"));
+        let value = value_of(results, split)?;
+        let ValuePayload::Split { above, below } = &value.payload else {
+            unreachable!("a split evaluates to its two sides")
+        };
+        let body = split_side(split, half, above, below)?;
+        let table = value
+            .name_table
+            .project(half.output_body())
+            .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
+        names::check_total(&table, &body, 0).map_err(NodeErrorKind::Naming)?;
+        let projected = super::NodeValue {
+            payload: ValuePayload::Body(body),
+            name_table: Arc::new(table),
+            fragment_groups: Arc::default(),
+            contacts: Arc::default(),
+            carried: Arc::default(),
+            ..value.clone()
+        };
+        local.insert(split, NodeResult::Ok(projected));
+    }
+    Ok(Some(local))
 }
 
 // `Bounds` rides along for the boolean lane only: the sweep's BVH
