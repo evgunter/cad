@@ -1304,3 +1304,4 @@ Ev said go.
   - Blinding byte 172, Opus=A (`analysis/design-fork/shell-lofted-oblique-corner`).
 - **Unit 10, the face door at rest** (P2, M, with its P3 rider): a design fork, weighed by a designer pair on the public posture of the three offset doors toward an operand that is not at rest.
   - Blinding byte 188, Opus=A (`analysis/design-fork/shell-face-door-at-rest`).
+- **Unit 10, face door at rest** (P2, M + rider P3, E): designer pair agreed (premise correction; doors stay construction steps; no ratified text moves, no `[ev]` PR); `## Decided` written; implementer dispatched on `shell/face-door-at-rest`, session `session_01BRLJT85zsBBDGVYTJgw2qV`.
