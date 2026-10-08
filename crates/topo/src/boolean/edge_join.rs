@@ -1,9 +1,19 @@
 //! **The join**: a vertex of valence 2 whose two edges lie on one
 //! structural carrier between the same two faces is no corner, so the
 //! two edges are one edge cut for no reason (`docs/DESIGN.md`, maximal
-//! edges). The join kills the vertex and makes the two edges one. Every
-//! boolean output stage runs it after the merge ([`join_stage`]) and
-//! writes, per join, the substitution rows that carry every contact
+//! edges). The join kills the vertex and makes the two edges one.
+//!
+//! **The join door** ([`Body::join_edges`]) is the one public spelling:
+//! every door that finishes a body ends with it (`docs/DESIGN.md`, the
+//! merge stage), and it returns each join it made ([`EdgeJoin`]) for a
+//! door that carries records or names keyed by the body's cells. The
+//! door is whole: a reading in the band refuses before any kill, the
+//! kills run on a staged clone, and a body that carried pcurve rows has
+//! them re-derived, so no row is left keyed by a dead cell. A door that
+//! is not the boolean carries its refusal typed ([`JoinRefusal`]).
+//!
+//! The boolean's output stages run it after the merge ([`join_stage`])
+//! and write, per join, the substitution rows that carry every contact
 //! record naming the cells it replaces onto the edge it makes, through
 //! the op's one substitution door ([`super::ops::carry`]).
 //!
@@ -444,29 +454,104 @@ pub(super) fn join_stage<T: Decide + crate::props::AtRestPolicy>(
     Ok(joined)
 }
 
-/// The join's refusal as a door that is not the boolean words it, for
-/// the person at the GUI: what was undecided or unbuilt, with no arena
-/// key, and the one recourse.
-pub(crate) fn join_refusal_sentence(refusal: &BooleanError) -> String {
-    match refusal {
-        BooleanError::JoinUndecided(e) => {
-            let reading = match &e.reading {
-                JoinReading::Regularity(diag) => diag.to_string(),
-                JoinReading::ChartClass(why) => why.to_string(),
-            };
-            format!(
-                "whether two edges meeting at a vertex on one curve are one edge is undecided \
-                 at this tolerance ({reading}). Recourse: if this size is intended, tighten the \
-                 tolerance below it"
-            )
+/// **Why the join refused**, as a door that is not the boolean carries
+/// it ([`crate::MergeCoplanarError::Join`],
+/// [`crate::ReplaceFaceError::Join`]): typed, keyless, and worded with
+/// one recourse.
+#[derive(Clone, Debug, PartialEq)]
+pub enum JoinRefusal {
+    /// A regularity or chart-class reading at a vertex landed in the
+    /// band ([`BooleanError::JoinUndecided`]).
+    Undecided(JoinUndecided),
+    /// The joined edge's carrier has no period (a closed join) or no
+    /// parameter inverse (a spline) to run it on
+    /// ([`BooleanError::JoinCarrierUnsupported`]).
+    CarrierUnsupported {
+        /// The carrier's kind.
+        carrier: geom::CurveKind,
+        /// Whether the join closes.
+        closed: bool,
+    },
+    /// The kill, the re-description or the re-mint refused on a body
+    /// that passed tier 2: a kernel or file defect, by the refusal's
+    /// kind.
+    Kernel {
+        /// The boolean refusal's kind.
+        kind: super::BooleanErrorKind,
+    },
+}
+
+/// A refusal kind as its variant's name.
+fn kind_word(kind: super::BooleanErrorKind) -> String {
+    format!("{kind:?}")
+}
+
+impl JoinRefusal {
+    /// The join door's refusal, typed for a door that is not the
+    /// boolean.
+    #[must_use]
+    pub fn of(refusal: &BooleanError) -> Self {
+        match refusal {
+            BooleanError::JoinUndecided(e) => Self::Undecided(e.clone()),
+            BooleanError::JoinCarrierUnsupported {
+                carrier, closed, ..
+            } => Self::CarrierUnsupported {
+                carrier: *carrier,
+                closed: *closed,
+            },
+            other => Self::Kernel { kind: other.kind() },
         }
-        BooleanError::JoinCarrierUnsupported { carrier, .. } => format!(
-            "two edges meet at a vertex on one {} carrier, which the join cannot run an edge \
-             on yet (work/fuse/joining-a-spline-carrier-is-unbuilt); there is no way through \
-             this yet",
-            carrier.name()
-        ),
-        other => other.to_string(),
+    }
+}
+
+impl core::fmt::Display for JoinRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let undecided = |f: &mut core::fmt::Formatter<'_>, diag: &Indeterminate| {
+            write!(
+                f,
+                "whether two edges meeting at a vertex on one curve are one edge is undecided \
+                 ({}). {}",
+                diag.payload(),
+                diag.ending("move the geometry")
+            )
+        };
+        match self {
+            Self::Undecided(JoinUndecided {
+                reading: JoinReading::Regularity(diag),
+                ..
+            })
+            | Self::Undecided(JoinUndecided {
+                reading: JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Undecided(diag)),
+                ..
+            }) => undecided(f, diag),
+            Self::Undecided(JoinUndecided {
+                reading: JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Image(e)),
+                ..
+            }) => write!(
+                f,
+                "two edges meeting at a vertex on one surface have no chart image to read \
+                 their family off ({e}). {}",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            ),
+            Self::CarrierUnsupported { carrier, closed } => write!(
+                f,
+                "two edges meet at a vertex on one {} carrier, which the join cannot run an \
+                 edge on {} yet (work/fuse/joining-a-spline-carrier-is-unbuilt); there is no \
+                 way through this yet",
+                carrier.name(),
+                if *closed {
+                    "over a whole period"
+                } else {
+                    "through the vertex"
+                }
+            ),
+            Self::Kernel { kind } => write!(
+                f,
+                "the join of two edges meeting at a vertex on one curve refused ({}). {}",
+                kind_word(*kind),
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            ),
+        }
     }
 }
 
@@ -482,41 +567,71 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
     /// the body's cells reads each join as `vertex → kept`,
     /// `gone → kept`, and `conventional → kept` where it is set.
     ///
+    /// Atomic: the joins run on a clone, which is adopted only once every
+    /// join is made and, where the body carried pcurve rows, they are
+    /// re-derived whole, so no row is left keyed by a killed half-edge.
+    /// On any refusal the body is as found.
+    ///
     /// # Errors
     ///
     /// [`BooleanError::JoinUndecided`], the kill's own refusal
     /// ([`BooleanError::Euler`]), a carrier the joined edge cannot be
-    /// restated on ([`BooleanError::JoinCarrierUnsupported`]), or the
-    /// description's.
+    /// restated on ([`BooleanError::JoinCarrierUnsupported`]), the
+    /// description's, or the re-mint's ([`BooleanError::Pcurves`]).
     pub fn join_edges(&mut self, band: Band, tol: Tol) -> Result<Vec<EdgeJoin>, BooleanError> {
-        let body = self;
-        let mut joined = Vec::new();
-        loop {
-            let pass = Pass::of(body);
-            let mut next = None;
-            for (w, _) in body.vertices() {
-                if let Some(j) =
-                    joinable(body, w, &pass, band).map_err(BooleanError::JoinUndecided)?
-                {
-                    next = Some((w, j));
-                    break;
-                }
-            }
-            let Some((w, join)) = next else {
-                return Ok(joined);
-            };
-            join_one(body, w, &join, band, tol)?;
-            // A closed join's survivor is conventional unless another
-            // edge still ends there (a seam strut on the rim it closed).
-            let conventional =
-                (join.closed && is_conventional_vertex(body, join.far)).then_some(join.far);
-            joined.push(EdgeJoin {
-                vertex: w,
-                gone: join.gone,
-                kept: join.kept,
-                conventional,
-            });
+        // Nothing to join: no clone. Every reading in the band refuses
+        // here, before any kill.
+        if joinable_vertices(self, band)
+            .map_err(BooleanError::JoinUndecided)?
+            .is_empty()
+        {
+            return Ok(Vec::new());
         }
+        // Staged: a refusal past the first kill leaves `self` as found.
+        let mut work = self.clone();
+        let joined = join_all(&mut work, band, tol)?;
+        // A kill leaves the rows keyed by its half-edges; a body that
+        // carried rows has them re-derived whole (`pcurves::mint_pcurves`
+        // clears the map first), so none is left keyed by a dead cell.
+        if !work.pcurves.is_empty() || !work.joints.is_empty() {
+            crate::pcurves::mint_pcurves(&mut work, tol)
+                .map_err(|source| BooleanError::Pcurves { source })?;
+        }
+        self.adopt(work);
+        Ok(joined)
+    }
+}
+
+/// [`Body::join_edges`]' loop, on the staged body.
+fn join_all<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    band: Band,
+    tol: Tol,
+) -> Result<Vec<EdgeJoin>, BooleanError> {
+    let mut joined = Vec::new();
+    loop {
+        let pass = Pass::of(body);
+        let mut next = None;
+        for (w, _) in body.vertices() {
+            if let Some(j) = joinable(body, w, &pass, band).map_err(BooleanError::JoinUndecided)? {
+                next = Some((w, j));
+                break;
+            }
+        }
+        let Some((w, join)) = next else {
+            return Ok(joined);
+        };
+        join_one(body, w, &join, band, tol)?;
+        // A closed join's survivor is conventional unless another edge
+        // still ends there (a seam strut on the rim it closed).
+        let conventional =
+            (join.closed && is_conventional_vertex(body, join.far)).then_some(join.far);
+        joined.push(EdgeJoin {
+            vertex: w,
+            gone: join.gone,
+            kept: join.kept,
+            conventional,
+        });
     }
 }
 

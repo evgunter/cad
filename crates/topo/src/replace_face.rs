@@ -616,10 +616,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// ([`Body::join_edges`]) refused on the offset body. The body is
     /// untouched.
     Join {
-        /// The join's refusal, by kind ([`crate::BooleanError::kind`]).
-        kind: crate::boolean::BooleanErrorKind,
-        /// The refusal's own sentence.
-        what: String,
+        /// Why the join refused.
+        refusal: crate::boolean::JoinRefusal,
     },
     /// The re-described clone is not tier-2 valid, so it is discarded.
     ResultNotClosed {
@@ -809,12 +807,7 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                 f,
                 "the offset body's edges could not be parametrized on their faces: {source}"
             ),
-            Self::Join { what, .. } => {
-                write!(
-                    f,
-                    "the offset body's joinable vertices could not be joined: {what}"
-                )
-            }
+            Self::Join { refusal } => write!(f, "offsetting the face: {refusal}"),
             Self::TogetherChartMixed { .. } => write!(
                 f,
                 "a move names faces that do not lie on one surface, and a move moves one \
@@ -1207,6 +1200,10 @@ struct EdgePlan<T: Real> {
 /// the whole boundary plan are decided read-only, the mutation runs on
 /// a clone, and the clone is adopted only after it validates.
 ///
+/// The door **ends with the join** (`docs/DESIGN.md`, maximal edges):
+/// the moved body is joined on the clone before it is adopted, and the
+/// joins are returned ([`OffsetOutcome`]).
+///
 /// # Errors
 ///
 /// [`ReplaceFaceError`] — [`ReplaceFaceError::Band`] when the run's
@@ -1219,7 +1216,7 @@ pub fn replace_face_offset<T: Decide + crate::props::AtRestPolicy>(
     face: FaceKey,
     d: T,
     tol: Tol,
-) -> Result<(), ReplaceFaceError<T>> {
+) -> Result<OffsetOutcome, ReplaceFaceError<T>> {
     replace_faces_offset(body, &[face], d, tol)
 }
 
@@ -1248,6 +1245,10 @@ pub fn replace_face_offset<T: Decide + crate::props::AtRestPolicy>(
 /// above) and not a mixture of charts
 /// ([`ReplaceFaceError::GroupChartsDiffer`]).
 ///
+/// The door **ends with the join** (`docs/DESIGN.md`, maximal edges):
+/// the moved body is joined on the clone before it is adopted, and the
+/// joins are returned ([`OffsetOutcome`]).
+///
 /// # Errors
 ///
 /// [`ReplaceFaceError`] — [`replace_face_offset`]'s, plus the group
@@ -1257,46 +1258,49 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
     faces: &[FaceKey],
     d: T,
     tol: Tol,
-) -> Result<(), ReplaceFaceError<T>> {
-    ending_with_the_join(body, tol, |work| {
-        replace_faces_offset_unjoined(work, faces, d, tol)
-    })
+) -> Result<OffsetOutcome, ReplaceFaceError<T>> {
+    replace_faces_offset_staged(body, faces, d, tol, true).map(|joins| OffsetOutcome { joins })
 }
 
-/// **The join every public offset door ends with** (`docs/DESIGN.md`,
-/// maximal edges): `door` runs on a clone, the clone is joined
-/// ([`Body::join_edges`]) and re-minted where a join moved its pcurve
-/// rows, and only then adopted, so a refusal of either leaves `body`
-/// untouched.
-pub(crate) fn ending_with_the_join<T: Decide + crate::props::AtRestPolicy>(
-    body: &mut Body<T>,
+/// What a public offset door did to the body's topology: the joins it
+/// ended with ([`Body::join_edges`], `docs/DESIGN.md`, maximal edges),
+/// in the order made, each killed `vertex` and `gone` edge held by
+/// `kept`. Empty where the moved body held no joinable vertex.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct OffsetOutcome {
+    /// The joins, in the order made.
+    pub joins: Vec<crate::boolean::EdgeJoin>,
+}
+
+/// The join an offset door ends with where `join` is set, on its staged
+/// body before it is adopted.
+pub(crate) fn staged_join<T: Decide + crate::props::AtRestPolicy>(
+    staged: &mut Body<T>,
+    join: bool,
     tol: Tol,
-    door: impl FnOnce(&mut Body<T>) -> Result<(), ReplaceFaceError<T>>,
-) -> Result<(), ReplaceFaceError<T>> {
-    let mut work = body.clone();
-    door(&mut work)?;
+) -> Result<Vec<crate::boolean::EdgeJoin>, ReplaceFaceError<T>> {
+    if !join {
+        return Ok(Vec::new());
+    }
     let band = Band::linear(tol).map_err(|error| ReplaceFaceError::Band { error })?;
-    let joins = work
+    staged
         .join_edges(band, tol)
         .map_err(|refusal| ReplaceFaceError::Join {
-            kind: refusal.kind(),
-            what: crate::boolean::edge_join::join_refusal_sentence(&refusal),
-        })?;
-    if !joins.is_empty() && !work.pcurves.is_empty() {
-        mint_pcurves(&mut work, tol).map_err(|source| ReplaceFaceError::Pcurve { source })?;
-    }
-    body.adopt(work);
-    Ok(())
+            refusal: crate::boolean::JoinRefusal::of(&refusal),
+        })
 }
 
-/// [`replace_faces_offset`] without the join: the shell's cavity
-/// offset, which keys its naming rows by the moved body's cells.
-pub(crate) fn replace_faces_offset_unjoined<T: Decide + crate::props::AtRestPolicy>(
+/// [`replace_faces_offset`], ending with the join where `join` is set.
+/// Unset, the result is construction state a later step must join: the
+/// shell's cavity and lift offsets, which key their naming rows by the
+/// moved body's cells.
+pub(crate) fn replace_faces_offset_staged<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     faces: &[FaceKey],
     d: T,
     tol: Tol,
-) -> Result<(), ReplaceFaceError<T>> {
+    join: bool,
+) -> Result<Vec<crate::boolean::EdgeJoin>, ReplaceFaceError<T>> {
     // The one band every decision below classifies at, derived from the
     // same witness the fit door reads.
     let band = Band::linear(tol).map_err(|error| ReplaceFaceError::Band { error })?;
@@ -1561,9 +1565,9 @@ pub(crate) fn replace_faces_offset_unjoined<T: Decide + crate::props::AtRestPoli
     mint_pcurves(&mut work, tol).map_err(|source| ReplaceFaceError::Pcurve { source })?;
     work.sweep_and_close();
     validate_closed(&staged).map_err(|errors| ReplaceFaceError::ResultNotClosed { errors })?;
-
+    let joins = staged_join(&mut staged, join, tol)?;
     body.adopt(staged);
-    Ok(())
+    Ok(joins)
 }
 
 /// The offset surface for `old`: the analytic mint, or the fit door's

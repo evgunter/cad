@@ -426,6 +426,10 @@ impl<T: Decide> Profile<T> {
 /// linear in the body, and what that costs — is [`crate::offset_together::Scope`]'s, stated
 /// there once for both doors.
 ///
+/// The door **ends with the join** (`docs/DESIGN.md`, maximal edges):
+/// the moved body is joined on the clone before it is adopted, and the
+/// joins are returned ([`crate::replace_face::OffsetOutcome`]).
+///
 /// # Errors
 ///
 /// [`ReplaceFaceError`], the body untouched on every one: the whole
@@ -436,20 +440,22 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
     moves: &[ChartMove<T>],
     band: Band,
     tol: Tol,
-) -> Result<(), ReplaceFaceError<T>> {
-    crate::replace_face::ending_with_the_join(body, tol, |work| {
-        offset_charts_together_unjoined(work, moves, band, tol)
-    })
+) -> Result<crate::replace_face::OffsetOutcome, ReplaceFaceError<T>> {
+    offset_charts_together_staged(body, moves, band, tol, true)
+        .map(|joins| crate::replace_face::OffsetOutcome { joins })
 }
 
-/// [`offset_charts_together`] without the join: the shell's cavity
-/// offset, which keys its naming rows by the moved body's cells.
-pub(crate) fn offset_charts_together_unjoined<T: Decide + crate::props::AtRestPolicy>(
+/// [`offset_charts_together`], ending with the join where `join` is set. Unset, the
+/// result is construction state a later step must join: the shell's
+/// cavity and lift offsets, which key their naming rows by the moved
+/// body's cells.
+pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     moves: &[ChartMove<T>],
     band: Band,
     tol: Tol,
-) -> Result<(), ReplaceFaceError<T>> {
+    join: bool,
+) -> Result<Vec<crate::boolean::EdgeJoin>, ReplaceFaceError<T>> {
     // ---- Decide: the chart moves are well formed. ----
     //
     // The planar door's own two preconditions, for the same reason: a
@@ -765,8 +771,9 @@ pub(crate) fn offset_charts_together_unjoined<T: Decide + crate::props::AtRestPo
     if let Err(errors) = crate::validate::validate_closed(&staged) {
         return Err(ReplaceFaceError::ResultNotClosed { errors });
     }
+    let joins = crate::replace_face::staged_join(&mut staged, join, tol)?;
     body.adopt(staged);
-    Ok(())
+    Ok(joins)
 }
 
 // ---------------------------------------------------------------------

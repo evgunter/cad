@@ -265,33 +265,34 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
     ),
     (
         "merge_unjoined",
-        "test support: calls `merge_coplanar_faces_unjoined`, which asserts tier 1 through \
-         its surgery scope",
+        "test support: calls `merge_coplanar_faces_unjoined`, which runs \
+         `merge_coplanar_faces_staged` and asserts tier 1 through its surgery scope",
     ),
     (
         "join_edges",
-        "a pipeline of `kev_describing` kills, each asserting the tier-1 postcondition, and \
-         the planar arm's re-description, which writes a curve and no topology",
+        "stages `kev_describing` kills on a clone, each asserting the tier-1 postcondition \
+         (the planar arm's re-description writes a curve and no topology), re-mints the \
+         clone's pcurves, then adopts the clone",
     ),
     (
         "merge_coplanar_faces_declared",
-        "runs `merge_coplanar_faces_unjoined`, which asserts tier 1 through its surgery \
-         scope, and `join_edges` on a clone, then adopts the clone",
+        "runs `merge_coplanar_faces_staged`, which asserts tier 1 through its surgery \
+         scope and runs `join_edges` on its staging clone before adopting it",
     ),
     (
         "replace_faces_offset",
-        "runs `replace_faces_offset_unjoined` and `join_edges` on a clone \
-         (`ending_with_the_join`), then adopts the clone",
+        "runs `replace_faces_offset_staged`, whose asserting door works on a staging clone \
+         that `join_edges` finishes before it is adopted",
     ),
     (
         "offset_planes_together",
-        "runs `offset_planes_together_unjoined` and `join_edges` on a clone \
-         (`ending_with_the_join`), then adopts the clone",
+        "runs `offset_planes_together_staged`, whose asserting door works on a staging clone \
+         that `join_edges` finishes before it is adopted",
     ),
     (
         "offset_charts_together",
-        "runs `offset_charts_together_unjoined` and `join_edges` on a clone \
-         (`ending_with_the_join`), then adopts the clone",
+        "runs `offset_charts_together_staged`, whose asserting door works on a staging clone \
+         that `join_edges` finishes before it is adopted",
     ),
     // ---- Setters declaring the tier-1 postcondition. ----
     (
@@ -582,15 +583,15 @@ fn every_public_mutation_path_preserves_tier1() {
     // `begin_surgery` too would move them to `asserting`/`unlisted`
     // silently. The merge is the door whose scope composes tens of ring
     // surgeries; since its public spellings end with the join, the
-    // scope sits one call down, in `merge_coplanar_faces_unjoined`,
+    // scope sits one call down, in `merge_coplanar_faces_staged`,
     // which the walk (public doors only) does not visit, so the pin
     // reads that body's source directly.
-    let unjoined = crate::source_walk::fn_body("merge_faces", "merge_coplanar_faces_unjoined");
+    let staged = crate::source_walk::fn_body("merge_faces", "merge_coplanar_faces_staged");
     assert!(
-        unjoined
+        staged
             .as_deref()
             .is_some_and(|b| b.contains("begin_surgery") && b.contains("sweep_and_close")),
-        "`merge_coplanar_faces_unjoined` no longer reads as opening and closing a surgery \
+        "`merge_coplanar_faces_staged` no longer reads as opening and closing a surgery \
          scope. Either the door stopped scoping — a finding, it composes tens of ring \
          surgeries — or the source read lost the calls.",
     );

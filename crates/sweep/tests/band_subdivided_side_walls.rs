@@ -211,10 +211,7 @@ fn extruded_continuation_builds_one_wall_and_unions_as_built() {
     assert_eq!(topo::validate_geometric(&ex.body, t), Ok(()), "tier 3");
     let mut merged = ex.body.clone();
     assert!(
-        topo::test_support::merge_unjoined(&mut merged, t)
-            .unwrap()
-            .groups
-            .is_empty(),
+        merged.merge_coplanar_faces(t).unwrap().groups.is_empty(),
         "nothing left for the structural rung to merge"
     );
 
@@ -431,10 +428,7 @@ fn revolved_continuation_builds_one_wall_per_run_and_unions_as_built() {
         assert_eq!(topo::validate_geometric(&r.body, t), Ok(()), "{rev:?}");
         let mut merged = r.body.clone();
         assert!(
-            topo::test_support::merge_unjoined(&mut merged, t)
-                .unwrap()
-                .groups
-                .is_empty(),
+            merged.merge_coplanar_faces(t).unwrap().groups.is_empty(),
             "{rev:?}: nothing left for the structural rung to merge"
         );
         let revolved = finished("the subdivided revolve", r.body.clone(), t);
@@ -466,12 +460,7 @@ fn lofted_continuation_walls_carry_one_key_per_segment() {
     ));
     assert_eq!(topo::validate_geometric(&l.body, t), Ok(()), "tier 3");
     let mut m = l.body.clone();
-    assert!(
-        topo::test_support::merge_unjoined(&mut m, t)
-            .unwrap()
-            .groups
-            .is_empty()
-    );
+    assert!(m.merge_coplanar_faces(t).unwrap().groups.is_empty());
     let loft = finished("the subdivided loft", l.body.clone(), t);
     let err = union(&loft, &cube_at(0.5, -0.5, 0.5, 1.0), t).unwrap_err();
     assert!(

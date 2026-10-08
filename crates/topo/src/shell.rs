@@ -1299,18 +1299,20 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
                 // refusals carry a face, a vertex or an edge; the last two are
                 // resolved to a face they touch.
                 let outcome = if door == OffsetDoor::ChartsTogether {
-                    crate::offset_axial::offset_charts_together_unjoined(
+                    crate::offset_axial::offset_charts_together_staged(
                         &mut cavity,
                         &moves,
                         band,
                         tol,
+                        false,
                     )
                 } else {
-                    crate::offset_together::offset_planes_together_unjoined(
+                    crate::offset_together::offset_planes_together_staged(
                         &mut cavity,
                         &moves,
                         band,
                         tol,
+                        false,
                     )
                 };
                 outcome.map_err(|error| ShellError::Face {
@@ -1322,11 +1324,17 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
                 for group in &mine {
                     let face = group[0];
                     let d = inward(&cavity, face, thickness);
-                    crate::replace_face::replace_faces_offset_unjoined(&mut cavity, group, d, tol)
-                        .map_err(|error| ShellError::Face {
-                            face,
-                            error: Box::new(error),
-                        })?;
+                    crate::replace_face::replace_faces_offset_staged(
+                        &mut cavity,
+                        group,
+                        d,
+                        tol,
+                        false,
+                    )
+                    .map_err(|error| ShellError::Face {
+                        face,
+                        error: Box::new(error),
+                    })?;
                 }
             }
         }
@@ -1582,14 +1590,17 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
                         },
                     })
                     .collect();
-                crate::offset_axial::offset_charts_together_unjoined(&mut out, &moves, band, tol)
+                crate::offset_axial::offset_charts_together_staged(
+                    &mut out, &moves, band, tol, false,
+                )
             }
             OffsetDoor::PlanesTogether | OffsetDoor::PerChart => {
-                crate::replace_face::replace_faces_offset_unjoined(
+                crate::replace_face::replace_faces_offset_staged(
                     &mut out,
                     lift_charts.of(counterpart_chart),
                     back,
                     tol,
+                    false,
                 )
             }
         };

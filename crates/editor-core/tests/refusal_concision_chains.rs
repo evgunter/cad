@@ -4106,6 +4106,23 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
         .collect()
 }
 
+/// **The offset door's join refusal, typed**: the refusal a regularity
+/// reading in the band raises, carried as the door carries it
+/// ([`topo::JoinRefusal`]) and rendered through its own `Display`, so a
+/// regression in the door's words reds this row. A body whose reading
+/// lands in the band is the STEP fixture `halfcap_eps6` (its split
+/// vertex is 1e-8 m off the pole), which `step-import`'s rows feed to
+/// the door itself; this crate cannot build one at the run's one
+/// tolerance, since `split_edge` refuses inside the same band.
+fn join_refused_offset() -> topo::ReplaceFaceError<f64> {
+    topo::ReplaceFaceError::Join {
+        refusal: topo::JoinRefusal::Undecided(topo::JoinUndecided {
+            vertex: topo::VertexKey::default(),
+            reading: topo::JoinReading::Regularity(payloads::named("join_regular_point")),
+        }),
+    }
+}
+
 /// Every `topo::ReplaceFaceError` arm but `Fit` ([`offset_fit_routes`]
 /// renders that one per fit refusal), and every `OffsetError` arm
 /// through `Offset`. `TogetherAxialCorner` carries the longest `what`
@@ -4329,17 +4346,7 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                 },
             ),
             ("Pcurve", R::Pcurve { source: pcurve() }),
-            (
-                "Join",
-                R::Join {
-                    kind: topo::BooleanErrorKind::JoinUndecided,
-                    what: "whether two edges meeting at a vertex on one curve are one edge is \
-                           undecided at this tolerance (the margin 3e-9 m lies inside the band \
-                           [1e-9, 1e-6] m). Recourse: if this size is intended, tighten the \
-                           tolerance below it"
-                        .to_owned(),
-                },
-            ),
+            ("Join", join_refused_offset()),
             (
                 "ResultNotClosed",
                 R::ResultNotClosed {
