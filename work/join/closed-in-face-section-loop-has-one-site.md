@@ -95,12 +95,19 @@ builds all three ops to their closed forms. The fixture is renamed
 "the box top across both tube walls" and the refusal row
 `a_closed_section_loop_with_one_site_refuses_typed` is deleted.
 
-So no fixture in the tree reaches the class this row names, a conic
-lying in the partner's face. Its refusal stands: the arm admits a
-one-site record only where every real edge at the site, on both
-operands, has both halves in the germ's face. A conic lying along an
-operand's edge has that edge at its site, and still refuses
-`SingleSiteSectionLoop`. The declared-REST lane, reached only when the
+The class this row names, a conic lying in the partner's face, is
+reached instead by the PR 4345 review's `F4d` fixture. It is pinned as
+`crates/sweep/tests/a_plane_across_a_one_face_wall.rs`
+`a_circle_edge_in_the_partners_face_refuses`:
+- the fixture is a bored tube whose outer wall turns from a cylinder to
+  a sphere at the circle `y = 0`, inside the box face `y = 0`;
+- every op in both orders refuses `SingleSiteSectionLoop { count: 1 }`:
+  the in-face circle refuses, and the inner wall's transverse crossing
+  builds.
+
+The arm takes a one-site record only where the site is a wrap edge of
+one operand's face and a pierce of the other's planar face. The
+in-face circle edge sits at its own site, so it keeps the refusal. The declared-REST lane, reached only when the
 join refuses, reads `section_segments` alone and does not see the arm's
 segments: a declared op whose join refuses for another reason with a
 one-site loop on it falls back to that join refusal, as before.
