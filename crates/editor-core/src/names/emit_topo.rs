@@ -1128,9 +1128,9 @@ fn name_boolean_edges<T: Decide>(
     // sub-edge of an operand edge as a chord) descends instead to an
     // operand edge its two parent faces share — combinatorial adjacency
     // of emitted anchors, not matching, while the pair shares one edge.
-    // When it shares SEVERAL — collinear pieces of one line, left by an
-    // earlier union step — the chord's geometry picks the piece it lies
-    // within (`rim_holding`); when nothing picks one,
+    // When it shares SEVERAL — pieces of one curve, left by an earlier
+    // union step or a cut through the rim — the chord's geometry picks
+    // the piece it lies within (`rim_holding`); when nothing picks one,
     // `NamingError::SharedRim` is what the arm below says. ----
     enum ChordKind {
         Cross(Upstream, Upstream),
@@ -1185,14 +1185,14 @@ fn name_boolean_edges<T: Decide>(
         // build these bodies, it DESCENDED two result faces into one of
         // them and guesses the pair carries this chord's rim. One shared
         // edge is that rim, when the chord lies within it
-        // ([`chord_on_rim`]); several are the pieces of one line, and the
+        // ([`chord_on_rim`]); several are the pieces of one curve, and the
         // chord picks the piece it lies within ([`rim_holding`]). A pair
         // with no rim, or pieces the chord picks none of, refutes the
         // guess, not the body — so the answer is classified here rather
         // than at the walk. `off_rim` says what a chord off its one rim
         // is, which depends on why the faces were paired.
         //
-        // `chord_on_rim` is a straight-segment test, so a CURVED rim
+        // `chord_on_rim` is a straight-segment test, so a CURVED lone rim
         // (an arc between a cylinder's side and a cap) is taken without
         // it. Only unmerged faces can meet along one: merged faces are
         // planar (F7), and two planes meet in a line.
@@ -1203,9 +1203,9 @@ fn name_boolean_edges<T: Decide>(
          -> Result<EdgeKey, NamingError> {
             let found = match rim_between(op.body, f0, f1)? {
                 Rim::One(rim) => {
-                    let straight = topo::query::edge_carrier_kind(op.body, rim)
-                        == Some(topo::query::CurveKind::Line);
-                    return if !straight || chord_on_rim(body, e, op.body, rim, bnd)? {
+                    return if !is_straight(op.body, rim)
+                        || chord_on_rim(body, e, op.body, rim, bnd)?
+                    {
                         Ok(rim)
                     } else {
                         Err(off_rim(rim))
@@ -1537,10 +1537,7 @@ fn joined_cover<T: Decide>(
         })
     };
     let (d0, d1) = (descents(*f0)?, descents(*f1)?);
-    let straight = |body: &Body<T>, k: EdgeKey| {
-        topo::query::edge_carrier_kind(body, k) == Some(topo::query::CurveKind::Line)
-    };
-    let line = straight(body, e);
+    let line = is_straight(body, e);
     let mut candidates: BTreeSet<OpSide<EdgeKey>> = BTreeSet::new();
     for &g0 in &d0 {
         for &g1 in d1
@@ -1550,7 +1547,7 @@ fn joined_cover<T: Decide>(
             let (op, k0) = g0.of(a, b);
             let (_, k1) = g1.of(a, b);
             for r in rims_between(op.body, k0, k1)? {
-                if straight(op.body, r) == line {
+                if is_straight(op.body, r) == line {
                     candidates.insert(g0.with(r));
                 }
             }
@@ -1559,31 +1556,20 @@ fn joined_cover<T: Decide>(
     let mut arcs = Vec::with_capacity(candidates.len());
     for r in candidates {
         let (op, k) = r.of(a, b);
-        let (v0, v1) = edge_ends(op.body, k)?;
-        let (p0, p1) = (vertex_point(op.body, v0)?, vertex_point(op.body, v1)?);
-        // A segment is read by its ends alone.
-        let mid = if line {
-            p0
-        } else {
-            op.body
-                .get_edge(k)
-                .and_then(|d| op.body.get_curve_geom(d.curve))
-                .and_then(topo::CurveGeom::certified)
-                .map(|c| {
-                    let (r0, r1) = c.params();
-                    c.carrier().mid_point(r0, r1)
-                })
-                .ok_or(bug("a joined edge's cover has no certified curve"))?
-        };
-        arcs.push((
-            r,
+        let arc = if line {
+            // A segment is read by its ends alone.
+            let (v0, v1) = edge_ends(op.body, k)?;
+            let (p0, p1) = (vertex_point(op.body, v0)?, vertex_point(op.body, v1)?);
             CarrierArc {
                 p0,
-                mid,
+                mid: p0,
                 p1,
                 closed: v0 == v1,
-            },
-        ));
+            }
+        } else {
+            carrier_arc(op.body, k)?
+        };
+        arcs.push((r, arc));
     }
     let cover = if line {
         Segment::of_edge(body, e)?.cover(
@@ -2726,7 +2712,7 @@ impl<T: Decide> Track<T> {
             .get_edge(e)
             .and_then(|d| body.get_curve_geom(d.curve))
             .and_then(topo::CurveGeom::certified)
-            .ok_or(bug("a joined edge's cover has no certified curve"))?;
+            .ok_or(bug("a curved edge has no certified curve"))?;
         let carrier = curve.carrier().clone();
         let (t0, t1) = curve.params();
         let period = match carrier {
@@ -2881,19 +2867,24 @@ fn chord_on_rim<T: Decide>(
 }
 
 /// Of the SEVERAL edges operand faces `f0` and `f1` share in
-/// `op_body`, the one result edge `chord` lies within
-/// ([`chord_on_rim`]) — `None` unless exactly one does.
+/// `op_body`, the one result edge `chord` lies within, read along the
+/// chord's carrier — `None` unless exactly one does.
 ///
-/// Two faces of one operand share several edges when their common
-/// line is cut into pieces: a union step before this one met the pair
-/// along one rim and left it in collinear pieces, split at the
-/// vertices where the members' ends meet it. "The rim they share" is
-/// then not one edge, and adjacency cannot say which piece a chord
-/// derived on that line belongs to; its geometry can. The pieces are
-/// disjoint but for their shared ends, so a chord strictly inside one
-/// lies within no other, and the answer is one piece or none. None,
-/// or more than one, and the caller refuses the pair as it did
-/// before: the chord does not pick a piece, and no other rule does.
+/// Two faces of one operand share several edges when the curve they
+/// meet along is cut into pieces: a union step before this one met the
+/// pair along one rim and left it in pieces, split at the vertices
+/// where the members' ends meet it, or a cut through the rim did. "The
+/// rim they share" is then not one edge, and adjacency cannot say which
+/// piece a chord derived on that curve belongs to; its geometry can. A
+/// straight chord lies within a straight piece when both its ends lie
+/// on the piece's segment ([`chord_on_rim`]); a curved one, when it
+/// lies within the piece along their common carrier ([`Track::cover`]),
+/// the reading a pair boolean's joined edge takes on a curved carrier
+/// (`names/README.md`, "Flush edges"). The pieces are disjoint but for
+/// their shared ends, so a chord strictly inside one lies within no
+/// other, and the answer is one piece or none. None, or more than one,
+/// and the caller refuses the pair as it did before: the chord does not
+/// pick a piece, and no other rule does.
 fn rim_holding<T: Decide>(
     body: &Body<T>,
     chord: EdgeKey,
@@ -2902,16 +2893,59 @@ fn rim_holding<T: Decide>(
     f1: FaceKey,
     bnd: geom_core::Band,
 ) -> Result<Option<EdgeKey>, NamingError> {
-    let mut holding = None;
-    for rim in rims_between(op_body, f0, f1)? {
-        if chord_on_rim(body, chord, op_body, rim, bnd)? {
-            if holding.is_some() {
-                return Ok(None);
+    let line = is_straight(body, chord);
+    let rims = rims_between(op_body, f0, f1)?
+        .into_iter()
+        .filter(|&r| is_straight(op_body, r) == line);
+    let within = if line {
+        let mut within = Vec::new();
+        for rim in rims {
+            if chord_on_rim(body, chord, op_body, rim, bnd)? {
+                within.push(rim);
             }
-            holding = Some(rim);
         }
-    }
-    Ok(holding)
+        within
+    } else {
+        let mut arcs = Vec::new();
+        for rim in rims {
+            arcs.push((rim, carrier_arc(op_body, rim)?));
+        }
+        Track::of_edge(body, chord)?
+            .cover(arcs, CHORD_ON_RIM, bnd)?
+            .within
+    };
+    Ok(match within.as_slice() {
+        [one] => Some(*one),
+        _ => None,
+    })
+}
+
+/// Whether edge `e` of `body` is carried by a line.
+fn is_straight<T: Decide>(body: &Body<T>, e: EdgeKey) -> bool {
+    topo::query::edge_carrier_kind(body, e) == Some(topo::query::CurveKind::Line)
+}
+
+/// Curved edge `e` of `body` as a [`Track::cover`] candidate: its ends
+/// and the point halfway along its certified carrier.
+fn carrier_arc<T: Decide>(body: &Body<T>, e: EdgeKey) -> Result<CarrierArc<T>, NamingError> {
+    let (v0, v1) = edge_ends(body, e)?;
+    let mid = body
+        .get_edge(e)
+        .and_then(|d| body.get_curve_geom(d.curve))
+        .and_then(topo::CurveGeom::certified)
+        .map(|c| {
+            let (r0, r1) = c.params();
+            c.carrier().mid_point(r0, r1)
+        })
+        .ok_or(NamingError::Emission {
+            what: "a curved edge has no certified curve",
+        })?;
+    Ok(CarrierArc {
+        p0: vertex_point(body, v0)?,
+        mid,
+        p1: vertex_point(body, v1)?,
+        closed: v0 == v1,
+    })
 }
 
 /// A ranked group's size as its names' `OrderAlong { of }`, through
