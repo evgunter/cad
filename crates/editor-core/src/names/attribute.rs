@@ -121,7 +121,9 @@ pub(super) fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
 
         // Carried through: the argument is the entity's own name one
         // level down.
-        RoleSeg::FromA(of) | RoleSeg::FromTarget(of) => SegOrigin::Carried(of, CarriedAs::Primary),
+        RoleSeg::FromA(of) | RoleSeg::FromTarget(of) | RoleSeg::Placed { of } => {
+            SegOrigin::Carried(of, CarriedAs::Primary)
+        }
         RoleSeg::FromB(of) | RoleSeg::FromMember { of, .. } => {
             SegOrigin::Carried(of, CarriedAs::Secondary)
         }

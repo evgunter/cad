@@ -1583,6 +1583,16 @@ pub enum RoleSeg {
         of: NameRef,
     },
 
+    // ---- World placement ----
+    /// The copy a world placement defines of its body's entity `of`
+    /// (D10, A10). The placement's identity rides in the enclosing
+    /// [`StableName::node`], so two placements of one body name their
+    /// copies apart, as [`RoleSeg::Instance`] names a pattern's.
+    Placed {
+        /// The entity's name in the body placed.
+        of: NameRef,
+    },
+
     // ---- Pattern ----
     /// Instance `i` of the pattern's master (i is the D8-structural
     /// index — A8/N1; `of` is the master entity's name).
@@ -1738,6 +1748,7 @@ pub(crate) fn member_edge(seg: &RoleSeg) -> Option<RecipeNodeId> {
         | RoleSeg::Rim(_)
         | RoleSeg::HoleRim { .. }
         | RoleSeg::InPart { .. }
+        | RoleSeg::Placed { .. }
         | RoleSeg::Instance { .. } => None,
     }
 }
@@ -1811,6 +1822,7 @@ pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEd
         | Node::Boolean { .. }
         | Node::Union { .. }
         | Node::Pattern { .. }
+        | Node::PlaceInWorld { .. }
         | Node::PlacedUnion { .. }
         | Node::InstantiatePart { .. }
         | Node::Gauge { .. }
@@ -1858,7 +1870,7 @@ pub(crate) enum Lift {
 /// - **Spelled under the consumer**: a `Union` member's entity as
 ///   [`super::member_name`]; a pair `Boolean`'s as `FromA` / `FromB`;
 ///   a `Fillet`'s, `Chamfer`'s or `Shell`'s target's survivor as
-///   `FromTarget`.
+///   `FromTarget`; a world placement's copy as `Placed`.
 /// - **Moved**: a `Transform`, a `Pattern` and a `PlacedUnion` place
 ///   their input again.
 /// - **Dropped**: every other seat — the datum, profile, path, axis
@@ -1940,6 +1952,12 @@ pub(crate) fn lift<P>(
             input: placed,
             placement: _,
         } => seat(*placed, Lift::Moved).into_iter().collect(),
+        // The copy is the body's, qualified by the placement; where the
+        // pose puts it is the product's geometry, and the copy's name
+        // reaches it there.
+        Node::PlaceInWorld { body, pose: _ } => seat(*body, under(|of| RoleSeg::Placed { of }))
+            .into_iter()
+            .collect(),
         Node::Pattern {
             input: placed,
             count: _,
@@ -2505,6 +2523,9 @@ impl RoleSeg {
             },
             // The document seam.
             R::InPart { .. } => self.clone(),
+            R::Placed { of } => R::Placed {
+                of: rewrite_ref(of, w)?,
+            },
             R::Instance { i, of } => R::Instance {
                 i: *i,
                 of: rewrite_ref(of, w)?,
@@ -2705,6 +2726,7 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::Rim(_)
             | $crate::names::RoleSeg::HoleRim { .. }
             | $crate::names::RoleSeg::InPart { .. }
+            | $crate::names::RoleSeg::Placed { .. }
             | $crate::names::RoleSeg::Instance { .. }
     };
 }

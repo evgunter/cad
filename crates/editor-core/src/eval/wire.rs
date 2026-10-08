@@ -344,6 +344,11 @@ where
         Node::Transform { input, placement } => {
             wire_transform(id, at(O::Input, *input)?, placement, results, vals, tol)
         }
+        Node::PlaceInWorld { body, pose } => {
+            let at = at(O::Body, *body)?;
+            let port = doc.defined_by(*body).map_or(0, |(_, port)| port);
+            wire_place_in_world(id, at, port, pose, results, vals, tol)
+        }
         Node::Pattern { input, kind, .. } => {
             let input = at(O::Input, *input)?;
             wire_pattern(id, input, kind, doc, &written(doc, id), results, vals, tol)
@@ -4249,6 +4254,44 @@ fn wire_transform<T: Decide + topo::AtRestPolicy>(
     let payload =
         placeable.map(|body, i| place(body, Some(&map), Placing::of(id, 0, per, i)?, tol))?;
     Ok(OpOut::plain(payload, Arc::clone(&value.name_table)).carrying(value.parts))
+}
+
+/// **A world placement** (A10): the body read, at port `port` of the
+/// operation `of`, placed at `pose` as one copy named under this node
+/// ([`names::name_placed`]). A split's half is its port, as a read of
+/// any port is that output.
+fn wire_place_in_world<T: Decide + topo::AtRestPolicy>(
+    id: RecipeNodeId,
+    of: RecipeNodeId,
+    port: u8,
+    pose: &crate::placement::Placement,
+    results: &Results<T>,
+    vals: &SlotValues<T>,
+    tol: Tol,
+) -> OpResult<T> {
+    let value = value_of(results, of)?;
+    let (body, index) = match &value.payload {
+        ValuePayload::Split { above, below } => {
+            let half = if port == 0 {
+                SplitHalf::Above
+            } else {
+                SplitHalf::Below
+            };
+            match if port == 0 { above } else { below } {
+                SplitSide::Body(b) => (Arc::clone(b), half.output_body()),
+                SplitSide::Empty => return Err(NodeErrorKind::EmptyHalf { input: of, half }),
+            }
+        }
+        _ => (read_body(results, of)?, 0),
+    };
+    let table = value
+        .name_table
+        .project(index)
+        .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
+    let map = pose.motion_kept(vals, band(tol)?)?.non_identity();
+    let placed = place(&body, map.as_ref(), Placing::of(id, 0, 1, 0)?, tol)?;
+    let table = names::name_placed(id, &table, &placed).map_err(NodeErrorKind::Naming)?;
+    Ok(OpOut::plain(ValuePayload::Body(Arc::new(placed)), table).carrying(value.parts))
 }
 
 /// **What `node`'s slots read as written** ([`crate::Doc::slot_expansion`]),

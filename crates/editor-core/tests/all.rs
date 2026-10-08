@@ -761,6 +761,8 @@ mod intent_literals_d_constants;
 mod intent_s2_a_outputs;
 #[path = "intent_s2_b_reads.rs"]
 mod intent_s2_b_reads;
+#[path = "intent_s2_c_world.rs"]
+mod intent_s2_c_world;
 #[path = "intent_vars_2_table.rs"]
 mod intent_vars_2_table;
 #[path = "intent_vars_3_readers.rs"]

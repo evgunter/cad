@@ -50,7 +50,7 @@ pub(crate) mod words;
 pub use attribute::{NameOrigin, attribute};
 pub(crate) use defer::CarriedRows;
 pub(crate) use discriminate::{FAMILY, decision_words};
-pub(crate) use emit::name_in_part;
+pub(crate) use emit::{name_in_part, name_placed};
 pub use emit::{NamingError, RimShare};
 pub(crate) use emit::{
     check_total, empty, flat_body_index, name_pattern, name_placed_union, output_body, to_u32,

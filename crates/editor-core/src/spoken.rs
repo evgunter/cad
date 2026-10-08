@@ -1198,6 +1198,7 @@ pub fn node_kind_noun<P, S: crate::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Extrude { .. } => "Extrude",
         Node::Revolve { .. } => "Revolve",
         Node::Transform { .. } => "Transform",
+        Node::PlaceInWorld { .. } => "PlaceInWorld",
         Node::Boolean { .. } => "Boolean",
         Node::Union { .. } => "Union",
         Node::Split { .. } => "Split",

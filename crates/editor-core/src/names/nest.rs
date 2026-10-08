@@ -364,6 +364,7 @@ impl RoleSeg {
             | RoleSeg::Rim(n)
             | RoleSeg::HoleRim { of: n, .. }
             | RoleSeg::InPart { of: n }
+            | RoleSeg::Placed { of: n }
             | RoleSeg::Instance { of: n, .. } => f(Shared(n)),
             RoleSeg::Seam { a, b }
             | RoleSeg::Crossing {
@@ -418,6 +419,7 @@ impl RoleSeg {
             | RoleSeg::Rim(n)
             | RoleSeg::HoleRim { of: n, .. }
             | RoleSeg::InPart { of: n }
+            | RoleSeg::Placed { of: n }
             | RoleSeg::Instance { of: n, .. } => f(Shared(n)),
             RoleSeg::Seam { a, b }
             | RoleSeg::Crossing {

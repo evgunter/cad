@@ -2292,6 +2292,10 @@ fn remap_node(
             input: rd(*input)?,
             placement: placement.clone(),
         },
+        Node::PlaceInWorld { body, pose } => Node::PlaceInWorld {
+            body: rd(*body)?,
+            pose: pose.clone(),
+        },
         Node::Pattern { input, count, kind } => Node::Pattern {
             input: rd(*input)?,
             count: *count,
@@ -2692,6 +2696,7 @@ fn denotes_a_body(node: &Node<ProfileProgram>) -> bool {
         | Node::Boolean { .. }
         | Node::Union { .. }
         | Node::Transform { .. }
+        | Node::PlaceInWorld { .. }
         | Node::Pattern { .. }
         | Node::Part { .. }
         | Node::PlacedUnion { .. }

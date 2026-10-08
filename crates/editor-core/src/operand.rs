@@ -109,6 +109,8 @@ pub enum OperandSlot {
     Plane,
     /// The body a face frame reads its face out of.
     At,
+    /// The body a world placement places.
+    Body,
 }
 
 impl OperandSlot {
@@ -130,7 +132,7 @@ impl OperandSlot {
             Self::Of => "source".to_owned(),
             Self::Measure => "measure".to_owned(),
             Self::Plane => "plane".to_owned(),
-            Self::At => "body".to_owned(),
+            Self::At | Self::Body => "body".to_owned(),
         }
     }
 
@@ -142,7 +144,7 @@ impl OperandSlot {
             Self::Axis => OperandKind::Is(VarKind::Axis),
             Self::Frame | Self::Plane => OperandKind::Is(VarKind::Frame),
             Self::Tool => OperandKind::Is(VarKind::Plane),
-            Self::Target | Self::A | Self::B | Self::Member(_) | Self::At => {
+            Self::Target | Self::A | Self::B | Self::Member(_) | Self::At | Self::Body => {
                 OperandKind::Is(VarKind::Body)
             }
             Self::Input | Self::Of => OperandKind::Placeable,

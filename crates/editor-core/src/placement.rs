@@ -789,6 +789,20 @@ impl Placement {
             .map(Motion::affine)
     }
 
+    /// [`Placement::motion`] with the bit-exact identity kept marked
+    /// ([`Motion`]), for a door that skips it.
+    ///
+    /// # Errors
+    ///
+    /// [`Placement::motion`]'s.
+    pub(crate) fn motion_kept<T: Decide>(
+        &self,
+        vals: &SlotValues<T>,
+        band: Band,
+    ) -> Result<Motion<T>, NodeErrorKind> {
+        self.chain_motion(Motion::Identity, vals, band)
+    }
+
     /// [`Placement::motion`] after `before`, with the identity kept
     /// marked.
     fn chain_motion<T: Decide>(
