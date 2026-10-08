@@ -198,10 +198,15 @@ fn split_through_operand_edges_names_totally() {
 /// A plane through the 315° prism's reflex top corner `(0, 0, 1)`,
 /// tilted back over the prism so the corner's three edges read Above
 /// and its reflex bisector Below: the splitter's whole-orbit strut,
-/// whose copy is the BELOW end. The corner still takes one
-/// `OnToolVertex` per half, both naming the operand corner.
+/// whose copy is the BELOW end. Above, the corner keeps its three edges
+/// and takes an `OnToolVertex` naming the operand corner. Below, the
+/// copy holds only the two section chords the plane cuts across the top
+/// cap on either side of the corner, one line between the section face
+/// and the cap: the split ends with the join (`docs/DESIGN.md`, maximal
+/// edges), so the copy is gone and the chord is one edge, named for the
+/// cap it crosses with no ends to tell pieces apart.
 #[test]
-fn split_through_a_reflex_corner_names_its_copy_on_each_half() {
+fn split_through_a_reflex_corner_names_its_copy_where_the_corner_stands() {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_rework", Tol::witness());
     let (doc, p) = on_frame(
         doc,
@@ -252,15 +257,27 @@ fn split_through_a_reflex_corner_names_its_copy_on_each_half() {
         })
         .collect();
     let sides: Vec<_> = copies.iter().map(|c| c.0).collect();
-    assert!(
-        sides.len() == 2
-            && sides.contains(&editor_core::SplitHalf::Above)
-            && sides.contains(&editor_core::SplitHalf::Below),
-        "one corner copy per half: {copies:?}"
-    );
     assert_eq!(
-        copies[0].1, copies[1].1,
-        "both copies name the one operand corner"
+        sides,
+        vec![editor_core::SplitHalf::Above],
+        "the corner's copy Above, and none Below: {copies:?}"
+    );
+    let below_chords: Vec<_> = v
+        .name_table
+        .iter()
+        .filter(|(n, _)| {
+            matches!(
+                n.path.as_slice(),
+                [RoleSeg::SectionEdge {
+                    side: editor_core::SplitHalf::Below,
+                    ..
+                }]
+            )
+        })
+        .collect();
+    assert!(
+        !below_chords.is_empty(),
+        "Below's section chords are named for the faces they cross, each one edge"
     );
 }
 
@@ -317,5 +334,66 @@ fn pattern_of_split_output_refuses_typed_never_misnames() {
             Some(NodeErrorClass::WrongOperand | NodeErrorClass::Naming)
         ),
         "expected a typed refusal, got: {err}"
+    );
+}
+
+/// **An edge the split cut and joined back whole keeps its own name.**
+/// A plane tangent to a cylinder along a wall ruling away from its seam
+/// touches each rim at one point, where the split cuts it; the cut
+/// separates nothing, so the split ends by joining each rim back
+/// (`docs/DESIGN.md`, maximal edges). The landed cylinder's every edge
+/// is named as the operand's own, never as a fragment of itself.
+#[test]
+fn a_graze_split_lands_the_cylinder_under_its_own_edge_names() {
+    use editor_core::{LoopProgram, ProfileProgram};
+    let doc = ProfileDoc::empty_derived("m4_pr3_names_rework", Tol::witness());
+    let (doc, frame) = insert(doc, fixture::xy_frame());
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane: frame,
+            loops: vec![LoopProgram::circle(0.0, 0.0, 1.0).expect("a finite circle")],
+            ids: Vec::new(),
+        }),
+    );
+    let (doc, cylinder) = insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.0),
+            side: ExtrudeSide::Along,
+        },
+    );
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(Datum::Plane {
+            origin: [len(-1.0), len(0.0), len(0.0)],
+            normal: [scl(-1.0), scl(0.0), scl(0.0)],
+        }),
+    );
+    let (doc, sp) = insert(
+        doc,
+        Node::Split {
+            target: cylinder,
+            tool: plane,
+        },
+    );
+    let ev = run(&doc);
+    let edges = |node| -> Vec<Vec<RoleSeg>> {
+        let mut out: Vec<Vec<RoleSeg>> = ev
+            .value(node)
+            .unwrap_or_else(|| panic!("evaluates: {:?}", ev.nodes.get(&node)))
+            .name_table
+            .iter()
+            .filter(|(n, _)| n.kind == editor_core::EntityKind::Edge)
+            .map(|(n, _)| n.path.clone())
+            .collect();
+        out.sort();
+        out
+    };
+    assert_eq!(
+        edges(sp),
+        edges(cylinder),
+        "the landed cylinder's edges keep the operand's names"
     );
 }
