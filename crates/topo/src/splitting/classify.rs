@@ -245,20 +245,21 @@ pub(super) fn classify_vertices<T: Decide>(
     classify_vertices_margined(body, plane, band).map(|(sides, on, _)| (sides, on))
 }
 
+/// Each vertex's side, the ON vertices in arena order, and the margin
+/// each ON vertex was decided Zero on ([`classify_vertices_margined`]).
+pub(super) type MarginedSides = (
+    SecondaryMap<VertexKey, PlaneSide>,
+    Vec<VertexKey>,
+    SecondaryMap<VertexKey, geom_core::MarginDiag>,
+);
+
 /// [`classify_vertices`], with the margin each ON vertex was decided
 /// Zero on: the coincidence a pinch records ([`crate::coincidence`]).
 pub(super) fn classify_vertices_margined<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
     band: Band,
-) -> Result<
-    (
-        SecondaryMap<VertexKey, PlaneSide>,
-        Vec<VertexKey>,
-        SecondaryMap<VertexKey, geom_core::MarginDiag>,
-    ),
-    SplitReduceError,
-> {
+) -> Result<MarginedSides, SplitReduceError> {
     let mut sides = SecondaryMap::new();
     let mut on_vertices = Vec::new();
     let mut on_margins = SecondaryMap::new();
