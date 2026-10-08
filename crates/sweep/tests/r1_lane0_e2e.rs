@@ -120,7 +120,7 @@ fn the_f64_seam_answers_every_public_door() {
         )
         .expect("the cap takes a NURBS surface");
     match topo::replace_faces_offset(&mut fresh, &[cap], 0.05, Tol::witness()) {
-        Ok(()) => {}
+        Ok(_) => {}
         Err(topo::ReplaceFaceError::FittedBoundaryUnsupported { .. }) => {}
         other => panic!("the `f64` mint must not report the lane's absence: {other:?}"),
     }
@@ -136,7 +136,7 @@ fn the_f64_seam_answers_every_public_door() {
         )
         .expect("the cap takes a NURBS surface");
     match topo::replace_face_offset(&mut single, scap, 0.05, Tol::witness()) {
-        Ok(()) => {}
+        Ok(_) => {}
         Err(topo::ReplaceFaceError::FittedBoundaryUnsupported { .. }) => {}
         other => panic!("the single-face `f64` mint must not report the lane's absence: {other:?}"),
     }

@@ -468,6 +468,25 @@ Split and VR9 each gain a descriptive line, landing with the lane's PR.
 
 The unit A lane found that spec §2's two asks could not both hold: an output logged `Minted::Var` and no node id moving. An id's ordinal is the mint log's length plus one, and an insert's preimage holds its slot variables' ids, so one logged output moves every later id, digests included. Ruled: log outputs as ordinary variables, ordered as minted, as VR1 and N1 already say, and let ids move in A. Q6 was a spec recommendation, not ratified text. The alternative, keeping outputs out of the ordinal count, would change N1's log invariant and VR1's order for a checkpoint B discards anyway. A's check is now equality up to an id bijection, with content keys and geometry digests bit-equal. Two smaller calls were also accepted. An instance defines one `body` in A, and its per-world-placement signature is C's. A transform's port is `Bodies` over a `Bodies` operand and `Body` otherwise.
 
+## 2026-10-08 — stage 5 sliced (`docs/INTENT-STAGE5-SPEC.md`)
+
+A spec lane sized stage 5 (assertions and the at-rest lints) at main `047d10d5d`, written against stage 2's final shapes. Stage 5 lands in three PRs, each green:
+
+- A `an-assertion-relates-by-equality` (M): `AssertionRelation` with `=`.
+- B `interference-at-rest-is-a-finding` (H): interference between copies leaves A5's refusal, with the quieting rule's interference half.
+- C `the-at-rest-census-is-a-check` (H): A5's gate becomes a check resident with the rule's contact half, and `Separation` retires into it.
+
+A and B wait only on stage 2 (A on D; B on C, D and E). They can be built in parallel, before stages 3 and 4. C waits on A, B and stages 3 and 4.
+
+Five FORKs are open for designer pairs:
+
+1. What "the same measure at the same site" is.
+2. The site of an interference finding.
+3. What "does not straddle zero" admits. This one re-words D10.
+4. The shape of the census as a check, and where it refuses. This one re-words DS6's waiver paragraph.
+5. Whether `Separation` retires. This one re-words DS6.
+
+The three rows are filed parked.
 ## 2026-10-08 — the parked rows re-pointed at the stage that releases them
 
 99 rows outside `work/intent/` were parked on `d10-one-way-to-say-intent-is-unbuilt`, which closes only when all six stages are built. Each was read with the code it cites (five reader lanes, one per group of programs) and re-pointed at the earliest thing that releases it. Two umbrellas are filed, `intent-stage3-is-built` and `intent-stage4-is-built`; each closes when its stage's units merge, and the stage specs point their units at it. No row waits on stage 5 or 6, so none is filed for them, and no row needs the whole program, so none keeps the D10 umbrella.
@@ -592,3 +611,13 @@ A spec lane sized stage 3 (spaces and placement) at main `044b5eb2e`, written ag
 - F `a-mate-on-a-pinned-copy-refuses` (M): waits on stage 4's retirement of A5's hard error as well as on C.
 
 Six forks are open for designer pairs: FORK-S3-1 (what a free pose is), S3-2 (what a placement is), S3-3 (what a mate reads), S3-4 (what overconstraint means), S3-5 (what placing an instance copies), S3-6 (what a space's member is). `intent-stage3-is-built` parks on the six units, and spec §11 says which unit releases each of the 13 re-homed rows.
+## 2026-10-08 — stage 4 sliced (`docs/INTENT-STAGE4-SPEC.md`)
+
+A spec lane sized stage 4 (the coincidence door) at main `044b5eb2e9`. Nine PRs, each green:
+
+- A `the-join-builds-what-the-rest-zip-builds` (H) and B `coincidences-are-recorded-at-one-door` (H) need nothing from stage 2 or 3 and are dispatchable now.
+- D `the-door-s-third-rung-is-the-symbolic-tier` (M), E `booleans-glue-on-zero` (H) and G `tangent-joints-are-derived` (M) need only A and B. F `declared-pairs-retire` (M) follows E.
+- C `carriers-compare-in-canonical-form` (H) needs stage 2 B and E.
+- H `placed-carriers-compare-through-their-frames` (H) and I `mates-declare-no-contact` (M) need stage 3.
+
+Every one of the 67 rows parked on `intent-stage4-is-built` is released by A, B, C, E, F or G (spec §12), so none waits on stage 3. The umbrella now parks on all nine units; the spec recommends re-pointing each row at its unit. Five forks are open for designer pairs: FORK-S4-1 (provenance from names, N6), FORK-S4-2 (a stated `CarrierFlow`), FORK-S4-3 (the record is `ContactRecords`), FORK-S4-4 (DM4's pairwise judgement), FORK-S4-5 (a mate-placed face, with stage 3).
