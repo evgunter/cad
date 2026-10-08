@@ -1,8 +1,6 @@
 # Review A — PR #4342 "INTENT stage 2 PR B: operands are reads", head `08e37ed675`
 
-Base `84e4d2c348` (merge base with `origin/main` at review time). Private
-`CARGO_TARGET_DIR`; merge base checked out beside it for the one-shot and
-for base-vs-head executions. Probe file (not pushed) is reproduced at the
+Base `84e4d2c348` (merge base with `origin/main` at review time). Private target dir; merge base checked out beside it for the one-shot and base-vs-head runs. Probe file (not pushed) is reproduced at the
 end of this report's branch as `review/review_probe_a.rs`.
 
 ## Verdict: APPROVE-WITH-FIXES
@@ -178,7 +176,6 @@ position. No constraint falls back to an assertion; no new ceremony. likely.
   merge base's tree (13.9 s), so it is this environment's, not the PR's.
 - `cargo nextest run -p pncad-py` (tag inventory and census rows): 134 / 134.
 - Stage-2 A and B rows: 21 / 21. One-shot vs merge base: 5 / 5 files equal.
-- Not run: the Python wheel suite, viewer, tour.
 
 ## Style
 
