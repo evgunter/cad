@@ -105,6 +105,7 @@ use geom_core::spline::{KnotVector, SpanLocate};
 use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3};
 
 use crate::offset::Nappe;
+pub(crate) fn mutk(k: u32) -> bool { std::env::var("MUT").ok().and_then(|v| v.parse::<u32>().ok()) == Some(k) }
 
 use super::{
     ChartWindow, EnvelopeTerm, EnvelopeTerms, PcurveCertifyError, PcurveCheck, PcurveKind, decide,
@@ -558,7 +559,7 @@ impl<T: SpanLocate> ProjectedImage<T> {
         let sq = |(lo, hi): (T, T)| lo.powi(2).max(hi.powi(2));
         let gap = |(lo, hi): (T, T)| lo.max(T::zero() - hi).max(T::zero());
         let (gx, gy) = (gap(b.x), gap(b.y));
-        ((gx.powi(2) + gy.powi(2)).sqrt(), (sq(b.x) + sq(b.y)).sqrt())
+        (if mutk(10) { gx + gy } else { (gx.powi(2) + gy.powi(2)).sqrt() }, (sq(b.x) + sq(b.y)).sqrt())
     }
 
     /// The tube channel's rotated box `(ρ − R, z)` by `−φ_k`.
@@ -1104,7 +1105,7 @@ pub(super) fn projected_envelope<T: Decide>(
     };
     terms.add(
         EnvelopeTerm::Frame,
-        super::frame_defect(surface, boxed.v_reach()),
+        if mutk(7) { T::zero() } else { super::frame_defect(surface, boxed.v_reach()) },
     );
     let positive = |name, x: T, term| match decide(name, Margin::of(x), band) {
         Ok(Sign::Positive) => Ok(x),
@@ -1130,7 +1131,7 @@ pub(super) fn projected_envelope<T: Decide>(
             let lane = lane.ok_or(PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME })?;
             let hull = lane.projected_hull(image, &twin_net, &twin)?;
             for (k, piece) in hull.pieces.iter().enumerate() {
-                holds(T::from_f64(piece.x_lo), band, k, SectorChannel::Azimuth)?;
+                if !mutk(12) { holds(T::from_f64(piece.x_lo), band, k, SectorChannel::Azimuth)?; }
                 if matches!(image.chart, ProjectedChart::Torus { .. }) {
                     holds(T::from_f64(piece.tube_lo), band, k, SectorChannel::Tube)?;
                 }
@@ -1146,15 +1147,15 @@ pub(super) fn projected_envelope<T: Decide>(
                 let rho = within()
                     .map(|p| T::from_f64(p.rho_lo))
                     .fold(None, |m: Option<T>, x| Some(m.map_or(x, |m| m.min(x))))
-                    .map(|x| (x - d).max(T::zero()));
+                    .map(|x| if mutk(5) { x } else { (x - d).max(T::zero()) });
                 let Some(rho) = rho else {
                     return Err(refuse("a knot span of the net is covered by no piece"));
                 };
                 rho_floor = Some(rho_floor.map_or(rho, |m| m.min(rho)));
                 let f = T::from_f64(span.f_sup);
                 let disp = match *surface {
-                    Surface::Cylinder { radius, .. } => f / radius,
-                    Surface::Sphere { radius, .. } => f / radius,
+                    Surface::Cylinder { radius, .. } => if mutk(3) { f / (radius + radius) } else { f / radius },
+                    Surface::Sphere { radius, .. } => if mutk(4) { f / (radius + radius) } else { f / radius },
                     Surface::Cone { .. } => {
                         let ProjectedChart::Cone { sin, cos, nappe } = image.chart else {
                             unreachable!("check 1 matched the chart kinds")
@@ -1162,7 +1163,7 @@ pub(super) fn projected_envelope<T: Decide>(
                         let z = within()
                             .map(|p| {
                                 if nappe == Nappe::Opening {
-                                    T::from_f64(p.z.0)
+                                    T::from_f64(if mutk(13) { p.z.1 } else { p.z.0 })
                                 } else {
                                     T::zero() - T::from_f64(p.z.1)
                                 }
@@ -1182,7 +1183,7 @@ pub(super) fn projected_envelope<T: Decide>(
                                 });
                             }
                         }
-                        f / lever
+                        if mutk(1) { f / (lever + lever) } else { f / lever }
                     }
                     Surface::Torus {
                         major_radius,
@@ -1190,7 +1191,7 @@ pub(super) fn projected_envelope<T: Decide>(
                         ..
                     } => {
                         let reach = rho + major_radius;
-                        f / (minor_radius * (reach.powi(2) - minor_radius.powi(2)))
+                        if mutk(2) { f / (minor_radius * (reach.powi(2) - minor_radius.powi(2)) * T::from_f64(2.0)) } else { f / (minor_radius * (reach.powi(2) - minor_radius.powi(2))) }
                     }
                     Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
                         unreachable!("answered above")
@@ -1232,7 +1233,7 @@ pub(super) fn projected_envelope<T: Decide>(
                 ),
                 radius,
             );
-            (incidence, d, T::zero())
+            (if mutk(11) { incidence * T::from_f64(0.5) } else { incidence }, d, T::zero())
         }
         _ => return Err(refuse("the stored carrier is not the edge's carrier kind")),
     };
@@ -1261,7 +1262,7 @@ pub(super) fn projected_envelope<T: Decide>(
         let (i, j) = (w[0], w[1]);
         for angles in [&image.azimuth, &image.tube] {
             if let (Some(&x), Some(&y)) = (angles.get(i), angles.get(j))
-                && (y - x).abs() > 1
+                && (y - x).abs() > 1 && !mutk(14)
             {
                 return Err(sector_refused(j, SectorChannel::Branch));
             }
@@ -1311,7 +1312,7 @@ pub(super) fn projected_envelope<T: Decide>(
             unreachable!("answered above")
         }
     };
-    terms.add(EnvelopeTerm::Fidelity, lipschitz * d);
+    terms.add(EnvelopeTerm::Fidelity, if mutk(6) { d } else { lipschitz * d });
     // ---- The deck map and the chart scalars. ----
     let twin_deck = match decide("pcurve_projected_v_sign", Margin::of(image.v_sign), band) {
         Ok(Sign::Positive) => false,
@@ -1336,7 +1337,7 @@ pub(super) fn projected_envelope<T: Decide>(
     };
     terms.add(
         EnvelopeTerm::FidelityU,
-        off_period(image.u_off, shift) * u_arm,
+        if mutk(8) { T::zero() } else { off_period(image.u_off, shift) * u_arm },
     );
     let v_reach = boxed.v_reach();
     let v_off = match *surface {
@@ -1503,7 +1504,7 @@ pub(super) fn run_projected_checks<T: Decide>(
         for (extent, arm, check, exceeded) in gates {
             match decide(
                 "pcurve_azimuth_period",
-                Margin::levered(T::tau() - extent, arm),
+                Margin::levered(if mutk(15) { T::one() } else { T::tau() - extent }, arm),
                 band,
             )
             .map_err(|cause| PcurveCertifyError::Escalated {
