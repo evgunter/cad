@@ -579,3 +579,130 @@ fn no_slot_reads_a_world_copy_at_the_door_or_at_load() {
         Ok(_) => panic!("a file whose boolean reads a world copy loads"),
     }
 }
+
+/// **A posed placement moves its copy, rigidly, records and all.**
+/// `kiss_carry`'s union carries one vertex-vertex contact record at the
+/// kiss `(1, 1, 1)`. Placed at a pose (a quarter turn about +z, then a
+/// translation), the gathered body is the body a `Transform` of the
+/// union by the same step places at the identity, bit for bit, and not
+/// the unposed one; and the copy's record resolves in the gathered
+/// body to two vertices standing at the kiss, moved by the pose.
+///
+/// Red if the copy ignores its pose (the digest equals the unposed
+/// one, and the kiss stays at `(1, 1, 1)`), or if the placement drops
+/// or mis-keys the records it carries (no record, or a key the
+/// gathered body does not hold).
+#[test]
+fn a_posed_placement_moves_its_copy_and_its_records_rigidly() {
+    use crate::fixture::{ang, scl, xform};
+    let corpus::CorpusDoc { doc, result, .. } = corpus::documents()
+        .into_iter()
+        .find(|d| d.name == "kiss_carry")
+        .expect("kiss_carry is registered");
+    let union = result.expect("kiss_carry names its union");
+    let doc = doc.placements().into_iter().fold(doc, |doc, p| {
+        crate::fixture::step(doc, DocEdit::DeleteNode { id: p }).0
+    });
+    let (t, axis, angle) = (
+        [5.0, -3.0, 2.0],
+        [0.0, 0.0, 1.0],
+        std::f64::consts::FRAC_PI_2,
+    );
+    let pose: editor_core::Placement<editor_core::Formula> = editor_core::Step::Rigid {
+        translation: t.map(len),
+        axis: axis.map(scl),
+        angle: ang(angle),
+    }
+    .into();
+
+    let digest = |doc: &ProfileDoc| {
+        body_digest(&product(doc, &ev(doc), Tol::witness()).expect("the world gathers"))
+    };
+    let (unposed, _) = place(doc.clone(), union);
+    let (posed, _) = crate::fixture::step(doc.clone(), DocEdit::place(union, Some(pose)));
+    let (moved, by) = insert(doc, xform(union, t, axis, angle));
+    let (moved, _) = place(moved, by);
+    assert_eq!(
+        digest(&posed),
+        digest(&moved),
+        "the posed copy is the transform's body at the identity"
+    );
+    assert_ne!(digest(&posed), digest(&unposed), "and the pose moved it");
+
+    let run = ev(&posed);
+    let gathered = editor_core::product_recorded(&posed, &run, Tol::witness()).expect("gathers");
+    let [kiss] = gathered.contacts.vv[..] else {
+        panic!(
+            "the copy carries the union's one v-v record: {:?}",
+            gathered.contacts
+        );
+    };
+    let at = |key| {
+        gathered
+            .body
+            .vertex_points()
+            .find(|&(k, _)| k == key)
+            .map(|(_, p)| [p.x, p.y, p.z])
+            .unwrap_or_else(|| panic!("the record's key {key:?} is a vertex of the product"))
+    };
+    // A quarter turn about +z takes (1, 1, 1) to (−1, 1, 1).
+    let want = [-1.0 + t[0], 1.0 + t[1], 1.0 + t[2]];
+    for got in [at(kiss.a), at(kiss.b)] {
+        assert!(
+            got.iter().zip(want).all(|(g, w)| (g - w).abs() < 1e-9),
+            "the kiss moved with the pose: {got:?} vs {want:?}"
+        );
+    }
+}
+
+/// **Inline leaves no heir for a posed part placement.** The part
+/// places its one block at a pose of its own, and a host boolean reads
+/// the instance: what stood where the instance's body did is the
+/// placement's world copy, which no slot reads, so inline refuses
+/// naming the part's placement rather than re-pointing the boolean at
+/// the copy.
+///
+/// Red if inline re-points the reader at the copy (the replay's
+/// `SetParam` refuses `ReadsWorldCopy` as a forwarded edit instead) or
+/// at the unposed block (the boolean's geometry moves).
+#[test]
+fn inline_refuses_a_reader_of_an_instance_whose_part_places_at_a_pose() {
+    let pose: editor_core::Placement<editor_core::Formula> = editor_core::Step::Rigid {
+        translation: [0.0, 0.0, 2.0].map(len),
+        axis: [0.0, 0.0, 1.0].map(crate::fixture::scl),
+        angle: crate::fixture::ang(0.0),
+    }
+    .into();
+    let (part, placement) = {
+        let doc = ProfileDoc::empty(DocumentId::derive("intent-c-posed-part"), Tol::witness());
+        let (doc, body) = block(doc, 0.0);
+        crate::fixture::step(doc, DocEdit::place(body, Some(pose)))
+    };
+    let placement = placement.expect("the placement's node");
+    let mut store = PartStore::default();
+    let part_ref = store.insert(part, Tol::witness());
+    let host = ProfileDoc::empty(DocumentId::derive("intent-c-posed-inline"), Tol::witness());
+    let (host, instance) = insert(host, Node::instantiate_part(part_ref));
+    let (host, other) = block(host, 0.75);
+    let (host, fused) = insert(
+        host,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: instance.into(),
+            b: other.into(),
+            declare: Vec::new(),
+        },
+    );
+    let (host, _) = place(host, fused);
+    let resolver: std::sync::Arc<dyn editor_core::PartResolver> = std::sync::Arc::new(store);
+    match editor_core::inline(&host, instance, &resolver, Tol::witness()) {
+        Err(InlineError::InstanceReadUncarried {
+            reader,
+            why: editor_core::Uncarried::Posed { placement: named },
+        }) => {
+            assert_eq!(reader.id(), fused, "the refusal names the reader");
+            assert_eq!(named.id(), placement, "and the part's posed placement");
+        }
+        other => panic!("inline refuses the posed heir: {other:?}"),
+    }
+}
