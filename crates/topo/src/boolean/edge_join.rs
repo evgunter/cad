@@ -83,6 +83,36 @@ struct Join {
     planar: bool,
 }
 
+/// **What each edge a run of joins made covers**, read off the joins'
+/// records alone, in the order made: each live `kept` edge → every
+/// edge it holds, itself first, then each `gone` in the order the joins
+/// took them, a later join's `gone` that was an earlier one's `kept`
+/// bringing its own cover with it. The one chase every door that
+/// carries records or names over a join reads (the boolean's
+/// [`crate::BooleanNaming::joined_edge`], the split's and the shell's
+/// emitters); an edge no join touched has no row.
+#[must_use]
+pub fn join_covers(joins: &[EdgeJoin]) -> BTreeMap<EdgeKey, Vec<EdgeKey>> {
+    let mut covers: BTreeMap<EdgeKey, Vec<EdgeKey>> = BTreeMap::new();
+    for j in joins {
+        let gone = covers.remove(&j.gone).unwrap_or_else(|| vec![j.gone]);
+        covers
+            .entry(j.kept)
+            .or_insert_with(|| vec![j.kept])
+            .extend(gone);
+    }
+    covers
+}
+
+/// The live edge `edge` is part of after `joins`: itself, or the edge a
+/// join killed it into, followed through every later join.
+#[must_use]
+pub fn joined_edge(joins: &[EdgeJoin], edge: EdgeKey) -> EdgeKey {
+    joins
+        .iter()
+        .fold(edge, |at, j| if j.gone == at { j.kept } else { at })
+}
+
 /// One join an output stage made ([`join_stage`]): `vertex` and `gone`
 /// are dead, and `kept` holds both their interiors and its own.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

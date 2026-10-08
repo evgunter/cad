@@ -254,6 +254,10 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "graft_disjoint_all",
         "returns `graft_disjoint_all_keyed`'s solids — same body, same assertion",
     ),
+    (
+        "split_edge",
+        "calls `split_edge_minting` with the carrier's own point — same body, same assertion",
+    ),
     // ---- Pipelines composed of asserting operators. ----
     (
         "merge_coplanar_faces",
