@@ -207,3 +207,62 @@ same-oriented coincidence between them"), with three changes:
   third's face, is the union's row too."
 - Keep A's deletions of the declaration channel, "Merges and order", and the declared and
   certified bullets.
+
+## Round 3
+
+**1. Ev's question: the sort was the method, and I withdraw it.** In my recommendation, sorting
+the members by mint order was how order independence was to be achieved, not a convenience.
+Ev is right about what it achieves. It makes results independent of the list, but not of the
+author: mint order is the order parts were added, which is also something the author did, only
+invisibly. Every residue in point 2 would still depend on that order, with the visible handle
+(reordering the list) removed. Two members re-minted by an inline would swap results with
+nothing in the document showing why. Nothing becomes independent of the author's choices that
+was not already independent through the pairwise judgement and N2.
+
+**2. What depends on fold order after unit E.**
+- *Pair coincidences, their records and their band refusals*: order-free already, through the
+  pairwise judgement. Essential to keep, and kept.
+- *Names*: order-free through N2's member-space links. One residue is removable: the pinch
+  vertex's name (`wire/a-pinch-vertex-is-named-by-the-fold-step-that-mints-it`), named in member
+  space like a seam.
+- *The body's bits* (a Zero glue keeps operand A's, the earlier member's, description): the
+  arbitrariness is essential, since any choice between two Zero-glued carriers needs a
+  tie-breaker. It is already visible where it matters. Where the coincidence is unproven, the
+  `unproven-coincidence` finding names it. Where it is proven by one construction, the two
+  carriers are bit-identical and there is no choice. Only a rung-2 or rung-3 proof between
+  non-identical bits (`h` against `h/2 + h/2`) leaves a sub-ulp choice unflagged. The topology
+  is order-free in every case.
+- *A fold step refusing on a piece* (the margin read over the piece's extent, not the whole
+  face's): removable only by feeding the pair verdicts to the fold. That brings back the
+  routing and `ConsumedByFold`, which is worse. Treat it as essential, and make it visible.
+- *The fold's own records* (three-member coincidences, e.g. the seam of `a ∩ b` lying in
+  `c`'s face): the spelling is removable, by naming the cells as their member faces (the
+  triple `a.f, b.g, c.h`), so the record is the same whichever seam the fold met. Whether a
+  buried one is met at all is essential, short of judging every triple.
+- *Non-verdict refusals* (`RingHomingAmbiguous`, `JoinDesync`): kernel defects with their own
+  rows. Removable only in the kernel, never by the union.
+
+**3. A final state that does not hide arbitrariness.**
+- **Keep the person's list order as the stated fold order.** It is input they wrote and can
+  change (D9: same input, same bits), so every residue is attributable to something visible.
+- **Make order-free what can be:** pair refusals and records (pairwise judgement), names
+  (N2, plus the pinch vertex), and three-member records spelled in member faces.
+- **Make the rest visible where it happens.** A refusal raised by a fold step, and not by any
+  judged pair, says so: it names the step, as "joining `c` onto `a ∪ b`" (members by node
+  label), so the person can see the result depends on the order and that reordering is a
+  legitimate edit. The kept description is covered by the finding above.
+- **Rejected: detecting order dependence as a finding or refusal.** Proving a fold step's
+  refusal is order-dependent means evaluating other orders, up to n!, or at least each
+  relevant permutation of the step's members. That is a cost with no bound, to report
+  something the step-naming refusal already states in kind. Rejected too: refusing whenever a
+  result *could* depend on order. Every Zero glue could, which would refuse every union with a
+  flush contact.
+
+**4. The DM4 sentence I now propose.** "It evaluates as a fold of the kernel's pair verb in the
+order its members are listed; the order is the person's, kept as written, and it is input
+(D9). The body's topology, its names, and every refusal and coincidence record of a member pair
+are independent of it (the pairwise judgement, below; N2). What is not is attributed to it:
+a refusal raised by a fold step and by no judged pair names the step (the members accumulated
+and the member joining), and a Zero glue keeps the earlier-listed member's description, which
+the glue's `unproven-coincidence` finding reports unless one construction proves it." My
+round-1 "members are a set" text and its `SetMembers` and DM5 edits are withdrawn.
