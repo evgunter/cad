@@ -277,7 +277,7 @@ fn assert_pierces_on_the_section(label: &str, body: &Body<f64>, d: f64) {
 /// the residual's near extreme cannot place the pierce point to within
 /// `1e-12`: the circle × sphere roots answer uncertain and every op
 /// refuses at the pierce door
-/// (`work/reach/f64-cannot-place-a-shallow-crossing-within-the-finest-band.md`).
+/// (`work/apex/f64-cannot-place-a-shallow-crossing-within-the-finest-band.md`).
 #[test]
 fn the_near_tangent_family_stops_at_1e_7_at_eps_1e_12() {
     if Tol::witness().get().eps != 1e-12 {

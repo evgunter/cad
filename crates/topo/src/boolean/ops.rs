@@ -1764,7 +1764,7 @@ pub(super) fn merge_rows(
 /// correct result's volume, by up to the band over the glued face, and
 /// at a tight bound that refuses: a correct body refused, the safe
 /// direction
-/// (`work/reach/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`).
+/// (`work/reachhold/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`).
 ///
 /// Each bound applies only when its reference operand's volume is
 /// certified POSITIVE (a bounded solid). An operand is a finished body,
