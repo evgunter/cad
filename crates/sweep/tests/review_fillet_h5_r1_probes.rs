@@ -225,11 +225,20 @@ fn r1_two_hostless_rims_of_one_body_compose_in_one_call() {
             .body;
         }
         let seq = mass_properties(&body, tol()).unwrap();
+        // The same body, not the same arena: each carve ends with the
+        // join, whose kills free slots the next carve's mints reuse, so
+        // the composed body can sum its faces' volumes in another order.
         assert_eq!(
-            one.volume.to_bits(),
-            seq.volume.to_bits(),
-            "the one-call result IS the sequential composition, bit for bit \
-             (order {order:?})"
+            topo::readback::euler_counts(&one_call.body),
+            topo::readback::euler_counts(&body),
+            "the one-call result IS the sequential composition, cell for cell (order {order:?})"
+        );
+        assert!(
+            (one.volume - seq.volume).abs() <= 4.0 * f64::EPSILON * one.volume.abs(),
+            "the one-call volume is the sequential one to the summation order \
+             (order {order:?}): {} vs {}",
+            one.volume,
+            seq.volume
         );
     }
 }

@@ -499,9 +499,14 @@ fn compose_two_rims(
         validate_geometric(&body, tol())
             .map_err(|e| format!("{what}: sequential result not tier-3 valid: {e:?}"))?;
         let seq = mass_properties(&body, tol()).unwrap();
-        if one.volume.to_bits() != seq.volume.to_bits() {
+        // The same body, not the same arena: each carve ends with the
+        // join, whose kills free slots the next carve's mints reuse, so
+        // a composed body can hold its faces in another order than the
+        // one call's, and the volume sums them in that order. The census
+        // below is the identity; the volume agrees to the last ulps.
+        if (one.volume - seq.volume).abs() > 4.0 * f64::EPSILON * one.volume.abs() {
             return Err(format!(
-                "{what}: one call {} vs sequential {order:?} {} differ in bits",
+                "{what}: one call {} vs sequential {order:?} {} differ past summation order",
                 one.volume, seq.volume
             ));
         }
