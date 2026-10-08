@@ -315,3 +315,34 @@ Where my earlier rounds read otherwise, Ev's words win. The corrections:
    - D10 Spaces: "A **space** is a set of bodies related by placements; nothing else, no coordinates, makes one."
    - FORK-1: "an instance of a part defines one `Bodies`, the bodies the part's world names, in one space."
    - **(i)/(ii):** the `frame` port leaves both options. Picking a single body stays by the part's world placement id.
+
+## Round 5 — final, under Ev's #4324 answer ("a sketch exposing only its lines … reuse the same profile in multiple positions")
+
+**Round 4 holds unchanged in substance.** Ev's answer strengthens three of its points.
+- **A mate's `on` side** is a pose read off the shape's geometry: a face frame or a face's plane, an axis, their
+  `Offset`s and named combinations, or `Flip`. A profile has no frame, so there is nothing else to read. This is E1:
+  a body has no location, only geometry.
+- **The die's pips need no copy at all.** The ball's profile is 2-D content, and a revolve reads it through a frame
+  the reader supplies. So each pip can be a construction that reads that one profile through a frame read off the die
+  (an `Offset` of a die face frame by scalar variables). The pips are then built where they are: nothing moves, and
+  nothing is placed (E2, and Ev's "none of these should be 'moving'"). The union reads the die and its pips, all of
+  one construction (E6).
+  - `Place` and `Pattern` remain only for **copies of a body**, such as a part's bodies through an instance, or a
+    finished, filleted body reused.
+  - `Pattern` is a family of placements whose target poses are read off a body. A repeated *feature* is a
+    construction reading one profile through a family of frames, so it needs no copy.
+- **The world placement** stays as round 4 has it. It names bodies for the product and defines no copy. The named
+  bodies lie in one space. The world is related to that space by one mate of its own, whose `to` is a pose read off a
+  named body's geometry (E3: "one number"). Only export reads it (E4). It needs no frame from nothing.
+- **Dependency on S3P:** the first body's frame is S3P's to settle. Mates never read that frame as a "part frame",
+  because a mate reads geometry only. So whatever S3P settles changes nothing here.
+
+**D10 Operations and placement text, final:**
+- "A placement (`Place`) reads one shape (`Body` or `Bodies`) and a bundle of mates, and defines its copy. Each mate
+  equates, modulo its kind's symmetry, a pose read off the shape's geometry with a pose read off another body's
+  geometry in the space the copy joins. A mate is a clause of its placement, not an operation, and holds no number.
+  Nothing moves a body: a copy is defined by its one placement, and a further mate that lowers nothing refuses.
+  `Pattern` places one copy per member of a pose family. A world placement names one `Body` for the product and
+  defines no copy. The bodies it names lie in one space, which the world is related to by one mate of its own, read
+  by export alone. An instance of a part defines one `Bodies`, the bodies the part's world names, in one space."
+- Spaces: "A **space** is a set of bodies related by construction or placement; nothing else makes one."
