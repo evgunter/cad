@@ -575,7 +575,8 @@ fn weld_pinches<T: Decide + crate::props::AtRestPolicy>(
                 }
                 let lineage = Lineage::of(pierced, rows.iter().chain(&welds.fragments));
                 let in_lineage = |f: FaceKey| lineage.contains(f) && !sections.contains_key(f);
-                let Some((face, joint)) = pinch_site(body, u, w, in_lineage)? else {
+                let nests = |v, hv, other| corner_nests(body, operand, (v, hv), other, band);
+                let Some((face, joint)) = pinch_site(body, u, w, in_lineage, nests)? else {
                     continue;
                 };
                 if !corners_nest(body, operand, (u, w), face, band)? {
@@ -634,6 +635,42 @@ fn corners_nest<T: Decide>(
     Ok(true)
 }
 
+/// Whether `v`'s corner that `hv` leaves it from holds every edge leaving
+/// `other`, a graze counting as inside: of a vertex that runs through
+/// one face more than once (a pierce an earlier weld already joined to
+/// another), the corner `other`'s pierce stands in.
+///
+/// # Errors
+///
+/// As [`corners_nest`].
+fn corner_nests<T: Decide>(
+    body: &Body<T>,
+    operand: Operand,
+    (v, hv): (VertexKey, HalfEdgeKey),
+    other: VertexKey,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    // Corner `i` follows orbit member `i`, and its face's boundary
+    // leaves `v` along the next one (`orbit_step`).
+    let orbit = body.vertex_orbit_linked(v);
+    let n = orbit.len();
+    let Some(i) = (0..n).find(|&i| orbit[(i + 1) % n] == hv) else {
+        return Err(BooleanError::JoinDesync {
+            what: "a pinch face's half-edge does not leave its vertex's orbit",
+        });
+    };
+    let corner = sectors::orbit_corners(body, operand, v)
+        .nth(i)
+        .unwrap_or_else(|| unreachable!("the orbit read twice has {n} members"))?;
+    for leaving in sectors::orbit_corners(body, operand, other) {
+        let leaving = leaving?;
+        if !corner_holds(&corner, leaving.end, leaving.end_reach.length(), band)? {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
 /// Whether direction `dir` (its edge reaching `reach`) leaves the point
 /// inside `corner`, a graze on a bound counting as inside: CCW of
 /// `start` and CW of `end` about the outward normal. The two flanks
@@ -678,10 +715,12 @@ fn corner_holds<T: Decide>(
 }
 
 /// The one face `allowed` admits whose boundary runs through both `u`
-/// and `w`, each once, and the joint between the half-edges leaving
-/// them: a chord when the outer loop holds both, a hole when one ring
-/// does, else across their two loops, into the face's outer loop when
-/// it is one of them. `None` when no such face holds both.
+/// and `w`, and the joint between the half-edges leaving them: a chord
+/// when the outer loop holds both, a hole when one ring does, else
+/// across their two loops, into the face's outer loop when it is one of
+/// them. `None` when no such face holds both. Where the boundary runs
+/// through one of them more than once, the half-edge is the one leaving
+/// the corner `nests` reads the other in, and there must be one.
 ///
 /// # Panics
 ///
@@ -698,6 +737,7 @@ pub(super) fn pinch_site<T: Decide>(
     u: VertexKey,
     w: VertexKey,
     allowed: impl Fn(FaceKey) -> bool,
+    nests: impl Fn(VertexKey, HalfEdgeKey, VertexKey) -> Result<bool, BooleanError>,
 ) -> Result<Option<(FaceKey, Joint)>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let mut site = None;
@@ -725,6 +765,23 @@ pub(super) fn pinch_site<T: Decide>(
                         }
                     }
                 }
+            }
+        }
+        if hws.is_empty() {
+            continue;
+        }
+        for (hs, (v, other)) in [(&mut hus, (u, w)), (&mut hws, (w, u))] {
+            if hs.len() > 1 {
+                let mut held = Vec::new();
+                for &(l, h) in hs.iter() {
+                    if nests(v, h, other)? {
+                        held.push((l, h));
+                    }
+                }
+                if held.is_empty() {
+                    return Err(desync("no corner of a pinch vertex holds the other pierce"));
+                }
+                *hs = held;
             }
         }
         let here = match (hus.as_slice(), hws.as_slice()) {

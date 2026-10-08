@@ -504,6 +504,10 @@ fn mark_germ(rec: &mut PairRecord) -> Result<(), BooleanError> {
 ///   Table III.
 /// - bisector-only ⇒ a **subdivision artifact graze**: the wide sector
 ///   is genuinely crossed iff its two halves' outer keys transition.
+/// - several real edges of one solid ⇒ a **contact line** that solid
+///   holds: each of its edges against each of the other solid's by the
+///   edge-edge rule. Two crossings on the ray, or a contact line met off
+///   an edge of the other solid, refuse typed (unbuilt).
 ///
 /// The event's germ is marked on ONE deterministic record; every other
 /// surviving record carrying an On in the event is cancelled (unless it
@@ -593,18 +597,11 @@ pub(super) fn recl_edges<T: Decide>(
                 group.push(mentions[j]);
             }
         }
-        if group.iter().filter(|m| m.a_side).count() > 1
-            || group.iter().filter(|m| !m.a_side).count() > 1
-        {
-            return Err(BooleanError::ClassificationInvariant {
-                what: "two distinct same-solid bounds share one ray (degenerate operand)",
-            });
-        }
-        let a_m = group.iter().find(|m| m.a_side).copied();
-        let b_m = group.iter().find(|m| !m.a_side).copied();
-
-        let germ: Option<usize> = match (a_m, b_m) {
-            (Some(am), Some(bm)) if am.real && bm.real => resolve_edge_edge(
+        let a_ms: Vec<Mention<T>> = group.iter().filter(|m| m.a_side).copied().collect();
+        let b_ms: Vec<Mention<T>> = group.iter().filter(|m| !m.a_side).copied().collect();
+        // One real edge of each solid on the ray: the edge-edge rule.
+        let mut edge_edge = |am: Mention<T>, bm: Mention<T>| {
+            resolve_edge_edge(
                 records,
                 a_sectors,
                 b_sectors,
@@ -630,41 +627,74 @@ pub(super) fn recl_edges<T: Decide>(
                     place_germ(records, first_read, &marked, germ)
                 }
             })
-            .transpose()?,
-            (Some(am), bm) if am.real => resolve_edge_sector(
-                records,
-                a_sectors,
-                b_sectors,
-                a_body,
-                b_body,
-                op,
-                declared,
-                band,
-                true,
-                am.start_holder,
-                bm.map(|m| m.start_holder),
-            )?,
-            (am, Some(bm)) if bm.real => resolve_edge_sector(
-                records,
-                a_sectors,
-                b_sectors,
-                a_body,
-                b_body,
-                op,
-                declared,
-                band,
-                false,
-                bm.start_holder,
-                am.map(|m| m.start_holder),
-            )?,
-            (am, bm) => resolve_bisector_graze(
-                records,
-                a_sectors,
-                b_sectors,
-                band,
-                am.map(|m| m.start_holder),
-                bm.map(|m| m.start_holder),
-            )?,
+            .transpose()
+        };
+
+        let germ: Option<usize> = if a_ms.len() > 1 || b_ms.len() > 1 {
+            // A solid's coincident edges on the ray each bound a wedge
+            // of its material, the wedges apart, so a wedge the other
+            // solid's crosses is crossed whatever else lies round the
+            // line.
+            if a_ms.is_empty() || b_ms.is_empty() || group.iter().any(|m| !m.real) {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "a solid's coincident edges on one ray meet the other solid off an \
+                           edge of its own (unbuilt)",
+                });
+            }
+            let mut germs = Vec::new();
+            for &am in &a_ms {
+                for &bm in &b_ms {
+                    germs.extend(edge_edge(am, bm)?);
+                }
+            }
+            match germs[..] {
+                [] => None,
+                [g] => Some(g),
+                _ => {
+                    return Err(BooleanError::ClassificationInvariant {
+                        what: "an edge crosses two wedges about a contact line on one ray \
+                               (unbuilt)",
+                    });
+                }
+            }
+        } else {
+            match (a_ms.first().copied(), b_ms.first().copied()) {
+                (Some(am), Some(bm)) if am.real && bm.real => edge_edge(am, bm)?,
+                (Some(am), bm) if am.real => resolve_edge_sector(
+                    records,
+                    a_sectors,
+                    b_sectors,
+                    a_body,
+                    b_body,
+                    op,
+                    declared,
+                    band,
+                    true,
+                    am.start_holder,
+                    bm.map(|m| m.start_holder),
+                )?,
+                (am, Some(bm)) if bm.real => resolve_edge_sector(
+                    records,
+                    a_sectors,
+                    b_sectors,
+                    a_body,
+                    b_body,
+                    op,
+                    declared,
+                    band,
+                    false,
+                    bm.start_holder,
+                    am.map(|m| m.start_holder),
+                )?,
+                (am, bm) => resolve_bisector_graze(
+                    records,
+                    a_sectors,
+                    b_sectors,
+                    band,
+                    am.map(|m| m.start_holder),
+                    bm.map(|m| m.start_holder),
+                )?,
+            }
         };
         if let Some(g) = germ {
             mark_germ(&mut records[g])?;

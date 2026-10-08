@@ -374,3 +374,5 @@ mod review_cleave_mint_doors;
 mod spline_reanchor_rows;
 #[path = "split_tangent_edge.rs"]
 mod split_tangent_edge;
+#[path = "three_solids_on_one_line.rs"]
+mod three_solids_on_one_line;
