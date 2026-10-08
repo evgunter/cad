@@ -205,15 +205,16 @@
 //!   point where some entity of the pair ends, and which side's entity
 //!   that is is a fact about the configuration, not about what a
 //!   declaration can hold.
-//!   The remaining looseness, stated as the REACH gap it is: where the
-//!   face's boundary crosses the edge away from any vertex, that
-//!   crossing is never a bound at all — the overlap lane cuts the
-//!   edge's span only at the face's boundary VERTICES, so one cell
-//!   spans the crossing and is judged from its single midpoint probe.
-//!   The configuration itself is reported by the edge-edge lane, whose
-//!   crossing class takes the unified-strength crossing rung
-//!   ([`ee_cross_backed`] — issue 973 part (b), stage 1 of the
-//!   MATE-4b staging; part (a), this bound rung, was settled first).
+//!   Where the face's boundary crosses the edge away from any vertex,
+//!   the crossing is a bound too: the overlap lane cuts the edge there
+//!   ([`boundary_crossings`]), and the bound is the edge-edge lane's
+//!   `EdgeEdgeCross` event, backed by exactly that lane's rung
+//!   ([`ee_cross_backed`]). Where the crossing boundary edge is a conic
+//!   arc no census lane examines the crossing as an event, so no rung
+//!   backs that bound and the cell is an `UndeclaredContact`. With a
+//!   cut at every place the boundary meets the edge, each cell lies
+//!   inside or outside the face whole, and its midpoint probe answers
+//!   for all of it.
 //!
 //! Failure mode: a segment overlap with a missing bounding record is
 //! [`ValidationError::UndeclaredContact`] — never inferred. (A
@@ -3626,24 +3627,40 @@ impl TouchSite {
         }
     }
 
-    /// The analysis's verdict on the site ([`touch_verdict`]).
+    /// The analysis's verdict on the site ([`touch_verdict`]): a rest
+    /// only where every point the site meets at reads one, and
+    /// otherwise the first point's refusal.
     fn verdict<T: Decide>(self, body: &Body<T>, geo: &Geo<T>, band: Band) -> TouchVerdict {
-        match self.stars(body, geo, band) {
-            Ok((a, b)) => touch_verdict(a, b, band),
-            Err(v) => v,
+        let points = match self.stars(body, geo, band) {
+            Ok(points) => points,
+            Err(v) => return v,
+        };
+        let mut rest = None;
+        for (a, b) in points {
+            match touch_verdict(a, b, band) {
+                v @ TouchVerdict::Rest(_) => {
+                    rest.get_or_insert(v);
+                }
+                v => return v,
+            }
         }
+        rest.unwrap_or(TouchVerdict::InBand)
     }
 
-    /// The two stars the site compares, each as built or as the verdict
-    /// its build refused with; `Err` where the touch point itself does
-    /// not read.
+    /// The two stars the site compares at each point it meets at, each
+    /// as built or as the verdict its build refused with; `Err` where
+    /// no touch point reads. Every site meets at one point but an edge
+    /// in a face, which meets at every cell of its overlap: the cells
+    /// are separate pieces of the face, so no one of them answers for
+    /// another.
     #[allow(clippy::type_complexity)]
     fn stars<T: Decide>(
         self,
         body: &Body<T>,
         geo: &Geo<T>,
         band: Band,
-    ) -> Result<(Result<Star<T>, TouchVerdict>, Result<Star<T>, TouchVerdict>), TouchVerdict> {
+    ) -> Result<Vec<(Result<Star<T>, TouchVerdict>, Result<Star<T>, TouchVerdict>)>, TouchVerdict>
+    {
         let at_vertex = |v: VertexKey| geo.vmap.get(&v).copied().ok_or(TouchVerdict::Corrupt);
         let edge = |e: EdgeKey| {
             geo.edges
@@ -3654,7 +3671,7 @@ impl TouchSite {
         let vertex = |v: VertexKey| Star::vertex(body, geo, v, band);
         let on_edge = |e: EdgeKey, p: Point3<T>| Star::edge(body, geo, e, p, band);
         let in_face = |f: FaceKey, p: Point3<T>| Star::face(body, geo, f, p, band);
-        Ok(match self {
+        Ok(vec![match self {
             Self::VertexVertex(a, b) => (vertex(a), vertex(b)),
             Self::VertexOnEdge(v, e) => (vertex(v), on_edge(e, at_vertex(v)?)),
             Self::EdgeEdge(a, b) => {
@@ -3663,23 +3680,25 @@ impl TouchSite {
             }
             Self::VertexOnFace(v, f) => (vertex(v), in_face(f, at_vertex(v)?)),
             Self::EdgeInFace(e, f) => {
-                // A point of the edge inside the face: the first cell of
-                // the overlap the finding reports, re-derived by the same
-                // walk. A refusal on the way is this touch's own.
+                // Every cell of the overlap the finding reports,
+                // re-derived by the same walk. A refusal on the way is
+                // this touch's own.
                 let fg = planar_face(geo, f).ok_or(TouchVerdict::Unreadable)?;
                 let mut refused = Vec::new();
                 let cells = ef_overlap_cells(body, edge(e)?, fg, geo, band, &mut refused);
-                if !refused.is_empty() {
+                if !refused.is_empty() || cells.is_empty() {
                     return Err(TouchVerdict::InBand);
                 }
-                let p = cells.first().ok_or(TouchVerdict::InBand)?.mid;
-                (on_edge(e, p), in_face(f, p))
+                return Ok(cells
+                    .iter()
+                    .map(|c| (on_edge(e, c.mid), in_face(f, c.mid)))
+                    .collect());
             }
             Self::EdgeCross(a, b) => {
                 let q = ee_cross_point(edge(a)?, edge(b)?);
                 (on_edge(a, q), on_edge(b, q))
             }
-        })
+        }])
     }
 }
 
