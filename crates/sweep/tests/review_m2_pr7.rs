@@ -2,13 +2,14 @@
 //! properties: shapes BEYOND the implementer's acceptance set, each
 //! with a first-principles closed form derived independently in the
 //! comment above it (never copied from the props module), plus
-//! orientation attacks (negative extrusion distance, negative revolve
-//! angle) and a 1e6-scaled body. (The mesh-volume cross-checks for
+//! orientation attacks (an extrusion against the sketch normal, a
+//! negative revolve angle) and a 1e6-scaled body. (The mesh-volume cross-checks for
 //! these shapes live in the stl review suite, which links `mesh`.)
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::revolve_common;
+use sweep::ExtrudeSide;
 
 use core::f64::consts::{FRAC_PI_2, PI};
 use profile::RawLoop;
@@ -156,7 +157,10 @@ fn major_arc_prism_matches_independent_closed_forms() {
     let lp = bulge_loop(vec![v(0.0, 0.0, 0.0), v(1.0, 0.0, b), v(0.0, -1.0, 0.0)]);
     let t = extrude(
         &validated(vec![lp]),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();
@@ -184,18 +188,21 @@ fn two_hole_plate_matches_independent_closed_forms() {
     ]);
     let t = extrude(
         &validated(vec![outer, round, square]),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();
     check(&t.body, "two-hole plate", 32.0 - PI, 96.0);
 }
 
-/// Orientation attack: NEGATIVE extrusion distance must still produce
-/// a positive-volume, tier-3-valid body (never a silently inverted
-/// shell).
+/// Orientation attack: an extrusion AGAINST the sketch normal must
+/// still produce a positive-volume, tier-3-valid body (never a
+/// silently inverted shell).
 #[test]
-fn negative_extrusion_distance_is_positively_oriented() {
+fn an_extrusion_against_the_normal_is_positively_oriented() {
     let lp = ProfileLoop::polygon([
         Point2::new(0.0, 0.0),
         Point2::new(2.0, 0.0),
@@ -204,11 +211,14 @@ fn negative_extrusion_distance_is_positively_oriented() {
     ]);
     let t = extrude(
         &validated(vec![lp]),
-        Extrusion::Distance(-1.5),
+        Extrusion::Distance {
+            depth: 1.5,
+            side: ExtrudeSide::Against,
+        },
         Tol::witness(),
     )
     .unwrap();
-    check(&t.body, "negative extrude", 3.0, 2.0 * 2.0 + 9.0);
+    check(&t.body, "extrude against the normal", 3.0, 2.0 * 2.0 + 9.0);
 }
 
 /// Orientation attack: NEGATIVE revolve angle (θ = −π/2 sweeps the
@@ -283,20 +293,19 @@ fn megascale_washer_matches_and_validates() {
 /// therefore stays at the scaffolding door, which U2's transience
 /// fence names at check 2.
 ///
-/// So the defect this row plants is now caught EARLIER and by name —
-/// three reports, all on entities the row itself minted: the fence on
-/// the chord, and check 8 (the pcurve-cache pass, deliberately UNGATED
-/// on the volume check) once per half-edge, both bounding a cylinder
-/// face whose chart mints caches. That is a strictly sharper statement
-/// than the single `VolumeUncomputable` it replaces: the old report
-/// named a face's volume, these name the chord.
+/// So the defect this row plants is now caught EARLIER and by name, on
+/// an entity the row itself minted: the fence on the chord. That is a
+/// strictly sharper statement than the single `VolumeUncomputable` it
+/// replaces: the old report named a face's volume, this one names the
+/// chord.
 ///
-/// The closed form's typed refusal — the actual subject — is untouched
-/// and still read directly from `mass_properties`. The tier-3
-/// `VolumeUncomputable` lane keeps its own pins on bodies that ARE at
-/// rest and merely uncomputable (`m5_pr12_fix_pass`, `step-import`'s
-/// `nurbs_import` / `freecad` / `wild`), so nothing lost coverage —
-/// this fixture stopped being an example of it.
+/// **Check 8 (the pcurve pass) reads both pieces.** `mef` mints the
+/// row of each half it adds to a complete face, and a secant has no
+/// chart image that certifies, so neither piece has a closed-form row
+/// set: the operator, mid-surgery, leaves both storing nothing. At rest
+/// that is a finding: tier 3 re-derives each rowless piece and names
+/// the refusal its walk meets, and `mint_pcurves` over this body refuses
+/// with the first of them, pinned below.
 #[test]
 fn diagonal_chord_split_refuses_typed_not_silent() {
     use topo::{FaceSurface, LoopBoundary, MassPropsError, MefSite, ValidationError};
@@ -313,8 +322,8 @@ fn diagonal_chord_split_refuses_typed_not_silent() {
         Tol::witness(),
     )
     .unwrap();
+    let wall = t.walls()[0][1].expect("outer wall face");
     let mut body = t.body;
-    let wall = t.walls[0][1].expect("outer wall face");
     let outer = body.get_face(wall).unwrap().outer;
     let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
         panic!("wall loop must be a cycle");
@@ -337,32 +346,51 @@ fn diagonal_chord_split_refuses_typed_not_silent() {
         .expect("diagonal chord split through the public operator");
     match mass_properties(&body, Tol::witness()) {
         Err(MassPropsError::Face { source, .. }) => {
+            // A diagonal chord is a line that is NOT axial, so it lies
+            // nowhere on the cylinder: an incidence premise, and so
+            // `OffSurface` rather than the inventory's refusal.
             assert!(
-                matches!(source, geom_brep::PropsError::NotIsoRectangle { .. }),
-                "expected NotIsoRectangle, got {source:?}"
+                matches!(
+                    source,
+                    geom_brep::PropsError::OffSurface {
+                        what: "props_meridian_axial"
+                    }
+                ),
+                "expected OffSurface, got {source:?}"
             );
         }
         other => panic!("expected typed refusal, got {other:?}"),
     }
     let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
     assert_eq!(
-        errs,
-        vec![
-            ValidationError::ScaffoldAtRest { edge: split.edge },
-            ValidationError::Pcurve {
-                finding: topo::PcurveMintError::MissingCache {
-                    half_edge: split.he_plus,
-                },
-            },
-            ValidationError::Pcurve {
-                finding: topo::PcurveMintError::MissingCache {
-                    half_edge: split.he_minus,
-                },
-            },
-        ],
-        "tier 3 must name the planted chord — once for having no at-rest \
-         description, and once per half for bounding a minting chart \
-         with no cache — and nothing else; got {errs:?}"
+        errs.first(),
+        Some(&ValidationError::ScaffoldAtRest { edge: split.edge }),
+        "tier 3 names the planted chord for having no at-rest description; got {errs:?}"
+    );
+    let pieces = [wall, split.face];
+    let rowless: Vec<&topo::PcurveMintError> = errs[1..]
+        .iter()
+        .map(|e| match e {
+            ValidationError::Pcurve { finding } => finding,
+            other => panic!("beside the chord, only the pcurve pass speaks: {other:?}"),
+        })
+        .collect();
+    assert_eq!(rowless.len(), 2, "one refusal per rowless piece: {errs:?}");
+    for he in [split.he_plus, split.he_minus] {
+        assert!(body.pcurve(he).is_none(), "{he:?} carries a row");
+    }
+    for &face in &pieces {
+        assert!(
+            body.pcurves()
+                .all(|(he, _)| body.face_of_half_edge(he) != Some(face)),
+            "{face:?} stores no row"
+        );
+    }
+    let refused = topo::mint_pcurves(&mut body, Tol::witness())
+        .expect_err("the minting pass refuses a wall a secant bounds");
+    assert_eq!(
+        &refused, rowless[0],
+        "tier 3 reads the mint's own refusal first"
     );
 }
 

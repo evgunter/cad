@@ -18,7 +18,7 @@
 
 mod certified {
     use crate::common::approx::band;
-    use geom_core::{Interval, MarginDiag, Real, Sign};
+    use geom_core::{ErrorTextReading, Interval, MarginDiag, Real, Sign};
     use sweep::blend::BlendError;
     use sweep::blend::battery::spine_regularity;
     use sweep::blend::surgery::ring_clearance_for_tests as ring_clearance;
@@ -38,22 +38,24 @@ mod certified {
     /// the other side).
     #[test]
     fn a_point_bracket_margin_reports_as_a_thin_enclosure() {
-        let err = ring_clearance(FaceKey::default(), Interval::from_f64(-0.05), band())
-            .expect_err("a ring inside the trimline refuses");
+        let err = ring_clearance(
+            FaceKey::default(),
+            sweep::blend::Convexity::Convex,
+            Interval::from_f64(-0.05),
+            band(),
+        )
+        .expect_err("a ring inside the trimline refuses");
         match err {
             BlendError::RingClearance { margin, .. } => {
                 assert_eq!(margin.predicate, "fillet3_ring_clearance");
                 assert_eq!(margin.sign, Sign::Negative);
                 assert_eq!(
                     margin.reading,
-                    MarginDiag::Enclosure {
-                        lo: -0.05,
-                        hi: -0.05
-                    },
+                    MarginDiag::enclosure(-0.05, -0.05),
                     "the interval scalar spells a point bracket as a thin enclosure"
                 );
                 assert_eq!(
-                    margin.value(),
+                    margin.reading.diagnostic_f64_for_error_text().value(),
                     None,
                     "and the accessor answers for the shape, not for the width"
                 );
@@ -69,21 +71,23 @@ mod certified {
     #[test]
     fn a_wide_enclosure_margin_reports_as_an_enclosure_and_not_an_endpoint() {
         let wide = Interval::from_bounds(-0.2, -0.05);
-        let err = ring_clearance(FaceKey::default(), wide, band())
-            .expect_err("an enclosure wholly below zero refuses definitely");
+        let err = ring_clearance(
+            FaceKey::default(),
+            sweep::blend::Convexity::Convex,
+            wide,
+            band(),
+        )
+        .expect_err("an enclosure wholly below zero refuses definitely");
         match err {
             BlendError::RingClearance { margin, .. } => {
                 assert_eq!(margin.sign, Sign::Negative);
                 assert_eq!(
                     margin.reading,
-                    MarginDiag::Enclosure {
-                        lo: -0.2,
-                        hi: -0.05
-                    },
+                    MarginDiag::enclosure(-0.2, -0.05),
                     "the payload is the enclosure the classifier judged"
                 );
                 assert_eq!(
-                    margin.value(),
+                    margin.reading.diagnostic_f64_for_error_text().value(),
                     None,
                     "no single number is this reading, and the accessor says so"
                 );
@@ -112,11 +116,14 @@ mod certified {
                 assert_eq!(margin.predicate, "fillet3_spine_regularity");
                 assert_eq!(margin.sign, Sign::Negative);
                 assert!(
-                    matches!(margin.reading, MarginDiag::Enclosure { .. }),
+                    matches!(
+                        margin.reading.diagnostic_f64_for_error_text(),
+                        ErrorTextReading::Enclosure { .. }
+                    ),
                     "a levered enclosure stays one: {:?}",
                     margin.reading
                 );
-                assert_eq!(margin.value(), None);
+                assert_eq!(margin.reading.diagnostic_f64_for_error_text().value(), None);
                 // The companion lever arm is exact here, so the row
                 // says nothing about the radius field's own projection.
                 assert!((radius - 0.5).abs() < 1e-15);

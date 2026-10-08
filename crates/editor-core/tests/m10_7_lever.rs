@@ -38,6 +38,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     CancelToken, CapEnd, Datum, DocEdit, DocumentId, EntityKind, EvalOptions, Evaluation,
@@ -67,10 +69,13 @@ fn arm_of(half: f64) -> f64 {
     2.0 * std::f64::consts::SQRT_2 * half + SEPARATION
 }
 
-fn mint(doc: &editor_core::ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+fn mint(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
     let applied = apply(
         doc,
-        &DocEdit::InsertNode { node },
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+            fresh: Vec::new(),
+        },
         Tol::witness(),
         &editor_core::RefusingReach,
     )
@@ -130,6 +135,7 @@ fn measures(half: f64, theta: f64) -> Result<f64, String> {
             Node::Extrude {
                 profile,
                 distance: len(THICKNESS),
+                side: ExtrudeSide::Along,
             },
         );
         doc = next;

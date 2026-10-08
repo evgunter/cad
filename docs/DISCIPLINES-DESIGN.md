@@ -83,7 +83,7 @@ Every shipped discipline is the same five-part shape:
    κ_rel for `TangentIntersection`, order ∞/structural for
    conformality — the C1 pattern);
 2. a **declaration vocabulary** (recipe data by stable name:
-   `tangent_joints`, `Node::Declare { pairs, class }`), each record
+   `tangent_joints`, a boolean's declared pairs, each with its class), each record
    carrying a **provenance** (DS7's ladder: constructor-authored /
    user-stated / auto-recorded);
 3. a **verify table** (must-verify-definite / contradiction triggers
@@ -405,7 +405,7 @@ not sincerity):
 - **constructor-authored** — intent structural in the verb (PATHS
   `.fillet(r)` declaring the tangency it constructs; shipped
   precedent). Present at every dial position.
-- **user-stated** — `Node::Declare`, `tangent_joints`, the
+- **user-stated** — a boolean's declared pairs, `tangent_joints`, the
   detect/declare sugar; findings passed through user-visible hands
   as values (GS-Q3).
 - **auto-recorded** — machine-written at a definite finding's first

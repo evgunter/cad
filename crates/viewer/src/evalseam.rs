@@ -4,7 +4,10 @@
 //! index the viewport draws and picks against. **The one place in this
 //! crate that OWNS a thread**: `app` spawns all three workers because
 //! it decides which implementation this build runs, and every join
-//! handle, channel and hand-off between them is here.
+//! handle, channel and hand-off between them is here. The options a
+//! session's evaluation runs under are spelled here too ([`options`]),
+//! for the seam's runs and for the ones a session takes beside the
+//! picture ([`evaluate_beside`]).
 //!
 //! # Why a seam at all
 //!
@@ -135,10 +138,11 @@ pub struct EvalRequest {
     pub tol: Tol,
     /// The document seam this run resolves `InstantiatePart` nodes
     /// through — the session's workspace over the opened file's own
-    /// directory, or `None` for a document with no backing file, in
-    /// which case every instantiate node refuses typed (the shipped
-    /// no-resolver semantics, rendered as the tree's badges). Shared
-    /// by `Arc` so the worker holds a handle, not a copy of the store.
+    /// directory, or [`crate::docio::NoFile`] for a document with no
+    /// backing file, whose refusal renders as the tree's badges. `None`
+    /// refuses every instantiate node with the kernel's no-resolver
+    /// semantics. Shared by `Arc` so the worker holds a handle, not a
+    /// copy of the store.
     pub resolver: Option<Arc<dyn PartResolver>>,
 }
 
@@ -201,12 +205,46 @@ struct PriorRun {
 /// directory). Comparing by directory instead would treat a rebind to
 /// the same path as a change (harmless) and, worse, would need the
 /// trait to expose an identity it does not have.
-fn same_resolver(a: &Option<Arc<dyn PartResolver>>, b: &Option<Arc<dyn PartResolver>>) -> bool {
+pub(crate) fn same_resolver(
+    a: &Option<Arc<dyn PartResolver>>,
+    b: &Option<Arc<dyn PartResolver>>,
+) -> bool {
     match (a, b) {
         (None, None) => true,
         (Some(a), Some(b)) => Arc::ptr_eq(a, b),
         _ => false,
     }
+}
+
+/// **The options every evaluation this crate asks for runs under**:
+/// the kernel's defaults, resolving through `resolver`.
+pub(crate) fn options(resolver: &Option<Arc<dyn PartResolver>>) -> EvalOptions {
+    EvalOptions {
+        resolver: resolver.clone(),
+        ..EvalOptions::default()
+    }
+}
+
+/// **One evaluation outside the seam**, for a question asked about a
+/// document nobody is going to look at: a range probe's candidate, or
+/// a boolean the session door has not yet committed.
+///
+/// Routing it through the seam would cancel the run the viewport is
+/// waiting for — the cancel-and-restart policy above — which is the
+/// wrong trade for a query asked BESIDE the picture rather than
+/// instead of it. `prime` is the caller's memo, held to the seam's
+/// resolver rule by the caller ([`same_resolver`]); the kernel drops
+/// one of another document itself.
+///
+/// A fresh `CancelToken` per call, never set: nothing exists to cancel
+/// these runs from.
+pub(crate) fn evaluate_beside(
+    doc: &Doc<ProfileProgram>,
+    prime: Option<&Evaluation<f64>>,
+    resolver: &Option<Arc<dyn PartResolver>>,
+    tol: Tol,
+) -> Evaluation<f64> {
+    evaluate(doc, prime, &CancelToken::new(), &options(resolver), tol)
 }
 
 /// Run the evaluation, priming the memo from `prior` and updating it
@@ -253,10 +291,7 @@ fn run_once(
         &request.doc,
         prime,
         cancel,
-        &EvalOptions {
-            resolver: request.resolver.clone(),
-            ..EvalOptions::default()
-        },
+        &options(&request.resolver),
         request.tol,
     ));
     // The kernel refused what we primed with: the held run is of

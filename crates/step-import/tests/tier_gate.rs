@@ -59,18 +59,13 @@
 //! rational-walled loft, which has no committed fixture and whose row
 //! lives in `nurbs_import.rs`.
 //!
-//! **S58 / #649 (2026-08-19) added four rows; one of them is a
-//! newly-refused body class.**
-//! `iso-rect/cross.step` is the one that moved: a valid, manifold,
-//! closed solid that USED to pass this gate and then measure 19% low
-//! with `pad = 0.0`, and that the one iso-rectangle predicate now
-//! refuses here. `iso-rect/tee.step` never passed this gate — #649
-//! records import already refusing it, on `props_du_consistent`,
-//! because its one-sided arm makes the rim-group span sums disagree.
-//! What S58 moved for the tee is the **reason** in the refusal string,
-//! not its disposition, and the row is pinned on the new reason.
-//! `iso-rect/rect.step` / `iso-rect/xsplit.step` beside them are the
-//! controls that keep the tightening from being a blanket refusal.
+//! **S58 / #649 (2026-08-19) added four rows**, #649's own fixtures:
+//! `iso-rect/cross.step` and `iso-rect/tee.step`, valid solids whose
+//! cylinder walls have a plus- and a T-shaped domain, and
+//! `iso-rect/rect.step` / `iso-rect/xsplit.step`, the controls. All
+//! four pass: a cylinder wall's flux is its chart Green form, which
+//! measures any rim-and-ruling domain exactly (the cross once measured
+//! 19% low under the span-sum rule).
 //!
 //! **Issue 723 (2026-08-29) added the two `halfcap/` rows; one of
 //! them is a newly-passing body class.** Both twins are the same
@@ -85,7 +80,7 @@
 
 use std::path::{Path, PathBuf};
 
-use Disposition::{EpsSensitive, Pass, Refused, Wireframe};
+use Disposition::{EpsSensitive, Escalated, Pass, Refused, RefusedEnding, Wireframe};
 use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 
@@ -107,6 +102,15 @@ enum Disposition {
     /// Refuses typed; the string is a distinctive fragment of the
     /// refusal's own message, so the ROW says why, not just that.
     Refused(&'static str),
+    /// Refuses typed, and the message ENDS in the string: the whole
+    /// ending, for a cell whose fragment alone cannot tell two endings
+    /// apart (a fragment matches a lever that a note then follows).
+    RefusedEnding(&'static str),
+    /// Refuses typed on an escalation of the named predicate, with the
+    /// message containing the fragment (empty: any message). The name
+    /// is routing, which the message a person reads leaves out, so it
+    /// is read off the typed refusal's `Debug`.
+    Escalated(&'static str, &'static str),
     /// This file's disposition genuinely MOVES with the ambient ε, and
     /// its cells are pinned one by one in [`EPS_ROWS`] — a marker, not
     /// an outcome, so no cell of it can be satisfied by accident.
@@ -150,9 +154,10 @@ const EPS_IN_ROWS: [(&str, Option<f64>); 3] =
 /// compared in FULL: the whole census for a solid, the whole refusal
 /// message for a refusal, not the coarse [`Disposition`] class. Across
 /// the entire corpus **exactly one file's outcome moves with ε_in**,
-/// and it is `ftc11_uref_off` at all three bands (`file` refuses on the
-/// seam halfplane; `1e-6` and `1e-12` reach the intersection arm, the
-/// param span, or pass — see [`EPS_ROWS`]). The other 61 are invariant
+/// and it is `ftc11_uref_off` at all three bands (`file` imports, its
+/// generator a wrap edge at the rim vertices' azimuth; `1e-6` and
+/// `1e-12` reach the intersection arm, the param span, or pass — see
+/// [`EPS_ROWS`]). The other 61 are invariant
 /// to the byte.
 ///
 /// Comparing full messages rather than classes is what makes that
@@ -201,12 +206,17 @@ fn eps_in_rows_for(rel: &str) -> &'static [(&'static str, Option<f64>)] {
 /// was given, and the fragments below are each sub-reason's own live
 /// signature, never the shared preamble:
 ///
-/// * **`ftc11_uref_off`** is the deliberately-degenerate band fixture.
-///   Its seam residual is ~1.6e-6 m, so at ambient 1e-6 that margin
-///   lands INSIDE the ambiguity band (zero = ε, escalate = Kε) and the
-///   refusal is an ESCALATION rather than a definite verdict; at
-///   ambient 1e-12 the same margin is decisively outside every band, so
-///   the coincidence predicates that refused it at coarser ε ("tangent
+/// * **`ftc11_uref_off`** is the deliberately-degenerate band fixture:
+///   its rim vertices sit ~1.6e-6 m off the surface's `u_ref` azimuth.
+///   At its own ε_in the band's minted generator runs through them and
+///   is the wall's wrap edge there (D1: a wrap edge sits where the
+///   construction cut), so it imports at every ambient band. At the
+///   finer ε_in overrides the offset is past the mint's vertex budget,
+///   so the mint splits the rims at the `u_ref` azimuth and leaves a
+///   1.6e-6 m edge beside each rim vertex: at ambient 1e-6 that span
+///   lands INSIDE the ambiguity band and the refusal is an ESCALATION;
+///   at ambient 1e-12 it is decisively outside every band, so the
+///   coincidence predicates that refused it at coarser ε ("tangent
 ///   planes coincide", the Intersection transversality precondition)
 ///   no longer fire, and the file imports. A coincidence test refusing
 ///   what is TOO CLOSE must stop refusing as ε shrinks; that direction
@@ -231,7 +241,7 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
         NEARPOLAR_SPLIT,
         1e-6,
         "file",
-        Refused(NEARPOLAR_WEDGE_ESCALATED),
+        Escalated(NEARPOLAR_WEDGE_ESCALATED.0, NEARPOLAR_WEDGE_ESCALATED.1),
     ),
     (NEARPOLAR_SPLIT, 1e-12, "file", Pass(1, 1, 3, 4, 3)),
     (NEARPOLAR_NOSPLIT, 1e-9, "file", Pass(1, 1, 3, 3, 2)),
@@ -239,17 +249,27 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
         NEARPOLAR_NOSPLIT,
         1e-6,
         "file",
-        Refused(NEARPOLAR_WEDGE_ESCALATED),
+        Escalated(NEARPOLAR_WEDGE_ESCALATED.0, NEARPOLAR_WEDGE_ESCALATED.1),
     ),
     (NEARPOLAR_NOSPLIT, 1e-12, "file", Pass(1, 1, 3, 3, 2)),
     // -- tests/fixtures/band/ftc11_uref_off.stp -----------------------
-    (FTC11, 1e-9, "file", Refused(SEAM_HALFPLANE_DEFINITE)),
+    (FTC11, 1e-9, "file", Pass(1, 1, 6, 14, 10)),
     (FTC11, 1e-9, "1e-6", Refused(TANGENT_PLANES_COINCIDE)),
     (FTC11, 1e-9, "1e-12", Refused(TANGENT_PLANES_COINCIDE)),
-    (FTC11, 1e-6, "file", Refused(SEAM_HALFPLANE_ESCALATED)),
-    (FTC11, 1e-6, "1e-6", Refused(PARAM_SPAN_ESCALATED)),
-    (FTC11, 1e-6, "1e-12", Refused(PARAM_SPAN_ESCALATED)),
-    (FTC11, 1e-12, "file", Refused(SEAM_HALFPLANE_DEFINITE)),
+    (FTC11, 1e-6, "file", Pass(1, 1, 6, 14, 10)),
+    (
+        FTC11,
+        1e-6,
+        "1e-6",
+        Escalated(PARAM_SPAN_ESCALATED.0, PARAM_SPAN_ESCALATED.1),
+    ),
+    (
+        FTC11,
+        1e-6,
+        "1e-12",
+        Escalated(PARAM_SPAN_ESCALATED.0, PARAM_SPAN_ESCALATED.1),
+    ),
+    (FTC11, 1e-12, "file", Pass(1, 1, 6, 14, 10)),
     (FTC11, 1e-12, "1e-6", Pass(1, 1, 6, 16, 12)),
     (FTC11, 1e-12, "1e-12", Pass(1, 1, 6, 16, 12)),
     // -- tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp ------------
@@ -305,17 +325,32 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
     // default band's indeterminate zone, certifies ZERO at 1e-6, and
     // at 1e-12 the spans clear and the rim/sphere near-tangency
     // refuses at adoption — `poleguard.rs` holds the route argument.
-    (POLEBAND, 1e-9, "file", Refused(PARAM_SPAN_ESCALATED)),
-    (POLEBAND, 1e-6, "file", Refused(INTERVAL_ZERO_SPAN)),
+    (
+        POLEBAND,
+        1e-9,
+        "file",
+        Escalated(PARAM_SPAN_ESCALATED.0, PARAM_SPAN_ESCALATED.1),
+    ),
+    (POLEBAND, 1e-6, "file", RefusedEnding(INTERVAL_ZERO_SPAN)),
     (POLEBAND, 1e-12, "file", Refused(TANGENT_SECOND_ORDER_ZERO)),
     // The ε-relative sibling's cells mirror the twins' one band down:
     // its 5.65e-12 m span escalates exactly where the band is 1e-12
     // and certifies ZERO at both coarser bands.
-    (POLEBAND12, 1e-9, "file", Refused(INTERVAL_ZERO_SPAN)),
-    (POLEBAND12, 1e-6, "file", Refused(INTERVAL_ZERO_SPAN)),
-    (POLEBAND12, 1e-12, "file", Refused(PARAM_SPAN_ESCALATED)),
-    (POLEFRUSTUM, 1e-9, "file", Refused(PARAM_SPAN_ESCALATED)),
-    (POLEFRUSTUM, 1e-6, "file", Refused(INTERVAL_ZERO_SPAN)),
+    (POLEBAND12, 1e-9, "file", RefusedEnding(INTERVAL_ZERO_SPAN)),
+    (POLEBAND12, 1e-6, "file", RefusedEnding(INTERVAL_ZERO_SPAN)),
+    (
+        POLEBAND12,
+        1e-12,
+        "file",
+        Escalated(PARAM_SPAN_ESCALATED.0, PARAM_SPAN_ESCALATED.1),
+    ),
+    (
+        POLEFRUSTUM,
+        1e-9,
+        "file",
+        Escalated(PARAM_SPAN_ESCALATED.0, PARAM_SPAN_ESCALATED.1),
+    ),
+    (POLEFRUSTUM, 1e-6, "file", RefusedEnding(INTERVAL_ZERO_SPAN)),
     (
         POLEFRUSTUM,
         1e-12,
@@ -330,18 +365,25 @@ const NEARPOLAR_NOSPLIT: &str = "tests/fixtures/cert1-r1/nearpolar_nosplit.step"
 /// The nearpolar twins' coarse-band sub-reason: the rim/plane wedge
 /// angle's adoption certification, by predicate name, so a regression
 /// that moves the refusal to another door fails these cells.
-const NEARPOLAR_WEDGE_ESCALATED: &str = "predicate 'dihedral_wedge' indeterminate";
+const NEARPOLAR_WEDGE_ESCALATED: (&str, &str) = (
+    "the transversality margin at sample 1 escalated",
+    "dihedral_wedge",
+);
 const DM1: &str = "tests/fixtures/wild/stepcode/dm1-id-214.stp";
 const POLEBAND: &str = "tests/fixtures/poleguard/poleband.step";
 const POLEBAND12: &str = "tests/fixtures/poleguard/poleband_eps12.step";
 const POLEFRUSTUM: &str = "tests/fixtures/poleguard/polefrustum.step";
 /// The poleguard twins' coarse-band sub-reason: the sub-band span
 /// certifies zero, and the attachment gate refuses the degenerate
-/// interval by name — the span's Zero verdict, not a reversed one — and
-/// ends it as a defect: no construction mints a zero-length edge.
+/// interval by name — the span's Zero verdict, not a reversed one. The
+/// span is a real edge shorter than the tolerance, a band-decided arm
+/// like every sized decision's, so at adoption it ends in the lever
+/// alone: no ending there names a tolerance. Pinned as the message's
+/// whole ending, because a span of no length ends in the same lever
+/// followed by a note, which a fragment would also match.
 const INTERVAL_ZERO_SPAN: &str = "the stored parameter interval spans no length at this tolerance \
-     — a degenerate zero-span interval, which the forward gate refuses. There is no way through: \
-     this is a kernel defect or a damaged file; report it";
+     — a degenerate zero-span interval, which the forward gate refuses. Recourse: move the \
+     geometry so this edge is not vanishingly short";
 /// Their fine-band sub-reason: with the spans certified, adoption
 /// refuses the rim/sphere near-tangency — the second-order arm's own
 /// verdict, so a regression that moves the refusal to another door
@@ -358,7 +400,7 @@ const TANGENT_SECOND_ORDER_ZERO: &str = "the faces agree to second order at samp
 /// real outcome of this lane and would become reachable again the
 /// moment anything at the gate moves.
 #[allow(dead_code)]
-const QUAD_CONVERGED_ESCALATED: &str = "predicate 'props_quad_converged' indeterminate";
+const QUAD_CONVERGED_ESCALATED: &str = "props_quad_converged";
 // dm1's `#389` polyline gap ("edge #389: no intensional description
 // certifies", with an empty attempt list) is RETIRED, by execution and
 // not by unreachability: degree-1 carriers promote to `Curve3::Line`
@@ -376,37 +418,20 @@ const QUAD_CONVERGED_ESCALATED: &str = "predicate 'props_quad_converged' indeter
 const ARC_RIM_MAP_RESIDUAL: &str = "MapResidual";
 const NIST09: &str = "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp";
 
-/// The S58 iso-rectangle predicate, by name: *every rim sits at one of
-/// the face's two extreme `v`-levels*. Naming the PREDICATE rather than
-/// the shared "shared at-rest validation gate" preamble is what lets
-/// these rows see a regression that re-widens the rule, as opposed to
-/// one that merely moves the refusal somewhere else.
-const ISO_RECTANGLE_PREDICATE: &str = "props_rim_level";
-
-/// The seam carrier's residual is DECIDEDLY outside the band, ending as
-/// a definite refusal at adoption does: the file is named beside the
-/// kernel.
-const SEAM_HALFPLANE_DEFINITE: &str = concat!(
-    "the out-of-halfplane component at sample 0 definitely exceeds the tolerance band (the \
-     cache does not represent the description, D4 ¶2). ",
-    geom_core::kernel_or_file_defect_ending!()
-);
-/// The same residual, IN the band: escalate-never-guess, by name.
-const SEAM_HALFPLANE_ESCALATED: &str = "the out-of-halfplane component at sample 0 escalated: predicate 'carrier_in_seam_halfplane' \
-     indeterminate";
 /// Coarse enough for the two walls to read as one: the Intersection
 /// transversality precondition fails, and the ladder says which. A zero
 /// verdict is band-decided — at a finer ambient band the coincidence
-/// predicates no longer fire here, and a different check refuses the
-/// file (`SEAM_HALFPLANE_DEFINITE` at 1e-12) — so at adoption it names
+/// predicates no longer fire here, and the file imports — so at adoption it names
 /// its decision's lever alone, and the attempt ends there (the `;`
 /// before the next rung).
 const TANGENT_PLANES_COINCIDE: &str = "the faces meet tangentially at sample 1, where the edge's \
-     description says they cross. Recourse: move the geometry so the faces cross at a clearer angle;";
+     description says they cross. Recourse: move the geometry so the surfaces cross at a clearer angle;";
 /// At ambient 1e-6 the file's own span decision is in-band too, and it
 /// is reached first — at assembly, before any edge is adopted.
-const PARAM_SPAN_ESCALATED: &str = "the stored interval's span (not a sampled check) escalated: predicate \
-     'interval_span_forward' indeterminate";
+const PARAM_SPAN_ESCALATED: (&str, &str) = (
+    "the stored interval's span (not a sampled check) escalated",
+    "interval_span_forward",
+);
 /// Naming the MAPPED-CURVE arm pins that BOTH candidates were tried and
 /// both refused definite — the seam arm alone would match a prefix.
 const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gate: the start-endpoint residual at \
@@ -466,7 +491,7 @@ const CORPUS: [(&str, Disposition); 75] = [
         Pass(1, 1, 14, 32, 20),
     ),
     ("tests/fixtures/freecad/sphere.step", Pass(1, 1, 2, 2, 2)),
-    ("tests/fixtures/freecad/torus.step", Pass(1, 1, 2, 4, 2)),
+    ("tests/fixtures/freecad/torus.step", Pass(1, 1, 1, 2, 1)),
     (
         "tests/fixtures/freecad/twobody_importexport.step",
         Pass(2, 2, 8, 14, 10),
@@ -524,30 +549,19 @@ const CORPUS: [(&str, Disposition); 75] = [
         Pass(1, 1, 3, 3, 2),
     ),
     // -- tests/fixtures/iso-rect/ (S58 / #649) ------------------------
-    // #649's own fixtures, committed with the fix. Both plus-domain
-    // solids are geometrically VALID — manifold, closed, χ = 2 — and
-    // both refuse here on the one iso-rectangle predicate, but they
-    // arrive from opposite places. `cross` USED to import and then
-    // MEASURE: 19% low with `pad = 0.0`, a certificate of exactness on
-    // a wrong number, this gate green — it is the disposition S58
-    // moved. `tee` was already refused before S58, by the span-sum
-    // rule (`props_du_consistent`): only the reason in its refusal
-    // string moved, which is why pinning the reason rather than the
-    // disposition is what makes these rows able to see a regression.
+    // #649's own fixtures. Both plus-domain solids are geometrically
+    // VALID — manifold, closed, χ = 2 — and both pass: a cylinder wall's
+    // flux is its chart Green form, which measures the plus and the tee
+    // exactly. `cross` once imported and measured 19% low with
+    // `pad = 0.0`, and was then refused on the iso-rectangle predicate;
+    // `s58_iso_rectangle.rs` holds all four to their EXACT volumes and
+    // runs `merge_coplanar_faces` on `xsplit` — #649's second door.
     // `rect` is the control (a genuine iso-rectangle of the same Δu and
     // v extent) and `xsplit` is the same solid as `cross` authored with
-    // rectangular sub-faces; both keep passing, and
-    // `s58_iso_rectangle.rs` holds them to their EXACT volumes and runs
-    // `merge_coplanar_faces` on `xsplit` — #649's second door.
-    (
-        "tests/fixtures/iso-rect/cross.step",
-        Refused(ISO_RECTANGLE_PREDICATE),
-    ),
+    // rectangular sub-faces.
+    ("tests/fixtures/iso-rect/cross.step", Pass(1, 1, 14, 36, 24)),
     ("tests/fixtures/iso-rect/rect.step", Pass(1, 1, 6, 12, 8)),
-    (
-        "tests/fixtures/iso-rect/tee.step",
-        Refused(ISO_RECTANGLE_PREDICATE),
-    ),
+    ("tests/fixtures/iso-rect/tee.step", Pass(1, 1, 10, 24, 16)),
     (
         "tests/fixtures/iso-rect/xsplit.step",
         Pass(1, 1, 18, 40, 24),
@@ -728,7 +742,7 @@ const CORPUS: [(&str, Disposition); 75] = [
     ),
     (
         "../step-export/tests/fixtures/cone.step",
-        Pass(1, 1, 4, 6, 4),
+        Pass(1, 1, 3, 4, 3),
     ),
     (
         "../step-export/tests/fixtures/cube.step",
@@ -765,7 +779,7 @@ const CORPUS: [(&str, Disposition); 75] = [
     ),
     (
         "../step-export/tests/fixtures/lily_lantern.step",
-        Pass(1, 1, 8, 14, 8),
+        Pass(1, 1, 6, 10, 6),
     ),
     (
         "../step-export/tests/fixtures/loft_prism.step",
@@ -802,7 +816,7 @@ const CORPUS: [(&str, Disposition); 75] = [
     ),
     (
         "../step-export/tests/fixtures/washer.step",
-        Pass(1, 1, 4, 8, 4),
+        Pass(1, 1, 4, 6, 4),
     ),
 ];
 
@@ -1000,6 +1014,15 @@ fn every_corpus_import_passes_the_shared_gate() {
                     );
                 }
                 (Ok(StepImport::Wireframe { .. }), Wireframe) => {}
+                (Err(e), RefusedEnding(ending)) => {
+                    let msg = e.to_string();
+                    assert_adoption_reading(&who, &msg);
+                    assert!(
+                        msg.ends_with(ending),
+                        "{who}: refused with a DIFFERENT ending than the table records \
+                         (want a message ending in {ending:?}): {msg}"
+                    );
+                }
                 (Err(e), Refused(fragment)) => {
                     let msg = e.to_string();
                     assert_adoption_reading(&who, &msg);
@@ -1007,6 +1030,21 @@ fn every_corpus_import_passes_the_shared_gate() {
                         msg.contains(fragment),
                         "{who}: refused for a DIFFERENT reason than the table records \
                          (want a message containing {fragment:?}): {msg}"
+                    );
+                }
+                (Err(e), Escalated(fragment, predicate)) => {
+                    let msg = e.to_string();
+                    assert_adoption_reading(&who, &msg);
+                    assert!(
+                        msg.contains(fragment),
+                        "{who}: refused for a DIFFERENT reason than the table records \
+                         (want a message containing {fragment:?}): {msg}"
+                    );
+                    let typed = format!("{e:?}");
+                    assert!(
+                        typed.contains(&format!("predicate: Some({predicate:?})")),
+                        "{who}: refused for a DIFFERENT reason than the table records \
+                         (want an escalation of {predicate:?}): {typed}"
                     );
                 }
                 (got, want) => panic!("{who}: disposition changed — want {want:?}, got {got:?}"),

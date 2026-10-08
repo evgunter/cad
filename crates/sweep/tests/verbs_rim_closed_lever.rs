@@ -21,7 +21,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::approx::band;
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::{Point2, Tol};
 use sweep::Revolution;
 use sweep::blend::battery::{BlendRequest, run_battery};
@@ -96,7 +96,12 @@ fn neck_flare(rev: Revolution<f64>) -> Body<f64> {
 fn full_and_partial_revolve_decide_the_same_honest_dihedral() {
     let full = neck_flare(Revolution::Full);
     let rim = one_edge_rim_at(&full, 1.0, 1.0);
-    let out = fillet_edges(&full, &[rim], 0.05, tol());
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&full, tol()),
+        &[rim],
+        0.05,
+        tol(),
+    );
     assert!(
         out.is_ok(),
         "closed rim: the cylinder×cone band is built once the dihedral has decided, \
@@ -105,7 +110,13 @@ fn full_and_partial_revolve_decide_the_same_honest_dihedral() {
 
     let part = neck_flare(Revolution::Partial(1.0));
     let arc = open_arc_at(&part, 1.0, 1.0);
-    let open = fillet_edges(&part, &[arc], 0.05, tol()).map_err(|r| r.error);
+    let open = fillet_edges(
+        &sweep::test_support::at_rest(&part, tol()),
+        &[arc],
+        0.05,
+        tol(),
+    )
+    .map_err(|r| r.error);
     assert!(
         !matches!(open, Err(BlendError::TangentialEdge { .. })),
         "open rim: a transverse 30° corner is not a tangency, got {open:?}"
@@ -152,11 +163,18 @@ fn a_co_surface_seam_meridian_still_refuses_tangential_at_exactly_zero() {
         (p1 - p0).norm() > 1.9,
         "the seam meridian's endpoints span ~the ball's diameter"
     );
-    match fillet_edges(&ball, &[seam], 0.05, tol()).map_err(|r| r.error) {
+    match fillet_edges(
+        &sweep::test_support::at_rest(&ball, tol()),
+        &[seam],
+        0.05,
+        tol(),
+    )
+    .map_err(|r| r.error)
+    {
         Err(BlendError::TangentialEdge { margin, .. }) => {
             assert_eq!(margin.predicate, "fillet3_convexity_sign");
             assert_eq!(
-                margin.value(),
+                margin.reading.diagnostic_f64_for_error_text().value(),
                 Some(0.0),
                 "a co-surface seam's sine is structurally zero"
             );

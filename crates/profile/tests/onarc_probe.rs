@@ -71,8 +71,11 @@ fn mismatched_radius_continuation() {
         .position(|&v| (v - Point2::new(8.5, 0.0)).norm_squared().sqrt() < 1e-12)
         .expect("the authored anchor is a vertex of the final chain");
     let before = lp.vertices()[anchor_idx - 1];
-    let (run_c, run_r) =
-        circle_from_bulge(before, Point2::new(8.5, 0.0), lp.bulges()[anchor_idx - 1]);
+    let (run_c, run_r) = circle_from_bulge(
+        before,
+        Point2::new(8.5, 0.0),
+        crate::common::quarter_tan(&lp.segments()[anchor_idx - 1]),
+    );
     assert!(
         (run_c - Point2::new(7.0, 0.0)).norm_squared().sqrt() < 1e-9 && (run_r - 1.5).abs() < 1e-9,
         "the arrival's run rides the true carrier; got ({}, {}) r {run_r}",
@@ -83,7 +86,11 @@ fn mismatched_radius_continuation() {
     // DERIVED carrier (7.3, 0) r 1.2, tangent there by construction —
     // a declared joint at the anchor.
     let next = lp.vertices()[anchor_idx + 1];
-    let (dep_c, dep_r) = circle_from_bulge(Point2::new(8.5, 0.0), next, lp.bulges()[anchor_idx]);
+    let (dep_c, dep_r) = circle_from_bulge(
+        Point2::new(8.5, 0.0),
+        next,
+        crate::common::quarter_tan(&lp.segments()[anchor_idx]),
+    );
     assert!(
         (dep_c - Point2::new(7.3, 0.0)).norm_squared().sqrt() < 1e-9 && (dep_r - 1.2).abs() < 1e-9,
         "the continuation rides the derived carrier; got ({}, {}) r {dep_r}",
@@ -95,7 +102,7 @@ fn mismatched_radius_continuation() {
         "the constructed tangency at the anchor is declared"
     );
     // The defect class is gone structurally: the loop validates.
-    Profile::new(SketchPlane::xy(), vec![lp.clone()])
+    Profile::new(SketchPlane::xy(), vec![lp.clone().into_loop()])
         .validate(Tol::witness())
         .expect("every authored r is sound under the dissolution");
 }
@@ -163,7 +170,7 @@ fn sharp_after_arc_arrival() {
         (heading - 2.6).abs() < 1e-9,
         "the leg departs the anchor on the authored heading; got {heading}"
     );
-    Profile::new(SketchPlane::xy(), vec![lp.clone()])
+    Profile::new(SketchPlane::xy(), vec![lp.clone().into_loop()])
         .validate(Tol::witness())
         .expect("the restored junction validates");
 }

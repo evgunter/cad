@@ -52,34 +52,34 @@
 //!
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
+use pncad::document::ExtrudeSide;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use pncad::document::{
-    Applied, Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension,
-    DimensionError, Doc, DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EditError,
-    EvalOptions, Evaluation, Expr, LoggedEdit, LoopProgram, MaintenanceNet, MateReach, Node,
-    ParamName, PartReach, PartResolver, ProductError, ProfileProgram, RecipeNodeId, SlotId,
-    Subject, apply, assemble_gathered, cascade_delete_order, parse_expr, product_recorded,
-    run_checks_on,
+    Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
+    DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Formula, FreeValue, FreeVar,
+    HeldNodes, Label, LoopProgram, Maintenance, Node, PartReach, PartResolver, ProductError,
+    ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject, VarId, VarName,
+    apply, assemble_gathered, cascade_delete_order, parse_formula, product_recorded, run_checks_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
-use pncad::select::{Resolution, RunCtx, resolve};
+use pncad::select::{FlushFinding, Resolution, RunCtx, declared_pairs, resolve};
 use pncad::topo::Body;
 
 use crate::blend::BlendKindChoice;
 use crate::combine::{self, DuplicateFault, PatternOutputChoice};
 use crate::display::{DisplayFault, DisplayState, DisplayView};
-use crate::docio::{self, DirResolver};
-use crate::evalseam::{EvalRequest, EvalService, InlineEvaluator};
+use crate::docio::{self, DirResolver, NoFile};
+use crate::evalseam::{EvalRequest, EvalService, InlineEvaluator, evaluate_beside};
 use crate::g1;
 use crate::generation::Generation;
 use crate::history::History;
-use crate::parts;
+use crate::parts::{self, PartFiles};
 use crate::pickcache;
-use crate::props::{self, SlotDriver, SlotValue};
+use crate::props::{self, Notation, SlotDriver, SlotValue};
 use crate::sketch;
 use crate::tree::{self, TreeRow};
 
@@ -92,10 +92,13 @@ pub mod select;
 
 pub use author::{DatumSpec, PartSelectSpec, PatternRuleSpec, ProfilePlane, ProfileShape};
 pub use delete::DeleteAffordance;
-pub use op::{CancelDoor, FreeMoveName, GestureName, OpOutcome, SessionOp, ValueGestureName};
+pub use op::{
+    CancelDoor, Creation, FreeMoveName, GestureName, OpOutcome, SessionOp, ValueGestureName,
+};
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
-    FaceFrameFault, NO_FACE_PICKED, NodeKindWanted, Refusal, Step, admits, face_frame_seat,
+    DeclareOffer, FaceFrameFault, NO_FACE_PICKED, NodeKindWanted, Refusal, RefusedBoolean, Step,
+    VersionOffer, admits, face_frame_seat, face_frame_seat_drawn,
 };
 pub use select::{EdgeSelection, FaceSelection, Hovered, Selection, Standing};
 
@@ -117,30 +120,27 @@ enum GestureTarget {
         slot: SlotId,
         unit: Option<UnitDef>,
     },
-    /// A document parameter, with the dimension it is declared at.
+    /// A document variable, with the dimension it is declared at.
     ///
     /// **No unit, and it is not the slot arm's omission.** A slot's
     /// edit rebuilds the literal, so the notation has to be carried
-    /// into it or the drag rewrites it; a parameter's edit is the
-    /// value door (`DocEdit::SetDocParamValue`), which writes a number
+    /// into it or the drag rewrites it; a variable's edit is the
+    /// value door (`DocEdit::SetVarValue`), which writes a number
     /// into the standing declaration and leaves the authored unit
     /// beside it untouched. There is nothing here for a captured unit
-    /// to protect. The panel still SHOWS the drag in the parameter's
+    /// to protect. The panel still SHOWS the drag in the variable's
     /// written unit — it converts before the value crosses into this
     /// layer, which is canonical throughout.
-    Param {
-        name: ParamName,
-        dimension: Dimension,
-    },
+    Variable { var: VarId, dimension: Dimension },
 }
 
 impl GestureTarget {
     /// This target's dimension — a slot's from its `SlotId`, a
-    /// parameter's from its declaration.
+    /// variable's from its declaration.
     fn dimension(&self) -> Dimension {
         match self {
             Self::Slot { slot, .. } => slot.dimension(),
-            Self::Param { dimension, .. } => *dimension,
+            Self::Variable { dimension, .. } => *dimension,
         }
     }
 
@@ -150,7 +150,7 @@ impl GestureTarget {
     ///
     /// # Errors
     ///
-    /// [`SlotValue::of`]'s, which is `Expr::literal`'s own
+    /// [`SlotValue::of`]'s, which is `Formula::literal`'s own
     /// finiteness refusal reached for a `Count` target, where the
     /// literal door is not on the path.
     fn value_of(&self, value: f64) -> Result<SlotValue, pncad::document::DimensionError> {
@@ -166,28 +166,30 @@ impl GestureTarget {
     /// from the chrome carries neither and has no business asserting
     /// them. So the comparison that decides whether a preview belongs
     /// to the open gesture is over [`ValueGestureName`], and this is
-    /// the one place a target becomes one — exhaustive over the
-    /// target's arms, so a third kind of gesture target cannot skip
-    /// the question.
+    /// the one place a target becomes one.
     fn name(&self) -> ValueGestureName {
         match self {
             Self::Slot { node, slot, .. } => ValueGestureName::Slot {
                 node: *node,
                 slot: *slot,
             },
-            Self::Param { name, .. } => ValueGestureName::Param(name.clone()),
+            Self::Variable { var, .. } => ValueGestureName::Variable(*var),
         }
     }
 
     /// The edit that writes `value` into this target.
     ///
-    /// A parameter's edit is the VALUE door, so the parameter's
+    /// A variable's edit is the VALUE door, so the variable's
     /// declaration — its dimension and any distribution — is read off
     /// the document by the edit itself rather than reassembled here.
-    fn edit(&self, value: SlotValue) -> Result<DocEdit<ProfileProgram>, DimensionError> {
+    fn edit(
+        &self,
+        doc: &Doc<ProfileProgram>,
+        value: SlotValue,
+    ) -> Result<DocEdit<ProfileProgram>, DimensionError> {
         match self {
-            Self::Slot { node, slot, unit } => props::slot_edit(*node, *slot, value, *unit),
-            Self::Param { name, .. } => Ok(props::param_edit(name.clone(), value)),
+            Self::Slot { node, slot, unit } => props::slot_edit(doc, *node, *slot, value, *unit),
+            Self::Variable { var, .. } => Ok(props::variable_edit(*var, value)),
         }
     }
 }
@@ -234,8 +236,19 @@ fn driver_of(
     let row = props::slot_rows(doc, node)
         .into_iter()
         .find(|row| row.slot == slot)
-        .ok_or(Refusal::NoSuchSlot { node, slot })?;
+        .ok_or_else(|| Refusal::NoSuchSlot {
+            node: doc.spoken(node),
+            slot,
+        })?;
     Ok((row.driver, row.value.ok()))
+}
+
+/// Whether `expr` reads any variable, by id or by name.
+fn reads_a_variable(expr: &Formula) -> bool {
+    let (mut ids, mut names) = (Vec::new(), Vec::new());
+    expr.var_reads(&mut ids);
+    expr.named_reads(&mut names);
+    !ids.is_empty() || !names.is_empty()
 }
 
 /// Refuse a numeric edit to a driven slot, with the affordance.
@@ -243,17 +256,126 @@ fn guard_driven(
     doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
     slot: SlotId,
+    notation: Notation,
 ) -> Result<(), Refusal> {
     let (driver, current) = driver_of(doc, node, slot)?;
     match driver {
         SlotDriver::Literal => Ok(()),
-        SlotDriver::Expression { params } => Err(Refusal::DrivenByExpression {
+        SlotDriver::Expression { variables } => Err(Refusal::DrivenByExpression {
             node,
             slot,
-            params,
+            variables,
             current,
+            notation,
         }),
     }
+}
+
+/// **A profile editor's program with every unmoved argument of every
+/// kept step carried from the committed program** — the argument as
+/// the document holds it, so an argument the editor re-minted in its
+/// own notation but did not move keeps the notation it was written
+/// in, and only what moved is written in the editor's.
+///
+/// A step is the committed one when `ids` keeps its id; the argument
+/// is the same one when it has the same
+/// [`pncad::document::StepArg`] on that step, and unmoved when its
+/// value is the committed one at the bits ([`Expr::bit_eq`]).
+///
+/// # Errors
+///
+/// [`Refusal::DrivenByExpression`], with the affordance, for an
+/// argument of a kept step that an expression drives and that the
+/// editor's program does not hold unmoved: a number written over a
+/// computation, exactly as the slot field refuses it. A step the
+/// program drops takes its arguments with it, driven or not — that is
+/// not a write over them.
+///
+/// An id that is not the committed program's, or `ids` of the wrong
+/// shape, carries nothing here: the edit door refuses those typed
+/// ([`pncad::document::EditError::StepIdsRefused`]).
+fn carry_unmoved(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+    current: &ProfileProgram,
+    loops: Vec<LoopProgram<Formula>>,
+    ids: &[Vec<Option<StepId>>],
+    notation: Notation,
+) -> Result<Vec<LoopProgram<Formula>>, Refusal> {
+    let was: std::collections::HashMap<StepId, (u32, u32)> = current
+        .ids
+        .iter()
+        .enumerate()
+        .flat_map(|(loop_, steps)| {
+            steps
+                .iter()
+                .enumerate()
+                .map(move |(step, id)| (*id, (program_index(loop_), program_index(step))))
+        })
+        .collect();
+    let was = &was;
+    let now: std::collections::HashMap<(u32, u32), (u32, u32)> = ids
+        .iter()
+        .enumerate()
+        .flat_map(|(loop_, steps)| {
+            steps.iter().enumerate().filter_map(move |(step, kept)| {
+                let at = (program_index(loop_), program_index(step));
+                was.get(&(*kept)?).map(|&was| (was, at))
+            })
+        })
+        .collect();
+    let old = Node::Profile(current.clone());
+    let mut new = Node::Profile(ProfileProgram {
+        plane: current.plane,
+        loops,
+        ids: Vec::new(),
+    });
+    for slot in old.slots() {
+        let SlotId::Profile { loop_, step, arg } = slot else {
+            unreachable!(
+                "a profile node lists only profile slots, and {} is not one",
+                slot.label()
+            )
+        };
+        // A step the program drops: nothing of it is written.
+        let Some(&(new_loop, new_step)) = now.get(&(loop_, step)) else {
+            continue;
+        };
+        let Some(&committed) = old.expr(slot) else {
+            unreachable!(
+                "`Node::slots` is the domain of `Node::expr`, and {} was listed by it",
+                slot.label()
+            )
+        };
+        let moved = SlotId::Profile {
+            loop_: new_loop,
+            step: new_step,
+            arg,
+        };
+        // An argument written as it was keeps the variable it read, so
+        // its identity and its distribution survive the reshaping
+        // (`Node::authored`'s rule).
+        let reader = Formula::var(committed, arg.dimension());
+        let written =
+            Formula::from(doc.written(&pncad::document::Expr::var(committed, arg.dimension())));
+        match new.expr_mut(moved) {
+            Some(held) if held.bit_eq(&reader) || held.bit_eq(&written) => *held = reader,
+            _ if doc.is_typed_value(committed) => {}
+            _ => guard_driven(doc, node, slot, notation)?,
+        }
+    }
+    let Node::Profile(program) = new else {
+        unreachable!("the carried program was built as a profile node")
+    };
+    Ok(program.loops)
+}
+
+/// A position in a profile program as the slot vocabulary spells it.
+fn program_index(i: usize) -> u32 {
+    let Ok(narrowed) = u32::try_from(i) else {
+        unreachable!("a collection of {i} elements does not fit in memory")
+    };
+    narrowed
 }
 
 /// The whole of what the document panels operate on.
@@ -271,6 +393,10 @@ pub struct DocSession {
     /// landed pair and the outstanding request name the SAME document
     /// value for as long as they agree, which is most of the time.
     requested_doc: Arc<Doc<ProfileProgram>>,
+    /// The resolver that request resolves through — the landed run's
+    /// memo is only a memo for a run under the same one
+    /// ([`DocSession::memo_under`]).
+    requested_resolver: Option<Arc<dyn PartResolver>>,
     /// Everything this session knows *because of* the document under
     /// it — one value, so that replacing that document is one
     /// assignment ([`DocSession::clear_for_new_document`]).
@@ -283,11 +409,16 @@ pub struct DocSession {
     /// The document seam: the opened file's own directory, consulted
     /// lazily (the directory rule and the scan-at-resolution posture
     /// are [`DirResolver`]'s docs). A session over an in-memory
-    /// document carries no resolver, and its instantiate nodes refuse
-    /// typed. Replaced — never inherited — on every `Open`, so a
+    /// document carries none, and its instantiate nodes refuse through
+    /// [`NoFile`]. Replaced — never inherited — on every `Open`, so a
     /// document can never silently resolve against the previous
     /// document's directory.
     resolver: Option<Arc<DirResolver>>,
+    /// The working notation ([`props::Notation`]): what a value nobody
+    /// wrote reads in, here because the refusals this session answers
+    /// read such values. Per person and never in
+    /// the document, so no `Open` or new document resets it.
+    notation: Notation,
 }
 
 /// What the session knows because of the document under it: what is
@@ -342,6 +473,9 @@ pub struct DocSession {
 ///   genuinely differs: `Open` sets both, `NewDocument` clears both.
 struct Derived {
     selection: Selection,
+    /// The nodes [`Derived::selection`] names, as the last document that
+    /// held them spoke them ([`DocSession::selection_said`]).
+    said: HeldNodes,
     /// What the cursor is over: transient, never persisted, and its
     /// ONE home. A widget that kept its own copy would be the
     /// per-widget shadow the panels' inventory discipline forbids.
@@ -373,6 +507,34 @@ struct Derived {
     /// field it invalidates rather than leaving one of them to a route
     /// a reader of the walk cannot see.
     bounds: Option<BoundsReading>,
+    /// The slot whose typed value is offered the variables of equal
+    /// value ([`DocSession::offered`]), and the variable that typing
+    /// minted. It stands until it is accepted or declined, or until the
+    /// slot no longer reads that variable at the value typed — a retype,
+    /// a drag of that very variable, a move of it by its own door — or
+    /// the history steps (an undo, a redo), so an offer is only ever
+    /// made about a value as it was typed. An edit elsewhere leaves it.
+    offer: Option<SlotOffer>,
+}
+
+/// A typed value's offer: the slot it was typed at, the variable it
+/// minted there, and the value typed.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct SlotOffer {
+    node: RecipeNodeId,
+    slot: SlotId,
+    var: VarId,
+    typed: props::SlotValue,
+}
+
+impl SlotOffer {
+    /// Whether the slot still reads the variable typing minted, at the
+    /// bits typed.
+    fn stands(&self, doc: &Doc<ProfileProgram>) -> bool {
+        doc.slot(self.node, self.slot) == Some(self.var)
+            && props::variable_value(doc, self.var)
+                .is_some_and(|now| props::bit_equal(now, self.typed))
+    }
 }
 
 impl Derived {
@@ -381,10 +543,12 @@ impl Derived {
     fn none() -> Self {
         Self {
             selection: Selection::None,
+            said: HeldNodes::default(),
             hover: None,
             scratch: None,
             landed: None,
             bounds: None,
+            offer: None,
         }
     }
 }
@@ -405,17 +569,21 @@ impl core::fmt::Debug for Derived {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self {
             selection,
+            said,
             hover,
             scratch,
             landed,
             bounds,
+            offer,
         } = self;
         f.debug_struct("Derived")
             .field("selection", selection)
+            .field("said", said)
             .field("hover", hover)
             .field("scratch", &scratch.as_ref().map(|_| format_args!("<Doc>")))
             .field("landed", landed)
             .field("bounds", bounds)
+            .field("offer", offer)
             .finish()
     }
 }
@@ -431,11 +599,15 @@ impl core::fmt::Debug for Derived {
 /// new thing taken at landing cannot be computed at one door and
 /// forgotten at the other.
 ///
-/// `body` is the one field the landing does not always carry, and its
-/// own docs say why — the A5 gate consumes what it judges. Everything
-/// else here is present whenever the gather was.
+/// The gather's outcome is one `Result`: a refusal carries nothing
+/// the gather would have produced, so no A5 verdict and no body can
+/// sit beside a gather refusal. That is all the shape rules out.
+/// [`Gathered`] can still spell pairs only `land` keeps out — a
+/// `Certified` badge with no body, a `Refused` one with a body.
 struct LandedRun {
     evaluation: Arc<Evaluation<f64>>,
+    /// The resolver [`LandedRun::evaluation`] resolved through.
+    resolver: Option<Arc<dyn PartResolver>>,
     /// The document [`LandedRun::evaluation`] answers.
     ///
     /// **Resolution is a question about a PAIR.** `resolve` reads the
@@ -450,42 +622,54 @@ struct LandedRun {
     /// The generation this run answered ([`DocSession::busy`] compares
     /// it against the one the session is waiting on).
     generation: Generation,
-    /// The gather's refusal for this pair ([`DocSession::product_fault`]).
-    fault: Option<ProductError>,
-    /// The A5 at-rest verdict for this pair ([`DocSession::at_rest`]);
-    /// `None` for a document that is not assembly-shaped.
-    at_rest: Option<AtRestBadge>,
+    /// What the gather left this pair ([`Gathered`]), or its refusal
+    /// ([`DocSession::product_fault`]).
+    gather: Result<Gathered, ProductError>,
     /// The advisory-check report for this pair
     /// ([`DocSession::checks`]); `None` when the registry itself
-    /// refused.
+    /// refused, or did not run. It sits outside [`LandedRun::gather`]
+    /// because one refusal still has a report: the one
+    /// `ProductErrorKind::means_no_body` reads as an absence.
     checks: Option<ChecksReport>,
+    /// **The part files the run's resolver could name** — one scan of
+    /// the session's directory, taken at landing ([`PartFiles`]'s doc
+    /// says why then): the file names the tree names this pair's
+    /// instances and their carried lines by. Unscanned for a document that
+    /// instantiates nothing, which never asks.
+    files: PartFiles,
+}
+
+/// What a gather that succeeded left the landing ([`LandedRun::gather`]'s
+/// `Ok`): the A5 verdict taken over the product, and the product's body
+/// where the gate did not consume it.
+struct Gathered {
+    /// The A5 at-rest verdict for this pair ([`DocSession::at_rest`]);
+    /// `None` where [`AtRestBadge`] says none is taken.
+    at_rest: Option<AtRestBadge>,
     /// **The aggregate the landing's own gather produced**, kept so
     /// that a consumer which needs the product does not gather it a
-    /// second time ([`DocSession::landed_body`], which is also the
-    /// only writer of this field after `land`).
+    /// second time ([`DocSession::landed_body`]). Written once, by
+    /// `land`.
     ///
-    /// `None` in two cases that are not the same:
-    ///
-    /// - the gather refused, so there is no body and never was — the
-    ///   `fault` beside this says which refusal;
-    /// - the gather succeeded and the A5 gate CONSUMED it. The gate
-    ///   takes the product by value, and its refusal is the one exit
-    ///   that does not hand the body back (a certification returns it
-    ///   on `Assembly`). Nothing is cloned to close that gap: on this
-    ///   lane's measurement a body clone is 2.7% of a gather but is
-    ///   paid per LANDING, while the gather it would save is paid per
-    ///   opened document — the wrong trade for an edit session.
-    ///   [`DocSession::landed_body`] gathers once, there, and memoizes
-    ///   into this field.
+    /// `None` when the A5 gate CONSUMED it. The gate takes the product
+    /// by value, and its refusal is the one exit that does not hand
+    /// the body back (a certification returns it on `Assembly`).
+    /// Nothing is cloned to close that gap: on this lane's measurement
+    /// a body clone is 2.7% of a gather but is paid per LANDING, while
+    /// the gather it would save is paid per opened document — the
+    /// wrong trade for an edit session. The display fit gathers its
+    /// own, on the fit worker ([`DocSession::fit_request`]'s
+    /// `Ungathered`).
     ///
     /// **What those numbers are load-bearing for, and why they carry
     /// no guard.** They chose between two designs that are both
-    /// CORRECT — memoize, or clone at every gate — so nothing here
-    /// breaks if the ratio drifts; what would break is the TRADE, and
-    /// a trade is re-decided by re-measuring, not by a failing
-    /// assertion. A wall-clock guard in the gate would be a flake
-    /// rather than a witness, and a scheduled re-measure would be a
-    /// standing chore over a number no behaviour reads.
+    /// CORRECT — gather again where it is wanted, or clone at every
+    /// gate — so nothing here breaks if the ratio drifts; what would
+    /// break is the TRADE, and a trade is re-decided by re-measuring,
+    /// not by a failing assertion. A wall-clock guard in the gate
+    /// would be a flake rather than a witness, and a scheduled
+    /// re-measure would be a standing chore over a number no
+    /// behaviour reads.
     ///
     /// Half of it is re-taken anyway, and by someone else: the gather
     /// column of `editor-core/tests/m4_pr8_latency.rs` (`gather_ms`)
@@ -506,33 +690,39 @@ struct LandedRun {
     body: Option<Arc<Body<f64>>>,
 }
 
-/// Exhaustive by destructuring; the shared rule is
-/// `crates/viewer/README.md`'s.
+/// Exhaustive by destructuring, through [`Gathered`] too; the shared
+/// rule is `crates/viewer/README.md`'s.
 ///
 /// The two `_` arms are the run's DATA — `evaluation` is the result
 /// DAG and `doc` is the recipe DAG it answers — and everything else
-/// here is a verdict ABOUT that pair. `checks` is a `Vec` per finding
-/// and is carried as its two counts; `body` is a gathered aggregate
-/// and is carried as its presence, which is whether the landing's
-/// gather is still memoized. Both render as SUMMARIES — two counts,
-/// and the elision `Some(<Body>)` — so neither can be read as the
-/// field's own value; `finish_non_exhaustive` here is about the `_`
-/// arms and says nothing about them.
+/// here is a verdict ABOUT that pair. The gather renders as the arm it
+/// took: its refusal as `fault`, or what it left as `at_rest` and
+/// `body`. `checks` is a `Vec` per finding and is carried as its two
+/// counts; `body` is a gathered aggregate and is carried as its
+/// presence, which is whether the gate left it. Both render as
+/// SUMMARIES — two counts, and the elision `Some(<Body>)` — so neither
+/// can be read as the field's own value; `finish_non_exhaustive` here
+/// is about the `_` arms and says nothing about them.
 impl core::fmt::Debug for LandedRun {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self {
             evaluation: _,
+            resolver: _,
             doc: _,
             generation,
-            fault,
-            at_rest,
+            gather,
             checks,
-            body,
+            files,
         } = self;
         let mut out = f.debug_struct("LandedRun");
-        out.field("generation", generation)
-            .field("fault", fault)
-            .field("at_rest", at_rest);
+        out.field("generation", generation);
+        match gather {
+            Ok(Gathered { at_rest, body }) => out
+                .field("at_rest", at_rest)
+                .field("body", &body.as_ref().map(|_| format_args!("<Body>"))),
+            Err(fault) => out.field("fault", fault),
+        };
+        out.field("files", files);
         match checks {
             Some(report) => out.field(
                 "checks",
@@ -544,8 +734,7 @@ impl core::fmt::Debug for LandedRun {
             ),
             None => out.field("checks", &Option::<()>::None),
         };
-        out.field("body", &body.as_ref().map(|_| format_args!("<Body>")))
-            .finish_non_exhaustive()
+        out.finish_non_exhaustive()
     }
 }
 
@@ -557,10 +746,13 @@ impl core::fmt::Debug for LandedRun {
 /// between instances surfaces on the draw path instead of waiting for
 /// an export.
 ///
-/// Taken only for assembly-shaped documents (one holding at least one
-/// `InstantiatePart`) — a part document's tiers are not this badge's
-/// subject, and the gate's cost is not spent where it answers nothing
-/// the badges do not already say.
+/// Taken only when the gate ran: an assembly-shaped document (one
+/// holding at least one `InstantiatePart`) whose product gathered. A
+/// part document's tiers are not this badge's subject, and the gate's
+/// cost is not spent where it answers nothing the badges do not
+/// already say. A gather refusal, of any class, leaves no product for
+/// the gate to judge, so it takes no badge: it is
+/// [`DocSession::product_fault`]'s, and `frame::badge_site` routes it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AtRestBadge {
     /// The gate certified the assembled product; how many declarations
@@ -569,8 +761,8 @@ pub enum AtRestBadge {
         /// The minted declaration count.
         minted: usize,
     },
-    /// The gate refused — its own rendering, never a sentence composed
-    /// here.
+    /// The gate's own refusal of the product it judged, in its own
+    /// rendering, never a sentence composed here.
     Refused {
         /// The typed refusal's `Display`.
         message: String,
@@ -628,6 +820,7 @@ impl DocSession {
             // than a clone of `doc` because a clone here would be a
             // second copy nobody ever looks at.
             requested_doc: Arc::new(Doc::empty_derived("unsubmitted", tol)),
+            requested_resolver: None,
             history: History::new(doc),
             tol,
             gesture: g1::Slot::closed(),
@@ -637,6 +830,7 @@ impl DocSession {
             path: None,
             display: DisplayState::new(),
             resolver: None,
+            notation: Notation::DEFAULT,
         };
         session.request_eval();
         session
@@ -667,6 +861,18 @@ impl DocSession {
         &self.history
     }
 
+    /// The working notation a value nobody wrote reads in
+    /// ([`props::Notation`]), [`Notation::DEFAULT`] until one is set.
+    pub fn notation(&self) -> Notation {
+        self.notation
+    }
+
+    /// Read every value nobody wrote in `notation` from now on. Not an
+    /// edit: no document changes and nothing enters the history.
+    pub fn set_notation(&mut self, notation: Notation) {
+        self.notation = notation;
+    }
+
     /// **What a delete of `node` would cost, said before it is paid.**
     ///
     /// The `cascade` field is the deletion order itself — exactly what
@@ -693,11 +899,8 @@ impl DocSession {
     /// and has its own control beside the spinner that reports the
     /// run. The census is held from the operation vocabulary's side by
     /// `crates/viewer/tests/gesture_table.rs`'s
-    /// `every_gesture_cancel_has_a_chrome_door`, whose match over
-    /// `SessionOp` is exhaustive — so a third gesture cannot join the
-    /// enum with no door, which is the protection
-    /// [`SessionOp::permitted_during_value_gesture`] gives the
-    /// mid-gesture policy one concept over.
+    /// `every_gesture_cancel_has_a_chrome_door`, which names every
+    /// `SessionOp`.
     ///
     /// Each door reads the state of its OWN gesture: this session's
     /// value drag, and [`crate::display::DisplayState::probing`] for
@@ -731,6 +934,17 @@ impl DocSession {
         &self.derived.selection
     }
 
+    /// **The selection's nodes as the last document that held them
+    /// spoke them** ([`Selection::nodes`]): what a sentence about the
+    /// selection says a node by once the document it is spoken from no
+    /// longer holds it (`Speaker::or_held`). Spoken when the selection
+    /// is made, and again from the shown document after every
+    /// operation (`SpokenNode::respoken`'s rule), so a deleted node
+    /// is said by the last label it had.
+    pub fn selection_said(&self) -> &HeldNodes {
+        &self.derived.said
+    }
+
     /// What the cursor is over, if anything.
     pub fn hover(&self) -> Option<&Hovered> {
         self.derived.hover.as_ref()
@@ -743,8 +957,8 @@ impl DocSession {
     /// selection)** — recomputed, never cached, so it cannot be stale
     /// with respect to the state it describes. A face's verdict comes
     /// from the shipped `resolve` door; nothing here re-implements the
-    /// resolution ladder or interprets its answer beyond arranging it
-    /// beside the other two selection kinds.
+    /// resolution ladder, and the one reading made of its answer is the
+    /// feature tree's, of which node an indeterminate verdict waits on.
     pub fn standing(&self) -> Standing {
         match &self.derived.selection {
             Selection::None => Standing::Empty,
@@ -752,9 +966,9 @@ impl DocSession {
                 node: *node,
                 present: self.doc().node(*node).is_some(),
             },
-            Selection::Param(name) => Standing::Param {
-                name: name.clone(),
-                present: self.doc().params().contains_key(name),
+            Selection::Variable(var) => Standing::Variable {
+                var: self.doc().spoken_var(*var),
+                present: self.doc().var(*var).is_some(),
             },
             Selection::Face(face) => Standing::Face {
                 face: face.clone(),
@@ -767,12 +981,41 @@ impl DocSession {
         }
     }
 
+    /// **The nodes `selection` names, as the session speaks them now**:
+    /// each as the shown document holds it, or as the landed run's
+    /// document does where the shown one no longer holds it. A selection
+    /// is picked in one of the two: the feature tree draws the shown
+    /// document, and the viewport and the Checks window the landed run.
+    /// Both are versions of this session's one document, so an id
+    /// names one node in each (`SpokenNode::respoken`'s soundness
+    /// paragraph); a replaced document drops the landed run with the
+    /// selection.
+    fn spoken_now(&self, selection: &Selection) -> HeldNodes {
+        let landed = self.landed_pair().map(|(doc, _)| doc);
+        selection
+            .nodes()
+            .into_iter()
+            .map(|id| {
+                let shown = self.doc().spoken(id);
+                match landed {
+                    Some(landed) if shown.kind().is_none() => landed.spoken(id),
+                    Some(_) | None => shown,
+                }
+            })
+            .collect()
+    }
+
     /// One picked name's verdict against the landed run — the shipped
     /// `resolve` door, asked once and spelled once for both entity
-    /// kinds.
+    /// kinds, with the node it waits on named as the feature tree
+    /// names it ([`crate::tree::resolution_as_drawn`]).
     fn entity_resolution(&self, name: &StableName) -> Option<Box<Resolution>> {
-        self.landed_pair()
-            .map(|(doc, eval)| Box::new(resolve(RunCtx { doc, eval }, name)))
+        self.landed_pair().map(|(doc, eval)| {
+            Box::new(crate::tree::resolution_as_drawn(
+                resolve(RunCtx { doc, eval }, name),
+                eval,
+            ))
+        })
     }
 
     /// The most recent evaluation that answered the current document.
@@ -795,20 +1038,39 @@ impl DocSession {
         Some((run.doc.as_ref(), run.evaluation.as_ref()))
     }
 
+    /// The part files the landed run's resolver could name
+    /// ([`PartFiles`]): what the tree names an instance's part by.
+    /// Unscanned while nothing has landed.
+    pub fn part_files(&self) -> &PartFiles {
+        static UNSCANNED: PartFiles = PartFiles::Unscanned;
+        self.derived
+            .landed
+            .as_ref()
+            .map_or(&UNSCANNED, |run| &run.files)
+    }
+
     /// Why the landed evaluation's product does not gather, if it does
-    /// not — the gather-level refusal no per-node badge can carry.
+    /// not — every class, whichever channel reports it
+    /// (`frame::badge_site` decides that).
     ///
     /// `None` both when the product is well formed and when nothing
     /// has landed yet; [`DocSession::landed_pair`] distinguishes those.
     pub fn product_fault(&self) -> Option<&ProductError> {
-        self.derived.landed.as_ref()?.fault.as_ref()
+        self.derived.landed.as_ref()?.gather.as_ref().err()
     }
 
     /// The A5 at-rest verdict for the landed pair ([`AtRestBadge`]),
-    /// when the landed document is assembly-shaped. `None` for a part
-    /// document, and before anything lands.
+    /// when [`AtRestBadge`] says one is taken. `None` otherwise, and
+    /// before anything lands.
     pub fn at_rest(&self) -> Option<&AtRestBadge> {
-        self.derived.landed.as_ref()?.at_rest.as_ref()
+        self.derived
+            .landed
+            .as_ref()?
+            .gather
+            .as_ref()
+            .ok()?
+            .at_rest
+            .as_ref()
     }
 
     /// The last locally-valid-range probe, with the field it was taken
@@ -816,6 +1078,23 @@ impl DocSession {
     /// and after every document change (`request_eval`'s discard).
     pub fn bounds(&self) -> Option<&BoundsReading> {
         self.derived.bounds.as_ref()
+    }
+
+    /// **The variables a value typed at `slot` on `node` is offered**
+    /// (D10: typing a value offers an existing variable of equal
+    /// value): empty unless a value was typed there, still stands as
+    /// typed, and has not been accepted or declined — a drag, a retype,
+    /// an undo or a redo closes it — and empty where no variable
+    /// equals it ([`props::equal_variables`]). Read off the committed
+    /// document, which is the one the accepting edit applies to.
+    pub fn offered(&self, node: RecipeNodeId, slot: SlotId) -> Vec<props::Offered> {
+        let doc = self.committed_doc();
+        match self.derived.offer {
+            Some(offer) if offer.node == node && offer.slot == slot && offer.stands(doc) => {
+                props::equal_variables(doc, node, slot)
+            }
+            Some(_) | None => Vec::new(),
+        }
     }
 
     /// **The gathered product of the landed run** — the aggregate a
@@ -840,12 +1119,21 @@ impl DocSession {
     /// nothing has landed; the gather REFUSED, so no product exists
     /// ([`DocSession::product_fault`] says so); or the gather
     /// succeeded and the A5 gate consumed the body in refusing
-    /// ([`LandedRun::body`] carries that case). A caller that needs a
+    /// ([`Gathered::body`] carries that case). A caller that needs a
     /// body in the third case gathers one for itself and pays for it
     /// where the payment is visible — [`crate::scene::product_of_evaluation`]
     /// is that door.
     pub fn landed_body(&self) -> Option<&Body<f64>> {
-        Some(self.derived.landed.as_ref()?.body.as_ref()?)
+        Some(
+            self.derived
+                .landed
+                .as_ref()?
+                .gather
+                .as_ref()
+                .ok()?
+                .body
+                .as_ref()?,
+        )
     }
 
     /// The advisory-check report for the landed pair — findings in
@@ -886,19 +1174,36 @@ impl DocSession {
     /// a suite reading the solve back) resolves each mated part the
     /// way the landed evaluation resolved it.
     pub fn eval_options(&self) -> EvalOptions {
-        EvalOptions {
-            resolver: self.resolver_seam(),
-            ..EvalOptions::default()
-        }
+        crate::evalseam::options(&self.run_resolver())
+    }
+
+    /// **The resolver every evaluation of this session's documents runs
+    /// under** — the seam's runs and the ones taken beside it alike.
+    fn run_resolver(&self) -> Option<Arc<dyn PartResolver>> {
+        Some(self.resolver_seam())
+    }
+
+    /// **The landed run as a memo for a run under `resolver`**, or
+    /// `None` when it resolved through another seam — the seam's own
+    /// priming rule ([`crate::evalseam::same_resolver`]), for the runs
+    /// taken beside it.
+    fn memo_under(&self, resolver: &Option<Arc<dyn PartResolver>>) -> Option<Arc<Evaluation<f64>>> {
+        self.derived
+            .landed
+            .as_ref()
+            .filter(|run| crate::evalseam::same_resolver(&run.resolver, resolver))
+            .map(|run| Arc::clone(&run.evaluation))
     }
 
     /// **The session's resolver as the document seam** — the directory
     /// rule's resolver, widened to the trait every door that resolves
-    /// a part takes; `None` when the session has no directory.
-    fn resolver_seam(&self) -> Option<Arc<dyn PartResolver>> {
-        self.resolver
-            .as_ref()
-            .map(|ws| Arc::clone(ws) as Arc<dyn PartResolver>)
+    /// a part takes; [`NoFile`] when the session has no directory, so a
+    /// part's refusal states the viewer's way through.
+    fn resolver_seam(&self) -> Arc<dyn PartResolver> {
+        match &self.resolver {
+            Some(dir) => Arc::clone(dir) as Arc<dyn PartResolver>,
+            None => NoFile::seam(),
+        }
     }
 
     /// The generation the session is waiting for a result on.
@@ -978,11 +1283,24 @@ impl DocSession {
         // one function away from the fix that introduced it. While a
         // run is outstanding the tree therefore shows the picture's
         // document, which is what the viewport shows too.
-        match self.landed_pair() {
-            Some((doc, eval)) => tree::rows(doc, Some(eval)),
+        match &self.derived.landed {
+            Some(run) => {
+                let mut rows = tree::rows(&run.doc, Some(&run.evaluation), &run.files);
+                // An offer acts on the COMMITTED document, so one read
+                // off a run of an older document is withheld until the
+                // current one lands: the accept it made may already be
+                // the edit that run is answering.
+                if self.busy() {
+                    for row in &mut rows {
+                        row.version_offer = None;
+                    }
+                }
+                rows
+            }
             // Nothing has landed: the shown document with no
-            // evaluation, which renders every row `Unevaluated`.
-            None => tree::rows(self.doc(), None),
+            // evaluation, which renders every row `Unevaluated`, and
+            // no scan of the directory, which names a part as unread.
+            None => tree::rows(self.doc(), None, &PartFiles::Unscanned),
         }
     }
 
@@ -1057,18 +1375,17 @@ impl DocSession {
         // BORROWS the product, and the A5 badge CONSUMES it last.
         //
         // The fourth consumer is the SESSION, which keeps the body for
-        // the display fit ([`LandedRun::body`]) — and it is why the
+        // the display fit ([`Gathered::body`]) — and it is why the
         // sentence that used to end this paragraph ("nothing after the
         // badge wants a product") no longer holds. Nothing is cloned
         // for it either: it takes what the gate did not eat.
         let doc: &Doc<ProfileProgram> = &self.requested_doc;
         let cfg = ChecksConfig::default();
-        // The A5 badge is taken for assembly-shaped documents only, and
-        // whether the document is one is a fact about the document
-        // rather than about its product — readable on either arm.
+        // Whether the document is assembly-shaped is a fact about its
+        // nodes: the `Ok` arm reads it for the gate, and the part-file
+        // scan below reads it too.
         let assembly_shaped = assembly_shaped(doc);
-        let (fault, checks, at_rest, body) = match product_recorded(doc, &done.evaluation, self.tol)
-        {
+        let (gather, checks) = match product_recorded(doc, &done.evaluation, self.tol) {
             Ok(product) => {
                 // The advisory registry. It REPORTS — a document with
                 // findings still draws, which is the whole point of
@@ -1093,20 +1410,19 @@ impl DocSession {
                 // `Assembly`, and a document with no gate to run never
                 // gave it away.
                 let (at_rest, body) = if assembly_shaped {
-                    let (verdict, kept) = badge(assemble_gathered(product, self.tol));
+                    let (verdict, kept) = badge(doc, assemble_gathered(product, self.tol));
                     (Some(verdict), kept)
                 } else {
                     (None, Some(Arc::new(product.body.into_body())))
                 };
-                (None, checks, at_rest, body)
+                (Ok(Gathered { at_rest, body }), checks)
             }
             Err(fault) => {
                 // **The product's own verdict.** The gather is the only
                 // thing that answers "is this document's product well
-                // formed" — a naming collision across roots is not a
-                // node failure, so the feature tree's badges cannot see
-                // it, and a viewport that draws the parts without ever
-                // asking would render a body nothing says is wrong.
+                // formed", so every class of refusal is kept here; which
+                // channel reports which is `frame::badge_site`'s. The
+                // gate never ran, so no A5 badge is taken.
                 //
                 // A refusal that `ProductErrorKind::means_no_body`
                 // reads as an absence is the one the registry still
@@ -1121,22 +1437,26 @@ impl DocSession {
                             .ok()
                     })
                     .flatten();
-                let at_rest = assembly_shaped.then(|| AtRestBadge::Refused {
-                    message: AssemblyError::product_refusal(&fault),
-                });
-                (Some(fault), checks, at_rest, None)
+                (Err(fault), checks)
             }
+        };
+        // Only a document that instantiates a part has a part to name,
+        // so only it pays the scan.
+        let files = if assembly_shaped {
+            PartFiles::scanned(self.resolver.as_deref())
+        } else {
+            PartFiles::Unscanned
         };
         // The landed pair and its verdicts become the session's as ONE
         // value, which is the same value `Derived::none` clears.
         self.derived.landed = Some(LandedRun {
             evaluation: done.evaluation,
+            resolver: self.requested_resolver.clone(),
             doc: Arc::clone(&self.requested_doc),
             generation: done.generation,
-            fault,
-            at_rest,
+            gather,
             checks,
-            body,
+            files,
         });
         Landing::Landed
     }
@@ -1164,12 +1484,30 @@ impl DocSession {
     /// [`DisplayState::begin_free_move`] for the probe — with the same
     /// refusal a row here would raise, off the same state. So each
     /// begin is `true` in the table that would otherwise pre-empt it —
-    /// [`SessionOp::BeginGesture`] and [`SessionOp::BeginParamGesture`]
+    /// [`SessionOp::BeginGesture`] and [`SessionOp::BeginVariableGesture`]
     /// in the value table, [`SessionOp::BeginFreeMove`] in the
     /// free-move one — and the set of operations a drag refuses is its
     /// table plus that one rule, held once for both drags rather than
     /// spelled per gesture and per table.
     pub fn perform(&mut self, op: SessionOp) -> OpOutcome {
+        let outcome = self.perform_op(op);
+        // Every document change is an operation, so this is the one
+        // place the kept nodes follow the newest document that holds
+        // them. A landing changes only the landed run, an earlier
+        // version of the shown document.
+        self.derived.said = self.derived.said.respoken(self.doc());
+        // And the one place an offer closes once its value no longer
+        // stands as typed: closed for good, so a value moved away and
+        // back is never offered again — an offer is made straight after
+        // a typing op and never by any other.
+        let doc = self.history.doc();
+        self.derived.offer = self.derived.offer.filter(|offer| offer.stands(doc));
+        outcome
+    }
+
+    /// [`DocSession::perform`]'s operation, before the selection's kept
+    /// nodes are spoken again.
+    fn perform_op(&mut self, op: SessionOp) -> OpOutcome {
         if self.gesture.held().is_some() && !op.permitted_during_value_gesture() {
             return OpOutcome::refused(Refusal::GestureInFlight);
         }
@@ -1178,6 +1516,7 @@ impl DocSession {
         }
         match op {
             SessionOp::Select(selection) => {
+                self.derived.said = self.spoken_now(&selection);
                 self.derived.selection = selection;
                 OpOutcome::default()
             }
@@ -1192,23 +1531,35 @@ impl DocSession {
             SessionOp::SetSlotExpression { node, slot, text } => {
                 self.set_slot_expression(node, slot, &text)
             }
-            SessionOp::SetParam { name, value } => self.set_param(&name, value),
-            SessionOp::SetParamUnit { name, unit } => self.set_param_unit(name, unit),
-            SessionOp::SetParamText { name, text } => self.set_param_text(name, &text),
-            SessionOp::CreateParam { name, value } => self.create_param(name, value),
+            SessionOp::SetSlotVariable { node, slot, var } => {
+                self.set_slot_variable(node, slot, var)
+            }
+            SessionOp::DeclineOffer { node, slot } => {
+                self.close_offer(node, slot);
+                OpOutcome::default()
+            }
+            SessionOp::SetVariable { var, value } => self.set_variable(var, value),
+            SessionOp::SetVariableUnit { var, unit } => self.set_variable_unit(var, unit),
+            SessionOp::SetVariableText { var, text } => self.set_variable_text(var, &text),
+            SessionOp::DeclareVar { name, value } => self.declare_var(name, value),
+            SessionOp::RenameVar { var, name } => self.commit(DocEdit::RenameVar {
+                var: var.into(),
+                name,
+            }),
+            SessionOp::DeleteVar { var } => self.commit(DocEdit::DeleteVar { var: var.into() }),
             SessionOp::BeginGesture { node, slot } => self.begin_gesture(node, slot),
-            SessionOp::BeginParamGesture { name } => self.begin_param_gesture(&name),
+            SessionOp::BeginVariableGesture { var } => self.begin_variable_gesture(var),
             SessionOp::PreviewGesture { node, slot, value } => {
                 self.preview_gesture(&ValueGestureName::Slot { node, slot }, value)
             }
             SessionOp::CommitGesture { node, slot } => {
                 self.commit_gesture(&ValueGestureName::Slot { node, slot })
             }
-            SessionOp::PreviewParamGesture { name, value } => {
-                self.preview_gesture(&ValueGestureName::Param(name), value)
+            SessionOp::PreviewVariableGesture { var, value } => {
+                self.preview_gesture(&ValueGestureName::Variable(var), value)
             }
-            SessionOp::CommitParamGesture { name } => {
-                self.commit_gesture(&ValueGestureName::Param(name))
+            SessionOp::CommitVariableGesture { var } => {
+                self.commit_gesture(&ValueGestureName::Variable(var))
             }
             SessionOp::CancelGesture => match self.gesture.cancel(gesture_words()) {
                 // Only a drag that actually put a scratch document on
@@ -1280,24 +1631,30 @@ impl DocSession {
                 class,
                 alignment,
             } => self.commit(DocEdit::InsertNode {
-                node: Node::Mate {
+                node: Box::new(Node::Mate {
                     a,
                     b,
                     class,
                     alignment,
-                },
+                }),
+                fresh: Vec::new(),
             }),
             SessionOp::NewDocument { name } => self.new_document(&name),
             SessionOp::AddDatum { datum } => self.add_datum(datum),
             SessionOp::AddProfile { plane, loops } => self.add_profile(plane, loops),
-            SessionOp::EditProfile { node, base, loops } => self.edit_profile(node, &base, loops),
+            SessionOp::EditProfile {
+                node,
+                base,
+                loops,
+                ids,
+            } => self.edit_profile(node, &base, loops, ids),
             SessionOp::AddExtrude { profile, distance } => self.add_extrude(profile, distance),
             SessionOp::AddRevolve {
                 profile,
                 axis,
                 angle,
             } => self.add_revolve(profile, axis, angle),
-            SessionOp::AddBoolean { op, a, b } => self.add_boolean(op, a, b),
+            SessionOp::AddBoolean { op, a, b, declare } => self.add_boolean(op, a, b, declare),
             SessionOp::AddSplit { target, tool } => self.add_split(target, tool),
             SessionOp::AddTransform {
                 input,
@@ -1324,7 +1681,52 @@ impl DocSession {
             SessionOp::AddPart { of, select } => self.add_part(of, select),
             SessionOp::Duplicate { input } => self.add_duplicate(input),
             SessionOp::AddInstance { id } => self.add_instance(id),
+            SessionOp::AcceptPartVersion { id } => self.accept_part_version(id),
+            SessionOp::SetLabel { node, label } => {
+                self.commit_written(DocEdit::SetLabel { node, label })
+            }
+            SessionOp::CreateLabelled { creation, label } => self.create_labelled(creation, label),
         }
+    }
+
+    /// **A creation and its label as one action** ([`SessionOp::CreateLabelled`]).
+    ///
+    /// The creation is performed as it would be alone, through
+    /// whichever commit door it takes. Once it has recorded its state,
+    /// a `SetLabel` on the last node it minted is applied to that
+    /// state's document and joins that state's group
+    /// ([`History::extend_current`]), so the insert and the label are
+    /// one undo whatever door recorded the insert. A creation that
+    /// recorded nothing (refused, or declined) is answered as it is,
+    /// and its label is not applied.
+    fn create_labelled(&mut self, creation: Creation, label: Label) -> OpOutcome {
+        let before = self.history.current();
+        let mut outcome = self.perform(creation.into_op());
+        let recorded = self.history.current();
+        let Some(&node) = outcome.minted.last() else {
+            return outcome;
+        };
+        if recorded == before || outcome.refusal.is_some() {
+            return outcome;
+        }
+        let edit = DocEdit::SetLabel {
+            node,
+            label: Some(label),
+        };
+        // A label edit performs no maintenance, so its reach is never
+        // asked; the session's own is handed over for uniformity.
+        let resolver = self.resolver_seam();
+        let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
+        match apply(self.history.doc(), &edit, self.tol, &reach) {
+            Ok(applied) => {
+                self.history
+                    .extend_current(recorded, edit.clone(), applied.doc);
+                outcome.committed.push(edit);
+                self.request_eval();
+            }
+            Err(error) => outcome.refusal = Some(Refusal::Edit(Box::new(error))),
+        }
+        outcome
     }
 
     /// The documents the open document's own directory offers as
@@ -1338,12 +1740,7 @@ impl DocSession {
     /// or an unreadable sibling surfaces, at the chooser rather than
     /// at a tree badge, since no node exists yet to badge.
     pub fn part_catalogue(&self) -> Result<Vec<parts::PartEntry>, Refusal> {
-        let resolver = self
-            .resolver
-            .as_deref()
-            .ok_or(Refusal::NoDocumentDirectory)?;
-        parts::catalogue(resolver, self.committed_doc().id())
-            .map_err(|error| Refusal::Workspace(Box::new(error)))
+        self.read_store(|ws| Ok(parts::catalogue(ws, self.committed_doc().id())))
     }
 
     /// **One scan of the document's directory, as a value**
@@ -1418,10 +1815,12 @@ impl DocSession {
         requested: crate::scene::DisplayTolerance,
     ) -> Option<crate::evalseam::FitRequest> {
         let run = self.derived.landed.as_ref()?;
-        let subject = match run.body.as_ref() {
-            Some(body) => crate::evalseam::FitSubject::Landed(Arc::clone(body)),
-            None if run.fault.is_some() => return None,
-            None => crate::evalseam::FitSubject::Ungathered {
+        let subject = match &run.gather {
+            Err(_) => return None,
+            Ok(Gathered {
+                body: Some(body), ..
+            }) => crate::evalseam::FitSubject::Landed(Arc::clone(body)),
+            Ok(Gathered { body: None, .. }) => crate::evalseam::FitSubject::Ungathered {
                 doc: Arc::clone(&run.doc),
                 evaluation: Arc::clone(&run.evaluation),
             },
@@ -1458,29 +1857,118 @@ impl DocSession {
         if let Some(refusal) = Refusal::self_instance(self.committed_doc().id(), id) {
             return OpOutcome::refused(refusal);
         }
-        let Some(resolver) = self.resolver.as_deref() else {
-            return OpOutcome::refused(Refusal::NoDocumentDirectory);
-        };
-        let pin = match resolver
-            .workspace()
-            .and_then(|ws| ws.current_pin(id, self.tol))
-        {
+        let pin = match self.read_store(|ws| ws.current_pin(id, self.tol)) {
             Ok(pin) => pin,
-            Err(error) => return OpOutcome::refused(Refusal::Workspace(Box::new(error))),
+            Err(refusal) => return OpOutcome::refused(refusal),
         };
         self.commit(DocEdit::InsertNode {
-            node: Node::instantiate_part(DocRef { id, pin }),
+            node: Box::new(Node::instantiate_part(DocRef { id, pin })),
+            fresh: Vec::new(),
         })
     }
 
+    /// Move every reference to the part `id` onto the version its file
+    /// holds now, as one action: the store's own elaboration
+    /// ([`pncad::workspace::update_to_store`]), applied whole.
+    fn accept_part_version(&mut self, id: DocumentId) -> OpOutcome {
+        let doc = self.committed_doc();
+        match self.read_store(|ws| pncad::workspace::update_to_store(doc, id, ws, self.tol)) {
+            Ok(edits) => self.commit_action(edits),
+            Err(refusal) => OpOutcome::refused(refusal),
+        }
+    }
+
+    /// **A read of the session's store, refused typed**: `read` over
+    /// the directory every reference resolves against
+    /// ([`DirResolver::workspace`]) — [`Refusal::NoDocumentDirectory`]
+    /// for a session with no backing file, and the store's own
+    /// refusal, scan or read, as [`Refusal::Workspace`].
+    fn read_store<T>(
+        &self,
+        read: impl FnOnce(&pncad::workspace::Workspace) -> Result<T, pncad::workspace::WorkspaceError>,
+    ) -> Result<T, Refusal> {
+        let resolver = self
+            .resolver
+            .as_deref()
+            .ok_or(Refusal::NoDocumentDirectory)?;
+        resolver
+            .workspace()
+            .and_then(|ws| read(&ws))
+            .map_err(|error| Refusal::Workspace(Box::new(error)))
+    }
+
     fn set_slot(&mut self, node: RecipeNodeId, slot: SlotId, value: SlotValue) -> OpOutcome {
-        if let Err(refusal) = guard_driven(self.committed_doc(), node, slot) {
+        if let Err(refusal) = guard_driven(self.committed_doc(), node, slot, self.notation) {
             return OpOutcome::refused(refusal);
         }
         let unit = props::slot_unit(self.committed_doc(), node, slot);
-        match props::slot_edit(node, slot, value, unit) {
-            Ok(edit) => self.commit_written(edit),
+        match props::slot_typed_edit(node, slot, value, unit) {
+            Ok(edit) => {
+                let outcome = self.commit_written(edit);
+                self.offer_after(node, slot, &outcome);
+                outcome
+            }
             Err(error) => OpOutcome::refused(Refusal::Dimension(error)),
+        }
+    }
+
+    /// **Open the offer a typed value earns** (D10), once the edit that
+    /// typed it has landed: the slot now reads a variable that typing
+    /// minted, and [`Self::offered`] answers the variables of equal
+    /// value. Text that reads a variable or computes one mints no typed
+    /// value and opens nothing; a refused or empty edit leaves the
+    /// standing offer as it was.
+    fn offer_after(&mut self, node: RecipeNodeId, slot: SlotId, outcome: &OpOutcome) {
+        if outcome.refusal.is_some() || outcome.committed.is_empty() {
+            return;
+        }
+        let doc = self.committed_doc();
+        self.derived.offer = doc
+            .slot(node, slot)
+            .filter(|&var| doc.is_typed_value(var))
+            .and_then(|var| {
+                let typed = props::variable_value(doc, var)?;
+                Some(SlotOffer {
+                    node,
+                    slot,
+                    var,
+                    typed,
+                })
+            });
+    }
+
+    /// **Accept an offer**: the slot reads `var` — the slot-write
+    /// gesture, one edit and one undo step. Only a variable on offer
+    /// there ([`Self::offered`]) is accepted, so a stale button can
+    /// never join a slot to a variable chosen against a value it no
+    /// longer holds; the door checks the kind.
+    fn set_slot_variable(&mut self, node: RecipeNodeId, slot: SlotId, var: VarId) -> OpOutcome {
+        if !self
+            .offered(node, slot)
+            .iter()
+            .any(|offered| offered.var == var)
+        {
+            let spoken = self.committed_doc().spoken_var(var);
+            return OpOutcome::refused(Refusal::NotOffered(spoken));
+        }
+        let outcome = self.commit_written(props::slot_read_edit(node, slot, var));
+        if outcome.refusal.is_none() {
+            self.close_offer(node, slot);
+        }
+        outcome
+    }
+
+    /// **Decline an offer**: the slot keeps the variable its typed value
+    /// minted, which is what makes it distinct from the ones offered
+    /// (D10). It changes no document; declining where nothing is
+    /// offered is the same nothing.
+    fn close_offer(&mut self, node: RecipeNodeId, slot: SlotId) {
+        if self
+            .derived
+            .offer
+            .is_some_and(|offer| offer.node == node && offer.slot == slot)
+        {
+            self.derived.offer = None;
         }
     }
 
@@ -1495,10 +1983,10 @@ impl DocSession {
         // so a range of numbers for it is not an answer to any question
         // they can act on: the probe refuses it with the same
         // affordance the write and the drag do, which names the
-        // parameters to probe instead. A parameter has no driver and
+        // variables to probe instead. A variable has no driver and
         // reaches this door unguarded.
         if let BoundsTarget::Slot { node, slot } = target
-            && let Err(refusal) = guard_driven(self.committed_doc(), node, slot)
+            && let Err(refusal) = guard_driven(self.committed_doc(), node, slot, self.notation)
         {
             return OpOutcome::refused(refusal);
         }
@@ -1508,15 +1996,8 @@ impl DocSession {
         // candidate is judged against, so a probe cannot seed from one
         // document and search another.
         let base = self.doc().clone();
-        let prior = self
-            .derived
-            .landed
-            .as_ref()
-            .map(|run| Arc::clone(&run.evaluation));
-        let resolver = self
-            .resolver
-            .as_ref()
-            .map(|ws| Arc::clone(ws) as Arc<dyn PartResolver>);
+        let resolver = self.run_resolver();
+        let prior = self.memo_under(&resolver);
         match probe::probe_bounds(&base, target, prior.as_deref(), &resolver, self.tol) {
             Ok(reading) => {
                 self.derived.bounds = Some(reading);
@@ -1559,23 +2040,8 @@ impl DocSession {
             .map(Refusal::SlotUnit)
     }
 
-    /// **The declared dimensions `parse_expr` reads text against** —
-    /// every text door's first argument, and one function because
-    /// both of them wanted it.
-    ///
-    /// The parser needs them so a parameter reference records the
-    /// dimension `apply` will re-check it against; a door that built
-    /// the map itself would be free to build a different one.
-    fn param_dims(&self) -> std::collections::BTreeMap<ParamName, Dimension> {
-        self.committed_doc()
-            .params()
-            .iter()
-            .map(|(name, param)| (name.clone(), param.dim()))
-            .collect()
-    }
-
     fn set_slot_expression(&mut self, node: RecipeNodeId, slot: SlotId, text: &str) -> OpOutcome {
-        let expr = match parse_expr(text, &self.param_dims()) {
+        let expr = match parse_formula(text, &self.committed_doc().var_scope()) {
             Ok(expr) => expr,
             Err(error) => return OpOutcome::refused(Refusal::Parse(Box::new(error))),
         };
@@ -1583,9 +2049,19 @@ impl DocSession {
         // literal one — the refusal is about writing a number over a
         // computation, not about the slot being off limits.
         let edit = if slot.is_structural() {
-            DocEdit::SetStructuralParam { node, slot, expr }
+            DocEdit::SetStructuralParam {
+                node,
+                slot,
+                expr,
+                fresh: Vec::new(),
+            }
         } else {
-            DocEdit::SetParam { node, slot, expr }
+            DocEdit::SetParam {
+                node,
+                slot,
+                expr,
+                fresh: Vec::new(),
+            }
         };
         // **Through the written door**, like every other door that
         // writes a panel field's value. The field's own guard cannot
@@ -1595,45 +2071,47 @@ impl DocSession {
         // source is no echo of anything. `Self::writes_nothing` asks the question
         // that is actually being asked here — whether the expression
         // offered is the expression standing — and the `unparse` /
-        // `parse_expr` round trip preserves both the bits and the
+        // `parse_formula` round trip preserves both the bits and the
         // display unit, so a source re-typed as itself compares equal.
-        self.commit_written(edit)
+        let outcome = self.commit_written(edit);
+        self.offer_after(node, slot, &outcome);
+        outcome
     }
 
-    /// The value door: write a declared parameter's value.
+    /// The value door: write a declared variable's value.
     ///
-    /// A name the document does not declare takes the commit path so
+    /// A variable the document does not hold takes the commit path so
     /// the typed refusal comes from the door rather than from here —
-    /// `DocEdit::SetDocParamValue` carries an existing declaration
-    /// forward and refuses `EditError::DocParamNotDeclared` when there
-    /// is none.
-    fn set_param(&mut self, name: &ParamName, value: SlotValue) -> OpOutcome {
-        self.commit_written(props::param_edit(name.clone(), value))
+    /// `DocEdit::SetVarValue` carries an existing definition forward
+    /// and refuses `EditError::UnknownVar` when there is none.
+    fn set_variable(&mut self, var: VarId, value: SlotValue) -> OpOutcome {
+        self.commit_written(props::variable_edit(var, value))
     }
 
-    /// The notation door: rewrite a declared parameter's display unit,
+    /// The notation door: rewrite a declared variable's display unit,
     /// its value untouched.
     ///
-    /// No pre-check, for [`Self::set_param`]'s reason: every way this
-    /// can refuse — an undeclared name, a `Count`, a unit that does
-    /// not measure the declared dimension — is refused by
-    /// `DocEdit::SetDocParamUnit` in the door's own words, and a
+    /// No pre-check, for [`Self::set_variable`]'s reason: every way this
+    /// can refuse — a variable the document does not hold, a `Count`,
+    /// a unit that does not measure the declared dimension — is refused by
+    /// `DocEdit::SetVarUnit` in the door's own words, and a
     /// second opinion here could only agree or disagree.
-    fn set_param_unit(&mut self, name: ParamName, unit: UnitDef) -> OpOutcome {
-        self.commit_written(props::param_unit_edit(name, unit))
+    fn set_variable_unit(&mut self, var: VarId, unit: UnitDef) -> OpOutcome {
+        self.commit_written(props::variable_unit_edit(var, unit))
     }
 
     /// The text door: a number, and the notation to write it in, from
-    /// one piece of typed text.
+    /// one piece of typed text — or an expression, which DEFINES the
+    /// variable (`DocEdit::DefineVar`), keeping its identity.
     ///
-    /// **One parser.** `parse_expr` reads `50 mm` into a literal that
+    /// **One parser.** `parse_formula` reads `50 mm` into a literal that
     /// already carries the canonical value and remembers the unit —
     /// the one multiply is the parser's — so what arrives here is read
     /// off the literal and never scaled again.
     ///
     /// **One action, therefore one undo.** The value and the notation
     /// go through [`Self::commit_action`], which is all-or-nothing: a
-    /// unit that does not measure the parameter's dimension refuses
+    /// unit that does not measure the variable's dimension refuses
     /// the whole action rather than landing a value in a notation the
     /// document would then refuse to save. The notation edit is first
     /// for that reason — the pairing is judged before any value moves.
@@ -1644,7 +2122,7 @@ impl DocSession {
     /// field handed back at itself is not something a person typed.
     /// This one is about the document: an edit that writes what the
     /// declaration already holds is submitted by nobody, so `50 mm`
-    /// typed over a parameter already declared `50 mm` costs no undo
+    /// typed over a variable already declared `50 mm` costs no undo
     /// step even though the text is not the field's render of it. It
     /// is asked over the PAIR, because this door carries a pair —
     /// `0.05 m` over `50 mm` moves the notation and not the value.
@@ -1653,40 +2131,86 @@ impl DocSession {
     /// one fact, and a number that reads back as the one standing
     /// cannot have got past the field's guard as anything but a
     /// deliberate re-type.
-    fn set_param_text(&mut self, name: ParamName, text: &str) -> OpOutcome {
-        let expr = match parse_expr(text, &self.param_dims()) {
+    fn set_variable_text(&mut self, var: VarId, text: &str) -> OpOutcome {
+        let expr = match parse_formula(text, &self.committed_doc().var_scope()) {
             Ok(expr) => expr,
             Err(error) => return OpOutcome::refused(Refusal::Parse(Box::new(error))),
         };
-        // A literal is the whole of what a parameter can hold. Every
-        // other kind of expression — a reference, an operator, a count
-        // — is refused by name rather than flattened to a number,
-        // because flattening would store a value the text does not
-        // say.
-        let (Some(value), Some(unit)) = (expr.literal_value(), expr.display_unit()) else {
-            return OpOutcome::refused(Refusal::ParamNotANumber { name });
-        };
-        let declared = self.committed_doc().params().get(&name).map(DocParam::dim);
-        let notation = props::param_unit_edit(name.clone(), unit);
-        let written = props::param_edit(name.clone(), SlotValue::Continuous(value));
-        match declared {
-            // An undeclared name takes the commit path so the typed
-            // refusal comes from the door rather than from here, the
-            // way [`Self::set_param`]'s does.
-            None => return self.commit(written),
-            // **A `Count` gets the VALUE edit and only that.** A count
-            // names no notation at all, so the notation half of this
-            // door has nothing to say about one, and submitting it
-            // anyway answers what the user did — typing a value — in
-            // the words of a change nobody asked for ("it has no
-            // display unit to change"). The value edit is the act, and
-            // refusing it names the right half: a count declared where
-            // a continuous value was typed.
-            Some(Dimension::Count) => return self.commit(written),
-            Some(Dimension::Length | Dimension::Angle | Dimension::Scalar) => {}
+        // Text that reads a variable defines this one by it.
+        if reads_a_variable(&expr) {
+            return self.commit(DocEdit::DefineVar {
+                var: var.into(),
+                def: pncad::document::VarDecl::defined(expr),
+                fresh: Vec::new(),
+            });
         }
-        let edits: Vec<DocEdit<ProfileProgram>> = [notation, written]
+        // Constant text is a value, folded as a written quantity is, so
+        // `50 mm + 1 mm` writes 51 mm and keeps the variable's identity
+        // and distribution. Only a literal carries a notation to write.
+        let env = pncad::document::VarEnv::<f64>::default();
+        let folded = if expr.dim() == Dimension::Count {
+            pncad::document::eval_count(&expr, &env).map(SlotValue::Count)
+        } else {
+            pncad::document::eval(&expr, &env).map(SlotValue::Continuous)
+        };
+        let value = match folded {
+            Ok(value) => value,
+            Err(source) => {
+                return OpOutcome::refused(Refusal::ConstantRefused {
+                    var: self.committed_doc().spoken_var(var),
+                    source,
+                });
+            }
+        };
+        let doc = self.committed_doc();
+        let Some(held) = doc.var(var) else {
+            // An undeclared variable takes the commit path so the typed
+            // refusal comes from the door rather than from here, the
+            // way [`Self::set_variable`]'s does.
+            return self.commit(props::variable_edit(var, value));
+        };
+        let kind = held.kind();
+        let defined = held.def().defined().map(pncad::document::Expr::dim);
+        let notation = match (value, expr.display_unit()) {
+            (SlotValue::Continuous(_), Some(unit)) => Some(props::variable_unit_edit(var, unit)),
+            _ => None,
+        };
+        let written = props::variable_edit(var, value);
+        // A value typed over a definition frees the variable first, at
+        // its own kind and in its kind's canonical notation, and then
+        // writes the value through the same doors a free variable's
+        // field does — one action, so a value of another kind refuses
+        // in the value door's words and leaves the definition standing.
+        if let Some(dim) = defined {
+            let freed = match dim {
+                Dimension::Count => FreeVar::Count { value: 0 },
+                dim => FreeVar::continuous(dim, 0.0),
+            };
+            let free_again = DocEdit::DefineVar {
+                var: var.into(),
+                def: pncad::document::VarDecl::Free(freed),
+                fresh: Vec::new(),
+            };
+            return self.commit_action(
+                std::iter::once(free_again)
+                    .chain(notation)
+                    .chain([written])
+                    .collect(),
+            );
+        }
+        // **A `Count` gets the VALUE edit and only that.** A count names
+        // no notation at all, so the notation half of this door has
+        // nothing to say about one, and submitting it anyway answers
+        // what the user did — typing a value — in the words of a change
+        // nobody asked for ("it has no display unit to change"). The
+        // value edit is the act, and refusing it names the right half:
+        // a count declared where a continuous value was typed.
+        if kind == pncad::document::VarKind::Count {
+            return self.commit(written);
+        }
+        let edits: Vec<DocEdit<ProfileProgram>> = notation
             .into_iter()
+            .chain([written])
             .filter(|edit| !self.writes_nothing(edit))
             .collect();
         if edits.is_empty() {
@@ -1695,17 +2219,14 @@ impl DocSession {
         self.commit_action(edits)
     }
 
-    /// The create door: refuse an already-declared name typed, commit
-    /// the edit for a new one. See [`SessionOp::CreateParam`] for why
-    /// this door narrows the edit's create-or-replace semantics.
-    fn create_param(&mut self, name: ParamName, value: DocParam) -> OpOutcome {
-        if let Some(existing) = self.committed_doc().params().get(&name) {
-            return OpOutcome::refused(Refusal::ParamExists {
-                dimension: existing.dim(),
-                name,
-            });
-        }
-        self.commit(DocEdit::SetDocParam { name, value })
+    /// The create door: one `DeclareVar`. A taken name is the
+    /// declare's to refuse (`EditError::VarNameTaken`), and reaches the
+    /// caller through [`Refusal::Edit`] in the door's own words.
+    fn declare_var(&mut self, name: VarName, value: FreeVar) -> OpOutcome {
+        self.commit(DocEdit::DeclareVar {
+            name,
+            def: pncad::document::VarDecl::Free(value),
+        })
     }
 
     /// The slot door: a drag over a literal slot's number.
@@ -1714,8 +2235,9 @@ impl DocSession {
     /// [`Self::start`]'s closure, so it answers only for a gesture
     /// that is actually being opened.
     fn begin_gesture(&mut self, node: RecipeNodeId, slot: SlotId) -> OpOutcome {
+        let notation = self.notation;
         self.start(move |doc| {
-            guard_driven(doc, node, slot)?;
+            guard_driven(doc, node, slot, notation)?;
             Ok(GestureTarget::Slot {
                 node,
                 slot,
@@ -1724,16 +2246,24 @@ impl DocSession {
         })
     }
 
-    /// The parameter door: a drag over a declared parameter's value.
-    fn begin_param_gesture(&mut self, name: &ParamName) -> OpOutcome {
-        let name = name.clone();
+    /// The variable door: a drag over a declared variable's value. A
+    /// defined one opens too, at its kind, and its first preview is
+    /// refused by the value door in its own words
+    /// ([`pncad::document::EditError::NotAFreeVar`]).
+    fn begin_variable_gesture(&mut self, var: VarId) -> OpOutcome {
         self.start(move |doc| {
-            let dimension = doc
-                .params()
-                .get(&name)
-                .map(|param| param.dim())
-                .ok_or_else(|| Refusal::NoSuchParam(name.clone()))?;
-            Ok(GestureTarget::Param { name, dimension })
+            let held = doc.var(var).ok_or(Refusal::NoSuchVariable(var))?;
+            // An operation's output is no parameter: the value door
+            // refuses it in its words.
+            if let Some(refusal) =
+                EditError::output_refusal(doc, var, pncad::document::CarryForwardDoor::Value)
+            {
+                return Err(Refusal::Edit(Box::new(refusal)));
+            }
+            let Some(dimension) = held.kind().dimension() else {
+                unreachable!("a free or defined variable is a scalar")
+            };
+            Ok(GestureTarget::Variable { var, dimension })
         })
     }
 
@@ -1742,14 +2272,14 @@ impl DocSession {
     ///
     /// **Rule 1 is [`g1::Slot::begin`]'s and is spelled nowhere else**
     /// — the same door the probe's begin goes through, with this
-    /// gesture's words. `BeginGesture` and `BeginParamGesture` are
+    /// gesture's words. `BeginGesture` and `BeginVariableGesture` are
     /// therefore `true` in
     /// [`SessionOp::permitted_during_value_gesture`]: a row there
     /// would refuse the same state with the same
     /// [`Refusal::GestureInFlight`] one layer up, and the door's own
     /// arm would never run.
     ///
-    /// `target` is the caller's check — a driven slot, a parameter the
+    /// `target` is the caller's check — a driven slot, a variable the
     /// document does not declare — and runs inside the slot's closure
     /// rather than ahead of it, so a begin arriving under an open drag
     /// is answered *finish the drag first* rather than told about a
@@ -1797,18 +2327,18 @@ impl DocSession {
                 let slot_value = gesture.target.value_of(value).map_err(Refusal::Dimension)?;
                 let edit = gesture
                     .target
-                    .edit(slot_value)
+                    .edit(&gesture.base, slot_value)
                     .map_err(Refusal::Dimension)?;
                 // Applied to the gesture's BASE, so previews replace
                 // one another instead of composing, and the history
                 // never sees any of them. The reach is the session's
-                // own seam: a gesture that moved a gauge would mint a
+                // own seam: a gesture that moved a root would mint a
                 // frame from the parts' extent, and with no directory
                 // to resolve against it refuses typed. Built per tick,
-                // and lazy — a slot gesture moves no gauge, so what a
+                // and lazy — a slot gesture moves no root, so what a
                 // tick pays for it is the construction and nothing
                 // more.
-                let reach = PartReach::<f64>::with_resolver(resolver.as_ref(), tol);
+                let reach = PartReach::<f64>::with_resolver(Some(&resolver), tol);
                 let applied = apply(&gesture.base, &edit, tol, &reach)
                     .map_err(|error| Refusal::Edit(Box::new(error)))?;
                 // **The display layer's identity, held rather than
@@ -1822,7 +2352,7 @@ impl DocSession {
                 // check can hold; the other half is that
                 // [`GestureTarget::edit`] can produce nothing but
                 // `SetParam`, `SetStructuralParam` and
-                // `SetDocParamValue`, none of which removes a node
+                // `SetVarValue`, none of which removes a node
                 // either.
                 assert!(
                     applied.record.minted.is_none(),
@@ -1882,7 +2412,7 @@ impl DocSession {
             }
             return OpOutcome::default();
         };
-        match gesture.target.edit(value) {
+        match gesture.target.edit(self.committed_doc(), value) {
             Ok(edit) => self.commit(edit),
             Err(error) => OpOutcome::refused(Refusal::Dimension(error)),
         }
@@ -2053,7 +2583,8 @@ impl DocSession {
             return OpOutcome::refused(refusal);
         }
         self.commit(DocEdit::InsertNode {
-            node: datum_node(datum),
+            node: Box::new(datum_node(datum)),
+            fresh: Vec::new(),
         })
     }
 
@@ -2064,7 +2595,7 @@ impl DocSession {
     /// the edit door's authoring-time check refuses them typed in the
     /// profile layer's own words — the one rule authored and
     /// hand-written programs share.
-    fn add_profile(&mut self, plane: ProfilePlane, loops: Vec<LoopProgram>) -> OpOutcome {
+    fn add_profile(&mut self, plane: ProfilePlane, loops: Vec<LoopProgram<Formula>>) -> OpOutcome {
         let plane = match plane {
             // The plane is a PICK, so it is gated where every other
             // pick is: at this door, by kind, before the edit. Without
@@ -2086,11 +2617,12 @@ impl DocSession {
             ProfilePlane::NewXy => return self.add_profile_on_new_xy(loops),
         };
         self.commit(DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram {
+            node: Box::new(Node::Profile(ProfileProgram {
                 plane,
                 loops,
                 ids: Vec::new(),
-            }),
+            })),
+            fresh: Vec::new(),
         })
     }
 
@@ -2098,38 +2630,25 @@ impl DocSession {
     /// committed action and therefore one undo
     /// ([`ProfilePlane::NewXy`]).
     ///
-    /// The frame's id is not predicted: each edit is built from what
-    /// its predecessor MINTED ([`Self::commit_run`]), so the profile
+    /// The frame's id is not predicted: the profile is built from what
+    /// the frame's insert MINTED ([`Self::commit_run`]), so the profile
     /// names the node the door actually created. All-or-nothing comes
     /// free with that — a profile the insert door refuses leaves no
     /// orphan frame behind, because nothing is recorded until both
     /// edits have landed.
-    fn add_profile_on_new_xy(&mut self, loops: Vec<LoopProgram>) -> OpOutcome {
+    fn add_profile_on_new_xy(&mut self, loops: Vec<LoopProgram<Formula>>) -> OpOutcome {
         let frame = match ProfilePlane::world_xy() {
             Ok(frame) => datum_node(frame),
             Err(error) => return OpOutcome::refused(Refusal::Dimension(error)),
         };
-        let mut loops = Some(loops);
-        self.commit_run(|minted| match minted {
-            [] => Some(DocEdit::InsertNode {
-                node: frame.clone(),
-            }),
-            [Some(plane)] => Some(DocEdit::InsertNode {
-                node: Node::Profile(ProfileProgram {
-                    plane: *plane,
-                    // Loud, like the arm below: ending the run here
-                    // instead would commit the lone frame, which is
-                    // the exact orphan all-or-nothing promises
-                    // against. The generator is called once per
-                    // position and this position comes round once.
-                    loops: loops
-                        .take()
-                        .unwrap_or_else(|| unreachable!("the profile's position comes round once")),
-                    ids: Vec::new(),
-                }),
-            }),
-            [None] => unreachable!("an `InsertNode` mints an id (`EditRecord::minted`)"),
-            _ => None,
+        self.commit_run(|run| {
+            let plane = run.insert(frame)?;
+            run.insert(Node::Profile(ProfileProgram {
+                plane,
+                loops,
+                ids: Vec::new(),
+            }))?;
+            Ok(())
         })
     }
 
@@ -2138,96 +2657,125 @@ impl DocSession {
     fn edit_profile(
         &mut self,
         node: RecipeNodeId,
-        base: &ProfileProgram,
-        loops: Vec<LoopProgram>,
+        base: &ProfileProgram<Formula>,
+        loops: Vec<LoopProgram<Formula>>,
+        ids: Vec<Vec<Option<StepId>>>,
     ) -> OpOutcome {
-        if let Err(refusal) = self.require_kind(node, NodeKindWanted::Profile) {
-            return OpOutcome::refused(refusal);
+        match self.set_program_of(node, base, loops, ids) {
+            Ok(Some(edit)) => self.commit(edit),
+            Ok(None) => OpOutcome::default(),
+            Err(refusal) => OpOutcome::refused(refusal),
         }
+    }
+
+    /// **What [`SessionOp::EditProfile`] would report, without
+    /// committing it** — the edit door's own `Applied::maintenance` for
+    /// the one `SetProgram` the op would commit, netted by
+    /// [`Recording`] as the commit nets it: every name on a step
+    /// the reshaping drops, or on a kept step's piece it stops drawing,
+    /// stranded. Empty when the op would write nothing.
+    ///
+    /// The profile editor reads it BEFORE its Apply, while the person
+    /// can still keep the step; the op's outcome carries the same rows
+    /// after, beside the anonymous variables the rewrite retires, which
+    /// this count leaves out unless one carried a tolerance
+    /// (`Maintenance::is_silent_retirement`).
+    ///
+    /// # Errors
+    ///
+    /// The refusal the op itself would give.
+    pub fn edit_profile_report(
+        &self,
+        node: RecipeNodeId,
+        base: &ProfileProgram<Formula>,
+        loops: Vec<LoopProgram<Formula>>,
+        ids: Vec<Vec<Option<StepId>>>,
+    ) -> Result<Vec<Maintenance>, Refusal> {
+        let Some(edit) = self.set_program_of(node, base, loops, ids)? else {
+            return Ok(Vec::new());
+        };
+        let resolver = self.resolver_seam();
+        let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
+        let mut run = Recording::start(self.committed_doc(), self.tol, &reach);
+        let refused = |error| Refusal::Edit(Box::new(error));
+        run.apply(edit).map_err(refused)?;
+        // What the count says is what the person would lose: a
+        // reshaping retires the variables the arguments it rewrote were
+        // written in, which is no name and no paint of theirs — unless
+        // one carried a tolerance (`Maintenance::is_silent_retirement`).
+        Ok(run
+            .finish()
+            .map_err(refused)?
+            .maintenance
+            .into_iter()
+            .filter(|row| !row.is_silent_retirement())
+            .collect())
+    }
+
+    /// **The one `SetProgram` [`SessionOp::EditProfile`] commits**, or
+    /// `None` when it would write nothing.
+    fn set_program_of(
+        &self,
+        node: RecipeNodeId,
+        base: &ProfileProgram<Formula>,
+        loops: Vec<LoopProgram<Formula>>,
+        ids: Vec<Vec<Option<StepId>>>,
+    ) -> Result<Option<DocEdit<ProfileProgram>>, Refusal> {
+        self.require_kind(node, NodeKindWanted::Profile)?;
         let doc = self.committed_doc();
         let Some(Node::Profile(current)) = doc.node(node) else {
-            unreachable!("`require_kind` admitted feature {} as a profile", node.0)
+            unreachable!("`require_kind` admitted node {} as a profile", node)
         };
-        // The editor's numbers are an edit OF the program it loaded;
-        // over any other program they would be a guess about what the
-        // person meant. Compared by value, so a unit rewrite since the
-        // load does not refuse.
-        if current != base {
-            return OpOutcome::refused(Refusal::ProfileEditStale { node });
+        // The editor's program is an edit OF the program it loaded;
+        // over any other program it would be a guess about what the
+        // person meant. Compared as written and by value, so a value
+        // moved since the load refuses and a unit rewrite does not.
+        if sketch::written_program(doc, current) != *base {
+            return Err(Refusal::ProfileEditStale {
+                node: doc.spoken(node),
+            });
         }
-        let moved = match sketch::program_edits(current, &loops) {
-            Ok(moved) => moved,
-            Err(why) => return OpOutcome::refused(Refusal::ProfileRestructure { node, why }),
-        };
-        // Nothing moved: nothing to write, and nothing to record.
-        if moved.is_empty() {
-            return OpOutcome::default();
-        }
-        for &(slot, _) in &moved {
-            if let Err(refusal) = guard_driven(doc, node, slot) {
-                return OpOutcome::refused(refusal);
-            }
-        }
-        // The whole program, judged once in the insert door's own
-        // words, before any one-slot write is — so a program that does
-        // not close refuses as itself rather than as whichever slot
-        // write first noticed.
-        let whole = ProfileProgram {
+        let loops = carry_unmoved(doc, node, current, loops, &ids, self.notation)?;
+        // The carried loops read each unmoved argument's variable, so
+        // they are compared with the program re-authored.
+        let authored = ProfileProgram {
             plane: current.plane,
-            loops,
-            ids: Vec::new(),
+            loops: current.loops.iter().map(LoopProgram::authored).collect(),
+            ids: current.ids.clone(),
         };
-        if let Err(refusal) = whole.check(&doc.param_env::<f64>(), self.tol) {
-            return OpOutcome::refused(Refusal::Edit(Box::new(EditError::ProfileProgramRefused {
-                node,
-                refusal: Box::new(refusal),
-            })));
-        }
-        // A profile's arguments are all continuous (no `StepArg` is a
-        // `Count`), so every write is a `SetParam`.
-        let edits = moved
-            .into_iter()
-            .map(|(slot, expr)| DocEdit::SetParam { node, slot, expr })
-            .collect();
-        // The order search applies the writes itself, so it carries
-        // the session's reach as `commit_action` does, and each entry
-        // it lands records what the door's maintenance did. A profile
-        // write moves no cluster's gauge, so the rows are empty in
-        // practice; the entry is still the logged one, so the history
-        // replays pure over the log.
-        let resolver = self.resolver_seam();
-        let reach = PartReach::<f64>::with_resolver(resolver.as_ref(), self.tol);
-        match accepted_order(doc, edits, self.tol, &reach) {
-            Ok(landing) => self.record_action(landing),
-            Err(OrderFault::Refused(error)) => OpOutcome::refused(Refusal::Edit(Box::new(error))),
-            Err(OrderFault::NoOrder(error)) => OpOutcome::refused(Refusal::ProfileEditOrder {
-                node,
-                error: Box::new(error),
-            }),
-            Err(OrderFault::Capped { writes }) => {
-                OpOutcome::refused(Refusal::ProfileEditOrderCapped {
-                    node,
-                    writes,
-                    cap: ORDER_SEARCH_CAP,
-                })
-            }
-        }
+        let unchanged = sketch::is_committed(&authored, &loops, &ids);
+        Ok((!unchanged).then_some(DocEdit::SetProgram {
+            node,
+            loops,
+            ids,
+            fresh: Vec::new(),
+        }))
     }
 
     /// Insert one extrude of an existing profile
     /// ([`SessionOp::AddExtrude`]).
-    fn add_extrude(&mut self, profile: RecipeNodeId, distance: Expr) -> OpOutcome {
+    fn add_extrude(&mut self, profile: RecipeNodeId, distance: Formula) -> OpOutcome {
         if let Err(refusal) = self.require_kind(profile, NodeKindWanted::Profile) {
             return OpOutcome::refused(refusal);
         }
         self.commit(DocEdit::InsertNode {
-            node: Node::Extrude { profile, distance },
+            node: Box::new(Node::Extrude {
+                profile,
+                distance,
+                side: ExtrudeSide::Along,
+            }),
+            fresh: Vec::new(),
         })
     }
 
     /// Insert one revolve of an existing profile about an existing
     /// axis datum ([`SessionOp::AddRevolve`]).
-    fn add_revolve(&mut self, profile: RecipeNodeId, axis: RecipeNodeId, angle: Expr) -> OpOutcome {
+    fn add_revolve(
+        &mut self,
+        profile: RecipeNodeId,
+        axis: RecipeNodeId,
+        angle: Formula,
+    ) -> OpOutcome {
         if let Err(refusal) = self.require_kind(profile, NodeKindWanted::Profile) {
             return OpOutcome::refused(refusal);
         }
@@ -2235,17 +2783,25 @@ impl DocSession {
             return OpOutcome::refused(refusal);
         }
         self.commit(DocEdit::InsertNode {
-            node: Node::Revolve {
+            node: Box::new(Node::Revolve {
                 profile,
                 axis,
                 angle,
-            },
+            }),
+            fresh: Vec::new(),
         })
     }
 
-    /// Insert one regularized boolean of two existing bodies
+    /// Insert one regularized boolean of two existing bodies, carrying
+    /// the declaration of the contacts it names
     /// ([`SessionOp::AddBoolean`]).
-    fn add_boolean(&mut self, op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) -> OpOutcome {
+    fn add_boolean(
+        &mut self,
+        op: BooleanOp,
+        a: RecipeNodeId,
+        b: RecipeNodeId,
+        declare: Vec<FlushFinding>,
+    ) -> OpOutcome {
         for seat in [a, b] {
             if let Err(refusal) = self.require_kind(seat, NodeKindWanted::Body) {
                 return OpOutcome::refused(refusal);
@@ -2259,14 +2815,37 @@ impl DocSession {
         // first, which is what keeps two PROFILES in both seats
         // reported as "that is not a body" — the fact the user can act
         // on — rather than as the narrower complaint about the pair.
-        self.commit(DocEdit::InsertNode {
-            node: Node::Boolean {
+        // An empty list is the undeclared boolean.
+        let pairs = declared_pairs(&declare);
+        let staged = self.stage_run(|run| {
+            run.insert(Node::Boolean {
                 op,
                 a,
                 b,
-                declare: None,
-            },
-        })
+                declare: pairs,
+            })
+        });
+        let (staged, node) = match staged {
+            Ok(staged) => staged,
+            Err(refusal) => return OpOutcome::refused(refusal),
+        };
+        // Judged before it is recorded: the one recourse to a contact
+        // refusal is a declaration in the same action, which cannot be
+        // added to a committed node.
+        let resolver = self.run_resolver();
+        let memo = self.memo_under(&resolver);
+        let judged = evaluate_beside(&staged.doc, memo.as_deref(), &resolver, self.tol);
+        if let Some(refused) = RefusedBoolean::read(
+            &staged.doc,
+            &judged,
+            node,
+            (op, [a, b]),
+            declare,
+            self.generation,
+        ) {
+            return OpOutcome::refused(Refusal::Contact(Box::new(refused)));
+        }
+        self.record_run(staged)
     }
 
     /// Insert one split of an existing body by an existing datum plane
@@ -2279,7 +2858,8 @@ impl DocSession {
             return OpOutcome::refused(refusal);
         }
         self.commit(DocEdit::InsertNode {
-            node: Node::Split { target, tool },
+            node: Box::new(Node::Split { target, tool }),
+            fresh: Vec::new(),
         })
     }
 
@@ -2288,15 +2868,25 @@ impl DocSession {
     fn add_transform(
         &mut self,
         input: RecipeNodeId,
-        translation: [Expr; 3],
-        rotation_axis: [Expr; 3],
-        rotation_angle: Expr,
+        translation: [Formula; 3],
+        rotation_axis: [Formula; 3],
+        rotation_angle: Formula,
     ) -> OpOutcome {
         if let Err(refusal) = self.require_kind(input, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
         }
+        // Total, as the other lowerings are: slot dimensions are the
+        // edit door's question.
         self.commit(DocEdit::InsertNode {
-            node: combine::transform_node(input, translation, rotation_axis, rotation_angle),
+            node: Box::new(Node::transform(
+                input,
+                pncad::document::Step::Rigid {
+                    translation,
+                    axis: rotation_axis,
+                    angle: rotation_angle,
+                },
+            )),
+            fresh: Vec::new(),
         })
     }
 
@@ -2327,7 +2917,10 @@ impl DocSession {
             PatternOutputChoice::Instances => combine::pattern_node(input, count, rule),
             PatternOutputChoice::Fused => combine::placed_union_node(input, count, rule),
         };
-        self.commit(DocEdit::InsertNode { node })
+        self.commit(DocEdit::InsertNode {
+            node: Box::new(node),
+            fresh: Vec::new(),
+        })
     }
 
     /// Insert one projection of a multi-body value
@@ -2348,7 +2941,8 @@ impl DocSession {
             return OpOutcome::refused(refusal);
         }
         self.commit(DocEdit::InsertNode {
-            node: combine::part_node(of, select),
+            node: Box::new(combine::part_node(of, select)),
+            fresh: Vec::new(),
         })
     }
 
@@ -2384,7 +2978,7 @@ impl DocSession {
         let step = match self.landed_pair() {
             None => Err(DuplicateFault::NotLanded),
             Some(_) if self.busy() => Err(DuplicateFault::Stale),
-            Some((_, eval)) => combine::duplicate_step(eval, input, self.tol),
+            Some((doc, eval)) => combine::duplicate_step(doc, eval, input, self.tol),
         };
         let step = match step {
             Ok(step) => step,
@@ -2400,19 +2994,12 @@ impl DocSession {
         // takes the root slot the pattern took from the body it
         // replicates; each later projection's input has stopped being a
         // root by then, so it is APPENDED to the root list.
-        self.commit_run(|minted| match minted.split_first() {
-            None => Some(DocEdit::InsertNode {
-                node: pattern.clone(),
-            }),
-            Some((Some(pattern), projections)) => i64::try_from(projections.len())
-                .ok()
-                .filter(|index| *index < combine::DUPLICATE_COUNT)
-                .map(|index| DocEdit::InsertNode {
-                    node: combine::part_node(*pattern, PartSelectSpec::Instance(index)),
-                }),
-            Some((None, _)) => {
-                unreachable!("an `InsertNode` mints an id (`EditRecord::minted`)")
+        self.commit_run(|run| {
+            let pattern = run.insert(pattern)?;
+            for index in 0..combine::DUPLICATE_COUNT {
+                run.insert(combine::part_node(pattern, PartSelectSpec::Instance(index)))?;
             }
+            Ok(())
         })
     }
 
@@ -2431,7 +3018,7 @@ impl DocSession {
     fn add_blend(
         &mut self,
         target: RecipeNodeId,
-        size: Expr,
+        size: Formula,
         selection: Vec<StableName>,
         kind: BlendKindChoice,
     ) -> OpOutcome {
@@ -2446,7 +3033,10 @@ impl DocSession {
             BlendKindChoice::Fillet => Node::fillet(target, size, selection),
             BlendKindChoice::Chamfer => Node::chamfer(target, size, selection),
         };
-        self.commit(DocEdit::InsertNode { node })
+        self.commit(DocEdit::InsertNode {
+            node: Box::new(node),
+            fresh: Vec::new(),
+        })
     }
 
     /// The node-kind gate every creation seat shares: the named node
@@ -2454,10 +3044,14 @@ impl DocSession {
     /// wrong-kind refuse the same arm, because both mean "there is
     /// nothing of that kind there to consume".
     fn require_kind(&self, node: RecipeNodeId, wanted: NodeKindWanted) -> Result<(), Refusal> {
-        if admits(self.committed_doc().node(node), wanted) {
+        let doc = self.committed_doc();
+        if admits(doc.node(node), wanted) {
             Ok(())
         } else {
-            Err(Refusal::WrongNodeKind { node, wanted })
+            Err(Refusal::WrongNodeKind {
+                node: doc.spoken(node),
+                wanted,
+            })
         }
     }
 
@@ -2483,53 +3077,56 @@ impl DocSession {
     ///
     /// **Every other edit submits**, and that is the conservative
     /// direction rather than a gap: an insert, a delete or a rename
-    /// has no standing value of its own to be equal to. The match
-    /// below NAMES every one of them rather than wildcarding — a
-    /// `DocEdit` added later has to be answered here, in a compile
-    /// error, instead of quietly inheriting a guard nobody asked
-    /// whether it wanted.
+    /// has no standing value of its own to be equal to.
     fn writes_nothing(&self, edit: &DocEdit<ProfileProgram>) -> bool {
         let doc = self.committed_doc();
         match edit {
-            // A slot's literal, against the expression the node
-            // stands at — the same comparison for a structural slot,
-            // which differs only in which edit carries it.
-            DocEdit::SetParam { node, slot, expr }
-            | DocEdit::SetStructuralParam { node, slot, expr } => {
-                doc.node(*node).and_then(|node| node.expr(*slot)) == Some(expr)
+            // A slot's expression, against the one the node stands at
+            // — the same comparison for a structural slot, which
+            // differs only in which edit carries it. The offered one is
+            // compared as written, its name leaves read as the variables
+            // they name, since the slot's written form reads ids.
+            DocEdit::SetParam {
+                node, slot, expr, ..
             }
+            | DocEdit::SetStructuralParam {
+                node, slot, expr, ..
+            } => doc
+                .resolve(expr)
+                .is_ok_and(|offered| doc.slot_expansion(*node, *slot) == Some(offered)),
             // A declaration's two independent fields, each against
             // its own half. A kind that does not match is no match:
             // the edit is a redeclaration and the door refuses it.
-            DocEdit::SetDocParamValue { name, value } => match (doc.params().get(name), value) {
-                (
-                    Some(DocParam::Continuous { value: stood, .. }),
-                    DocParamValue::Continuous(offered),
-                ) => stood == offered,
-                (Some(DocParam::Count { value: stood }), DocParamValue::Count(offered)) => {
-                    stood == offered
+            DocEdit::SetVarValue { var, value } => {
+                match (doc.resolve_var(var).and_then(|id| doc.free(id)), value) {
+                    (
+                        Some(FreeVar::Continuous { value: stood, .. }),
+                        FreeValue::Continuous(offered),
+                    ) => stood == offered,
+                    (Some(FreeVar::Count { value: stood }), FreeValue::Count(offered)) => {
+                        stood == offered
+                    }
+                    _ => false,
                 }
-                _ => false,
-            },
-            DocEdit::SetDocParamUnit { name, unit } => matches!(
-                doc.params().get(name),
-                Some(DocParam::Continuous { display_unit, .. }) if display_unit == unit
+            }
+            DocEdit::SetVarUnit { var, unit } => matches!(
+                doc.resolve_var(var).and_then(|id| doc.free(id)),
+                Some(FreeVar::Continuous { display_unit, .. }) if display_unit == unit
             ),
-            // **Every other edit submits — and the match NAMES them
-            // all**, so a `DocEdit` added later is a compile error at
-            // the one site that has to decide whether it wants this
-            // guard. A wildcard would give the next value-writing
-            // edit no guard and nothing would go red; this is the
-            // same preference `SessionOp::permitted_during_value_gesture`
-            // states for the gesture table.
-            //
-            // The structure of the recipe and the shape of the
-            // product: a node inserted, deleted, re-parented or
-            // re-pointed has no standing value of its own for an
-            // offered one to equal.
+            // The rename field's text, against the label the node has.
+            DocEdit::SetLabel { node, label } => doc.label(*node) == label.as_ref(),
+            DocEdit::SetExtrudeSide { node, side } => matches!(
+                doc.node(*node),
+                Some(Node::Extrude { side: stood, .. }) if stood == side
+            ),
+            // Every other edit submits. The structure of the recipe and
+            // the shape of the product: a node inserted, deleted,
+            // re-parented or re-pointed has no standing value of its
+            // own for an offered one to equal.
             DocEdit::InsertNode { .. }
             | DocEdit::DeleteNode { .. }
             | DocEdit::SetMembers { .. }
+            | DocEdit::SetDeclare { .. }
             // A profile's program replaced whole: structure, not a
             // panel field's value — and the identity program keeping
             // every step is the door's own no-op.
@@ -2537,15 +3134,25 @@ impl DocSession {
             | DocEdit::SetRoots { .. }
             | DocEdit::Rebind { .. }
             | DocEdit::UpdateReference { .. }
-            | DocEdit::SetPlacement { .. }
-            // The declaration doors that are not the value or the
-            // notation half. `SetDocParam` is create-or-replace: a
-            // redeclaration is an act — it is how a parameter's
-            // DIMENSION changes — and the door refuses or performs it
-            // on its own terms. A distribution is an annotation no
-            // panel field shows.
-            | DocEdit::SetDocParam { .. }
-            | DocEdit::SetDocParamDistribution { .. }
+            // An instance's offset, and the gauge an instance or a
+            // gauge sits on, are structure: which frame a group stands
+            // on, not a panel field's value.
+            | DocEdit::SetOffset { .. }
+            | DocEdit::SetGauge { .. }
+            | DocEdit::Promote { .. }
+            | DocEdit::Fold { .. }
+            // The variable doors that are not the value or the
+            // notation half. A declare mints a variable and a
+            // definition replaces one whole: each is an act the door
+            // refuses or performs on its own terms. A distribution is
+            // an annotation no panel field shows. A rename's unchanged
+            // name is the door's own refusal (`VarNameUnchanged`), and
+            // a delete has no standing value to equal.
+            | DocEdit::DeclareVar { .. }
+            | DocEdit::DefineVar { .. }
+            | DocEdit::SetVarDistribution { .. }
+            | DocEdit::RenameVar { .. }
+            | DocEdit::DeleteVar { .. }
             // A subtree rewrite at an `ExprPath`, which no panel door
             // emits: the comparison it would want is against the
             // REBUILT ancestor rather than against the payload, and
@@ -2622,109 +3229,89 @@ impl DocSession {
         )
     }
 
-    /// The same door for an action that takes SEVERAL edits: apply
-    /// them in order, and record the whole run as one history state,
-    /// so one user action is one undo.
-    ///
-    /// **All or nothing**: each edit is applied to the value the last
-    /// one produced and nothing is recorded until every one has
-    /// succeeded, so a refusal anywhere leaves the session on the
-    /// document it started from. That is purity doing the work — no
-    /// rollback exists to be got wrong.
+    /// The same door for an action that takes SEVERAL edits, a fixed
+    /// list of them: one run of [`Self::commit_run`], so one user
+    /// action is one undo.
     fn commit_action(&mut self, edits: Vec<DocEdit<ProfileProgram>>) -> OpOutcome {
-        let mut edits = edits.into_iter();
-        self.commit_run(|_| edits.next())
+        self.commit_run(|run| {
+            for edit in edits {
+                run.apply(edit)?;
+            }
+            Ok(())
+        })
     }
 
     /// The same door again, for an action whose later edits name the
-    /// ids its earlier ones MINTED.
-    ///
-    /// `next` is handed what each edit so far minted, in order — an
-    /// `InsertNode`'s new id, `None` for every edit that creates no
-    /// node — and answers with the next edit, or `None` to end the
-    /// run. The slice's LENGTH is how many edits have landed, so a
-    /// caller that only inserts can match on its shape and a caller
-    /// with a fixed list ([`Self::commit_action`]) ignores it.
-    ///
-    /// **All or nothing**: each edit is applied to the value the last
-    /// one produced and nothing is recorded until every one has
-    /// succeeded, so a refusal anywhere leaves the session on the
-    /// document it started from. That is purity doing the work — no
-    /// rollback exists to be got wrong. The whole run is one history
-    /// state, so one user action is one undo.
-    fn commit_run<F>(&mut self, mut next: F) -> OpOutcome
-    where
-        F: FnMut(&[Option<RecipeNodeId>]) -> Option<DocEdit<ProfileProgram>>,
-    {
-        // ONE reach for the whole action, over the session's own seam
-        // (the directory rule; `None` refuses typed): each edit's
-        // maintenance asks it only when a cluster's gauge moves, and
-        // what it decided rides the logged entry into the history.
-        let resolver = self.resolver_seam();
-        let reach = PartReach::<f64>::with_resolver(resolver.as_ref(), self.tol);
-        // Threaded rather than cloned up front: the first `apply`
-        // reads the history's value in place, and each later one reads
-        // its predecessor's output, so a group of one costs exactly
-        // what a single commit always cost.
-        let mut produced: Option<Doc<ProfileProgram>> = None;
-        let mut logged: Vec<LoggedEdit<ProfileProgram>> = Vec::new();
-        let mut net = MaintenanceNet::new();
-        let mut minted: Vec<Option<RecipeNodeId>> = Vec::new();
-        while let Some(edit) = next(&minted) {
-            let attempt = {
-                let base = produced.as_ref().unwrap_or_else(|| self.history.doc());
-                apply(base, &edit, self.tol, &reach)
-            };
-            match attempt {
-                Ok(applied) => {
-                    logged.push(LoggedEdit {
-                        edit,
-                        maintenance: applied.cluster_rows(),
-                    });
-                    minted.push(applied.record.minted);
-                    net.push(&applied);
-                    produced = Some(applied.doc);
-                }
-                Err(error) => return OpOutcome::refused(Refusal::Edit(Box::new(error))),
-            }
+    /// ids its earlier ones MINTED: [`Self::stage_run`], then
+    /// [`Self::record_run`].
+    fn commit_run(
+        &mut self,
+        action: impl FnOnce(&mut Recording<'_, ProfileProgram>) -> Result<(), EditError>,
+    ) -> OpOutcome {
+        match self.stage_run(action) {
+            Ok((staged, ())) => self.record_run(staged),
+            Err(refusal) => OpOutcome::refused(refusal),
         }
-        let Some(doc) = produced else {
-            unreachable!("an action commits at least one edit")
-        };
-        let mut outcome = self.record_action(ActionLanding { logged, net, doc });
-        // The ids the run minted, out to whoever asked for the action
-        // — in the order the edits applied, which is the order a
-        // caller that built one edit from another's id reasoned in.
-        outcome.minted = minted.into_iter().flatten().collect();
-        outcome
     }
 
-    /// **Record an action whose document is already produced** — the
-    /// second half of [`Self::commit_action`], for a door that had to
-    /// apply the edits itself to learn which order they land in
-    /// ([`accepted_order`]), so the one pass that found the order is
-    /// the pass whose output is committed.
+    /// **An action's edits, applied and not yet recorded**, beside what
+    /// `action` answered.
     ///
-    /// The landing's `doc` must be its `logged` edits applied in order
-    /// to the committed document, and each entry carries the cluster
-    /// maintenance its edit performed — the same shape
-    /// [`Self::commit_action`] records, so the history replays pure
-    /// over the log whichever half produced the entry; both callers
-    /// produce it that way. Its maintenance goes out on the outcome,
-    /// net over the action ([`MaintenanceNet`]).
-    fn record_action(&mut self, landing: ActionLanding) -> OpOutcome {
-        let committed = landing
-            .logged
-            .iter()
-            .map(|entry| entry.edit.clone())
-            .collect();
-        let maintenance = landing.net.finish(&landing.doc);
-        self.history.commit_group(landing.logged, landing.doc);
+    /// `action` records its edits on the [`Recording`] it is handed — an
+    /// insert through [`Recording::insert`], which answers the id it
+    /// minted, so a later edit names the node the door actually
+    /// created.
+    ///
+    /// **All or nothing**: each edit is applied to the value the last
+    /// one produced and nothing is recorded until [`Self::record_run`]
+    /// takes the result. A refused edit ends the run — the recording
+    /// answers its refusal from then on, `finish` included — so a
+    /// refusal leaves the session on the document it started from
+    /// whether or not `action` stops at it, and so does a caller that
+    /// drops the staged run. That is purity doing the work — no
+    /// rollback exists to be got wrong.
+    fn stage_run<T>(
+        &self,
+        action: impl FnOnce(&mut Recording<'_, ProfileProgram>) -> Result<T, EditError>,
+    ) -> Result<(Recorded<ProfileProgram>, T), Refusal> {
+        // ONE reach for the whole action, over the session's own seam
+        // (the directory rule; `None` refuses typed): an inserted
+        // mate's clocking rider asks it, and nothing it decides is
+        // recorded — the edits are the history.
+        let resolver = self.resolver_seam();
+        let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
+        let mut run = Recording::start(self.history.doc(), self.tol, &reach);
+        let answer = action(&mut run);
+        let refused = |error| Refusal::Edit(Box::new(error));
+        let staged = run.finish().map_err(refused)?;
+        let answer = answer.map_err(refused)?;
+        if staged.edits.is_empty() {
+            unreachable!("an action commits at least one edit")
+        }
+        Ok((staged, answer))
+    }
+
+    /// **A staged run, recorded**: the whole run is one history state,
+    /// so one user action is one undo.
+    fn record_run(&mut self, staged: Recorded<ProfileProgram>) -> OpOutcome {
+        let Recorded {
+            doc,
+            edits,
+            maintenance,
+            minted,
+        } = staged;
+        let committed = edits.clone();
+        self.history.commit_group(edits, doc);
         let pruned = self.display.prune(self.history.doc());
         self.request_eval();
         OpOutcome {
             committed,
             maintenance,
+            // The ids the run minted, out to whoever asked for the
+            // action — in the order the edits applied, which is the
+            // order a caller that built one edit from another's id
+            // reasoned in.
+            minted: minted.into_iter().flatten().collect(),
             ..OpOutcome::from_prune(pruned)
         }
     }
@@ -2750,229 +3337,74 @@ impl DocSession {
         // takes a value so a worker owns its copy) and is not a
         // retained copy — the session keeps exactly one.
         self.requested_doc = Arc::new(self.doc().clone());
+        self.requested_resolver = self.run_resolver();
         self.eval.submit(EvalRequest {
             generation: self.generation,
             doc: self.requested_doc.as_ref().clone(),
             tol: self.tol,
-            resolver: self.resolver_seam(),
+            resolver: self.requested_resolver.clone(),
         });
     }
 }
 
-/// **The most one-slot writes [`accepted_order`] searches the orders
-/// of.** The search is over which writes have landed — `2^n` states,
-/// each trying up to `n` writes at the edit door — so twelve writes is
-/// at most 4 096 states, a fraction of a second at the door's cost. A
-/// profile edit moving more arguments than this is still tried in slot
-/// order; only the search for another order is capped, and a refusal
-/// past the cap says so.
-pub const ORDER_SEARCH_CAP: usize = 12;
-
-/// **An order the edit door accepts `edits` in, one at a time, and the
-/// document they produce** — the one-slot writes of
-/// [`SessionOp::EditProfile`], each of which re-validates the whole
-/// profile program at the door. The order comes back as logged
-/// entries: each write with the cluster maintenance the door performed
-/// for it, through `reach`, so the pass that found the order is the
-/// pass the history records — and every row the door reported for each
-/// write rides beside them, for the outcome.
-///
-/// Exact up to [`ORDER_SEARCH_CAP`] writes: a depth-first search over
-/// the set of writes already applied, trying the pending ones in slot
-/// order and remembering every applied set from which no order
-/// finishes. The document at a set does not depend on the order that
-/// reached it (each write sets a different slot), which is what makes
-/// the set a sound memo key. A write the door refuses as a PROGRAM
-/// ([`EditError::ProfileProgramRefused`]) is a fact about the state it
-/// was tried in and is tried again from others; any other refusal is a
-/// fact about the write itself and ends the search at once.
-///
-/// Past the cap only slot order is tried.
-///
-/// # Errors
-///
-/// [`OrderFault::Refused`] for a refusal no order can change;
-/// [`OrderFault::NoOrder`], carrying the last program refusal met,
-/// when no order of the writes lands; [`OrderFault::Capped`] when slot
-/// order does not land and there are too many writes to search.
-fn accepted_order(
-    doc: &Doc<ProfileProgram>,
-    edits: Vec<DocEdit<ProfileProgram>>,
-    tol: Tol,
-    reach: &dyn MateReach,
-) -> Result<ActionLanding, OrderFault> {
-    if edits.len() > ORDER_SEARCH_CAP {
-        let writes = edits.len();
-        let mut landing = ActionLanding {
-            logged: Vec::with_capacity(writes),
-            net: MaintenanceNet::new(),
-            doc: doc.clone(),
-        };
-        for edit in edits {
-            match apply(&landing.doc, &edit, tol, reach) {
-                Ok(applied) => {
-                    landing.logged.push(LoggedEdit {
-                        edit,
-                        maintenance: applied.cluster_rows(),
-                    });
-                    landing.net.push(&applied);
-                    landing.doc = applied.doc;
-                }
-                Err(EditError::ProfileProgramRefused { .. }) => {
-                    return Err(OrderFault::Capped { writes });
-                }
-                Err(error) => return Err(OrderFault::Refused(error)),
-            }
-        }
-        return Ok(landing);
-    }
-    let mut search = OrderSearch {
-        edits: &edits,
-        tol,
-        reach,
-        dead: std::collections::HashSet::new(),
-        last: None,
-    };
-    match search.from(0, doc)? {
-        Some(found) => {
-            let mut net = MaintenanceNet::new();
-            for step in &found.steps {
-                net.push(step);
-            }
-            Ok(ActionLanding {
-                logged: found.logged,
-                net,
-                doc: found.doc,
-            })
-        }
-        None => {
-            let Some(error) = search.last else {
-                unreachable!("a search with no order met at least one program refusal")
-            };
-            Err(OrderFault::NoOrder(error))
-        }
-    }
-}
-
-/// **Where an action lands**: its edits as the log records them, each
-/// with the cluster maintenance the door performed for it; every row
-/// the door REPORTED for them, folded as they applied — the log keeps
-/// only the cluster acts, and these are what the outcome carries out;
-/// and the document they end at.
-struct ActionLanding {
-    logged: Vec<LoggedEdit<ProfileProgram>>,
-    net: MaintenanceNet,
-    doc: Doc<ProfileProgram>,
-}
-
-/// Where the order search lands: the writes still to apply, in order,
-/// as logged entries; each write's accepted edit, which
-/// [`MaintenanceNet::push`] folds once the order is known; and the
-/// document they end at.
-struct SearchLanding {
-    logged: Vec<LoggedEdit<ProfileProgram>>,
-    steps: Vec<Applied<ProfileProgram>>,
-    doc: Doc<ProfileProgram>,
-}
-
-/// [`accepted_order`]'s search state.
-struct OrderSearch<'a> {
-    edits: &'a [DocEdit<ProfileProgram>],
-    tol: Tol,
-    /// The reach every write applies through — the session's.
-    reach: &'a dyn MateReach,
-    /// Applied sets from which no order finishes.
-    dead: std::collections::HashSet<u32>,
-    /// The last program refusal met.
-    last: Option<EditError>,
-}
-
-impl OrderSearch<'_> {
-    /// An order finishing from the applied set `applied` (a bit per
-    /// write), at `doc`: the writes still to apply, in order, as logged
-    /// entries, and the document they end at — or `None` when there is
-    /// none.
-    fn from(
-        &mut self,
-        applied: u32,
-        doc: &Doc<ProfileProgram>,
-    ) -> Result<Option<SearchLanding>, OrderFault> {
-        let all = (1_u32 << self.edits.len()) - 1;
-        if applied == all {
-            return Ok(Some(SearchLanding {
-                logged: Vec::new(),
-                steps: Vec::new(),
-                doc: doc.clone(),
-            }));
-        }
-        if self.dead.contains(&applied) {
-            return Ok(None);
-        }
-        for (index, edit) in self.edits.iter().enumerate() {
-            let bit = 1_u32 << index;
-            if applied & bit != 0 || self.dead.contains(&(applied | bit)) {
-                continue;
-            }
-            match apply(doc, edit, self.tol, self.reach) {
-                Ok(next) => {
-                    if let Some(mut rest) = self.from(applied | bit, &next.doc)? {
-                        rest.logged.insert(
-                            0,
-                            LoggedEdit {
-                                edit: edit.clone(),
-                                maintenance: next.cluster_rows(),
-                            },
-                        );
-                        rest.steps.insert(0, next);
-                        return Ok(Some(rest));
-                    }
-                }
-                Err(error @ EditError::ProfileProgramRefused { .. }) => self.last = Some(error),
-                Err(error) => return Err(OrderFault::Refused(error)),
-            }
-        }
-        self.dead.insert(applied);
-        Ok(None)
-    }
-}
-
-/// Why [`accepted_order`] found no order.
-#[derive(Debug)]
-enum OrderFault {
-    /// A write the door refuses whatever precedes it.
-    Refused(EditError),
-    /// No order of the writes keeps every intermediate program valid;
-    /// the last program refusal the search met.
-    NoOrder(EditError),
-    /// Slot order does not land, and there are more writes than
-    /// [`ORDER_SEARCH_CAP`] to search the other orders of.
-    Capped {
-        /// How many writes there were.
-        writes: usize,
-    },
-}
-
-/// Whether a document is assembly-shaped, which is what decides
-/// whether an A5 badge is taken at all (see [`AtRestBadge`]): a
-/// document that instantiates no part declares no cross-instance rest
-/// and has nothing for the gate to answer about.
+/// Whether a document is assembly-shaped — one of the two conditions
+/// [`AtRestBadge`] names for taking an A5 badge: a document that
+/// instantiates no part declares no cross-instance rest and has
+/// nothing for the gate to answer about.
 fn assembly_shaped(doc: &Doc<ProfileProgram>) -> bool {
-    doc.order()
+    doc.ids()
         .iter()
-        .any(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. })))
+        .filter_map(|&id| doc.node(id))
+        .any(puts_an_instance)
+}
+
+/// Whether a node puts an instance of another document's part into
+/// this one — what [`assembly_shaped`] asks of every node.
+fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
+    match node {
+        Node::InstantiatePart { .. } => true,
+        // Placements of a prototype drawn in THIS document: the rest
+        // between them is the placement rule's, not a crossing.
+        Node::PlacedUnion { .. } | Node::Pattern { .. } | Node::Part { .. } => false,
+        // Relates instances some other node put in the document.
+        Node::Mate { .. } => false,
+        // A frame instances stand on; it puts nothing in.
+        Node::Gauge { .. } => false,
+        Node::Datum(_)
+        | Node::Profile(_)
+        | Node::Extrude { .. }
+        | Node::Revolve { .. }
+        | Node::Tube { .. }
+        | Node::HollowTube { .. }
+        | Node::Loft { .. }
+        | Node::Sweep { .. }
+        | Node::Fillet { .. }
+        | Node::Chamfer { .. }
+        | Node::Shell { .. }
+        | Node::Split { .. }
+        | Node::Boolean { .. }
+        | Node::Union { .. }
+        | Node::Transform { .. }
+        | Node::Measure { .. }
+        | Node::Assertion { .. } => false,
+    }
 }
 
 /// One A5 verdict as the badge that shows it — the gate's own
 /// vocabulary either way: a certification with its minted count, or
-/// the typed refusal rendered by its own `Display` — **and the
-/// aggregate the gate hands back with it**.
+/// the typed refusal with its nodes spoken from `doc`, the landed
+/// document the gate judged — **and the aggregate the gate hands back
+/// with it**.
 ///
 /// The gate CONSUMES the product it judges. A certification returns
 /// the same body on its `Assembly` and a refusal returns nothing, so
 /// the body is an `Option` here for the same reason
-/// [`LandedRun::body`] is one, and this is the one place that fact is
+/// [`Gathered::body`] is one, and this is the one place that fact is
 /// read off the gate's own result type.
-fn badge(verdict: Result<Assembly<f64>, AssemblyError>) -> (AtRestBadge, Option<Arc<Body<f64>>>) {
+fn badge(
+    doc: &Doc<ProfileProgram>,
+    verdict: Result<Assembly<f64>, AssemblyError>,
+) -> (AtRestBadge, Option<Arc<Body<f64>>>) {
     match verdict {
         Ok(assembly) => (
             AtRestBadge::Certified {
@@ -2982,7 +3414,7 @@ fn badge(verdict: Result<Assembly<f64>, AssemblyError>) -> (AtRestBadge, Option<
         ),
         Err(refusal) => (
             AtRestBadge::Refused {
-                message: refusal.to_string(),
+                message: refusal.spoken(doc),
             },
             None,
         ),
@@ -3025,10 +3457,12 @@ impl core::fmt::Debug for DocSession {
             eval: _,
             generation,
             requested_doc: _,
+            requested_resolver: _,
             derived,
             path,
             display: _,
             resolver,
+            notation,
         } = self;
         f.debug_struct("DocSession")
             .field("generation", generation)
@@ -3043,130 +3477,51 @@ impl core::fmt::Debug for DocSession {
                 &resolver.as_ref().map(|_| format_args!("<DirResolver>")),
             )
             .field("derived", derived)
+            .field("notation", notation)
             .finish_non_exhaustive()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
-    #![allow(clippy::panic)]
 
-    use pncad::document::{
-        Doc, DocEdit, EditError, Expr, Node, ProfileProgram, RecipeNodeId, RefusingReach, SlotId,
-        StepArg, apply,
-    };
-    use pncad::geom_core::{Point2, Tol};
-    use pncad::profile::{Step, Target};
+    use super::{DocSession, ProfilePlane, Refusal, datum_node};
+    use pncad::document::{Doc, Node, ProfileProgram};
+    use pncad::geom_core::Tol;
 
-    use super::{OrderFault, accepted_order};
-    use crate::session::ProfileShape;
-    use crate::sketch::{self, Notation};
-    use crate::test_support::{ang, inserted, len, xy_frame};
-
-    /// A document holding a frame and a unit square profile; answers
-    /// the document and the profile node.
-    fn square() -> (Doc<ProfileProgram>, RecipeNodeId) {
+    /// **An action that swallows a refusal commits nothing.** The
+    /// action lands a frame, has its profile refused (an empty loop
+    /// list), ignores the refusal, lands a second frame and answers
+    /// success; the door still refuses the whole action, so neither
+    /// frame is committed. This reds if the run goes on past a refusal,
+    /// which would commit the two frames around it.
+    #[test]
+    fn an_action_that_swallows_a_refusal_commits_nothing() {
         let tol = Tol::witness();
-        let (doc, plane) = inserted(&Doc::empty_derived("order", tol), xy_frame(), tol);
-        let steps = vec![
-            Step::At(Point2::new(0.0, 0.0)),
-            Step::LineTo(Target::Point(Point2::new(1.0, 0.0))),
-            Step::LineTo(Target::Point(Point2::new(1.0, 1.0))),
-            Step::LineTo(Target::Point(Point2::new(0.0, 1.0))),
-            Step::LineTo(Target::Start),
-        ];
-        let loops = vec![
-            sketch::loop_program(&ProfileShape::Path { steps }, Notation::CANONICAL)
-                .expect("finite"),
-        ];
-        let node = Node::Profile(ProfileProgram {
-            plane,
-            loops,
-            ids: Vec::new(),
+        let mut session = DocSession::inline(Doc::empty_derived("swallowed-refusal", tol), tol);
+        let frame = || datum_node(ProfilePlane::world_xy().expect("the world frame"));
+        let before = session.history().len();
+        let outcome = session.commit_run(|run| {
+            let plane = run.insert(frame())?;
+            let _ = run.insert(Node::Profile(ProfileProgram {
+                plane,
+                loops: Vec::new(),
+                ids: Vec::new(),
+            }));
+            let _ = run.insert(frame());
+            Ok(())
         });
-        inserted(&doc, node, tol)
-    }
-
-    fn corner_x(node: RecipeNodeId, step: u32, expr: Expr) -> DocEdit<ProfileProgram> {
-        DocEdit::SetParam {
-            node,
-            slot: SlotId::Profile {
-                loop_: 0,
-                step,
-                arg: if step == 0 {
-                    StepArg::PointX
-                } else {
-                    StepArg::TargetX
-                },
-            },
-            expr,
-        }
-    }
-
-    /// **A refusal no order can change ends the search as itself**: a
-    /// write of the wrong dimension is refused whatever precedes it,
-    /// so the walk does not go looking for an order and does not call
-    /// it an order problem.
-    #[test]
-    fn a_write_refused_for_itself_is_refused_not_reordered() {
-        let (doc, profile) = square();
-        let edits = vec![
-            corner_x(profile, 1, len(1.5)),
-            corner_x(profile, 2, ang(0.5)),
-        ];
-        match accepted_order(&doc, edits, Tol::witness(), &RefusingReach) {
-            Err(OrderFault::Refused(EditError::SlotDimensionMismatch { .. })) => {}
-            Err(OrderFault::Refused(other)) => panic!("refused for another reason: {other:?}"),
-            Err(_) => panic!("reported as an order problem"),
-            Ok(_) => panic!("a wrong-dimension write landed"),
-        }
-    }
-
-    /// **The search lands an order slot order does not**, and the
-    /// document it hands back is the writes applied in that order.
-    #[test]
-    fn the_search_finds_the_order_and_returns_its_document() {
-        let tol = Tol::witness();
-        let (doc, profile) = square();
-        // Slide the square right by 2: its first corner alone crosses it.
-        let edits = vec![
-            corner_x(profile, 0, len(2.0)),
-            corner_x(profile, 1, len(3.0)),
-            corner_x(profile, 2, len(3.0)),
-            corner_x(profile, 3, len(2.0)),
-        ];
         assert!(
-            apply(&doc, &edits[0], tol, &RefusingReach).is_err(),
-            "the premise"
+            matches!(outcome.refusal, Some(Refusal::Edit(_))),
+            "the profile's refusal is the action's: {:?}",
+            outcome.refusal
         );
-        let landing =
-            accepted_order(&doc, edits.clone(), tol, &RefusingReach).expect("an order lands");
-        let (order, landed) = (landing.logged, landing.doc);
-        assert_ne!(
-            order.first().map(|entry| &entry.edit),
-            edits.first(),
-            "not slot order"
+        assert!(outcome.committed.is_empty(), "nothing is committed");
+        assert_eq!(session.history().len(), before, "nothing is recorded");
+        assert!(
+            session.committed_doc().ids().is_empty(),
+            "neither frame landed"
         );
-        let replayed = order.iter().fold(doc, |doc, entry| {
-            apply(&doc, &entry.edit, tol, &RefusingReach)
-                .expect("the order it named lands")
-                .doc
-        });
-        assert!(replayed.bit_eq(&landed));
-    }
-
-    /// **No order is said as no order** when every order was searched:
-    /// one write that no other write can make valid.
-    #[test]
-    fn a_write_no_order_admits_is_no_order() {
-        let (doc, profile) = square();
-        // Corner 1 onto corner 0: a zero-length leg, whatever else lands.
-        let edits = vec![corner_x(profile, 1, len(0.0))];
-        assert!(matches!(
-            accepted_order(&doc, edits, Tol::witness(), &RefusingReach),
-            Err(OrderFault::NoOrder(EditError::ProfileProgramRefused { .. }))
-        ));
     }
 }

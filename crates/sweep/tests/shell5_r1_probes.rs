@@ -15,15 +15,17 @@
 
 use geom_core::{Affine3, Point2, Point3, Sign, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::readback::euler_counts;
 use topo::{
     Body, FaceKey, ShellError, ShellKey, ShellRole, VoidContainment, VoidEvidence, insert_void,
 };
 
+use crate::common::approx::band;
 use crate::common::oracles::box_volume;
 use crate::common::shell_operands::roles_by_solid;
-use sweep::test_support::{brick, corners, prism};
+use sweep::test_support::{brick, corners, finished, prism, realized};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -56,12 +58,7 @@ fn revolved_at(pts: &[(f64, f64)], axis_x: f64, z0: f64) -> Body<f64> {
 }
 
 fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
-    topo::subtract(a, b, tol())
-        .expect("the subtraction runs")
-        .body()
-        .expect("a body")
-        .body
-        .clone()
+    realized(topo::BooleanOp::Subtract, a, b, tol())
 }
 
 /// `insert_void` with the carried-positive evidence the shell verb
@@ -82,7 +79,7 @@ fn with_void(mut dst: Body<f64>, cavity: Body<f64>) -> Body<f64> {
             })
             .collect(),
     };
-    insert_void(&mut dst, solid, cavity, &evidence, tol()).expect("the void inserts");
+    insert_void(&mut dst, solid, cavity, &evidence).expect("the void inserts");
     dst
 }
 
@@ -175,7 +172,8 @@ fn r1p3_diagonal_voids_refuse_at_the_grown_footprint_gate() {
     let (_, voids) = roles(&body);
     assert_eq!(voids.len(), 2);
     let t = 0.15;
-    let e = topo::shell(&body, t, tol()).expect_err("the diagonal pair is read as facing");
+    let e = topo::shell(&finished("the operand", body.clone(), tol()), t, tol())
+        .expect_err("the diagonal pair is read as facing");
     let ShellError::WallClearance {
         face,
         other,
@@ -196,7 +194,8 @@ fn r1p3_diagonal_voids_refuse_at_the_grown_footprint_gate() {
     // Below the wall the same body builds: at t = 0.09 the walls need
     // 0.18 < 0.2 and the grown footprints (disjoint by 0.1 − 0.18 < 0)
     // overlap, but the gap decide passes.
-    let s = topo::shell(&body, 0.09, tol()).expect("clear of every wall");
+    let s = topo::shell(&finished("the operand", body.clone(), tol()), 0.09, tol())
+        .expect("clear of every wall");
     assert_eq!(topo::validate_geometric(&s.body, tol()), Ok(()));
     assert_eq!(s.body.solids().count(), 3);
 }
@@ -232,7 +231,8 @@ fn r1p3_outer_shell_s_bend_refuses_above_the_wall_and_builds_below_it() {
     let riser_r = face_on(&s_bend, shell, (1.0, 0.0, 0.0), 1.0); // x = 1, y ∈ [0, 0.2]
     let riser_l = face_on(&s_bend, shell, (-1.0, 0.0, 0.0), -0.8); // x = 0.8, y ∈ [0.3, 0.5]
 
-    let e = topo::shell(&s_bend, 0.12, tol()).expect_err("the risers' offsets would cross");
+    let e = topo::shell(&finished("the operand", s_bend.clone(), tol()), 0.12, tol())
+        .expect_err("the risers' offsets would cross");
     let ShellError::WallClearance {
         face, other, gap, ..
     } = e
@@ -249,7 +249,8 @@ fn r1p3_outer_shell_s_bend_refuses_above_the_wall_and_builds_below_it() {
     risers.sort();
     assert_eq!(named, risers, "the refusal names the two risers");
 
-    let s = topo::shell(&s_bend, 0.09, tol()).expect("below the wall it builds");
+    let s = topo::shell(&finished("the operand", s_bend.clone(), tol()), 0.09, tol())
+        .expect("below the wall it builds");
     let out = &s.body;
     assert_eq!(topo::validate_geometric(out, tol()), Ok(()));
     let (o_r, _) = plane_of(out, s.naming.inner_of(riser_r).unwrap());
@@ -263,19 +264,23 @@ fn r1p3_outer_shell_s_bend_refuses_above_the_wall_and_builds_below_it() {
 }
 
 // ---------------------------------------------------------------------
-// Claim 1: a curved void wall through the PER-CHART door.
+// Claim 1: a curved void wall through the AXIAL door.
 // ---------------------------------------------------------------------
 
-/// **A box with a cylindrical cavity**: neither all-planar nor axial
-/// (the box's side planes are parallel to the cavity's axis), so the
-/// per-chart door moves every chart, the void's cylinder included —
-/// a DILATION (`d = +t`) on a reversed cylinder face. Closed form:
-/// `[4³ − 3.8³] + π[1.1²·2.2 − 1²·2]`.
+/// **A box with a cylindrical cavity**: not all-planar, and axial — the
+/// box's side planes are parallel to the cavity's axis and its ends
+/// normal to it — so the axial door moves every chart at once, the
+/// void's cylinder included: a DILATION (`d = +t`) on a reversed
+/// cylinder face. Closed form: `[4³ − 3.8³] + π[1.1²·2.2 − 1²·2]`.
 #[test]
-fn r1p1_cylindrical_void_in_a_box_through_the_per_chart_door() {
-    let cube = boxy_at(0.0, 0.0, 0.0, 4.0, 4.0, 4.0);
+fn r1p1_cylindrical_void_in_a_box_through_the_axial_door() {
+    let cube = finished("the cube", boxy_at(0.0, 0.0, 0.0, 4.0, 4.0, 4.0), tol());
     // Axis: the line x = 2, z = 2 along y; r = 1; y ∈ [1, 3].
-    let cavity = revolved_at(&[(2.0, 1.0), (3.0, 1.0), (3.0, 3.0), (2.0, 3.0)], 2.0, 2.0);
+    let cavity = finished(
+        "the cavity",
+        revolved_at(&[(2.0, 1.0), (3.0, 1.0), (3.0, 3.0), (2.0, 3.0)], 2.0, 2.0),
+        tol(),
+    );
     match topo::subtract(&cube, &cavity, tol()) {
         Ok(r) => match r.body() {
             Some(b) => println!(
@@ -287,33 +292,34 @@ fn r1p1_cylindrical_void_in_a_box_through_the_per_chart_door() {
         },
         Err(e) => println!("[measured] the boolean refuses box − cylinder: {e}"),
     }
-    let hollow = with_void(cube, cavity);
+    let hollow = with_void(cube.into_body(), cavity.into_body());
     assert_eq!(topo::validate_geometric(&hollow, tol()), Ok(()));
+    assert!(
+        topo::is_axial(&hollow, band()).expect("the axis gate decides"),
+        "the box's sides parallel to the void's axis, its ends normal to it: the axial door"
+    );
     let t = 0.1;
-    match topo::shell(&hollow, t, tol()) {
-        Err(e) => println!("[measured] box with cylindrical void at t={t}: refuses {e}"),
-        Ok(s) => {
-            let out = &s.body;
-            let tier3 = topo::validate_geometric(out, tol());
-            let props = topo::mass_properties(out, tol()).expect("props");
-            let pi = core::f64::consts::PI;
-            let want = (64.0 - 3.8f64.powi(3)) + pi * (1.1 * 1.1 * 2.2 - 2.0);
-            println!(
-                "[measured] box with cylindrical void at t={t}: BUILDS solids={} shells={} tier3={tier3:?} roles={:?} volume={} (pad {}) want={want}",
-                out.solids().count(),
-                out.shells().count(),
-                roles_by_solid(out),
-                props.volume,
-                props.volume_pad
-            );
-            assert_eq!(tier3, Ok(()));
-            assert_eq!(out.solids().count(), 2);
-            for (_, kinds) in roles_by_solid(out) {
-                assert_eq!(kinds, vec![ShellRole::Outer, ShellRole::Void]);
-            }
-            assert!((props.volume - want).abs() <= 1e-9 + props.volume_pad);
-        }
+    let s = topo::shell(&finished("the operand", hollow.clone(), tol()), t, tol())
+        .unwrap_or_else(|e| panic!("box with cylindrical void at t={t} hollows: {e:?}"));
+    let out = &s.body;
+    let tier3 = topo::validate_geometric(out, tol());
+    let props = topo::mass_properties(out, tol()).expect("props");
+    let pi = core::f64::consts::PI;
+    let want = (64.0 - 3.8f64.powi(3)) + pi * (1.1 * 1.1 * 2.2 - 2.0);
+    println!(
+        "[measured] box with cylindrical void at t={t}: BUILDS solids={} shells={} tier3={tier3:?} roles={:?} volume={} (pad {}) want={want}",
+        out.solids().count(),
+        out.shells().count(),
+        roles_by_solid(out),
+        props.volume,
+        props.volume_pad
+    );
+    assert_eq!(tier3, Ok(()));
+    assert_eq!(out.solids().count(), 2);
+    for (_, kinds) in roles_by_solid(out) {
+        assert_eq!(kinds, vec![ShellRole::Outer, ShellRole::Void]);
     }
+    assert!((props.volume - want).abs() <= 1e-9 + props.volume_pad);
 }
 
 // ---------------------------------------------------------------------
@@ -348,15 +354,23 @@ fn r1p6_open_a_void_ceiling_with_a_pillar_through_it() {
             return;
         }
     };
-    let holed = extrude(&profile, Extrusion::Distance(2.0), tol())
-        .expect("the holed box extrudes")
-        .body;
+    let holed = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 2.0,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .expect("the holed box extrudes")
+    .body;
     let holed_counts = euler_counts(&holed);
     println!(
         "[measured] holed box: faces={} rings={}",
         holed_counts.f, holed_counts.r
     );
-    let cube = boxy_at(0.0, 0.0, 0.0, 4.0, 4.0, 4.0);
+    let cube = finished("the cube", boxy_at(0.0, 0.0, 0.0, 4.0, 4.0, 4.0), tol());
+    let holed = finished("the holed box", holed, tol());
     let body = match topo::subtract(&cube, &holed, tol()) {
         Ok(r) => match r.body() {
             Some(b) => b.body.clone(),
@@ -457,7 +471,8 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
     let top = face_on(&part, shell0, (0.0, 0.0, 1.0), 4.0);
 
     // 1. hollow it.
-    let first = topo::shell(&part, 0.25, tol()).expect("hollow");
+    let first =
+        topo::shell(&finished("the operand", part.clone(), tol()), 0.25, tol()).expect("hollow");
     println!(
         "[e2e] hollow: solids={} shells={} thickened={:?}",
         first.body.solids().count(),
@@ -469,7 +484,12 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
     let ceiling = first.naming.inner_of(top).expect("the top's twin");
 
     // 2. hollow it again.
-    let twice = topo::shell(&first.body, 0.05, tol()).expect("hollow twice");
+    let twice = topo::shell(
+        &finished("the operand", first.body.clone(), tol()),
+        0.05,
+        tol(),
+    )
+    .expect("hollow twice");
     println!(
         "[e2e] hollow twice: solids={} shells={} thickened={:?} roles={:?}",
         twice.body.solids().count(),
@@ -487,8 +507,13 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
     // and what now builds. Shelling is per solid and applies to every
     // solid, so the twice-hollowed body's two thin solids each shell
     // again and the designated ceiling's wall opens.
-    let three = topo::shell_open(&twice.body, 0.01, &[ceiling], tol())
-        .expect("hollow, hollow, open is three verbs");
+    let three = topo::shell_open(
+        &finished("the operand", twice.body.clone(), tol()),
+        0.01,
+        &[ceiling],
+        tol(),
+    )
+    .expect("hollow, hollow, open is three verbs");
     let props = topo::mass_properties(&three.body, tol()).expect("props");
     println!(
         "[e2e] hollow, hollow, open: solids={} shells={} tier3={:?} volume={} thickened={:?}",
@@ -535,8 +560,13 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
         "the designated ceiling's wall is the cup"
     );
     // 3b. the way that works: fold the opening into the second shell.
-    let opened =
-        topo::shell_open(&first.body, 0.05, &[ceiling], tol()).expect("open the inner wall");
+    let opened = topo::shell_open(
+        &finished("the operand", first.body.clone(), tol()),
+        0.05,
+        &[ceiling],
+        tol(),
+    )
+    .expect("open the inner wall");
     let out = &opened.body;
     println!(
         "[e2e] opened inner wall: solids={} shells={} tier3={:?} roles={:?}",

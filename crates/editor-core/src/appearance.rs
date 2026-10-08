@@ -52,8 +52,9 @@
 
 use std::collections::BTreeMap;
 
+use crate::eval::NodeStanding;
 use crate::meta::MetaValue;
-use crate::names::{Entry, NameTable, RoleSeg, StableName};
+use crate::names::{Entry, NameTable, StableName};
 use crate::node::RecipeNodeId;
 
 pub use crate::names::EntityRef;
@@ -125,8 +126,9 @@ impl AttrKind {
 pub enum Attr {
     /// Display color.
     Color(Rgba8),
-    /// User-facing display label.
-    Label(String),
+    /// User-facing display label: the same [`crate::Label`] text a
+    /// node's label is.
+    Label(crate::Label),
     /// Display visibility (`false` = hidden).
     Visibility(bool),
 }
@@ -189,21 +191,10 @@ pub enum AppearanceLossCause {
     /// `DeleteNode` stranded it — N5's `NodeGone` semantics; the
     /// repair is `Rebind` (PR 4) or `ClearAppearance`).
     NodeGone,
-    /// The name's minting node failed this evaluation; the attachment
-    /// is indeterminate, not retired — it resolves again when the
-    /// node evaluates.
-    TargetFailed {
-        /// The failed node (= the name's `node`).
-        node: RecipeNodeId,
-    },
-    /// The name's minting node was poisoned by an upstream failure.
-    TargetPoisoned {
-        /// The nearest failed ancestor (walkable in the result DAG).
-        through: RecipeNodeId,
-    },
-    /// The name's minting node has no result in this evaluation (a
-    /// canceled run's incomplete suffix).
-    TargetNotEvaluated,
+    /// The name's minting node has no value in this evaluation — its
+    /// standing says why. The attachment is indeterminate, not
+    /// retired: it resolves again when the node evaluates.
+    Indeterminate(NodeStanding),
     /// The name's node evaluated, but no table in the evaluation
     /// carries the name — the entity's derivation no longer produces
     /// it (N5 `Vanished`: a verdict flip, structural-parameter
@@ -220,7 +211,7 @@ pub enum AppearanceLossCause {
     /// refused loudly until the recipe records a disambiguation.
     /// Reported ONCE per name even when pass-through tables carry the
     /// tie several times (review A2); `at` is the first carrying node
-    /// in id order, and the full candidate set is recoverable by
+    /// in evaluation order, and the full candidate set is recoverable by
     /// table lookup at `at` (PR 4's `Ambiguous{candidates}` builds on
     /// exactly that).
     Ambiguous {
@@ -302,39 +293,31 @@ impl AppearanceResolution {
     }
 }
 
-/// One node's result as appearance resolution sees it (a thin view of
-/// the result DAG, T-erased: names and tables are scalar-independent,
+/// One node's result as appearance resolution sees it: its name table,
+/// or its standing (T-erased: names and tables are scalar-independent,
 /// so f64/Interval agree here whenever the tables agree — pinned by
 /// the interval lane's tests).
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum NodeState<'a> {
-    /// The node evaluated; its name table.
-    Ok(&'a NameTable),
-    /// The node failed.
-    Failed,
-    /// The node was poisoned through the given failed ancestor.
-    Poisoned {
-        /// The nearest failed ancestor.
-        through: RecipeNodeId,
-    },
-}
+pub(crate) type NodeState<'a> = Result<&'a NameTable, NodeStanding>;
 
 /// Resolves the document's appearance store against one evaluation's
 /// tables (total: every entry lands in `resolved` or in `losses` —
 /// never both silently dropped, never panicking).
 ///
-/// `is_live` answers "is this node in the document" (NodeGone
-/// detection); `states` holds the evaluation's per-node outcomes —
-/// nodes absent from `states` but live are a canceled run's
-/// unevaluated suffix.
+/// `states` holds every live node of the document — a canceled run's
+/// unevaluated suffix with its standing like any other — so a name
+/// whose node it does not hold names a node the document no longer
+/// has. `order` is the evaluation's order over those nodes, the one the
+/// tables are read in: a node's inputs come before it, so the table
+/// that first carries a name is the one that defined it.
 pub(crate) fn resolve(
     appearance: &AppearanceMap,
-    is_live: impl Fn(RecipeNodeId) -> bool,
+    order: &[RecipeNodeId],
     states: &BTreeMap<RecipeNodeId, NodeState<'_>>,
 ) -> AppearanceResolution {
+    let in_order = || order.iter().filter_map(|id| Some((*id, states.get(id)?)));
     let mut resolution = AppearanceResolution::default();
     for (name, rec) in appearance {
-        if !is_live(name.node) {
+        let Some(target) = states.get(&name.node) else {
             resolution.losses.push(AppearanceLoss {
                 name: name.clone(),
                 attrs: rec.attrs.clone(),
@@ -342,7 +325,7 @@ pub(crate) fn resolve(
                 cause: AppearanceLossCause::NodeGone,
             });
             continue;
-        }
+        };
         // A name resolves in EVERY table that carries it: pass-through
         // ops (Transform) keep upstream names, so downstream outputs
         // inherit the attachment through the SAME name — no policy,
@@ -350,11 +333,11 @@ pub(crate) fn resolve(
         let mut hit = false;
         // Losses are per NAME, one row per cause (review A2): a tied
         // name carried by several tables (pass-through) reports ONE
-        // Ambiguous loss, at the first table in node-id order — the
+        // Ambiguous loss, at the first table in evaluation order — the
         // defining site; the others are derivable by lookup.
         let mut tie: Option<(RecipeNodeId, usize)> = None;
-        for (&id, state) in states {
-            let NodeState::Ok(table) = state else {
+        for (id, state) in in_order() {
+            let Ok(table) = state else {
                 continue;
             };
             match table.lookup(name) {
@@ -390,14 +373,10 @@ pub(crate) fn resolve(
         if hit {
             continue;
         }
-        let cause = match states.get(&name.node) {
-            None => AppearanceLossCause::TargetNotEvaluated,
-            Some(NodeState::Failed) => AppearanceLossCause::TargetFailed { node: name.node },
-            Some(NodeState::Poisoned { through }) => {
-                AppearanceLossCause::TargetPoisoned { through: *through }
-            }
-            Some(NodeState::Ok(_)) => AppearanceLossCause::Vanished {
-                candidates: vanished_candidates(name, states),
+        let cause = match target {
+            Err(standing) => AppearanceLossCause::Indeterminate(*standing),
+            Ok(_) => AppearanceLossCause::Vanished {
+                candidates: vanished_candidates(name, in_order()),
             },
         };
         resolution.losses.push(AppearanceLoss {
@@ -411,40 +390,23 @@ pub(crate) fn resolve(
 }
 
 /// N3 candidate offers for a vanished name (structural, no
-/// heuristics): if the name IS a merged name, its constituents (the
-/// symmetric unmerge case — `Merged{a,b}` vanishes with candidates
-/// {a, b}); otherwise, any live merged name whose constituent set
-/// COVERS it (`names::merged::covers`: the retire-into-merge case —
-/// the reference fails "with the merged face as the offered
-/// candidate" — and, since the set is flat, a merged face consumed
-/// by a wider merge is covered by the row that lists its faces).
-///
-/// Scope of "structurally detectable" (review A5): the unmerge
-/// direction fires only when `Merged` is the path's LAST segment —
-/// names wrapping a merge deeper in (`Instance{of: Merged}`) get
-/// empty offers; PR 4's resolution ladder owns anything beyond this.
-fn vanished_candidates(
+/// heuristics; `names::merged::offers`, the one reading of a
+/// set-holding row): a merged name's constituents (the symmetric
+/// unmerge case — `Merged{a,b}` vanishes with candidates {a, b}), a
+/// broken run wall's pieces' live walls, and any live row whose set
+/// COVERS the name (`names::merged::row_covers`: the retire-into-merge
+/// case — the reference fails "with the merged face as the offered
+/// candidate" — a merged face consumed by a wider merge, covered by the
+/// row that lists its faces, and a wall a station joined into a run).
+fn vanished_candidates<'s, 'a: 's>(
     name: &StableName,
-    states: &BTreeMap<RecipeNodeId, NodeState<'_>>,
+    states: impl Iterator<Item = (RecipeNodeId, &'s NodeState<'a>)>,
 ) -> Vec<StableName> {
-    if let Some(RoleSeg::Merged(constituents)) = name.path.last() {
-        return constituents.clone();
-    }
-    let mut out = Vec::new();
-    for state in states.values() {
-        let NodeState::Ok(table) = state else {
-            continue;
-        };
-        for (candidate, _) in table.iter() {
-            if let Some(RoleSeg::Merged(constituents)) = candidate.path.last()
-                && crate::names::merged::covers(constituents, name)
-                && !out.contains(candidate)
-            {
-                out.push(candidate.clone());
-            }
-        }
-    }
-    out
+    let rows: Vec<&StableName> = states
+        .filter_map(|(_, state)| state.as_ref().ok())
+        .flat_map(|table| table.iter().map(|(candidate, _)| candidate))
+        .collect();
+    crate::names::merged::offers(name, rows.iter().copied())
 }
 
 #[cfg(test)]
@@ -456,12 +418,12 @@ mod tests {
     //! record) and the tie refusal, over hand-built tables.
 
     use super::*;
-    use crate::names::{EntityKey, EntityKind};
+    use crate::names::{EntityKey, EntityKind, RoleSeg};
 
     fn body_name(node: u64, path: Vec<RoleSeg>) -> StableName {
         StableName {
             kind: EntityKind::Body,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path,
         }
     }
@@ -491,7 +453,7 @@ mod tests {
         let mut t = NameTable::new();
         t.insert(merged.clone(), ent(0)).unwrap();
         let mut states = BTreeMap::new();
-        states.insert(RecipeNodeId(9), NodeState::Ok(&t));
+        states.insert(RecipeNodeId::new(0, 9), Ok(&t));
         // Appearance rides constituent `a`, whose node (7) is live but
         // whose name is in no table.
         let mut appearance = AppearanceMap::new();
@@ -499,8 +461,12 @@ mod tests {
         // Node 7 evaluated Ok with an empty table (its face was
         // absorbed downstream).
         let empty = NameTable::new();
-        states.insert(RecipeNodeId(7), NodeState::Ok(&empty));
-        let r = resolve(&appearance, |_| true, &states);
+        states.insert(RecipeNodeId::new(0, 7), Ok(&empty));
+        let r = resolve(
+            &appearance,
+            &states.keys().copied().collect::<Vec<_>>(),
+            &states,
+        );
         assert!(r.resolved.is_empty());
         assert_eq!(r.losses.len(), 1);
         let loss = &r.losses[0];
@@ -523,10 +489,14 @@ mod tests {
         let merged = body_name(9, vec![RoleSeg::Merged(vec![a.clone(), b.clone()])]);
         let empty = NameTable::new();
         let mut states = BTreeMap::new();
-        states.insert(RecipeNodeId(9), NodeState::Ok(&empty));
+        states.insert(RecipeNodeId::new(0, 9), Ok(&empty));
         let mut appearance = AppearanceMap::new();
         appearance.insert(merged.clone(), color());
-        let r = resolve(&appearance, |_| true, &states);
+        let r = resolve(
+            &appearance,
+            &states.keys().copied().collect::<Vec<_>>(),
+            &states,
+        );
         assert_eq!(r.losses.len(), 1);
         assert_eq!(
             r.losses[0].cause,
@@ -542,16 +512,20 @@ mod tests {
         let mut t = NameTable::new();
         t.insert_tied(tied.clone(), vec![ent(0), ent(1)]).unwrap();
         let mut states = BTreeMap::new();
-        states.insert(RecipeNodeId(3), NodeState::Ok(&t));
+        states.insert(RecipeNodeId::new(0, 3), Ok(&t));
         let mut appearance = AppearanceMap::new();
         appearance.insert(tied.clone(), color());
-        let r = resolve(&appearance, |_| true, &states);
+        let r = resolve(
+            &appearance,
+            &states.keys().copied().collect::<Vec<_>>(),
+            &states,
+        );
         assert!(r.resolved.is_empty(), "a tie must never be painted");
         assert_eq!(r.losses.len(), 1);
         assert_eq!(
             r.losses[0].cause,
             AppearanceLossCause::Ambiguous {
-                at: RecipeNodeId(3),
+                at: RecipeNodeId::new(0, 3),
                 width: 2
             }
         );

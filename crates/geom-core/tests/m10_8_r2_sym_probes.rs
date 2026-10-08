@@ -43,7 +43,10 @@ fn band() -> Band {
 
 /// A parameter over `[lo, hi]`.
 fn p(name: &str, lo: f64, hi: f64) -> Sym<Interval> {
-    Sym::param(ParamSymbol::of(name), Interval::from_bounds(lo, hi))
+    Sym::param(
+        ParamSymbol::new(test_utils::symbol_id(name)),
+        Interval::from_bounds(lo, hi),
+    )
 }
 
 fn lit(x: f64) -> Sym<Interval> {
@@ -52,7 +55,7 @@ fn lit(x: f64) -> Sym<Interval> {
 
 /// The decision the funnel would make about `m`.
 fn sign_of(m: Sym<Interval>) -> Result<Sign, ()> {
-    m.sign_within(band()).map_err(|_| ())
+    m.sign_within(band()).map(|d| d.sign).map_err(|_| ())
 }
 
 /// Runs `f` with every buildable rule ON — the configuration the unit

@@ -31,7 +31,7 @@ deleted, `Nurbs` refuses typed, and role resolution gains the
 The row's pose, the axis lap, still refuses. Its refusal is now
 `Join(UnpairedLooseEnds)`, the edge-in-face defect that reproduces
 unchanged on an all-planar prism at the base. It is filed at
-`work/zip/an-edge-lying-in-a-cutter-face-past-its-end-wall-leaves-loose-ends-unpaired`.
+`work/join/an-edge-lying-in-a-cutter-face-past-its-end-wall-leaves-loose-ends-unpaired`.
 The spec had said no other invariant may fire. The orchestrator
 accepted this because that defect is pre-existing, is out of reach of
 this arm, and is pinned and filed.

@@ -39,21 +39,38 @@
 #         for the configuration it was handed or an upstream enclosure
 #         does not contain its real. The assertion is live in release
 #         (this workspace ships `debug-assertions = true` there).
-#     Both of this file's ratified sites reach that arm table through
-#     one helper, `sweep::swept::handle_registration`, whose match is
-#     exhaustive by hand;
+#     The sweep's sites reach that arm table through one helper,
+#     `sweep::swept::handle_registration`, and the profile lowering's
+#     through `profile::handle_registration`; each match is exhaustive
+#     by hand;
 #
-# THE RATIFIED SITES (M10-9, the swept arc carrier's builder — spec §2
-# and its amendment A1: the unit of scope is the CONSTRUCTOR, so one
-# builder states every same-object identity it guarantees):
+# THE RATIFIED SITES (M10-9's unit of scope, the CONSTRUCTOR, as the
+# #3453 ruling reads it: the construction registers what the algebra
+# does not close, and the sweep registers rigidity):
 #
-#   * `crates/sweep/src/swept.rs` — `register_rim_identity`
-#     (`‖q_from − c‖ = r`, the sagitta closed form) and
-#     `register_span_identity` (`carrier.eval(param_end) = q_to`, the
-#     bulge as `tan(θ/4)`). These two functions are the only bodies
-#     that call the method; `crates/sweep/src/extrude.rs` reaches the
-#     rim identity THROUGH `register_rim_identity` and therefore needs
-#     no entry.
+#   * `crates/geom-core/src/arc.rs` — `Arc2::register_endpoints`, the
+#     shared arc type's one spelling of an arc's four endpoint facts
+#     (the rim at each end is the radius; the landing from each end is
+#     the other). It proves none of them: its caller does, so the
+#     callers need no entry of
+#     its own (Ev, #3453: the allowlist gains the shared type's site).
+#     Its callers are now every profile construction that proves its
+#     arc's endpoint facts (`profile::BuiltArc::register`, each
+#     construction's doc carrying the proof), and beside it
+#     `Arc2::register_tangent_at`, the centre as the radius along a
+#     side normal from a tangent foot, which the line×line fillet calls
+#     at its incoming foot (`profile/src/path.rs`,
+#     `register_incoming_tangency`, whose doc carries the proof). Each
+#     spells its identity here, so a registrant of another identity is
+#     a new function in this file.
+#   * `crates/sweep/src/swept.rs` — rigidity for a placed profile arc,
+#     both facts it places: `register_rigidity` (the placed rim
+#     `‖q_from − c‖` is the sketch rim) and `register_placed_landing`
+#     (the carrier at its span is the placed sketch landing, per
+#     component); and `register_rim_identity` (a revolve latitude
+#     carrier's `‖q − c‖ = r`). These three functions are the only
+#     bodies that call the method; `crates/sweep/src/extrude.rs` reaches rigidity
+#     THROUGH `register_rigidity` and therefore needs no entry.
 #   * `crates/sweep/src/revolve/surfaces.rs` and
 #     `crates/sweep/src/revolve/full.rs` — the latitude carriers, which
 #     build the same `Circle { u_ref: (q − center).normalize(), radius }`
@@ -84,6 +101,7 @@ set -euo pipefail
 CALLER_SUBJECT='the ratified constructor sites, the only files that may CALL Real::register_equal'
 DEFINITION_SUBJECT='the files that DEFINE or re-export Real::register_equal, where a mention is a definition and not a call'
 CALLER_HOMES=(
+  crates/geom-core/src/arc.rs
   crates/sweep/src/swept.rs
   crates/sweep/src/revolve/surfaces.rs
   crates/sweep/src/revolve/full.rs

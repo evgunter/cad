@@ -2,13 +2,58 @@
 id: a-face-cut-and-merged-in-one-step-publishes-a-piece-under-the-name-its-merge-retires
 kind: issue
 title: A face cut and merged in one boolean step publishes its unmerged piece under the bare name its merge lists as a retired constituent
-status: open
+status: closed
 priority: P1
 cost: D
 opened: 2026-09-25
 refs: [declared-flush-union-edge-and-vertex-names-follow-member-order]
+branch: emit/cut-and-merged-pair
+pr: 3526
+closed: 2026-09-30
 ---
 
+
+## Closed — fixed by PR 3526
+
+Still live after #3241 in the pair boolean's own table, and so in every
+fold step's table. #3241's union end pass renames the published union
+(`emit_union_flush_names::a_face_cut_and_merged_in_one_step_publishes_no_constituent`),
+but a standalone pair boolean published the bare constituent.
+
+`name_boolean` now gives a group's bare base name to its one face only
+when no merge holds the rest of the parent. A group with merged faces
+goes through `Obstacles::split` with those faces as `merged`, so the
+unmerged piece is `base` + `Borders` over the walls it shares a divider
+with. `split` refuses if a piece borders none, counting merged faces
+among the parent's faces. The row
+`emit_pair_cut_and_merged::a_face_cut_and_merged_in_one_pair_step_publishes_no_constituent`
+pins it. It is red on `12807d8b19`.
+
+The merged row's constituent still names the whole parent. N3 defines
+the set as the merged faces' operand names. The union now names by
+parent in the finished body, so the order-free question that half served
+closed with `declared-flush-union-edge-and-vertex-names-follow-member-order`.
+
+The fold's declaration door (`look_through_fold`) had relied on the bare
+piece. A name that is both a constituent of a bare merged row and the
+parent of its own fragment now refuses `ConsumedByFold { by: Split }`.
+That costs correct tables:
+- `r2endsg`'s orders `[1,3,0,2]`, `[2,3,0,1]`, `[3,1,0,2]` and
+  `[3,2,0,1]` bound the bare piece, and it was the geometrically correct
+  face: the `ALONG`~`CEND` contact at x 0..1 lies on the x 0..1.4 piece.
+  They published correct tables and are now lost to totality.
+- `r4trig`'s orders `[1,3,0,2]` and `[3,1,0,2]` bound the bare piece,
+  and it was the wrong face: their contact at x 0.8..1 lies in the
+  merged face. They were silently wrong and now refuse.
+- `r4trig`'s `[2,3,0,1]` and `[3,2,0,1]` now refuse there, before they
+  reach `RayExhausted`.
+
+Which face is right depends on where the partner's contact lies. No rule
+that reads names alone recovers both cases, so refusing is the fail-loud
+choice for now. The lost orders are owned by
+`a-declaration-on-a-face-one-fold-step-cut-and-partly-merged-cannot-be-routed-by-names`.
+`union-refuses-in-some-member-orders-and-publishes-in-others` carries
+the new counts.
 
 ## The finding
 

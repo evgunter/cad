@@ -4,7 +4,7 @@ kind: issue
 title: The lane-keeping at-rest doors make no check-2 claim about an M7-8 edge, at every scalar
 status: open
 opened: 2026-09-05
-refs: [H5, 1877]
+refs: [1877]
 priority: P1
 cost: D
 ---

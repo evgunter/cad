@@ -12,18 +12,27 @@
 
 use crate::common;
 
-use common::{brick, flush_declarations};
+use common::{brick, finished, flush_declarations};
 use geom_core::Tol;
 use topo::{
-    Body, BooleanError, BooleanResult, ContactClass, FacePairDeclaration, mass_properties,
-    union_with,
+    AtRestBody, Body, BooleanCoincidence, BooleanError, BooleanResult, ContactClass,
+    FacePairDeclaration, mass_properties, union_with,
 };
 
 /// A flush stack: two bricks meeting on z = 1, independently authored.
-fn stacked() -> (Body<f64>, Body<f64>) {
+fn stacked() -> (AtRestBody<f64>, AtRestBody<f64>) {
+    let tol = Tol::witness();
     (
-        brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
-        brick((0.5, 1.5), (0.25, 1.25), (1.0, 2.0), Tol::witness()),
+        finished(
+            "the lower brick",
+            brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+            tol,
+        ),
+        finished(
+            "the upper brick",
+            brick((0.5, 1.5), (0.25, 1.25), (1.0, 2.0), tol),
+            tol,
+        ),
     )
 }
 
@@ -44,7 +53,7 @@ fn declared_rest_unions_and_replays_records_bit_identically() {
         decls
             .coincident_faces
             .iter()
-            .all(|d| d.class == ContactClass::Rest),
+            .all(|d| d.class == BooleanCoincidence::REST),
         "a flush cap is the conformal class, spelled out"
     );
 
@@ -134,8 +143,16 @@ fn a_wrong_class_declaration_contradicts_instead_of_being_ignored() {
 fn a_false_rest_is_contradicted_naming_the_margin_and_steering_to_fit() {
     // Full-face stacked plates: the mate is a pure REST contact, so
     // the declared-REST lane runs and verifies every declared pair.
-    let a = brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness());
-    let b = brick((0.0, 2.0), (0.0, 2.0), (1.0, 2.0), Tol::witness());
+    let a = finished(
+        "the lower plate",
+        brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let b = finished(
+        "the upper plate",
+        brick((0.0, 2.0), (0.0, 2.0), (1.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
     let cap_of = |body: &Body<f64>, z: f64| -> topo::FaceKey {
         body.faces()
             .find(|(_, f)| match body.get_surface(f.surface) {
@@ -163,16 +180,18 @@ fn a_false_rest_is_contradicted_naming_the_margin_and_steering_to_fit() {
             declaration,
             margin,
             steer,
+            fact,
         } => {
             assert_eq!(declaration.class, ContactClass::Rest);
             assert_eq!(margin.predicate, Some("bool_plane_offset"));
             assert_eq!(*steer, Some(topo::FIT_DEFERRAL));
+            assert_eq!(*fact, Some(topo::Contradiction::PlanesApart));
         }
         other => panic!("expected ContactContradicted, got {other:?}"),
     }
     assert!(
-        msg.contains(&format!("contradicted: {}", topo::CONTRADICTION_REASON)),
-        "the one reason true at every site, not the margin payload: {msg}"
+        msg.contains("contradicted: the declared planes are parallel but apart."),
+        "the fact the carrier ladder found, not the margin payload: {msg}"
     );
     assert!(msg.contains(topo::CONTRADICTION_RECOURSE), "{msg}");
     assert!(

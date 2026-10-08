@@ -26,7 +26,12 @@ fn band() -> Band {
 }
 
 fn over(name: &str, lo: f64, hi: f64) -> Sym<Interval> {
-    Sym::param_over(ParamSymbol::of(name), Interval::from_bounds(lo, hi), lo, hi)
+    Sym::param_over(
+        ParamSymbol::new(test_utils::symbol_id(name)),
+        Interval::from_bounds(lo, hi),
+        lo,
+        hi,
+    )
 }
 
 /// How the tier answered a margin built inside a fresh session.
@@ -291,13 +296,13 @@ fn r1_the_atan2_fold_refuses_everything_it_says_it_refuses() {
     // to be equal at the nominal. `Y`'s form is not the zero form.
     let coincidence = how(|| {
         let a = Sym::param_over(
-            ParamSymbol::of("a"),
+            ParamSymbol::new(test_utils::symbol_id("a")),
             Interval::from_bounds(1.0, 1.0),
             1.0,
             1.0,
         );
         let b = Sym::param_over(
-            ParamSymbol::of("b"),
+            ParamSymbol::new(test_utils::symbol_id("b")),
             Interval::from_bounds(1.0, 1.0),
             1.0,
             1.0,
@@ -345,7 +350,7 @@ fn r1_the_half_pi_fold_takes_the_indeterminate_and_not_the_literal() {
 fn r1_pi_beside_a_parameter_never_folds() {
     let answer = how(|| {
         let x = Sym::param_over(
-            ParamSymbol::of("x"),
+            ParamSymbol::new(test_utils::symbol_id("x")),
             Interval::from_bounds(1.0, 1.0),
             1.0,
             1.0,

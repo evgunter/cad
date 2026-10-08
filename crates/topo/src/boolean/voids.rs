@@ -24,7 +24,21 @@
 //! normals flip inward — [`crate::Body::revert`]) and transplants its
 //! shells into the destination solid as interior shells (the
 //! [`super::combine`] graft: fresh keys, provenance forwarded,
-//! descriptions re-certified against the transplanted surfaces).
+//! certificates carried with their surface handles rewritten).
+//!
+//! **The certificates are carried, not re-derived.** The graft copies
+//! every point, surface, carrier and parameter bit for bit, and the
+//! reversal carries every certificate verbatim ([`crate::Body::revert`]).
+//! A process has one tolerance, so the cavity's certificates were
+//! minted at the band a re-certification here would use, over the same
+//! bits: a carried certificate is the one a fresh re-certification
+//! mints, bit for bit, wherever the cavity's own certificates are the
+//! ones its geometry mints (`sweep`'s `revert_plane_charts` pins that on
+//! a reverted cavity; a boolean result's seam meridian can carry one
+//! that differs in the last bits, 1.48e-16 against a fresh 2.22e-16,
+//! `work/cleave/a-boolean-result-carries-a-seam-meridian-certificate-a-fresh-run-does-not-reproduce.md`).
+//! The at-rest gate's check 2 re-derives every
+//! carrier at `Band::linear(tol)` and never reads a stored certificate.
 //!
 //! **The door never derives containment itself.** Callers supply the
 //! evidence, one certificate per cavity shell; a shell with no
@@ -46,29 +60,31 @@
 //! walk, no containment probe: the caller's evidence says the two
 //! boundaries share no point, so there is nothing for the crossing
 //! pipeline to do. The door is a structural insertion — evidence
-//! check, revert, graft — and every predicate-funnel decision it can
-//! cause comes from the graft's description re-certification, none of
-//! it `bool_`-named (the crossing pipeline's prefix; the degenerate-
-//! arm suites pin that absence).
+//! check, revert, graft — and makes no predicate-funnel decision at
+//! all, `bool_`-named (the crossing pipeline's prefix; the degenerate-
+//! arm suites pin that absence) or otherwise.
 //!
 //! # Validity
 //!
 //! The door neither validates its inputs nor gates its result —
 //! callers own both, per their own postures (the boolean gates the
 //! finished result body; the revolve asserts its tiers in debug and
-//! re-validates at rest). A structurally corrupt input surfaces as
-//! [`VoidInsertError::Corrupt`] from the graft's own walks, never as
-//! a panic.
+//! re-validates at rest). Its argument refusals — the evidence, a
+//! destination solid that does not resolve
+//! ([`VoidInsertError::StaleSolid`]), destinations that do not pair
+//! with the cavity's solids ([`VoidInsertError::SolidCount`]) — fire
+//! before any write. Both bodies are ones every public door keeps
+//! tier-1-valid, so a record the graft cannot follow in the cavity is
+//! a kernel bug, and the graft panics naming it (D2 row 4) inside its
+//! stage, before `dst` is written.
 
-use geom_core::{Decide, Sign, Tol};
+use geom_core::{Decide, Sign};
 
-use super::BooleanError;
 use super::combine::{Bridge, GraftMap, graft_solids_with};
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
 use crate::entity::{ShellKey, SolidKey};
 use crate::geometry::SurfaceKey;
-use crate::revert::RevertError;
 
 /// One cavity shell's strict-containment certificate, supplied by the
 /// caller (module docs: the door never derives containment).
@@ -123,8 +139,8 @@ pub struct VoidEvidence {
     pub shells: Vec<(ShellKey, VoidContainment)>,
 }
 
-/// Typed refusal of [`insert_void`] (closed enum, D4 ¶3). The
-/// evidence refusals fire before any mutation.
+/// Typed refusal of [`insert_void`] (closed enum, D4 ¶3). Every
+/// refusal fires before any mutation.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum VoidInsertError {
     /// A cavity shell arrived with no containment certificate — the
@@ -146,6 +162,17 @@ pub enum VoidInsertError {
         /// The unresolvable shell key.
         shell: ShellKey,
     },
+    /// A solid of the cavity holds more than one shell. Reverted, a
+    /// hollow cavity's voids face outward — pieces of material under the
+    /// destination solid — so this public door takes single-shell
+    /// cavity solids only: it adds cavities and never a piece
+    /// (`docs/DESIGN.md`, "A solid is one piece of material"). The verbs that do insert a hollow cavity (the
+    /// boolean's containment fallback, `shell`) sort or re-home the
+    /// pieces themselves.
+    HollowCavity {
+        /// The cavity solid with several shells.
+        solid: SolidKey,
+    },
     /// The evidence carries two certificates for one shell — a caller
     /// desync, refused rather than resolved by list order (the door
     /// never picks between conflicting claims).
@@ -153,18 +180,19 @@ pub enum VoidInsertError {
         /// The doubly-certified shell.
         shell: ShellKey,
     },
-    /// The cavity body's orientation reversal failed (tier-1-invalid
-    /// cavity).
-    Revert(RevertError),
-    /// The graft found a structurally corrupt body (the graft's own
-    /// `JoinDesync` reasons, verbatim).
-    Corrupt {
-        /// What was wrong.
-        what: &'static str,
+    /// A destination solid does not resolve in the destination body.
+    StaleSolid {
+        /// The destination solid key.
+        solid: SolidKey,
     },
-    /// A transplanted edge description failed re-certification
-    /// against the transplanted surfaces.
-    Recertify(geom_brep::CertifyError),
+    /// The destination solids do not pair one to one with the cavity's
+    /// solids, or the cavity holds none.
+    SolidCount {
+        /// How many destination solids the call names.
+        destinations: usize,
+        /// How many solids the cavity holds.
+        cavity_solids: usize,
+    },
 }
 
 impl core::fmt::Display for VoidInsertError {
@@ -187,20 +215,28 @@ impl core::fmt::Display for VoidInsertError {
                 "evidence names shell {shell:?}, which the \
                  cavity body does not hold (caller desync)"
             ),
+            Self::HollowCavity { .. } => write!(
+                f,
+                "the cavity is hollow, and the void door inserts a cavity of one shell per \
+                 solid; insert each shell's cavity on its own (caller error)"
+            ),
             Self::DuplicateEvidence { shell } => write!(
                 f,
                 "evidence certifies shell {shell:?} twice — the door \
                  never resolves conflicting certificates by list order (caller desync)"
             ),
-            Self::Revert(e) => write!(f, "cavity revert failed: {e:?}"),
-            Self::Corrupt { what } => write!(f, "{what}"),
-            Self::Recertify(e) => {
-                write!(
-                    f,
-                    "graft re-certification refused: {}",
-                    e.render(geom_brep::recourse::Reading::Build)
-                )
-            }
+            Self::StaleSolid { solid } => write!(
+                f,
+                "destination solid {solid:?} does not resolve in the destination body"
+            ),
+            Self::SolidCount {
+                destinations,
+                cavity_solids,
+            } => write!(
+                f,
+                "the void door takes one destination solid per cavity solid, and a cavity of \
+                 at least one: the call names {destinations} for a cavity of {cavity_solids}"
+            ),
         }
     }
 }
@@ -247,29 +283,24 @@ impl VoidInserted {
 /// `dst` (module docs: the contract, the evidence discipline, and
 /// what the door does not run).
 ///
-/// `cavity` is a **positively oriented** single-solid closed body —
-/// the material that is being removed, exactly as a subtraction's B
-/// operand — consumed by value; the door reverses it and transplants
-/// its shells. `evidence` must certify every shell of `cavity`
-/// strictly inside `dst_solid`'s material. The shell verb hands
-/// [`insert_voids`] the whole moved clone of its operand — several
-/// shells per solid — and then re-homes each transplanted void twin
-/// into a solid of its own ([`crate::shell`](mod@crate::shell)'s
-/// thin-solid step), so the grafted every-shell-under-its-own-solid
-/// state is that caller's transient, never its result.
+/// `cavity` is a **positively oriented** single-solid closed body of
+/// one shell — the material that is being removed, exactly as a
+/// subtraction's B operand — consumed by value; the door reverses it
+/// and transplants its shell. `evidence` must certify every shell of
+/// `cavity` strictly inside `dst_solid`'s material. A hollow cavity
+/// refuses ([`VoidInsertError::HollowCavity`]): its voids would face
+/// outward once reverted, pieces of material under one solid.
 ///
 /// # Errors
 ///
-/// [`VoidInsertError`] — evidence refusals before any mutation;
-/// revert/graft refusals verbatim.
+/// [`VoidInsertError`] — [`insert_voids`]'s, before any mutation.
 pub fn insert_void<T: Decide>(
     dst: &mut Body<T>,
     dst_solid: SolidKey,
     cavity: Body<T>,
     evidence: &VoidEvidence,
-    tol: Tol,
 ) -> Result<VoidInserted, VoidInsertError> {
-    insert_voids(dst, &[dst_solid], cavity, evidence, tol)
+    insert_voids(dst, &[dst_solid], cavity, evidence)
 }
 
 /// [`insert_void`] for a cavity body holding N solids: `dst_solids`
@@ -289,19 +320,61 @@ pub fn insert_void<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`VoidInsertError`] — the evidence refusals before any mutation; a
-/// destination count that does not match the cavity's solid count as
-/// [`VoidInsertError::Corrupt`], the graft's own arity refusal
-/// verbatim; revert and graft refusals verbatim.
+/// [`VoidInsertError`] — a destination count that does not match the
+/// cavity's solid count, or a cavity of no solid, as
+/// [`VoidInsertError::SolidCount`]; a destination solid that does not
+/// resolve in `dst` as [`VoidInsertError::StaleSolid`]; the evidence
+/// refusals. Every refusal leaves `dst`
+/// unchanged.
+///
+/// # Panics
+///
+/// Where a record of the cavity does not resolve, naming it (D2 row 4):
+/// a body no public door leaves. The graft is staged, so `dst` is
+/// unwritten when it fires.
 pub fn insert_voids<T: Decide>(
     dst: &mut Body<T>,
     dst_solids: &[SolidKey],
     cavity: Body<T>,
     evidence: &VoidEvidence,
-    tol: Tol,
 ) -> Result<VoidInserted, VoidInsertError> {
-    // ---- Evidence check (pure reads, first — no mutation happens
-    // unless every cavity shell is certified strictly inside). ----
+    if let Some((solid, _)) = cavity.solids().find(|(_, s)| s.shells.len() > 1) {
+        return Err(VoidInsertError::HollowCavity { solid });
+    }
+    insert_hollow_voids(dst, dst_solids, cavity, evidence)
+}
+
+/// [`insert_voids`] admitting a hollow cavity, for the verbs that file
+/// its pieces themselves: a hollow cavity's voids face outward once
+/// reverted, so every shell landing under one solid is the caller's
+/// transient, never its result. The shell verb re-homes each
+/// transplanted void twin with the operand void it pairs with
+/// ([`crate::shell`](mod@crate::shell)'s thin-solid step, paired off
+/// the graft map), and every boolean result is sorted into pieces at
+/// its exit ([`crate::pieces`]).
+///
+/// # Errors
+///
+/// As [`insert_voids`], less [`VoidInsertError::HollowCavity`].
+pub(crate) fn insert_hollow_voids<T: Decide>(
+    dst: &mut Body<T>,
+    dst_solids: &[SolidKey],
+    cavity: Body<T>,
+    evidence: &VoidEvidence,
+) -> Result<VoidInserted, VoidInsertError> {
+    // ---- Argument checks (pure reads, first — no mutation happens
+    // unless the destinations resolve and pair with the cavity's
+    // solids, and every cavity shell is certified strictly inside). ----
+    let cavity_solids = cavity.solids().count();
+    if dst_solids.len() != cavity_solids || cavity_solids == 0 {
+        return Err(VoidInsertError::SolidCount {
+            destinations: dst_solids.len(),
+            cavity_solids,
+        });
+    }
+    if let Some(&solid) = dst_solids.iter().find(|&&k| dst.get_solid(k).is_none()) {
+        return Err(VoidInsertError::StaleSolid { solid });
+    }
     for (i, &(shell, _)) in evidence.shells.iter().enumerate() {
         if cavity.get_shell(shell).is_none() {
             return Err(VoidInsertError::ForeignShell { shell });
@@ -344,20 +417,76 @@ pub fn insert_voids<T: Decide>(
         };
         (dst.arena_counts(), transplant)
     };
-    let reversed = cavity.revert().map_err(VoidInsertError::Revert)?;
-    let graft = graft_solids_with(dst, dst_solids, &reversed, Bridge::Recertify, tol).map_err(
-        |e| match e {
-            BooleanError::JoinDesync { what } => VoidInsertError::Corrupt { what },
-            BooleanError::GraftRecertify(c) => VoidInsertError::Recertify(c),
-            // The graft's error surface is exactly the two arms above;
-            // anything else arriving here is a kernel bug, surfaced typed
-            // rather than panicked (D9: never a panic on an error path).
-            _ => VoidInsertError::Corrupt {
-                what: "graft refused outside its own error surface (kernel bug)",
-            },
-        },
-    )?;
+    let reversed = cavity.revert();
+    let graft =
+        graft_solids_with(dst, dst_solids, &reversed, Bridge::RemapKeys).unwrap_or_else(|e| {
+            unreachable!(
+                "the void graft refused ({e:?}): its every argument refusal was checked above \
+                 (destinations live and one per cavity solid), and a handle-remapping graft \
+                 re-certifies nothing"
+            )
+        });
     #[cfg(debug_assertions)]
     dst.assert_euler_postcondition(before, transplant, "insert_voids");
     Ok(VoidInserted { graft })
+}
+
+/// **A torn cavity panics before the destination is written.** The
+/// cavity is a body every public door keeps tier-1-valid, so a record
+/// the door cannot follow is a kernel bug (D2 row 4), and the panic
+/// names it. No public door tears a body, so the row tears one in-crate:
+/// a vertex's point removed. Where debug assertions are on, the
+/// reversal's tier-1 postcondition meets it first; without them the
+/// graft does, inside its stage. Either names the vertex and its point.
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod torn_cavity_rows {
+    use super::{VoidContainment, VoidEvidence, insert_void};
+    use crate::test_support_fixtures::brick;
+    use geom_core::{Sign, Tol};
+
+    #[test]
+    fn a_torn_cavity_panics_naming_the_record_with_dst_unchanged() {
+        let tol = Tol::witness();
+        let mut dst = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let solid = dst.solids().next().expect("a solid").0;
+        let mut cavity = brick::<f64>((0.25, 0.75), (0.25, 0.75), (0.25, 0.75), tol);
+        let (vertex, point) = cavity
+            .vertices()
+            .next()
+            .map(|(k, v)| (k, v.point))
+            .expect("a vertex");
+        cavity.points.remove(point).expect("its point");
+        let evidence = VoidEvidence {
+            shells: cavity
+                .shells()
+                .map(|(s, _)| {
+                    let sign = Sign::Positive;
+                    (s, VoidContainment::Carried { sign })
+                })
+                .collect(),
+        };
+        let before = format!("{dst:?}");
+        let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+            let _ = insert_void(&mut dst, solid, cavity, &evidence);
+        }));
+        for fragment in [format!("{vertex:?}"), format!("{point:?}")] {
+            assert!(report.contains(&fragment), "want {fragment:?} in: {report}");
+        }
+        #[cfg(not(debug_assertions))]
+        {
+            use crate::entity::{EntityId, GeomRef};
+            let want = format!(
+                "{}'s point names {}, which does not resolve",
+                EntityId::Vertex(vertex),
+                GeomRef::Point(point)
+            );
+            assert!(report.contains(&want), "want {want:?} in: {report}");
+        }
+        assert_eq!(
+            format!("{dst:?}"),
+            before,
+            "the panic wrote the destination"
+        );
+    }
 }

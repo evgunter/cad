@@ -27,7 +27,7 @@ use geom_brep::EdgeDescription;
 use geom_core::k_stats::Bracket;
 use geom_core::{Band, Bounds, Interval, Sign, Tol};
 use sweep::blend::BlendError;
-use sweep::blend::battery::cap_transverse;
+use sweep::blend::battery::{EndSection, cap_transverse};
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{
     ROD_FILLET, ROD_FLAT, ROD_L, ROD_R, assert_naming_totality, rod_creases, rod_d_profile_at,
@@ -73,8 +73,13 @@ fn the_rod_carves_at_the_certified_scalar_and_brackets_the_prism_closed_form() {
     );
 
     let bracket = Bracket::open();
-    let out = fillet_edges(&source, &creases, iv(r), tol)
-        .unwrap_or_else(|e| panic!("the ruled band carves at Interval, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol),
+        &creases,
+        iv(r),
+        tol,
+    )
+    .unwrap_or_else(|e| panic!("the ruled band carves at Interval, got {e:?}"));
     let log = bracket.finish().verdicts;
     let caps: Vec<_> = log
         .iter()
@@ -179,8 +184,9 @@ fn the_rod_carves_at_the_certified_scalar_and_brackets_the_prism_closed_form() {
     );
 }
 
-/// **The two-tolerance trio for `fillet3_cap_transverse` at `Interval`**:
-/// each arm is reachable and distinct at the certified scalar.
+/// **The kind-picker `fillet3_cap_transverse` at `Interval`**: the
+/// circle, the ellipse and the escalation are each reachable and
+/// distinct at the certified scalar.
 #[test]
 fn cap_transverse_trio_at_the_certified_scalar() {
     let band = Band::linear(Tol::witness()).expect("a band");
@@ -188,20 +194,28 @@ fn cap_transverse_trio_at_the_certified_scalar() {
     let tau = v3(0.0, 0.0, 1.0);
     let lever = iv(1.0);
     // Transverse: the cap normal IS the ruling.
-    cap_transverse(v, v3(0.0, 0.0, -1.0), tau, lever, band).expect("a perpendicular cap is Zero");
-    // Oblique: a definite departure refuses as the run-out it is. The
-    // normal is the f64 twin's, derived from the tilt.
+    let radius = iv(0.1);
+    let circle = cap_transverse(v, v3(0.0, 0.0, -1.0), tau, radius, lever, band)
+        .expect("a perpendicular cap is Zero");
+    assert!(matches!(circle, EndSection::Circle), "{circle:?}");
+    // Oblique: a definite departure picks the ellipse, its major axis
+    // enclosing `r / cos φ`. The normal is the f64 twin's, derived from
+    // the tilt.
     let phi = 0.3f64;
-    let oblique = cap_transverse(v, v3(phi.sin(), 0.0, phi.cos()), tau, lever, band)
-        .expect_err("an oblique cap refuses");
+    let oblique = cap_transverse(v, v3(phi.sin(), 0.0, phi.cos()), tau, radius, lever, band)
+        .expect("an oblique cap is the ellipse");
+    let EndSection::Ellipse(geom::Curve3::Ellipse { major, .. }) = oblique else {
+        panic!("a definite departure picks the ellipse, got {oblique:?}");
+    };
+    let expected = 0.1 / phi.cos();
     assert!(
-        matches!(oblique, BlendError::UnsupportedRunOut { .. }),
-        "the oblique cap is a run-out, got {oblique:?}"
+        major.lo() <= expected && expected <= major.hi() && major.hi() - major.lo() < 1e-15,
+        "the major axis encloses r / cos φ: {major:?}"
     );
     // In band: a departure between the band's zero and its escalate.
     let t = 0.5 * (band.zero() + band.escalate());
-    let escalated =
-        cap_transverse(v, v3(t, 0.0, 1.0), tau, lever, band).expect_err("an in-band cap escalates");
+    let escalated = cap_transverse(v, v3(t, 0.0, 1.0), tau, radius, lever, band)
+        .expect_err("an in-band cap escalates");
     match escalated {
         BlendError::Escalated { source, .. } => {
             assert_eq!(source.predicate, Some("fillet3_cap_transverse"));

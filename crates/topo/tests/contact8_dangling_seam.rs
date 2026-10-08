@@ -14,12 +14,14 @@
 
 use crate::common;
 
-use common::{brick, describe_as_intersections, flush_declarations, holed_block, prism_z};
+use common::{
+    brick, describe_as_intersections, finished, flush_declarations, holed_block, prism_z,
+};
 use geom_core::Tol;
 use topo::validate::{validate_closed, validate_geometric};
 use topo::{
-    Body, BooleanBody, BooleanDeclarations, BooleanError, BooleanResult, LoopBoundary, Operand,
-    mass_properties, union_with, validate_pseudomanifold,
+    AtRestBody, Body, BooleanBody, BooleanDeclarations, BooleanError, BooleanResult, LoopBoundary,
+    Operand, mass_properties, union_with, validate_pseudomanifold,
 };
 
 fn unwrap_body(r: BooleanResult<f64>) -> BooleanBody<f64> {
@@ -69,16 +71,29 @@ fn assert_green(bb: &BooleanBody<f64>, what: &str) {
 /// bent 90° at (1, 1).
 fn a_union_f() -> BooleanBody<f64> {
     let tol = Tol::witness();
-    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
-    let f = brick::<f64>((0.5, 1.5), (0.5, 1.5), (0.0, 1.0), tol);
+    let a = finished(
+        "a",
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    );
+    let f = finished(
+        "f",
+        brick::<f64>((0.5, 1.5), (0.5, 1.5), (0.0, 1.0), tol),
+        tol,
+    );
     let decls = flush_declarations(&a, &f, tol);
     assert_eq!(decls.coincident_faces.len(), 2, "both caps declared");
     unwrap_body(union_with(&a, &f, &decls, tol).expect("the declared area-overlap union runs"))
 }
 
 /// The third brick, touching both blocks.
-fn c() -> Body<f64> {
-    brick::<f64>((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), Tol::witness())
+fn c() -> AtRestBody<f64> {
+    let tol = Tol::witness();
+    finished(
+        "c",
+        brick::<f64>((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    )
 }
 
 /// **The two cap pairs merge**: two `Merged` rows, one cap at each
@@ -159,27 +174,29 @@ fn the_merged_union_refuses_an_undeclared_third_brick_across_operands() {
         "({fa:?}, {fb:?}) is a flush pair of the two operands: {:?}",
         flush.coincident_faces
     );
-    // ...and it is the two BOTTOM caps: the merged union's octagonal
-    // bottom and c's bottom, the first flush pair the gate meets.
-    assert_eq!(face_height(&af.body, fa), Some(0.0), "{err:?}");
-    assert_eq!(face_height(&c(), fb), Some(0.0), "{err:?}");
+    // ...and it is the two TOP caps: the merged union's octagonal top
+    // and c's top, the first continuation the reduction's scan meets in
+    // arena order.
+    assert_eq!(face_height(&af.body, fa), Some(1.0), "{err:?}");
+    assert_eq!(face_height(&c(), fb), Some(1.0), "{err:?}");
 }
 
 /// **The bent seam's corner is deleted, and no record survives to
 /// cite it.** The union ships no contact records at all: every
 /// reduction record here rests at a seam vertex the zip fused, and is
-/// consumed there, before the merge runs. That is why the drop rule
-/// for a pruned vertex is pinned on the merge's real outcome in
-/// `boolean::ops`' `a_record_citing_a_pruned_free_end_drops` rather
-/// than here.
+/// consumed there, before the merge runs. That is why the rule for a
+/// pruned vertex (a record citing it lands on the face that swallowed
+/// it) is pinned on the merge's real outcome in `boolean::ops`'
+/// `a_record_citing_a_pruned_free_end_lands_on_the_face_that_swallowed_it`
+/// rather than here.
 #[test]
 fn the_bent_seams_corner_is_deleted_and_no_record_survives() {
     let bb = a_union_f();
     assert_eq!(bb.contacts, Default::default(), "{:?}", bb.contacts);
-    let at_corner = bb.body.vertices().any(|(_, v)| {
-        let p = bb.body.get_point(v.point).unwrap();
-        (p.x, p.y) == (1.0, 1.0)
-    });
+    let at_corner = bb
+        .body
+        .vertex_points()
+        .any(|(_, p)| (p.x, p.y) == (1.0, 1.0));
     assert!(!at_corner, "the bent seam's corner went with its seam");
 }
 
@@ -209,7 +226,12 @@ fn a_bent_seam_around_a_hole_merges_to_one_ringed_cap() {
         tol,
     )
     .body;
-    let bar = brick::<f64>((0.5, 2.5), (2.0, 3.5), (0.0, 1.0), tol);
+    let u = finished("U", u, tol);
+    let bar = finished(
+        "bar",
+        brick::<f64>((0.5, 2.5), (2.0, 3.5), (0.0, 1.0), tol),
+        tol,
+    );
     let decls = flush_declarations(&u, &bar, tol);
     let bb = unwrap_body(union_with(&u, &bar, &decls, tol).expect("the declared union runs"));
     assert!(
@@ -233,11 +255,11 @@ fn a_bent_seam_around_a_hole_merges_to_one_ringed_cap() {
 
 /// A block with a unit-square through-hole, `[0,3]×[0,2]×[0,2]` less
 /// `[1,2]×[0.5,1.5]`, described.
-fn holed() -> Body<f64> {
+fn holed() -> AtRestBody<f64> {
     let tol = Tol::witness();
     let mut block = holed_block::<f64>(3.0, &[1.5], tol);
     describe_as_intersections(&mut block, tol);
-    block
+    finished("the holed block", block, tol)
 }
 
 /// `holed() ∪ plug`, every flush pair declared, then a next union with
@@ -245,6 +267,7 @@ fn holed() -> Body<f64> {
 /// no skip and stay green, at the volumes given.
 fn assert_plug_merges(plug: Body<f64>, volume: f64, what: &str) {
     let tol = Tol::witness();
+    let plug = finished(what, plug, tol);
     let block = holed();
     let decls = flush_declarations(&block, &plug, tol);
     let bb = unwrap_body(
@@ -267,7 +290,11 @@ fn assert_plug_merges(plug: Body<f64>, volume: f64, what: &str) {
         bb.body.faces().count(),
         bb.naming.merge_groups
     );
-    let next = brick::<f64>((3.0, 4.0), (0.0, 2.0), (0.0, 2.0), tol);
+    let next = finished(
+        "next",
+        brick::<f64>((3.0, 4.0), (0.0, 2.0), (0.0, 2.0), tol),
+        tol,
+    );
     let decls = flush_declarations(&bb.body, &next, tol);
     let nb = unwrap_body(
         union_with(&bb.body, &next, &decls, tol)
@@ -290,6 +317,19 @@ fn assert_plug_merges(plug: Body<f64>, volume: f64, what: &str) {
 #[test]
 fn an_exactly_plugged_hole_merges_to_whole_caps() {
     let plug = brick::<f64>((1.0, 2.0), (0.5, 1.5), (0.0, 2.0), Tol::witness());
+    let block = holed();
+    let decls = flush_declarations(&block, &plug, Tol::witness());
+    let join = topo::test_support::boolean_join_refusal(
+        topo::BooleanOp::Union,
+        &block,
+        &plug,
+        &decls,
+        Tol::witness(),
+    );
+    assert!(
+        matches!(join, Ok(None)),
+        "the join builds the exact plug, not the declared-REST zip: got {join:?}"
+    );
     assert_plug_merges(plug, 12.0, "exact plug");
 }
 
@@ -319,7 +359,11 @@ fn an_oversized_plug_merges_to_whole_caps() {
 #[test]
 fn a_plug_folded_first_merges_into_the_face_it_plugs() {
     let tol = Tol::witness();
-    let plug = brick::<f64>((1.0, 2.0), (0.5, 1.5), (0.0, 2.0), tol);
+    let plug = finished(
+        "plug",
+        brick::<f64>((1.0, 2.0), (0.5, 1.5), (0.0, 2.0), tol),
+        tol,
+    );
     let block = holed();
     let decls = flush_declarations(&plug, &block, tol);
     let bb =

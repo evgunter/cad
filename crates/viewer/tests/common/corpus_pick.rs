@@ -28,7 +28,7 @@
 
 use bvh::{Aabb, Bvh, Ray};
 use editor_core::resolve::{TSpan, answer_of, crossing, ray_triangle};
-use editor_core::{DocEdit, Evaluation, Expr, ProfileDoc, RecipeNodeId, SlotId, unparse};
+use editor_core::{DocEdit, Evaluation, Formula, ProfileDoc, RecipeNodeId, SlotId};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use viewer::pickindex::PickIndex;
 use viewer::session::{DocSession, SessionOp};
@@ -319,16 +319,18 @@ pub fn wide_aim(index: &PickIndex) -> impl Iterator<Item = Aim> + '_ {
 /// # Panics
 ///
 /// If `doc` has neither.
-pub fn ring_bump(doc: &ProfileDoc) -> (RecipeNodeId, SlotId, Expr) {
-    let env = doc.param_env::<f64>();
-    for &node in doc.order().iter().rev() {
+pub fn ring_bump(doc: &ProfileDoc) -> (RecipeNodeId, SlotId, Formula) {
+    let env = doc.var_env::<f64>();
+    for &node in doc.ids().iter().rev() {
         match doc.node(node).expect("a node") {
             editor_core::Node::Extrude { distance, .. } => {
-                let value = editor_core::eval(distance, &env).expect("a literal distance");
+                let value = editor_core::eval_var(*distance, editor_core::Dimension::Length, &env)
+                    .expect("a literal distance");
                 return (node, SlotId::Distance, super::len(value * 1.03125));
             }
             editor_core::Node::Revolve { angle, .. } => {
-                let value = editor_core::eval(angle, &env).expect("a literal angle");
+                let value = editor_core::eval_var(*angle, editor_core::Dimension::Angle, &env)
+                    .expect("a literal angle");
                 return (node, SlotId::RevolveAngle, super::ang(value * 0.96875));
             }
             _ => {}
@@ -338,13 +340,14 @@ pub fn ring_bump(doc: &ProfileDoc) -> (RecipeNodeId, SlotId, Expr) {
 }
 
 /// **A slot write as the session's op spells it**: `expr` unparsed into
-/// the text `SessionOp::SetSlotExpression` carries — the one spelling of
-/// that conversion the corpus pick suites share.
-pub fn set_slot(node: RecipeNodeId, slot: SlotId, expr: &Expr) -> SessionOp {
+/// the text `SessionOp::SetSlotExpression` carries, its readers written
+/// by the names `doc` holds — the one spelling of that conversion the
+/// corpus pick suites share.
+pub fn set_slot(doc: &ProfileDoc, node: RecipeNodeId, slot: SlotId, expr: &Formula) -> SessionOp {
     SessionOp::SetSlotExpression {
         node,
         slot,
-        text: unparse(expr),
+        text: doc.unparse(expr),
     }
 }
 
@@ -372,13 +375,16 @@ pub fn over_every_landing(mut sweep: impl FnMut(&str, &str, &PickIndex, &Evaluat
         let mut session = DocSession::inline(doc, tol);
         session.pump();
         landed("gallery_ring", "open", &session);
-        let outcome = session.perform(set_slot(node, slot, &expr));
+        let outcome = session.perform(set_slot(session.committed_doc(), node, slot, &expr));
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
         session.pump();
         landed("gallery_ring", "the first edit", &session);
     }
     for doc in corpus::documents() {
-        let DocEdit::SetParam { node, slot, expr } = doc.bump.clone() else {
+        let DocEdit::SetParam {
+            node, slot, expr, ..
+        } = doc.bump.clone()
+        else {
             continue;
         };
         let mut session = DocSession::inline(doc.doc.clone(), tol);
@@ -387,7 +393,7 @@ pub fn over_every_landing(mut sweep: impl FnMut(&str, &str, &PickIndex, &Evaluat
             continue;
         }
         landed(doc.name, "open", &session);
-        let outcome = session.perform(set_slot(node, slot, &expr));
+        let outcome = session.perform(set_slot(session.committed_doc(), node, slot, &expr));
         if outcome.refusal.is_some() {
             continue;
         }

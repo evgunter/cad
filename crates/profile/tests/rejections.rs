@@ -7,9 +7,9 @@ use crate::common;
 use common::{
     arc_kisses_line, bowtie, chain, circle_h, near_tangent_hole, profile, rect, tangent_hole, tol,
 };
-use geom_core::MarginDiag;
 use geom_core::Point2;
 use geom_core::Tol;
+use geom_core::{ErrorTextReading, MarginDiag};
 
 use profile::{
     ArcSweep, Center, ContactKind, EscalationSite, FILLET_ENCLOSING_RECOURSE, Open, PathError,
@@ -34,15 +34,18 @@ fn empty_profile_is_rejected() {
 }
 
 #[test]
-fn single_vertex_loop_fails_arity() {
+fn empty_loop_fails_arity() {
+    let p = profile(vec![chain(&[])]);
+    assert_eq!(err(&p), ProfileError::EmptyLoop { loop_index: 0 });
+}
+
+/// One vertex is a legal arity (D1's full turn), but the bulge door
+/// cannot express a full turn: its lowering of the zero chord has
+/// radius zero, a segment of no length.
+#[test]
+fn single_bulge_vertex_is_a_degenerate_segment() {
     let p = profile(vec![chain(&[(0.0, 0.0, 1.0)])]);
-    assert_eq!(
-        err(&p),
-        ProfileError::TooFewVertices {
-            loop_index: 0,
-            count: 1,
-        }
-    );
+    assert_eq!(err(&p), ProfileError::DegenerateSegment(sref(0, 0)));
 }
 
 #[test]
@@ -298,14 +301,134 @@ fn arc_kissing_a_line_is_a_tangential_contact() {
     );
 }
 
+/// One circle, its lowest point an in-band height above the bottom
+/// line, carrying either of two arcs between `(3, 3)` and `(1, 3)`:
+/// the major arc dips through that point and escalates on the carrier
+/// clearance; the minor arc bulges up, away from it, and is 3 clear of
+/// the line, so the same carrier clearance is no contact of the
+/// segments' and the loop validates.
+#[test]
+fn an_in_band_line_circle_clearance_escalates_only_where_the_arc_holds_the_graze() {
+    let t = tol().get();
+    let band = t.eps * ((1.0 + t.k) / 2.0);
+    // Half-chord 1, so the bulge is the sagitta: the major arc's
+    // sagitta 3 − band puts the carrier's lowest point at y = band, and
+    // its complement on the same carrier has bulge 1/(3 − band).
+    let sagging = 3.0 - band;
+    let with_arc = |bulge: f64| {
+        profile(vec![chain(&[
+            (0.0, 0.0, 0.0),
+            (4.0, 0.0, 0.0),
+            (4.0, 3.0, 0.0),
+            (3.0, 3.0, bulge),
+            (1.0, 3.0, 0.0),
+            (0.0, 3.0, 0.0),
+        ])])
+    };
+    match err(&with_arc(-sagging)) {
+        ProfileError::Escalated { site, source } => {
+            assert_eq!(site, EscalationSite::SegmentPair(sref(0, 0), sref(0, 3)));
+            assert_eq!(source.predicate, Some("carrier_line_circle"));
+        }
+        other => panic!("the arc through the graze must escalate, got {other:?}"),
+    }
+    with_arc(1.0 / sagging)
+        .validate(tol())
+        .expect("the arc off the graze is clear of the line");
+}
+
+/// Two holes in a square, one touching the other at a vertex that both
+/// of its segments leave nearly tangent to the other's edge. Hole 1
+/// runs down the unit circle centred (0, 1) to `E = (−s, s²/2)`, which
+/// stands within ε of the line y = 0, `s = 3Kε` short of the circle's
+/// tangency point with it; it leaves `E` on the circle of radius ½
+/// tangent to y = 0 a further `s/√2` to the left, so each of its arcs
+/// misses its own tangency point with y = 0 by more than Kε. Its last
+/// side closes along y = 1, tangent to the small circle at its top.
+/// Hole 2 lies under y = 0: the rectangle below it, or (`under = Some(R)`)
+/// a region capped by an arc of the circle of radius `R` tangent to
+/// y = 0 from below at `x = −3.5Kε`, between the two circles' own
+/// tangency points with it, where each arc of hole 1 definitely misses
+/// its tangency with the cap's circle.
+fn holes_touching_between_tangent_arcs(under: Option<f64>) -> profile::Profile<f64> {
+    use geom_core::Arc2;
+    use profile::{ProfileLoop, RawLoop, Segment};
+    let t = tol().get();
+    let s = 3.0 * t.k * t.eps;
+    let touch = Point2::new(-s, s * s / 2.0);
+    let small = Point2::new(-s - (touch.y - touch.y * touch.y).sqrt(), 0.5);
+    let top = Point2::new(small.x, 1.0);
+    let angle = |c: Point2<f64>, p: Point2<f64>| (p.y - c.y).atan2(p.x - c.x);
+    let big = Point2::new(0.0, 1.0);
+    let down = (angle(big, touch) - std::f64::consts::PI).rem_euclid(std::f64::consts::TAU);
+    let up = (angle(small, top) - angle(small, touch)).rem_euclid(std::f64::consts::TAU);
+    let arc = |centre, radius, sweep| {
+        Segment::Arc(Arc2 {
+            centre,
+            radius,
+            sweep,
+        })
+    };
+    let hole = ProfileLoop::new([
+        (Point2::new(-1.0, 1.0), arc(big, 1.0, down)),
+        (touch, arc(small, 0.5, up)),
+        (top, Segment::Line),
+    ])
+    .with_tangent_joints(vec![1, 2]);
+    let under = match under {
+        None => rect(-1.0, -1.0, 2.0, 1.0),
+        Some(r) => {
+            let x = -3.5 * t.k * t.eps;
+            let y = (r * r - 1.0).sqrt() - r;
+            let cap = arc(Point2::new(x, -r), r, 2.0 * (1.0 / r).asin());
+            ProfileLoop::new([
+                (Point2::new(x + 1.0, y), cap),
+                (Point2::new(x - 1.0, y), Segment::Line),
+                (Point2::new(x - 1.0, -3.0), Segment::Line),
+                (Point2::new(x + 1.0, -3.0), Segment::Line),
+            ])
+        }
+    };
+    profile(vec![rect(-5.0, -5.0, 10.0, 10.0), hole, under])
+}
+
+/// **A touch between two holes, at a vertex whose two segments each
+/// miss their tangency with the other hole's edge, is refused** at
+/// `f64` and at `Interval`, against a line (the rectangle's top) and
+/// against an arc (a cap tangent to y = 0 from below). The touching
+/// vertex stands within 4.5·K²ε² of the other edge. The cap is moved
+/// off the origin because one tangent there escalates instead: its
+/// tangency with the small circle falls within Kε of `E`, where the
+/// small arc's span reads it in band.
+#[test]
+fn holes_touching_at_a_vertex_between_two_tangent_arcs_are_non_simple() {
+    for (under, edge) in [(None, 2), (Some(2.0), 0)] {
+        let p = holes_touching_between_tangent_arcs(under);
+        let want = ProfileError::NonSimple {
+            first: sref(1, 0),
+            second: sref(2, edge),
+            kind: ContactKind::Touch,
+        };
+        assert_eq!(err(&p), want, "f64, under {under:?}");
+        assert_eq!(
+            common::lift::<geom_core::Interval>(&p)
+                .validate(tol())
+                .map(|_| ())
+                .expect_err("the Interval profile must be rejected"),
+            want,
+            "Interval, under {under:?}"
+        );
+    }
+}
+
 #[test]
 fn near_tangent_hole_escalates_on_the_internal_clearance() {
     match err(&near_tangent_hole(tol().eps())) {
         ProfileError::Escalated { site, source } => {
             assert_eq!(site, EscalationSite::SegmentPair(sref(0, 0), sref(1, 0)));
             assert_eq!(source.predicate, Some("carrier_circles_internal"));
-            match source.margin {
-                MarginDiag::Value(m) => {
+            match source.margin.diagnostic_f64_for_error_text() {
+                ErrorTextReading::Value(m) => {
                     // The clearance is −5ε (up to the cancellation ulp).
                     let eps = tol().eps();
                     assert!(
@@ -361,7 +484,7 @@ fn nan_coordinates_poison_to_a_typed_error() {
     ])]);
     match err(&p) {
         ProfileError::Escalated { source, .. } => {
-            assert_eq!(source.margin, MarginDiag::Invalid);
+            assert_eq!(source.margin, MarginDiag::INVALID);
         }
         other => panic!("expected poison escalation, got {other:?}"),
     }
@@ -377,7 +500,7 @@ fn nan_bulge_poisons_to_a_typed_error() {
     match err(&p) {
         ProfileError::Escalated { site, source } => {
             assert_eq!(site, EscalationSite::Segment(sref(0, 0)));
-            assert_eq!(source.margin, MarginDiag::Invalid);
+            assert_eq!(source.margin, MarginDiag::INVALID);
             assert_eq!(source.predicate, Some("segment_straightness"));
         }
         other => panic!("expected poison escalation, got {other:?}"),
@@ -443,7 +566,10 @@ fn error_display_is_actionable() {
 
     let e = err(&near_tangent_hole(tol().eps()));
     let msg = e.to_string();
-    assert!(msg.contains("carrier_circles_internal"), "{msg}");
+    assert!(
+        format!("{e:?}").contains("carrier_circles_internal"),
+        "{e:?}"
+    );
     assert!(msg.contains("ambiguity band"), "{msg}");
     assert_eq!(
         msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
@@ -538,4 +664,56 @@ fn a_radius_within_the_band_of_a_carrier_radius_escalates_the_enclosing_gate() {
         rendered.contains(FILLET_ENCLOSING_RECOURSE),
         "the enclosing recourse is missing: {rendered}"
     );
+}
+
+/// A two-segment table: a counterclockwise half turn about the origin of
+/// stored radius `r`, from `(r + off, 0)` to `(−r, 0)`, and the line
+/// back. `off` puts the start `off` off the carrier.
+fn half_turn_table(r: f64, off: f64) -> profile::Profile<f64> {
+    use geom_core::Arc2;
+    use profile::{ProfileLoop, RawLoop, Segment};
+    let arc = Arc2 {
+        centre: Point2::new(0.0, 0.0),
+        radius: r,
+        sweep: std::f64::consts::PI,
+    };
+    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new([
+        (Point2::new(r + off, 0.0), Segment::Arc(arc)),
+        (Point2::new(-r, 0.0), Segment::Line),
+    ]);
+    profile(vec![lp])
+}
+
+/// **A table arc read off its vertex below the scene's resolution is
+/// refused as unreadable, not as inconsistent.** The radius is the
+/// power of two whose ulp is at least 4·K·ε at the running ε, so
+/// `f64` rounding at that magnitude is past the escalation band, and
+/// the start sits one ulp off the carrier: `arc_start_on_carrier`
+/// reads a definite difference, and `arc_carrier_resolution` says the
+/// scene cannot read it. The same one-ulp-scale offset (2·K·ε) at
+/// radius 1 is a real inconsistency, the control.
+#[test]
+fn a_table_arc_off_its_vertex_below_the_scene_resolution_is_unreadable_not_inconsistent() {
+    let band = geom_core::Band::linear(tol()).expect("the suite's band");
+    let floor = 4.0 * band.escalate();
+    let mut r = 1.0_f64;
+    while r * f64::EPSILON < floor {
+        r *= 2.0;
+    }
+    let ulp = r * f64::EPSILON;
+    assert!(ulp >= floor && ulp > band.escalate());
+    match err(&half_turn_table(r, ulp)) {
+        ProfileError::ArcBelowSceneResolution { at, check, .. } => {
+            assert_eq!(at, sref(0, 0));
+            assert_eq!(check, profile::ArcCheck::OnCarrier);
+        }
+        other => panic!("expected the scene-resolution refusal at r = {r:e}, got {other:?}"),
+    }
+    match err(&half_turn_table(1.0, 2.0 * band.escalate())) {
+        ProfileError::InconsistentArc { at, check } => {
+            assert_eq!(at, sref(0, 0));
+            assert_eq!(check, profile::ArcCheck::OnCarrier);
+        }
+        other => panic!("expected a real inconsistency at r = 1, got {other:?}"),
+    }
 }

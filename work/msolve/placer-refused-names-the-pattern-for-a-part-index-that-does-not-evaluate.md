@@ -2,11 +2,12 @@
 id: placer-refused-names-the-pattern-for-a-part-index-that-does-not-evaluate
 kind: issue
 title: check_reference sites a Part's non-evaluating index at the pattern below it, so PlacerRefused names a node that evaluates
-status: open
+status: closed
 priority: P3
 cost: E
 opened: 2026-09-22
 parent: MSOLVE-11
+closed: 2026-10-01
 ---
 
 ## Finding
@@ -61,3 +62,27 @@ the fault names, and the fix stays here. `tree.rs`'s module header
 names this row.
 
 Signed: (CHROME implementer lane, `chrome/placer-link`)
+
+## Closed — the `Part`'s index is refused at the `Part` (PR 3680)
+
+In the `Part`-agreement loop (`mate/member.rs`, `check_reference`),
+the `Part`'s own index is evaluated with `count_of(part, …,
+SlotId::Instance, PlacerRow::States)`. `PlacerRefused::placer` is now
+the `Part`, which fails in its own right with the same refusal. The
+`MissingInput` arm is sited at the `Part` too, and the arm says no
+door reaches it: the walk recorded the node as a `Part` from the same
+document.
+
+The sweep found one more instance of the class. The flat-row overflow
+(`names::flat_body_index`) was sited at the pattern below. It is a row
+of the value of the pattern the `Part` selects from, so it is now
+sited there.
+
+Rows:
+
+- `msolve11_mate_log::a_parts_index_that_does_not_evaluate_is_refused_at_the_part`
+  constructs the refusal the finding could not: the index
+  `k · i64::MAX + 1` at `k = 1`. It pins that `placer` is the `Part`,
+  that the `Part` is `Failed` on its own `Instance` slot, and that the
+  pattern is `Ok`.
+- `msolve11_mate_log::a_parts_flat_index_past_the_row_width_is_refused_at_the_pattern_it_selects_from`

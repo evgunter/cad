@@ -33,6 +33,9 @@
 //!   per source key, so records that named one dead source entity
 //!   still name one result key. A split lineage therefore chases
 //!   inside `dst` to the root it reached in `src`.
+//! - **A refusal writes nothing.** The transplant is staged in a fresh
+//!   body and committed into `dst` only once it has succeeded in full
+//!   (`graft_staged`).
 //! - The returned [`GraftMap`] is the ONLY bridge between source keys
 //!   and result keys; downstream consumers (the seam zip's
 //!   record-keyed correspondence, contact-record remapping) read it
@@ -50,9 +53,11 @@ use slotmap::{Key, SecondaryMap, SlotMap};
 use super::BooleanError;
 use crate::body::Body;
 use crate::entity::{
-    EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey, VertexKey,
+    EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey,
+    VertexKey,
 };
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
+use crate::live::NAMES_ONLY_LIVE;
 use crate::null::CurveGeom;
 use geom_core::Tol;
 
@@ -62,6 +67,8 @@ use geom_core::Tol;
 pub(crate) struct GraftMap {
     /// Source vertex → result vertex.
     pub vertices: SecondaryMap<VertexKey, VertexKey>,
+    /// Source point → result point.
+    pub points: SecondaryMap<PointKey, PointKey>,
     /// Source face → result face.
     pub faces: SecondaryMap<FaceKey, FaceKey>,
     /// Source edge → result edge (naming emission, M4 PR 3).
@@ -119,6 +126,32 @@ impl<'g, K: Key + Ord, V> KindForward<'g, K, V> {
     }
 }
 
+/// `key`'s image under the graft's `map`, for a key the source record
+/// `holder`'s field `field` names. The maps are total over the source's
+/// live keys, so a miss is a torn source and panics naming the record
+/// (D2 row 4).
+#[track_caller]
+fn image<K: Key, I: core::fmt::Display>(
+    map: &SecondaryMap<K, K>,
+    key: K,
+    id: fn(K) -> I,
+    holder: impl core::fmt::Display,
+    field: &str,
+) -> K {
+    map.get(key)
+        .copied()
+        .unwrap_or_else(|| crate::live::dangling_link(holder, field, id(key)))
+}
+
+/// `key`'s record in the destination arena it was minted into by this
+/// transplant.
+#[track_caller]
+fn fresh<K: Key, V>(arena: &mut SlotMap<K, V>, key: K) -> &mut V {
+    arena.get_mut(key).unwrap_or_else(|| {
+        unreachable!("graft: {key:?}, minted into the destination by this call, does not resolve")
+    })
+}
+
 /// One graft's record forwarding, every key kind a payload carries.
 struct Forward<'g> {
     half_edges: KindForward<'g, HalfEdgeKey, crate::entity::HalfEdge>,
@@ -155,7 +188,21 @@ pub(crate) fn graft_solid<T: geom_core::Decide>(
     src: &Body<T>,
     tol: Tol,
 ) -> Result<GraftMap, BooleanError> {
-    graft_solid_with(dst, dst_solid, src, Bridge::Recertify, tol)
+    graft_solids_with(dst, &[dst_solid], src, Bridge::Recertify { tol })
+}
+
+#[cfg(any(test, feature = "test-support"))]
+thread_local! {
+    /// The bridge each of this thread's grafts ran, in call order: the
+    /// witness a test reads to tell which one a graft took, where both
+    /// mint the same certificates.
+    static BRIDGES: core::cell::RefCell<Vec<Bridge>> = const { core::cell::RefCell::new(Vec::new()) };
+}
+
+/// Drains [`BRIDGES`].
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn take_bridges() -> Vec<Bridge> {
+    BRIDGES.with(|b| core::mem::take(&mut *b.borrow_mut()))
 }
 
 /// How a transplanted edge DESCRIPTION crosses into the destination's
@@ -167,36 +214,35 @@ pub(crate) fn graft_solid<T: geom_core::Decide>(
 /// the difference is which claim the graft makes about the result:
 ///
 /// - [`Bridge::Recertify`] re-runs the certification schedule against
-///   the destination's surfaces — what the boolean pipeline wants,
-///   whose operands have been through surgery.
+///   the destination's surfaces — what the seam-zip lanes want, whose
+///   operands have been through surgery.
 /// - [`Bridge::RemapKeys`] carries the source's certificate verbatim
 ///   with only the handles rewritten
 ///   ([`geom_brep::EdgeCurve::with_remapped_surfaces`]) — what a
 ///   DISJOINT graft wants, where the transplanted geometry is bitwise
-///   the source's and no surgery happened. It is also the only form
-///   that can carry a description the certification lanes cannot
-///   express at all (a rational NURBS wall certifies nowhere), which
-///   is why an import's placed instances take it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+///   the source's and no surgery happened: an import's placed
+///   instances, the void door's reversed cavity
+///   ([`super::voids::insert_voids`]), the containment fallback's
+///   assembly and a sphere re-cut's rotated shells. It is also the only form that
+///   can carry a description the certification lanes cannot express at
+///   all (a rational NURBS wall certifies nowhere), or one only a
+///   lane certifies (a plane × NURBS `Intersection`), at a scalar that
+///   holds none.
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Bridge {
-    /// Re-run the schedule against the destination (booleans).
-    Recertify,
+    /// Re-run the schedule against the destination (the seam-zip
+    /// lanes), at the band of `tol` — the one reader of a tolerance in
+    /// the graft.
+    Recertify {
+        /// The run's tolerance.
+        tol: Tol,
+    },
     /// Rewrite the handles, keep the source's certificate (disjoint).
     RemapKeys,
 }
 
-/// [`graft_solid`] with the description bridge chosen explicitly.
-pub(crate) fn graft_solid_with<T: geom_core::Decide>(
-    dst: &mut Body<T>,
-    dst_solid: SolidKey,
-    src: &Body<T>,
-    bridge: Bridge,
-    tol: Tol,
-) -> Result<GraftMap, BooleanError> {
-    graft_solids_with(dst, &[dst_solid], src, bridge, tol)
-}
-
-/// [`graft_solid_with`] for a source holding N solids: `dst_solids`
+/// [`graft_solid`] for a source holding N solids, with the description
+/// bridge chosen explicitly: `dst_solids`
 /// names one destination solid per source solid, **positionally in the
 /// source's solid order** (slot order, D9), and the arity must match
 /// exactly — a source solid with no destination, or a destination with
@@ -211,9 +257,8 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
     dst_solids: &[SolidKey],
     src: &Body<T>,
     bridge: Bridge,
-    tol: Tol,
 ) -> Result<GraftMap, BooleanError> {
-    graft_solids_impl(dst, Targets::Existing(dst_solids), src, bridge, tol).map(|(map, _)| map)
+    graft_staged(dst, Targets::Existing(dst_solids), src, bridge).map(|(map, _)| map)
 }
 
 /// [`graft_solids_with`] onto destination solids minted here, one per
@@ -224,9 +269,121 @@ pub(crate) fn graft_solids_minted<T: geom_core::Decide>(
     dst: &mut Body<T>,
     src: &Body<T>,
     bridge: Bridge,
-    tol: Tol,
 ) -> Result<(GraftMap, Vec<SolidKey>), BooleanError> {
-    graft_solids_impl(dst, Targets::Minted, src, bridge, tol)
+    graft_staged(dst, Targets::Minted, src, bridge)
+}
+
+/// **Every graft is staged: a refusal, or a panic on a torn source,
+/// leaves `dst` deep-unchanged.** The transplant runs into a fresh body,
+/// which is where every refusal and every source-record panic arises,
+/// and only a transplant that succeeded in full is committed: grafted
+/// from the stage into `dst` with the stage's certificates carried
+/// verbatim. Each destination solid is the caller's to have proven live
+/// in `dst` (the void door refuses one that is not, as its argument).
+/// The stage is a well-formed body this call built, so the commit
+/// cannot refuse; it mints in the stage's slot order, which is the
+/// source's, so `dst` ends key for key as a transplant straight into
+/// it would leave it. The cost is a second transplant of the source,
+/// never a copy of `dst`.
+fn graft_staged<T: geom_core::Decide>(
+    dst: &mut Body<T>,
+    targets: Targets<'_>,
+    src: &Body<T>,
+    bridge: Bridge,
+) -> Result<(GraftMap, Vec<SolidKey>), BooleanError> {
+    #[cfg(any(test, feature = "test-support"))]
+    BRIDGES.with(|b| b.borrow_mut().push(bridge));
+    let mut stage = Body::new();
+    let (staged, _) = match targets {
+        Targets::Minted => graft_solids_impl(&mut stage, Targets::Minted, src, bridge)?,
+        Targets::Existing(dst_solids) => {
+            if let Some(dead) = dst_solids.iter().find(|&&k| dst.get_solid(k).is_none()) {
+                unreachable!(
+                    "graft destination solid {dead:?} does not resolve in the destination: every \
+                     caller passes a solid it resolved there"
+                );
+            }
+            // One stand-in per destination solid, in the same order, so
+            // the commit lands each staged solid's shells positionally.
+            let stand_ins: Vec<SolidKey> = dst_solids
+                .iter()
+                .map(|_| {
+                    stage
+                        .solids
+                        .insert(crate::entity::Solid { shells: Vec::new() })
+                })
+                .collect();
+            graft_solids_impl(&mut stage, Targets::Existing(&stand_ins), src, bridge)?
+        }
+    };
+    let (committed, solids) = match graft_solids_impl(dst, targets, &stage, Bridge::RemapKeys) {
+        Ok(done) => done,
+        Err(e) => unreachable!(
+            "graft commit refused ({e:?}): the stage is a body this call built from a \
+             transplant that succeeded, every reference in it minted by that transplant, \
+             and every destination solid was checked live (kernel bug)"
+        ),
+    };
+    Ok((staged.then(&committed), solids))
+}
+
+/// A graft unstaged, straight into `dst` (`dst_solids` empty mints):
+/// the reference a row holds the staged graft against.
+#[cfg(test)]
+pub(crate) fn graft_unstaged<T: geom_core::Decide>(
+    dst: &mut Body<T>,
+    dst_solids: &[SolidKey],
+    src: &Body<T>,
+) -> Result<(GraftMap, Vec<SolidKey>), BooleanError> {
+    let targets = if dst_solids.is_empty() {
+        Targets::Minted
+    } else {
+        Targets::Existing(dst_solids)
+    };
+    graft_solids_impl(dst, targets, src, Bridge::RemapKeys)
+}
+
+impl GraftMap {
+    /// The bridge of `self` (source → stage) followed by `next`
+    /// (stage → destination). Every stage key `self` names was minted
+    /// by the transplant that built the stage, so `next` holds it.
+    fn then(&self, next: &Self) -> Self {
+        fn chain<K: Key>(a: &SecondaryMap<K, K>, b: &SecondaryMap<K, K>) -> SecondaryMap<K, K> {
+            a.iter()
+                .map(|(k, &mid)| {
+                    let Some(&out) = b.get(mid) else {
+                        unreachable!(
+                            "graft commit: stage key {mid:?} was minted by the staging \
+                             transplant and the commit walks every stage key (kernel bug)"
+                        )
+                    };
+                    (k, out)
+                })
+                .collect()
+        }
+        Self {
+            vertices: chain(&self.vertices, &next.vertices),
+            points: chain(&self.points, &next.points),
+            faces: chain(&self.faces, &next.faces),
+            edges: chain(&self.edges, &next.edges),
+            dead_edges: self
+                .dead_edges
+                .iter()
+                .map(|(&k, mid)| {
+                    let Some(&out) = next.dead_edges.get(mid) else {
+                        unreachable!(
+                            "graft commit: dead stage edge {mid:?} stands for a source key a \
+                             staged record names, and the commit forwards that record again \
+                             (kernel bug)"
+                        )
+                    };
+                    (k, out)
+                })
+                .collect(),
+            surfaces: chain(&self.surfaces, &next.surfaces),
+            shells: chain(&self.shells, &next.shells),
+        }
+    }
 }
 
 /// Which destination solids a graft's source solids land in.
@@ -244,11 +401,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
     targets: Targets<'_>,
     src: &Body<T>,
     bridge: Bridge,
-    tol: Tol,
 ) -> Result<(GraftMap, Vec<SolidKey>), BooleanError> {
-    let corrupt = || BooleanError::JoinDesync {
-        what: "graft source is not a well-formed body",
-    };
     // Arity is this door's precondition, distinct from corruption: the
     // caller states which destination each source solid lands in, so a
     // count mismatch is a caller error, never a thing to guess at.
@@ -277,18 +430,21 @@ fn graft_solids_impl<T: geom_core::Decide>(
         }
         Targets::Minted => {
             for (k, _) in src.solids() {
-                let p = src
-                    .solid_provenance
-                    .get(k)
-                    .ok_or(BooleanError::JoinDesync {
-                        what: "graft source is not a well-formed body: a solid without provenance",
-                    })?;
+                let Some(p) = src.solid_provenance.get(k) else {
+                    unreachable!(
+                        "graft source: solid {k:?} carries no provenance: every entity of a \
+                         tier-1-valid body does, and every public door keeps the body \
+                         tier-1-valid"
+                    )
+                };
                 minted.push((k, p));
             }
         }
     }
     if pairs.is_empty() && minted.is_empty() {
-        return Err(corrupt());
+        return Err(BooleanError::JoinDesync {
+            what: "graft source holds no solid to graft",
+        });
     }
 
     // ---- Geometry arenas (slot order). ----
@@ -333,8 +489,21 @@ fn graft_solids_impl<T: geom_core::Decide>(
             CurveGeom::Certified(_) => c.clone(),
             CurveGeom::NullScaffold(attr) => {
                 let mut attr = *attr;
-                attr.below_end = *vertices.get(attr.below_end).ok_or_else(corrupt)?;
-                attr.above_end = *vertices.get(attr.above_end).ok_or_else(corrupt)?;
+                let holder = GeomRef::Curve(k);
+                attr.below_end = image(
+                    &vertices,
+                    attr.below_end,
+                    EntityId::Vertex,
+                    holder,
+                    "below_end",
+                );
+                attr.above_end = image(
+                    &vertices,
+                    attr.above_end,
+                    EntityId::Vertex,
+                    holder,
+                    "above_end",
+                );
                 CurveGeom::NullScaffold(attr)
             }
         };
@@ -460,58 +629,87 @@ fn graft_solids_impl<T: geom_core::Decide>(
     let dead_edges = fwd.edges.dead;
 
     // ---- Pass 2: patch every cross-reference to result keys. ----
-    let map = |m: &SecondaryMap<VertexKey, VertexKey>, k: VertexKey| m.get(k).copied();
-    for (_, &dk) in vertices.iter() {
-        let v = dst.vertices.get_mut(dk).ok_or_else(corrupt)?;
-        v.point = *points.get(v.point).ok_or_else(corrupt)?;
+    for (k, &dk) in vertices.iter() {
+        let holder = EntityId::Vertex(k);
+        let v = fresh(&mut dst.vertices, dk);
+        v.point = image(&points, v.point, GeomRef::Point, holder, "point");
         if let Some(e) = v.emanating {
-            v.emanating = Some(*half_edges.get(e).ok_or_else(corrupt)?);
+            v.emanating = Some(image(
+                &half_edges,
+                e,
+                EntityId::HalfEdge,
+                holder,
+                "emanating",
+            ));
         }
     }
-    for (_, &dk) in half_edges.iter() {
-        let he = dst.half_edges.get_mut(dk).ok_or_else(corrupt)?;
-        he.edge = *edges.get(he.edge).ok_or_else(corrupt)?;
-        he.start = map(&vertices, he.start).ok_or_else(corrupt)?;
-        he.parent_loop = *loops.get(he.parent_loop).ok_or_else(corrupt)?;
-        he.next = *half_edges.get(he.next).ok_or_else(corrupt)?;
-        he.prev = *half_edges.get(he.prev).ok_or_else(corrupt)?;
+    for (k, &dk) in half_edges.iter() {
+        let holder = EntityId::HalfEdge(k);
+        let he = fresh(&mut dst.half_edges, dk);
+        he.edge = image(&edges, he.edge, EntityId::Edge, holder, "edge");
+        he.start = image(&vertices, he.start, EntityId::Vertex, holder, "start");
+        he.parent_loop = image(
+            &loops,
+            he.parent_loop,
+            EntityId::Loop,
+            holder,
+            "parent_loop",
+        );
+        he.next = image(&half_edges, he.next, EntityId::HalfEdge, holder, "next");
+        he.prev = image(&half_edges, he.prev, EntityId::HalfEdge, holder, "prev");
     }
-    for (_, &dk) in edges.iter() {
-        let e = dst.edges.get_mut(dk).ok_or_else(corrupt)?;
-        e.he_plus = *half_edges.get(e.he_plus).ok_or_else(corrupt)?;
-        e.he_minus = *half_edges.get(e.he_minus).ok_or_else(corrupt)?;
-        e.curve = *curves.get(e.curve).ok_or_else(corrupt)?;
+    for (k, &dk) in edges.iter() {
+        let holder = EntityId::Edge(k);
+        let e = fresh(&mut dst.edges, dk);
+        e.he_plus = image(
+            &half_edges,
+            e.he_plus,
+            EntityId::HalfEdge,
+            holder,
+            "he_plus",
+        );
+        e.he_minus = image(
+            &half_edges,
+            e.he_minus,
+            EntityId::HalfEdge,
+            holder,
+            "he_minus",
+        );
+        e.curve = image(&curves, e.curve, GeomRef::Curve, holder, "curve");
     }
-    for (_, &dk) in loops.iter() {
-        let l = dst.loops.get_mut(dk).ok_or_else(corrupt)?;
+    for (k, &dk) in loops.iter() {
+        let holder = EntityId::Loop(k);
+        let l = fresh(&mut dst.loops, dk);
         l.boundary = match l.boundary {
             LoopBoundary::Empty { vertex } => LoopBoundary::Empty {
-                vertex: map(&vertices, vertex).ok_or_else(corrupt)?,
+                vertex: image(&vertices, vertex, EntityId::Vertex, holder, "vertex"),
             },
             LoopBoundary::Cycle { first } => LoopBoundary::Cycle {
-                first: *half_edges.get(first).ok_or_else(corrupt)?,
+                first: image(&half_edges, first, EntityId::HalfEdge, holder, "first"),
             },
         };
-        l.face = *faces.get(l.face).ok_or_else(corrupt)?;
+        l.face = image(&faces, l.face, EntityId::Face, holder, "face");
     }
-    for (_, &dk) in faces.iter() {
-        let f = dst.faces.get_mut(dk).ok_or_else(corrupt)?;
-        f.surface = *surfaces.get(f.surface).ok_or_else(corrupt)?;
-        f.outer = *loops.get(f.outer).ok_or_else(corrupt)?;
+    for (k, &dk) in faces.iter() {
+        let holder = EntityId::Face(k);
+        let f = fresh(&mut dst.faces, dk);
+        f.surface = image(&surfaces, f.surface, GeomRef::Surface, holder, "surface");
+        f.outer = image(&loops, f.outer, EntityId::Loop, holder, "outer");
         for r in &mut f.rings {
-            *r = *loops.get(*r).ok_or_else(corrupt)?;
+            *r = image(&loops, *r, EntityId::Loop, holder, "rings");
         }
-        f.shell = *shells.get(f.shell).ok_or_else(corrupt)?;
+        f.shell = image(&shells, f.shell, EntityId::Shell, holder, "shell");
     }
     for (sk, &dk) in shells.iter() {
         // A shell lands under the destination of the solid that owns
         // it in the source — its own back-pointer, so a multi-solid
         // source keeps every shell with its solid.
-        let owner = src.shells.get(sk).ok_or_else(corrupt)?.solid;
-        let target = *solid_map.get(owner).ok_or_else(corrupt)?;
-        let s = dst.shells.get_mut(dk).ok_or_else(corrupt)?;
+        let holder = EntityId::Shell(sk);
+        let owner = src.shells[sk].solid;
+        let target = image(&solid_map, owner, EntityId::Solid, holder, "solid");
+        let s = fresh(&mut dst.shells, dk);
         for f in &mut s.faces {
-            *f = *faces.get(*f).ok_or_else(corrupt)?;
+            *f = image(&faces, *f, EntityId::Face, holder, "faces");
         }
         s.solid = target;
     }
@@ -519,20 +717,26 @@ fn graft_solids_impl<T: geom_core::Decide>(
     // ---- Null-face records (loop-role attributes travel remapped;
     // fully-finished grafts carry none). ----
     for (k, pair) in src.null_faces.iter() {
-        let dk = *faces.get(k).ok_or_else(corrupt)?;
-        let ml = |l: LoopKey| loops.get(l).copied().ok_or_else(corrupt);
+        let holder = EntityId::Face(k);
+        let dk = faces.get(k).copied().unwrap_or_else(|| {
+            unreachable!(
+                "graft source: a null-face record names {holder}, which does not resolve: a \
+                 null-face record is removed with its face, and {NAMES_ONLY_LIVE}"
+            )
+        });
+        let ml = |l: LoopKey, field| image(&loops, l, EntityId::Loop, holder, field);
         let mapped = match *pair {
             crate::null::NullFacePair::Split {
                 above_loop,
                 below_loop,
             } => crate::null::NullFacePair::Split {
-                above_loop: ml(above_loop)?,
-                below_loop: ml(below_loop)?,
+                above_loop: ml(above_loop, "above_loop"),
+                below_loop: ml(below_loop, "below_loop"),
             },
             crate::null::NullFacePair::Boolean { in_copy, out_copy } => {
                 crate::null::NullFacePair::Boolean {
-                    in_copy: ml(in_copy)?,
-                    out_copy: ml(out_copy)?,
+                    in_copy: ml(in_copy, "in_copy"),
+                    out_copy: ml(out_copy, "out_copy"),
                 }
             }
         };
@@ -554,6 +758,14 @@ fn graft_solids_impl<T: geom_core::Decide>(
         };
         dst.pcurves.insert(dk, cache.clone());
     }
+    // The joint elements go with their half-edges the same way: the
+    // graft copies every link, so each joint is the joint it was.
+    for (k, &element) in src.joints.iter() {
+        let Some(&dk) = half_edges.get(k) else {
+            continue;
+        };
+        dst.joints.insert(dk, element);
+    }
 
     // ---- Description surface-key remap (M3 PR 5, the extrude-operand
     // finding): `Intersection`/`Seam` descriptions reference SURFACE
@@ -563,14 +775,22 @@ fn graft_solids_impl<T: geom_core::Decide>(
     // parameters, witness, and surface values ⇒ deterministic — D9);
     // a refusal here is loud, never a dangling reference. ----
     for (k, &dk) in curves.iter() {
-        let Some(CurveGeom::Certified(curve)) = src.curves.get(k) else {
+        // `curves` holds exactly the source arena's keys.
+        let CurveGeom::Certified(curve) = crate::live::proven(&src.curves, k, GeomRef::Curve)
+        else {
             continue;
         };
-        if bridge == Bridge::RemapKeys {
+        let Bridge::Recertify { tol } = bridge else {
             // Handles only, certificate verbatim (see `Bridge`).
             let remapped = curve
                 .with_remapped_surfaces(|sk| surfaces.get(sk).copied())
-                .ok_or_else(corrupt)?;
+                .unwrap_or_else(|| {
+                    unreachable!(
+                        "graft source: {}'s description names a surface the source does not \
+                         hold: {NAMES_ONLY_LIVE}",
+                        GeomRef::Curve(k)
+                    )
+                });
             let Some(slot) = dst.curves.get_mut(dk) else {
                 unreachable!(
                     "graft (handle remap): `dk` was minted into `dst.curves` by this \
@@ -579,19 +799,19 @@ fn graft_solids_impl<T: geom_core::Decide>(
             };
             *slot = CurveGeom::Certified(remapped);
             continue;
-        }
+        };
         let description = match *curve.description() {
             geom_brep::EdgeDescription::Intersection { s1, s2, witness } => {
                 geom_brep::EdgeDescriptionSpec::Intersection {
-                    s1: *surfaces.get(s1).ok_or_else(corrupt)?,
-                    s2: *surfaces.get(s2).ok_or_else(corrupt)?,
+                    s1: image(&surfaces, s1, GeomRef::Surface, GeomRef::Curve(k), "s1"),
+                    s2: image(&surfaces, s2, GeomRef::Surface, GeomRef::Curve(k), "s2"),
                     witness,
                 }
             }
             geom_brep::EdgeDescription::TangentIntersection { s1, s2, witness } => {
                 geom_brep::EdgeDescriptionSpec::TangentIntersection {
-                    s1: *surfaces.get(s1).ok_or_else(corrupt)?,
-                    s2: *surfaces.get(s2).ok_or_else(corrupt)?,
+                    s1: image(&surfaces, s1, GeomRef::Surface, GeomRef::Curve(k), "s1"),
+                    s2: image(&surfaces, s2, GeomRef::Surface, GeomRef::Curve(k), "s2"),
                     witness,
                 }
             }
@@ -599,9 +819,15 @@ fn graft_solids_impl<T: geom_core::Decide>(
             // the handle moves. The authority record travels beside
             // it, unchanged — a declaration is not a surface key.
             geom_brep::EdgeDescription::Chart(ref c) => geom_brep::EdgeDescriptionSpec::Chart {
-                surface: *surfaces.get(c.surface).ok_or_else(corrupt)?,
+                surface: image(
+                    &surfaces,
+                    c.surface,
+                    GeomRef::Surface,
+                    GeomRef::Curve(k),
+                    "surface",
+                ),
                 image: Some(c.pcurve.clone()),
-                seam: c.seam,
+                wrap: c.wrap,
                 declared: match curve.authority() {
                     geom_brep::EdgeAuthority::Declared(mc) => Some(mc),
                     geom_brep::EdgeAuthority::Derived => None,
@@ -615,30 +841,30 @@ fn graft_solids_impl<T: geom_core::Decide>(
             .edges
             .iter()
             .find(|(_, e)| e.curve == k)
-            .ok_or_else(corrupt)?;
-        let dst_edge_key = *edges.get(src_edge_key).ok_or_else(corrupt)?;
-        let e = dst.edges.get(dst_edge_key).ok_or_else(corrupt)?;
-        let start_v = dst.half_edges.get(e.he_plus).ok_or_else(corrupt)?.start;
-        let end_v = dst
-            .half_edges
-            .get(dst.half_edges.get(e.he_plus).ok_or_else(corrupt)?.next)
-            .ok_or_else(corrupt)?
-            .start;
-        let point = |v: VertexKey| -> Result<geom_core::Point3<T>, BooleanError> {
-            let vd = dst.vertices.get(v).ok_or_else(corrupt)?;
-            dst.points.get(vd.point).copied().ok_or_else(corrupt)
-        };
+            .unwrap_or_else(|| {
+                unreachable!(
+                    "graft source: {} is certified and no edge names it: a tier-1-valid body \
+                     holds no orphan geometry, and every public door keeps the body tier-1-valid",
+                    GeomRef::Curve(k)
+                )
+            });
+        let dst_edge_key = edges[src_edge_key];
+        let e = &dst.edges[dst_edge_key];
+        let he_plus = &dst.half_edges[e.he_plus];
+        let start_v = he_plus.start;
+        let end_v = dst.half_edges[he_plus.next].start;
+        let point = |v: VertexKey| dst.points[dst.vertices[v].point];
         let spec = geom_brep::EdgeCurveSpec {
             description,
             carrier: curve.carrier().clone(),
             param_start: curve.params().0,
             param_end: curve.params().1,
         };
-        let band = geom_core::Band::linear(tol).map_err(|_| corrupt())?;
+        let band = geom_core::Band::linear(tol)?;
         let recert = geom_brep::EdgeCurve::certify(
             spec,
-            point(start_v)?,
-            point(end_v)?,
+            point(start_v),
+            point(end_v),
             |sk| dst.surfaces.get(sk).cloned(),
             band,
         )
@@ -655,18 +881,24 @@ fn graft_solids_impl<T: geom_core::Decide>(
     // ---- Attach the shells to the destination solids (source order,
     // per solid and within each solid). ----
     for &(src_solid, dst_solid) in &pairs {
-        let shell_list: Vec<ShellKey> = src
-            .shells_of_solid(src_solid)
-            .ok_or_else(corrupt)?
+        let holder = EntityId::Solid(src_solid);
+        let shell_list: Vec<ShellKey> = src.solids[src_solid]
+            .shells
             .iter()
-            .map(|&s| shells.get(s).copied().ok_or_else(corrupt))
-            .collect::<Result<_, _>>()?;
-        let solid = dst.get_solid_mut(dst_solid).ok_or_else(corrupt)?;
+            .map(|&s| image(&shells, s, EntityId::Shell, holder, "shells"))
+            .collect();
+        let Some(solid) = dst.get_solid_mut(dst_solid) else {
+            unreachable!(
+                "graft: destination solid {dst_solid:?} was checked live in, or minted into, \
+                 the body this transplant writes"
+            )
+        };
         solid.shells.extend(shell_list);
     }
 
     let map = GraftMap {
         vertices,
+        points,
         faces,
         edges,
         dead_edges,

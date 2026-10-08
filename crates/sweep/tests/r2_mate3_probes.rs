@@ -14,6 +14,7 @@
 
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Open, Profile, SketchPlane, Start};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 
 /// The lune: the cross-section of D1's kissing-cylinders figure,
@@ -46,8 +47,15 @@ fn r2_cusp_profile_extrudes_and_passes_at_rest() {
     let validated = Profile::new(plane, loops)
         .validate(tol)
         .expect("the .cusp() profile validates: the joint is DECLARED");
-    let ext =
-        extrude(&validated, Extrusion::Distance(1.0), tol).expect("extrude BUILDS the cusp solid");
+    let ext = extrude(
+        &validated,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .expect("extrude BUILDS the cusp solid");
     let body = &ext.body;
     assert_eq!(topo::validate_closed(body), Ok(()));
     assert_eq!(
@@ -90,11 +98,19 @@ fn r2_cusp_profile_extrudes_and_passes_at_rest() {
 fn r2_the_cusp_reversal_residual_is_measured() {
     let lp = lune();
     let raw = profile::ProfileLoop::from(lp);
+    // Each vertex with its leaving segment's bulge, read off the stored
+    // sweep as tan(Δθ/4) (zero for a line).
     let v: Vec<(Point2<f64>, f64)> = raw
         .vertices()
         .iter()
-        .zip(raw.bulges())
-        .map(|(&p, &b)| (p, b))
+        .zip(raw.segments())
+        .map(|(&p, s)| {
+            let b = match s {
+                profile::Segment::Line => 0.0,
+                profile::Segment::Arc(arc) => (arc.sweep / 4.0).tan(),
+            };
+            (p, b)
+        })
         .collect();
     let n = v.len();
     // The kiss is vertex 2 (the loop is: (0,4) → (0,2) → (0,0) kiss →

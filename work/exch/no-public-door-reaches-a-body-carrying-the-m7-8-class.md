@@ -11,10 +11,10 @@ cost: D
 ## Finding
 
 The M7-8 class — a plane × described-NURBS `Intersection` edge
-attached through the lane door
-(`Body::set_edge_curve_nurbs_lane`, `crates/topo/src/euler.rs`;
-`EdgeCurve::needs_nurbs_lane` answers YES on it) — is reachable from
-no public door today. The lane door's one production caller is STEP
+attached through the plane × NURBS lane
+(`Body::set_edge_curve`, which reads it off `AtRestPolicy::nurbs_lane`;
+a lane-free `EdgeCurve::recertify` answers `NurbsLaneNotSupplied` on it) — is reachable from
+no public door today. The lane's one production minting caller is STEP
 adoption (`crates/step-import/src/adopt.rs`, the `Intersection`
 candidate on a plane/NURBS pair), and on the bodies the tree can
 import that candidate never certifies where the pair is plane ×
@@ -58,3 +58,15 @@ door table is the verdict to pin — or record at `adopt.rs`'s
 `Intersection` candidate that the plane × NURBS arm has no reachable
 instance, so the class's reach is a stated fact rather than an
 assumed one.
+
+## Evidence, 2026-10-01 (CLEAVE, PR 3678)
+
+`crates/step-import/tests/placed_m7_8_instance.rs` (from that PR's
+second review lane) builds the M7-8 cube with a BOWED NURBS wall,
+exports it through `step_export`, and imports it placed through
+`step_import::import_step`: the imported body carries the class
+(`Intersection` descriptions on `Nurbs` carriers, asserted `> 0`).
+So `import_step` does reach a body carrying an M7-8 edge from a STEP
+file the tree writes itself; whether that body passes the import gate's
+check 7, which this row's Python fixture needs, the row does not
+assert.

@@ -12,7 +12,7 @@
 //!   below is the chain's.
 //!
 //! Vocabulary: Profile, Extrude, Transform, Pattern (Linear),
-//! Boolean (Union), `InsertNode`, `SetDocParam`,
+//! Boolean (Union), `InsertNode`, `DeclareVar`,
 //! `SetStructuralParam`, `SetParam`.
 //!
 //! Geometry (dyadic): base `[0,3] × [0,1] × [0,0.25]`; fin footprint
@@ -28,8 +28,9 @@
 //! master extrude, the pattern, and all five Transform+Union pairs;
 //! the base half of the DAG is reused).
 
+use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanOp, Dimension, DocEdit, DocParam, Expr, Node, ParamName, PatternKind, SlotId,
+    BooleanOp, Dimension, DocEdit, Formula, FreeVar, Node, PatternKind, SlotId, VarName,
 };
 
 use crate::fixture::{ang, len, scl};
@@ -44,9 +45,9 @@ const PITCH: f64 = 0.3125;
 /// The heat-sink corpus document.
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
-        name: ParamName::new("fins"),
-        value: DocParam::Count { value: FINS },
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static("fins"),
+        def: editor_core::VarDecl::Free(FreeVar::Count { value: FINS }),
     });
     let base_p = r.profile(
         [0.0, 0.0, 0.0],
@@ -57,6 +58,7 @@ pub fn document() -> CorpusDoc {
     let base = r.insert(Node::Extrude {
         profile: base_p,
         distance: len(0.25),
+        side: ExtrudeSide::Along,
     });
     let fin_p = r.profile(
         [0.0, 0.0, 0.1875],
@@ -72,11 +74,12 @@ pub fn document() -> CorpusDoc {
     let fin = r.insert(Node::Extrude {
         profile: fin_p,
         distance: len(0.8125),
+        side: ExtrudeSide::Along,
     });
     // The instance-payload half of the document.
     let pattern = r.insert(Node::Pattern {
         input: fin,
-        count: Expr::count(FINS),
+        count: Formula::count(FINS),
         kind: PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
             spacing: len(PITCH),
@@ -87,24 +90,27 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::SetStructuralParam {
         node: pattern,
         slot: SlotId::Count,
-        expr: Expr::param(ParamName::new("fins"), Dimension::Count),
+        expr: Formula::named(VarName::from_static("fins"), Dimension::Count),
+        fresh: Vec::new(),
     });
 
     // The explicit one-solid chain. Fin i sits at x = i·PITCH; every
     // fin overlaps the base by 1/16, so no union has a coincidence.
     let mut acc = base;
     for i in 0..FINS {
-        let tr = r.insert(Node::Transform {
-            input: fin,
-            translation: [len(i as f64 * PITCH), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        });
+        let tr = r.insert(Node::transform(
+            fin,
+            editor_core::Step::Rigid {
+                translation: [len(i as f64 * PITCH), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ));
         acc = r.insert(Node::Boolean {
             op: BooleanOp::Union,
             a: acc,
             b: tr,
-            declare: None,
+            declare: Vec::new(),
         });
     }
 
@@ -122,6 +128,7 @@ pub fn document() -> CorpusDoc {
             node: fin,
             slot: SlotId::Distance,
             expr: len(0.6875),
+            fresh: Vec::new(),
         },
         bump_root: fin,
     }

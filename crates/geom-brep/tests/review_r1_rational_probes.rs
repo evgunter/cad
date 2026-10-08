@@ -29,7 +29,7 @@ use geom_brep::props::quad::nurbs_patch_face;
 use geom_core::Bounds;
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
-use geom_core::{Interval, MarginDiag};
+use geom_core::{ErrorTextReading, Interval};
 
 use crate::shared::patch::{dbasis_over, dense_over};
 use crate::shared::ring::p3 as p;
@@ -504,7 +504,7 @@ fn probe(
                     println!("FLOOR {name} {width_len:.12e} target {target_len:.6e}");
                     Posture::Budget(width_len)
                 }
-                PropsError::Escalated { cause } => {
+                PropsError::Escalated { cause, .. } => {
                     assert_eq!(
                         cause.predicate,
                         Some("props_quad_converged"),
@@ -512,7 +512,7 @@ fn probe(
                          {cause:?}"
                     );
                     assert!(
-                        matches!(cause.margin, MarginDiag::Value(m) if m.is_finite()),
+                        matches!(cause.margin.diagnostic_f64_for_error_text(), ErrorTextReading::Value(m) if m.is_finite()),
                         "{name}: the escalation must carry a finite in-band margin: \
                          {cause:?}"
                     );

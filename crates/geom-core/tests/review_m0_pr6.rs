@@ -282,7 +282,7 @@ fn rotation_spot_checks_and_degenerate_poison() {
 
     // Zero axis: all-NaN matrix (documented poison).
     let bad = Mat3::rotation_about(Vec3::<f64>::zero(), 1.0);
-    for c in [bad.c0, bad.c1, bad.c2] {
+    for c in bad.cols() {
         assert!(c.x.is_nan() && c.y.is_nan() && c.z.is_nan());
     }
 
@@ -299,10 +299,12 @@ fn inverse_and_determinant_spot_checks() {
     // says "non-finite (+-inf, or NaN ...)"). Rank-2 example.
     let m = Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::new(1.0, 1.0, 0.0));
     let inv = m.inverse();
-    let all = [
-        inv.c0.x, inv.c0.y, inv.c0.z, inv.c1.x, inv.c1.y, inv.c1.z, inv.c2.x, inv.c2.y, inv.c2.z,
-    ];
-    assert!(all.iter().any(|e| e.is_infinite() || e.is_nan()));
+    let all = inv.to_cols_array();
+    assert!(
+        all.as_flattened()
+            .iter()
+            .any(|e| e.is_infinite() || e.is_nan())
+    );
 
     // det bit-identity claim: determinant() vs the det used inside inverse:
     // reconstruct inverse's det as c0.dot(c1.cross(c2)) and compare bits.

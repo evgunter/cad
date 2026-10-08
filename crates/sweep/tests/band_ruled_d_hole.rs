@@ -13,6 +13,7 @@
 
 use geom_core::{Point2, Tol};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::blend::fillet_edges;
 use sweep::test_support::{
     ROD_FILLET, ROD_L, ROD_R, assert_naming_totality, rod_chord_at, rod_creases, rod_section_cut,
@@ -58,9 +59,16 @@ fn d_hole_block(flat: f64) -> Body<f64> {
     let p = Profile::new(SketchPlane::xy(), vec![square(1.0), d])
         .validate(tol())
         .expect("the D-holed profile validates");
-    extrude(&p, Extrusion::Distance(ROD_L), tol())
-        .expect("the D-holed profile extrudes")
-        .body
+    extrude(
+        &p,
+        Extrusion::Distance {
+            depth: ROD_L,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .expect("the D-holed profile extrudes")
+    .body
 }
 
 /// **The fixture holds together**, and its creases' ends sit in the
@@ -111,8 +119,13 @@ fn a_d_hole_fillets_both_creases_at_the_rod_closed_form() {
         let creases = rod_creases(&source);
         let (v0, e0, f0) = census(&source);
         let vol0 = volume(&source);
-        let out = fillet_edges(&source, &creases, r, tol())
-            .unwrap_or_else(|e| panic!("{what}: both creases carve, got {e}"));
+        let out = fillet_edges(
+            &sweep::test_support::at_rest(&source, tol()),
+            &creases,
+            r,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{what}: both creases carve, got {e}"));
         assert_eq!(out.blend_faces.len(), 2, "{what}: one band per crease");
         assert!(out.corner_faces.is_empty() && out.band_faces.is_empty());
         assert_eq!(

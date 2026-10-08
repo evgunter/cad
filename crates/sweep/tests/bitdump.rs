@@ -49,9 +49,10 @@
 )]
 
 use std::fmt::Write as _;
+use sweep::ExtrudeSide;
 
 use geom::Surface;
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::{Point2, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::Revolution;
@@ -67,6 +68,7 @@ use topo::query::{self, SurfaceKindSet};
 use topo::{Body, EdgeKey};
 
 use crate::common::bitdump::{dump, dump_dir, save};
+use sweep::test_support::finished;
 
 // --- fixtures, verbatim from the merge-base suites -----------------
 
@@ -116,7 +118,13 @@ fn bitdump_die() {
         return;
     };
     let body = cube(1.0, Tol::witness());
-    let out = fillet_edges(&body, &query::all_edges(&body), 0.15, Tol::witness()).unwrap();
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &query::all_edges(&body),
+        0.15,
+        Tol::witness(),
+    )
+    .unwrap();
     let mut text = dump(&out.body);
     let _ = writeln!(
         text,
@@ -140,7 +148,13 @@ fn bitdump_ruled_band() {
     let source = rod_with_flat(Tol::witness());
     let creases = rod_creases(&source);
     assert_eq!(creases.len(), 2, "the milled rod has two creases");
-    let out = fillet_edges(&source, &creases, ROD_FILLET, Tol::witness()).unwrap();
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, Tol::witness()),
+        &creases,
+        ROD_FILLET,
+        Tol::witness(),
+    )
+    .unwrap();
     let mut text = dump(&out.body);
     let _ = writeln!(
         text,
@@ -168,7 +182,13 @@ fn bitdump_pip_rims() {
     );
     let mut all = box_edges;
     all.extend(rims);
-    let out = fillet_edges(&pipped, &all, 0.05, Tol::witness()).unwrap();
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&pipped, Tol::witness()),
+        &all,
+        0.05,
+        Tol::witness(),
+    )
+    .unwrap();
     let mut text = dump(&out.body);
     let _ = writeln!(
         text,
@@ -188,7 +208,13 @@ fn bitdump_chamfered_cube() {
         return;
     };
     let body = cube(1.0, Tol::witness());
-    let out = chamfer_edges(&body, &query::all_edges(&body), 0.1, Tol::witness()).unwrap();
+    let out = chamfer_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &query::all_edges(&body),
+        0.1,
+        Tol::witness(),
+    )
+    .unwrap();
     let mut text = dump(&out.body);
     let _ = writeln!(
         text,
@@ -200,8 +226,13 @@ fn bitdump_chamfered_cube() {
 
 /// One rim's carve, dumped with its band face named.
 fn dump_rim(name: &str, body: &Body<f64>, arcs: &[EdgeKey], r: f64) -> String {
-    let out = fillet_edges(body, arcs, r, Tol::witness())
-        .unwrap_or_else(|e| panic!("{name} carves on both sides of the differential: {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(body, Tol::witness()),
+        arcs,
+        r,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("{name} carves on both sides of the differential: {e:?}"));
     let mut text = format!("== {name} ==\n");
     text.push_str(&dump(&out.body));
     let _ = writeln!(text, "band={:?}", out.band_faces);
@@ -290,9 +321,16 @@ fn bitdump_shell_open_box_corpus() {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol)
         .unwrap();
-    let body = sweep::extrude(&profile, sweep::Extrusion::Distance(4.0), tol)
-        .unwrap()
-        .body;
+    let body = sweep::extrude(
+        &profile,
+        sweep::Extrusion::Distance {
+            depth: 4.0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body;
     let cap_at = |b: &Body<f64>, z: f64| -> Vec<topo::FaceKey> {
         b.faces()
             .filter(|(_, f)| {
@@ -311,13 +349,24 @@ fn bitdump_shell_open_box_corpus() {
 
     let mut text = String::new();
     let _ = writeln!(text, "== box cup (top designated, t = 0.25) ==");
-    let cup = topo::shell_open(&body, 0.25, &top, tol).unwrap().body;
+    let cup = topo::shell_open(&finished("the operand", body.clone(), tol), 0.25, &top, tol)
+        .unwrap()
+        .body;
     text.push_str(&dump(&cup));
     let _ = writeln!(text, "== box tube (both caps designated, t = 0.25) ==");
-    let tubey = topo::shell_open(&body, 0.25, &both, tol).unwrap().body;
+    let tubey = topo::shell_open(
+        &finished("the operand", body.clone(), tol),
+        0.25,
+        &both,
+        tol,
+    )
+    .unwrap()
+    .body;
     text.push_str(&dump(&tubey));
     let _ = writeln!(text, "== the SEALED box (t = 0.25) ==");
-    let sealed = topo::shell(&body, 0.25, tol).unwrap().body;
+    let sealed = topo::shell(&finished("the operand", body.clone(), tol), 0.25, tol)
+        .unwrap()
+        .body;
     text.push_str(&dump(&sealed));
     save(&dir, "shell_open_box_corpus", &text);
 }
@@ -396,7 +445,14 @@ fn bitdump_extrude_revolve_corpus() {
         (name.to_owned(), body)
     };
     let extruded = |name: &str, loops: Vec<ProfileLoop<f64>>, h: f64| -> (String, Body<f64>) {
-        extruded_by(name, loops, sweep::Extrusion::Distance(h))
+        extruded_by(
+            name,
+            loops,
+            sweep::Extrusion::Distance {
+                depth: h,
+                side: ExtrudeSide::Along,
+            },
+        )
     };
     let circle = |cx: f64, cy: f64, r: f64| {
         bulge_loop(vec![
@@ -466,8 +522,8 @@ fn bitdump_extrude_revolve_corpus() {
     ];
     // `Extrusion::Vector` takes a different door into the same rim
     // upgrade than `Distance` does (`extrusion_obliquity` /
-    // `extrusion_normal_component` against `n · d`), and a NEGATIVE
-    // distance flips which cap is which — both reach `upgrade_rim`
+    // `extrusion_normal_component` against `n · d`), and an extrusion
+    // AGAINST the normal flips which cap is which — both reach `upgrade_rim`
     // with the caps' orientations swapped, so both belong in a corpus
     // whose subject is what that pass stores.
     rows.push(extruded_by(
@@ -481,7 +537,7 @@ fn bitdump_extrude_revolve_corpus() {
         sweep::Extrusion::Vector(geom_core::Vec3::new(0.0, 0.0, 1.75)),
     ));
     rows.push(extruded_by(
-        "rounded-corner prism, reversed (negative distance)",
+        "rounded-corner prism, reversed (against the normal)",
         vec![
             bulge_loop(vec![
                 (Point2::new(0.25, 0.0), 0.0),
@@ -495,7 +551,10 @@ fn bitdump_extrude_revolve_corpus() {
             ])
             .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]),
         ],
-        sweep::Extrusion::Distance(-0.5),
+        sweep::Extrusion::Distance {
+            depth: 0.5,
+            side: ExtrudeSide::Against,
+        },
     ));
     rows.push(("dome (plane-sphere equator)".to_owned(), dome(1.0, tol)));
     rows.push(("waisted (cone-plane rims)".to_owned(), waisted(tol)));
@@ -598,7 +657,7 @@ fn bitdump_extruded_two_arc_rims() {
     ] {
         let arcs = circle_arcs_at_z(&body, z);
         assert_eq!(arcs.len(), 2, "{name}: two arcs by authoring");
-        let out = fillet_edges(&body, &arcs, 0.1, tol).unwrap();
+        let out = fillet_edges(&sweep::test_support::at_rest(&body, tol), &arcs, 0.1, tol).unwrap();
         let mut text = dump(&out.body);
         let _ = writeln!(
             text,

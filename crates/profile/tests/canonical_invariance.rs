@@ -30,21 +30,17 @@ test_utils::gated_to![
 use crate::common;
 
 use common::{annulus, bracket, circle_h, l_profile, lens, profile, rect, rounded_rect, tol};
-use profile::{Profile, ProfileLoop, RawLoop, test_support::bulge_loop};
+use profile::{Profile, ProfileLoop, RawLoop, Segment};
 use proptest::prelude::*;
 
 /// Rotates a loop's starting vertex by `r` (a pure reindexing — the
 /// same closed chain).
 fn rotated(lp: &ProfileLoop<f64>, r: usize) -> ProfileLoop<f64> {
     let n = lp.vertices().len();
-    bulge_loop(
-        (0..n)
-            .map(|k| {
-                let j = (r + k) % n;
-                (lp.vertices()[j], lp.bulges()[j])
-            })
-            .collect(),
-    )
+    <ProfileLoop<f64> as RawLoop<f64>>::new((0..n).map(|k| {
+        let j = (r + k) % n;
+        (lp.vertices()[j], lp.segments()[j])
+    }))
     // Declared joints follow their vertex through the reindexing.
     .with_tangent_joints(
         lp.tangent_joints()
@@ -54,15 +50,22 @@ fn rotated(lp: &ProfileLoop<f64>, r: usize) -> ProfileLoop<f64> {
     )
 }
 
-/// Translates a loop rigidly (fixture plumbing).
+/// Translates a loop rigidly (fixture plumbing): every vertex and every
+/// arc's centre moved by `(dx, dy)`, radii and sweeps kept.
 fn translated(lp: &ProfileLoop<f64>, dx: f64, dy: f64) -> ProfileLoop<f64> {
-    bulge_loop(
-        lp.vertices()
-            .iter()
-            .zip(lp.bulges())
-            .map(|(v, &b)| (geom_core::Point2::new(v.x + dx, v.y + dy), b))
-            .collect(),
-    )
+    let shift = |v: geom_core::Point2<f64>| geom_core::Point2::new(v.x + dx, v.y + dy);
+    <ProfileLoop<f64> as RawLoop<f64>>::new(lp.vertices().iter().zip(lp.segments()).map(
+        |(&v, &segment)| {
+            let segment = match segment {
+                Segment::Line => Segment::Line,
+                Segment::Arc(arc) => Segment::Arc(geom_core::Arc2 {
+                    centre: shift(arc.centre),
+                    ..arc
+                }),
+            };
+            (shift(v), segment)
+        },
+    ))
     .with_tangent_joints(lp.tangent_joints().to_vec())
 }
 
@@ -157,9 +160,6 @@ proptest! {
         for (a, b) in lp.vertices().iter().zip(back.vertices().iter()) {
             prop_assert_eq!(a.x.to_bits(), b.x.to_bits());
             prop_assert_eq!(a.y.to_bits(), b.y.to_bits());
-        }
-        for (a, b) in lp.bulges().iter().zip(back.bulges().iter()) {
-            prop_assert_eq!(a.to_bits(), b.to_bits());
         }
         // The segments too: kind, centre, radius and sweep, to the bit
         // (`Debug` prints every f64 bit pattern apart, signed zeros

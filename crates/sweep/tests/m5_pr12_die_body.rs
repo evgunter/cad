@@ -23,7 +23,13 @@ fn die(l: f64, r: f64) -> Filleted<f64> {
     let body = cube(l, Tol::witness());
     let edges = query::all_edges(&body);
     assert_eq!(edges.len(), 12, "a box has twelve edges");
-    fillet_edges(&body, &edges, r, Tol::witness()).expect("the die body")
+    fillet_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &edges,
+        r,
+        Tol::witness(),
+    )
+    .expect("the die body")
 }
 
 /// The acceptance row: the whole rounded die, top to bottom.
@@ -141,21 +147,25 @@ fn the_die_is_tier3_valid_at_a_second_radius() {
     );
 }
 
-/// A partially-requested corner (a run-out) is outside the assembly
-/// front door: it refuses TYPED, naming what is not implemented,
-/// rather than half-building.
+/// An end the cut-off does not build (a run-out — here a curved end
+/// face) is outside the assembly front door: it refuses TYPED, naming
+/// what is not built, rather than half-building.
 #[test]
 fn a_subset_of_the_edges_refuses_at_the_assembly_front_door() {
-    let body = cube(1.0, Tol::witness());
-    let edges = query::all_edges(&body);
-    let err = fillet_edges(&body, &edges[..1], 0.15, Tol::witness())
-        .expect_err("one edge of a box leaves its corners partly requested");
+    let (body, edge) = crate::common::operands::half_round_end();
+    let err = fillet_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &[edge],
+        0.15,
+        Tol::witness(),
+    )
+    .expect_err("an edge ending at a curved end face is a run-out");
     assert!(
         matches!(err.error, BlendError::UnsupportedRunOut { .. }),
         "expected the assembly front-door refusal, got {err}",
     );
     assert!(
-        err.to_string().contains("not implemented"),
+        err.to_string().contains("not built"),
         "the refusal names the missing front door: {err}",
     );
 }
