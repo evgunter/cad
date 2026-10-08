@@ -1327,7 +1327,9 @@ sliver band.
 the bound a variable) checks and never places. At rest, contact
 between copies is an `unproven-coincidence` finding unless it is
 structural (a mate-placed face is), and interference is a finding of
-its own; neither refuses where the census has a lane. A finding is
+its own. Nothing at rest refuses: a pair the census has no lane for
+is a finding too, saying it could not look, and no outcome of the
+census is silence. A finding is
 quiet exactly when an assertion on the same measure at the same site has
 a bound the observation meets and that does not straddle zero: a
 contact finding under an assertion that the gap is zero, an
@@ -1341,9 +1343,11 @@ undeclared-contact and undeclared-tangency refusals, which become
 `unproven-coincidence` findings, with ASSEMBLY A5's hard error on an
 unattributed contact; DISCIPLINES DS2's identification grade; the axis
 declaration channel; `ParamSource`'s literal tokens; PARAM-LINT's
-declared-distinct record; the profiles' stored tangent-joint flags; and
+declared-distinct record; the profiles' stored tangent-joint flags;
 ASSEMBLY A3, A10's sink rule, A11 (2)'s gauges and offsets, A11 (4)'s
-declaring mates and A12's reading edges.
+declaring mates and A12's reading edges; and A5's at-rest gate
+(`assemble` and its refusal), whose census becomes a check, with
+DISCIPLINES DS6's product-separation resident (`Separation`).
 
 ## Layering
 
