@@ -47,3 +47,13 @@ piece is `a-torus-meridian-lying-on-a-torus-is-unsettled`.
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: the proposed fix takes the verified declared Seam as the licence to deflate the rim root (seam_certifies_side); declared seams retire at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## 2026-10-08: the meridian piece is landed (TANG, `tang/torus-meridian-lies-on`)
+
+The rim semicircles now record as meridians lying on the partner torus.
+So this row's graze is the only door in both orders: A ∪ B stops at A's
+outer equator (radius 5.06), and B ∪ A at B's (radius 1.16), each
+against the partner's torus wall. Forcing the KIND table's cover for
+torus × torus (`boolean::tangency_certifies_side`, a local experiment)
+changes neither refusal, so the fix this row names, an edge-local
+deflation in the root lane, is still the route.

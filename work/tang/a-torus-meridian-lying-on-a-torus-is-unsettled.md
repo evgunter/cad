@@ -2,8 +2,10 @@
 id: a-torus-meridian-lying-on-a-torus-is-unsettled
 kind: issue
 title: A torus meridian lying on a torus is the F≡0 case the circle×torus root door answers Unsettled
-status: open
+status: closed
 opened: 2026-10-02
+closed: 2026-10-08
+branch: tang/torus-meridian-lies-on
 priority: P1
 cost: H
 ---
@@ -46,3 +48,25 @@ piece is `a-torus-seam-graze-needs-the-rim-root-deflated`.
 ## Released from the D10 hold (2026-10-08)
 
 Nothing D10 changes gates this row, so it is open: pure geometry: an F≡0 meridian LiesOn rung in circle_torus_roots (reduce.rs); the (Zero,Zero) lying_on arm survives as a Zero-decided ON event. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed (2026-10-08, TANG)
+
+A meridian lying on a torus now answers `OnSurface` from the circle ×
+torus door. The rung is `circle_torus::meridian_deviation`, decided
+as `bool_circle_torus_meridian`. It is one margin bounding every
+carrier point's distance from the torus: the centre's distance from
+the centre circle, `|ρ − r|`, and the plane tilt's second-order cost.
+Zero reads `OnSurface`, an in-band deviation escalates
+`ArcTorusRoots`, and a definite one takes the ladder. The
+`(Zero, Zero)` arm then records the lily's rim semicircles through
+`lying_on`, on the uncovered arm (a Zero-decided ON event).
+
+The lily's B ∪ A no longer stops at the meridian. Both orders now stop
+at the first operand's outer equator, the graze of an edge leaving the
+rim: `a-torus-seam-graze-needs-the-rim-root-deflated`, parked on
+`intent-stage4-is-built`
+(`mate7a_torus_rest::the_g1_tube_chain_declared_a_seam_stops_at_the_crossing_layer`).
+
+Filed by the F ≡ 0 sweep:
+`work/roots/an-oblique-cone-section-reads-a-zero-floor` and
+`work/hone/a-villarceau-circle-lying-on-a-torus-is-unsettled`.
