@@ -27,7 +27,6 @@
 
 #![allow(clippy::panic, clippy::too_many_lines, clippy::cast_precision_loss)]
 
-
 use crate::shared::tol::band;
 use geom::{Curve3, Surface};
 use geom_brep::intersect::{PlaneCylinderSection, plane_cylinder_section};
