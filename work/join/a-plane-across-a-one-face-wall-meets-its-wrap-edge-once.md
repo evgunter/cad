@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-06
 priority: P1
 cost: H
+branch: join/wrap-edge-section-loop
 ---
 
 
