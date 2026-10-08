@@ -102,8 +102,16 @@ fn a_chain_of_patterns_names_past_every_stack_through_every_door_on_the_smallest
             fixture::piece(&doc, extrude, 0, 0),
         );
         let deep = patterns.iter().fold(rim, |n, &p| in_copy(p, 0, n));
-        // Through the edit door.
-        let (doc, _) = insert(doc, Node::fillet(top, len(0.1), vec![deep.clone()]));
+        // Through the edit door, at the top pattern's one copy: a
+        // fillet reads one body, and a pattern's value is a list.
+        let (doc, copy) = insert(
+            doc,
+            Node::Part {
+                of: top.into(),
+                select: editor_core::PartSelect::Instance(editor_core::Formula::count(0)),
+            },
+        );
+        let (doc, _) = insert(doc, Node::fillet(copy, len(0.1), vec![deep.clone()]));
         let text = save(&doc, &[], tol).expect("the document saves");
         let loaded = load(&text, tol).expect("and loads back");
         assert_eq!(loaded.doc, doc, "the loaded document is the saved one");
