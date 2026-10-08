@@ -1939,9 +1939,12 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
     // Every finisher ends with the join (`docs/DESIGN.md`, maximal
     // edges): the chart merge of a designated window can leave a vertex
     // between two edges of one carrier on its ring, and on the cavity
-    // twin of it. The door re-derives the pcurve rows its kills moved.
+    // twin of it. Every solid is written (the sealed construction
+    // hollows each), so the join's scope is the whole body; it runs on
+    // this door's own staging, which a refusal discards, and re-derives
+    // the rows of the faces its kills touched (`join_edges_within`).
     naming.edge_joins = out_body
-        .join_edges(band, tol)
+        .join_edges_within(band, tol, &|_| true)
         .map_err(|refusal| ShellError::Join {
             refusal: crate::boolean::JoinRefusal::of(&refusal),
         })?;

@@ -1014,12 +1014,15 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
             // maximal edges): a vertex the cut left between two edges of
             // one carrier, the seam strut it held gone, is no corner.
             let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
-            let joins =
-                body.join_edges(band, tol)
-                    .map_err(|refusal| SplitFinishError::EdgeJoin {
-                        side,
-                        refusal: crate::boolean::JoinRefusal::of(&refusal),
-                    })?;
+            // The side is this run's own output, so the join runs on it
+            // in place (a refusal discards it), and the closing mint
+            // below re-derives its rows whole.
+            let joins = body
+                .join_edges_within(band, tol, &|_| true)
+                .map_err(|refusal| SplitFinishError::EdgeJoin {
+                    side,
+                    refusal: crate::boolean::JoinRefusal::of(&refusal),
+                })?;
             result
                 .naming
                 .edge_joins
