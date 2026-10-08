@@ -1,6 +1,5 @@
 //! **M6-3 Leg E acceptance (walk row 4): the analytic-chart pcurve
-//! completion** — the sphere GENERAL-circle route through the fitted
-//! lane, at rest.
+//! completion** — the sphere GENERAL-circle route, at rest.
 //!
 //! The closed-form arms (cone rim/ruling, sphere polar/meridian,
 //! torus parallel/meridian) are exercised where they LIVE: every
@@ -10,22 +9,18 @@
 //! azimuth-NON-harmonic class — a circle neither polar nor meridian —
 //! and this file pins its whole route:
 //!
-//! - the CLOSED-FORM door refuses it typed (`UnsupportedCarrier`, the
-//!   class named in `chart_pcurve`'s sphere arm);
-//! - the LANE images it (`FittedLane::sphere_circle_image`: the
-//!   piecewise cubic Hermite interpolant of its chart image on the
-//!   CARRIER'S OWN angular parameter, OQ4), and the FITTED door
-//!   (`PcurveCache::certify_fitted`) certifies it against the sphere
-//!   alone with the `MapResidualHermite` statement — a bound on the
-//!   image's distance from the circle over the whole span;
-//! - a corruption of the image BETWEEN its certification samples is
-//!   refused (`a_corrupted_image_refuses_between_its_samples`);
-//! - the mint reaches that route, and refuses an arc over a pole while
-//!   minting an arc of the same circle that avoids it;
-//! - the cache survives AT REST: the tier-3 pcurve pass re-derives its
-//!   certificate;
-//! - the same body certifies at the INTERVAL scalar (`certified`
-//!   module), enclosure-asserted.
+//! - the CLOSED-FORM door answers its routed image: the PROJECTED one
+//!   (`Pcurve::Projected`, the chart's inverse of the circle), which
+//!   certifies against the sphere alone with the `MapResidualProjected`
+//!   statement at every scalar;
+//! - the mint reaches that route at `f64` and at the interval scalar,
+//!   refuses an arc over a pole (`SectorRefused`) while minting an arc
+//!   of the same circle that avoids it, and tier 3 re-certifies it;
+//! - a stored row moved off its deck refuses;
+//! - a hand-attached FITTED image (`FittedLane::sphere_circle_image`'s
+//!   Hermite interpolant, certified by `certify_fitted` with
+//!   `MapResidualHermite`) still certifies at rest, and a corruption of
+//!   it BETWEEN its certification samples is refused.
 //!
 //! ε posture: no ε literal; every margin is the run's own band.
 
@@ -202,29 +197,32 @@ where
     Ok((body, he_plus))
 }
 
-/// The closed-form door refuses the class typed — the fitted lane is
-/// the ONLY route (never a silent fallback, C5). The circle lies on
-/// the sphere, so the pair is uncovered, not off the chart.
+/// The closed-form door answers the class's ROUTED image, the
+/// projected one, and it certifies at the closed-form door itself: a
+/// circle's projected row reads no fitted door.
 #[test]
-fn a_general_circle_refuses_the_closed_form_sphere_door_typed() {
+fn the_closed_form_door_answers_the_projected_image() {
     let band = Band::linear(Tol::witness()).unwrap();
-    let err = geom_brep::chart_pcurve(&general_circle::<f64>(), &sphere::<f64>(), band)
-        .expect_err("azimuth-non-harmonic");
-    assert!(matches!(
-        err,
-        geom_brep::PcurveCertifyError::UnsupportedCarrier {
-            chart: geom::SurfaceKind::Sphere,
-            carrier: geom::CurveKind::Circle,
-            class: geom_brep::UncoveredClass::SphereGeneralCircle,
-        }
-    ));
+    let (t0, t1) = ARC;
+    let image =
+        geom_brep::chart_pcurve_over(&general_circle::<f64>(), t0, t1, &sphere::<f64>(), band)
+            .expect("the general circle has a routed image");
+    assert!(matches!(image, Pcurve::Projected(_)), "{image:?}");
+    let cache =
+        PcurveCache::certify(image, t0, t1, &general_circle::<f64>(), &sphere::<f64>(), band)
+            .expect("a circle's projected row certifies at the closed-form door");
+    assert_eq!(
+        cache.certificate().statement,
+        EnvelopeStatement::MapResidualProjected
+    );
 }
 
-/// The at-rest row at `f64`: the cache is fitted, its statement is
-/// `MapResidualHermite` with no pair certificate (an exact carrier has no tube
-/// to prove), and the tier-3 pcurve pass RE-DERIVES the certificate.
+/// A hand-attached fitted row at `f64`: the cache is fitted, its
+/// statement is `MapResidualHermite` with no pair certificate (an exact
+/// carrier has no tube to prove), and the tier-3 pcurve pass RE-DERIVES
+/// the certificate.
 #[test]
-fn a_general_circle_sphere_cache_survives_the_at_rest_pass() {
+fn a_hand_attached_fitted_general_circle_row_survives_the_at_rest_pass() {
     let (body, he) = build::<f64>();
     let cache = body.pcurve(he).expect("the cache is stored");
     assert!(matches!(cache.pcurve(), Pcurve::Fitted(_)));
@@ -255,40 +253,22 @@ fn stands_down_below_default_eps(error: &geom_brep::PcurveCertifyError) -> bool 
 }
 
 /// **The MINT reaches the route**: the same spur-edge body, storing no
-/// row, minted by the public pass. Both half-edges come back `Fitted`
-/// (the image `FittedLane::sphere_circle_image` derives, certified by
-/// `certify_fitted`'s Circle arm against the chart alone), the face is
+/// row, minted by the public pass. Both half-edges come back
+/// `Projected`, certified against the chart alone, the face is
 /// complete, and the tier-3 pass re-certifies it clean. Red if the mint
-/// stops routing the class: the closed-form door refuses it, and the
-/// pass would leave the face rowless or refuse.
+/// stops routing the class.
 fn the_mint_derives_and_certifies_a_general_circle_row<T: topo::AtRestPolicy>() {
     let (mut body, he_plus, he_minus) = spur_body(&general_circle::<T>(), tilted_plane(), ARC);
-    match topo::mint_pcurves(&mut body, Tol::witness()) {
-        Ok(()) => {}
-        Err(topo::pcurves::PcurveMintError::Certify { error, .. })
-            if stands_down_below_default_eps(&error) =>
-        {
-            test_utils::vacuity::stood_down(
-                &format!("the general circle's mint at {}", T::NAME),
-                &format!(
-                    "the residual check escalated ({error:?}) at eps = {:e}, so THIS RUN \
-                     ASSERTS NO stored row — only that the escalation is the door's typed one",
-                    Tol::witness().eps()
-                ),
-            );
-            return;
-        }
-        Err(e) => panic!("the general circle mints: {e:?}"),
-    }
+    topo::mint_pcurves(&mut body, Tol::witness()).expect("the general circle mints");
     for he in [he_plus, he_minus] {
         let cache = body.pcurve(he).expect("the mint stored the row");
         assert!(
-            matches!(cache.pcurve(), Pcurve::Fitted(_)),
-            "a general circle's row is a fitted image: {cache:?}"
+            matches!(cache.pcurve(), Pcurve::Projected(_)),
+            "a general circle's row is its projected image: {cache:?}"
         );
         assert_eq!(
             cache.certificate().statement,
-            EnvelopeStatement::MapResidualHermite
+            EnvelopeStatement::MapResidualProjected
         );
     }
     let band = Band::linear(Tol::witness()).unwrap();
@@ -331,9 +311,10 @@ fn pole_circle() -> (Curve3<f64>, Surface<f64>) {
 
 /// **The pole fence is the ARC's, and it is loud at the mint.** On the
 /// circle through the pole, an arc that crosses the pole has no
-/// one-branch image — the azimuth has no value there — so the lane
-/// refuses `ArcNearPole` and the mint propagates it rather than leaving
-/// the face uncached (red if the class's exemption comes back). An arc
+/// one-branch image — the azimuth has no value there — so the
+/// derivation refuses `SectorRefused` and the mint propagates it rather
+/// than leaving the face uncached (red if the class's exemption comes
+/// back). An arc
 /// of the SAME circle that stays clear of the pole mints and
 /// re-certifies (red if the fence reads the circle's plane instead of
 /// the arc).
@@ -348,7 +329,10 @@ fn the_pole_fence_refuses_the_arc_over_the_pole_and_mints_the_arc_clear_of_it() 
         matches!(
             err,
             topo::pcurves::PcurveMintError::Certify {
-                error: geom_brep::PcurveCertifyError::ArcNearPole,
+                error: geom_brep::PcurveCertifyError::SectorRefused {
+                    channel: geom_brep::SectorChannel::Azimuth,
+                    ..
+                },
                 ..
             }
         ),
@@ -364,13 +348,45 @@ fn the_pole_fence_refuses_the_arc_over_the_pole_and_mints_the_arc_clear_of_it() 
     assert!(
         matches!(
             clear.pcurve(he_plus).map(|c| c.pcurve()),
-            Some(Pcurve::Fitted(_))
+            Some(Pcurve::Projected(_))
         ),
-        "the clear arc stores its fitted row"
+        "the clear arc stores its projected row"
     );
     let band = Band::linear(Tol::witness()).unwrap();
     let findings = topo::pcurves::validate_pcurves(&clear, band);
     assert!(findings.is_empty(), "{findings:?}");
+}
+
+/// **A stored row off its deck refuses.** The minted row moved by a
+/// thousandth of a radian in azimuth — no whole period, no twin — names
+/// a different curve, and check 4 refuses it on the deck term. At the
+/// interval scalar, where the envelope is the whole certified statement
+/// and no schedule runs before it.
+#[test]
+fn a_projected_row_off_its_deck_refuses() {
+    use geom_core::interval::Interval;
+    let (f0, f1) = ARC;
+    let (t0, t1) = (Interval::from_f64(f0), Interval::from_f64(f1));
+    let band = Band::linear(Tol::witness()).unwrap();
+    let carrier = general_circle::<Interval>();
+    let image = geom_brep::chart_pcurve_over(&carrier, t0, t1, &sphere::<Interval>(), band)
+        .unwrap();
+    let moved = image.map_affine(
+        |p| geom_core::Point2::new(p.x + Interval::from_f64(1e-3), p.y),
+        |v| v,
+    );
+    let err = PcurveCache::certify(moved, t0, t1, &carrier, &sphere::<Interval>(), band)
+        .expect_err("a row off its deck does not certify");
+    assert!(
+        matches!(
+            err,
+            geom_brep::PcurveCertifyError::ResidualExceeded {
+                check: geom_brep::PcurveCheck::EnvelopeTerm(geom_brep::EnvelopeTerm::FidelityU),
+                ..
+            }
+        ),
+        "the refusal names the deck's term: {err:?}"
+    );
 }
 
 /// **The certificate sees the image between its samples.** The lane's

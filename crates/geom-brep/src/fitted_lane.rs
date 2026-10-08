@@ -75,6 +75,7 @@ use geom_core::{Band, Decide, Point2, Point3, Real};
 
 use crate::PcurveCertifyError;
 use crate::pcurve_cache::FittedEnvelope;
+use crate::pcurve_cache::projected::ProjectedHull;
 
 /// The scalars that hold a [`FittedLane`], by their [`Real::NAME`]s —
 /// the replay list [`crate::PcurveCertifyError::FittedLaneUnsupported`]
@@ -127,6 +128,12 @@ pub struct FittedLane<T: Real> {
     /// [`FittedLane::sphere_circle_image`]'s body.
     sphere_circle_lane:
         fn(&Curve3<T>, T, T, &Surface<T>, Band) -> Result<NurbsCurve2<T>, PcurveCertifyError>,
+    /// [`FittedLane::projected_hull`]'s body.
+    projected_lane: fn(
+        &crate::ProjectedImage<T>,
+        &NurbsCurve3<T>,
+        &Surface<T>,
+    ) -> Result<ProjectedHull, PcurveCertifyError>,
 }
 
 impl<T: Decide + geom_core::CertifiedBounds> FittedLane<T> {
@@ -141,6 +148,7 @@ impl<T: Decide + geom_core::CertifiedBounds> FittedLane<T> {
             general_image_lane: crate::pcurve_cache::general_image_lane::<T>,
             chart_foot_lane: crate::pcurve_cache::chart_foot_lane::<T>,
             sphere_circle_lane: crate::pcurve_cache::sphere_circle_image_lane::<T>,
+            projected_lane: crate::pcurve_cache::projected::projected_hull_lane::<T>,
         }
     }
 }
@@ -239,6 +247,23 @@ impl<T: Real> FittedLane<T> {
         (self.general_image_lane)(carrier, wall)
     }
 
+    /// **A spline carrier's projected row's hull terms** — check 4 of
+    /// [`crate::PcurveCache::certify_projected`] for a net, reached only
+    /// from inside this crate: the stored image's piece hulls (its
+    /// sector condition and cone lever) and the chart's implicit form
+    /// composed along `twin_net`, the carrier written in the frame of
+    /// `twin`, the chart's orthonormal twin
+    /// (`pcurve_cache::projected`'s docs). Certification arithmetic, so
+    /// it sits on this door.
+    pub(crate) fn projected_hull(
+        self,
+        image: &crate::ProjectedImage<T>,
+        twin_net: &NurbsCurve3<T>,
+        twin: &Surface<T>,
+    ) -> Result<ProjectedHull, PcurveCertifyError> {
+        (self.projected_lane)(image, twin_net, twin)
+    }
+
     /// **The chart foot of one point** on a NURBS wall —
     /// [`FittedLane::general_image`]'s single-sample sibling, same
     /// producer (`edge_nurbs::chart_foot`).
@@ -277,6 +302,7 @@ impl<T: Real> FittedLane<T> {
 #[cfg(test)]
 mod wiring_rows {
     use super::FittedLane;
+    use crate::pcurve_cache::projected::projected_hull_lane;
     use crate::pcurve_cache::{
         chart_foot_lane, fitted_lane, general_image_lane, sphere_circle_image_lane,
     };
@@ -307,6 +333,12 @@ mod wiring_rows {
         ) {
             return Err("sphere_circle_lane is not `pcurve_cache::sphere_circle_image_lane`");
         }
+        if !std::ptr::fn_addr_eq(
+            lane.projected_lane,
+            projected_hull_lane::<T> as fn(_, _, _) -> _,
+        ) {
+            return Err("projected_lane is not `pcurve_cache::projected::projected_hull_lane`");
+        }
         Ok(())
     }
 
@@ -315,7 +347,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_fitted_lane::<f64>(),
             Ok(()),
-            "`FittedLane::<f64>::certified()` holds something other than its four bodies"
+            "`FittedLane::<f64>::certified()` holds something other than its bodies"
         );
     }
 
@@ -326,7 +358,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_fitted_lane::<geom_core::Sym<f64>>(),
             Ok(()),
-            "`FittedLane::<Sym<f64>>::certified()` holds something other than its four bodies"
+            "`FittedLane::<Sym<f64>>::certified()` holds something other than its bodies"
         );
     }
 
@@ -336,7 +368,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_fitted_lane::<geom_core::Probe>(),
             Ok(()),
-            "`FittedLane::<Probe>::certified()` holds something other than its four bodies"
+            "`FittedLane::<Probe>::certified()` holds something other than its bodies"
         );
     }
 
@@ -345,7 +377,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_fitted_lane::<geom_core::interval::Interval>(),
             Ok(()),
-            "`FittedLane::<Interval>::certified()` holds something other than its four bodies"
+            "`FittedLane::<Interval>::certified()` holds something other than its bodies"
         );
     }
 }

@@ -461,6 +461,10 @@ pub enum CertifyError {
     /// hold up — this variant is the evidence's verdict, with the
     /// number.
     PlaneNurbs(crate::edge_nurbs::PlaneNurbsRefusal),
+    /// `Intersection` of two analytic surfaces over a rung-3
+    /// (`Curve3::Nurbs`) carrier: the uniqueness tube (C2's limb 3)
+    /// refused, carrying its own verdict ([`crate::rung3_tube`]).
+    Rung3Tube(crate::edge_nurbs::PlaneNurbsRefusal),
 }
 
 impl core::fmt::Display for CertifyError {
@@ -541,6 +545,10 @@ impl core::fmt::Display for CertifyError {
             Self::PlaneNurbs(refusal) => {
                 write!(f, "the plane × NURBS Intersection lane refused — {refusal}")
             }
+            Self::Rung3Tube(refusal) => write!(
+                f,
+                "the fitted Intersection's uniqueness tube refused — {refusal}"
+            ),
             Self::NotTransverse { sample, .. } => write!(
                 f,
                 "the faces meet tangentially at sample {sample}, where the \
@@ -627,7 +635,7 @@ impl CertifyError {
             Self::WindingExceeded => (CertCheck::ParamWinding, RefusedArm::SignCertain),
             Self::Escalated { check, cause, .. } => (*check, RefusedArm::Undecided(cause)),
             Self::ChartImageUnavailable { .. } => (CertCheck::ChartImage, RefusedArm::SignCertain),
-            Self::PlaneNurbs(refusal) => return refusal.decision(),
+            Self::PlaneNurbs(refusal) | Self::Rung3Tube(refusal) => return refusal.decision(),
             Self::UnresolvedSurface { .. }
             | Self::Unimplemented
             | Self::NurbsLaneNotSupplied
@@ -647,7 +655,7 @@ impl CertifyError {
     /// appends this, or renders both through [`CertifyError::render`].
     #[must_use]
     pub fn ending(&self, reading: Reading) -> Option<String> {
-        if let Self::PlaneNurbs(refusal) = self {
+        if let Self::PlaneNurbs(refusal) | Self::Rung3Tube(refusal) = self {
             return refusal.ending(reading);
         }
         self.decision()
@@ -1364,6 +1372,14 @@ pub struct NurbsLane<T: Real> {
             Band,
         )
             -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal>,
+    /// [`crate::rung3_tube`] at `T`.
+    tube: fn(
+        &geom::NurbsCurve3<T>,
+        &Surface<T>,
+        &Surface<T>,
+        T,
+        Band,
+    ) -> Result<(), crate::edge_nurbs::PlaneNurbsRefusal>,
     /// [`NurbsLane::carrier_foot`]'s Newton at `T`.
     foot: fn(
         &geom::NurbsCurve3<T>,
@@ -1380,6 +1396,7 @@ impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
     pub const fn certified() -> Self {
         Self {
             limbs: crate::edge_nurbs::plane_nurbs_limbs::<T>,
+            tube: crate::edge_nurbs::rung3_tube::<T>,
             foot: Self::seeded_foot,
         }
     }
@@ -1407,6 +1424,19 @@ impl<T: Real> NurbsLane<T> {
         band: Band,
     ) -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal> {
         (self.limbs)(carrier, plane, wall, extent, band)
+    }
+
+    /// The uniqueness tube of a rung-3 carrier between two analytic
+    /// surfaces ([`crate::rung3_tube`]).
+    fn tube(
+        self,
+        carrier: &geom::NurbsCurve3<T>,
+        s1: &Surface<T>,
+        s2: &Surface<T>,
+        extent: T,
+        band: Band,
+    ) -> Result<(), crate::edge_nurbs::PlaneNurbsRefusal> {
+        (self.tube)(carrier, s1, s2, extent, band)
     }
 
     /// The foot of `point` on a NURBS `carrier`, by Newton from `seed`:
@@ -2786,6 +2816,19 @@ fn run_checks<T: Decide>(
             band,
             &mut max_residual,
         )?;
+    }
+
+    // ---- Intersection of two analytic surfaces over a rung-3 carrier:
+    // limb 3, the uniqueness tube (C2), through the lane, which holds
+    // certification arithmetic. Without a lane (a scalar that certifies
+    // nothing between samples, or a caller that withholds it) the edge
+    // certifies at the schedule alone; tier 3 re-derives it with the
+    // scalar's lane at rest. ----
+    if let (Resolved::Intersection { surf1, surf2, .. }, Curve3::Nurbs(carrier), Some(lane)) =
+        (&resolved, &spec.carrier, lane)
+    {
+        lane.tube(carrier, surf1, surf2, extent, band)
+            .map_err(CertifyError::Rung3Tube)?;
     }
 
     // ---- Check 5: witness residuals + mid-parameter pin

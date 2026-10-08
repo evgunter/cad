@@ -2613,6 +2613,16 @@ fn classify_band(e: &BandError) -> &'static str {
 
 fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
     use geom_brep::PlaneNurbsRefusal as P;
+    // A rung-3 tube between two analytic faces refuses in the plane ×
+    // NURBS lane's vocabulary, and reads as it.
+    let tube;
+    let e = match e {
+        CertifyError::Rung3Tube(refusal) => {
+            tube = CertifyError::PlaneNurbs(refusal.clone());
+            &tube
+        }
+        other => other,
+    };
     const MISMATCH: &str = "its stored description does not match its geometry";
     const KIND: &str = "the kernel cannot yet check an edge of this kind";
     // The lead is this window's own.
@@ -2671,6 +2681,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             certify_undecided(CertCheck::PlaneNurbsReportedTransversality)
         }
         CertifyError::Band(b) => classify_band(b),
+        CertifyError::Rung3Tube(_) => unreachable!("read as its plane x NURBS refusal above"),
     };
     // The ending: a decision's refused arm ends as that decision's
     // routing gives it at rest (`CertifyError::ending`), the one table
@@ -2711,6 +2722,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
                 | P::ReportedTransversalityPoisoned(_)
                 | P::ChartSpeed(_),
             ) => unreachable!("a decision's refused arm always has its decision's ending"),
+            CertifyError::Rung3Tube(_) => unreachable!("read as its plane x NURBS refusal above"),
         }),
     };
     (why, recourse)
@@ -3038,6 +3050,12 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                 C::ArcNearPole => (
                     "a boundary circle runs over a pole of its sphere's chart",
                     "Recourse: re-aim the sphere's chart away from the arc, or split the edge",
+                ),
+                C::SectorRefused { .. } => (
+                    "a boundary curve runs into its chart's singular set (a pole, the apex or \
+                     the tube's core), where its image has no one branch",
+                    "Recourse: re-aim the chart's axis away from the curve, or split the edge \
+                     there",
                 ),
                 C::FittedLaneUnsupported { .. } => (
                     "this scalar cannot certify a fitted boundary",

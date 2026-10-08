@@ -376,7 +376,7 @@
 
 use geom::Surface;
 use geom_brep::{
-    BranchMiss, Pcurve, PcurveCache, PcurveCertifyError, UncoveredClass, chart_pcurve,
+    BranchMiss, Pcurve, PcurveCache, PcurveCertifyError, chart_pcurve_over,
     whole_period_count,
 };
 use geom_core::Tol;
@@ -860,20 +860,15 @@ pub fn pcurve_of<T: AtRestPolicy>(
 }
 
 /// The chart image of a carrier on an ANALYTIC chart, on the chart's
-/// principal branch: the closed form ([`chart_pcurve`]) wherever one
-/// exists, and for a sphere's GENERAL circle — the class the closed-form
-/// door names `UncoveredClass::SphereGeneralCircle`, its incidence with
-/// the chart already decided — the fitted image
-/// ([`geom_brep::FittedLane::sphere_circle_image`]), certified by
-/// [`PcurveCache::certify_fitted`]'s Circle arm.
+/// principal branch: the closed form ([`chart_pcurve_over`]) wherever
+/// one exists, and the projected image for a carrier with none (a spline
+/// carrier, a sphere's general circle), partitioned over the edge's own
+/// interval.
 ///
 /// # Errors
 ///
-/// [`PcurveMintError::Certify`] with the closed-form door's refusal,
-/// the fitted image's own refusal (an arc through a pole of the chart),
-/// or [`PcurveCertifyError::FittedLaneUnsupported`] for a general
-/// circle at a scalar with no fitted door.
-fn analytic_derive<T: AtRestPolicy>(
+/// [`PcurveMintError::Certify`] with the derivation's refusal.
+fn analytic_derive<T: Decide>(
     carrier: &geom::Curve3<T>,
     t0: T,
     t1: T,
@@ -881,23 +876,8 @@ fn analytic_derive<T: AtRestPolicy>(
     band: Band,
     half_edge: HalfEdgeKey,
 ) -> Result<Pcurve<T>, PcurveMintError> {
-    let certify = |error| PcurveMintError::Certify { half_edge, error };
-    match chart_pcurve(carrier, surface, band) {
-        Err(PcurveCertifyError::UnsupportedCarrier {
-            class: UncoveredClass::SphereGeneralCircle,
-            ..
-        }) => {
-            let Some(lane) = T::fitted_lane() else {
-                return Err(certify(PcurveCertifyError::FittedLaneUnsupported {
-                    scalar: T::NAME,
-                }));
-            };
-            lane.sphere_circle_image(carrier, t0, t1, surface, band)
-                .map(|image| Pcurve::Fitted(std::sync::Arc::new(image)))
-                .map_err(certify)
-        }
-        image => image.map_err(certify),
-    }
+    chart_pcurve_over(carrier, t0, t1, surface, band)
+        .map_err(|error| PcurveMintError::Certify { half_edge, error })
 }
 
 /// **Whether a stored row states its edge's whole interval** — copied
@@ -2759,6 +2739,9 @@ fn restate<T: Decide>(
             band,
             fitted,
         ),
+        Pcurve::Projected(image) => {
+            PcurveCache::certify_projected(image.clone(), t0, t1, carrier, surface, band, fitted)
+        }
         image => PcurveCache::certify(image.clone(), t0, t1, carrier, surface, band),
     }
 }
@@ -2772,9 +2755,7 @@ fn restate<T: Decide>(
 /// - **an uncovered class** — a pair the chart can hold but no lane
 ///   covers yet ([`PcurveCertifyError::UnsupportedCarrier`], whose
 ///   `class` names it); each class leaves this arm in the change that
-///   wires its route. The sphere's general circle has left it: its
-///   route is the fitted lane ([`analytic_derive`]), so that class
-///   reaching here would be a derivation that skipped its route;
+///   wires its route;
 /// - **a scalar with no fitted door** ([`AtRestPolicy::fitted_lane`]
 ///   answers `None`, as a dual's does) refusing a face only the fitted
 ///   lane can image ([`PcurveCertifyError::FittedLaneUnsupported`]):
@@ -2784,9 +2765,7 @@ fn restate<T: Decide>(
 fn not_owed<T: AtRestPolicy>(e: &PcurveMintError) -> bool {
     match e {
         PcurveMintError::Certify { error, .. } => match error {
-            PcurveCertifyError::UnsupportedCarrier { class, .. } => {
-                *class != UncoveredClass::SphereGeneralCircle
-            }
+            PcurveCertifyError::UnsupportedCarrier { .. } => true,
             PcurveCertifyError::FittedLaneUnsupported { .. } => T::fitted_lane().is_none(),
             _ => false,
         },
@@ -2872,8 +2851,22 @@ fn derive_face<T: AtRestPolicy>(
                 lane,
             )
         }
+        // A spline carrier's projected row reads its hull terms through
+        // the door; a circle's reads nothing from it. At a scalar with
+        // no door a net's row refuses at check 4, which `not_owed`
+        // excuses there.
+        Pcurve::Projected(image) => PcurveCache::certify_projected(
+            image.clone(),
+            w.t0,
+            w.t1,
+            &w.carrier,
+            surface,
+            band,
+            T::fitted_lane(),
+        ),
         closed => unreachable!(
-            "certify_walked hands the fitted door only Fitted and General images: {closed:?}"
+            "certify_walked hands the fitted door only Fitted, General and Projected images: \
+             {closed:?}"
         ),
     };
     if !refused.is_empty() {
@@ -2961,7 +2954,9 @@ fn certify_walked<T: Decide, K: Copy>(
     let mut refused = Vec::new();
     for w in walked {
         let cache = match (&w.pcurve, fitted) {
-            (Pcurve::Fitted(_) | Pcurve::General(_), Some(fitted)) => fitted(&w),
+            (Pcurve::Fitted(_) | Pcurve::General(_) | Pcurve::Projected(_), Some(fitted)) => {
+                fitted(&w)
+            }
             _ => PcurveCache::certify(w.pcurve.clone(), w.t0, w.t1, &w.carrier, surface, band),
         };
         match cache {
@@ -3327,7 +3322,7 @@ pub(crate) fn releases_a_gap<T: Decide>(
 ///   the same walk from each loop's `first` ([`walk_cycle`]) and the
 ///   same certification ([`certify_walked`]), over the image of every
 ///   half the surgery adds, describes or finds rowless, derived by the
-///   closed form ([`chart_pcurve`]), and the element of every joint it
+///   closed form ([`chart_pcurve_over`]), and the element of every joint it
 ///   makes or finds missing, decided between the two images
 ///   ([`decide_joint`]); the loop must still close ([`Winding`]).
 ///   Every other image and element stands, and the walk reads it as
@@ -3354,7 +3349,7 @@ pub(crate) fn releases_a_gap<T: Decide>(
 ///   holds open anywhere, or one a door moves a loop or run onto, as
 ///   found (the arm below says why per face).
 ///   The mint of an ANALYTIC chart
-///   needs nothing the fitted lane holds — [`chart_pcurve`],
+///   needs nothing the fitted lane holds — [`chart_pcurve_over`],
 ///   [`walk_cycle`] and [`PcurveCache::certify`] are all `Decide` — and
 ///   the fitted lane is the spline chart's derivation
 ///   (`nurbs_iso_derive`) and U2's `General` certificate.
@@ -3534,7 +3529,8 @@ pub(crate) fn site_rows<T: Decide>(
                 }
                 (_, at) => {
                     let (carrier, t0, t1, plus, vertex) = traversal(at);
-                    let base = Cow::Owned(chart_pcurve(&carrier, &face.surface, band)?);
+                    let base =
+                        Cow::Owned(chart_pcurve_over(&carrier, t0, t1, &face.surface, band)?);
                     carriers.push(carrier);
                     Ok(WalkItem {
                         base,
@@ -3624,7 +3620,7 @@ pub(crate) fn apply_site_rows<T: Decide>(
 /// The derivation is the one step that forks by chart: a SPLINE chart
 /// derives from the edge's description ([`nurbs_iso_derive`], the
 /// fitted lane's), every analytic chart from the carrier's closed form
-/// ([`chart_pcurve`]). Everything after the derivation — the branch
+/// ([`chart_pcurve_over`]). Everything after the derivation — the branch
 /// pin, the continuity margins, the closure — is [`walk_cycle`], which
 /// is stated under `Decide`. An empty loop bounds nothing to chart and
 /// appends nothing.
@@ -3801,7 +3797,7 @@ fn walk_runs<T: AtRestPolicy>(
 /// with its carrier and interval — the derivation the walk pins
 /// ([`walk_loop`]). The one step that forks by chart: a SPLINE chart
 /// derives from the edge's description ([`nurbs_iso_derive`]), every
-/// analytic chart from the carrier's closed form ([`chart_pcurve`]).
+/// analytic chart from the carrier's closed form ([`chart_pcurve_over`]).
 ///
 /// # Errors
 ///
@@ -4505,7 +4501,7 @@ fn chart_edge<T: Decide>(
         // A focal section's image is curved in both channels, and takes
         // the same envelope door.
         Pcurve::FocalSection(_) => false,
-        Pcurve::Fitted(_) | Pcurve::General(_) => false,
+        Pcurve::Fitted(_) | Pcurve::General(_) | Pcurve::Projected(_) => false,
     };
     if straight {
         return Ok(ChartEdge::Segment { a, b });
@@ -4531,6 +4527,21 @@ fn chart_edge<T: Decide>(
                     hull.v_min.enclosure_hull(hull.v_max),
                 ),
                 slack: cache.certificate().envelope,
+            })
+        }
+        // A projected image is the chart's inverse of its carrier, exact
+        // like the closed forms, so its slack is zero too; its enclosure
+        // is its own chart box, the sector hull's ranges per piece.
+        Pcurve::Projected(_) => {
+            let hull = walked.pcurve.chart_box(walked.t0, walked.t1);
+            Ok(ChartEdge::Envelope {
+                a,
+                b,
+                image: Point2::new(
+                    hull.u_min.enclosure_hull(hull.u_max),
+                    hull.v_min.enclosure_hull(hull.v_max),
+                ),
+                slack: T::zero(),
             })
         }
         // The closed-form image is exact in its family, so the slack is

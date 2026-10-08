@@ -597,6 +597,51 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     })
 }
 
+/// **The uniqueness tube of a rung-3 carrier between two ANALYTIC
+/// surfaces** — limb 3 of C2, the edge certificate's own (C2: "the proof
+/// is the same at every door, a search's and an edge's at rest"). Over a
+/// chain of boxes around the carrier the enclosure of
+/// `(∇f₁ × ∇f₂)·e` excludes zero, so the solution set in the chain is
+/// one arc and it spans the carrier. Limbs 1 and 2 are not asked here:
+/// the carrier's distance from each face's chart over the whole span is
+/// each face's pcurve row's incidence term (C4).
+///
+/// # Errors
+///
+/// [`PlaneNurbsRefusal::TubeStraddles`], [`PlaneNurbsRefusal::TubeNotOneArc`]
+/// or [`PlaneNurbsRefusal::Escalated`] when the tube does not certify;
+/// [`PlaneNurbsRefusal::Unsupported`] for a spline operand.
+pub fn rung3_tube<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
+    carrier: &NurbsCurve3<T>,
+    s1: &Surface<T>,
+    s2: &Surface<T>,
+    extent: T,
+    band: Band,
+) -> Result<(), PlaneNurbsRefusal> {
+    if [s1, s2]
+        .iter()
+        .any(|s| matches!(s, Surface::Nurbs(_) | Surface::Approx(_)))
+    {
+        return Err(PlaneNurbsRefusal::Unsupported {
+            what: "the analytic rung-3 tube reads two analytic operands",
+        });
+    }
+    crate::ssi::certify::certify_branch(
+        carrier,
+        crate::ssi::certify::Lane::AtRest {
+            a: &SsiOperand::Analytic(s1),
+            b: &SsiOperand::Analytic(s2),
+            pcurve_b: None,
+        },
+        TubeScale::uniform(extent),
+        band,
+        crate::ssi::certify::Limbs::Tube,
+        &mut Vec::new(),
+    )
+    .map(|_| ())
+    .map_err(refusal)
+}
+
 /// **The chart image of a declared carrier on a NURBS wall** — the one
 /// derivation of this object in the tree.
 ///

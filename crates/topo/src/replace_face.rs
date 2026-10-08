@@ -2182,7 +2182,12 @@ fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geo
         // projected ellipse's eccentricity: the offset moves the curve
         // off the section it was, so no image of the same form is
         // shifted out of this one.
-        Pcurve::FocalSection(_) | Pcurve::Fitted(_) | Pcurve::General(_) => return None,
+        // A projected image is the chart's inverse of its carrier, so the
+        // offset chart's image of the offset carrier is another one.
+        Pcurve::FocalSection(_)
+        | Pcurve::Fitted(_)
+        | Pcurve::General(_)
+        | Pcurve::Projected(_) => return None,
     })
 }
 

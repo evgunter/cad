@@ -429,7 +429,7 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         PcurveCertifyError::UnsupportedCarrier {
             chart: geom::SurfaceKind::Torus,
             carrier: geom::CurveKind::Nurbs,
-            class: geom_brep::UncoveredClass::SplineCarrier,
+            class: geom_brep::UncoveredClass::NoFittedClass,
         },
         PcurveCertifyError::CarrierGrazesChart {
             chart: geom::SurfaceKind::Torus,
@@ -448,6 +448,10 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" },
         PcurveCertifyError::FittedMateMissing,
         PcurveCertifyError::ArcNearPole,
+        PcurveCertifyError::SectorRefused {
+            piece: 0,
+            channel: geom_brep::SectorChannel::Azimuth,
+        },
         PcurveCertifyError::IsoUnsupported {
             what: "a rational NURBS surface",
         },

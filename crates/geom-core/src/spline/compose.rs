@@ -1084,6 +1084,108 @@ pub fn linear_composite(
     Ok(CompositeForm { num: acc, den: w })
 }
 
+/// An analytic implicit surface in its own **canonical chart frame** —
+/// origin at the chart's origin, apex or centre, the axis along the
+/// third coordinate — with its scalars as certification enclosures,
+/// so a chart whose radius or angle is itself a bracket composes
+/// without being refused as a widened family ([`ImplicitSurface`]
+/// takes exact `f64` structure). The curve composed with it is the
+/// carrier's net already written in that frame.
+#[derive(Clone, Copy, Debug)]
+pub enum CanonicalSurface {
+    /// `f = z` (metres): the plane `z = 0`.
+    Plane,
+    /// `f = x² + y² − R²` (metres²).
+    Cylinder {
+        /// The radius `R`.
+        radius: Interval,
+    },
+    /// `f = x² + y² + z² − r²` (metres²).
+    Sphere {
+        /// The radius `r`.
+        radius: Interval,
+    },
+    /// `f = cos²α·(x² + y²) − sin²α·z²` (metres²): the double cone of
+    /// half-angle `α` about the third axis, apex at the origin.
+    Cone {
+        /// `cos²α`.
+        cos2: Interval,
+        /// `sin²α`.
+        sin2: Interval,
+    },
+    /// `f = (x² + y² + z² + R² − r²)² − 4R²·(x² + y²)` (metres⁴), which
+    /// factors as `((ρ − R)² + z² − r²)·((ρ + R)² + z² − r²)`.
+    Torus {
+        /// The major radius `R`.
+        major: Interval,
+        /// The minor radius `r`.
+        minor: Interval,
+    },
+}
+
+/// The composite `f ∘ C` for a [`CanonicalSurface`] along a 3-D NURBS
+/// curve already written in that surface's chart frame, in rational
+/// Bernstein form over the curve's knot spans.
+///
+/// # Errors
+///
+/// [`ComposeError::DimensionMismatch`] unless `data.dims() == 3`.
+pub fn canonical_composite(
+    data: &CurveCertData<'_>,
+    surface: &CanonicalSurface,
+) -> Result<CompositeForm, ComposeError> {
+    if data.dims() != 3 {
+        return Err(ComposeError::DimensionMismatch {
+            dims: data.dims(),
+            expected: 3,
+        });
+    }
+    let w = data.weight_channel();
+    let g = [
+        data.weighted_channel(0),
+        data.weighted_channel(1),
+        data.weighted_channel(2),
+    ];
+    let w2 = ch_mul(&w, &w);
+    let radial = || ch_add(&ch_mul(&g[0], &g[0]), &ch_mul(&g[1], &g[1]));
+    let form = match *surface {
+        CanonicalSurface::Plane => CompositeForm {
+            num: g[2].clone(),
+            den: w,
+        },
+        CanonicalSurface::Cylinder { radius } => CompositeForm {
+            num: ch_sub(&radial(), &ch_scale_left(radius.sqr(), &w2)),
+            den: w2,
+        },
+        CanonicalSurface::Sphere { radius } => CompositeForm {
+            num: ch_sub(&sum_of_squares(&g), &ch_scale_left(radius.sqr(), &w2)),
+            den: w2,
+        },
+        CanonicalSurface::Cone { cos2, sin2 } => CompositeForm {
+            num: ch_sub(
+                &ch_scale_left(cos2, &radial()),
+                &ch_scale_left(sin2, &ch_mul(&g[2], &g[2])),
+            ),
+            den: w2,
+        },
+        CanonicalSurface::Torus { major, minor } => {
+            let shifted = ch_add(
+                &sum_of_squares(&g),
+                &ch_scale_left(major.sqr() - minor.sqr(), &w2),
+            );
+            let four_r2 = Interval::point(4.0) * major.sqr();
+            CompositeForm {
+                num: ch_sub(
+                    &ch_mul(&shifted, &shifted),
+                    &ch_scale_left(four_r2, &ch_mul(&radial(), &w2)),
+                ),
+                den: ch_mul(&w2, &w2),
+            }
+        }
+    };
+    Ok(form)
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
@@ -1110,6 +1212,83 @@ mod tests {
             }
         }
         num.iter().map(|v| v / den).collect()
+    }
+
+    /// Every canonical form's per-span enclosure holds the form's value
+    /// at points of the span, on a rational cubic with a repeated
+    /// interior knot, against the direct `f64` evaluation of `f`.
+    #[test]
+    fn canonical_composites_enclose_the_form_along_the_curve() {
+        let kv = KnotVector::clamped(
+            vec![0.0, 0.0, 0.0, 0.0, 0.3, 0.6, 0.6, 1.0, 1.0, 1.0, 1.0],
+            3,
+        )
+        .unwrap();
+        let w = [1.0, 0.7, 1.3, 0.9, 1.1, 0.8, 1.0];
+        let raw: Vec<Vec<f64>> = vec![
+            vec![1.2, 1.5, 0.4, -0.3, -1.1, -0.9, 0.2],
+            vec![0.1, 0.9, 1.4, 1.2, 0.6, -0.5, -0.8],
+            vec![-0.4, 0.2, 0.7, 0.1, -0.6, 0.3, 0.5],
+        ];
+        let coords: Vec<Vec<Interval>> = raw
+            .iter()
+            .map(|ch| ch.iter().map(|x| Interval::point(*x)).collect())
+            .collect();
+        let data = CurveCertData::new(&kv, &w, &coords).unwrap();
+        let (big, small, ang) = (1.1_f64, 0.35_f64, 0.6_f64);
+        let forms: [(CanonicalSurface, Box<dyn Fn(f64, f64, f64) -> f64>); 5] = [
+            (CanonicalSurface::Plane, Box::new(|_, _, z| z)),
+            (
+                CanonicalSurface::Cylinder {
+                    radius: Interval::point(big),
+                },
+                Box::new(move |x, y, _| x * x + y * y - big * big),
+            ),
+            (
+                CanonicalSurface::Sphere {
+                    radius: Interval::point(big),
+                },
+                Box::new(move |x, y, z| x * x + y * y + z * z - big * big),
+            ),
+            (
+                CanonicalSurface::Cone {
+                    cos2: Interval::point(ang.cos().powi(2)),
+                    sin2: Interval::point(ang.sin().powi(2)),
+                },
+                Box::new(move |x, y, z| {
+                    ang.cos().powi(2) * (x * x + y * y) - ang.sin().powi(2) * z * z
+                }),
+            ),
+            (
+                CanonicalSurface::Torus {
+                    major: Interval::point(big),
+                    minor: Interval::point(small),
+                },
+                Box::new(move |x, y, z| {
+                    let q = x * x + y * y + z * z + big * big - small * small;
+                    q * q - 4.0 * big * big * (x * x + y * y)
+                }),
+            ),
+        ];
+        for (n, (surface, f)) in forms.iter().enumerate() {
+            let form = canonical_composite(&data, surface).unwrap();
+            let breaks = form.num.breaks().to_vec();
+            let bounds = form.span_bounds();
+            for (j, b) in bounds.iter().enumerate() {
+                for k in 0..=10 {
+                    let t = breaks[j] + (breaks[j + 1] - breaks[j]) * f64::from(k) / 10.0;
+                    let p = rat_eval(&kv, &w, &raw, t);
+                    let v = f(p[0], p[1], p[2]);
+                    let slack = 1e-12 * (1.0 + v.abs());
+                    assert!(
+                        b.lo() - slack <= v && v <= b.hi() + slack,
+                        "form {n}, span {j}, t = {t}: {v} outside [{}, {}]",
+                        b.lo(),
+                        b.hi()
+                    );
+                }
+            }
+        }
     }
 
     /// The raw insertion path's span derivation, at **every step of a

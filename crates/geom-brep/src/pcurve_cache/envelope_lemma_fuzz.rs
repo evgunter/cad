@@ -18,12 +18,15 @@
 
 test_utils::gated_to![
     "crates/geom-brep/src/pcurve_cache.rs",
+    "crates/geom-brep/src/pcurve_cache/projected.rs",
     "crates/geom/src/surfaces.rs",
     "crates/geom/src/curves.rs",
     "crates/geom/src/azimuth.rs",
 ];
 
 use std::collections::BTreeSet;
+
+mod projected;
 
 use super::{
     ChartWindings, Derivation, EnvelopeTerm, EnvelopeTerms, FocalImage, Pcurve, PcurveCache,

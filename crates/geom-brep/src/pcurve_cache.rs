@@ -452,6 +452,18 @@ pub enum Pcurve<T: Real> {
     /// whereas a fitted image on a cone or torus chart has no
     /// certificate, since the chart's meters composite needs a root.
     FocalSection(FocalImage<T>),
+    /// The **projected image** of a carrier with no closed-form image on
+    /// an analytic chart — a spline carrier, or a circle on a sphere
+    /// that is neither a parallel nor a meridian: the chart's own
+    /// inverse applied to the carrier, `P(t) = ψ(C(t))`, evaluated from
+    /// the carrier written in the chart's frame on one `atan2` branch
+    /// per piece. Exact, not a fit; its envelope bounds the
+    /// displacement over the whole span as the carrier's distance from
+    /// the chart plus the stored data's fidelity to the carrier
+    /// ([`EnvelopeStatement::MapResidualProjected`];
+    /// `pcurve_cache::projected`'s docs carry the channels and the
+    /// lemma).
+    Projected(ProjectedImage<T>),
 }
 
 /// The azimuth channel of a [`Pcurve::FocalSection`] image (variant
@@ -848,6 +860,9 @@ impl<T: Real> Pcurve<T> {
                     ..*image
                 })
             }
+            // Every map a chart row takes has linear part `diag(1, ±1)`,
+            // and the image's deck map absorbs it exactly.
+            Pcurve::Projected(image) => Pcurve::Projected(image.map_affine(point, vector)),
         }
     }
 
@@ -970,6 +985,7 @@ impl<T: SpanLocate> Pcurve<T> {
                 }
             }
             Pcurve::FocalSection(image) => Point2::new(image.azimuth(t), image.second(t)),
+            Pcurve::Projected(image) => image.eval(t),
         }
     }
 
@@ -1105,6 +1121,9 @@ impl<T: SpanLocate> Pcurve<T> {
             // the second channel is a harmonic one and takes the
             // harmonic arm's box. Both are restriction-monotone.
             Pcurve::FocalSection(image) => focal_section_span_box(image, t0, t1),
+            // Per overlapped piece, the channels' ranges over the piece's
+            // sector hull (`projected`'s docs).
+            Pcurve::Projected(image) => image.chart_box(t0, t1),
         }
     }
 
@@ -1194,6 +1213,9 @@ pub enum PcurveCheck {
     /// A curved chart's incidence test, or a class gate it leads to
     /// (`chart_incidence`, the Villarceau gates).
     ChartIncidence,
+    /// A projected image's sector condition: each piece in one `atan2`
+    /// sector, clear of the chart's singular set.
+    Sector,
 }
 
 /// One term of check 4's envelope on a periodic chart — the bound the
@@ -1238,12 +1260,18 @@ pub enum EnvelopeTerm {
     /// and by the image's actual axial reach (the lemma's premise,
     /// metered rather than assumed).
     Frame,
+    /// A projected image's carrier against the chart: the chart's
+    /// implicit form composed along the carrier, in metres.
+    Incidence,
+    /// A projected image's stored carrier against the one re-derived
+    /// from the edge's, through the projection's Lipschitz bound.
+    Fidelity,
 }
 
 impl EnvelopeTerm {
     /// Every term, in the order the envelope sums them and a refusal
     /// is attributed.
-    const ALL: [EnvelopeTerm; 9] = [
+    const ALL: [EnvelopeTerm; 11] = [
         EnvelopeTerm::Frame,
         EnvelopeTerm::Centre,
         EnvelopeTerm::Radius,
@@ -1253,6 +1281,8 @@ impl EnvelopeTerm {
         EnvelopeTerm::Drift,
         EnvelopeTerm::FidelityU,
         EnvelopeTerm::FidelityV,
+        EnvelopeTerm::Incidence,
+        EnvelopeTerm::Fidelity,
     ];
 
     /// The term's slot in [`EnvelopeTerm::ALL`]. An exhaustive match,
@@ -1270,6 +1300,8 @@ impl EnvelopeTerm {
             EnvelopeTerm::Drift => 6,
             EnvelopeTerm::FidelityU => 7,
             EnvelopeTerm::FidelityV => 8,
+            EnvelopeTerm::Incidence => 9,
+            EnvelopeTerm::Fidelity => 10,
         }
     }
 }
@@ -1352,6 +1384,8 @@ pub enum PcurveKind {
     Fitted,
     /// [`Pcurve::General`].
     General,
+    /// [`Pcurve::Projected`].
+    Projected,
 }
 
 impl PcurveKind {
@@ -1365,6 +1399,7 @@ impl PcurveKind {
             Pcurve::FocalSection(_) => Self::FocalSection,
             Pcurve::Fitted(_) => Self::Fitted,
             Pcurve::General(_) => Self::General,
+            Pcurve::Projected(_) => Self::Projected,
         }
     }
 
@@ -1378,6 +1413,7 @@ impl PcurveKind {
             Self::FocalSection => "FocalSection",
             Self::Fitted => "Fitted",
             Self::General => "General",
+            Self::Projected => "Projected",
         }
     }
 }
@@ -1439,18 +1475,6 @@ impl Grazer {
 /// per raising site so a consumer can tell them apart.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum UncoveredClass {
-    /// A spline carrier at the closed-form door ([`chart_pcurve`]):
-    /// it has no `{1, cos, sin, t}` form, and the fitted lane that
-    /// certifies one is reached by no mint site from this door.
-    SplineCarrier,
-    /// A circle on a sphere that is neither polar nor meridian:
-    /// azimuth-non-harmonic, so the closed-form door has no image. Its
-    /// route is the fitted lane — the image from
-    /// [`crate::FittedLane::sphere_circle_image`], certified by
-    /// [`PcurveCache::certify_fitted`]'s Circle arm — and the pcurve
-    /// mint (`topo::mint_pcurves`) takes it, so this class is what the
-    /// closed-form door answers, not a state a minted face is left in.
-    SphereGeneralCircle,
     /// A line, ellipse or spiric offered a fitted-grade image: no such
     /// class exists, its images are closed-form or iso.
     NoFittedClass,
@@ -1464,15 +1488,6 @@ impl UncoveredClass {
     /// What is uncovered, in a clause.
     pub fn describe(self) -> &'static str {
         match self {
-            Self::SplineCarrier => {
-                "a spline carrier has no closed-form chart image, and the fitted lane that \
-                 certifies one is reached by no mint site from the closed-form door"
-            }
-            Self::SphereGeneralCircle => {
-                "a circle on the sphere that is neither polar nor meridian is \
-                 azimuth-non-harmonic, so it has no closed-form chart image; its route is the \
-                 fitted lane (FittedLane::sphere_circle_image, then certify_fitted)"
-            }
             Self::NoFittedClass => "a line, ellipse or spiric has no fitted-grade image class",
             Self::MirrorTorusSpiric => {
                 "the chart is the mirror of the spiric's torus through its cutting plane, \
@@ -1485,16 +1500,6 @@ impl UncoveredClass {
     /// The recourse a caller has, in a sentence.
     pub fn recourse(self) -> &'static str {
         match self {
-            Self::SplineCarrier => {
-                "Recourse: describe the edge with a line, circle or ellipse carrier where its \
-                 locus is one"
-            }
-            Self::SphereGeneralCircle => {
-                "Recourse: mint the face (mint_pcurves) at a scalar that holds the fitted \
-                 door, which images the circle through the fitted lane; an arc that lane \
-                 refuses runs over a pole of the chart — re-aim the sphere's chart away \
-                 from it"
-            }
             Self::NoFittedClass => {
                 "Recourse: state the edge's image in its closed-form or iso class rather \
                  than as a Fitted or General one"
@@ -1605,6 +1610,19 @@ pub enum PcurveCertifyError {
     /// docs). A cap, not an impossibility: an arc that passes very near a
     /// pole needs spans finer than the caps allow.
     ArcNearPole,
+    /// A projected image's piece is not in one `atan2` sector: its hull
+    /// reaches, or comes within the band of, the chart's singular set —
+    /// a sphere's pole, the cone's axis or apex, a torus's tube core —
+    /// or a stored piece leaves the half-plane its branch centre names.
+    /// The derivation refines pieces up to a cap before refusing; a
+    /// carrier through the singular set has no one-branch image.
+    SectorRefused {
+        /// The piece (or, for [`projected::SectorChannel::Lever`], the
+        /// carrier's knot span) that refused.
+        piece: u32,
+        /// Which channel's sector refused.
+        channel: projected::SectorChannel,
+    },
     /// An iso image was offered outside the iso lane's certified
     /// inventory, with the exact boundary named. The refused set is:
     /// a chart that is still the mvfs placeholder; a non-boundary ROW
@@ -1878,6 +1896,14 @@ impl core::fmt::Display for PcurveCertifyError {
                  Recourse: re-aim the sphere's chart so its polar axis points away from the \
                  arc, or split the edge so no piece of it passes over a pole"
             ),
+            Self::SectorRefused { piece, channel } => write!(
+                f,
+                "pcurve certification: piece {piece} of the projected image is not in one \
+                 atan2 sector — {}. Recourse: a carrier through a pole, the cone's apex or \
+                 the torus's core has no one-branch image there; split the edge at it, or \
+                 re-aim the chart's axis away from it",
+                channel.describe()
+            ),
             Self::AzimuthPeriodExceeded => write!(
                 f,
                 "pcurve certification: the pcurve winds more than one full period around \
@@ -1944,6 +1970,7 @@ impl PcurveCertifyError {
             | Self::FittedLaneUnsupported { .. }
             | Self::FittedMateMissing
             | Self::ArcNearPole
+            | Self::SectorRefused { .. }
             | Self::IsoUnsupported { .. }
             | Self::ChartRow { .. }
             | Self::FittedCertificate { .. }
@@ -1969,7 +1996,9 @@ impl PcurveCheck {
                 crate::certify::recourse(CertCheck::ParamWinding, arm, reading)
             }
             // The winding the kernel stores exactly: a form selection.
-            Self::ChartWinding | Self::ChartIncidence => Unsized::Defect.recourse(arm, reading),
+            Self::ChartWinding | Self::ChartIncidence | Self::Sector => {
+                Unsized::Defect.recourse(arm, reading)
+            }
             // A map residual and its between-samples envelope are
             // bounds on a fitted image as well as an exact one, and the
             // routing reads the check alone.
@@ -2253,6 +2282,16 @@ pub enum EnvelopeStatement {
     /// is the honest price of a banded structural gate at a scalar
     /// whose values are sets.
     SpiricIdentity,
+    /// `sup |S(P(t)) − C(t)|` for a [`Pcurve::Projected`] image over the
+    /// whole span: the carrier's distance from the chart (its implicit
+    /// form composed along it, in metres through a per-span lever), plus
+    /// the stored carrier's fidelity to the edge's through the
+    /// projection's Lipschitz bound, plus the frame's defect and the deck
+    /// map's distance from a deck transformation of the chart, each piece
+    /// held in one `atan2` sector. The same quantity as
+    /// [`Self::MapResidualClosedForm`]; the lemma is
+    /// `pcurve_cache::projected`'s module docs.
+    MapResidualProjected,
 }
 
 /// The certification record stored with a certified pcurve: the
@@ -2971,6 +3010,12 @@ impl<T: Decide> PcurveCache<T> {
             section @ Pcurve::FocalSection(_) => {
                 run_focal_section_checks(section, t0, t1, carrier, surface, band)?
             }
+            // A circle's projected row certifies here at every scalar; a
+            // net's needs the fitted door, which this door does not
+            // hold ([`PcurveCache::certify_projected`]).
+            projected @ Pcurve::Projected(_) => projected::run_projected_checks(
+                projected, t0, t1, carrier, surface, band, None,
+            )?,
         };
         Ok(Self {
             pcurve,
@@ -3109,6 +3154,38 @@ impl<T: Decide> PcurveCache<T> {
         })
     }
 
+    /// Certifies a **projected** image ([`Pcurve::Projected`]) with the
+    /// fitted door in hand: a spline carrier's row reads its hull terms
+    /// through `lane` at check 4 (certification arithmetic, C9), and a
+    /// circle's reads nothing from it. `None` is check 4's refusal for a
+    /// net's row, [`PcurveCertifyError::FittedLaneUnsupported`], after
+    /// checks 1–3 have run.
+    ///
+    /// # Errors
+    ///
+    /// The first failing check, as a typed [`PcurveCertifyError`];
+    /// [`PcurveCertifyError::ImageMismatch`] for an image of another
+    /// variant.
+    pub fn certify_projected(
+        image: ProjectedImage<T>,
+        t0: T,
+        t1: T,
+        carrier: &Curve3<T>,
+        surface: &Surface<T>,
+        band: Band,
+        lane: Option<crate::FittedLane<T>>,
+    ) -> Result<Self, PcurveCertifyError> {
+        let pcurve = Pcurve::Projected(image);
+        let certificate =
+            projected::run_projected_checks(&pcurve, t0, t1, carrier, surface, band, lane)?;
+        Ok(Self {
+            pcurve,
+            param_start: t0,
+            param_end: t1,
+            certificate,
+        })
+    }
+
     /// Re-runs the full certification at rest — the tier-3 validator's
     /// per-half-edge pass, for EITHER lane. Same checks, same schedule,
     /// same errors; the stored certificate is not consulted
@@ -3192,6 +3269,15 @@ impl<T: Decide> PcurveCache<T> {
                 carrier,
                 surface,
                 band,
+            ),
+            projected @ Pcurve::Projected(_) => projected::run_projected_checks(
+                projected,
+                self.param_start,
+                self.param_end,
+                carrier,
+                surface,
+                band,
+                lane,
             ),
             // Exhaustive by variant (see `certify`).
             harmonic @ Pcurve::Harmonic { .. } => run_harmonic_checks(
@@ -6066,7 +6152,8 @@ fn run_fitted_checks<T: Decide>(
         | EnvelopeStatement::MapResidualComposite
         | EnvelopeStatement::OnLocusHull
         | EnvelopeStatement::MapResidualIsoHull
-        | EnvelopeStatement::SpiricIdentity => "pcurve_envelope",
+        | EnvelopeStatement::SpiricIdentity
+        | EnvelopeStatement::MapResidualProjected => "pcurve_envelope",
     };
     let mut envelope_margin = T::zero();
     check_residual(
@@ -7031,6 +7118,34 @@ pub fn chart_pcurve<T: Decide>(
     surface: &Surface<T>,
     band: Band,
 ) -> Result<Pcurve<T>, PcurveCertifyError> {
+    chart_image(carrier, None, surface, band)
+}
+
+/// [`chart_pcurve`] for an edge over `[t0, t1]`: the same image for
+/// every class but a sphere's general circle, whose projected image is
+/// partitioned over the edge's own interval rather than one turn from
+/// `0`. The door a caller holding the edge's interval takes (the mint,
+/// the site mint).
+///
+/// # Errors
+///
+/// As [`chart_pcurve`].
+pub fn chart_pcurve_over<T: Decide>(
+    carrier: &Curve3<T>,
+    t0: T,
+    t1: T,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<Pcurve<T>, PcurveCertifyError> {
+    chart_image(carrier, Some((t0, t1)), surface, band)
+}
+
+fn chart_image<T: Decide>(
+    carrier: &Curve3<T>,
+    span: Option<(T, T)>,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<Pcurve<T>, PcurveCertifyError> {
     // The spiric's two exact images come FIRST, because the kind has no
     // `{1, cos, sin, t}` form at all: `carrier_harmonic` answers `None`
     // for it and would turn the one carrier with a closed image on two
@@ -7038,7 +7153,53 @@ pub fn chart_pcurve<T: Decide>(
     if matches!(carrier, Curve3::Spiric { .. }) {
         return spiric_chart_pcurve(carrier, surface, band);
     }
-    derive_harmonic(carrier, surface, band).map(|(image, _)| image)
+    // A spline carrier has no closed form on any chart: its image is the
+    // projected one, after the incidence test shows it not off the chart.
+    if let Curve3::Nurbs(net) = carrier {
+        if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
+            return Err(PcurveCertifyError::UnsupportedChart {
+                chart: surface.kind(),
+            });
+        }
+        if let Incidence::Off = net_incidence(net, surface, band)? {
+            return Err(NoImage::OffChart("the spline carrier does not lie on the chart")
+                .refusal(surface, carrier));
+        }
+        return projected::project(carrier, span, surface, band).map(Pcurve::Projected);
+    }
+    match derive_class(carrier, surface, band) {
+        Ok((image, _)) => Ok(image),
+        Err(Underived::Refused(e)) => Err(e),
+        Err(Underived::SphereGeneral) => {
+            projected::project(carrier, span, surface, band).map(Pcurve::Projected)
+        }
+    }
+}
+
+/// The incidence test of a spline carrier: [`chart_incidence`]'s, at
+/// [`INCIDENCE_SAMPLES`] points of its knot domain.
+fn net_incidence<T: Decide>(
+    net: &NurbsCurve3<T>,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<Incidence, PcurveCertifyError> {
+    let (d0, d1) = net.domain();
+    let n = f64::from(INCIDENCE_SAMPLES);
+    let farthest = (0..=INCIDENCE_SAMPLES).fold(T::zero(), |far, i| {
+        let t = d0 + (d1 - d0) * f64::from(i) / n;
+        let d = chart_distance(surface, net.eval(T::from_f64(t)));
+        if far.is_poison() || d.is_poison() {
+            d + far
+        } else {
+            far.max(d)
+        }
+    });
+    match decide("pcurve_spline_chart_incident", Margin::of(farthest), band)
+        .map_err(incidence_escalated)?
+    {
+        Sign::Positive => Ok(Incidence::Off),
+        Sign::Zero | Sign::Negative => Ok(Incidence::On),
+    }
 }
 
 /// The two iso families of an analytic chart: `U` the `u = const`
@@ -7133,15 +7294,18 @@ pub fn chart_iso_family<T: Decide>(
 /// [`chart_pcurve`]'s harmonic arms, answering the image together with
 /// the structure selections that produced it ([`Derivation`]) — the
 /// one body both the mint and check 4's re-derivation run.
-fn derive_harmonic<T: Decide>(
+fn derive_class<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
     band: Band,
-) -> Result<(Pcurve<T>, Derivation), PcurveCertifyError> {
+) -> Result<(Pcurve<T>, Derivation), Underived> {
     let no_image = |verdict: NoImage| verdict.refusal(surface, carrier);
-    let off_chart = |why| no_image(NoImage::OffChart(why));
+    let off_chart = |why| Underived::Refused(no_image(NoImage::OffChart(why)));
     let Some(form) = carrier_harmonic(carrier) else {
-        return Err(no_image(NoImage::Uncovered(UncoveredClass::SplineCarrier)));
+        return Err(Underived::Refused(PcurveCertifyError::ImageMismatch {
+            image: PcurveKind::Harmonic,
+            why: "a spline carrier has no {1, cos, sin, t} form; its image is the projected one",
+        }));
     };
     match *surface {
         Surface::Plane {
@@ -7228,7 +7392,7 @@ fn derive_harmonic<T: Decide>(
                         band,
                     ) {
                         Ok(sign) => Winding::of(sign),
-                        Err(cause) => return Err(winding_escalated(cause)),
+                        Err(cause) => return Err(winding_escalated(cause).into()),
                     };
                     Ok((
                         Pcurve::Harmonic {
@@ -7357,7 +7521,7 @@ fn derive_harmonic<T: Decide>(
                         Sign::Zero => {}
                         Sign::Positive | Sign::Negative => {
                             return Err(match cone_conic_incidence(carrier, surface, band)? {
-                                Ok(()) => grazes(surface, carrier, Grazer::ConeCircle),
+                                Ok(()) => Underived::Refused(grazes(surface, carrier, Grazer::ConeCircle)),
                                 Err(why) => off_chart(why),
                             });
                         }
@@ -7573,7 +7737,7 @@ fn derive_harmonic<T: Decide>(
                     {
                         Sign::Zero => {}
                         Sign::Positive | Sign::Negative => {
-                            return Err(no_image(sphere_circle_incidence(carrier, surface, band)?));
+                            return Err(sphere_circle_incidence(carrier, surface, band)?);
                         }
                     }
                     let alpha = stable_az(a_r.dot(cv), a_r.dot(u_ref));
@@ -7616,7 +7780,7 @@ fn derive_harmonic<T: Decide>(
                     match centred {
                         Sign::Zero => {}
                         Sign::Positive | Sign::Negative => {
-                            return Err(no_image(sphere_circle_incidence(carrier, surface, band)?));
+                            return Err(sphere_circle_incidence(carrier, surface, band)?);
                         }
                     }
                     // v(t) = σ·t + δ with sin δ = aa/r, cos δ = ‖a_r‖/r
@@ -7730,7 +7894,7 @@ fn derive_harmonic<T: Decide>(
                     {
                         Sign::Zero => {}
                         Sign::Positive | Sign::Negative => {
-                            return torus_oblique_circle(carrier, surface, band);
+                            return torus_oblique_circle(carrier, surface, band).map_err(Underived::Refused);
                         }
                     }
                     let alpha = stable_azimuth(a_r.dot(cv), a_r.dot(u_ref), band);
@@ -7772,7 +7936,7 @@ fn derive_harmonic<T: Decide>(
                         // Villarceau class), and the incidence test
                         // separates them from circles off it.
                         Sign::Positive | Sign::Negative => {
-                            return torus_oblique_circle(carrier, surface, band);
+                            return torus_oblique_circle(carrier, surface, band).map_err(Underived::Refused);
                         }
                     }
                     let alpha = stable_azimuth(w_r.dot(cv), w_r.dot(u_ref), band);
@@ -7819,16 +7983,46 @@ fn derive_harmonic<T: Decide>(
                 }
             }
         }
-        Surface::Nurbs(_) => Err(PcurveCertifyError::UnsupportedChart {
+        Surface::Nurbs(_) => Err(Underived::Refused(PcurveCertifyError::UnsupportedChart {
             chart: geom::SurfaceKind::Nurbs,
-        }),
+        })),
         // The closed-form pcurve mint is the analytic charts'. An
         // approximating surface's chart is a spline's, so it has no
         // harmonic image to mint — the fitted lane owns it.
-        Surface::Approx(_) => Err(PcurveCertifyError::UnsupportedChart {
+        Surface::Approx(_) => Err(Underived::Refused(PcurveCertifyError::UnsupportedChart {
             chart: geom::SurfaceKind::Approx,
-        }),
+        })),
     }
+}
+
+/// Why [`derive_class`] built no closed-form image: a refusal, or the
+/// sphere's general circle, whose route is the projected image.
+enum Underived {
+    Refused(PcurveCertifyError),
+    SphereGeneral,
+}
+
+impl From<PcurveCertifyError> for Underived {
+    fn from(e: PcurveCertifyError) -> Self {
+        Self::Refused(e)
+    }
+}
+
+/// [`derive_class`] for a caller that wants a closed-form image or a
+/// refusal: the sphere's general circle has none.
+fn derive_harmonic<T: Decide>(
+    carrier: &Curve3<T>,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<(Pcurve<T>, Derivation), PcurveCertifyError> {
+    derive_class(carrier, surface, band).map_err(|u| match u {
+        Underived::Refused(e) => e,
+        Underived::SphereGeneral => PcurveCertifyError::ImageMismatch {
+            image: PcurveKind::Harmonic,
+            why: "a circle on the sphere that is neither a parallel nor a meridian has no \
+                  closed-form image; its image is the projected one",
+        },
+    })
 }
 
 /// What a closed-form arm concluded about a carrier it has no image
@@ -8016,13 +8210,14 @@ fn sphere_circle_incidence<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
     band: Band,
-) -> Result<NoImage, PcurveCertifyError> {
+) -> Result<Underived, PcurveCertifyError> {
     Ok(
         match chart_incidence("pcurve_sphere_chart_incident", carrier, surface, band)? {
-            Incidence::On => NoImage::Uncovered(UncoveredClass::SphereGeneralCircle),
-            Incidence::Off => {
+            Incidence::On => Underived::SphereGeneral,
+            Incidence::Off => Underived::Refused(
                 NoImage::OffChart("the circle is not at the sphere's radius from its centre")
-            }
+                    .refusal(surface, carrier),
+            ),
         },
     )
 }
@@ -8054,11 +8249,18 @@ fn chart_distance<T: Real>(surface: &Surface<T>, p: Point3<T>) -> T {
             ((w.norm() - major_radius).powi(2) + h.powi(2)).sqrt() - minor_radius
         }
         .abs(),
-        Surface::Plane { .. }
-        | Surface::Cylinder { .. }
-        | Surface::Nurbs(_)
-        | Surface::Approx(_) => {
-            unreachable!("chart_distance: the incidence test reads a sphere, cone or torus chart")
+        Surface::Plane { origin, normal, .. } => ((p - origin).dot(normal) / normal.norm()).abs(),
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            ..
+        } => {
+            let (_, w) = crate::implicit::axial_radial(p, origin, axis);
+            (w.norm() - radius).abs()
+        }
+        Surface::Nurbs(_) | Surface::Approx(_) => {
+            unreachable!("chart_distance: the incidence test reads an analytic chart")
         }
     }
 }
@@ -8317,6 +8519,9 @@ fn spiric_off_own_chart(on_mirror: bool, why: &'static str) -> NoImage {
 
 // Check 4's per-arm lemma, swept, in a module of its own so the per-file
 // test gate can skip the sweep without skipping the deterministic rows.
+pub mod projected;
+pub use projected::{FramedCarrier, ProjectedChart, ProjectedImage, SectorChannel};
+
 #[cfg(test)]
 mod envelope_lemma_fuzz;
 
@@ -9080,8 +9285,8 @@ mod tests {
         assert!((pl.x - 1.0).abs() < 1e-15 && pl.y.abs() < 1e-15);
         assert!(pa.x.abs() < 1e-15 && pa.y.abs() < 1e-15);
         assert!(pb.x.abs() < 1e-15 && pb.y.abs() < 1e-15);
-        // What stays refused on the sphere chart, TYPED: a tilted
-        // small circle's azimuth is non-harmonic — never fitted (C5).
+        // A tilted circle's azimuth is non-harmonic: its image is the
+        // projected one, never a fit.
         let tilt = 0.6_f64;
         let tilted = Curve3::Circle {
             center: Point3::new(0.0, 0.0, 0.0),
@@ -9089,16 +9294,10 @@ mod tests {
             radius: 1.0,
             u_ref: Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
         };
-        let err = chart_pcurve(&tilted, &sphere, band()).unwrap_err();
+        let got = chart_pcurve(&tilted, &sphere, band());
         assert!(
-            matches!(
-                err,
-                PcurveCertifyError::UnsupportedCarrier {
-                    class: UncoveredClass::SphereGeneralCircle,
-                    ..
-                }
-            ),
-            "a tilted great circle lies on the sphere: {err:?}"
+            matches!(got, Ok(Pcurve::Projected(_))),
+            "a tilted great circle lies on the sphere: {got:?}"
         );
         // The incidence test splits the two gates' failures: a
         // vertical SMALL circle (plane x = 0.6, radius 0.8) lies on
@@ -9110,16 +9309,10 @@ mod tests {
             radius: 0.8,
             u_ref: Vec3::unit_z(),
         };
-        let err = chart_pcurve(&vertical, &sphere, band()).unwrap_err();
+        let got = chart_pcurve(&vertical, &sphere, band());
         assert!(
-            matches!(
-                err,
-                PcurveCertifyError::UnsupportedCarrier {
-                    class: UncoveredClass::SphereGeneralCircle,
-                    ..
-                }
-            ),
-            "a vertical small circle lies on the sphere: {err:?}"
+            matches!(got, Ok(Pcurve::Projected(_))),
+            "a vertical small circle lies on the sphere: {got:?}"
         );
         for (what, off) in [
             (
@@ -9343,16 +9536,10 @@ mod tests {
             matches!(got, Ok(Pcurve::FocalSection(_))),
             "a Villarceau circle images as a focal section: {got:?}"
         );
-        let err = chart_pcurve(&nurbs, &plane, band()).unwrap_err();
+        let got = chart_pcurve(&nurbs, &plane, band());
         assert!(
-            matches!(
-                err,
-                PcurveCertifyError::UnsupportedCarrier {
-                    class: UncoveredClass::SplineCarrier,
-                    ..
-                }
-            ),
-            "a spline on a plane: {err:?}"
+            matches!(got, Ok(Pcurve::Projected(_))),
+            "a spline on a plane images as its mapped net: {got:?}"
         );
         // Near the tube's top an off-axis centre `δ` leaves the torus
         // only by `δ²/2r`, so a circle ⊥ the axis centred off it — past
@@ -9387,17 +9574,12 @@ mod tests {
         // Exhaustive by construction: a new class fails to compile here
         // until it has a row.
         let classes = [
-            UncoveredClass::SplineCarrier,
-            UncoveredClass::SphereGeneralCircle,
             UncoveredClass::NoFittedClass,
             UncoveredClass::MirrorTorusSpiric,
         ];
         for class in classes {
             match class {
-                UncoveredClass::SplineCarrier
-                | UncoveredClass::SphereGeneralCircle
-                | UncoveredClass::NoFittedClass
-                | UncoveredClass::MirrorTorusSpiric => {}
+                UncoveredClass::NoFittedClass | UncoveredClass::MirrorTorusSpiric => {}
             }
         }
         let mut recourses: Vec<&str> = classes.iter().map(|c| c.recourse()).collect();

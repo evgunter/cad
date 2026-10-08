@@ -102,6 +102,7 @@ const COLOR_FITTED: &str = "#c1590a";
 const COLOR_GENERAL: &str = "#a01c3c";
 const COLOR_SPIRIC: &str = "#1d7a5f";
 const COLOR_FOCAL_SECTION: &str = "#8a6d0b";
+const COLOR_PROJECTED: &str = "#1f6f8b";
 
 /// The pcurve form a half-edge's chart image was drawn from.
 ///
@@ -138,6 +139,9 @@ enum Form {
     /// ellipse on its cone, a Villarceau circle on its torus: a
     /// Kepler-anomaly azimuth, so its samples are uneven in `u`.
     FocalSection,
+    /// The projected chart image: the chart's inverse of a carrier with
+    /// no closed form (a spline, a sphere's general circle).
+    Projected,
 }
 
 impl Form {
@@ -150,6 +154,7 @@ impl Form {
             Pcurve::General(_) => Form::General,
             Pcurve::Spiric { .. } => Form::Spiric,
             Pcurve::FocalSection(_) => Form::FocalSection,
+            Pcurve::Projected(_) => Form::Projected,
         }
     }
 
@@ -162,6 +167,7 @@ impl Form {
             Form::General => "general",
             Form::Spiric => "spiric",
             Form::FocalSection => "focalsection",
+            Form::Projected => "projected",
         }
     }
 
@@ -174,6 +180,7 @@ impl Form {
             Form::General => COLOR_GENERAL,
             Form::Spiric => COLOR_SPIRIC,
             Form::FocalSection => COLOR_FOCAL_SECTION,
+            Form::Projected => COLOR_PROJECTED,
         }
     }
 
@@ -190,6 +197,7 @@ impl Form {
             Form::General => 4,
             Form::Spiric => 5,
             Form::FocalSection => 6,
+            Form::Projected => 7,
         }
     }
 }
