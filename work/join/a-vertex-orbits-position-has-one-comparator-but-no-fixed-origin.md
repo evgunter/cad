@@ -66,3 +66,21 @@ while PR 4057's design question is open.
   `recl.rs`' `flankers` and `reflank` are the same kind of step.
 - **`zip.rs`' `within`** is no longer in the tree, so there is nothing
   to fold.
+
+## Measured (release, main 047d10d5 against branch head 8b03369e)
+
+0 lines moved, across 89 battery runs:
+
+| battery | lines |
+|---|---|
+| `pierce_runs_battery` | 4 537 |
+| `pinch_runs_battery` | 3 025 |
+| `corner_pairs_battery` | 16 381 |
+| `join1_r1_reflex_battery` | 1 153 |
+| `j3r2_r1_reflex_battery` | 1 153 |
+| `rc_wide_battery`, all 84 shards | 40 320 `RCW` lines |
+
+Every run exited 0 on both sides. The whole workspace suite (debug,
+12 951 tests) passed on head except one wall-clock row. That row reads
+the same time on main and is filed as
+`a-names-alike-bound-sits-at-the-debug-builds-own-time`.
