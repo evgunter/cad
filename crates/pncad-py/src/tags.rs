@@ -568,7 +568,6 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
         S::Member(_) => "member",
         S::Input => "input",
         S::Of => "of",
-        S::Measure => "measure",
         S::Plane => "plane",
         S::At => "at",
     }
@@ -621,7 +620,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::SlotUnresolvedVar { .. } => "slot_unresolved_var",
         EditError::PayloadUnresolvedVar { .. } => "payload_unresolved_var",
         EditError::MeasureMalformed { .. } => "measure_malformed",
-        EditError::AssertionTarget { .. } => "assertion_target",
+        EditError::ConstructionReadsObserved { .. } => "construction_reads_observed",
         EditError::AssertionDimension { .. } => "assertion_dimension",
         EditError::ContinuousVarCannotBeCount { .. } => "continuous_var_cannot_be_count",
         EditError::UnknownVar { .. } => "unknown_var",
@@ -985,7 +984,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::MeasureUnsupported => "measure_unsupported",
         C::MeasureNotParallel => "measure_not_parallel",
         C::MeasureNonFinite => "measure_non_finite",
-        C::MeasureMalformed => "measure_malformed",
         // Its own tag rather than `measure_unsupported`'s: the
         // recourse is "select a body or a face", not "this carrier
         // pair has no closed form".
@@ -1270,7 +1268,6 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         // kernel mints; neither is an arm of an enum this file can
         // match, so the pair stays in the prose it is already in.
         NodeErrorKind::MeasureUnsupported(_) => None,
-        NodeErrorKind::MeasureMalformed(inner) => Some(measure_node_fault_tag(inner)),
         NodeErrorKind::PayloadExpr { source, .. } => Some(eval_error_tag(source)),
         NodeErrorKind::MeasureSelectionKind { .. } => None,
         // The clearance engine's class name is a `&str` the engine
@@ -1331,7 +1328,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::SlotUnknownVarName { .. } => None,
         EditError::PayloadUnknownVarName { .. } => None,
         EditError::PayloadVarKind { .. } => None,
-        EditError::AssertionTarget { .. } => None,
+        EditError::ConstructionReadsObserved { .. } => None,
         EditError::AssertionDimension { .. } => None,
         EditError::SlotVarKind { .. } => None,
         EditError::ContinuousVarCannotBeCount { .. } => None,
@@ -2079,10 +2076,9 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::PlacementNonRigid { .. } => "placement_non_rigid",
         SnapshotError::MateAlignment { .. } => "mate_alignment",
         SnapshotError::PlacementRule { .. } => "placement_rule",
-        SnapshotError::MeasureRefs { .. } => "measure_refs",
         SnapshotError::InputList { .. } => "input_list",
         SnapshotError::DuplicateInput { .. } => "duplicate_input",
-        SnapshotError::AssertionTarget { .. } => "assertion_target",
+        SnapshotError::ObservedRead { .. } => "observed_read",
         SnapshotError::AssertionBound { .. } => "assertion_bound",
         SnapshotError::MetadataUnversioned { .. } => "metadata_unversioned",
     }

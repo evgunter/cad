@@ -320,7 +320,6 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         (
             "MeasureMalformed",
             EditError::MeasureMalformed {
-                node: s(5, "Measure"),
                 fault: MeasureNodeFault::RefIndexOutOfRange {
                     verb: "min_clearance",
                     index: 2,
@@ -329,19 +328,19 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "AssertionTarget",
-            EditError::AssertionTarget {
-                node: s(6, "Assertion"),
-                measure: s(5, "Extrude"),
-            },
-        ),
-        (
             "AssertionDimension",
             EditError::AssertionDimension {
                 node: s(6, "Assertion"),
-                measure: s(5, "Measure"),
                 measured: Dimension::Length,
                 bound: Dimension::Angle,
+            },
+        ),
+        (
+            "ConstructionReadsObserved",
+            EditError::ConstructionReadsObserved {
+                node: s(5, "Extrude"),
+                slot: SlotId::Distance,
+                var: Box::new(spoken_var()),
             },
         ),
         (

@@ -358,6 +358,16 @@ impl MeasureExpr {
         Self::binary(Binop::Max, a, b, MeasureKind::Max)
     }
 
+    /// **The one primitive this expression is**, when it is nothing
+    /// else: no value leaf and no arithmetic. Such a measurement is one
+    /// `Measure` node, and its value is that node's output.
+    pub fn as_primitive(&self) -> Option<MeasurePrimitive<u32>> {
+        match self.kind {
+            MeasureKind::Primitive(p) => Some(p),
+            _ => None,
+        }
+    }
+
     /// Every primitive in the tree, in pre-order: the order the builder
     /// inserts their measures in.
     pub fn primitives(&self) -> Vec<MeasurePrimitive<u32>> {

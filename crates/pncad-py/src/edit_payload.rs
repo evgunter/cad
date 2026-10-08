@@ -321,7 +321,6 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // The nested refusals: `inner_variant` names the arm and the
         // fields inside it stay on that type's own door.
         EditError::ProfileProgramRefused { node, refusal: _ }
-        | EditError::MeasureMalformed { node, fault: _ }
         | EditError::StepIdsRefused { node, fault: _ } => EditPayload {
             node: Some(node.id()),
             ..none
@@ -348,21 +347,15 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             input: Some(other.id()),
             ..none
         },
-        // An assertion's `measure` IS the node it reads, so it takes
-        // the `input` role rather than a fourth node attribute.
-        EditError::AssertionTarget { node, measure } => EditPayload {
-            node: Some(node.id()),
-            input: Some(measure.id()),
-            ..none
-        },
+        // A measure refused at the builder is no node yet; the nested
+        // fault rides in `inner_variant`.
+        EditError::MeasureMalformed { fault: _ } => none,
         EditError::AssertionDimension {
             node,
-            measure,
             measured,
             bound,
         } => EditPayload {
             node: Some(node.id()),
-            input: Some(measure.id()),
             expected: Some(dim(*measured)),
             found: Some(dim(*bound)),
             ..none
@@ -474,6 +467,13 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             index: operand_index(slot),
             expected: Some(slot_kind_tag(*expected)),
             found: Some(var_kind_tag(*found)),
+            ..none
+        },
+        EditError::ConstructionReadsObserved { node, slot, var } => EditPayload {
+            node: Some(node.id()),
+            param: var.name(),
+            slot: Some(slot_id_tag(slot)),
+            index: operand_index(slot),
             ..none
         },
         EditError::ContinuousVarCannotBeCount { var }

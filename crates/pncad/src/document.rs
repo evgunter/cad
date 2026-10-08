@@ -133,10 +133,14 @@ pub use editor_core::{Label, LabelFault};
 pub use editor_core::{Placement, Step};
 
 // The measurement vocabulary (ERROR-DESIGN E3/E10, CONTACT-DESIGN C5).
-// `MeasureExpr` + `MeasurePrimitive` are what a `Node::Measure` is
-// built from, so a caller who cannot spell them cannot author one at
-// all; `AssertionDir` is a field of `Node::Assertion` for the same
-// reason. `AssertionVerdict` and `UnevaluatedReason` are the READING
+// A `Node::Measure` holds one `MeasurePrimitive`; a `MeasureExpr` is the
+// authored measurement the builder (`measure`, `Recording::measure`)
+// records as one measure per primitive and a formula over their
+// outputs, answered as `Measured` (in a `MeasureOutcome`). A caller who
+// cannot spell them cannot author one at all; `AssertionDir` is a field
+// of `Node::Assertion` for the same reason. `Observed` and
+// `ObservedRefusal` are what `Evaluation::reading` answers a measured
+// value with. `AssertionVerdict` and `UnevaluatedReason` are the READING
 // half — the payload an evaluated assertion carries — and E10's whole
 // point is that a verdict is consumed by reports. `ASSERT_BOUND` is
 // the funnel site name, carried like `SEL_DATUM_DISTANCE` so a
@@ -157,8 +161,9 @@ pub use editor_core::{Placement, Step};
 // is what a caller who read a name out of a file has to handle.
 pub use editor_core::clearance::{CellBudget, ClearanceRefusal, SelectionRefusal};
 pub use editor_core::{
-    ASSERT_BOUND, AssertionDir, AssertionVerdict, FaceName, MeasureExpr, MeasurePrimitive,
-    MeasureUnavailableAt, NotAFaceName, SitedFace, SitedRef, UnevaluatedReason,
+    ASSERT_BOUND, AssertionDir, AssertionVerdict, FaceName, MeasureExpr, MeasureOutcome,
+    MeasurePrimitive, MeasureUnavailableAt, Measured, NotAFaceName, Observed, ObservedRefusal,
+    SitedFace, SitedRef, UnevaluatedReason, measure,
 };
 
 // Expressions and their text door.

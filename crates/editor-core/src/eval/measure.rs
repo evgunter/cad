@@ -913,6 +913,42 @@ pub(crate) fn observe<T: Decide, P>(
         .map_err(ObservedRefusal::Expr)
 }
 
+/// **`formula` evaluated with measured values bound**: [`observe`] for
+/// each observed variable it reads, every other read `env`'s. The door
+/// a reader outside the document takes to a measurement's value that no
+/// variable holds — `Recording::measure`'s `value` before an assertion
+/// lowers it.
+///
+/// # Errors
+///
+/// As [`observe`].
+pub(crate) fn observe_formula<T: Decide, P>(
+    doc: &crate::Doc<P>,
+    env: &crate::expr::VarEnv<T>,
+    results: &std::collections::BTreeMap<crate::RecipeNodeId, super::NodeResult<T>>,
+    formula: &crate::Formula,
+) -> Result<Observed<T>, ObservedRefusal> {
+    let mut reads = Vec::new();
+    formula.var_reads(&mut reads);
+    let mut local = env.clone();
+    for (read, dim) in reads {
+        if doc.observed_outputs(read).is_empty() {
+            continue;
+        }
+        match observe(doc, env, results, read, dim)? {
+            Observed::Value(value) => {
+                local
+                    .bindings
+                    .insert(read, crate::expr::ParamValue::Continuous { dim, value });
+            }
+            unavailable @ Observed::Unavailable(_) => return Ok(unavailable),
+        }
+    }
+    crate::expr::eval(formula, &local)
+        .map(Observed::Value)
+        .map_err(ObservedRefusal::Expr)
+}
+
 /// **The measure an observed variable's absence is said at**: the first
 /// measure under `var` with no value at this scalar, which is what
 /// [`observe`] answered [`Observed::Unavailable`] for — or, read before

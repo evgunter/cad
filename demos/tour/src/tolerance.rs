@@ -285,7 +285,7 @@ fn cut_wall(tol: Tol) {
         receipt.certified, 1,
         "the study's own document certifies this box whole, so the wall is the cut's: {receipt:?}"
     );
-    let Plate { doc, measure, .. } =
+    let Plate { doc, web, .. } =
         crate::plate::cut_plate(SPACING_HALF_WIDTH * s, RADIUS_SIGMA * s, WEB_BOUND, tol);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &whole, tol).expect("the cut plate's nominal builds");
@@ -294,7 +294,7 @@ fn cut_wall(tol: Tol) {
         1,
         "the holes cut from the blank, the web read off the cut part's bore walls, \
          over 1e-9 of the study",
-        stackup(&doc, measure, &analyzed, &verdict, None, true, None, tol).map_err(|r| match r {
+        stackup(&doc, web, &analyzed, &verdict, None, true, None, tol).map_err(|r| match r {
             StackupRefusal::NothingCertified { receipt, .. } => Ok(receipt),
             other => Err(Box::new(other)),
         }),
@@ -314,7 +314,7 @@ fn cut_wall(tol: Tol) {
             .measures
             .iter()
             .find(|m| m.node == p.measure)
-            .expect("the web measure has a row");
+            .expect("the measure under the web has a row");
         (m.measured, m.mean, m.min, m.max)
     };
     let cut = row(&crate::plate::cut_plate(
@@ -339,7 +339,7 @@ fn cut_wall(tol: Tol) {
 fn real_study(tol: Tol) {
     let Plate {
         doc,
-        measure,
+        web,
         assertion,
         ..
     } = crate::plate::real_study(tol);
@@ -357,7 +357,7 @@ fn real_study(tol: Tol) {
     // each certified leaf — stop 2's discipline, applied to the study
     // a user actually has.
     let (decided, masses) = requirement_over_leaves(&doc, &analyzed, &verdict, assertion, tol);
-    match stackup(&doc, measure, &analyzed, &verdict, None, true, None, tol) {
+    match stackup(&doc, web, &analyzed, &verdict, None, true, None, tol) {
         Ok(report) => {
             println!("{}", indent(&report.render(&doc, &analyzed)));
             // What the captions below claim, asserted here — the cell panics
@@ -587,7 +587,7 @@ fn certified_study(tol: Tol) {
     );
     let Plate {
         doc,
-        measure,
+        web,
         assertion,
         ..
     } = plate(spacing_half_width, radius_sigma, bound, tol);
@@ -602,7 +602,7 @@ fn certified_study(tol: Tol) {
     // threshold, and a demo that decides on it is claiming a certainty
     // the kernel refuses to claim one line away.
     let decided = requirement_over_leaves(&doc, &analyzed, &verdict, assertion, tol).0;
-    let report = match stackup(&doc, measure, &analyzed, &verdict, None, true, None, tol) {
+    let report = match stackup(&doc, web, &analyzed, &verdict, None, true, None, tol) {
         Ok(report) => report,
         Err(refusal) => panic!(
             "the certifiable box did not certify: {refusal}. That is a finding about the \
@@ -613,7 +613,7 @@ fn certified_study(tol: Tol) {
     println!("{}", indent(&report.render(&doc, &analyzed)));
     print_divergence(&report, bound, worst, &decided, tol);
     // The E11.6 datum: where each certified leaf's mass lands.
-    let histogram = leaf_histogram(&doc, &analyzed, &verdict, measure, tol);
+    let histogram = leaf_histogram(&doc, &analyzed, &verdict, web, tol);
     println!("{}", indent(&histogram.render(&doc)));
     println!(
         "   the assertion node {} is the recorded requirement, and THIS is what the CI \

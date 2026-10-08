@@ -32,7 +32,8 @@ use pncad::document::ExtrudeSide;
 use pncad::document::{
     AssertionDir, BooleanOp, CancelToken, Dimension, Distribution, DocEdit, DocumentId,
     EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, VarName, apply, evaluate,
+    ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, VarId, VarName, apply,
+    evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::AuthoredNode;
@@ -129,8 +130,13 @@ fn declare(
 pub struct Plate {
     /// The document itself.
     pub doc: ProfileDoc,
-    /// The web `Measure` node — `distance(wall_a, wall_b) − r_a − r_b`.
+    /// The `Measure` node under the web — `distance(wall_a, wall_b)`,
+    /// the two bores' axis separation.
     pub measure: RecipeNodeId,
+    /// The web, `distance(wall_a, wall_b) − r_a − r_b`: the variable
+    /// the assertion reads, defined over the measure's output and the
+    /// two radii.
+    pub web: VarId,
     /// The `Assertion` over it. Read by [`crate::tolerance`].
     pub assertion: RecipeNodeId,
     /// The two hole extrudes, in the order their centres run along
@@ -358,23 +364,29 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
     // already exists, which is exactly the E3 contract.
     let [site_a, site_b] = sites;
     let refs = vec![wall(site_a), wall(site_b)];
-    let measure = insert(
-        &mut doc,
-        Node::measure(web, refs).expect("both indices in range"),
-        tol,
-    );
+    let measured = pncad::document::measure(&doc, &web, &refs, tol, &RefusingReach)
+        .expect("both indices in range");
+    doc = measured.doc;
+    let [measure] = measured.measured.measures[..] else {
+        unreachable!("the web reads one distance")
+    };
     let assertion = insert(
         &mut doc,
         Node::Assertion {
-            measure: measure.into(),
+            value: measured.measured.value,
             bound: len(bound),
             dir: AssertionDir::AtLeast,
         },
         tol,
     );
+    let Some(Node::Assertion { value: web, .. }) = doc.node(assertion) else {
+        unreachable!("the assertion was inserted one line above")
+    };
+    let web = *web;
     Plate {
         doc,
         measure,
+        web,
         assertion,
         holes: [hole_a, hole_b],
     }

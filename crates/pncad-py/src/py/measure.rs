@@ -175,7 +175,7 @@ fn measure_dimension_err(py: Python<'_>, err: &d::DimensionError) -> PyErr {
 /// `NodePick.build`.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone, Copy)]
-pub(crate) struct MeasurePrimitive(pub(crate) d::MeasurePrimitive);
+pub(crate) struct MeasurePrimitive(pub(crate) d::MeasurePrimitive<u32>);
 
 #[pymethods]
 impl MeasurePrimitive {
@@ -255,7 +255,7 @@ impl MeasurePrimitive {
     #[getter]
     fn refs(&self) -> (u32, u32) {
         let [a, b] = self.0.refs();
-        (a, b)
+        (*a, *b)
     }
 
     fn __eq__(&self, other: &Self) -> bool {
@@ -443,9 +443,11 @@ impl MeasureExpr {
     /// reads them back in.
     #[getter]
     fn primitives(&self) -> Vec<MeasurePrimitive> {
-        let mut out = Vec::new();
-        self.0.primitives(&mut out);
-        out.into_iter().map(MeasurePrimitive).collect()
+        self.0
+            .primitives()
+            .into_iter()
+            .map(MeasurePrimitive)
+            .collect()
     }
 
     fn __eq__(&self, other: &Self) -> bool {

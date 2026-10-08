@@ -277,6 +277,21 @@ impl<T: Decide> Evaluation<T> {
         measure::observe(doc, &self.env, &self.nodes, var, dim)
     }
 
+    /// **`formula` read in this evaluation**, measured values bound:
+    /// [`Self::reading`] for a formula no variable holds, such as a
+    /// recorded measurement's `value` (`Recording::measure`).
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::reading`].
+    pub fn reading_formula<P: crate::ProfilePayload>(
+        &self,
+        doc: &Doc<P>,
+        formula: &crate::Formula,
+    ) -> Result<measure::Observed<T>, measure::ObservedRefusal> {
+        measure::observe_formula(doc, &self.env, &self.nodes, formula)
+    }
+
     /// [`Self::reading`], its refusal rendered with the node it came
     /// from: a failed measure's own error spoken from `doc`, a poisoned
     /// one's failed ancestor's, and otherwise the standing; an

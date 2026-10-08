@@ -179,8 +179,8 @@ fn slot_kind_tags_are_stable() {
         var_kind_tag(VarKind::Frame)
     );
     assert_eq!(
-        [SlotKind::Placeable, SlotKind::Measured].map(crate::errors::slot_kind_tag),
-        ["placeable", "measured"]
+        crate::errors::slot_kind_tag(SlotKind::Placeable),
+        "placeable"
     );
 }
 
@@ -479,13 +479,13 @@ fn the_measure_verb_vocabulary_is_stable() {
 
     // A gap's pair is (outer, inner) and NOT re-sorted — C5's formulas
     // are asymmetric in the roles, so the order is authored data.
-    assert_eq!(gap.refs(), [6, 7]);
-    assert_eq!(distance.refs(), [0, 1]);
+    assert_eq!(gap.refs(), [&6, &7]);
+    assert_eq!(distance.refs(), [&0, &1]);
 }
 
 /// LIB-B-MEASURES: the construction door's refusal, from the door.
 ///
-/// `Node::measure` is called with an index past the end of the
+/// The measure builder is called with an index past the end of the
 /// reference list, so the fault is the kernel's answer rather than a
 /// named variant — the shape `analysis_refusal_tags_are_stable` uses
 /// one family over.
@@ -493,7 +493,7 @@ fn the_measure_verb_vocabulary_is_stable() {
 fn the_measure_node_fault_tag_is_stable() {
     use crate::tags::measure_node_fault_tag;
     use pncad::document::{
-        MeasureExpr, MeasureNodeFault, MeasurePrimitive, Node, ProfileProgram, RecipeNodeId,
+        EditError, MeasureExpr, MeasureNodeFault, MeasurePrimitive, ProfileDoc, RecipeNodeId,
         SitedRef,
     };
     use pncad::prelude::StableName;
@@ -504,11 +504,17 @@ fn the_measure_node_fault_tag_is_stable() {
         node: RecipeNodeId::new(0, 0),
         path: vec![RoleSeg::OutputBody],
     })];
-    let fault = Node::<ProfileProgram>::measure(
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        one_reference,
-    )
-    .expect_err("reference 1 of a one-reference measure names nothing");
+    let tol = pncad::tolerance::Tol::witness();
+    let refused = pncad::document::measure(
+        &ProfileDoc::empty_derived("measure-fault", tol),
+        &MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        &one_reference,
+        tol,
+        &pncad::document::RefusingReach,
+    );
+    let Err(EditError::MeasureMalformed { fault }) = refused else {
+        panic!("reference 1 of a one-reference measure names nothing")
+    };
     assert_eq!(measure_node_fault_tag(&fault), "ref_index_out_of_range");
     let MeasureNodeFault::RefIndexOutOfRange { verb, index, refs } = fault;
     assert_eq!((verb, index, refs), ("distance", 1, 1));
@@ -2518,7 +2524,6 @@ fn node_error_tags_are_the_published_words() {
         MeasureNonFinite => "measure_non_finite",
         MeasureNotParallel => "measure_not_parallel",
         MeasureUnsupported => "measure_unsupported",
-        MeasureMalformed => "measure_malformed",
         PayloadExpr => "payload_expr",
         MeasureSelectionKind => "measure_selection_kind",
         MeasureClearanceRefused => "measure_clearance_refused",
@@ -2932,13 +2937,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         },
         &["node", "input"],
     );
-    carries(
-        &E::AssertionTarget {
-            node: sp(1),
-            measure: sp(2),
-        },
-        &["node", "input"],
-    );
     // ---- operands ----
     use pncad::document::{Operand, OperandSlot, SlotKind, VarKind};
     carries(
@@ -3036,11 +3034,10 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::AssertionDimension {
             node: sp(1),
-            measure: sp(2),
             measured: Dimension::Length,
             bound: Dimension::Angle,
         },
-        &["node", "input", "expected", "found"],
+        &["node", "expected", "found"],
     );
 
     // `expected`/`found` are the slot's kind and the offered DIMENSION,
@@ -3338,14 +3335,13 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     );
     carries(
         &E::MeasureMalformed {
-            node: sp(1),
             fault: MeasureNodeFault::RefIndexOutOfRange {
                 verb: "distance",
                 index: 5,
                 refs: 0,
             },
         },
-        &["node"],
+        &[],
     );
     carries(
         &E::Dimension(DimensionError::Mismatch {

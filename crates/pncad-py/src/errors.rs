@@ -124,13 +124,12 @@ pub const fn var_kind_tag(kind: pncad::document::VarKind) -> &'static str {
 
 /// The stable tag for what an operand slot admits: a kind's own word
 /// ([`var_kind_tag`]), or `placeable` (a body or a list
-/// of bodies) and `measured` (a measured value).
+/// of bodies).
 pub const fn slot_kind_tag(kind: pncad::document::SlotKind) -> &'static str {
     use pncad::document::SlotKind as K;
     match kind {
         K::Is(kind) => var_kind_tag(kind),
         K::Placeable => "placeable",
-        K::Measured => "measured",
     }
 }
 
