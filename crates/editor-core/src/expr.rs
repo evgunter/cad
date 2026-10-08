@@ -305,13 +305,13 @@ impl core::error::Error for DimensionError {}
 pub enum Unlowered {
     /// No variable holds the name.
     Unheld,
-    /// The variable holding the name reads at `declared`, not at the
-    /// dimension the leaf reads it at.
+    /// The variable holding the name is of kind `declared`, which does
+    /// not read at the dimension the leaf reads it at.
     Kind {
         /// The variable holding the name.
         var: VarId,
-        /// The dimension its kind reads at.
-        declared: Dimension,
+        /// Its kind.
+        declared: crate::VarKind,
     },
 }
 

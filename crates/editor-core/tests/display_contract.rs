@@ -926,7 +926,7 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
         &EditError::PayloadVarKind {
             var: editor_core::SpokenVar::new(editor_core::VarId::new(0, 7), Some(name.clone())),
             node: held(3, "Measure"),
-            declared: Dimension::Length,
+            declared: editor_core::VarKind::Length,
             referenced: Dimension::Count,
         },
         &["is declared length", "reads it as count"],
@@ -953,7 +953,7 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
             )),
             node: held(3, "Extrude"),
             slot: SlotId::Distance,
-            declared: Dimension::Scalar,
+            declared: editor_core::VarKind::Scalar,
             referenced: Dimension::Length,
         },
         &["is declared scalar", "reads it as length"],
@@ -962,7 +962,7 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
     assert_f6(
         &EditError::VarValueKindMismatch {
             var: editor_core::SpokenVar::new(editor_core::VarId::new(0, 7), Some(name.clone())),
-            declared: Dimension::Length,
+            declared: editor_core::Dimension::Length,
             offered: FreeValue::Count(2),
         },
         &["is declared length"],
@@ -1107,6 +1107,7 @@ test_utils::f6_variants! {
         WitnessOnMissingNode,
         LabelOnMissingNode,
         VarKind,
+        OutputSignature,
         VarNotMinted,
         NameOnMissingVar,
         VarNameTwice,
@@ -1246,6 +1247,63 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
+            SnapshotError::OutputSignature {
+                node: editor_core::test_support::spoken(RecipeNodeId::new(0, tagged(5)), None),
+                fault: editor_core::OutputFault::NodeAbsent {
+                    var: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(7)), None),
+                },
+            },
+            vec!["is stored as an output of node 000000000005", "not live"],
+        ),
+        (
+            SnapshotError::OutputSignature {
+                node: held(5, "Extrude"),
+                fault: editor_core::OutputFault::PortOutside {
+                    var: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(7)), None),
+                    port: 1,
+                    ports: 1,
+                },
+            },
+            vec!["is stored as port 1 of", "whose signature has 1 port(s)"],
+        ),
+        (
+            SnapshotError::OutputSignature {
+                node: held(5, "Extrude"),
+                fault: editor_core::OutputFault::Kind {
+                    var: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(7)), None),
+                    port: "body",
+                    stored: editor_core::VarKind::Length,
+                    signature: editor_core::VarKind::Body,
+                },
+            },
+            vec![
+                "is stored as a length",
+                "the body port of",
+                "defines a body",
+            ],
+        ),
+        (
+            SnapshotError::OutputSignature {
+                node: held(5, "Revolve"),
+                fault: editor_core::OutputFault::Twice {
+                    port: "axis",
+                    first: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(7)), None),
+                    second: editor_core::SpokenVar::new(
+                        editor_core::VarId::new(0, tagged(8)),
+                        None,
+                    ),
+                },
+            },
+            vec!["are both stored as the axis port of"],
+        ),
+        (
+            SnapshotError::OutputSignature {
+                node: held(5, "Split"),
+                fault: editor_core::OutputFault::Missing { port: "below" },
+            },
+            vec!["defines a below port and no variable is stored for it"],
+        ),
+        (
             SnapshotError::VarNotMinted {
                 var: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(7)), None),
             },
@@ -1286,7 +1344,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                     editor_core::VarId::new(0, tagged(8)),
                     Some(VarName::from_static("w")),
                 ),
-                declared: Dimension::Angle,
+                declared: editor_core::VarKind::Angle,
                 referenced: Dimension::Length,
             },
             vec!["w is declared angle but the definition of h reads it as length"],
@@ -1359,7 +1417,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                     editor_core::VarId::new(0, tagged(7)),
                     Some(VarName::from_static("depth")),
                 ),
-                declared: Dimension::Angle,
+                declared: editor_core::VarKind::Angle,
                 referenced: Dimension::Length,
             },
             vec!["depth", "as a length", "declared angle"],
@@ -1371,7 +1429,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                     editor_core::VarId::new(0, tagged(7)),
                     Some(VarName::from_static("depth")),
                 ),
-                declared: Dimension::Angle,
+                declared: editor_core::VarKind::Angle,
                 referenced: Dimension::Length,
             },
             vec![
@@ -1667,7 +1725,7 @@ fn the_two_doors_spell_the_var_read_refusals_the_same_way_and_each_reports_its_a
             var: Box::new(var()),
             node: node(),
             slot: SlotId::Radius,
-            declared: Dimension::Length,
+            declared: editor_core::VarKind::Length,
             referenced: Dimension::Angle,
         }),
         arm(&EditError::SlotUnresolvedVar {
@@ -1682,7 +1740,7 @@ fn the_two_doors_spell_the_var_read_refusals_the_same_way_and_each_reports_its_a
         arm(&EditError::PayloadVarKind {
             var: var(),
             node: node(),
-            declared: Dimension::Length,
+            declared: editor_core::VarKind::Length,
             referenced: Dimension::Angle,
         }),
         arm(&EditError::PayloadUnresolvedVar {
@@ -1695,13 +1753,13 @@ fn the_two_doors_spell_the_var_read_refusals_the_same_way_and_each_reports_its_a
             node: node(),
             slot: SlotId::Radius,
             var: var(),
-            declared: Dimension::Length,
+            declared: editor_core::VarKind::Length,
             referenced: Dimension::Angle,
         }),
         arm(&SnapshotError::PayloadVarKind {
             node: node(),
             var: var(),
-            declared: Dimension::Length,
+            declared: editor_core::VarKind::Length,
             referenced: Dimension::Angle,
         }),
     ];
@@ -3413,7 +3471,7 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
             PersistError::DisplayUnit {
                 var: spoken.clone(),
                 unit: Dimension::Angle,
-                declared: Dimension::Length,
+                declared: editor_core::Dimension::Length,
             }
             .to_string(),
         ),
@@ -3431,7 +3489,7 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
                 node: node(),
                 slot: SlotId::Radius,
                 var: spoken.clone(),
-                declared: Dimension::Length,
+                declared: editor_core::VarKind::Length,
                 referenced: Dimension::Angle,
             }
             .to_string(),

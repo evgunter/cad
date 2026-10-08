@@ -859,7 +859,7 @@ impl Lowering {
                     VarDef::Defined(minted.lower_definition(new, &spoken, formula)?)
                 }
             };
-            let dim = def.kind().dimension();
+            let dim = decl.dim();
             minted
                 .defined
                 .set(minted.defined.get() | def.defined().is_some());
@@ -1373,7 +1373,7 @@ impl core::fmt::Display for DefinitionTooLargeSentence<'_> {
 pub(crate) struct DefinitionVarKindSentence<'a> {
     pub(crate) var: &'a SpokenVar,
     pub(crate) read: &'a SpokenVar,
-    pub(crate) declared: Dimension,
+    pub(crate) declared: VarKind,
     pub(crate) referenced: Dimension,
 }
 
@@ -1655,7 +1655,7 @@ pub enum EditError {
         /// The reading slot.
         slot: SlotId,
         /// The dimension the variable's kind reads at.
-        declared: Dimension,
+        declared: VarKind,
         /// The dimension the expression reads it at.
         referenced: Dimension,
     },
@@ -1688,7 +1688,7 @@ pub enum EditError {
         /// The reading node.
         node: SpokenNode,
         /// The dimension the variable's kind reads at.
-        declared: Dimension,
+        declared: VarKind,
         /// The dimension the expression reads it at.
         referenced: Dimension,
     },
@@ -1826,6 +1826,18 @@ pub enum EditError {
         /// Which edit was refused.
         door: CarryForwardDoor,
     },
+    /// A door that writes or deletes a variable's definition named an
+    /// operation's output ([`VarDef::Output`]). Its operation defines
+    /// it, and it lives exactly as long as that node; only a rename
+    /// reaches it.
+    VarIsAnOutput {
+        /// The variable.
+        var: SpokenVar,
+        /// The operation defining it.
+        node: SpokenNode,
+        /// Which edit was refused.
+        door: CarryForwardDoor,
+    },
     /// A definition ([`DocEdit::DeclareVar`], [`DocEdit::DefineVar`])
     /// reads, directly or through other definitions, the variable it
     /// defines (VR3).
@@ -1869,7 +1881,7 @@ pub enum EditError {
         /// The variable read.
         read: SpokenVar,
         /// The read variable's dimension.
-        declared: Dimension,
+        declared: VarKind,
         /// The dimension the definition reads it at.
         referenced: Dimension,
     },
@@ -2693,6 +2705,10 @@ impl EditError {
                 *node = node.respoken(doc);
                 **var = var.respoken(doc);
             }
+            Self::VarIsAnOutput { var, node, door: _ } => {
+                *node = node.respoken(doc);
+                *var = var.respoken(doc);
+            }
             Self::SlotUnresolvedVar { node, var, slot: _ }
             | Self::PayloadVarKind {
                 node,
@@ -3203,6 +3219,13 @@ impl EditError {
                      act on"
                 )?;
                 tail.recourse(f, format_args!("{UNKNOWN_VAR_RECOURSE}"))
+            }
+            Self::VarIsAnOutput { var, node, door } => {
+                write!(
+                    f,
+                    "{var} is an output of {node}, which defines it, so {door} cannot reach it"
+                )?;
+                tail.recourse(f, format_args!("edit or delete {node}"))
             }
             Self::NotAFreeVar { var, door } => {
                 write!(
@@ -3901,6 +3924,10 @@ pub struct EditRecord {
     /// The variables the edit's fresh table minted, entry by entry
     /// ([`DocEdit::InsertNode`]'s `fresh`); empty for an edit with none.
     pub fresh: Vec<VarId>,
+    /// The variables an `InsertNode`'s node defines, one per port of
+    /// its signature in port order ([`crate::Node::outputs`]); empty
+    /// for any other edit.
+    pub outputs: Vec<VarId>,
     /// Whether the edit was STRUCTURAL (spec D3/D6): it can change
     /// the result's combinatorial shape — insert/delete, a
     /// Count-slot expression edit, an edit of a Count variable, or an edit
@@ -4862,20 +4889,33 @@ fn write_free<P>(
 ) -> Result<EditRecord, EditError> {
     let def = VarDef::Free(value);
     check_var_def(var, &def)?;
-    let structural = def.kind() == VarKind::Count;
+    let structural = def.kind() == Some(VarKind::Count);
     new.vars.insert(id, Var::new(def));
     Ok(EditRecord {
         minted: None,
         minted_var: None,
         structural,
         fresh: Vec::new(),
+        outputs: Vec::new(),
     })
 }
 
+/// [`EditError::VarIsAnOutput`] where `id` is an operation's output.
+fn refuse_output<P>(doc: &Doc<P>, id: VarId, door: CarryForwardDoor) -> Result<(), EditError> {
+    match doc.var(id).and_then(|var| var.def().output()) {
+        Some((node, _)) => Err(EditError::VarIsAnOutput {
+            var: doc.spoken_var(id),
+            node: doc.spoken(node),
+            door,
+        }),
+        None => Ok(()),
+    }
+}
+
 /// The live FREE variable an edit of a standing variable addresses, or
-/// that door's refusal: a variable the document does not hold, or a
-/// defined one, which holds no value, notation or distribution of its
-/// own.
+/// that door's refusal: a variable the document does not hold, an
+/// output, or a defined one, which holds no value, notation or
+/// distribution of its own.
 fn standing_var<P>(
     doc: &Doc<P>,
     var: &VarRef,
@@ -4892,6 +4932,11 @@ fn standing_var<P>(
     };
     match def {
         VarDef::Free(free) => Ok((id, doc.spoken_var(id), free.clone())),
+        &VarDef::Output { node, .. } => Err(EditError::VarIsAnOutput {
+            var: doc.spoken_var(id),
+            node: doc.spoken(node),
+            door,
+        }),
         VarDef::Defined(_) => Err(EditError::NotAFreeVar {
             var: doc.spoken_var(id),
             door,
@@ -5498,12 +5543,13 @@ fn door<P: Clone + crate::ProfilePayload, T>(
 }
 
 /// The record of an accepted insert that minted `id`.
-fn inserted((id, fresh): (RecipeNodeId, Vec<VarId>)) -> EditRecord {
+fn inserted((id, fresh, outputs): (RecipeNodeId, Vec<VarId>, Vec<VarId>)) -> EditRecord {
     EditRecord {
         minted: Some(id),
         minted_var: None,
         structural: true,
         fresh,
+        outputs,
     }
 }
 
@@ -5517,7 +5563,7 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
     fresh: &[VarDecl],
     tol: Tol,
     reach: Option<&dyn MateReach>,
-) -> Result<(RecipeNodeId, Vec<VarId>), EditError> {
+) -> Result<(RecipeNodeId, Vec<VarId>, Vec<VarId>), EditError> {
     // A refusal speaks the node by the id drawn from it with every name
     // the document holds lowered, so a node authored by name and the
     // same node authored by id speak one id even where some other name
@@ -5626,7 +5672,19 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
                 fault,
             })?;
     }
+    // D10: the node defines one variable per port of its signature,
+    // minted after its steps. Its inputs are live (above), so every
+    // port's kind resolves.
+    let Some(signature) = new.signature_of(&node) else {
+        unreachable!("a node whose inputs are live has a signature")
+    };
+    let ports = u8::try_from(signature.len())
+        .unwrap_or_else(|_| unreachable!("a signature is a handful of ports"));
+    let outputs = mint.outputs_of_insert(ports);
     new.mint = mint;
+    for ((port, (_, kind)), &var) in (0u8..).zip(&signature).zip(&outputs) {
+        new.vars.insert(var, Var::output(*kind, id, port));
+    }
     new.nodes.insert(id, node.clone());
     let fresh = lowering.finish(new)?;
     check_acyclic(new)?;
@@ -5645,7 +5703,7 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
         admit_written_mate(new, id, tol, reach)?;
         reported.extend(clear_joined_offsets(doc, new, &node));
     }
-    Ok((id, fresh))
+    Ok((id, fresh, outputs))
 }
 
 /// **The solve's per-mate admission of a mate an edit just wrote**
@@ -5708,6 +5766,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted_var: None,
                 structural: true,
                 fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::SetMembers { node, members } => {
@@ -5756,6 +5815,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted_var: None,
                 structural: true,
                 fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::SetDeclare { node, pairs } => {
@@ -5792,6 +5852,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted_var: None,
                 structural: true,
                 fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::SetProgram {
@@ -5892,6 +5953,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted_var: None,
                 structural: true,
                 fresh,
+                outputs: Vec::new(),
             }
         }
         DocEdit::SetParam {
@@ -5913,6 +5975,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted_var: None,
                 structural: false,
                 fresh,
+                outputs: Vec::new(),
             }
         }
         DocEdit::SetStructuralParam {
@@ -5930,6 +5993,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted_var: None,
                 structural: true,
                 fresh,
+                outputs: Vec::new(),
             }
         }
         DocEdit::SetExtrudeSide { node, side } => {
@@ -5951,6 +6015,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted_var: None,
                 structural: true,
                 fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::SetExpression { path, expr } => {
@@ -5974,7 +6039,8 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             let dim = new
                 .vars
                 .get(&var)
-                .map_or(path.slot.dimension(), |v| v.kind().dimension());
+                .and_then(|v| v.kind().dimension())
+                .unwrap_or(path.slot.dimension());
             let off_tree = || EditError::PathOffTree {
                 node: doc.spoken(path.node),
                 slot: path.slot,
@@ -5998,6 +6064,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted_var: None,
                 structural,
                 fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::DeclareVar { name, def } => {
@@ -6026,8 +6093,9 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             EditRecord {
                 minted: None,
                 minted_var: Some(id),
-                structural: def.kind() == VarKind::Count,
+                structural: def.kind() == Some(VarKind::Count),
                 fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::DefineVar { var, def, fresh } => {
@@ -6038,6 +6106,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 });
             };
             let spoken = doc.spoken_var(id);
+            refuse_output(doc, id, CarryForwardDoor::Definition)?;
             // The kind first: a definition of another kind is refused
             // whatever it reads, and what it reads is asked after.
             let kind = doc.var(id).map_or(def.kind(), Var::kind);
@@ -6061,7 +6130,11 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                         minted_var: None,
                         structural: kind == VarKind::Count,
                         fresh: Vec::new(),
+                        outputs: Vec::new(),
                     }
+                }
+                VarDef::Output { .. } => {
+                    unreachable!("a declaration lowers to a free or a defined variable")
                 }
             };
             EditRecord {
@@ -6157,6 +6230,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted_var: None,
                 structural: false,
                 fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::DeleteVar { var } => {
@@ -6166,6 +6240,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     door: CarryForwardDoor::Delete,
                 });
             };
+            refuse_output(doc, id, CarryForwardDoor::Delete)?;
             if doc.var_name(id).is_none() {
                 return Err(EditError::DeleteAnonymousVar {
                     var: doc.spoken_var(id),
@@ -6181,6 +6256,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted_var: None,
                 structural: !doc.var_readers(id).is_empty(),
                 fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::Rebind { from, to } => {
@@ -6268,6 +6344,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 // recomputes.
                 structural: declare_sites > 0,
                 fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::ReWitness { node, witness } => {
@@ -6278,6 +6355,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted_var: None,
                 structural: false,
                 fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::SetAppearance { name, attr } => {
@@ -6308,6 +6386,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted_var: None,
                 structural: false,
                 fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::ReWitnessBulk {
@@ -6337,6 +6416,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted_var: None,
                 structural: false,
                 fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::ClearAppearance { name, kind } => {
@@ -6358,6 +6438,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted_var: None,
                 structural: false,
                 fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::SetTolerance { eps } => {
@@ -6375,6 +6456,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 // predicate band): the whole cone recomputes.
                 structural: true,
                 fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::SetAppearanceMeta { name, key, value } => {
@@ -6421,6 +6503,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted_var: None,
                 structural: false,
                 fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::ClearAppearanceMeta { name, key } => {
@@ -6442,6 +6525,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted_var: None,
                 structural: false,
                 fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::SetRoots { roots } => {
@@ -6454,6 +6538,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted_var: None,
                 structural: true,
                 fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::SetOffset {
@@ -6523,6 +6608,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted_var: None,
                 structural: true,
                 fresh,
+                outputs: Vec::new(),
             }
         }
         DocEdit::SetGauge { node, gauge } => {
@@ -6553,6 +6639,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted_var: None,
                 structural: true,
                 fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::Promote { instance } => {
@@ -6588,6 +6675,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted_var: None,
                 structural: true,
                 fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::Fold { gauge } => {
@@ -6661,6 +6749,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted_var: None,
                 structural: true,
                 fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::SetLabel { node, label } => {
@@ -6683,6 +6772,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted_var: None,
                 structural: false,
                 fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
         DocEdit::UpdateReference { node, new_pin } => {
@@ -6716,6 +6806,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted_var: None,
                 structural: true,
                 fresh: Vec::new(),
+                outputs: Vec::new(),
             }
         }
     })
@@ -6780,6 +6871,12 @@ fn remove_unread<P: crate::ProfilePayload>(
     crate::roots::on_delete(new, id, &inputs);
     new.witnesses.remove(&id);
     new.labels.remove(&id);
+    // Its outputs go with it (D10): nothing reads one yet, so nothing
+    // is stranded.
+    for var in new.outputs(id) {
+        new.vars.remove(&var);
+        new.var_names.remove(&var);
+    }
     Ok(reported)
 }
 

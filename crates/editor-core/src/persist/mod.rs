@@ -165,7 +165,7 @@ use crate::sentence::{Labelled, Labels, Staged};
 use geom_core::Tol;
 
 pub use canon::{canonical_bytes, content_pin};
-pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
+pub use check::{NonFiniteSite, OutputFault, ProgramFault, SnapshotError};
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]

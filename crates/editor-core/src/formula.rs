@@ -17,7 +17,7 @@ use crate::expr::{
     AuthoredLeaf, Dimension, DimensionError, Expr, ExprKind, ExprTree, Quantity, StoredLeaf,
     Terminal, UnitSym, Unlowered,
 };
-use crate::var::VarId;
+use crate::var::{VarId, VarKind};
 
 /// The authored expression: the shared leaves, plus a variable by name,
 /// a fresh-table entry and a written quantity.
@@ -433,12 +433,14 @@ impl Formula {
     /// leaf stays as written: nothing is minted yet.
     pub(crate) fn lower_held(
         &self,
-        scope: &impl Fn(&VarName) -> Option<(VarId, Dimension)>,
+        scope: &impl Fn(&VarName) -> Option<(VarId, VarKind)>,
     ) -> Formula {
         let Ok(held) = self.try_map_leaves(&mut |leaf, dim| {
             Ok::<_, core::convert::Infallible>(match leaf {
                 AuthoredLeaf::Name(name) => match scope(name) {
-                    Some((var, declared)) if declared == dim => Formula::var(var, dim),
+                    Some((var, declared)) if declared.dimension() == Some(dim) => {
+                        Formula::var(var, dim)
+                    }
                     _ => Formula::named(name.clone(), dim),
                 },
                 AuthoredLeaf::Fresh(index) => Formula::fresh(*index, dim),
@@ -471,7 +473,7 @@ impl Formula {
     /// lowers to is minted for it.
     pub(crate) fn lowered_reads(
         &self,
-        scope: &impl Fn(&VarName) -> Option<(VarId, Dimension)>,
+        scope: &impl Fn(&VarName) -> Option<(VarId, VarKind)>,
         fresh: &[(VarId, Dimension)],
     ) -> Vec<(VarId, Dimension)> {
         let mut out = Vec::new();
@@ -501,7 +503,7 @@ impl Formula {
     /// anything is minted for the formula's quantities.
     pub(crate) fn unresolved(
         &self,
-        scope: &impl Fn(&VarName) -> Option<(VarId, Dimension)>,
+        scope: &impl Fn(&VarName) -> Option<(VarId, VarKind)>,
         fresh: &[(VarId, Dimension)],
     ) -> Option<LowerFault> {
         let mut first = None;
@@ -524,7 +526,7 @@ impl Formula {
     /// The first leaf, in pre-order, that does not lower.
     pub fn lower(
         &self,
-        scope: &impl Fn(&VarName) -> Option<(VarId, Dimension)>,
+        scope: &impl Fn(&VarName) -> Option<(VarId, VarKind)>,
     ) -> Result<Expr, LowerFault> {
         self.lower_with(scope, &[], &[])
     }
@@ -540,7 +542,7 @@ impl Formula {
     /// The first leaf, in pre-order, that does not lower.
     pub(crate) fn lower_with(
         &self,
-        scope: &impl Fn(&VarName) -> Option<(VarId, Dimension)>,
+        scope: &impl Fn(&VarName) -> Option<(VarId, VarKind)>,
         fresh: &[(VarId, Dimension)],
         minted: &[VarId],
     ) -> Result<Expr, LowerFault> {
@@ -560,12 +562,12 @@ impl Formula {
 fn leaf_fault(
     leaf: &AuthoredLeaf,
     dim: Dimension,
-    scope: &impl Fn(&VarName) -> Option<(VarId, Dimension)>,
+    scope: &impl Fn(&VarName) -> Option<(VarId, VarKind)>,
     fresh: &[(VarId, Dimension)],
 ) -> Result<VarId, LowerFault> {
     match leaf {
         AuthoredLeaf::Name(name) => match scope(name) {
-            Some((var, declared)) if declared == dim => Ok(var),
+            Some((var, declared)) if declared.dimension() == Some(dim) => Ok(var),
             Some((var, declared)) => Err(LowerFault::Name(NameFault {
                 name: name.clone(),
                 dim,

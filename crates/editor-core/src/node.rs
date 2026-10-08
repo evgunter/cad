@@ -3583,8 +3583,9 @@ impl<P> Node<P> {
             return None;
         };
         // The bound's dimension is its variable's kind; a bound reading
-        // a variable `doc` does not hold is the read walks'.
-        let (measure, bound) = (*measure, doc.vars.get(bound)?.kind().dimension());
+        // a variable `doc` does not hold, or one no expression reads, is
+        // the read walks'.
+        let (measure, bound) = (*measure, doc.vars.get(bound)?.kind().dimension()?);
         match doc.nodes.get(&measure) {
             Some(Node::Measure { expr, .. }) => {
                 AssertionBoundFault::against(measure, expr.dim(), bound)
@@ -4161,7 +4162,93 @@ impl<S> PartSelect<S> {
     }
 }
 
+/// **One port of an operation's output signature** (D10, Operations):
+/// the variable the operation defines there ([`crate::VarDef::Output`]),
+/// named and typed by the variant.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OutputPort {
+    /// The port's name, unique in its signature.
+    pub name: &'static str,
+    /// What decides its kind.
+    pub kind: PortKind,
+}
+
+/// **What decides a port's kind**: the variant alone, or, for a placer
+/// of its operand's shape, the operand.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PortKind {
+    /// This kind.
+    Of(crate::VarKind),
+    /// A [`Node::Transform`]'s value, which has its operand's shape:
+    /// `Bodies` when the operand's first port is `Bodies`, `Body`
+    /// otherwise. Evaluation refuses every operand that is neither
+    /// (`WrongOperand`).
+    PlacedFrom(RecipeNodeId),
+}
+
+impl OutputPort {
+    const fn of(name: &'static str, kind: crate::VarKind) -> Self {
+        Self {
+            name,
+            kind: PortKind::Of(kind),
+        }
+    }
+}
+
 impl<P, S: Slot> Node<P, S> {
+    /// **The operation's output signature** (D10, Operations): the
+    /// fixed list of named, typed ports its variant defines, in port
+    /// order, possibly none. The insert door mints one variable per
+    /// port ([`crate::Doc::output`]).
+    ///
+    /// Exhaustive over the variants, so one added does not compile
+    /// until it states what it defines.
+    #[must_use]
+    pub fn outputs(&self) -> Vec<OutputPort> {
+        use crate::VarKind;
+        const BODY: OutputPort = OutputPort::of("body", VarKind::Body);
+        match self {
+            Self::Datum(datum) => vec![match datum {
+                Datum::Plane { .. } => OutputPort::of("plane", VarKind::Plane),
+                Datum::Axis { .. } | Datum::AxisInPlane { .. } => {
+                    OutputPort::of("axis", VarKind::Axis)
+                }
+                Datum::Point { .. } => OutputPort::of("point", VarKind::Point),
+                Datum::Frame { .. } | Datum::FaceFrame { .. } => {
+                    OutputPort::of("frame", VarKind::Frame)
+                }
+            }],
+            Self::Profile(_) => vec![OutputPort::of("profile", VarKind::Profile)],
+            Self::Revolve { .. } => vec![BODY, OutputPort::of("axis", VarKind::Axis)],
+            Self::Split { .. } => vec![
+                OutputPort::of("above", VarKind::Body),
+                OutputPort::of("below", VarKind::Body),
+            ],
+            Self::Pattern { .. } => vec![OutputPort::of("bodies", VarKind::Bodies)],
+            Self::Transform { input, .. } => vec![OutputPort {
+                name: "body",
+                kind: PortKind::PlacedFrom(*input),
+            }],
+            Self::Measure { expr, .. } => {
+                vec![OutputPort::of("value", VarKind::from(expr.dim()))]
+            }
+            Self::Extrude { .. }
+            | Self::Tube { .. }
+            | Self::HollowTube { .. }
+            | Self::Loft { .. }
+            | Self::Sweep { .. }
+            | Self::Fillet { .. }
+            | Self::Chamfer { .. }
+            | Self::Shell { .. }
+            | Self::Boolean { .. }
+            | Self::Union { .. }
+            | Self::Part { .. }
+            | Self::PlacedUnion { .. }
+            | Self::InstantiatePart { .. } => vec![BODY],
+            Self::Gauge { .. } | Self::Mate { .. } | Self::Assertion { .. } => Vec::new(),
+        }
+    }
+
     /// **This node in another slot form** — the one conversion between
     /// the authored and the stored node: every slot and every payload
     /// expression rewritten by `f`, the profile's payload by `payload`
@@ -4452,7 +4539,7 @@ impl<P: crate::ProfilePayload> Node<P> {
                 let dim = doc
                     .vars
                     .get(bound)
-                    .map(|v| v.kind().dimension())
+                    .and_then(|v| v.kind().dimension())
                     .or_else(|| match doc.nodes.get(measure) {
                         Some(Node::Measure { expr, .. }) => Some(expr.dim()),
                         _ => None,

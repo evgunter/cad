@@ -33,8 +33,13 @@ impl VarId {
     }
 }
 
-/// **What a variable holds** (VR3), fixed at minting: a new kind is a
-/// new variable.
+/// **What a variable holds** (VR3; D10's types), fixed at minting: a
+/// new kind is a new variable.
+///
+/// The scalars are read by expressions at their dimension. The poses
+/// and the shapes are reference kinds: no expression reads one, none
+/// has a free arm, a unit or a distribution, and only an operation
+/// defines one ([`VarDef::Output`]).
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
@@ -47,17 +52,87 @@ pub enum VarKind {
     Scalar,
     /// An exact integer.
     Count,
+    /// A point: a frame known up to rotation about it.
+    Point,
+    /// A direction: a frame known up to translation and spin about it.
+    Direction,
+    /// An axis: a frame known up to slide and spin along its line.
+    Axis,
+    /// A plane: a frame known up to in-plane motion.
+    Plane,
+    /// A frame.
+    Frame,
+    /// One body.
+    Body,
+    /// An ordered list of bodies, whose length is a `Count`.
+    Bodies,
+    /// A profile.
+    Profile,
 }
 
 impl VarKind {
-    /// The expression dimension a reader of this kind reads at.
+    /// The expression dimension a reader of this kind reads at, `None`
+    /// for a reference kind, which no expression reads.
     #[must_use]
-    pub fn dimension(self) -> Dimension {
-        match self {
+    pub fn dimension(self) -> Option<Dimension> {
+        Some(match self {
             Self::Length => Dimension::Length,
             Self::Angle => Dimension::Angle,
             Self::Scalar => Dimension::Scalar,
             Self::Count => Dimension::Count,
+            Self::Point
+            | Self::Direction
+            | Self::Axis
+            | Self::Plane
+            | Self::Frame
+            | Self::Body
+            | Self::Bodies
+            | Self::Profile => return None,
+        })
+    }
+
+    /// **A pose kind's symmetry** (D10, A11 (1)): the family of the
+    /// subgroup of rigid motions a value of this kind is a frame known
+    /// up to, the one the mates fold. `None` for a kind that is not a
+    /// pose, and for `Point` and `Direction`, whose subgroups (rotation
+    /// about a point; translation with spin about a direction) the
+    /// family does not hold.
+    #[must_use]
+    pub fn symmetry(self) -> Option<crate::mate::SubgroupFamily> {
+        use crate::mate::SubgroupFamily;
+        match self {
+            Self::Frame => Some(SubgroupFamily::Trivial),
+            Self::Plane => Some(SubgroupFamily::Planar),
+            Self::Axis => Some(SubgroupFamily::Cylindrical),
+            Self::Point
+            | Self::Direction
+            | Self::Length
+            | Self::Angle
+            | Self::Scalar
+            | Self::Count
+            | Self::Body
+            | Self::Bodies
+            | Self::Profile => None,
+        }
+    }
+}
+
+impl VarKind {
+    /// The article [`Display`](core::fmt::Display)'s word takes
+    /// (`Dimension::article`'s twin).
+    pub(crate) fn article(self) -> &'static str {
+        match self {
+            Self::Angle | Self::Axis => "an",
+            Self::Length
+            | Self::Scalar
+            | Self::Count
+            | Self::Point
+            | Self::Direction
+            | Self::Plane
+            | Self::Frame
+            | Self::Body
+            | Self::Bodies
+            | Self::Profile => "a",
         }
     }
 }
@@ -73,19 +148,38 @@ impl From<Dimension> for VarKind {
     }
 }
 
-/// The kind as prose reads it: the dimension's word.
+/// The kind as prose reads it: a scalar's dimension word, otherwise
+/// the kind's own.
 impl core::fmt::Display for VarKind {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", self.dimension())
+        match self.dimension() {
+            Some(dim) => write!(f, "{dim}"),
+            None => f.write_str(match self {
+                Self::Point => "point",
+                Self::Direction => "direction",
+                Self::Axis => "axis",
+                Self::Plane => "plane",
+                Self::Frame => "frame",
+                Self::Body => "body",
+                Self::Bodies => "list of bodies",
+                Self::Profile => "profile",
+                Self::Length | Self::Angle | Self::Scalar | Self::Count => {
+                    unreachable!("a scalar kind reads at a dimension")
+                }
+            }),
+        }
     }
 }
 
-/// **A variable's definition** (VR3): free — a value, its written
-/// unit and optionally a distribution — or defined by an expression
-/// over other variables, whose dimension is the variable's kind.
+/// **A variable's definition** (VR3; D10): free — a value, its
+/// written unit and optionally a distribution — defined by an
+/// expression over other variables, whose dimension is the variable's
+/// kind, or an output of an operation.
 ///
 /// The stored form: a definition's expression reads variables by id
-/// alone, as the edit door wrote it. [`VarDecl`] is the authored twin.
+/// alone, as the edit door wrote it. [`VarDecl`] is the authored twin
+/// of the first two; an output has none, because it is never declared,
+/// only minted by its operation's insert.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum VarDef {
     /// A free variable.
@@ -94,15 +188,26 @@ pub enum VarDef {
     /// holds no distribution: its uncertainty is the pushforward of
     /// its inputs'.
     Defined(Expr),
+    /// **Port `port` of the operation `node`** ([`crate::Node::outputs`]):
+    /// the variable lives exactly as long as its node, and its kind is
+    /// the port's.
+    Output {
+        /// The defining operation.
+        node: crate::RecipeNodeId,
+        /// Its port, the index into its signature.
+        port: u8,
+    },
 }
 
 impl VarDef {
-    /// The kind this definition holds.
+    /// The kind this definition holds, `None` for an output, whose kind
+    /// is its port's.
     #[must_use]
-    pub fn kind(&self) -> VarKind {
+    pub fn kind(&self) -> Option<VarKind> {
         match self {
-            Self::Free(free) => VarKind::from(free.dim()),
-            Self::Defined(expr) => VarKind::from(expr.dim()),
+            Self::Free(free) => Some(VarKind::from(free.dim())),
+            Self::Defined(expr) => Some(VarKind::from(expr.dim())),
+            Self::Output { .. } => None,
         }
     }
 
@@ -111,7 +216,7 @@ impl VarDef {
     pub fn free(&self) -> Option<&FreeVar> {
         match self {
             Self::Free(free) => Some(free),
-            Self::Defined(_) => None,
+            Self::Defined(_) | Self::Output { .. } => None,
         }
     }
 
@@ -119,8 +224,17 @@ impl VarDef {
     #[must_use]
     pub fn defined(&self) -> Option<&Expr> {
         match self {
-            Self::Free(_) => None,
             Self::Defined(expr) => Some(expr),
+            Self::Free(_) | Self::Output { .. } => None,
+        }
+    }
+
+    /// The operation and port, when the definition is an output.
+    #[must_use]
+    pub fn output(&self) -> Option<(crate::RecipeNodeId, u8)> {
+        match *self {
+            Self::Output { node, port } => Some((node, port)),
+            Self::Free(_) | Self::Defined(_) => None,
         }
     }
 
@@ -130,7 +244,8 @@ impl VarDef {
         match (self, other) {
             (Self::Free(a), Self::Free(b)) => a.bit_eq(b),
             (Self::Defined(a), Self::Defined(b)) => a.bit_eq(b),
-            (Self::Free(_) | Self::Defined(_), _) => false,
+            (Self::Output { .. }, Self::Output { .. }) => self == other,
+            (Self::Free(_) | Self::Defined(_) | Self::Output { .. }, _) => false,
         }
     }
 }
@@ -154,12 +269,18 @@ impl VarDecl {
         Self::Defined(expr)
     }
 
-    /// The kind this definition holds.
+    /// The kind this definition holds: a scalar, read at [`Self::dim`].
     #[must_use]
     pub fn kind(&self) -> VarKind {
+        VarKind::from(self.dim())
+    }
+
+    /// The dimension this definition holds.
+    #[must_use]
+    pub fn dim(&self) -> Dimension {
         match self {
-            Self::Free(free) => VarKind::from(free.dim()),
-            Self::Defined(expr) => VarKind::from(expr.dim()),
+            Self::Free(free) => free.dim(),
+            Self::Defined(expr) => expr.dim(),
         }
     }
 }
@@ -170,20 +291,24 @@ impl From<FreeVar> for VarDecl {
     }
 }
 
-impl From<VarDef> for VarDecl {
+impl VarDecl {
     /// A stored definition re-authored: what the door stored, which
-    /// lowers to itself.
-    fn from(def: VarDef) -> Self {
+    /// lowers to itself. `None` for an output, which no edit declares.
+    #[must_use]
+    pub fn authored(def: VarDef) -> Option<Self> {
         match def {
-            VarDef::Free(free) => Self::Free(free),
-            VarDef::Defined(expr) => Self::Defined(crate::Formula::from(expr)),
+            VarDef::Free(free) => Some(Self::Free(free)),
+            VarDef::Defined(expr) => Some(Self::Defined(crate::Formula::from(expr))),
+            VarDef::Output { .. } => None,
         }
     }
 }
 
-/// **A variable**: its kind and its definition. The definition's kind
-/// is the variable's ([`Var::new`] is the one way to pair them, and the
-/// load door re-checks a file's pairing).
+/// **A variable**: its kind and its definition. A free or defined
+/// variable's kind is its definition's ([`Var::new`] pairs them, and
+/// the load door re-checks a file's pairing); an output's is its
+/// port's ([`Var::output`], checked at load against the operation's
+/// signature).
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Var {
@@ -192,12 +317,25 @@ pub struct Var {
 }
 
 impl Var {
-    /// The variable `def` defines, of `def`'s own kind.
+    /// The free or defined variable `def` defines, of `def`'s own kind.
+    ///
+    /// # Panics
+    ///
+    /// On an output, whose kind is its port's: [`Self::output`] mints it.
     #[must_use]
     pub fn new(def: VarDef) -> Self {
+        let Some(kind) = def.kind() else {
+            panic!("an output's kind is its port's, which `Var::output` takes")
+        };
+        Self { kind, def }
+    }
+
+    /// **Port `port` of `node`**, of the port's kind `kind`.
+    #[must_use]
+    pub fn output(kind: VarKind, node: crate::RecipeNodeId, port: u8) -> Self {
         Self {
-            kind: def.kind(),
-            def,
+            kind,
+            def: VarDef::Output { node, port },
         }
     }
 
@@ -220,9 +358,10 @@ impl Var {
     }
 
     /// Whether the stored kind is the definition's, which a file can
-    /// break and no door can.
+    /// break and no door can. An output's kind is its port's, which the
+    /// load door's `OutputSignature` walk checks.
     pub(crate) fn kind_holds(&self) -> bool {
-        self.kind == self.def.kind()
+        self.def.kind().is_none_or(|kind| kind == self.kind)
     }
 
     /// Bit-semantic equality.
@@ -278,11 +417,11 @@ mod tests {
             Dimension::Scalar,
             Dimension::Count,
         ] {
-            assert_eq!(VarKind::from(dim).dimension(), dim, "{dim}");
+            assert_eq!(VarKind::from(dim).dimension(), Some(dim), "{dim}");
         }
         assert_eq!(
             VarDef::Free(FreeVar::Count { value: 3 }).kind(),
-            VarKind::Count
+            Some(VarKind::Count)
         );
     }
 }

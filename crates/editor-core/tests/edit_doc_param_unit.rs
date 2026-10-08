@@ -252,7 +252,7 @@ fn with_display_unit_is_the_carry_forward_and_its_refusals_are_none() {
         annotated.with_display_unit(deg()),
         Err(DisplayUnitRefusal::Mismatch {
             unit: Dimension::Angle,
-            declared: Dimension::Length,
+            declared: editor_core::Dimension::Length,
         }),
         "a unit that does not measure the declared dimension, and it says so"
     );
@@ -300,7 +300,7 @@ fn the_unit_door_refuses_typed() {
         EditError::VarUnitMismatch {
             var: sv("wall"),
             unit: Dimension::Angle,
-            declared: Dimension::Length,
+            declared: editor_core::Dimension::Length,
         }
     );
     // Every refusal renders as a sentence naming the variable.
@@ -374,7 +374,7 @@ fn the_mismatch_sentence_says_which_dimension_is_which() {
     let validator = PersistError::DisplayUnit {
         var: sv("wall"),
         unit: Dimension::Angle,
-        declared: Dimension::Length,
+        declared: editor_core::Dimension::Length,
     }
     .to_string();
     for (who, text) in [("the edit door", &edit), ("the validator", &validator)] {
@@ -547,7 +547,7 @@ fn the_three_refusals_are_symmetric_across_apply_replay_and_load() {
             EditError::VarUnitMismatch {
                 var: sv("wall"),
                 unit: Dimension::Angle,
-                declared: Dimension::Length,
+                declared: editor_core::Dimension::Length,
             },
         ),
     ];
@@ -771,7 +771,7 @@ fn the_create_or_replace_door_refuses_a_mismatched_pairing() {
         EditError::VarUnitMismatch {
             var: sv("wall"),
             unit: Dimension::Angle,
-            declared: Dimension::Length,
+            declared: editor_core::Dimension::Length,
         },
         "the same typed refusal the notation door gives"
     );

@@ -1661,6 +1661,7 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::FreshUnread { .. }
             | EditError::VarKindFixed { .. }
             | EditError::NotAFreeVar { .. }
+            | EditError::VarIsAnOutput { .. }
             | EditError::DefinitionCycle { .. }
             | EditError::DefinitionTooLarge { .. }
             | EditError::DefinitionUnknownVarName { .. }
@@ -2403,6 +2404,9 @@ impl<'s> VarCarry<'s> {
                     });
                 VarDecl::Defined(formula)
             }
+            VarDef::Output { .. } => {
+                unreachable!("an output crosses with its node, minted by the target's insert")
+            }
         }
     }
 
@@ -2452,7 +2456,7 @@ impl<'s> VarCarry<'s> {
         let minted = if carried.anonymous.is_empty() {
             target.declare(name, decl)?
         } else {
-            let minted = target.declare(name, VarDecl::Free(placeholder(decl.kind())))?;
+            let minted = target.declare(name, VarDecl::Free(placeholder(decl.dim())))?;
             let record = target.apply_recorded(DocEdit::DefineVar {
                 var: minted.into(),
                 def: decl,
@@ -2469,13 +2473,13 @@ impl<'s> VarCarry<'s> {
 /// The dimension the source variable `var` is read at, where the
 /// source holds it.
 fn kind_of(source: &ProfileDoc, var: VarId) -> Option<Dimension> {
-    Some(source.var(var)?.kind().dimension())
+    source.var(var)?.kind().dimension()
 }
 
 /// A free value of `kind`, held only until the definition that
 /// replaces it, in the same action.
-fn placeholder(kind: crate::var::VarKind) -> FreeVar {
-    match kind.dimension() {
+fn placeholder(dim: Dimension) -> FreeVar {
+    match dim {
         Dimension::Count => FreeVar::Count { value: 0 },
         dim => FreeVar::continuous(dim, 0.0),
     }

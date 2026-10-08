@@ -825,7 +825,7 @@ fn the_value_door_carries_the_declaration_forward() {
         ),
         Err(EditError::VarValueKindMismatch {
             var: before.spoken_var(before.var_named("hole_r").expect("declared")),
-            declared: Dimension::Length,
+            declared: editor_core::Dimension::Length,
             offered: FreeValue::Count(2),
         })
     );

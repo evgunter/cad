@@ -1139,7 +1139,7 @@ fn a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_w
     });
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::DisplayUnit {
-            declared: Dimension::Count,
+            declared: editor_core::Dimension::Count,
             var: n,
             ..
         }) => assert_eq!(n.name(), Some(&name)),

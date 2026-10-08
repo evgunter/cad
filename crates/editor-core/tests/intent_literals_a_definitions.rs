@@ -503,7 +503,7 @@ fn a_definition_reads_only_what_the_document_holds() {
             ..
         }) => assert_eq!(
             (read.id(), declared, referenced),
-            (w, Dimension::Length, Dimension::Angle)
+            (w, editor_core::VarKind::Length, Dimension::Angle)
         ),
         other => panic!("a read at the wrong kind, got {other:?}"),
     }
@@ -849,7 +849,7 @@ fn a_definition_no_door_wrote_refuses_at_load() {
     });
     assert!(
         matches!(&err, PersistError::Snapshot(SnapshotError::DefinitionVarKind { read, declared, referenced, .. })
-            if read.id() == w && *declared == Dimension::Length && *referenced == Dimension::Angle),
+            if read.id() == w && *declared == editor_core::VarKind::Length && *referenced == Dimension::Angle),
         "{err:?}"
     );
     // A stored kind its definition does not hold is the kind walk's.

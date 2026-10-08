@@ -490,7 +490,7 @@ fn the_door_lowers_names_before_it_mints() {
             assert_eq!((node.id(), slot), (blend, SlotId::Radius));
             assert_eq!(
                 (declared, referenced),
-                (Dimension::Angle, Dimension::Length)
+                (editor_core::VarKind::Angle, Dimension::Length)
             );
         }
         other => panic!("a name of the wrong kind refuses at the slot, got {other:?}"),
