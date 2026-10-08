@@ -492,7 +492,9 @@ Lane calls the rulings left standing:
 - **Copy names** are the body's names under a new segment `RoleSeg::Placed { of }` minted at the placement (content tag 51), as a pattern copy's are qualified by the copy; `StableName::in_copy` / `copy_of` are the pair. Lane's call, reported to the orchestrator.
 - **Errors.** `NoBodyRoots` is `EmptyProduct { unplaced }`; a placement whose read is unresolved is `StrandedPlacement { placement }`.
 - **A mate whose member no placement reads mints nothing at the at-rest gate** (F's rule landing early; lane's call, reported).
-- **Instances** keep one `body` port (the part's whole world) pending the orchestrator's answer on the per-placement signature.
+- **Instances** keep one `body` port (the part's whole world); FORK-1's per-placement signature is filed as `an-instance-defines-one-body-per-part-placement`, its open choices put to the orchestrator.
+- **A copy carries its body's contact records and declaration rows** verbatim: a rigid placement keeps every arena key.
+- **Which cut placement carries a remainder name** (split's rebind): the placed body's own names, those a transform below it carried whole, and a pattern copy's where a `Part(Instance(k))` pick's index matches the name's outermost `Instance` index; any other name refuses `NameOutsidePartWorld` rather than re-anchoring silently.
 - **Split.** The part's world is the cut's placements; the remainder places the instance once, after the kept placements (no splice). D-2's consumer-ward closure narrows: a remainder read of a body the cut places re-points to the instance's body; any other read of a cut body is `SeveredEdge`. A name the part's world does not carry is `SplitError::NameOutsidePartWorld`.
 - **Inline.** `InstanceConsumed` retires: a reader of the instance re-points to the inlined body (`InstanceReadUncarried` when nothing carries it); a posed host placement reads through the part's single identity placement, else `PlacementPoseCrosses`. `UnplaceableFrame` names the part's placement.
 - **Pre-C files** refuse `Unreadable` naming `roots`. The corpus builders place their pre-C roots in root order, and `intent_s2_c_world` test 6 checks each regenerated product against its recorded pre-C digest.
@@ -651,3 +653,4 @@ A spec lane sized stage 4 (the coincidence door) at main `044b5eb2e9`. Nine PRs,
 - H `placed-carriers-compare-through-their-frames` (H) and I `mates-declare-no-contact` (M) need stage 3.
 
 Every one of the 67 rows parked on `intent-stage4-is-built` is released by A, B, C, E, F or G (spec §12), so none waits on stage 3. The umbrella now parks on all nine units; the spec recommends re-pointing each row at its unit. Five forks are open for designer pairs: FORK-S4-1 (provenance from names, N6), FORK-S4-2 (a stated `CarrierFlow`), FORK-S4-3 (the record is `ContactRecords`), FORK-S4-4 (DM4's pairwise judgement), FORK-S4-5 (a mate-placed face, with stage 3).
+- **Filed:** `inline-refuses-a-posed-instance-a-placement-pose-could-take` (INTENT), `a-split-or-pattern-gesture-leaves-its-target-placed` (CHROME), `the-world-still-speaks-of-roots` (RECIPE), `python-cannot-read-what-a-placement-places` (BIND).
