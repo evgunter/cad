@@ -825,3 +825,4 @@ and `germ-takes-the-span-bounded-face-reach-alone` (parked on D10's
 declared path); the sweep's siblings went to SHELF, CLEAVE (two) and
 REACH.
 - 2026-10-08: filed `split-cyl-ellipse-quarter-bound-overshoots-the-tilt-at-the-band-edge` (P3), the two ellipse-bounded split_cyl servings against the truth that PR 4292's fix pass 2 measured (shared with main).
+- 2026-10-08: closed `a-turned-hemisphere-keeps-the-crossing-layers-door`. It already built on main, by PR 4123's sphere azimuth reach (bisected). Rows pin six turns and two spun poses, and the near-aligned window. Filed `a-covered-line-ending-just-off-the-face-keeps-the-door` (P3, parked on D10): the covered line rung's door within about `2e-4` of aligned.
