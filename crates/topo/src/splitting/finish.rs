@@ -259,10 +259,8 @@ pub enum SplitFinishError {
     EdgeJoin {
         /// The side whose join refused.
         side: PlaneSide,
-        /// The join's refusal, by kind ([`crate::BooleanError::kind`]).
-        kind: crate::boolean::BooleanErrorKind,
-        /// The refusal's own sentence.
-        what: String,
+        /// Why the join refused, typed and keyless.
+        refusal: crate::boolean::JoinRefusal,
     },
 }
 
@@ -335,10 +333,10 @@ impl core::fmt::Display for SplitFinishError {
                 geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::KnifeEdge(k) => write!(f, "{k}"),
-            Self::EdgeJoin { side, what, .. } => {
+            Self::EdgeJoin { side, refusal } => {
                 write!(
                     f,
-                    "the piece on the {} side of the plane: {what}",
+                    "the piece on the {} side of the plane: {refusal}",
                     side.word()
                 )
             }

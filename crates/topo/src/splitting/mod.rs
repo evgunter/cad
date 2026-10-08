@@ -1018,8 +1018,7 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
                 body.join_edges(band, tol)
                     .map_err(|refusal| SplitFinishError::EdgeJoin {
                         side,
-                        kind: refusal.kind(),
-                        what: crate::boolean::edge_join::join_refusal_sentence(&refusal),
+                        refusal: crate::boolean::JoinRefusal::of(&refusal),
                     })?;
             result
                 .naming
