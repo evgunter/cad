@@ -109,7 +109,7 @@ const DIE_TABLE_DIGEST: u64 = 0x2675dbf49f136408;
 /// **Re-pinned when an id became its mint ordinal and its digest**: the
 /// rows hash each name's `Debug`, which spells the id, so every row
 /// moved; the same fence held.
-const DIE_NAMES_DIGEST: u64 = 0x1391_1baf_7d52_47ad;
+const DIE_NAMES_DIGEST: u64 = 0x60e9_36b4_f7ba_175a;
 
 #[test]
 fn die_name_tables_are_golden() {
