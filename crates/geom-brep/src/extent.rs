@@ -215,6 +215,46 @@ fn conic_arc_range<T: Real>(
     (ends.0.min(low), ends.1.max(high))
 }
 
+/// **How far a conic arc reaches from a point**: an upper bound on
+/// `|x − pivot|` over `x = c + u·a·cos t + v·b·sin t`, `t ∈ [t0, t1]`,
+/// never past the whole turn's `|c − pivot| + max(|a|, |b|)`.
+///
+/// The span (capped at one turn either way) is cut into four pieces of
+/// half-width `h ≤ π/4`. On the unit circle a piece about its middle
+/// `m` lies in the rectangle its chord spans out to the arc's crest:
+/// across it within the chord's ends, and along `e(m)` within
+/// `[cos h, 1]`. The conic is that circle's affine image, so each piece
+/// lies in the parallelogram on its ends shifted by
+/// `S = (1 − cos h)·(x(m) − c)`, and a distance from a point is convex,
+/// so it peaks at a corner. The bound passes the arc by at most a
+/// piece's bulge `|S|`; it is read from the ends and the shift, never
+/// from a difference of carrier-sized squares, so a short arc far from
+/// its centre loses nothing to cancellation.
+fn conic_arc_reach<T: Real>(
+    (c, u, v): (Point3<T>, Vec3<T>, Vec3<T>),
+    (a, b): (T, T),
+    (t0, t1): (T, T),
+    pivot: Point3<T>,
+) -> T {
+    let turn = T::from_f64(core::f64::consts::TAU);
+    let quarter = ((t1 - t0).max(-turn).min(turn)) * T::from_f64(0.25);
+    let at = |t: T| {
+        let (s, co) = t.sin_cos();
+        c + u * (a * co) + v * (b * s)
+    };
+    let shift = T::one() - (quarter * T::from_f64(0.5)).abs().cos();
+    let far = (0..4).fold((at(t0) - pivot).norm(), |far, k| {
+        let s0 = t0 + quarter * T::from_f64(f64::from(k));
+        let s1 = s0 + quarter;
+        let bulge = (at(s0 + quarter * T::from_f64(0.5)) - c) * shift;
+        let (x0, x1) = (at(s0), at(s1));
+        [x0 + bulge, x1, x1 + bulge]
+            .into_iter()
+            .fold(far, |far, x| far.max((x - pivot).norm()))
+    });
+    far.min((c - pivot).norm() + a.abs().max(b.abs()))
+}
+
 /// **What a section classifier reads its axis rows across**: where on
 /// an axis the gap is read ([`Reach::foot_on`]), and the lever a tilt
 /// pinned there is metered at ([`Reach::lever_from`]). The module docs
@@ -320,6 +360,57 @@ impl<T: Real> Reach<T> {
         }
     }
 
+    /// **The farthest the consumed region stands from `pivot`, over the
+    /// span it holds**: [`Self::lever_from`], except that a circle or
+    /// ellipse [`Self::Span`] is read over `[t0, t1]`
+    /// ([`conic_arc_reach`]) rather than round its whole turn, which on
+    /// a short arc of a large conic is the conic's size, not the arc's.
+    /// Never past [`Self::lever_from`], and past the arc by at most a
+    /// quarter of its span's bulge. The face measures read it
+    /// (`splitting::rules::face_reach_from` in `topo`); the section
+    /// arms' anchors read [`Self::lever_from`].
+    #[must_use]
+    pub fn span_reach_from(&self, pivot: Point3<T>) -> T {
+        match self {
+            Self::Span {
+                carrier:
+                    Curve3::Circle {
+                        center,
+                        axis: k,
+                        radius,
+                        u_ref,
+                    },
+                t0,
+                t1,
+            } => conic_arc_reach(
+                (*center, *u_ref, k.cross(*u_ref)),
+                (*radius, *radius),
+                (*t0, *t1),
+                pivot,
+            ),
+            Self::Span {
+                carrier:
+                    Curve3::Ellipse {
+                        center,
+                        axis: k,
+                        major,
+                        minor,
+                        u_ref,
+                    },
+                t0,
+                t1,
+            } => conic_arc_reach(
+                (*center, *u_ref, k.cross(*u_ref)),
+                (*major, *minor),
+                (*t0, *t1),
+                pivot,
+            ),
+            Self::Ball(_) | Self::Measured { .. } | Self::Face { .. } | Self::Span { .. } => {
+                self.lever_from(pivot)
+            }
+        }
+    }
+
     /// How far the consumed region reaches from `pivot` along `dir`,
     /// either way: bounds on the least and the greatest `(x − pivot)·dir`
     /// over the consumed points `x`, never inside the true ones. The
@@ -420,17 +511,22 @@ impl<T: Real> Reach<T> {
     /// `c` and cosine `cos` about the hinge through `hinge` moves a point
     /// standing `x` across the wall from it by `(1 − cos)·x`. The face
     /// bounds `x` by `across` plus `at`'s own distance across the wall
-    /// from the hinge, `|(at − hinge)·(n − c·a)| / cos`, or, where `cos`
-    /// is too small to divide by, `at − hinge` off the axis. Returned as a
-    /// lever, `(1 − cos)/|c| = |c|/(1 + cos)`, so nothing divides by `c`.
+    /// from the hinge: `|(at − hinge)·m|/|m|`, `m` the normal's part off
+    /// the axis, widened by the rounding in `m`'s direction, and never
+    /// past `at − hinge` off the axis, which it reaches where `m` is too
+    /// short to name a direction (the normal on the axis to rounding,
+    /// where `cos` read from `c` is not). Returned as a lever,
+    /// `(1 − cos)/|c| = |c|/(1 + cos)`, so nothing divides by `c`.
     #[must_use]
     pub fn turn_lever(&self, hinge: Point3<T>, (n, a): (Vec3<T>, Vec3<T>), c: T, cos: T) -> T {
         match self {
             Self::Face { at, across, .. } => {
                 let off = *at - hinge;
                 let off_axis = (off - a * off.dot(a)).norm();
+                let m = n - a * n.dot(a);
+                let len = m.norm().max(T::from_f64(f64::MIN_POSITIVE));
                 let along_normal =
-                    off.dot(n - a * c).abs() / cos.max(T::from_f64(f64::MIN_POSITIVE));
+                    (off.dot(m).abs() + off_axis * T::from_f64(8.0 * f64::EPSILON)) / len;
                 (*across + off_axis.min(along_normal)) * c.abs() / (T::one() + cos)
             }
             Self::Ball(_) | Self::Measured { .. } | Self::Span { .. } => T::zero(),
@@ -646,6 +742,99 @@ mod tests {
         }
     }
 
+    /// **A conic arc's reach from a point is its farthest point over the
+    /// span, within a quarter's bulge.** Circles and an ellipse of scale
+    /// `r ∈ {1e-3, 1, 1e3}` (offset `1e3` from the origin), arcs of span
+    /// 0.01 to 0.5 rad and stored backwards, a whole turn and a turn
+    /// and a half, each read from its own end (where the far end binds),
+    /// from the far side of its centre opposite a point inside a quarter
+    /// (the crest of the bulge binds there), from inside its bulge (an
+    /// end binds), and from off its plane. Against the farthest of 20,000
+    /// sampled points the reach is never short (to the coordinates'
+    /// rounding), never past it by more than a quarter's bulge
+    /// `(1 − cos(span/8))·max(|a|, |b|)`, and never past the whole turn's
+    /// [`Reach::lever_from`]. Dropping the bulge, or setting it on the
+    /// chord's inner side, falls short at the crest; the span read the
+    /// other way round reaches past the slack.
+    #[test]
+    fn a_conic_arcs_reach_is_its_farthest_point_over_the_span() {
+        let off = Point3::new(1e3, -1e3, 1e3);
+        let tilted = Vec3::new(0.6, 0.0, 0.8);
+        for r in [1e-3, 1.0, 1e3] {
+            let carriers = [
+                Curve3::Circle {
+                    center: off,
+                    axis: tilted,
+                    radius: r,
+                    u_ref: Vec3::new(0.0, 1.0, 0.0),
+                },
+                Curve3::Ellipse {
+                    center: off,
+                    axis: tilted,
+                    major: 2.0 * r,
+                    minor: 0.7 * r,
+                    u_ref: Vec3::new(-0.8, 0.0, 0.6),
+                },
+            ];
+            for carrier in carriers {
+                let (a, b) = match carrier {
+                    Curve3::Circle { radius, .. } => (radius, radius),
+                    Curve3::Ellipse { major, minor, .. } => (major, minor),
+                    _ => unreachable!(),
+                };
+                let big = a.abs().max(b.abs());
+                for (t0, t1) in [
+                    (0.3, 0.31),
+                    (1.0, 1.05),
+                    (-0.2, -0.1),
+                    (2.0, 2.5),
+                    (2.5, 2.0),
+                    (0.4, 0.4 + core::f64::consts::TAU),
+                    (0.4, 0.4 + 1.5 * core::f64::consts::TAU),
+                ] {
+                    let start = carrier.eval(t0);
+                    let outward = carrier.eval(t0 + 0.375 * (t1 - t0)) - off;
+                    let normal = tilted.normalize();
+                    for pivot in [
+                        start,
+                        off - outward * 3.0,
+                        off + outward * 0.999,
+                        start + normal * (2.0 * r),
+                    ] {
+                        let reach = Reach::Span {
+                            carrier: carrier.clone(),
+                            t0,
+                            t1,
+                        };
+                        let got = reach.span_reach_from(pivot);
+                        let far = (0..=20_000)
+                            .map(|k| {
+                                let t = t0 + (t1 - t0) * f64::from(k) / 20_000.0;
+                                (carrier.eval(t) - pivot).norm()
+                            })
+                            .fold(0.0_f64, f64::max);
+                        let ulps = 1e-15 * ((off - Point3::origin()).norm() + big);
+                        let span = (t1 - t0).abs().min(core::f64::consts::TAU);
+                        let slack = (1.0 - (span / 8.0).cos()) * big;
+                        let label = format!("{carrier:?} over [{t0}, {t1}] from {pivot:?}");
+                        assert!(
+                            got >= far - ulps,
+                            "{label}: {got} falls short of the sampled {far}"
+                        );
+                        assert!(
+                            got <= far + slack + ulps,
+                            "{label}: {got} passes the sampled {far} by more than {slack}"
+                        );
+                        assert!(
+                            got <= reach.lever_from(pivot),
+                            "{label}: {got} passes the whole turn"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     /// The farthest `|(x − pivot)·axis|` over `carrier` sampled on
     /// `[t0, t1]`.
     fn sampled_along(
@@ -831,8 +1020,11 @@ mod tests {
     /// the plane of normal `(cos β, 0, sin β)`: the reading point stands 1
     /// across the wall from the hinge, which the turn moves by
     /// `(1 − cos β)`, so the lever is `(1 − cos β)/sin β`, at every tilt up
-    /// to a right angle, where it falls back to the point's distance off
-    /// the axis. Every reach but a face reads no turn.
+    /// to a right angle. At an exact right angle, whose normal names no
+    /// direction across the wall (`n − c·a` is zero), it falls back to the
+    /// point's distance off the axis rather than reading that zero, as it
+    /// does where the normal lies on a tilted axis to rounding and `cos`
+    /// read from `c` is ~1e-8. Every reach but a face reads no turn.
     #[test]
     fn a_faces_turn_lever_covers_its_reading_points_offset_from_the_hinge() {
         let at = Point3::new(1.0, 0.0, 0.0);
@@ -843,8 +1035,9 @@ mod tests {
             across: 0.0,
         };
         let a = Vec3::new(0.0, 0.0, 1.0);
-        for beta in [1e-4_f64, 0.3, 1.0, core::f64::consts::FRAC_PI_2] {
-            let (c, cos) = beta.sin_cos();
+        let tilts = [1e-4_f64, 0.3, 1.0, core::f64::consts::FRAC_PI_2].map(f64::sin_cos);
+        for (c, cos) in tilts.into_iter().chain([(1.0, 0.0)]) {
+            let beta = c.atan2(cos);
             let n = Vec3::new(cos, 0.0, c);
             let lever = face.turn_lever(Point3::new(0.0, 0.0, 0.0), (n, a), c, cos);
             let want = c / (1.0 + cos);
@@ -853,6 +1046,27 @@ mod tests {
                 "β = {beta}: lever {lever}, the point's turn {want}"
             );
         }
+        // The normal on a tilted axis, `c = n·a` a rounding under 1, so
+        // `cos` read from `c` is ~1e-8 while `n − c·a` names no direction
+        // across the wall: the lever reaches the point's distance off the
+        // axis.
+        let tilted = Vec3::new(0.3, 0.4, 0.5).normalize();
+        let c = tilted.dot(tilted);
+        let cos = (1.0 - c * c).max(0.0).sqrt();
+        assert!(cos > 0.0, "the witness's `c` rounds under 1");
+        let off = tilted.cross(Vec3::new(1.0, 0.0, 0.0)).normalize();
+        let leaning = Reach::Face {
+            at: Point3::origin() + off,
+            below: 0.0,
+            above: 0.0,
+            across: 0.0,
+        };
+        let lever = leaning.turn_lever(Point3::origin(), (tilted, tilted), c, cos);
+        let want = c / (1.0 + cos);
+        assert!(
+            lever >= want * (1.0 - 1e-12),
+            "a normal on the axis to rounding: lever {lever}, the point's turn {want}"
+        );
         let measured = Reach::Measured { at, lever: 1.0 };
         let n = Vec3::new(0.0, 0.0, 1.0);
         assert_eq!(

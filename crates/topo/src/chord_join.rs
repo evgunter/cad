@@ -4222,6 +4222,51 @@ mod tests {
         }
     }
 
+    /// **A short patch on a large wall is levered at its own reach
+    /// across the wall, not its rims' whole turn.** A 1 cm × 10 µm patch
+    /// of a 1 km wall, bounded by two rim arcs and two rulings, read at a
+    /// corner and cut by the plane through that corner and the axis
+    /// tilted by `sin β = k·zero/e` about the radial: the patch stands
+    /// within `k·zero` of the corner's ruling, so the section over it is
+    /// that ruling, never a conic. Levered round the rims' whole turn
+    /// (2 km across) the turn reads definite and serves a conic.
+    #[test]
+    fn a_rim_patchs_turn_is_levered_at_its_arcs_not_their_whole_turn() {
+        let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
+        let (r, e) = (1000.0, 1e-5);
+        let mut body = crate::Body::<f64>::new();
+        let face = crate::test_support_fixtures::cyl_wall_sheet(
+            &mut body,
+            crate::test_support_fixtures::CylFrame::canonical(r),
+            None,
+            (0.0, 1e-2 / r),
+            (0.0, e),
+            Tol::witness(),
+        );
+        let base = Point3::new(r, 0.0, 0.0);
+        let corner = body
+            .vertex_points()
+            .find(|(_, p)| (*p - base).norm() < 1e-9)
+            .map(|(v, _)| v)
+            .expect("the patch's corner");
+        for k in [0.5, 0.8, 0.95] {
+            let c: f64 = k * band.zero() / e;
+            let normal =
+                UnitVec3::new(Vec3::new(0.0, (1.0 - c * c).sqrt(), c), "rim patch", band).unwrap();
+            let got = wall_section(&body, band, base, normal, face, corner);
+            assert!(
+                !matches!(
+                    got,
+                    Ok(Some(WallSection {
+                        case: SectionCase::Conic(_),
+                        ..
+                    }))
+                ),
+                "k = {k}: within the band of the corner's ruling, got a conic"
+            );
+        }
+    }
+
     /// **A face at one station is cut by a plane across the axis in a
     /// conic.** A unit wall about `z` whose face is the rim arc at `z = 0`
     /// from `(1, 0, 0)` a quarter turn round: it reaches nothing along the

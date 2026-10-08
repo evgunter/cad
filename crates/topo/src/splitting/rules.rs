@@ -549,20 +549,37 @@ pub(crate) fn face_extent<T: Decide>(
 
 /// [`face_extent`] from any point `at`: the farthest `face`'s boundary
 /// stands from it, each certified edge levered as its
-/// [`geom_brep::Reach::Span`] is ([`geom_brep::Reach::lever_from`]: a
-/// conic's or spiric's centre distance plus its largest radius, a
-/// spline's farthest control point, a segment's ends). The refusal is
-/// [`face_extent`]'s.
+/// [`geom_brep::Reach::Span`] is. The refusal is [`face_extent`]'s.
+///
+/// On a plane or a cylinder that is the face's own reach: the line or
+/// ruling through an interior point meets the boundary both ways, and a
+/// distance is convex along it. So an edge there is read over the span
+/// it holds ([`geom_brep::Reach::span_reach_from`]: a conic arc's
+/// quarters' chords and bulges, a segment's ends). Elsewhere the face
+/// can stand farthest inside its boundary (a sphere's or a torus's far
+/// side, a cone's apex), and an edge is levered round its whole carrier
+/// ([`geom_brep::Reach::lever_from`]).
 pub(crate) fn face_reach_from<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     at: Point3<T>,
 ) -> Result<T, UnboundedFace> {
+    let over_span = matches!(
+        face_surface(body, face),
+        geom::Surface::Plane { .. } | geom::Surface::Cylinder { .. }
+    );
     boundary_reach(
         body,
         face,
         |p| (p - at).norm(),
-        |curve| span_of(curve).lever_from(at),
+        |curve| {
+            let span = span_of(curve);
+            if over_span {
+                span.span_reach_from(at)
+            } else {
+                span.lever_from(at)
+            }
+        },
     )
 }
 
@@ -722,6 +739,88 @@ mod tests {
             assert!(
                 (euclid - 2.0 / phi.cos()).abs() <= 1e-12 * euclid,
                 "φ = {phi}: the face extent {euclid} is the distance round the rim"
+            );
+        }
+    }
+
+    /// **A face's reach reads an arc over its span only where the
+    /// boundary bounds the face.** One face whose boundary is the arc of
+    /// the unit circle about `z` from `(1, 0, 0)` a hundredth of a turn
+    /// round, read from its start. On a cylinder about `z` (a rim arc)
+    /// the face reaches the arc's far end, its chord. On the unit sphere
+    /// (an equator arc) a face can stand farthest inside its boundary,
+    /// out to the far side 2 away, so the arc is levered round its whole
+    /// turn.
+    #[test]
+    fn a_faces_reach_reads_an_arc_over_its_span_only_on_a_ruled_face() {
+        use geom_core::Vec3;
+        let carrier = geom::Curve3::Circle {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let t1 = 0.01 * core::f64::consts::TAU;
+        let chord = (carrier.eval(t1) - carrier.eval(0.0)).norm();
+        for (surface, want) in [
+            (
+                geom::Surface::Cylinder {
+                    origin: Point3::origin(),
+                    axis: Vec3::unit_z(),
+                    radius: 1.0,
+                    u_ref: Vec3::unit_x(),
+                },
+                chord,
+            ),
+            (
+                geom::Surface::Sphere {
+                    center: Point3::origin(),
+                    radius: 1.0,
+                    u_ref: Vec3::unit_x(),
+                    axis: Vec3::unit_z(),
+                },
+                2.0,
+            ),
+        ] {
+            let mut body = Body::<f64>::new();
+            let seed = body.mvfs(carrier.eval(0.0), true).unwrap();
+            body.set_face_surface(
+                seed.face,
+                crate::FaceSurface::New {
+                    surface: surface.clone(),
+                    sense: true,
+                },
+            )
+            .unwrap();
+            let wall = body.get_face(seed.face).unwrap().surface;
+            let rim_plane = body.add_surface(geom::Surface::Plane {
+                origin: Point3::origin(),
+                normal: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            });
+            body.mev(
+                crate::MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                carrier.eval(t1),
+                geom_brep::EdgeCurveSpec {
+                    description: geom_brep::EdgeDescriptionSpec::Intersection {
+                        s1: wall,
+                        s2: rim_plane,
+                        witness: carrier.mid_point(0.0, t1),
+                    },
+                    carrier: carrier.clone(),
+                    param_start: 0.0,
+                    param_end: t1,
+                },
+                Tol::witness(),
+            )
+            .unwrap();
+            let got = face_extent(&body, seed.vertex, seed.face).unwrap();
+            let slack = (1.0 - (t1 / 8.0).cos()) + 1e-15;
+            assert!(
+                got >= want - 1e-15 && got <= want + slack,
+                "{surface:?}: the face reaches {got} from the arc's start, not {want}"
             );
         }
     }

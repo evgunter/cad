@@ -3620,6 +3620,37 @@ mod frame_dispatch_tests {
         }
     }
 
+    /// **A short patch on a large wall is levered at its own reach
+    /// across the wall in the germ frame too.** The 1 cm × 10 µm patch of
+    /// a 1 km wall (`chord_join`'s rim-patch row), cut by the plane
+    /// through a corner and the axis tilted by `sin β = k·ε/e`: the patch
+    /// stands within `k·ε` of the corner's ruling, so the frame is never
+    /// a conic's. Levered round the rims' whole turn the turn reads
+    /// definite and names one.
+    #[test]
+    fn a_rim_patchs_turn_is_levered_at_its_arcs_in_the_germ_frame() {
+        let (r, e) = (1000.0, 1e-5);
+        let mut body = crate::Body::<f64>::new();
+        let face = crate::test_support_fixtures::cyl_wall_sheet(
+            &mut body,
+            crate::test_support_fixtures::CylFrame::canonical(r),
+            None,
+            (0.0, 1e-2 / r),
+            (0.0, e),
+            Tol::witness(),
+        );
+        for k in [0.5, 0.8, 0.95] {
+            let c = k * Tol::witness().eps() / e;
+            let normal = Vec3::new(0.0, (1.0 - c * c).sqrt(), c);
+            for (label, got) in plane_frames(&body, face, Point3::new(r, 0.0, 0.0), normal) {
+                assert!(
+                    !matches!(got, Ok(Some(_))),
+                    "k = {k} ({label}): within the band of the corner's ruling, got a conic frame"
+                );
+            }
+        }
+    }
+
     /// **A face at one station is cut across the axis in a conic, by the
     /// germ frame too.** A unit wall about `z` whose face is the rim arc
     /// at `z = 0` a quarter turn from `(1, 0, 0)`, read at its vertices'
