@@ -510,8 +510,9 @@ fn free_vars(snapshot: &ProfileDoc) -> impl Iterator<Item = (VarId, &FreeVar)> {
 /// the rows in id order, then the live nodes in id order, each by port.
 /// A placer whose operand chain is not live has no kind to check its
 /// port against, and the structural walk, which runs after, refuses
-/// the chain: [`SnapshotError::DanglingInput`] for a deleted node,
-/// [`SnapshotError::NodeNotMinted`] for one never minted.
+/// the chain: [`SnapshotError::OperandUnminted`] for a read of a
+/// variable never minted. A read a delete stranded loads, and refuses
+/// at evaluation (`NodeErrorKind::UnresolvedRead`).
 fn first_output_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
     let mut rows: std::collections::BTreeMap<(RecipeNodeId, u8), VarId> =
         std::collections::BTreeMap::new();

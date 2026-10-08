@@ -290,9 +290,8 @@ pub(crate) fn on_delete<P: crate::ProfilePayload>(
 ///
 /// One home for "who reads this node", the question every door that
 /// cares whether a node may go asks: the root maintainers below ask
-/// it as a predicate ([`is_sink`]), [`crate::apply`]'s `DeleteNode`
-/// asks it for the witness its `DeleteWouldDangle` names, and
-/// `refactor::inline` asks it for `InstanceConsumed`'s. A door that
+/// it as a predicate ([`is_sink`]), and `refactor::inline` asks it
+/// for `InstanceConsumed`'s witness. A door that
 /// spelled it its own way could disagree with the root set about
 /// what a live consumer is without anything noticing.
 ///

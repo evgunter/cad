@@ -419,11 +419,11 @@ pub enum LoopProgram<S = crate::VarId> {
 /// plane a person can see in the viewport is the plane they draw on.
 ///
 /// The consequence to know when reading the rest of this crate: a
-/// profile is no longer a DAG leaf. [`crate::Node::inputs`] reports
-/// the frame, so evaluation orders it first, poison propagates through
-/// it, the content key takes it as an upstream key rather than as
-/// inline bits, and `roots::on_insert` transfers the frame's tip when
-/// a profile consumes it.
+/// profile is no longer a DAG leaf. It reads the frame's output
+/// ([`crate::Doc::upstream`]), so evaluation orders it first, poison
+/// propagates through it, the content key takes it as an upstream key
+/// rather than as inline bits, and `roots::on_insert` transfers the
+/// frame's tip when a profile reads it.
 ///
 /// # Equality is BIT equality
 ///

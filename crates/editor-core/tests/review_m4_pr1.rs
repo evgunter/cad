@@ -508,7 +508,7 @@ fn r3_referent_survives_out_of_claim_edits_bitwise() {
 }
 
 /// R4 (RULED, spec D3 carve-out) — `StableName.node` is a REFERENCE,
-/// not a DAG edge (a boolean's `inputs()` are its operands, never what
+/// not a DAG edge (a boolean's reads are its operands, never what
 /// its declared pairs name), so:
 /// (1) DeleteNode of a node referenced ONLY by a boolean's declared
 ///     pairs is ACCEPTED → the pairs strand (N5 dangling semantics:

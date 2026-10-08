@@ -1174,21 +1174,22 @@ fn lower_operand<P: crate::ProfilePayload>(
             let port = match (half, target) {
                 (Some(half), Node::Split { .. }) => usize::try_from(half.output_body())
                     .unwrap_or_else(|_| unreachable!("a split has two ports")),
+                _ if outputs.is_empty() => {
+                    return Err(EditError::DefinesNothing {
+                        input: doc.spoken(*id),
+                        slot,
+                    });
+                }
                 _ => {
-                    let kind = |var: &VarId| doc.var(*var).map(crate::Var::kind);
-                    let Some(first) = outputs.first() else {
-                        return Err(EditError::DefinesNothing {
-                            input: doc.spoken(*id),
-                            slot,
-                        });
-                    };
-                    if outputs[1..].iter().any(|other| kind(other) == kind(first)) {
-                        return Err(EditError::AmbiguousOutput {
-                            input: doc.spoken(*id),
-                            slot,
-                        });
-                    }
-                    0
+                    return doc.read_of_node(*id).map_or_else(
+                        || {
+                            Err(EditError::AmbiguousOutput {
+                                input: doc.spoken(*id),
+                                slot,
+                            })
+                        },
+                        |var| check_read(doc, spoken, slot, var, half, expected, unresolved),
+                    );
                 }
             };
             *outputs.get(port).ok_or_else(unresolved)?
@@ -1204,6 +1205,21 @@ fn lower_operand<P: crate::ProfilePayload>(
         crate::Operand::Var(var) => *var,
         crate::Operand::Name(name) => doc.var_named(name.as_str()).ok_or_else(unresolved)?,
     };
+    check_read(doc, spoken, slot, var, half, expected, unresolved)
+}
+
+/// [`lower_operand`]'s checks of the variable an operand resolved to:
+/// live, of a kind the seat admits, and for a part over a split the
+/// half it selects.
+fn check_read<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    spoken: &impl Fn() -> SpokenNode,
+    slot: crate::OperandSlot,
+    var: VarId,
+    half: Option<crate::SplitHalf>,
+    expected: crate::OperandKind,
+    unresolved: impl Fn() -> EditError,
+) -> Result<VarId, EditError> {
     let Some(held) = doc.var(var) else {
         return Err(unresolved());
     };
@@ -1713,10 +1729,11 @@ pub enum EditError {
     /// **A node's inputs are not pairwise distinct** (DM5): one node
     /// reached twice through one node's edges.
     ///
-    /// It is one structural rule over [`Node::inputs`], not a rule per
-    /// node kind, so it covers a boolean or a split whose two operands
-    /// coincide and a list with a repeated entry alike — and it is
-    /// stated once, at [`Node::input_fault`], with this door,
+    /// It is one structural rule over a node's operand reads
+    /// ([`Node::operand_rows`]), not a rule per node kind, so it covers
+    /// a boolean whose two operands coincide and a list with a repeated
+    /// entry alike — and it is stated once, at [`Node::input_fault`],
+    /// with this door,
     /// [`DocEdit::SetMembers`] and the load validator as its three
     /// callers.
     DuplicateInput {

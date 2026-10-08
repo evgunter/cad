@@ -1375,7 +1375,7 @@ use expr_table;
 ///
 /// **One reader: [`Node::Measure`].** Its reference reads the carrier
 /// out of `at`'s evaluated value, so `at` is an ordinary DAG edge
-/// ([`Node::inputs`]) and `name` resolves against `at`'s own evaluated
+/// ([`crate::Doc::upstream`]) and `name` resolves against `at`'s own evaluated
 /// name table, through the N5 ladder every other authored name takes —
 /// the carrier has to be findable there or the measure has nothing to
 /// read. `name` is a bare [`StableName`] because a measure reads a
@@ -2571,9 +2571,8 @@ pub enum Node<P, S: Slot = crate::VarId> {
     },
     /// An instance of another document's product (ASSEMBLY-DESIGN
     /// A2/A3, ASM-2A D-1): a LEAF — its material crosses the document
-    /// seam rather than arriving from an upstream node, so
-    /// [`Node::inputs`] is empty and the DAG has nothing to schedule
-    /// ahead of it.
+    /// seam rather than arriving from an upstream node, so it reads
+    /// no operand and the DAG has nothing to schedule ahead of it.
     ///
     /// **Where it sits** (A11 (2)): it names its [`Node::Gauge`] —
     /// the world when `gauge` is `None` — and may carry an `offset` in
@@ -2635,8 +2634,8 @@ pub enum Node<P, S: Slot = crate::VarId> {
     ///
     /// **A leaf.** `a`/`b` are [`SitedFace`]s — each an
     /// instance-qualified FACE name plus the OPERAND node it is
-    /// read at — and neither half is a consuming edge, so
-    /// [`Node::inputs`] is empty and inserting a mate transfers no
+    /// read at — and neither half is a consuming edge, so it reads no
+    /// operand and inserting a mate transfers no
     /// root. A12 adds *reading* edges on top: the walk from each
     /// operand down to its name's head yields the member the edge
     /// lands on, RECOMPUTED at need ([`crate::mate::reading_edges`])
@@ -2718,17 +2717,16 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// at their node's evaluation. A measure resolves its own,
     /// against values that must ALREADY EXIST when it runs — so the
     /// referenced nodes are exactly its data dependencies, and
-    /// [`Node::inputs`] reports them. Nothing else can order the sink
-    /// after the geometry it measures: the schedule is edge-driven, so
-    /// an edgeless measure would be scheduled at level 0 and resolve
-    /// against nothing.
+    /// [`crate::Doc::upstream`] reports them ([`Node::measure_sites`]).
+    /// Nothing else can order the sink after the geometry it measures:
+    /// the schedule is edge-driven, so an edgeless measure would be
+    /// scheduled at level 0 and resolve against nothing.
     ///
-    /// **The consequence, stated because it departs from the
-    /// carve-out**: deleting a referenced node is refused at the
-    /// delete door (`DeleteWouldDangle`) exactly as it is for any
-    /// consumer's input, where a mate's head would have let the delete
-    /// through and stranded the name. N5's dangling semantics still
-    /// govern the case they were written for — a name that stops
+    /// **The consequence**: deleting a referenced node strands the
+    /// measure's names exactly as it strands any reader's, reported at
+    /// the delete (`Maintenance::Strand`), and the measure refuses at
+    /// evaluation until rebound. N5's dangling semantics still govern
+    /// the case they were written for — a name that stops
     /// resolving in a still-live node's table, which the typed
     /// resolution refusal reports and `Rebind` repairs.
     ///
@@ -3119,7 +3117,7 @@ macro_rules! node_rows {
 /// verified against the conformal table.
 ///
 /// **The names are references, not DAG edges** (spec D3 carve-out):
-/// [`Node::inputs`] does not include them. The edit door checks that
+/// [`crate::Doc::upstream`] does not include them. The edit door checks that
 /// every named node exists (a never-existed id is a typo), but a later
 /// edit MAY strand a name: that is NAMING-DESIGN N5's
 /// dangling-reference semantics — resolution fails loudly and
@@ -3639,7 +3637,7 @@ impl<P> Node<P> {
     ///
     /// # What the rule covers, and why that is sound
     ///
-    /// The two INPUT clauses read [`Node::inputs`], so they apply to
+    /// The two INPUT clauses read [`Node::operand_rows`], so they apply to
     /// EVERY node kind — not only the union, the list-input kinds and
     /// the boolean. That is wider than DM5's text, and deliberately:
     ///
@@ -4706,7 +4704,7 @@ impl<P, S: Slot> Node<P, S> {
     /// blend's selection, a shell's open list, a derived frame's face, a
     /// measure's references, a mate's two heads, an instance's interface
     /// crossings' `outer`s. Document data, never DAG
-    /// edges ([`Node::inputs`] excludes them): the edit door checks at
+    /// edges ([`crate::Doc::upstream`] excludes them): the edit door checks at
     /// insertion that each one names a live node, and a later delete may
     /// strand it, which is NAMING-DESIGN N5's dangling-reference
     /// semantics with `Rebind` as the one repair.
@@ -4807,7 +4805,7 @@ impl<P, S: Slot> Node<P, S> {
     /// dangling case, refused at the solve rather than at the edit.
     ///
     /// A measure's `at` is absent here because it is an ordinary
-    /// input ([`Node::inputs`] reports it), and the input check
+    /// dependency ([`Node::measure_sites`]), and the measure-site check
     /// already covers it. A mate's is not: an operand is an A12
     /// READING edge, and making it consuming would take the mated
     /// bodies out of A10's root set.
@@ -4830,8 +4828,9 @@ impl<P, S: Slot> Node<P, S> {
             // [`name_free_node`]); the named variants whose
             // references are read at a node the DAG ALREADY CARRIES
             // — a blend's and a shell's at the body they consume, a
-            // derived frame's and a measure's at an `at` that
-            // [`Node::inputs`] reports — so the input check covers
+            // derived frame's at the body it reads and a measure's at
+            // a site [`Node::measure_sites`] reports — so the read and
+            // site checks cover
             // the site and there is nothing extra to name here; and
             // an instance, whose interface record holds NO node id at
             // all ([`InterfaceCrossing::Mate`] argues why). A crossing

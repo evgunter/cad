@@ -1011,12 +1011,10 @@ fn a_measure_at_interval_contains_the_f64_value() {
 /// vocabulary — never silence, never a measurement of what is left.
 ///
 /// Note which dangling case this is. A measure's references ARE DAG
-/// edges, so deleting a referenced node is refused at the delete door
-/// like any other consumer's input (`DeleteWouldDangle`) — that
-/// departs from the declared-pair/`Mate` carve-out, deliberately, because
-/// a measure consumes the value it names. What remains reachable is
-/// the case the N5 ladder is really for: a well-formed name that the
-/// still-live minting node's table does not carry.
+/// edges, so deleting a referenced node strands its names like any
+/// reader's, reported at the delete. The case the N5 ladder is really
+/// for is this one: a well-formed name that the still-live minting
+/// node's table does not carry.
 #[test]
 fn a_reference_that_stops_resolving_refuses_typed() {
     use editor_core::{EntityKind, RoleSeg};

@@ -200,7 +200,7 @@ fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
 /// **The memo recomputes a profile on a derived frame through the
 /// UPSTREAM KEY**: widening the parameter the frame's body reads
 /// re-keys the body, hence the frame, hence the profile
-/// (`Node::inputs` of a profile names its frame, and a profile's
+/// (a profile reads its frame's output, and a profile's
 /// content key folds every input's key in), so the widened placement
 /// cannot be served from the nominal memo entry. No placement feed of
 /// its own is needed for that, and none exists.

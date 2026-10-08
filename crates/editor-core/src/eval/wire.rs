@@ -1260,7 +1260,7 @@ pub(crate) fn mint_frame_placement(
 /// `None` is a DERIVED frame and only that: "not a frame" and
 /// "unreadable" have already been discharged into refusals.
 ///
-/// The frame is a DAG input of the profile node ([`Node::inputs`]), so
+/// The profile reads the frame's output ([`crate::Doc::upstream`]), so
 /// it precedes every reader in the schedule and a failed frame poisons
 /// them.
 ///
@@ -2468,7 +2468,7 @@ impl<T: Decide> Selected<'_, T> {
 /// At the node the reference NAMES AS ITS READING SITE
 /// ([`crate::SitedRef::at`]), which makes the answer the PLACED carrier
 /// rather than the authored one: the minting node's value still holds
-/// the unmoved geometry. `at` is a DAG edge ([`Node::inputs`]), so it
+/// the unmoved geometry. `at` is a DAG edge ([`crate::Doc::upstream`]), so it
 /// has evaluated by the time this runs. Resolution takes the
 /// mid-evaluation [`ladder`].
 ///

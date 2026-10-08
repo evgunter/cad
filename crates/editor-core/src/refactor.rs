@@ -3311,7 +3311,7 @@ pub fn split(
     //    inside the cut or wholly disjoint from it, never straddling
     //    (`NameStraddlesCut` refuses the third case). So `!inside`
     //    here means DISJOINT, not merely "not contained".
-    // 2. `Node::Pattern::inputs()` includes `input`, so D-2's closure
+    // 2. A pattern reads its `input` (`Doc::upstream`), so D-2's closure
     //    check refuses any cut with the pattern on one side and its
     //    input instance on the other: `pattern ∈ cut` iff
     //    `pattern.input ∈ cut`. A pattern-placed head's derivation

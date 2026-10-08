@@ -1566,6 +1566,18 @@ impl<P> Doc<P> {
             .map(|(&id, _)| id)
     }
 
+    /// **What an operand naming `node` alone reads**
+    /// ([`crate::Operand::Node`]): its first output, unless another of
+    /// its outputs is of that kind (a split's two bodies), when the read
+    /// has to name its port. `None` for a node that is not live, defines
+    /// nothing, or is ambiguous so; the edit door refuses each typed.
+    pub fn read_of_node(&self, node: RecipeNodeId) -> Option<VarId> {
+        let outputs = self.outputs(node);
+        let kind = |var: &VarId| self.vars.get(var).map(crate::Var::kind);
+        let first = outputs.first()?;
+        (!outputs[1..].iter().any(|other| kind(other) == kind(first))).then_some(*first)
+    }
+
     /// **The variables `node` defines**, in port order: one per port of
     /// its signature ([`Node::outputs`]) while it is live, none once it
     /// is gone.

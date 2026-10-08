@@ -203,7 +203,7 @@ fn delete_and_reinsert_identical_node_recomputes() {
 }
 
 /// R4: a diamond whose BOTH mid ancestors fail — `through` must be
-/// deterministic (first blocking input in Node::inputs() order) and
+/// deterministic (first blocking input in `Doc::upstream` order) and
 /// identical across the sequential and parallel schedules; every
 /// `through` must land on a Failed entry.
 #[test]
@@ -263,7 +263,7 @@ fn diamond_with_two_failed_ancestors_has_deterministic_through() {
                 "extrude {id:?} must fail typed (parallel={parallel})"
             );
         }
-        // through = FIRST blocking input in inputs() order = fa.
+        // through = FIRST blocking input in upstream order = fa.
         match ev.nodes.get(&join) {
             Some(NodeResult::Poisoned { through }) => {
                 assert_eq!(*through, fa, "parallel={parallel}")

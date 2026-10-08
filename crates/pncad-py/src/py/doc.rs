@@ -3170,7 +3170,10 @@ impl Node {
     #[staticmethod]
     fn placed_union_at(input: OperandArg, frames: Vec<super::place::Frame>) -> Self {
         Self {
-            inner: d::Node::placed_union_at(input.read(), frames.into_iter().map(|f| f.0).collect()),
+            inner: d::Node::placed_union_at(
+                input.read(),
+                frames.into_iter().map(|f| f.0).collect(),
+            ),
         }
     }
 

@@ -941,9 +941,10 @@ pub(crate) type Seated = Box<(RecipeNodeId, NodeErrorKind)>;
 ///   through it; a document holding one is admitted by `apply`.
 /// - [`NodeErrorKind::MissingInput`] naming a transform's input that
 ///   is no live node, at that transform — likewise the transform's own
-///   refusal. Unreachable through `apply`, which refuses the delete
-///   that would leave it (`DeleteWouldDangle`), and through `load`,
-///   whose validator holds liveness; refused typed anyway.
+///   refusal. A delete strands the transform's read rather than
+///   leaving it, and the transform's own evaluation refuses that
+///   (`UnresolvedRead`) before this walk reaches it; refused typed
+///   anyway.
 /// - [`NodeErrorKind::MissingInput`] naming `id` itself when it is no
 ///   live node, seated at `id`: the walk has no other node to name.
 pub(crate) fn node_value_kind<P>(doc: &Doc<P>, id: RecipeNodeId) -> Result<&'static str, Seated> {
