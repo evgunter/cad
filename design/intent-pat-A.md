@@ -148,3 +148,51 @@ already names every preset.
   after Ev's clarification ("maps over numbers + some facade helper functions"): literal
   families are dropped, since they were the one non-numeric domain. No PR
   comments were fetched.
+
+## Round 2 (after reading B's "For Ev"; checked against Ev's 2026-10-03 words and the brief's quotes)
+
+**1. The construct: I move to B's index variable (likely).** In my `map`, every map states its
+own range. A multi-step family (pose, then placement, then assertion) is three maps that each
+restate `0..N`, and they line up only because those three ranges happen to be equal: one domain
+stored three times and kept in step by hand. With `k = index(N)`, the domain is one variable.
+Lockstep is that variable read twice, and "inside the family" is derived from reads. That is
+D10's one way to say dependency (reading a variable) and Ev's "the role played by edges is
+replaced by sharing variables". The brief's "map higher order function" is what results; the
+quote doesn't need a stored `map` node to say it. A stored template is the rival B rejects,
+because the scope represents membership a second time.
+
+One rule must be written down or B's model becomes implicit lifting. A variable defined by
+reading `k` has kind `K` to readers that reach the same `k`, which read the member at the same
+value, and kind `[K]` to every other reader, which reads the whole list. So `union(pockets)`,
+read outside `k`, is one union; `assert(gap(copies[k].f, …))` is N assertions. Two indices meet
+only by nesting (`within`), and otherwise the read refuses, as B says. With that rule, the
+multi-step family is
+`k = index(N); seat = rotate(s, A, scalar(k)·turn/N); c = place(b) where b.seat ≡ seat;
+assert(gap(c.f, base.g) ≤ x)`.
+
+**2. Wraparound pair: keep `mod`, a minor point (likely).** B is right that a full ring needs no
+closing assertion for *contact*: N−1 meeting 0 is structural with `turn/N`, so the lint is
+quiet. Interference is never quiet structurally, though. A press-fit ring asserting `gap = −b`
+between neighbours needs the N−1/0 pair too. Without `mod`, that pair is a second statement
+written out beside `index(N−1)`; with exact `Count` `mod`, the ring is one statement,
+`k = index(N); assert(gap(c[k].r, c[(k+1) mod N].l) = −b)`. `mod` is one total operator on
+exact integers. I would include it, but would not fight it.
+
+**3. Grids: B's nesting, with one change (likely).** Nesting is what `index … within` gives, and
+dependent bounds (all pairs, `j = index(k) within k`) need it anyway. My product domain was
+nesting under another name. Names are the same either way (`Member{i}/Member{j}`). The change:
+`union` and `subtract` should read a `[[Body]]` directly as its members, rather than a union of
+unions, so a grid of cutters is one boolean and not Nx+1. That is a property of the union's
+operand kind, not a second form.
+
+**4. Remaining differences.**
+- **(a) E12.** B says "E12 needs nothing new" for ring closure. `N·turn/N = turn` is exact as an
+  angle, but a rotation's matrix entries (cos turn/12 = √3/2) are not rational. Polynomial
+  identity over ℚ proves closure only if the tier carries a rotation by its angle expression,
+  modulo a turn, rather than by its matrix. Both reports lean on closure being structural, so
+  this is a shared unchecked load, not a settled point.
+- **(b) My `F[k]` versus B's `xs[i]`.** These are the same thing, and I adopt B's spelling and
+  `Member{k, of}` keyed by the index variable's id. That replaces my "`Instance{i}` stays".
+- **(c) Everything else in B's "For Ev" I now agree with.** That covers mirror as an operation
+  with improper poses unrepresentable, the circular form defaulting to `turn/N`, P4 reversed, and
+  P5's layout going.
