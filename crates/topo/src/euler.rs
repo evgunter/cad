@@ -5823,19 +5823,35 @@ mod tests {
                 )
             })
             .unwrap();
-        // Both checks run before the pcurve pass (check 8), whose
-        // reading of the pillow's rowless spline face comes last.
+        // Both checks run before the pcurve pass (check 8). The pillow
+        // reads its rowless spline face as unminted, an image derivable
+        // for every edge; the split's circle has none on the spline
+        // chart, so the pass's reading of that face is the circle's
+        // refusal instead.
         let at = expected
             .iter()
             .position(|e| matches!(e, crate::ValidationError::Pcurve { .. }))
             .unwrap_or(expected.len());
+        let spline_half = [created.he_plus, created.he_minus]
+            .into_iter()
+            .find(|he| body.face_of_half_edge(*he) != Some(plane_face))
+            .unwrap();
         expected.splice(
-            at..at,
+            at..,
             [
                 crate::ValidationError::ScaffoldAtRest { edge: created.edge },
                 crate::ValidationError::PlanarBoundaryResidual {
                     face: plane_face,
                     edge: created.edge,
+                },
+                crate::ValidationError::Pcurve {
+                    finding: crate::PcurveMintError::Certify {
+                        half_edge: spline_half,
+                        error: geom_brep::PcurveCertifyError::IsoUnsupported {
+                            what: "the carrier's start point lies on neither chart boundary — \
+                                   not a boundary iso of this face's chart",
+                        },
+                    },
                 },
             ],
         );

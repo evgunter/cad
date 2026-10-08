@@ -419,15 +419,12 @@ fn an_offset_wedge_cap_refuses_at_the_pose_gate() {
     }
 }
 
-/// **A pose the arm serves still passes, and the late refusal leaves
-/// the body untouched.** The base disc is axis-normal, and an
-/// axis-normal plane off the apex is the circle the plane×cone arm
-/// mints; offset, it stays axis-normal. The gate must not refuse it:
-/// the refusal that stops this door is the corner re-anchor at the
-/// wedge caps, decided after the mint and inside the boundary plan, so
-/// the body is untouched across it. The magnitude is pinned —
-/// `|d|·sin α` at `α = π/4`, the rim vertex's slide along the generator
-/// it must still stand on.
+/// **A pose the arm serves still passes, and the door then derives
+/// the corner.** The base disc is axis-normal, and an axis-normal plane
+/// off the apex is the circle the plane×cone arm mints; offset, it stays
+/// axis-normal. The gate must not refuse it, and the rim is that circle:
+/// each corner slides along the cone's generator it stands on, by
+/// `|d|/cos α` along it, rather than being transported off it.
 #[test]
 fn an_offset_axis_normal_cap_passes_the_pose_gate() {
     let body = quarter_cone();
@@ -437,20 +434,49 @@ fn an_offset_axis_normal_cap_passes_the_pose_gate() {
     )[..] else {
         panic!("one base disc");
     };
+    let Some(geom::Surface::Plane { origin, normal, .. }) = body
+        .get_face(disc)
+        .and_then(|f| body.get_surface(f.surface))
+        .cloned()
+    else {
+        unreachable!("the disc is a plane")
+    };
     for d in [0.05, -0.05] {
         let mut work = body.clone();
-        let before = format!("{work:?}");
-        let e = topo::replace_face_offset(&mut work, disc, d, Tol::witness())
-            .expect_err("the wedge caps cannot follow the moved disc");
-        let ReplaceFaceError::ReanchorOffCarrier { gap, .. } = e else {
-            panic!(
-                "d {d}: the axis-normal pose is served; expected the re-anchor refusal, got {e}"
+        topo::replace_face_offset(&mut work, disc, d, Tol::witness())
+            .unwrap_or_else(|e| panic!("d {d}: the disc moves along the cone, got {e}"));
+        // Every corner of the moved disc lies on the moved plane and on
+        // the untouched cone.
+        let cone = faces_where(&work, |s| matches!(s, geom::Surface::Cone { .. }))[0];
+        let cone = work
+            .get_face(cone)
+            .and_then(|f| work.get_surface(f.surface))
+            .cloned()
+            .expect("the cone");
+        let mut corners = 0;
+        for he in work
+            .half_edges()
+            .map(|(he, _)| he)
+            .filter(|he| work.face_of_half_edge(*he) == Some(disc))
+            .collect::<Vec<_>>()
+        {
+            let p = work.half_edge_start_point(he).expect("a corner");
+            if (p - origin).dot(normal).abs() < 1e-9 {
+                continue;
+            }
+            assert!(
+                ((p - origin).dot(normal) - d).abs() < 1e-12,
+                "d {d}: the corner is on the moved plane"
             );
-        };
-        assert!(
-            (gap - 0.05 * core::f64::consts::FRAC_1_SQRT_2).abs() <= 1e-12,
-            "d {d}: the corner error is |d|·sin(pi/4), got {gap}"
+            // The disc's corner on the axis stays there; the others
+            // stay on the untouched cone.
+            if geom_brep::implicit_residual(&cone, p).abs() < 1e-9 {
+                corners += 1;
+            }
+        }
+        assert_eq!(
+            corners, 2,
+            "d {d}: the disc's two rim corners are on the cone"
         );
-        assert_eq!(before, format!("{work:?}"), "body moved across a late Err");
     }
 }

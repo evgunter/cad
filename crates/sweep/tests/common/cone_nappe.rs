@@ -34,7 +34,7 @@ use topo::{Body, EulerOpError, FaceKey, ReplaceFaceError};
 /// filed as `work/shell/cap-rim-refusal-order-follows-the-arena.md`.
 pub fn rim_refusal_gap(got: &Result<(), ReplaceFaceError<f64>>) -> Option<Option<f64>> {
     match got {
-        Err(ReplaceFaceError::ReanchorOffCarrier { gap, .. }) => Some(Some(*gap)),
+        Err(ReplaceFaceError::VertexDisagreement { gap, .. }) => Some(Some(*gap)),
         Err(ReplaceFaceError::Op {
             error: EulerOpError::RechartFalsifies { .. },
             ..

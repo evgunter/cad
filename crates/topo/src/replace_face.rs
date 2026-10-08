@@ -1445,13 +1445,18 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
         .iter()
         .flat_map(|(group, point)| group.iter().map(|&v| (v, *point)))
         .collect();
-    let groups = corners.groups;
+    let groups = corners.groups.clone();
     for plan in &mut plans {
         if let Some(refused) = plan.refused.take() {
             return Err(refused);
         }
+        let rooted = |v| corners.rooted.contains(&v);
         if plan.ends.is_none() {
-            read_derived_ends(plan, &moved, band, tol, T::nurbs_lane())?;
+            read_ends(plan, &moved, None, band, tol, T::nurbs_lane())?;
+        } else if rooted(plan.start) || rooted(plan.end) {
+            // A transported edge whose corner a root placed ends there.
+            let seeds = (plan.spec.param_start, plan.spec.param_end);
+            read_ends(plan, &moved, Some(seeds), band, tol, T::nurbs_lane())?;
         }
     }
 
@@ -2207,6 +2212,26 @@ fn derive_edge<T: Decide>(
         return Err(refused(SectionVerdict::Tangent));
     }
     let old = curve.carrier();
+    // The kind pair routes; the arm is asked whether it serves this
+    // pose, over the edge's reach.
+    let posed = pose_route(new_surface, held, old, t0, t1, band).map_err(|e| match e {
+        geom_brep::SectionError::Escalated(source)
+        | geom_brep::SectionError::RadiusEscalated { diag: source, .. } => {
+            ReplaceFaceError::Escalated { source }
+        }
+        other => unreachable!(
+            "{edge:?}: `route_pose` answers only an escalation or a misdispatch, and returned \
+             {other:?}"
+        ),
+    })?;
+    if !posed.implemented {
+        return Err(ReplaceFaceError::NeighborPoseUnroutable {
+            edge,
+            kind,
+            other_kind,
+            why: posed.note,
+        });
+    }
     let esc = |source| ReplaceFaceError::Escalated { source };
     let section = match (new_surface, held) {
         (Surface::Plane { .. }, Surface::Nurbs(wall)) => {
@@ -2758,6 +2783,8 @@ struct Corners<T: Real> {
     /// `(edge, is_start, t)`: the corner at that end of an untouched
     /// edge is its carrier at `t`.
     solved: Vec<(EdgeKey, bool, T)>,
+    /// The corners placed by roots rather than by the transports.
+    rooted: Vec<VertexKey>,
 }
 
 /// One edge meeting a moved corner, as the corner solve reads it.
@@ -2826,6 +2853,7 @@ fn solve_corners<T: Decide>(
     let mut corners = Corners {
         groups: Vec::new(),
         solved: Vec::new(),
+        rooted: Vec::new(),
     };
     let mut keys: Vec<VertexKey> = Vec::new();
     for plan in plans {
@@ -2875,6 +2903,7 @@ fn solve_corners<T: Decide>(
         let points = if all_hold && !transported.is_empty() {
             transported
         } else {
+            corners.rooted.extend(group.iter().copied());
             let mut points = Vec::new();
             for inc in &incident {
                 let on_moved = inc.sides.contains(&old_key);
@@ -3056,14 +3085,16 @@ fn incident_edges<T: Decide>(
     Ok(out)
 }
 
-/// A derived section's parameters, read where its two corners landed:
-/// a closed form's own inverse — the end from the start across the old
-/// span, so a closed edge keeps its turn — and a spline's foot from its
-/// domain's ends. Each must name its corner within ε, or the corner and
-/// the edge disagree.
-fn read_derived_ends<T: Decide>(
+/// An edge's parameters, read where its two corners landed. A derived
+/// section (`seeds` `None`) reads a closed form's own inverse — the end
+/// from the start across the old span, so a closed edge keeps its turn
+/// — and a spline's foot from its domain's ends; a transported edge
+/// reads each end from its own parameter. Each must name its corner
+/// within ε, or the corner and the edge disagree.
+fn read_ends<T: Decide>(
     plan: &mut EdgePlan<T>,
     moved: &[(VertexKey, Point3<T>)],
+    seeds: Option<(T, T)>,
     band: Band,
     tol: Tol,
     nurbs_lane: Option<geom_brep::NurbsLane<T>>,
@@ -3086,8 +3117,9 @@ fn read_derived_ends<T: Decide>(
                 scalar: T::NAME,
             })?;
             let (lo, hi) = spline.domain();
+            let (lo, hi) = seeds.unwrap_or((T::from_f64(lo), T::from_f64(hi)));
             let foot = |p, seed| {
-                lane.carrier_foot(spline, p, T::from_f64(seed))
+                lane.carrier_foot(spline, p, seed)
                     .map(|f| T::from_f64(f.t))
                     .map_err(|error| ReplaceFaceError::ReanchorInconclusive { edge, error })
             };
@@ -3098,8 +3130,13 @@ fn read_derived_ends<T: Decide>(
                 c.param_near(p, near)
                     .unwrap_or_else(|| unreachable!("`param_near` inverts every analytic kind"))
             };
-            let t0 = inverse(p_start, T::zero());
-            (t0, inverse(p_end, t0 + span))
+            match seeds {
+                Some((s0, s1)) => (inverse(p_start, s0), inverse(p_end, s1)),
+                None => {
+                    let t0 = inverse(p_start, T::zero());
+                    (t0, inverse(p_end, t0 + span))
+                }
+            }
         }
     };
     for (vertex, point, t) in [(plan.start, p_start, t0), (plan.end, p_end, t1)] {

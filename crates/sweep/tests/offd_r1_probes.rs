@@ -74,29 +74,29 @@ fn frustum_opening() -> Body<f64> {
     revolved(&[(0.2, 0.0), (0.4, 0.0), (0.6, 0.6), (0.2, 0.6)])
 }
 
-/// The honest cap refusal: the attach door cannot describe one of the
-/// cone's moved rims on its planar cap (the transports agreeing with
-/// the mint, the caps unable to follow).
-fn assert_a_cap_cannot_hold_a_moved_rim(
-    body: &Body<f64>,
-    cone: FaceKey,
-    e: &ReplaceFaceError<f64>,
-) {
-    let ReplaceFaceError::Op {
-        edge: None,
-        error: topo::EulerOpError::RechartFalsifies { edge, .. },
-    } = e
-    else {
-        panic!("expected the attach door to refuse a rim on its cap; got {e}")
-    };
-    let rim = body
-        .get_edge(*edge)
-        .expect("the refused edge is the body's");
-    let faces = [rim.he_plus, rim.he_minus].map(|he| body.face_of_half_edge(he));
-    assert!(
-        faces.contains(&Some(cone)),
-        "the refused edge is a rim of the moved cone; got {e}"
-    );
+/// Every corner of `face` lies on each untouched plane of the body it
+/// touches: the moved cone's rims stayed on their caps.
+fn assert_rims_on_caps(body: &Body<f64>, face: FaceKey) {
+    let caps: Vec<(geom_core::Point3<f64>, geom_core::Vec3<f64>)> = body
+        .faces()
+        .filter_map(|(_, f)| match body.get_surface(f.surface) {
+            Some(geom::Surface::Plane { origin, normal, .. }) => Some((*origin, *normal)),
+            _ => None,
+        })
+        .collect();
+    let mut corners = 0;
+    for (he, _) in body.half_edges() {
+        if body.face_of_half_edge(he) != Some(face) {
+            continue;
+        }
+        let p = body.half_edge_start_point(he).expect("a corner");
+        assert!(
+            caps.iter().any(|(o, n)| (p - *o).dot(*n).abs() < 1e-9),
+            "a corner of the moved cone at {p:?} is on no cap"
+        );
+        corners += 1;
+    }
+    assert!(corners > 0, "the moved cone has corners");
 }
 
 fn cone_face(body: &Body<f64>) -> FaceKey {
@@ -128,34 +128,46 @@ fn dump(body: &Body<f64>) -> String {
 /// cannot fire at all (both of the cone's neighbours are cylinders, and
 /// that pair is routed), so nothing here says the apex predicate runs
 /// FIRST; the crossing rows do. What it pins is the pass itself: the
-/// predicate lets a small `d` through, and the door that then refuses
-/// is named with its magnitude — the per-chart re-anchor gate at
-/// `|d|·cos α`, `cos α = 0.6` on this fixture. `cone × cylinder` was
-/// this row's stop until the coaxial arm routed the pair, and the same
-/// call now proceeds one door deeper.
+/// predicate lets a small `d` through, and the door goes on to move
+/// the cone between its two coaxial cylinders, each rim re-derived as
+/// that pair's coaxial section — a circle of the untouched cylinder's
+/// own radius.
 #[test]
 fn opening_nappe_small_d_passes_the_apex_predicate() {
     for d in [-0.05_f64, 0.05] {
         let mut body = cone_up_tube();
         let face = cone_face(&body);
-        let e = topo::replace_face_offset(&mut body, face, d, Tol::witness())
-            .expect_err("the untouched cylinders cannot hold the cone's moved rims");
-        assert!(
-            !matches!(e, ReplaceFaceError::ApexWindow { .. }),
-            "d = {d}: the apex predicate must pass on the opening nappe; got {e}"
-        );
-        assert!(
-            !matches!(e, ReplaceFaceError::NeighborPairUnroutable { .. }),
-            "d = {d}: cone x cylinder is routed and must not shadow the honest \
-             door; got {e}"
-        );
-        let ReplaceFaceError::ReanchorOffCarrier { gap, .. } = e else {
-            panic!("d = {d}: expected the per-chart re-anchor refusal, got {e}");
-        };
-        assert!(
-            (gap - d.abs() * 0.6).abs() < 1e-12,
-            "d = {d}: the corner error is |d|·cos alpha, got {gap}"
-        );
+        topo::replace_face_offset(&mut body, face, d, Tol::witness())
+            .unwrap_or_else(|e| panic!("d = {d}: the cone moves between its cylinders, got {e}"));
+        let radii: Vec<f64> = body
+            .half_edges()
+            .map(|(he, _)| he)
+            .filter(|he| body.face_of_half_edge(*he) == Some(face))
+            .filter_map(|he| {
+                let edge = body.get_half_edge(he)?.edge;
+                let curve = body
+                    .get_curve_geom(body.get_edge(edge)?.curve)
+                    .and_then(topo::CurveGeom::certified)?;
+                match *curve.carrier() {
+                    geom::Curve3::Circle { radius, .. } => Some(radius),
+                    _ => None,
+                }
+            })
+            .collect();
+        assert_eq!(radii.len(), 2, "d = {d}: the moved cone keeps its two rims");
+        let cylinders: Vec<f64> = body
+            .faces()
+            .filter_map(|(_, f)| match body.get_surface(f.surface) {
+                Some(geom::Surface::Cylinder { radius, .. }) => Some(*radius),
+                _ => None,
+            })
+            .collect();
+        for r in radii {
+            assert!(
+                cylinders.iter().any(|c| (c - r).abs() < 1e-12),
+                "d = {d}: a rim of radius {r} is not on an untouched cylinder {cylinders:?}"
+            );
+        }
     }
 }
 
@@ -187,75 +199,49 @@ fn opening_nappe_apex_crossing_refuses_typed() {
 /// **The sign is monotone the right way.** A large `d` AWAY from the
 /// apex (`+5.0` on the opening nappe, window landing at `[4.25, 4.75]`)
 /// must not trip the predicate — a `|shift|`-shaped bug would refuse
-/// here. Some later door is the expected stop, and which one is not
-/// this row's claim: the property is that the apex predicate is not it.
+/// here. Whether a later door stops it is not this row's claim: the
+/// property is that the apex predicate is not what answers.
 #[test]
 fn a_large_d_away_from_the_apex_is_not_an_apex_crossing() {
     let mut body = cone_up_tube();
     let face = cone_face(&body);
-    let e = topo::replace_face_offset(&mut body, face, 5.0, Tol::witness())
-        .expect_err("a shift this large leaves the body undescribable somewhere");
+    let got = topo::replace_face_offset(&mut body, face, 5.0, Tol::witness());
     assert!(
-        !matches!(e, ReplaceFaceError::ApexWindow { .. }),
-        "a shift away from the apex must not read as a crossing; got {e}"
+        !matches!(got, Err(ReplaceFaceError::ApexWindow { .. })),
+        "a shift away from the apex must not read as a crossing; got {got:?}"
     );
 }
 
-/// **The routed cone pair is not shadowed, and the lane table is held
-/// to its own words.** The frustum's rims are `cone × plane`, which
-/// the C5 table routes, so `NeighborPairUnroutable` must NOT fire.
-///
-/// The honest downstream refusal is structural: under the mint's
-/// `v ↦ v + d·cot α` contract every rim moves axially by `−d·sin α`,
-/// so a moved rim no longer lies on its planar cap, and the attach
-/// door's re-description of that rim on the cap's chart is what says
-/// so (`EulerOpError::RechartFalsifies` naming a rim of the cone) — the seam and
-/// rim transports themselves agree wherever the lane table ("a
-/// generator translates by `d·n`; a parallel's `v` shifts by
-/// `d·cot α`") is implemented as the mint derives it. A
-/// `VertexDisagreement` here instead means the door's own two cone
-/// transports put the SAME vertex in two places — the transport lanes
-/// disagreeing with the mint they serve, not a property of the
-/// fixture.
+/// **The routed cone pair is not shadowed, and the caps hold the moved
+/// rims.** The frustum's rims are `cone × plane`, which the C5 table
+/// routes, so `NeighborPairUnroutable` must NOT fire. Each rim is then
+/// the moved cone's section with its untouched cap — the axis-normal
+/// circle — and each corner where the cone's seam meets it, so the
+/// rims stay on their caps rather than moving axially with the cone.
 ///
 /// Opening-nappe fixture: the generator arm's `copysign` is the
-/// identity, so any disagreement is the parallel arm's alone (the
-/// apex slide `−axis·d/sin α` that `offset_surface` derives and
-/// `transport_curve`'s parallel arm does not apply).
+/// identity.
 #[test]
-fn the_routed_opening_cone_reaches_past_c5_and_refuses_at_the_caps() {
+fn the_routed_opening_cone_reaches_past_c5_and_its_rims_stay_on_the_caps() {
     let mut body = frustum_opening();
     let face = cone_face(&body);
-    let before = dump(&body);
-    let e = topo::replace_face_offset(&mut body, face, 0.01, Tol::witness())
-        .expect_err("the caps cannot follow the cone's moved rims");
-    assert!(
-        !matches!(e, ReplaceFaceError::NeighborPairUnroutable { .. }),
-        "cone x plane routes; the C5 gate must not shadow it, got {e}"
-    );
-    assert_eq!(dump(&body), before, "the body is bit-untouched on Err");
-    assert_a_cap_cannot_hold_a_moved_rim(&body, face, &e);
+    topo::replace_face_offset(&mut body, face, 0.01, Tol::witness())
+        .expect("the cone moves between its caps");
+    assert_rims_on_caps(&body, face);
 }
 
 /// The same routed configuration on the MIRROR nappe — the nappe the
 /// suite's own cone lives on. Here the generator arm's `copysign`
 /// negates the mint's continuous-extension normal field
-/// (`geom_brep::offset`'s complete-locus fine print), so a coherent
-/// transport additionally requires the generator arm to follow the
-/// mint across the apex.
+/// (`geom_brep::offset`'s complete-locus fine print), so the seam's
+/// transport additionally has to follow the mint across the apex.
 #[test]
-fn the_routed_mirror_cone_reaches_past_c5_and_refuses_at_the_caps() {
+fn the_routed_mirror_cone_reaches_past_c5_and_its_rims_stay_on_the_caps() {
     let mut body = frustum_mirror();
     let face = cone_face(&body);
-    let before = dump(&body);
-    let e = topo::replace_face_offset(&mut body, face, 0.01, Tol::witness())
-        .expect_err("the caps cannot follow the cone's moved rims");
-    assert!(
-        !matches!(e, ReplaceFaceError::NeighborPairUnroutable { .. }),
-        "cone x plane routes; the C5 gate must not shadow it, got {e}"
-    );
-    assert_eq!(dump(&body), before, "the body is bit-untouched on Err");
-    assert_a_cap_cannot_hold_a_moved_rim(&body, face, &e);
+    topo::replace_face_offset(&mut body, face, 0.01, Tol::witness())
+        .expect("the cone moves between its caps");
+    assert_rims_on_caps(&body, face);
 }
 
 /// **Whole-body bit-identity on every `Err` path the suite planted —
@@ -279,7 +265,6 @@ fn every_err_path_leaves_the_body_bit_untouched() {
         .unwrap();
     let cases: Vec<(Body<f64>, FaceKey, f64)> = vec![
         (tube.clone(), inner, -0.5),
-        (cone_up_tube(), cone_face(&cone_up_tube()), -0.05),
         (cone_up_tube(), cone_face(&cone_up_tube()), -1.0),
     ];
     for (mut body, face, d) in cases {
@@ -323,14 +308,13 @@ fn every_err_path_leaves_the_body_bit_untouched() {
 
 /// **The re-anchor lanes the suite never touches.** A quarter-revolve
 /// annulus has two planar SIDE walls; replacing one moves its four
-/// vertices tangentially, which takes every rim arc's endpoint OFF its
-/// (unchanged) circle carrier by `≈ d²/2r ≫ ε`. The door must refuse
-/// typed — through the circle-inversion re-anchor gate or the mapped
-/// lane's scope refusal — and leave the body bit-untouched. A silent
-/// green here would be a body whose rim arcs no longer end on their
-/// carriers.
+/// corners tangentially. Its edges with the cylinders are their
+/// sections with the moved plane (a ruling each), each corner the root
+/// of the moved plane along the cap's rim arc it stands on, and every
+/// arc is re-anchored at that root: the arcs end on their carriers at
+/// the moved wall.
 #[test]
-fn a_side_wall_replacement_refuses_typed_at_the_rim_arcs() {
+fn a_side_wall_replacement_re_anchors_the_rim_arcs() {
     // NOT `common::shell_operands::tube`: its meridian turned a quarter, a wedge.
     let mut body = revolved_by(
         &[(0.4, 0.0), (0.8, 0.0), (0.8, 0.6), (0.4, 0.6)],
@@ -348,20 +332,24 @@ fn a_side_wall_replacement_refuses_typed_at_the_rim_arcs() {
         })
         .map(|(k, _)| k)
         .expect("a partial revolve has planar side walls");
-    let before = dump(&body);
-    let e = topo::replace_face_offset(&mut body, side, 0.05, Tol::witness())
-        .expect_err("the rim arcs cannot follow a tangential wall move");
-    assert!(
-        matches!(
-            e,
-            ReplaceFaceError::ReanchorOffCarrier { .. }
-                | ReplaceFaceError::CarrierLaneUnsupported { .. }
-                | ReplaceFaceError::VertexDisagreement { .. }
-                | ReplaceFaceError::Op { .. }
-        ),
-        "expected a typed refusal from the re-anchor/attach family, got {e}"
-    );
-    assert_eq!(dump(&body), before, "the body is bit-untouched on Err");
+    let Some(geom::Surface::Plane { origin, normal, .. }) = body
+        .get_face(side)
+        .and_then(|f| body.get_surface(f.surface))
+        .cloned()
+    else {
+        unreachable!("the side wall is a plane")
+    };
+    topo::replace_face_offset(&mut body, side, 0.05, Tol::witness())
+        .expect("the side wall moves and the rim arcs follow it");
+    for (he, _) in body.half_edges() {
+        if body.face_of_half_edge(he) == Some(side) {
+            let p = body.half_edge_start_point(he).expect("a corner");
+            assert!(
+                ((p - origin).dot(normal) - 0.05).abs() < 1e-9,
+                "a corner of the moved wall is on the moved plane"
+            );
+        }
+    }
 }
 
 /// **Which leg of the fitted obstruction fires, and on a CURVED fit

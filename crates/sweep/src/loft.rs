@@ -829,8 +829,8 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     // ---- Phase 6b: each cap rim on a polynomial wall re-describes as
     // the cap and wall's `Intersection`, its carrier the wall's own
     // boundary row (module docs). ----
-    describe_rims_intrinsically(&mut body, bottom_face, false, band, tol)?;
-    describe_rims_intrinsically(&mut body, top_face, true, band, tol)?;
+    //PROBE describe_rims_intrinsically(&mut body, bottom_face, false, band, tol)?;
+    //PROBE describe_rims_intrinsically(&mut body, top_face, true, band, tol)?;
 
     // ---- Phase 7: whole-body pcurve mint (spec §1's final pass) —
     // every wall boundary stores its exact line-in-UV image. ----

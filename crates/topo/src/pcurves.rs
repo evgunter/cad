@@ -1507,8 +1507,17 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                 })
             });
             // A cap–wall rim stated intrinsically traverses a boundary
-            // ROW, `u` moving.
-            let rows = [cv0, cv1].into_iter().flat_map(|y| {
+            // ROW, `u` moving — offered only to a carrier in the row's
+            // own spline space (the row class compares control nets),
+            // run either way.
+            let ku = wall.knots_u();
+            let (a, b) = ku.domain();
+            let mirrored: Vec<f64> = ku.knots().iter().rev().map(|k| a + b - k).collect();
+            let row_space = spline.knots().degree() == ku.degree()
+                && (spline.knots().knots() == ku.knots()
+                    || spline.knots().knots() == &mirrored[..]);
+            let row_ys: &[T] = if row_space { &[cv0, cv1] } else { &[] };
+            let rows = row_ys.iter().copied().flat_map(|y| {
                 [(cu0, cu1), (cu1, cu0)].map(|(u_at_t0, u_at_t1)| {
                     let slope = (u_at_t1 - u_at_t0) / span;
                     Pcurve::IsoLine {
@@ -1558,6 +1567,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             // carrier's two end feet measure, offered to the same
             // metre-valued probe. ----
             if deferred.is_none()
+                && row_space
                 && let (Some(f0), Some(f1)) = (
                     derive_chart_foot(carrier.eval(t0), surface, half_edge)?,
                     derive_chart_foot(carrier.eval(t1), surface, half_edge)?,

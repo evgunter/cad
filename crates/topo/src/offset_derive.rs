@@ -115,22 +115,18 @@ pub enum SplineRoot {
 /// ([`crate::AtRestPolicy::section_lane`]), a slanted spline edge
 /// refuses by name rather than transporting.
 #[derive(Clone, Copy)]
+#[allow(clippy::type_complexity)]
 pub struct SectionLane<T: Real> {
-    section: SectionFn<T>,
-    root: RootFn<T>,
+    section: fn(
+        &Surface<T>,
+        &NurbsSurface<T>,
+        &Curve3<T>,
+        (T, T),
+        T,
+        Band,
+    ) -> Result<Result<NurbsCurve3<T>, SectionVerdict>, Indeterminate>,
+    root: fn(&Surface<T>, &NurbsCurve3<T>, T, T, Band) -> Result<SplineRoot, CornerVerdict<T>>,
 }
-
-type SectionFn<T> = fn(
-    &Surface<T>,
-    &NurbsSurface<T>,
-    &Curve3<T>,
-    (T, T),
-    T,
-    Band,
-) -> Result<Result<NurbsCurve3<T>, SectionVerdict>, Indeterminate>;
-
-type RootFn<T> =
-    fn(&Surface<T>, &NurbsCurve3<T>, T, T, Band) -> Result<SplineRoot, CornerVerdict<T>>;
 
 impl<T: Real> core::fmt::Debug for SectionLane<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -366,8 +362,9 @@ fn nearest<T: Decide>(
 /// **The closed-form section** of the moved analytic surface `new` and
 /// the held analytic surface `held`, nearest the old carrier on
 /// `[t0, t1]` and running with it. Plane × plane is the line both
-/// planes hold; a plane against a cylinder, cone, sphere or torus is
-/// that C5 arm's carrier. Any other pair is not derived here.
+/// planes hold; a plane against a cylinder, cone, sphere or torus, and
+/// a cone against a coaxial cylinder, is that C5 arm's carrier. Any
+/// other pair is not derived here.
 pub(crate) fn section_closed<T: Decide>(
     new: &Surface<T>,
     held: &Surface<T>,
@@ -377,19 +374,37 @@ pub(crate) fn section_closed<T: Decide>(
     band: Band,
 ) -> Result<Result<Curve3<T>, SectionVerdict>, Indeterminate> {
     use geom_brep::intersect as c5;
-    let (plane, other) = match (new, held) {
-        (Surface::Plane { .. }, _) => (new, held),
-        (_, Surface::Plane { .. }) => (held, new),
-        _ => {
-            return Ok(Err(SectionVerdict::Unsupported {
-                what: "the per-chart door derives a section only where one side is a plane",
-            }));
-        }
-    };
     let closed = |e: geom_brep::SectionError| match e {
         geom_brep::SectionError::Escalated(source)
         | geom_brep::SectionError::RadiusEscalated { diag: source, .. } => Err(source),
         e => Ok(Err(SectionVerdict::Closed(e))),
+    };
+    let (plane, other) = match (new, held) {
+        (Surface::Plane { .. }, _) => (new, held),
+        (_, Surface::Plane { .. }) => (held, new),
+        (Surface::Cone { .. }, Surface::Cylinder { .. })
+        | (Surface::Cylinder { .. }, Surface::Cone { .. }) => {
+            let (cone, cyl) = if matches!(new, Surface::Cone { .. }) {
+                (new, held)
+            } else {
+                (held, new)
+            };
+            let candidates = match c5::cone_cylinder_section(cone, cyl, extent, band) {
+                Ok(c5::ConeCylinderSection::CoaxialCircles { c1, c2 }) => vec![c1, c2],
+                Err(e) => return closed(e),
+            };
+            let chosen = match nearest(candidates, old, span, band)? {
+                Ok(c) => c,
+                Err(v) => return Ok(Err(v)),
+            };
+            return running_with(chosen, old, span, band);
+        }
+        _ => {
+            return Ok(Err(SectionVerdict::Unsupported {
+                what: "the per-chart door derives a section through a plane, or of a cone \
+                       and a coaxial cylinder, only",
+            }));
+        }
     };
     let candidates: Vec<Curve3<T>> = match other {
         Surface::Plane { .. } => match plane_plane(plane, other, old, span, extent, band)? {
@@ -856,4 +871,34 @@ fn plane_spline_root(
         near_gap: phi(near_end),
         near: phi(near_end) <= phi(far_end),
     })
+}
+
+#[cfg(test)]
+mod wiring {
+    use super::{SectionLane, plane_spline_root, plane_wall_section};
+
+    /// `Ok(())` when every field holds its routine; otherwise the name
+    /// of the first field that does not.
+    fn holds_the_section_lane() -> Result<(), &'static str> {
+        let lane = SectionLane::f64();
+        if !std::ptr::fn_addr_eq(
+            lane.section,
+            plane_wall_section as fn(_, _, _, _, _, _) -> _,
+        ) {
+            return Err("section is not `plane_wall_section`");
+        }
+        if !std::ptr::fn_addr_eq(lane.root, plane_spline_root as fn(_, _, _, _, _) -> _) {
+            return Err("root is not `plane_spline_root`");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn f64_is_wired_to_the_section_lane() {
+        assert_eq!(
+            holds_the_section_lane(),
+            Ok(()),
+            "`SectionLane::f64()` holds something other than its two routines"
+        );
+    }
 }
