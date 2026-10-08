@@ -1,9 +1,19 @@
 //! **The join**: a vertex of valence 2 whose two edges lie on one
 //! structural carrier between the same two faces is no corner, so the
 //! two edges are one edge cut for no reason (`docs/DESIGN.md`, maximal
-//! edges). The join kills the vertex and makes the two edges one. Every
-//! boolean output stage runs it after the merge ([`join_stage`]) and
-//! writes, per join, the substitution rows that carry every contact
+//! edges). The join kills the vertex and makes the two edges one.
+//!
+//! **The join door** ([`Body::join_edges`]) is the one public spelling:
+//! every door that finishes a body ends with it (`docs/DESIGN.md`, the
+//! merge stage), and it returns each join it made ([`EdgeJoin`]) for a
+//! door that carries records or names keyed by the body's cells. The
+//! door is whole: a reading in the band refuses before any kill, the
+//! kills run on a staged clone, and a body that carried pcurve rows has
+//! them re-derived, so no row is left keyed by a dead cell. A door that
+//! is not the boolean carries its refusal typed ([`JoinRefusal`]).
+//!
+//! The boolean's output stages run it after the merge ([`join_stage`])
+//! and write, per join, the substitution rows that carry every contact
 //! record naming the cells it replaces onto the edge it makes, through
 //! the op's one substitution door ([`super::ops::carry`]).
 //!

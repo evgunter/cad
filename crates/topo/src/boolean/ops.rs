@@ -51,8 +51,9 @@
 //! # The merge output stage (F7)
 //!
 //! The seam zip manufactures coplanar same-surface-key face pairs by
-//! construction (a cut face's fragments), so each op runs
-//! `merge_coplanar_faces` as a documented final stage — part of the
+//! construction (a cut face's fragments), so each op runs the merge
+//! (`Body::merge_coplanar_faces_unjoined`, through [`finish_output`]) as
+//! a documented final stage — part of the
 //! op's contract, not hidden healing (the recipe records ONE boolean
 //! node). The mergeable pairs are structural/declared by construction;
 //! cross-operand *numeric* coplanarity is honestly left unmerged (the
@@ -60,10 +61,10 @@
 //!
 //! After the merge and its re-description, every output stage (the
 //! seamed path, the graft and single-operand fallbacks, the declared
-//! REST lane) runs the edge join ([`super::edge_join::join_stage`]): a
-//! vertex of valence 2 between the same two planar faces on one line is
-//! joined away, so every result has maximal edges (`docs/DESIGN.md`,
-//! the merge stage). Each join writes its substitution rows into the
+//! REST lane, all through [`finish_output`]) runs the edge join
+//! ([`super::edge_join::join_stage`]): every joinable vertex is joined
+//! away, so every result has maximal edges (`docs/DESIGN.md`, the
+//! merge stage). Each join writes its substitution rows into the
 //! op's descendant map before the records are carried.
 //!
 //! # Carried contacts

@@ -1513,8 +1513,10 @@ impl<T: Decide> Body<T> {
     /// is an Euler operator, so tier 1 holds throughout and χ is
     /// conserved at every step.
     ///
-    /// A body with nothing to merge returns `Ok` with an empty outcome
-    /// and is untouched (deterministic no-op).
+    /// A body with nothing to merge returns `Ok` with no merge groups,
+    /// and is changed only by the join the door ends with (reported in
+    /// [`MergeCoplanarOutcome::joins`]); a body that also has nothing to
+    /// join is untouched (deterministic no-op).
     ///
     /// # Errors
     ///

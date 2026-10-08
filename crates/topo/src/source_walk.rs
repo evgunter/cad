@@ -557,6 +557,23 @@ pub(crate) enum SurgeryPosture {
 /// Lowering it is only ever correct when doors were deleted.
 const DOORS_MEASURED: usize = 57;
 
+/// The body of the fn named `name` in the crate source whose file
+/// stem is `stem`, with the items it hosts blanked
+/// ([`FnItem::own_body`]): for a guard that pins a call one door down
+/// from the public one the walk visits. `None` where no such file or
+/// fn is found.
+pub(crate) fn fn_body(stem: &str, name: &str) -> Option<String> {
+    let path = crate_sources()
+        .into_iter()
+        .find(|f| f.file_stem().is_some_and(|s| s == stem))?;
+    let text = std::fs::read_to_string(&path).expect("a readable source file");
+    let code = CodeOnly::of(&text);
+    code.fns()
+        .into_iter()
+        .find(|f| f.name == name)
+        .map(|f| f.own_body().to_owned())
+}
+
 /// Every public mutation door into a [`crate::Body`] declared in this
 /// crate's `src/`: a public `fn` whose parameter list takes
 /// `&mut self` or `&mut Body<T>`. A door is read by its
@@ -616,23 +633,6 @@ const DOORS_MEASURED: usize = 57;
 /// The first, fourth, fifth and sixth are the ones that cost coverage, and
 /// none of them is a lexing problem — see the module docs on why a
 /// parser is not the answer to them.
-/// The body of the fn named `name` in the crate source whose file
-/// stem is `stem`, with the items it hosts blanked
-/// ([`FnItem::own_body`]): for a guard that pins a call one door down
-/// from the public one the walk visits. `None` where no such file or
-/// fn is found.
-pub(crate) fn fn_body(stem: &str, name: &str) -> Option<String> {
-    let path = crate_sources()
-        .into_iter()
-        .find(|f| f.file_stem().is_some_and(|s| s == stem))?;
-    let text = std::fs::read_to_string(&path).expect("a readable source file");
-    let code = CodeOnly::of(&text);
-    code.fns()
-        .into_iter()
-        .find(|f| f.name == name)
-        .map(|f| f.own_body().to_owned())
-}
-
 pub(crate) fn mutation_doors() -> Vec<MutationDoor> {
     let mut out = Vec::new();
     for file in crate_sources() {
