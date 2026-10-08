@@ -502,10 +502,11 @@ fn a_split_refuses_an_assertion_over_a_stranded_measure() {
     }
 }
 
-/// **Which side of an assertion has no value keys apart.** A value with
-/// no value at `f64` (a `min_clearance`) bounded by a length, and that
-/// length bounded by the same clearance, leave one evaluated number each
-/// and the same upstream; the node's own reads key the two apart.
+/// **Which side of an assertion has no value is a word of its key.** A
+/// value with no value at `f64` (a `min_clearance`) bounded by a length,
+/// and that length bounded by the same clearance, leave one evaluated
+/// number each and the same upstream: their keys differ by where the
+/// missing one stood.
 #[test]
 fn an_unavailable_side_keys_by_its_position() {
     let (doc, a, b) = slabs("s2d-unavailable", 2.5);
