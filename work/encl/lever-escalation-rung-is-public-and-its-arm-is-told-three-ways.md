@@ -2,7 +2,8 @@
 id: lever-escalation-rung-is-public-and-its-arm-is-told-three-ways
 kind: issue
 title: LeverEscalation's rung is public beside a private verdict, is_collapsed is dead, and the arm decision is told in three shapes
-status: open
+status: review
+pr: 4366
 opened: 2026-10-08
 priority: P3
 cost: E
