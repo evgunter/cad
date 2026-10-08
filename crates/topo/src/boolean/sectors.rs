@@ -584,17 +584,22 @@ pub(super) fn side_code<T: Decide>(
 }
 
 /// **The lever a pierced face's side verdicts charge** ([`side_code`]'s
-/// `lever`): the smallest radius of curvature the face has within a
-/// bound's reach of the pierce point.
+/// `lever`): the smallest radius of curvature the face has where the
+/// charge reads it, within a bound's reach of the pierce point.
 ///
 /// [`geom_brep::min_radius_of_curvature`] bounds every bend of a plane,
 /// sphere, cylinder or torus wherever a bound goes, and is the lever
 /// for every reach. A cone's is `ρ` at the pierce point only: its
 /// normal curvature `cos α·(d·φ̂)²/ρ` grows toward the axis, so a bound
-/// reaching `l` toward it can meet a bend as tight as `ρ − l`. That is
-/// the cone's lever, and where it is not definitely positive the bound
-/// reaches the axis and its side refuses, typed, as a side whose charge
-/// does not clear.
+/// reaching `l` toward it can meet a bend as tight as `ρ − l`.
+///
+/// The charge reads the bound no further than `l* = slope·lever/2`
+/// (capped at the reach), and the slope is a sine, so a lever of `2ρ/3`
+/// is never read past `ρ/3`, where the bend is no tighter than `2ρ/3`.
+/// The cone's lever is therefore `max(ρ − reach, 2ρ/3)`: the bend
+/// nearest the axis within the bound's reach, or within the stretch the
+/// charge reads where that is shorter. It is positive wherever the
+/// pierce normal is, since that door certified `ρ` definitely positive.
 #[derive(Clone, Copy, Debug)]
 pub(super) enum PierceLever<T: geom_core::Real> {
     /// A bound on every bend the face makes.
@@ -614,33 +619,10 @@ impl<T: Decide> PierceLever<T> {
     }
 
     /// The lever for a bound reaching `reach` from the pierce point.
-    ///
-    /// # Errors
-    ///
-    /// A cone bound reaching the axis: [`BooleanError::CurvedSectorSideUnsupported`]
-    /// where `ρ − reach` decides `Zero` or negative, and an escalation on
-    /// [`BooleanDecision::PierceCurvature`] where it lands in the band,
-    /// the two halves [`side_code`]'s own charge refuses with.
-    pub(super) fn within(self, reach: T, band: Band) -> Result<T, BooleanError> {
+    pub(super) fn within(self, reach: T) -> T {
         match self {
-            Self::Everywhere(lever) => Ok(lever),
-            Self::ConeAt(rho) => {
-                let lever = rho - reach;
-                match crate::validate::decide_reported(
-                    "bool_pierce_cone_lever",
-                    Margin::of(lever),
-                    band,
-                ) {
-                    Ok(decided) => match Refused::of(decided, band) {
-                        None => Ok(lever),
-                        Some(verdict) => Err(BooleanError::CurvedSectorSideUnsupported { verdict }),
-                    },
-                    Err(diag) => Err(BooleanError::Escalated {
-                        decision: BooleanDecision::PierceCurvature,
-                        diag,
-                    }),
-                }
-            }
+            Self::Everywhere(lever) => lever,
+            Self::ConeAt(rho) => (rho - reach).max(rho * T::from_f64(2.0 / 3.0)),
         }
     }
 }
@@ -5372,16 +5354,17 @@ mod tests {
         assert!(f == face && n.vec().norm().is_finite(), "{n:?}");
     }
 
-    /// **A cone's lever is `ρ − reach`, the bend nearest the axis the
-    /// bound can reach.** A bound leaving a pierce at `ρ = 0.1` along the
-    /// generator toward the apex, reaching 0.08, at a slope whose charge
-    /// clears the band read at `ρ` and does not read at `ρ − reach`: the
-    /// side refuses. Read at `ρ` the lever passes it. Measured, that
-    /// reading never decides a wrong side on a cone (over 2·10⁵ poses
-    /// the ray's true separation never fell below the charge's claim),
-    /// so this row holds the lever against loosening, not a wrong
-    /// answer. A bound reaching past the axis refuses at the lever
-    /// itself, and a plane's lever is its own at every reach.
+    /// **A cone's lever is the bend nearest the axis the charge can
+    /// read.** A bound leaving a pierce at `ρ = 0.1` along the generator
+    /// toward the apex, reaching 0.08, at a slope whose charge clears
+    /// the band read at `ρ` and does not read at the lever, `2ρ/3`
+    /// (`ρ − reach` is shorter, and the charge reads no further than
+    /// `ρ/3`): the side refuses, where read at `ρ` it certifies.
+    /// Measured, the reading at `ρ` never decides a wrong side on a cone
+    /// (over 2·10⁵ poses the ray's true separation never fell below the
+    /// charge's claim), so this row holds the lever against loosening,
+    /// not a wrong answer. A short bound takes `ρ − reach`, and a
+    /// plane's lever is its own at every reach.
     #[test]
     fn a_cone_lever_is_the_bend_nearest_the_axis_within_reach() {
         let b = band();
@@ -5397,21 +5380,24 @@ mod tests {
         let chart = Vec3::new(alpha.cos(), 0.0, -alpha.sin());
         let normal = OutwardNormal::from_chart(chart, true);
         let toward_apex = -(p - Point3::origin()).normalize();
-        // The charge at slope `s` is `s²·lever/4`: twice the escalation
-        // at `ρ`, 0.4 of it at `ρ − reach`.
-        let s = (8.0 * b.escalate() / rho).sqrt();
+        // The charge at slope `s` is `s²·lever/4`: 1.2 escalations at
+        // `ρ`, 0.8 of one at `2ρ/3`.
+        let s = (4.8 * b.escalate() / rho).sqrt();
         let dir = toward_apex * (1.0 - s * s).sqrt() + chart * s;
         let bound = Reach::Chord {
             base: p,
             far: p + dir * reach,
         };
         let lever = PierceLever::of(&cone, p);
-        let within = lever
-            .within(reach, b)
-            .expect("ρ − reach is definitely positive");
+        let within = lever.within(reach);
         assert!(
-            (within - (rho - reach)).abs() < 1e-15,
-            "the lever within reach: {within}"
+            (within - 2.0 * rho / 3.0).abs() < 1e-15,
+            "the lever a long bound reads: {within}"
+        );
+        assert!(
+            (lever.within(0.01) - (rho - 0.01)).abs() < 1e-15,
+            "the lever a short bound reads: {}",
+            lever.within(0.01)
         );
         assert!(
             matches!(
@@ -5422,7 +5408,7 @@ mod tests {
                         ..
                     })
             ),
-            "read at ρ − reach the side refuses: {:?}",
+            "read at the lever the side refuses: {:?}",
             side_code(dir, bound, normal, within, b)
         );
         assert_eq!(
@@ -5430,20 +5416,13 @@ mod tests {
             SideCode::Out,
             "read at ρ the same side certifies"
         );
-        assert!(
-            matches!(
-                lever.within(rho, b),
-                Err(BooleanError::CurvedSectorSideUnsupported { .. })
-            ),
-            "a bound reaching the axis"
-        );
         let plane = geom::Surface::Plane {
             origin: Point3::origin(),
             normal: Vec3::new(0.0, 0.0, 1.0),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         assert_eq!(
-            PierceLever::of(&plane, p).within(1e9, b).unwrap(),
+            PierceLever::of(&plane, p).within(1e9),
             NO_CURVATURE::<f64>(),
             "a plane's lever does not depend on the reach"
         );

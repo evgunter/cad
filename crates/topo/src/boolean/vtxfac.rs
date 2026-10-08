@@ -158,11 +158,8 @@ pub(super) fn partner_side<T: Decide>(
     let mut side = None;
     for s in partner {
         for (dir, reach) in [(s.start, s.start_reach), (s.end, s.end_reach)] {
-            let read = datum
-                .lever
-                .within(reach.length(), band)
-                .and_then(|lever| side_code(dir, reach, datum.normal, lever, band));
-            match read {
+            let lever = datum.lever.within(reach.length());
+            match side_code(dir, reach, datum.normal, lever, band) {
                 Ok(c @ (SideCode::In | SideCode::Out)) if side.is_none_or(|k| k == c) => {
                     side = Some(c);
                 }
@@ -471,7 +468,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 s.end,
                 s.end_reach,
                 n_pierced,
-                pierced_lever.within(s.end_reach.length(), band)?,
+                pierced_lever.within(s.end_reach.length()),
                 band,
             )?,
             lumped: false,

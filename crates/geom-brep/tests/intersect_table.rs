@@ -775,6 +775,36 @@ fn plane_cone_parabola_and_hyperbola_refuse_naming_the_conic() {
     assert_eq!(diag.predicate, Some("pn_conic_type"));
 }
 
+/// **A plane's classification does not depend on where its origin
+/// sits.** A plane along the cone's axis, 0.03 off the apex, cuts a
+/// hyperbola wherever the point the plane stores as its origin lies on
+/// it, and refuses naming that conic. Stored level with the apex, the
+/// would-be circle's radius read off that point's axial height is zero,
+/// and a zero lever decided the axis-normal sine Zero: a radius-0
+/// "circle" at the apex, whose zero tangent poisoned the join's chord
+/// orientation downstream (the thin brick past a full cone's apex).
+#[test]
+fn a_plane_along_the_axis_is_a_hyperbola_wherever_its_origin_sits() {
+    let cone = cone_z(core::f64::consts::FRAC_PI_4);
+    for origin in [
+        Point3::new(-0.03, 0.0, 1.0),
+        Point3::new(-0.03, 0.4, 1.0),
+        Point3::new(-0.03, 0.0, 0.0),
+        Point3::new(-0.03, -2.0, 3.5),
+    ] {
+        let plane = Surface::Plane {
+            origin,
+            normal: -Vec3::unit_x(),
+            u_ref: Vec3::unit_y(),
+        };
+        let got = plane_cone_section(&plane, &cone, 1.0, band());
+        let Err(SectionError::RoutesToGeneralRung { why, .. }) = got else {
+            panic!("origin {origin:?}: expected the hyperbola's refusal, got {got:?}");
+        };
+        assert!(why.contains("HYPERBOLA"), "origin {origin:?}: {why}");
+    }
+}
+
 // ---------------------------------------------------------------------
 // cylinder × sphere, DECLARED coaxial
 // ---------------------------------------------------------------------
