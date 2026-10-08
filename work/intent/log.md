@@ -598,3 +598,14 @@ The three rows are filed parked.
 | `tang/a-turned-hemisphere-keeps-the-crossing-layers-door` | `d10-one-way-to-say-intent-is-unbuilt` | — (open) | the cell is reduce::lying_on's certificates against a partner seam ruling, crossing-layer geometry the Zero path keeps (check first whether it already builds; its sibling closed by PR 4148) |
 | `topo/boolean-unreadable-norm-ends-as-a-kernel-defect` | `d10-one-way-to-say-intent-is-unbuilt` | — (open) | a NaN plane normal is operand poison routed PlaneRung::Norm → SelfCheck::Normals (refusal_routes.rs); the plane ladder and poison endings survive D10, no declaration involved |
 | `zip/tangent-lever-row-escalates-containment-at-eps-1e-6` | `d10-one-way-to-say-intent-is-unbuilt` | — (open) | red on main; the escalation is reduce's contfp ON ladder (contain.rs), which runs before the zip and survives stage 4's Zero glue |
+
+## 2026-10-08 — stage 4 sliced (`docs/INTENT-STAGE4-SPEC.md`)
+
+A spec lane sized stage 4 (the coincidence door) at main `044b5eb2e9`. Nine PRs, each green:
+
+- A `the-join-builds-what-the-rest-zip-builds` (H) and B `coincidences-are-recorded-at-one-door` (H) need nothing from stage 2 or 3 and are dispatchable now.
+- D `the-door-s-third-rung-is-the-symbolic-tier` (M), E `booleans-glue-on-zero` (H) and G `tangent-joints-are-derived` (M) need only A and B. F `declared-pairs-retire` (M) follows E.
+- C `carriers-compare-in-canonical-form` (H) needs stage 2 B and E.
+- H `placed-carriers-compare-through-their-frames` (H) and I `mates-declare-no-contact` (M) need stage 3.
+
+Every one of the 67 rows parked on `intent-stage4-is-built` is released by A, B, C, E, F or G (spec §12), so none waits on stage 3. The umbrella now parks on all nine units; the spec recommends re-pointing each row at its unit. Five forks are open for designer pairs: FORK-S4-1 (provenance from names, N6), FORK-S4-2 (a stated `CarrierFlow`), FORK-S4-3 (the record is `ContactRecords`), FORK-S4-4 (DM4's pairwise judgement), FORK-S4-5 (a mate-placed face, with stage 3).
