@@ -546,6 +546,13 @@ pub use editor_core::{
     ChecksConfig, ChecksError, ChecksReport, Severity, Subject, enforce_checks, run_checks,
     run_checks_on, subject_body,
 };
+// The coincidence door (D10): the rows an evaluation's nodes decided
+// from values, and what the door decides about each — the payload of
+// `CheckEvidence::UnprovenCoincidence`. The record's relation and
+// decision site are the kernel's own words (`topo::coincidence`), and
+// the door is a module so its `Recourse` keeps its name.
+pub use editor_core::coincide;
+pub use editor_core::{NamedCell, NamedCoincidence, Proof, Residual, Rung};
 /// The shell door's typed refusal, which two `CheckEvidence` arms
 /// carry — by the payload rule this list states at `VerbKind`.
 ///
@@ -564,6 +571,7 @@ pub use editor_core::{
 /// `BandError` and `Indeterminate`, and the shell key and the mass-
 /// properties refusal are one module hop away at `pncad::topo::…`.
 pub use topo::ShellClassifyError;
+pub use topo::coincidence;
 
 // The profile description node type and its document alias, plus the
 // refusal of the door that reads a step's profile edges — matchable

@@ -5417,6 +5417,11 @@ class Evaluation:
     """
 
     def value(self, node: NodeId) -> Value: ...
+    def coincidences(self, node: NodeId) -> list[Coincidence]:
+        """The coincidences `node` decided from values (D10), in
+        decision order, each with what the coincidence door decided
+        about it. A node with no value raises as `value` does."""
+
     def succeeded(self, node: NodeId) -> bool: ...
     def order(self) -> list[NodeId]: ...
     def all_edges(self, node: NodeId) -> list[str]:
@@ -6762,11 +6767,14 @@ class CheckId:
     cross-root solid pairs to a disjointness certificate;
     `ChartCoherence` measures, in metres, how far a curved face's
     carriers and its vertices disagree about a chart coordinate they
-    both state."""
+    both state; `UnprovenCoincidence` reports each coincidence a node
+    decided from values that the coincidence door does not prove
+    structural, so it holds at the current values only."""
 
     Connectedness: Final[CheckId]
     Separation: Final[CheckId]
     ChartCoherence: Final[CheckId]
+    UnprovenCoincidence: Final[CheckId]
 
     @property
     def kind(self) -> CheckKind:
@@ -6807,9 +6815,10 @@ class ChecksConfig:
     `SplitOutcome.node_map` spelling); a subject stated twice is
     refused rather than silently resolved last-wins.
 
-    Two of the knobs are `Advisory` rather than `Severity`, which is
-    DS6's waiver rule made static: neither `separation` nor
-    `chart_coherence` can be set to `Severity.Error`.
+    Three of the knobs are `Advisory` rather than `Severity`, which is
+    DS6's waiver rule made static: none of `separation`,
+    `chart_coherence` and `unproven_coincidence` can be set to
+    `Severity.Error`.
 
     `chart_coherence` is `Advisory.Off` by default — the one resident
     not in the default pass. It reads every face of every rest body,
@@ -6823,6 +6832,7 @@ class ChecksConfig:
         expected_components: Optional[list[tuple[NodeId, int, int]]] = None,
         separation: Advisory = ...,
         chart_coherence: Advisory = ...,
+        unproven_coincidence: Advisory = ...,
     ) -> None: ...
     @property
     def connectedness(self) -> Severity: ...
@@ -6830,6 +6840,8 @@ class ChecksConfig:
     def separation(self) -> Advisory: ...
     @property
     def chart_coherence(self) -> Advisory: ...
+    @property
+    def unproven_coincidence(self) -> Advisory: ...
     @property
     def expected_components(self) -> list[tuple[NodeId, int, int]]:
         """The stated expectations, ascending by subject."""
@@ -6873,7 +6885,13 @@ class CheckEvidence:
     and carries no finding at all. `chart_coherence_unavailable` (no
     payload) — this evaluation's decision lane has no chart-coherence
     examination, so nothing was read; do not take the silence for a
-    clean body."""
+    clean body.
+
+    `unproven_coincidence` (`relation`, `site`, `reason`, and the row
+    as `coincidence`) — a node decided two cells one from values and
+    the coincidence door does not prove it structural: it holds at the
+    current values only. `reason` says what separates the two
+    constructions. A report, never a refusal."""
 
     @property
     def variant(self) -> str: ...
@@ -6901,7 +6919,37 @@ class CheckEvidence:
     def lever(self) -> Optional[float]: ...
     @property
     def eps(self) -> Optional[float]: ...
+    @property
+    def relation(self) -> Optional[str]: ...
+    @property
+    def site(self) -> Optional[str]: ...
+    @property
+    def coincidence(self) -> Optional[Coincidence]: ...
     def __eq__(self, other: object) -> bool: ...
+
+class Coincidence:
+    """One coincidence a node decided from values (D10), with what the
+    coincidence door decided about it.
+
+    `cells` are `(node, name)` pairs: the input node whose table names
+    the cell, and the name there (the opaque text the materializers
+    answer with); the plane a split cuts with is `(node, None)`.
+    `relation` is `same_oriented`, `same_opposite`, `on_carrier` or
+    `equal_angles`; `site` is `plane_ladder`, `carrier_ladder`,
+    `split_on` or `battery_turn`. `rung` is the door's rung that proved
+    it structural (`same_source`), or `None`, and then `residual` says
+    what separates the two constructions."""
+
+    @property
+    def cells(self) -> list[tuple[NodeId, Optional[str]]]: ...
+    @property
+    def relation(self) -> str: ...
+    @property
+    def site(self) -> str: ...
+    @property
+    def rung(self) -> Optional[str]: ...
+    @property
+    def residual(self) -> Optional[str]: ...
 
 class CheckFinding:
     """One finding of one check on one subject — a body-denoting root
