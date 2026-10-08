@@ -5341,8 +5341,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "join_refusal_tag",
-        values: &["join_carrier_unsupported", "join_undecided"],
-        delegates: &["boolean_error_tag"],
+        values: &[],
+        delegates: &[
+            "boolean_error_tag",
+            "boolean_error_tag",
+            "boolean_error_tag",
+        ],
     },
     TagEntry {
         function: "label_fault_tag",
@@ -6592,12 +6596,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("instance", 2),
     ("io", 2),
     ("join", 2),
-    // One fact: the edge join's refusal (`topo::JoinRefusal`), spelled
-    // as the boolean spells it whichever door ends with the join
-    // (`join_refusal_tag`), pinned by
-    // `the_edge_joins_refusal_is_spelled_alike_at_every_door`.
-    ("join_carrier_unsupported", 2),
-    ("join_undecided", 2),
     // One rule (A4's frame rule) refused in both directions across the
     // seam: a split's kept mate and an inline's host mate.
     ("mate_frame_crosses", 2),
