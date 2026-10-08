@@ -9,10 +9,13 @@
 //!   `Rest`, the union BUILDS in both orders: the tube and the half
 //!   ball, the rim minted `TangentIntersection` — the same body as the
 //!   capsule revolved from one profile with its joint authored, which
-//!   needs no declaration. Undeclared it stops at the crossing layer,
-//!   naming the recourse; declared `Tangent` it is contradicted by its
-//!   aligned senses and steered to the seam; declared `Rest` or a
-//!   continuation it is contradicted on carrier kind.
+//!   needs no declaration. With the hemisphere turned about the axis it
+//!   builds the same body; a hair from aligned, the tube's seam ruling
+//!   keeps the covered line rung's door. Undeclared it stops at the
+//!   crossing layer, naming the recourse; declared `Tangent` it is
+//!   contradicted by its aligned senses and steered to the seam;
+//!   declared `Rest` or a continuation it is contradicted on carrier
+//!   kind.
 //! - **A seam declared where there is none**: the transverse dome is
 //!   contradicted, the cone is outside the declaration inventory, and a
 //!   ball seated in its bore has no locus to verify one along.
@@ -342,6 +345,198 @@ fn the_sphere_capped_tube_builds_with_its_walls_declared_a_seam() {
             matches!(r, Err(BooleanError::FallbackExtentUnsupported { .. })),
             "{op}: {r:?}"
         );
+    }
+}
+
+/// `body` turned about the axis by `deg` degrees.
+fn turned(body: &AtRestBody<f64>, deg: f64) -> AtRestBody<f64> {
+    let tol = Tol::witness();
+    let spin = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), deg.to_radians());
+    finished(
+        "the turned operand",
+        topo::transform_rigid(body, &spin, tol).unwrap(),
+        tol,
+    )
+}
+
+/// The tube and the half ball on its top cap, as a closed form: inside
+/// (`true`) or outside, or `None` within `1e-6` of its boundary.
+fn in_tube_and_half_ball(p: Point3<f64>) -> Option<bool> {
+    let radial = (p.x * p.x + p.y * p.y).sqrt();
+    let tube = (radial - R).max(-p.z).max(p.z - H);
+    let ball = ((p - Point3::new(0.0, 0.0, H)).norm() - R).max(H - p.z);
+    let d = tube.min(ball);
+    (d.abs() > 1e-6).then_some(d < 0.0)
+}
+
+/// **The sphere-capped tube builds with its hemisphere turned about the
+/// axis**, walls declared a `Seam` and discs `Rest`, in both member
+/// orders and with the pair spun. Turned, each rim semicircle of one
+/// operand ends inside a rim arc of the other, so the rim is four arcs.
+/// Each tube seam ruling ends on the rim beside a sphere face it does
+/// not touch, and that face's reach over its azimuth window clears the
+/// pair. The body is the tube and the half ball at every turn, by
+/// volume and by point membership against the closed form. ∖ and ∩ stop
+/// at the fallback extent at every turn, as they do aligned
+/// (`a-declared-seam-subtract-and-intersect-stop-at-the-fallback-extent`).
+#[test]
+fn the_sphere_capped_tube_builds_with_its_hemisphere_turned() {
+    let tol = Tol::witness();
+    let hemisphere = hemisphere_on_the_cap();
+    let want = tube_and_half_ball_volume();
+    let lattice: Vec<Point3<f64>> = (0..5)
+        .flat_map(|i| (0..5).flat_map(move |j| (0..7).map(move |k| (i, j, k))))
+        .map(|(i, j, k)| {
+            let step = |n: i32, lo: f64, hi: f64, of: i32| {
+                lo + (hi - lo) * (f64::from(n) + 0.37) / f64::from(of)
+            };
+            Point3::new(
+                step(i, -1.3, 1.3, 5),
+                step(j, -1.3, 1.3, 5),
+                step(k, -0.3, H + 1.3, 7),
+            )
+        })
+        .collect();
+    // `(the pair's spin, the hemisphere's turn on the tube)`, degrees.
+    let poses = [
+        (0.0, 7.0),
+        (0.0, 30.0),
+        (0.0, 45.0),
+        (0.0, 90.0),
+        (0.0, 173.0),
+        (45.0, 30.0),
+        (70.0, 90.0),
+        (0.0, 0.0),
+    ];
+    for (spin, deg) in poses {
+        let tube = turned(&rod_z(R, 0.0, H), spin);
+        let hemi = turned(&hemisphere, spin + deg);
+        let rims = if deg == 0.0 {
+            (5, 8, 5, 1)
+        } else {
+            (5, 10, 7, 1)
+        };
+        for (order, x, y) in [("tube ∪ cap", &tube, &hemi), ("cap ∪ tube", &hemi, &tube)] {
+            let label = format!("spun {spin}°, turned {deg}°, {order}");
+            let r = topo::union_with(x, y, &walls_and_discs(x, y, BooleanCoincidence::Seam), tol);
+            let body = match &r {
+                Ok(BooleanResult::Body(b)) => b.body.clone(),
+                other => panic!("{label}: builds: {other:?}"),
+            };
+            let (v, c, records) = built(&label, r);
+            assert!(
+                (v - want).abs() <= 1e-12 * want,
+                "{label}: the tube and the half ball: {v} vs {want}"
+            );
+            assert_eq!(c, rims, "{label}: F, E, V, shells");
+            assert_eq!(records, [0; 6], "{label}: no contact survives a union");
+            let mut decided = 0;
+            for &q in &lattice {
+                let Some(inside) = in_tube_and_half_ball(q) else {
+                    continue;
+                };
+                decided += 1;
+                let got = topo::point_in_solid(&body, q, Band::linear(tol).unwrap(), tol)
+                    .unwrap_or_else(|e| panic!("{label}: membership at {q:?}: {e:?}"));
+                let want = if inside {
+                    topo::SolidContainment::In
+                } else {
+                    topo::SolidContainment::Out
+                };
+                assert_eq!(got, want, "{label}: membership at {q:?}");
+            }
+            assert!(decided > 150, "{label}: the lattice reads {decided} points");
+        }
+        let d = walls_and_discs(&tube, &hemi, BooleanCoincidence::Seam);
+        let e = walls_and_discs(&hemi, &tube, BooleanCoincidence::Seam);
+        for (op, r) in [
+            ("tube ∖ cap", topo::subtract_with(&tube, &hemi, &d, tol)),
+            ("cap ∖ tube", topo::subtract_with(&hemi, &tube, &e, tol)),
+            ("tube ∩ cap", topo::intersect_with(&tube, &hemi, &d, tol)),
+            ("cap ∩ tube", topo::intersect_with(&hemi, &tube, &e, tol)),
+        ] {
+            assert!(
+                matches!(r, Err(BooleanError::FallbackExtentUnsupported { .. })),
+                "spun {spin}°, turned {deg}°, {op}: {r:?}"
+            );
+        }
+    }
+}
+
+/// **Turned within a hair of aligned**, the sphere-capped tube answers
+/// by how far its rim vertices sit apart. Inside the zero band it is the
+/// aligned body; in the sliver band the seam cover escalates.
+/// From there to about `√(70·ε·R)` apart, the tube's seam ruling, whose top
+/// end lies on the hemisphere's rim just outside one sphere face, keeps
+/// the covered line rung's door against that face
+/// (`a-covered-line-ending-just-off-the-face-keeps-the-door`): the
+/// face's reach clears the ruling by `R·(1 − cos θ)`, which is inside
+/// the sweep's pad. Further apart the reach clears the pair, and it
+/// builds.
+#[test]
+fn the_sphere_capped_tube_turned_within_a_hair_of_aligned() {
+    enum Expect {
+        Builds((usize, usize, usize, usize)),
+        Escalates,
+        RulingDoor,
+    }
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
+    let (zero, escalate) = (band.zero(), band.escalate());
+    let (tube, hemisphere) = (rod_z(R, 0.0, H), hemisphere_on_the_cap());
+    let want = tube_and_half_ball_volume();
+    // How far apart the rim vertices sit. The seam cover's decisions
+    // read it, or half of it; the reach clears the ruling by
+    // `apart² / 2R`, against the sweep's pad `escalate + 2·zero` on each
+    // side.
+    for (apart, expect) in [
+        (0.01 * zero, Expect::Builds((5, 8, 5, 1))),
+        (2.0 * (zero * escalate).sqrt(), Expect::Escalates),
+        (5.0 * escalate, Expect::RulingDoor),
+        ((R * escalate).sqrt(), Expect::RulingDoor),
+        (-(R * escalate).sqrt(), Expect::RulingDoor),
+        (
+            (2000.0 * R * escalate).sqrt(),
+            Expect::Builds((5, 10, 7, 1)),
+        ),
+    ] {
+        let deg = (apart / R).to_degrees();
+        let hemi = turned(&hemisphere, deg);
+        for (order, x, y, tube_is) in [
+            ("tube ∪ cap", &tube, &hemi, topo::Operand::A),
+            ("cap ∪ tube", &hemi, &tube, topo::Operand::B),
+        ] {
+            let label = format!("turned {deg}°, {order}");
+            let r = topo::union_with(x, y, &walls_and_discs(x, y, BooleanCoincidence::Seam), tol);
+            match expect {
+                Expect::Builds(rims) => {
+                    let (v, c, _) = built(&label, r);
+                    assert!(
+                        (v - want).abs() <= 1e-12 * want,
+                        "{label}: the tube and the half ball: {v} vs {want}"
+                    );
+                    assert_eq!(c, rims, "{label}: F, E, V, shells");
+                }
+                Expect::Escalates => assert!(
+                    matches!(
+                        &r,
+                        Err(BooleanError::Escalated { diag, .. })
+                            if diag.predicate.is_some_and(|p| p.starts_with("seam_cover_"))
+                    ),
+                    "{label}: the seam cover, in band: {r:?}"
+                ),
+                Expect::RulingDoor => {
+                    let Err(BooleanError::CurvedPierceUnsupported { operand, edge, .. }) = r else {
+                        panic!("{label}: the covered line rung's door: {r:?}");
+                    };
+                    assert_eq!(operand, tube_is, "{label}: an edge of the tube");
+                    assert!(
+                        matches!(carrier_of(&tube, edge), geom::Curve3::Line { .. }),
+                        "{label}: the tube's seam ruling"
+                    );
+                }
+            }
+        }
     }
 }
 

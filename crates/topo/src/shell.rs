@@ -603,6 +603,12 @@ pub enum ShellError<T: Real> {
         /// The mint's typed refusal, verbatim.
         source: PcurveMintError,
     },
+    /// The join the shell ends with ([`crate::Body::join_edges`])
+    /// refused on the assembled body.
+    Join {
+        /// Why the join refused, typed and keyless.
+        refusal: crate::boolean::JoinRefusal,
+    },
     /// The assembled result does not validate, so it is discarded.
     NotValid {
         /// The validator's report.
@@ -714,6 +720,7 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                 "the finished thin solid's edges could not be parametrized on its faces. \
                  {KERNEL_DEFECT_ENDING}"
             ),
+            Self::Join { refusal } => write!(f, "the assembled thin solid: {refusal}"),
             Self::NotValid { errors } => write!(
                 f,
                 "the assembled thin solid is not valid ({}) and is discarded. \
@@ -862,6 +869,12 @@ pub struct ShellNaming {
     pub thickened: Vec<(SolidKey, ShellKey)>,
     /// What the construction retired, result keys.
     pub dead: ShellRetired,
+    /// The joins the shell ended with ([`crate::Body::join_edges`]), in
+    /// the order made. Every row above stays as the construction wrote
+    /// it, `dead` included: a join's `vertex` and `gone` are then dead
+    /// but listed here, not there, and its `kept` covers what `gone` did
+    /// besides its own ([`crate::join_covers`]).
+    pub edge_joins: Vec<crate::EdgeJoin>,
 }
 
 impl ShellNaming {
@@ -1006,7 +1019,9 @@ pub struct HoleRim {
 /// The result keys the construction retired, in every arena the
 /// record names. Scaffolding a rim's surgery mints and kills within
 /// itself (a seamed band's struts and its pole's copy) was never in a
-/// row and is not listed.
+/// row and is not listed. Nor are the closing join's kills: each join's
+/// `vertex` and `gone` edge are its row in [`ShellNaming::edge_joins`],
+/// read there.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ShellRetired {
     /// Faces that no longer resolve: a designated chart's merged-away
@@ -1015,10 +1030,10 @@ pub struct ShellRetired {
     /// itself on a void's.
     pub faces: Vec<FaceKey>,
     /// Edges that no longer resolve: the seam and slit edges the chart
-    /// reduction kills.
+    /// reduction kills (the closing join's are `edge_joins`' `gone`).
     pub edges: Vec<EdgeKey>,
     /// Vertices that no longer resolve: the apex vertices a spur dies
-    /// with.
+    /// with (the closing join's are `edge_joins`' `vertex`).
     pub vertices: Vec<VertexKey>,
     /// Loops that no longer resolve: the outer loop of each face a
     /// chart merge kills.
@@ -1925,8 +1940,14 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
     // cap row and `verbs_shell`'s revolved cups).
     mint_pcurves(&mut out, tol).map_err(|source| ShellError::Pcurve { source })?;
 
-    // ---- One validation. ----
+    // ---- One validation, after the join. ----
     out.sweep_and_close();
+    // The join (`docs/DESIGN.md`, maximal edges), over every solid: each is written.
+    naming.edge_joins = out_body
+        .join_edges_within(band, tol, &|_| true)
+        .map_err(|refusal| ShellError::Join {
+            refusal: crate::boolean::JoinRefusal::of(&refusal),
+        })?;
     validate_geometric(&out_body, tol).map_err(|errors| ShellError::NotValid { errors })?;
     Ok(Shelled {
         body: out_body,

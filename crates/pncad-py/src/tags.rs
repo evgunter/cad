@@ -160,8 +160,9 @@ use pncad::sweep::{ExtrudeError, LoftError, RevolveError, SkinError, TubeError};
 use pncad::topo::param_source::ParamAttachError;
 use pncad::topo::splitting::SplitError as SplitOpError;
 use pncad::topo::{
-    BooleanErrorKind, CensusContact, CensusSubject, EntityId, RingContact, RingPairContact,
-    ShellError, StaleDeclaration, TransformError, ValidationError,
+    BooleanErrorKind, CensusContact, CensusSubject, EntityId, JoinRefusal, RingContact,
+    RingPairContact, ShellError, SplitFinishError, StaleDeclaration, TransformError,
+    ValidationError,
 };
 use pncad::topo::{CoherenceCondition, Unexaminable};
 // All three STL refusals are prelude-curated; the module path is the
@@ -1523,6 +1524,18 @@ pub fn tube_error_tag(err: &TubeError) -> &'static str {
     }
 }
 
+/// The stable tag for the edge join's refusal ([`JoinRefusal`]), as
+/// every door that ends with the join carries it: the boolean's own
+/// words for its two arms, and the boolean's tag for a kernel refusal
+/// it passed on, so one refusal has one spelling whichever door met it.
+pub fn join_refusal_tag(refusal: &JoinRefusal) -> &'static str {
+    match refusal {
+        JoinRefusal::Undecided(_) => "join_undecided",
+        JoinRefusal::CarrierUnsupported { .. } => "join_carrier_unsupported",
+        JoinRefusal::Kernel { kind } => boolean_error_tag(*kind),
+    }
+}
+
 /// The stable tag for the SPLIT op's refusal — the inner arm of
 /// [`NodeErrorKind::Split`], which carries the kernel's
 /// `topo::splitting::SplitError`.
@@ -1534,6 +1547,12 @@ pub fn split_op_error_tag(err: &SplitOpError) -> &'static str {
     match err {
         SplitOpError::Reduce(_) => "reduce",
         SplitOpError::Join(_) => "join",
+        // The edge join a side ends with is not the section join
+        // (`Join` above): it carries the join door's own refusal, worded
+        // as every door that ends with the join words it.
+        SplitOpError::Finish(SplitFinishError::EdgeJoin { refusal, .. }) => {
+            join_refusal_tag(refusal)
+        }
         SplitOpError::Finish(_) => "finish",
         SplitOpError::Pcurves(_) => "pcurves",
         SplitOpError::Pieces(_) => "pieces",
@@ -1810,6 +1829,7 @@ pub fn shell_error_tag(err: &ShellError<f64>) -> &'static str {
         ShellError::Rim { .. } => "rim",
         ShellError::Escalated { .. } => "escalated",
         ShellError::Pcurve { .. } => "pcurve",
+        ShellError::Join { refusal } => join_refusal_tag(refusal),
         ShellError::NotValid { .. } => "not_valid",
     }
 }
