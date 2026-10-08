@@ -211,6 +211,7 @@ fn a_row_over_one_placed_construction_is_proven_the_same_construction() {
         relation: Relation::SameOriented,
         site: DecisionSite::PlaneLadder,
         margin: MarginDiag::value(0.0),
+        discharge: topo::Discharge::Numeric,
     };
     let halves = row([
         entity(above, &wall(above, 0.75)),
@@ -308,6 +309,7 @@ fn a_patterns_instances_are_two_constructions_of_one_minted_face() {
         relation: Relation::SameOriented,
         site: DecisionSite::PlaneLadder,
         margin: MarginDiag::value(0.0),
+        discharge: topo::Discharge::Numeric,
     };
     let one = row([
         entity(first, &top_at(first, 3.5)),

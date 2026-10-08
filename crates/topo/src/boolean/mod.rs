@@ -4991,6 +4991,7 @@ fn verify_one_carrier_declaration<T: Decide>(
             relation,
             site: declared_site(a, fa, b, fb),
             margin,
+            discharge: crate::Discharge::Numeric,
         })
     };
     match outcome {

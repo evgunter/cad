@@ -849,7 +849,7 @@ pub use coherence::{
     CoherenceCondition, CoherenceFinding, CoherenceReport, StructureRead, Unexaminable, Unexamined,
     examine_chart_coherence, gap_is_noise,
 };
-pub use coincidence::{Coincidence, DecisionSite, Relation, RowCell};
+pub use coincidence::{Coincidence, DecisionSite, Discharge, Relation, RowCell};
 pub use geom::Curve3;
 pub use geom::Surface;
 pub use geom_brep::{

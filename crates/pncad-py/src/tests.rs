@@ -3959,6 +3959,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
             relation: pncad::document::coincidence::Relation::OnCarrier,
             site: pncad::document::coincidence::DecisionSite::SplitOn,
             margin: pncad::geom_core::MarginDiag::value(0.0),
+            discharge: pncad::document::coincidence::Discharge::Numeric,
         },
         residual: pncad::document::Residual {
             constructions: [None, None],

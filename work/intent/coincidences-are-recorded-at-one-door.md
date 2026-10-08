@@ -2,7 +2,8 @@
 id: coincidences-are-recorded-at-one-door
 kind: issue
 title: D10 stage 4 PR B: every coincidence the kernel decides from values is a Coincidence record carried into NodeValue, each ContactRecords row citing its decision; the door coincide::prove (rung 1, the same construction read twice) and CheckId::UnprovenCoincidence
-status: open
+status: review
+branch: intent/s4-b-record
 opened: 2026-10-08
 priority: P0
 cost: H

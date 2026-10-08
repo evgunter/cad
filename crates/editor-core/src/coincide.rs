@@ -41,6 +41,8 @@ pub struct NamedCoincidence {
     /// The margin that decision read: Zero, or in band where a
     /// declaration bridged it. For reporting only.
     pub margin: MarginDiag,
+    /// How that margin's Zero was discharged.
+    pub discharge: topo::Discharge,
 }
 
 /// One cell of a [`NamedCoincidence`].
@@ -319,6 +321,7 @@ pub(crate) fn name_rows(
                 relation: row.relation,
                 site: row.site,
                 margin: row.margin,
+                discharge: row.discharge,
             })
         })
         .collect()

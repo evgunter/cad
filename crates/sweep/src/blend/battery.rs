@@ -2153,6 +2153,7 @@ fn turn_at<T: Decide>(
             relation: topo::Relation::EqualAngles,
             site: topo::DecisionSite::BatteryTurn,
             margin: decided.margin,
+            discharge: topo::Discharge::Numeric,
         },
     })
 }
