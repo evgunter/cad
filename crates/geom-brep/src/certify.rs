@@ -1373,7 +1373,7 @@ pub struct NurbsLane<T: Real> {
         )
             -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal>,
     /// [`crate::rung3_tube`] at `T`.
-    tube: fn(
+    rung3_tube: fn(
         &geom::NurbsCurve3<T>,
         &Surface<T>,
         &Surface<T>,
@@ -1395,7 +1395,7 @@ impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
     pub const fn certified() -> Self {
         Self {
             limbs: crate::edge_nurbs::plane_nurbs_limbs::<T>,
-            tube: crate::edge_nurbs::rung3_tube::<T>,
+            rung3_tube: crate::edge_nurbs::rung3_tube::<T>,
             foot: Self::seeded_foot,
         }
     }
@@ -1427,14 +1427,14 @@ impl<T: Real> NurbsLane<T> {
 
     /// The uniqueness tube of a rung-3 carrier between two analytic
     /// surfaces ([`crate::rung3_tube`]).
-    fn tube(
+    fn rung3_tube(
         self,
         carrier: &geom::NurbsCurve3<T>,
         s1: &Surface<T>,
         s2: &Surface<T>,
         band: Band,
     ) -> Result<(), crate::edge_nurbs::PlaneNurbsRefusal> {
-        (self.tube)(carrier, s1, s2, band)
+        (self.rung3_tube)(carrier, s1, s2, band)
     }
 
     /// The foot of `point` on a NURBS `carrier`, by Newton from `seed`:
@@ -2825,7 +2825,7 @@ fn run_checks<T: Decide>(
     if let (Resolved::Intersection { surf1, surf2, .. }, Curve3::Nurbs(carrier), Some(lane)) =
         (&resolved, &spec.carrier, lane)
     {
-        lane.tube(carrier, surf1, surf2, band)
+        lane.rung3_tube(carrier, surf1, surf2, band)
             .map_err(CertifyError::Rung3Tube)?;
     }
 
@@ -2995,6 +2995,12 @@ mod wiring_rows {
         if !std::ptr::fn_addr_eq(lane.foot, NurbsLane::<T>::seeded_foot as fn(_, _, _) -> _) {
             return Err("foot is not `NurbsLane::seeded_foot`");
         }
+        if !std::ptr::fn_addr_eq(
+            lane.rung3_tube,
+            crate::edge_nurbs::rung3_tube::<T> as fn(_, _, _, _) -> _,
+        ) {
+            return Err("rung3_tube is not `edge_nurbs::rung3_tube`");
+        }
         Ok(())
     }
 
@@ -3003,7 +3009,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<f64>(),
             Ok(()),
-            "`NurbsLane::<f64>::certified()` holds something other than `plane_nurbs_limbs` and `seeded_foot`"
+            "`NurbsLane::<f64>::certified()` holds something other than `plane_nurbs_limbs`, `seeded_foot` and `rung3_tube`"
         );
     }
 

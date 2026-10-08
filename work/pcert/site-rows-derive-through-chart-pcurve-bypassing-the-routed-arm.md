@@ -1,11 +1,9 @@
 ---
 id: site-rows-derive-through-chart-pcurve-bypassing-the-routed-arm
 kind: issue
-title: topo::pcurves::site_rows derives through chart_pcurve directly, so a site mint on a routed (fitted) face clears its row instead of taking the route
-status: closed
+title: topo::pcurves::site_rows certifies without the fitted door, so a site mint clears a spline carrier's projected row on an analytic face instead of deriving it
+status: open
 opened: 2026-10-07
-closed: 2026-10-08
-branch: pcert/projected-image
 ---
 
 
@@ -17,10 +15,25 @@ That is consistent with "doors may drop rows" as long as every public Euler door
 
 Under PR 4261's projected-image route, every such class has one derivation, which removes the asymmetry.
 
-## Closed (branch `pcert/projected-image`, 2026-10-08)
+## Narrowed by the projected image (branch `pcert/projected-image`, 2026-10-08)
 
-The asymmetry is gone. `site_rows` derives through
-`geom_brep::chart_pcurve_over`, and `analytic_derive` is that same
-door. Every carrier class has one derivation (`chart_image`), so a
-site mint on a projected face derives the row the mint would. The
-closing-mint audit the row asked for is no longer load-bearing.
+There is one derivation now. `site_rows` and `analytic_derive` both
+derive through `geom_brep::chart_pcurve_over`, so a site mint images a
+sphere's general circle exactly as the mint does. A projected circle
+reads no fitted door, and its row is derived at the site.
+
+**Still open, for spline carriers.** `site_rows` certifies through
+`certify_walked(…, None)` (`crates/topo/src/pcurves.rs`): a `Decide`
+door holds no fitted door. A net's projected row reads its hull terms
+through that door, so at the site it refuses at check 4 and the face is
+cleared, relying on the producer's closing mint. Measured:
+`Body::set_edge_curve` re-describing a cylinder rim as a spline leaves
+the cylinder face rowless, and tier 3 reports it `Unminted`
+(`crates/sweep/tests/reach_split_gate_per_face.rs`,
+`a_spline_edge_whose_belly_crosses_the_plane_refuses`). `mint_pcurves`
+restores the row.
+
+What a fix owes is one of two things. Either hand the scalar's fitted
+door to the site mint from the doors whose bound is already
+`AtRestPolicy` (`set_edge_curve` is one), or audit that every public
+door reaching a net-carrying analytic face has a closing mint.

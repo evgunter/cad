@@ -418,6 +418,12 @@ fn certify_errors() -> Vec<CertifyError> {
             .into_iter()
             .map(CertifyError::PlaneNurbs),
     );
+    v.extend(
+        plane_nurbs_refusals()
+            .into_iter()
+            .take(1)
+            .map(CertifyError::Rung3Tube),
+    );
     v
 }
 
