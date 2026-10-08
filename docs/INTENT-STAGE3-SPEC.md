@@ -643,12 +643,12 @@ Loud census rows: `pncad-py` `tags.rs` / `surface_census` / `prose_census`, `dis
   - Stage 4 owns `ContactClass` on mates, the declared seats, the undeclared refusals and A5's hard error, in its unit I (`mates-declare-no-contact`). This spec leaves `Mate.class` in place for it.
   - **F waits on stage 4's I.** I retires A5's hard error on an unattributed contact. Before that, refusing an over-pinning mate would leave its contact undeclared.
   - **I waits on stage 4's H** (`placed-carriers-compare-through-their-frames`), and H needs a copy's frame defined from its bundle. That is this stage's **C**, not the whole stage.
-  - So H's `blocked_on` should name `a-placement-is-the-bundle-of-mates`, not `intent-stage3-is-built`. Otherwise the two stages wait on each other: the umbrella parks on F, F on I, I on H, and H on the umbrella. The order is then C → H → I → F.
-  - Until stage 4's units are on main, F's `blocked_on` names `value-decided-coincidences-have-no-recording-door` in I's place. It is re-pointed to `mates-declare-no-contact` when that row merges.
+  - So H's `blocked_on` names `a-placement-is-the-bundle-of-mates`, not `intent-stage3-is-built`. Otherwise the two stages wait on each other: the umbrella parks on F, F on I, I on H, and H on the umbrella. The order is then C → H → I → F.
+  - Ruled by the orchestrator on this PR: H's `blocked_on` names C, and F's names `mates-declare-no-contact`.
   - **Stage 4's FORK-S4-5** (a mate-placed face is structural because the placed copy's frame is *defined as* its partner's frame composed with the mate's offsets) assumes the shape C builds. A copy's pose is derived from its bundle (`OfCopy`), never stored as a free value, which is the case stage 4's risks name as fatal.
   - Stage 4's canonical forms compare poses "modulo the kind's own symmetry", the same `Subgroup` this stage shares (A).
 - **Stage 5** (`intent/stage5-spec`).
-  - Its unit C (`the-at-rest-census-is-a-check`) checks per space, "in whatever shape stage 3 leaves", and names `mate-offset-verified-…` as its stage-3 trigger. That row closes at F, so stage 5 C's trigger is F (`a-mate-on-a-pinned-copy-refuses`).
+  - Its unit C (`the-at-rest-census-is-a-check`) checks per space, "in whatever shape stage 3 leaves", and names `mate-offset-verified-…` as its stage-3 trigger. That row closes at F, so stage 5 C's trigger is F (`a-mate-on-a-pinned-copy-refuses`), as its row now says.
   - Its "copy" is "a `Body` output of a world placement; stage 3 respells the placement, not the output". This spec keeps that: a copy is `Place`'s one `Body` output.
   - `AssemblyError::Space` is C's to re-derive from bundles.
 - **Stage 6** owns coaxiality through one axis variable and the tangency constructions. A builds the `Axis` variables they read.

@@ -7,7 +7,7 @@ opened: 2026-10-08
 priority: P0
 cost: H
 design: true
-blocked_on: [carriers-compare-in-canonical-form, intent-stage3-is-built, a-mate-reads-face-variables]
+blocked_on: [carriers-compare-in-canonical-form, a-placement-is-the-bundle-of-mates, a-mate-reads-face-variables]
 ---
 
 INTENT stage 4, PR H. Spec: `docs/INTENT-STAGE4-SPEC.md` §9. Design open: FORK-S4-5 (a mate-placed face proven through its frame vs a mate rung), reconciled with the stage 3 spec.
