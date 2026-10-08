@@ -429,9 +429,10 @@ sense-invariant.
 `ve_face_backed`, and the face-pair arms of `ee_bound_backed` and
 `ef_bound_backed` confine by structural incidence only, so they can back
 an event outside the pair's overlap region. Each migrates to the unified
-strength one at a time, measured. `ef_bound_backed`'s migration waits on
-boundary-crossing cuts: the edge-on-face lane cuts cells only at
-coincident boundary vertices (the D3 reach gap, `census.rs` module docs).
+strength one at a time, measured. The edge-on-face lane cuts an edge
+wherever the face's boundary meets it, at a coincident vertex or a
+crossing, so no cell spans the face's boundary; `ef_bound_backed`'s
+migration waits on INTENT stage 4, which retires declared pairs (D10).
 
 **`EdgeFacePierce` stays categorical.** A transverse dive is
 interpenetration until a C6 vocabulary exists; the recourse is
@@ -458,7 +459,7 @@ affects only what declines, never what certifies.
 ## Open
 
 - The `EdgeFacePierce` arm (issue 973) waits for the C6 interference era.
-- `ef_bound_backed`'s migration waits on boundary-crossing cuts (1500).
+- `ef_bound_backed`'s migration waits on INTENT stage 4 (D10).
 - `interior_witness`'s budget-exhaustion decline is untyped (1478).
 - The declared-cusp wedge-0/2π arm is defined, unbuilt (941).
 - Sphere, cone and torus cross-description declared pairs refuse

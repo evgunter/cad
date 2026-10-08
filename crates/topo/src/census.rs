@@ -155,13 +155,10 @@
 //! [`sweep_vertex_vertex`], [`Declared::vf_face_backed`] at
 //! [`sweep_vertex_face`], [`Declared::ve_face_backed`] at
 //! [`sweep_vertex_edge`], [`ee_bound_backed`]'s face-pair arms, and
-//! [`ef_bound_backed`]'s face-pair arms — the last MEASURED and kept
-//! grandfathered: its confinement refuses the overlap lane's cell
-//! bounds wherever the cut schedule's REACH gap (the edge-on-face
-//! bullet below) puts a bound outside the interface — the declared
-//! straddle seat's own dive cell is bounded at the edge's endpoints —
-//! so the migration waits, by name, on the lane learning
-//! boundary-crossing cuts (scheduled: issue 1500).
+//! [`ef_bound_backed`]'s face-pair arms — the last with its cut-schedule
+//! blocker gone (the edge-on-face bullet below), its migration parked
+//! with the declared-pair machinery D10 retires
+//! (`work/intent/intent-stage4-is-built.md`).
 //! A grandfathered rung asks whether a declared face pair HOLDS the
 //! entities of the event — one on each side, through boundary
 //! membership and an edge's incidence to the faces it bounds — and
@@ -898,8 +895,7 @@ impl Declared {
     /// GRANDFATHER (module docs: the unified strength is the ruled
     /// sentence, the crossing rung its first instance, and the census
     /// deliberately holds its rungs to two standards while the named
-    /// migrations land one measured step at a time — issue 1500 is
-    /// `ef_bound_backed`'s scheduled step).
+    /// migrations land one measured step at a time).
     fn ve_face_backed<T: Real>(&self, geo: &Geo<T>, v: VertexKey, e: &EdgeGeo<T>) -> bool {
         self.vf_face_backed(geo, v, e.f_plus) || self.vf_face_backed(geo, v, e.f_minus)
     }
@@ -1699,18 +1695,13 @@ fn any_boundary_vertex_at<T: Decide>(
 /// D3 backing for one bound of an edge-on-face overlap (module docs),
 /// at the two granularities a bound can have.
 ///
-/// **Grandfathered at the region-unconfined strength, with its
-/// migration MEASURED** (the module docs' roster): the confined
-/// variant refuses a cell bound the cut schedule's reach gap places
-/// outside the declared pair's interface — an overlap cell is bounded
-/// at the EDGE's own endpoints wherever the face's boundary crosses
-/// the edge away from any vertex, and those endpoints can lie far
-/// outside the region the pair answers for (the declared straddle
-/// seat's dive cell is bounded at its shelf edge's two far corners).
-/// Confinement here therefore waits, by name, on the overlap lane
-/// cutting at boundary crossings — scheduled as issue 1500 — and
-/// until then this rung backs at the same strength as its siblings,
-/// no stronger.
+/// **Grandfathered at the region-unconfined strength** (the module
+/// docs' roster): its vertex arms back at the same strength as their
+/// siblings, no stronger.
+///
+/// Where a boundary edge of `f` crosses the edge at the bound, the
+/// event is that `EdgeEdgeCross`, and it takes that lane's rung
+/// ([`ee_cross_backed`]); a conic boundary edge's crossing has no rung.
 ///
 /// Where the EDGE holds a vertex at the bound, the event is that vertex
 /// against `f`: v-on-f-declared on `f`, v-v-declared with a coincident
