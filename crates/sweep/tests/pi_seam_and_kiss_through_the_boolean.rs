@@ -27,7 +27,8 @@
 //!   are one seam of the zip. A tube revolved rather than extruded, and
 //!   an inverted dome in the tube's place (a lens), build the same way.
 //!   Undeclared, the coincident discs refuse. A rim offset in band of
-//!   the partner's wall escalates.
+//!   the partner's wall escalates; offset inside the zero band, it
+//!   answers alike in both member orders.
 //! - **A tube ending on a ball, or on a torus's 45° latitude**,
 //!   undeclared: the rim lies inside the partner's face rather than on
 //!   its boundary, and passes the crossing layer the same way; the union
@@ -884,6 +885,100 @@ fn a_rim_in_band_of_the_partners_wall_escalates() {
             "order {order}: an in-band rim escalates: {:?}",
             r.err()
         );
+    }
+}
+
+/// **A rim offset by `k` zero bands** (the tube's radius `R + k·zero`),
+/// unioned with the dome both ways round, discs `Rest`: each member
+/// order answers alike at every offset.
+///
+/// - `k ∈ {0, ¼, ½}`: both build, the census of the exact abutment and
+///   the volume within `zero · A` of the closed form (a boundary within
+///   the zero band of the true one encloses no more). The rim keeps the
+///   first operand's circle (the REST zip's surviving copy), and the
+///   merge certifies the second operand's row against it: on the tube's
+///   wall in one order, on the dome's sphere in the other. Each row's
+///   envelope reads the offset once, so both clear the zero band.
+/// - `k ∈ {−¼, −½}`: the dome's disc overhangs the tube's. The union
+///   refuses at the volume backstop's tight bound, both orders
+///   (`work/reachhold/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`).
+/// - `k = ±0.9`: the dome's meridian meets the tube's wall `√2·|k|·zero`
+///   along its arc from the rim, and the crossing layer escalates on that
+///   arc length, both orders
+///   (`work/cleave/boolean-in-span-readings-of-grazing-roots-are-levered-by-arc-length.md`).
+/// - `k = ±1.1, ±2`: in band, both orders escalate. Which question
+///   escalates first follows the operand walked first.
+#[test]
+fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
+    let dome = dome_on_the_cap();
+    let rim_radius = |b: &Body<f64>| -> Vec<f64> {
+        b.edges()
+            .filter_map(|(e, _)| match carrier_of(b, e) {
+                geom::Curve3::Circle { center, radius, .. } if (center.z - H).abs() < 1e-9 => {
+                    Some(radius)
+                }
+                _ => None,
+            })
+            .collect()
+    };
+    let dome_rim = rim_radius(&dome)[0];
+    let cap = tube_and_dome_volume() - PI * R * R * H;
+    for k in [0.0, 0.25, -0.25, 0.5, -0.5, 0.9, -0.9, 1.1, -1.1, 2.0, -2.0] {
+        let tube = rod_z(R + k * band.zero(), 0.0, H);
+        let tube_rim = rim_radius(&tube)[0];
+        for (order, r) in unions_with_discs_rest(&tube, &dome).into_iter().enumerate() {
+            let label = format!("k = {k}, order {order}");
+            if (0.0..=0.5).contains(&k) {
+                let b = match r {
+                    Ok(BooleanResult::Body(b)) => b.body,
+                    other => panic!("{label}: the union builds: {other:?}"),
+                };
+                topo::validate_geometric(&b, tol)
+                    .unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
+                assert_eq!(census(&b), (5, 8, 5, 1), "{label}: F, E, V, shells");
+                let p = topo::mass_properties(&b, tol).unwrap();
+                let want = PI * tube_rim * tube_rim * H + cap;
+                assert!(
+                    (p.volume - want).abs() <= band.zero() * p.surface_area,
+                    "{label}: the tube and the dome: {} vs {want}",
+                    p.volume
+                );
+                let kept = [tube_rim, dome_rim][order];
+                assert_eq!(
+                    rim_radius(&b),
+                    vec![kept; 2],
+                    "{label}: the rim keeps the first operand's circle"
+                );
+                continue;
+            }
+            let e = r.err().unwrap_or_else(|| panic!("{label}: refuses"));
+            match k {
+                -0.5 | -0.25 => assert!(
+                    matches!(
+                        e,
+                        BooleanError::ResultVolumeImplausible {
+                            which: "vol(A ∪ B) ≤ vol(A) + vol(B)",
+                            ..
+                        }
+                    ),
+                    "{label}: the tight union bound: {e:?}"
+                ),
+                0.9 | -0.9 => assert!(
+                    matches!(
+                        &e,
+                        BooleanError::Escalated { diag, .. }
+                            if diag.predicate == Some("bool_wall_root_in_span")
+                    ),
+                    "{label}: the meridian's root, by arc length: {e:?}"
+                ),
+                _ => assert!(
+                    matches!(e, BooleanError::Escalated { .. }),
+                    "{label}: in band: {e:?}"
+                ),
+            }
+        }
     }
 }
 
