@@ -701,7 +701,10 @@ fn the_tilted_read_turns_at_the_crossing_foot_at_metre_and_millimetre_extents() 
             );
             continue;
         }
-        assert!(foot - nudge > 2.0 * t / s, "the crossing foot is over two walls");
+        assert!(
+            foot - nudge > 2.0 * t / s,
+            "the crossing foot is over two walls"
+        );
         let inside = foot - nudge;
         let body = |w: f64| prism(corners(&arm_outline(s, len, w + lean, w)), s, tol);
         assert_the_tilted_arm_walls_cross(
@@ -711,7 +714,9 @@ fn the_tilted_read_turns_at_the_crossing_foot_at_metre_and_millimetre_extents() 
         );
         let outside = foot + nudge;
         let hollow = topo::shell(&finished("the arm", body(outside), tol), t, tol)
-            .unwrap_or_else(|e| panic!("scale {s}: a foot just over the crossing one shells, got {e}"))
+            .unwrap_or_else(|e| {
+                panic!("scale {s}: a foot just over the crossing one shells, got {e}")
+            })
             .body;
         assert_eq!(
             topo::validate_geometric(&hollow, tol),
@@ -726,6 +731,26 @@ fn the_tilted_read_turns_at_the_crossing_foot_at_metre_and_millimetre_extents() 
             props.volume
         );
     }
+}
+
+/// **A face bounded by an arc is read on the arc, not its ball.** A
+/// `120°` sector of the dome (sphere `r = 1` over a base annulus bored
+/// at `0.5`): its two end faces are not adjacent (the bore stands
+/// between them), and their moved planes meet on a line parallel to
+/// the axis at `t/sin(60°)` from it, inside the dilated bore, so the
+/// walls clear and the sector shells. Each end face carries the
+/// sphere's meridian arc, whose carrier ball is centred on the axis
+/// with radius `1`: read as that ball, the arc would cover the line at
+/// every wall and refuse the sector.
+#[test]
+fn a_dome_sectors_arc_bounded_end_walls_clear() {
+    let tol = Tol::witness();
+    let body = crate::common::shell_operands::dome_sector(1.0, 120.0);
+    let hollow = topo::shell(&finished("the sector", body, tol), 0.05, tol)
+        .unwrap_or_else(|e| panic!("the sector's end walls clear, got {e}"))
+        .body;
+    assert_eq!(topo::validate_geometric(&hollow, tol), Ok(()), "tier 3");
+    assert_eq!(hollow.shells().count(), 2, "outer + cavity");
 }
 
 /// **Two voids.** With material `g = 0.4` between them, `t > g/2`

@@ -130,10 +130,13 @@
 //! refuses too. **What the gate decides** is that no two antiparallel
 //! PLANAR faces — to within a drift of `t` across the pair, or a
 //! cosine antiparallel to the band — have offsets whose projected boxes
-//! meet across less than `2t`; **what it still cannot see** is a curved wall (below), a planar pair tilted
-//! further than that (two offsets meeting at an angle,
-//! `work/shell/shell-clearance-gate-skips-planar-pairs-tilted-off-antiparallel.md`),
-//! and the corner solves' own refusals, which are the offset doors'.
+//! meet across less than `2t`. **A planar pair tilted further** has no
+//! single gap, and is read after the offset doors run, on the cavity
+//! they built ([`moved_walls_cross`]): two non-adjacent planar faces of
+//! one solid in transversal planes must not overlap along the line
+//! their moved planes share. **What the two still cannot see** is a
+//! curved wall (below) and the corner solves' own refusals, which are
+//! the offset doors'.
 //!
 //! **The curved residue is an open window, and it is not caught by
 //! anything downstream.** A curved thin neck — two facing cylinder or
@@ -3162,7 +3165,7 @@ fn loop_rekeyed<T: Decide>(
 /// refuse a staircase body whose faces do not really face each other,
 /// or a convex-edged pair whose offsets would have cleared; it cannot
 /// miss a planar pair within either window that crosses. A pair tilted
-/// further is not read (module docs).
+/// further is read on the moved cavity ([`moved_walls_cross`]).
 fn wall_clearance<T: Decide>(
     body: &Body<T>,
     partition: &crate::offset_together::Scope,
@@ -3501,10 +3504,10 @@ fn footprints_may_overlap<T: Decide>(
 /// chord, and the chord of `L` through the ball holding the edge's arc
 /// is added to the set: the region between an arc and its chord lies
 /// in that ball, so the set read holds the true one. Crossings are
-/// paired in the order of their enclosures' centres; the overlap is
-/// then computed in `T` and decided, and an undecided side or overlap
-/// escalates rather than clearing.
-fn moved_walls_cross<T: Decide + geom_core::CertifiedBounds>(
+/// ordered by decided comparisons, a pair the band cannot order is a
+/// tie; the overlap is then computed in `T` and decided, and an
+/// undecided side or overlap escalates rather than clearing.
+fn moved_walls_cross<T: Decide>(
     cavity: &Body<T>,
     partition: &crate::offset_together::Scope,
     thickness: T,
@@ -3544,24 +3547,21 @@ fn moved_walls_cross<T: Decide + geom_core::CertifiedBounds>(
             let q = a.lo + (a.hi - a.lo) * T::from_f64(0.5);
             let r_a = a.normal.dot(a.origin - q);
             let r_b = b.normal.dot(b.origin - q);
-            let det = T::one() - k * k;
+            let det = T::one() - k.powi(2);
             let p0 = q + a.normal * ((r_a - k * r_b) / det) + b.normal * ((r_b - k * r_a) / det);
             let on_a = a.cut(p0, d, band).map_err(escalated)?;
             let on_b = b.cut(p0, d, band).map_err(escalated)?;
             for &(a_lo, a_hi) in &on_a {
                 for &(b_lo, b_hi) in &on_b {
                     let overlap = a_hi.min(b_hi) - a_lo.max(b_lo);
-                    let crosses = match decide(
-                        "shell_moved_walls_overlap",
-                        Margin::of(overlap),
-                        band,
-                    )
-                    .map_err(escalated)?
-                    {
-                        Sign::Positive => true,
-                        Sign::Zero => !a.vertices.iter().any(|v| b.vertices.contains(v)),
-                        Sign::Negative => false,
-                    };
+                    let crosses =
+                        match decide("shell_moved_walls_overlap", Margin::of(overlap), band)
+                            .map_err(escalated)?
+                        {
+                            Sign::Positive => true,
+                            Sign::Zero => !a.vertices.iter().any(|v| b.vertices.contains(v)),
+                            Sign::Negative => false,
+                        };
                     if crosses {
                         return Err(ShellError::OffsetsCross {
                             face: a.face,
@@ -3595,10 +3595,28 @@ struct MovedWall<T: Real> {
 struct BoundaryEdge<T: Real> {
     start: (VertexKey, geom_core::Point3<T>),
     end: (VertexKey, geom_core::Point3<T>),
-    ball: Option<(geom_core::Point3<T>, T)>,
+    curve: EdgeArc<T>,
 }
 
-impl<T: Decide + geom_core::CertifiedBounds> MovedWall<T> {
+/// What an edge's carrier is, as [`MovedWall::cut`] reads it.
+enum EdgeArc<T: Real> {
+    Line,
+    /// A circle or an ellipse, `center + u·(ru·cos θ) + v·(rv·sin θ)`
+    /// over `from..to` (`from < to`), with the vertex at each end.
+    Conic {
+        center: geom_core::Point3<T>,
+        u: geom_core::Vec3<T>,
+        v: geom_core::Vec3<T>,
+        ru: T,
+        rv: T,
+        from: (T, VertexKey),
+        to: (T, VertexKey),
+    },
+    /// Any other carrier: the ball holding its arc.
+    Ball(geom_core::Point3<T>, T),
+}
+
+impl<T: Decide> MovedWall<T> {
     /// The intervals of `L = p0 + s·d` (`d` unit, in this face's plane)
     /// the face covers, as `(lo, hi)` in `s` (module docs of
     /// [`moved_walls_cross`] for the reading).
@@ -3615,11 +3633,7 @@ impl<T: Decide + geom_core::CertifiedBounds> MovedWall<T> {
                 return Ok(s);
             }
             let s = !matches!(
-                decide(
-                    "shell_moved_wall_side",
-                    Margin::of((p - p0).dot(m)),
-                    band
-                )?,
+                decide("shell_moved_wall_side", Margin::of((p - p0).dot(m)), band)?,
                 Sign::Negative
             );
             sides.push((v, s));
@@ -3628,16 +3642,76 @@ impl<T: Decide + geom_core::CertifiedBounds> MovedWall<T> {
         let mut crossings: Vec<T> = Vec::new();
         let mut out = Vec::new();
         for edge in &self.edges {
+            if let EdgeArc::Conic {
+                center,
+                u,
+                v,
+                ru,
+                rv,
+                from,
+                to,
+            } = edge.curve
+            {
+                // The side of `L` along the conic is the sinusoid
+                // `sc + A·cos θ + B·sin θ`, monotone between its extremes
+                // at `φ` and `φ + π`: split there, and each piece crosses
+                // once exactly when its two ends' sides differ, at the
+                // root of its own half-turn.
+                let (a, b) = (ru * u.dot(m), rv * v.dot(m));
+                let sc = (center - p0).dot(m);
+                let phi = b.atan2(a);
+                let root = (-sc / (a.powi(2) + b.powi(2)).sqrt())
+                    .max(-T::one())
+                    .min(T::one())
+                    .acos();
+                let at = |theta: T| center + u * (ru * theta.cos()) + v * (rv * theta.sin());
+                let mut ends: Vec<(T, bool)> = vec![(from.0, side_of((from.1, at(from.0)))?)];
+                // Parameters are compared as arc lengths on the larger
+                // semi-axis, so a split at an end within the band is
+                // the end itself.
+                let r = ru.max(rv);
+                let before = |x: T, y: T| {
+                    matches!(
+                        decide("shell_moved_wall_arc_split", Margin::of((y - x) * r), band),
+                        Ok(Sign::Positive)
+                    )
+                };
+                let mut split = from.0 + (phi - from.0).reduce_periodic(T::pi());
+                while before(split, to.0) {
+                    if before(from.0, split) {
+                        let p = at(split);
+                        let s = !matches!(
+                            decide("shell_moved_wall_side", Margin::of((p - p0).dot(m)), band)?,
+                            Sign::Negative
+                        );
+                        ends.push((split, s));
+                    }
+                    split = split + T::pi();
+                }
+                ends.push((to.0, side_of((to.1, at(to.0)))?));
+                for pair in ends.windows(2) {
+                    let ((lo, s_lo), (hi, s_hi)) = (pair[0], pair[1]);
+                    if s_lo == s_hi {
+                        continue;
+                    }
+                    // A piece in the half-turn after `φ` holds `φ + root`,
+                    // one in the half-turn before it `φ − root`.
+                    let half = ((lo + hi) * T::from_f64(0.5) - phi).reduce_periodic(T::tau());
+                    let theta = (half - T::pi()).select_le_zero(phi + root, phi - root);
+                    crossings.push((at(theta) - p0).dot(d));
+                }
+                continue;
+            }
             let (p, q) = (edge.start.1, edge.end.1);
             if side_of(edge.start)? != side_of(edge.end)? {
                 let (sp, sq) = ((p - p0).dot(m), (q - p0).dot(m));
                 let x = p + (q - p) * (sp / (sp - sq));
                 crossings.push((x - p0).dot(d));
             }
-            if let Some((c, rho)) = edge.ball {
+            if let EdgeArc::Ball(c, rho) = edge.curve {
                 let w = c - p0;
                 let along = w.dot(d);
-                let perp2 = (w.dot(w) - along * along).max(T::zero());
+                let perp2 = (w.dot(w) - along.powi(2)).max(T::zero());
                 if !matches!(
                     decide(
                         "shell_moved_wall_ball_reach",
@@ -3646,16 +3720,30 @@ impl<T: Decide + geom_core::CertifiedBounds> MovedWall<T> {
                     )?,
                     Sign::Negative
                 ) {
-                    let half = (rho * rho - perp2).max(T::zero()).sqrt();
+                    let half = (rho.powi(2) - perp2).max(T::zero()).sqrt();
                     out.push((along - half, along + half));
                 }
             }
         }
-        let centre = |x: &T| {
-            let x = *x;
-            0.5 * (x.lo() + x.hi())
-        };
-        crossings.sort_by(|x, y| centre(x).total_cmp(&centre(y)));
+        // Ordered by decided comparisons, a selection rather than a
+        // `sort_by`: two crossings the band cannot order are a tie and
+        // keep their walk order, which moves an end by less than the band.
+        for i in 0..crossings.len() {
+            let mut least = i;
+            for j in i + 1..crossings.len() {
+                if matches!(
+                    decide(
+                        "shell_moved_wall_order",
+                        Margin::of(crossings[least] - crossings[j]),
+                        band
+                    ),
+                    Ok(Sign::Positive)
+                ) {
+                    least = j;
+                }
+            }
+            crossings.swap(i, least);
+        }
         // Parity over closed loops: every vertex has one side, so each
         // loop crosses `L` an even number of times.
         out.extend(crossings.chunks_exact(2).map(|pair| (pair[0], pair[1])));
@@ -3698,29 +3786,75 @@ fn moved_walls<T: Decide>(
                     EntityId::HalfEdge(he),
                     "edge",
                 );
-                let ball = cavity
-                    .edge_curve_linked(h.edge, edge)
-                    .certified()
-                    .filter(|curve| !matches!(curve.carrier(), geom::Curve3::Line { .. }))
-                    .map(|curve| {
-                        crate::splitting::containment::carrier_ball(curve.carrier(), curve.params())
-                            .unwrap_or_else(|| {
-                                unreachable!("a certified spline carrier has control points")
-                            })
-                    });
-                if let Some((c, rho)) = ball {
-                    let r = geom_core::Vec3::new(rho, rho, rho);
-                    points.extend([c - r, c + r]);
+                let (start, end) = (ends[i], ends[(i + 1) % ends.len()]);
+                let curve = match cavity.edge_curve_linked(h.edge, edge).certified() {
+                    None => EdgeArc::Line,
+                    Some(curve) => {
+                        // The carrier's parameter runs with the edge's
+                        // plus half.
+                        let (t0, t1) = curve.params();
+                        let (v0, v1) = if edge.he_plus == he {
+                            (start.0, end.0)
+                        } else {
+                            (end.0, start.0)
+                        };
+                        let conic =
+                            |center, axis: &geom_core::Vec3<T>, u: geom_core::Vec3<T>, ru, rv| {
+                                EdgeArc::Conic {
+                                    center,
+                                    u,
+                                    v: axis.cross(u),
+                                    ru,
+                                    rv,
+                                    from: (t0, v0),
+                                    to: (t1, v1),
+                                }
+                            };
+                        match *curve.carrier() {
+                            geom::Curve3::Line { .. } => EdgeArc::Line,
+                            geom::Curve3::Circle {
+                                center,
+                                ref axis,
+                                radius,
+                                u_ref,
+                            } => conic(center, axis, u_ref, radius, radius),
+                            geom::Curve3::Ellipse {
+                                center,
+                                ref axis,
+                                major,
+                                minor,
+                                u_ref,
+                            } => conic(center, axis, u_ref, major, minor),
+                            _ => {
+                                let (c, rho) = crate::splitting::containment::carrier_ball(
+                                    curve.carrier(),
+                                    curve.params(),
+                                )
+                                .unwrap_or_else(|| {
+                                    unreachable!("a certified spline carrier has control points")
+                                });
+                                EdgeArc::Ball(c, rho)
+                            }
+                        }
+                    }
+                };
+                match curve {
+                    EdgeArc::Line => {}
+                    EdgeArc::Conic { center, ru, rv, .. } => {
+                        let r = ru.max(rv);
+                        let r = geom_core::Vec3::new(r, r, r);
+                        points.extend([center - r, center + r]);
+                    }
+                    EdgeArc::Ball(c, rho) => {
+                        let r = geom_core::Vec3::new(rho, rho, rho);
+                        points.extend([c - r, c + r]);
+                    }
                 }
-                points.push(ends[i].1);
-                if !vertices.contains(&ends[i].0) {
-                    vertices.push(ends[i].0);
+                points.push(start.1);
+                if !vertices.contains(&start.0) {
+                    vertices.push(start.0);
                 }
-                edges.push(BoundaryEdge {
-                    start: ends[i],
-                    end: ends[(i + 1) % ends.len()],
-                    ball,
-                });
+                edges.push(BoundaryEdge { start, end, curve });
             }
         }
         let Some((&first, rest)) = points.split_first() else {
@@ -3900,6 +4034,112 @@ mod tests {
     /// whose outer reaches further past the inner on one side than the
     /// other. A run whose first point is on the axis has no `u`, and the
     /// read declines rather than guessing.
+    /// **The tilted read cuts a conic at its roots.** A face's cut of a
+    /// line is read edge by edge; a circle or ellipse edge is split at
+    /// its side's extremes and each piece crosses at its own root. A
+    /// unit disc cut by `y = 0.6` covers `[−0.8, 0.8]`; a half disc
+    /// (the arc over `θ ∈ [0, π]` and its diameter back) cut by
+    /// `x = 0.3` covers from the diameter to the arc, `[0, √0.91]`, and
+    /// the same line run the other way covers `[−√0.91, 0]`; an ellipse
+    /// of semi-axes `2` and `1` cut by `x = 1` covers `±√0.75`; and a
+    /// line clear of the disc covers nothing.
+    #[test]
+    fn the_tilted_cut_reads_a_conic_at_its_roots() {
+        use geom_core::{Point3, Vec3};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let key = |n: u64| -> VertexKey { slotmap::KeyData::from_ffi((1u64 << 32) | n).into() };
+        let pi = core::f64::consts::PI;
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let (x, y, z) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        let wall = |edges| MovedWall {
+            face: FaceKey::default(),
+            solid: SolidKey::default(),
+            origin: o,
+            normal: z,
+            edges,
+            vertices: Vec::new(),
+            lo: o,
+            hi: o,
+        };
+        let conic = |ru, rv, from, to| EdgeArc::Conic {
+            center: o,
+            u: x,
+            v: y,
+            ru,
+            rv,
+            from,
+            to,
+        };
+        let close = |got: Vec<(f64, f64)>, want: &[(f64, f64)], what: &str| {
+            assert_eq!(got.len(), want.len(), "{what}: {got:?}");
+            for (g, w) in got.iter().zip(want) {
+                assert!(
+                    (g.0 - w.0).abs() < 1e-12 && (g.1 - w.1).abs() < 1e-12,
+                    "{what}: got {got:?}, want {want:?}"
+                );
+            }
+        };
+
+        let east = (key(1), Point3::new(1.0, 0.0, 0.0));
+        let disc = wall(vec![BoundaryEdge {
+            start: east,
+            end: east,
+            curve: conic(1.0, 1.0, (0.0, east.0), (2.0 * pi, east.0)),
+        }]);
+        close(
+            disc.cut(Point3::new(0.0, 0.6, 0.0), x, band).unwrap(),
+            &[(-0.8, 0.8)],
+            "the disc at y = 0.6",
+        );
+        close(
+            disc.cut(Point3::new(0.0, 1.5, 0.0), x, band).unwrap(),
+            &[],
+            "the disc at y = 1.5",
+        );
+
+        let west = (key(2), Point3::new(-1.0, 0.0, 0.0));
+        let half = wall(vec![
+            BoundaryEdge {
+                start: east,
+                end: west,
+                curve: conic(1.0, 1.0, (0.0, east.0), (pi, west.0)),
+            },
+            BoundaryEdge {
+                start: west,
+                end: east,
+                curve: EdgeArc::Line,
+            },
+        ]);
+        let top = 0.91_f64.sqrt();
+        close(
+            half.cut(Point3::new(0.3, 0.0, 0.0), y, band).unwrap(),
+            &[(0.0, top)],
+            "the half disc at x = 0.3",
+        );
+        close(
+            half.cut(Point3::new(0.3, 0.0, 0.0), -y, band).unwrap(),
+            &[(-top, 0.0)],
+            "the half disc at x = 0.3, run down",
+        );
+
+        let tip = (key(3), Point3::new(2.0, 0.0, 0.0));
+        let ellipse = wall(vec![BoundaryEdge {
+            start: tip,
+            end: tip,
+            curve: conic(2.0, 1.0, (0.0, tip.0), (2.0 * pi, tip.0)),
+        }]);
+        let h = 0.75_f64.sqrt();
+        close(
+            ellipse.cut(Point3::new(1.0, 0.0, 0.0), y, band).unwrap(),
+            &[(-h, h)],
+            "the ellipse at x = 1",
+        );
+    }
+
     #[test]
     fn nesting_on_a_cylinder_is_read_in_its_chart() {
         let band = Band::linear(Tol::witness()).unwrap();
