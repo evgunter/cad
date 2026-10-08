@@ -9,6 +9,7 @@ cost: M
 refs: [fitted-general-circle-rows-escalate-loop-continuity-at-the-interval-scalar, tilted-section-through-a-chart-pole-is-not-split-at-the-pole]
 closed: 2026-10-08
 branch: pcert/projected-image
+pr: 4304
 ---
 
 

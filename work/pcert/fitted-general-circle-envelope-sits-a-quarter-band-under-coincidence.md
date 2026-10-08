@@ -8,6 +8,7 @@ priority: P3
 cost: M
 closed: 2026-10-08
 branch: pcert/projected-image
+pr: 4304
 ---
 
 

@@ -7,6 +7,7 @@ opened: 2026-10-02
 priority: P1
 closed: 2026-10-08
 branch: pcert/projected-image
+pr: 4304
 ---
 
 Filed by PCERT's `pcert/at-rest-rows-mandatory` (PR 3759), which makes

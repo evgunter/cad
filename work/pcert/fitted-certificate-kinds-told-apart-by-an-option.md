@@ -7,6 +7,7 @@ opened: 2026-10-01
 priority: P2
 closed: 2026-10-08
 branch: pcert/projected-image
+pr: 4304
 ---
 
 
