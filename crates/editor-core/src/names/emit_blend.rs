@@ -436,6 +436,44 @@ mod tie_tests {
         (built.body, table)
     }
 
+    /// **A join that takes an edge the blend minted outright refuses**:
+    /// an end arc has no input edge of its own to read, so a joined edge
+    /// covering one has no input-cell reading (the ruling's stop case).
+    /// No blend run on `ci` reaches it (the joins it makes are trims,
+    /// rim trims or surviving input edges, `BlendNaming::edge_joins`), so
+    /// the row plants the record: a join whose `gone` edge the surgery
+    /// minted as an arc.
+    #[test]
+    fn a_join_over_an_edge_the_blend_minted_outright_refuses() {
+        let (body, table) = cube();
+        let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
+        let v = body.vertices().next().unwrap().0;
+        let rec = BlendNaming {
+            arcs: vec![(edges[1], v, edges[0])],
+            edge_joins: vec![topo::EdgeJoin {
+                vertex: v,
+                gone: edges[1],
+                kept: edges[2],
+                conventional: None,
+            }],
+            ..BlendNaming::default()
+        };
+        let named = name_blend(
+            RecipeNodeId::new(0, 2),
+            RecipeNodeId::new(0, 1),
+            &table,
+            &body,
+            &rec,
+        );
+        assert!(
+            matches!(
+                named,
+                Err(NamingError::Emission { what }) if what.contains("minted outright")
+            ),
+            "the stop case refuses typed"
+        );
+    }
+
     /// Rebuilds `table` with `a` and `b` TIED under `a`'s name — the
     /// planted upstream tie. Everything else is copied across
     /// unchanged, so the only difference from the real table is the one
