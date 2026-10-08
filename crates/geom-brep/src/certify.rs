@@ -102,6 +102,12 @@ pub enum CertCheck {
     /// escalations of that decision; its definite failure is
     /// [`CertifyError::IntervalNotForward`].
     ParamSpan,
+    /// A spline carrier's knot domain, metered at its certified speed
+    /// floor (a lower bound on its length), is definitely positive —
+    /// the metre scale [`CertCheck::ParamSpan`] converts the stored
+    /// interval by; its definite failure is
+    /// [`CertifyError::SpanMeterCollapsed`].
+    ParamSpanMeter,
     /// A periodic carrier's stored interval leaves headroom to one full
     /// period — named on escalations of that decision; its definite
     /// failure is [`CertifyError::WindingExceeded`].
@@ -243,6 +249,7 @@ impl core::fmt::Display for CertCheck {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(match self {
             Self::ParamSpan => "the stored interval's span",
+            Self::ParamSpanMeter => "the spline carrier's metered length",
             Self::ParamWinding => "the stored interval's headroom to one full period",
             Self::EndpointStart => "the start-endpoint residual",
             Self::EndpointEnd => "the end-endpoint residual",
@@ -252,7 +259,7 @@ impl core::fmt::Display for CertCheck {
             Self::WitnessSurface2 => "the witness point's residual against surface 2",
             Self::WitnessMidpoint => "the witness-midpoint residual",
             Self::Transversality => "the transversality margin",
-            Self::TransversalityArm => "the transversality margin's lever arm",
+            Self::TransversalityArm => "the edge's length for the angle between its faces",
             Self::TangentPlanes => "the surfaces' tangent planes",
             Self::TangentParallel => "the normal-parallelism defect",
             Self::TangentSecondOrder => "the second-order margin",
@@ -372,6 +379,16 @@ pub enum CertifyError {
         /// The span's verdict, with its reporting margin.
         verdict: Refused,
     },
+    /// A spline carrier's knot domain, metered at its certified speed
+    /// floor, did not classify positive, so the stored interval has no
+    /// metre scale to be measured by. The floor is a conservative lower
+    /// bound on the carrier's speed: it reaches zero or below where the
+    /// spline stalls or turns back on itself, and where the bound itself
+    /// falls short; a knot domain stored reversed reads below zero too.
+    SpanMeterCollapsed {
+        /// The metered length's verdict, with its reporting margin.
+        verdict: Refused,
+    },
     /// A circle carrier's stored interval spans definitely more than
     /// one full period (arc length `(t₁ − t₀)·r > τ·r` beyond
     /// tolerance). This closes the 9-sample winding alias (M2 PR 3
@@ -409,6 +426,18 @@ pub enum CertifyError {
         /// ([`crate::folded_lever_arm`]).
         lever: Option<crate::ssi::PointLever>,
         /// The verdict on the levered angle, with its reporting margin.
+        verdict: Refused,
+    },
+    /// `Intersection` only: the folded lever arm the transversality
+    /// margin is metered over was decided not positive at a sample — the
+    /// edge is too short, or a face curves too tightly there (a cone at
+    /// its apex), for an angle between the faces to be measured — the
+    /// definite arm of [`CertCheck::TransversalityArm`], whose undecided
+    /// arm is [`CertifyError::Escalated`].
+    ArmCollapsed {
+        /// The interior sample index.
+        sample: u32,
+        /// The arm's verdict, with the margin its ending quotes.
         verdict: Refused,
     },
     /// `TangentIntersection` only: the second-order margin (relative
@@ -527,6 +556,16 @@ impl core::fmt::Display for CertifyError {
                 "the stored parameter interval runs backwards — increasing parameter must \
                  run from the edge's start vertex to its end vertex"
             ),
+            Self::SpanMeterCollapsed { .. } => write!(
+                f,
+                "the spline carrier's knot domain, metered at its certified speed floor, is not \
+                 above zero at this tolerance, so its stored interval cannot be measured in metres"
+            ),
+            Self::ArmCollapsed { sample, .. } => write!(
+                f,
+                "at sample {sample} the edge is not long enough, for how its faces curve, to \
+                 measure the angle between them at this tolerance"
+            ),
             Self::WindingExceeded => write!(
                 f,
                 "a periodic (circle/ellipse) carrier's parameter interval \
@@ -638,6 +677,8 @@ impl CertifyError {
             }
             Self::TubeNotSeparated { verdict } => (CertCheck::TangentTube, verdict.arm()),
             Self::IntervalNotForward { verdict } => (CertCheck::ParamSpan, verdict.arm()),
+            Self::SpanMeterCollapsed { verdict } => (CertCheck::ParamSpanMeter, verdict.arm()),
+            Self::ArmCollapsed { verdict, .. } => (CertCheck::TransversalityArm, verdict.arm()),
             Self::WindingExceeded => (CertCheck::ParamWinding, RefusedArm::SignCertain),
             Self::Escalated { check, cause, .. } => (*check, RefusedArm::Undecided(cause)),
             Self::ChartImageUnavailable { .. } => (CertCheck::ChartImage, RefusedArm::SignCertain),
@@ -756,6 +797,20 @@ impl CertCheck {
                              construction mints, so this is a kernel defect or a damaged file, \
                              worth reporting",
                 }),
+            }),
+            // The floor is a conservative lower bound, so a definite
+            // refusal of it is the certificate's limit, which the lever
+            // reaches, never a stored contradiction.
+            Self::ParamSpanMeter => Ending::Sized(SizedDecision {
+                lever: "move the geometry so this spline edge runs steadily forward, never \
+                        stalling or turning back",
+                size: "length",
+                passes: SizedPass::Positive,
+                stored: StoredDefinite::Lever,
+                at_zero: Some(AtZero::same(
+                    "a vanishing speed floor means the spline stalls or turns back, or that the \
+                     floor has reached its limit, which is worth reporting",
+                )),
             }),
             Self::ParamWinding => Ending::Sized(SizedDecision {
                 lever: "move the geometry so this arc stays clearly short of a full turn",
@@ -1219,7 +1274,10 @@ impl<T: Decide> EdgeCurve<T> {
     ///    negative ([`CertifyError::WindingExceeded`]) — at most one
     ///    full period, which closes the 9-sample `8kτ` winding-alias
     ///    family (see that variant's docs). In-band/poisoned span
-    ///    margins escalate under [`CertCheck::ParamSpan`].
+    ///    margins escalate under [`CertCheck::ParamSpan`]. A spline
+    ///    carrier's metre scale is decided first
+    ///    ([`CertCheck::ParamSpanMeter`];
+    ///    [`CertifyError::SpanMeterCollapsed`] where it is not there).
     /// 3. Endpoint pinning: `|carrier(t₀) − start| ≤ ε`,
     ///    `|carrier(t₁) − end| ≤ ε`.
     /// 4. Per-sample description residuals, samples i = 0…8 in order
@@ -2369,7 +2427,7 @@ fn run_checks<T: Decide>(
         // FIRST (the collapsed-arm idiom): a zero/negative meter (a
         // carrier whose speed genuinely collapses) or poison (a
         // malformed net) cannot convert the span to metres, and no
-        // forward verdict may be fabricated from it — escalate, never
+        // forward verdict may be fabricated from it — refuse, never
         // guess. RATIONAL carriers used to land here unconditionally;
         // since M7 they have their own arm of the meter and state a
         // real bound (`speed_lower_bound`'s rational derivation).
@@ -2382,14 +2440,23 @@ fn run_checks<T: Decide>(
         // reparametrized `t → 2t` halves the rate and doubles the
         // domain), which the bare rate is not, and it is the quantity
         // ε classifies under D4. The two failure modes stay distinct:
-        // a collapsed meter escalates with its decided margin and a
-        // poison one as `Invalid`, while a backwards or zero span is
-        // `IntervalNotForward` below.
+        // a collapsed meter is `SpanMeterCollapsed` and an undecided one
+        // escalates under `ParamSpanMeter`, while a backwards or zero
+        // span is `IntervalNotForward` below.
         Curve3::Nurbs(n) => {
             let meter = n.speed_lower_bound();
             let (d0, d1) = n.domain();
             let net_length = Margin::metered(T::from_f64(d1 - d0), meter);
-            decide_positive("nurbs_span_meter", net_length, band).map_err(span_escalated)?;
+            decide_positive("nurbs_span_meter", net_length, band).map_err(|cause| {
+                match Refused::rejected(&cause) {
+                    Some(verdict) => CertifyError::SpanMeterCollapsed { verdict },
+                    None => CertifyError::Escalated {
+                        check: CertCheck::ParamSpanMeter,
+                        sample: NOT_A_SAMPLE,
+                        cause,
+                    },
+                }
+            })?;
             forward(Margin::metered(span, meter))?;
         }
     }
@@ -2537,10 +2604,13 @@ fn run_checks<T: Decide>(
                                 verdict,
                             });
                         }
-                        Err(WedgeEscalation::Lever(crate::LeverEscalation {
-                            rung,
-                            diag: cause,
-                        })) => {
+                        Err(WedgeEscalation::Lever(escalation)) => {
+                            if let Some(verdict) = escalation.collapsed_arm() {
+                                return Err(CertifyError::ArmCollapsed { sample: i, verdict });
+                            }
+                            let crate::LeverEscalation {
+                                rung, diag: cause, ..
+                            } = escalation;
                             return Err(CertifyError::Escalated {
                                 check: match rung {
                                     crate::LeverRung::Arm => CertCheck::TransversalityArm,
@@ -3172,8 +3242,9 @@ mod tests {
     /// below. Held total against the enum by
     /// [`all_is_the_whole_taxonomy`]'s compile-time visit, not by
     /// review.
-    const ALL_CHECKS: [CertCheck; 24] = [
+    const ALL_CHECKS: [CertCheck; 25] = [
         CertCheck::ParamSpan,
+        CertCheck::ParamSpanMeter,
         CertCheck::ParamWinding,
         CertCheck::EndpointStart,
         CertCheck::EndpointEnd,
@@ -3214,30 +3285,31 @@ mod tests {
     #[test]
     fn all_is_the_whole_taxonomy() {
         let rows = match CertCheck::ParamSpan {
-            CertCheck::ParamSpan => 24,
-            CertCheck::ParamWinding => 24,
-            CertCheck::EndpointStart => 24,
-            CertCheck::EndpointEnd => 24,
-            CertCheck::Surface1Residual => 24,
-            CertCheck::Surface2Residual => 24,
-            CertCheck::WitnessSurface1 => 24,
-            CertCheck::WitnessSurface2 => 24,
-            CertCheck::WitnessMidpoint => 24,
-            CertCheck::Transversality => 24,
-            CertCheck::TransversalityArm => 24,
-            CertCheck::TangentPlanes => 24,
-            CertCheck::TangentParallel => 24,
-            CertCheck::TangentSecondOrder => 24,
-            CertCheck::TangentHull => 24,
-            CertCheck::TangentTube => 24,
-            CertCheck::MappedSource => 24,
-            CertCheck::ChartImage => 24,
-            CertCheck::ChartResidual => 24,
-            CertCheck::PlaneNurbsOnLocus => 24,
-            CertCheck::PlaneNurbsHull => 24,
-            CertCheck::PlaneNurbsReportedTransversality => 24,
-            CertCheck::PlaneNurbsChartSpeed => 24,
-            CertCheck::PlaneNurbsChartSpeedBound => 24,
+            CertCheck::ParamSpan => 25,
+            CertCheck::ParamSpanMeter => 25,
+            CertCheck::ParamWinding => 25,
+            CertCheck::EndpointStart => 25,
+            CertCheck::EndpointEnd => 25,
+            CertCheck::Surface1Residual => 25,
+            CertCheck::Surface2Residual => 25,
+            CertCheck::WitnessSurface1 => 25,
+            CertCheck::WitnessSurface2 => 25,
+            CertCheck::WitnessMidpoint => 25,
+            CertCheck::Transversality => 25,
+            CertCheck::TransversalityArm => 25,
+            CertCheck::TangentPlanes => 25,
+            CertCheck::TangentParallel => 25,
+            CertCheck::TangentSecondOrder => 25,
+            CertCheck::TangentHull => 25,
+            CertCheck::TangentTube => 25,
+            CertCheck::MappedSource => 25,
+            CertCheck::ChartImage => 25,
+            CertCheck::ChartResidual => 25,
+            CertCheck::PlaneNurbsOnLocus => 25,
+            CertCheck::PlaneNurbsHull => 25,
+            CertCheck::PlaneNurbsReportedTransversality => 25,
+            CertCheck::PlaneNurbsChartSpeed => 25,
+            CertCheck::PlaneNurbsChartSpeedBound => 25,
         };
         for (i, check) in ALL_CHECKS.iter().enumerate() {
             assert!(
@@ -5284,17 +5356,60 @@ mod tests {
         }
     }
 
-    /// **An intersection edge through a cone's apex escalates the
-    /// transversality's arm, not its wedge**: the plane `x = 0` cuts the
-    /// cone along a generator, and the edge runs along it through the
-    /// apex, where the cone's radius of curvature, and with it the arm
-    /// the wedge is metered over, is zero. The middle sample lands on the
-    /// apex, so certification escalates there as
-    /// [`CertCheck::TransversalityArm`] (the samples before it are
-    /// transverse). PR 3513's second fix pass: the rung-to-check mapping
-    /// had no raise, so reading the arm as `Transversality` survived.
+    /// **The collapsed-arm gates' definite refusals read the import door
+    /// like every sized decision's** (D4 ¶1): a collapsed transversality
+    /// arm and a collapsed span meter end through [`recourse_in_file`], so
+    /// a zero within the file's ε_in is a size the file does not state,
+    /// not the at-rest offer to tighten alone.
     #[test]
-    fn an_intersection_through_a_cone_apex_escalates_the_arm() {
+    fn the_collapsed_arm_gates_read_the_import_door() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let file = FileCoincidence::new(1e-6, geom_core::Tol::witness());
+        let verdict = Refused::Zero(Classified {
+            margin: MarginDiag::value(5e-10),
+            band,
+        });
+        for (refusal, check) in [
+            (
+                CertifyError::ArmCollapsed { sample: 4, verdict },
+                CertCheck::TransversalityArm,
+            ),
+            (
+                CertifyError::SpanMeterCollapsed { verdict },
+                CertCheck::ParamSpanMeter,
+            ),
+        ] {
+            let door = refusal.ending_in_file(file).unwrap();
+            assert_eq!(
+                door,
+                recourse_in_file(check, verdict.arm(), file),
+                "{check:?}: the door's ending is the decision's"
+            );
+            assert!(
+                door.contains("so the file does not state it. Recourse: ")
+                    && door.contains(" m and tighten the tolerance below 5e-11 m"),
+                "{check:?}: {door}"
+            );
+            assert_ne!(
+                Some(door),
+                refusal.ending(Reading::AtRest),
+                "{check:?}: the door reads ε_in"
+            );
+        }
+    }
+
+    /// **An intersection edge through a cone's apex refuses on the
+    /// transversality's arm, definitely, not on its wedge**: the plane
+    /// `x = 0` cuts the cone along a generator, and the edge runs along
+    /// it through the apex, where the cone's radius of curvature, and
+    /// with it the arm the wedge is metered over, is zero. The middle
+    /// sample lands on the apex, so certification refuses there as
+    /// [`CertifyError::ArmCollapsed`] (the samples before it are
+    /// transverse): the arm is decided zero, which is a verdict of its
+    /// own, read as a length that is not there and ending in the arm's
+    /// lever, never as "escalated" and never as the wedge's angle.
+    #[test]
+    fn an_intersection_through_a_cone_apex_refuses_on_the_arm() {
         let half = std::f64::consts::FRAC_PI_6;
         let (keys, lookup) = table(vec![
             Surface::Cone {
@@ -5327,13 +5442,83 @@ mod tests {
         assert!(
             matches!(
                 err,
-                CertifyError::Escalated {
-                    check: CertCheck::TransversalityArm,
+                CertifyError::ArmCollapsed {
                     sample: 4,
-                    ..
+                    verdict: Refused::Zero(_),
                 }
             ),
             "{err:?}"
+        );
+        assert_eq!(
+            err.decision().map(|(check, _)| check),
+            Some(CertCheck::TransversalityArm)
+        );
+        let text = err.render(Reading::Build);
+        assert_eq!(
+            text,
+            "at sample 4 the edge is not long enough, for how its faces curve, to measure the \
+             angle between them at this tolerance. Recourse: move the geometry so that edge is \
+             clearly longer, and its faces curve less tightly there; a face curving to a point \
+             there, as a cone at its apex, leaves no angle to measure",
+        );
+    }
+
+    /// **An undecided arm stays undecided when the wedge it quotes reads
+    /// zero**: a plane crossing a cylinder of in-band radius along a
+    /// ruling, at an angle whose wedge over that radius is inside the
+    /// zero band but which reads no class at the radius's own tolerance.
+    /// The arm gate cannot decide the radius, and its escalation quotes
+    /// the wedge's decided zero, a tagged rejection of its own, so the
+    /// edge refuses as the arm's undecided escalation, never as
+    /// [`CertifyError::ArmCollapsed`]: the collapse is the gate's
+    /// verdict, never read off the quoted margin.
+    #[test]
+    fn an_in_band_arm_quoting_a_zero_wedge_stays_undecided() {
+        let b = band();
+        let radius = (b.zero() + b.escalate()) / 2.0;
+        let sin = (b.zero() / b.escalate() + b.zero() / radius) / 2.0;
+        let normal = Vec3::new((1.0 - sin * sin).sqrt(), sin, 0.0);
+        let on = Point3::new(radius, 0.0, 0.0);
+        let (keys, lookup) = table(vec![
+            Surface::Cylinder {
+                origin: Point3::origin(),
+                axis: Vec3::unit_z(),
+                radius,
+                u_ref: Vec3::unit_x(),
+            },
+            Surface::Plane {
+                origin: on,
+                normal,
+                u_ref: Vec3::unit_z(),
+            },
+        ]);
+        let spec = EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                s1: keys[0],
+                s2: keys[1],
+                witness: on + Vec3::unit_z() * 0.5,
+            },
+            carrier: Curve3::Line {
+                origin: on,
+                dir: Vec3::unit_z(),
+            },
+            param_start: 0.0,
+            param_end: 1.0,
+        };
+        let end = on + Vec3::unit_z();
+        let err = EdgeCurve::certify(spec, on, end, &lookup, b).unwrap_err();
+        let CertifyError::Escalated {
+            check: CertCheck::TransversalityArm,
+            cause,
+            ..
+        } = err
+        else {
+            panic!("the arm escalates undecided: {err:?}");
+        };
+        assert_eq!(
+            (cause.predicate, cause.margin.rejected_sign()),
+            (Some("dihedral_arm_wedge"), Some(Sign::Zero)),
+            "the escalation quotes the wedge's decided zero: {cause:?}"
         );
     }
 
@@ -5364,7 +5549,7 @@ mod tests {
             };
             let arm = render(CertCheck::TransversalityArm);
             assert!(
-                arm.contains("the transversality margin's lever arm")
+                arm.contains("the edge's length for the angle between its faces")
                     && arm.ends_with(&format!(
                         "Recourse: move the geometry so that edge is clearly longer, and its \
                          faces curve less tightly there, or, if this length or the gap its faces \
@@ -5401,6 +5586,7 @@ mod tests {
             (CertCheck::EndpointStart, Miss(Unsized::Defect)),
             (CertCheck::EndpointEnd, Miss(Unsized::Defect)),
             (CertCheck::ParamSpan, Sized(Positive)),
+            (CertCheck::ParamSpanMeter, Sized(Positive)),
             (CertCheck::ParamWinding, Sized(NonNegative)),
             (CertCheck::Surface1Residual, Miss(Unsized::LastResort)),
             (CertCheck::Surface2Residual, Miss(Unsized::LastResort)),
