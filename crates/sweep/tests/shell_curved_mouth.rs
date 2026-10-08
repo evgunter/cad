@@ -438,16 +438,18 @@ fn a_tangent_dome_shells_at_its_tangent_circle() {
 /// about the sphere's centre station, the upper one the corner. At a gap
 /// inside the band that is still a crossing, not the foot between the
 /// roots, where the moved surfaces are tangent and the edge's crossing
-/// description would not certify; at `1e-12` the roots are too close for
-/// nearness to choose and the old corner's side of the foot does, at
-/// `5e-10` nearness does, and at `2e-8` (a joint the profile no longer
-/// takes as tangent) the pair is plainly transversal. Each is tier-3
-/// valid with the cavity's corner on the upper root, at the closed form.
+/// description would not certify. The gaps are the run's `ε` scaled: at
+/// `ε/1000` the roots are too close for nearness to choose and the old
+/// corner's side of the foot does, at `ε/2` nearness does, and at `20ε`
+/// (a joint the profile no longer takes as tangent) the pair is plainly
+/// transversal. Each is tier-3 valid with the cavity's corner on the
+/// upper root, at the closed form.
 #[test]
 fn a_dome_short_of_tangent_shells_at_its_upper_root() {
     let tol = Tol::witness();
     let (r, h, t): (f64, f64, f64) = (0.5, 0.6, 0.05);
-    for (gap, declared) in [(1e-12, true), (5e-10, true), (2e-8, false)] {
+    let eps = tol.eps();
+    for (gap, declared) in [(1e-3 * eps, true), (0.5 * eps, true), (20.0 * eps, false)] {
         let (body, rho, centre) = nearly_domed_vessel(r, h, gap, declared);
         let (a, inner) = (r - t, rho - t);
         let corner = centre + (inner * inner - a * a).sqrt();
@@ -461,9 +463,9 @@ fn a_dome_short_of_tangent_shells_at_its_upper_root() {
             Ok(()),
             "gap = {gap:e}: tier 3"
         );
-        // The roots stand `2·(corner − centre)` apart, `1.9e-6` at the
-        // smallest gap; `1e-9` tells the upper root from the foot and the
-        // lower root with room for the cancellation in `inner² − a²`.
+        // The roots stand `2·(corner − centre)` apart; a tenth of the
+        // upper root's distance from the foot tells it from the foot and
+        // the lower root, with room for the cancellation in `inner² − a²`.
         let near = |p: &geom_core::Point3<f64>| (p.x - a).abs() < 1e-12 && p.z.abs() < 1e-12;
         let got: Vec<f64> = hollow
             .vertex_points()
@@ -471,7 +473,8 @@ fn a_dome_short_of_tangent_shells_at_its_upper_root() {
             .map(|(_, p)| p.y)
             .collect();
         assert!(
-            got.iter().any(|y| (y - corner).abs() < 1e-9),
+            got.iter()
+                .any(|y| (y - corner).abs() < 0.1 * (corner - centre)),
             "gap = {gap:e}: the cavity's corner is on the upper root {corner}, got {got:?}"
         );
         let props = topo::mass_properties(&hollow, tol).expect("props");
