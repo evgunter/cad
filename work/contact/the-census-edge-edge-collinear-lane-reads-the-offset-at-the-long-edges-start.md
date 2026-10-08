@@ -79,6 +79,17 @@ them is the parallel reading levered at the full arm. Rerun the pinned
 row with tier 3′ asserted. The near-tangent battery of PR 4026's
 review (`r1_pierce_probes`, `R1_NT_D`) is the corpus to diff.
 
+## Measured (JOIN's near-tangent census measurement, main `047d10d5`)
+
+`near_tangent_census_probe` with `scripts/oracles/near_tangent_census_classify.py`
+reads every `pm_census_ee_overlap` escalation over its near-tangent runs as this
+lane: 8 at ε = 1e-9 (d = 1e-7 and 1e-8), 12 at d = 3e-8, 8 at ε = 1e-12, 2 at
+ε = 1e-6. On each, `eb.p0` lies on `ea`'s line exactly (offset 1e-60 to
+3.5e-13), while the short edge's two ends lie 2.2e-8 to 2.1e-7 off the long
+edge's line, so the segments are apart. Witness: `notch307 nt e0 a3 d1e-8 pc U`,
+`EdgeKey(13v1)`×`EdgeKey(25v5)`, margin 3.22e-9, segments 2.32e-8 apart. The
+shape to give above covers them.
+
 ## CONTACT close-out triage (2026-10-08)
 
 P0 to P2: a false refusal on a 1e-7 rad near-tangent pose, not a wrong answer. It absorbs the closed duplicate `census-edge-overlap-decides-parallel-and-line-gap-one-at-a-time`: one summed-margin fix (parallelism and line gap decided together) closes both.

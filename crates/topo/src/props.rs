@@ -2863,8 +2863,8 @@ pub fn classify_shells_of<T: Decide + geom_core::CertifiedBounds>(
 
 /// The per-shell classification through `quad` — the shared body of
 /// [`classify_shells_of`] and [`classify_shells_structural`]. `shell`
-/// calls it with the lane its result sort read roles through, so the two
-/// reads of one shell are one read ([`role_at_target`]).
+/// calls it with the lane its operand's check 10 read roles through, so
+/// the two reads of one shell are one read ([`role_at_target`]).
 pub(crate) fn classify_shells_through<T: Decide>(
     body: &Body<T>,
     shells: &[ShellKey],
