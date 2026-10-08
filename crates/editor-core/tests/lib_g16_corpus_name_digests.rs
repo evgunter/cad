@@ -122,8 +122,7 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// **`part_select` moved at JOIN-1's fix pass** (PR 3790), alone. Its
 /// union of the two split halves now builds through the chord join: the
 /// halves' side faces meet along edges of both solids, coplanar on the
-/// far side, which the join used to refuse and the declared-REST zip
-/// then built. The table is the box's — one body, six faces (the four
+/// far side. The table is the box's — one body, six faces (the four
 /// sides each a `Merged` of the two halves' fragments), sixteen edges
 /// and twelve vertices, every name a `FromA`/`FromB` lineage — and
 /// the persisted text did not move (`perf2_name_keying_differential`'s

@@ -4,10 +4,10 @@
 //! visible. Geometry is the `issue86_double_subtract` crossing-slots
 //! class promoted to real joint proportions.
 //!
-//! M5 S1 status: the declared mated union BUILDS through the join-stage
-//! declared-REST zip — the contact patches (notch floor/ceiling and
-//! the four flush walls) are removed as interior and the seam is
-//! fused, volume exactly 2·(BEAM_VOL − NOTCH_VOL). The stop ships the
+//! The declared mated union BUILDS through the join — the contact
+//! patches (notch floor/ceiling and the four flush walls) are removed
+//! as interior and the seam is fused, volume exactly
+//! 2·(BEAM_VOL − NOTCH_VOL). The stop ships the
 //! GLUED union (watertight STL + STEP exported by the tour like every
 //! stop body). UNDECLARED, the mate still refuses at the coincidence
 //! door (rung (b) — value equality never classifies; the ladder is
@@ -58,7 +58,7 @@ fn beam_b<S: Scalar>(tol: Tol) -> BooleanBody<S> {
 
 /// The joint's boolean work, generic (the Probe sweep runs the same
 /// ops): both notched beams, the naive-union refusal pin, the DECLARED
-/// glued union (M5 S1 — the REST zip), and the lifted exploded copy.
+/// glued union, and the lifted exploded copy.
 /// Returns the undeclared refusal's narration string for the f64 stop
 /// captions.
 pub(crate) fn build<S: Scalar>(
@@ -99,8 +99,7 @@ pub(crate) fn build<S: Scalar>(
     );
     println!(
         "   mated-union WITH the mate declared: GLUED (volume {expected} exactly) — \
-         the M5 S1 declared-REST zip; the former join-stage refusal is retired \
-         (crosslap_rest.rs pins both doors)"
+         through the join (crosslap_rest.rs pins both doors)"
     );
 
     // Exploded: beam B lifted by a rigid transform (#84 — every moved
@@ -115,7 +114,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let note = format!(
         "each beam is a boolean RESULT (notch subtract, volume {} — observed \
          bit-exact, gated 1e-9); undeclared the mate refuses at the coincidence \
-         door ({refusal}); DECLARED, the M5 S1 REST zip GLUES the joint — one \
+         door ({refusal}); DECLARED, the join GLUES the joint — one \
          watertight body, volume {} exactly (2·(beam − notch); interiors \
          disjoint, nothing discarded)",
         BEAM_VOL - NOTCH_VOL,
@@ -133,7 +132,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             // role (corpus, latency, exports).
             montage: false,
             story: "cross-lap joint, glued: two half-depth-notched beams interlocked and \
-                    UNIONED into one body through the declared-REST zip (M5 S1) — the \
+                    UNIONED into one body through the join — the \
                     contact patches are interior now; only the seam edges remain",
             ops: "2 x (extrude beam, extrude cutter -> subtract); declared mate -> union",
             delta: 1e-2,

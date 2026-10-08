@@ -16,8 +16,8 @@
 //!   the bore once its interior is certified clear of the bore's
 //!   boundary;
 //! - the bore is one face where the peg is three, so the two solids
-//!   divide the contact band differently, and the zip's seam runs where
-//!   only one of them has an edge;
+//!   divide the contact band differently, and the seam runs where only
+//!   one of them has an edge;
 //! - at an azimuth off the collar's seam, the collar's seam vertices sit
 //!   inside a peg wall third, with the collar's flat caps leaving them
 //!   radially;
@@ -85,11 +85,11 @@ const SPANS: [(&str, f64, f64); 4] = [
 ];
 
 /// The blind spans: the shaft enters through one rim and its cap floats
-/// inside the bore. A shaft wholly inside the bore is
-/// `work/zip/blind-shaft-in-a-full-turn-bore-revisits-the-seam-vertex.md`.
-const BLIND: [(&str, f64, f64); 2] = [
+/// inside the bore; or both its caps float inside it.
+const BLIND: [(&str, f64, f64); 3] = [
     ("blind from below", 0.5, 1.0),
     ("blind from above", 1.5, 1.0),
+    ("wholly inside", 1.2, 0.6),
 ];
 
 /// `got` against the closed form, relative to the larger operand.
@@ -165,6 +165,8 @@ fn a_shaft_a_quarter_turn_off_the_bores_seam_unions() {
 /// **A blind shaft unions** on the bore's seam, off it and a quarter
 /// turn off it, at every pose and in both operand orders: its floating
 /// cap rim crosses the bore's seam ruling, and the section joins it.
+/// Wholly inside, the contact is a band round the whole bore, and the
+/// run it walls off reads its rings on one full period of the chart.
 #[test]
 fn a_blind_shaft_unions_on_and_off_the_bores_seam() {
     for deg in [0.0, 60.0, 90.0] {
@@ -172,31 +174,26 @@ fn a_blind_shaft_unions_on_and_off_the_bores_seam() {
     }
 }
 
-/// **Off the seam, the zip builds the mate**: the join's surgery
-/// refuses it, and the declared-REST zip builds it on the join's own
-/// segments.
+/// **Off the seam, the join builds the mate**: the peg's rulings put
+/// the join's run vertices at exactly the pierce rings' azimuth, and the
+/// chart reads each ring off those rows.
 #[test]
-fn a_shaft_off_the_bores_seam_is_built_by_the_zip() {
+fn a_shaft_off_the_bores_seam_is_built_by_the_join() {
     let (c, (_, y0, h)) = (collar(), SPANS[0]);
     let p = shaft(60.0, y0, h);
     let decls = wall_decls(&c, &p);
     let join =
         topo::test_support::boolean_join_refusal(BooleanOp::Union, &c, &p, &decls, Tol::witness());
     assert!(
-        matches!(
-            join,
-            Ok(Some(topo::BooleanError::Join(
-                topo::SplitJoinError::RingHomingAmbiguous { .. }
-            )))
-        ),
-        "the join refuses the mate, got {join:?}"
+        join.as_ref().is_ok_and(Option::is_none),
+        "the join connects the mate, got {join:?}"
     );
     let tol = Tol::witness();
     let (c, p) = (
         sweep::test_support::finished("the collar", c, tol),
         sweep::test_support::finished("the shaft", p, tol),
     );
-    unions_both_ways(&c, &p, h, "the zip's row");
+    unions_both_ways(&c, &p, h, "the join's row");
 }
 
 /// The collar with its bore split into two full-turn faces by the
@@ -296,14 +293,12 @@ fn a_bore_split_on_its_own_carrier_unions_at_the_seam_azimuth() {
     unions_at(&split_collar(), 0.0, "split bore");
 }
 
-/// **Off the seam, the split bore unions where the shaft ends at a
-/// rim**: flush, proud above and proud below, at every pose and in both
-/// operand orders, though the circle's vertex sits inside a shaft wall
-/// third. The through span is
-/// `work/zip/a-vertex-of-one-solid-inside-the-rest-contact-has-no-twin.md`.
+/// **Off the seam, the split bore unions at every span**: through,
+/// flush, proud above and proud below, at every pose and in both operand
+/// orders, though the circle's vertex sits inside a shaft wall third.
 #[test]
-fn a_bore_split_on_its_own_carrier_unions_off_the_seam_where_the_shaft_ends_at_a_rim() {
-    unions_over(&split_collar(), 60.0, "split bore", &SPANS[1..]);
+fn a_bore_split_on_its_own_carrier_unions_off_the_seam_at_every_span() {
+    unions_over(&split_collar(), 60.0, "split bore", &SPANS);
 }
 
 /// **The other three ops answer the closed form**: `∩` empty in both

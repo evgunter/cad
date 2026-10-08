@@ -2156,7 +2156,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::FallbackExtentUnsupported
         | BooleanErrorKind::GermFrameUnsupported
         | BooleanErrorKind::GermFrameCylinderPinch
-        | BooleanErrorKind::RestZipUnsupported
         | BooleanErrorKind::JoinDesync
         | BooleanErrorKind::JoinCarrierUnsupported
         | BooleanErrorKind::CurvedRestUnrecorded

@@ -126,8 +126,7 @@
 //! germs, so the next round ranks only the germs still free). The criterion
 //! reads only record data — loci, senses, site points, section
 //! frames — none of which the surgery changes, so the segments are
-//! decided before any chord is minted, and the declared-REST zip
-//! ([`super::rest`]) reads the same list. The sweep then joins them in
+//! decided before any chord is minted. The sweep then joins them in
 //! that order. Joins, retirements, and completions must occur in
 //! BOTH solids together; any divergence is the typed
 //! [`BooleanError::JoinDesync`] refusal, never a silent mis-join.
@@ -499,8 +498,7 @@ impl<T: geom_core::Real> OpenRecord<T> {
 
 /// One section segment as the join's matching decides it: the one
 /// enumeration of "which segments exist and what each one is", read by
-/// the join's surgery ([`bool_connect`]) and the declared-REST zip
-/// ([`super::rest`]) alike.
+/// the join's surgery ([`bool_connect`]).
 #[derive(Clone, Copy, Debug)]
 pub(super) struct SectionSegment<T: geom_core::Real> {
     /// The two ends, `(pair record, germ slot)`, entry end first. The
@@ -1479,7 +1477,7 @@ fn germ_section_frame<T: Decide>(
     // `surf` resolved both faces above, and nothing writes between, so
     // `face_witnesses` reads each.
     let witnesses = |body: &Body<T>, f: FaceKey| {
-        super::rest::face_witnesses(body, f).unwrap_or_else(|| {
+        super::carrier_pair::face_witnesses(body, f).unwrap_or_else(|| {
             unreachable!(
                 "{}, which `surf` resolved, does not resolve",
                 crate::entity::EntityId::Face(f)
@@ -1946,8 +1944,8 @@ pub(super) fn pair_section_frame_at<T: Decide>(
         // **Cylinder×cylinder.** Two walls with PARALLEL axes meet in
         // rulings — lines — whatever their radii, so `None` here is
         // proven by the axes alone and needs neither radius evidence
-        // nor a constructed section: the declared tangent-ruling pair
-        // the zip lane rests on is exactly this case. The non-parallel
+        // nor a constructed section: a tangent-ruling pair at rest is
+        // exactly this case. The non-parallel
         // half is never straight, and it splits again on coplanarity
         // (below): skew keeps the general rung's `NoArm`, intersecting
         // axes take their own named door.
@@ -3385,7 +3383,7 @@ mod frame_dispatch_tests {
             .and_then(|f| body.get_surface(f.surface))
             .cloned()
             .unwrap();
-        let on = super::super::rest::face_witnesses(body, face).unwrap();
+        let on = super::super::carrier_pair::face_witnesses(body, face).unwrap();
         [
             ("plane, wall", &plane, &wall),
             ("wall, plane", &wall, &plane),
@@ -3501,7 +3499,7 @@ mod frame_dispatch_tests {
     fn a_rims_bulge_levers_the_germ_frames_tilt() {
         let (body, face, _) =
             crate::test_support_fixtures::oblique_rim_wall(core::f64::consts::FRAC_PI_4);
-        let base = super::super::rest::face_witnesses(&body, face).unwrap()[0];
+        let base = super::super::carrier_pair::face_witnesses(&body, face).unwrap()[0];
         for frac in [0.12, 0.5, 0.99] {
             let k = frac * Tol::witness().k();
             for (label, got) in wall_frames(&body, face, base, k, 2.0) {
@@ -3604,7 +3602,7 @@ mod frame_dispatch_tests {
         let kk = Tol::witness().k();
         for (phi, delta, h) in [(1.2, 0.02, 0.5), (core::f64::consts::FRAC_PI_4, 0.05, 1.2)] {
             let (body, face, samples) = arc_wall(phi, delta, h);
-            let on = super::super::rest::face_witnesses(&body, face).unwrap();
+            let on = super::super::carrier_pair::face_witnesses(&body, face).unwrap();
             let n = on.len() as f64;
             let at = on.iter().fold(Point3::new(0.0, 0.0, 0.0), |m, p| {
                 m + (*p - Point3::new(0.0, 0.0, 0.0)) / n
@@ -3749,7 +3747,7 @@ mod frame_dispatch_tests {
             );
             // The germ frame, read at the corners' centre.
             for (label, got) in plane_frames(&body, face, through, normal) {
-                let on = super::super::rest::face_witnesses(&body, face).unwrap();
+                let on = super::super::carrier_pair::face_witnesses(&body, face).unwrap();
                 let (at, _) = super::frame_reading(&plane, &wall, Vec::new(), on).unwrap();
                 let main = main_at(at);
                 let served = match got {
@@ -4363,8 +4361,8 @@ mod frame_dispatch_tests {
             "plane×sphere names its circle frame"
         );
         // Two walls with parallel axes meet in RULINGS, so the straight
-        // answer is proven by the axes alone — the declared
-        // tangent-ruling germ pair the zip lane rests on.
+        // answer is proven by the axes alone — a tangent-ruling germ
+        // pair at rest.
         assert!(
             matches!(
                 pair_section_frame(

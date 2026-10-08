@@ -74,6 +74,7 @@ mod arcs;
 pub(crate) mod boxes;
 mod carrier_cross;
 pub mod carrier_eq;
+pub(crate) mod carrier_pair;
 mod carrier_touch;
 mod circle_roots;
 mod circle_torus;
@@ -113,10 +114,9 @@ pub(crate) mod refusal_routes;
 pub(crate) use refusal_routes::PlaneDoor;
 pub use refusal_routes::{
     BooleanDecision, Coincide, Contradiction, CrossingDecision, DeclarationRead, LeverArm,
-    NeighbourOffset, PlaneRung, RestZipFrontier, SectionRadius, SectorRung, SelfCheck, Settling,
+    NeighbourOffset, PlaneRung, SectionRadius, SectorRung, SelfCheck, Settling,
     SphereQuestion, TorusConvention, WallRung,
 };
-pub(crate) mod rest;
 mod rim_wedge;
 pub(crate) mod sectors;
 pub(crate) mod separating;
@@ -171,10 +171,10 @@ pub use zip::Fusions;
 pub use zip::take_shared_points;
 // LIB-SEL2 (SELECT-DESIGN §3b; #304 review MINOR-1): THE flush-pair
 // verify door — descriptions, oriented sources and the verification
-// arm in one function, shared by the REST lane's verify-at-use and
-// the detector's candidate-generation mode BY CONSTRUCTION.
+// arm in one function, shared by verify-at-use and the detector's
+// candidate-generation mode BY CONSTRUCTION.
 pub use contact_verify::{contact_pair_verdict, tangent_pair_relation};
-pub use rest::{
+pub use carrier_pair::{
     PairFace, PairUnread, carrier_pair_relation, carrier_pair_verdict, face_carrier,
     flush_pair_relation,
 };
@@ -910,10 +910,10 @@ pub(crate) struct DeclaredPairs<T: Real> {
     /// certificate one way, so the key is directed.
     one_sided: std::collections::BTreeMap<(OperandFace, OperandFace), CoverSide>,
     /// Each declared pair's consumed extent, measured on the operands
-    /// at rest ([`rest::pair_extent`]), `(A face, B face)`. Every
+    /// at rest ([`carrier_pair::pair_extent`]), `(A face, B face)`. Every
     /// declared pair has one: the production constructor
     /// ([`Self::build`]) refuses a pair whose extent does not read.
-    extent: std::collections::BTreeMap<(FaceKey, FaceKey), rest::PairExtent<T>>,
+    extent: std::collections::BTreeMap<(FaceKey, FaceKey), carrier_pair::PairExtent<T>>,
 }
 
 impl<T: Real> Default for DeclaredPairs<T> {
@@ -928,13 +928,13 @@ impl<T: Real> Default for DeclaredPairs<T> {
 }
 
 /// The refusal of a declared face whose consumed extent cannot be read
-/// ([`rest::PairUnread::Extent`]), at rest: an input condition, named
+/// ([`carrier_pair::PairUnread::Extent`]), at rest: an input condition, named
 /// by the operand whose face it is.
-pub(crate) fn unreadable_extent(face: rest::PairFace) -> BooleanError {
+pub(crate) fn unreadable_extent(face: carrier_pair::PairFace) -> BooleanError {
     BooleanError::InvalidDeclaration {
         operand: match face {
-            rest::PairFace::First => Operand::A,
-            rest::PairFace::Second => Operand::B,
+            carrier_pair::PairFace::First => Operand::A,
+            carrier_pair::PairFace::Second => Operand::B,
         },
         what: "declared face's consumed extent cannot be read (its box has no claim to make, \
                or its boundary cannot be walked)",
@@ -1205,7 +1205,7 @@ impl<T: Decide> DeclaredPairs<T> {
             .coincident_faces
             .iter()
             .map(|d| {
-                rest::pair_extent(a, d.a, b, d.b, band)
+                carrier_pair::pair_extent(a, d.a, b, d.b, band)
                     .map(|extent| ((d.a, d.b), extent))
                     .map_err(unreadable_extent)
             })
@@ -1715,7 +1715,8 @@ pub struct BooleanReduction<T: Real> {
     pub held: Vec<HeldEdge>,
     /// The `Rest` declarations `(A face, B face)` the declaration door
     /// verified one carrier with opposed senses: the REST-contact pairs
-    /// the declared-REST lane patches, read rather than re-verified.
+    /// the containment fallback's extent scans exempt, read rather than
+    /// re-verified.
     pub(crate) rest_contacts: Vec<(FaceKey, FaceKey)>,
     /// Every cross-operand face pair the coincidence ladder settled ONE
     /// carrier on the operands at rest, by shared recipe source (rung 1)
@@ -1768,8 +1769,7 @@ impl<T: Real> BooleanReduction<T> {
     /// each operand **only if the join succeeded**.
     ///
     /// A refusal mid-join leaves a partially carved operand that no
-    /// door undertook to certify — and the REST lane puts the pristine
-    /// clones back over it — so the sweep is the success path's.
+    /// door undertook to certify, so the sweep is the success path's.
     pub(crate) fn leave_join_surgery(&mut self, joined: bool) {
         if joined {
             self.a.leave_surgery_and_sweep();
@@ -2692,18 +2692,6 @@ pub enum BooleanError {
     /// The joining stage's chord machinery refused (PR 5; nested
     /// whole — includes `UnpairedLooseEnds` and `SectionLoopMixed`).
     Join(SplitJoinError),
-    /// The declared-REST union zip (M5 S1) recognized its frontier —
-    /// a declared boundary-on-boundary REST contact — but the
-    /// configuration is a named sub-frontier the lane does not cover
-    /// (no speculative region algebra is built for it); refused
-    /// typed, never a laundered catch-all (the `SkippedMerge`
-    /// precedent). The pair is declared and verified already, so no
-    /// declaration is offered; each sub-frontier ends as
-    /// [`RestZipFrontier::ending`] gives it.
-    RestZipUnsupported {
-        /// The precise sub-frontier.
-        what: RestZipFrontier,
-    },
     /// The output stage's join could not decide whether a valence-2
     /// vertex is a regular point of its edges' carrier: a reading in
     /// the margin band (D4 ¶3).
@@ -3016,8 +3004,6 @@ pub enum BooleanErrorKind {
     Pcurves,
     /// [`BooleanError::Join`].
     Join,
-    /// [`BooleanError::RestZipUnsupported`].
-    RestZipUnsupported,
     /// [`BooleanError::JoinUndecided`].
     JoinUndecided,
     /// [`BooleanError::JoinCarrierUnsupported`].
@@ -3217,7 +3203,6 @@ impl BooleanError {
             Self::Euler(_) => BooleanErrorKind::Euler,
             Self::Pcurves { .. } => BooleanErrorKind::Pcurves,
             Self::Join(_) => BooleanErrorKind::Join,
-            Self::RestZipUnsupported { .. } => BooleanErrorKind::RestZipUnsupported,
             Self::JoinUndecided(_) => BooleanErrorKind::JoinUndecided,
             Self::JoinCarrierUnsupported { .. } => BooleanErrorKind::JoinCarrierUnsupported,
             Self::CurvedRestUnrecorded { .. } => BooleanErrorKind::CurvedRestUnrecorded,
@@ -3740,13 +3725,6 @@ impl core::fmt::Display for BooleanError {
                 "the operands' sections could not be joined: {}",
                 crate::chord_join::UnderBoolean(e)
             ),
-            Self::RestZipUnsupported { what } => write!(
-                f,
-                "the Boolean cannot yet zip the two solids along their declared resting \
-                 contact ({}); it zips planar contacts whose seam splits cleanly. {}",
-                what.what(),
-                what.ending()
-            ),
             Self::JoinUndecided(e) => write!(f, "{e}"),
             Self::JoinCarrierUnsupported {
                 edge,
@@ -4262,11 +4240,9 @@ pub(crate) fn maximal_faces_gate<T: Decide>(
 }
 
 /// **The join's own refusal** of `op` under `decls`: what its matching
-/// or its surgery refuses on the reduction, before the declared-REST
-/// door may take it over. `None` where the join connects, or where the
-/// reduction leaves no null pair to join. Test vocabulary
-/// (`topo::test_support`): a declared union that builds while its join
-/// refuses was built by the zip.
+/// or its surgery refuses on the reduction. `None` where the join
+/// connects, or where the reduction leaves no null pair to join. Test
+/// vocabulary (`topo::test_support`).
 ///
 /// # Errors
 ///
@@ -4872,10 +4848,9 @@ fn border_held<T: Real>(
 /// without this pass a lie is loud when the classifier trips over it
 /// and silent when it does not — which is the same lie either way.
 /// The review that found this also found the reason it had gone
-/// unnoticed for a milestone: the only other verify-at-use site is the
-/// REST lane, which runs on Union and only when the seam produces null
-/// pairs, so a Subtract with a false declaration was never verified at
-/// all.
+/// unnoticed for a milestone: the only other verify-at-use site ran on
+/// Union only, and only when the seam produced null pairs, so a
+/// Subtract with a false declaration was never verified at all.
 ///
 /// The sense is part of each one-carrier claim, as an exact bit:
 /// `Rest` demands opposed senses and a continuation aligned ones, and
@@ -4983,14 +4958,14 @@ fn verify_one_carrier_declaration<T: Decide>(
     class: BooleanCoincidence,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let outcome = match rest::carrier_pair_relation(a, fa, b, fb, true, band) {
+    let outcome = match carrier_pair::carrier_pair_relation(a, fa, b, fb, true, band) {
         Ok(outcome) => outcome,
-        Err(rest::PairUnread::Extent(face)) => return Err(unreadable_extent(face)),
+        Err(carrier_pair::PairUnread::Extent(face)) => return Err(unreadable_extent(face)),
         // A carrier kind the ladder cannot describe: `validate_
         // declarations` has already had its say about which kinds this
         // op accepts, so there is nothing left to add here — and
         // nothing for the identity rung to read.
-        Err(rest::PairUnread::OutsideInventory) => return Ok(false),
+        Err(carrier_pair::PairUnread::OutsideInventory) => return Ok(false),
     };
     let aligned = class == BooleanCoincidence::Continuation;
     match outcome {
@@ -5000,8 +4975,7 @@ fn verify_one_carrier_declaration<T: Decide>(
             carrier_eq::CarrierRelation::SameOriented | carrier_eq::CarrierRelation::SameOpposite,
         ) => Err(sense_contradiction(fa, fb, class, band)),
         // The declared posture contradicts a definite difference, it
-        // never answers `Distinct`: the same kernel-defect answer the
-        // REST lane gives (`rest.rs`).
+        // never answers `Distinct`: a kernel defect.
         Ok(carrier_eq::CarrierRelation::Distinct) => Err(BooleanError::ClassificationInvariant {
             what: "declaration door: declared rung returned Distinct instead of contradicting",
         }),
@@ -5213,10 +5187,10 @@ fn verify_tangency_declaration<T: Decide>(
         terminal_sliver: false,
     };
     // 1. The conformal screen (detector posture).
-    match rest::carrier_pair_relation(a, fa, b, fb, false, band) {
+    match carrier_pair::carrier_pair_relation(a, fa, b, fb, false, band) {
         // No description to compare: the witness lane below answers
         // for the kinds it holds.
-        Ok(Ok(CarrierRelation::Distinct)) | Err(rest::PairUnread::OutsideInventory) => {}
+        Ok(Ok(CarrierRelation::Distinct)) | Err(carrier_pair::PairUnread::OutsideInventory) => {}
         // One carrier, structurally: no `decide` ran, so the label
         // names the finding (the `contact_rest_senses_opposed`
         // precedent), and the fact says it in words.
@@ -5253,7 +5227,7 @@ fn verify_tangency_declaration<T: Decide>(
             carrier_eq::CarrierEqError::Contradicted { diag, .. }
             | carrier_eq::CarrierEqError::Unsettled { diag },
         )) => return Err(screen_contradiction(diag)),
-        Err(rest::PairUnread::Extent(face)) => return Err(unreadable_extent(face)),
+        Err(carrier_pair::PairUnread::Extent(face)) => return Err(unreadable_extent(face)),
     }
     // **One resolution per declared face, carrying both halves.** The
     // carrier and the orientation BIT are two facts about the same
@@ -5276,7 +5250,7 @@ fn verify_tangency_declaration<T: Decide>(
     let (sb, sense_b) = face_of(b, fb, Operand::B)?;
     let kinds = (sa.kind(), sb.kind());
     // 2. The witness locus.
-    let reach = rest::pair_extent(a, fa, b, fb, band)
+    let reach = carrier_pair::pair_extent(a, fa, b, fb, band)
         .map_err(unreadable_extent)?
         .reach;
     let mut overlap = None;
@@ -6265,47 +6239,6 @@ mod tests {
         );
     }
 
-    /// **Every M5 S1 sub-frontier refusal ends in its own lever or the
-    /// frontier's ending, and offers no declaration**: the pair is
-    /// declared and verified before the zip meets its sub-frontier, and
-    /// a definite frontier names no tolerance. Each states its
-    /// sub-frontier with no stage label, and one recourse; the holes'
-    /// mismatches name the move that matches them, and the rest (the
-    /// Euler operators' own refusals, and seam configurations a contact
-    /// already planar can meet) say there is no way through yet.
-    #[test]
-    fn every_rest_zip_frontier_ends_in_its_own_lever_and_no_declaration() {
-        use strum::IntoEnumIterator as _;
-        use test_utils::refusal::{recourse_markers, stage_prefixes, subjectless_escalations};
-        const HOLES: &str = "Recourse: make the holes inside the declared contact match, one \
-                             for one and corner for corner, across the two parts";
-        for what in RestZipFrontier::iter() {
-            let msg = BooleanError::RestZipUnsupported { what }.to_string();
-            assert_eq!(recourse_markers(&msg), 1, "{what:?}: {msg}");
-            assert!(
-                stage_prefixes(&msg, &[]).is_empty() && subjectless_escalations(&msg).is_empty(),
-                "{what:?}: {msg}"
-            );
-            let holes = matches!(
-                what,
-                RestZipFrontier::HoleVertexUnmatched | RestZipFrontier::HoleCyclesIncongruent
-            );
-            let ending = if holes {
-                HOLES
-            } else {
-                geom_core::NOT_YET_ENDING
-            };
-            assert!(
-                msg.contains(&format!("({})", what.what()))
-                    && msg.ends_with(ending)
-                    && !msg.contains("declare the")
-                    && !msg.contains("tolerance")
-                    && !msg.contains("union zip:"),
-                "{what:?}: {msg}"
-            );
-        }
-    }
-
     /// **A declared face key that resolves to no face refuses typed,
     /// naming what happened.** The `Tangent` verifier reads two facts
     /// off each declared face — its carrier and its orientation bit —
@@ -6577,9 +6510,6 @@ mod tests {
             BooleanError::Pcurves {
                 source: crate::pcurves::PcurveMintError::Unminted { face },
             },
-            BooleanError::RestZipUnsupported {
-                what: RestZipFrontier::SlitFaceHoles,
-            },
             BooleanError::JoinDesync { what: "a lockstep" },
             BooleanError::TornComponent {
                 operand: Operand::A,
@@ -6705,7 +6635,6 @@ mod tests {
                 BooleanErrorKind::Euler => "Euler",
                 BooleanErrorKind::Pcurves => "Pcurves",
                 BooleanErrorKind::Join => "Join",
-                BooleanErrorKind::RestZipUnsupported => "RestZipUnsupported",
                 BooleanErrorKind::JoinUndecided => "JoinUndecided",
                 BooleanErrorKind::JoinCarrierUnsupported => "JoinCarrierUnsupported",
                 BooleanErrorKind::CurvedRestUnrecorded => "CurvedRestUnrecorded",

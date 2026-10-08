@@ -297,6 +297,40 @@ impl<T: geom_core::Real> Default for Hung<T> {
     }
 }
 
+/// **The record of a germ tangent to a bound of its sector**, read in
+/// the sector across that bound where its locus names that sector's
+/// face. The bound is the one `raw` reads On; the germ is the same ray
+/// in either sector, so its crossing codes stand. Any other record, and
+/// one whose neighbour across the bound is not the locus's face, is
+/// returned as it is.
+fn across_tangent<T: geom_core::Real>(
+    r: PairRecord,
+    raw: &PairRecord,
+    loci: (super::Locus, super::Locus),
+    (a, b): (&[BoolSector<T>], &[BoolSector<T>]),
+) -> PairRecord {
+    let across = |sectors: &[BoolSector<T>], i: usize, read: (SideCode, SideCode), locus| {
+        let super::Locus::InFace(f) = locus else {
+            return i;
+        };
+        if sectors[i].face == f {
+            return i;
+        }
+        let n = sectors.len();
+        let k = match read {
+            (SideCode::On, _) => (i + 1) % n,
+            (_, SideCode::On) => (i + n - 1) % n,
+            _ => return i,
+        };
+        if sectors[k].face == f { k } else { i }
+    };
+    PairRecord {
+        a: across(a, r.a, raw.sa, loci.0),
+        b: across(b, r.b, raw.sb, loci.1),
+        ..r
+    }
+}
+
 /// The null edges of one vertex pair, every reading taken: what
 /// [`mint_plans`] mints without reading the orbit's geometry again.
 #[derive(Clone, Debug)]
@@ -385,6 +419,15 @@ pub(super) fn plan_null_pairs<T: Decide>(
             )
         })
         .collect::<Result<Vec<_>, BooleanError>>()?;
+    // A germ only tangent to a bound of its sector lies in the face
+    // across that bound ([`super::sectors::germ_loci`]): it is that
+    // face's germ, so it is minted in the sector across the bound.
+    let survivors: Vec<PairRecord> = survivors
+        .iter()
+        .zip(&raw)
+        .zip(&loci)
+        .map(|((&&r, w), &l)| across_tangent(r, w, l, (a_sectors, b_sectors)))
+        .collect();
     // A germ along an edge runs along it: its two flankers may be
     // coplanar (an edge-edge germ is the pair of the two solids' own
     // fold flankers) or tangent (a germ only tangent to the other
@@ -420,7 +463,7 @@ pub(super) fn plan_null_pairs<T: Decide>(
     let n = survivors.len();
     let (mut a_order, b_order) = if n > 2 {
         let entries =
-            |side: fn(&PairRecord) -> usize| survivors.iter().map(|r| side(r)).collect::<Vec<_>>();
+            |side: fn(&PairRecord) -> usize| survivors.iter().map(side).collect::<Vec<_>>();
         (
             walk_order(a_sectors, &entries(|r| r.a), &dirs, band)?,
             walk_order(b_sectors, &entries(|r| r.b), &dirs, band)?,
@@ -1451,6 +1494,7 @@ type Germ<T> = (usize, (SideCode, SideCode), Cells, Vec3<T>);
 
 /// A germ's `(A face, B face)` and `(A locus, B locus)`.
 pub(super) type Cells = ((FaceKey, FaceKey), (super::Locus, super::Locus));
+
 
 /// Where [`mint_directed`] mints a run: in `operand` at `vertex`, the
 /// plan's own or the copy of the innermost fan of its plan that holds it,

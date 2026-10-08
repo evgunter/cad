@@ -1612,15 +1612,16 @@ fn bool_planar_chord_spec<T: Decide>(
     )? {
         // A two-ruling section's chords are straight on the plane too.
         SectionCase::Straight(_) => return Ok(None),
-        // A tangent germ pair inside the boolean zip means TOUCHING
-        // operands — the M5 envelope refuses those upstream; reaching
-        // here is a frontier configuration, refused typed. (The split
-        // lane mints a chord on the same ruling; that difference is
-        // why `section_case` hands the arm back instead of deciding.)
+        // A tangent germ pair in the boolean join means TOUCHING
+        // operands: a germ tangent to a bound of its sector is read in
+        // the face across it (`boolean::insert`), so reaching here is a
+        // frontier configuration, refused typed. (The split lane mints
+        // a chord on the same ruling; that difference is why
+        // `section_case` hands the arm back instead of deciding.)
         SectionCase::Tangent(_) => {
             return Err(SplitJoinError::SectionInvariant {
                 face,
-                what: "tangent plane×cylinder germ pair in the boolean zip — a touching \
+                what: "tangent plane×cylinder germ pair in the boolean join — a touching \
                        configuration, the typed frontier of the supported envelope",
             });
         }
@@ -3609,17 +3610,19 @@ fn ring_vertices<T: Decide>(
 /// there is read from its harmonic form; the straight chart rows between
 /// images (the walk's junction gaps) are segments. A ring vertex is placed
 /// on the run's branch, which is one branch because the run's window is
-/// decided under a period. Each comparison is a named trilean metered in
-/// metres; a ring vertex on the ray's degenerate rows (the run passes
-/// through its azimuth at a vertex, or along it) says nothing and the
-/// next vertex is asked, as [`ring_side`] does for a vertex on the run;
-/// so does one whose reading escalates, and the first escalation
-/// escalates only where no vertex decides ([`first_decided`]); the
-/// decided vertices agree because the ring does not cross the run (its
-/// premise). Such a vertex may or may not be on the run, so a ring none of whose
-/// vertices is decided is [`RingSide::Undecided`], never
-/// [`RingSide::OnRun`]: a pierce strut at a pinch, whose point is a run
-/// vertex, always reads so here, and refuses rather than waiting.
+/// decided under a period, or, for a window of exactly one period, on the
+/// branch from its low edge. Each comparison is a named trilean metered in
+/// metres. A run vertex at the ray's azimuth reads as just short of it
+/// (the half-open rule), so the ray crosses the run there once or not at
+/// all, and a run row along the ray is met only by a vertex on it. A ring
+/// vertex on the run says nothing and the next vertex is asked, as
+/// [`ring_side`] does; so does one whose reading escalates, and the first
+/// escalation escalates only where no vertex decides ([`first_decided`]);
+/// the decided vertices agree because the ring does not cross the run
+/// (its premise). A ring none of whose vertices is decided is
+/// [`RingSide::Undecided`], never [`RingSide::OnRun`]: a pierce strut at a
+/// pinch, whose point is a run vertex, always reads so here, and refuses
+/// rather than waiting.
 /// A sphere or a cone face reads without a chart ([`path_ring_side`]);
 /// [`ChordJoiner::rehome_rings`] sends no other kind here.
 ///
@@ -3654,16 +3657,23 @@ fn chart_ring_side<T: Decide>(
     let decide_m = |name, margin| {
         decide(name, margin, band).map_err(|diag| SplitJoinError::Escalated { face: newf, diag })
     };
-    if decide_m(
+    // A run whose window is a whole period (a band round a full-turn
+    // face, closed along its seam) is read on the branch from its low
+    // edge, so a vertex at the seam's azimuth reads at `lo`, past which
+    // the ray's degenerate rows put it.
+    let full = match decide_m(
         "split_ring_chart_window",
         Margin::levered(tau - (hi - lo), radius),
-    )? != Sign::Positive
-    {
-        return Err(invariant(
-            "ring re-homing on a chart: the run's azimuth window spans a full period, so a \
-             ring vertex has no single branch on it",
-        ));
-    }
+    )? {
+        Sign::Positive => false,
+        Sign::Zero => true,
+        Sign::Negative => {
+            return Err(invariant(
+                "ring re-homing on a chart: the run's azimuth window spans more than a full \
+                 period, so a ring vertex has no single branch on it",
+            ));
+        }
+    };
     let mid = (lo + hi) * T::from_f64(0.5);
     let vertices = ring_vertices(body, ring)?;
     // The chart segments of the run: each edge (`Some(image)`), then the
@@ -3674,15 +3684,24 @@ fn chart_ring_side<T: Decide>(
         let w = vertex_point(body, v) - centre;
         let raw = stable_azimuth(w.dot(axis.cross(u_ref)), w.dot(u_ref), band);
         let u_p = raw + (mid - raw).periodic_branch(tau) * tau;
+        let u_p = if full {
+            match decide_r("split_ring_chart_seam", Margin::levered(hi - u_p, radius)) {
+                Ok(Sign::Zero) => u_p - tau,
+                Ok(_) => u_p,
+                Err(diag) => return Ok(Err(diag)),
+            }
+        } else {
+            u_p
+        };
         let v_p = w.dot(axis);
         let mut crossings = 0usize;
         for (i, image) in images.iter().enumerate() {
             let next = &images[(i + 1) % n];
             let rows = [
-                (image.entry, image.exit, Some(image)),
-                (image.exit, next.entry, None),
+                (image.entry, image.exit, (image.v.0, image.v.1), Some(image)),
+                (image.exit, next.entry, (image.v.1, next.v.0), None),
             ];
-            for (u0, u1, edge) in rows {
+            for (u0, u1, (v0, v1), edge) in rows {
                 let sides = [u0, u1].map(|u| {
                     decide_r(
                         "split_ring_chart_ray_azimuth",
@@ -3693,10 +3712,23 @@ fn chart_ring_side<T: Decide>(
                     [Ok(s0), Ok(s1)] => (s0, s1),
                     [Err(diag), _] | [_, Err(diag)] => return Ok(Err(diag)),
                 };
-                if s0 == Sign::Zero || s1 == Sign::Zero {
-                    return Ok(Ok(None));
+                if s0 == Sign::Zero && s1 == Sign::Zero {
+                    // A row along the ray: the ray misses it unless the
+                    // vertex is on it.
+                    let ends = [v0, v1].map(|v| {
+                        decide_r("split_ring_chart_ray_along", Margin::of(v - v_p))
+                    });
+                    match ends {
+                        [Ok(e0), Ok(e1)] if e0 == e1 && e0 != Sign::Zero => continue,
+                        [Ok(_), Ok(_)] => return Ok(Ok(None)),
+                        [Err(diag), _] | [_, Err(diag)] => return Ok(Err(diag)),
+                    }
                 }
-                if s0 == s1 {
+                // A row end at the ray's azimuth reads as below it, so
+                // a run vertex the ray passes through is crossed once
+                // or not at all, by the rows on either side of it.
+                let below = |s: Sign| s != Sign::Negative;
+                if below(s0) == below(s1) {
                     continue;
                 }
                 let f = (u_p - u0) / (u1 - u0);

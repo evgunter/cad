@@ -431,9 +431,9 @@ fn corner(r: f64) -> f64 {
 /// carries the fillet's arc on both sides. The join pairs the fillet's
 /// germs: the straight bottom edge passing the tangent point reads
 /// along the germ to first order, but its far end touches nothing, so
-/// only the arc carries the segment. The join's surgery then refuses
-/// the germ's tangent face pair (the wall and the fillet), and the
-/// declared-REST zip builds the union on the join's segments.
+/// only the arc carries the segment, which lies in the plate's bottom
+/// face: the join reads the germ in that face, across the edge its
+/// sector is bounded by, and builds the union.
 ///
 /// The poses: the 6 × 4 sharp plate on its rounded twin, and the 6 × 6
 /// sharp L (a 3 × 3 notch: five convex corners and a concave one, whose
@@ -495,14 +495,9 @@ fn a_tangency_in_the_middle_of_an_edge_builds_in_either_operand_order() {
             let ba = with(&mate, &walls);
             let join = topo::test_support::boolean_join_refusal(BooleanOp::Union, a, b, &ab, tol());
             assert!(
-                matches!(
-                    join,
-                    Ok(Some(BooleanError::Join(
-                        topo::SplitJoinError::SectionInvariant { .. }
-                    )))
-                ),
-                "{label}: A ∪ B, the join pairs every germ and its surgery refuses the fillet's \
-                 tangent faces, which the zip takes over: {join:?}"
+                join.as_ref().is_ok_and(Option::is_none),
+                "{label}: A ∪ B, the join reads each germ tangent to the straight edge in the \
+                 face the fillet's rim turns into, and connects: {join:?}"
             );
             builds(
                 &format!("{label}: A ∪ B"),
@@ -1292,5 +1287,41 @@ fn declared_rounded_continuations_inside_a_wall_build_subtract_and_intersect() {
             area(4.0),
             union_faces,
         );
+    }
+}
+
+/// **A sharp plate offset over a rounded one unions, in either operand
+/// order.** The 6 × 4 sharp plate on the rounded one (`r = 0.5`), moved
+/// rigidly in its own plane by `(dx, dy)`: its bottom edges cross the
+/// fillets transversally (`dy > 0`), miss them (`dy < 0`), or overhang
+/// two of them (`dx ≠ 0`). Every flush finding is declared; only the
+/// mating plane's `Rest` survives the move. The union builds, additive,
+/// at tiers 3 and 3′.
+#[test]
+fn a_sharp_plate_offset_over_a_rounded_one_unions_in_either_order() {
+    let lower = plate(rounded(R), 0.0);
+    for (dx, dy) in [
+        (0.0, 1e-7),
+        (0.0, -1e-7),
+        (0.0, 1e-3),
+        (0.0, -1e-3),
+        (0.25, 0.0),
+        (-0.25, 0.0),
+    ] {
+        let shift = geom_core::Affine3::translation(geom_core::Vec3::new(dx, dy, 0.0));
+        let moved = topo::transform_rigid(&plate(sharp(), 1.0), &shift, tol()).unwrap();
+        let upper = finished("the offset plate", moved, tol());
+        for (order, a, b) in [
+            ("upper ∪ lower", &upper, &lower),
+            ("lower ∪ upper", &lower, &upper),
+        ] {
+            let (rest, cont) = findings(a, b);
+            union_honest(
+                &format!("({dx}, {dy}), {order}"),
+                a,
+                b,
+                &with(&rest, &cont),
+            );
+        }
     }
 }

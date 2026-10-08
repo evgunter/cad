@@ -58,7 +58,7 @@ fn threaded_collar_partial_engagement_unions() {
     assert_eq!(decls.coincident_faces.len(), 9, "3 bore faces against 3");
     let out = topo::union_with(&c, &p, &decls, Tol::witness());
     println!("partial engagement: {:?}", out.as_ref().err());
-    let bb = boolean_body(out.expect("the cylindrical Rest reaches the rest lane"));
+    let bb = boolean_body(out.expect("the cylindrical Rest unions"));
     let body = bb.body;
     // Additive: the interiors are disjoint (the peg fills the bore
     // over z ∈ [1,2] and stands proud of it at both ends).
@@ -88,7 +88,7 @@ fn threaded_collar_full_engagement_unions() {
     let decls = wall_decls(&c, &p);
     let out = topo::union_with(&c, &p, &decls, Tol::witness());
     println!("full engagement: {:?}", out.as_ref().err());
-    let body = body_of(out.expect("full engagement reaches the rest lane"));
+    let body = body_of(out.expect("full engagement unions"));
     assert_additive(volume(&body), volume(&c), volume(&p));
     if let Err(errs) = topo::validate_geometric(&body, Tol::witness()) {
         panic!("the fully engaged mate must be tier-3 valid: {errs:?}");

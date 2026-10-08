@@ -2363,7 +2363,7 @@ impl<T: Decide> Body<T> {
             // reach to settle, which the reach decision names.
             let (on1, on2) = (self.boundary_points(f1), self.boundary_points(f2));
             let reach =
-                crate::boolean::rest::pair_extent(self, f1, self, f2, band).map_err(|_| {
+                crate::boolean::carrier_pair::pair_extent(self, f1, self, f2, band).map_err(|_| {
                     MergeCoplanarError::Escalated {
                         decision: MergeDecision::DeclaredReach,
                         diag: Indeterminate {

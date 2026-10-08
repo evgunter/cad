@@ -496,7 +496,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             };
             let planar = plane.is_some()
                 && matches!(
-                    super::rest::face_carrier(piercing_body, s.face),
+                    super::carrier_pair::face_carrier(piercing_body, s.face),
                     Some(super::carrier_eq::CarrierDesc::Plane { .. })
                 );
             let fact =
@@ -554,7 +554,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                     // An undeclared pair's extent, read mid-operation:
                     // a face whose box no longer reads offers no
                     // `Tangent` (`work/tang/the-tangent-offer-drops-for-a-face-with-null-scaffolding-mid-op.md`).
-                    None => super::rest::pair_extent(
+                    None => super::carrier_pair::pair_extent(
                         piercing_body,
                         s.face,
                         pierced_body,
@@ -647,7 +647,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // the face sense exactly as `face_plane` does — S10); a kind
         // outside the `Rest` ladder's inventory (cone, torus, NURBS)
         // keeps the C5 typed refusal.
-        let Some(sector_carrier) = super::rest::face_carrier(piercing_body, s.face) else {
+        let Some(sector_carrier) = super::carrier_pair::face_carrier(piercing_body, s.face) else {
             let kind = piercing_body
                 .get_face(s.face)
                 .and_then(|f| piercing_body.get_surface(f.surface))
@@ -699,7 +699,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 origin: plane.origin,
                 normal: plane.normal,
             },
-            None => match super::rest::face_carrier(pierced_body, contact.face) {
+            None => match super::carrier_pair::face_carrier(pierced_body, contact.face) {
                 Some(carrier) if declared_one_carrier => carrier,
                 _ => {
                     return Err(BooleanError::CurvedBooleanUnsupported {

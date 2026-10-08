@@ -1840,7 +1840,7 @@ mod tests {
         ] {
             for (x, y) in [(&body, other), (other, &body)] {
                 assert_eq!(
-                    crate::boolean::rest::carrier_pair_relation(x, face, y, face, false, band())
+                    crate::boolean::carrier_pair::carrier_pair_relation(x, face, y, face, false, band())
                         .unwrap()
                         .unwrap(),
                     rung,

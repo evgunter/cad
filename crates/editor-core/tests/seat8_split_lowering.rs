@@ -164,7 +164,7 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 ///
 /// RE-BLESSED, `part_select` ONLY, where JOIN-1's locus matching met
 /// main's shared copy points: each moved it alone — the split halves'
-/// union builds in the chord join rather than the REST zip (JOIN-1), and
+/// union builds in the chord join (JOIN-1), and
 /// an op's copies of one vertex share its point, so the arena order the
 /// digest hashes moved (main) — and the merged tree is neither value.
 ///

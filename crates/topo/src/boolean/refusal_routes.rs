@@ -1190,128 +1190,6 @@ impl NeighbourOffset {
     }
 }
 
-/// **Which sub-frontier the declared rest contact's zip met**
-/// (`BooleanError::RestZipUnsupported`). The pair's declaration is
-/// verified before the zip starts, so none is offered; each ends in the
-/// lever that reaches past it, or, where no change the user makes is
-/// known to, the frontier's own ending.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[cfg_attr(test, derive(strum::EnumIter))]
-pub enum RestZipFrontier {
-    /// The Euler operator minting a seam chord across its host face
-    /// refused.
-    ChordMefRefused,
-    /// The Euler operator minting a seam chord from a hole's boundary
-    /// refused.
-    ChordMekrRefused,
-    /// The Euler operator minting a seam chord from an isolated pierce
-    /// point refused.
-    PierceRingMekrRefused,
-    /// A seam chord's endpoint lies on no boundary of its host face.
-    ChordEndpointAbsent,
-    /// A seam chord joins two isolated pierce points.
-    ChordBetweenIsolatedPierces,
-    /// Seam segments are left whose ends are all isolated pierce points,
-    /// with no boundary for the seam to grow from.
-    SegmentsBetweenIsolatedPierces,
-    /// A seam chord's endpoint recurs on its host face's boundary.
-    ChordEndpointRevisited,
-    /// The other part's edge a chord stands for has no certified line
-    /// or circle carrier to mint the chord on.
-    TwinCarrierUnsupported,
-    /// A contact patch's boundary vertex has no partner across the seam.
-    PatchVertexUnmatched,
-    /// The two contact patches' face cycles do not match across the
-    /// mate.
-    PatchCyclesIncongruent,
-    /// A hole's boundary vertex has no partner across the seam.
-    HoleVertexUnmatched,
-    /// The two contact patches' holes do not match across the mate, one
-    /// for one.
-    HoleCyclesIncongruent,
-    /// A face zipped along part of its boundary holds holes.
-    SlitFaceHoles,
-    /// The two contact faces share their whole boundary.
-    WholeBoundaryShared,
-    /// A vertex inside a run of the seam holds edges off the run.
-    RunVertexBranches,
-    /// A run edge closing a band lies outside the folded face's loops.
-    BandRunOffLoops,
-    /// A vertex pair inside a zipped fold is fused already.
-    FoldVertexFused,
-    /// Two vertices of one part at one point (a pinch apex) meet one
-    /// vertex of the other across the seam, which pairs vertices one
-    /// to one.
-    PinchApex,
-}
-
-impl RestZipFrontier {
-    /// The sub-frontier, as a clause with no colon or dash of its own.
-    #[must_use]
-    pub const fn what(self) -> &'static str {
-        match self {
-            Self::ChordMefRefused => "seam chord mef refused on its host face",
-            Self::ChordMekrRefused => "seam chord mekr refused on its host face",
-            Self::PierceRingMekrRefused => "seam chord mekr (pierce ring) refused",
-            Self::ChordEndpointAbsent => "seam chord endpoint has no boundary presence",
-            Self::ChordBetweenIsolatedPierces => "seam chord between two isolated pierce points",
-            Self::SegmentsBetweenIsolatedPierces => {
-                "seam segments left between isolated pierce points only"
-            }
-            Self::ChordEndpointRevisited => {
-                "seam chord endpoint revisited by its host face boundary"
-            }
-            Self::TwinCarrierUnsupported => {
-                "seam chord's counterpart edge has no certified line or circle carrier"
-            }
-            Self::PatchVertexUnmatched => "patch boundary vertex without a seam correspondent",
-            Self::PatchCyclesIncongruent => "patch face cycles not congruent across the mate",
-            Self::HoleVertexUnmatched => "ring boundary vertex without a seam correspondent",
-            Self::HoleCyclesIncongruent => "ring cycles not congruent across the mate",
-            Self::SlitFaceHoles => "slit-zip face carries rings",
-            Self::WholeBoundaryShared => "patch pair shares its whole boundary",
-            Self::RunVertexBranches => "seam-run interior vertex holds edges beyond the run",
-            Self::BandRunOffLoops => "band-closure run edge outside the folded face's loops",
-            Self::FoldVertexFused => "pre-fused vertex pair inside a slit-zip fold",
-            Self::PinchApex => "two seam vertices of one part meet one vertex of the other",
-        }
-    }
-
-    /// The ending: the lever where one reaches past the sub-frontier,
-    /// and the frontier's own ending elsewhere.
-    pub(crate) const fn ending(self) -> &'static str {
-        match self {
-            // The zip glues the holes of the two contact faces pairwise,
-            // by congruent cycles: holes that match across the mate are
-            // what it takes.
-            Self::HoleVertexUnmatched | Self::HoleCyclesIncongruent => {
-                "Recourse: make the holes inside the declared contact match, one for one and \
-                 corner for corner, across the two parts"
-            }
-            // The Euler operators' own refusals, and configurations of
-            // the seam no move of the parts is known to avoid while
-            // keeping the contact: a contact already planar can meet
-            // them (two isolated pierce points).
-            Self::ChordMefRefused
-            | Self::ChordMekrRefused
-            | Self::PierceRingMekrRefused
-            | Self::ChordEndpointAbsent
-            | Self::ChordBetweenIsolatedPierces
-            | Self::SegmentsBetweenIsolatedPierces
-            | Self::ChordEndpointRevisited
-            | Self::TwinCarrierUnsupported
-            | Self::PatchVertexUnmatched
-            | Self::PatchCyclesIncongruent
-            | Self::SlitFaceHoles
-            | Self::WholeBoundaryShared
-            | Self::RunVertexBranches
-            | Self::BandRunOffLoops
-            | Self::FoldVertexFused
-            | Self::PinchApex => geom_core::NOT_YET_ENDING,
-        }
-    }
-}
-
 /// How one decision's escalation ends.
 #[derive(Clone, Copy)]
 enum Ending {
@@ -3686,7 +3564,7 @@ pub(in crate::boolean) mod tests {
         let zero_margin = 0.5 * b.zero();
         let diag = diag_of(MarginDiag::value((b.zero() + b.escalate()) / 2.0));
         let face = FaceKey::default();
-        let rows: [(&str, BooleanError, bool, Option<f64>); 6] = [
+        let rows: [(&str, BooleanError, bool, Option<f64>); 5] = [
             (
                 "curved pierce",
                 BooleanError::CurvedPierceUnsupported {
@@ -3715,14 +3593,6 @@ pub(in crate::boolean) mod tests {
                     verdict: Refused::Negative {
                         margin: MarginDiag::value(-1e-3),
                     },
-                },
-                false,
-                None,
-            ),
-            (
-                "rest zip",
-                BooleanError::RestZipUnsupported {
-                    what: RestZipFrontier::SlitFaceHoles,
                 },
                 false,
                 None,

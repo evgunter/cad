@@ -412,10 +412,8 @@ pub mod test_support {
         crate::boolean::through_the_join(op, a, b, tol)
     }
 
-    /// The join's own refusal of `op` under `decls`, before the
-    /// declared-REST door may take it over (`boolean::join_refusal`):
-    /// `None` where the join connects. A declared union that builds
-    /// while this is `Some` was built by the zip.
+    /// The join's own refusal of `op` under `decls`
+    /// (`boolean::join_refusal`): `None` where the join connects.
     ///
     /// # Errors
     ///
@@ -774,7 +772,7 @@ pub use boolean::{
     JoinReading, JoinUndecided, LeverArm, NeighbourOffset, NullEdgePairRecord, Operand,
     OperandKeys, PairFace, PairRefusalSite, PairSite, PairUnread, PatchContact, PierceRingRecord,
     PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError,
-    RestZipFrontier, SectorRead, SectorRung, SelfCheck, Settling, ShellOrientation, SideCode,
+    SectorRead, SectorRung, SelfCheck, Settling, ShellOrientation, SideCode,
     SolidContainment, SolidFaces, SphereQuestion, SweepStrategy, SweepTrace, TorusConvention,
     VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact,
     WallRung, boolean_op_with, boolean_reduce, boolean_reduce_declared, carrier_eq, contfp,
