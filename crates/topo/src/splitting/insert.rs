@@ -36,7 +36,7 @@ use crate::body::Body;
 use crate::entity::{EntityId, VertexKey};
 use crate::euler::{MevSite, RunSite};
 use crate::live::proven;
-use crate::null::{NewVertexSide, NullEdge};
+use crate::null::NewVertexSide;
 
 /// A maximal cyclic run of ABOVE entries, by entry index.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -142,24 +142,11 @@ pub(super) fn insert_null_edges<T: geom_core::Decide>(
                 )
             }
         };
-        let side = if whole_orbit {
-            NewVertexSide::Below
-        } else {
-            NewVertexSide::Above
-        };
-        let created = body.mev_null(site, side)?;
+        // An Above run: the copy is the Above end unless it is the
+        // whole-orbit strut's Below tip.
+        let mint = body.mev_null_run(site, vertex, NewVertexSide::Above, !whole_orbit)?;
+        let (created, attr) = (mint.created, mint.attr);
         sides.insert(created.vertex, PlaneSide::On);
-        let attr = if whole_orbit {
-            NullEdge {
-                below_end: created.vertex,
-                above_end: vertex,
-            }
-        } else {
-            NullEdge {
-                below_end: vertex,
-                above_end: created.vertex,
-            }
-        };
         records.push(NullEdgeRecord {
             at_vertex: vertex,
             edge: created.edge,

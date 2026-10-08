@@ -38,3 +38,20 @@ door's caller errors get a variant of their own or are pinned by `what`.
 Found by JOIN-2's fix pass 2 (PR 3880), sweeping for the shape of the
 delta review's S9 (`contact8_dangling_seam`'s exact-plug row, which now
 pins that the join builds the plug).
+
+## Built
+
+- The saddle rows (`m3_pr6_saddle.rs`, `review_m3_pr6.rs`) and
+  `union_flush_onto_edge_contact.rs` no longer accept `JoinDesync`
+  anywhere; nothing to change.
+- `m5_s13_review_probes.rs` (probe 6) and `r1_probes_m9_3.rs` (three
+  probes) build at 1e-9, 1e-6 and 1e-12, so their `JoinDesync` arms were
+  acceptance with no witness; the arms are gone, and a desync now turns
+  them red.
+- The graft door's caller errors are pinned by `what`, in
+  `graft_disjoint.rs` and in `instance.rs`'s unit test. That they are
+  `JoinDesync` at all is filed as
+  `work/issues/graft-door-caller-errors-are-join-desync.md`.
+- Swept beyond the list: `join.rs`'s radical-plane row and `finish.rs`'s
+  stale-section-face row now pin their `what`; `offer_rows.rs`'s
+  `coaxial_tiny_sphere` withdrawal meets `Because::Desyncs(what)`.

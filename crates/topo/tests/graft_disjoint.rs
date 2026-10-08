@@ -384,12 +384,28 @@ fn the_n_solid_door_refuses_an_empty_source_and_the_single_door_still_refuses_n(
     let mut dst = geometric_cube::<f64>(Tol::witness()).body;
     let err = topo::graft_disjoint_all(&mut dst, &topo::Body::<f64>::new())
         .expect_err("no solid to graft");
-    assert!(format!("{err:?}").contains("JoinDesync"), "{err:?}");
+    assert!(
+        matches!(
+            err,
+            topo::BooleanError::JoinDesync {
+                what: "graft source holds no solid to graft"
+            }
+        ),
+        "{err:?}"
+    );
     assert_eq!(dst.solids().count(), 1, "and nothing was written");
 
     let multi = two_solid_source(10.0);
     let err = topo::graft_disjoint(&mut dst, &multi).expect_err("N solids at the single door");
-    assert!(format!("{err:?}").contains("JoinDesync"), "{err:?}");
+    assert!(
+        matches!(
+            err,
+            topo::BooleanError::JoinDesync {
+                what: "graft source does not hold exactly one solid"
+            }
+        ),
+        "{err:?}"
+    );
     assert_eq!(dst.solids().count(), 1, "and nothing was written");
     // The same source, at the door that is FOR it, succeeds.
     assert_eq!(
