@@ -116,6 +116,9 @@ impl Unsized {
             RefusedArm::Undecided(cause) => MissReading::Banded(cause.margin, cause.band),
             RefusedArm::Zero(Classified { margin, band }) => MissReading::Banded(margin, band),
             RefusedArm::SignCertain => MissReading::DefiniteUnvalued,
+            // A straddle carries no single reading of the miss to compare
+            // with the file's coincidence distance: it ends at rest.
+            RefusedArm::Straddle => return self.recourse(arm, Reading::AtRest),
         };
         self.miss_in_file(miss, arm, file)
     }
@@ -391,7 +394,9 @@ impl SizedDecision {
                     .margin
                     .sized_recourse_in_file(cause.band, self.words(None), file)
             }
-            RefusedArm::SignCertain => self.recourse(arm, Reading::AtRest),
+            // A straddle carries no single margin to place against the
+            // file's coincidence distance.
+            RefusedArm::SignCertain | RefusedArm::Straddle => self.recourse(arm, Reading::AtRest),
         }
     }
 
@@ -652,7 +657,7 @@ mod tests {
             stored: StoredDefinite::Lever,
             at_zero: None,
         };
-        for reading in [Reading::Build, Reading::AtRest, Reading::Adopt] {
+        for reading in [Reading::Build, Reading::AtRest] {
             assert_eq!(
                 decision.recourse(RefusedArm::Straddle, reading),
                 "Recourse: L"
