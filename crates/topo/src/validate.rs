@@ -3047,10 +3047,6 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                     geom::PLACEHOLDER_SURFACE,
                     crate::pcurves::PLACEHOLDER_RECOURSE,
                 ),
-                C::ArcNearPole => (
-                    "a boundary circle runs over a pole of its sphere's chart",
-                    "Recourse: re-aim the sphere's chart away from the arc, or split the edge",
-                ),
                 C::SectorRefused { .. } => (
                     "a boundary curve runs into its chart's singular set (a pole, the apex or \
                      the tube's core), where its image has no one branch",

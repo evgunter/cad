@@ -1377,7 +1377,6 @@ pub struct NurbsLane<T: Real> {
         &geom::NurbsCurve3<T>,
         &Surface<T>,
         &Surface<T>,
-        T,
         Band,
     ) -> Result<(), crate::edge_nurbs::PlaneNurbsRefusal>,
     /// [`NurbsLane::carrier_foot`]'s Newton at `T`.
@@ -1433,10 +1432,9 @@ impl<T: Real> NurbsLane<T> {
         carrier: &geom::NurbsCurve3<T>,
         s1: &Surface<T>,
         s2: &Surface<T>,
-        extent: T,
         band: Band,
     ) -> Result<(), crate::edge_nurbs::PlaneNurbsRefusal> {
-        (self.tube)(carrier, s1, s2, extent, band)
+        (self.tube)(carrier, s1, s2, band)
     }
 
     /// The foot of `point` on a NURBS `carrier`, by Newton from `seed`:
@@ -2827,7 +2825,7 @@ fn run_checks<T: Decide>(
     if let (Resolved::Intersection { surf1, surf2, .. }, Curve3::Nurbs(carrier), Some(lane)) =
         (&resolved, &spec.carrier, lane)
     {
-        lane.tube(carrier, surf1, surf2, extent, band)
+        lane.tube(carrier, surf1, surf2, band)
             .map_err(CertifyError::Rung3Tube)?;
     }
 

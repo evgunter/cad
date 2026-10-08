@@ -1214,8 +1214,12 @@ impl KeyWriter {
                     }
                 }
                 self.knots(image.breaks());
-                self.weights(image.azimuth());
-                self.weights(image.tube());
+                for quarters in [image.azimuth(), image.tube()] {
+                    self.len(quarters.len());
+                    for &q in quarters {
+                        self.f64(f64::from(q));
+                    }
+                }
                 let (u_off, v_off, v_sign) = image.deck();
                 for x in [u_off, v_off, v_sign] {
                     self.f64(x);

@@ -447,7 +447,6 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         },
         PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" },
         PcurveCertifyError::FittedMateMissing,
-        PcurveCertifyError::ArcNearPole,
         PcurveCertifyError::SectorRefused {
             piece: 0,
             channel: geom_brep::SectorChannel::Azimuth,

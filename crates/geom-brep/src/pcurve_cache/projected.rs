@@ -1648,11 +1648,10 @@ pub(super) fn run_projected_checks<T: Decide>(
             });
         }
     }
-    Ok(super::PcurveCertificate {
+    Ok(super::PcurveCertificate::closed(
         samples,
         max_residual,
         envelope,
-        statement: EnvelopeStatement::MapResidualProjected,
-        ssi: None,
-    })
+        EnvelopeStatement::MapResidualProjected,
+    ))
 }

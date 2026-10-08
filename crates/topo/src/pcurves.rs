@@ -2459,35 +2459,13 @@ pub(crate) fn split_cache<T: Decide>(
                 }
             })
         };
-        // A sphere's general circle's image certifies over its own knot
-        // domain only, so each child's is derived afresh and pinned onto
-        // the parent's branch where the child starts. Every other image
-        // is a function of the carrier's parameter, and each child's is
-        // the parent's restricted.
-        let (first, second) = match (&image, fitted, &carrier, &surface) {
-            (
-                Pcurve::Fitted(_),
-                Some(lane),
-                geom::Curve3::Circle { .. },
-                Surface::Sphere { .. },
-            ) => {
-                let child = |a: T, b: T| -> Result<Pcurve<T>, SplitRowError> {
-                    let fresh = Pcurve::Fitted(std::sync::Arc::new(
-                        lane.sphere_circle_image(&carrier, a, b, &surface, band)
-                            .map_err(refused)?,
-                    ));
-                    pin(&fresh, a, image.eval(a))?
-                        .deck()
-                        .apply(&fresh, &surface)
-                        .ok_or(refused(PcurveCertifyError::FittedCertificate {
-                            limb: None,
-                            what: "a split child's fresh image pins onto no branch of its parent's",
-                            magnitude: None,
-                        }))
-                };
-                (child(t0, t)?, child(t, t1)?)
-            }
-            (Pcurve::Fitted(_) | Pcurve::General(_), ..) => continue,
+        // Every image but a fitted-grade one is a function of the
+        // carrier's parameter, and each child's is the parent's
+        // restricted: the same net or coefficients and pieces, over a
+        // sub-interval. A fitted-grade image certifies over its own knot
+        // domain, so no restriction carries it.
+        let (first, second) = match &image {
+            Pcurve::Fitted(_) | Pcurve::General(_) => continue,
             _ => (image.clone(), image.clone()),
         };
         // The children meet at the first's point at `t`, so the joint is

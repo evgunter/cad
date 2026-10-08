@@ -615,7 +615,6 @@ pub fn rung3_tube<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
     s1: &Surface<T>,
     s2: &Surface<T>,
-    extent: T,
     band: Band,
 ) -> Result<(), PlaneNurbsRefusal> {
     if [s1, s2]
@@ -633,13 +632,31 @@ pub fn rung3_tube<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
             b: &SsiOperand::Analytic(s2),
             pcurve_b: None,
         },
-        TubeScale::uniform(extent),
+        // The ladder's widest rung and its lever, from the object being
+        // certified: the carrier's control-net diameter (a closed
+        // carrier's chord says nothing about its size).
+        TubeScale::uniform(net_diameter(carrier)),
         band,
         crate::ssi::certify::Limbs::Tube,
         &mut Vec::new(),
     )
     .map(|_| ())
     .map_err(refusal)
+}
+
+/// The control-net diameter of a carrier, in metres — a convexity fact
+/// (the hull property), not an evaluation.
+fn net_diameter<T: geom_core::Real>(carrier: &NurbsCurve3<T>) -> T {
+    let ctl = carrier.control();
+    let Some(first) = ctl.first() else {
+        return T::zero();
+    };
+    let (mut lo, mut hi) = (*first, *first);
+    for p in ctl {
+        lo = Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z));
+        hi = Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z));
+    }
+    (hi - lo).norm()
 }
 
 /// **The chart image of a declared carrier on a NURBS wall** — the one

@@ -433,8 +433,9 @@ its torus, its second channel the tube angle, linear in the parameter;
 the azimuth is the projection's Kepler true anomaly, and, as for
 `Harmonic`, the envelope alone is the certified statement — the
 harmonic closed form of the Kepler decomposition plus its remainder,
-drift and frame terms — with the schedule its cross-check), `Fitted`, `General`
-(the general curve-in-UV at the honest fitted grade). Carrier-primary
+drift and frame terms — with the schedule its cross-check), `Projected`
+(the projected image above, on an analytic chart), `Fitted` and `General`
+(on a spline chart; the general curve-in-UV at the honest fitted grade). Carrier-primary
 stands: the 3-D carrier is the authoritative machinery and the edge's
 parameter stays chart-neutral. The description form every conventional
 edge takes is `EdgeDescription::Chart { surface, pcurve, seam }`, with
