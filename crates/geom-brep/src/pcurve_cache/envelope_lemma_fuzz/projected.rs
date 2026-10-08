@@ -16,7 +16,7 @@ use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 use test_utils::fuzz;
 
 use super::super::projected::{FramedCarrier, SectorChannel, project, projected_envelope};
-use super::super::{EnvelopeTerm, Pcurve, PcurveCache, PcurveCertifyError};
+use super::super::{EnvelopeTerm, Pcurve, PcurveCache, PcurveCertifyError, PcurveCheck};
 use super::{band, frame, unit};
 
 /// The five charts, in a random pose.
@@ -625,6 +625,9 @@ fn a_broken_sector_and_an_arc_through_the_pole_refuse() {
         "{err:?}"
     );
     // A great circle through the pole: its arc over it has no branch.
+    // The piece holding the pole refuses its sector, definitely or, where
+    // the refinement leaves its margin within the band (a coarse ε), by
+    // escalating that same decision.
     let polar = Curve3::Circle {
         center: Point3::origin(),
         axis: Vec3::new(0.3, 0.9, 0.0).normalize(),
@@ -633,7 +636,14 @@ fn a_broken_sector_and_an_arc_through_the_pole_refuse() {
     };
     let err = project(&polar, Some((-0.5, 0.5)), &sphere, b).expect_err("through the pole");
     assert!(
-        matches!(err, PcurveCertifyError::SectorRefused { .. }),
+        matches!(
+            err,
+            PcurveCertifyError::SectorRefused { .. }
+                | PcurveCertifyError::Escalated {
+                    check: PcurveCheck::Sector,
+                    ..
+                }
+        ),
         "{err:?}"
     );
     let _ = FRAC_PI_2;
