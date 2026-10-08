@@ -2070,11 +2070,12 @@ fn ef_overlap_cells<T: Decide>(
 ///   (`plane_crossing_lane` — the splitting lane's root-based
 ///   reading, its graze and interiority rows in metres); a root at an
 ///   arc's end is its vertex, the vertex cuts' again.
-/// - **A spiric or spline arc** has no crossing row: the pair's lane
-///   runs only where `e` definitely clears the ball the arc lies in,
-///   and otherwise refuses the face typed
-///   ([`ContainError::Uncrossable`], the point-in-face door's
-///   refusal for the same inventory fact).
+/// - **A spiric or spline arc** has no certified crossing position: the
+///   pair's lane runs only where `e` definitely clears the arc — a
+///   spiric arc piece by piece (`SpiricArc::clears_segment`), a spline
+///   through the ball its control hull lies in — and otherwise refuses
+///   the face typed ([`ContainError::Uncrossable`], the point-in-face
+///   door's refusal for an edge it cannot cross).
 ///
 /// A crossing is a cut where it lies strictly inside `e`'s span
 /// ([`EF_CROSS_SPAN`]); at `e`'s end it is the end's own cut.
@@ -2238,8 +2239,15 @@ fn boundary_crossings<T: Decide>(
                     }
                 }
                 LoopEdge::Spiric(ref k) => {
-                    let (center, reach) = k.ball();
-                    clears(center, reach, UncrossableCarrier::Spiric, errors)?;
+                    if !k.clears_segment(e.p0, e.p0 + e.dir * e.len, EF_CROSS_REACH, band) {
+                        let at = Uncrossable {
+                            r#loop: lk,
+                            edge: key,
+                            carrier: UncrossableCarrier::Spiric,
+                        };
+                        refuse(ContainError::Uncrossable(at), errors);
+                        return None;
+                    }
                 }
                 LoopEdge::Unrowed {
                     center,
@@ -10248,18 +10256,18 @@ mod tests {
 
         /// `pm_census_ef_cross_reach`, at the verdict it feeds — whether
         /// the lane may run at all. A spiric boundary edge has no
-        /// crossing row, so the lane runs only where the edge definitely
-        /// clears the ball the arc lies in. The cube beside the spiric
-        /// cap lies inside that ball: refused, typed, as the
-        /// point-in-face door refuses the same inventory fact. The same
-        /// cube far off along the cap's plane clears it, and nothing is
-        /// cut or pushed.
+        /// certified crossing position, so the lane runs only where the
+        /// edge definitely clears the arc. The cube beside the spiric cap
+        /// lies inside the ball the whole arc lies in but clear of the arc
+        /// itself: read piece by piece, it clears, and nothing is cut or
+        /// pushed. A cube straddling the arc has an edge in the cap's plane
+        /// that crosses it: refused, typed, naming the arc.
         #[test]
-        fn a_spiric_boundary_refuses_within_its_reach_and_clears_outside_it() {
+        fn a_spiric_boundary_refuses_where_it_meets_the_edge_and_clears_elsewhere() {
             use std::f64::consts::FRAC_PI_2;
             let tol = Tol::witness();
-            // The cube's edge in the cap's plane nearest the arc.
-            let in_plane = |body: &Body<f64>, y: f64| -> (FaceKey, EdgeKey) {
+            // The cube's edge in the cap's plane along `z = z0`.
+            let in_plane = |body: &Body<f64>, z0: f64| -> (FaceKey, EdgeKey) {
                 let geo = snapshot(body);
                 let cap = geo
                     .faces
@@ -10272,15 +10280,24 @@ mod tests {
                     .iter()
                     .find(|e| {
                         let ends = [e.p0, e.p0 + e.dir * e.len];
-                        e.f_plus != cap && ends.iter().all(|p| p.x == 0.5 && p.y == y)
+                        e.f_plus != cap && ends.iter().all(|p| p.x == 0.5 && p.z == z0)
                     })
                     .expect("a cube edge in the cap's plane")
                     .key;
                 (cap, edge)
             };
             let near = spiric_cap_and_near_cube();
-            let (cap, edge) = in_plane(&near, 3.9);
+            let (cap, edge) = in_plane(&near, -0.5);
             let (cuts, errors) = crossings(&near, cap, edge);
+            assert!(
+                errors.is_empty() && cuts.as_ref().is_some_and(Vec::is_empty),
+                "{cuts:?} {errors:?}"
+            );
+            let mut across = spiric_cap(2.0, 1.0, 0.5, (-FRAC_PI_2, FRAC_PI_2));
+            let cube = cube_at(Vec3::new(0.5, 2.5, -0.5), tol);
+            crate::instance::graft_disjoint(&mut across, &cube).unwrap();
+            let (cap, edge) = in_plane(&across, -0.5);
+            let (cuts, errors) = crossings(&across, cap, edge);
             assert!(cuts.is_none(), "{cuts:?}");
             assert!(
                 matches!(
@@ -10296,15 +10313,6 @@ mod tests {
                     }]
                 ),
                 "{errors:?}"
-            );
-            let mut far = spiric_cap(2.0, 1.0, 0.5, (-FRAC_PI_2, FRAC_PI_2));
-            let cube = cube_at(Vec3::new(0.5, 10.0, -0.5), tol);
-            crate::instance::graft_disjoint(&mut far, &cube).unwrap();
-            let (cap, edge) = in_plane(&far, 10.0);
-            let (cuts, errors) = crossings(&far, cap, edge);
-            assert!(
-                errors.is_empty() && cuts.as_ref().is_some_and(Vec::is_empty),
-                "{cuts:?} {errors:?}"
             );
         }
     }

@@ -128,10 +128,37 @@ impl<T: Decide> SpiricArc<T> {
         [self.point(self.span.0), self.point(self.span.1)]
     }
 
-    /// A ball the whole arc lies in, `(center, reach)`.
-    pub(crate) fn ball(&self) -> (Point3<T>, T) {
-        let b = self.bounds(&self.root());
-        (b.center, b.reach)
+    /// **Whether the arc definitely clears the segment `a → b`**: every
+    /// piece's ball definitely clear of the segment on `row` (the
+    /// distance from the ball's centre to the closed segment less its
+    /// radius, metres), halving each piece that is not. `false` where a
+    /// piece outlasts the depth or the piece budget first — the arc may
+    /// meet the segment, and no answer says where.
+    pub(crate) fn clears_segment(
+        &self,
+        a: Point3<T>,
+        b: Point3<T>,
+        row: &'static str,
+        band: Band,
+    ) -> bool {
+        let chord = b - a;
+        let (len, dir) = (chord.norm(), chord.normalize());
+        let mut stack = vec![self.root()];
+        let mut visits = 0;
+        while let Some(p) = stack.pop() {
+            visits += 1;
+            let ball = self.bounds(&p);
+            let w = ball.center - a;
+            let foot = w.dot(dir).max(T::zero()).min(len);
+            if positive(row, (w - dir * foot).norm() - ball.reach, band) {
+                continue;
+            }
+            if p.depth >= MAX_DEPTH || visits >= MAX_PIECES {
+                return false;
+            }
+            self.split(p, &mut stack);
+        }
+        true
     }
 
     /// The whole arc as one piece.
