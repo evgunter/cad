@@ -1212,8 +1212,8 @@ intent.
 **Variables.** Every slot that admits more than one value holds a
 variable whose type suits the slot. The types are the scalars (`Length`,
 `Angle`, `Scalar`, `Count`), the discrete kinds (a side, a half, a
-sense) and the geometric values (`Point`, `Direction`, `Axis`, `Plane`,
-`Frame`), which may be free or defined; the shapes (`Body`, `Bodies`,
+sense) and the poses (`Point`, `Direction`, `Axis`, `Plane`, `Frame`),
+which may be free or defined; the shapes (`Body`, `Bodies`,
 an ordered list of bodies whose length is a `Count`, and `Profile`),
 which only an operation defines; and the selections of a shape
 (`Face`, `Edge`, and their sets `Faces`, `Edges`). A variable is
@@ -1226,9 +1226,19 @@ than a dimension. Typing a value in the GUI mints a free variable and
 offers an existing variable of equal value; declining the offer is what
 makes the two distinct.
 
+A pose is a frame known up to its kind's symmetry, a subgroup of the
+rigid motions (a plane forgets in-plane motion, an axis slide and spin
+along itself), and the kinds are ordered by which determines which. A
+slot holds its own kind; a finer value is read through its projection,
+and an incidence between poses (an axis in a plane, a point on an axis)
+is a construction over one variable, never a check between two. A 2-D
+value (a profile's step, a revolve's axis line) lives in the node that
+holds its frame, as scalar slots, and is never a variable of a 2-D kind;
+its lift to a 3-D pose is how it leaves.
+
 **Operations.** A node is an operation: it reads variables and defines
 the variables its signature states, a fixed list of named, typed ports
-set by its variant (a split defines two bodies; an instance of a part
+set by its variant (a split defines two bodies; a revolve its body and its axis; an instance of a part
 defines one `Body` variable per world placement of the part), possibly none:
 an assertion or a mate defines none. Reading is the only dependency; nothing consumes anything,
 so an operand stays a first-class value after a boolean reads it. The
@@ -1272,13 +1282,15 @@ is `plane(frame, direction, depth)`, independent of the profile; a side
 wall is independent of where along the direction it sits), and carriers
 compare in a canonical form per kind: the frame modulo the kind's own
 symmetry (a plane forgets in-plane motion and folds a shift along its
-normal into its offset; an axis forgets slide and spin along itself),
+normal into its offset; an axis forgets slide and spin along itself;
+a projection of a construction reduces to what it was built from),
 with offsets summed as linear forms over the variables with exact
 rational coefficients and derived variables read as their formulas.
 Equality of canonical forms is an equivalence relation, so a chain of
 blocks each built on its neighbour's floor closes into a loop, and a
 brick laid across two of them sits on both, with nothing more said.
-Coaxiality is one `Axis` variable read twice; tangency is constructed (a
+Coaxiality is one `Axis` read twice, directly or as projections of
+one construction; tangency is constructed (a
 sketch may read another surface's trace in its plane and continue
 tangent to it).
 
