@@ -34,10 +34,11 @@
 //!   without;
 //! - a pyramid with an edge lying **along** the arch's face;
 //! - a pyramid **lying** on the plate, an edge on its top, which a
-//!   touching vertex refuses to pair with (`vtxfac::partner_side`), and
-//!   a **dart**, whose apex is a reflex edge no reading reads, and the
-//!   plate less a dart or a near-flat quadrilateral, a void below the
-//!   top that no reading reads either;
+//!   touching vertex refuses to pair with (`vtxfac::partner_side`);
+//! - a **dart** on the plate, whose apex is a reflex edge, and the plate
+//!   less a dart or a near-flat quadrilateral, a void below the top
+//!   whose apex is one too, each read as a polygon cone
+//!   (`sectors::cone_read`);
 //! - the plate alone, and the arches without it, read once.
 //!
 //! The operands' own contacts do not reach a result
@@ -564,14 +565,14 @@ impl Scene {
                 union(&plate, &tet(lie, pose), t()),
             ),
             // A pyramid over a quadrilateral with a dent: its apex is a
-            // reflex edge, read neither as a cone nor through one.
+            // reflex edge, read as a polygon cone.
             dart: built(
                 "the plate and a dart",
                 union(&plate, &apex_pyramid(&dart(), pose, t()), t()),
             ),
-            // A void below the top whose apex is a reflex edge, read
-            // neither way, and two near-flat quadrilateral voids, a
-            // corner a hair inside the line of its neighbours.
+            // A void below the top whose apex is a reflex edge, and two
+            // near-flat quadrilateral voids, a corner a hair inside the
+            // line of its neighbours.
             dart_void: built(
                 "the plate less a dart",
                 subtract(&plate, &apex_pyramid(&dart_below(), pose, t()), t()),
@@ -620,8 +621,9 @@ impl Scene {
 /// builds sound in every op**: a standing pyramid beside the arch, one
 /// crossing it, one hanging inside the plate below it, and a standing
 /// and a crossing hanging pyramid against the cavity, and one running
-/// into its void. At rest; every
-/// pose is the slow matrix's.
+/// into its void; and beside partners read as polygon cones: a dart on
+/// the top, and a dart's or a near-flat quadrilateral's void below it.
+/// At rest; every pose is the slow matrix's.
 #[test]
 fn a_touching_vertex_paired_on_the_face_builds_sound_in_every_op() {
     let pose = &Pose::rest();
@@ -647,8 +649,8 @@ fn a_touching_vertex_paired_on_the_face_builds_sound_in_every_op() {
         &s.cavity,
         pose,
     );
-    // A void below the top that reads nothing is no partner of an edge
-    // above it: the edges above class against the arch side alone.
+    // A void below the top is no partner of an edge above it: the edges
+    // above class against the arch side alone.
     builds(
         "a standing pyramid over a dart void",
         &s.cone,
@@ -800,7 +802,7 @@ fn a_vertex_crossing_a_face_it_pairs_on_or_piercing_two_refuses_typed_in_every_o
 }
 
 /// **Every scene, at every pose, in every op and both orders, builds
-/// sound or refuses typed**: 53 scenes, 1590 op cells.
+/// sound or refuses typed**: 58 scenes, 1740 op cells.
 #[test]
 fn every_scene_builds_sound_or_refuses_typed_at_every_pose() {
     let mut held = 0;

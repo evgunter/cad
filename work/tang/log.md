@@ -722,3 +722,13 @@ size. Closes `chord-join-face-reach-misses-a-curved-edges-bulge` and
 `germ-cylinder-pair-span-misses-a-curved-edges-bulge`,
 `spiric-and-spline-axial-levers-read-past-the-span` and
 `whole-turn-conic-reach-over-states-a-rim-faces-lever`.
+## 2026-10-08 — a partner neither convex nor hollow reads as a polygon cone (TANG implementer)
+
+`pairs-beside-an-unread-partner-keep-mains-rows` (P2) closes.
+`sectors::wedge_classes` reads a corner neither convex nor hollow by
+arc-crossing parity (`cone_read`), so a dart's apex, an L's apex, a
+saddle and a near-flat quadrilateral void read, and pairs beside them
+layer. The germ oracle, 69 scenes at five poses, reads 0 wrong, 0
+missing and 0 doubled at ε 1e-9 and 1e-6 (main: 375 wrong, 690
+missing, 180 cells refused). A touching vertex beside a dart now builds.
+Evidence added to CONTACT's `a-touch-at-a-saddle-corner-refuses-unanalysed`.

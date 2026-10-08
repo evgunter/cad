@@ -219,6 +219,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_line_cylinder_clearance" => Coincide::EdgeOnCurvedFace.subject(),
         "bool_sector_within" | "bool_flank_offset" | "bool_wedge_reflex" | "bool_cone_arc"
         | "bool_cone_arc_span" => Coincide::Sectors.subject(),
+        "bool_cone_pointed" => "whether a corner's link leans to one side of its vertex",
         "bool_ee_collinear" => Coincide::EdgeOnEdge.subject(),
         "bool_plane_parallel" => PlaneRung::Parallel.subject(),
         "bool_plane_orient" => PlaneRung::Orientation.subject(),
