@@ -824,3 +824,4 @@ slate `pc-face-lever-sums-two-maxima-not-the-support-from-the-hinge`
 and `germ-takes-the-span-bounded-face-reach-alone` (parked on D10's
 declared path); the sweep's siblings went to SHELF, CLEAVE (two) and
 REACH.
+- 2026-10-08: filed `split-cyl-ellipse-quarter-bound-overshoots-the-tilt-at-the-band-edge` (P3), the two ellipse-bounded split_cyl servings against the truth that PR 4292's fix pass 2 measured (shared with main).
