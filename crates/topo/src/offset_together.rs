@@ -155,6 +155,10 @@ struct MovedPlane<T: Real> {
 /// linear in the body, and what that costs — is [`Scope`]'s, stated
 /// there once for both doors.
 ///
+/// The door **ends with the join** (`docs/DESIGN.md`, maximal edges):
+/// the moved body is joined on the clone before it is adopted, and the
+/// joins are returned ([`crate::replace_face::OffsetOutcome`]).
+///
 /// # Errors
 ///
 /// [`ReplaceFaceError`], the body untouched on every one: the whole

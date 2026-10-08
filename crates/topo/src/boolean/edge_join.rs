@@ -567,12 +567,17 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
     /// the body's cells reads each join as `vertex → kept`,
     /// `gone → kept`, and `conventional → kept` where it is set.
     ///
+    /// Atomic: the joins run on a clone, which is adopted only once every
+    /// join is made and, where the body carried pcurve rows, they are
+    /// re-derived whole, so no row is left keyed by a killed half-edge.
+    /// On any refusal the body is as found.
+    ///
     /// # Errors
     ///
     /// [`BooleanError::JoinUndecided`], the kill's own refusal
     /// ([`BooleanError::Euler`]), a carrier the joined edge cannot be
-    /// restated on ([`BooleanError::JoinCarrierUnsupported`]), or the
-    /// description's.
+    /// restated on ([`BooleanError::JoinCarrierUnsupported`]), the
+    /// description's, or the re-mint's ([`BooleanError::Pcurves`]).
     pub fn join_edges(&mut self, band: Band, tol: Tol) -> Result<Vec<EdgeJoin>, BooleanError> {
         // Nothing to join: no clone. Every reading in the band refuses
         // here, before any kill.

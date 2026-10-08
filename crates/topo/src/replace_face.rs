@@ -1245,6 +1245,10 @@ pub fn replace_face_offset<T: Decide + crate::props::AtRestPolicy>(
 /// above) and not a mixture of charts
 /// ([`ReplaceFaceError::GroupChartsDiffer`]).
 ///
+/// The door **ends with the join** (`docs/DESIGN.md`, maximal edges):
+/// the moved body is joined on the clone before it is adopted, and the
+/// joins are returned ([`OffsetOutcome`]).
+///
 /// # Errors
 ///
 /// [`ReplaceFaceError`] — [`replace_face_offset`]'s, plus the group
