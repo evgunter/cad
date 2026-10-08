@@ -149,12 +149,16 @@ offers. A splice edit that assumed intent about which input survives would
 carry that cost on top of its own. So the chain goes, not the link:
 
 - **The node.** An n-ary union, two or more members, one body out. It
-  evaluates as a fold of the kernel's pair verb in member order (D9: the
-  order is the list's, and the list is data). The fold builds the body;
-  contact is judged pairwise before it (below), not by it. The fold's body is
-  the same in every member order: each step's output has maximal faces and
-  maximal edges (`docs/DESIGN.md`, the merge stage), a form unique to the
-  region and its face partition. It sits beside `Boolean(Union)`, which
+  evaluates as a fold of the kernel's pair verb in member order: the order
+  is the list's, the author's statement, as a pair boolean's operand order
+  is. What the union decides is defined over its members, not over the
+  fold: every coincidence between two members is judged once, pairwise,
+  before the fold (below); the fold reads those verdicts through each
+  face's member parents and decides no carrier pair again; and a name is
+  defined over the finished body (N2). What follows the list says so: a
+  glue keeps the earlier member's description, as a pair boolean keeps
+  operand A's, and a refusal raised at a fold step names the member whose
+  step refused. It sits beside `Boolean(Union)`, which
   stays for a pair, and beside `PlacedUnion`, which fuses instances of one
   prototype and is a different sentence (`node.rs`).
 - **Naming keys by member, not by depth.** The emitter wraps a member's names
@@ -184,9 +188,14 @@ carry that cost on top of its own. So the chain goes, not the link:
 
 ### Contact is judged pairwise, in member space, before the fold
 
-Every two members that touch are a contact, whatever the other members are
-and whatever the member order, so the union's contacts are the contacts of
-its member pairs.
+Every coincidence between two members is a coincidence of the union,
+whatever the other members are, so the union's coincidence rows are its
+member pairs' rows: a contact a third member covers is still its pair's,
+recorded, and a pair the sliver band leaves undecided refuses the union even
+where a third member covers it. A coincidence among three members that no
+pair holds (a seam of two members lying in a third's face) is the union's
+row too, spelled by its member cells, so it is one row in every order. The
+faces each judgement merged or covered stay the union's face links (N2).
 
 - Before the fold, each pair of members `m`, `n` is judged by the pair verb,
   as the two-member union `m ∪ n` with the declared pairs whose sites are `m`

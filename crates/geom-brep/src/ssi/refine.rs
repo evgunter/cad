@@ -44,7 +44,7 @@
 //! the samples double shows as the floor it is, and the step budget's
 //! ending reads the last two ([`stopped_falling`]). Each round's time is
 //! linear in the samples, and only the wall bounds the rounds
-//! (`work/ssi/ssi-refinement-can-spend-hours-on-one-branch-before-the-step-wall.md`).
+//! (`work/ssimarch/ssi-refinement-can-spend-hours-on-one-branch-before-the-step-wall.md`).
 
 use geom::NurbsCurve3;
 use geom_core::linalg::svd::Svd;
