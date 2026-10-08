@@ -1972,7 +1972,7 @@ pub enum BooleanError {
     /// gate refuses every such edge first, as
     /// [`Self::CurvedEdgeUnsupported`]. It is the sweep's own refusal,
     /// pinned by `reduce::planar_lane_carrier_rows`, and the one a
-    /// narrowed gate exposes (`work/reach/delete-the-boolean-operand-edge-gate.md`).
+    /// narrowed gate exposes (`work/orbit/delete-the-boolean-operand-edge-gate.md`).
     CrossingCarrierUnsupported {
         /// The operand whose edge it is.
         operand: Operand,

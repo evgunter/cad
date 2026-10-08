@@ -6,7 +6,7 @@ status: closed
 opened: 2026-10-01
 closed: 2026-10-01
 branch: reach/opensign-red
-refs: [an-open-sign-row-reds-main-at-1e-6-with-section-loop-mixed]
+refs: [3716]
 ---
 
 
@@ -56,7 +56,7 @@ axis-parallel rung answered wrong. On a wall of radius `≥ 1/(2ε)`, any
 ray read as parallel and skipped the wall, so a point on a wide rod's
 axis read `Out`. That wrong verdict is what PR 3716's loop-role
 agreement check turned into `SectionLoopMixed` on `reach_volume_backstop`
-(`work/reach/an-open-sign-row-reds-main-at-1e-6-with-section-loop-mixed.md`).
+(`an-open-sign-row-reds-main-at-1e-6-with-section-loop-mixed` (REACH, closed by PR 3716)).
 The fix and its rows:
 
 - The two skip questions are levered by the selection's reach

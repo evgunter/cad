@@ -115,4 +115,4 @@ On `origin/main` 11d9c7a7f the sweep records 41
 projectbox_cutaway 16, tiltedcut 10, lily_walls 6, lily 3, bossplate 3,
 boss_union 3 — not the nine above. The boolean door's tier-3 gate
 (`boolean-door-adopts-the-finished-body-type`) leaves them identical
-(`work/reach/k-lint-reads-the-boolean-doors-tier-3-at-probe.md`).
+(`k-lint-reads-the-boolean-doors-tier-3-at-probe` (REACH, closed)).

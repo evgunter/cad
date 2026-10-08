@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-04
 priority: P0
 cost: H
-refs: [boolean-door-adopts-the-finished-body-type, two-copies-of-a-pierce-carry-edges-that-run-within-the-band]
+refs: [3987, two-copies-of-a-pierce-carry-edges-that-run-within-the-band]
 branch: join/near-tangent-census-measure
 ---
 

@@ -6,7 +6,7 @@ status: closed
 opened: 2026-10-02
 priority: P1
 cost: H
-refs: [non-circle-conic-edge-refuses-against-every-curved-face, slab-cut-cylinder-refuses-sector-side]
+refs: [3805, 3627]
 branch: join/parallel-cylinder-arm
 pr: 4031
 closed: 2026-10-04
