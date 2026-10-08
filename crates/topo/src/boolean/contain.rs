@@ -86,6 +86,24 @@ impl From<LoopDecision> for ContainDecision {
 /// sphere region's, which do not carry one.
 const UNNAMED_LEVER: &str = "move the geometry clear of the boundary";
 
+/// What a placement refusal's decision decides, as a clause: `decision`'s
+/// own, or, where the refusal names none, the placement question itself.
+#[must_use]
+pub const fn placement_subject(decision: Option<ContainDecision>) -> &'static str {
+    match decision {
+        Some(ContainDecision::Loop(d)) => d.subject(),
+        Some(ContainDecision::ArcEnd) => {
+            "whether an arc's end lies where its boundary's corner is stored"
+        }
+        Some(ContainDecision::OneCircle) => "whether a loop's arcs are arcs of one circle",
+        Some(ContainDecision::Carrier) => "whether the point lies on the face's surface",
+        Some(ContainDecision::WindowPeriod) => {
+            "whether a cylinder face sweeps clearly less than a full turn"
+        }
+        None => "whether a point lies inside a face, on its boundary, or outside it",
+    }
+}
+
 /// The geometry lever of a placement refusal, after "Recourse: " — the one
 /// source every rendering of it reads: `decision`'s own, or, where the
 /// refusal names none, the unnamed lever.
@@ -141,6 +159,19 @@ impl ContainDecision {
             }
             Self::WindowPeriod => sized("sweep", SizedPass::Positive).recourse(arm, reading),
         }
+    }
+}
+
+impl ContainDecision {
+    /// The decision's lever alone on `escalation`'s arm, with the
+    /// unreadable-margin note on a poisoned margin: its ending at a door
+    /// that offers no tolerance for it (the Boolean's, `refusal_routes`).
+    #[must_use]
+    pub fn lever_ending(self, escalation: Escalation, diag: &Indeterminate) -> String {
+        LeverOnly {
+            lever: placement_lever(Some(self)),
+        }
+        .recourse(escalation.arm(diag))
     }
 }
 
@@ -249,7 +280,8 @@ impl core::fmt::Display for ContainError {
                 diag,
             } => write!(
                 f,
-                "contfp: {}. {}",
+                "contfp: {} is undecided: {}. {}",
+                placement_subject(*decision),
                 diag.payload(),
                 placement_ending(*decision, *escalation, diag, Reading::Build)
             ),
@@ -1327,7 +1359,11 @@ mod tests {
             };
             assert_eq!(
                 refusal.to_string(),
-                format!("contfp: {}. {ending}", cause.payload()),
+                format!(
+                    "contfp: {} is undecided: {}. {ending}",
+                    placement_subject(decision),
+                    cause.payload()
+                ),
                 "{row}: the refusal renders its payload and the one ending"
             );
             if let Some(ContainDecision::Loop(decision)) = decision {

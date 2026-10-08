@@ -1338,7 +1338,11 @@ enum Ending {
     /// A decision with no size the user chose.
     Unsized(Unsized),
     /// A containment walk's decision, and how its reading stood: it ends
-    /// in the walk's own table.
+    /// in the decision's own lever (`ContainDecision::lever_ending`). The
+    /// Boolean asks the walk of many points, and a smaller tolerance moves
+    /// the others' readings into the band as it decides this one, so no
+    /// margin the refusal carries binds the operation, and no tolerance is
+    /// offered: the walk's one table still gives the lever.
     Placement(ContainDecision, Escalation),
 }
 
@@ -1352,9 +1356,7 @@ impl Ending {
             Self::Lever(lever, passes) => passes.recourse(lever, diag),
             Self::Frontier(what) => format!("{what}. {}", geom_core::NOT_YET_ENDING),
             Self::Unsized(decision) => decision.recourse(arm, Reading::Build),
-            Self::Placement(decision, escalation) => {
-                decision.ending(escalation, diag, Reading::Build)
-            }
+            Self::Placement(decision, escalation) => decision.lever_ending(escalation, diag),
         }
     }
 }
@@ -2067,8 +2069,8 @@ pub(in crate::boolean) mod tests {
         Frontier(&'static str),
         /// The defect ending.
         Defect,
-        /// The containment walk's own ending for its decision, which its
-        /// rows in `boolean::contain` pin independently.
+        /// The containment walk's decision's own lever, which its rows in
+        /// `boolean::contain` pin independently, and no tolerance.
         Placement(ContainDecision, Escalation),
     }
 
@@ -2700,9 +2702,10 @@ pub(in crate::boolean) mod tests {
                         );
                         assert_eq!(
                             tail,
-                            Some(d.ending(escalation, &diag, Reading::Build).as_str()),
+                            Some(d.lever_ending(escalation, &diag).as_str()),
                             "{label}: {text}"
                         );
+                        assert!(!text.contains("tighten"), "{label}: {text}");
                     }
                 }
             }

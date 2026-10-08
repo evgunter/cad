@@ -196,6 +196,17 @@ impl LoopDecision {
     /// Every decision, for the rows that sample them.
     pub const ALL: [Self; 4] = [Self::Boundary, Self::Ray, Self::ArcSpan, Self::Plane];
 
+    /// What the decision decides, as a clause.
+    #[must_use]
+    pub const fn subject(self) -> &'static str {
+        match self {
+            Self::Boundary => "whether the point lies on the loop's boundary or clear of it",
+            Self::Ray => "where a test ray from the point meets the loop's boundary",
+            Self::ArcSpan => "whether an arc of the loop stays short of a full turn",
+            Self::Plane => "whether the point and the loop lie in the plane given",
+        }
+    }
+
     /// The decision's geometry lever, after "Recourse: " — the one source
     /// every rendering of it reads.
     #[must_use]
@@ -436,7 +447,8 @@ impl core::fmt::Display for PointInLoopError {
                 ..
             } => write!(
                 f,
-                "cannot place a point in a loop: {}. {}",
+                "{} is undecided: {}. {}",
+                decision.subject(),
                 diag.payload(),
                 decision.ending(*escalation, diag, Reading::Build)
             ),
