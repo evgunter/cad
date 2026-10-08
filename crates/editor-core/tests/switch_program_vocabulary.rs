@@ -1446,12 +1446,13 @@ const PERSISTED_SPELLING: &[&str] = &[
     "Circle",
     "CircleSplit",
     "centre",
+    // The frame it is drawn on: its operand's one name (unit B).
+    "frame",
     // The minted step ids, one list per loop (`names/README.md`, N1).
     "ids",
     "loops",
     "n",
     "phase",
-    "plane",
     "radius",
     // `ProgramStep`, and the field names of the four that name theirs.
     "Angle",

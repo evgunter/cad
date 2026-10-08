@@ -915,7 +915,7 @@ fn run_at<T: editor_core::EvalScalar>(
 /// main and on the branch at all three ε, so no pose, role, fault or
 /// placement moved.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x57b4_a2e4_d762_0b1a),
+    (1e-9, 0xb3ce8c9530ae6ed9),
     (1e-6, 0xbd6b_f017_664f_6841),
     (1e-12, 0xe3ce_f81f_4ff6_d5aa),
 ];

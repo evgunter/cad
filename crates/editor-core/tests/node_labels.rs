@@ -249,9 +249,9 @@ fn the_load_door_speaks_the_nodes_of_the_file_it_refuses() {
     let text = save(&doc, &[], tol).expect("saves");
     let (header, body) = text.split_once('\n').expect("a header line, then the body");
     let mut v: serde_json::Value = serde_json::from_str(body).expect("the body is JSON");
-    let plane = &mut v["snapshot"]["nodes"][profile.0.to_string()]["Profile"]["plane"];
-    assert!(plane.is_string(), "the profile carries its plane");
-    *plane = serde_json::json!(doc.output(extrude, 0).expect("the extrude's body").0);
+    let frame = &mut v["snapshot"]["nodes"][profile.0.to_string()]["Profile"]["frame"];
+    assert!(frame.is_string(), "the profile carries its frame");
+    *frame = serde_json::json!(doc.output(extrude, 0).expect("the extrude's body").0);
     match load(&format!("{header}\n{v}\n"), tol) {
         Err(PersistError::Snapshot(error @ SnapshotError::SlotVarKind { .. })) => {
             let SnapshotError::SlotVarKind { node, .. } = &error else {

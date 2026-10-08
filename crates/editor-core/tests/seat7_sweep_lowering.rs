@@ -327,11 +327,11 @@ fn both_sweeps_evaluate_in_one_document() {
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x6858_5ccc_eb36_f418),
-        ("corner_table", 0x228e_a725_d027_88e8),
-        ("cut_cylinder", 0x7529_6a8e_c3e6_0cdd),
-        ("boss_union", 0x1810_3eb9_2f36_a79a),
-        ("kitchen_sink", 0x4019_ed56_6ca7_caaa),
+        ("die", 0xe819f496ce33fb3d),
+        ("corner_table", 0x9ff2be4edc3c4682),
+        ("cut_cylinder", 0x5d0713f286ea8bd4),
+        ("boss_union", 0xb1abd9871b0e6705),
+        ("kitchen_sink", 0xc2abf71ebbda8055),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
