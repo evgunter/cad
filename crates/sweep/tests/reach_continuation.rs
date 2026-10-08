@@ -1296,7 +1296,9 @@ fn declared_rounded_continuations_inside_a_wall_build_subtract_and_intersect() {
 /// fillets transversally (`dy > 0`), miss them (`dy < 0`), or overhang
 /// two of them (`dx ≠ 0`). Every flush finding is declared; only the
 /// mating plane's `Rest` survives the move. The union builds, additive,
-/// at tiers 3 and 3′.
+/// at tiers 3 and 3′. A pose `1e-7` off may instead escalate where the
+/// band is fine enough to see its crossing in band (`ε = 1e-12`), and
+/// nothing else.
 #[test]
 fn a_sharp_plate_offset_over_a_rounded_one_unions_in_either_order() {
     let lower = plate(rounded(R), 0.0);
@@ -1315,8 +1317,19 @@ fn a_sharp_plate_offset_over_a_rounded_one_unions_in_either_order() {
             ("upper ∪ lower", &upper, &lower),
             ("lower ∪ upper", &lower, &upper),
         ] {
+            let label = format!("({dx}, {dy}), {order}");
             let (rest, cont) = findings(a, b);
-            union_honest(&format!("({dx}, {dy}), {order}"), a, b, &with(&rest, &cont));
+            let d = with(&rest, &cont);
+            if dy.abs() == 1e-7
+                && let Err(e) = topo::union_with(a, b, &d, tol())
+            {
+                assert!(
+                    matches!(e, BooleanError::Escalated { .. }),
+                    "{label}: a near pose refuses only in band: {e:?}"
+                );
+                continue;
+            }
+            union_honest(&label, a, b, &d);
         }
     }
 }

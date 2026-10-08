@@ -44,4 +44,4 @@ Waits on `intent-stage4-is-built`, not on the whole program: its repro reaches t
 
 ## Closed (2026-10-08, INTENT stage 4 A (`intent/s4-a-join`))
 
-Every pose of the table builds in the join, in both operand orders, additive at tiers 3 and 3′: `reach_continuation.rs`'s `a_sharp_plate_offset_over_a_rounded_one_unions_in_either_order` ((0, ±1e-7), (0, ±1e-3), (±0.25, 0)).
+Every pose of the table builds in the join, in both operand orders, additive at tiers 3 and 3′: `reach_continuation.rs`'s `a_sharp_plate_offset_over_a_rounded_one_unions_in_either_order` ((0, ±1e-7), (0, ±1e-3), (±0.25, 0)), at the default, 1e-6 and 1e-12 rows; at 1e-12 the two poses 1e-7 off may refuse `Escalated` in the crossing layer instead (a margin of 1.07e-12 inside the band), and the row allows that and nothing else.
