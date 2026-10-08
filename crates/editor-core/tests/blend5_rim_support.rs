@@ -365,14 +365,27 @@ fn a_seam_split_rim_gives_all_its_arcs_one_pair_of_roles() {
     let ev = run(&doc);
     let t = table(&ev, fillet);
     let body = corpus::body_of(&ev, fillet);
+    // A trimline is named for its (arc, support) whether it stands
+    // alone or the blend's closing join made it one edge with the next
+    // arc's (`docs/DESIGN.md`, maximal edges): then the joined edge is
+    // the set of their names, and each member still reads its support.
     let mut by_role: Vec<(RimSupport, SurfaceKey)> = t
         .iter()
-        .filter_map(|(n, _)| match n.path.first() {
-            Some(RoleSeg::BandTrim { support, .. }) => Some((
-                *support,
-                support_surface_key(body, edge_of(t, "a trim arc", n)),
-            )),
-            _ => None,
+        .flat_map(|(n, _)| {
+            let members: Vec<&editor_core::StableName> = match n.path.first() {
+                Some(RoleSeg::Merged(cs)) => cs.iter().collect(),
+                _ => vec![n],
+            };
+            members
+                .into_iter()
+                .filter_map(|m| match m.path.first() {
+                    Some(RoleSeg::BandTrim { support, .. }) => Some((
+                        support.clone(),
+                        support_surface_key(body, edge_of(t, "a trim arc", n)),
+                    )),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
         })
         .collect();
     by_role.sort();

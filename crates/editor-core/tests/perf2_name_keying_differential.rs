@@ -157,8 +157,10 @@ const PINNED: &[(&str, u64, u64)] = &[
     ("face_sketch", 0xf005920477b4c45e, 0x90117e933a0c34bf),
     ("part_select", 0x9fb18f5c9ee777d6, 0x9ba4cfe4e03a7518),
     ("loft_prism", 0x7b0ca0c00123a939, 0xfde137cf1cc93547),
-    ("die_composed", 0xaa5ae30b551d4077, 0xcc94fd919193b59c),
-    ("die_composed_tour", 0x7a41702956b74775, 0x6b565d15813ebd48),
+    // The blend's closing join moved these two tables (the joined host
+    // trimlines and their foot); their persisted text did not move.
+    ("die_composed", 0xb81863f4b9ab2bdf, 0xcc94fd919193b59c),
+    ("die_composed_tour", 0x200eeb33002343a5, 0x6b565d15813ebd48),
     ("plate_param", 0x1493b9efc6413f43, 0x039294a52b3467c2),
     ("kiss_carry", 0xb8255010a6fcce3f, 0x4028c12c64ae3f0d),
     ("tube_ring", 0xbda0bb3a62bbb1ec, 0x4231e1ee994d3a8d),
