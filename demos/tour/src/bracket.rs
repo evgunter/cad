@@ -202,7 +202,14 @@ fn trimmed_and_broken(doc: &Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) -
         }),
         tol,
     );
-    let split = insert(&mut doc, Node::Split { target: body.into(), tool: tool.into() }, tol);
+    let split = insert(
+        &mut doc,
+        Node::Split {
+            target: body.into(),
+            tool: tool.into(),
+        },
+        tol,
+    );
     let corner = insert(
         &mut doc,
         Node::Part {

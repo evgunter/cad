@@ -4296,6 +4296,7 @@ fn escalated(predicate: &'static str) -> impl FnOnce(geom_core::Indeterminate) -
 /// INSIDE so a rule's operands are demanded only when a step uses
 /// them: placement 0 is the identity and reads none. A listed rule
 /// refuses as `listed`, the mismatch it is on the caller's node.
+#[allow(clippy::too_many_arguments)] // `doc` resolves a circular rule's axis read
 fn stepped_map<T: Decide>(
     kind: &PatternKind,
     doc: &crate::doc::Doc<ProfileProgram>,
@@ -4541,7 +4542,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
             let lane_plane = frame_plane_lane(results, frame)?;
             pinned_plane(&lane_plane).ok_or(NodeErrorKind::DerivedFrameSection {
                 profile: id,
-                frame: frame,
+                frame,
             })?
         }
     };
@@ -4557,7 +4558,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
         .placement_f64
         .ok_or(NodeErrorKind::DerivedFrameSection {
             profile: id,
-            frame: frame,
+            frame,
         })?
         .placement;
     // The REPLAYED loops in program order (LIB-U3), and the canonical

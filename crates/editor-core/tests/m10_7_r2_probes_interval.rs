@@ -478,7 +478,7 @@ fn collinear_walls() -> ProfileDoc {
     // not a coincidence at the nominal.
     let w = || Formula::named(VarName::from_static("w"), Dimension::Length);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        plane: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(0.0), len(0.0)]),
             // The DECLARED straight continuation: `LineTo` at a zero-turn
@@ -497,7 +497,7 @@ fn collinear_walls() -> ProfileDoc {
         ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(1.0e-3),
         side: ExtrudeSide::Along,
     });

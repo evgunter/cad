@@ -1083,7 +1083,7 @@ fn loft_doc() -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>) {
     let (doc, loft) = insert(
         doc,
         Node::Loft {
-            profiles: profiles[..3].to_vec().into_iter().map(Into::into).collect(),
+            profiles: profiles[..3].iter().copied().map(Into::into).collect(),
             v_degree: editor_core::Formula::count(2),
         },
     );

@@ -547,7 +547,7 @@ pub fn union_over(
         doc,
         DocEdit::SetMembers {
             node: union,
-            members: members.to_vec().into_iter().map(Into::into).collect(),
+            members: members.iter().copied().map(Into::into).collect(),
         },
     );
     (doc, union)
