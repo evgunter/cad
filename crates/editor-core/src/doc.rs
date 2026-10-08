@@ -1517,14 +1517,18 @@ impl<P> Doc<P> {
     }
 
     /// **The operations `node` depends on** (D10: reading is the only
-    /// dependency): the operations defining the variables it reads
-    /// ([`Self::reads`]), a definition's reads expanded to the
-    /// operations defining them, and the nodes a measure's sited
+    /// dependency): the operations defining the variables its operands
+    /// read ([`Node::operand_rows`]), then the nodes a measure's sited
     /// references are read at ([`Node::measure_sites`]). In read order,
     /// each once; a read this document does not resolve contributes
     /// nothing (an unresolved read is the reader's refusal at
     /// evaluation, not an edge). Empty for a node this document does
     /// not hold.
+    ///
+    /// A slot reads free and defined variables, which no operation
+    /// defines; a slot reading an operation's output refuses at
+    /// evaluation ([`crate::EvalError::OutputRead`]), so it adds no
+    /// edge.
     pub fn upstream(&self, node: RecipeNodeId) -> Vec<RecipeNodeId>
     where
         P: crate::ProfilePayload,
@@ -1540,35 +1544,14 @@ impl<P> Doc<P> {
         P: crate::ProfilePayload,
     {
         let mut out: Vec<RecipeNodeId> = Vec::new();
-        let push = |id: RecipeNodeId, out: &mut Vec<RecipeNodeId>| {
+        let at = node
+            .operand_rows()
+            .into_iter()
+            .filter_map(|(_, var)| self.operation_of(var))
+            .chain(node.measure_sites());
+        for id in at {
             if !out.contains(&id) {
                 out.push(id);
-            }
-        };
-        for (_, var) in node.operand_rows() {
-            if let Some((at, _)) = self.defined_by(var) {
-                push(at, &mut out);
-            }
-        }
-        for at in node.measure_sites() {
-            push(at, &mut out);
-        }
-        // A slot reads a free or a defined variable; only a definition
-        // reading an output reaches an operation from here.
-        let mut seen = BTreeSet::new();
-        let mut stack: Vec<VarId> = node.exprs().into_iter().copied().collect();
-        while let Some(var) = stack.pop() {
-            if !seen.insert(var) {
-                continue;
-            }
-            match self.vars.get(&var).map(Var::def) {
-                Some(crate::VarDef::Output { node: at, .. }) => push(*at, &mut out),
-                Some(crate::VarDef::Defined(expr)) => {
-                    let mut reads = Vec::new();
-                    expr.var_reads(&mut reads);
-                    stack.extend(reads.into_iter().rev().map(|(read, _)| read));
-                }
-                Some(crate::VarDef::Free(_)) | None => {}
             }
         }
         out

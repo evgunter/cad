@@ -3200,9 +3200,9 @@ pub(crate) enum DeclaredSideFault {
     /// The side is read at a node that is not one of the carrier's
     /// operands, so the carrier has no table to read its name in.
     SiteNotAnOperand,
-    /// The side's name is minted by a node that is not upstream of the
-    /// carrier — the carrier itself, or one it does not read through —
-    /// an entity the carrier's operands cannot hold.
+    /// The side's name is minted by the carrier itself, by a node
+    /// downstream of it, or by a node inserted after it that it does
+    /// not read — an entity the carrier's operands cannot hold.
     NameNotUpstream,
 }
 
@@ -3213,10 +3213,11 @@ pub(crate) enum DeclaredSideFault {
 /// `operands` are the nodes whose outputs the carrier reads, or `None`
 /// where the sites are not this caller's to judge — the load door's,
 /// since a later re-point may have stranded a site. `upstream` says
-/// whether a minter is upstream of the carrier (`Doc::upstream`'s
-/// closure); a name whose minter is not live is a strand (DM7) and is
-/// not this rule's to judge, so the callers answer `true` for one: the
-/// doors that write a name refuse a dead minter before they ask this.
+/// whether a minter could be upstream of the carrier
+/// ([`DeclaredSideFault::NameNotUpstream`] states when not). A
+/// name whose minter is not live is a strand (DM7) and is not this
+/// rule's to judge: the doors that write a name refuse a dead minter
+/// before they ask this.
 pub(crate) fn declared_side_fault<'p>(
     pairs: impl IntoIterator<Item = &'p DeclaredPair>,
     operands: Option<&[RecipeNodeId]>,
@@ -3522,14 +3523,20 @@ impl<P> Node<P> {
             | Node::InstantiatePart { .. }
             | Node::Gauge { .. }
             | Node::Measure { .. } => Vec::new(),
-            Node::Profile(p) => p.plane_read_mut().map(|r| (O::Plane, r)).into_iter().collect(),
+            Node::Profile(p) => p
+                .plane_read_mut()
+                .map(|r| (O::Plane, r))
+                .into_iter()
+                .collect(),
             Node::Assertion { measure, .. } => vec![(O::Measure, measure)],
             Node::Extrude { profile, .. } => vec![(O::Profile, profile)],
             Node::Revolve { profile, axis, .. } => vec![(O::Profile, profile), (O::Axis, axis)],
             Node::Tube { frame, .. } | Node::HollowTube { frame, .. } => vec![(O::Frame, frame)],
             Node::Loft { profiles, .. } => listed(O::Section, profiles),
             Node::Sweep { profile, path, .. } => vec![(O::Profile, profile), (O::Path, path)],
-            Node::Fillet { target, .. } | Node::Chamfer { target, .. } | Node::Shell { target, .. } => {
+            Node::Fillet { target, .. }
+            | Node::Chamfer { target, .. }
+            | Node::Shell { target, .. } => {
                 vec![(O::Target, target)]
             }
             Node::Split { target, tool } => vec![(O::Target, target), (O::Tool, tool)],
@@ -4267,7 +4274,6 @@ impl<P, S: Slot> Node<P, S> {
             Self::Gauge { .. } | Self::Mate { .. } | Self::Assertion { .. } => Vec::new(),
         }
     }
-
 }
 
 impl<P, S: Slot> Node<P, S> {
@@ -4576,9 +4582,14 @@ impl<P: crate::ProfilePayload> Node<P> {
                     .vars
                     .get(bound)
                     .and_then(|v| v.kind().dimension())
-                    .or_else(|| match doc.defined_by(*measure).and_then(|(m, _)| doc.nodes.get(&m)) {
-                        Some(Node::Measure { expr, .. }) => Some(expr.dim()),
-                        _ => None,
+                    .or_else(|| {
+                        match doc
+                            .defined_by(*measure)
+                            .and_then(|(m, _)| doc.nodes.get(&m))
+                        {
+                            Some(Node::Measure { expr, .. }) => Some(expr.dim()),
+                            _ => None,
+                        }
                     })
                     .unwrap_or(Dimension::Scalar);
                 Some(vec![(*bound, dim)])
@@ -5062,7 +5073,10 @@ impl<P, S: Slot> Node<P, S> {
     /// Builds a [`Node::PlacedUnion`] over LISTED absolute frames — the
     /// count is the list's length, so there is no count slot to
     /// disagree with it.
-    pub fn placed_union_at(input: impl Into<S::Read>, placements: Vec<crate::placement::Frame>) -> Self {
+    pub fn placed_union_at(
+        input: impl Into<S::Read>,
+        placements: Vec<crate::placement::Frame>,
+    ) -> Self {
         Node::PlacedUnion {
             input: input.into(),
             count: None,

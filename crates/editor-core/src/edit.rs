@@ -1781,10 +1781,9 @@ pub enum EditError {
         site: SpokenNode,
     },
     /// A declared pair's name is minted by the declaring node itself
-    /// or by a node after it in document order: a declaration names
-    /// only what exists before the node ([`crate::DeclaredPair`]), and
-    /// no operand of the node can hold such an entity. Asked by the
-    /// same doors as [`EditError::DeclaredSiteNotAnOperand`].
+    /// or by a node downstream of it: a declaration names only what its
+    /// operands could hold ([`crate::DeclaredPair`]). Asked by the same
+    /// doors as [`EditError::DeclaredSiteNotAnOperand`].
     DeclaredNameNotUpstream {
         /// The node whose declaration it is.
         node: SpokenNode,
@@ -3206,8 +3205,8 @@ impl EditError {
             Self::DeclaredNameNotUpstream { node, name } => {
                 write!(
                     f,
-                    "the declaration names {name}, which is not minted before {node}, so none of \
-                     its operands can hold it"
+                    "the declaration names {name}, which is not minted upstream of {node}, so \
+                     none of its operands can hold it"
                 )?;
                 tail.recourse(
                     f,
@@ -3315,15 +3314,8 @@ impl EditError {
                 tail.recourse(f, format_args!("read an operation that defines a value"))
             }
             Self::PartHalfPort { node, half, var } => {
-                write!(
-                    f,
-                    "{node} selects the {} half but reads {var}",
-                    half.name()
-                )?;
-                tail.recourse(
-                    f,
-                    format_args!("read the split's {} output", half.name()),
-                )
+                write!(f, "{node} selects the {} half but reads {var}", half.name())?;
+                tail.recourse(f, format_args!("read the split's {} output", half.name()))
             }
             Self::UnknownOperand { node, slot } => {
                 write!(f, "{node} has no operand {slot}")?;
@@ -4832,9 +4824,9 @@ impl MaintenanceNet {
                 Maintenance::StrandedAppearance { name, .. } => {
                     end.appearance().contains_key(name.name())
                 }
-                Maintenance::StrandedRead { node, slot, var } => end.node(node.id()).is_some_and(
-                    |reader| reader.operand_rows().contains(&(*slot, var.id())),
-                ),
+                Maintenance::StrandedRead { node, slot, var } => end
+                    .node(node.id())
+                    .is_some_and(|reader| reader.operand_rows().contains(&(*slot, var.id()))),
                 Maintenance::OffsetCleared { instance, .. } => matches!(
                     end.node(instance.id()),
                     Some(Node::InstantiatePart { offset: None, .. })
@@ -5436,8 +5428,9 @@ fn check_payload_refs<P: crate::ProfilePayload>(
 
 /// [`crate::node::declared_side_fault`] asked of the pairs `pairs` a
 /// door writes onto `node`, refused typed. `carrier` speaks the node
-/// and `at` is its id (`None` for a node being inserted): every door that writes a pair asks this, so a pair no
-/// door admits is one no document holds.
+/// and `at` is its id (`None` for a node being inserted): every door
+/// that writes a pair asks this, so a pair no door admits is one no
+/// document holds.
 fn check_declared_sides<'p, P: crate::ProfilePayload>(
     doc: &Doc<P>,
     new: &Doc<P>,
@@ -5452,16 +5445,19 @@ fn check_declared_sides<'p, P: crate::ProfilePayload>(
         .into_iter()
         .filter_map(|(_, read)| new.defined_by(read).map(|(site, _)| site))
         .collect();
-    let mut upstream: std::collections::BTreeSet<RecipeNodeId> = operands.iter().copied().collect();
-    for &operand in &operands {
-        upstream.extend(crate::roots::strict_ancestors(new, operand));
-    }
-    if let Some(at) = at {
-        upstream.remove(&at);
-    }
-    match crate::node::declared_side_fault(pairs, Some(&operands), |minter| {
-        !new.nodes.contains_key(&minter) || upstream.contains(&minter)
-    }) {
+    // A name its carrier's operands could hold is minted by a node the
+    // carrier does not itself feed — not the carrier, and not a node
+    // downstream of it — and one inserted before the carrier unless
+    // the carrier reads it (a member re-pointed forward). A node not
+    // yet inserted feeds nothing, and every live node precedes it.
+    let upstream = |minter: RecipeNodeId| {
+        at.is_none_or(|at| {
+            minter != at
+                && !crate::roots::strict_ancestors(new, minter).contains(&at)
+                && (minter < at || crate::roots::strict_ancestors(new, at).contains(&minter))
+        })
+    };
+    match crate::node::declared_side_fault(pairs, Some(&operands), upstream) {
         None => Ok(()),
         Some((side, crate::node::DeclaredSideFault::SiteNotAnOperand)) => {
             Err(EditError::DeclaredSiteNotAnOperand {
@@ -6136,7 +6132,14 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             let mut list = Vec::with_capacity(members.len());
             for (i, member) in members.iter().enumerate() {
                 let slot = at(u32::try_from(i).unwrap_or(u32::MAX));
-                list.push(lower_operand(new, &spoken, slot, member, None, slot.kind())?);
+                list.push(lower_operand(
+                    new,
+                    &spoken,
+                    slot,
+                    member,
+                    None,
+                    slot.kind(),
+                )?);
             }
             let mut rewritten = current.clone();
             if !rewritten.set_list_input(list) {

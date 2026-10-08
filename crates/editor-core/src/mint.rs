@@ -868,10 +868,10 @@ mod tests {
         );
     }
 
-    const PIN_NODE: &str = "1:90bea142d63f9c8e";
-    const PIN_FIRST: &str = "2:68976136f9f05b41";
-    const PIN_LAST: &str = "6:f9596cc085049b34";
-    const PIN_CHAIN: &str = "f9596cc085049b34ef2b287aceec347cfcbceabc6afadef8f5fe9c9f3bedfc6b";
+    const PIN_NODE: &str = "1:a7c5da2e0869ad7f";
+    const PIN_FIRST: &str = "2:64aae3dc037af914";
+    const PIN_LAST: &str = "6:d5bceca90d229391";
+    const PIN_CHAIN: &str = "d5bceca90d229391ee2cf183a3d9bd9044c693dd636fd6f386724383a3069597";
 
     const LEN: VarKind = VarKind::Length;
 

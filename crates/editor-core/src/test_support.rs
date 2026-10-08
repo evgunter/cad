@@ -91,6 +91,38 @@ pub fn stored(doc: &mut ProfileDoc, node: &crate::AuthoredNode) -> Node<ProfileP
     crate::edit::lower_node_into(doc, node).expect("a node the document can answer lowers")
 }
 
+/// **A stored node read as given**: every slot lowered into `doc` as
+/// [`stored`] lowers it, and every operand stored as the read it names
+/// with no door around it — a variable by id as itself, a node or a
+/// port as the id `read` hands for it — for a row about a node's own
+/// shape, whose operands need name no live output.
+///
+/// # Panics
+///
+/// If a slot does not lower in `doc`, or an operand reads by name.
+pub fn stored_reading(
+    doc: &mut ProfileDoc,
+    node: &crate::AuthoredNode,
+    read: impl Fn(RecipeNodeId, u8) -> crate::VarId,
+) -> Node<ProfileProgram> {
+    use crate::ProfilePayload;
+    node.try_map_slots(
+        |p, f, r| ProfileProgram::lower(p, f, r),
+        &mut |f| crate::edit::lower_slot_into(doc, f),
+        &mut |_, operand| {
+            Ok(match operand {
+                crate::Operand::Node(id) => read(*id, 0),
+                crate::Operand::Output { node, port } => read(*node, *port),
+                crate::Operand::Var(var) => *var,
+                crate::Operand::Name(name) => {
+                    panic!("an operand read as given has no name: {name}")
+                }
+            })
+        },
+    )
+    .expect("a node the document can answer lowers")
+}
+
 /// **A live node as it was written**: each slot the formula its
 /// variable was written as ([`crate::Doc::written`]) — an anonymous
 /// variable's value or definition, a named one's reader — for a row
@@ -127,16 +159,20 @@ pub fn stored_expr(formula: &Formula) -> Expr {
     Expr::try_from(formula).expect("a formula with no name leaf lowers in any scope")
 }
 
-/// The stored program `program` lowers to in `doc` ([`stored`]).
+/// The stored program `program` lowers to in `doc`, its plane read as
+/// given ([`stored_reading`]): a plane naming node `n` is stored as the
+/// read with `n`'s own id, for a row about a program's own shape,
+/// whose plane need name no live frame.
 ///
 /// # Panics
 ///
-/// If `program` does not lower in `doc`.
+/// If `program` does not lower in `doc`, or its plane reads by name.
 pub fn stored_program(doc: &mut ProfileDoc, program: &ProfileProgram<Formula>) -> ProfileProgram {
-    match crate::edit::lower_node_into(doc, &Node::Profile(program.clone())) {
-        Ok(Node::Profile(stored)) => stored,
-        Ok(_) => unreachable!("a profile lowers to a profile"),
-        Err(refusal) => panic!("a program the document can answer lowers: {refusal}"),
+    match stored_reading(doc, &Node::Profile(program.clone()), |id, _| {
+        crate::VarId(id.0)
+    }) {
+        Node::Profile(stored) => stored,
+        _ => unreachable!("a profile lowers to a profile"),
     }
 }
 
@@ -407,10 +443,12 @@ pub fn bracket_depth(text: &str) -> usize {
 /// (`tests/switch_slots.rs`, `every_node_shapes_mint_is_pinned`).
 ///
 /// Carries no oracle: it IS the mint's draw, with no door around it, so
-/// a shape whose inputs name no live node still draws.
+/// a shape whose operands read no live output still draws: an operand
+/// naming node `n` is stored as the read with `n`'s own id
+/// ([`stored_reading`]).
 pub fn first_node_id(node: &crate::AuthoredNode, tol: geom_core::Tol) -> RecipeNodeId {
     let mut doc = ProfileDoc::empty_derived("first_node_id", tol);
-    let node = stored(&mut doc, node);
+    let node = stored_reading(&mut doc, node, |id, _| crate::VarId(id.0));
     doc.mint.insert(&node)
 }
 

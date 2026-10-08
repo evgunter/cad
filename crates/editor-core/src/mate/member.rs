@@ -316,7 +316,10 @@ pub(super) fn walk<'r, P>(
                 let [RoleSeg::FromMember { member, of }] = name.path.as_slice() else {
                     return Err(at);
                 };
-                if !members.iter().any(|&m| doc.operation_of(m) == Some(*member)) {
+                if !members
+                    .iter()
+                    .any(|&m| doc.operation_of(m) == Some(*member))
+                {
                     return Err(at);
                 }
                 part = None;
@@ -933,10 +936,10 @@ fn axis_datum<P>(
 /// compared. The body is authored through `apply` so the evaluation's
 /// own reading of the pattern is not masked by an input it refuses;
 /// the datums, the transforms and the pattern are written straight
-/// into the map and the order, because the state some rows need — a
-/// transform whose input is no live node — is one the doors refuse
-/// (`DeleteWouldDangle` at `apply`, liveness at `load`), and a
-/// hand-built document is what the spec sanctions for it.
+/// into the map, because the states some rows need — a read of the
+/// wrong kind — are ones the doors refuse (`OperandVarKind` at `apply`
+/// and at `load`), and a hand-built document is what the spec
+/// sanctions for it.
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -951,19 +954,26 @@ mod tests {
     use crate::{ProfileDoc, RefusingReach};
     use geom_core::Tol;
 
-    /// The hand-pushed ids are chosen, not minted; the dangling one
-    /// names no node. Their ordinals follow the 60 log entries `build`
-    /// mints before them (its three inserts, every slot's variable and
-    /// each insert's output).
+    /// The hand-pushed ids are chosen, not minted; the dangling read
+    /// names no live output. Their ordinals follow the 60 log entries
+    /// `build` mints before them (its three inserts, every slot's
+    /// variable and each insert's output): the nodes, then their
+    /// outputs.
     const AXIS: RecipeNodeId = RecipeNodeId::new(61, 10);
     const FRAME2: RecipeNodeId = RecipeNodeId::new(62, 11);
     const T1: RecipeNodeId = RecipeNodeId::new(63, 12);
     const T2: RecipeNodeId = RecipeNodeId::new(64, 13);
     const PATTERN: RecipeNodeId = RecipeNodeId::new(65, 14);
-    const DANGLING: RecipeNodeId = RecipeNodeId::new(66, 40);
-    const MATE: RecipeNodeId = RecipeNodeId::new(67, 50);
+    const MATE: RecipeNodeId = RecipeNodeId::new(66, 50);
+    const AXIS_OUT: crate::VarId = crate::VarId::new(67, 20);
+    const FRAME2_OUT: crate::VarId = crate::VarId::new(68, 21);
+    const T1_OUT: crate::VarId = crate::VarId::new(69, 22);
+    const T2_OUT: crate::VarId = crate::VarId::new(70, 23);
+    const PATTERN_OUT: crate::VarId = crate::VarId::new(71, 24);
+    /// Minted and gone: the output of an operation since deleted.
+    const DANGLING: crate::VarId = crate::VarId::new(72, 40);
 
-    fn xf(input: RecipeNodeId) -> crate::AuthoredNode {
+    fn xf(input: crate::VarId) -> crate::AuthoredNode {
         Node::transform(
             input,
             crate::Step::Rigid {
@@ -1029,12 +1039,13 @@ mod tests {
                 side: crate::ExtrudeSide::Along,
             },
         );
+        let body_out = doc.output(body, 0).expect("the body's output");
         let id = |s: Src| match s {
-            Src::Body => body,
-            Src::Axis => AXIS,
-            Src::Frame => FRAME2,
-            Src::T1 => T1,
-            Src::T2 => T2,
+            Src::Body => body_out,
+            Src::Axis => AXIS_OUT,
+            Src::Frame => FRAME2_OUT,
+            Src::T1 => T1_OUT,
+            Src::T2 => T2_OUT,
             Src::Dangling => DANGLING,
         };
         // Stored first, so the variables their slots mint are logged
@@ -1043,11 +1054,11 @@ mod tests {
             (AXIS, axis_datum_node()),
             (FRAME2, xy_frame()),
             (T1, xf(id(t1_in))),
-            (T2, xf(T1)),
+            (T2, xf(T1_OUT)),
             (
                 PATTERN,
                 Node::Pattern {
-                    input: body.into(),
+                    input: body_out.into(),
                     count: crate::Formula::count(4),
                     kind: PatternKind::Circular {
                         axis: id(axis_operand).into(),
@@ -1057,13 +1068,39 @@ mod tests {
             ),
         ]
         .into_iter()
-        .map(|(id, node)| (id, crate::test_support::stored(&mut doc, &node)))
+        .map(|(id, node)| {
+            // Each read is stored as chosen, a dangling one included:
+            // the state no door writes is the one these rows need.
+            let stored = node.try_map_slots(
+                |p, f, r| crate::ProfilePayload::lower(p, f, r),
+                &mut |e| crate::edit::lower_slot_into(&mut doc, e),
+                &mut |_, read| match read {
+                    crate::Operand::Var(var) => Ok(*var),
+                    other => unreachable!("every row reads a variable by id, not {other:?}"),
+                },
+            );
+            (id, stored.expect("a node the document can answer lowers"))
+        })
         .collect();
         doc.nodes.extend(stored);
-        doc.mint = doc
-            .mint
-            .clone()
-            .logged([AXIS, FRAME2, T1, T2, PATTERN, DANGLING, MATE].map(crate::Minted::Node));
+        doc.mint = doc.mint.clone().logged(
+            [AXIS, FRAME2, T1, T2, PATTERN, MATE]
+                .map(crate::Minted::Node)
+                .into_iter()
+                .chain(
+                    [AXIS_OUT, FRAME2_OUT, T1_OUT, T2_OUT, PATTERN_OUT, DANGLING]
+                        .map(crate::Minted::Var),
+                ),
+        );
+        for (out, kind, node) in [
+            (AXIS_OUT, crate::VarKind::Axis, AXIS),
+            (FRAME2_OUT, crate::VarKind::Frame, FRAME2),
+            (T1_OUT, crate::VarKind::Body, T1),
+            (T2_OUT, crate::VarKind::Body, T2),
+            (PATTERN_OUT, crate::VarKind::Bodies, PATTERN),
+        ] {
+            doc.vars.insert(out, crate::Var::output(kind, node, 0));
+        }
         (doc, body)
     }
 
@@ -1154,6 +1191,10 @@ mod tests {
                 NodeErrorKind::MissingInput { input: y },
             ) => x == y,
             (
+                NodeErrorKind::UnresolvedRead { slot: xs, var: xv },
+                NodeErrorKind::UnresolvedRead { slot: ys, var: yv },
+            ) => xs == ys && xv == yv,
+            (
                 NodeErrorKind::WrongOperand {
                     input: xi,
                     expected: xe,
@@ -1228,8 +1269,8 @@ mod tests {
         ev
     }
 
-    fn missing(input: RecipeNodeId) -> impl Fn(&NodeErrorKind) -> bool {
-        move |k| matches!(k, NodeErrorKind::MissingInput { input: i } if *i == input)
+    fn unresolved(slot: crate::OperandSlot, var: crate::VarId) -> impl Fn(&NodeErrorKind) -> bool {
+        move |k| matches!(k, NodeErrorKind::UnresolvedRead { slot: s, var: v } if *s == slot && *v == var)
     }
 
     fn wrong(
@@ -1256,7 +1297,7 @@ mod tests {
             Src::Dangling,
             Src::T1,
             T1,
-            missing(DANGLING),
+            unresolved(crate::OperandSlot::Input, DANGLING),
         );
         poisoned_through(&ev, PATTERN, T1);
     }
@@ -1271,7 +1312,7 @@ mod tests {
             Src::Dangling,
             Src::T2,
             T1,
-            missing(DANGLING),
+            unresolved(crate::OperandSlot::Input, DANGLING),
         );
         poisoned_through(&ev, T2, T1);
         poisoned_through(&ev, PATTERN, T1);
@@ -1286,7 +1327,7 @@ mod tests {
             Src::Body,
             Src::Dangling,
             PATTERN,
-            missing(DANGLING),
+            unresolved(crate::OperandSlot::Axis, DANGLING),
         );
     }
 
@@ -1365,11 +1406,11 @@ mod tests {
     /// **A transform over a DATUM as the axis is the TRANSFORM's own
     /// refusal on both roads** — a datum is not placeable, so the
     /// transform fails with `WrongOperand` in the placer's own words
-    /// and the pattern is poisoned through it. This shape is
-    /// admitted by `apply`, so it is the one seat a document author
-    /// can reach; the derivation seats it where the evaluation does
-    /// by inheriting the classifier's seat rather than reading the
-    /// operand's family for itself.
+    /// and the pattern is poisoned through it. The doors refuse this
+    /// shape by kind (`OperandVarKind`), so the rows build it by hand;
+    /// the derivation seats it where the evaluation does by inheriting
+    /// the classifier's seat rather than reading the operand's family
+    /// for itself.
     #[test]
     fn a_transform_over_a_datum_as_the_axis_seats_at_the_transform_on_both_roads() {
         for (label, src, datum) in [

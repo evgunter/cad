@@ -4279,7 +4279,9 @@ mod a_miss_two_segments_down_is_not_the_outer_name {
                 );
             }
             Err(RemapMiss::Input(id)) => panic!("a name miss is not an input miss, got {id:?}"),
-            Err(RemapMiss::Read { var, .. }) => panic!("a name miss is not a read miss, got {var:?}"),
+            Err(RemapMiss::Read { var, .. }) => {
+                panic!("a name miss is not a read miss, got {var:?}")
+            }
             Ok(out) => panic!("INNER is unmapped, got {out:?}"),
         }
     }

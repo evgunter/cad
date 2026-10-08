@@ -4392,7 +4392,13 @@ mod split_carries_candidates {
                 normal: [scl(0.0), scl(ny), scl(0.0)],
             }),
         );
-        let (doc, split) = ins(doc, Node::Split { target: sub.into(), tool: tool.into() });
+        let (doc, split) = ins(
+            doc,
+            Node::Split {
+                target: sub.into(),
+                tool: tool.into(),
+            },
+        );
         let ev = evaluate::<f64>(
             &doc,
             None,

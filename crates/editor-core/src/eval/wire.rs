@@ -241,9 +241,16 @@ where
             )?,
             names::empty(),
         )),
-        Node::Extrude { profile, side, .. } => {
-            wire_extrude(id, at(O::Profile, *profile)?, *side, doc, results, vals, env, tol)
-        }
+        Node::Extrude { profile, side, .. } => wire_extrude(
+            id,
+            at(O::Profile, *profile)?,
+            *side,
+            doc,
+            results,
+            vals,
+            env,
+            tol,
+        ),
         Node::Revolve { profile, axis, .. } => {
             let (profile, axis) = (at(O::Profile, *profile)?, at(O::Axis, *axis)?);
             wire_revolve(id, profile, axis, doc, results, vals, env, tol)
@@ -1631,13 +1638,9 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
             };
             pre.validated_f64.clone().lift_onto(plane)
         }
-        super::ProfileLift::Guided => lane_profile::<T>(
-            program,
-            frame_plane_lane(results, frame)?,
-            lane,
-            pre,
-            tol,
-        )?,
+        super::ProfileLift::Guided => {
+            lane_profile::<T>(program, frame_plane_lane(results, frame)?, lane, pre, tol)?
+        }
     };
     Ok(ValuePayload::Profile(Arc::new(ProfileValue {
         validated,
@@ -4547,13 +4550,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     // section stays f64, but the certify-or-abort answer must not
     // depend on which node consumes the profile.
     if lane.lift == super::ProfileLift::Guided {
-        lane_profile::<T>(
-            program,
-            frame_plane_lane(results, frame)?,
-            lane,
-            &pre,
-            tol,
-        )?;
+        lane_profile::<T>(program, frame_plane_lane(results, frame)?, lane, &pre, tol)?;
     }
     // `Some` by construction: both arms above passed a placement.
     let place = pre
