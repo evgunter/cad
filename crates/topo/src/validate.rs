@@ -1230,6 +1230,18 @@ pub enum ValidationError {
         /// The edge whose opposed faces osculate.
         edge: EdgeKey,
     },
+    /// Tier 3 (check 4): at an interior sample of an edge, the folded
+    /// lever arm the wedge between its faces is metered over was decided
+    /// not positive — the edge is too short, or a face curves too
+    /// tightly there (a cone at its apex), for an angle to be measured —
+    /// the definite arm of [`WedgeCheck::Arm`], whose undecided arm is
+    /// [`Self::SliverDihedral`] ([`geom_brep::DIHEDRAL_ARM`]).
+    NoDihedralArm {
+        /// The edge whose wedge has no arm to be measured over.
+        edge: EdgeKey,
+        /// The arm's verdict, with the margin its ending quotes.
+        verdict: Refused,
+    },
     /// Tier 3 (check 6): a planar face's loop ROLES disagree with its
     /// windings — the outer loop winds **definitely negatively** (or a
     /// cycle ring definitely positively) around the face's outward
@@ -2319,6 +2331,21 @@ pub enum WedgeCheck {
     MaterialSide,
 }
 
+/// Check 4's finding for an edge whose first-order dihedral refused at
+/// a sample: an arm the gate decided collapsed is a verdict of its own
+/// ([`ValidationError::NoDihedralArm`]); anything undecided is a sliver
+/// of the rung that escalated.
+fn dihedral_finding(edge: EdgeKey, escalation: geom_brep::LeverEscalation) -> ValidationError {
+    match escalation.collapsed_arm() {
+        Some(verdict) => ValidationError::NoDihedralArm { edge, verdict },
+        None => ValidationError::SliverDihedral {
+            edge,
+            check: WedgeCheck::of_rung(escalation.rung),
+            cause: escalation.diag,
+        },
+    }
+}
+
 impl WedgeCheck {
     /// The check a first-order wedge escalation names, by the rung of
     /// [`geom_brep::classify_dihedral`] that escalated: its arm is a
@@ -2633,6 +2660,12 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::NotTransverse { .. } | CertifyError::PlaneNurbs(P::NotTransverse { .. }) => {
             "its faces are tangent where its description says they cross"
         }
+        CertifyError::ArmCollapsed { .. } => {
+            "it is not long enough, for how its faces curve, to measure the angle between them"
+        }
+        CertifyError::SpanMeterCollapsed { .. } => {
+            "its spline's certified speed floor gives it no measurable length"
+        }
         CertifyError::NotSecondOrderSeparated { .. } => {
             "its faces agree to second order, so they do not fix where it runs, which its \
              description says they do"
@@ -2698,6 +2731,8 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::IntervalNotForward { .. }
             | CertifyError::WindingExceeded
             | CertifyError::NotTransverse { .. }
+            | CertifyError::ArmCollapsed { .. }
+            | CertifyError::SpanMeterCollapsed { .. }
             | CertifyError::NotSecondOrderSeparated { .. }
             | CertifyError::TubeNotSeparated { .. }
             | CertifyError::Escalated { .. }
@@ -2721,6 +2756,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
 fn certify_undecided(check: CertCheck) -> &'static str {
     match check {
         CertCheck::ParamSpan => "its length is too close to zero to decide at this tolerance",
+        CertCheck::ParamSpanMeter => {
+            "whether its spline has a measurable length is too close to call at this tolerance"
+        }
         CertCheck::ParamWinding => {
             "whether its arc stays short of a full turn is too close to call at this tolerance"
         }
@@ -2728,8 +2766,7 @@ fn certify_undecided(check: CertCheck) -> &'static str {
             "its faces meet too nearly tangentially to decide at this tolerance"
         }
         CertCheck::TransversalityArm => {
-            "it is too short, for how its faces curve, to measure the angle between them at this \
-             tolerance"
+            "whether it is long enough to measure the angle between its faces is too close to call"
         }
         CertCheck::TangentPlanes => {
             "a face's tangent plane is undefined at a point of it, so there is no angle between \
@@ -3460,6 +3497,12 @@ impl fmt::Display for ValidationError {
                 f,
                 "an edge where two faces meet tangentially is stored as a sketch curve, \
                  though their surfaces determine it. {DEFECT}"
+            ),
+            Self::NoDihedralArm { verdict, .. } => write!(
+                f,
+                "an edge is not long enough, for how its faces curve, to measure the angle \
+                 between them at this tolerance. {}",
+                geom_brep::DIHEDRAL_ARM.recourse(verdict.arm(), Reading::AtRest)
             ),
             Self::LaminaWedge { .. } => write!(
                 f,
@@ -6277,12 +6320,8 @@ pub(crate) fn tier3_local_checks_marked<
                 match classify_dihedral(s_plus, s_minus, p, extent, band) {
                     Ok(DihedralClass::Transverse) => all_smooth = false,
                     Ok(DihedralClass::Smooth) => all_transverse = false,
-                    Err(geom_brep::LeverEscalation { rung, diag: cause }) => {
-                        errors.push(ValidationError::SliverDihedral {
-                            edge: edge_key,
-                            check: WedgeCheck::of_rung(rung),
-                            cause,
-                        });
+                    Err(escalation) => {
+                        errors.push(dihedral_finding(edge_key, escalation));
                         escalated = true;
                         break;
                     }
@@ -10876,6 +10915,35 @@ mod tests {
                     .to_owned(),
             ),
             (
+                "no wedge arm, in the zero band",
+                ValidationError::NoDihedralArm {
+                    edge,
+                    verdict: Refused::Zero(Classified {
+                        margin: MarginDiag::value(5e-10),
+                        band,
+                    }),
+                },
+                "an edge is not long enough, for how its faces curve, to measure the angle \
+                 between them at this tolerance. Recourse: move the geometry so that edge is \
+                 clearly longer, and its faces curve less tightly there, or, if this length or \
+                 the gap its faces open is intended, tighten the tolerance below 5e-11 m"
+                    .to_owned(),
+            ),
+            (
+                "no wedge arm, at a cone apex",
+                ValidationError::NoDihedralArm {
+                    edge,
+                    verdict: Refused::Zero(Classified {
+                        margin: MarginDiag::value(0.0),
+                        band,
+                    }),
+                },
+                "Recourse: move the geometry so that edge is clearly longer, and its faces curve \
+                 less tightly there; a face curving to a point there, as a cone at its apex, \
+                 leaves no angle to measure"
+                    .to_owned(),
+            ),
+            (
                 "wedge, straddling",
                 sliver(WedgeCheck::Dihedral, straddles),
                 "Recourse: move the geometry so the faces meet either clearly creased or clearly \
@@ -11049,13 +11117,14 @@ mod tests {
         }
     }
 
-    /// **The wedge check reads the rung the dihedral escalated on**:
-    /// `classify_dihedral`'s real escalations, taken through
-    /// [`WedgeCheck::of_rung`] as the edge loop takes them, end as the
-    /// rung's own decision. An in-band arm and the cone apex's decided
-    /// zero arm name the edge's length and bend, never an angle; a
-    /// near-tangent wedge keeps the angle. (PR 3513's second fix pass:
-    /// the mapping had no row, so sending the arm to `Dihedral` survived.)
+    /// **Check 4 reads the rung the dihedral escalated on, and the arm's
+    /// own verdict**: `classify_dihedral`'s real escalations, taken
+    /// through [`dihedral_finding`] as the edge loop takes them. An
+    /// in-band arm is a sliver of the arm's decision; the cone apex's
+    /// arm is decided zero, so it is the definite `NoDihedralArm`, never
+    /// "too close to call"; both name the edge's length and bend, never
+    /// an angle, and neither says the margin was unreadable. A
+    /// near-tangent wedge keeps the angle.
     #[test]
     fn a_dihedral_escalation_ends_as_the_rung_it_escalated_on() {
         use geom_core::Vec3;
@@ -11076,29 +11145,59 @@ mod tests {
         let theta = 3.0 * Tol::witness().get().eps;
         let tilted = plane(Vec3::new(theta.sin(), 0.0, theta.cos()), Vec3::unit_y());
         let in_band_arm = (band.zero() + band.escalate()) / 2.0;
+        #[derive(Debug, PartialEq)]
+        enum Reads {
+            ArmUndecided,
+            NoArm,
+            Angle,
+        }
         let rows = [
-            ("an in-band arm", &floor, &wall, in_band_arm, true),
-            ("the cone apex", &cone, &floor, 1.0, true),
-            ("a near-tangent wedge", &floor, &tilted, 1.0, false),
+            (
+                "an in-band arm",
+                &floor,
+                &wall,
+                in_band_arm,
+                Reads::ArmUndecided,
+            ),
+            ("the cone apex", &cone, &floor, 1.0, Reads::NoArm),
+            ("a near-tangent wedge", &floor, &tilted, 1.0, Reads::Angle),
         ];
-        for (row, s1, s2, extent, arm) in rows {
+        for (row, s1, s2, extent, want) in rows {
             let escalation = classify_dihedral(s1, s2, Point3::origin(), extent, band)
                 .expect_err("each pose escalates");
-            let text = ValidationError::SliverDihedral {
-                edge: EdgeKey::default(),
-                check: WedgeCheck::of_rung(escalation.rung),
-                cause: escalation.diag,
-            }
-            .to_string();
-            let reads_the_arm = text.contains("whether an edge is long enough")
-                && text.contains("move the geometry so that edge is clearly longer")
+            let finding = dihedral_finding(EdgeKey::default(), escalation);
+            let text = finding.to_string();
+            let got = match finding {
+                ValidationError::SliverDihedral {
+                    check: WedgeCheck::Arm,
+                    ..
+                } => Reads::ArmUndecided,
+                ValidationError::NoDihedralArm { .. } => Reads::NoArm,
+                ValidationError::SliverDihedral {
+                    check: WedgeCheck::Dihedral,
+                    ..
+                } => Reads::Angle,
+                other => panic!("{row}: {other:?}"),
+            };
+            assert_eq!(got, want, "{row}: {text}");
+            let reads_the_arm = text.contains("move the geometry so that edge is clearly longer")
                 && !text.contains("angle is intended");
-            let reads_the_angle = text.contains("the angle between two faces at an edge");
-            assert_eq!(
-                (reads_the_arm, reads_the_angle),
-                (arm, !arm),
-                "{row}: {text}"
-            );
+            assert_eq!(reads_the_arm, want != Reads::Angle, "{row}: {text}");
+            assert!(!text.contains("unreadable"), "{row}: {text}");
+            if want == Reads::ArmUndecided {
+                assert!(
+                    text.contains("whether an edge is long enough"),
+                    "{row}: {text}"
+                );
+            }
+            if want == Reads::NoArm {
+                assert!(
+                    text.starts_with("an edge is not long enough")
+                        && !text.contains("too close")
+                        && text.ends_with("as a cone at its apex, leaves no angle to measure"),
+                    "{row}: {text}"
+                );
+            }
         }
     }
 
