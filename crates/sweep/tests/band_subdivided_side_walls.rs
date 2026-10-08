@@ -486,7 +486,12 @@ fn split_rim_blends_as_one_band() {
     // One wall over the run, as built: there is no strut at the
     // continuation and nothing for the merge to do.
     let mut merged = stationed_prism(t);
-    assert!(merged.merge_coplanar_faces(t).unwrap().groups.is_empty());
+    assert!(
+        topo::test_support::merge_unjoined(&mut merged, t)
+            .unwrap()
+            .groups
+            .is_empty()
+    );
     let req: Vec<_> = merged.edges().map(|(k, _)| k).collect();
     assert_eq!(req.len(), 14, "12 cube edges + the split rims");
     let joints: Vec<topo::VertexKey> = merged

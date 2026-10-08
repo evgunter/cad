@@ -317,6 +317,22 @@ pub mod test_support {
         };
     }
 
+    /// **The merge without the join**, for a fixture that is
+    /// construction state on purpose: a body whose edges carry
+    /// station vertices a row exercises (a split rim, a stationed
+    /// wall), which the public door's join
+    /// ([`Body::merge_coplanar_faces`]) would take away.
+    ///
+    /// # Errors
+    ///
+    /// As [`Body::merge_coplanar_faces`].
+    pub fn merge_unjoined<T: crate::AtRestPolicy>(
+        body: &mut Body<T>,
+        tol: geom_core::Tol,
+    ) -> Result<crate::MergeCoplanarOutcome, crate::MergeCoplanarError> {
+        body.merge_coplanar_faces_unjoined(&[], tol)
+    }
+
     /// `body` finished for a door that takes finished bodies (the
     /// boolean's): through the scalar's at-rest gate
     /// ([`crate::AtRestPolicy::gate_at_rest_kept`]).
@@ -772,17 +788,18 @@ pub use boolean::{
     Coincide, CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent, ContactRecords,
     ContainError, Contradiction, CurveContact, DeclarationRead, DiscardRow, EdgeJoin,
     EdgePieceClass, EeContact, FaceContainment, FacePairDeclaration, Fusions, HeldEdge,
-    JoinReading, JoinUndecided, LeverArm, NeighbourOffset, NullEdgePairRecord, Operand,
-    OperandKeys, PairFace, PairRefusalSite, PairSite, PairUnread, PatchContact, PierceRingRecord,
-    PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError,
-    RestZipFrontier, SectorRead, SectorRung, SelfCheck, Settling, ShellOrientation, SideCode,
-    SolidContainment, SolidFaces, SphereQuestion, SweepStrategy, SweepTrace, TorusConvention,
-    VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact,
-    WallRung, boolean_op_with, boolean_reduce, boolean_reduce_declared, carrier_eq, contfp,
-    curved_face_containment, decision_words, face_carrier, flush_pair_relation, insert_void,
-    insert_voids, intersect, intersect_with, is_conventional_vertex, joinable_vertices,
-    lineage_root, oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of,
-    subtract, subtract_with, tangent_pair_relation, union, union_with,
+    JoinReading, JoinRefusal, JoinUndecided, LeverArm, NeighbourOffset, NullEdgePairRecord,
+    Operand, OperandKeys, PairFace, PairRefusalSite, PairSite, PairUnread, PatchContact,
+    PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung,
+    PointInSolidError, RestZipFrontier, SectorRead, SectorRung, SelfCheck, Settling,
+    ShellOrientation, SideCode, SolidContainment, SolidFaces, SphereQuestion, SweepStrategy,
+    SweepTrace, TorusConvention, VeContact, VfContact, VoidContainment, VoidEvidence,
+    VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce,
+    boolean_reduce_declared, carrier_eq, contfp, curved_face_containment, decision_words,
+    face_carrier, flush_pair_relation, insert_void, insert_voids, intersect, intersect_with,
+    is_conventional_vertex, joinable_vertices, lineage_root, oriented_plane_eq, point_in_solid,
+    point_in_solid_faces, point_in_solid_of, subtract, subtract_with, tangent_pair_relation, union,
+    union_with,
 };
 pub use joint::{Deck, JointElement};
 pub use surgery::Surgery;
@@ -870,7 +887,9 @@ pub use query::{
     SurfaceKind, SurfaceKindSet,
 };
 pub use readback::{EdgeSide, EdgeSides, EulerCounts, EulerParityError, Pose, ReadbackError};
-pub use replace_face::{ReplaceFaceError, replace_face_offset, replace_faces_offset};
+pub use replace_face::{
+    OffsetOutcome, ReplaceFaceError, replace_face_offset, replace_faces_offset,
+};
 pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};
 pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,

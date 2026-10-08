@@ -260,7 +260,7 @@ fn cavity_report(what: &str, body: &Body<f64>, t: f64) {
             .and_then(|f| one.get_surface(f.surface))
             .cloned();
         match topo::replace_faces_offset(&mut one, &m.faces, m.distance, tol) {
-            Ok(()) => {
+            Ok(_) => {
                 let after = one
                     .get_face(m.faces[0])
                     .and_then(|f| one.get_surface(f.surface))
@@ -273,7 +273,7 @@ fn cavity_report(what: &str, body: &Body<f64>, t: f64) {
     let mut cavity = body.clone();
     match topo::offset_charts_together(&mut cavity, &moves, band(), tol) {
         Err(e) => println!("  cavity REFUSED: {e:?}"),
-        Ok(()) => {
+        Ok(_) => {
             let outer = topo::mass_properties(body, tol).map(|p| p.volume);
             let inner = topo::mass_properties(&cavity, tol).map(|p| p.volume);
             println!("  {what}: outer {outer:?} cavity {inner:?}");

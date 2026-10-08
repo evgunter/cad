@@ -100,11 +100,10 @@ use slotmap::SecondaryMap;
 use super::RestZipFrontier;
 use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation};
 use super::combine::graft_solid;
-use super::edge_join::join_stage;
 use super::fragments::{Lineage, sole_common_face};
 use super::ops::{
-    Descendants, KeyView, carry, declared_surface_pairs, describe_minted_edges, gate, graft_rows,
-    merge_rows, of_merge, split_lineage,
+    Descendants, KeyView, carry, declared_surface_pairs, finish_output, gate, graft_rows,
+    merge_rows, split_lineage,
 };
 use super::plane_eq::{PlaneEqError, PlaneIdentity, PlaneRelation};
 use super::reduce::{face_oriented_source, face_plane};
@@ -416,12 +415,14 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let edge_classes = red.edge_classes;
     let null_copies = super::null_copy_rows(&red.null_edges);
     let declared_pairs = declared_surface_pairs(&body, a_pristine, b_pristine, decls, &graft);
-    let merged = body
-        .merge_coplanar_faces_declared(&declared_pairs, tol)
-        .map_err(of_merge)?;
-    desc.absorb_merge(&merged);
-    describe_minted_edges(&mut body, &seam_edges, &merged, band, tol)?;
-    let edge_joins = join_stage(&mut body, &mut desc, band, tol)?;
+    let (merged, edge_joins) = finish_output(
+        &mut body,
+        &mut desc,
+        &declared_pairs,
+        &seam_edges,
+        band,
+        tol,
+    )?;
     let contacts = carry(
         &body,
         &contacts,

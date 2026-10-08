@@ -109,6 +109,6 @@ fn main() {
             );
         }
         Err(e) => println!("[M2] refused through another door: {e:?}"),
-        Ok(()) => println!("[M2] the offset SUCCEEDED — the declared arm did not fire"),
+        Ok(_) => println!("[M2] the offset SUCCEEDED — the declared arm did not fire"),
     }
 }

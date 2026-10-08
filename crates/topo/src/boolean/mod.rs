@@ -87,7 +87,7 @@ mod contain;
 mod discard;
 #[cfg(feature = "door-tier3-meter")]
 mod door_meter;
-mod edge_join;
+pub(crate) mod edge_join;
 mod ellipse_torus;
 // The variant roster the sample-coverage row reads (test builds only).
 #[cfg(test)]
@@ -154,7 +154,7 @@ pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment
 pub(crate) use contain::{driver_face_stale, loop_circle};
 pub use discard::{DiscardRow, HeldEdge, lineage_root};
 pub use edge_join::{
-    EdgeJoin, JoinReading, JoinUndecided, is_conventional_vertex, joinable_vertices,
+    EdgeJoin, JoinReading, JoinRefusal, JoinUndecided, is_conventional_vertex, joinable_vertices,
 };
 pub use join::CompletedPolygonPair;
 pub use ops::{
@@ -1981,7 +1981,7 @@ pub enum BooleanError {
     /// gate refuses every such edge first, as
     /// [`Self::CurvedEdgeUnsupported`]. It is the sweep's own refusal,
     /// pinned by `reduce::planar_lane_carrier_rows`, and the one a
-    /// narrowed gate exposes (`work/reach/delete-the-boolean-operand-edge-gate.md`).
+    /// narrowed gate exposes (`work/orbit/delete-the-boolean-operand-edge-gate.md`).
     CrossingCarrierUnsupported {
         /// The operand whose edge it is.
         operand: Operand,

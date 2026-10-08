@@ -168,7 +168,7 @@ at N = 128. The convex form gives 2.0e-14 and 1.5e-13 at the same N, and
 at N = 32 it is 31× tighter (5.47e-14). It is the only thing standing
 between that fixture and certifying at ε = 1e-12 at scale 1, so
 `INTERIOR_COLUMN_SCALE = 1/1024` exists because of this site. The tables
-are in `work/ssi/plane-nurbs-certificate-bound-does-not-refine-with-eps.md`,
+are in `work/ssiedge/plane-nurbs-certificate-bound-does-not-refine-with-eps.md`,
 which parks on this row. Re-baselines a landing here owes: the four
 "must refuse below 1e-9" pins (`m8_4_intersection_iso.rs`'s
 `seam_at_eps` and `review_probes_m8_4.rs`'s probe_e) flip, because the
