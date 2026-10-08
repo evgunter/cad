@@ -723,8 +723,8 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         .map_err(|source| BooleanError::Pcurves { source })?;
     body.sweep_and_close();
     let body = gate(finished, band, tol)?;
-    T::gate_volume_backstop(op, a, b, &body, band, tol)?;
     interior_loops?;
+    T::gate_volume_backstop(op, a, b, &body, band, tol)?;
     let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&fin.graft);
     let naming = BooleanNaming {
         a_keys: OperandKeys::Direct,
@@ -774,8 +774,8 @@ pub(super) enum Joined<T: Real> {
     Answered(Box<BooleanResult<T>>),
     /// The join, done: the reduction with both operands as it leaves
     /// them, every null edge killed, what it completed (never empty),
-    /// and the interior-loop verdict, which the pipeline raises only
-    /// where a body is about to be returned.
+    /// and the interior-loop verdict, which the pipeline raises on the
+    /// built body, before the volume backstop.
     Connected {
         /// The reduction, its operands joined.
         red: Box<BooleanReduction<T>>,
@@ -904,9 +904,13 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// `face` is the pair's A face when that face is curved, else its B
 /// face.
 ///
-/// Decided on the unmutated reduction and raised only where a body
-/// would be returned (the call site), so every refusal the pipeline
-/// meets first stands verbatim.
+/// Decided on the unmutated reduction and raised on the built body,
+/// so every refusal the join and the build meet first stands verbatim.
+/// It is raised after `gate`, whose tiers hold for a correct surgery
+/// whatever the classification, and before the volume backstop, which
+/// checks the classification this verdict has already declined to
+/// certify: on a refused pair the verdict is the cause, and the
+/// backstop's refusal on the same body would name a symptom.
 fn interior_loop_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &Body<T>,
@@ -2463,14 +2467,20 @@ fn seam_reading<T: Decide>(
 }
 
 /// The boolean's refusal for an undecided seam reading: the seam's
-/// first-order arm or wedge, by rung, or its second-order bend.
+/// first-order arm or wedge, by rung, or its second-order bend. The
+/// boolean's decision reads the rung and the margin alone, so no
+/// [`geom_brep::LeverEscalation`] is rebuilt from the two: the arm's
+/// verdict is the gate's to mint.
 pub(super) fn seam_refusal(reading: DihedralReading, diag: Indeterminate) -> BooleanError {
     match reading {
-        DihedralReading::Lever(rung) => BooleanError::of_lever(
-            super::LeverArm::Seam,
-            super::DeclarationRead::Moot,
-            geom_brep::LeverEscalation { rung, diag },
-        ),
+        DihedralReading::Lever(rung) => BooleanError::Escalated {
+            decision: BooleanDecision::of_lever(
+                super::LeverArm::Seam,
+                super::DeclarationRead::Moot,
+                rung,
+            ),
+            diag,
+        },
         DihedralReading::Bend => BooleanError::Escalated {
             decision: BooleanDecision::SeamJet,
             diag,
