@@ -1050,3 +1050,157 @@ which now carries the evidence.
   Its declared rows need contact records naming both copies.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-07 — PR 4207 landed; three units in review
+
+- **PR 4207** merged. A pinch's cone vertices now share one point key, by
+  descent through the seam records (FULL review, fixes in). It took three
+  main merges to land. One carried main's red `payload-rung-sweep`
+  (`SectorRead`, TANG's `9dea3c25`). Main fixed it in #4241 first, so my
+  PR 4242 closed as superseded.
+- **PR 4240** (tier-3 corner slice and check 9 on every ring pair) is
+  under a FULL review. Its batteries are byte-identical to main over
+  66k lines.
+- **PR 4249** (`hang_in_turned`: the 217 In/Out lines build) is under a
+  DUAL review, adjudication byte 147, parity 1, so A = R2. The 102 `ba`
+  nested-plan lines are filed as
+  `a-nested-pairing-at-a-shared-vertex-refuses-shared-vertex-crossings`.
+- **PR 4250** (near-tangent): the premise was false, and I accepted that
+  on an orchestrator read. The exact link holds two cones at a 1e-7 tilt,
+  and the kernel's two solids are right. The test counter stepped over
+  the sliver at its fixed 1e-5 step. `round_vertex` now shrinks the step
+  until each sample is provably in its cell. The row closes when 4250
+  lands.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-07: 4250 landed; reviews of 4240 and 4249 back
+
+- **PR 4250 landed.** It is the test-oracle fix for the near-tangent
+  case. `a-near-tangent-pierce-reads-two-cones-where-its-link-holds-one`
+  is closed.
+- **PR 4240** (FULL review): APPROVE-WITH-FIXES, 0/4/5. All four MINORs
+  were taken; the fix pass is with the implementer.
+  - The skip compared edges, so a closed arc at a pinch could hide a
+    crossing. It now compares sides.
+  - The ring-pair loop was quadratic. It gets a broad phase.
+  - The reflex, straight and curved arms get crossed pins.
+  - The ring-pair escalation gets its own variant naming both rings.
+- **PR 4249** (DR-101): both lanes APPROVE-WITH-FIXES, and both found
+  the same MAJOR. With three pairs at one vertex, 18–22 lines go from
+  refusal to `BAD`, because the cones sit on two point keys. That is
+  the parked separate-keys class (D10).
+  - Ruling: refuse typed there, detected structurally from the point
+    classes, until D10 lifts.
+  - The fix pass is with the implementer.
+  - **My error:** 4249 is an M unit, and I dispatched it as a
+    concurrent pair without rule 1's arm draw. DR-101 is excluded from
+    the tally and the pair count. From now on, the class letter is
+    checked against rule 1 before any dual dispatch.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-07: PR 4240 landed (tier-3 pinch checks)
+
+- **PR 4240 merged** after its FULL review and fix pass. Check 9 now refuses:
+  - every pair of rings of one face that meet (`RingMeetsRing`);
+  - a corner that is not a slice of its own face (`PinchCornerCrossed`), on planar faces and through the tangent plane on cylinder, sphere and torus.
+- **The rows** `a-corner-is-a-slice-of-its-face-tier-3-check` and `check-9-refuses-only-a-ring-meeting-its-outer-loop` are closed.
+- **The fix pass** answered all four MINORs:
+  - the skip now works by side, not by edge;
+  - a box broad phase cut the 1,600-ring case from 2.45 s to 19 ms;
+  - crossed pins exist for the reflex, straight and curved cases;
+  - the ring-pair escalation has its own variant.
+- **One deviation, accepted:** the arm does not read a face check 6 has refused, since its corners would be the complements of its true ones. That replaces my NOTE-2 ruling ("leave it, document it").
+- **`ring_pairs`' `Decide + Bounds`** is argued under the 2026-07-29 driver amendment, on the census's terms, as `face_boxes` was. It applies that ruling and does not change it.
+- **Visible change:** STEP import now refuses a face whose two inner bounds touch.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-07: two units dispatched
+
+- `a-roof-cross-valley-on-a-cube-edge-refuses-every-chord-arc` (P1 M):
+  a diagnosis, then a fix. Branch `join/roof-cross-valley`.
+- `the-sweep-oracles-convex-volume-misreads-some-corner-pair-poses`
+  (P1 M, test side): a wrong oracle can certify a wrong body. Branch
+  `join/sweep-oracle-convex-volume`.
+- The P0 `near-tangent-boolean-results-ship-with-an-escalated-tier-3-census`
+  is not dispatched yet. Its fix is a census and tolerance question that
+  REACH's tier-3′ gate depends on. It wants a design pass, which the
+  seven-day usage warning argues against starting now.
+- `a-nested-pairing-at-a-shared-vertex-refuses-shared-vertex-crossings`
+  (filed by PR 4249) follows when 4249 lands.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-07: PR 4249 landed (the 217 In/Out lines build)
+
+- **PR 4249 merged.** `a-vertex-two-crossing-pairs-cut-is-the-in-end-of-one-null-edge-and-the-out-end-of-another` is closed.
+  - `insert::hang_in_turned` hangs a turned run's siblings at its copy. The 217 `pinch_runs_battery` lines build `SOUND`, one vertex per cone on one key.
+  - Where the hang leaves an operand's own pinch on several point keys, the boolean refuses `PinchConesOnSeparateKeys` instead of shipping a body the census cannot read. That covers three or four pairs at one vertex.
+- **Reviews.** It had a dual review (DR-101, excluded), then a second FULL review on the fix head: 0/2/4, with every prior finding confirmed fixed. The last pass dropped a dead class extension and moved `hung_points` onto `zip::Roots`.
+- **Filed by the unit.** A curved shared vertex builds bodies the census and the reuse check refuse: none definite, filed P2. "Holds whole" is spelled three ways, filed P3.
+- **Dispatched next:** `a-nested-pairing-at-a-shared-vertex-refuses-shared-vertex-crossings` (P1 M; 102 `ba` lines). Branch `join/nested-pairing-shared-vertex`.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-07: 4270 landed; 4272 in its fix pass; 4274 to a holdout pair
+
+- **PR 4270 merged.** The sweep oracle's `convex_volume` took a half-space twice when two lay on one plane at different scales.
+  - Fixing it moves exactly the 154 `corner_pairs_battery` lines `OK BAD` → `SOUND`, and moves no line `SOUND` → BAD, so the old oracle certified no wrong body.
+  - A Monte Carlo row now checks all 2 730 poses.
+  - `the-sweep-oracles-convex-volume-misreads-some-corner-pair-poses` is closed.
+- **PR 4272 (roof-cross valley).** `clean_dir` reads a partner on another ring of the face as re-homed, not separated, using a tier that prefers Clean. 174 refusals move to SOUND.
+  - The FULL review gave 0/3/5. Its fix pass: the forced-order lanes keep main's Clean-only rule, which is filed for later; a fast row guards the tier; the row is corrected.
+- **PR 4274 (nested pairing).** One laminar reading of a plan's holders. 102 refusals move to SOUND, with 0 refusal→BAD.
+  - Triage put it in the DUAL tier on its merits: it rewrites insertion's holder reading for every nested plan.
+  - The M arm byte was drawn at the implementer's dispatch (81, mod 3 = 0), so it gets a HOLDOUT, a concurrent pair. That pair goes out once the PR is re-merged onto main.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-07: PR 4272 landed (roof-cross valley); 4274 under a holdout pair
+
+- **PR 4272 merged** after a FULL review and one fix pass.
+  - The outer lane's `best_arc` reads a partner on another ring of the face as re-homed, preferring Clean.
+  - The forced-order lanes read `capture_rank` and accept only Clean, as on main. Relaxing them is filed as P3 without a witness.
+  - An exact-tie corner-pair row guards the tier.
+  - 174 refusals moved to SOUND, and no other line moved.
+  - `a-roof-cross-valley-on-a-cube-edge-refuses-every-chord-arc` is closed.
+- **PR 4274** is frozen at `4d985b57` for its concurrent HOLDOUT pair. The arm byte was 81, drawn at implementer dispatch. The A/B byte is 57, parity 1, so A = R2.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-07: DR-104, PR 4274's holdout pair, is the first M-tier miss; readout 3 is owed
+
+- **The pair.** PR 4274's holdout pair (arm byte 81; A/B byte 57, parity 1, so A = R2) both returned APPROVE-WITH-FIXES.
+  - R1 raised M1: on the `wedge343×wedge330` + cube `ba` poses, two turned runs leave a strut-only chain outside every fan. Its inner strut then mints at the shared vertex, so 84 lines that main refused typed now reach `ClassificationInvariant`.
+  - R2 raised no MAJOR. It never built a depth-two pose.
+  - The blind coder found M1 unilateral, a code defect, executed: tally 1, fair pair.
+- **Rule 9.** This is an M-tier miss: taken first, the sequential arm would have shipped M1. Readout 3 is owed. It is written blind on `analysis/dual-review/readout-3` and put to Ev through `the-dual-review-streams-third-readout-is-owed` (`needs_ev`).
+- **Fix pass sent.** Root-cause M1: build the chain soundly or refuse it typed, and never let it reach the invariant. Pin depth above one and `by_strut` at a shared vertex. Keep the cover arm as a documented backstop and make it tell the cover case from the crossing case.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-08: PR 4274 landed (nested pairing at a shared vertex)
+
+- **PR 4274 merged.** It is one laminar reading of a plan's holders (`arc_holders`, `held_by`, `hang_at_shared`), and the up-front nested-plan refusal is gone.
+  - 102 `pinch_runs_battery` lines move to SOUND.
+  - r1's eight-crossing probe moves 276 lines to SOUND.
+  - Refusal→BAD is 0, and →`ClassificationInvariant` is 0.
+- **DR-104 (holdout).** The first M-tier miss: R1's M1 was fixed by sorting strut-only chains by geometric nesting depth in `mint_plans`.
+- **Second review.** One FULL review of the whole unit on the fix head gave APPROVE 0/1/4 and confirmed every adjudicated finding fixed. Its MINOR, a `debug_assert` that a strut-only held run nests deeper than its holder, was added before the merge.
+- `a-nested-pairing-at-a-shared-vertex-refuses-shared-vertex-crossings` is closed.
+- **Readout 3** is with Ev on PR 4283.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-08: one lean unit dispatched
+
+- `strut-side-follows-facing-is-spelled-three-times` (P2 M) and `rows-pin-join-desync-without-its-what` (P3 E) go together as one unit on branch `join/strut-side-one-rule`.
+- Under the seven-day warning, this is the only unit in flight.
+- The JOIN rows left open are H, D10 ground, or design questions:
+  - the skew-cylinder frame moves no line until the curved join lane exists;
+  - the cylinder × sphere tangency row reads declared coaxial and needs a radius-sign ruling;
+  - the match-half row's witnesses are declared-REST and continuation probes.
+
+Signed (JOIN orchestrator).

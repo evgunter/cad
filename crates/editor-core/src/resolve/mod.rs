@@ -16,7 +16,7 @@
 //!   combinatorially indistinguishable — that is what a tie means — so
 //!   the tied set expressed in names is the tie row itself, and the
 //!   [`TieWitness`] carries the multiplicity and site).
-//! - The documented `order_along` over-tie widens: a reference to a
+//! - The documented `rank_by` over-tie widens: a reference to a
 //!   RANKED fragment name whose group over-tied resolves `Ambiguous`
 //!   with the WIDENED base name as the candidate — never a mis-bind.
 //! - N3's offered candidates (a retired constituent's merged name; a
@@ -120,7 +120,7 @@ pub enum ResolveError {
         name: StableName,
         /// The distinct names the tied set answers to (module docs:
         /// the tie row itself, or the widened base on an
-        /// `order_along` over-tie).
+        /// `rank_by` over-tie).
         candidates: Vec<StableName>,
         /// The recorded tie's site and width.
         tie: TieWitness,
@@ -300,7 +300,7 @@ impl ResolveError {
     /// The tie row IS the ambiguity (N5), so the candidates are that
     /// row expressed in names and are derived from the witness here
     /// rather than restated per door. `at` is the referenced name
-    /// itself, except on an `order_along` over-tie, where it is the
+    /// itself, except on an `rank_by` over-tie, where it is the
     /// widened base row the reference actually tied against.
     pub(crate) fn ambiguous(
         name: &StableName,
@@ -916,7 +916,7 @@ pub struct TieWitness {
     /// The node whose table records the tie.
     pub node: RecipeNodeId,
     /// The tied table row (the referenced name itself, or the widened
-    /// base name on an `order_along` over-tie).
+    /// base name on an `rank_by` over-tie).
     pub at: StableName,
     /// How many equally-admissible candidates tie there.
     pub width: usize,
@@ -1240,9 +1240,7 @@ impl<U: Decide> Prior<'_, U> {
         flips: &FlipSet,
         nodes: &BTreeSet<RecipeNodeId>,
     ) -> Option<Evidence> {
-        if let Some((node, f)) =
-            in_document_order(self.doc(), new.doc, flips.flips_on_nodes(nodes)).first()
-        {
+        if let Some((node, f)) = in_id_order(flips.flips_on_nodes(nodes)).first() {
             return Some(Evidence::Flip(*node, *f));
         }
         let ddiff = self.doc().diff(new.doc);
@@ -1255,20 +1253,12 @@ impl<U: Decide> Prior<'_, U> {
     }
 }
 
-/// `found` in the order the lanes read evidence: by where its node
-/// stands in the current document, then in the last-good one — the
-/// node the author placed first answers first, whatever its id. Stable,
-/// so one node's flips keep their own order.
-fn in_document_order<V>(
-    old: &Doc<ProfileProgram>,
-    new: &Doc<ProfileProgram>,
-    mut found: Vec<(RecipeNodeId, V)>,
-) -> Vec<(RecipeNodeId, V)> {
-    let (in_new, in_old) = (new.positions(), old.positions());
-    let at = |positions: &BTreeMap<RecipeNodeId, usize>, id| {
-        positions.get(&id).copied().unwrap_or(usize::MAX)
-    };
-    found.sort_by_key(|&(id, _)| (at(&in_new, id), at(&in_old, id)));
+/// `found` in the order the lanes read evidence: by its node's id, so
+/// the node the author placed first answers first — the current and
+/// the last-good document are one history, whose ids order as they
+/// were minted. Stable, so one node's flips keep their own order.
+fn in_id_order<V>(mut found: Vec<(RecipeNodeId, V)>) -> Vec<(RecipeNodeId, V)> {
+    found.sort_by_key(|&(id, _)| id);
     found
 }
 
@@ -1304,7 +1294,7 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
         path: &BTreeSet<RecipeNodeId>,
     ) -> Option<Diagnosis> {
         let flips = diff_verdicts(self.ctx.eval, new.eval);
-        let family = in_document_order(self.doc(), new.doc, flips.flips_on_nodes(path))
+        let family = in_id_order(flips.flips_on_nodes(path))
             .into_iter()
             .find(|(_, f)| f.predicate.starts_with(crate::names::FAMILY));
         let flip = |f: VerdictFlip| Diagnosis::PredicateFlip {
@@ -1354,7 +1344,13 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
     }
 
     fn tombstone<T: Decide>(&self, _new: RunCtx<'_, T>, name: &StableName) -> Option<Tombstone> {
-        let (node, entity) = lookup_unique(self.ctx.eval, name)?;
+        // A line is no row: its last-good entry is the least row on it,
+        // as a union reads a cited line (N5, "A cited line").
+        let (node, entity) = lookup_unique(self.ctx.eval, name).or_else(|| {
+            line_rows(self.ctx.eval, name)
+                .iter()
+                .find_map(|row| lookup_unique(self.ctx.eval, row))
+        })?;
         let table = &self.ctx.eval.value(node)?.name_table;
         let Some(body) = table.name_of(&EntityRef {
             body: entity.body,
@@ -1412,7 +1408,7 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
         None => {}
     }
 
-    // 3. The order_along over-tie widening (spec D1): a ranked
+    // 3. The `rank_by` over-tie widening (spec D1): a ranked
     //    fragment reference whose group over-tied resolves Ambiguous
     //    against the WIDENED base row — never a mis-bind.
     let mut offers = Vec::new();
@@ -1429,12 +1425,20 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
             Some((_, Entry::Unique(_))) => offers.push(base),
             None => {}
         }
+    } else if let Some(line) = piece_line(name) {
+        // An edge piece's base is its line, which no table publishes:
+        // the surviving pieces of the line are offered (N5, "A cited
+        // line"), the undivided edge among them where it is one row.
+        for row in line_rows(new.eval, &line) {
+            if matches!(lookup(new.eval, row), Some((_, Entry::Unique(_)))) {
+                offers.push((**row).clone());
+            }
+        }
     } else if let Some(base) = unqualified(name)
-        // The same collapse for a face or edge piece: the undivided
-        // survivor is offered for an explicit `Rebind`, never bound.
-        // There is no over-tie to widen to here — a `Borders`, `Keeps`
-        // or `Ends` tie is a row of the QUALIFIED name, which step 2
-        // already answered.
+        // The same collapse for a face piece: the undivided survivor is
+        // offered for an explicit `Rebind`, never bound. There is no
+        // over-tie to widen to here — a `Borders` or `Keeps` tie is a
+        // row of the QUALIFIED name, which step 2 already answered.
         && matches!(lookup(new.eval, &base), Some((_, Entry::Unique(_))))
     {
         offers.push(base);
@@ -1461,9 +1465,20 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
 
     // Cascade dominates: an embedded operand name that itself fails
     // to resolve carries the root cause (its own diagnosis chains).
+    // A name cited by its line is present while any row lies on it, and
+    // so is the line a name resolved here is, when it is one: an edge
+    // spelled with no piece qualifier that neither run holds as a row.
+    let is_line = name.kind == EntityKind::Edge
+        && *crate::names::edge_line(&crate::names::NameRef::new(name.clone())) == *name
+        && !prior.carried(name);
+    let lines = cited_lines(name, is_line);
     let mut cascade: Option<StableName> = None;
     walk_names(name, Partners::Cascade, &mut |inner| {
-        if cascade.is_none() && lookup(new.eval, inner).is_none() {
+        if cascade.is_none()
+            && lookup(new.eval, inner).is_none()
+            && !(lines.iter().any(|l| core::ptr::eq(*l, inner))
+                && !line_rows(new.eval, inner).is_empty())
+        {
             cascade = Some(inner.clone());
         }
     });
@@ -1520,6 +1535,77 @@ fn fragment_base(name: &StableName) -> Option<StableName> {
     let mut base = name.clone();
     base.path.pop();
     (!base.path.is_empty()).then_some(base)
+}
+
+/// **The line an edge piece lies on**: its base, where its qualifier is
+/// `Ends` (N2).
+fn piece_line(name: &StableName) -> Option<StableName> {
+    (name.kind == EntityKind::Edge
+        && matches!(
+            name.path.last(),
+            Some(RoleSeg::Fragment(Qualifier::Ends(_)))
+        ))
+    .then(|| fragment_base(name))
+    .flatten()
+}
+
+/// **The rows that lie on `line`** (N5, "A cited line"): the edge rows
+/// of `line`'s node's table whose line it is, in key order. Empty where
+/// that node has no table in this run or no row lies on it.
+fn line_rows<'a, T: Decide>(
+    eval: &'a Evaluation<T>,
+    line: &StableName,
+) -> &'a [crate::names::NameRef] {
+    eval.value(line.node)
+        .map_or(&[], |v| v.name_table.on_line(line))
+}
+
+/// **Every name `name` cites by its line**, at every depth, `name`
+/// itself read as a line where `is_line`: a crossing's
+/// edges, a band crossing's, a seam vertex's, a `Keeps` entry, the parent an edge piece
+/// wraps, and the parent a line wraps in turn (`names::role::edge_line`).
+/// By address, so a reader can tell a name in a line position from an
+/// equal one elsewhere in the tree.
+fn cited_lines(name: &StableName, is_line: bool) -> Vec<&StableName> {
+    let mut out: Vec<&StableName> = Vec::new();
+    let mut stack: Vec<(&StableName, bool)> = vec![(name, is_line)];
+    while let Some((n, is_line)) = stack.pop() {
+        let mut lines: Vec<&StableName> = Vec::new();
+        let tail = n
+            .path
+            .iter()
+            .rposition(|s| !matches!(s, RoleSeg::Fragment(Qualifier::Ends(_))))
+            .map_or(0, |i| i + 1);
+        let piece = n.kind == EntityKind::Edge && tail < n.path.len();
+        if (piece || is_line) && tail == 1 {
+            lines.extend(crate::names::wrapped_edge(&n.path[0]).map(|w| &**w));
+        }
+        for seg in &n.path {
+            match seg {
+                RoleSeg::Crossing { edge, .. }
+                | RoleSeg::CrossingVertex { edge, .. }
+                | RoleSeg::BandCross { edge, .. } => {
+                    lines.push(edge);
+                }
+                RoleSeg::EdgeCrossing { a, b, .. } => lines.extend([&**a, &**b]),
+                RoleSeg::Seam { a, b } if n.kind == EntityKind::Vertex => {
+                    lines.extend([&**a, &**b]);
+                }
+                RoleSeg::Fragment(Qualifier::Keeps(kept)) => lines.extend(kept),
+                _ => {}
+            }
+        }
+        let mut children = Vec::new();
+        embedded(n, Partners::Include, &mut children);
+        for c in children {
+            let line = lines.iter().any(|l| core::ptr::eq(*l, c));
+            if line {
+                out.push(c);
+            }
+            stack.push((c, line));
+        }
+    }
+    out
 }
 
 /// A face or edge piece's base ([`fragment_base`]) — what the SAME
@@ -1608,24 +1694,23 @@ fn border_delta<T: Decide>(
 /// # Why a fragment name can vanish with no flip
 ///
 /// This is the one statement of it; the sites that need it point
-/// here. A fragment qualifier exists only while its group has two or
-/// more members (N2), and `OrderAlong` spells the size of a group of
-/// crossings of one sense into the name as `of`. So a fragment name
-/// vanishes whenever its group stops being divided, and a ranked
-/// crossing's whenever its group changes size, and neither event need
-/// flip any discriminator: a `Borders` group that stops being divided
-/// leaves no piece whose walls could be compared — the walls still
-/// stand where they stood relative to the survivor — and an
-/// `OrderAlong` group ranks its members against EACH OTHER, so a group
-/// of one runs no pair. What remains in evidence is the count. An edge
-/// piece's `Ends` holds no count, so a cut elsewhere on its parent, by
-/// a face that does not already cross it, leaves its name as it was. A
-/// crossing's sense is its own, and a crossing ranked among others of
-/// its sense keeps an ordinal, so a second crossing of the same sense
-/// by a face that already crosses the parent renames the first, and
-/// every piece whose `Ends` cite it vanishes too; so do a piece whose
-/// own end moves, a lone piece its parent's second cut gives `Ends`,
-/// and a group that collapses to one.
+/// here. A face fragment's qualifier exists only while its group has
+/// two or more members (N2), an edge piece's `Ends` while its parent is
+/// divided, and `OrderAlong` spells the size of a group of crossings of
+/// one sense into the name as `of`. So a fragment name vanishes
+/// whenever its group stops being divided, and a ranked crossing's
+/// whenever its group changes size, and neither event need flip any
+/// discriminator: a `Borders` group that stops being divided leaves no
+/// piece whose walls could be compared — the walls still stand where
+/// they stood relative to the survivor — and an `OrderAlong` group
+/// ranks its members against EACH OTHER, so a group of one runs no
+/// pair. What remains in evidence is the count. An edge piece's `Ends`
+/// holds no count and a crossing's sense is its own, so a cut elsewhere
+/// on its parent leaves the piece's name as it was, and so do the
+/// crossings it ends at; a second crossing of the same sense by a face
+/// that already crosses the parent ranks the first, and every piece
+/// whose `Ends` cite it vanishes too; so does a piece whose own end
+/// moves, which leaves its group's count as it was.
 ///
 /// # What is counted
 ///
@@ -2454,7 +2539,7 @@ fn structural_param_change(
     let changed_vars = &ddiff.vars;
     // In document order: a node both runs hold is in `new`'s order.
     let candidates: Vec<RecipeNodeId> = new
-        .order()
+        .ids()
         .iter()
         .copied()
         .filter(|id| path.is_none_or(|p| p.contains(id)))
@@ -2544,15 +2629,15 @@ mod tests {
     use crate::names::{CapEnd, FragmentGroups, NameRef, NameTable, ProfileEdgeRef};
     use topo::{EdgeKey, FaceKey, VertexKey};
 
-    const NODE: RecipeNodeId = RecipeNodeId(7);
+    const NODE: RecipeNodeId = RecipeNodeId::new(0, 7);
 
     fn face(node: u64, seg: u32) -> StableName {
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![RoleSeg::Lateral(
                 ProfileEdgeRef::Piece {
-                    step: crate::node::StepId(u64::from(seg)),
+                    step: crate::node::StepId::new(0, u64::from(seg)),
                     role: crate::names::PieceRole::Leg,
                 }
                 .into(),
@@ -2564,7 +2649,7 @@ mod tests {
     fn top() -> StableName {
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(2),
+            node: RecipeNodeId::new(0, 2),
             path: vec![RoleSeg::Cap(CapEnd::End)],
         }
     }
@@ -2584,7 +2669,7 @@ mod tests {
             kind: inner.kind,
             node: NODE,
             path: core::iter::once(RoleSeg::FromMember {
-                member: RecipeNodeId(member),
+                member: RecipeNodeId::new(0, member),
                 of: NameRef::new(inner),
             })
             .chain(tail.iter().cloned())
@@ -2782,7 +2867,7 @@ mod walk_tests {
     fn leaf(node: u64) -> StableName {
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![RoleSeg::Cap(CapEnd::End)],
         }
     }
@@ -2791,7 +2876,7 @@ mod walk_tests {
     fn over(inner: StableName, node: u64) -> StableName {
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![
                 RoleSeg::FromA(NameRef::new(inner)),
                 RoleSeg::Fragment(Qualifier::Borders(vec![leaf(node + 1000)])),
@@ -2803,10 +2888,12 @@ mod walk_tests {
     fn a_walk_visits_depth_first_in_path_order() {
         let name = over(over(leaf(1), 2), 3);
         let mut seen = Vec::new();
-        walk_names(&name, Partners::Include, &mut |n| seen.push(n.node.0));
+        walk_names(&name, Partners::Include, &mut |n| {
+            seen.push(n.node.0.digest())
+        });
         assert_eq!(seen, [2, 1, 1002, 1003], "partners included");
         seen.clear();
-        walk_names(&name, Partners::Skip, &mut |n| seen.push(n.node.0));
+        walk_names(&name, Partners::Skip, &mut |n| seen.push(n.node.0.digest()));
         assert_eq!(seen, [2, 1], "partners skipped");
     }
 

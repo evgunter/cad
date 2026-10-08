@@ -46,7 +46,8 @@ numerically solved mates (SE(3) witnesses under the witness contract in
 instantiate node resolves its `DocRef` through the evaluation's
 `PartResolver` (`EvalOptions::resolver`; with none, instantiate nodes
 refuse typed), evaluates the pinned document at the ambient ε, takes its
-A10 product, and materializes it through `topo::transform_rigid`
+world (A10), one `Body` per world placement at its world coordinates,
+and materializes it through `topo::transform_rigid`
 (rigidity re-decided, every carrier re-certified) and the disjoint
 graft. A resolved document whose recorded ε disagrees refuses
 `ResolveFault::EpsilonSeam`. `PartCache` memoizes per `(DocRef, ε)`
@@ -187,11 +188,9 @@ and unbuilt `Fit { gap }`, refuses at the solve door.
 contributes a *reading edge* to the member its operand resolves to: the
 walk's minting instance, whatever the depth of the copy chain above it.
 Reading edges are recomputed by `reading_edges`, never stored, and are
-not consuming: `inputs()` stays empty, because a consuming operand would
-take the mated bodies out of A10's root set. A9's partition runs over
-consuming ∪ reading edges and A11's groups over placing mates; A10's
-invariants and gather run over consuming edges only, so a mate is an
-ordinary non-body root: an isolated sink, listed, ignored by the gather.
+not operand edges: `inputs()` stays empty. A9's partition runs over
+operand ∪ reading edges and A11's groups over placing mates. A mate
+places nothing in the world, so it is never in the product (A10).
 
 A dangling reference (name or operand) contributes no edge, and the
 fault names the node the walk stopped at; `Rebind` repairs a name and
@@ -242,7 +241,10 @@ root keeps its offset; and the instance sits at the empty offset on the
 anchor. A cut group nothing places moves as it is, unless a dead
 reference unplaces it, and a cut of unplaced material alone refuses.
 Remainder-side names re-anchor through the instance qualifier by
-recorded `Rebind`s.
+recorded `Rebind`s. A variable moves with its readers: its side is the
+union of its readers' — a node slot, or another variable's definition —
+and one with no reader follows what it reads. One whose side is the
+cut's is declared in the part and deleted from the remainder.
 
 *Inline.* `refactor::inline` is the inverse: the instance's frame
 becomes a gauge under the instance's gauge holding its offset, and the
@@ -270,12 +272,10 @@ front of each dependent's own. Cutting the content and leaving the
 gauge behind mounts the part on it.
 
 *Acceptance.* Split-then-evaluate equals unsplit evaluation at
-structural and name-resolution identity, not bit identity, except that
-the cut's roots come together where the first of them was (A10's
-replacement rule: one instance sits at one place in the list), so split
-keeps the root order exactly when the cut's roots are adjacent in it.
-Inline-of-split returns the document split was given, up to node ids
-and that one regrouping.
+structural and name-resolution identity, not bit identity, up to the
+order of copies: the cut's world placements become the part's, and the
+remainder places one copy of the instance. Inline-of-split returns the
+document split was given, up to minted ids and order.
 
 *Crossings.* A mate whose two `InstantiatePart` heads fall on opposite
 sides of a cut is an `InterfaceCrossing::Mate` in the instance's
@@ -416,20 +416,17 @@ its own space (A11 (2)): nothing outside it is compared with it, and it
 is not part of that body. The viewer's free-move probe is display state,
 never persisted (`crates/viewer/src/display.rs`).
 
-**A10 — Explicit product roots.** `Doc::roots` is an ordered list of
-node ids, document data. Invariants (`roots::check`): coverage (every
-live node is ancestor-of-or-equal-to some root) and ancestor-freedom
-(no root is a strict ancestor of another); together the root set is
-exactly the DAG's sink set and the list adds only the solid order.
-Maintenance: a new sink appends; a node that replaces roots (an insert
-consuming them, or split's instance) goes where the first of them was;
-removing it puts what it replaced back at its position (a delete's
-orphaned inputs in document order, an inline's spliced roots in the
-part's root order); `DocEdit::SetRoots` states the list outright.
-`product::product` gathers, in list order, every body-denoting root
-(`Body`/`Boolean` solids, `Instances` as placed solids with no boolean
-implied, `Split` as both pieces); non-body roots contribute nothing, and
-a door needing a body refuses `ProductError::NoBodyRoots`.
+**A10 — The product is the world.** The product is the copies the
+document's world placements define, in the document order of those
+placements. A world placement (`PlaceInWorld`) is an operation reading
+one `Body` and defining its copy as an output, so two placements of one
+body are two copies. Nothing else places: no edit places or unplaces as
+a side effect, and nothing derives a placement from what reads what. An
+empty world is a valid document with an empty product; a door needing a
+product refuses `EmptyProduct`, naming the unplaced bodies. A placement
+whose body is deleted is a stranded reader (D10), and the gather refuses
+naming it. Split and inline move placements with their bodies (A4).
+`product::product` gathers the copies in placement order.
 
 ## The constructive-solve boundary
 
@@ -437,8 +434,11 @@ a door needing a body refuses `ProductError::NoBodyRoots`.
 
 **(1) Primitives fold by coset intersection.** Each primitive pins the
 pair's relative pose to a coset of an SE(3) subgroup; the closure is
+the symmetry groups of the pose kinds a primitive equates (D10), and
+one `Subgroup` type is both a pose's symmetry and what a mate folds:
 `Subgroup::{Se3, Planar, Cylindrical, Prismatic, Revolute, Trivial,
-Empty}`, and several mates on one pair fold by exact coset intersection
+Empty}`, which grows a `Point`'s and a `Direction`'s when a reader needs
+them, and several mates on one pair fold by exact coset intersection
 (`mate/coset.rs`) to DETERMINED, UNDER or CONTRADICTORY, the last
 refusing with the added mate's measured clash. The edit door asks the
 same per-mate admission of a mate being inserted (the walk, the class,
@@ -480,8 +480,9 @@ mate deleted) lives in its own space until it is placed again (Ev,
 own frame, with its earliest instance at that frame's origin; nothing
 outside the group is compared with it, so the at-rest gate and
 cross-group measures do not ask, while everything inside it solves and
-checks as usual. STEP export refuses unplaced parts, naming how to place
-them. The viewer draws such a group where it was last shown, as display
+checks as usual. STEP export writes the world; an empty world refuses,
+naming the unplaced bodies, and so does a world placement whose body is
+gone. The viewer draws such a group where it was last shown, as display
 state that no logic reads (G3's free-move probe, widened to a whole
 group); placing it where it is shown is one edit whose frame the user
 supplies.
@@ -502,8 +503,7 @@ solve is total and per-node: a refusing group faults its own mate and
 instances (`SolvedPoses::fault`), nothing else. The solve states where
 each instance is and what each mate decides, never that a product
 exists: whether the document has a product is the gather's question
-alone (A10), so a product refusal (`PlacedUnderTwoRoots`, one instance
-placed under two transform roots, among them) is not a mate fault, and a
+alone (A10), so a product refusal is not a mate fault, and a
 document can solve whole and still have no product.
 
 **(5) World poses, members, and what the solve reads.**

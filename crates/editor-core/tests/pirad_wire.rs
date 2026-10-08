@@ -80,9 +80,9 @@ fn a_half_turn_literal_round_trips() {
     );
     let back = load(&text, Tol::witness()).expect("its own bytes load").doc;
     // Frame, profile, extrude, then the transform.
-    let unit = match back.node(back.order()[3]) {
+    let unit = match back.node(back.ids()[3]) {
         Some(Node::Transform { .. }) => {
-            back.slot_value(back.order()[3], SlotId::RotationAngle)
+            back.slot_value(back.ids()[3], SlotId::RotationAngle)
                 .expect("a one-step transform reads its written angle")
                 .1
         }

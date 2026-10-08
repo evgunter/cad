@@ -175,8 +175,13 @@ fn p1_an_oblique_all_concave_cavity_carves_to_its_own_steiner_form() {
     let before = topo::mass_properties(&body, Tol::witness())
         .expect("closed-form props")
         .volume;
-    let out = fillet_edges(&body, &edges, r, Tol::witness())
-        .expect("the oblique all-concave cavity fillets");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &edges,
+        r,
+        Tol::witness(),
+    )
+    .expect("the oblique all-concave cavity fillets");
     assert_eq!(validate(&out.body), Ok(()), "tier 1");
     assert_eq!(validate_closed(&out.body), Ok(()), "tier 2");
     assert_eq!(
@@ -248,7 +253,12 @@ fn p2_slim_skews_carve_valid_or_refuse_typed_never_worse() {
         let edges = cavity_edges(&body, &quad);
         assert_eq!(edges.len(), 12, "twelve concave edges at {deg}°");
         let r = 0.05 * theta.sin();
-        match fillet_edges(&body, &edges, r, Tol::witness()) {
+        match fillet_edges(
+            &sweep::test_support::at_rest(&body, Tol::witness()),
+            &edges,
+            r,
+            Tol::witness(),
+        ) {
             Ok(out) => {
                 assert_eq!(
                     topo::validate_geometric(&out.body, Tol::witness()),
@@ -361,14 +371,24 @@ fn p3_the_chamfer_digest_is_bit_identical_to_the_merge_base() {
         found
     };
     assert_eq!(edges.len(), 12);
-    let cav =
-        chamfer_edges(&body, &edges, 0.25, Tol::witness()).expect("the chamfered cavity carves");
+    let cav = chamfer_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &edges,
+        0.25,
+        Tol::witness(),
+    )
+    .expect("the chamfered cavity carves");
     let cav_digest = digest(&cav.body);
 
     let cube_body = cube(2.0, Tol::witness());
     let cube_edges: Vec<EdgeKey> = cube_body.edges().map(|(k, _)| k).collect();
-    let cvx = chamfer_edges(&cube_body, &cube_edges, 0.25, Tol::witness())
-        .expect("the chamfered cube carves");
+    let cvx = chamfer_edges(
+        &sweep::test_support::at_rest(&cube_body, Tol::witness()),
+        &cube_edges,
+        0.25,
+        Tol::witness(),
+    )
+    .expect("the chamfered cube carves");
     let cvx_digest = digest(&cvx.body);
 
     // Measured at f106e96d, re-measured at fa898277 (see the probe

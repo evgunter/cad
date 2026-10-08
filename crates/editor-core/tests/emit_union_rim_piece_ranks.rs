@@ -459,10 +459,12 @@ const KNOWN_MIXED: &[(&str, &str, usize, &str)] = &[
 ///
 /// The digests spell node and step ids, so they moved when slots came to
 /// hold variables (INTENT-LITERALS PR C renumbered every node); the
-/// counts, and which absences they are, did not.
+/// counts, and which absences they are, did not. They moved again when
+/// an id became its mint ordinal and digest, with the counts PR 4228
+/// left (six: `Ends` on every piece) held.
 const KNOWN_ABSENT: &[(&str, &str, usize, u64)] = &[
-    ("r5poke", "U", 4, 1818041890608486645),
-    ("r5pokehi", "U", 4, 10531216965515607373),
+    ("r5poke", "U", 6, 2467663368560056480),
+    ("r5pokehi", "U", 6, 16300433809704317214),
 ];
 
 /// One fused order and every entity it publishes, as sorted geometry.

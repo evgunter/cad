@@ -97,7 +97,7 @@ pub fn chart_counts(built: &Extruded<f64>) -> (usize, usize, usize) {
         }
         conventional += 1;
         if let EdgeDescription::Chart(c) = &rim.description {
-            if c.seam {
+            if c.wrap {
                 continue;
             }
             wall_chart += usize::from(c.surface == rim.wall);

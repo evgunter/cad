@@ -160,8 +160,8 @@ use pncad::sweep::{ExtrudeError, LoftError, RevolveError, SkinError, TubeError};
 use pncad::topo::param_source::ParamAttachError;
 use pncad::topo::splitting::SplitError as SplitOpError;
 use pncad::topo::{
-    BooleanErrorKind, CensusContact, CensusSubject, EntityId, RingContact, ShellError,
-    StaleDeclaration, TransformError, ValidationError,
+    BooleanErrorKind, CensusContact, CensusSubject, EntityId, RingContact, RingPairContact,
+    ShellError, StaleDeclaration, TransformError, ValidationError,
 };
 use pncad::topo::{CoherenceCondition, Unexaminable};
 // All three STL refusals are prelude-curated; the module path is the
@@ -568,7 +568,6 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::SetProgramOnNonProfile { .. } => "set_program_on_non_profile",
         EditError::SetExtrudeSideOnNonExtrude { .. } => "set_extrude_side_on_non_extrude",
         EditError::StepIdsRefused { .. } => "step_ids_refused",
-        EditError::NodeIdCollides { .. } => "node_id_collides",
         EditError::TooFewMembers { .. } => "too_few_members",
         EditError::DeleteWouldDangle { .. } => "delete_would_dangle",
         EditError::UnknownSlot { .. } => "unknown_slot",
@@ -589,7 +588,6 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::ContinuousVarCannotBeCount { .. } => "continuous_var_cannot_be_count",
         EditError::UnknownVar { .. } => "unknown_var",
         EditError::VarNameTaken { .. } => "var_name_taken",
-        EditError::VarIdCollides { .. } => "var_id_collides",
         EditError::FreshUnheld { .. } => "fresh_unheld",
         EditError::FreshKind { .. } => "fresh_kind",
         EditError::FreshUnread { .. } => "fresh_unread",
@@ -1279,7 +1277,6 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::SetExtrudeSideOnNonExtrude { .. } => None,
         // What is wrong with the ids is the arm.
         EditError::StepIdsRefused { fault, .. } => Some(step_id_fault_tag(fault)),
-        EditError::NodeIdCollides { .. } => None,
         EditError::TooFewMembers { .. } => None,
         EditError::DeleteWouldDangle { .. } => None,
         EditError::UnknownSlot { .. } => None,
@@ -1295,7 +1292,6 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::ContinuousVarCannotBeCount { .. } => None,
         EditError::UnknownVar { .. } => None,
         EditError::VarNameTaken { .. } => None,
-        EditError::VarIdCollides { .. } => None,
         EditError::FreshUnheld { .. } => None,
         EditError::FreshKind { .. } => None,
         EditError::FreshUnread { .. } => None,
@@ -1491,7 +1487,6 @@ pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
         RevolveError::ArcCrossesAxis { .. } => "arc_crosses_axis",
         RevolveError::SliverAxisClearance { .. } => "sliver_axis_clearance",
         RevolveError::UnsupportedToroid { .. } => "unsupported_toroid",
-        RevolveError::OneSegmentLoop { .. } => "one_segment_loop",
         RevolveError::NonManifoldAxisContact { .. } => "non_manifold_axis_contact",
         RevolveError::MultipleAxisRuns { .. } => "multiple_axis_runs",
         RevolveError::HoleTouchesAxis { .. } => "hole_touches_axis",
@@ -1568,6 +1563,8 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::UnsupportedRunOut { .. } => "unsupported_run_out",
         BlendError::UnsupportedGeometry { .. } => "unsupported_geometry",
         BlendError::BodyNotIntact { .. } => "body_not_intact",
+        BlendError::ScaffoldingOperand { .. } => "scaffolding_operand",
+        BlendError::InsideOutOperand { .. } => "inside_out_operand",
         BlendError::SurgeryInvariant { .. } => "surgery_invariant",
         BlendError::RingClearance { .. } => "ring_clearance",
         BlendError::Certify { .. } => "certify",
@@ -1633,6 +1630,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::InvalidDeclaration => "invalid_declaration",
         BooleanErrorKind::PairingMismatch => "pairing_mismatch",
         BooleanErrorKind::SharedVertexCrossings => "shared_vertex_crossings",
+        BooleanErrorKind::PinchConesOnSeparateKeys => "pinch_cones_on_separate_keys",
         BooleanErrorKind::PierceRunsNested => "pierce_runs_nested",
         BooleanErrorKind::VertexReadTwice => "vertex_read_twice",
         BooleanErrorKind::NonManifoldResult => "non_manifold_result",
@@ -1718,7 +1716,6 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
         LoftError::Pcurve(_) => "pcurve",
         LoftError::SeamStructure { .. } => "seam_structure",
         LoftError::SectionStructure => "section_structure",
-        LoftError::OneSegmentLoop { .. } => "one_segment_loop",
         LoftError::ReversedStacking { .. } => "reversed_stacking",
         LoftError::DegenerateStacking { .. } => "degenerate_stacking",
         LoftError::FarSectionNotForward { .. } => "far_section_not_forward",
@@ -1999,7 +1996,6 @@ pub fn program_fault_tag(fault: &ProgramFault) -> &'static str {
 /// pinned by `tests::the_edit_and_snapshot_maps_agree_on_the_var_read_words`.
 pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
     match err {
-        SnapshotError::OrderMismatch => "order_mismatch",
         SnapshotError::NodeNotMinted { .. } => "node_not_minted",
         SnapshotError::StepIds { .. } => "step_ids",
         SnapshotError::MintLogOrder { .. } => "mint_log_order",
@@ -2014,7 +2010,6 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::VarKind { .. } => "var_kind",
         SnapshotError::VarNotMinted { .. } => "var_not_minted",
         SnapshotError::NameOnMissingVar { .. } => "name_on_missing_var",
-        SnapshotError::VarOrderMismatch => "var_order_mismatch",
         SnapshotError::VarNameTwice { .. } => "var_name_twice",
         SnapshotError::ReaderOfUnmintedVar { .. } => "reader_of_unminted_var",
         SnapshotError::SlotVarKind { .. } => "slot_var_kind",
@@ -2197,14 +2192,13 @@ pub fn promoted_kind_tag(kind: &PromotedKind) -> &'static str {
 /// one word whichever kind it was, and the residual that certifies it
 /// is a number rather than a spelling.
 ///
-/// The match is exhaustive, so a sixth normalization minted
+/// The match is exhaustive, so a fifth normalization minted
 /// kernel-side stops this crate compiling instead of arriving under
-/// one of these five words.
+/// one of these four words.
 pub fn normalization_kind_tag(kind: &NormalizationKind) -> &'static str {
     match kind {
         NormalizationKind::EdgeFreeSphere => "edge_free_sphere",
         NormalizationKind::DegenerateApexCone => "degenerate_apex_cone",
-        NormalizationKind::FullPeriodTorus => "full_period_torus",
         NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
         NormalizationKind::SurfacePromotion { .. } => "surface_promotion",
     }
@@ -2282,6 +2276,8 @@ pub fn expr_dimension_error_tag(err: &DimensionError) -> &'static str {
         DimensionError::DisplayUnitMismatch { .. } => "display_unit_mismatch",
         DimensionError::UnknownDisplayUnit { .. } => "unknown_display_unit",
         DimensionError::NestedTooDeep { .. } => "nested_too_deep",
+        DimensionError::ConstantOutOfRange { .. } => "constant_out_of_range",
+        DimensionError::RatioNotReduced { .. } => "ratio_not_reduced",
     }
 }
 
@@ -2323,6 +2319,7 @@ pub fn parse_error_tag(err: &ParseError) -> &'static str {
         ParseError::TrailingInput { .. } => "trailing_input",
         ParseError::MalformedNumber { .. } => "malformed_number",
         ParseError::IntegerOverflow { .. } => "integer_overflow",
+        ParseError::RatioPartNotInteger { .. } => "ratio_part_not_integer",
         ParseError::UnknownUnit { .. } => "unknown_unit",
         ParseError::UnknownFunction { .. } => "unknown_function",
         ParseError::WrongArity { .. } => "wrong_arity",
@@ -2354,6 +2351,17 @@ pub fn fresh_fault_tag(fault: &pncad::document::FreshFault) -> &'static str {
     }
 }
 
+/// The stable tag for a formula that does not lower: a name
+/// ([`name_fault_tag`]), a fresh-table read ([`fresh_fault_tag`]), or a
+/// written quantity where nothing mints its variable.
+pub fn lower_fault_tag(fault: &pncad::document::LowerFault) -> &'static str {
+    match fault {
+        pncad::document::LowerFault::Name(fault) => name_fault_tag(fault),
+        pncad::document::LowerFault::Fresh(fault) => fresh_fault_tag(fault),
+        pncad::document::LowerFault::Quantity { .. } => "quantity_unminted",
+    }
+}
+
 /// The stable tag for an evaluation refusal (`eval` / `eval_count`).
 ///
 /// Note what is NOT here: division by zero and out-of-domain trig.
@@ -2371,6 +2379,7 @@ pub fn eval_error_tag(err: &EvalError) -> &'static str {
         EvalError::CountOverflow => "count_overflow",
         EvalError::CountToScalarOutOfRange(_) => "count_to_scalar_out_of_range",
         EvalError::NonFiniteResult => "non_finite_result",
+        EvalError::Unlowered(fault) => lower_fault_tag(fault),
     }
 }
 
@@ -2565,6 +2574,7 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::PlacingMateLeft { .. } => "placing_mate_left",
         SplitError::MateFrameCrosses { .. } => "mate_frame_crosses",
         SplitError::UncutVarReference { .. } => "uncut_var_reference",
+        SplitError::DefinitionStraddlesCut { .. } => "definition_straddles_cut",
         SplitError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
         SplitError::PartNameReachesRemainder { .. } => "part_name_reaches_remainder",
         SplitError::NameStraddlesCut { .. } => "name_straddles_cut",
@@ -3064,6 +3074,10 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::RingMeetsOuter { .. } => "ring_meets_outer",
         ValidationError::RingContactEscalated { .. } => "ring_contact_escalated",
         ValidationError::RingOutsideOuter { .. } => "ring_outside_outer",
+        ValidationError::RingMeetsRing { .. } => "ring_meets_ring",
+        ValidationError::RingPairContactEscalated { .. } => "ring_pair_contact_escalated",
+        ValidationError::PinchCornerCrossed { .. } => "pinch_corner_crossed",
+        ValidationError::PinchCornerEscalated { .. } => "pinch_corner_escalated",
         ValidationError::RingNestingUndecided { .. } => "ring_nesting_undecided",
         ValidationError::ShellWinding { .. } => "shell_winding",
         ValidationError::SolidOuterShells { .. } => "solid_outer_shells",
@@ -3262,6 +3276,21 @@ pub fn ring_contact_tag(contact: &RingContact) -> &'static str {
     }
 }
 
+/// The stable tag for HOW two rings of one face meet: [`ring_contact_tag`]'s
+/// words, the other ring read where that function reads the outer
+/// loop, so one shape keeps one spelling. `vertex_on_ring_edge` is a
+/// vertex of the other ring on the interior of this ring's edge.
+pub fn ring_pair_contact_tag(contact: &RingPairContact) -> &'static str {
+    match contact {
+        RingPairContact::Vertex { .. } => "vertex_vertex",
+        RingPairContact::VertexOnEdge { .. } => "vertex_on_edge",
+        RingPairContact::Edge { .. } => "edge_along_edge",
+        RingPairContact::OtherVertexOnEdge { .. } => "vertex_on_ring_edge",
+        RingPairContact::EdgesMeet { .. } => "edge_edge_point",
+        RingPairContact::Circles { .. } => "circle_circle",
+    }
+}
+
 /// The stable tag for a mate PRIMITIVE — which alignment the authored
 /// mate asks for, before any solve.
 pub fn mate_primitive_tag(primitive: MatePrimitive) -> &'static str {
@@ -3337,7 +3366,6 @@ pub fn step_id_fault_tag(fault: &StepIdFault) -> &'static str {
         StepIdFault::NotThisProfiles { .. } => "not_this_profiles",
         StepIdFault::Repeated { .. } => "repeated",
         StepIdFault::NotMinted { .. } => "not_minted",
-        StepIdFault::Collides { .. } => "collides",
     }
 }
 

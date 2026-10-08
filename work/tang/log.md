@@ -655,6 +655,9 @@ tube, build every op at their closed forms; the declared one-carrier
 arms do not read ellipses, so the D10 hold leaves their reach where it
 was. Filed: `an-ellipse-lying-on-a-wall-keeps-the-door` (P2).
 
+## 2026-10-07 — cylinder offsets read at the reach
+
+`cylinder-offsets-read-at-a-stored-origin-off-the-reach` closed: the cone×cylinder arm reads its pose at the apex against the cylinder's own axis, `route_pose` drops the cylinder's stored-origin anchor, and the join's radical plane reads its offset between the axes' feet at the germ sites. The declared-pair sites wait on the D10 hold (`declared-cylinder-pair-offsets-read-off-the-reach`, parked); the sweep's other hits are filed on OFFSET, BAND and EXCH.
 ## 2026-10-07 — a vertex read by two sector passes refuses typed (TANG implementer)
 
 `a-vertex-read-by-two-sector-passes-panics-instead-of-refusing` (P1)
@@ -691,3 +694,113 @@ PR 4211's FULL review (APPROVE-WITH-FIXES, 0 MAJOR). The fixes:
 
 The review's far-pole, bar and edge-midpoint poses are rows, and so are
 two far-pole notches whose outer-point paths run through a run vertex.
+## 2026-10-07 — a touching vertex read again by a pair builds (TANG implementer)
+
+`a-vertex-read-twice-where-the-first-pass-writes-nothing-refuses` (P1)
+closes. The `VertexReadTwice` refusal narrows to a pierce that would hang
+struts, a second pierce, or a partner whose link touches the pierced face.
+A touching vertex's edges are classed against the face and its pairs
+together. Pyramids standing on a plate at one point fold in every member
+order at tier 3, and the strut-hanging prisms still refuse. The 630-cell
+matrix (21 scenes × 5 poses × 6 ops) builds sound or refuses typed, with
+each result's material and classes at `MEET` checked against
+`point_in_solid`. Filed on CONTACT:
+`a-solid-touching-itself-at-a-vertex-reads-its-star-from-the-vertex-alone`.
+
+2026-10-07 — `a-ring-on-a-cone-or-torus-face-has-no-island-winding`
+narrowed to the torus. The sphere and cone ring lanes now share one
+chart-free reading (`crates/topo/src/ring_path.rs`): a path parity
+from an outer-loop point to the closing chord's midpoint, with the
+arrival side giving the lean. The path is a great-circle arc on a
+sphere, and a ruling plus a parallel on a cone, clear of the apex.
+Re-homing reads the same paths (`chord_join::path_ring_side`). No op
+reaches a cone ring yet: GERM's cone gate comes first. So the cone rows
+are a cone sheet in `topo` (`chord_join::cone_ring_rows`) held to
+plane-inequality oracles, plus the sweep's crossings
+(`a_ring_on_a_cone_face`).
+
+2026-10-07 — PR 4246's fix pass (FULL review, APPROVE-WITH-FIXES, 1 MAJOR).
+The review's scan found no wrong body, winding or side. Its MAJOR was
+that a sphere pair that builds on main refused, because one path's
+in-band reading aborted the op. Now a path or reference whose reading
+escalates says nothing: the first decided path is the reading, and
+the op escalates only when no path decides. The meets-plane margin
+is now the half-chord, linear in the graze angle; either change alone
+restores the pair. The review's sphere-island and cone-grid fixtures
+are rows now. Across the review's 10,254 probe ops, the outcomes
+match main's again.
+
+2026-10-07 — PR 4246's second fix pass (second FULL review,
+REQUEST-CHANGES, 1 MAJOR). The meets-plane margin is the gap
+`rρ − |D|` again: it is the deviation that flips the meeting, and the
+half-chord had decided wrong parities at a smooth vertex grazed within
+rounding. The escalation fallback alone carries the graze the
+half-chord was meant to. Every ring reader now goes through one
+first-decided reading, the plane's `ring_side` and the cylinder's
+`chart_ring_side` included, so an escalated vertex or path asks the
+next and escalates only when none decides.
+## 2026-10-07 — measured levers reach the consumed region (TANG implementer)
+
+chord_join's cylinder lane and the germ frame's plane×cylinder pair
+lever the axis tilt at the wall face's axial extent from the reading
+point (`face_axial_range`, `Reach::range_along` per edge, a
+conic arc over its span), and `pc_axis_plane_parallel` reads the
+rulings' hinge station and the face's own reach across the wall
+(`Reach::Face`), so a finite tilt is never read parallel over a short
+axial lever and a short face is never turned definite by its wall's
+size. Closes `chord-join-face-reach-misses-a-curved-edges-bulge` and
+`germ-frame-levers-a-plane-cylinder-tilt-at-the-radius`; filed
+`chord-join-cone-lane-levers-from-the-base-vertex-not-the-apex`,
+`germ-cylinder-pair-span-misses-a-curved-edges-bulge`,
+`spiric-and-spline-axial-levers-read-past-the-span` and
+`whole-turn-conic-reach-over-states-a-rim-faces-lever`.
+
+2026-10-07 — PR 4246's third fix pass (third review, interim
+REQUEST-CHANGES, 1 MAJOR). A root at a smooth vertex under a graze is
+decided by its in-span readings, and those were levered by arc length,
+so a carrier moved by rounding could slide the root past the vertex.
+Each in-span reading is now levered by the slope the piece crosses the
+other's plane at, so its margin is the displacement that moves the
+root past the span's end. The sphere's reader on main had the same
+lever. The cone's segment and ruling arms never graze, because their
+slopes are bounded below, so the lever there is for shape.
+
+2026-10-07 — PR 4246's third fix pass, the final report's addendum. A
+cone path's turns now lie on the parallel the next piece runs round, so
+the pieces meet exactly; at the carrier's ratio they were open by a
+vertex's offset from the carrier, up to the band. The reader's
+first-decided walk states its premise: a ring does not cross the run.
+That is check 9's premise, assumed on Ellipse, Spiric and NURBS edges,
+and RESTFRONT's item now names this reader as sharing it. At ε 1e-3 the
+slope lever escalates two poses' winding that main decided by arc
+length, inside the root's own error.
+
+2026-10-08 — PR 4246's fourth fix pass (fourth review,
+APPROVE-WITH-FIXES, no MAJOR). The third pass's "the cone's segment
+and ruling arms never graze" was wrong. A parallel crosses a ruling at
+slope `cos α`, which vanishes on a near-flat cone. A ruling crosses a
+near-parabolic section at slope `sin η`. The per-arm rows now sweep
+those cells over ε, scale, offset and jitter, and kill the arc-length
+and per-metre mutants the old rows let through. A crossing any reading
+decides out of span is now passed over, though another escalates. That
+took the two poses that newly escalated at ε 1e-3 back to main's
+outcomes. The class sweep found the same shape in FLUX's props sphere
+side and in CLEAVE's line-wall and carrier-cross span readings, filed
+on each.
+## 2026-10-07 — position and tilt as one sum (TANG implementer)
+
+The section classifiers decide a served verdict's position datum and
+the term beside it as one margin across the reach (`decide_across`):
+plane×cylinder's gap, the cylinder pair's coaxial and gap rows and the
+witness's internal gap (the axes' distance's exact range), cone×cylinder's
+coaxial row, and, from the sweep, plane×torus's two-oval and cap rows
+and plane×cone's apex section. Closes
+`cylinder-axis-rows-decide-tilt-and-gap-one-at-a-time`. Filed on this
+slate `ball-lever-reads-the-3d-distance-not-the-axial-travel`,
+`face-hinge-lever-applies-its-larger-side-both-ways`,
+`cone-cylinder-levers-at-the-extent-not-the-circle-station`,
+`plane-torus-oval-tilt-levered-at-the-extent-not-the-tube-height`,
+`decide-across-and-carrier-eq-floor-are-two-spellings` and
+`plane-cylinder-gap-reads-the-3d-distance-not-the-in-section-stand-off`;
+the sweep's siblings went to OFFSET, CLEAVE, CHART, CONTACT, FLUX and
+GERM.

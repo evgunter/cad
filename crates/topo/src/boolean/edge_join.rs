@@ -543,8 +543,8 @@ fn joined_spec<T: Decide>(
         }
         geom_brep::EdgeDescription::Chart(c) => geom_brep::EdgeDescriptionSpec::Chart {
             surface: c.surface,
-            image: if c.seam { None } else { Some(c.pcurve.clone()) },
-            seam: c.seam,
+            image: if c.wrap { None } else { Some(c.pcurve.clone()) },
+            wrap: c.wrap,
             // A declaration's parameter is affine in the carrier's, so
             // the kept edge's runs on over the joined span exactly as a
             // split restricts it; certification re-meters it.

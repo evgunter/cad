@@ -1306,6 +1306,42 @@ impl<T: Decide> Body<T> {
         Ok(())
     }
 
+    /// Every edge described as a wrap edge whose two halves an operation
+    /// has left on two faces, re-described where it rests: the same
+    /// image in the chart it names, without the wrap flag. A wrap
+    /// edge is a fact about ONE face (D1), so once a cut parts its
+    /// halves it is a boundary between two faces of one surface, and
+    /// tier 3 holds it to that (`DescriptionNotAdjacent`).
+    pub(crate) fn rest_parted_wrap_edges(&mut self, tol: Tol) -> Result<(), EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        let parted: Vec<(EdgeKey, geom_brep::EdgeCurveSpec<T>)> = self
+            .edges
+            .iter()
+            .filter_map(|(edge, e)| {
+                let c = self.edge_curve_linked(edge, e).certified()?;
+                let geom_brep::EdgeDescription::Chart(ch) = c.description() else {
+                    return None;
+                };
+                let sides = crate::readback::edge_sides_of(self, edge, e);
+                if !ch.wrap || sides.plus.face == sides.minus.face {
+                    return None;
+                }
+                let mut spec = c.restated_spec();
+                if let geom_brep::EdgeDescriptionSpec::Chart { ref mut wrap, .. } = spec.description
+                {
+                    *wrap = false;
+                }
+                Some((edge, spec))
+            })
+            .collect();
+        for (edge, spec) in parted {
+            self.set_edge_curve(edge, spec, tol)?;
+        }
+        Ok(())
+    }
+
     /// **The rows a description writes**, decided before its door
     /// mutates: one plan per face the halves of an edge in `described`
     /// are on that the description re-mints
@@ -1502,7 +1538,8 @@ impl<T: Decide> Body<T> {
 /// home for [`Body::set_edge_curve`] and the minting doors that take a
 /// caller's description ([`Body::mef`]): an intrinsic description's two
 /// surfaces are exactly `faces`, a chart image names one of them, a
-/// chart seam names the one surface on both sides, and a scaffold names
+/// wrap edge names the one surface on both sides (that its halves bound
+/// one face is tier 3's), and a scaffold names
 /// none. `faces` are the surfaces the edge's two faces wear, `he_plus`'s
 /// first; `edge` is the edge the refusal names, `None` for the one a
 /// minting door mints. Pure.
@@ -1909,9 +1946,9 @@ pub(crate) enum Named {
     /// `TangentIntersection` alike: the described pair IS the faces'
     /// pair).
     Pair(SurfaceKey, SurfaceKey),
-    /// A chart image's chart, and whether the image claims to be the
-    /// chart's parameterization seam.
-    Chart { surface: SurfaceKey, seam: bool },
+    /// A chart image's chart, and whether the edge is a wrap edge of a
+    /// face on it (D1).
+    Chart { surface: SurfaceKey, wrap: bool },
     /// A scaffold, or a null edge: there is no surface to name.
     Nothing,
 }
@@ -1933,7 +1970,7 @@ impl Named {
             }
             geom_brep::EdgeDescription::Chart(c) => Self::Chart {
                 surface: c.surface,
-                seam: c.seam,
+                wrap: c.wrap,
             },
             geom_brep::EdgeDescription::Scaffold(_) => Self::Nothing,
         }
@@ -1945,8 +1982,8 @@ impl Named {
             | geom_brep::EdgeDescriptionSpec::TangentIntersection { s1, s2, .. } => {
                 Self::Pair(s1, s2)
             }
-            geom_brep::EdgeDescriptionSpec::Chart { surface, seam, .. } => {
-                Self::Chart { surface, seam }
+            geom_brep::EdgeDescriptionSpec::Chart { surface, wrap, .. } => {
+                Self::Chart { surface, wrap }
             }
             geom_brep::EdgeDescriptionSpec::Scaffold(_) => Self::Nothing,
         }
@@ -1968,18 +2005,17 @@ impl Named {
     /// and `minus`, its own keys read through `slot_of`. A chart image
     /// names ONE of the two faces' surfaces (a wall–wall seam is the
     /// u-boundary iso of either wall, and the minted convention picks
-    /// one); an image that claims to BE the chart's parameterization
-    /// seam names the one surface on both sides, by what a seam is; a
-    /// scaffold names none.
+    /// one); a wrap edge names the one surface on both sides, its two
+    /// halves bounding one face on it (D1); a scaffold names none.
     fn adjacent_to(self, [plus, minus]: [Slot; 2], slot_of: impl Fn(SurfaceKey) -> Slot) -> bool {
         match self {
             Self::Pair(s1, s2) => {
                 let (s1, s2) = (slot_of(s1), slot_of(s2));
                 (s1 == plus && s2 == minus) || (s1 == minus && s2 == plus)
             }
-            Self::Chart { surface, seam } => {
+            Self::Chart { surface, wrap } => {
                 let surface = slot_of(surface);
-                if seam {
+                if wrap {
                     surface == plus && surface == minus
                 } else {
                     surface == plus || surface == minus
@@ -3755,8 +3791,10 @@ mod tests {
     /// describing twin takes them as
     /// [`Body::kfmrh_carried_redescriptions`] states them on the cap's
     /// key, reaping the membrane's key, and tier 3 reports none of them
-    /// at rest where the lifted kill strands all four. (The demoted ring
-    /// winds as the outer loop it was, which tier 3 reports either way.)
+    /// naming a chart neither side wears, where the lifted kill strands
+    /// all four. (The demoted ring winds as the outer loop it was, and
+    /// its edges bound the cap on both sides, which tier 3 reports
+    /// either way.)
     #[test]
     fn kfmrh_describing_carries_the_strand_kfmrh_refuses() {
         let (mut body, top, membrane) = inlay_on_own_key();
@@ -3800,7 +3838,19 @@ mod tests {
             validate_geometric(b, tol())
                 .unwrap_err()
                 .into_iter()
-                .filter(|e| matches!(e, ValidationError::DescriptionNotAdjacent { .. }))
+                .filter(|e| match e {
+                    ValidationError::DescriptionNotAdjacent { edge } => {
+                        let (plus, minus) =
+                            crate::readback::edge_sides(b, *edge).unwrap().surfaces();
+                        match restated(b, *edge).description {
+                            EdgeDescriptionSpec::Chart { surface, .. } => {
+                                surface != plus && surface != minus
+                            }
+                            _ => true,
+                        }
+                    }
+                    _ => false,
+                })
                 .count()
         };
         assert_eq!(

@@ -92,10 +92,10 @@ DM4) follow this rule, and so do profile pieces:
   whole document; its order is mint order, which is the order the author
   placed things in, and nothing else. The document keeps every
   id it has minted, node and step, in one mint log, deleted nodes' and
-  dropped steps' included, and a mint whose id is already in the log is
-  refused. The load door checks what minting makes true: every node's id
-  in the mint log, one id per authored step, every step's id in the mint
-  log, and no id standing for two steps. A name may spell only a step the
+  dropped steps' included, in mint order, so no id is minted twice. The
+  load door checks what minting makes true: the log's ordinals count up
+  from one, every node's id in the mint log, one id per authored step,
+  every step's id in the mint log, and no id standing for two steps. A name may spell only a step the
   document has minted: the doors that write a name (`InsertNode`, `Rebind`,
   `SetAppearance`, `SetAppearanceMeta`) refuse one the mint log does not
   hold, and so does the load door.
@@ -509,7 +509,10 @@ the current run, the diagnosis is `GroupResized { node, was, now, cutters }`.
   survivor, and at a union the published entities a fold step's group descends
   to, followed by entity through every later step. A piece a later step
   re-mints under a seam name of its own is not a descendant by that descent and
-  is not counted. Two tied parents that share a base are two groups, each
+  is not counted. An edge piece's group is its line's: every edge the node
+  holds on the line from an operand edge, whichever parent edge on the line it
+  descends from, whole or in pieces, counted together. Two tied parents that
+  share a base are two groups, each
   counted on its own, where the emitter groups by parent entity; where it
   groups by parent names (the seam lanes) their pieces share one group and the
   rung declines. That is a statement about two recorded groups, not a claimed

@@ -23,7 +23,13 @@ fn die(l: f64, r: f64) -> Filleted<f64> {
     let body = cube(l, Tol::witness());
     let edges = query::all_edges(&body);
     assert_eq!(edges.len(), 12, "a box has twelve edges");
-    fillet_edges(&body, &edges, r, Tol::witness()).expect("the die body")
+    fillet_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &edges,
+        r,
+        Tol::witness(),
+    )
+    .expect("the die body")
 }
 
 /// The acceptance row: the whole rounded die, top to bottom.
@@ -147,8 +153,13 @@ fn the_die_is_tier3_valid_at_a_second_radius() {
 #[test]
 fn a_subset_of_the_edges_refuses_at_the_assembly_front_door() {
     let (body, edge) = crate::common::operands::half_round_end();
-    let err = fillet_edges(&body, &[edge], 0.15, Tol::witness())
-        .expect_err("an edge ending at a curved end face is a run-out");
+    let err = fillet_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &[edge],
+        0.15,
+        Tol::witness(),
+    )
+    .expect_err("an edge ending at a curved end face is a run-out");
     assert!(
         matches!(err.error, BlendError::UnsupportedRunOut { .. }),
         "expected the assembly front-door refusal, got {err}",

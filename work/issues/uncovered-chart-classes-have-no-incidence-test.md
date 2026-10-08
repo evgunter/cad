@@ -1,7 +1,7 @@
 ---
 id: uncovered-chart-classes-have-no-incidence-test
 kind: issue
-title: Four uncovered chart_pcurve classes have no incidence test, so an off-chart carrier among them is excused as uncovered
+title: Two uncovered chart_pcurve classes have no incidence test, so an off-chart carrier among them is excused as uncovered
 status: open
 opened: 2026-10-01
 ---
@@ -15,26 +15,26 @@ is `crates/geom-brep/src/pcurve_cache.rs` (PCERT's and PCTAIL's per
 D36 split `UnsupportedCarrier` (uncovered: the carrier can lie on the
 chart, no lane covers it — the only refusal `topo::pcurves::mint_faces`
 excuses) from `CarrierOffChart` (a body defect, propagated). Where an
-incidence test exists the split is decided by it: the sphere's general
+incidence test exists the split is decided by it — one-sidedly, on the
+sphere, cone and torus (`pcurve_cache::chart_incidence`): the largest
+exact distance from the chart at 64 carrier samples is a lower bound,
+so `CarrierOffChart` is certified, and a carrier not shown off goes on
+to its image's certificate or refuses as grazing the chart: the sphere's general
 circles (`sphere_circle_incidence`, `pcurve_sphere_chart_incident`;
 no longer excused at all — the mint images them through the fitted
 route),
 the cone's non-rim conics (`cone_conic_incidence`,
-`pcurve_cone_chart_incident`), and the spiric's foreign tori (the
+`pcurve_cone_chart_incident`; a circle on the cone that is no rim now
+refuses as grazing it, `CarrierGrazesChart`, since a cone holds no
+other circle), the torus's oblique circles (`torus_oblique_circle`,
+`pcurve_torus_chart_incident`; a circle not shown off the torus is a
+Villarceau circle and mints its focal-section image, or grazes it),
+and the spiric's foreign tori (the
 mirror-torus coefficient match). The classes below have NO such test
 and are `UnsupportedCarrier` wholesale, so a carrier in them that does
 NOT lie on the chart is still excused by the mint, leaves its face
 uncached, and passes tier 3 clean:
 
-- **`UncoveredClass::TorusGeneralCircle`** (`chart_pcurve`'s torus arm):
-  an oblique circle (`pcurve_torus_chart_meridian` failing) — Villarceau
-  circles lie on the torus, an arbitrary tilted circle does not — and a
-  circle ⊥ the axis centred off it (`pcurve_torus_chart_centered`
-  failing), which near the tube's top leaves the torus only by `δ²/2r`
-  and so cannot be called off-chart by the centring gate. The test:
-  `(|p|² + R² − r²)² − 4R²ρ²` along `c + a cos t + b sin t` is a
-  trigonometric polynomial of degree 4 in `t`, nine coefficients, each
-  meterable over a `≈ 4R·r` lever.
 - **`UncoveredClass::SplineCarrier`** (`chart_pcurve`'s top,
   `carrier_harmonic` answering `None`): a spline carrier on an analytic
   chart. No closed-form test; it needs the fitted lane's on-locus hull,

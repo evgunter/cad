@@ -709,8 +709,8 @@ impl Body {
 ///   another one leaves the refusal standing. `"vertex_on_edge"` and
 ///   `"edge_edge"` are records an op wrote, never a declaration: a stale
 ///   one is the op's defect, with nothing to withdraw.
-/// * `ring_contact_kind` — how a ring meets its face's own outer loop
-///   (`"vertex_vertex"`, `"vertex_on_edge"`, `"vertex_on_ring_edge"`,
+/// * `ring_contact_kind` — how a ring meets its face's own outer loop,
+///   or another ring of that face (`"vertex_vertex"`, `"vertex_on_edge"`, `"vertex_on_ring_edge"`,
 ///   `"edge_along_edge"`, `"edge_edge_point"`, `"circle_circle"`).
 ///   The word says where the ring has to move: a shared position one
 ///   vertex clears, a shared arc no single move separates, or a
@@ -756,7 +756,8 @@ impl ValidationFinding {
         self.0.stale_kind
     }
 
-    /// How a ring meets its face's own outer loop.
+    /// How a ring meets its face's own outer loop, or another ring of
+    /// that face.
     #[getter]
     fn ring_contact_kind(&self) -> Option<&'static str> {
         self.0.ring_contact_kind

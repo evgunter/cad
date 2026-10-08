@@ -421,12 +421,12 @@ mod tests {
         let shown = test_utils::own_thread::on_the_smallest_stack(|| {
             let leaf = StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(test_utils::refusal::tagged(1)),
+                node: RecipeNodeId::new(0, test_utils::refusal::tagged(1)),
                 path: vec![RoleSeg::Cap(CapEnd::End)],
             };
             let deep = (0..DEEP).fold(leaf, |n, _| StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(test_utils::refusal::tagged(2)),
+                node: RecipeNodeId::new(0, test_utils::refusal::tagged(2)),
                 path: vec![RoleSeg::FromA(NameRef::new(n))],
             });
             Disagreement {

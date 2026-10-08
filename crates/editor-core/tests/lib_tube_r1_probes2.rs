@@ -44,7 +44,7 @@ fn doc_with_axis_dir(
             fresh: Vec::new(),
         },
     );
-    let spine = *doc.order().last().expect("datum");
+    let spine = *doc.ids().last().expect("datum");
     doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -58,7 +58,7 @@ fn doc_with_axis_dir(
             fresh: Vec::new(),
         },
     );
-    let tube = *doc.order().last().expect("tube");
+    let tube = *doc.ids().last().expect("tube");
     (doc, spine, tube)
 }
 

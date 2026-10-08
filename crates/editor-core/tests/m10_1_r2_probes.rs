@@ -47,12 +47,12 @@ use test_utils::fuzz;
 /// A variable as the free mass doors' refusals speak it.
 /// The variable `doc` declares as `name`, or an id it never minted.
 fn v(doc: &editor_core::ProfileDoc, name: &str) -> editor_core::VarId {
-    doc.var_named(name).unwrap_or(editor_core::VarId(0))
+    doc.var_named(name).unwrap_or(editor_core::VarId::new(0, 0))
 }
 
 fn sp(name: &'static str) -> editor_core::SpokenVar {
     editor_core::SpokenVar::new(
-        editor_core::VarId(0),
+        editor_core::VarId::new(0, 0),
         Some(editor_core::VarName::from_static(name)),
     )
 }
@@ -611,7 +611,7 @@ fn a_distribution_changes_no_content_key_naming_key_or_verdict() {
     };
     let (a, b) = (run(&plain), run(&annotated_doc));
     let mut compared = 0usize;
-    for &id in plain.order() {
+    for id in plain.ids() {
         let (va, vb) = (a.value(id), b.value(id));
         match (va, vb) {
             (Some(va), Some(vb)) => {
@@ -661,7 +661,7 @@ fn a_distribution_changes_no_content_key_at_interval() {
     };
     let (a, b) = (run(&plain), run(&annotated_doc));
     let mut compared = 0usize;
-    for &id in plain.order() {
+    for id in plain.ids() {
         if let (Some(va), Some(vb)) = (a.value(id), b.value(id)) {
             assert_eq!(va.content_key, vb.content_key, "node {}", id.0);
             assert_eq!(va.naming_key, vb.naming_key, "node {}", id.0);

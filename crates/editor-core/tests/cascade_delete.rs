@@ -121,7 +121,7 @@ fn every_step_of_the_order_is_accepted_by_the_delete_door() {
         .expect("the cone's order never dangles a reference")
         .doc;
     }
-    assert!(doc.order().is_empty(), "the whole cone is gone");
+    assert!(doc.ids().is_empty(), "the whole cone is gone");
 }
 
 /// Deleting the fork's tip takes the tip and nothing else — the
@@ -148,7 +148,7 @@ fn inputs_of_the_target_survive_it() {
 #[test]
 fn an_absent_node_has_an_empty_cascade() {
     let (doc, _) = fork();
-    let absent = RecipeNodeId(9_999);
+    let absent = RecipeNodeId::new(0, 9_999);
     assert!(cascade_delete_order(&doc, absent).is_empty());
     assert_eq!(
         apply(

@@ -4,7 +4,6 @@ kind: unit
 title: Step 3 of the 3881 ruling: no joinable vertex at rest, checked at tier 3 by the join's predicate; every finisher, import included, ends with the join
 status: open
 opened: 2026-10-07
-needs_ev: true
 pr: 4251
 branch: fuse/ev-where-maximal-edges-is-checked
 priority: P1
@@ -33,7 +32,26 @@ The designer pair (fork-log row 85) ended agreeing. The check is a
 tier-3 arm at rest, and every finisher, import included, ends with
 the join. A vertex whose reading lands in band is exempt at rest.
 
-## What the build needs, if ruled so
+## Ruled (Ev, PR 4251, 2026-10-08)
+
+- **Decision 1, as recommended.** "No joinable vertex" is a tier-3 arm
+  at rest (`JoinableVertexAtRest`), read by the join's predicate.
+  Every finisher, import included, ends with the join. Tier 2 and
+  construction state are untouched.
+- **Decision 2, against the recommendation.** A vertex whose
+  regularity reading lands in the sliver band **refuses** at rest,
+  typed, and complains that ε is too high: "if this size is intended,
+  tighten the tolerance below m/K".
+- **Ev's reasoning.** A STEP file coarser than the offset is ε_in
+  healing's to snap onto the pole, where the vertex reads in the zero
+  band and is never joinable. So the only bodies that reach rest in
+  the sliver band are ones whose file is finer than the run.
+  `halfcap_eps6/7` are such files: they declare ε_in = 1e-10 m, and
+  their split vertex sits 1e-8 m and 1e-9 m off the pole.
+- **What moves.** `halfcap_eps6/7` refuse at the default ε, and the
+  halfcap rows re-baseline to that refusal plus a pass at ε = 1e-10 m.
+
+## What the build needs
 
 - **The join door.** `join_stage` becomes a public `Body` door; today
   it is `pub(super)` in `boolean`.

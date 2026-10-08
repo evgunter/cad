@@ -190,13 +190,15 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
     }
 }
 
-/// Re-describes a full-revolve meridian as `Seam { surface }` when the
-/// wall surface is periodic; a plane wall's meridian becomes an image
-/// at rest in that wall's chart (module docs — `Seam` is malformed on
-/// a non-periodic chart, and one surface on both sides determines no
-/// locus, so D2's conventional split applies). Carrier and interval
-/// kept verbatim either way.
-pub(super) fn upgrade_meridian_seam<T: Decide + topo::AtRestPolicy>(
+/// Re-describes a full-revolve meridian as its wall's wrap edge (D1)
+/// when both its halves bound one face on a periodic wall surface — a
+/// lamina wall, closed on itself across it. Otherwise it is an image at
+/// rest in that wall's chart: a plane wall's meridian (module docs — a
+/// plane's chart closes in no direction, and one surface on both sides
+/// determines no locus, so D2's conventional split applies), and a wire
+/// wall's angle-0 meridian, which parts its two π-bands rather than
+/// closing either. Carrier and interval kept verbatim either way.
+pub(super) fn upgrade_meridian_wrap<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
     wall: SurfaceKey,
@@ -208,15 +210,20 @@ pub(super) fn upgrade_meridian_seam<T: Decide + topo::AtRestPolicy>(
         }),
         geom::Surface::Plane { .. }
     );
-    if is_plane {
-        // A plane wall has no seam to be — but the meridian is still
-        // at rest in that wall's chart, and the scaffolding door it
-        // was minted through is for edges whose surfaces do not exist
-        // yet (D3's transience fence). So it is described where it
-        // rests, as an ordinary chart image owing the one meter.
+    let (f_plus, f_minus) = topo::readback::edge_sides(body, edge)
+        .unwrap_or_else(|_| {
+            unreachable!("meridian {edge:?} was minted by this revolve and is live")
+        })
+        .faces();
+    if is_plane || f_plus != f_minus {
+        // The meridian is at rest in that wall's chart, and the
+        // scaffolding door it was minted through is for edges whose
+        // surfaces do not exist yet (D3's transience fence). So it is
+        // described where it rests, as an ordinary chart image owing
+        // the one meter.
         body.describe_at_rest(edge, wall, tol)?;
         return Ok(());
     }
-    crate::swept::describe_seam(body, edge, wall, tol)?;
+    crate::swept::describe_wrap_edge(body, edge, wall, tol)?;
     Ok(())
 }

@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-03
 priority: P3
 cost: E
+branch: join/strut-side-one-rule
 ---
 
 ## Finding

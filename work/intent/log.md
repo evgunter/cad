@@ -236,6 +236,79 @@ Closed: `range-synthetic-name-mints-a-name`,
 `unproven-coincidence-lint-binds-every-variable-as-a-symbol`.
 - 2026-10-06 — Note from ZIP: filed `the-declared-rest-zip-retires-at-stage-4-and-the-join-needs-three-arms` (P0/H) on this slate as stage-4 input, on Ev's direction in chat. Two designers converged on retiring the declared-REST zip (`boolean/rest.rs`) with declared pairs. Before then the join gains a partner-edge chord, ring re-homing on a curved chart in aligned contact, and the `mekr` `NotSameFace` cause. The row carries the measurement. ZIP's REST-lane rows are parked on `d10-one-way-to-say-intent-is-unbuilt`. Units ZIP already started finish: the zip's admission check (PR 4127, a live wrong body; Ev, in chat, "finish it"), `Fusions` (PR 4116) and pins (PR 4130). (ZIP orchestrator)
 
+## 2026-10-07 — INTENT-LITERALS PR D, Expr holds no float (`intent/literals-d`)
+
+A stored expression's leaves are variable readers, exact rationals
+(`Ratio`, reduced, numerator and denominator at most 2^53), integers
+and `turn`; no float is left in a document's expressions. A written
+quantity is the authored `Quantity` leaf: inside a formula it mints an
+anonymous free variable of its own, in pre-order before the variable it
+defines, so two typed `5 mm` in formulas are two variables and their
+tokens differ. Tokens carry `T_RATIO`, `T_INTEGER` and `T_TURN`;
+`T_LITERAL` and `T_COUNT_LITERAL` are retired bytes. The f64 geometry,
+and the interval enclosures, of the whole corpus are byte-identical
+with ids masked; the id-bearing pins moved on `kitchen_sink` alone.
+
+Ruled at review (orchestrator, on the lane's spec-undecided rulings):
+- A bare number inside a formula is the exact `Ratio` its decimal
+  spells, and refuses `ConstantOutOfRange` where none in range does
+  (`1e-20`, `0.30000000000000004`): never a hidden variable (VR6). One
+  copy of the rule, `Ratio::from_decimal`. The whole text one such
+  decimal is a value, its written double. `Formula::scalar` is always
+  a written `Scalar` quantity (§1), so inside a definition it mints a
+  variable; `Formula::ratio` is the constant.
+- A count of integer constants beside an operand that is no count
+  reads as the scalar it equals, whichever side it folds on
+  (`turn/4`, `2*3*w`, `w*2*3`); a count reading a variable is promoted
+  only by `scalar(n)`.
+- `INT/INT` with no space is one ratio, except as the right operand of
+  `/`, so `w/2/3` is `(w/2)/3`; `unparse` brackets a `p/q` divisor. A
+  ratio's parts are integers (`2/3.5` refuses saying so).
+- `turn` is reserved (§1).
+
+Ruled by the lane:
+- A declared definition mints its own id before its quantities, so a
+  refusal speaks the id it is minted at.
+- `Doc::unparse` writes an anonymous reader as what it holds; the bare
+  `unparse` keeps `#<16 hex>`.
+- `GeomPred::DatumDistance` holds a `Formula`, evaluated with no
+  document: a name refuses `EvalError::Unlowered`.
+
+Closed: `no-dimensioned-literal-in-a-slot`,
+`equal-literals-lower-to-one-identity-token`,
+`definition-node-bound-is-re-measured-against-the-corpus-after-d`
+(4096 stands). Opened: `typing-a-value-mints-or-offers-a-variable`
+(its trigger fired). Re-parked: `operations-define-output-variables`
+(stage 2 A) on FORK-1's PR 4222, which still gates it once this
+row's trigger fires.
+
+## 2026-10-07 — stage 2 sliced (`docs/INTENT-STAGE2-SPEC.md`)
+
+A spec lane sized stage 2 (operations and one dependency) at main
+`9eaf8eab2f`, measured before stage 1's C and D. Stage 2 lands in six PRs,
+each green, in this order:
+
+- A `operations-define-output-variables`: no node id moves.
+- B `operands-are-reads`: behaviour-preserving, with byte-equal roots.
+- C `the-product-is-an-explicit-list`: closes both parked product rows.
+- D `measure-is-an-operation`.
+- E `select-defines-face-and-edge-variables`.
+- F `a-mate-reads-face-variables`: A12 retires.
+
+C precedes D, E and F because a measure or a mate that reads its operand
+would otherwise drop it from A10's sink set.
+
+Five FORKs are open for designer pairs:
+
+1. The output signature: kinds D10 does not list, and DM3.
+2. How the product list is kept: A10's maintenance.
+3. What a selection is: SELECT-DESIGN §4.
+4. Re-pointing an operand: DM6.
+5. Whether a geometric slot may read a measured value.
+
+The six rows are filed parked behind stage 1, so they do not count toward
+the load. At stage 1's close the stage's ~25 points either fit the budget
+or split into their own program.
 ## 2026-10-07 — FORK-6: split moves a variable with its readers (orchestrator's ruling)
 
 The inline lane (`inline-merges-variables-by-equal-value`) stopped at a
@@ -255,3 +328,19 @@ and A10's regrouping; split(inline(h)) keeps an unread free named part
 variable in the host. Not sent to Ev: no ratified decision moves. A4's
 acceptance is kept and re-worded as VR1 forces ("minted ids"), and A4
 Split and VR9 each gain a descriptive line, landing with the lane's PR.
+
+## 2026-10-07 — stage 2 spec updated to the FORK-2b, FORK-4 and FORK-5 rulings (PR 4216)
+
+- **C is now "the product is the world"** (FORK-2b, #4220). It lands `PlaceInWorld { body, pose }` and a derived product. The audit's C-side retirements ride C rather than B, because each is stated over world placements: D-2's narrowed closure, `InstanceConsumed`, `PlacedUnderTwoRoots` and N4. The product is checked once, at the migration.
+- **B builds the one slot door for operands** (FORK-4, #4221).
+- **D refuses a construction reading an observed variable** (FORK-5, #4218).
+- **F retires A5's minting lift.**
+- **A and E stay pending FORK-1 and FORK-3** (#4222).
+- The consuming-model audit's 14 hits are mapped in spec §11.
+
+## 2026-10-08 — FORK-1, FORK-1b and FORK-3 ruled (PR 4222)
+
+- **FORK-1:** approved as written (typed output ports; `Body`, `Bodies`, `Profile`; a split two bodies; an instance one `Body` per world placement).
+- **FORK-1b** (Ev's lattice comment; designer pair, three rounds, row 86): approved. Poses are frames up to their kind's symmetry, D10's five kinds, incidences constructed, a 2-D value lives in its node; the revolve defines `body` and `axis`; the tube reads a `Frame` from unit B (`tube-spine-reads-an-axis-origin`). Ev added that the mates' `Subgroup` should be shared: one type is a pose's symmetry and what a mate folds.
+- **FORK-3:** sets. Ev clarified that "the role played by edges is replaced by sharing variables" meant dependency-graph edges.
+- Unit A is unblocked (stage 1 finished with PR D, #4277).

@@ -178,12 +178,12 @@ fn a_token_is_the_expansions_shape() {
         Tol::witness(),
     );
     let doc = declare(&doc, "w", length(0.0625));
-    let times = |k: f64| Formula::mul(named("w"), crate::fixture::scl(k)).unwrap();
-    let doc = declare(&doc, "h", VarDecl::defined(times(2.0)));
-    let (doc, _, a) = filleted(doc, 0.0, times(2.0));
-    let (doc, _, b) = filleted(doc, 4.0, times(2.0));
+    let times = |k: i64| Formula::mul(named("w"), Formula::ratio(k, 1).unwrap()).unwrap();
+    let doc = declare(&doc, "h", VarDecl::defined(times(2)));
+    let (doc, _, a) = filleted(doc, 0.0, times(2));
+    let (doc, _, b) = filleted(doc, 4.0, times(2));
     let (doc, _, c) = filleted(doc, 8.0, named("h"));
-    let (doc, _, d) = filleted(doc, 12.0, times(3.0));
+    let (doc, _, d) = filleted(doc, 12.0, times(3));
     assert_ne!(
         radius(&doc, a),
         radius(&doc, b),
@@ -222,16 +222,37 @@ fn a_rewritten_slot_retires_the_variable_its_formula_minted() {
             fresh: Vec::new(),
         },
     );
+    // The typed 5 mm is a variable of its own (VR6), read only by the
+    // definition: it retires after it, and the log keeps both ids.
+    let mut reads = Vec::new();
+    doc.var(formula)
+        .and_then(|v| v.def().defined())
+        .expect("the slot's definition")
+        .var_reads(&mut reads);
+    let five = reads
+        .iter()
+        .map(|&(var, _)| var)
+        .find(|&var| Some(var) != doc.var_named("w"))
+        .expect("the definition reads its typed quantity");
     assert_eq!(
         applied.maintenance,
-        vec![Maintenance::AnonymousVarRemoved {
-            var: doc.spoken_var(formula),
-            distribution: None,
-        }]
+        vec![
+            Maintenance::AnonymousVarRemoved {
+                var: doc.spoken_var(formula),
+                distribution: None,
+            },
+            Maintenance::AnonymousVarRemoved {
+                var: doc.spoken_var(five),
+                distribution: None,
+            },
+        ],
+        "the definition, then its free variable"
     );
     assert_eq!(applied.doc.slot(blend, SlotId::Radius), doc.var_named("w"));
     assert!(applied.doc.var(formula).is_none());
+    assert!(applied.doc.var(five).is_none());
     assert!(applied.doc.has_minted_var(formula), "the log keeps its id");
+    assert!(applied.doc.has_minted_var(five), "and the quantity's");
 }
 
 /// Row 7's load half: a file whose slot's own anonymous definition is
@@ -605,7 +626,7 @@ fn an_entry_reads_the_entries_before_it() {
     let doc = empty("intent-literals-c-chain");
     let twice = Formula::mul(
         Formula::fresh(0, Dimension::Length),
-        crate::fixture::scl(2.0),
+        Formula::ratio(2, 1).unwrap(),
     )
     .unwrap();
     let applied = step(
@@ -656,7 +677,7 @@ fn retimes(node: RecipeNodeId) -> DocEdit<ProfileProgram> {
             slot: SlotId::Origin(editor_core::Axis3::X),
             path: vec![1],
         },
-        expr: crate::fixture::scl(3.0),
+        expr: Formula::ratio(3, 1).unwrap(),
     }
 }
 
@@ -674,7 +695,11 @@ fn an_edit_at_a_path_keeps_another_nodes_anonymous_read() {
     let x = SlotId::Origin(editor_core::Axis3::X);
     let v = applied.doc.slot(a, x).expect("a reads its x");
     let doc = toleranced(&applied.doc, v);
-    let twice = Formula::mul(Formula::var(v, Dimension::Length), crate::fixture::scl(2.0)).unwrap();
+    let twice = Formula::mul(
+        Formula::var(v, Dimension::Length),
+        Formula::ratio(2, 1).unwrap(),
+    )
+    .unwrap();
     let applied = step(&doc, point([twice, len(0.0), len(0.0)], Vec::new()));
     let b = applied.record.minted.expect("the second point");
     let before = applied.doc.slot(b, x).expect("b reads its x");
@@ -711,7 +736,7 @@ fn an_edit_at_a_path_keeps_a_fresh_entrys_read() {
     let doc = empty("intent-literals-c-path-fresh");
     let twice = Formula::mul(
         Formula::fresh(0, Dimension::Length),
-        crate::fixture::scl(2.0),
+        Formula::ratio(2, 1).unwrap(),
     )
     .unwrap();
     let spread = VarDecl::Free(
@@ -764,19 +789,19 @@ fn the_load_door_reads_every_slots_variable() {
     );
     let doc = declare(&doc, "n", VarDecl::Free(FreeVar::Count { value: 3 }));
     let text = save(&doc, &[], Tol::witness()).expect("saves");
-    let at = |wire: &mut serde_json::Value, var: u64| {
+    let at = |wire: &mut serde_json::Value, var: VarId| {
         wire["snapshot"]["nodes"][point.0.to_string()]["Datum"]["Point"]["position"][1] =
             serde_json::json!(var);
     };
-    let unminted = crate::wire::doctored(&text, |wire| at(wire, 1));
+    let unminted = crate::wire::doctored(&text, |wire| at(wire, VarId::new(0, 1)));
     match load(&unminted, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::ReaderOfUnmintedVar { node, var })) => {
-            assert_eq!((node.id(), var), (point, VarId(1)));
+            assert_eq!((node.id(), var), (point, VarId::new(0, 1)));
         }
         other => panic!("a slot of an unminted id refuses, got {other:?}"),
     }
     let count = doc.var_named("n").expect("declared");
-    let counted = crate::wire::doctored(&text, |wire| at(wire, count.0));
+    let counted = crate::wire::doctored(&text, |wire| at(wire, count));
     match load(&counted, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::SlotVarKind {
             node,
@@ -1011,8 +1036,8 @@ fn stackup_and_monte_carlo_list_only_toleranced_variables() {
     let w = doc.var_named("w").unwrap();
     assert_eq!(
         crate::fixture::continuous_vars(&doc),
-        5,
-        "the premise: w, v and the point's three typed lengths"
+        6,
+        "the premise: w, v, the measure's typed 5 mm and the point's three typed lengths"
     );
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     assert_eq!(

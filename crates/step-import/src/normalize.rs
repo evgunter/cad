@@ -7,12 +7,12 @@
 //!
 //! Open CASCADE never splits a periodic face: a full cylinder wall, a
 //! full cone, and a whole torus each arrive as ONE `ADVANCED_FACE`
-//! whose loop uses its seam edge twice — when the exporter kept the
-//! seam at all. Most of that is fine — the importer's manifold
-//! precondition and the seam adoption rung were built for exactly
-//! that shape, and the cylinder and the truncated cone assemble and
-//! certify as stated when the file states the seam. Three shapes do
-//! not:
+//! whose loop uses its wrap edges twice — when the exporter kept them
+//! at all. Most of that is fine — the importer's manifold precondition
+//! and the wrap-edge adoption rung were built for exactly that shape,
+//! and the cylinder, the truncated cone and the whole torus (one face
+//! cut once each way, D1) assemble and certify as stated. Two shapes
+//! do not:
 //!
 //! - **The apex cone.** Its lateral face is `(seam, base circle,
 //!   seam)`, and the seam's far end is the apex — a vertex with ONE
@@ -21,14 +21,6 @@
 //!   finished solid it is: the strut tip of an unfinished Euler
 //!   sequence. A body carrying one is not a closed solid by the
 //!   kernel's own definition.
-//! - **The whole torus.** One face wrapping the FULL period in BOTH
-//!   chart directions is the fundamental-polygon square, whose four
-//!   sides are two curves each used twice. The topology closes
-//!   (Euler–Poincaré gives genus 1 and tier 2 passes), but the face is
-//!   not a chart iso-rectangle, and the closed-form divergence
-//!   contribution reads its own `Δu` off a rim that appears with both
-//!   orientations — the volume comes back with the right magnitude and
-//!   the wrong SIGN, which tier 3 catches as `NegativeVolume`.
 //! - **The seamless band** (M7-5). A cylinder or torus lateral face
 //!   stated as its two full-period rim bounds with NO seam generator
 //!   at all. The kernel's face model is one outer loop plus rings,
@@ -44,15 +36,14 @@
 //! fully explained by the file's own surfaces and carriers and is
 //! adopted unchanged — only the boundary-graph tessellation is
 //! re-minted, into the splitting a natively built body carries (the
-//! kernel's own cone is two lateral half-faces; its own torus is two
-//! half-faces; its own revolved wall is ONE face whose loop uses its
-//! seam edge twice). The census mapping is carried out as
-//! [`crate::StructureNormalization`] data.
+//! kernel's own cone is two lateral half-faces; its own revolved wall
+//! is ONE face whose loop uses its wrap edge twice). The census mapping
+//! is carried out as [`crate::StructureNormalization`] data.
 //!
 //! What a mint may state that the file did not is bounded and named:
-//! the apex cone's and whole torus's minted curves are each either a
-//! sub-arc of a carrier the file states or that carrier's half-turn
-//! rotation about the face's own axis; the band's seam generator is a
+//! the apex cone's minted curves are each either a sub-arc of a carrier
+//! the file states or that carrier's half-turn rotation about the
+//! face's own axis; the band's seam generator is a
 //! NEW carrier — the surface's own `u_ref` ruling (cylinder) or
 //! `u_ref` meridian arc (torus), the same license under which the
 //! edge-free sphere's re-mint ([`crate::entities`]) states its two
@@ -62,33 +53,25 @@
 //! any file-stated edge; no minted curve is a new shape.
 //!
 //! Anything that does not match these shapes exactly is left alone —
-//! this is a bounded repair of three named cases, not a licence to
+//! this is a bounded repair of two named cases, not a licence to
 //! re-tessellate.
 //!
 //! # Orientation is derived, never minted
 //!
 //! A re-tessellation decides how its new faces are wound, which makes
 //! it the exact place an inside-out solid could be quietly turned
-//! right-side-out. The torus is where that bites: its face is the
-//! fundamental-polygon square `[x, y, x', y']`, whose multiset of
-//! oriented uses is INVARIANT under loop reversal, so the winding
-//! lives only in the cyclic ORDER. [`full_torus`] reads that order —
-//! against `u` and `v` directions sampled through the kernel's own
-//! chart inverse — and cross-checks it against the face's
-//! `same_sense`. The two consistent statements of a right-side-out
-//! ring (`.T.` with a CCW loop, `.F.` with a CW one) both adopt to the
-//! same body; the two inverted ones REFUSE typed. Nothing about the
-//! file's material side is assumed, and nothing is repaired into
-//! existence.
-//!
-//! The M6-6 rider extends the same derived-winding cross-check to the
-//! degenerate-apex cone (inside [`apex_cone`], before its re-mint) and
-//! — read-only — to two-rim cylinder/cone walls ([`wall_inversion`]):
-//! since M6-6 the kernel's tier-3 curved sense gate (check 6,
-//! `CurvedSenseInverted`) refuses the inside-out body such a file
-//! would build, and import returns certified bodies, so the
-//! orientation-inverted diagnosis fires HERE, pre-body, with the
-//! whole-torus refusal's typed story.
+//! right-side-out. So a re-mint reads the file's winding — against `u`
+//! and `v` directions sampled through the kernel's own chart inverse —
+//! and cross-checks it against the face's `same_sense` before it mints
+//! anything: the degenerate-apex cone inside [`apex_cone`], and —
+//! read-only — two-rim cylinder/cone walls ([`wall_inversion`]). The
+//! kernel's tier-3 curved sense gate (check 6, `CurvedSenseInverted`)
+//! refuses the inside-out body such a file would build, and import
+//! returns certified bodies, so the orientation-inverted diagnosis
+//! fires HERE, pre-body, typed. A face adopted as stated, the whole
+//! torus included, is read by that gate on the body: its chart Green
+//! form reads the winding off the loop's cyclic order, which is where
+//! a fundamental polygon's winding lives.
 //!
 //! [`band_seam`] (M7-5) reads its winding the same way — each rim's
 //! chart-u direction against `same_sense` — before it re-mints: an
@@ -297,7 +280,6 @@ pub(crate) fn normalize_shell(
 ) -> Result<(), StepImportError> {
     band_seam(solid, eps_in, mint, sink)?;
     apex_cone(solid, mint, sink)?;
-    full_torus(solid, mint, sink)?;
     wall_inversion(solid)
 }
 
@@ -309,11 +291,10 @@ pub(crate) fn normalize_shell(
 /// rim, and the generator again reversed — the seam edge used twice,
 /// the shape a natively revolved wall carries.
 ///
-/// The seam azimuth is the surface's own `u_ref` azimuth, ALWAYS
-/// (spec D1): the seam chart image is defined spatially as the locus
-/// in the closed u_ref half-plane and certification meters
-/// SeamHalfplane/SeamSide against it, so re-charting `u_ref` to dodge
-/// a split would mutate imported geometry beyond need. Where a rim
+/// The seam azimuth is the surface's own `u_ref` azimuth: a wrap
+/// edge may sit at any azimuth (D1), and cutting at `u_ref` keeps the
+/// imported surface as stated, where re-charting `u_ref` to dodge a
+/// split would mutate imported geometry beyond need. Where a rim
 /// has no vertex at that azimuth, the rim is split there
 /// ([`split_at_param`]) and the split propagates to EVERY face
 /// sharing the rim ([`expand_split_uses`]) — load-bearing for shared
@@ -583,12 +564,10 @@ fn mint_band(
             reversed: false,
         },
     );
-    // The mint's whole point is D1's spatial statement — this edge IS
-    // the u_ref half-plane seam — so adoption must certify it as
-    // the seam chart image or refuse; a silent downgrade to the
-    // conventional mapped-curve rung would import a body whose "seam"
-    // is off the half-plane (R1 fix pass, m2). Recorded here, enforced
-    // in [`crate::adopt`].
+    // The mint's whole point is D1's statement that this edge is the
+    // band face's wrap edge, so adoption must certify it as one or
+    // refuse; it is not offered the conventional mapped-curve rung.
+    // Recorded here, enforced in [`crate::adopt`].
     solid.band_seams.insert(gen_id);
     // ---- The single loop: [rim_s…, seam⁺, rim_e…, seam⁻] ----------
     //
@@ -1096,265 +1075,6 @@ fn solid_edge_leaves_apex(solid: &SolidSpec, use_: EdgeUse, apex_v: u64, _base_v
     let spec = &solid.edges[&use_.edge];
     let from = if use_.forward { spec.start } else { spec.end };
     from == apex_v
-}
-
-/// **The whole torus in one face** (module docs): a toroidal face whose
-/// single loop is the fundamental-polygon square — four uses over two
-/// self-loop edges at one vertex. Re-minted as the kernel's own two
-/// half-faces.
-///
-/// The split runs in **v**, the minor direction, because that is the
-/// splitting a natively revolved torus carries: each half-face is a
-/// full turn in u (its two rims are whole circles, one at the profile
-/// vertex's latitude and one at the antipodal latitude) and half a turn
-/// in v (the u-seam meridian, cut in two and used twice per face —
-/// STEP's ordinary seam encoding). Splitting in u instead leaves each
-/// half wrapping the full v-period, which is the same both-ways
-/// ambiguity in the transpose.
-///
-/// Census: 1 face / 2 edges / 1 vertex becomes 2 / 4 / 2.
-fn full_torus(
-    solid: &mut SolidSpec,
-    mint: &mut dyn FnMut() -> u64,
-    sink: &mut Vec<StructureNormalization>,
-) -> Result<(), StepImportError> {
-    let mut found = None;
-    for (fi, face) in solid.faces.iter().enumerate() {
-        let Surface::Torus { center, axis, .. } = face.surface else {
-            continue;
-        };
-        let [lp] = face.loops.as_slice() else {
-            continue;
-        };
-        let [a, b, c, d] = lp.uses.as_slice() else {
-            continue;
-        };
-        // The fundamental polygon: A B A' B' with each edge used once
-        // each way, both self-loops at the same vertex.
-        if a.edge != c.edge || b.edge != d.edge || a.edge == b.edge {
-            continue;
-        }
-        if a.forward == c.forward || b.forward == d.forward {
-            continue;
-        }
-        let (ea, eb) = (&solid.edges[&a.edge], &solid.edges[&b.edge]);
-        if ea.start != ea.end || eb.start != eb.end || ea.start != eb.start {
-            continue;
-        }
-        // The RIM runs round the major direction: its own carrier axis
-        // IS the torus axis. The other is the meridian, and cutting the
-        // meridian is what halves the face.
-        let axis_of = |c: &Curve3<f64>| match *c {
-            Curve3::Circle { axis: n, .. } => Some(n),
-            _ => None,
-        };
-        let (Some(na), Some(nb)) = (axis_of(&ea.carrier), axis_of(&eb.carrier)) else {
-            continue;
-        };
-        let (rim, meridian, rim_axis) = if na.dot(axis).abs() > 0.5 && nb.dot(axis).abs() <= 0.5 {
-            (*a, *b, na)
-        } else if nb.dot(axis).abs() > 0.5 && na.dot(axis).abs() <= 0.5 {
-            (*b, *a, nb)
-        } else {
-            continue;
-        };
-        found = Some((
-            fi, face.id, face.sense, center, axis, rim, meridian, rim_axis,
-        ));
-        break;
-    }
-    let Some((fi, face_entity, sense, center, axis, rim, meridian, rim_axis)) = found else {
-        return Ok(());
-    };
-    // ---- The file's winding, derived rather than assumed ----------
-    //
-    // The fundamental polygon `[x, y, x', y']` maps to ITSELF under
-    // loop reversal — reversing the cycle and flipping every flag
-    // permutes the four uses back into the same multiset. So the
-    // per-use `forward` flags alone cannot say which way this face
-    // turns; the winding lives ONLY in the cyclic ORDER, and a
-    // reconstruction that reads the flags and not the order rebuilds an
-    // inside-out torus as a right-side-out one. (That is exactly what
-    // the first cut of this repair did, and why the order is now what
-    // gets read.)
-    //
-    // `p` and `q` are geometric: which traversal of the rim raises u,
-    // which traversal of the meridian raises v — sampled through the
-    // kernel's own chart inverse. The chart's CCW boundary is, in
-    // order, `(rim, +u) (meridian, +v) (rim, −u) (meridian, −v)`, so
-    // the file's cycle is CCW exactly when the use FOLLOWING its `+u`
-    // rim use is the meridian's `+v` one. Every reading that the
-    // geometry does not answer refuses; none is guessed.
-    let surface = solid.faces[fi].surface.clone();
-    let undecidable = || StepImportError::Topology {
-        id: face_entity,
-        what: "a whole-torus face whose winding its own geometry cannot state (a rim or \
-               meridian carrier that does not invert onto the torus chart, or a loop \
-               whose uses do not alternate): the orientation of the re-tessellation \
-               would be a guess, and D7 forbids guessing it",
-    };
-    let (p, q) = {
-        let rim_spec = &solid.edges[&rim.edge];
-        let p = chart_direction(
-            &surface,
-            &rim_spec.carrier,
-            rim_spec.t0,
-            rim_spec.t1,
-            |uv| uv.x,
-        )
-        .ok_or_else(undecidable)?;
-        let mer_spec = &solid.edges[&meridian.edge];
-        let q = chart_direction(
-            &surface,
-            &mer_spec.carrier,
-            mer_spec.t0,
-            mer_spec.t1,
-            |uv| uv.y,
-        )
-        .ok_or_else(undecidable)?;
-        (p, q)
-    };
-    // The cyclic successor of the `+u` rim use.
-    let ccw = {
-        let uses = &solid.faces[fi].loops[0].uses;
-        let plus_u = uses
-            .iter()
-            .position(|u| u.edge == rim.edge && u.forward == p)
-            .ok_or_else(undecidable)?;
-        let successor = uses[(plus_u + 1) % uses.len()];
-        if successor.edge != meridian.edge {
-            return Err(undecidable());
-        }
-        successor.forward == q
-    };
-    // The face's material side: the torus chart normal (∂u × ∂v) points
-    // outward, so the face's own normal is that normal for
-    // `same_sense` and its negation otherwise, and the loop must run
-    // CCW about the FACE normal. Right-side-out is therefore
-    // `sense == ccw`; the two consistent encodings of the same solid
-    // are (`.T.`, CCW) and (`.F.`, CW), and both adopt.
-    if sense != ccw {
-        return Err(StepImportError::Topology {
-            id: face_entity,
-            what: "an ORIENTATION-INVERTED whole-torus face: its stated same_sense and the \
-                   winding of its own fundamental-polygon loop disagree, so the solid it \
-                   describes is inside out. This importer will not re-tessellate it \
-                   right-side-out — that would launder the inversion into a positive \
-                   volume — and it will not adopt it as stated: the kernel's tier-3 \
-                   curved sense gate (check 6, CurvedSenseInverted) refuses an inside-out \
-                   rim-bearing face, and import returns certified bodies, so the refusal \
-                   fires here, before any body exists",
-        });
-    }
-
-    // Halving the meridian mints the antipodal profile vertex.
-    let (first_m, second_m, mid_v) = split_at_midpoint(solid, meridian.edge, mint);
-    // The second rim: the u-circle through that vertex — same axis
-    // direction as the stated rim (so u runs the same way), centred on
-    // the torus axis at the vertex's own height, and anchored so the
-    // vertex sits at its angle 0. Built from the vertex the file's own
-    // meridian produced, so it cannot drift off the locus.
-    let v1 = solid.vertices[&mid_v];
-    let c1 = crate::signed_zero::plus_zero_point(center + axis * ((v1 - center).dot(axis)));
-    let spoke = v1 - c1;
-    let radius = spoke.norm();
-    if !(radius.is_finite() && radius > 0.0) {
-        return Ok(());
-    }
-    let rim_id = mint();
-    let carrier = Curve3::Circle {
-        center: c1,
-        axis: rim_axis,
-        radius,
-        u_ref: crate::signed_zero::plus_zero(spoke * radius.recip()),
-    };
-    let Ok((t0, t1)) = crate::geometry::endpoint_params(rim_id, &carrier, v1, v1, true) else {
-        return Ok(());
-    };
-    solid.edges.insert(
-        rim_id,
-        EdgeSpec {
-            start: mid_v,
-            end: mid_v,
-            carrier,
-            t0,
-            t1,
-            // A minted edge: the importer states its own
-            // start → end, so there is no sense to compose.
-            reversed: false,
-        },
-    );
-    // The minted halves are wound `+u` first — CCW about the chart
-    // normal, which for a torus points outward — and described with
-    // `same_sense` true to match. Neither is copied from the file's
-    // face, and both are DERIVED from the material side the check
-    // above established:
-    //
-    // ISO 10303-42 lets one solid be stated two ways, `(.T., CCW)` and
-    // `(.F., CW)`; they are the same material side and both reach here.
-    // The kernel, however, derives a torus face's flux sign from its
-    // TRAVERSAL alone (the tier-3 curved sense gate — M6-6 — now
-    // cross-checks the bit against that traversal, but the flux still
-    // reads the traversal), so a `(.F., CW)` re-tessellation would
-    // come back with a negative volume for a right-side-out ring.
-    // Minting the outward
-    // convention explicitly is therefore the honest description of the
-    // faces being minted, not a healing of the file's: the file's face
-    // does not survive the re-tessellation, and its replacements get a
-    // description that means what it says. The inverted encodings never
-    // get here at all — they refused above.
-    let rs = p;
-    let sense = true;
-    // Traversal order: under `q` the meridian walks its halves in this
-    // order, so `h1` is the half touching the stated vertex and `h2`
-    // the half touching the minted one.
-    let (h1, h2) = if q {
-        (first_m, second_m)
-    } else {
-        (second_m, first_m)
-    };
-    let u = |edge: u64, forward: bool| EdgeUse { edge, forward };
-    // Each half-face is the chart rectangle between the two rims: the
-    // stated rim below, its half of the meridian up one side and back
-    // down the other (the seam, used twice), the minted rim above —
-    // and the mirror image for the other half.
-    let face_a = FaceSpec {
-        id: face_entity,
-        surface: surface.clone(),
-        sense,
-        loops: vec![LoopSpec {
-            outer: true,
-            uses: vec![u(rim.edge, rs), u(h1, q), u(rim_id, !rs), u(h1, !q)],
-        }],
-        band: false,
-    };
-    let face_b = FaceSpec {
-        id: face_entity,
-        surface,
-        sense,
-        loops: vec![LoopSpec {
-            outer: true,
-            uses: vec![u(rim_id, rs), u(h2, q), u(rim.edge, !rs), u(h2, !q)],
-        }],
-        band: false,
-    };
-    solid.faces[fi] = face_a;
-    solid.faces.insert(fi + 1, face_b);
-    sink.push(StructureNormalization {
-        face: face_entity,
-        kind: NormalizationKind::FullPeriodTorus,
-        file_census: FaceCensus {
-            faces: 1,
-            edges: 2,
-            vertices: 1,
-        },
-        kernel_census: FaceCensus {
-            faces: 2,
-            edges: 4,
-            vertices: 2,
-        },
-    });
-    Ok(())
 }
 
 #[cfg(test)]

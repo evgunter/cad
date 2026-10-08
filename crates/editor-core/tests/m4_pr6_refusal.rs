@@ -131,14 +131,14 @@ fn with_distance(text: &str, wire: serde_json::Value) -> String {
     let nodes = body["snapshot"]["nodes"]
         .as_object_mut()
         .expect("a node map");
-    let distances: Vec<u64> = nodes
+    let distances: Vec<String> = nodes
         .values()
-        .filter_map(|node| node.get("Extrude")?["distance"].as_u64())
+        .filter_map(|node| node.get("Extrude")?["distance"].as_str().map(str::to_owned))
         .collect();
-    let [distance] = distances[..] else {
+    let [distance] = &distances[..] else {
         panic!("the fixture has exactly one extrude to tamper, got {distances:?}")
     };
-    body["snapshot"]["vars"][distance.to_string()] = serde_json::json!({
+    body["snapshot"]["vars"][distance.as_str()] = serde_json::json!({
         "kind": "Length",
         "def": { "Defined": wire },
     });
@@ -148,9 +148,15 @@ fn with_distance(text: &str, wire: serde_json::Value) -> String {
     )
 }
 
-/// A literal wire expression of `dim` written in `unit`.
-fn wire_literal(dim: &str, unit: &str) -> serde_json::Value {
-    serde_json::json!({ "Literal": { "value": 1.0, "dim": dim, "unit": unit } })
+/// A stored wire leaf read at `dim`: a reader of a variable, whose id
+/// nothing reads before the rebuild has checked the tree's dimensions.
+fn wire_leaf(dim: &str) -> serde_json::Value {
+    serde_json::json!({ "Var": { "var": "1:0000000000000001", "dim": dim } })
+}
+
+/// A written quantity on an edit log's wire, of `dim` in `unit`.
+fn wire_quantity(dim: &str, unit: &str) -> serde_json::Value {
+    serde_json::json!({ "Quantity": { "value": 1.0, "dim": dim, "unit": unit } })
 }
 
 /// An expression the document layer's dimension checker refuses crosses
@@ -162,8 +168,8 @@ fn wire_literal(dim: &str, unit: &str) -> serde_json::Value {
 #[test]
 fn dimension_refusals_cross_the_load_door_whole() {
     let (_, text) = small();
-    let length = wire_literal("Length", "m");
-    let angle = wire_literal("Angle", "rad");
+    let length = wire_leaf("Length");
+    let angle = wire_leaf("Angle");
     let cases: [(serde_json::Value, DimensionError); 4] = [
         (
             serde_json::json!({ "Add": [length.clone(), angle.clone()] }),
@@ -188,10 +194,8 @@ fn dimension_refusals_cross_the_load_door_whole() {
             },
         ),
         (
-            wire_literal("Length", "furlong"),
-            DimensionError::UnknownDisplayUnit {
-                symbol: "furlong".to_owned(),
-            },
+            serde_json::json!({ "Ratio": { "num": 2, "den": 4 } }),
+            DimensionError::RatioNotReduced { num: 2, den: 4 },
         ),
     ];
     for (wire, expected) in cases {
@@ -221,7 +225,7 @@ fn a_dimension_refusal_does_not_advise_regenerating_the_file() {
     let (_, text) = small();
     let tampered = with_distance(
         &text,
-        serde_json::json!({ "Add": [wire_literal("Length", "m"), wire_literal("Angle", "rad")] }),
+        serde_json::json!({ "Add": [wire_leaf("Length"), wire_leaf("Angle")] }),
     );
     let refusal = load(&tampered, Tol::witness()).expect_err("must refuse");
     let message = refusal.to_string();
@@ -236,10 +240,10 @@ fn a_dimension_refusal_does_not_advise_regenerating_the_file() {
 }
 
 /// **One fault, one arm, whichever route it takes.** An off-table
-/// display-unit symbol reaches the load door two ways — on an
-/// expression literal, through `WireExpr::rebuild`'s closed-table
-/// lookup, and on a document PARAMETER, through `UnitSym`'s own
-/// `Deserialize` — and it is the same fault both times.
+/// display-unit symbol reaches the load door two ways — on a written
+/// quantity in the edit log, through `WireFormula::rebuild`'s
+/// closed-table lookup, and on a document PARAMETER, through
+/// `UnitSym`'s own `Deserialize` — and it is the same fault both times.
 ///
 /// This is the row that would red if the two ever diverged again. They
 /// did: the parameter route used to answer `Unreadable` with the
@@ -274,8 +278,8 @@ fn an_off_table_display_unit_refuses_the_same_way_on_either_route() {
         other => panic!("a parameter's off-table unit must refuse typed, got {other:?}"),
     }
 
-    // Route 2: an expression literal's, refused at the rebuild.
-    let on_literal = with_distance(&text, wire_literal("Length", "furlong"));
+    // Route 2: a logged quantity's, refused at the rebuild.
+    let on_literal = with_logged_quantity(wire_quantity("Length", "furlong"));
     match load(&on_literal, Tol::witness()) {
         Err(PersistError::Dimension { error, .. }) => assert_eq!(error, unknown),
         other => panic!("a literal's off-table unit must refuse typed, got {other:?}"),
@@ -289,6 +293,47 @@ fn an_off_table_display_unit_refuses_the_same_way_on_either_route() {
             .to_string();
         assert!(!message.contains("regenerate"), "{message}");
     }
+}
+
+/// A saved document whose one logged edit writes `wire` at an
+/// extrude's distance: a log the save door accepted, then hand-edited.
+fn with_logged_quantity(wire: serde_json::Value) -> String {
+    use editor_core::{ExprPath, SlotId};
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty_derived("m4_pr6_logged_quantity", tol);
+    let (doc, p) = on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+    );
+    let (doc, extrude) = insert(
+        doc,
+        Node::Extrude {
+            profile: p,
+            distance: Formula::add(len(1.0), len(1.0)).expect("Length + Length"),
+            side: ExtrudeSide::Along,
+        },
+    );
+    let legal = DocEdit::SetExpression {
+        path: ExprPath {
+            node: extrude,
+            slot: SlotId::Distance,
+            path: vec![1],
+        },
+        expr: len(2.0),
+    };
+    let text = save(&doc, &[legal], tol).expect("a replayable log is written");
+    let (header, body_text) = text.split_once('\n').expect("a header line");
+    let mut body: serde_json::Value = serde_json::from_str(body_text).expect("a JSON body");
+    *body["edits"][0]
+        .pointer_mut("/SetExpression/expr")
+        .expect("the logged edit's expression slot") = wire;
+    format!(
+        "{header}\n{}",
+        serde_json::to_string(&body).expect("re-emit")
+    )
 }
 
 /// **The sibling route, and what it costs one rung up.** A save file's
@@ -356,26 +401,25 @@ fn a_replayed_edits_dimension_refusal_reaches_the_load_door() {
     // rather than reach the dimension checker.
     *edits[0]
         .pointer_mut("/SetExpression/expr")
-        .expect("the logged edit's expression slot") =
-        serde_json::json!({ "Literal": { "value": 1.0, "dim": "Angle", "unit": "rad" } });
+        .expect("the logged edit's expression slot") = wire_quantity("Angle", "rad");
     let tampered = format!(
         "{header}\n{}",
         serde_json::to_string(&body).expect("re-emit")
     );
 
     match load(&tampered, tol) {
-        Err(PersistError::EditReplay {
-            index: 0,
-            error: EditError::Dimension(inner),
-        }) => assert_eq!(
-            inner,
-            DimensionError::Mismatch {
-                op: "add",
-                left: Dimension::Length,
-                right: Dimension::Angle,
-            },
-            "the replay refuses with the checker's own value, two levels deep"
-        ),
+        Err(PersistError::EditReplay { index: 0, error }) => match *error {
+            EditError::Dimension(inner) => assert_eq!(
+                inner,
+                DimensionError::Mismatch {
+                    op: "add",
+                    left: Dimension::Length,
+                    right: Dimension::Angle,
+                },
+                "the replay refuses with the checker's own value, two levels deep"
+            ),
+            other => panic!("expected an EditReplay dimension refusal, got {other:?}"),
+        },
         other => panic!("expected an EditReplay dimension refusal, got {other:?}"),
     }
 }
@@ -389,8 +433,8 @@ fn a_replayed_edits_dimension_refusal_reaches_the_load_door() {
 /// exists to make unreachable rather than to document.
 #[test]
 fn a_refusal_outside_a_parse_arms_nothing() {
-    let bad = r#"{"Add":[{"Literal":{"value":1.0,"dim":"Length","unit":"m"}},"#.to_owned()
-        + r#"{"Literal":{"value":1.0,"dim":"Angle","unit":"rad"}}]}"#;
+    let bad = r#"{"Add":[{"Quantity":{"value":1.0,"dim":"Length","unit":"m"}},"#.to_owned()
+        + r#"{"Quantity":{"value":1.0,"dim":"Angle","unit":"rad"}}]}"#;
     let refused: Result<Formula, _> = serde_json::from_str(&bad);
     assert!(refused.is_err(), "the tree is ill-dimensioned");
     // Now a clean load on the same thread. If that refusal had been
@@ -409,7 +453,7 @@ fn a_recorded_refusal_does_not_reach_the_next_load() {
     let (_, text) = small();
     let tampered = with_distance(
         &text,
-        serde_json::json!({ "Add": [wire_literal("Length", "m"), wire_literal("Angle", "rad")] }),
+        serde_json::json!({ "Add": [wire_leaf("Length"), wire_leaf("Angle")] }),
     );
     assert!(matches!(
         load(&tampered, Tol::witness()),
@@ -436,16 +480,24 @@ fn snapshot_invariant_violations_refuse_typed() {
         edit(&mut v);
         format!("{header}\n{v}\n")
     };
-    // A live node the mint log does not hold (a replay could re-mint
-    // its id): the last insert's entry taken out of the log.
-    let last = *doc.order().last().expect("the fixture inserts");
+    // A live node the mint log does not hold as a node's: the last
+    // insert's entry retagged a step's, so the log still counts up.
+    let last = *doc.ids().last().expect("the fixture inserts");
     let unlogged = edited(&|v| {
         let log = v["snapshot"]["mint"]["log"]
             .as_array_mut()
             .expect("the file carries its mint log");
-        let before = log.len();
-        log.retain(|entry| entry["node"].as_u64() != Some(last.0));
-        assert_eq!(log.len() + 1, before, "the log held the node once");
+        let spelled = serde_json::Value::from(last.0.to_string());
+        let held = log
+            .iter_mut()
+            .filter(|entry| entry["node"] == spelled)
+            .count();
+        assert_eq!(held, 1, "the log held the node once");
+        for entry in log.iter_mut() {
+            if entry["node"] == spelled {
+                *entry = serde_json::json!({ "step": spelled.clone() });
+            }
+        }
     });
     match load(&unlogged, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::NodeNotMinted { id })) => {
@@ -453,20 +505,6 @@ fn snapshot_invariant_violations_refuse_typed() {
         }
         other => panic!("expected NodeNotMinted, got {other:?}"),
     }
-    // order/nodes disagreement: the order cut to its first entry.
-    let unordered = edited(&|v| {
-        let order = v["snapshot"]["order"]
-            .as_array_mut()
-            .expect("the file carries its order");
-        order.truncate(1);
-    });
-    assert!(
-        matches!(
-            load(&unordered, Tol::witness()),
-            Err(PersistError::Snapshot(SnapshotError::OrderMismatch))
-        ),
-        "order mismatch must refuse"
-    );
 }
 
 #[test]
@@ -505,7 +543,7 @@ fn non_finite_floats_refuse_at_save_naming_the_site() {
     let meta_edit = DocEdit::SetAppearanceMeta {
         name: editor_core::StableName {
             kind: editor_core::EntityKind::Body,
-            node: doc.order()[1],
+            node: doc.ids()[1],
             path: vec![editor_core::RoleSeg::OutputBody],
         },
         key: "k".into(),
@@ -593,7 +631,7 @@ fn metadata_convention_doors_refuse_typed() {
     let (doc, _) = small();
     let name = editor_core::StableName {
         kind: editor_core::EntityKind::Body,
-        node: doc.order()[1],
+        node: doc.ids()[1],
         path: vec![editor_core::RoleSeg::OutputBody],
     };
     // No "v" field → refused at the edit door (D7 convention).
@@ -784,7 +822,7 @@ fn unreplayable_edit_log_refuses_at_save() {
     let bad = DocEdit::SetAppearanceMeta {
         name: editor_core::StableName {
             kind: editor_core::EntityKind::Body,
-            node: doc.order()[1],
+            node: doc.ids()[1],
             path: vec![editor_core::RoleSeg::OutputBody],
         },
         key: "k".into(),
@@ -792,14 +830,14 @@ fn unreplayable_edit_log_refuses_at_save() {
     };
     match save(&doc, &[bad], Tol::witness()) {
         Err(PersistError::EditReplay { index: 0, error }) => assert!(
-            matches!(error, editor_core::EditError::MetaUnversioned { .. }),
+            matches!(*error, editor_core::EditError::MetaUnversioned { .. }),
             "expected the apply door's refusal, got {error:?}"
         ),
         other => panic!("unreplayable log must refuse at save, got {other:?}"),
     }
     // And a log referencing a node the snapshot lacks.
     let orphan = DocEdit::SetParam {
-        node: RecipeNodeId(77),
+        node: RecipeNodeId::new(0, 77),
         slot: editor_core::SlotId::Distance,
         expr: len(1.0),
         fresh: Vec::new(),

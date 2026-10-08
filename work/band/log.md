@@ -701,3 +701,83 @@ closes with PR 4209. Step 5 (the non-isosceles overrun, a numeric probe
 before its spec) is now its own row,
 `a-non-isosceles-turn-overruns-past-the-mitre` (P2, H, design). The
 whole-face planar path step 5 was to delete went at step 2.
+
+## 2026-10-07 — the reach meters an end face away from its vertex (PR #4254)
+
+A link's reach now skips only its chain's supports and the faces its own
+window is capped by (recorded by `straight_reach` as it builds the caps,
+plus a corner patch's supports at a patch end), not every face at any
+vertex of its chain. In production a multi-link chain spans valence-2
+joints only, so the hole lived at a jointed chain's far end face; that
+witness is pinned
+(`a_jointed_chains_far_end_face_is_metered_against_the_near_link`; red
+with the chain-wide skip put back). A curved face where a straight window
+ends fails loud (`SurgeryInvariant`), so the skip's premise is structural.
+
+`band_reach_for_tests` now breaks chains at turns as production does
+(`battery::broken_at_turns`); no reach row moved under it (256 tests
+diffed). One row moved for the structural skip: a circular reach has no
+caps, so an open arc's flat is now metered (latent; open arcs refuse
+upstream). Single full review (APPROVE-WITH-FIXES, no MAJOR), taken in
+full. Filed: `tint/tipped-rod-join-escalates-at-1e-12` (main's red). Not
+chased: `point_in_solid` answering `VolumeUncertified` on 533 sample
+points of a tier-3-valid jointed-chain body (the review's probe K control).
+
+## 2026-10-07 — the blend doors take a finished operand (PR #4252)
+
+`fillet_edges` and `chamfer_edges` take `&AtRestBody<T>`. At a dual they read
+`gate_unverdicted` first (`build.rs::operand_gate`) and refuse
+`InsideOutOperand` / `ScaffoldingOperand`. At f64 and `Interval` an inside-out
+or scaffolded body cannot be finished, so it never reaches either door. The
+clockwise wedge and the slit dome are pinned, both verbs, red without the
+door read. The change is threaded through editor-core, verbs, pncad-py, the
+tour, and ~500 test call sites (`test_support::at_rest`, `#[track_caller]`).
+`topo::Unfinished` is public; its refusal texts are one home (consts), true
+for a `ShellWinding` finding.
+
+**Behaviour change:** editor-core's blend node now pays tier 3 on its
+target, which roughly doubles a chained blend node's cost (tier 3 ≈ the
+blend). No corpus, tour or guide document regressed. `UnfinishedOperand`'s
+text names the input's operation, and every arm fits the 75-word budget.
+
+**Review.** Cost M: a full review raised a MAJOR, so a second full review
+followed the fix pass, and it raised another of the same class. Both MAJORs
+were the PR having deleted the only row of an arm a FINISHED body still
+reaches: the half-band gate's curved single host, and the hostless host
+gate (a pinched planar host). Both are now witnessed rows. The filed
+`blend-scaffolding-arms-behind-the-operand-gate` closed: its two remaining
+screen arms are provably unreachable through the doors (tier 2 checks 1
+and 4), and are kept as stated defence for direct `run_battery` callers.
+Declined: `#[non_exhaustive]` on `Unfinished`, because the one foreign match
+should break the build on a new case. Filed:
+`restfront/dual-operand-read-passes-an-orientation-it-cannot-measure`.
+Not changed: `common::cavity::cut`'s re-gate (66 callers).
+
+## 2026-10-07 — a straight cap edge clear of the cut-off's sliver carves (PR #4271)
+
+The cut-off sliver's clearance meter read a cap edge only as wholly inside
+the ball's section, wholly beyond the reach, or wholly short of the floor,
+so an edge that left the enclosure Ω by different faces refused where it
+was clear. `line_clearance` now reads a straight edge exactly: the least of
+Ω's defining function over its ends, the radial foot and the terms'
+pairwise crossings, at every scalar (a quotient whose divisor's bracket
+meets zero is skipped; soundness against the sliver rests on the ends).
+Three rectangular-hole witnesses carve, at `Interval` too, and the
+keyhole at `r = BR` carves at its closed form. The half-plane wedge near
+the feet had no witness on main (pinned as a row).
+
+Class-H dual review (DR row in this PR; both APPROVE-WITH-FIXES, tally 0),
+taken in full:
+- the `Interval` collapse at a floor-parallel edge;
+- a cancellation far from the centre;
+- a candidate-set fuzzer that can go red, at both scalars;
+- an independent Ω oracle;
+- the filed rows corrected.
+
+Filed: `blend-reach-refuses-a-bore-clear-of-a-ruled-cut-offs-sliver`,
+`cap-sliver-meter-reads-a-curved-edge-term-by-term`.
+
+Claim 1 (a bore wholly inside the sliver dying with it) is NOT built. The
+unit row stays open, re-titled to that question: may a blend delete an
+authored feature wholly inside the material it removes? It goes to Ev
+after the designer protocol (both designers recommend building it).

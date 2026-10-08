@@ -49,7 +49,7 @@ pub(crate) fn permutations(items: &[usize]) -> Vec<Vec<usize>> {
 /// The blocks in creation order `creation`; `ids[i]` is block `i`'s node.
 pub(crate) fn document(blocks: &[Bx], creation: &[usize]) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty_derived("emit_shared_rim_several", Tol::witness());
-    let mut ids = vec![RecipeNodeId(0); blocks.len()];
+    let mut ids = vec![RecipeNodeId::new(0, 0); blocks.len()];
     for &i in creation {
         let (x, y, z) = blocks[i];
         let (d, id) = block(doc, x, y, z.0, z.1);

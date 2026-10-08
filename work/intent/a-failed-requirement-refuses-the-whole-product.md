@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-04
 priority: P0
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [the-product-is-an-explicit-list]
 refs: [a-measured-part-is-not-a-product-root]
 ---
 
@@ -21,3 +21,10 @@ variables, so a failing check has no business reaching the gather.
 INTENT stage 2 (the explicit product list) and stage 5 (assertions)
 settle it; this row's acceptance is that a failing assertion reports
 and the product still builds.
+
+## Stage 2 slicing (2026-10-07)
+
+Re-parked on `the-product-is-an-explicit-list` (INTENT stage 2 PR C,
+`docs/INTENT-STAGE2-SPEC.md` §4, test 8): the gather reads only listed `Body`
+variables, so a failing check cannot reach it. Stage 5's assertions do not
+change that acceptance.

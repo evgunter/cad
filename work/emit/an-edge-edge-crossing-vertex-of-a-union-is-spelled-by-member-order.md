@@ -43,5 +43,7 @@ case that is left.
 Crossings now carry their sense (`a-second-crossing-by-one-face-renames-the-first-and-its-pieces`),
 so the two orders spell the vertex `EdgeCrossing { b's LateralEdge, ·, a's
 RimEdge(End), · }` and `Crossing { b's LateralEdge, a's Cap(End), sense }`.
-Still four absences per case; `KNOWN_ABSENT`'s digests were re-baselined for
-the new spellings.
+`KNOWN_ABSENT`'s digests were re-baselined for the new spellings, and its
+counts went from four absences per case to six: every piece of a divided
+edge is now named by its ends, a lone one included, so the lone piece of
+`b`'s lateral edge that ends at the vertex carries the order's spelling too.

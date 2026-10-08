@@ -2294,7 +2294,7 @@ mod tests {
     use eframe::egui;
     use pncad::document::{Axis3, Frame, RecipeNodeId, SlotId};
 
-    const NODE: RecipeNodeId = RecipeNodeId(7);
+    const NODE: RecipeNodeId = RecipeNodeId::new(0, 7);
 
     /// How many Tab/ArrowUp pairs the row spends looking for the
     /// focus. A budget rather than a count: which step the focus
@@ -4144,7 +4144,7 @@ mod value_field_tests {
     ///
     /// The refusal is a fact about a PAIR — a value and a notation —
     /// and a driven slot reads in the working notation, which may be
-    /// one whose conversion leaves the type: `base_r * 1e308` in
+    /// one whose conversion leaves the type: `base_r` times 10^308 in
     /// millimetres has no value. Its row still shows its reading, as
     /// the no-reading marker after the driven mark, and still opens its
     /// keyboard edit on its SOURCE, because the field under that text is
@@ -4158,8 +4158,9 @@ mod value_field_tests {
             panic!("the fixture is a slot row");
         };
         // A product far past `f64::MAX * MILLI`: written in
-        // millimetres, its conversion leaves the type.
-        let source = "base_r * 1e308".to_owned();
+        // millimetres, its conversion leaves the type. Each factor is a
+        // constant in range (a bare number in a formula is exact).
+        let source = format!("base_r{} * 100000000.0", " * 1000000000000000.0".repeat(20));
         let outcome = row.session.perform(SessionOp::SetSlotExpression {
             node,
             slot,
@@ -4203,7 +4204,8 @@ mod value_field_tests {
                 props::DRIVEN,
                 props::computed_text(
                     Dimension::Length,
-                    0.004 * 1e308,
+                    // The chain's own products, left to right.
+                    (0..20).fold(0.004, |v, _| v * 1e15) * 1e8,
                     crate::props::Notation::DEFAULT
                 )
             )),

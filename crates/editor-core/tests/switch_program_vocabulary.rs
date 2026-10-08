@@ -127,7 +127,7 @@ use profile::{ArcMode, TargetKind, Verb};
 /// The plane the corpus programs name. These programs are resolved and
 /// serialized on their own, never inserted into a document, so nothing
 /// here reads the node it points at.
-const SCAFFOLD_PLANE: editor_core::RecipeNodeId = editor_core::RecipeNodeId(0);
+const SCAFFOLD_PLANE: editor_core::RecipeNodeId = editor_core::RecipeNodeId::new(0, 0);
 
 fn point(x: f64, y: f64) -> ProgramTarget<Formula> {
     ProgramTarget::Point(len2([x, y]))
@@ -1016,7 +1016,8 @@ fn every_document_verb_survives_the_wire() {
 
 /// The expressions of a program, counted from the wire rather than
 /// from a number written here: a stored slot is its variable's id, so
-/// the numbers in its loops' serialization ARE its expressions. It holds for the one-step programs below for the same
+/// the ids (and the numbers) in its loops' serialization ARE its
+/// expressions. It holds for the one-step programs below for the same
 /// reason it holds for the corpus: each is one of the corpus's own
 /// chain steps, so the property is inherited rather than re-argued.
 fn literal_count(program: &ProfileProgram) -> usize {
@@ -1033,6 +1034,8 @@ fn literal_count(program: &ProfileProgram) -> usize {
             }
             serde_json::Value::Array(items) => items.iter().for_each(|item| walk(item, out)),
             serde_json::Value::Number(_) => *out += 1,
+            // A slot holds its variable's id, spelled as a string.
+            serde_json::Value::String(s) if editor_core::MintId::parse(s).is_some() => *out += 1,
             serde_json::Value::Null | serde_json::Value::Bool(_) | serde_json::Value::String(_) => {
             }
         }
@@ -1198,7 +1201,7 @@ fn every_enumerated_slot_is_where_its_refusal_reports() {
     let node = Node::Profile(program);
     let slots = node.slots();
     assert!(!slots.is_empty(), "the corpus enumerates no slot");
-    let unbound = editor_core::VarId(u64::MAX);
+    let unbound = editor_core::VarId::new(0, u64::MAX);
     let mut misplaced = Vec::new();
     for slot in &slots {
         let mut broken = node.clone();
@@ -1318,7 +1321,7 @@ fn every_enumerated_slot_resolves_into_the_field_its_role_names() {
     assert!(!slots.is_empty(), "the corpus enumerates no slot");
     // Finite and valid in every dimension; no corpus literal is this.
     let sentinel = 7.123_456_789;
-    let probed = editor_core::VarId(u64::MAX);
+    let probed = editor_core::VarId::new(0, u64::MAX);
     let mut misread = Vec::new();
     for slot in &slots {
         let SlotId::Profile { loop_, step, arg } = *slot else {
@@ -1382,6 +1385,8 @@ fn persisted_tokens(program: &ProfileProgram) -> BTreeSet<String> {
                     walk(item, out);
                 }
             }
+            // An id is data, as a number is, not vocabulary.
+            serde_json::Value::String(s) if editor_core::MintId::parse(s).is_some() => {}
             serde_json::Value::String(s) => {
                 out.insert(s.clone());
             }

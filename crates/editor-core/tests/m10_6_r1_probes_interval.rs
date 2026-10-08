@@ -1257,13 +1257,13 @@ fn the_bracket_walk_through_the_public_doors() {
 
 fn node_named(doc: &editor_core::ProfileDoc, pick: usize) -> RecipeNodeId {
     let mut transforms: Vec<RecipeNodeId> = doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .filter(|&id| matches!(doc.node(id), Some(Node::Transform { .. })))
         .collect();
     let mut extrudes: Vec<RecipeNodeId> = doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .filter(|&id| matches!(doc.node(id), Some(Node::Extrude { .. })))

@@ -680,7 +680,7 @@ mod tests {
     /// **The Monte Carlo sheet does not move** (INTENT-LITERALS spec §8
     /// row 9): the draw matrix — every sample's offsets, each keyed by
     /// its variable's NAME, the varying axes in declaration order, since
-    /// ids are digest output and move when minting does — and the
+    /// an id's digest moves when minting does — and the
     /// sheet's own bytes are the numbers measured on the tree before a
     /// slot held a variable. Only a distributed variable draws, so a
     /// typed value's anonymous variable enters neither.
