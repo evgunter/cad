@@ -1,7 +1,7 @@
 ---
 id: in-sector-is-a-second-spelling-of-within
 kind: issue
-title: sectors::in_sector and sectors::within read a direction's membership of a sector twice, at different levers and with different zero rules
+title: sectors::in_sector and sectors::within read a direction's membership of a sector twice, at different levers
 status: open
 opened: 2026-10-08
 priority: P3
@@ -24,8 +24,8 @@ direction lies within a face's sector at a vertex:
   `sector_overlap`, `runs_into`, and `vtxfac`'s pierce germ.
 - `in_sector`: the same two sines plus the cosine to the sector's
   middle, all levered at the caller's lever (`bool_cone_within`,
-  `bool_cone_facing`). It returns three values; a decided zero is
-  undecided. It is read by `cone_side`.
+  `bool_cone_facing`), a decided zero counted within as `within`
+  counts it. It is read by `cone_side`.
 
 `in_sector` exists because `within` reads a direction opposite a thin
 sector as inside it, and its arm lever reads a direction off a

@@ -1615,7 +1615,9 @@ pub(super) fn cone_read<T: Decide>(
 /// - **Otherwise**, the direction on or in band of the plane, or `p` on
 ///   it within the zero band: the crossing, if
 ///   there is one, is the point `x = |p̂·n|·d̂ + |d̂·n|·p̂` the ends'
-///   heights over the plane locate. `S` is passed over only where
+///   heights over the plane locate ([`crossing`]); with both ends on
+///   the plane it locates none, and the reference is passed over. `S`
+///   is passed over only where
 ///   [`in_sector`] decides `x` outside `S`'s sector, read at the
 ///   direction's reach or, if less, at how well `x` is located:
 ///   `|x|·arm₀·L_d/(arm₀ + L_d)`, the move of the reference (at its arm
@@ -1649,8 +1651,7 @@ fn cone_side<T: Decide>(
     let mut codes = Vec::with_capacity(other.len());
     for s in other {
         // On the plane, within the sector or on its bound, is on the face.
-        let on_face =
-            || Ok::<_, BooleanError>(in_sector(s, d, reach.length(), band)? != Some(false));
+        let on_face = || in_sector(s, d, reach.length(), band);
         codes.push(match plane_side_code(dir, reach, s.normal, band) {
             Ok(SideCode::On) if on_face()? => return Ok(Some(SideCode::On)),
             Ok(SideCode::On) => None,
@@ -1686,16 +1687,12 @@ fn cone_side<T: Decide>(
                 (SideCode::In | SideCode::Out, Some(code)) if code == side => continue,
                 (SideCode::In | SideCode::Out, Some(_)) => {}
                 _ => {
-                    let n = s.normal.vec();
-                    let x = d * p.dot(n).abs() + p * d.dot(n).abs();
-                    let (arm, l_d) = (s0.arm, reach.length());
-                    let located = x.norm() * arm * l_d / (arm + l_d);
-                    if !geom_core::is_finite_length(T::from_f64(1.0) / located) {
+                    let Some((x, lever)) = crossing(d, reach, p, s0.arm, s.normal.vec()) else {
                         continue 'reference;
-                    }
-                    match in_sector(s, x, reach.length().min(located), band) {
-                        Ok(Some(false)) => continue,
-                        Ok(_) => continue 'reference,
+                    };
+                    match in_sector(s, x, lever, band) {
+                        Ok(false) => continue,
+                        Ok(true) => continue 'reference,
                         Err(e) => {
                             escalation.get_or_insert(e);
                             continue 'reference;
@@ -1730,37 +1727,56 @@ fn cone_side<T: Decide>(
     escalation.map_or(Ok(None), Err)
 }
 
+/// Where the arc from the unit direction `d`, read as `reach` allows,
+/// to the unit reference `p`, levered at `arm`, meets the plane through
+/// the vertex of normal `n`, if it does: `x = |p·n|·d + |d·n|·p`, the
+/// point the ends' heights over the plane locate, and the lever it is
+/// read at, the direction's reach or, if less, `|x|·arm·L_d/(arm + L_d)`,
+/// the move of `p` at its arm or of the direction's far point that moves
+/// the crossing by the angle read. `None` where `x` has no length: both
+/// ends lie on the plane, and the arc locates no crossing.
+fn crossing<T: Decide>(
+    d: Vec3<T>,
+    reach: Reach<T>,
+    p: Vec3<T>,
+    arm: T,
+    n: Vec3<T>,
+) -> Option<(Vec3<T>, T)> {
+    let x = d * p.dot(n).abs() + p * d.dot(n).abs();
+    let l_d = reach.length();
+    let located = x.norm() * arm * l_d / (arm + l_d);
+    geom_core::is_finite_length(T::from_f64(1.0) / located).then(|| (x, l_d.min(located)))
+}
+
 /// Whether a direction on or beside `s`'s plane lies within its
-/// sector, read as a point `lever` out along it: `Some(false)` where it
-/// lies decidedly past one of the planes through each bound square to
-/// the face (`"bool_cone_within"`, the sine of its angle past it,
-/// levered) or decidedly faces away from the sector's middle
+/// sector, read as a point `lever` out along it: `false` where it lies
+/// decidedly past one of the planes through each bound square to the
+/// face (`"bool_cone_within"`, the sine of its angle past it, levered)
+/// or decidedly faces away from the sector's middle
 /// (`"bool_cone_facing"`, the cosine, levered), which a direction
-/// opposite a thin sector, between those planes too, does; `Some(true)`
-/// where it lies decidedly inside every one; `None` where a reading is
-/// decided zero, on a bound or square to the middle.
+/// opposite a thin sector, between those planes too, does; `true`
+/// where no reading decides it outside: inside, or on a bound or
+/// square to the middle within the zero band. Every caller reads a
+/// bound as the sector's.
 fn in_sector<T: Decide>(
     s: &BoolSector<T>,
     dir: Vec3<T>,
     lever: T,
     band: Band,
-) -> Result<Option<bool>, BooleanError> {
+) -> Result<bool, BooleanError> {
     let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
     let (d, n) = (dir.normalize(), s.normal.vec());
     let middle = (s.start + s.end).normalize();
-    let mut zero = false;
     for (name, x) in [
         ("bool_cone_within", s.start.cross(d).dot(n)),
         ("bool_cone_within", d.cross(s.end).dot(n)),
         ("bool_cone_facing", d.dot(middle)),
     ] {
-        match decide(name, Margin::levered(x, lever), band).map_err(escalate)? {
-            Sign::Negative => return Ok(Some(false)),
-            Sign::Zero => zero = true,
-            Sign::Positive => {}
+        if decide(name, Margin::levered(x, lever), band).map_err(escalate)? == Sign::Negative {
+            return Ok(false);
         }
     }
-    Ok((!zero).then_some(true))
+    Ok(true)
 }
 
 /// The arc [`cone_side`] reads along: from `dir`, read as `reach`
@@ -3112,6 +3128,63 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(classes(&read), [SideCode::In], "1.6 rad inside");
+    }
+
+    /// **A crossing point is read at how well it is located**: a
+    /// reference on a plane at a 1 m arm, and a direction 1e-3 rad off
+    /// it. The crossing is the reference itself, but a move of the
+    /// reference's arm point by δ moves it toward the direction by
+    /// δ/1e-3, so it is read at no more than 1e-3 of the arm, not at the
+    /// arm (PR 4289's second review). Both ends on the plane locate
+    /// nothing.
+    #[test]
+    fn a_crossing_point_is_read_at_how_well_it_is_located() {
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let chord = |far: Vec3<f64>| Reach::Chord {
+            base: o,
+            far: o + far,
+        };
+        let (n, p) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
+        let d = Vec3::new(0.0, 1.0, -1e-3).normalize();
+        let (x, lever) = crossing(d, chord(d), p, 1.0, n).unwrap();
+        assert!(
+            x.normalize().dot(p) > 1.0 - 1e-12,
+            "the crossing is the reference"
+        );
+        assert!(lever <= 1e-3, "read at {lever}, not at the arm");
+        let flat = Vec3::new(0.0, 1.0, 0.0);
+        assert!(
+            crossing(flat, chord(flat), p, 1.0, n).is_none(),
+            "both ends on the plane"
+        );
+    }
+
+    /// **An arc's side of a bound is not read off the determinant's
+    /// rounding**: a direction, a reference and a bound whose far points
+    /// are exactly coplanar (`b = 1e6·p + d`, integers), the bound far
+    /// along the reference, so the plane through the reference and the
+    /// bound is levered by millions. The determinant of the three unit
+    /// vectors rounds to a few ulp; levered, that reads decided at
+    /// ε = 1e-12 unless the rounding is taken off first (PR 4289's
+    /// second review, n4).
+    #[test]
+    fn an_arcs_side_of_a_bound_is_not_read_off_its_rounding() {
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let chord = |far: Vec3<f64>| Reach::Chord {
+            base: o,
+            far: o + far,
+        };
+        let band = Band::linear_at(Tol::witness(), 1e-12).unwrap();
+        let (d, p_far) = (Vec3::new(1.0, 2.0, 3.0), Vec3::new(2.0, 3.0, 5.0));
+        let b = p_far * 1e6 + d;
+        let arc = Arc {
+            dir: d,
+            reach: chord(d),
+            p: p_far.normalize(),
+            p_arm: 1e6,
+        };
+        let read = arc_side(arc, b.normalize(), chord(b), 1.0, band);
+        assert!(!matches!(read, Ok(Some(_))), "coplanar, read {read:?}");
     }
 
     /// **A plane through a reference and a bound is read at the shorter
