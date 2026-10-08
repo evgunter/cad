@@ -2822,8 +2822,13 @@ fn run_checks<T: Decide>(
     // nothing between samples, or a caller that withholds it) the edge
     // certifies at the schedule alone; tier 3 re-derives it with the
     // scalar's lane at rest. ----
+    // A spline operand's pair is the plane × NURBS lane's above, whose
+    // limbs carry its own tube.
     if let (Resolved::Intersection { surf1, surf2, .. }, Curve3::Nurbs(carrier), Some(lane)) =
         (&resolved, &spec.carrier, lane)
+        && ![surf1, surf2]
+            .iter()
+            .any(|s| matches!(s, Surface::Nurbs(_) | Surface::Approx(_)))
     {
         lane.rung3_tube(carrier, surf1, surf2, band)
             .map_err(CertifyError::Rung3Tube)?;

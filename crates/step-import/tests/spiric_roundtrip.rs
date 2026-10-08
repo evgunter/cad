@@ -111,32 +111,22 @@ fn vessel_cavity() -> topo::Body<f64> {
 
 /// **Where the trip lands.** The cavity writes out with one cubic
 /// `B_SPLINE_CURVE_WITH_KNOTS` per spiric rim, and the import door
-/// itself refuses: `import_step` validates all three tiers and hands
-/// back `StepImport::TierInvalid` rather than a solid. The payload is
-/// the props frontier, one face over from the native body's —
+/// itself refuses. The native body stops at tier 3's props frontier,
+/// `VolumeUncomputable { Face { FaceKey(1v1), Unimplemented } }`: a
+/// CAP's `loop_vector_area` (the oval's area is an elliptic integral),
+/// because the cap is first in arena order and the torus wall behind it
+/// carries a spiric pcurve.
 ///
-/// - NATIVE: `VolumeUncomputable { Face { FaceKey(1v1), Unimplemented } }`,
-///   a CAP's `loop_vector_area` (the oval's area is an elliptic
-///   integral), because the cap is first in arena order and the torus
-///   wall behind it carries a spiric pcurve;
-/// - IMPORTED: `VolumeUncomputable { Face { FaceKey(6v1),
-///   QuadratureUnsupported { "conic trim on a cone/sphere/torus chart
-///   …" } } }`, the TORUS WALL, because the adopted spline is a
-///   `Curve3::Nurbs` carrier and the cap's loop is no longer one the
-///   spiric arm refuses — so the wall is reached first.
-///
-/// **That door is not spiric-specific, and the row does not claim it
-/// is.** What reaches it is any `Nurbs`-carried trim on a torus wall,
-/// whatever minted the carrier; the message even names a "conic trim"
-/// for a carrier that is not a conic. The row pins the door a spiric
-/// body's round trip actually lands on, which is the fact this unit
-/// owes; the message belongs to the quadrature lane (TRIM's ground)
-/// and is not changed here.
-///
-/// §5 predicted `PropsError::Unimplemented` at check 7 on re-import;
-/// the measured payload is the same check and the same lane, on the
-/// wall rather than the cap, and the row pins what the run shows and
-/// names what was predicted.
+/// The import stops earlier, at adoption. The rim comes back as a
+/// spline, the export's sagitta-bounded stand-in for the spiric
+/// (uncertainty 1e-4 m), and its `Intersection` reading is a rung-3
+/// carrier between two analytic faces. The edge certificate checks that
+/// carrier's uniqueness tube (C2's limb 3), and the tube does not
+/// certify (`CertifyError::Rung3Tube`). Before the tube lived in the
+/// edge certificate, the reading adopted on its samples alone and the
+/// trip reached tier 3's quadrature lane at the torus wall. Whether the
+/// refusal is the geometry's or the tube's scale is
+/// `work/pcert/a-reimported-spiric-rim-refuses-at-the-edge-tube.md`.
 #[test]
 fn a_spiric_rim_exports_as_a_spline_and_its_reimport_door_is_pinned() {
     let native = vessel_cavity();
@@ -183,20 +173,19 @@ fn a_spiric_rim_exports_as_a_spline_and_its_reimport_door_is_pinned() {
 
     let back = import_step(&text, &ImportOptions::default(), tol());
     println!("[roundtrip] import door: {back:?}");
-    let Err(step_import::StepImportError::TierInvalid { errors, .. }) = back else {
-        panic!("the imported cavity's volume is the props lane's frontier, got {back:?}");
+    let Err(step_import::StepImportError::Adoption { attempts, .. }) = &back else {
+        panic!("the imported rim's spline refuses adoption, got {back:?}");
     };
     assert!(
         matches!(
-            errors[..],
-            [topo::ValidationError::VolumeUncomputable {
-                source: topo::MassPropsError::Face {
-                    source: geom_brep::PropsError::QuadratureUnsupported { .. },
-                    ..
+            attempts.first(),
+            Some(step_import::AdoptionAttempt {
+                candidate: step_import::AdoptionCandidate::Intersection,
+                refusal: topo::EulerOpError::Certification {
+                    error: geom_brep::CertifyError::Rung3Tube(_),
                 },
-                ..
-            }]
+            })
         ),
-        "check 7 at the torus wall's quadrature lane, got {errors:?}"
+        "the spline's Intersection reading refuses at the edge's uniqueness tube, got {attempts:?}"
     );
 }
