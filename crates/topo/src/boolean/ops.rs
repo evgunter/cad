@@ -2523,14 +2523,20 @@ fn seam_reading<T: Decide>(
 }
 
 /// The boolean's refusal for an undecided seam reading: the seam's
-/// first-order arm or wedge, by rung, or its second-order bend.
+/// first-order arm or wedge, by rung, or its second-order bend. The
+/// boolean's decision reads the rung and the margin alone, so no
+/// [`geom_brep::LeverEscalation`] is rebuilt from the two: the arm's
+/// verdict is the gate's to mint.
 pub(super) fn seam_refusal(reading: DihedralReading, diag: Indeterminate) -> BooleanError {
     match reading {
-        DihedralReading::Lever(rung) => BooleanError::of_lever(
-            super::LeverArm::Seam,
-            super::DeclarationRead::Moot,
-            geom_brep::LeverEscalation { rung, diag },
-        ),
+        DihedralReading::Lever(rung) => BooleanError::Escalated {
+            decision: BooleanDecision::of_lever(
+                super::LeverArm::Seam,
+                super::DeclarationRead::Moot,
+                rung,
+            ),
+            diag,
+        },
         DihedralReading::Bend => BooleanError::Escalated {
             decision: BooleanDecision::SeamJet,
             diag,

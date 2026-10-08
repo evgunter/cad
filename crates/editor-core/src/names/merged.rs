@@ -119,8 +119,10 @@ pub(crate) fn constituents_through_wrappers(name: &StableName) -> Option<Vec<Sta
 /// `along`**: `Merged` of them, flat and in name order. An edge that is
 /// itself a set, read through its descent wrappers, stands for its
 /// constituents ([`constituents_through_wrappers`]), so a set of sets
-/// lists edges, never sets (N3's flatness). The one builder both the
-/// pair boolean and the union mint an edge set through.
+/// lists edges, never sets (N3's flatness). The one builder every door
+/// mints an edge set through: the pair boolean, the union, and the
+/// joins the split, the shell and the blend end with
+/// (`join_names::joined_name`).
 pub(crate) fn edge_set(
     node: crate::node::RecipeNodeId,
     along: impl IntoIterator<Item = StableName>,
