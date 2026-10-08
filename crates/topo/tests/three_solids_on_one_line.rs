@@ -308,11 +308,16 @@ fn every_order(
     }
     members.extend(prisms.iter().map(Prism::body));
     let volume = union_volume(prisms, plate);
-    // A corner moved off the line within the zero builds as on it: the
-    // volume reads within the move's sweep, its offset times the
-    // prism's height (under 2).
-    let moved: f64 = prisms.iter().map(|p| p.moved).sum();
-    let slack = 2.0f64.mul_add(moved, 1e-9);
+    // A corner moved off the line, or a prism tilted, within the zero
+    // builds as on the line: the volume reads within the move's sweep,
+    // a corner's offset times the prism's height (under 2), and a tilt's
+    // angle times the prism's surface (under 2.5) times its farthest
+    // point's distance from the pivot (under 1.6).
+    let moved: f64 = prisms
+        .iter()
+        .map(|p| 2.0f64.mul_add(p.moved, 4.0 * p.tilt.1))
+        .sum();
+    let slack = moved + 1e-9;
     let tilted = prisms.iter().any(|p| p.tilt.1 != 0.0);
     let holds = |q: [f64; 3]| (plate && in_plate(q)) || prisms.iter().any(|p| p.holds(q));
     let probes = probes();
