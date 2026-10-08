@@ -1257,3 +1257,18 @@ Signed (JOIN orchestrator).
   - walk order (M, PR 4317), under its sequential review.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-08: battery hygiene landed; the w345 vertex is composed
+
+- **PR 4334 merged** (E, orchestrator read).
+  - `join1_delta_probes` uses the shared judge, with a Richardson oracle to 1e-7.
+  - `Body::split_edge_onto` keeps an existing vertex's bits where an edge split lands on it, so the 324 edge-placement lines read one vertex per cone.
+  - Pierce, pinch and corner batteries are byte-identical; 36 `rc_wide` lines moved only in margin digits.
+  - `join1-delta-probes-keep-their-own-outcome` and `vertices-at-misses-an-edge-split-ulps-off-the-pierce-point` are closed.
+- **PR 4338 merged** (the w345 unit stopped at its case (b)).
+  - Every split reading on the four poses was definite.
+  - The 9.55e-9 vertex-face gap is a pierce 3.69e-8 along a 345° edge, against the same operand's 0° face across the 15° corner: a composed pair no reading compares.
+  - So the door gate, not a split fix, catches it. `[ev]` PR 4335's row and body now say so.
+  - The row is parked on 4335. The unit drew byte 71 (SEQUENTIAL) but built nothing, so no DR row.
+
+Signed (JOIN orchestrator).
