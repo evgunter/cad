@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-06
 priority: P3
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -43,3 +43,6 @@ stay on `kef_minting`, and `kef_minting` cannot be absorbed
 `Body::vouch_described_move` (`crates/topo/src/attach.rs`), where a
 listed description is certified today.
 
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: Ev held its details for the refactor; they turn on declared chart images, canonical carrier forms and the rest.rs zip kills, which stage 4 settles. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

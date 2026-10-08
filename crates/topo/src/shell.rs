@@ -23,9 +23,19 @@
 //! [`crate::AtRestPolicy::gate_at_rest_kept`] keeps, and this door is
 //! bounded on the certification right a dual does not hold.
 //!
-//! [`crate::replace_faces_offset`] keeps its `&mut Body`: it is also
-//! this verb's chart-by-chart step over a clone that is mid-construction
-//! between charts, so it cannot be the place a verdict is read.
+//! **The offset doors this verb steps through take construction state.**
+//! A door whose argument means something about material — this verb's
+//! thickness, into the solid — takes a finished body; a door whose
+//! argument is stated against charts alone takes a [`Body`], tier 2 in
+//! and tier 2 out. [`crate::replace_faces_offset`],
+//! [`crate::offset_planes_together`] and
+//! [`crate::offset_charts_together`] are the second kind: each reads
+//! `d` along a chart's stored normal, no face's sense deciding the
+//! move, and this verb runs
+//! them over a clone that is mid-construction between charts, where no
+//! verdict can be read. What turns a face's material side into that
+//! chart-normal number is `inward`, here; what finishes the result is
+//! the closing validation below.
 //!
 //! # The sealed arm, and what it deliberately does not run
 //!
@@ -130,10 +140,13 @@
 //! refuses too. **What the gate decides** is that no two antiparallel
 //! PLANAR faces — to within a drift of `t` across the pair, or a
 //! cosine antiparallel to the band — have offsets whose projected boxes
-//! meet across less than `2t`; **what it still cannot see** is a curved wall (below), a planar pair tilted
-//! further than that (two offsets meeting at an angle,
-//! `work/shell/shell-clearance-gate-skips-planar-pairs-tilted-off-antiparallel.md`),
-//! and the corner solves' own refusals, which are the offset doors'.
+//! meet across less than `2t`. **A planar pair tilted further** has no
+//! single gap, and is read after the offset doors run, on the cavity
+//! they built ([`moved_walls_cross`]): two non-adjacent planar faces of
+//! one solid in transversal planes must not overlap along the line
+//! their moved planes share. **What the two still cannot see** is a
+//! curved wall (below) and the corner solves' own refusals, which are
+//! the offset doors'.
 //!
 //! **The curved residue is an open window, and it is not caught by
 //! anything downstream.** A curved thin neck — two facing cylinder or
@@ -364,8 +377,8 @@
 
 use geom_core::k_stats::{decide, gate_measured};
 use geom_core::{
-    Band, BandError, Decide, Indeterminate, KERNEL_DEFECT_ENDING, KERNEL_OR_FILE_DEFECT_ENDING,
-    Margin, NOT_YET_ENDING, Real, Sign, Tol,
+    Band, BandError, Decide, Indeterminate, KERNEL_DEFECT_ENDING, Margin, NOT_YET_ENDING, Real,
+    Sign, Tol,
 };
 use slotmap::SecondaryMap;
 
@@ -416,27 +429,6 @@ pub enum ShellError<T: Real> {
         /// The classifier's typed refusal, verbatim.
         error: crate::props::ShellClassifyError,
     },
-    /// The operand could not be sorted into pieces ([`crate::pieces`])
-    /// before it is thickened: the verb takes a body, and a solid
-    /// holding several pieces is sorted first, so the piece a shell
-    /// belongs to has to be readable.
-    Pieces {
-        /// The sort's typed refusal, verbatim.
-        error: crate::pieces::PieceSortError,
-    },
-    /// One of the operand's solids, once sorted into pieces, has no
-    /// outer shell: only cavities, which bound no material. Not a shape
-    /// this verb thickens. More than one cannot reach here: the sort
-    /// reads roles through [`crate::props::shell_role`], and this verb
-    /// classifies through the same lane at the reporting target, which
-    /// reads a role only where that walk read the same one
-    /// (`props::role_at_target`). So the sort leaves no solid with a
-    /// second decided `Outer`, and a shell the sort left undecided
-    /// refuses [`Self::Roles`].
-    OperandOuterShells {
-        /// The solid with no outer shell.
-        solid: SolidKey,
-    },
     /// The re-partition of an operand void and its dilated twin into a
     /// solid of their own refused. The keys are the shell op's own —
     /// the void is one of the sealed arm's decided void list, its twin
@@ -469,6 +461,31 @@ pub enum ShellError<T: Real> {
         gap: T,
         /// The wall the two offsets would need, `2t`.
         needed: T,
+    },
+    /// **Two moved walls meeting at an angle cross.** Two non-adjacent
+    /// planar faces of one solid that are not parallel have inward
+    /// offsets whose regions overlap along the line their moved planes
+    /// share ([`moved_walls_cross`]): somewhere between the two faces
+    /// the material is thinner than the two walls, so the cavity would
+    /// self-intersect. [`ShellError::WallClearance`] is the same
+    /// collision on a pair that faces squarely; this is the pair at an
+    /// angle, which has no single gap to report.
+    ///
+    /// Lines, circles and ellipses are cut exactly, a conic at its
+    /// roots. Only an edge on another curve (a spiric or a spline) is
+    /// read as its chord plus the ball holding its arc, conservative in
+    /// the same direction as the gate: it may refuse a pair that would
+    /// have cleared, never the reverse.
+    OffsetsCross {
+        /// One of the two planar faces.
+        face: FaceKey,
+        /// The other.
+        other: FaceKey,
+        /// How far, along the line the two moved planes share, the two
+        /// moved faces overlap, in meters: zero when they only touch.
+        overlap: T,
+        /// The wall thickness the shell was asked for.
+        thickness: T,
     },
     /// A chart worn by several faces of ONE solid has faces with
     /// DIFFERENT orientation bits, so "inward" is not one direction for
@@ -586,6 +603,12 @@ pub enum ShellError<T: Real> {
         /// The mint's typed refusal, verbatim.
         source: PcurveMintError,
     },
+    /// The join the shell ends with ([`crate::Body::join_edges`])
+    /// refused on the assembled body.
+    Join {
+        /// Why the join refused, typed and keyless.
+        refusal: crate::boolean::JoinRefusal,
+    },
     /// The assembled result does not validate, so it is discarded.
     NotValid {
         /// The validator's report.
@@ -612,15 +635,6 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                 "the body's shells could not be sorted into one outer boundary and its \
                  voids: {error}"
             ),
-            Self::Pieces { error } => write!(
-                f,
-                "the body could not be sorted into solids before it is thickened: {error}"
-            ),
-            Self::OperandOuterShells { .. } => write!(
-                f,
-                "a solid of the body has no outer shell, only cavities, which bound no \
-                 material to thicken. {KERNEL_OR_FILE_DEFECT_ENDING}"
-            ),
             Self::Partition { shell, error } => write!(
                 f,
                 "the thin solid around void {shell:?} could not be partitioned out: {error}"
@@ -630,6 +644,12 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                 "two faces face each other across {gap:?} m of material and the two walls \
                  need {needed:?} m, so the cavity would self-intersect. Recourse: use a \
                  thinner wall"
+            ),
+            Self::OffsetsCross { .. } => write!(
+                f,
+                "two faces that meet at an angle have less material between them than two \
+                 walls somewhere along their overlap, so their inward offsets cross and the \
+                 cavity would self-intersect. Recourse: use a thinner wall"
             ),
             Self::ChartSenseMixed { .. } => write!(
                 f,
@@ -700,6 +720,7 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                 "the finished thin solid's edges could not be parametrized on its faces. \
                  {KERNEL_DEFECT_ENDING}"
             ),
+            Self::Join { refusal } => write!(f, "the assembled thin solid: {refusal}"),
             Self::NotValid { errors } => write!(
                 f,
                 "the assembled thin solid is not valid ({}) and is discarded. \
@@ -848,6 +869,12 @@ pub struct ShellNaming {
     pub thickened: Vec<(SolidKey, ShellKey)>,
     /// What the construction retired, result keys.
     pub dead: ShellRetired,
+    /// The joins the shell ended with ([`crate::Body::join_edges`]), in
+    /// the order made. Every row above stays as the construction wrote
+    /// it, `dead` included: a join's `vertex` and `gone` are then dead
+    /// but listed here, not there, and its `kept` covers what `gone` did
+    /// besides its own ([`crate::join_covers`]).
+    pub edge_joins: Vec<crate::EdgeJoin>,
 }
 
 impl ShellNaming {
@@ -992,7 +1019,9 @@ pub struct HoleRim {
 /// The result keys the construction retired, in every arena the
 /// record names. Scaffolding a rim's surgery mints and kills within
 /// itself (a seamed band's struts and its pole's copy) was never in a
-/// row and is not listed.
+/// row and is not listed. Nor are the closing join's kills: each join's
+/// `vertex` and `gone` edge are its row in [`ShellNaming::edge_joins`],
+/// read there.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ShellRetired {
     /// Faces that no longer resolve: a designated chart's merged-away
@@ -1001,10 +1030,10 @@ pub struct ShellRetired {
     /// itself on a void's.
     pub faces: Vec<FaceKey>,
     /// Edges that no longer resolve: the seam and slit edges the chart
-    /// reduction kills.
+    /// reduction kills (the closing join's are `edge_joins`' `gone`).
     pub edges: Vec<EdgeKey>,
     /// Vertices that no longer resolve: the apex vertices a spur dies
-    /// with.
+    /// with (the closing join's are `edge_joins`' `vertex`).
     pub vertices: Vec<VertexKey>,
     /// Loops that no longer resolve: the outer loop of each face a
     /// chart merge kills.
@@ -1094,27 +1123,6 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         _ => return Err(ShellError::Thickness { thickness }),
     }
 
-    // ---- Decide: one piece of material per solid. ----
-    //
-    // A finished operand is already one piece per solid (tier 3's check
-    // 10 refuses two `Outer` shells under one solid), so no operand that
-    // can reach this door is changed by the sort below; whether it and
-    // `ShellError::Pieces` are reachable at all is
-    // `work/shell/shell-operand-shape-arms-behind-the-at-rest-gate.md`.
-    // It runs on a clone, so every key the caller holds still names the
-    // same face, edge and vertex; a body whose every solid has one shell
-    // is not read.
-    let sorted;
-    let body = if body.solids().any(|(_, s)| s.shells.len() > 1) {
-        let mut clone = body.clone();
-        crate::pieces::sort_into_pieces(&mut clone, band, tol, T::quad_lane(), None)
-            .map_err(|error| ShellError::Pieces { error })?;
-        sorted = clone;
-        &sorted
-    } else {
-        body
-    };
-
     // ---- Decide: there is a solid to thicken. ----
     let solids: Vec<SolidKey> = body.solids().map(|(k, _)| k).collect();
     if solids.is_empty() {
@@ -1152,13 +1160,20 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         }
         let roles = crate::props::classify_shells_through(body, shells, tol, T::quad_lane())
             .map_err(|error| ShellError::Roles { error })?;
-        match roles.iter().filter(|c| c.role == ShellRole::Outer).count() {
-            0 => return Err(ShellError::OperandOuterShells { solid }),
-            1 => {}
-            outer => unreachable!(
-                "{outer} decided outer shells under one solid after the sort, whose \
-                 sign walk reads every role the classification reads"
-            ),
+        // The gate read these roles through the same sign walk at the
+        // same band: check 10 finished the operand only with every one
+        // decided and at most one `Outer` (two is its
+        // `SolidOuterShells`), and check 7 only with the solid's volume
+        // positive, which shells each decided negative cannot sum to.
+        // The classification reads a role only where that walk read the
+        // same one (`props::role_at_target`), so it cannot count
+        // otherwise.
+        let outer = roles.iter().filter(|c| c.role == ShellRole::Outer).count();
+        if outer != 1 {
+            unreachable!(
+                "{outer} decided outer shells under one solid of a finished operand, whose \
+                 checks 7 and 10 read every role the classification reads"
+            );
         }
         voids.extend(
             roles
@@ -1299,9 +1314,21 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
                 // refusals carry a face, a vertex or an edge; the last two are
                 // resolved to a face they touch.
                 let outcome = if door == OffsetDoor::ChartsTogether {
-                    crate::offset_charts_together(&mut cavity, &moves, band, tol)
+                    crate::offset_axial::offset_charts_together_staged(
+                        &mut cavity,
+                        &moves,
+                        band,
+                        tol,
+                        false,
+                    )
                 } else {
-                    crate::offset_planes_together(&mut cavity, &moves, band, tol)
+                    crate::offset_together::offset_planes_together_staged(
+                        &mut cavity,
+                        &moves,
+                        band,
+                        tol,
+                        false,
+                    )
                 };
                 outcome.map_err(|error| ShellError::Face {
                     face: offending_face(&cavity, &error).unwrap_or(fallback),
@@ -1312,16 +1339,24 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
                 for group in &mine {
                     let face = group[0];
                     let d = inward(&cavity, face, thickness);
-                    crate::replace_faces_offset(&mut cavity, group, d, tol).map_err(|error| {
-                        ShellError::Face {
-                            face,
-                            error: Box::new(error),
-                        }
+                    crate::replace_face::replace_faces_offset_staged(
+                        &mut cavity,
+                        group,
+                        d,
+                        tol,
+                        false,
+                    )
+                    .map_err(|error| ShellError::Face {
+                        face,
+                        error: Box::new(error),
                     })?;
                 }
             }
         }
     }
+
+    // ---- Decide: no two moved walls meeting at an angle cross. ----
+    moved_walls_cross(&cavity, &partition, thickness, band)?;
 
     // ---- The evidence: the construction's own decides, carried. ----
     //
@@ -1573,10 +1608,18 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
                         },
                     })
                     .collect();
-                crate::offset_charts_together(&mut out, &moves, band, tol)
+                crate::offset_axial::offset_charts_together_staged(
+                    &mut out, &moves, band, tol, false,
+                )
             }
             OffsetDoor::PlanesTogether | OffsetDoor::PerChart => {
-                crate::replace_faces_offset(&mut out, lift_charts.of(counterpart_chart), back, tol)
+                crate::replace_face::replace_faces_offset_staged(
+                    &mut out,
+                    lift_charts.of(counterpart_chart),
+                    back,
+                    tol,
+                    false,
+                )
             }
         };
         outcome.map_err(|error| ShellError::Lift {
@@ -1897,8 +1940,14 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
     // cap row and `verbs_shell`'s revolved cups).
     mint_pcurves(&mut out, tol).map_err(|source| ShellError::Pcurve { source })?;
 
-    // ---- One validation. ----
+    // ---- One validation, after the join. ----
     out.sweep_and_close();
+    // The join (`docs/DESIGN.md`, maximal edges), over every solid: each is written.
+    naming.edge_joins = out_body
+        .join_edges_within(band, tol, &|_| true)
+        .map_err(|refusal| ShellError::Join {
+            refusal: crate::boolean::JoinRefusal::of(&refusal),
+        })?;
     validate_geometric(&out_body, tol).map_err(|errors| ShellError::NotValid { errors })?;
     Ok(Shelled {
         body: out_body,
@@ -3128,7 +3177,7 @@ fn loop_rekeyed<T: Decide>(
 /// refuse a staircase body whose faces do not really face each other,
 /// or a convex-edged pair whose offsets would have cleared; it cannot
 /// miss a planar pair within either window that crosses. A pair tilted
-/// further is not read (module docs).
+/// further is read on the moved cavity ([`moved_walls_cross`]).
 fn wall_clearance<T: Decide>(
     body: &Body<T>,
     partition: &crate::offset_together::Scope,
@@ -3155,8 +3204,8 @@ fn wall_clearance<T: Decide>(
             // read when that drift is within one wall, OR when the cosine
             // is antiparallel to the band — the window the gate read
             // before the lever, which is the wider one when `t/L` is
-            // below `√(2ε)`. A pair outside both is the tilted residue
-            // (module docs).
+            // below `√(2ε)`. A pair outside both is read on the cavity
+            // by `moved_walls_cross`.
             let lever = gate_measured(
                 "shell_walls_extent",
                 a.reach + b.reach + (b.origin - a.origin).norm(),
@@ -3438,6 +3487,449 @@ fn footprints_may_overlap<T: Decide>(
     !(separated(grown(a.box_u), grown(re_u)) || separated(grown(a.box_v), grown(re_v)))
 }
 
+/// **The tilted read: two moved walls of one solid that meet at an
+/// angle must not cross.** [`wall_clearance`] reads a pair that faces
+/// squarely, on the operand, as a gap against `2t`. A pair at an angle
+/// has no single gap: its planes meet, and whether the walls cross is
+/// whether the two MOVED faces overlap. So this read runs on the cavity
+/// the offset doors built, where every face already is its own inward
+/// offset, bounded by the corners those doors solved — the eroded
+/// footprint a concave edge extends and a convex one trims, exactly.
+///
+/// For every pair of non-adjacent planar faces of one solid whose
+/// planes are transversal (they diverge across the pair by more than
+/// the band), both faces are cut by `L`, the line the two planes share,
+/// and the two sets of `L` they cover are compared. Two planar regions
+/// in transversal planes meet only on `L`, so the pair is clear exactly
+/// when those sets are disjoint, and the overlap of the two sets is the
+/// margin: Positive refuses [`ShellError::OffsetsCross`]. Zero, a
+/// touch, refuses too unless the two faces share a vertex, whose moved
+/// copy both faces hold by construction. A pair parallel to the band
+/// is not read: facing, it is [`wall_clearance`]'s; facing the same
+/// way, its moved planes stay parallel and cannot cross.
+///
+/// Each set is the face's region cut by `L`, by crossing parity over
+/// its boundary. Every boundary vertex is put on one side of `L` by a
+/// decide, Zero counting with the positive side, so an edge ending on
+/// `L` is counted once and a vertex touching `L` is a closed interval
+/// of length zero. A line edge crosses at its ends' sides. A circle or
+/// ellipse edge is split where its side of `L` is extreme and each
+/// monotone piece crosses at its own root, so a conic is cut exactly.
+/// Only an edge on another curve (a spiric or a spline) is read as its
+/// chord, with the chord of `L` through the ball holding its arc added
+/// to the set: the region between an arc and its chord lies in that
+/// ball, so the set read holds the true one. Crossings are ordered by
+/// decided comparisons, a pair the band cannot order is a tie; the
+/// overlap is then computed in `T` and decided, and an undecided side
+/// or overlap escalates rather than clearing.
+///
+/// An edge-adjacent pair is not read: its moved planes share the line
+/// of its moved common edge, so its two sets always overlap along that
+/// edge, and a pair that crosses by inverting the edge refuses at the
+/// offset door's interval-forward check (module docs, on where the
+/// loud cases refuse). An adjacent pair crossing away from its common
+/// edge, with the edge itself still forward, is not ruled out here
+/// (`work/shell/tilted-read-skips-edge-adjacent-pairs-that-cross-away-from-their-edge.md`).
+///
+/// On [`shell_open`] the read runs on the closed cavity, before the rim
+/// stage lifts a designated face's counterpart back out, so a crossing
+/// within `t` of the opening is the lift's to refuse, not this gate's.
+fn moved_walls_cross<T: Decide>(
+    cavity: &Body<T>,
+    partition: &crate::offset_together::Scope,
+    thickness: T,
+    band: Band,
+) -> Result<(), ShellError<T>> {
+    let escalated = |source| ShellError::Escalated { source };
+    let walls = moved_walls(cavity, partition);
+    for (i, a) in walls.iter().enumerate() {
+        for b in &walls[i + 1..] {
+            if a.solid != b.solid || boxes_apart(a, b, band) {
+                continue;
+            }
+            if face_neighbours(cavity, a.face).contains(&b.face) {
+                continue;
+            }
+            let cross = a.normal.cross(b.normal);
+            let lever = gate_measured(
+                "shell_moved_walls_extent",
+                (a.hi - a.lo).norm() + (b.hi - b.lo).norm() + (b.lo - a.lo).norm(),
+                band,
+            )
+            .map_err(escalated)?;
+            match decide(
+                "shell_moved_walls_transversal",
+                Margin::of(cross.norm() * lever),
+                band,
+            )
+            .map_err(escalated)?
+            {
+                Sign::Positive => {}
+                Sign::Zero | Sign::Negative => continue,
+            }
+            // The point of `L` nearest `a`'s box centre, so every side
+            // and position below is a short difference.
+            let d = cross / cross.norm();
+            let k = a.normal.dot(b.normal);
+            let q = a.lo + (a.hi - a.lo) * T::from_f64(0.5);
+            let r_a = a.normal.dot(a.origin - q);
+            let r_b = b.normal.dot(b.origin - q);
+            let det = T::one() - k.powi(2);
+            let p0 = q + a.normal * ((r_a - k * r_b) / det) + b.normal * ((r_b - k * r_a) / det);
+            let on_a = a.cut(p0, d, band).map_err(escalated)?;
+            let on_b = b.cut(p0, d, band).map_err(escalated)?;
+            for &(a_lo, a_hi) in &on_a {
+                for &(b_lo, b_hi) in &on_b {
+                    let overlap = a_hi.min(b_hi) - a_lo.max(b_lo);
+                    let crosses =
+                        match decide("shell_moved_walls_overlap", Margin::of(overlap), band)
+                            .map_err(escalated)?
+                        {
+                            Sign::Positive => true,
+                            Sign::Zero => !a.vertices.iter().any(|v| b.vertices.contains(v)),
+                            Sign::Negative => false,
+                        };
+                    if crosses {
+                        return Err(ShellError::OffsetsCross {
+                            face: a.face,
+                            other: b.face,
+                            overlap: overlap.max(T::zero()),
+                            thickness,
+                        });
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// One moved planar face as [`moved_walls_cross`] reads it: its plane,
+/// its boundary edges, its vertices and the box holding its boundary.
+struct MovedWall<T: Real> {
+    face: FaceKey,
+    solid: SolidKey,
+    origin: geom_core::Point3<T>,
+    normal: geom_core::Vec3<T>,
+    /// Every boundary edge as its two ends and its carrier: a line, a
+    /// conic cut at its roots, or, for any other curve, the ball holding
+    /// its arc.
+    edges: Vec<BoundaryEdge<T>>,
+    vertices: Vec<VertexKey>,
+    lo: geom_core::Point3<T>,
+    hi: geom_core::Point3<T>,
+}
+
+struct BoundaryEdge<T: Real> {
+    start: (VertexKey, geom_core::Point3<T>),
+    end: (VertexKey, geom_core::Point3<T>),
+    curve: EdgeArc<T>,
+}
+
+/// What an edge's carrier is, as [`MovedWall::cut`] reads it.
+enum EdgeArc<T: Real> {
+    Line,
+    /// A circle or an ellipse, `center + u·(ru·cos θ) + v·(rv·sin θ)`
+    /// over `from..to` (`from < to`), with the vertex at each end.
+    Conic {
+        center: geom_core::Point3<T>,
+        u: geom_core::Vec3<T>,
+        v: geom_core::Vec3<T>,
+        ru: T,
+        rv: T,
+        from: (T, VertexKey),
+        to: (T, VertexKey),
+    },
+    /// Any other carrier: the ball holding its arc.
+    Ball(geom_core::Point3<T>, T),
+}
+
+impl<T: Decide> MovedWall<T> {
+    /// The intervals of `L = p0 + s·d` (`d` unit, in this face's plane)
+    /// the face covers, as `(lo, hi)` in `s` (module docs of
+    /// [`moved_walls_cross`] for the reading).
+    fn cut(
+        &self,
+        p0: geom_core::Point3<T>,
+        d: geom_core::Vec3<T>,
+        band: Band,
+    ) -> Result<Vec<(T, T)>, Indeterminate> {
+        let m = self.normal.cross(d);
+        let mut sides: Vec<(VertexKey, bool)> = Vec::new();
+        let mut side_of = |(v, p): (VertexKey, geom_core::Point3<T>)| {
+            if let Some(&(_, s)) = sides.iter().find(|(w, _)| *w == v) {
+                return Ok(s);
+            }
+            let s = !matches!(
+                decide("shell_moved_wall_side", Margin::of((p - p0).dot(m)), band)?,
+                Sign::Negative
+            );
+            sides.push((v, s));
+            Ok::<bool, Indeterminate>(s)
+        };
+        let mut crossings: Vec<T> = Vec::new();
+        let mut out = Vec::new();
+        for edge in &self.edges {
+            if let EdgeArc::Conic {
+                center,
+                u,
+                v,
+                ru,
+                rv,
+                from,
+                to,
+            } = edge.curve
+            {
+                // The side of `L` along the conic is the sinusoid
+                // `sc + A·cos θ + B·sin θ`, monotone between its extremes
+                // at `φ` and `φ + π`: split there, and each piece crosses
+                // once exactly when its two ends' sides differ, at the
+                // root of its own half-turn.
+                let (a, b) = (ru * u.dot(m), rv * v.dot(m));
+                let sc = (center - p0).dot(m);
+                let phi = b.atan2(a);
+                let root = (-sc / (a.powi(2) + b.powi(2)).sqrt())
+                    .max(-T::one())
+                    .min(T::one())
+                    .acos();
+                let at = |theta: T| center + u * (ru * theta.cos()) + v * (rv * theta.sin());
+                let mut ends: Vec<(T, bool)> = vec![(from.0, side_of((from.1, at(from.0)))?)];
+                // Parameters are compared as arc lengths on the larger
+                // semi-axis, so a split at an end within the band is
+                // the end itself.
+                let r = ru.max(rv);
+                let before = |x: T, y: T| {
+                    matches!(
+                        decide("shell_moved_wall_arc_split", Margin::of((y - x) * r), band),
+                        Ok(Sign::Positive)
+                    )
+                };
+                let mut split = from.0 + (phi - from.0).reduce_periodic(T::pi());
+                while before(split, to.0) {
+                    if before(from.0, split) {
+                        let p = at(split);
+                        let s = !matches!(
+                            decide("shell_moved_wall_side", Margin::of((p - p0).dot(m)), band)?,
+                            Sign::Negative
+                        );
+                        ends.push((split, s));
+                    }
+                    split = split + T::pi();
+                }
+                ends.push((to.0, side_of((to.1, at(to.0)))?));
+                for pair in ends.windows(2) {
+                    let ((lo, s_lo), (hi, s_hi)) = (pair[0], pair[1]);
+                    if s_lo == s_hi {
+                        continue;
+                    }
+                    // A piece in the half-turn after `φ` holds `φ + root`,
+                    // one in the half-turn before it `φ − root`.
+                    let half = ((lo + hi) * T::from_f64(0.5) - phi).reduce_periodic(T::tau());
+                    let theta = (half - T::pi()).select_le_zero(phi + root, phi - root);
+                    crossings.push((at(theta) - p0).dot(d));
+                }
+                continue;
+            }
+            let (p, q) = (edge.start.1, edge.end.1);
+            if side_of(edge.start)? != side_of(edge.end)? {
+                let (sp, sq) = ((p - p0).dot(m), (q - p0).dot(m));
+                let x = p + (q - p) * (sp / (sp - sq));
+                crossings.push((x - p0).dot(d));
+            }
+            if let EdgeArc::Ball(c, rho) = edge.curve {
+                let w = c - p0;
+                let along = w.dot(d);
+                let perp2 = (w.dot(w) - along.powi(2)).max(T::zero());
+                if !matches!(
+                    decide(
+                        "shell_moved_wall_ball_reach",
+                        Margin::of(rho - perp2.sqrt()),
+                        band
+                    )?,
+                    Sign::Negative
+                ) {
+                    let half = (rho.powi(2) - perp2).max(T::zero()).sqrt();
+                    out.push((along - half, along + half));
+                }
+            }
+        }
+        // Ordered by decided comparisons, a selection rather than a
+        // `sort_by`: two crossings the band cannot order are a tie and
+        // keep their walk order, which moves an end by less than the band.
+        for i in 0..crossings.len() {
+            let mut least = i;
+            for j in i + 1..crossings.len() {
+                if matches!(
+                    decide(
+                        "shell_moved_wall_order",
+                        Margin::of(crossings[least] - crossings[j]),
+                        band
+                    ),
+                    Ok(Sign::Positive)
+                ) {
+                    least = j;
+                }
+            }
+            crossings.swap(i, least);
+        }
+        // Parity over closed loops: every vertex has one side, so each
+        // loop crosses `L` an even number of times.
+        out.extend(crossings.chunks_exact(2).map(|pair| (pair[0], pair[1])));
+        Ok(out)
+    }
+}
+
+/// Every planar face of the moved `cavity`, read for
+/// [`moved_walls_cross`].
+#[track_caller]
+fn moved_walls<T: Decide>(
+    cavity: &Body<T>,
+    partition: &crate::offset_together::Scope,
+) -> Vec<MovedWall<T>> {
+    let mut out = Vec::new();
+    for (face, data) in cavity.faces() {
+        let geom::Surface::Plane { origin, normal, .. } = cavity.face_surface_linked(face, data)
+        else {
+            continue;
+        };
+        let (origin, normal) = (*origin, *normal);
+        let mut edges = Vec::new();
+        let mut vertices = Vec::new();
+        let mut points = Vec::new();
+        for (_, cycle) in crate::pcurves::face_loop_walks(cavity, face) {
+            let ends: Vec<(VertexKey, geom_core::Point3<T>)> = cycle
+                .iter()
+                .map(|&he| {
+                    let h = proven(&cavity.half_edges, he, EntityId::HalfEdge);
+                    let at = cavity.linked_vertex_point(h.start, EntityId::HalfEdge(he), "start");
+                    (h.start, at)
+                })
+                .collect();
+            for (i, &he) in cycle.iter().enumerate() {
+                let h = proven(&cavity.half_edges, he, EntityId::HalfEdge);
+                let edge = linked(
+                    &cavity.edges,
+                    h.edge,
+                    EntityId::Edge,
+                    EntityId::HalfEdge(he),
+                    "edge",
+                );
+                let (start, end) = (ends[i], ends[(i + 1) % ends.len()]);
+                let curve = match cavity.edge_curve_linked(h.edge, edge).certified() {
+                    None => EdgeArc::Line,
+                    Some(curve) => {
+                        // The carrier's parameter runs with the edge's
+                        // plus half.
+                        let (t0, t1) = curve.params();
+                        let (v0, v1) = if edge.he_plus == he {
+                            (start.0, end.0)
+                        } else {
+                            (end.0, start.0)
+                        };
+                        let conic =
+                            |center, axis: &geom_core::Vec3<T>, u: geom_core::Vec3<T>, ru, rv| {
+                                EdgeArc::Conic {
+                                    center,
+                                    u,
+                                    v: axis.cross(u),
+                                    ru,
+                                    rv,
+                                    from: (t0, v0),
+                                    to: (t1, v1),
+                                }
+                            };
+                        match *curve.carrier() {
+                            geom::Curve3::Line { .. } => EdgeArc::Line,
+                            geom::Curve3::Circle {
+                                center,
+                                ref axis,
+                                radius,
+                                u_ref,
+                            } => conic(center, axis, u_ref, radius, radius),
+                            geom::Curve3::Ellipse {
+                                center,
+                                ref axis,
+                                major,
+                                minor,
+                                u_ref,
+                            } => conic(center, axis, u_ref, major, minor),
+                            _ => {
+                                let (c, rho) = crate::splitting::containment::carrier_ball(
+                                    curve.carrier(),
+                                    curve.params(),
+                                )
+                                .unwrap_or_else(|| {
+                                    unreachable!("a certified spline carrier has control points")
+                                });
+                                EdgeArc::Ball(c, rho)
+                            }
+                        }
+                    }
+                };
+                match curve {
+                    EdgeArc::Line => {}
+                    EdgeArc::Conic { center, ru, rv, .. } => {
+                        let r = ru.max(rv);
+                        let r = geom_core::Vec3::new(r, r, r);
+                        points.extend([center - r, center + r]);
+                    }
+                    EdgeArc::Ball(c, rho) => {
+                        let r = geom_core::Vec3::new(rho, rho, rho);
+                        points.extend([c - r, c + r]);
+                    }
+                }
+                points.push(start.1);
+                if !vertices.contains(&start.0) {
+                    vertices.push(start.0);
+                }
+                edges.push(BoundaryEdge { start, end, curve });
+            }
+        }
+        let Some((&first, rest)) = points.split_first() else {
+            continue;
+        };
+        let (lo, hi) = rest.iter().fold((first, first), |(lo, hi), p| {
+            (
+                geom_core::Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z)),
+                geom_core::Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z)),
+            )
+        });
+        out.push(MovedWall {
+            face,
+            solid: partition.solid_of(face).unwrap_or_else(|| {
+                unreachable!(
+                    "{face:?} is in no solid's walk: the cavity is a clone of the operand, so \
+                     the operand's partition walks every face of it"
+                )
+            }),
+            origin,
+            normal,
+            edges,
+            vertices,
+            lo,
+            hi,
+        });
+    }
+    out
+}
+
+/// Are the two walls' boxes definitely apart on some axis? `false` on
+/// any ambiguity, which reads the pair.
+fn boxes_apart<T: Decide>(a: &MovedWall<T>, b: &MovedWall<T>, band: Band) -> bool {
+    let apart = |gap: T| {
+        matches!(
+            decide("shell_moved_walls_apart", Margin::of(gap), band),
+            Ok(Sign::Positive)
+        )
+    };
+    apart(b.lo.x - a.hi.x)
+        || apart(a.lo.x - b.hi.x)
+        || apart(b.lo.y - a.hi.y)
+        || apart(a.lo.y - b.hi.y)
+        || apart(b.lo.z - a.hi.z)
+        || apart(a.lo.z - b.hi.z)
+}
+
 /// The signed distance that moves `face` INTO the material: the
 /// chart normal points out of the solid on a positively-sensed face and
 /// into it on a reversed one, so the caller's thickness magnitude never
@@ -3558,6 +4050,112 @@ mod tests {
 
     #[allow(clippy::panic)]
     mod footprint_fuzz;
+
+    /// **The tilted read cuts a conic at its roots.** A face's cut of a
+    /// line is read edge by edge; a circle or ellipse edge is split at
+    /// its side's extremes and each piece crosses at its own root. A
+    /// unit disc cut by `y = 0.6` covers `[−0.8, 0.8]`; a half disc
+    /// (the arc over `θ ∈ [0, π]` and its diameter back) cut by
+    /// `x = 0.3` covers from the diameter to the arc, `[0, √0.91]`, and
+    /// the same line run the other way covers `[−√0.91, 0]`; an ellipse
+    /// of semi-axes `2` and `1` cut by `x = 1` covers `±√0.75`; and a
+    /// line clear of the disc covers nothing.
+    #[test]
+    fn the_tilted_cut_reads_a_conic_at_its_roots() {
+        use geom_core::{Point3, Vec3};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let key = |n: u64| -> VertexKey { slotmap::KeyData::from_ffi((1u64 << 32) | n).into() };
+        let pi = core::f64::consts::PI;
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let (x, y, z) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        let wall = |edges| MovedWall {
+            face: FaceKey::default(),
+            solid: SolidKey::default(),
+            origin: o,
+            normal: z,
+            edges,
+            vertices: Vec::new(),
+            lo: o,
+            hi: o,
+        };
+        let conic = |ru, rv, from, to| EdgeArc::Conic {
+            center: o,
+            u: x,
+            v: y,
+            ru,
+            rv,
+            from,
+            to,
+        };
+        let close = |got: Vec<(f64, f64)>, want: &[(f64, f64)], what: &str| {
+            assert_eq!(got.len(), want.len(), "{what}: {got:?}");
+            for (g, w) in got.iter().zip(want) {
+                assert!(
+                    (g.0 - w.0).abs() < 1e-12 && (g.1 - w.1).abs() < 1e-12,
+                    "{what}: got {got:?}, want {want:?}"
+                );
+            }
+        };
+
+        let east = (key(1), Point3::new(1.0, 0.0, 0.0));
+        let disc = wall(vec![BoundaryEdge {
+            start: east,
+            end: east,
+            curve: conic(1.0, 1.0, (0.0, east.0), (2.0 * pi, east.0)),
+        }]);
+        close(
+            disc.cut(Point3::new(0.0, 0.6, 0.0), x, band).unwrap(),
+            &[(-0.8, 0.8)],
+            "the disc at y = 0.6",
+        );
+        close(
+            disc.cut(Point3::new(0.0, 1.5, 0.0), x, band).unwrap(),
+            &[],
+            "the disc at y = 1.5",
+        );
+
+        let west = (key(2), Point3::new(-1.0, 0.0, 0.0));
+        let half = wall(vec![
+            BoundaryEdge {
+                start: east,
+                end: west,
+                curve: conic(1.0, 1.0, (0.0, east.0), (pi, west.0)),
+            },
+            BoundaryEdge {
+                start: west,
+                end: east,
+                curve: EdgeArc::Line,
+            },
+        ]);
+        let top = 0.91_f64.sqrt();
+        close(
+            half.cut(Point3::new(0.3, 0.0, 0.0), y, band).unwrap(),
+            &[(0.0, top)],
+            "the half disc at x = 0.3",
+        );
+        close(
+            half.cut(Point3::new(0.3, 0.0, 0.0), -y, band).unwrap(),
+            &[(-top, 0.0)],
+            "the half disc at x = 0.3, run down",
+        );
+
+        let tip = (key(3), Point3::new(2.0, 0.0, 0.0));
+        let ellipse = wall(vec![BoundaryEdge {
+            start: tip,
+            end: tip,
+            curve: conic(2.0, 1.0, (0.0, tip.0), (2.0 * pi, tip.0)),
+        }]);
+        let h = 0.75_f64.sqrt();
+        close(
+            ellipse.cut(Point3::new(1.0, 0.0, 0.0), y, band).unwrap(),
+            &[(-h, h)],
+            "the ellipse at x = 1",
+        );
+    }
 
     /// **Nesting on a curved chart is read in the chart, at any width
     /// short of the period.** Two nested windows on a unit cylinder about

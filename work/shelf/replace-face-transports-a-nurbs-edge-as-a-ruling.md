@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-03
 priority: P3
 cost: M
-refs: [planar-crossing-lane-reads-a-curved-carrier-as-a-line]
+refs: [3984]
 ---
 
 

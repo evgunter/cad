@@ -2,12 +2,11 @@
 id: closed-in-face-section-loop-has-one-site
 kind: issue
 title: A closed operand conic lying in the partner's face makes a single-site closed section loop, which nothing in the join or the REST lane represents
-status: parked
+status: open
 opened: 2026-10-02
 priority: P1
 cost: H
 refs: [an-edge-lying-in-a-cutter-face-past-its-end-wall-leaves-loose-ends-unpaired]
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -79,3 +78,7 @@ This becomes common when PATHS unit 4 (`circle-lowers-to-one-segment`)
 lowers `circle` to one segment: a pocket floor or a slab through any
 circular boss is this cut, and today's two-arc cylinder (two seams, two
 sites per section circle) builds it.
+
+## Released from the D10 hold (2026-10-08)
+
+Nothing D10 changes gates this row, so it is open: undeclared fixture (germ_coplanar_conic.rs); the missing self-loop arm is the join's topology, which D10 keeps (only the REST-lane half retires at stage 4). (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

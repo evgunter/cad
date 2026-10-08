@@ -7,6 +7,7 @@ opened: 2026-10-07
 priority: P3
 cost: M
 refs: [a-vertex-orbits-walk-order-and-run-rule-are-spelled-several-times]
+branch: join/insert-one-walk-order
 ---
 
 

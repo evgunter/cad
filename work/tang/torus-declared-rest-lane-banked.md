@@ -9,7 +9,7 @@ refs: [966, 1477, 1488, 1489]
 priority: P3
 cost: H
 design: true
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 ## From GitHub issue 968
@@ -56,3 +56,7 @@ The torus × torus G1 rim is declarable as `BooleanCoincidence::Seam`,
 and the lily's chain fixture verifies under it. The union still stops at
 the crossing layer, on `a-torus-seam-graze-needs-the-rim-root-deflated`
 and `a-torus-meridian-lying-on-a-torus-is-unsettled`.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: the remainder is the declared torus Rest/Tangent kissing arm; the declared lane retires at stage 4 and torus pairs glue on Zero. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

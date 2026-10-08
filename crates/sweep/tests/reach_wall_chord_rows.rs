@@ -272,7 +272,7 @@ fn a_cube_touching_a_drum_at_a_corner_answers_its_closed_form() {
         }
     }
     // Tier 3′ (the door gates at tier 3; the census is parked,
-    // `work/reach/boolean-door-runs-the-census-over-its-result.md`), at
+    // `work/reachhold/boolean-door-runs-the-census-over-its-result.md`), at
     // every pose. The drum ∖ the inner cube is the drum with a cubic void
     // whose corner touches the wall, recorded vertex-on-face, and passes.
     // The drum ∪ the outer cube carries the same record, confirmed, beside

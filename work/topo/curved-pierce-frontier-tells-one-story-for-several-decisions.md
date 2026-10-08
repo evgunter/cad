@@ -4,7 +4,7 @@ kind: issue
 title: topo: CurvedPierceUnsupported offers the declaration from every arm of curved_face_arm, including arms that read none, and the radius guards' decided arm renders as a join desync
 status: parked
 opened: 2026-09-30
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -101,3 +101,7 @@ adopted from the review's `zz_coincfr_rows.rs`):
   offer is false there.
 - An arc definitely one side of the wall (radius 0.9 or 1.1, coaxial)
   reads `Positive` and is eventless under every posture.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: the defect is which arm offers the declaration, and the radius guards sit behind CoaxialEvidence::Declared; the declare offer and the axis channel retire at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

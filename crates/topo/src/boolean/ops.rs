@@ -51,8 +51,9 @@
 //! # The merge output stage (F7)
 //!
 //! The seam zip manufactures coplanar same-surface-key face pairs by
-//! construction (a cut face's fragments), so each op runs
-//! `merge_coplanar_faces` as a documented final stage — part of the
+//! construction (a cut face's fragments), so each op runs the merge
+//! (`Body::merge_coplanar_faces_unjoined`, through [`finish_output`]) as
+//! a documented final stage — part of the
 //! op's contract, not hidden healing (the recipe records ONE boolean
 //! node). The mergeable pairs are structural/declared by construction;
 //! cross-operand *numeric* coplanarity is honestly left unmerged (the
@@ -60,10 +61,10 @@
 //!
 //! After the merge and its re-description, every output stage (the
 //! seamed path, the graft and single-operand fallbacks, the declared
-//! REST lane) runs the edge join ([`super::edge_join::join_stage`]): a
-//! vertex of valence 2 between the same two planar faces on one line is
-//! joined away, so every result has maximal edges (`docs/DESIGN.md`,
-//! the merge stage). Each join writes its substitution rows into the
+//! REST lane, all through [`finish_output`]) runs the edge join
+//! ([`super::edge_join::join_stage`]): every joinable vertex is joined
+//! away, so every result has maximal edges (`docs/DESIGN.md`, the
+//! merge stage). Each join writes its substitution rows into the
 //! op's descendant map before the records are carried.
 //!
 //! # Carried contacts
@@ -343,13 +344,7 @@ impl BooleanNaming {
     /// every later join.
     #[must_use]
     pub fn joined_edge(&self, edge: EdgeKey) -> EdgeKey {
-        let mut at = edge;
-        for j in &self.edge_joins {
-            if j.gone == at {
-                at = j.kept;
-            }
-        }
-        at
+        super::edge_join::joined_edge(&self.edge_joins, edge)
     }
 
     /// Each vertex the output stage's joins removed → the live edge
@@ -715,12 +710,14 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     }
     let vertex_merges = desc.vertex_merges()?;
     let declared_pairs = declared_surface_pairs(&body, a, b, decls, &fin.graft);
-    let merged = body
-        .merge_coplanar_faces_declared(&declared_pairs, tol)
-        .map_err(of_merge)?;
-    desc.absorb_merge(&merged);
-    describe_minted_edges(&mut body, &seam_edges, &merged, band, tol)?;
-    let edge_joins = join_stage(&mut body, &mut desc, band, tol)?;
+    let (merged, edge_joins) = finish_output(
+        &mut body,
+        &mut desc,
+        &declared_pairs,
+        &seam_edges,
+        band,
+        tol,
+    )?;
     let contacts = carry(
         &body,
         &contacts,
@@ -737,8 +734,8 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         .map_err(|source| BooleanError::Pcurves { source })?;
     body.sweep_and_close();
     let body = gate(finished, band, tol)?;
-    T::gate_volume_backstop(op, a, b, &body, band, tol)?;
     interior_loops?;
+    T::gate_volume_backstop(op, a, b, &body, band, tol)?;
     let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&fin.graft);
     let naming = BooleanNaming {
         a_keys: OperandKeys::Direct,
@@ -789,8 +786,8 @@ pub(super) enum Joined<T: Real> {
     Answered(Box<BooleanResult<T>>),
     /// The join, done: the reduction with both operands as it leaves
     /// them, every null edge killed, what it completed (never empty),
-    /// and the interior-loop verdict, which the pipeline raises only
-    /// where a body is about to be returned.
+    /// and the interior-loop verdict, which the pipeline raises on the
+    /// built body, before the volume backstop.
     Connected {
         /// The reduction, its operands joined.
         red: Box<BooleanReduction<T>>,
@@ -889,9 +886,9 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // verbatim. The clones are taken only when the door can open
     // (declared union), so undeclared and non-union ops pay nothing.
     // Decided on the reduction, while its contacts still name the
-    // operands' own faces; RAISED only where a body is about to be
-    // returned, so every refusal the pipeline meets first stands
-    // verbatim ([`interior_loop_verdict`]).
+    // operands' own faces; raised on the built body, after the
+    // structural gate and before the volume backstop
+    // ([`interior_loop_verdict`]).
     let interior_loops = interior_loop_verdict(op, a, b, &red, decls, band);
     let rest_door = op == BooleanOp::Union && !decls.coincident_faces.is_empty();
     let saved = rest_door.then(|| (red.a.clone(), red.b.clone()));
@@ -915,11 +912,16 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
             Some((sa, sb)) => {
                 red.a = sa;
                 red.b = sb;
-                return match super::rest::try_rest_union(red, a, b, decls, band, tol)? {
-                    Some(result) => {
-                        interior_loops?;
-                        Ok(Joined::Answered(Box::new(result)))
-                    }
+                return match super::rest::try_rest_union(
+                    red,
+                    a,
+                    b,
+                    decls,
+                    interior_loops,
+                    band,
+                    tol,
+                )? {
+                    Some(result) => Ok(Joined::Answered(Box::new(result))),
                     // Not the REST frontier: the original join
                     // refusal stands, verbatim.
                     None => Err(err),
@@ -954,9 +956,13 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// `face` is the pair's A face when that face is curved, else its B
 /// face.
 ///
-/// Decided on the unmutated reduction and raised only where a body
-/// would be returned (the call site), so every refusal the pipeline
-/// meets first stands verbatim.
+/// Decided on the unmutated reduction and raised on the built body,
+/// so every refusal the join and the build meet first stands verbatim.
+/// It is raised after `gate`, whose tiers hold for a correct surgery
+/// whatever the classification, and before the volume backstop, which
+/// checks the classification this verdict has already declined to
+/// certify: on a refused pair the verdict is the cause, and the
+/// backstop's refusal on the same body would name a symptom.
 fn interior_loop_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &Body<T>,
@@ -1764,7 +1770,7 @@ pub(super) fn merge_rows(
 /// correct result's volume, by up to the band over the glued face, and
 /// at a tight bound that refuses: a correct body refused, the safe
 /// direction
-/// (`work/reach/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`).
+/// (`work/reachhold/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`).
 ///
 /// Each bound applies only when its reference operand's volume is
 /// certified POSITIVE (a bounded solid). An operand is a finished body,
@@ -2155,6 +2161,42 @@ fn bound_holds<'t, 'b, T: Decide>(
             Err(_) => Ok(()),
         };
     }
+}
+
+/// **The boolean's output stage**, the one every result path takes
+/// (`docs/DESIGN.md`, the merge stage): the merge of coplanar faces
+/// over the `declared` surface pairs (none where one operand is absent
+/// from the result), the re-description of the edges the op minted
+/// (`seam_edges`, plus the boundaries of groups the merge skipped), and
+/// the join ([`super::edge_join::join_stage`]), each writing its rows
+/// into the op's one `desc`. The result then has maximal faces and
+/// maximal edges, and its records are carried over `desc` after.
+///
+/// # Errors
+///
+/// The merge's ([`BooleanError::Merge`]), the description's, or the
+/// join's.
+pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    desc: &mut Descendants,
+    declared: &[(SurfaceKey, SurfaceKey)],
+    seam_edges: &[EdgeKey],
+    band: Band,
+    tol: Tol,
+) -> Result<
+    (
+        crate::merge_faces::MergeCoplanarOutcome,
+        Vec<super::EdgeJoin>,
+    ),
+    BooleanError,
+> {
+    let merged = body
+        .merge_coplanar_faces_unjoined(declared, tol)
+        .map_err(of_merge)?;
+    desc.absorb_merge(&merged);
+    describe_minted_edges(body, seam_edges, &merged, band, tol)?;
+    let edge_joins = join_stage(body, desc, band, tol)?;
+    Ok((merged, edge_joins))
 }
 
 /// D6 (M3 PR 6a): honest descriptions on boolean-minted edges AT MINT
@@ -2729,6 +2771,12 @@ impl Descendants {
     }
 
     pub(super) fn absorb_merge(&mut self, merged: &crate::merge_faces::MergeCoplanarOutcome) {
+        // The boolean merges unjoined (`finish_output`): its joins are
+        // written by its own join stage, after the re-description.
+        debug_assert!(
+            merged.joins.is_empty(),
+            "absorb_merge: the boolean's merge is the unjoined one, so it reports no join"
+        );
         for group in &merged.groups {
             for &absorbed in &group.absorbed {
                 self.faces.insert(absorbed, group.kept);
@@ -4891,13 +4939,9 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
             };
             let declared_pairs =
                 declared_surface_pairs(&body, a_pristine, b_pristine, decls, &graft);
-            let merged = body
-                .merge_coplanar_faces_declared(&declared_pairs, tol)
-                .map_err(of_merge)?;
             let mut desc = Descendants::default();
-            desc.absorb_merge(&merged);
-            describe_minted_edges(&mut body, &[], &merged, band, tol)?;
-            let edge_joins = join_stage(&mut body, &mut desc, band, tol)?;
+            let (merged, edge_joins) =
+                finish_output(&mut body, &mut desc, &declared_pairs, &[], band, tol)?;
             crate::pcurves::mint_pcurves(&mut body, tol)
                 .map_err(|source| BooleanError::Pcurves { source })?;
             let carried = split_lineage(red, decls, band)?;
@@ -4958,11 +5002,8 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     // result. A declared pair that held the absent operand's region
     // through the kept one is `covered`; the surviving operand's
     // CARRIED records still apply.
-    let merged = body.merge_coplanar_faces(tol).map_err(of_merge)?;
     let mut desc = Descendants::default();
-    desc.absorb_merge(&merged);
-    describe_minted_edges(&mut body, &[], &merged, band, tol)?;
-    let edge_joins = join_stage(&mut body, &mut desc, band, tol)?;
+    let (merged, edge_joins) = finish_output(&mut body, &mut desc, &[], &[], band, tol)?;
     crate::pcurves::mint_pcurves(&mut body, tol)
         .map_err(|source| BooleanError::Pcurves { source })?;
     let (a_view, b_view) = match kind {

@@ -2,12 +2,11 @@
 id: reflex-corner-edge-in-face-poses-zip-a-ring-parallel-to-its-section-loop
 kind: issue
 title: At the 315-degree reflex corner, B's section ring runs parallel to A's section loop (SeamOrientation), and 32 edge-in-face poses reach it once joined
-status: parked
+status: open
 opened: 2026-10-02
 priority: P1
 cost: H
 refs: [reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap, locus-matching-moves-frontier-refusals-to-join-desync]
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -82,3 +81,7 @@ the first check that can see it.
 ∩, ∪ and `a ∖ b`, and 17 over `b ∖ a`, all now sound), with no other
 battery line changed. Pinned by `join_rc_probes`
 `reflex_corner_struts_past_a_half_turn_build_sound`.
+
+## Released from the D10 hold (2026-10-08)
+
+Nothing D10 changes gates this row, so it is open: already fixed by PR 3900 (insert::strut_order) and its closing bar is met; it can close now. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
