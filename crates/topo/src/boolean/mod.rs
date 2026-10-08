@@ -4897,9 +4897,15 @@ fn verify_declared_contacts<T: Decide>(
                 verified.tangent.insert((fa, fb));
             }
             BooleanCoincidence::Contact(ContactClass::Rest) | BooleanCoincidence::Continuation => {
-                if let Some(row) = verify_one_carrier_declaration(a, fa, b, fb, class, band)? {
-                    verified.one_carrier.insert((fa, fb));
-                    verified.coincidences.extend(row);
+                match verify_one_carrier_declaration(a, fa, b, fb, class, band)? {
+                    OneCarrier::Unread => {}
+                    OneCarrier::Structural => {
+                        verified.one_carrier.insert((fa, fb));
+                    }
+                    OneCarrier::Decided(row) => {
+                        verified.one_carrier.insert((fa, fb));
+                        verified.coincidences.push(row);
+                    }
                 }
             }
             BooleanCoincidence::Seam => {
@@ -4955,15 +4961,28 @@ pub(super) fn sense_contradiction(
     }
 }
 
+/// **What the declaration door made of one `Rest` or continuation
+/// pair** that it did not refuse.
+enum OneCarrier {
+    /// A carrier kind the ladder cannot describe: no certificate.
+    Unread,
+    /// One carrier with the class's sense, settled by structure before
+    /// any margin was read: a certificate and no row (stage 4 spec §14
+    /// Q1).
+    Structural,
+    /// One carrier with the class's sense, decided by a margin: a
+    /// certificate and the row recording the decision.
+    Decided(crate::Coincidence),
+}
+
 /// The `Rest` and continuation half of [`verify_declared_contacts`]:
 /// the carrier ladder in its declared posture — a definitely-different
 /// carrier contradicts, an in-band residue is bridged (C4), a sliver
 /// escalates — and then the sense bit the class demands.
 ///
-/// `Some` when the ladder called the two faces ONE carrier with that
-/// sense — the certificate the crossing layer's carrier-identity rung
-/// reads, recorded once here instead of re-derived per event — holding
-/// the pair's coincidence row where a margin decided it.
+/// One carrier with the class's sense, either way it was settled, is
+/// the certificate the crossing layer's carrier-identity rung reads,
+/// recorded once here instead of re-derived per event.
 fn verify_one_carrier_declaration<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -4971,7 +4990,7 @@ fn verify_one_carrier_declaration<T: Decide>(
     fb: FaceKey,
     class: BooleanCoincidence,
     band: Band,
-) -> Result<Option<Option<crate::Coincidence>>, BooleanError> {
+) -> Result<OneCarrier, BooleanError> {
     let outcome = match rest::carrier_pair_reading(a, fa, b, fb, true, band) {
         Ok(outcome) => outcome,
         Err(rest::PairUnread::Extent(face)) => return Err(unreadable_extent(face)),
@@ -4979,11 +4998,12 @@ fn verify_one_carrier_declaration<T: Decide>(
         // declarations` has already had its say about which kinds this
         // op accepts, so there is nothing left to add here — and
         // nothing for the identity rung to read.
-        Err(rest::PairUnread::OutsideInventory) => return Ok(None),
+        Err(rest::PairUnread::OutsideInventory) => return Ok(OneCarrier::Unread),
     };
     let aligned = class == BooleanCoincidence::Continuation;
-    let row = |relation, margin: Option<MarginDiag>| {
-        margin.map(|margin| crate::Coincidence {
+    let one = |relation, margin: Option<MarginDiag>| match margin {
+        None => OneCarrier::Structural,
+        Some(margin) => OneCarrier::Decided(crate::Coincidence {
             cells: [
                 crate::RowCell::face(Operand::A, fa),
                 crate::RowCell::face(Operand::B, fb),
@@ -4992,14 +5012,14 @@ fn verify_one_carrier_declaration<T: Decide>(
             site: declared_site(a, fa, b, fb),
             margin,
             discharge: crate::Discharge::Numeric,
-        })
+        }),
     };
     match outcome {
         Ok((carrier_eq::CarrierRelation::SameOriented, _, margin)) if aligned => {
-            Ok(Some(row(crate::Relation::SameOriented, margin)))
+            Ok(one(crate::Relation::SameOriented, margin))
         }
         Ok((carrier_eq::CarrierRelation::SameOpposite, _, margin)) if !aligned => {
-            Ok(Some(row(crate::Relation::SameOpposite, margin)))
+            Ok(one(crate::Relation::SameOpposite, margin))
         }
         Ok((
             carrier_eq::CarrierRelation::SameOriented | carrier_eq::CarrierRelation::SameOpposite,

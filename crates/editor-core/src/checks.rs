@@ -1,10 +1,12 @@
 //! The advisory-check registry (DISCIPLINES-DESIGN DS6, grade 4) and
-//! its three residents: the connectedness check (LONGTERM-IDEAS
+//! its four residents: the connectedness check (LONGTERM-IDEAS
 //! I1(0b)), the product-separation check (the establishment of
 //! disjointness `topo::graft_disjoint_all_keyed` leaves to its
-//! callers), and the chart-coherence examination
+//! callers), the chart-coherence examination
 //! (`topo::examine_chart_coherence`, read per rest body and default
-//! `Off`).
+//! `Off`), and the unproven-coincidence check (D10: each coincidence a
+//! node decided from values that the coincidence door,
+//! [`crate::coincide::prove`], does not prove structural).
 //!
 //! A check is a **pure analysis over a finished evaluation** producing
 //! findings — no declaration vocabulary, no verify table, and by
@@ -33,9 +35,11 @@
 //!   "the caller turned me off" and "the data would not let me look"
 //!   are two answers and only the first is reversible by changing the
 //!   configuration.
-//! - **Deterministic order** (D9): findings follow root-list order,
-//!   then output-index order within a root — a report that changes
-//!   only when the document or its evaluation does.
+//! - **Deterministic order** (D9): a body check's findings follow
+//!   root-list order, then output-index order within a root; the
+//!   unproven-coincidence check's follow evaluation order, then each
+//!   node's decision order — a report that changes only when the
+//!   document or its evaluation does.
 //!
 //! The check set is a CLOSED enum ([`CheckId`], the D3 philosophy): a
 //! new check is a new variant, and the compiler enumerates every match
@@ -89,8 +93,9 @@ pub enum CheckId {
     ChartCoherence,
     /// The `unproven-coincidence` lint (D10): a coincidence an
     /// operation decided from values that the door
-    /// ([`crate::coincide::prove`]) does not prove structural, so it
-    /// holds at the current values only. Read off every evaluated
+    /// ([`crate::coincide::prove`]) does not prove structural. It holds
+    /// at the current values; whether it holds across the family the
+    /// door has not shown. Read off every evaluated
     /// node's [`crate::eval::NodeValue::coincidences`]; it refuses
     /// nothing and changes no body.
     UnprovenCoincidence,
@@ -122,7 +127,10 @@ impl CheckId {
             // the body is wrong, which it does not say.
             Self::ChartCoherence => CheckKind::Certified,
             // Certified in the direction it stays SILENT: a row it does
-            // not report is one the door proved structural.
+            // not report is one the door proved structural. What it
+            // reports is the absence of that proof, which is exactly
+            // what the finding says — never "this holds only at these
+            // values", which a later rung may refute.
             Self::UnprovenCoincidence => CheckKind::Certified,
         }
     }
@@ -542,22 +550,34 @@ impl CheckEvidence {
     }
 }
 
-/// One finding of one check on one subject — a body-denoting root
-/// output, attributed as `(root, output_ix)` (the
-/// [`crate::AtRestFinding`]/`Attribution` rhyme).
+/// One finding of one check on one subject ([`FindingSubject`]).
 #[derive(Clone, Debug, PartialEq)]
 pub struct CheckFinding {
     /// The check that fired.
     pub check: CheckId,
-    /// The root whose value carries the subject body; for
-    /// [`CheckId::UnprovenCoincidence`], the node that decided the row,
-    /// root or not.
-    pub root: RecipeNodeId,
-    /// Which output body of that root (multi-output ops; 0 for a
-    /// single-body root, and for an unproven coincidence).
-    pub output_ix: u32,
+    /// What the finding is about.
+    pub subject: FindingSubject,
     /// What was found.
     pub evidence: CheckEvidence,
+}
+
+/// **What a finding is about.** A body check's subject is a
+/// body-denoting root output; the unproven-coincidence check's is the
+/// node that decided the row, root or not, which denotes no one body.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum FindingSubject {
+    /// A root output, attributed as `(root, output_ix)` (the
+    /// [`crate::AtRestFinding`]/`Attribution` rhyme), which
+    /// [`subject_body`] resolves.
+    Output {
+        /// The root whose value carries the subject body.
+        root: RecipeNodeId,
+        /// Which output body of that root (multi-output ops; 0 for a
+        /// single-body root).
+        output_ix: u32,
+    },
+    /// A node of the document, root or not.
+    Node(RecipeNodeId),
 }
 
 // One story, one recourse, in one place, through the document layer's
@@ -574,20 +594,16 @@ pub struct CheckFinding {
 impl crate::finding::Finding for SaidFinding<'_> {
     fn subject(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Self(finding, by) = *self;
-        match finding.check {
-            // The deciding node, which need not be a root.
-            CheckId::UnprovenCoincidence => write!(
-                f,
-                "check {}: {}",
-                finding.check,
-                by.node_as(finding.root, "node")
-            ),
-            CheckId::Connectedness | CheckId::Separation | CheckId::ChartCoherence => write!(
+        match finding.subject {
+            FindingSubject::Node(node) => {
+                write!(f, "check {}: {}", finding.check, by.node_as(node, "node"))
+            }
+            FindingSubject::Output { root, output_ix } => write!(
                 f,
                 "check {}: {} output {}",
                 finding.check,
-                by.node_as(finding.root, "root"),
-                finding.output_ix
+                by.node_as(root, "root"),
+                output_ix
             ),
         }
     }
@@ -682,8 +698,8 @@ impl crate::finding::Finding for SaidFinding<'_> {
                 };
                 write!(
                     f,
-                    "{} {} {}, decided from values ({}, margin {:e}), holds only at the \
-                     current values: {residual}",
+                    "{} {} {}, decided from values ({}, margin {:e}), is not proven \
+                     structural: {residual}",
                     cell(&row.cells[0]),
                     crate::coincide::relation_words(row.relation),
                     cell(&row.cells[1]),
@@ -1235,8 +1251,7 @@ fn unproven_coincidence<P, T: Decide>(doc: &Doc<P>, ev: &Evaluation<T>, report: 
             {
                 report.findings.push(CheckFinding {
                     check: CheckId::UnprovenCoincidence,
-                    root: node,
-                    output_ix: 0,
+                    subject: FindingSubject::Node(node),
                     evidence: CheckEvidence::UnprovenCoincidence {
                         row: Box::new(row.clone()),
                         residual: Box::new(residual),
@@ -1288,8 +1303,7 @@ fn connectedness<P, T: Decide + CertifiedBounds>(
                     if actual != expected {
                         report.findings.push(CheckFinding {
                             check: CheckId::Connectedness,
-                            root,
-                            output_ix,
+                            subject: FindingSubject::Output { root, output_ix },
                             evidence: CheckEvidence::Connectedness { actual, expected },
                         });
                     }
@@ -1304,16 +1318,14 @@ fn connectedness<P, T: Decide + CertifiedBounds>(
                 ) => {
                     report.findings.push(CheckFinding {
                         check: CheckId::Connectedness,
-                        root,
-                        output_ix,
+                        subject: FindingSubject::Output { root, output_ix },
                         evidence: CheckEvidence::Escalated { source },
                     });
                 }
                 Err(source @ ShellClassifyError::Props { .. }) => {
                     report.findings.push(CheckFinding {
                         check: CheckId::Connectedness,
-                        root,
-                        output_ix,
+                        subject: FindingSubject::Output { root, output_ix },
                         evidence: CheckEvidence::Unsupported { source },
                     });
                 }
@@ -1325,8 +1337,7 @@ fn connectedness<P, T: Decide + CertifiedBounds>(
     for ((root, output_ix), expected) in unconsumed {
         report.findings.push(CheckFinding {
             check: CheckId::Connectedness,
-            root,
-            output_ix,
+            subject: FindingSubject::Output { root, output_ix },
             evidence: CheckEvidence::StaleExpectation { expected },
         });
     }
@@ -1370,8 +1381,7 @@ fn chart_coherence<P, T: Decide + ChartCoherenceLane>(
         for (output_ix, body, _contacts, _rows) in sources {
             let at = |evidence| CheckFinding {
                 check: CheckId::ChartCoherence,
-                root,
-                output_ix,
+                subject: FindingSubject::Output { root, output_ix },
                 evidence,
             };
             let Some(examined) = T::examine_chart_coherence(body.as_ref(), tol) else {
@@ -1474,8 +1484,10 @@ fn separation<T: Decide + CertifiedBounds>(
             let first = gathered.solid_roots[0];
             report.findings.push(CheckFinding {
                 check: CheckId::Separation,
-                root: first.node,
-                output_ix: first.output,
+                subject: FindingSubject::Output {
+                    root: first.node,
+                    output_ix: first.output,
+                },
                 evidence: CheckEvidence::separation_unavailable(&source),
             });
             return;
@@ -1500,8 +1512,10 @@ fn separation<T: Decide + CertifiedBounds>(
             }
             report.findings.push(CheckFinding {
                 check: CheckId::Separation,
-                root: earlier.node,
-                output_ix: earlier.output,
+                subject: FindingSubject::Output {
+                    root: earlier.node,
+                    output_ix: earlier.output,
+                },
                 evidence: CheckEvidence::NotSeparated {
                     other_root: later.node,
                     other_output: later.output,

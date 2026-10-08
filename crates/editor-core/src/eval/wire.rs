@@ -2979,15 +2979,17 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // pairwise judgement and the fold. The FIRST member enters
     // member-keyed too, so every operand of every step is already in
     // this node's name space.
+    let own_tables = members
+        .iter()
+        .map(|&m| Ok(value_of(results, m)?.name_table.as_ref()))
+        .collect::<Result<Vec<&NameTable>, NodeErrorKind>>()?;
     let operands = members
         .iter()
-        .map(|&m| {
+        .zip(&own_tables)
+        .map(|(&m, own)| {
             Ok((
                 Arc::new(finished_operand(results, m, tol)?),
-                Arc::new(
-                    names::member_view(id, m, &value_of(results, m)?.name_table)
-                        .map_err(NodeErrorKind::Naming)?,
-                ),
+                Arc::new(names::member_view(id, m, own).map_err(NodeErrorKind::Naming)?),
             ))
         })
         .collect::<Result<Vec<_>, NodeErrorKind>>()?;
@@ -3024,14 +3026,14 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 }));
             };
             // The judgement's rows, named in the two members' own tables:
-            // the union's coincidences are its pairwise judgement's, so
-            // they are the same in every member order.
-            let own = |m: RecipeNodeId| Ok::<_, NodeErrorKind>(&value_of(results, m)?.name_table);
+            // the union's coincidences are its pairwise judgement's (#4323:
+            // the pass is the union's coincidence door, rows in member
+            // space), each pair's in the author's list order.
             let rows = crate::coincide::name_rows(
                 &out.coincidences,
                 &crate::coincide::RowInputs {
-                    a: (members[p], own(members[p])?),
-                    b: Some((members[q], own(members[q])?)),
+                    a: (members[p], own_tables[p]),
+                    b: Some((members[q], own_tables[q])),
                     tool: None,
                 },
             )
@@ -3207,9 +3209,10 @@ fn judge_pairwise_contact(
         NodeErrorKind,
     >,
 ) -> Result<(names::UnionLinks, Vec<crate::coincide::NamedCoincidence>), NodeErrorKind> {
-    // The declared pairs between two DIFFERENT members, lesser node id
-    // first. `route_declarations` already sited these pairs through the
-    // same door, so a refusal here is a bug.
+    // The declared pairs between two DIFFERENT members, the member the
+    // author listed first as operand A. `route_declarations` already
+    // sited these pairs through the same door, so a refusal here is a
+    // bug.
     let site = |r: &SitedRef, reference: usize| {
         member_site(id, members, r, reference, doc).map_err(|_| {
             NodeErrorKind::Naming(names::NamingError::Emission {
@@ -3224,11 +3227,7 @@ fn judge_pairwise_contact(
         if i == j {
             continue;
         }
-        let (lo, hi) = if members[i] < members[j] {
-            (i, j)
-        } else {
-            (j, i)
-        };
+        let (lo, hi) = (i.min(j), i.max(j));
         let op = |k: usize| {
             if k == lo {
                 topo::Operand::A
@@ -3244,10 +3243,10 @@ fn judge_pairwise_contact(
     }
     let mut links = names::UnionLinks::default();
     let mut rows = Vec::new();
-    let mut by_id: Vec<usize> = (0..members.len()).collect();
-    by_id.sort_by_key(|&i| members[i]);
-    for (k, &p) in by_id.iter().enumerate() {
-        for &q in &by_id[k + 1..] {
+    // Each pair once, in the author's list order (#4323: the list is
+    // the author's stated order; nothing here sorts it away).
+    for p in 0..members.len() {
+        for q in p + 1..members.len() {
             let pairs = between.remove(&(p, q)).unwrap_or_default();
             if pairs.is_empty() && !hulls[p].overlaps(&hulls[q]) {
                 continue;

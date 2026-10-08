@@ -4605,8 +4605,10 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
     let render = |source| {
         CheckFinding {
             check: CheckId::Connectedness,
-            root: RecipeNodeId::new(0, tagged(4)),
-            output_ix: 0,
+            subject: editor_core::FindingSubject::Output {
+                root: RecipeNodeId::new(0, tagged(4)),
+                output_ix: 0,
+            },
             evidence: CheckEvidence::Escalated { source },
         }
         .to_string()
@@ -4729,8 +4731,10 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
     let shell = ShellKey::default();
     let finding = |check, evidence| CheckFinding {
         check,
-        root: RecipeNodeId::new(0, tagged(4)),
-        output_ix: 0,
+        subject: editor_core::FindingSubject::Output {
+            root: RecipeNodeId::new(0, tagged(4)),
+            output_ix: 0,
+        },
         evidence,
     };
     let coherence = |condition| CoherenceFinding {

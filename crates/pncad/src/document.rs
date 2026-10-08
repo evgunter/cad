@@ -530,7 +530,7 @@ pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update
 // or evaluation); `enforce_checks` is the one refusing path, and the
 // CALLER chooses where to gate on it. Deliberately NOT in the prelude
 // (prelude membership is corpus-measured).
-// `subject_body` resolves a finding's (root, output_ix) attribution
+// `subject_body` resolves a root-output finding's (root, output_ix) attribution
 // back to the flagged body and the declarations its producer minted
 // for it, in the same evaluation.
 // `run_checks_on` is the registry over a `Subject` the caller gathered
@@ -543,8 +543,8 @@ pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update
 // does not reports that as a finding rather than as a clean body.
 pub use editor_core::{
     Advisory, ChartCoherenceLane, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal,
-    ChecksConfig, ChecksError, ChecksReport, Severity, Subject, enforce_checks, run_checks,
-    run_checks_on, subject_body,
+    ChecksConfig, ChecksError, ChecksReport, FindingSubject, Severity, Subject, enforce_checks,
+    run_checks, run_checks_on, subject_body,
 };
 // The coincidence door (D10): the rows an evaluation's nodes decided
 // from values, and what the door decides about each — the payload of

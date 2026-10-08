@@ -11,9 +11,9 @@ use crate::fixture::{ang, fname, insert, len, on_frame, scl, table};
 
 use editor_core::{
     Advisory, BooleanCoincidence, BooleanOp, CapEnd, CheckEvidence, CheckId, ChecksConfig, Datum,
-    EntityKey, EntityKind, Entry, Evaluation, NamedCell, NamedCoincidence, Node, PartSelect,
-    ProfileDoc, Proof, RecipeNodeId, RoleSeg, Rung, Severity, SitedRef, SplitHalf, StableName,
-    ValuePayload, coincide,
+    EntityKey, EntityKind, Entry, Evaluation, FindingSubject, NamedCell, NamedCoincidence, Node,
+    PartSelect, ProfileDoc, Proof, RecipeNodeId, RoleSeg, Rung, Severity, SitedRef, SplitHalf,
+    StableName, ValuePayload, coincide,
 };
 use geom_core::{MarginDiag, Point3, Tol};
 use topo::{DecisionSite, Relation};
@@ -102,19 +102,24 @@ fn a_declared_rest_is_one_unproven_row_named_by_its_operands() {
         panic!("the same-source rung proves a declared glue of two extrudes")
     };
     assert!(
-        matches!(&residual.constructions, [Some(a), Some(b)] if a != b),
+        matches!(&residual.constructions, [Ok(a), Ok(b)] if a.origin != b.origin),
         "two constructions: {residual:?}"
     );
     let findings = unproven(&doc, &ev);
     assert_eq!(findings.len(), 1, "{findings:?}");
-    assert_eq!(findings[0].root, union, "attributed to the deciding node");
+    assert_eq!(
+        findings[0].subject,
+        FindingSubject::Node(union),
+        "attributed to the deciding node"
+    );
     match &findings[0].evidence {
         CheckEvidence::UnprovenCoincidence { row: found, .. } => assert_eq!(**found, *row),
         other => panic!("{other:?}"),
     }
     let said = findings[0].to_string();
     assert!(
-        said.contains("holds only at the current values") && said.contains("Recourse:"),
+        said.contains("is not proven structural: the two cells are two constructions")
+            && said.contains("Recourse:"),
         "{said}"
     );
     // The check refuses nothing and changes no body: the union built.
@@ -157,10 +162,11 @@ fn face_on(ev: &Evaluation<f64>, node: RecipeNodeId, p: [f64; 3], n: [f64; 3]) -
 /// the walk sees the transform although it adds no name segment — and
 /// stays unproven.
 ///
-/// No production row reaches the door with one construction read
-/// twice in this unit: the kernel settles a same-source pair by its own
-/// structural rung before any margin (stage 4 spec §14 Q1), so the row
-/// is built here over the scene's real cells.
+/// The kernel settles a same-source pair like these walls by its own
+/// structural rung before any margin (stage 4 spec §14 Q1), so no
+/// production row reaches the door over them, and the row is built
+/// here over the scene's real cells. The production row that does is
+/// the section caps' ([`a_reunited_splits_section_caps_are_one_construction`]).
 #[test]
 fn a_row_over_one_placed_construction_is_proven_the_same_construction() {
     let doc = ProfileDoc::empty_derived("coincide-same-source", Tol::witness());
@@ -233,13 +239,14 @@ fn a_row_over_one_placed_construction_is_proven_the_same_construction() {
     );
 }
 
-/// **A union's rows are its pairwise judgement's**, so they are the
-/// same in every member order (DM4's contact rule): two blocks
+/// **A union's rows are its pairwise judgement's, in the author's
+/// order** (#4323: the list is the author's stated order). Two blocks
 /// overlapping in x, their caps and y-walls declared continuations,
-/// unioned as `[a, b]` and as `[b, a]`, record the same rows, each
-/// naming its faces by the members' own names.
+/// unioned as `[a, b]` and as `[b, a]`: the same decisions either way,
+/// each row's first cell the listed-first member's face, named by that
+/// member's own table.
 #[test]
-fn a_unions_rows_do_not_depend_on_its_member_order() {
+fn a_unions_rows_follow_its_member_order() {
     let doc = ProfileDoc::empty_derived("coincide-union-order", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
@@ -257,17 +264,28 @@ fn a_unions_rows_do_not_depend_on_its_member_order() {
                 (row.relation, row.site),
                 (Relation::SameOriented, DecisionSite::PlaneLadder)
             );
-            assert!(
-                row.cells.iter().all(|c| matches!(
-                    c,
-                    NamedCell::Entity { input, name } if (*input == a || *input == b) && name.node == *input
-                )),
-                "{members:?}: each cell is a member's own face: {row:?}"
+            let input = |c: &NamedCell| match c {
+                NamedCell::Entity { input, name } if name.node == *input => *input,
+                other => panic!("{members:?}: a cell is a member's own face: {other:?}"),
+            };
+            assert_eq!(
+                row.cells.each_ref().map(input),
+                members,
+                "{members:?}: the listed-first member's cell first"
             );
         }
         seen.push(got);
     }
-    assert_eq!(seen[0], seen[1], "the rows moved with the member order");
+    let [ab, ba] = [&seen[0], &seen[1]];
+    let mut ab: Vec<_> = ab.iter().map(|r| r.cells.clone()).collect();
+    let mut ba: Vec<_> = ba
+        .iter()
+        .map(|r| [r.cells[1].clone(), r.cells[0].clone()])
+        .collect();
+    let key = |c: &[NamedCell; 2]| format!("{c:?}");
+    ab.sort_by_key(key);
+    ba.sort_by_key(key);
+    assert_eq!(ab, ba, "the same decisions in either order");
 }
 
 /// **A pattern's instances are placed apart.** The walk reads each
@@ -327,11 +345,15 @@ fn a_patterns_instances_are_two_constructions_of_one_minted_face() {
     let Proof::Unproven { residual, .. } = coincide::prove(&doc, &two) else {
         panic!("two instances are two placements")
     };
-    let [Some(a), Some(b)] = &residual.constructions else {
+    let [Ok(a), Ok(b)] = &residual.constructions else {
         panic!("both cells walk to the box: {residual:?}")
     };
-    assert_eq!(a.minted, b.minted, "one extrude minted both tops");
+    assert_eq!(a.origin, b.origin, "one extrude minted both tops");
     assert_ne!(a.placed, b.placed, "placed by two instances");
+    assert_eq!(
+        residual.to_string(),
+        "the two cells are one construction placed apart"
+    );
 }
 
 /// The name of `node`'s edge between two points.
@@ -442,16 +464,22 @@ fn split_prism(
     (doc, ev, split)
 }
 
-/// **A transversal cut records nothing** (§11 row 6's second half): a
-/// block cut through its middle crosses its edges, and no ON verdict
-/// leaves pieces touching. The pinch half of the row is the kernel's
-/// (`topo`'s `m3_pr3_split`): a document cannot yet split through a
-/// pinch (`work/wire/a-split-through-a-pinch-names-both-tip-copies-alike.md`).
+/// **A cut through a vertex records nothing** (§11 row 6's second
+/// half): a diamond prism split by `y = 1` has four operand vertices ON
+/// the plane (the diamond's side corners, at both ends), each with one
+/// run on either side, so the plane cuts there and leaves no pieces
+/// touching. The pinch half of the row is the kernel's (`topo`'s
+/// `m3_pr3_split`): a document cannot yet split through a pinch
+/// (`work/wire/a-split-through-a-pinch-names-both-tip-copies-alike.md`).
 #[test]
-fn a_transversal_split_records_nothing() {
-    let square = [(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)];
-    let (doc, ev, split) = split_prism("coincide-transversal", &square, 1.0);
-    assert!(rows(&ev, split).is_empty(), "a transversal cut is no pinch");
+fn a_split_through_a_vertex_that_only_cuts_records_nothing() {
+    let diamond = [(1.0, 0.0), (2.0, 1.0), (1.0, 2.0), (0.0, 1.0)];
+    let (doc, ev, split) = split_prism("coincide-through-vertex", &diamond, 1.0);
+    assert!(failure(&ev, split).is_none(), "{:?}", failure(&ev, split));
+    assert!(
+        rows(&ev, split).is_empty(),
+        "an ON vertex that cuts is no pinch"
+    );
     assert!(unproven(&doc, &ev).is_empty());
 }
 
@@ -489,4 +517,172 @@ fn the_check_off_is_visibly_skipped() {
         1,
         "the rows ride the value all the same"
     );
+}
+
+/// **A split's section faces are its tool's plane read twice** (§11
+/// row 4, on the spec's own scene). A box split in two and the halves
+/// unioned again, the section caps declared `Rest`: the union records
+/// one `SameOpposite` row over the two caps, and the door proves it,
+/// since both lie on the one tool plane the split read. The whole
+/// check run over the document is quiet: the lint's silent half, end
+/// to end.
+#[test]
+fn a_reunited_splits_section_caps_are_one_construction() {
+    let doc = ProfileDoc::empty_derived("coincide-reunite", Tol::witness());
+    let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, tool) = insert(
+        doc,
+        Node::Datum(Datum::Plane {
+            origin: [len(0.0), len(0.0), len(0.5)],
+            normal: [scl(0.0), scl(0.0), scl(1.0)],
+        }),
+    );
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: the_box,
+            tool,
+        },
+    );
+    let half = |doc, side| {
+        insert(
+            doc,
+            Node::Part {
+                of: split,
+                select: PartSelect::SplitHalf(side),
+            },
+        )
+    };
+    let (doc, above) = half(doc, SplitHalf::Above);
+    let (doc, below) = half(doc, SplitHalf::Below);
+    let ev = run(&doc);
+    let cap = |node, z, nz| face_on(&ev, node, [0.5, 0.5, z], [0.0, 0.0, nz]);
+    let (above_cap, below_cap) = (cap(above, 0.5, -1.0), cap(below, 0.5, 1.0));
+    assert!(
+        matches!(above_cap.path.as_slice(), [RoleSeg::SectionFace { .. }])
+            && matches!(below_cap.path.as_slice(), [RoleSeg::SectionFace { .. }]),
+        "the premise: each cap is a section face of the split, {above_cap:?}, {below_cap:?}"
+    );
+    let wall = |node, z| face_on(&ev, node, [0.0, 0.5, z], [-1.0, 0.0, 0.0]);
+    let (doc, union) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: above,
+            b: below,
+            declare: vec![
+                (
+                    (
+                        SitedRef::new(above, above_cap.clone()),
+                        SitedRef::new(below, below_cap.clone()),
+                    ),
+                    BooleanCoincidence::REST,
+                ),
+                (
+                    (
+                        SitedRef::new(above, wall(above, 0.75)),
+                        SitedRef::new(below, wall(below, 0.25)),
+                    ),
+                    BooleanCoincidence::Continuation,
+                ),
+            ],
+        },
+    );
+    let ev = run(&doc);
+    assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
+    let got = rows(&ev, union);
+    let caps = [entity(above, &above_cap), entity(below, &below_cap)];
+    let row = got
+        .iter()
+        .find(|r| r.cells == caps)
+        .unwrap_or_else(|| panic!("the caps' row: {got:?}"));
+    assert_eq!(
+        (row.relation, row.site),
+        (Relation::SameOpposite, DecisionSite::PlaneLadder)
+    );
+    assert_eq!(
+        coincide::prove(&doc, row),
+        Proof::Structural(Rung::SameConstruction),
+        "both caps lie on the one tool plane"
+    );
+    let [Ok(a), Ok(b)] = caps.each_ref().map(|c| match c {
+        NamedCell::Entity { input, name } => coincide::construction(&doc, *input, name),
+        NamedCell::Tool { .. } => unreachable!(),
+    }) else {
+        panic!("both caps walk")
+    };
+    assert_eq!(a.origin, coincide::Origin::Datum(tool));
+    assert_eq!(a, b);
+    for row in &got {
+        assert!(
+            matches!(coincide::prove(&doc, row), Proof::Structural(_)),
+            "every row of the reunion is one construction: {row:?}"
+        );
+    }
+    let report = editor_core::run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness())
+        .expect("the checks run");
+    assert!(
+        !report.skipped.contains(&CheckId::UnprovenCoincidence),
+        "the premise: the check ran"
+    );
+    assert!(
+        report
+            .findings
+            .iter()
+            .all(|f| f.check != CheckId::UnprovenCoincidence),
+        "a proven row is not reported: {:?}",
+        report.findings
+    );
+}
+
+/// Two unit blocks `gap` apart along x, their flush caps and y-walls
+/// declared continuations, joined by `op`: the boolean's own rows and
+/// its node.
+fn apart(op: BooleanOp, id: &str) -> (ProfileDoc, Evaluation<f64>, RecipeNodeId, usize) {
+    let doc = ProfileDoc::empty_derived(id, Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
+    let pairs = crate::fixture::flush_pairs(&doc, (a, a), (b, b));
+    let n = pairs.len();
+    let (doc, node) = insert(
+        doc,
+        Node::Boolean {
+            op,
+            a,
+            b,
+            declare: pairs
+                .into_iter()
+                .map(|p| (p, BooleanCoincidence::Continuation))
+                .collect(),
+        },
+    );
+    let ev = run(&doc);
+    assert!(failure(&ev, node).is_none(), "{:?}", failure(&ev, node));
+    (doc, ev, node, n)
+}
+
+/// **The containment fallback carries the declaration door's rows.**
+/// Two blocks apart, their flush faces declared: the union's boundaries
+/// never cross, so it is the fallback's assembly, and the subtraction's
+/// is operand A whole (the single-operand finish). Each records one row
+/// per declared pair all the same: the declaration door decided them
+/// before the fallback was chosen.
+#[test]
+fn the_fallbacks_carry_the_declared_rows() {
+    for (op, id) in [
+        (BooleanOp::Union, "coincide-apart-union"),
+        (BooleanOp::Subtract, "coincide-apart-subtract"),
+    ] {
+        let (doc, ev, node, n) = apart(op, id);
+        assert!(n > 0, "the premise: flush faces to declare");
+        let got = rows(&ev, node);
+        assert_eq!(got.len(), n, "{op:?}: one row per declared pair: {got:?}");
+        assert!(
+            got.iter().all(
+                |r| r.relation == Relation::SameOriented && r.site == DecisionSite::PlaneLadder
+            ),
+            "{op:?}: {got:?}"
+        );
+        assert_eq!(unproven(&doc, &ev).len(), n, "{op:?}: two extrudes' faces");
+    }
 }

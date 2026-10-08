@@ -518,8 +518,10 @@ impl CheckEvidence {
     }
 }
 
-/// One finding of one check on one subject — a body-denoting root
-/// output, attributed as `(root, output_ix)`.
+/// One finding of one check on one subject: a body-denoting root
+/// output, attributed as `(root, output_ix)`, or a node of the document
+/// (`node`), root or not — the node that decided an unproven
+/// coincidence. Whichever it is not answers `None`.
 ///
 /// A finding is a REPORT about geometry, not a verdict on the program:
 /// reaching one changes nothing, and whether it stops anything is the
@@ -547,16 +549,34 @@ impl CheckFinding {
         check_id(self.finding.check)
     }
 
-    /// The root whose value carries the subject body.
+    /// The root whose value carries the subject body; `None` for a
+    /// finding about a node.
     #[getter]
-    fn root(&self) -> NodeId {
-        NodeId(self.finding.root)
+    fn root(&self) -> Option<NodeId> {
+        match self.finding.subject {
+            d::FindingSubject::Output { root, .. } => Some(NodeId(root)),
+            d::FindingSubject::Node(_) => None,
+        }
     }
 
-    /// Which output body of that root — 0 for a single-body root.
+    /// Which output body of that root — 0 for a single-body root;
+    /// `None` for a finding about a node.
     #[getter]
-    fn output_ix(&self) -> u32 {
-        self.finding.output_ix
+    fn output_ix(&self) -> Option<u32> {
+        match self.finding.subject {
+            d::FindingSubject::Output { output_ix, .. } => Some(output_ix),
+            d::FindingSubject::Node(_) => None,
+        }
+    }
+
+    /// The node the finding is about, root or not; `None` for a finding
+    /// about a root output.
+    #[getter]
+    fn node(&self) -> Option<NodeId> {
+        match self.finding.subject {
+            d::FindingSubject::Node(node) => Some(NodeId(node)),
+            d::FindingSubject::Output { .. } => None,
+        }
     }
 
     /// What was found.
@@ -580,11 +600,15 @@ impl CheckFinding {
     }
 
     fn __repr__(&self) -> String {
+        let subject = match self.finding.subject {
+            d::FindingSubject::Output { root, output_ix } => {
+                format!("root {}, output {output_ix}", root.full())
+            }
+            d::FindingSubject::Node(node) => format!("node {}", node.full()),
+        };
         format!(
-            "CheckFinding({}, node {}, output {}, {:?})",
+            "CheckFinding({}, {subject}, {:?})",
             self.finding.check,
-            self.finding.root.full(),
-            self.finding.output_ix,
             check_evidence_tag(&self.finding.evidence)
         )
     }

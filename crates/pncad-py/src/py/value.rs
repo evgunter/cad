@@ -2647,7 +2647,7 @@ impl Coincidence {
     }
 
     /// The door's rung that proved it structural (`same_construction`), or
-    /// `None`: it holds at the current values only.
+    /// `None`: the door does not prove it structural.
     #[getter]
     fn rung(&self) -> Option<&'static str> {
         self.rung

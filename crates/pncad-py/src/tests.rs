@@ -3962,7 +3962,14 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
             discharge: pncad::document::coincidence::Discharge::Numeric,
         }),
         residual: Box::new(pncad::document::Residual {
-            constructions: [None, None],
+            constructions: [
+                Err(pncad::document::coincide::Unwalked::Absent(
+                    RecipeNodeId::new(0, 3),
+                )),
+                Err(pncad::document::coincide::Unwalked::Absent(
+                    RecipeNodeId::new(0, 3),
+                )),
+            ],
         }),
         recourse: pncad::document::coincide::Recourse::OneConstruction,
     };

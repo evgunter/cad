@@ -229,9 +229,9 @@
 use std::path::Path;
 
 use pncad::document::{
-    CheckEvidence, CheckFinding, ChecksReport, Doc, DocumentId, Evaluation, Maintenance, NamedCell,
-    NodeErrorKind, NodeStanding, ParseError, PartFault, ProductError, ProductErrorKind,
-    ProfileProgram, RecipeNodeId, ResolveFault, Said, SlotId, Speaker, VarName,
+    CheckEvidence, CheckFinding, ChecksReport, Doc, DocumentId, Evaluation, FindingSubject,
+    Maintenance, NamedCell, NodeErrorKind, NodeStanding, ParseError, PartFault, ProductError,
+    ProductErrorKind, ProfileProgram, RecipeNodeId, ResolveFault, Said, SlotId, Speaker, VarName,
 };
 use pncad::prelude::EntityKind;
 use pncad::quantity::LengthUnit;
@@ -2284,9 +2284,11 @@ pub fn checks_badge(report: Option<&ChecksReport>) -> Option<Badge> {
 /// the cells it names that can be selected.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckRow {
-    /// The root the finding is about, which the button selects.
-    pub root: RecipeNodeId,
-    /// The root, spoken.
+    /// The node the finding is about, which the button selects: the
+    /// root of a root output's finding, the deciding node of an
+    /// unproven coincidence.
+    pub node: RecipeNodeId,
+    /// That node, spoken.
     pub button: String,
     /// The finding, its roots spoken.
     pub sentence: String,
@@ -2340,11 +2342,17 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
     report
         .findings
         .iter()
-        .map(|finding| CheckRow {
-            root: finding.root,
-            button: by.node(finding.root).to_string(),
-            sentence: Said(finding, by).to_string(),
-            cells: coincidence_cells(finding, by),
+        .map(|finding| {
+            let node = match finding.subject {
+                FindingSubject::Output { root, .. } => root,
+                FindingSubject::Node(node) => node,
+            };
+            CheckRow {
+                node,
+                button: by.node(node).to_string(),
+                sentence: Said(finding, by).to_string(),
+                cells: coincidence_cells(finding, by),
+            }
         })
         .collect()
 }

@@ -108,6 +108,7 @@ class TestTheConnectednessResident(unittest.TestCase):
         self.assertEqual(finding.check, CheckId.Connectedness)
         self.assertEqual(finding.root, root)
         self.assertEqual(finding.output_ix, 0)
+        self.assertIsNone(finding.node, "a root output's finding is about no lone node")
         self.assertEqual(finding.evidence.variant, "connectedness")
         self.assertEqual(finding.evidence.actual, 2)
         self.assertEqual(finding.evidence.expected, 1)
@@ -479,7 +480,9 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
         (finding,) = report.findings
         self.assertEqual(finding.check, CheckId.UnprovenCoincidence)
         self.assertEqual(finding.check.kind, CheckKind.Certified)
-        self.assertEqual(finding.root, glued)
+        self.assertEqual(finding.node, glued)
+        self.assertIsNone(finding.root)
+        self.assertIsNone(finding.output_ix)
         evidence = finding.evidence
         self.assertEqual(evidence.variant, "unproven_coincidence")
         self.assertEqual(

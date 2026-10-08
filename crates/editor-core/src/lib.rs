@@ -112,8 +112,8 @@ pub use assembly::{
 };
 pub use checks::{
     Advisory, ChartCoherenceLane, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal,
-    ChecksConfig, ChecksError, ChecksReport, Severity, Subject, enforce_checks, run_checks,
-    run_checks_on, subject_body,
+    ChecksConfig, ChecksError, ChecksReport, FindingSubject, Severity, Subject, enforce_checks,
+    run_checks, run_checks_on, subject_body,
 };
 pub use coincide::{NamedCell, NamedCoincidence, Proof, Residual, Rung};
 pub use diff::{DocDiff, NodeChange};

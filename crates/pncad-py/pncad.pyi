@@ -6769,7 +6769,8 @@ class CheckId:
     carriers and its vertices disagree about a chart coordinate they
     both state; `UnprovenCoincidence` reports each coincidence a node
     decided from values that the coincidence door does not prove
-    structural, so it holds at the current values only."""
+    structural (it may still hold structurally by an argument the door
+    does not yet make)."""
 
     Connectedness: Final[CheckId]
     Separation: Final[CheckId]
@@ -6889,9 +6890,9 @@ class CheckEvidence:
 
     `unproven_coincidence` (`relation`, `site`, `reason`, and the row
     as `coincidence`) — a node decided two cells one from values and
-    the coincidence door does not prove it structural: it holds at the
-    current values only. `reason` says what separates the two
-    constructions. A report, never a refusal."""
+    the coincidence door does not prove it structural. `reason` says
+    what separates the two constructions, or why a cell's could not be
+    read. A report, never a refusal."""
 
     @property
     def variant(self) -> str: ...
@@ -6952,8 +6953,10 @@ class Coincidence:
     def residual(self) -> Optional[str]: ...
 
 class CheckFinding:
-    """One finding of one check on one subject — a body-denoting root
-    output, attributed as `(root, output_ix)`.
+    """One finding of one check on one subject: a body-denoting root
+    output, attributed as `(root, output_ix)`, or a node of the
+    document (`node`), root or not — the node that decided an unproven
+    coincidence. Whichever it is not answers `None`.
 
     A REPORT about geometry, not a verdict on the program: holding one
     changes nothing. `subject_body` resolves the attribution back to
@@ -6967,9 +6970,17 @@ class CheckFinding:
     @property
     def check(self) -> CheckId: ...
     @property
-    def root(self) -> NodeId: ...
+    def root(self) -> NodeId | None:
+        """The root whose value carries the subject body; `None` for a
+        finding about a node."""
     @property
-    def output_ix(self) -> int: ...
+    def output_ix(self) -> int | None:
+        """Which output body of that root; `None` for a finding about a
+        node."""
+    @property
+    def node(self) -> NodeId | None:
+        """The node the finding is about, root or not; `None` for a
+        finding about a root output."""
     @property
     def evidence(self) -> CheckEvidence: ...
     def __eq__(self, other: object) -> bool: ...
