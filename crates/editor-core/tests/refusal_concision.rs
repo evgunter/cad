@@ -651,14 +651,6 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
-            "PierceRunsNested",
-            BooleanError::PierceRunsNested {
-                operand: Operand::A,
-                vertex: VertexKey::default(),
-                runs: 3,
-            },
-        ),
-        (
             "VertexReadTwice",
             BooleanError::VertexReadTwice {
                 operand: Operand::A,
