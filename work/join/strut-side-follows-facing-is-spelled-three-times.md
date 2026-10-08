@@ -2,12 +2,14 @@
 id: strut-side-follows-facing-is-spelled-three-times
 kind: issue
 title: A strut's mint side follows its facing, and that derivation is spelled three times (four with the ring struts)
-status: open
+status: closed
 opened: 2026-10-04
 priority: P2
 cost: M
 refs: [whole-orbit-fan-end-has-three-spellings, a-pierce-with-two-out-runs-at-one-vertex-refuses-every-op]
 branch: join/strut-side-one-rule
+pr: 4294
+closed: 2026-10-08
 ---
 
 
