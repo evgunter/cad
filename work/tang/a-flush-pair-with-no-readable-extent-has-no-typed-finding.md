@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-02
 priority: P2
 cost: E
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 ## What
@@ -28,3 +28,6 @@ A typed outcome beside the `Indeterminate`, naming the face
 seat's refusal and the Python tag table. The ripple into the editor
 seat and Python is why TANG's lever PR stopped at the label.
 
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: flush::pair_finding feeds the flush seat, which offers declarations; the detector retires or becomes the unproven-coincidence lint at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
