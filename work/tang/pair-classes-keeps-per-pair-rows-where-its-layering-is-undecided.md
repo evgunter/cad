@@ -36,7 +36,7 @@ them as given.
 An instrumented run (`pair_classes` logging each fallback, at `b7e31045`
 plus the fix that filed this):
 
-- topo, 2 645 tests: 114 vertices reach "outermost disagree", 150
+- topo, 2 645 tests: 102 vertices reach "outermost disagree", 150
   reach "edge undecided", all in
   `crates/topo/tests/union_flush_onto_edge_contact.rs`. The cases are
   `a_dangling_null_edge_inside_another_along_one_end_builds_in_every_op`,
