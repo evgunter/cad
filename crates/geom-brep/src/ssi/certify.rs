@@ -1399,7 +1399,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     // The carrier's two ends, as the carrier's scalar evaluates them: on
     // the f64 lane a point, not an enclosure of the exact end, which the
     // end checks then read within ε of
-    // (`work/ssi/limb3-carrier-ends-read-at-f64-points.md`).
+    // (`work/ssiarith/limb3-carrier-ends-read-at-f64-points.md`).
     let (t0, t1) = carrier.domain();
     let ends = [t0, t1].map(|t| {
         let p = carrier.eval(T::from_f64(t));

@@ -790,7 +790,7 @@ speculative — each row below states what it measured):
 Flagged, NOT fixed here (dispositions):
 
 - **F2** `solid_contain.rs` ray-caster denominators — **FIXED** (REACH,
-  `work/reach/an-open-sign-row-reds-main-at-1e-6-with-section-loop-mixed`).
+  `an-open-sign-row-reds-main-at-1e-6-with-section-loop-mixed` (REACH, closed by PR 3716)).
   The two skip questions (the plane arm's `d·n̂`, the wall's axis-parallel
   rung) are levered by how far from the query the selection reaches, so
   a ray is skipped only where it drifts less than the band over every

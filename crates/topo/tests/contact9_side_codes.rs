@@ -267,7 +267,7 @@ fn a_pierce_reads_a_dipping_edge_at_its_far_vertex() {
 /// At ε 1e-12 the control's ∩ is a valid sliver of +5.83e-19 m³ that
 /// the door's tier-3 result gate refuses `NegativeVolume`: check 7
 /// reads its sign before the interval re-derivation of PR #3977
-/// (`work/reach/boolean-door-adopts-the-finished-body-type.md`,
+/// (`boolean-door-adopts-the-finished-body-type` (REACH, closed by PR 3987),
 /// §Sequencing 1), which lands first.
 #[test]
 fn a_vertex_pair_reads_a_dipping_chord_at_its_far_vertex() {

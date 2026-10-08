@@ -4,6 +4,7 @@ kind: issue
 title: offset fit folds its on-locus samples with f64::max, so a NaN sample never reaches the limb-1 guard
 status: open
 opened: 2026-10-01
+priority: P2
 ---
 
 

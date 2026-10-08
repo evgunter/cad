@@ -4681,7 +4681,7 @@ pub fn validate_geometric_certificate<
 /// therefore diverges from [`validate_geometric`], which reads the
 /// re-derivation: on a body whose volume is below its sums' rounding
 /// (a thin body far from the world origin), the two can give opposite
-/// verdicts (`work/reach/lane-free-volume-sign-reads-decide-on-a-rounded-sum`).
+/// verdicts (`work/tally/lane-free-volume-sign-reads-decide-on-a-rounded-sum`).
 /// A face that needed the quadrature is refused typed
 /// ([`ValidationError::VolumeUncomputable`]) rather than passed
 /// unbounded. **Check 2 makes no claim about an M7-8 edge** (a plane ×

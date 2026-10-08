@@ -163,7 +163,7 @@ pub fn plate(spacing_half_width: f64, radius_sigma: f64, bound: f64, tol: Tol) -
 /// the web read off the cut part's bore walls. Not the study's
 /// document, because two doors refuse it:
 /// the certified drive certifies no box of it
-/// (`work/reach/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`,
+/// (`work/tally/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`,
 /// pinned in [`crate::tolerance`]), and its one root is the assertion,
 /// so it has no product to draw
 /// (`work/recipe/a-measured-part-is-not-a-product-root.md`, pinned in
