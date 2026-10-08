@@ -7,7 +7,7 @@ opened: 2026-10-07
 priority: P0
 cost: M
 design: true
-blocked_on: [no-dimensioned-literal-in-a-slot]
+blocked_on: [4222]
 refs: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 

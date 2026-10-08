@@ -73,7 +73,7 @@ fn measured_twins() -> (ProfileDoc, RecipeNodeId) {
     let doc = twins();
     let w = Formula::named(n("w"), Dimension::Length);
     let v = Formula::named(n("v"), Dimension::Length);
-    let two = Formula::literal(2.0, Dimension::Scalar).unwrap();
+    let two = Formula::ratio(2, 1).unwrap();
     let sum = Formula::add(w, Formula::mul(two, v).unwrap()).unwrap();
     let applied = apply(
         &doc,

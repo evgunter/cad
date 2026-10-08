@@ -291,6 +291,10 @@ pub enum DistributionRefusal {
         /// The invariant that failed.
         fault: DistributionFault,
     },
+    /// The formula is not one written value: a formula's uncertainty
+    /// is the pushforward of its inputs', so only a written quantity
+    /// carries one ([`crate::Formula::with_distribution`]).
+    NotAWrittenValue,
 }
 
 // The refusal's own prose, for a caller holding the door's `Err`
@@ -304,6 +308,9 @@ impl core::fmt::Display for DistributionRefusal {
                 "a count is a structural parameter, fixed under any error analysis, so it takes no distribution",
             ),
             Self::Invalid { fault } => write!(f, "{fault}"),
+            Self::NotAWrittenValue => f.write_str(
+                "only a written value takes a distribution; a formula's uncertainty is its inputs'",
+            ),
         }
     }
 }
@@ -1076,6 +1083,12 @@ impl<P> Doc<P> {
     pub(crate) fn var_read_faults(&self, expr: &Expr) -> Vec<VarReadFault> {
         let mut reads = Vec::new();
         expr.var_reads(&mut reads);
+        self.var_read_faults_of(reads)
+    }
+
+    /// [`Self::var_read_faults`] of the reads `reads`, each a variable
+    /// and the dimension it is read at, in order.
+    pub(crate) fn var_read_faults_of(&self, reads: Vec<(VarId, Dimension)>) -> Vec<VarReadFault> {
         reads
             .into_iter()
             .filter_map(|(var, referenced)| match self.vars.get(&var) {
@@ -1189,13 +1202,6 @@ impl<P> Doc<P> {
         }
     }
 
-    /// **The anonymous variables nothing live reads** (VR7), in the
-    /// order a cascading removal reports them: a variable is live when
-    /// it is named, when a node reads it, or when the definition of a
-    /// live variable reads it. Each round takes, in declaration order,
-    /// the anonymous variables read by no node and by no definition of
-    /// a variable still standing — so a defined variable comes before
-    /// the variables only its definition read.
     /// **Whether `var` is a typed value**: an anonymous free variable,
     /// what a value written at a slot lowers to. A value gesture or a
     /// re-notation on a slot reading one moves it in place, keeping its
@@ -1208,8 +1214,9 @@ impl<P> Doc<P> {
     /// **The anonymous variables [`Node::written`] would not reproduce**:
     /// one read more than once — by two slots, as a fresh entry shared
     /// within one edit, or by a slot and a definition — which a written
-    /// re-insert splits into one per reader, and one that carries a
-    /// distribution, which a value written at a slot cannot carry.
+    /// re-insert splits into one per reader, and a count read by a
+    /// definition, which written there reads back as the integer
+    /// constant.
     /// Rebuilding a document by re-inserting its nodes as written is
     /// the document only where this is empty and no anonymous variable
     /// was value-edited after its insert (whose mint read the old
@@ -1226,12 +1233,14 @@ impl<P> Doc<P> {
                 *reads.entry(var).or_default() += 1;
             }
         }
+        let mut defining = std::collections::BTreeSet::new();
         for held in self.vars.values() {
             if let crate::VarDef::Defined(defined) = held.def() {
                 let mut read = Vec::new();
                 defined.var_reads(&mut read);
                 for (var, _) in read {
                     *reads.entry(var).or_default() += 1;
+                    defining.insert(var);
                 }
             }
         }
@@ -1241,11 +1250,19 @@ impl<P> Doc<P> {
             .filter(|var| !self.var_names.contains_key(var))
             .filter(|var| {
                 reads.get(var).copied().unwrap_or(0) > 1
-                    || self.free(*var).and_then(FreeVar::distribution).is_some()
+                    || (defining.contains(var)
+                        && matches!(self.free(*var), Some(FreeVar::Count { .. })))
             })
             .collect()
     }
 
+    /// **The anonymous variables nothing live reads** (VR7), in the
+    /// order a cascading removal reports them: a variable is live when
+    /// it is named, when a node reads it, or when the definition of a
+    /// live variable reads it. Each round takes, in declaration order,
+    /// the anonymous variables read by no node and by no definition of
+    /// a variable still standing — so a defined variable comes before
+    /// the variables only its definition read.
     pub(crate) fn unread_anonymous_vars(&self) -> Vec<VarId>
     where
         P: crate::ProfilePayload,
@@ -1421,10 +1438,34 @@ impl<P> Doc<P> {
         formula.lower(&|name| self.lowering_scope(name))
     }
 
-    /// **The text of `expr`**, its readers written by the names this
-    /// document holds ([`crate::unparse`]).
+    /// **`formula` with its names read by id**: every name replaced by
+    /// a reader of the variable this document names so, its written
+    /// quantities kept — the formula a slot's [`Self::slot_expansion`]
+    /// is compared against, and the one a caller evaluates against this
+    /// document without storing it.
+    ///
+    /// # Errors
+    ///
+    /// The first name, in pre-order, the document does not hold at the
+    /// kind it is read at, or fresh-table read ([`crate::LowerFault`]).
+    pub fn resolve(&self, formula: &crate::Formula) -> Result<crate::Formula, crate::LowerFault> {
+        let scope = |name: &VarName| self.lowering_scope(name);
+        match formula.unresolved(&scope, &[]) {
+            Some(fault) => Err(fault),
+            None => Ok(formula.lower_held(&scope)),
+        }
+    }
+
+    /// **The text of `expr`**, as written: its readers of a named
+    /// variable written by the names this document holds, each reader
+    /// of an anonymous one by what it holds ([`Self::written`]) — a
+    /// written value in its unit (`5 mm`), a definition expanded — and
+    /// a reader of a variable the document does not hold by its full id
+    /// ([`crate::unparse`]).
     pub fn unparse<L: crate::expr::LeafSet>(&self, expr: &crate::expr::ExprTree<L>) -> String {
-        crate::expr::unparse(expr, &|id| self.var_names.get(&id))
+        crate::expr::unparse(&self.written_formula(&expr.to_formula()), &|id| {
+            self.var_names.get(&id)
+        })
     }
 
     /// The variables, by id.
@@ -1684,13 +1725,13 @@ impl<P> Doc<P> {
 
     /// **What a node's slot reads, as written**: a reader of its
     /// variable, each anonymous variable it reaches replaced by what it
-    /// holds — a free one by its value in the unit it was written in, a
-    /// defined one by its definition, expanded the same way — so the
-    /// formula the slot was written as, every name read by id. `None`
-    /// if the node is gone or the slot absent; a reader of the slot's
-    /// variable where the expansion would nest past the bound every
-    /// expression is held to.
-    pub fn slot_expansion(&self, node: RecipeNodeId, slot: SlotId) -> Option<Expr>
+    /// holds — a free one by the quantity it holds, in the unit it was
+    /// written in and with its distribution, a defined one by its
+    /// definition, expanded the same way — so the formula the slot was
+    /// written as, every name read by id. `None` if the node is gone or
+    /// the slot absent; a reader of the slot's variable where the
+    /// expansion would nest past the bound every expression is held to.
+    pub fn slot_expansion(&self, node: RecipeNodeId, slot: SlotId) -> Option<crate::Formula>
     where
         P: crate::ProfilePayload,
     {
@@ -1705,9 +1746,21 @@ impl<P> Doc<P> {
     /// **`expr` as written**: each anonymous variable it reaches
     /// replaced by what it holds ([`Self::slot_expansion`]); `expr`
     /// itself where that would nest past the bound.
-    pub fn written(&self, expr: &Expr) -> Expr {
-        self.anonymous_expansion(expr)
-            .unwrap_or_else(|_| expr.clone())
+    ///
+    /// A free variable is written as the quantity it holds, its
+    /// correctly-rounded double, so a constant typed alone at a slot
+    /// reads back as that value and not as its spelling: `1/3` typed
+    /// at a `Scalar` slot mints a free variable holding
+    /// `0.3333333333333333` (Q1), and that is what it reads back as.
+    pub fn written(&self, expr: &Expr) -> crate::Formula {
+        self.written_formula(&crate::Formula::from(expr))
+    }
+
+    /// [`Self::written`] of a formula: each reader of an anonymous
+    /// variable replaced by what it holds, the rest as written.
+    fn written_formula(&self, formula: &crate::Formula) -> crate::Formula {
+        self.anonymous_expansion(formula)
+            .unwrap_or_else(|_| formula.clone())
     }
 
     /// **`expr` expanded only along `path`**: each anonymous definition
@@ -1737,8 +1790,11 @@ impl<P> Doc<P> {
 
     /// `expr` with every reader of an anonymous variable replaced by
     /// what it holds ([`Self::slot_expansion`]).
-    fn anonymous_expansion(&self, expr: &Expr) -> Result<Expr, crate::DimensionError> {
-        expr.substitute_vars(&mut |var| {
+    fn anonymous_expansion(
+        &self,
+        formula: &crate::Formula,
+    ) -> Result<crate::Formula, crate::DimensionError> {
+        formula.substitute_vars(&mut |var| {
             if self.var_names.contains_key(&var) {
                 return None;
             }
@@ -1747,10 +1803,21 @@ impl<P> Doc<P> {
                     dim,
                     value,
                     display_unit,
-                    ..
-                }) => Expr::literal_leaf_with_unit(*value, *dim, display_unit.def()).ok(),
-                crate::VarDef::Free(FreeVar::Count { value }) => Some(Expr::count(*value)),
-                crate::VarDef::Defined(defined) => self.anonymous_expansion(defined).ok(),
+                    distribution,
+                }) => Some(crate::Formula::own_leaf(
+                    crate::expr::AuthoredLeaf::Quantity(Box::new(crate::expr::Quantity {
+                        value: *value,
+                        unit: *display_unit,
+                        distribution: *distribution,
+                    })),
+                    *dim,
+                )),
+                crate::VarDef::Free(FreeVar::Count { value }) => {
+                    Some(crate::Formula::count(*value))
+                }
+                crate::VarDef::Defined(defined) => self
+                    .anonymous_expansion(&crate::Formula::from(defined))
+                    .ok(),
             }
         })
     }
@@ -1758,7 +1825,7 @@ impl<P> Doc<P> {
     /// The expression subtree an [`ExprPath`] addresses in its slot's
     /// expansion ([`Self::slot_expansion`]), or `None` if the node is
     /// gone, the slot absent, or the path off the tree (spec D5).
-    pub fn expr_at(&self, path: &ExprPath) -> Option<Expr>
+    pub fn expr_at(&self, path: &ExprPath) -> Option<crate::Formula>
     where
         P: crate::ProfilePayload,
     {
@@ -2238,7 +2305,7 @@ mod tests {
         );
     }
 
-    /// A document holding `a := b + 1 mm` and `b := a`, written past
+    /// A document holding `a := b + c` and `b := a`, written past
     /// the doors (which refuse it, as the load walk does), both named
     /// (an unnamed definition is a slot's formula, whose refusal is the
     /// slot's own — `VarEnv::written`): the shape
@@ -2250,7 +2317,7 @@ mod tests {
         let mut doc = ProfileDoc::empty_derived("doc-cyclic", Tol::witness());
         let (a, b) = (VarId::new(0, 1), VarId::new(0, 2));
         let read = |var| Expr::var(var, Dimension::Length);
-        let one = Expr::literal(0.001, Dimension::Length).expect("a length");
+        let one = read(VarId::new(0, 3));
         doc.vars.insert(
             a,
             Var::new(VarDef::Defined(

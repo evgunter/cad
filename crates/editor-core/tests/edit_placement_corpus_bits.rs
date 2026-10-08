@@ -62,7 +62,7 @@ const PINNED: &[(&str, u32, u64)] = &[
     ("heat_sink", 85, 0x08c46d2d7cc96330),
     ("heat_sink", 94, 0x1464c7b232f99479),
     ("heat_sink", 103, 0x64e2ae5704de05dc),
-    ("kitchen_sink", 82, 0x1caccf56e3f639ee),
+    ("kitchen_sink", 83, 0xcaf9146a1c21014b),
     ("die_pips", 60, 0x5c1ae6cb8f222530),
     ("part_select", 53, 0xc8fcc5a141cc196e),
     ("die_composed", 60, 0x5c1ae6cb8f222530),

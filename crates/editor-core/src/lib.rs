@@ -62,6 +62,7 @@ pub mod program;
 /// a [`mod@drive`]'s leaves, and a query that fell back to `f64` would
 /// be the sampler it exists to improve on.
 pub mod range;
+mod ratio;
 pub mod refactor;
 pub mod refusal;
 /// The E10/E11.6 reporting layer: the goldening and human forms every
@@ -148,8 +149,8 @@ pub use spoken::{
 pub use eval::entity_door::Found;
 pub use expr::{
     AuthoredLeaf, Dimension, DimensionError, EvalError, Expr, ExprPath, ExprTree, LeafSet,
-    ParamValue, Slot, StoredLeaf, UnitSym, Unlowered, VarEnv, eval, eval_count, eval_var,
-    eval_var_count, unparse,
+    ParamValue, Quantity, Ratio, Slot, StoredLeaf, UnitSym, Unlowered, VarEnv, eval, eval_count,
+    eval_var, eval_var_count, unparse,
 };
 pub use formula::{Formula, FreshFault, LowerFault, NameFault};
 pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};

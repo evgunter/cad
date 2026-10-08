@@ -100,8 +100,8 @@ fn wire_rv_an_unknown_field_in_a_loop_program_refuses_typed() {
 /// carries none of them, so this one goes through serde directly.
 #[test]
 fn wire_rv_an_unknown_field_in_a_step_refuses() {
-    let json = r#"{"Toward":{"dx":{"Literal":{"value":1.0,"dim":"Scalar","unit":""}},
-                   "dy":{"Literal":{"value":0.0,"dim":"Scalar","unit":""}},"dz":1}}"#;
+    let json = r#"{"Toward":{"dx":{"Quantity":{"value":1.0,"dim":"Scalar","unit":""}},
+                   "dy":{"Quantity":{"value":0.0,"dim":"Scalar","unit":""}},"dz":1}}"#;
     let err = serde_json::from_str::<editor_core::ProgramStep<Formula>>(json)
         .expect_err("an unknown step field is refused");
     assert!(err.to_string().contains("dz"), "{err}");

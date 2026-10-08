@@ -18,7 +18,7 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-use crate::fixture::{frame, insert, len, len2, minted, piece, run};
+use crate::fixture::{frame, insert, len, len2, member_entity, minted, piece, run};
 
 fn to(x: f64, y: f64) -> ProgramTarget<Formula> {
     ProgramTarget::Point(len2([x, y]))
@@ -246,4 +246,55 @@ fn run_names_agree_across_scalar_types() {
         );
         assert_eq!(a, b, "{label}: the two scalar types mint the same names");
     }
+}
+
+/// **A union reads its member's run wall through `FromMember`**: the
+/// member's one-piece wall, held in the union's space, is offered the
+/// union's name for the run wall a station joined it into — the same
+/// offer as at the extrude, keyed by the same member.
+#[test]
+fn a_union_offers_its_members_run_wall_across_a_station() {
+    let plain = vec![
+        ProgramStep::At(len2([0.0, 0.0])),
+        ProgramStep::LineTo(to(2.0, 0.0)),
+        ProgramStep::LineTo(to(2.0, 2.0)),
+        ProgramStep::LineTo(to(0.0, 2.0)),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ];
+    let (doc, p, ex) = build(plain, ExtrudeSide::ALL[0]);
+    let (doc, apart) = crate::docm7_union_declare::block(doc, (5.0, 6.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, union) = crate::fixture::union_over(doc, &[ex, apart], Vec::new());
+    let keyed = |n: StableName| member_entity(union, ex, n, EntityKind::Face);
+    let held = keyed(lateral(ex, vec![piece(&doc, ex, 0, 0)]));
+    let i = ids(&doc, p);
+    let joined = vec![
+        ProgramStep::At(len2([0.0, 0.0])),
+        ProgramStep::LineTo(to(1.0, 0.0)),
+        ProgramStep::ContinueTo(to(2.0, 0.0)),
+        ProgramStep::LineTo(to(2.0, 2.0)),
+        ProgramStep::LineTo(to(0.0, 2.0)),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ];
+    let doc2 = edit(
+        &doc,
+        p,
+        joined,
+        vec![
+            Some(i[0]),
+            Some(i[1]),
+            None,
+            Some(i[2]),
+            Some(i[3]),
+            Some(i[4]),
+        ],
+    );
+    let run_wall = keyed(lateral(
+        ex,
+        vec![piece(&doc2, ex, 0, 0), piece(&doc2, ex, 0, 1)],
+    ));
+    assert!(
+        offers(&doc2, &held).contains(&run_wall),
+        "the member's one-piece wall is offered the union's run wall: {:?}",
+        offers(&doc2, &held)
+    );
 }

@@ -376,13 +376,14 @@ fn a_tangent_cut_is_levered_from_its_rulings_hinge() {
 /// **A tangent cut turns about its rulings' hinge, not the foot.** The
 /// unit wall about `z` read at `(1, 0, 0)` over a face `10·ε` long (its
 /// lone ruling), cut by the plane through that point tilted to
-/// `sin β = c`, `c² = 0.8·ε`. The hinge stands `r·c` up the axis from
+/// `sin β = c`, `c² = 0.6·ε`. The hinge stands `r·c` up the axis from
 /// the foot and on the plane, so the face moves by `c` times its axial
-/// distance from the hinge's station, `r·c² = 0.8·ε`, and the turn moves
-/// it by next to nothing: Zero, the tangent ruling. Turned about the
-/// foot, which stands `r` across the wall from the face, the turn read
-/// `(1 − cos β)·r = 0.4·ε` more and escalated a cut whose face it holds
-/// within the band.
+/// distance from the hinge's station, `r·c² = 0.6·ε`, and the turn moves
+/// it by next to nothing; beside the gap the plane reads at the foot,
+/// `r·(1 − cos β) = 0.3·ε`, the sum is Zero, the tangent ruling. Turned
+/// about the foot, which stands `r` across the wall from the face, the
+/// turn read `(1 − cos β)·r = 0.3·ε` more and escalated a cut whose
+/// face it holds within the band.
 #[test]
 fn a_tangent_cut_turns_about_its_rulings_hinge_not_its_foot() {
     let eps = band().zero();
@@ -394,7 +395,7 @@ fn a_tangent_cut_turns_about_its_rulings_hinge_not_its_foot() {
         above: e,
         across: e,
     };
-    let c = (0.8 * eps).sqrt();
+    let c = (0.6 * eps).sqrt();
     let got = wall_cut(1.0, at, Vec3::new((1.0 - c * c).sqrt(), 0.0, c), &reach);
     assert!(
         matches!(got, Ok(PlaneCylinderSection::TangentLine(_))),

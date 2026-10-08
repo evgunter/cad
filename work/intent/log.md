@@ -236,6 +236,52 @@ Closed: `range-synthetic-name-mints-a-name`,
 `unproven-coincidence-lint-binds-every-variable-as-a-symbol`.
 - 2026-10-06 — Note from ZIP: filed `the-declared-rest-zip-retires-at-stage-4-and-the-join-needs-three-arms` (P0/H) on this slate as stage-4 input, on Ev's direction in chat. Two designers converged on retiring the declared-REST zip (`boolean/rest.rs`) with declared pairs. Before then the join gains a partner-edge chord, ring re-homing on a curved chart in aligned contact, and the `mekr` `NotSameFace` cause. The row carries the measurement. ZIP's REST-lane rows are parked on `d10-one-way-to-say-intent-is-unbuilt`. Units ZIP already started finish: the zip's admission check (PR 4127, a live wrong body; Ev, in chat, "finish it"), `Fusions` (PR 4116) and pins (PR 4130). (ZIP orchestrator)
 
+## 2026-10-07 — INTENT-LITERALS PR D, Expr holds no float (`intent/literals-d`)
+
+A stored expression's leaves are variable readers, exact rationals
+(`Ratio`, reduced, numerator and denominator at most 2^53), integers
+and `turn`; no float is left in a document's expressions. A written
+quantity is the authored `Quantity` leaf: inside a formula it mints an
+anonymous free variable of its own, in pre-order before the variable it
+defines, so two typed `5 mm` in formulas are two variables and their
+tokens differ. Tokens carry `T_RATIO`, `T_INTEGER` and `T_TURN`;
+`T_LITERAL` and `T_COUNT_LITERAL` are retired bytes. The f64 geometry,
+and the interval enclosures, of the whole corpus are byte-identical
+with ids masked; the id-bearing pins moved on `kitchen_sink` alone.
+
+Ruled at review (orchestrator, on the lane's spec-undecided rulings):
+- A bare number inside a formula is the exact `Ratio` its decimal
+  spells, and refuses `ConstantOutOfRange` where none in range does
+  (`1e-20`, `0.30000000000000004`): never a hidden variable (VR6). One
+  copy of the rule, `Ratio::from_decimal`. The whole text one such
+  decimal is a value, its written double. `Formula::scalar` is always
+  a written `Scalar` quantity (§1), so inside a definition it mints a
+  variable; `Formula::ratio` is the constant.
+- A count of integer constants beside an operand that is no count
+  reads as the scalar it equals, whichever side it folds on
+  (`turn/4`, `2*3*w`, `w*2*3`); a count reading a variable is promoted
+  only by `scalar(n)`.
+- `INT/INT` with no space is one ratio, except as the right operand of
+  `/`, so `w/2/3` is `(w/2)/3`; `unparse` brackets a `p/q` divisor. A
+  ratio's parts are integers (`2/3.5` refuses saying so).
+- `turn` is reserved (§1).
+
+Ruled by the lane:
+- A declared definition mints its own id before its quantities, so a
+  refusal speaks the id it is minted at.
+- `Doc::unparse` writes an anonymous reader as what it holds; the bare
+  `unparse` keeps `#<16 hex>`.
+- `GeomPred::DatumDistance` holds a `Formula`, evaluated with no
+  document: a name refuses `EvalError::Unlowered`.
+
+Closed: `no-dimensioned-literal-in-a-slot`,
+`equal-literals-lower-to-one-identity-token`,
+`definition-node-bound-is-re-measured-against-the-corpus-after-d`
+(4096 stands). Opened: `typing-a-value-mints-or-offers-a-variable`
+(its trigger fired). Re-parked: `operations-define-output-variables`
+(stage 2 A) on FORK-1's PR 4222, which still gates it once this
+row's trigger fires.
+
 ## 2026-10-07 — stage 2 sliced (`docs/INTENT-STAGE2-SPEC.md`)
 
 A spec lane sized stage 2 (operations and one dependency) at main

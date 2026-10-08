@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 0ba8c04f183c983c8b43fea1866aec580dcbeda35ee900406e108925b56c902f # shrinks to src = "(0.0 mm - (0.0 mm - (0.0 mm / -213138.95162344462)))"
+cc 168562c5dafb6541934c039c716efd5c4f03d585d61c38466442a1bdd8e071f5 # shrinks to (dim, src) = (Length, "(0.0 mm * -(-193906.07285317997 - 0.0))")

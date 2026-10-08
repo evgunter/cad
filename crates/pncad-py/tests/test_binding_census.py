@@ -2299,6 +2299,12 @@ NOT_BOUND = {
     "AuthoredLeaf": SHAPE,
     "ExprTree": SHAPE,
     "LeafSet": SHAPE,
+    # What a formula's leaves hold, which Rust names so a reader can
+    # say it: a Python caller reads a lone one's value and unit off
+    # `Formula.literal_value` and `Formula.text`, and builds a constant
+    # with `Formula.ratio`.
+    "Quantity": SHAPE,
+    "Ratio": SHAPE,
     "StoredLeaf": SHAPE,
     # How a sentence names a node. Python reads a node's sentence inside
     # the error a door raises, already spoken; its machine spelling is
@@ -3699,6 +3705,9 @@ MEMBERS_BOUND_AS = {
     "EvalError::CountOverflow": "EvalError.variant",
     "EvalError::CountToScalarOutOfRange": "EvalError.variant",
     "EvalError::NonFiniteResult": "EvalError.variant",
+    # A name or fresh read evaluated outside a document: the lowering's
+    # own words ride `EvalError.variant` (`unlowered_name`, ...).
+    "EvalError::Unlowered": "EvalError.variant",
     "FmtQuantityError::NonFinite": "FmtQuantityError.variant",
     "HitTestError::Standing": "HitTestError.variant",
     "HitTestError::EvaluationOfAnotherDocument": "HitTestError.variant",
@@ -3755,6 +3764,7 @@ MEMBERS_BOUND_AS = {
     "ParseError::TrailingInput": "ParseError.variant",
     "ParseError::MalformedNumber": "ParseError.variant",
     "ParseError::IntegerOverflow": "ParseError.variant",
+    "ParseError::RatioPartNotInteger": "ParseError.variant",
     "ParseError::UnknownUnit": "ParseError.variant",
     "ParseError::UnknownFunction": "ParseError.variant",
     "ParseError::WrongArity": "ParseError.variant",

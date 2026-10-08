@@ -2,8 +2,9 @@
 id: definition-node-bound-is-re-measured-against-the-corpus-after-d
 kind: issue
 title: DEFINITION_NODE_BOUND is re-measured against the corpus once every slot formula is a definition
-status: open
+status: closed
 opened: 2026-10-05
+closed: 2026-10-07
 ---
 
 
@@ -23,3 +24,14 @@ measurement means something. Once D lands:
 - a document near the bound refuses `DefinitionTooLarge` at the edit
   and load doors, so a lower bound is a re-baseline of any file it
   would refuse.
+
+**Measured after D (2026-10-07): 4096 stands.** Over every corpus
+document and the committed files above (34 documents), the committed
+corpus holds one definition — `kitchen_sink`'s — whose expansion is 3
+nodes, so "the corpus maximum ×16" is 48. That is below what one
+formula the nesting bound admits already spells: a flat chain of 128
+terms is 255 nodes, and `expr_nesting_bound`'s rows write such a
+formula at a slot, which the door must accept. The corpus says nothing
+about how large a person's formulas get, and 4096 is that one formula's
+255 nodes ×16, the spec's own rule applied to the largest single
+formula the language admits rather than to the corpus.

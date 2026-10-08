@@ -4618,8 +4618,8 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   and were wrong to be.** They are not machinery behind
 ///   `evaluate` — they are the EXPRESSION read side, the only way to
 ///   answer "what does this slot say right now" for a slot driven by
-///   a parameter or by arithmetic. `Expr::literal_value` answers only
-///   for a bare literal, so without them a consumer holding the
+///   a parameter or by arithmetic. `Formula::literal_value` answers
+///   only for a lone written quantity, so without them a consumer holding the
 ///   curated `Expr` + `VarEnv` pair had no door from an expression
 ///   to its value and would have had to re-implement the evaluator to
 ///   display one. `crate::document` carries all three now.

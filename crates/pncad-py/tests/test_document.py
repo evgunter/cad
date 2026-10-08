@@ -830,16 +830,17 @@ class TestPersistence(unittest.TestCase):
         `ParseError.kind` uses — rather than a sentence a caller would
         have to parse.
         """
-        length = {"Literal": {"value": 1.0, "dim": "Length", "unit": "m"}}
-        angle = {"Literal": {"value": 1.0, "dim": "Angle", "unit": "rad"}}
+        # A stored expression holds no float: its leaves read variables
+        # by id (whose ids the rebuild reads after the dimensions) or
+        # are exact constants.
+        length = {"Var": {"var": "1:0000000000000001", "dim": "Length"}}
+        angle = {"Var": {"var": "1:0000000000000001", "dim": "Angle"}}
         cases = {
             "mismatch": {"Add": [length, angle]},
             "mul_needs_scalar": {"Mul": [length, length]},
             "div_needs_scalar_divisor": {"Div": [length, length]},
             "trig_needs_angle": {"Sin": length},
-            "unknown_display_unit": {
-                "Literal": {"value": 1.0, "dim": "Length", "unit": "furlong"}
-            },
+            "ratio_not_reduced": {"Ratio": {"num": 2, "den": 4}},
         }
         for inner, wire in cases.items():
             with self.subTest(refusal=inner):
@@ -863,8 +864,8 @@ class TestPersistence(unittest.TestCase):
         bad = self._save_with_distance(
             {
                 "Add": [
-                    {"Literal": {"value": 1.0, "dim": "Length", "unit": "m"}},
-                    {"Literal": {"value": 1.0, "dim": "Angle", "unit": "rad"}},
+                    {"Var": {"var": "1:0000000000000001", "dim": "Length"}},
+                    {"Var": {"var": "1:0000000000000001", "dim": "Angle"}},
                 ]
             }
         )

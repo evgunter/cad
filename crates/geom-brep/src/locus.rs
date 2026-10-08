@@ -9,8 +9,8 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 use crate::dihedral::decide;
 use crate::extent::{ExtentBall, Reach};
 use crate::intersect::{
-    ParallelAxes, PlaneCylinder, RuledSection, cylinder_axes_parallel, parallel_axes_at,
-    parallel_cylinder_gap, plane_cylinder_ruled,
+    ParallelAxes, PlaneCylinder, RuledSection, cylinder_axes_parallel, decide_across,
+    parallel_axes_at, parallel_cylinder_gap, parallel_swing, plane_cylinder_ruled,
 };
 
 /// **The certified-lane tangent LOCUS** (M9-2, the M9-1 PR-2 DEV-1
@@ -71,17 +71,18 @@ pub enum TangentLocusError {
 ///   clears). A tilt moves
 ///   the ruling by its angle times the distance from the foot, so the
 ///   axis row reads the displacement it induces across the faces the
-///   locus is consumed on; with the gap row it mints only where each
-///   reads zero, so the ruling stands within two zero bands of the
-///   carriers across the faces, and the `Tangent` table then verifies
-///   it sample by sample.
+///   locus is consumed on, and the gap row decides the gap and that
+///   displacement as one sum: the ruling it mints stands within one
+///   zero band of the carriers across the faces, and the `Tangent`
+///   table then verifies it sample by sample.
 /// - **parallel cylinders** read [`crate::cylinder_cylinder_section`]'s
 ///   rows at `reach` as it does, in either order:
 ///   `cc_axes_parallel`, then `cc_parallel_gap`, the external margin
-///   `r1 + r2 − d` (Zero mints the ruling, Negative clears). Where the
-///   walls cross that margin's way, `tangent_locus_internal_gap` reads
-///   `|r1 − r2| − d` — an internal tangency, which no section
-///   classifier holds — and `tangent_locus_side` places its generator.
+///   `r1 + r2 − d` with the tilt beside it (Zero mints the ruling,
+///   Negative clears). Where the walls cross that margin's way,
+///   `tangent_locus_internal_gap` reads `|r1 − r2| − d` the same way —
+///   an internal tangency, which no section classifier holds — and
+///   `tangent_locus_side` places its generator.
 ///
 /// `reach` is the declared pair's consumed extent, the one `topo`'s
 /// carrier-pair doors lever their ladder at.
@@ -209,10 +210,11 @@ pub fn tangent_locus<T: Decide>(
                 d_vec: w,
                 d: dist,
             } = parallel_axes_at(reach, (*o1, *a1), (*o2, *a2));
+            let swing = parallel_swing(reach, (*o1, *a1), (*o2, *a2), dist);
             // External tangency first (|w| = r1 + r2): the common case
             // and the flush detector's; internal (|w| = |r1 − r2|)
             // second. Fixed probe order (D9).
-            match parallel_cylinder_gap(*r1, *r2, dist, band).map_err(escalate)? {
+            match parallel_cylinder_gap((*r1, *r2), dist, swing, band).map_err(escalate)? {
                 Sign::Zero => {
                     let w_hat = w.normalize();
                     return Ok(TangentLocus::Line {
@@ -228,8 +230,17 @@ pub fn tangent_locus<T: Decide>(
                 }
                 Sign::Positive => {}
             }
+            // The internal gap moves with the axes' distance, so it is
+            // read across the reach as the external one is.
             let internal = "tangent_locus_internal_gap";
-            match decide(internal, Margin::of((*r1 - *r2).abs() - dist), band).map_err(escalate)? {
+            match decide_across(
+                [internal, "tangent_locus_internal_gap_floor"],
+                (*r1 - *r2).abs() - dist,
+                swing,
+                band,
+            )
+            .map_err(escalate)?
+            {
                 Sign::Zero => {
                     // Internal tangency: the smaller cylinder rests
                     // inside the larger; the generator sits on the

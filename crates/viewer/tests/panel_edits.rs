@@ -1185,7 +1185,7 @@ fn an_expression_typed_into_a_parameter_defines_it() {
     assert!(declared.refusal.is_none(), "{:?}", declared.refusal);
     let base_r = common::var_of(session.committed_doc(), name.as_str());
     let before = session.history().len();
-    for text in ["base_r * 2.0", "base_r"] {
+    for text in ["base_r * 2.0", "base_r * 2", "base_r"] {
         let refusal = session
             .perform(SessionOp::SetParamText {
                 var: base_r,
@@ -1201,10 +1201,10 @@ fn an_expression_typed_into_a_parameter_defines_it() {
     let refusal = session
         .perform(SessionOp::SetParamText {
             var: base_r,
-            text: "base_r * 2".to_owned(),
+            text: "base_r + 2".to_owned(),
         })
         .refusal
-        .expect("a count times a length needs an explicit promotion");
+        .expect("a length plus a number is not dimensioned");
     assert!(matches!(refusal, Refusal::Parse(_)), "{refusal:?}");
     assert_eq!(session.history().len(), before, "and nothing moved");
 

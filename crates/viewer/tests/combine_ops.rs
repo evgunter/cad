@@ -556,7 +556,7 @@ fn the_pattern_door_spells_its_count_structurally() {
         .expect("a pattern has a count slot");
     assert_eq!(count.dim(), Dimension::Count);
     assert!(SlotId::Count.is_structural());
-    assert!(count.bit_eq(&editor_core::test_support::stored_expr(&Formula::count(3))));
+    assert!(count.bit_eq(&Formula::count(3)));
     assert!(matches!(
         session.committed_doc().node(linear),
         Some(Node::Pattern {
@@ -638,7 +638,7 @@ fn the_fused_door_mints_one_body_a_boolean_seat_takes() {
         .slot_expansion(fused, SlotId::Count)
         .expect("a parametric placed union has a count slot");
     assert_eq!(count.dim(), Dimension::Count);
-    assert!(count.bit_eq(&editor_core::test_support::stored_expr(&Formula::count(2))));
+    assert!(count.bit_eq(&Formula::count(2)));
     assert!(matches!(
         session.committed_doc().node(fused),
         Some(Node::PlacedUnion {

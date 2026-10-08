@@ -51,13 +51,16 @@ pub fn ang(radians: f64) -> Formula {
     Formula::literal(radians, Dimension::Angle).expect("a finite angle")
 }
 
-/// A dimensionless literal — a direction component, a bulge, a ratio.
+/// A written dimensionless value ([`Formula::scalar`]) — a direction
+/// component, a bulge, a ratio: a variable the edit door mints, at a
+/// slot's root and inside a formula alike. The exact constant is
+/// [`Formula::ratio`].
 ///
 /// # Panics
 ///
 /// If `value` is not finite.
 pub fn scl(value: f64) -> Formula {
-    Formula::literal(value, Dimension::Scalar).expect("a finite scalar")
+    Formula::scalar(value).expect("a finite scalar")
 }
 
 /// Two length literals — a point in a sketch frame's own coordinates.

@@ -278,7 +278,11 @@ fn every_verb_the_form_offers_loads_back_as_itself() {
 }
 
 /// The committed expression at `slot` of `node`.
-fn committed_expr(session: &DocSession, node: RecipeNodeId, slot: SlotId) -> pncad::document::Expr {
+fn committed_expr(
+    session: &DocSession,
+    node: RecipeNodeId,
+    slot: SlotId,
+) -> pncad::document::Formula {
     session
         .committed_doc()
         .slot_expansion(node, slot)

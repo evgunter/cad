@@ -45,17 +45,10 @@ fn param_lookup_and_typed_failures() {
             value: 0.002,
         },
     );
-    assert_eq!(
-        eval(&editor_core::test_support::stored_expr(&depth), &env).unwrap(),
-        0.002
-    );
+    assert_eq!(eval(&Clone::clone(&depth), &env).unwrap(), 0.002);
     // Unbound: typed.
     assert_eq!(
-        eval(
-            &editor_core::test_support::stored_expr(&depth),
-            &VarEnv::<f64>::default()
-        )
-        .unwrap_err(),
+        eval(&Clone::clone(&depth), &VarEnv::<f64>::default()).unwrap_err(),
         EvalError::UnresolvedVar { var: id }
     );
     // Bound at a different dimension: typed.
@@ -67,7 +60,7 @@ fn param_lookup_and_typed_failures() {
         },
     );
     assert_eq!(
-        eval(&editor_core::test_support::stored_expr(&depth), &wrong).unwrap_err(),
+        eval(&Clone::clone(&depth), &wrong).unwrap_err(),
         EvalError::VarKindMismatch {
             var: id,
             bound: Dimension::Angle,
@@ -93,13 +86,10 @@ fn param_lookup_and_typed_failures() {
 fn count_param_is_exact_i64() {
     let n = Formula::var(VarId::new(0, 7), Dimension::Count);
     let env = env_with(VarId::new(0, 7), ParamValue::Count(7));
-    assert_eq!(
-        eval_count(&editor_core::test_support::stored_expr(&n), &env).unwrap(),
-        7
-    );
+    assert_eq!(eval_count(&Clone::clone(&n), &env).unwrap(), 7);
     // A Count param under continuous eval is a typed refusal.
     assert_eq!(
-        eval(&editor_core::test_support::stored_expr(&n), &env).unwrap_err(),
+        eval(&Clone::clone(&n), &env).unwrap_err(),
         EvalError::CountExprInContinuousEval
     );
 }
@@ -110,32 +100,20 @@ fn count_to_scalar_range_guard() {
     // f64::from — ruled at the review, replacing the ±2^53 guard)…
     let ok = Formula::count_to_scalar(Formula::count(i64::from(i32::MAX))).unwrap();
     assert_eq!(
-        eval(
-            &editor_core::test_support::stored_expr(&ok),
-            &VarEnv::<f64>::default()
-        )
-        .unwrap(),
+        eval(&Clone::clone(&ok), &VarEnv::<f64>::default()).unwrap(),
         2_147_483_647.0
     );
     // …outside it: typed refusal.
     let too_big = Formula::count_to_scalar(Formula::count(i64::from(i32::MAX) + 1)).unwrap();
     assert_eq!(
-        eval(
-            &editor_core::test_support::stored_expr(&too_big),
-            &VarEnv::<f64>::default()
-        )
-        .unwrap_err(),
+        eval(&Clone::clone(&too_big), &VarEnv::<f64>::default()).unwrap_err(),
         EvalError::CountToScalarOutOfRange(i64::from(i32::MAX) + 1)
     );
     // Regression (review r2): i64::MIN must be the SAME typed error,
     // never a panic (the old guard called i64::abs first).
     let min = Formula::count_to_scalar(Formula::count(i64::MIN)).unwrap();
     assert_eq!(
-        eval(
-            &editor_core::test_support::stored_expr(&min),
-            &VarEnv::<f64>::default()
-        )
-        .unwrap_err(),
+        eval(&Clone::clone(&min), &VarEnv::<f64>::default()).unwrap_err(),
         EvalError::CountToScalarOutOfRange(i64::MIN)
     );
 }
@@ -150,11 +128,7 @@ fn arithmetic_matches_f64_semantics() {
     )
     .unwrap();
     assert_eq!(
-        eval(
-            &editor_core::test_support::stored_expr(&e),
-            &VarEnv::<f64>::default()
-        )
-        .unwrap(),
+        eval(&Clone::clone(&e), &VarEnv::<f64>::default()).unwrap(),
         1.5
     );
 }
@@ -182,7 +156,7 @@ mod props {
                 scl(k),
             )
             .unwrap();
-            let got = eval(&editor_core::test_support::stored_expr(&e), &VarEnv::<f64>::default()).unwrap();
+            let got = eval(&Clone::clone(&e), &VarEnv::<f64>::default()).unwrap();
             prop_assert_eq!(got.to_bits(), ((a + b) * k).to_bits());
         }
 
@@ -192,8 +166,8 @@ mod props {
         fn count_arithmetic_is_exact(a in -1_000_000i64..1_000_000, b in -1_000_000i64..1_000_000) {
             let sum = Formula::add(Formula::count(a), Formula::count(b)).unwrap();
             let prod = Formula::mul(Formula::count(a), Formula::count(b)).unwrap();
-            prop_assert_eq!(eval_count(&editor_core::test_support::stored_expr(&sum), &VarEnv::<f64>::default()).unwrap(), a + b);
-            prop_assert_eq!(eval_count(&editor_core::test_support::stored_expr(&prod), &VarEnv::<f64>::default()).unwrap(), a * b);
+            prop_assert_eq!(eval_count(&Clone::clone(&sum), &VarEnv::<f64>::default()).unwrap(), a + b);
+            prop_assert_eq!(eval_count(&Clone::clone(&prod), &VarEnv::<f64>::default()).unwrap(), a * b);
         }
     }
 }
@@ -215,16 +189,8 @@ mod interval_lane {
             scl(2.0),
         )
         .unwrap();
-        let at_f64 = eval::<f64>(
-            &editor_core::test_support::stored_expr(&e),
-            &VarEnv::default(),
-        )
-        .unwrap();
-        let at_interval = eval::<Interval>(
-            &editor_core::test_support::stored_expr(&e),
-            &VarEnv::default(),
-        )
-        .unwrap();
+        let at_f64 = eval::<f64>(&Clone::clone(&e), &VarEnv::default()).unwrap();
+        let at_interval = eval::<Interval>(&Clone::clone(&e), &VarEnv::default()).unwrap();
         assert!(at_interval.lo() <= at_f64 && at_f64 <= at_interval.hi());
         // The enclosure is tight (a point input), not vacuous.
         assert!(at_interval.hi() - at_interval.lo() < 1e-12);
@@ -241,7 +207,7 @@ mod interval_lane {
                 value: <Interval as Real>::from_f64(0.003),
             },
         );
-        let v = eval(&editor_core::test_support::stored_expr(&depth), &env).unwrap();
+        let v = eval(&Clone::clone(&depth), &env).unwrap();
         assert_eq!(v.lo(), 0.003);
         assert_eq!(v.hi(), 0.003);
     }

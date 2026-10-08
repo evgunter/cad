@@ -893,9 +893,9 @@ impl Doc {
         }
     }
 
-    fn authored(&self, py: Python<'_>, formula: &d::Formula) -> PyResult<d::Expr> {
+    fn authored(&self, py: Python<'_>, formula: &d::Formula) -> PyResult<d::Formula> {
         self.inner
-            .lowered(formula)
+            .resolve(formula)
             .map_err(|fault| super::expr::lower_fault_err(py, &fault))
     }
 

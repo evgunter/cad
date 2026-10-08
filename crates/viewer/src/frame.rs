@@ -2901,6 +2901,7 @@ pub fn creation_offer(refusal: Option<&Refusal>) -> Option<VarName> {
         | ParseError::TrailingInput { .. }
         | ParseError::MalformedNumber { .. }
         | ParseError::IntegerOverflow { .. }
+        | ParseError::RatioPartNotInteger { .. }
         | ParseError::UnknownUnit { .. }
         | ParseError::UnknownFunction { .. }
         | ParseError::WrongArity { .. }

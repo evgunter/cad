@@ -323,7 +323,7 @@ struct Chain {
 }
 
 fn turn() -> VarName {
-    VarName::from_static("turn")
+    VarName::from_static("spin")
 }
 
 fn chain(label: &str) -> Chain {

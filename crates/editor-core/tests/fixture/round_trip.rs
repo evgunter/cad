@@ -320,14 +320,19 @@ pub fn same_up_to_ids(
             ));
         }
     }
-    // Variables are compared by name, a definition with the ids it
+    // Variables are compared by name, a definition as written (each
+    // anonymous variable it reads as what it holds) with the ids it
     // reads read as their images: the two documents mint their own
     // ids, and a name is what a reader reads.
     let vars = |d: &ProfileDoc, through: Option<&BTreeMap<MintId, MintId>>| {
         d.var_names()
             .iter()
             .filter_map(|(id, name)| {
-                let shown = format!("{:?}", d.var(*id)?);
+                let held = d.var(*id)?;
+                let shown = match held.def().defined() {
+                    Some(defined) => format!("{:?} {:?}", held.kind(), d.written(defined)),
+                    None => format!("{held:?}"),
+                };
                 let shown = match through {
                     Some(vars) => renamed(&shown, &ids, &step_ids, vars),
                     None => shown,
