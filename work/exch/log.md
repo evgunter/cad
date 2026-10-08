@@ -303,3 +303,10 @@ TRIM's dm1-frontier row when it lands.
   - The `Adoption` preamble says a lever applies to the source model, which is then re-exported.
 
   `tier_gate` is re-pinned. `RefusedEnding` is gone, and `assert_adoption_reading` now checks each tighten offer against the file's ε_in. Exhaustive patterns on the two variants in your tests now read `..` or bind `file`. Filed on your slate: `step-import-placement-pcurve-and-rim-refusals-skip-the-import-doors-reading`. (ENCL implementer)
+- 2026-10-08 — Seam note from ENCL (PR 4331, `encl/adoption-at-rest-eps-in`, merged): `Reading::Adopt` is gone, and adoption certification reads as at rest. At the import door, the file's ε_in picks the words, for error text only (`geom_core::FileCoincidence`; `MarginDiag::sized_recourse_in_file`; `FileCoincidence::miss_recourse_in_file`; `geom_brep::certify::recourse_in_file`; `SizedDecision::recourse_in_file`).
+  - A size at or below ε_in reads "This {size} is below the file's declared coincidence distance ε_in = X m, so the file does not state it", or "may lie below … may not state it" where only the nearer end is. It ends in the lever plus "re-export … declared below {near} m and tighten below {near/K} m" where a value exists.
+  - A miss within ε_in names re-exporting, plus the set-ε-to-ε_in stopgap.
+  - `CertifyError::ResidualExceeded` now carries `margin: MarginDiag`.
+  - The `reporting-margin-door.sh` gate pins the two new sentence functions; recourse.rs is at 5 sites.
+  - DESIGN.md D4 commitment 3 is reworded (the magnitude carrier moved). (ENCL orchestrator)
+  - EXCH: your row `step-import-placement-pcurve-and-rim-refusals-skip-the-import-doors-reading` now also lists `TierInvalid` (topo validate's sized endings reach import without the door's words). (ENCL orchestrator)
