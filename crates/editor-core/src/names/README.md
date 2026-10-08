@@ -19,7 +19,7 @@ the name↔entity table and re-resolution is a lookup, never a match.
 | N2 discriminators — `Borders` over the kernel's record of what a boolean discarded, `Keeps`, `Ends`, the crossing's sense and the same-sense ordinal's predicates; tie propagation | `borders.rs`, `discriminate.rs`; `defer.rs` |
 | A path's canonical form: its name-ordered positions (N3 sets, `Borders` walls, `Keeps` edges, `Ends` pairs, a junction's lines, a union seam's sides), and what ordering a union seam does to the crossings ranked along it | `canonical.rs`, which the mint, the union's collapse and every rewrite of a published name end in; `seam_pair.rs` (which seam line a rank lies on) |
 | N5 `ResolveError`, `Diagnosis`, tombstones, offers; diff engine; hit-testing; `Rebind` | `crates/editor-core/src/resolve/mod.rs`; `resolve/vdiff.rs`; `resolve/hit.rs`, `resolve/pick.rs`; `edit.rs` |
-| N6 `GeomSource` | `crates/topo/src/source.rs`; consumers `crates/topo/src/merge_faces.rs`, `crates/topo/src/boolean/plane_eq.rs` |
+| N6 a recorded cell's read and name; the walk from them to the minting node | `crates/editor-core/src/coincide.rs` (`NamedCell`, `construction`) |
 | Which node minted a named entity (`NameOrigin`); name → geometry (`denotation`, `face_frame`, ...) | `attribute.rs`; `interrogate.rs` |
 | Selectors, geometric filters, detect/declare | `select.rs`, `geompred.rs`, `flush.rs`; design in `docs/SELECT-DESIGN.md`, usage in `docs/guide/selecting.md` |
 
@@ -568,18 +568,12 @@ tombstone, never a key. N3's offers ride beside the verbatim error in
 `ResolutionFailure::offers`. The automatic rebinding menu is empty: the only
 repair is `DocEdit::Rebind { from, to }`, recorded once, no alias table.
 
-**N6 — Recipe-source identity retires bit identity.** Every surface, curve and
-point description carries `GeomSource { node, expr, orient }` beside the arena; a
-transform composes into `expr` (`SourceExpr::Placed`), `revert` flips `orient`
-(`rev ∘ rev = id`). Same source is syntactic identity of the triple. Theorem:
-same `GeomSource` ⇒ bit-identical descriptions (D9); the converse is not
-claimed, so equal bits without a shared source stay unglued. The declared
-coincidence rung is this lookup (`source::surface_declaration`, whose source rung
-`source::source_declaration` is also `oriented_plane_eq`'s rung 1); the bit
-comparison survives only in the debug assertions built on `crates/topo/src/source.rs`'s
-bit witnesses (`surface_bits_witness`, `data_bits_witness`), and the gate
-`scripts/gates/bit-identity-consumer.sh` keeps the production allowlist empty.
-Identity holds per evaluation against the current document only.
+**N6 — A cell's construction is read from the document.** A recorded
+cell is named by the read it entered the deciding operation through and its
+name there. The door reads its carrier at that name from the symbolic
+evaluation (D10, Coincidence); a pass-through placement adds no name segment
+(N1), so the read, not the name, carries where the cell was placed. The kernel
+carries no recipe provenance of a description.
 
 **N7 — The topology-change sites, exhaustively.** (i) structural parameter
 change, (ii) reified predicate flip, N2 discriminators included, (iii) recipe
