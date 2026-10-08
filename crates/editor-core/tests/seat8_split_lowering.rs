@@ -185,13 +185,18 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// `wrap` (the wrap edge, D1): the digest feeds each curve's `Debug`,
 /// whose field name moved; with `wrap: ` read back as `seam: ` the feed
 /// reproduces every old constant, so no evaluation moved.
+///
+/// RE-BLESSED for INTENT-LITERALS PR D (`Expr` holds no float):
+/// `kitchen_sink` alone, whose formulas hold written quantities that
+/// now mint variables of their own, so its ids moved. No outcome or
+/// point moved (the id-free fence held).
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
         ("cut_cylinder", 0x8588_4d29_fcc5_c898u64),
         ("part_select", 0xe059_8478_66a9_a530),
-        ("kitchen_sink", 0x1774_0781_e388_7ee4),
+        ("kitchen_sink", 0xe7d9_59ee_982e_fc27),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()

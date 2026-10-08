@@ -2079,3 +2079,44 @@ Filed from it: the forward-member row (doors), the u64-token residue
 merged second after #4228 and re-measured exactly the pins #4228 moved.
 The name row is closed.
 
+## 2026-10-07 — PR 4269: a vertex reads every key fused into it (P0)
+
+This fixes a regression from #4203. Leaning wedges' unions refused the
+unclassified-crossing emission in the 78 member orders whose first fold
+step unions two adjacent wedges.
+
+The cause was that `fused_partners` read the zips' fusions one hop deep.
+`split_cones` leaves per-cone copies that chain two fusions, so B's keys
+never reached the pinch vertex.
+
+Review asked for three things, all done:
+- partners nearest first, so every one-hop identity holds;
+- rows with mutation evidence;
+- a measurement: no corpus name moves.
+
+## 2026-10-07 — PR 4278: crossings of one NURBS piece rank by its parameter
+
+A crossing point is read along the piece's chord. The reading is used
+only when every control step shaping the piece advances along the
+chord, which makes the piece a graph over its chord, so the readings
+order as the parameters do.
+
+Review confirmed the argument and caught two things, both fixed: the
+certificate escalated where main tied, and no row checked the certificate.
+
+Filed from the review: K > 2 is unenforced (flux), and N2 states only
+part of the tie rule (emit). The lane also filed a swaying-loft refusal
+(nurbs) and the flush reading's NURBS gap (emit).
+
+## 2026-10-07 — PR 4281: merged sets are flat through FromMember (N3)
+
+A union over a union, or over a pair boolean, published an inner merge as
+one constituent. Merged sets now peel `FromA`, `FromB` and `FromMember`
+in one place. `Parents` and `member_edge` read constituents, and
+`face_descends_from` counts descent from a constituent.
+
+Review caught two things: an overstated PR claim (main never dropped
+declarations silently) and the untested pair-boolean case, which now has
+a row that is red on main. The wrong cascade diagnosis is filed as
+`a-vanished-merged-name-is-diagnosed-a-cascade-through-its-retired-constituent`.
+

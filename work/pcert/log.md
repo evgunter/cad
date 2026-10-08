@@ -692,3 +692,23 @@ coincidence is now a margined verdict (no declarations), checked by the
 - **Why it goes to Ev:** the route rewrites C4's `OnLocusHull` sentence, which Ev worded on PR 3781, and the sphere circle's Hermite sentence, which landed with 3733 without an `[ev]` review. PR 4261 carries the diff and fork-log row 85.
 - **Still Ev's:** A versus A′ (whether the sphere's general circle leaves the Hermite route); both designers lean A. The P1/P2 question is in the PR body.
 - **Off-question findings, filed:** `no-fitted-class-misuse-is-excused-by-not-owed`, `site-rows-derive-through-chart-pcurve-bypassing-the-routed-arm` and `on-locus-hull-is-named-for-charts-whose-metres-composite-refuses`. The excusal-fixture row's `m6_2` claim is corrected.
+
+## 2026-10-07 — PR 4268 merged (6f5c5224): the LINE seam carries its chart row's refusal
+
+- `line-seam-boundary-row-refusal-discarded-as-iso-unsupported` (P2) is closed. The LINE-seam arm now answers `ChartRow { source }`, as its sibling arms do.
+- **The sweep found the same discard in SSI's `Pass::curve`, which was fixed.** `SsiError` gains `ChartRow`, numbered in SSI's roster, and the fitted lane maps it through to pcert's `ChartRow`.
+- **A third site was filed for SSI** (P3): `ssi-one-arc-side-readers-discard-the-side-rows-refusal`.
+- **The test the brief asked for cannot exist:** a mismatched net cannot reach the arm. A source-preservation test stands in for it.
+- **Review:** orchestrator's read (an S unit, a one-line repair plus its sibling).
+- `[ev]` PR 4261 (spline-carrier route) is still awaiting Ev.
+
+## 2026-10-08 — Ev rules on 4261; merged (529a47bd); projected-image implementer dispatched
+
+- **Ev's question:** first asked whether the PR concerned the intensional description or the cache. Answered: the cache, and D2 is unchanged.
+- **Ev's ruling** ("ok all the recommendations sound good!"):
+  - the projected image goes on every analytic chart, with the sphere's general circle included (A);
+  - `OnLocusHull` and the Hermite route retire on analytic charts;
+  - the tube belongs to the edge's certificate;
+  - P1 is kept.
+- **Record:** fork-log row 89 is completed (renumbered from 85 at merge, because main took rows 85–88).
+- **Implementer:** session_01Ht23dQzhB1yisWXxau9tZF, on branch `pcert/projected-image` from 981fd34e. It is an H unit, with at most two PRs, and gets a dual review. It first establishes where the tube lives at rest.

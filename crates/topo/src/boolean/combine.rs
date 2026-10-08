@@ -67,6 +67,8 @@ use geom_core::Tol;
 pub(crate) struct GraftMap {
     /// Source vertex → result vertex.
     pub vertices: SecondaryMap<VertexKey, VertexKey>,
+    /// Source point → result point.
+    pub points: SecondaryMap<PointKey, PointKey>,
     /// Source face → result face.
     pub faces: SecondaryMap<FaceKey, FaceKey>,
     /// Source edge → result edge (naming emission, M4 PR 3).
@@ -361,6 +363,7 @@ impl GraftMap {
         }
         Self {
             vertices: chain(&self.vertices, &next.vertices),
+            points: chain(&self.points, &next.points),
             faces: chain(&self.faces, &next.faces),
             edges: chain(&self.edges, &next.edges),
             dead_edges: self
@@ -895,6 +898,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
 
     let map = GraftMap {
         vertices,
+        points,
         faces,
         edges,
         dead_edges,

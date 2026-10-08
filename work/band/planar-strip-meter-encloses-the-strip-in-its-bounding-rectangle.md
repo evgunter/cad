@@ -24,3 +24,19 @@ predicate 2, whose closed form it is) though it would carve. Conservative
 Close: meter against the quadrilateral itself — its four edges' half
 planes, an edge missing it when it lies wholly outside one of them —
 with a row that builds such a support.
+
+## The same shape, a second time (2026-10-07)
+
+Found by the sweep of
+`ruled-cut-off-builds-a-bore-wholly-inside-the-removed-sliver`.
+`strip_clearance`'s margin is `max` over the four slab terms, each
+over the WHOLE edge. Even against the rectangle itself, then, a
+straight edge that misses it by passing its corner diagonally (outside
+the `m` slab at one end, outside the `d` slab at the other) reads
+not-clear. The close above, "an edge missing it when it lies wholly
+outside one of them", keeps that gap for the quadrilateral as well. The
+cut-off's cap meter closed the same gap for straight edges by reading
+the edge point by point (`CapSliver::line_clearance`,
+`crates/sweep/src/blend/open/end_face.rs`): the least, over the
+segment, of the largest term, at the segment's ends and the terms'
+pairwise crossings. For half-planes alone, every crossing is linear.

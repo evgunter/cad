@@ -1819,6 +1819,7 @@ fn expression_text_door_tags_are_stable() {
     assert_eq!(tag(&refuse("(1 m 2 m)")), "unexpected_token");
     assert_eq!(tag(&refuse("1 m 2 m")), "trailing_input");
     assert_eq!(tag(&refuse("99999999999999999999999")), "integer_overflow");
+    assert_eq!(tag(&refuse("2/3.5")), "ratio_part_not_integer");
     assert_eq!(tag(&refuse("1 furlong")), "unknown_unit");
     assert_eq!(tag(&refuse("hypot(1, 2)")), "unknown_function");
     assert_eq!(tag(&refuse("sin(1 rad, 2 rad)")), "wrong_arity");
@@ -1903,7 +1904,7 @@ fn expression_evaluation_tags_are_stable() {
     // The names are read against the document, as `Document.eval` reads
     // them.
     let parse_in = |doc: &ProfileDoc, src: &str| {
-        doc.lowered(&parse(src)).map_err(|fault| match fault {
+        doc.resolve(&parse(src)).map_err(|fault| match fault {
             pncad::document::LowerFault::Name(fault) => fault,
             other => panic!("a parsed formula reads no fresh entry: {other}"),
         })
@@ -1980,9 +1981,7 @@ fn expression_evaluation_tags_are_stable() {
     // caught at the boundary.
     let zero = scl(0.0);
     let one = len(1.0);
-    let pole = lengths
-        .lowered(&pncad::document::Formula::div(one, zero).expect("a scalar divisor is legal"))
-        .expect("a literal lowers");
+    let pole = pncad::document::Formula::div(one, zero).expect("a scalar divisor is legal");
     assert_eq!(
         tag(&eval(&pole, &bound).expect_err("the pole refuses at the boundary")),
         "non_finite_result"
@@ -2049,8 +2048,8 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
     // without one refuses as a missing field before the rebuild runs at
     // all — which is a refusal about the schema, not about dimensions,
     // and would make every case below prove the wrong thing.
-    let length = serde_json::json!({ "Literal": { "value": 1.0, "dim": "Length", "unit": "m" } });
-    let angle = serde_json::json!({ "Literal": { "value": 1.0, "dim": "Angle", "unit": "rad" } });
+    let length = serde_json::json!({ "Quantity": { "value": 1.0, "dim": "Length", "unit": "m" } });
+    let angle = serde_json::json!({ "Quantity": { "value": 1.0, "dim": "Angle", "unit": "rad" } });
     let cases = [
         ("mismatch", serde_json::json!({ "Add": [length, angle] })),
         (
@@ -2066,13 +2065,21 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
         (
             "unknown_display_unit",
             serde_json::json!({
-                "Literal": { "value": 1.0, "dim": "Length", "unit": "furlong" }
+                "Quantity": { "value": 1.0, "dim": "Length", "unit": "furlong" }
             }),
+        ),
+        (
+            "ratio_not_reduced",
+            serde_json::json!({ "Ratio": { "num": 2, "den": 4 } }),
+        ),
+        (
+            "constant_out_of_range",
+            serde_json::json!({ "Ratio": { "num": 1, "den": 0 } }),
         ),
         (
             "display_unit_mismatch",
             serde_json::json!({
-                "Literal": { "value": 1.0, "dim": "Angle", "unit": "mm" }
+                "Quantity": { "value": 1.0, "dim": "Angle", "unit": "mm" }
             }),
         ),
     ];
@@ -2081,7 +2088,7 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
         let mut mutated = saved.clone();
         assert!(
             replace_first_literal(&mut mutated, &expr),
-            "{arm}: the save body has no literal expression to replace — \
+            "{arm}: the save body has no written quantity to replace — \
              the wire shape moved and this probe was about to pass vacuously"
         );
         let text = format!(
@@ -2109,14 +2116,14 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
     }
 }
 
-/// Replaces the first single-key `Literal` object found in a
+/// Replaces the first single-key `Quantity` object found in a
 /// depth-first walk. Returns whether one was found — a probe that
 /// silently replaced nothing would assert nothing.
 #[cfg(test)]
 fn replace_first_literal(value: &mut serde_json::Value, with: &serde_json::Value) -> bool {
     match value {
         serde_json::Value::Object(map) => {
-            if map.len() == 1 && map.contains_key("Literal") {
+            if map.len() == 1 && map.contains_key("Quantity") {
                 *value = with.clone();
                 return true;
             }
@@ -4776,11 +4783,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "escalated",
             "face_clearance",
             "face_clearance_uncertified",
+            "inside_out_operand",
             "nonpositive_size",
             "op",
             "radius_headroom",
             "repeated_edge",
             "ring_clearance",
+            "scaffolding_operand",
             "spine_irregular",
             "spine_unsupported",
             "surgery_invariant",
@@ -4836,6 +4845,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "pcurves",
             "pieces",
             "pierce_runs_nested",
+            "pinch_cones_on_separate_keys",
             "point_in_face_refused",
             "point_split_carrier_unsupported",
             "poisoned_carrier_datum",
@@ -5132,7 +5142,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unresolved_var",
             "var_kind_mismatch",
         ],
-        delegates: &[],
+        delegates: &["lower_fault_tag"],
     },
     TagEntry {
         function: "eval_reason_tag",
@@ -5156,6 +5166,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "expr_dimension_error_tag",
         values: &[
+            "constant_out_of_range",
             "count_is_integer",
             "count_needs_explicit_promotion",
             "display_unit_mismatch",
@@ -5165,6 +5176,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "nested_too_deep",
             "non_finite",
             "not_count",
+            "ratio_not_reduced",
             "trig_needs_angle",
             "unknown_display_unit",
         ],
@@ -5319,6 +5331,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "stacking_escalated",
         ],
         delegates: &[],
+    },
+    TagEntry {
+        function: "lower_fault_tag",
+        values: &["quantity_unminted"],
+        delegates: &["fresh_fault_tag", "name_fault_tag"],
     },
     TagEntry {
         function: "maintenance_tag",
@@ -5626,6 +5643,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "dimension",
             "integer_overflow",
             "malformed_number",
+            "ratio_part_not_integer",
             "trailing_input",
             "unexpected_char",
             "unexpected_end",
@@ -6524,6 +6542,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // the ambiguity band exactly as a resolution or a profile's
     // structure does — the same verdict, undecided at this ε.
     ("indeterminate", 3),
+    // One fact for the boolean and the blends: the operand gate
+    // (`topo::Unfinished::InsideOut`) found material wound negative.
+    ("inside_out_operand", 2),
     ("instance", 2),
     ("io", 2),
     ("join", 2),
@@ -6568,6 +6589,8 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("poisoned", 2),
     ("profile", 2),
     ("revolve", 2),
+    // One fact, as `inside_out_operand`: `topo::Unfinished::Scaffolding`.
+    ("scaffolding_operand", 2),
     ("shell", 2),
     ("skin", 2),
     ("sliver_join", 2),

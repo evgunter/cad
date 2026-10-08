@@ -16,8 +16,8 @@
 use geom_core::{Band, Point2, Point3, Tol};
 use sweep::Revolution;
 use sweep::blend::{BlendError, BlendRequest, fillet_edges};
-use sweep::test_support::{band_reach, corners, revolved_about_y, rim_arcs_at};
-use topo::{Body, mass_properties, validate_geometric};
+use sweep::test_support::{band_reach, corners, finished, revolved_about_y, rim_arcs_at};
+use topo::{AtRestBody, Body, mass_properties, validate_geometric};
 
 use crate::common::cavity::{brick, cavity_edges, rod, vented_cavity};
 
@@ -29,30 +29,30 @@ fn band() -> Band {
     Band::linear(tol()).expect("the witness band")
 }
 
-fn fuse(what: &str, a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
+/// The union of a finished `a` and the fixture `b`, finished.
+fn fuse(what: &str, a: &AtRestBody<f64>, b: &Body<f64>) -> AtRestBody<f64> {
     let t = tol();
-    let a = sweep::test_support::finished(&format!("{what}: the first operand"), a.clone(), t);
     let b = sweep::test_support::finished(&format!("{what}: the second operand"), b.clone(), t);
-    topo::union(&a, &b, t)
+    topo::union(a, &b, t)
         .unwrap_or_else(|e| panic!("{what}: the union succeeds: {e:?}"))
         .body()
         .unwrap_or_else(|| panic!("{what}: the union leaves material"))
         .body
         .clone()
-        .into_body()
 }
 
 /// [`vented_cavity`] with an island standing `gap` off every cavity wall
 /// but the ceiling, on a round stem of radius `0.1` through the floor:
 /// one solid, one shell.
-fn island_in_vented_cavity(gap: f64) -> Body<f64> {
+fn island_in_vented_cavity(gap: f64) -> AtRestBody<f64> {
     let lo = 1.0 + gap;
     let island = brick(
         Point3::new(lo, lo, lo),
         Point3::new(4.0 - lo, 4.0 - lo, 2.4),
     );
     let stem = rod(Point2::new(2.0, 2.0), 0.1, 0.9, lo + 0.05);
-    fuse("island", &fuse("stem", &vented_cavity(), &stem), &island)
+    let cavity = finished("the cavity", vented_cavity(), tol());
+    fuse("island", &fuse("stem", &cavity, &stem), &island)
 }
 
 /// Whether `e` is the reach arm of predicate 2 naming a face, and the
@@ -114,7 +114,11 @@ fn the_reach_meters_an_island_that_is_a_second_solid() {
     let cavity = brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0));
     let sealed = crate::common::cavity::cut("cavity", &block, &cavity);
     let island = brick(Point3::new(1.05, 1.05, 1.05), Point3::new(2.95, 2.95, 2.95));
-    let body = fuse("island", &sealed, &island);
+    let body = fuse(
+        "island",
+        &finished("the sealed cavity", sealed, tol()),
+        &island,
+    );
     assert_eq!(body.solids().count(), 2, "the island is a second solid");
     let edges = cavity_edges(&body);
     assert_eq!(edges.len(), 12, "the void shell's twelve edges");
@@ -153,7 +157,11 @@ fn a_co_requested_band_replaces_only_its_own_strip() {
     let cavity = brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0));
     let sealed = crate::common::cavity::cut("cavity", &block, &cavity);
     let island = brick(Point3::new(1.05, 1.05, 1.05), Point3::new(2.95, 2.95, 2.95));
-    let body = fuse("island", &sealed, &island);
+    let body = fuse(
+        "island",
+        &finished("the sealed cavity", sealed, tol()),
+        &island,
+    );
     let mut req = cavity_edges(&body);
     req.extend(crate::common::cavity::edges_with_corners(&body, |p| {
         (p.z - 2.95).abs() < 1e-9
@@ -287,8 +295,13 @@ fn a_sphere_zone_beside_a_band_is_metered_by_its_own_extent() {
         .flat_map(|&(r, y)| rim_arcs_at(&body, r, y))
         .collect();
     assert_eq!(edges.len(), 6, "three rims, two half-arcs each");
-    let f = fillet_edges(&body, &edges, 2.0 * u, tol())
-        .unwrap_or_else(|e| panic!("the dome is clear of the flange's band: {:?}", e.error));
+    let f = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &edges,
+        2.0 * u,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the dome is clear of the flange's band: {:?}", e.error));
     assert_eq!(validate_geometric(&f.body, tol()), Ok(()), "tier 3");
 }
 
@@ -334,7 +347,7 @@ fn a_band_cut_off_at_its_end_faces_refuses_an_island_in_its_reach() {
 /// revolve's round bore, so each flat face is one plane annulus whose
 /// bore is a ring; `Some(h)` cuts a square hole of half-side `h` along
 /// the axis instead, so the ring is a polygon.
-fn washer_in_round_void(gap: f64, bore: Option<f64>) -> Body<f64> {
+fn washer_in_round_void(gap: f64, bore: Option<f64>) -> AtRestBody<f64> {
     let block = brick(Point3::new(-3.0, 0.0, -3.0), Point3::new(3.0, 4.0, 3.0));
     let void = revolved_about_y(
         corners(&[(0.0, 1.0), (1.5, 1.0), (1.5, 3.0), (0.0, 3.0)]),
@@ -359,7 +372,11 @@ fn washer_in_round_void(gap: f64, bore: Option<f64>) -> Body<f64> {
             crate::common::cavity::cut("bore", &disk, &hole)
         }
     };
-    let body = fuse("washer", &sealed, &washer);
+    let body = fuse(
+        "washer",
+        &finished("the sealed void", sealed, tol()),
+        &washer,
+    );
     assert_eq!(body.solids().count(), 2, "the washer is a second solid");
     body
 }

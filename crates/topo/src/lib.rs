@@ -217,6 +217,7 @@ mod review_m1_pr3;
 mod review_m1_pr4;
 #[cfg(test)]
 pub(crate) mod review_m1_pr5_internal;
+pub(crate) mod ring_path;
 #[cfg(test)]
 mod row_walk_proofs;
 // The shared vertex-neighborhood sector modules — top-level siblings
@@ -308,10 +309,10 @@ pub mod test_support {
     /// ([`crate::test_support_meeting`]).
     pub mod meeting {
         pub use crate::test_support_meeting::{
-            Hole, MEET, PLATE, Point, Pose, arch, at, corners_disjoint, cycles_of, ell,
-            ell_and_wedges, four_wedges, inner_rows, leaned, notch, notch_rows, orders, posed_box,
-            posed_boxes, posed_prism, posed_pyramid, poses, shape, three_wedges, two_wedges, wedge,
-            wedges_on_one_side,
+            Hole, MEET, PLATE, Point, Pose, apex_pyramid, arch, at, bearing, corners,
+            corners_disjoint, cycles_of, ell, ell_and_wedges, four_wedges, inner_rows, leaned, mix,
+            nest, nest_polygon, notch, notch_rows, orders, posed_box, posed_boxes, posed_prism,
+            posed_pyramid, poses, shape, three_wedges, two_wedges, wedge, wedges_on_one_side,
         };
     }
 
@@ -888,7 +889,7 @@ pub use splitting::{
 pub use transform::{TransformError, check_rigid, not_rigid_reading, transform_rigid};
 pub use validate::{
     AtRestBody, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark, RingContact,
-    RingPairContact, StaleDeclaration, ValidationError, WedgeCheck, contact_marks,
+    RingPairContact, StaleDeclaration, Unfinished, ValidationError, WedgeCheck, contact_marks,
     contact_marks_structural, validate, validate_closed, validate_geometric,
     validate_geometric_certificate, validate_geometric_certificate_structural,
     validate_geometric_structural, validate_pseudomanifold, validate_pseudomanifold_certificate,

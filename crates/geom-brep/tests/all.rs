@@ -77,6 +77,8 @@ mod cert5_r1_patch_probes;
 #[path = "chart_box_span.rs"]
 mod chart_box_span;
 
+#[path = "axis_rows_read_as_one_sum.rs"]
+mod axis_rows_read_as_one_sum;
 #[path = "curved_torus_arc_residual.rs"]
 mod curved_torus_arc_residual;
 #[path = "cylinder_green_conditioning.rs"]
@@ -267,6 +269,8 @@ mod mesh12_saturated_span;
 #[path = "pcurve_mirror_v.rs"]
 mod pcurve_mirror_v;
 
+#[path = "one_sum_differential.rs"]
+mod one_sum_differential;
 #[path = "pcurve_spiric.rs"]
 mod pcurve_spiric;
 #[path = "r2_mesh7_door_probes.rs"]
