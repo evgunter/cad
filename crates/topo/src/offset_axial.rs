@@ -771,7 +771,8 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
     if let Err(errors) = crate::validate::validate_closed(&staged) {
         return Err(ReplaceFaceError::ResultNotClosed { errors });
     }
-    let joins = crate::replace_face::staged_join(&mut staged, join, tol)?;
+    let joins =
+        crate::replace_face::staged_join(&mut staged, join, tol, &|v| scope.holds_vertex(v))?;
     body.adopt(staged);
     Ok(joins)
 }
