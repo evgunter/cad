@@ -53,12 +53,20 @@ finds the commit that wrote it, and its PR shows whether Ev asked for it in
 Ev's own words or approved agent-written text in passing. Say which, and weigh
 it accordingly.
 
-**A redesign governs what it replaced** (Ev, PR 4220). When a ratified
-redesign (today D10) and an earlier instruction appear to contradict each
-other, the redesign text is the more important: lean towards changing the
-earlier instruction (a ratified clause, a guide, a spec goal or the code's
-behaviour), and say which one. Do not bend the redesign to fit what it
-replaced.
+**When two instructions conflict in spirit** (Ev, PRs 4220 and 4265). If
+two ratified instructions appear to contradict each other in spirit,
+especially when the later one is explicitly a redesign (today D10), do not
+look for something that technically satisfies both. Your options should be
+coherent final states, each of which changes one instruction or both, and
+should say which. A redesign is the more important of the two: lean towards
+changing what it replaced (a ratified clause, a guide, a spec goal or the
+code's behaviour).
+
+**Not understanding a rule is a reason to change it.** If you cannot see why
+a ratified instruction is the way it is, propose changing it, in substance or
+at least in its text, so that the principle underneath is stated. Propose
+that clarification explicitly, as you would a design fork. Do not write your
+own guess at the principle into ratified text.
 
 ## 3. Understand the semantics
 
