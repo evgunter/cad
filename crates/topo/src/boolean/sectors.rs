@@ -3461,6 +3461,33 @@ mod tests {
         );
     }
 
+    /// **An arc's side of a short bound is read at the bound's reach**:
+    /// a bound 1 mm long, 1e-7 rad off the plane through the direction
+    /// and the reference, each 1 m out. Moving the bound's far point by
+    /// 1e-10 m puts it on that plane, so the reading is in band; read
+    /// at the direction's reach and the reference's arm alone, it was
+    /// decided. A pin on the margin, not a class: the faces either side
+    /// of the bound read it alike, so the parity holds (PR 4289's third
+    /// review).
+    #[test]
+    fn an_arcs_side_of_a_short_bound_is_read_at_the_bounds_reach() {
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let chord = |far: Vec3<f64>| Reach::Chord {
+            base: o,
+            far: o + far,
+        };
+        let d = Vec3::new(1.0, 0.0, 0.0);
+        let arc = GreatArc {
+            dir: d,
+            reach: chord(d),
+            p: Vec3::new(0.0, 1.0, 0.0),
+            p_arm: 1.0,
+        };
+        let b = Vec3::new(0.6, 0.6, 1e-7).normalize();
+        let read = arc_side(arc, b, chord(b * 1e-3), 1.0, fuzz_band());
+        assert!(!matches!(read, Ok(Some(_))), "a 1 mm bound, read {read:?}");
+    }
+
     /// **An arc's side of a bound is not read off the determinant's
     /// rounding**: a direction, a reference and a bound whose far points
     /// are exactly coplanar (`b = 1e6·p + d`, integers), the bound far
