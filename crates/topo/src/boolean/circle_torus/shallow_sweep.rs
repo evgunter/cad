@@ -74,9 +74,13 @@ impl Pose {
         }
     }
 
-    /// The door's certified roots as `(lo, hi)` parameter pairs, or what
-    /// it answered instead.
-    fn door<T: Decide + Bounds>(&self, band: Band) -> Result<Vec<(f64, f64)>, String> {
+    /// The door's certified roots as `(lo, hi)` parameter pairs (`pair`
+    /// reads one), or what it answered instead.
+    fn door<T: Decide>(
+        &self,
+        band: Band,
+        pair: fn(T) -> (f64, f64),
+    ) -> Result<Vec<(f64, f64)>, String> {
         let at = |x: f64| T::from_f64(x);
         match circle_torus_roots(
             &self.carrier(),
@@ -86,7 +90,7 @@ impl Pose {
             band,
         ) {
             Ok(CircleRoots::Certified { count, thetas }) => {
-                Ok(thetas[..count].iter().map(|t| (t.lo(), t.hi())).collect())
+                Ok(thetas[..count].iter().map(|&t| pair(t)).collect())
             }
             Ok(other) => Err(format!("{other:?}")),
             Err(e) => Err(format!("refused: {e:?}")),
@@ -270,8 +274,8 @@ fn no_certified_root_of_a_shallow_crossing_is_placed_past_the_band() {
                 continue;
             }
             for (lane, got) in [
-                ("f64", pose.door::<f64>(band)),
-                ("Interval", pose.door::<Interval>(band)),
+                ("f64", pose.door(band, |t: f64| (t, t))),
+                ("Interval", pose.door(band, |t: Interval| (t.lo(), t.hi()))),
             ] {
                 judged += 1;
                 refused += usize::from(matches!(&got, Err(w) if !w.starts_with("Miss")));

@@ -196,14 +196,15 @@ fn lifted(pose: &Pose) -> (geom::Curve3<Interval>, geom::Surface<Interval>) {
     (carrier, surface)
 }
 
-/// The door's certified roots as `(lo, hi)` pairs, or what it answered
-/// instead.
-fn answer<T: Decide + Bounds>(
+/// The door's certified roots as `(lo, hi)` pairs (`pair` reads one), or
+/// what it answered instead.
+fn answer<T: Decide>(
     got: Result<CircleRoots<T>, BooleanError>,
+    pair: fn(T) -> (f64, f64),
 ) -> Result<Vec<(f64, f64)>, String> {
     match got {
         Ok(CircleRoots::Certified { count, thetas }) => {
-            Ok(thetas[..count].iter().map(|t| (t.lo(), t.hi())).collect())
+            Ok(thetas[..count].iter().map(|&t| pair(t)).collect())
         }
         Ok(other) => Err(format!("{other:?}")),
         Err(e) => Err(format!("refused: {e:?}")),
@@ -236,23 +237,17 @@ fn no_certified_root_of_a_shallow_ladder_crossing_is_placed_past_the_band() {
             for (lane, got) in [
                 (
                     "f64",
-                    answer(conic_quadric_roots(
-                        &pose.carrier,
-                        pose.t0,
-                        pose.t1,
-                        &pose.surface,
-                        band,
-                    )),
+                    answer(
+                        conic_quadric_roots(&pose.carrier, pose.t0, pose.t1, &pose.surface, band),
+                        |t: f64| (t, t),
+                    ),
                 ),
                 (
                     "Interval",
-                    answer(conic_quadric_roots(
-                        &carrier_i,
-                        at(pose.t0),
-                        at(pose.t1),
-                        &surface_i,
-                        band,
-                    )),
+                    answer(
+                        conic_quadric_roots(&carrier_i, at(pose.t0), at(pose.t1), &surface_i, band),
+                        |t: Interval| (t.lo(), t.hi()),
+                    ),
                 ),
             ] {
                 judged += 1;

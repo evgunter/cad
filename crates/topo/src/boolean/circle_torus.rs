@@ -1647,10 +1647,11 @@ mod tests {
     ];
 
     /// The door on a [`SHALLOW_POSES`] row: its certified roots as
-    /// `(lo, hi)` pairs, or what it answered instead.
-    fn shallow_door<T: Decide + Bounds>(
+    /// `(lo, hi)` pairs (`pair` reads one), or what it answered instead.
+    fn shallow_door<T: Decide>(
         v: &[f64; 20],
         band: Band,
+        pair: fn(T) -> (f64, f64),
     ) -> Result<Vec<(f64, f64)>, String> {
         let at = T::from_f64;
         let p = |i: usize| Point3::new(at(v[i]), at(v[i + 1]), at(v[i + 2]));
@@ -1667,7 +1668,7 @@ mod tests {
         };
         match roots_of(p(2), w(5), at(v[8]), w(9), at(v[0]), at(v[1]), &torus, band) {
             Ok(CircleRoots::Certified { count, thetas }) => {
-                Ok(thetas[..count].iter().map(|t| (t.lo(), t.hi())).collect())
+                Ok(thetas[..count].iter().map(|&t| pair(t)).collect())
             }
             Ok(other) => Err(format!("{other:?}")),
             Err(e) => Err(format!("refused: {e:?}")),
@@ -1695,8 +1696,11 @@ mod tests {
                 (turn.min(TAU - turn) - half).max(0.0) * rho
             };
             for (lane, got) in [
-                ("f64", shallow_door::<f64>(&v, band)),
-                ("Interval", shallow_door::<Interval>(&v, band)),
+                ("f64", shallow_door(&v, band, |t: f64| (t, t))),
+                (
+                    "Interval",
+                    shallow_door(&v, band, |t: Interval| (t.lo(), t.hi())),
+                ),
             ] {
                 let roots = match got {
                     Ok(roots) => roots,
