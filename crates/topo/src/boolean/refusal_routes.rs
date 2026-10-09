@@ -896,14 +896,16 @@ pub enum SphereQuestion {
     /// inside the larger (`bool_sphere_sphere_nested`): a positive
     /// clearance passes, and so do a negative one and a decided zero
     /// whose two spheres' faces the section certificate certifies apart.
-    /// A crossing whose circle lies inside both faces, and a decided
-    /// zero touching on both faces, refuse (`BooleanError::SpheresMeet`
-    /// is its decided refusal).
+    /// A crossing whose circle lies inside both faces re-cuts both
+    /// spheres, and a decided zero touching on both faces refuses
+    /// (`BooleanError::SpheresMeet` is its decided refusal).
     Nested,
-    /// Whether the plane faces one sphere pokes through are parallel
-    /// (`bool_sphere_escape_parallel`): only a zero passes (a single
-    /// re-chart serves parallel planes), so no smaller tolerance
-    /// decides a margin passing.
+    /// Whether the escapes one closed sphere group re-charts for share
+    /// an axis: plane faces' normals, other spheres' centre lines
+    /// (`bool_sphere_escape_parallel`). Only a zero is one re-chart; a
+    /// definite lean cuts sphere escapes in instead, or refuses where a
+    /// plane is among them, so no smaller tolerance decides a margin
+    /// passing.
     EscapeParallel,
     /// Whether the sphere's stored polar axis leans away from the escape
     /// normal it is re-charted onto (`bool_sphere_recut_align`, the

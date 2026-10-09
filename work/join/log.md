@@ -1296,3 +1296,16 @@ The every-root row's eight `Ltop asym` lines build `OK SOUND`.
 - **In flight:** the dual review of PR 4344 (sphere pair, H) on head bf57b509; PR 4345 (wrap-edge, H) is merging main before its dual.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-09: the wrap-edge unit landed (DR-113); main red twice overnight; three small rows dispatched
+
+- **PR 4345 merged** (`9b8ffad9c0`): a wrap edge crossing a planar face is one section site, and the seam zip reads a one-vertex seam's sense from the paired halves' tangents. Dual review DR-113: two APPROVE-WITH-FIXES (0/2/5 and 0/5/6), BILATERAL 7, tally 0, nearest miss the annular tube's `SectionLoopUndecided` (filed). The fix pass closed all eight items. Batteries: 0 lines moved.
+- `a-plane-across-a-one-face-wall-meets-its-wrap-edge-once` is closed. PATHS' `circle-lowers-to-one-segment` was parked on it alone and is now open.
+- **Main red, twice, not this program's:**
+  - PR 4367 left `certified_endpoint_census` counting `offset_fit.rs` at 7 reads where it now has 10. My census row reached main through `a6d0276627`, and PR 4378 closed as empty.
+  - CONTACT-10 (4363) and CONTACT-12 (4372) crossed in `census.rs`, so `topo` stopped compiling. PR 4380/4381 fixed it.
+- **PR 4344** (sphere pair, H): the fix pass took route (ii) with (i)'s pins. Main and PR 4345 are merged in, and DR-114 is the last commit; it merges on green.
+- **Dispatched** `join/three-small-join-rows` (session `session_01FLGAxMAJ9cAzfrRgXMJEU8`, base `5fc6e144fa`). It carries three E rows: the steep-ellipse travel margin, completed null faces across later cuts, and the forced-order lanes' `RingHeld`. Tier: single FULL review (small `join.rs` correctness rows, each fixed, invariant-stated or closed with evidence). Held: `in-band-axis-offset-is-noarm-at-one-arm-and-escalates-at-another`, which is coaxial ground under D10.
+- **[ev] PR 4335:** Ev asked whether the census needs more than a definite minimum distance per pair. Answered: the minimum says whether two cells meet; a shared corner also needs the extent of the in-band set, which stands in for the dimension of where they meet. A clause reword is offered, not pushed.
+
+Signed (JOIN orchestrator).
