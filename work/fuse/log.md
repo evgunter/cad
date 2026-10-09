@@ -701,7 +701,7 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
     - census.rs: #4363 and #4372 crossed. FUSE's #4379 was closed as a duplicate of #4378.
     - the offset_fit endpoint census, since #4367. D ported #4378's row.
   - **Step 3 of the 3881 build order is done.** Steps 1, 2 and 4 landed earlier.
-- 2026-10-09 — `demo-tour-red-on-main-after-blend-surgery-closing-join` closes. PR 4374 re-baselined the tour's die and teapot pins for C's closing join, and both rows pass on main.
+- 2026-10-09 — `demo-tour-red-on-main-after-blend-surgery-closing-join` closes. PR 4374 re-baselined the tour's die and teapot pins for C's closing join, #4374's demos (tour + wild) job ran green, and the teapot row passes on main.
 - 2026-10-09 — `a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made` closes now that the 3881 build order (steps 1–4) is built. Its residue is named on the row: EMIT's refusing orders, conventional-vertex naming, and the curved-join arms.
 - 2026-10-09 — The twelve unpriced residue rows from step 3's lanes are priced.
   - **P1, verb breadth:** curved edge resting on a face (H, design); sliver arc beside a joinable vertex (M, design); census curved lanes beyond circles (H); chart arm on spline iso images (H); spline-carrier join (H).
