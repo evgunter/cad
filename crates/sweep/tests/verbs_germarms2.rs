@@ -243,9 +243,8 @@ fn every_pose_of_the_family_answers_typed_and_pose_independently() {
 /// cylinder pairs at large.
 ///
 /// - Unequal radii: the axes still intersect, so the frame dispatch
-///   names the pinch door, but with no radius evidence (`None`): the
-///   door names neither shape behind those axes and the locus, a space
-///   quartic, routes the general rung.
+///   names the pinch door with the radii decided unequal: the locus, a
+///   space quartic, routes the general rung.
 /// - Skew axes: the locus is a space quartic, canal territory; the
 ///   general rung has not retired, and the dispatch has no arm
 ///   (`GermFrameUnsupported`). Its verdict on this pose is pinned at
@@ -266,11 +265,11 @@ fn the_fenced_poses_keep_their_own_doors() {
         matches!(
             e,
             BooleanError::GermFrameCylinderPinch {
-                evidence: geom_brep::RadiusEvidence::None,
+                equal_radii: false,
                 ..
             }
         ),
-        "unequal radii: the pinch door on the axis relation alone, got {e:?}"
+        "unequal radii: the pinch door, the radii decided unequal, got {e:?}"
     );
     assert_same_door(
         &e,
@@ -305,10 +304,7 @@ fn the_fenced_poses_keep_their_own_doors() {
     // Parallel axes, walls definitely crossing: the rim circle row,
     // whose cap discs are coplanar.
     fn short_of_the_join_at_the_caps(name: &str, e: &BooleanError) {
-        assert!(
-            matches!(e, BooleanError::UndeclaredCoincidence { .. }),
-            "{name}: expected the cap discs' undeclared coincidence, got {e:?}"
-        );
+        panic!("{name}: PROBE {e:?}");
     }
     let tol = Tol::witness();
     let lp = profile::circle(Point2::new(1.2, 0.0), 1.0, tol).unwrap();
@@ -332,7 +328,7 @@ fn the_fenced_poses_keep_their_own_doors() {
     );
 }
 
-/// **`same_door` matches an undeclared coincidence arm for arm.** A
+/// **`same_door` matches an unglued coincidence arm for arm.** A
 /// margin just inside the zero band and one just past it into the
 /// ambiguity band lie closer than a band-width, yet one was decided
 /// zero and the other refused in band: two doors. Two margins inside
@@ -340,18 +336,17 @@ fn the_fenced_poses_keep_their_own_doors() {
 #[test]
 fn same_door_tells_a_decided_zero_from_a_coincidence_in_band() {
     let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
-    let refusal = |m: f64| BooleanError::UndeclaredCoincidence {
+    let refusal = |m: f64| BooleanError::Escalated {
+        decision: topo::BooleanDecision::Coincidence(
+            topo::Coincide::Carriers,
+            topo::DeclarationRead::Moot,
+        ),
         diag: geom_core::Indeterminate {
             margin: geom_core::MarginDiag::value(m * band.zero()),
             band,
-            predicate: Some("bool_plane_offset"),
+            predicate: Some("carrier_unglued_coincidence"),
             terminal_sliver: false,
         },
-        pair: [
-            (topo::Operand::A, topo::FaceKey::default()),
-            (topo::Operand::B, topo::FaceKey::default()),
-        ],
-        relation: topo::PlaneRelation::SameOpposite,
     };
     assert!(
         !same_door(&refusal(0.9), &refusal(1.1)),

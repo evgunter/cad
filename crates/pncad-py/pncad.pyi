@@ -5005,10 +5005,8 @@ class Verdict:
 # REPORT: `Evaluation.find_flush_candidates` answers with them, the
 # caller inspects, and `Node.boolean` / `Node.union`'s `declare=`,
 # `Doc.declare` / `Doc.declare_all` and `DocEdit.set_declare` put
-# inspected findings on a boolean or union as its declared pairs. The
-# same value rides the
-# boolean's refusal menu (`EvaluationError.finding`). Detection and
-# declaration are separate doors ON PURPOSE: no fused
+# inspected findings on a boolean or union as its declared pairs.
+# Detection and declaration are separate doors ON PURPOSE: no fused
 # detect-and-declare door exists.
 
 class PlaneRelation:
@@ -6953,9 +6951,10 @@ class Coincidence:
     `cells` are `(node, name)` pairs: the input node whose table names
     the cell, and the name there (the opaque text the materializers
     answer with); the plane a split cuts with is `(node, None)`.
-    `relation` is `same_oriented`, `same_opposite`, `on_carrier` or
-    `equal_angles`; `site` is `plane_ladder`, `carrier_ladder`,
-    `split_on` or `battery_turn`. `rung` is the door's rung that proved
+    `relation` is `same_oriented`, `same_opposite`, `on_carrier`,
+    `equal_angles`, `tangent` or `seam`; `site` is `plane_ladder`,
+    `carrier_ladder`, `tangent_witness`, `coaxial_sphere`, `split_on` or
+    `battery_turn`. `rung` is the door's rung that proved
     it structural (`same_construction`), or `None`, and then `residual` says
     what separates the two constructions."""
 

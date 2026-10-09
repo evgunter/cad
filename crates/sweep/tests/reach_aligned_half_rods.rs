@@ -19,7 +19,7 @@ use profile::circle_split;
 use sweep::test_support::{extruded, finished, sketch_at};
 use topo::{
     AtRestBody, Body, BooleanBody, BooleanCoincidence, BooleanDeclarations, BooleanError,
-    BooleanResult, Operand, PlaneRelation,
+    BooleanResult,
 };
 
 use core::f64::consts::{FRAC_PI_2, PI};
@@ -161,13 +161,16 @@ fn a_half_rod_stack_takes_a_third_rod() {
     }
 }
 
-/// **Undeclared, or with only the mate declared, the walls refuse** as
-/// an undeclared continuation, at every seam turn.
+/// **Undeclared, or with only the mate declared, the union is the
+/// declared body** (D10): the wall halves are one carrier by margin, so
+/// the boolean glues them as continuations either way, at every seam
+/// turn.
 #[test]
-fn an_undeclared_half_rod_wall_refuses_at_every_seam_turn() {
+fn an_undeclared_half_rod_stack_is_the_declared_union_at_every_seam_turn() {
     for (label, theta) in POSES {
         let (a, b) = (rod(0.0, 0.0), rod(1.0, theta));
         let all = declared(&a, &b);
+        let want = builds(label, topo::union_with(&a, &b, &all, tol()), 2.0 * PI);
         let mut mate = all.clone();
         mate.coincident_faces
             .retain(|f| f.class == BooleanCoincidence::REST);
@@ -175,17 +178,15 @@ fn an_undeclared_half_rod_wall_refuses_at_every_seam_turn() {
             ("undeclared", BooleanDeclarations::default()),
             ("mate only", mate),
         ] {
-            let err = topo::union_with(&a, &b, &d, tol()).expect_err("a wall pair is undeclared");
-            assert!(
-                matches!(
-                    err,
-                    BooleanError::UndeclaredCoincidence {
-                        pair: [(Operand::A, _), (Operand::B, _)],
-                        relation: PlaneRelation::SameOriented,
-                        ..
-                    }
-                ),
-                "{label}, {what}: an undeclared continuation: {err:?}"
+            let got = builds(
+                &format!("{label}, {what}"),
+                topo::union_with(&a, &b, &d, tol()),
+                2.0 * PI,
+            );
+            assert_eq!(
+                format!("{:?}", got.body),
+                format!("{:?}", want.body),
+                "{label}, {what}: the declared body"
             );
         }
     }

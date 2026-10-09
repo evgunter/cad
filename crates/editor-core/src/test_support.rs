@@ -6,7 +6,8 @@
 //! determinant the review rows read the certified one against, the
 //! recipe walks' pass-through classification a row holds against the
 //! evaluator, and the load door's nesting limit a row holds against
-//! what a save writes, and the recipes more than one suite builds.
+//! what a save writes, the recipes more than one suite builds, and the
+//! spelling a content key writes for a slot.
 //!
 //! One home for every reader in this crate and the crates that test
 //! against it: the unit-test modules reach it as `crate::test_support`,
@@ -478,4 +479,19 @@ pub fn spoken_labelled(
 pub fn spoken_name(name: crate::StableName, minter: crate::SpokenNode) -> crate::SpokenName {
     assert_eq!(name.node, minter.id(), "the minter is the name's own node");
     crate::SpokenName::forged(name, minter)
+}
+
+// --- the content key's spelling --------------------------------------
+
+/// **The bytes the content key writes for `node`'s `slot`**: the slot's
+/// variable through the document's definitions, each free variable by
+/// its id (`param_source::feed_content_key`'s encoding) — so two slots
+/// spell equal exactly where they read one expression. `None` where
+/// the node or the slot is absent.
+pub fn slot_spelling(doc: &ProfileDoc, node: RecipeNodeId, slot: crate::SlotId) -> Option<Vec<u8>> {
+    let var = doc.slot(node, slot)?;
+    Some(crate::param_source::var_spelling(
+        &crate::param_source::definitions_of(doc),
+        var,
+    ))
 }

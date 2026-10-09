@@ -68,18 +68,11 @@ fn matching_reads_the_germs_loci() {
     let want = volume(&c) + volume(&p);
     let r = topo::union_with(&c, &p, &wall_decls(&c, &p), tol());
     if let Ok(BooleanResult::Body(bb)) = &r {
-        let declared = bb
-            .naming
-            .merge_skipped
-            .iter()
-            .filter(|s| {
-                matches!(
-                    s.reason,
-                    topo::MergeCoplanarError::DeclaredCarrierUnsupported { .. }
-                )
-            })
-            .count();
-        assert_eq!(declared, 0, "the chord join builds the union");
+        assert!(
+            bb.naming.merge_skipped.is_empty(),
+            "the merge door records no skip: {:?}",
+            bb.naming.merge_skipped
+        );
     }
     assert_sound("peg ∪ collar", r, want);
 }
@@ -129,13 +122,14 @@ fn the_incidence_check_reads_the_whole_site() {
 
 /// **The north-star crosslap** (`demos/tour/src/crosslap.rs`;
 /// `test_north_star.py`'s `TestCrosslapGlued`): two notched beams mated.
-/// With the mate's `SameOpposite` pairs alone declared, the beams' tops
-/// and bottoms flush across the notches are an undeclared continuation,
-/// refused at the reduction. With every finding declared (the mate and
-/// the continuations) the union builds at the scene's oracle, 14 faces,
-/// sound and a legal operand.
+/// With every finding declared (the mate and the continuations) the
+/// union builds at the scene's oracle, 14 faces, sound and a legal
+/// operand. With the mate's `SameOpposite` pairs alone declared, or
+/// nothing, the beams' tops and bottoms flush across the notches glue
+/// as the continuations they are by margin, and the union is the
+/// declared body bit for bit (D10).
 #[test]
-fn the_declared_crosslap_glues() {
+fn the_crosslap_glues_declared_or_not() {
     use sweep::test_support::brick;
     use topo::flush::{declare_all, find_flush_candidates};
     let sub = |beam: topo::Body<f64>, notch: topo::Body<f64>| {
@@ -160,17 +154,6 @@ fn the_declared_crosslap_glues() {
         .filter(|f| f.evidence.relation == topo::PlaneRelation::SameOpposite)
         .cloned()
         .collect();
-    let r = topo::union_with(&a, &b, &declare_all(&mate), tol());
-    assert!(
-        matches!(
-            r,
-            Err(BooleanError::UndeclaredCoincidence {
-                relation: topo::PlaneRelation::SameOriented,
-                ..
-            })
-        ),
-        "the mate alone leaves the continuations undeclared: {r:?}"
-    );
     let r = topo::union_with(&a, &b, &declare_all(&found), tol());
     let faces = r
         .as_ref()
@@ -178,5 +161,16 @@ fn the_declared_crosslap_glues() {
         .and_then(|r| r.body())
         .map(|bb| bb.body.faces().count());
     assert_eq!(faces, Some(14), "every flush pair declared: {r:?}");
+    let want = format!("{r:?}");
     assert_sound("crosslap ∪", r, 1.875);
+    for (posture, d) in [
+        ("the mate alone", declare_all(&mate)),
+        ("undeclared", topo::BooleanDeclarations::none()),
+    ] {
+        assert_eq!(
+            format!("{:?}", topo::union_with(&a, &b, &d, tol())),
+            want,
+            "{posture}: the declared union"
+        );
+    }
 }

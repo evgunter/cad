@@ -4,15 +4,15 @@
 //! CONTINUATION (`crates/topo/README.md`, C4's continuation clause and
 //! the crossing layer's one-sided cover).
 //!
-//! The rows: an undeclared continuation refuses at the reduction on a
-//! plane and on a cylinder; a declared one merges (planar) or ships as
-//! the recorded curved skip; a `Rest` on an aligned pair and a
+//! The rows: an undeclared continuation glues to the declared body on
+//! a plane and on a cylinder (D10); a declared one merges (planar) or
+//! ships as the recorded curved skip; a `Rest` on an aligned pair and a
 //! continuation on an opposed one are each contradicted; the rounded
 //! stack's tangent wall edges are covered through a structural tangency
 //! on EITHER operand, and a tangency in the middle of an edge builds in
 //! either operand order; and every output is a legal boolean operand.
 //! The rows after them: a kiss or a gap is no continuation; an
-//! overlapping continuation refuses undeclared and builds declared in
+//! overlapping continuation gives the declared outcome undeclared, in
 //! every op; and the declared overlaps that still refuse are pinned at
 //! their typed refusals, each filed.
 
@@ -23,7 +23,7 @@ use profile::{Open, ProfileLoop, RawLoop, Start};
 use sweep::test_support::{extruded, finished, sketch_at};
 use topo::{
     AtRestBody, Body, BooleanBody, BooleanCoincidence, BooleanDeclarations, BooleanError,
-    BooleanOp, BooleanResult, FacePairDeclaration, Operand, PlaneRelation,
+    BooleanOp, BooleanResult, FacePairDeclaration, PlaneRelation,
 };
 
 const W: f64 = 6.0;
@@ -187,30 +187,27 @@ fn union_honest(
     bb
 }
 
-/// The undeclared-continuation refusal, A's face then B's.
-fn refused_continuation(label: &str, err: &BooleanError) -> (topo::FaceKey, topo::FaceKey) {
-    let BooleanError::UndeclaredCoincidence {
-        pair: [(Operand::A, fa), (Operand::B, fb)],
-        relation: PlaneRelation::SameOriented,
-        ..
-    } = *err
-    else {
-        panic!("{label}: an undeclared continuation, A then B: {err:?}");
-    };
-    (fa, fb)
+/// One outcome of a boolean, as its `Debug`: the body bit for bit, an
+/// empty result, or the refusal.
+fn outcome(out: &Result<BooleanResult<f64>, BooleanError>) -> String {
+    match out {
+        Ok(BooleanResult::Body(bb)) => format!("Body({:?})", bb.body),
+        Ok(BooleanResult::Empty) => "Empty".to_owned(),
+        Err(e) => format!("Err({e:?})"),
+    }
 }
 
-/// **An undeclared continuation refuses at the reduction, on a plane
-/// and on a cylinder alike**, naming the pair and its aligned relation.
+/// **An undeclared continuation glues to the declared body, on a plane
+/// and on a cylinder alike** (D10): the walls are one carrier by
+/// margin, so the boolean declares them continuations itself.
 ///
-/// Sharp stack, mating plane only: the refused pair is two flat walls.
-/// Rounded stack, mating plane and the flat walls declared: what is
-/// left undeclared is the corner fillets, and the refused pair is two
-/// cylinders — the refusal the crossing layer's `CurvedPierceUnsupported`
-/// used to stand in for. Rounded stack, mating plane only: it names
-/// the first undeclared wall pair.
+/// Sharp stack, mating plane only: the flat walls are left to the
+/// boolean. Rounded stack, mating plane and the flat walls declared:
+/// the fillet cylinders are. Rounded stack, mating plane only, and
+/// nothing declared at all: every wall pair is. Each is the fully
+/// declared union bit for bit.
 #[test]
-fn an_undeclared_continuation_refuses_on_a_plane_and_on_a_cylinder() {
+fn an_undeclared_continuation_is_the_declared_union_on_a_plane_and_on_a_cylinder() {
     let (p, q) = (plate(sharp(), 0.0), plate(sharp(), 1.0));
     let (mate, walls) = findings(&p, &q);
     assert_eq!(
@@ -218,18 +215,12 @@ fn an_undeclared_continuation_refuses_on_a_plane_and_on_a_cylinder() {
         (1, 4),
         "sharp: the mating plane, and four wall continuations"
     );
-    let err = topo::union_with(&p, &q, &mate, tol()).expect_err("the walls are undeclared");
-    let (fa, fb) = refused_continuation("sharp", &err);
-    assert!(
-        is_plane(&p, fa) && is_plane(&q, fb),
-        "two flat walls: {err:?}"
-    );
-    assert!(
-        walls
-            .coincident_faces
-            .iter()
-            .any(|d| (d.a, d.b) == (fa, fb)),
-        "the refused pair is one the detector offers as a continuation"
+    let want = union_honest("sharp, declared", &p, &q, &with(&mate, &walls));
+    let got = union_honest("sharp, mating plane only", &p, &q, &mate);
+    assert_eq!(
+        format!("{:?}", got.body),
+        format!("{:?}", want.body),
+        "sharp, mating plane only: the declared body"
     );
 
     let (p, q) = (plate(rounded(R), 0.0), plate(rounded(R), 1.0));
@@ -239,15 +230,6 @@ fn an_undeclared_continuation_refuses_on_a_plane_and_on_a_cylinder() {
         (1, 8),
         "rounded: the mating plane, four flat walls and four fillets"
     );
-    let err = topo::union_with(&p, &q, &mate, tol()).expect_err("the walls are undeclared");
-    let (fa, fb) = refused_continuation("rounded, mating plane only", &err);
-    assert!(
-        walls
-            .coincident_faces
-            .iter()
-            .any(|d| (d.a, d.b) == (fa, fb)),
-        "the first undeclared wall pair: {err:?}"
-    );
     let mut flat = mate.clone();
     flat.coincident_faces.extend(
         walls
@@ -256,12 +238,20 @@ fn an_undeclared_continuation_refuses_on_a_plane_and_on_a_cylinder() {
             .filter(|d| is_plane(&p, d.a))
             .copied(),
     );
-    let err = topo::union_with(&p, &q, &flat, tol()).expect_err("the fillets are undeclared");
-    let (fa, fb) = refused_continuation("rounded, fillets undeclared", &err);
-    assert!(
-        is_cylinder(&p, fa) && is_cylinder(&q, fb),
-        "two fillet cylinders: {err:?}"
-    );
+    assert_eq!(flat.coincident_faces.len(), 5, "rounded: the flat walls");
+    let want = union_honest("rounded, declared", &p, &q, &with(&mate, &walls));
+    for (posture, d) in [
+        ("fillets undeclared", flat),
+        ("mating plane only", mate),
+        ("undeclared", BooleanDeclarations::default()),
+    ] {
+        let got = union_honest(&format!("rounded, {posture}"), &p, &q, &d);
+        assert_eq!(
+            format!("{:?}", got.body),
+            format!("{:?}", want.body),
+            "rounded, {posture}: the declared body"
+        );
+    }
 }
 
 /// **A declared continuation merges a planar pair and ships a curved
@@ -995,7 +985,7 @@ fn a_kiss_or_a_gap_is_no_continuation() {
     }
 }
 
-/// One row of `overlapping_continuations_refuse_undeclared_and_build_declared`:
+/// One row of `overlapping_continuations_build_declared_and_undeclared_alike`:
 /// label, the two operands, and the expected volume and face count of
 /// the union, the subtract and the intersect, in that order (`None`:
 /// the result is empty).
@@ -1019,13 +1009,12 @@ const OPS: [(&str, Op); 3] = [
     ("intersect", topo::intersect_with::<f64>),
 ];
 
-/// **An overlapping continuation refuses undeclared and builds
-/// declared, in every op.** C4: a continuation is one carrier with
-/// aligned senses, whether the two faces abut or overlap. Each pose
-/// refuses `UndeclaredCoincidence` on an aligned pair undeclared and
-/// with only its `Rest` findings, and builds exact with every finding
-/// declared, in union, subtract and intersect alike. The volumes are box
-/// arithmetic:
+/// **An overlapping continuation builds, declared or not, in every
+/// op.** C4: a continuation is one carrier with aligned senses, whether
+/// the two faces abut or overlap. Each pose builds exact with every
+/// finding declared, in union, subtract and intersect alike, and
+/// undeclared or with only its `Rest` findings it is that outcome bit
+/// for bit (D10). The volumes are box arithmetic:
 ///
 /// - overlapping equal-height plates (6 × 4 and 6 × 2 sharing 3 × 2):
 ///   the tops overlap, as do the bottoms;
@@ -1037,7 +1026,7 @@ const OPS: [(&str, Op); 3] = [
 ///   plate's and its east wall with the step's; their interiors are
 ///   disjoint, so the intersect is empty.
 #[test]
-fn overlapping_continuations_refuse_undeclared_and_build_declared() {
+fn overlapping_continuations_build_declared_and_undeclared_alike() {
     let none = BooleanDeclarations::default();
     let p = brick((0.0, W), (0.0, H), (0.0, 1.0));
     let rows: [ContinuationRow; 4] = [
@@ -1074,20 +1063,14 @@ fn overlapping_continuations_refuse_undeclared_and_build_declared() {
         );
         for ((op_name, op), expect) in OPS.into_iter().zip(expect) {
             let label = format!("{label}, {op_name}");
+            let out = op(&a, &b, &with(&rest, &cont), tol());
             for (posture, d) in [("undeclared", &none), ("Rest only", &rest)] {
-                let err = op(&a, &b, d, tol()).expect_err("an aligned pair is undeclared");
-                assert!(
-                    matches!(
-                        err,
-                        BooleanError::UndeclaredCoincidence {
-                            relation: PlaneRelation::SameOriented,
-                            ..
-                        }
-                    ),
-                    "{label}, {posture}: {err:?}"
+                assert_eq!(
+                    outcome(&op(&a, &b, d, tol())),
+                    outcome(&out),
+                    "{label}, {posture}: the declared outcome"
                 );
             }
-            let out = op(&a, &b, &with(&rest, &cont), tol());
             match expect {
                 Some((volume, faces)) => {
                     builds(&label, out, volume, faces);
@@ -1204,8 +1187,8 @@ fn three_bricks_with_a_reflex_step_fold_in_every_order() {
 /// The rounded plate and a plate of the same outline half as thick,
 /// sunk inside it or flush with its top or bottom, so the thin plate's
 /// walls (fillets included) lie inside the thick one's. Undeclared,
-/// each op refuses `UndeclaredCoincidence`. With every finding
-/// declared, subtract and intersect build at box arithmetic in z over
+/// each op is its declared outcome bit for bit (D10). With every
+/// finding declared, subtract and intersect build at box arithmetic in z over
 /// the outline's area `24 − (4 − π)·R²`: half the thick plate's volume
 /// each, the sunk subtract as two plates of a quarter unit (twenty
 /// faces). A ∪ B refuses `FallbackExtentUnsupported`: no crossing
@@ -1241,16 +1224,10 @@ fn declared_rounded_continuations_inside_a_wall_build_subtract_and_intersect() {
         assert!(rest.coincident_faces.is_empty(), "{label}: no Rest pair");
         let d = with(&rest, &cont);
         for (op_name, op) in OPS {
-            let undeclared = op(&a, &b, &none, tol()).expect_err("undeclared refuses");
-            assert!(
-                matches!(
-                    undeclared,
-                    BooleanError::UndeclaredCoincidence {
-                        relation: PlaneRelation::SameOriented,
-                        ..
-                    }
-                ),
-                "{label}, {op_name}, undeclared: {undeclared:?}"
+            assert_eq!(
+                outcome(&op(&a, &b, &none, tol())),
+                outcome(&op(&a, &b, &d, tol())),
+                "{label}, {op_name}: undeclared is the declared outcome"
             );
         }
         let err = topo::union_with(&a, &b, &d, tol()).expect_err("the union refuses");

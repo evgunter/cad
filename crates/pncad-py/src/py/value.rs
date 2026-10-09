@@ -2618,14 +2618,16 @@ impl Coincidence {
     }
 
     /// What was decided between them: `same_oriented`,
-    /// `same_opposite`, `on_carrier` or `equal_angles`.
+    /// `same_opposite`, `on_carrier`, `equal_angles`, `tangent` or
+    /// `seam`.
     #[getter]
     fn relation(&self) -> &'static str {
         self.relation
     }
 
     /// Where it was decided: `plane_ladder`, `carrier_ladder`,
-    /// `split_on` or `battery_turn`.
+    /// `tangent_witness`, `coaxial_sphere`, `split_on` or
+    /// `battery_turn`.
     #[getter]
     fn site(&self) -> &'static str {
         self.site

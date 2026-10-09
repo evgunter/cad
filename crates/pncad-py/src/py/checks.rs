@@ -460,15 +460,15 @@ impl CheckEvidence {
 
     /// What an unproven coincidence decided between its two cells, on
     /// `unproven_coincidence` alone: `same_oriented`, `same_opposite`,
-    /// `on_carrier` or `equal_angles`.
+    /// `on_carrier`, `equal_angles`, `tangent` or `seam`.
     #[getter]
     fn relation(&self) -> Option<&'static str> {
         self.payload().relation
     }
 
     /// Where that coincidence was decided, on `unproven_coincidence`
-    /// alone: `plane_ladder`, `carrier_ladder`, `split_on` or
-    /// `battery_turn`.
+    /// alone: `plane_ladder`, `carrier_ladder`, `tangent_witness`,
+    /// `coaxial_sphere`, `split_on` or `battery_turn`.
     #[getter]
     fn site(&self) -> Option<&'static str> {
         self.payload().site

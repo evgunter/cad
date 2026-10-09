@@ -3020,6 +3020,8 @@ pub fn coincidence_relation_tag(relation: pncad::document::coincidence::Relation
         R::SameOpposite => "same_opposite",
         R::OnCarrier => "on_carrier",
         R::EqualAngles => "equal_angles",
+        R::Tangent { aligned: false } => "tangent",
+        R::Tangent { aligned: true } => "seam",
     }
 }
 
@@ -3030,6 +3032,8 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
     match site {
         S::PlaneLadder => "plane_ladder",
         S::CarrierLadder => "carrier_ladder",
+        S::TangentWitness => "tangent_witness",
+        S::CoaxialSphere => "coaxial_sphere",
         S::SplitOn => "split_on",
         S::BatteryTurn => "battery_turn",
     }

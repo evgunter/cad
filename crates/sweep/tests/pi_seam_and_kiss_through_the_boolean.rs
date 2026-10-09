@@ -852,22 +852,26 @@ fn a_rim_inside_the_partners_face_passes_the_crossing_layer() {
     }
 }
 
-/// Undeclared, the dome's disc and the tube's are one plane by value
-/// only, which never glues: the coincidence refuses on that pair.
+/// Undeclared, the dome's disc and the tube's are one plane by margin,
+/// so the union glues them as the `Rest` they are: the union with the
+/// discs declared `Rest`, bit for bit, in both member orders (D10).
 #[test]
-fn a_dome_abutting_on_the_rim_undeclared_refuses_on_its_discs() {
+fn a_dome_abutting_on_the_rim_undeclared_is_the_declared_union() {
     let tube = rod_z(R, 0.0, H);
     let dome = dome_on_the_cap();
-    let (dt, dd) = (planes_at_z(&tube, H), planes_at_z(&dome, H));
-    let [ab, ba] = union_both_orders(&tube, &dome, &dt, &dd, None);
-    for (order, e, discs) in [(0, ab, (dt[0], dd[0])), (1, ba, (dd[0], dt[0]))] {
-        let BooleanError::UndeclaredCoincidence { pair, .. } = e else {
-            panic!("order {order}: the discs' undeclared coincidence: {e:?}");
+    let [ab, ba] = unions_with_discs_rest(&tube, &dome);
+    for (order, r, (x, y)) in [(0, ab, (&tube, &dome)), (1, ba, (&dome, &tube))] {
+        let Ok(BooleanResult::Body(want)) = r else {
+            panic!("order {order}: the declared union builds: {r:?}");
+        };
+        let got = topo::union(x, y, Tol::witness());
+        let Ok(BooleanResult::Body(got)) = got else {
+            panic!("order {order}: the undeclared union builds: {got:?}");
         };
         assert_eq!(
-            (pair[0].1, pair[1].1),
-            discs,
-            "order {order}: the pair is the two discs"
+            format!("{:?}", got.body),
+            format!("{:?}", want.body),
+            "order {order}: undeclared is the declared union"
         );
     }
 }
@@ -1012,36 +1016,16 @@ fn a_cap_abutting_on_the_rim_refuses_at_a_graze_or_as_an_undeclared_continuation
     }
     // The stacked cylinder continues the tube's carrier: its own rim
     // lies on the tube's wall, but its parent wall is that carrier, so
-    // the ladder decides it no distinct parent and the door stands.
-    // The stacked cylinder continues the tube's carrier: undeclared, or
-    // with only its discs declared, its walls are an undeclared
-    // continuation, refused at the reduction before the crossing layer.
+    // the ladder decides it no distinct parent and the door stands. Its
+    // walls are one carrier by margin: undeclared, or with only its
+    // discs declared, the union glues them as the continuation they are
+    // and is the declared body (D10).
     let stacked = rod_z(R, H, 1.0);
     let cap_s = planes_at_z(&stacked, H);
     let (wt, ws) = (
         faces_of(&tube, SurfaceKind::Cylinder),
         faces_of(&stacked, SurfaceKind::Cylinder),
     );
-    for class in [None, Some(BooleanCoincidence::REST)] {
-        for (order, e) in union_both_orders(&tube, &stacked, &cap_t, &cap_s, class)
-            .into_iter()
-            .enumerate()
-        {
-            let BooleanError::UndeclaredCoincidence {
-                pair: [(_, fa), (_, fb)],
-                relation: topo::PlaneRelation::SameOriented,
-                ..
-            } = e
-            else {
-                panic!("stacked, discs {class:?}, order {order}: the walls' continuation: {e:?}");
-            };
-            let walls = if order == 0 { (&wt, &ws) } else { (&ws, &wt) };
-            assert!(
-                walls.0.contains(&fa) && walls.1.contains(&fb),
-                "stacked, discs {class:?}, order {order}: a wall pair"
-            );
-        }
-    }
     for (order, x, y, dx, dy, fx, fy) in [
         (0, &tube, &stacked, &cap_t, &cap_s, &wt, &ws),
         (1, &stacked, &tube, &cap_s, &cap_t, &ws, &wt),
@@ -1052,6 +1036,25 @@ fn a_cap_abutting_on_the_rim_refuses_at_a_graze_or_as_an_undeclared_continuation
                 d.coincident_faces
                     .push(FacePairDeclaration::continuation(fa, fb));
             }
+        }
+        let want = format!("{:?}", topo::union_with(x, y, &d, Tol::witness()));
+        for (posture, r) in [
+            ("undeclared", topo::union(x, y, Tol::witness())),
+            (
+                "discs Rest",
+                topo::union_with(
+                    x,
+                    y,
+                    &meeting(x, y, declared(dx, dy, ContactClass::Rest)),
+                    Tol::witness(),
+                ),
+            ),
+        ] {
+            assert_eq!(
+                format!("{r:?}"),
+                want,
+                "stacked, {posture}, order {order}: the declared union"
+            );
         }
         // Declared, the union builds: the join matches the rim's two
         // semicircles as arcs, and the four wall faces stay unmerged

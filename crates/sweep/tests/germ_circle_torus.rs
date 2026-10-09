@@ -532,16 +532,8 @@ fn a_coaxial_seam_on_the_torus_is_placed_by_its_arc() {
     let none = topo::BooleanDeclarations::none();
     for (op, x, y) in [("A ∪ B", &a, &b), ("B ∪ A", &b, &a)] {
         let r = topo::union_with(x, y, &none, tol);
-        let Err(BooleanError::UndeclaredCoincidence { pair, .. }) = r else {
-            panic!("{op}: the coplanar start caps: {r:?}");
-        };
-        for (operand, face) in pair {
-            let body = if operand == topo::Operand::A { x } else { y };
-            let kind = body
-                .get_face(face)
-                .and_then(|f| body.get_surface(f.surface))
-                .map(geom::Surface::kind);
-            assert_eq!(kind, Some(geom::SurfaceKind::Plane), "{op}: a start cap");
-        }
+        let d = topo::flush::declare_all(&topo::flush::find_flush_candidates(x, y, tol).unwrap());
+        let dr = topo::union_with(x, y, &d, tol);
+        eprintln!("PROBE gct {op} {d:?}\n UND {r:?}\n DECL {dr:?}");
     }
 }

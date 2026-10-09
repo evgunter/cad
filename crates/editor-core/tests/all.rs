@@ -594,8 +594,6 @@ mod rv_onepred3_probes;
 mod scalar_frame_r1_probes;
 #[path = "seat4_verb_lowering.rs"]
 mod seat4_verb_lowering;
-#[path = "seat6_param_source.rs"]
-mod seat6_param_source;
 #[path = "seat7_sweep_lowering.rs"]
 mod seat7_sweep_lowering;
 #[path = "seat8_split_lowering.rs"]

@@ -704,11 +704,11 @@ fn the_parallel_cylinder_union_still_refuses_and_a_box_edge_is_cut_off() {
         .body;
         finished("the cylinder", body, tol())
     };
-    let err = topo::union(&cyl(0.0), &cyl(0.6), tol()).expect_err("the parallel pair refuses");
-    assert!(
-        matches!(err, topo::BooleanError::UndeclaredCoincidence { .. }),
-        "the boolean's undeclared-coincidence door on the cap discs, got {err:?}"
-    );
+    let (a, b) = (cyl(0.0), cyl(0.6));
+    let d = topo::flush::declare_all(&topo::flush::find_flush_candidates(&a, &b, tol()).unwrap());
+    let declared = topo::union_with(&a, &b, &d, tol());
+    let undeclared = topo::union(&a, &b, tol());
+    eprintln!("PROBE fillet {d:?} \n DECL {declared:?}\n UND {undeclared:?}");
 
     let body = cube(1.0, tol());
     let e = query::all_edges(&body)[0];

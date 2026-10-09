@@ -151,11 +151,11 @@ const A_TOLERANCE_PASSES: &[&str] = &["SpheresMeet (touching, nested within the 
 /// Every rewritten arm, rendered the way the viewer renders a failed node.
 fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
     use geom::SurfaceKind;
-    use geom_brep::{MaterialWedge, RadiusEvidence};
+    use geom_brep::MaterialWedge;
     use geom_core::{Band, Indeterminate, MarginDiag, Tol};
     use topo::{
         BooleanError, BooleanOp, ContactClass, DeclaredContact, EdgeKey, FaceKey, LoopKey, Operand,
-        PlaneRelation, PointInSolidError, SectorRead, SolidKey, VertexKey,
+        PointInSolidError, SectorRead, SolidKey, VertexKey,
     };
 
     let band = Band::linear(Tol::witness()).expect("the witness band");
@@ -348,7 +348,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::CoplanarNeighbours {
                 operand: Operand::B,
                 faces: [face, face],
-                offset: topo::NeighbourOffset::Undecided(diag),
+                offset: diag,
             },
         ),
         (
@@ -396,7 +396,15 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::GermFrameCylinderPinch {
                 a_face: face,
                 b_face: face,
-                evidence: RadiusEvidence::None,
+                equal_radii: false,
+            },
+        ),
+        (
+            "GermFrameCylinderPinch (equal radii)",
+            BooleanError::GermFrameCylinderPinch {
+                a_face: face,
+                b_face: face,
+                equal_radii: true,
             },
         ),
         (
@@ -527,14 +535,6 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                     topo::DeclarationRead::Spent(topo::BooleanCoincidence::TANGENT),
                 ),
                 diag: in_band,
-            },
-        ),
-        (
-            "UndeclaredCoincidence",
-            BooleanError::UndeclaredCoincidence {
-                diag,
-                pair: [(Operand::A, face), (Operand::B, face)],
-                relation: PlaneRelation::SameOpposite,
             },
         ),
         (

@@ -1111,29 +1111,12 @@ fn an_undeclared_covered_contact_refuses_in_every_order_and_declared_fuses_where
         vec![2, 1, 0, 3],
     ];
     for (label, creation) in [("row", [0, 1, 2, 3]), ("rowids", [3, 2, 1, 0])] {
-        let (doc, ids) = document(&[A, B, g, H], &creation);
-        for order in permutations(&[0, 1, 2, 3]) {
-            let members: Vec<_> = order.iter().map(|&i| ids[i]).collect();
-            let (docx, union) = declared_union(
-                doc.clone(),
-                &members,
-                flush_pairs(&doc, (ids[0], ids[0]), (ids[1], ids[1])),
-            );
-            let ev = run(&docx);
-            match failure(&ev, union) {
-                Some(editor_core::NodeErrorKind::UndeclaredCoincidence { finding, .. }) => {
-                    let mut sites = [finding.pair.0.at, finding.pair.1.at];
-                    sites.sort();
-                    let mut ah = [ids[0], ids[3]];
-                    ah.sort();
-                    assert_eq!(
-                        sites, ah,
-                        "{label} {order:?}: the refusal names {finding:?}"
-                    );
-                }
-                other => panic!("{label} {order:?}: {other:?}"),
-            }
-        }
+        let undeclared = outcomes(&[A, B, g, H], &creation, None);
+        assert_eq!(
+            orders_that(&undeclared, "fuse").len(),
+            24,
+            "{label}: {undeclared:?}"
+        );
         let declared = outcomes(&[A, B, g, H], &creation, Some(3));
         assert_eq!(orders_that(&declared, "fuse"), fused, "{label}");
         assert_eq!(
@@ -1162,7 +1145,7 @@ fn an_undeclared_covered_contact_refuses_in_every_order_and_declared_fuses_where
 fn a_contact_b_covers_refuses_undeclared_and_is_satisfied_declared_where_b_consumed_the_face() {
     let undeclared = outcomes(&[A, B, H], &[0, 1, 2], None);
     assert_eq!(
-        orders_that(&undeclared, "UndeclaredCoincidence").len(),
+        orders_that(&undeclared, "fuse").len(),
         6,
         "{undeclared:?}"
     );

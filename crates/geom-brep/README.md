@@ -485,8 +485,8 @@ Within-pair degeneracies are trileans run before any rung (axis
 parallelism at derived angular thresholds, centre/axis distances against
 radii): definitely generic goes to the arm's rung, exactly degenerate to
 the closed form, in-band to `SectionError::Escalated`. Equal cylinder
-radii are structural or declared (`RadiusEvidence`), never inferred from
-values. Tangential outcomes (`TangentLine`, `TangentPoint`) are
+radii, and a sphere's centre on a cylinder's axis, are decided by their
+margins like every other coincidence (D10). Tangential outcomes (`TangentLine`, `TangentPoint`) are
 classification data, refused as carriers. `SurfaceKind::Approx` is its
 own kind, not `Nurbs`: a locus claim against an approximating surface is
 a claim about the fit, and `Approx × anything` refuses because composing

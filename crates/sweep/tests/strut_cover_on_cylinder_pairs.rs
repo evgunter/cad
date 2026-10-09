@@ -296,8 +296,7 @@ fn stacks(lower: Outline, upper: Outline) -> Vec<(String, topo::BooleanBody<f64>
 /// `CurvedPierceUnsupported` at the crossing layer, where the lower
 /// plate's tangent ruling ends on the upper plate's continued wall and
 /// the strut column has no cylinder row to cover it; undeclared, the
-/// union refuses `UndeclaredCoincidence` at the carrier ladder before
-/// any cover is built.
+/// union is the declared refusal (D10).
 ///
 /// When the cylinder × cylinder strut row lands, the declared union
 /// flips to the closed-form build
@@ -326,10 +325,12 @@ fn the_arc_joint_stacks_refuse_at_the_crossing_layer() {
                     "{label}, {op} declared: {r:?}"
                 );
             }
+            let declared = topo::union_with(a, b, &d, tol());
             let r = topo::union(a, b, tol());
-            assert!(
-                matches!(r, Err(BooleanError::UndeclaredCoincidence { .. })),
-                "{label}, ∪ undeclared: {r:?}"
+            assert_eq!(
+                format!("{r:?}"),
+                format!("{declared:?}"),
+                "{label}, ∪ undeclared: the declared refusal"
             );
         }
     }
@@ -523,7 +524,7 @@ fn walls_continued(x: &Body<f64>, y: &Body<f64>) -> BooleanDeclarations {
 /// later door instead (the join's `CurvedBooleanUnsupported`, the
 /// interior-loop guard's `CurvedPairUnsupported`, or an escalated
 /// sector coincidence), so that row waits for a witness. Undeclared,
-/// each refuses `UndeclaredCoincidence` at the carrier ladder. A rod
+/// each is the declared refusal (D10). A rod
 /// stopping short of the joint, which no cover is asked about, builds
 /// at its closed form.
 #[test]
@@ -545,15 +546,16 @@ fn the_capsules_strut_waits_at_the_crossing_layer() {
     ] {
         let rod = rod(z0, len);
         for (order, a, b) in [("capsule, rod", &cap, &rod), ("rod, capsule", &rod, &cap)] {
-            let r = topo::union_with(a, b, &walls_continued(a, b), tol());
+            let declared = topo::union_with(a, b, &walls_continued(a, b), tol());
             assert!(
-                matches!(r, Err(BooleanError::CurvedPierceUnsupported { .. })),
-                "{pose}, {order}, declared: {r:?}"
+                matches!(declared, Err(BooleanError::CurvedPierceUnsupported { .. })),
+                "{pose}, {order}, declared: {declared:?}"
             );
             let r = topo::union(a, b, tol());
-            assert!(
-                matches!(r, Err(BooleanError::UndeclaredCoincidence { .. })),
-                "{pose}, {order}, undeclared: {r:?}"
+            assert_eq!(
+                format!("{r:?}"),
+                format!("{declared:?}"),
+                "{pose}, {order}, undeclared: the declared refusal"
             );
         }
     }

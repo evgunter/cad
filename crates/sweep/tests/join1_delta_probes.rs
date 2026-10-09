@@ -381,16 +381,15 @@ fn the_declared_seam_body_is_an_operand() {
         brick((-0.5, -0.25), (-0.5, -0.25), (-1.0, 3.0), tol()),
         tol(),
     );
-    // Fix pass 2: undeclared, the union refuses the continuation it
-    // would keep; declared, the merge stage glues it.
-    assert!(
-        matches!(
-            topo::union(&a, &b, tol()),
-            Err(topo::BooleanError::UndeclaredCoincidence { .. })
-        ),
-        "the undeclared continuation refuses at the op"
-    );
+    // The continuation is one carrier by margin: undeclared, the union
+    // glues it as the declared union does, bit for bit (D10), and the
+    // merge stage glues the two faces.
     let d = topo::flush::declare_all(&topo::flush::find_flush_candidates(&a, &b, tol()).unwrap());
+    assert_eq!(
+        format!("{:?}", topo::union(&a, &b, tol())),
+        format!("{:?}", topo::union_with(&a, &b, &d, tol())),
+        "undeclared is the declared union"
+    );
     let r = match topo::union_with(&a, &b, &d, tol()).unwrap() {
         topo::BooleanResult::Body(bb) => bb,
         topo::BooleanResult::Empty => panic!("empty"),

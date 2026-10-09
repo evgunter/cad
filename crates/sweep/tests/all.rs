@@ -585,8 +585,6 @@ mod strut_cover_on_cylinder_pairs;
 
 #[path = "run_walls_built.rs"]
 mod run_walls_built;
-#[path = "seat6_germ_channel.rs"]
-mod seat6_germ_channel;
 #[path = "split_across_a_revolve_seam.rs"]
 mod split_across_a_revolve_seam;
 #[path = "split_along_a_face_plane.rs"]

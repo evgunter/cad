@@ -2456,12 +2456,10 @@ fn node_error_tags_are_the_published_words() {
         PlacementRuleNonRigidFrame => "non_rigid_placement",
         UnschedulableCycle => "unschedulable_cycle",
         Naming => "naming",
-        ParamSourceAttach => "param_source_attach",
         DeclareResolve => "declare_resolve",
         DeclareSiteNotAnOperand => "declare_site_not_an_operand",
         DeclareUnsupportedPair => "declare_unsupported_pair",
-        UndeclaredCoincidence => "undeclared_coincidence",
-        UndeclarableContact => "undeclarable_contact",
+        UnionFoldStep => "union_fold_step",
         FilletSelectionResolve => "fillet_selection_resolve",
         ChamferSelectionResolve => "chamfer_selection_resolve",
         FilletSelectionKind => "fillet_selection_kind",
@@ -5000,7 +4998,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "spheres_meet",
             "tangent_slit_arm_unbuilt",
             "torn_component",
-            "undeclared_coincidence",
             "underflowed_sector_chord",
             "unjoined_operand",
             "unrepresentable_result",
@@ -5093,6 +5090,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "on_carrier",
             "same_opposite",
             "same_oriented",
+            "seam",
+            "tangent",
         ],
         delegates: &[],
     },
@@ -5124,7 +5123,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "decision_site_tag",
-        values: &["battery_turn", "carrier_ladder", "plane_ladder", "split_on"],
+        values: &[
+            "battery_turn",
+            "carrier_ladder",
+            "coaxial_sphere",
+            "plane_ladder",
+            "split_on",
+            "tangent_witness",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5673,7 +5679,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "non_positive_count",
             "non_rigid_placement",
             "param_box",
-            "param_source_attach",
             "part_depth_exceeded",
             "part_no_resolver",
             "part_not_entered",
@@ -5704,10 +5709,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "tolerance_conflict",
             "transform",
             "tube",
-            "undeclarable_contact",
-            "undeclared_coincidence",
             "underflowed_direction",
             "unfinished_operand",
+            "union_fold_step",
             "unplaced",
             "unresolved_read",
             "unresolved_site",
@@ -6803,10 +6807,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("structure", 3),
     ("tolerance_conflict", 2),
     ("transition", 2),
-    // The node refusal that carries the menu, and the bare kernel
-    // refusal it falls back to when a key resolves to no name
-    // (`boolean_error_tag`'s doc): ONE coincidence, the same word.
-    ("undeclared_coincidence", 2),
     ("underflowed_direction", 2),
     // One fact for the boolean and the blends: the operand gate
     // (`topo::Unfinished::Unjoined`) found a vertex tier 3's check 11

@@ -29,10 +29,9 @@ use editor_core::{
     NodeResult, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, SplitError,
     VarDecl, VarId, VarName, apply, evaluate, inline, load, save, split,
 };
-use geom_brep::RadiusEvidence;
 use geom_core::predicate::{Band, Margin, Sign};
 use geom_core::{ParamSymbol, Real, Sym, SymBudget, SymRules, Tol};
-use topo::{Body, FaceKey, SurfaceField};
+use topo::{Body, FaceKey};
 
 /// The blend radius, metres (dyadic).
 const R: f64 = 0.125;
@@ -123,23 +122,10 @@ fn a_cylinder_face(body: &Body<f64>) -> FaceKey {
         .expect("a blended cube carries quarter-cylinder blends")
 }
 
-/// The radius token a blend's cylinder carries.
-fn radius_token(body: &Body<f64>) -> topo::ParamSource {
-    let face = a_cylinder_face(body);
-    let surface = body.get_face(face).expect("a live face").surface;
-    body.surface_field_source(surface, SurfaceField::CylinderRadius)
-        .expect("a document-built blend declares its radius")
-        .clone()
-}
-
-fn evidence(a: &Body<f64>, b: &Body<f64>) -> RadiusEvidence {
-    topo::field_source_evidence(
-        a,
-        a_cylinder_face(a),
-        b,
-        a_cylinder_face(b),
-        SurfaceField::CylinderRadius,
-    )
+/// The spelling the content key writes for a blend's radius.
+fn radius_spelling(doc: &ProfileDoc, blend: RecipeNodeId) -> Vec<u8> {
+    editor_core::test_support::slot_spelling(doc, blend, editor_core::SlotId::Radius)
+        .expect("a blend has a radius slot")
 }
 
 /// What `node`'s `slot` reads, as written (`Doc::slot_expansion`).
@@ -163,7 +149,7 @@ fn session<R>(f: impl FnOnce() -> R) -> (R, geom_core::SymCounts) {
 // --------------------------------------------------------------- row 1
 
 /// Row 1: a rename writes the name and nothing else. The blend's radius
-/// token is the same bytes, every node is a memo hit, the diff is
+/// spells the same bytes, every node is a memo hit, the diff is
 /// empty, the edit is not structural, and the slot reads back under the
 /// new name.
 #[test]
@@ -172,7 +158,7 @@ fn a_rename_moves_nothing_that_identifies() {
     let w = id(&doc, "w");
     let ev = eval_after(&doc, None);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
-    let before = radius_token(body_of(&ev, blend));
+    let before = radius_spelling(&doc, blend);
 
     let renamed = step(
         &doc,
@@ -190,9 +176,9 @@ fn a_rename_moves_nothing_that_identifies() {
     let ev2 = eval_after(&renamed.doc, Some(&ev));
     assert_eq!(ev2.recomputed, 0, "every node is a memo hit");
     assert_eq!(
-        radius_token(body_of(&ev2, blend)),
+        radius_spelling(&renamed.doc, blend),
         before,
-        "the token moved"
+        "the spelling moved"
     );
     assert_eq!(
         renamed
@@ -324,8 +310,7 @@ fn the_mint_never_reuses_a_deleted_id() {
 // --------------------------------------------------------------- row 5
 
 /// Row 5: `w` and `v` at the same value are two variables. Blends
-/// reading the two lower to distinct tokens and are not `Declared`;
-/// two blends reading `w` are.
+/// reading the two spell distinct; two blends reading `w` spell one.
 #[test]
 fn equal_values_are_not_one_variable() {
     let doc = ProfileDoc::empty(DocumentId::derive("intent-vars-3-twins"), Tol::witness());
@@ -337,14 +322,12 @@ fn equal_values_are_not_one_variable() {
     let ev = eval_after(&doc, None);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let (a, b, c) = (
-        body_of(&ev, by_w),
-        body_of(&ev, by_v),
-        body_of(&ev, by_w_again),
+        radius_spelling(&doc, by_w),
+        radius_spelling(&doc, by_v),
+        radius_spelling(&doc, by_w_again),
     );
-    assert_ne!(radius_token(a), radius_token(b));
-    assert_ne!(evidence(a, b), RadiusEvidence::Declared);
-    assert_eq!(radius_token(a), radius_token(c));
-    assert_eq!(evidence(a, c), RadiusEvidence::Declared);
+    assert_ne!(a, b);
+    assert_eq!(a, c);
 }
 
 // --------------------------------------------------------------- row 6

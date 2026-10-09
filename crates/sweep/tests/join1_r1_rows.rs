@@ -89,24 +89,6 @@ fn a_hexagon_unions_a_box_on_its_corner_edge_soundly() {
     );
     let (va, vb) = (0.75 * 2.0, 0.0625 * 4.0);
     let vi = 0.25 * 0.125 / 2.0 * 2.0;
-    // Undeclared, the op refuses: the hexagon's and the box's `y = −0.5`
-    // faces are a continuation no declaration licenses (topo README C4,
-    // the reduction's continuation scan).
-    for (what, r) in [
-        ("hex ∪ box", topo::union(&hex, &b, tol())),
-        ("box ∪ hex", topo::union(&b, &hex, tol())),
-    ] {
-        assert!(
-            matches!(
-                r,
-                Err(topo::BooleanError::UndeclaredCoincidence {
-                    relation: topo::PlaneRelation::SameOriented,
-                    ..
-                })
-            ),
-            "{what}: {r:?}"
-        );
-    }
     // Declared (the flush detector finds the pair), it builds, and the
     // merge stage glues the two faces: a legal operand.
     use topo::flush::{declare_all, find_flush_candidates};
@@ -122,6 +104,17 @@ fn a_hexagon_unions_a_box_on_its_corner_edge_soundly() {
         topo::union_with(&b, &hex, &d, tol()),
         va + vb - vi,
     );
+    // Undeclared, the `y = −0.5` faces are one carrier by margin, so the
+    // op glues them as the continuation they are: the declared body bit
+    // for bit (D10).
+    for (what, (x, y)) in [("hex ∪ box", (&hex, &b)), ("box ∪ hex", (&b, &hex))] {
+        let d = declare_all(&find_flush_candidates(x, y, tol()).unwrap());
+        assert_eq!(
+            format!("{:?}", topo::union(x, y, tol())),
+            format!("{:?}", topo::union_with(x, y, &d, tol())),
+            "{what}: undeclared is the declared union"
+        );
+    }
     // The ∖ and ∩ of the same pose, declared, build soundly too.
     let d = declare_all(&find_flush_candidates(&hex, &b, tol()).unwrap());
     assert_sound(

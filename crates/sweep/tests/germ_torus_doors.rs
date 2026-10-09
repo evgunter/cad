@@ -238,11 +238,10 @@ fn the_half_dumbbell_is_a_valid_torus_waisted_solid_as_built() {
         let out = m.merge_coplanar_faces(Tol::witness()).unwrap();
         assert!(out.groups.is_empty(), "no planar wall is split: {out:?}");
     }
-    let err = topo::union_with(&a, &b, &declarations(&a, &b, None), Tol::witness())
-        .expect_err("an undeclared coincident torus pair refuses");
+    let r = topo::union_with(&a, &b, &declarations(&a, &b, None), Tol::witness());
     assert!(
-        !matches!(err, BooleanError::NonMaximalFaces { .. }),
-        "F7 does not answer on the halves as built: {err:?}"
+        !matches!(r, Err(BooleanError::NonMaximalFaces { .. })),
+        "F7 does not answer on the halves as built: {r:?}"
     );
 }
 
@@ -250,19 +249,17 @@ fn the_half_dumbbell_is_a_valid_torus_waisted_solid_as_built() {
 // Door 1: the operand gate admits the torus.
 // -------------------------------------------------------------------
 
-/// **The KIND roster has a torus now, and the refusal it used to raise
-/// is gone from every variant of the union.** Before, a waist face
-/// against the other half's joint disc — boxes overlapping, the pair
-/// not declared — was `CurvedPairUnsupported { kind: Torus, other_kind:
-/// Plane }` at the gate, declared handle or not.
+/// **The KIND roster has a torus, and the gate admits it in every
+/// variant of the union**: a waist face against the other half's
+/// joint disc, boxes overlapping, is no `CurvedPairUnsupported` at the
+/// gate, declared or not.
 ///
-/// What admission must NOT do is turn a torus pair nobody vouched for
-/// into a body: undeclared, the coincident waists still refuse typed —
-/// as the undeclared continuation they are, at the reduction, naming
-/// the waist pair and its aligned relation. Declared a continuation,
-/// the union builds (`the_torus_waisted_union_builds_like_the_cylinder_control`).
+/// The waists are one carrier by margin, so the boolean glues them as
+/// the continuation they are whether or not they are declared: the
+/// undeclared union is the declared one (D10), which builds
+/// (`the_torus_waisted_union_builds_like_the_cylinder_control`).
 #[test]
-fn the_operand_gate_admits_the_torus_and_the_undeclared_pair_still_refuses() {
+fn the_operand_gate_admits_the_torus_and_the_undeclared_pair_glues() {
     let (a, b) = (half(1.0, Handle::Torus), half(-1.0, Handle::Torus));
     let built = topo::union_with(
         &a,
@@ -274,19 +271,11 @@ fn the_operand_gate_admits_the_torus_and_the_undeclared_pair_still_refuses() {
         !matches!(built, Err(BooleanError::CurvedPairUnsupported { .. })),
         "the gate must admit the torus: {built:?}"
     );
-    let err = topo::union_with(&a, &b, &declarations(&a, &b, None), Tol::witness())
-        .expect_err("an undeclared coincident torus pair must refuse");
-    let BooleanError::UndeclaredCoincidence {
-        pair: [(topo::Operand::A, fa), (topo::Operand::B, fb)],
-        relation: topo::PlaneRelation::SameOriented,
-        ..
-    } = err
-    else {
-        panic!("undeclared, the waists refuse as a continuation: {err:?}");
-    };
-    assert!(
-        is_handle(surface(&a, fa)) && is_handle(surface(&b, fb)),
-        "the refusal names a handle pair: {err:?}"
+    let undeclared = topo::union_with(&a, &b, &declarations(&a, &b, None), Tol::witness());
+    assert_eq!(
+        format!("{undeclared:?}"),
+        format!("{built:?}"),
+        "undeclared, the waists glue as the declared continuation"
     );
 }
 
@@ -1230,9 +1219,9 @@ fn a_cube_in_the_donuts_hole_answers_subtract_and_intersect() {
 /// - the slab's face-interior oval is a certified interior loop
 ///   (R-loop), and two tori meeting in an oval, or a cylinder grazing
 ///   the outer equator, have no section classification (R-reach);
-/// - the dumbbell's declared waists stop at the section pass on their
-///   tangency (R-tan), and undeclared at the reduction, as the
-///   undeclared continuation they are.
+/// - the dumbbell's waists stop at the section pass on their tangency
+///   (R-tan), declared a continuation or not: undeclared, each op is
+///   the declared refusal (D10).
 ///
 /// None of them is a body.
 #[test]
@@ -1341,19 +1330,18 @@ fn subtract_and_intersect_refuse_where_union_does() {
             assert!(what.contains(says), "{name}, {op}: {what}");
         }
     }
-    // Undeclared, the dumbbell's handle halves are an undeclared
-    // continuation, refused at the reduction.
-    for (op, r) in subtract_both_orders_and_intersect(&halves.0, &halves.1, &none) {
-        let err = r.expect_err(op);
-        assert!(
-            matches!(
-                err,
-                BooleanError::UndeclaredCoincidence {
-                    relation: topo::PlaneRelation::SameOriented,
-                    ..
-                }
-            ),
-            "undeclared dumbbell, {op}: {err:?}"
+    // Undeclared, the dumbbell's waists glue as the continuation they
+    // are, and each op is the declared refusal.
+    for ((op, r), (_, declared)) in subtract_both_orders_and_intersect(&halves.0, &halves.1, &none)
+        .into_iter()
+        .zip(subtract_both_orders_and_intersect(
+            &halves.0, &halves.1, &waists,
+        ))
+    {
+        assert_eq!(
+            format!("{r:?}"),
+            format!("{declared:?}"),
+            "undeclared dumbbell, {op}: the declared refusal"
         );
     }
 }

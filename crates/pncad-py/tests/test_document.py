@@ -354,50 +354,54 @@ class TestEvaluation(unittest.TestCase):
         # 6.0 base + 1.5 post - 0.5 shared = 7.0
         self.assertEqual(body.mass_properties().volume, 7.0)
 
-    def test_a_coincident_boolean_carries_its_typed_refusal(self):
-        # Fail-loud, visible from Python: two boxes sharing the z=0
-        # plane are NOT silently fused — and the refusal now arrives
-        # WITH its typed cause (LIB-DOORS F3; U9S's `no_value`
-        # placeholder is gone).
+    def test_a_coincident_boolean_glues_and_records(self):
+        # Two boxes sharing the x=0, y=0 and z=0 planes: the margins
+        # decide each pair one plane, so the subtract glues them (D10)
+        # and records each decision.
         doc = Doc()
         outer = unit_box(doc, 2 * m, 2 * m, 2 * m)
         inner = unit_box(doc, 1 * m, 1 * m, 1 * m)
         cut = doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner))
+        ev = evaluate(doc)
+        self.assertTrue(ev.succeeded(cut))
+        body = ev.value(cut).body()
+        body.validate()
+        self.assertEqual(body.mass_properties().volume, 7.0)
+        rows = ev.coincidences(cut)
+        self.assertEqual(len(rows), 3, "one row per shared plane")
+        self.assertTrue(all(row.relation == "same_oriented" for row in rows))
+
+    def a_sliver(self, doc):
+        """Two boxes whose bottoms stand 2 nm apart, inside the
+        tolerance's ambiguity band: a subtract that refuses."""
+        outer = slab(doc, (0 * m, 2 * m), (0 * m, 2 * m), (0 * m, 2 * m))
+        inner = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (2e-9 * m, 1 * m))
+        return doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner)), outer
+
+    def test_a_sliver_carries_its_typed_refusal(self):
+        # Fail-loud, visible from Python: a sliver is NOT silently
+        # fused or parted — the refusal arrives WITH its typed cause.
+        doc = Doc()
+        cut, _ = self.a_sliver(doc)
         ev = evaluate(doc)
         self.assertFalse(ev.succeeded(cut))
         with self.assertRaises(EvaluationError) as caught:
             ev.value(cut)
         self.assertEqual(caught.exception.reason, "node_failed")
         self.assertEqual(caught.exception.node, cut)
-        # Since register R3 (LIB-PYG5) the undeclared-contact refusal
-        # is the typed MENU: its own stable tag, and the candidate
-        # declaration attached as a `FlushFinding` value.
-        self.assertEqual(caught.exception.kind, "undeclared_coincidence")
+        self.assertEqual(caught.exception.kind, "boolean")
+        self.assertEqual(caught.exception.inner_kind, "escalated")
         self.assertIsNone(caught.exception.through)
-        finding = caught.exception.finding
-        self.assertIsInstance(finding, pncad.FlushFinding)
-        # Both boxes rise from z=0: the shared bottom planes face the
-        # same way — a continuation, not a contact.
-        self.assertEqual(finding.relation, pncad.PlaneRelation.SameOriented)
-        self.assertEqual(finding.class_, pncad.BooleanCoincidence.Continuation)
-        self.assertEqual(finding.rung, pncad.FlushRung.DecidedCoincident)
-        # The pair's names speak the one opaque alphabet: each side is
-        # a FACE name of its own operand's evaluation.
-        self.assertIn(finding.a, ev.all_faces(outer))
-        self.assertIn(finding.b, ev.all_faces(inner))
-        # F6 (reopened on review): the MESSAGE is prose stating the
-        # problem and the two-armed recourse, not Debug guts.
+        # F6: the MESSAGE is prose stating the problem and its
+        # recourse, not Debug guts.
         message = str(caught.exception)
-        self.assertIn("Boolean refused an undeclared coincidence", message)
-        self.assertIn("add the candidate pair", message)
-        for guts in ("UndeclaredCoincidence", "UndeclaredContact", "{", "NodeError"):
+        self.assertIn("ambiguity band", message)
+        for guts in ("Escalated", "{", "NodeError"):
             self.assertNotIn(guts, message)
 
     def test_a_poisoned_node_names_its_failed_ancestor(self):
         doc = Doc()
-        outer = unit_box(doc, 2 * m, 2 * m, 2 * m)
-        inner = unit_box(doc, 1 * m, 1 * m, 1 * m)
-        cut = doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner))
+        cut, outer = self.a_sliver(doc)
         downstream = doc.insert(Node.boolean(BooleanOp.Union, cut, outer))
         doc.apply(DocEdit.set_label(cut, "pocket"))
         ev = evaluate(doc)
@@ -407,11 +411,7 @@ class TestEvaluation(unittest.TestCase):
         self.assertEqual(caught.exception.node, downstream)
         self.assertEqual(caught.exception.through, cut)
         # The root cause's tag rides along: the ancestor's refusal.
-        self.assertEqual(caught.exception.kind, "undeclared_coincidence")
-        # The menu payload does NOT ride a poisoning — the recourse
-        # belongs to the node that refused; here it is None (attributes
-        # never go missing, LIB-DOORS F3).
-        self.assertIsNone(caught.exception.finding)
+        self.assertEqual(caught.exception.kind, "boolean")
         # The standing speaks each node as the evaluated document holds
         # it: kind, label and tag.
         self.assertIn(
@@ -473,52 +473,37 @@ class TestDetectDeclareDoors(unittest.TestCase):
                 body.validate()
                 self.assertEqual(body.mass_properties().volume, 1.125)
 
-    def test_a_refused_union_builds_once_its_live_node_declares_the_menu(self):
-        """The recourse loop on the n-ary union: the refusal's own
-        `finding` declared on the LIVE union makes it build, and
-        clearing the list brings the refusal back."""
+    def test_a_union_builds_alike_declared_or_not(self):
+        """The n-ary union glues its resting contact undeclared (D10),
+        and declaring the detector's finding on the live node, then
+        clearing it, leaves the same solid."""
         doc, lower, upper = self.stacked()
         fused = doc.insert(Node.union([lower, upper]))
-        with self.assertRaises(EvaluationError) as caught:
-            evaluate(doc).value(fused)
-        self.assertEqual(caught.exception.kind, "undeclared_coincidence")
-        finding = caught.exception.finding
-        self.assertIsNotNone(finding, "the refusal carries its menu")
-        doc.declare_all(fused, [finding])
-        body = evaluate(doc).value(fused).body()
-        body.validate()
-        self.assertEqual(body.mass_properties().volume, 1.125)
-        # An empty list through the edit clears the declaration.
+        undeclared = evaluate(doc).value(fused).body()
+        undeclared.validate()
+        self.assertEqual(undeclared.mass_properties().volume, 1.125)
+        findings = evaluate(doc).find_flush_candidates(lower, upper)
+        doc.declare_all(fused, findings)
+        declared = evaluate(doc).value(fused).body()
+        self.assertEqual(declared.mass_properties().volume, 1.125)
         doc.apply(DocEdit.set_declare(fused, []))
-        with self.assertRaises(EvaluationError) as caught:
-            evaluate(doc).value(fused)
-        self.assertEqual(caught.exception.kind, "undeclared_coincidence")
+        cleared = evaluate(doc).value(fused).body()
+        self.assertEqual(cleared.mass_properties().volume, 1.125)
 
-    def test_following_each_refusal_with_declare_converges(self):
-        """`Doc.declare` ADDS the refusal's finding to the union's
-        declared pairs: three slabs stacked as a stepped pyramid meet in
-        two resting contacts, the union refuses one at a time, and
-        declaring each refusal's own `finding` builds after exactly two
-        rounds. (A whole-list replace would trade one contact for the
-        other forever.)"""
+    def test_a_stepped_pyramid_glues_undeclared(self):
+        """Three slabs stacked as a stepped pyramid meet in two resting
+        contacts, and the union glues both undeclared."""
         doc = Doc()
         low = slab(doc, (0 * m, 3 * m), (0 * m, 3 * m), (0 * m, 1 * m))
         mid = slab(doc, (0.5 * m, 2.5 * m), (0.5 * m, 2.5 * m), (1 * m, 2 * m))
         top = slab(doc, (1 * m, 2 * m), (1 * m, 2 * m), (2 * m, 3 * m))
         fused = doc.insert(Node.union([low, mid, top]))
-        rounds = 0
-        while True:
-            try:
-                body = evaluate(doc).value(fused).body()
-                break
-            except EvaluationError as refused:
-                self.assertEqual(refused.kind, "undeclared_coincidence")
-                rounds += 1
-                self.assertLessEqual(rounds, 2, "the refusals do not converge")
-                doc.declare(fused, refused.finding)
-        self.assertEqual(rounds, 2, "one refusal per contact")
+        ev = evaluate(doc)
+        body = ev.value(fused).body()
         body.validate()
         self.assertEqual(body.mass_properties().volume, 9 + 4 + 1)
+        relations = [row.relation for row in ev.coincidences(fused)]
+        self.assertEqual(relations, ["same_opposite", "same_opposite"])
 
     def test_declaring_on_a_node_that_joins_nothing_refuses_typed(self):
         doc, lower, upper = self.stacked()
@@ -1573,20 +1558,6 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
             (caught.exception.kind, caught.exception.inner_kind),
             ("extrude", "degenerate_extrusion"),
         )
-
-    def test_an_arm_with_no_inner_refusal_says_none(self):
-        # The undeclared-contact refusal is the document layer's own
-        # arm: its payload is the candidate declaration, which crosses
-        # whole as `finding`, and there is no inner enum to name.
-        doc = Doc()
-        outer = unit_box(doc, 2 * m, 2 * m, 2 * m)
-        inner = unit_box(doc, 1 * m, 1 * m, 1 * m)
-        cut = doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner))
-        with self.assertRaises(EvaluationError) as caught:
-            evaluate(doc).value(cut)
-        self.assertEqual(caught.exception.kind, "undeclared_coincidence")
-        self.assertIsNone(caught.exception.inner_kind)
-        self.assertIsNotNone(caught.exception.finding)
 
     def test_a_poisoned_node_carries_both_of_its_ancestors_words(self):
         # The poisoning path reports the ROOT cause, so it reports both

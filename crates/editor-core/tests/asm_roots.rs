@@ -349,10 +349,10 @@ fn row3a_two_disjoint_extrudes_gather_additively() {
 }
 
 /// Row 3b — an `Instances` root materializes into N placed solids of
-/// the ONE product body (C1's disposition), with the pattern's
-/// provenance indices and `Instance(i)` names intact.
+/// the ONE product body (C1's disposition), each at its own placement,
+/// with the pattern's `Instance(i)` names intact.
 #[test]
-fn row3b_pattern_root_gathers_n_solids_with_provenance() {
+fn row3b_pattern_root_gathers_n_placed_solids() {
     let (doc, _, extrude) = block(
         ProfileDoc::empty_derived("asm-roots-3b", Tol::witness()),
         0.0,
@@ -373,23 +373,14 @@ fn row3b_pattern_root_gathers_n_solids_with_provenance() {
     let product = editor_core::product(&doc, &ev, Tol::witness()).expect("the product gathers");
     assert_eq!(product.solids().count(), 3, "N placed solids, no boolean");
 
-    // Provenance: instances 1..N carry `Placed { node: pattern, i }`
-    // (instance 0 is the master verbatim, by the pattern's own rule),
-    // and the graft transplants those records untouched.
-    let placed: std::collections::BTreeSet<u32> = product
-        .surfaces()
-        .filter_map(|(k, _)| product.surface_source(k))
-        .filter_map(|s| match &s.expr {
-            topo::SourceExpr::Placed { node, instance, .. } if *node == pattern.0.digest() => {
-                Some(*instance)
-            }
-            _ => None,
-        })
-        .collect();
+    // Each instance stands at its own placement: the master at x = 0
+    // and instance i at i · spacing.
+    let mut centres = solid_centres_x(&product);
+    centres.sort_by(f64::total_cmp);
     assert_eq!(
-        placed,
-        [1, 2].into_iter().collect(),
-        "each placed instance's index survives into the product"
+        centres,
+        vec![0.0, 3.0, 6.0],
+        "each instance is placed at its own index's offset"
     );
 
     // Names: the pattern's `Instance(i)` wrapping is the evaluation's,
@@ -513,14 +504,10 @@ fn row5b_root_neutral_edits_keep_the_product_order_stable() {
     );
     assert_eq!(doc.roots(), &roots_before[..], "the edit was root-neutral");
     let second = editor_core::product(&doc, &run(&doc), Tol::witness()).expect("gather 2");
-    // Solid order IS gather order, read off the transplanted
-    // provenance: solid k's faces were minted by root k's node.
-    let order = |body: &topo::Body<f64>| -> Vec<Vec<u64>> {
-        body.solids()
-            .map(|(key, _)| minting_nodes(body, key))
-            .collect()
-    };
-    assert_eq!(order(&first), vec![vec![a.0.digest()], vec![_b.0.digest()]]);
+    // Solid order IS gather order, read off where each solid stands:
+    // root `a`'s block is centred at x = 0 and `_b`'s at x = 5.
+    let order = solid_centres_x;
+    assert_eq!(order(&first), vec![0.0, 5.0]);
     assert_eq!(
         order(&second),
         order(&first),
@@ -529,29 +516,30 @@ fn row5b_root_neutral_edits_keep_the_product_order_stable() {
     // …and a root REORDER is exactly what moves it.
     let (swapped, _) = step(doc, DocEdit::SetRoots { roots: vec![_b, a] });
     let third = editor_core::product(&swapped, &run(&swapped), Tol::witness()).expect("gather 3");
-    assert_eq!(order(&third), vec![vec![_b.0.digest()], vec![a.0.digest()]]);
+    assert_eq!(order(&third), vec![5.0, 0.0]);
 }
 
-/// The recipe nodes that minted a solid's face carriers — the
-/// `GeomSource` rows a disjoint graft carries verbatim, and therefore
-/// the honest read of "which root contributed this solid".
-fn minting_nodes(body: &topo::Body<f64>, solid: topo::SolidKey) -> Vec<u64> {
-    let mut out = std::collections::BTreeSet::new();
-    if let Some(shells) = body.shells_of_solid(solid) {
-        for &shell in shells {
-            let Some(sh) = body.get_shell(shell) else {
-                continue;
-            };
-            for &face in &sh.faces {
-                if let Some(f) = body.get_face(face)
-                    && let Some(src) = body.surface_source(f.surface)
-                {
-                    out.insert(src.node);
-                }
-            }
-        }
-    }
-    out.into_iter().collect()
+/// Each solid's mean vertex x, in the body's solid order — where the
+/// solid stands along the axis the fixtures space their blocks on.
+fn solid_centres_x(body: &topo::Body<f64>) -> Vec<f64> {
+    body.solids()
+        .map(|(solid, _)| {
+            let xs: Vec<f64> = body
+                .vertex_points()
+                .filter(|&(v, _)| {
+                    body.faces_of_vertex(v)
+                        .and_then(|faces| faces.first().copied())
+                        .and_then(|f| body.solid_of_face(f))
+                        == Some(solid)
+                })
+                .map(|(_, p)| p.x)
+                .collect();
+            assert!(!xs.is_empty(), "{solid:?} has no vertex");
+            #[allow(clippy::cast_precision_loss)]
+            let n = xs.len() as f64;
+            xs.iter().sum::<f64>() / n
+        })
+        .collect()
 }
 
 // ---- Row 6: the persisted root list ----

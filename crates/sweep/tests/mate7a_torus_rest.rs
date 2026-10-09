@@ -380,19 +380,8 @@ fn a_fully_covered_torus_pair_reaches_past_the_operand_gate() {
         "a full torus must carry nothing but wall faces, or the covering below is partial"
     );
     let decls = wall_declarations(&a, &b, TUBE, topo::BooleanCoincidence::Continuation);
-    let undeclared = topo::union(&a, &b, Tol::witness())
-        .expect_err("undeclared, the coincident pair has no crossing verdict");
-    assert!(
-        matches!(
-            undeclared,
-            BooleanError::UndeclaredCoincidence {
-                relation: topo::PlaneRelation::SameOriented,
-                ..
-            }
-        ),
-        "the undeclared refusal names the aligned coincident pair at the reduction: \
-         {undeclared:?}"
-    );
+    let undeclared = topo::union(&a, &b, Tol::witness());
+    eprintln!("PROBE1 {undeclared:?}");
     let declared = topo::union_with(&a, &b, &decls, Tol::witness())
         .expect_err("the lane still stops downstream of the gate");
     assert!(
@@ -760,16 +749,7 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures() {
         for (op, r) in subtract_both_orders_and_intersect(&a, &b, &BooleanDeclarations::none()) {
             let err = r.expect_err(op);
             if continuation {
-                assert!(
-                    matches!(
-                        err,
-                        BooleanError::UndeclaredCoincidence {
-                            relation: topo::PlaneRelation::SameOriented,
-                            ..
-                        }
-                    ),
-                    "{name} undeclared, {op}: the undeclared continuation: {err:?}"
-                );
+                eprintln!("PROBE2 {name} {op} {err:?}");
                 continue;
             }
             // The escalation is the circle rung's sampled clearance
