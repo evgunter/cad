@@ -339,6 +339,7 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
         PlaneNurbsRefusal::Limb {
             limb: geom_brep::SsiLimb::Tube,
             value: 1e-7,
+            margin: MarginDiag::value(1e-7),
         },
         PlaneNurbsRefusal::TubeStraddles {
             verdict: Refused::Zero(Classified {
@@ -482,7 +483,52 @@ fn certify_errors() -> Vec<CertifyError> {
             .into_iter()
             .map(CertifyError::PlaneNurbs),
     );
+    v.extend(
+        analytic_rung3_refusals()
+            .into_iter()
+            .map(CertifyError::AnalyticRung3),
+    );
     v
+}
+
+fn analytic_rung3_refusals() -> Vec<geom_brep::AnalyticRung3Refusal> {
+    use geom_brep::AnalyticRung3Refusal as A;
+    vec![
+        A::Limb {
+            operand: geom::SurfaceKind::Plane,
+            limb: geom_brep::SsiLimb::HullSup,
+            value: 7.5e-5,
+            margin: MarginDiag::value(7.5e-5),
+        },
+        A::Escalated {
+            operand: Some(geom::SurfaceKind::Cylinder),
+            limb: geom_brep::SsiLimb::HullSup,
+            cause: diag(),
+        },
+        A::Escalated {
+            operand: None,
+            limb: geom_brep::SsiLimb::Tube,
+            cause: diag(),
+        },
+        A::NoOffsetBound {
+            operand: geom::SurfaceKind::Cone,
+            why: geom_brep::SectorChannel::Lever.describe(),
+        },
+        A::TubeStraddles {
+            verdict: Refused::Zero(Classified {
+                margin: MarginDiag::value(0.0),
+                band: band(),
+            }),
+            boxes: 12,
+        },
+        A::TubeNotOneArc {
+            rungs: 3,
+            cause: geom_brep::ssi::OneArcRefusal::Short,
+        },
+        A::Unsupported {
+            what: "the analytic rung-3 certificate reads two analytic operands",
+        },
+    ]
 }
 
 fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
@@ -493,7 +539,7 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         PcurveCertifyError::UnsupportedCarrier {
             chart: geom::SurfaceKind::Torus,
             carrier: geom::CurveKind::Nurbs,
-            class: geom_brep::UncoveredClass::SplineCarrier,
+            class: geom_brep::UncoveredClass::NoFittedClass,
         },
         PcurveCertifyError::CarrierGrazesChart {
             chart: geom::SurfaceKind::Torus,
@@ -511,7 +557,10 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         },
         PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" },
         PcurveCertifyError::FittedMateMissing,
-        PcurveCertifyError::ArcNearPole,
+        PcurveCertifyError::SectorRefused {
+            piece: 0,
+            channel: geom_brep::SectorChannel::Azimuth,
+        },
         PcurveCertifyError::IsoUnsupported {
             what: "a rational NURBS surface",
         },
@@ -766,6 +815,18 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             tolerance: 1e-6,
         },
         OffsetFitError::Limb {
+            limb: OffsetLimb::OnLocus,
+            bound: 3e-6,
+            tolerance: 1e-6,
+        },
+        // The mint's: the loop's NaN residual, and its certification
+        // sampling the accepted fit above the tolerance.
+        OffsetFitError::MintLimb {
+            limb: OffsetLimb::OnLocus,
+            bound: f64::NAN,
+            tolerance: 1e-6,
+        },
+        OffsetFitError::MintLimb {
             limb: OffsetLimb::OnLocus,
             bound: 3e-6,
             tolerance: 1e-6,
@@ -1100,6 +1161,21 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         ValidationError::PlanarBoundaryResidual { face, edge },
         ValidationError::TransverseNotIntrinsic { edge },
         ValidationError::ScaffoldAtRest { edge },
+        ValidationError::JoinableVertexAtRest { vertex },
+        ValidationError::JoinUndecidedAtRest {
+            undecided: crate::boolean::JoinUndecided {
+                vertex,
+                reading: crate::boolean::JoinReading::Regularity(diag()),
+            },
+        },
+        ValidationError::JoinUndecidedAtRest {
+            undecided: crate::boolean::JoinUndecided {
+                vertex,
+                reading: crate::boolean::JoinReading::ChartClass(
+                    geom_brep::IsoFamilyRefusal::Undecided(diag()),
+                ),
+            },
+        },
         ValidationError::TangentNotIntrinsic { edge },
         ValidationError::LaminaWedge { edge },
         ValidationError::NoDihedralArm {
@@ -1196,6 +1272,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     for error in certify_errors() {
         let l = match &error {
             CertifyError::PlaneNurbs(r) => label("EdgeCertification/PlaneNurbs", r),
+            CertifyError::AnalyticRung3(r) => label("EdgeCertification/AnalyticRung3", r),
             other => label("EdgeCertification", other),
         };
         s.push((l, ValidationError::EdgeCertification { edge, error }));
@@ -1543,6 +1620,10 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
         "PlaneNurbsRefusal",
         &plane_nurbs_refusals(),
     ));
+    out.extend(gaps::<_, geom_brep::edge_nurbs::AnalyticRung3RefusalKind>(
+        "AnalyticRung3Refusal",
+        &analytic_rung3_refusals(),
+    ));
     out.extend(gaps::<_, PcurveMintErrorKind>(
         "PcurveMintError",
         &pcurve_mint_errors(),
@@ -1576,4 +1657,40 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
         &ring_pair_contacts(),
     ));
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use geom_brep::recourse::Reading;
+    use geom_core::FileCoincidence;
+
+    /// **Every certification refusal ends at both doors or at neither,
+    /// and alike but for the file's ε_in** (D4 ¶1: one recourse per
+    /// decision, wherever it is read): a variant whose at-rest ending is
+    /// special-cased must have its import-door twin, and that twin reads
+    /// the same decision. The door's ending departs from the at-rest one
+    /// only through its ε_in sentences, which name ε_in. The roster is
+    /// [`super::certify_errors`], which `nested_coverage_gaps` holds to
+    /// every `CertifyError`, `PlaneNurbsRefusal` and `AnalyticRung3Refusal`
+    /// variant. Red where one door gives an ending the other drops, or
+    /// where the two read different decisions.
+    #[test]
+    fn every_certify_refusal_ends_alike_at_rest_and_at_the_import_door() {
+        let file = FileCoincidence::new(1e-6);
+        let split: Vec<String> = super::certify_errors()
+            .iter()
+            .filter(
+                |e| match (e.ending(Reading::AtRest), e.ending_in_file(file)) {
+                    (None, None) => false,
+                    (Some(rest), Some(door)) => rest != door && !door.contains("ε_in"),
+                    _ => true,
+                },
+            )
+            .map(|e| format!("{e:?}"))
+            .collect();
+        assert!(
+            split.is_empty(),
+            "the doors end apart, beyond the file's ε_in: {split:#?}"
+        );
+    }
 }

@@ -69,7 +69,7 @@
 //!   curved faces are its constructor's obligations), and one
 //!   cross-solid residue named at that loop: a pair whose ONLY
 //!   meetings are declared has some of its records taken on their word
-//!   (`work/contact/declared-only-meetings-clear-at-the-census-gate-unread.md`).
+//!   (`work/contacthold/declared-only-meetings-clear-at-the-census-gate-unread.md`).
 //!   Cross-solid
 //!   pairs the reach filter CLEARS are cleared soundly (the pads are
 //!   sound bounds for the kinds that take the test), so clearance is a
@@ -158,7 +158,7 @@
 //! [`ef_bound_backed`]'s face-pair arms — the last with its cut-schedule
 //! blocker gone (the edge-on-face bullet below), its migration parked
 //! with the declared-pair machinery D10 retires
-//! (`work/contact/ef-bound-backed-migrates-to-region-confinement.md`).
+//! (`work/contacthold/ef-bound-backed-migrates-to-region-confinement.md`).
 //! A grandfathered rung asks whether a declared face pair HOLDS the
 //! entities of the event — one on each side, through boundary
 //! membership and an edge's incidence to the faces it bounds — and
@@ -2122,7 +2122,7 @@ fn boundary_crossings<T: Decide>(
             Ok(lp) => lp,
             Err(err) => {
                 let r = match ContainError::from(err) {
-                    ContainError::Escalated(cause) => CrossRefusal::Escalated(vec![cause]),
+                    ContainError::Escalated { diag, .. } => CrossRefusal::Escalated(vec![diag]),
                     other => CrossRefusal::Unsupported(other),
                 };
                 refused(r, errors);
@@ -2351,7 +2351,7 @@ fn conic_crossings<T: Decide>(
             // A root of the carrier read off it, or an arc read as no
             // conic: the arc is not what its loop says it is.
             Ok(EdgeContact::Off | EdgeContact::Unread) => return Err(unreadable()),
-            Err(cause) => return Err(CrossRefusal::Escalated(vec![cause])),
+            Err(cause) => return Err(CrossRefusal::Escalated(vec![cause.diag])),
         }
     }
     Ok(out)
@@ -2583,8 +2583,8 @@ fn ee_cross_backed<T: Decide>(
                 undecided.push(crate::invalid_margin::invalid(band, "material_wedge_side"));
                 continue;
             }
-            Err(geom_brep::LeverEscalation { diag: cause, .. }) => {
-                undecided.push(cause);
+            Err(escalation) => {
+                undecided.push(escalation.diag());
                 continue;
             }
         }
@@ -6077,7 +6077,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             // analysis cannot read and the events a declared face pair
             // backs are taken on the records' word — reading them
             // refuses ratified declared seats
-            // (`work/contact/declared-only-meetings-clear-at-the-census-gate-unread.md`).
+            // (`work/contacthold/declared-only-meetings-clear-at-the-census-gate-unread.md`).
             if !unclaimable && (reaches || found || declared_only) {
                 // The material test, both orderings, every vertex. An
                 // `In` is the decided interference whatever else stands.

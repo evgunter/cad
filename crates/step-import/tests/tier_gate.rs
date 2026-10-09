@@ -189,7 +189,7 @@ fn eps_in_rows_for(rel: &str) -> &'static [(&'static str, Option<f64>)] {
     }
 }
 
-/// **The ε-row pins.** Six corpus files' dispositions are a function
+/// **The ε-row pins.** Ten corpus files' dispositions are a function
 /// of the ambient ε, and hiding that behind one row per file would make
 /// the suite either red for an honest reason or green for a wrong one.
 /// Each cell is `(file, ambient ε, eps_in row, disposition)`; the
@@ -227,7 +227,7 @@ fn eps_in_rows_for(rel: &str) -> &'static [(&'static str, Option<f64>)] {
 ///   miss lies within the file's declared ε_in, so the refusal names
 ///   setting ε to ε_in as a stopgap beside re-exporting more precisely
 ///   (D4 ¶1).
-const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
+const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
     // -- tests/fixtures/cert1-r1/nearpolar_*.step ---------------------
     // The AMBIENT sweep only, at the files' own ε_in (they state
     // themselves to full double precision). At ambient 1e-6 both
@@ -235,15 +235,16 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
     // certification margin (~8.6e-6 rad) is inside the ambiguity
     // band, so no props arithmetic is even reached; at the default
     // and fine bands both certify with the exact closed-form volume
-    // (`cert1_r1_import_probes.rs` holds the value).
-    (NEARPOLAR_SPLIT, 1e-9, "file", Pass(1, 1, 3, 4, 3)),
+    // (`cert1_r1_import_probes.rs` holds the value), the split twin
+    // with its ordinary vertex joined, so with the no-split census.
+    (NEARPOLAR_SPLIT, 1e-9, "file", Pass(1, 1, 3, 3, 2)),
     (
         NEARPOLAR_SPLIT,
         1e-6,
         "file",
         Escalated(NEARPOLAR_WEDGE_ESCALATED.0, NEARPOLAR_WEDGE_ESCALATED.1),
     ),
-    (NEARPOLAR_SPLIT, 1e-12, "file", Pass(1, 1, 3, 4, 3)),
+    (NEARPOLAR_SPLIT, 1e-12, "file", Pass(1, 1, 3, 3, 2)),
     (NEARPOLAR_NOSPLIT, 1e-9, "file", Pass(1, 1, 3, 3, 2)),
     (
         NEARPOLAR_NOSPLIT,
@@ -253,10 +254,10 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
     ),
     (NEARPOLAR_NOSPLIT, 1e-12, "file", Pass(1, 1, 3, 3, 2)),
     // -- tests/fixtures/band/ftc11_uref_off.stp -----------------------
-    (FTC11, 1e-9, "file", Pass(1, 1, 6, 14, 10)),
+    (FTC11, 1e-9, "file", Pass(1, 1, 6, 12, 8)),
     (FTC11, 1e-9, "1e-6", Refused(TANGENT_PLANES_COINCIDE)),
     (FTC11, 1e-9, "1e-12", Refused(TANGENT_PLANES_COINCIDE)),
-    (FTC11, 1e-6, "file", Pass(1, 1, 6, 14, 10)),
+    (FTC11, 1e-6, "file", Pass(1, 1, 6, 12, 8)),
     (
         FTC11,
         1e-6,
@@ -269,9 +270,9 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
         "1e-12",
         Escalated(PARAM_SPAN_ESCALATED.0, PARAM_SPAN_ESCALATED.1),
     ),
-    (FTC11, 1e-12, "file", Pass(1, 1, 6, 14, 10)),
-    (FTC11, 1e-12, "1e-6", Pass(1, 1, 6, 16, 12)),
-    (FTC11, 1e-12, "1e-12", Pass(1, 1, 6, 16, 12)),
+    (FTC11, 1e-12, "file", Pass(1, 1, 6, 12, 8)),
+    (FTC11, 1e-12, "1e-6", Pass(1, 1, 6, 12, 8)),
+    (FTC11, 1e-12, "1e-12", Pass(1, 1, 6, 12, 8)),
     // -- tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp ------------
     // The AMBIENT sweep only, at this file's own ε_in — the same shape
     // dm1 took in 2026-08-13, for the same reason and on the same kind
@@ -287,6 +288,20 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
     (NIST09, 1e-9, "file", Pass(1, 1, 158, 454, 300)),
     (NIST09, 1e-6, "file", Pass(1, 1, 158, 454, 300)),
     (NIST09, 1e-12, "file", Refused(NIST09_STOPGAP)),
+    // -- tests/fixtures/halfcap/halfcap_eps{6,7}.step (Ev, PR 4251) ---
+    // The AMBIENT sweep only, at the files' own ε_in. The split vertex
+    // sits 1e-8 m (eps6) and 1e-9 m (eps7) off the pole, and whether
+    // it is a regular point is the join's reading: at 1e-6 it reads AT
+    // the pole, so it is no joinable vertex and the file ships as
+    // stated; at the default band the reading lands in the sliver band
+    // and the import refuses, saying how fine a tolerance decides it;
+    // at 1e-12 it is a regular point, and the import joins it.
+    (HALFCAP_EPS6, 1e-9, "file", Refused(HALFCAP_EPS6_TIGHTEN)),
+    (HALFCAP_EPS6, 1e-6, "file", Pass(1, 1, 3, 4, 3)),
+    (HALFCAP_EPS6, 1e-12, "file", Pass(1, 1, 3, 3, 2)),
+    (HALFCAP_EPS7, 1e-9, "file", Refused(HALFCAP_EPS7_TIGHTEN)),
+    (HALFCAP_EPS7, 1e-6, "file", Pass(1, 1, 3, 4, 3)),
+    (HALFCAP_EPS7, 1e-12, "file", Pass(1, 1, 3, 3, 2)),
     // -- tests/fixtures/wild/stepcode/dm1-id-214.stp (#327) -----------
     // The AMBIENT sweep only, at this file's own ε_in: three cells,
     // all at the pcurve MINT on the l-bracket wall's ARC rim.
@@ -462,6 +477,25 @@ const QUAD_CONVERGED_ESCALATED: &str = "props_quad_converged";
 /// stand in.
 const ARC_RIM_MAP_RESIDUAL: &str = "MapResidual";
 const NIST09: &str = "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp";
+const HALFCAP_EPS6: &str = "tests/fixtures/halfcap/halfcap_eps6.step";
+const HALFCAP_EPS7: &str = "tests/fixtures/halfcap/halfcap_eps7.step";
+/// The halfcap near-pole twins' default-band refusal (Ev, PR 4251):
+/// the join's regularity reading lands in the sliver band, and the
+/// recourse names both levers — moving the vertex, and the tolerance
+/// that decides it, the margin over K. Pinned as the whole message,
+/// solid, margin, band and number included, so a refusal that drifted
+/// to another door, another solid or lost a lever cannot stand in.
+const HALFCAP_EPS6_TIGHTEN: &str = "step import: joining the edges of the solid at #15: whether \
+     two edges meeting at a vertex on one curve are one edge is undecided (margin \
+     9.99999999978799e-9 lies inside the ambiguity band (1e-9, 1e-8)). Recourse: move the \
+     vertex clear of the pole, apex or tangency it sits near, or, if this size is intended, \
+     tighten the tolerance below 9.99999999978799e-10 m";
+/// As [`HALFCAP_EPS6_TIGHTEN`], for the twin a decade nearer the pole.
+const HALFCAP_EPS7_TIGHTEN: &str = "step import: joining the edges of the solid at #15: whether \
+     two edges meeting at a vertex on one curve are one edge is undecided (margin \
+     1.00000000119619e-9 lies inside the ambiguity band (1e-9, 1e-8)). Recourse: move the \
+     vertex clear of the pole, apex or tangency it sits near, or, if this size is intended, \
+     tighten the tolerance below 1.00000000119619e-10 m";
 
 /// Coarse enough for the two walls to read as one: the Intersection
 /// transversality precondition fails, and the ladder says which. A zero
@@ -496,9 +530,9 @@ const NIST09_STOPGAP: &str = "mapped curve: geometry attachment gate: the start-
 /// Paths are relative to this crate's manifest directory (the `../`
 /// rows are `step-export`'s corpus, which this crate imports from).
 const CORPUS: [(&str, Disposition); 75] = [
-    ("tests/fixtures/band/band_a.stp", Pass(1, 1, 2, 6, 4)),
-    ("tests/fixtures/band/band_a180.stp", Pass(1, 1, 2, 6, 4)),
-    ("tests/fixtures/band/band_b180.stp", Pass(1, 1, 2, 6, 4)),
+    ("tests/fixtures/band/band_a.stp", Pass(1, 1, 2, 4, 2)),
+    ("tests/fixtures/band/band_a180.stp", Pass(1, 1, 2, 4, 2)),
+    ("tests/fixtures/band/band_b180.stp", Pass(1, 1, 2, 4, 2)),
     (
         "tests/fixtures/band/band_c180.stp",
         Refused("shared at-rest validation gate"),
@@ -512,8 +546,8 @@ const CORPUS: [(&str, Disposition); 75] = [
         Refused("ORIENTATION-INVERTED cylinder band"),
     ),
     ("tests/fixtures/band/ftc11_uref_off.stp", EpsSensitive),
-    ("tests/fixtures/band/washer180.stp", Pass(1, 1, 3, 5, 4)),
-    ("tests/fixtures/band/washer90.stp", Pass(1, 1, 3, 5, 4)),
+    ("tests/fixtures/band/washer180.stp", Pass(1, 1, 3, 3, 2)),
+    ("tests/fixtures/band/washer90.stp", Pass(1, 1, 3, 3, 2)),
     ("tests/fixtures/freecad/box.step", Pass(1, 1, 6, 12, 8)),
     (
         "tests/fixtures/freecad/box_fillet_corner.step",
@@ -585,20 +619,15 @@ const CORPUS: [(&str, Disposition); 75] = [
     // no-split refused degenerate (endpoint fold saw lo == hi) while
     // split MEASURED, tier 3 green, 47% low at pad = 0.0. Both now
     // pass, and `halfcap_pole.rs` holds both to the exact closed-form
-    // volume.
-    ("tests/fixtures/halfcap/halfcap.step", Pass(1, 1, 3, 4, 3)),
+    // volume. The split twin's ordinary vertex is joined at import
+    // (`docs/DESIGN.md`, maximal edges), so it ships the no-split
+    // twin's census.
+    ("tests/fixtures/halfcap/halfcap.step", Pass(1, 1, 3, 3, 2)),
     // The near-pole split twins: the same solid with the ordinary
-    // vertex 1e-6 / 1e-7 rad off the pole, landing the
-    // pole-membership margin inside or beside the default band —
-    // refused `Escalated` until the indeterminate outcome folded.
-    (
-        "tests/fixtures/halfcap/halfcap_eps6.step",
-        Pass(1, 1, 3, 4, 3),
-    ),
-    (
-        "tests/fixtures/halfcap/halfcap_eps7.step",
-        Pass(1, 1, 3, 4, 3),
-    ),
+    // vertex 1e-6 / 1e-7 rad off the pole, ambient-sensitive since the
+    // import joins (`EPS_ROWS`).
+    ("tests/fixtures/halfcap/halfcap_eps6.step", EpsSensitive),
+    ("tests/fixtures/halfcap/halfcap_eps7.step", EpsSensitive),
     (
         "tests/fixtures/halfcap/halfcap_nosplit.step",
         Pass(1, 1, 3, 3, 2),
@@ -656,7 +685,7 @@ const CORPUS: [(&str, Disposition); 75] = [
     ),
     (
         "tests/fixtures/rim-only-cap/rimonly2.step",
-        Pass(1, 1, 2, 2, 2),
+        Pass(1, 1, 2, 1, 1),
     ),
     // #653's import route: one D-prism, stated four ways. The two
     // `split_*` files state the cylindrical face's vertical boundary as
@@ -667,14 +696,12 @@ const CORPUS: [(&str, Disposition); 75] = [
     // file, and the census below is the pin that says the difference is
     // exactly the split and nothing else.
     //
-    // TWO slots move, necessarily: `Pass` is (solids, shells, faces,
-    // edges, vertices), and splitting one edge in two also mints the
-    // vertex between them — 6 edges/4 vertices becomes 7/5. Solids,
-    // shells and faces are identical, which is the part that matters:
-    // the importer did not merge the sub-edges back together (which
-    // would have shown as 6 edges) and did not adopt an extra face.
-    // The `*_oblique` rows equal their `*_axis` counterparts exactly,
-    // so the placement changes no count at all.
+    // The `split_*` censuses equal the `plain_*` ones: the two collinear
+    // sub-edges meet at a vertex nothing else does, so the import ends
+    // by joining them (`docs/DESIGN.md`, maximal edges) and reports the
+    // join as a `JoinedEdges` normalization. The `*_oblique` rows equal
+    // their `*_axis` counterparts exactly, so the placement changes no
+    // count at all.
     (
         "tests/fixtures/split-iso/plain_axis.step",
         Pass(1, 1, 4, 6, 4),
@@ -685,11 +712,11 @@ const CORPUS: [(&str, Disposition); 75] = [
     ),
     (
         "tests/fixtures/split-iso/split_axis.step",
-        Pass(1, 1, 4, 7, 5),
+        Pass(1, 1, 4, 6, 4),
     ),
     (
         "tests/fixtures/split-iso/split_oblique.step",
-        Pass(1, 1, 4, 7, 5),
+        Pass(1, 1, 4, 6, 4),
     ),
     (
         "tests/fixtures/wild/adafruit/1982_MPR121.step",
@@ -717,7 +744,7 @@ const CORPUS: [(&str, Disposition); 75] = [
     ),
     (
         "tests/fixtures/wild/nist/nist_ftc_11_asme1_rb.stp",
-        Pass(1, 1, 6, 14, 10),
+        Pass(1, 1, 6, 12, 8),
     ),
     (
         "tests/fixtures/wild/occ-oss/b123d_nema17_bracket.step",
@@ -725,7 +752,7 @@ const CORPUS: [(&str, Disposition); 75] = [
     ),
     (
         "tests/fixtures/wild/occ-oss/cq_red_cube_blue_cylinder.step",
-        Pass(2, 2, 9, 17, 12),
+        Pass(2, 2, 9, 15, 10),
     ),
     (
         // Refuses in EVERY ambient-ε cell, but the refusal SITE and

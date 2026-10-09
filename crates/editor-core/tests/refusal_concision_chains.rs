@@ -862,9 +862,7 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
 fn every_offset_fit_refusal_ends_exactly_once() {
     let rows = offset_fit_routes();
     assert!(!rows.is_empty(), "the offset-fit roster is empty");
-    let routed = meter_escalations();
-    let verdicts = meter_verdicts();
-    let mut pinned = 0;
+    let (mut pinned, mut mint_limbs, mut at_rest_limbs) = (0, 0, 0);
     for (name, kind) in rows {
         let text = as_the_viewer_shows_it(kind);
         assert_eq!(
@@ -876,10 +874,18 @@ fn every_offset_fit_refusal_ends_exactly_once() {
             !text.contains(geom_core::COINCIDENCE_RECOURSE),
             "{name}: {text}"
         );
-        let arm = name
-            .strip_prefix("Shell/Face/Fit/")
-            .or_else(|| name.strip_prefix("Transform/ApproxRecertify/"))
-            .expect("every offset-fit row is on one of the two routes");
+        // The shell user sets the curvature meter's size as a wall
+        // thickness, the transform's as an offset distance.
+        let (arm, curvature) = match name.strip_prefix("Shell/Face/Fit/") {
+            Some(arm) => (arm, WALL),
+            None => (
+                name.strip_prefix("Transform/ApproxRecertify/")
+                    .expect("every offset-fit row is on one of the two routes"),
+                DISTANCE,
+            ),
+        };
+        let (routed, verdicts) = (meter_escalations(curvature), meter_verdicts(curvature));
+        let wall = (curvature == WALL).then(wall_endings);
         let ending = routed
             .iter()
             .find(|(route, _, _)| arm == format!("Meter/Escalated/{route}"))
@@ -887,6 +893,7 @@ fn every_offset_fit_refusal_ends_exactly_once() {
             .or_else(|| {
                 verdicts
                     .iter()
+                    .chain(wall.iter().flatten())
                     .find(|(row, _)| arm == *row)
                     .map(|(_, ending)| ending)
             });
@@ -897,17 +904,47 @@ fn every_offset_fit_refusal_ends_exactly_once() {
         if arm.starts_with("Meter/") {
             assert!(!text.contains("lower"), "{name}: {text}");
         }
-        if arm.starts_with("Fit/") || arm.starts_with("Structure/") {
+        if curvature == WALL {
+            assert!(
+                !text.contains("offset distance") && !text.contains("other side"),
+                "{name}: a shell user sets a wall, not a distance or a side: {text}"
+            );
+        }
+        if arm.starts_with("Fit/") || arm.starts_with("Structure/") || arm.starts_with("MintLimb") {
             assert!(
                 text.ends_with(geom_core::KERNEL_DEFECT_ENDING),
                 "{name}: {text}"
             );
         }
+        // At rest a limb's repair is the re-fit; at the mint the re-fit
+        // is the call that refused, and nothing is stored.
+        if arm.starts_with("MintLimb") {
+            mint_limbs += 1;
+            assert!(
+                !text.contains("stored") && !text.contains("Recourse"),
+                "{name}: {text}"
+            );
+        } else if arm.starts_with("Limb") {
+            at_rest_limbs += 1;
+            assert!(
+                text.ends_with(geom_brep::offset_fit::LIMB_REFIT_RECOURSE),
+                "{name}: {text}"
+            );
+        }
     }
+    // `MintLimb` on both routes, `Limb` on the transform's alone. A
+    // count over the rows `offset_fit_routes` builds: it holds the
+    // roster's route split, not which arms the ops raise.
+    assert_eq!(
+        (mint_limbs, at_rest_limbs),
+        (4, 2),
+        "a limb row went missing"
+    );
     // Both routes raise `Meter`, so every pinned ending has two rows.
     assert_eq!(
         pinned,
-        2 * (routed.len() + verdicts.len()),
+        2 * (meter_escalations(DISTANCE).len() + meter_verdicts(DISTANCE).len())
+            + wall_endings().len(),
         "a pinned meter row went missing"
     );
 }
@@ -1881,9 +1918,19 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
         (
             "lever arm",
             escalated(CertCheck::TransversalityArm, in_band),
-            "Recourse: move the geometry so that edge is clearly longer, and its faces curve less \
-             tightly there, or, if this length or the gap its faces open is intended, tighten \
-             the tolerance below 5e-10 m",
+            "Recourse: move the geometry so that edge is clearly longer and no face curves tightly \
+             there, or, if this length or the gap its faces open is intended, tighten the \
+             tolerance below 5e-10 m",
+        ),
+        (
+            "lever arm, enclosure",
+            escalated(
+                CertCheck::TransversalityArm,
+                MarginDiag::enclosure(2.0e-9, 5.0e-9),
+            ),
+            "Recourse: move the geometry so that edge is clearly longer and no face curves tightly \
+             there, or, if this length or the gap its faces open is intended, tighten the \
+             tolerance below 2e-10 m",
         ),
         (
             "no lever arm",
@@ -1894,8 +1941,8 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
                     band,
                 }),
             },
-            "Recourse: move the geometry so that edge is clearly longer, and its faces curve less \
-             tightly there; a face curving to a point there, as a cone at its apex, leaves no \
+            "Recourse: move the geometry so that edge is clearly longer and no face curves tightly \
+             there; an edge of no length, or a face curving to a point as a cone does, leaves no \
              angle to measure",
         ),
         (
@@ -1977,6 +2024,7 @@ fn every_certify_refusal_ends_in_its_routed_sentence() {
 const SPLIT: &str = "Recourse: split the face clear of any pole, cusp or pinch";
 const DISTANCE: &str =
     "Recourse: use an offset distance of smaller magnitude, or offset to the other side";
+const WALL: &str = "Recourse: use a thinner wall";
 
 /// One `Meter/Escalated` sample per ending its meter's decision gives an
 /// undecided margin (D4 ¶1), with that whole ending: each meter's lever
@@ -1985,8 +2033,9 @@ const DISTANCE: &str =
 /// passes; and on a poisoned margin the lever and what it may mean.
 ///
 /// The band is fixed rather than the run's witness band, so the quoted
-/// `m/K` is the same at every eps row.
-fn meter_escalations() -> Vec<(&'static str, geom_brep::OffsetFitError, String)> {
+/// `m/K` is the same at every eps row. `curvature` is the curvature
+/// meter's lever on the route read ([`DISTANCE`] or [`WALL`]).
+fn meter_escalations(curvature: &str) -> Vec<(&'static str, geom_brep::OffsetFitError, String)> {
     use geom_brep::offset_meters::{Meter, MeterError};
     use geom_core::{Band, Indeterminate, MarginDiag};
     let band = Band::new(1.0e-9, 1.0e-8).expect("a fixed, ordered band");
@@ -2010,12 +2059,12 @@ fn meter_escalations() -> Vec<(&'static str, geom_brep::OffsetFitError, String)>
         (
             "curvature",
             escalated(Meter::CurvatureHeadroom, in_band),
-            tighten(DISTANCE, "clearance"),
+            tighten(curvature, "clearance"),
         ),
         (
             "curvature-enclosure",
             escalated(Meter::CurvatureHeadroom, wide),
-            DISTANCE.to_owned(),
+            curvature.to_owned(),
         ),
         (
             "floor",
@@ -2031,7 +2080,7 @@ fn meter_escalations() -> Vec<(&'static str, geom_brep::OffsetFitError, String)>
             "invalid",
             escalated(Meter::CurvatureHeadroom, MarginDiag::INVALID),
             format!(
-                "{DISTANCE}; an unreadable or collapsed margin may indicate a kernel bug worth \
+                "{curvature}; an unreadable or collapsed margin may indicate a kernel bug worth \
                  reporting"
             ),
         ),
@@ -2043,8 +2092,8 @@ fn meter_escalations() -> Vec<(&'static str, geom_brep::OffsetFitError, String)>
 /// band is band-decided and names the tolerance below `m/K`; a floor of
 /// exactly zero, which no tolerance resolves, names the lever and says a
 /// face with no degeneracy is worth reporting; a sign-certain fold names
-/// the lever alone.
-fn meter_verdicts() -> [(&'static str, String); 4] {
+/// the lever alone. `curvature` is as [`meter_escalations`] takes it.
+fn meter_verdicts(curvature: &str) -> [(&'static str, String); 4] {
     [
         (
             "Meter/NormalFloor",
@@ -2056,14 +2105,28 @@ fn meter_verdicts() -> [(&'static str, String); 4] {
             "Meter/NormalFloor#2",
             format!("{SPLIT}; if it has none, this may indicate a kernel bug worth reporting"),
         ),
-        ("Meter/CurvatureHeadroom", DISTANCE.to_owned()),
+        ("Meter/CurvatureHeadroom", curvature.to_owned()),
         (
             "Meter/CurvatureHeadroom#2",
             format!(
-                "{DISTANCE}, or, if this clearance is intended, tighten the tolerance below \
+                "{curvature}, or, if this clearance is intended, tighten the tolerance below \
                  5e-11 m"
             ),
         ),
+    ]
+}
+
+/// The endings the shell route alone gives the fit's other arms about
+/// the move's length, by row: the unbounded fit's `best: None` sample
+/// names a thicker wall, and an invalid request is the op's own defect
+/// (its thickness gate and its tolerance witness never make one).
+fn wall_endings() -> [(&'static str, String); 2] {
+    [
+        (
+            "BoundNotFinite#2",
+            "Recourse: use a thicker wall".to_owned(),
+        ),
+        ("InvalidRequest", geom_core::KERNEL_DEFECT_ENDING.to_owned()),
     ]
 }
 
@@ -2076,11 +2139,13 @@ fn meter_verdicts() -> [(&'static str, String); 4] {
 /// - **The shell op's face replacement** (`Shell/Face/Fit/…`): the
 ///   fit lane's mint runs the whole fit loop and then certifies, so it
 ///   raises every arm but `WindowUnsupported` (the mint certifies over
-///   the chart rectangle it fitted) and `Band` (below). The loop's own
+///   the chart rectangle it fitted), `Limb` (a limb refusing at the
+///   mint is `MintLimb`) and `Band` (below). The loop's own
 ///   terminations — `BudgetExhausted`, `SampleCapReached`, `BoundNotFinite`,
 ///   `RefinementStalled` — and the interpolation's `Fit`, `Structure`
 ///   and `NonFiniteSample` reach the user by this route and by the
-///   transform's re-fit.
+///   transform's re-fit, and so does `MintLimb`, whose re-fit is the
+///   call that refused, so it ends in the kernel-defect ending.
 /// - **The transform op** (`Transform/ApproxRecertify/…`) raises the
 ///   certifier's arms on the image — `certify_offset_over` runs the
 ///   meters and the certificate limbs on a fit it did not make, so
@@ -2123,8 +2188,8 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
     // The roster is borrowed, so its reach is checked on the roster
     // itself: a sample list that stopped carrying an arm would
     // otherwise shrink these rows silently. `BudgetExhausted`,
-    // `BoundNotFinite` and `Limb` each carry two samples (both
-    // `LastRound` readings, both `best` cases, both limbs).
+    // `BoundNotFinite`, `Limb` and `MintLimb` each carry two samples
+    // (both `LastRound` readings, both `best` cases, both limbs).
     for (arm, samples) in [
         ("Meter/NormalFloor", 2),
         ("Meter/CurvatureHeadroom", 2),
@@ -2140,6 +2205,7 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
         ("RefinementStalled", 1),
         ("WindowUnsupported", 1),
         ("Limb", 2),
+        ("MintLimb", 2),
         ("Elevation/", 1),
     ] {
         let have = roster.iter().filter(|(n, _)| n.starts_with(arm)).count();
@@ -2149,15 +2215,20 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
         );
     }
     roster.extend(
-        meter_escalations()
+        // The sources alone: a source does not depend on the lever,
+        // which only the endings read, per route, in the test.
+        meter_escalations(DISTANCE)
             .into_iter()
-            .map(|(route, source, _)| (format!("Meter/Escalated/{route}"), source)),
+            .map(|(route, source, _ending)| (format!("Meter/Escalated/{route}"), source)),
     );
     let face = FaceKey::default();
     let mut rows = Vec::new();
     for (arm, source) in roster {
         let transform = !matches!(source, O::Band(_));
-        if !matches!(source, O::WindowUnsupported { .. } | O::Band(_)) {
+        if !matches!(
+            source,
+            O::WindowUnsupported { .. } | O::Limb { .. } | O::Band(_)
+        ) {
             rows.push(row(
                 &format!("Shell/Face/Fit/{arm}"),
                 NodeErrorKind::Shell(Box::new(ShellError::Face {
@@ -4306,9 +4377,23 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                 R::VertexDisagreement { vertex, gap: 0.01 },
             ),
             (
-                "ReanchorOffCarrier",
-                R::ReanchorOffCarrier { edge, gap: 0.01 },
+                "EdgeSection",
+                R::EdgeSection {
+                    edge,
+                    kind: geom::SurfaceKind::Plane,
+                    other_kind: geom::SurfaceKind::Nurbs,
+                    verdict: topo::SectionVerdict::NoBranch,
+                },
             ),
+            (
+                "CornerSection",
+                R::CornerSection {
+                    vertex,
+                    edge,
+                    verdict: topo::CornerVerdict::NoRoot,
+                },
+            ),
+            ("DeclaredEdgeTilted", R::DeclaredEdgeTilted { edge }),
             (
                 "ReanchorPastCarrierEnd",
                 R::ReanchorPastCarrierEnd { edge, gap: 0.25 },
@@ -4455,7 +4540,9 @@ fn replace_face_arm(error: &topo::ReplaceFaceError<f64>) -> &'static str {
         R::IsoRow { .. } => "IsoRow",
         R::Structure { .. } => "Structure",
         R::VertexDisagreement { .. } => "VertexDisagreement",
-        R::ReanchorOffCarrier { .. } => "ReanchorOffCarrier",
+        R::EdgeSection { .. } => "EdgeSection",
+        R::CornerSection { .. } => "CornerSection",
+        R::DeclaredEdgeTilted { .. } => "DeclaredEdgeTilted",
         R::ReanchorPastCarrierEnd { .. } => "ReanchorPastCarrierEnd",
         R::ReanchorCollapse { .. } => "ReanchorCollapse",
         R::ReanchorInconclusive { .. } => "ReanchorInconclusive",
@@ -4480,7 +4567,7 @@ fn replace_face_arm(error: &topo::ReplaceFaceError<f64>) -> &'static str {
 
 /// Every `ReplaceFaceError` variant, in declaration order: the names
 /// [`replace_face_arm`] answers.
-const REPLACE_FACE_ARMS: [&str; 39] = [
+const REPLACE_FACE_ARMS: [&str; 41] = [
     "Band",
     "StaleFace",
     "Offset",
@@ -4500,7 +4587,9 @@ const REPLACE_FACE_ARMS: [&str; 39] = [
     "IsoRow",
     "Structure",
     "VertexDisagreement",
-    "ReanchorOffCarrier",
+    "EdgeSection",
+    "CornerSection",
+    "DeclaredEdgeTilted",
     "ReanchorPastCarrierEnd",
     "ReanchorCollapse",
     "ReanchorInconclusive",
@@ -4646,8 +4735,10 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
     let render = |source| {
         CheckFinding {
             check: CheckId::Connectedness,
-            root: RecipeNodeId::new(0, tagged(4)),
-            output_ix: 0,
+            subject: editor_core::FindingSubject::Output {
+                root: RecipeNodeId::new(0, tagged(4)),
+                output_ix: 0,
+            },
             evidence: CheckEvidence::Escalated { source },
         }
         .to_string()
@@ -4770,8 +4861,10 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
     let shell = ShellKey::default();
     let finding = |check, evidence| CheckFinding {
         check,
-        root: RecipeNodeId::new(0, tagged(4)),
-        output_ix: 0,
+        subject: editor_core::FindingSubject::Output {
+            root: RecipeNodeId::new(0, tagged(4)),
+            output_ix: 0,
+        },
         evidence,
     };
     let coherence = |condition| CoherenceFinding {

@@ -2,20 +2,24 @@
 
 The boolean and split gates' coverage: arms no row reaches, guards that repeat, and readers that see a chord.
 
+Two rows re-homed from CONTACT at its close (2026-10-09): a gate pair no row reaches and a source guard that misses a point-free call.
+
 Opened 2026-10-08 by REACH's closing cut on its priority seam
 (`work/README.md`, Track size), when REACH measured 139 budget points
 against 30 with its six charter rows closed. Nothing dispatched.
 
 ## The slate
 
-**25.5 budget points** of dispatchable work against a ceiling of 30.
+**29 budget points** of dispatchable work against a ceiling of 30.
 
 | pri | item | cost | title |
 |---|---|---|---|
 | P3 | `a-nurbs-edges-sector-departure-is-its-chord` | E | both sector walks take a NURBS edge's chord as its departure direction at an ON vertex |
 | P3 | `an-approx-face-on-line-edges-has-no-finished-fixture` | M | The operand gate's Approx × Plane germ-pair refusal is reached by no finished body through the public door |
 | P3 | `boundary-crossing-cuts-cannot-see-an-over-tight-face-box` | E | Only crest cuts and direct box rows can see a face box tighter than its face; boundary-crossing cuts cannot |
+| P3 | `census-touch-guard-needles-miss-a-point-free-call` | E | the census touch-analysis guard's needles all end in '(', so a point-free decide/abs/Self/Distance goes unseen |
 | P3 | `cut-in-refusals-no-probe-reaches` | M | Four of the cut-in's refusals have no row: a pole inside the circle, a hole inside it, ends on two loops, uncertified roots |
+| P3 | `gate-maximal-faces-may-miss-coincident-curved-faces-on-different-keys` | M | gate_maximal_faces checks planar pairs and same-key curved pairs; coincident adjacent curved faces on different surface keys may pass the F7 gate unseen |
 | P3 | `no-row-asserts-the-operand-gate-and-the-sweep-agree` | E | No row asserts that the operand gate and the sweep's curved arm agree on the pairs the narrow phase parts |
 | P3 | `section-area-skips-a-spiric-or-nurbs-section-edge` | E | certify_section_area reads a spiric or NURBS section edge as its chord |
 | P3 | `split-gate-approx-arm-has-no-whole-split-row` | M | The split gate's Approx arm is read at the gate only: no public door builds a body with an Approx face to split whole |

@@ -85,16 +85,15 @@ pub enum LeverRung {
 /// that raised it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LeverEscalation {
-    /// The rung that could not decide.
-    pub rung: LeverRung,
-    /// Its diagnostics.
-    pub diag: Indeterminate,
+    rung: LeverRung,
+    diag: Indeterminate,
     /// The sign the arm gate decided and refused, where it decided one:
     /// the arm is not there, a verdict rather than an undecided margin.
     /// Only [`LeverEscalation::arm`] mints it, from the gate's own
     /// escalation, so it is `Some` on the arm's rung alone; it is kept,
     /// never recomputed, when the escalation re-quotes the reading the
-    /// arm meters ([`LeverEscalation::with_diag`]).
+    /// arm meters ([`LeverEscalation::quoting_reading`]), which quotes
+    /// only a reading the gate's verdict pairs with.
     refused: Option<Sign>,
 }
 
@@ -117,18 +116,48 @@ impl LeverEscalation {
         }
     }
 
-    /// The same escalation quoting `diag`, the reading the arm meters,
-    /// for the margin its refusal offers: the rung and the gate's
-    /// verdict are kept.
+    /// Whether [`LeverEscalation::quoting_reading`] may re-quote this
+    /// escalation: the arm's rung, refused with a tolerance that decides
+    /// it. An exact zero or a poisoned margin is a verdict no smaller
+    /// tolerance re-decides, and the reading's rung meters nothing
+    /// further. A door asks this before it reads the metered quantity.
     #[must_use]
-    pub fn with_diag(self, diag: Indeterminate) -> Self {
-        Self { diag, ..self }
+    pub fn re_quotes(&self) -> bool {
+        self.rung == LeverRung::Arm && self.diag.offers_tolerance()
     }
 
-    /// Whether the arm gate decided the arm not there.
+    /// The same escalation quoting `diag`, the reading the arm meters,
+    /// for the margin its refusal offers: the rung and the gate's verdict
+    /// are kept, so an undecided arm stays undecided whatever the reading
+    /// reads. It is returned unchanged where it does not
+    /// [re-quote](LeverEscalation::re_quotes), and where the gate decided
+    /// a verdict that `diag`'s rejection is not: the reading is no longer
+    /// than the arm only up to the in-band excess of a unit vector's
+    /// length, so at the band's edge it can read in band where the arm
+    /// read zero, and the arm's own margin, whose tolerance decides
+    /// that reading too, keeps the verdict and its margin paired.
     #[must_use]
-    pub fn is_collapsed(&self) -> bool {
-        self.collapsed_arm().is_some()
+    pub fn quoting_reading(self, diag: Indeterminate) -> Self {
+        let pairs = self
+            .refused
+            .is_none_or(|sign| diag.margin.rejected_sign() == Some(sign));
+        if self.re_quotes() && pairs {
+            Self { diag, ..self }
+        } else {
+            self
+        }
+    }
+
+    /// The rung that could not decide.
+    #[must_use]
+    pub const fn rung(self) -> LeverRung {
+        self.rung
+    }
+
+    /// Its diagnostics.
+    #[must_use]
+    pub const fn diag(self) -> Indeterminate {
+        self.diag
     }
 
     /// The arm's verdict where the gate decided it not there, quoting the
@@ -511,6 +540,73 @@ mod tests {
             (err.rung, err.diag.predicate),
             (LeverRung::Arm, Some("enters_material_arm"))
         );
+    }
+
+    /// **The one re-quote door** quotes the reading an arm meters only
+    /// on the arm's rung, refused with a tolerance that decides it, and
+    /// for a decided arm only a reading whose rejection is the gate's own
+    /// verdict, every margin minted by the gate's funnel. Rows: an exact
+    /// zero, a poisoned arm and the reading's rung are returned
+    /// unchanged; a zero-band arm quotes a zero-band reading and keeps its
+    /// verdict; an in-band arm quotes an in-band or a zero-band reading
+    /// and stays undecided; and at the band's edge a
+    /// zero arm metering a reading a normal's in-band excess carries into
+    /// the band (`|n| = 1 + 1e-9`) keeps its own margin, so the verdict
+    /// never quotes an untagged one.
+    #[test]
+    fn only_a_reading_the_gates_verdict_pairs_with_is_re_quoted() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let gate = |m: f64| {
+            crate::dihedral::decide_positive("enters_material_arm", Margin::of(m), band)
+                .unwrap_err()
+        };
+        let read = |m: f64| {
+            crate::dihedral::decide_positive("enters_material_rise", Margin::of(m), band)
+                .unwrap_err()
+        };
+        let unit = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+        let unchanged = [
+            (
+                "exact zero",
+                enters_material(unit.vec(), unit, 0.0, band).unwrap_err(),
+            ),
+            (
+                "poisoned arm",
+                enters_material(unit.vec(), unit, f64::NAN, band).unwrap_err(),
+            ),
+            ("reading's rung", LeverEscalation::reading(read(5e-9))),
+            (
+                "zero arm, in-band reading",
+                LeverEscalation::arm(gate(1e-9)),
+            ),
+        ];
+        for (row, escalation) in unchanged {
+            assert_eq!(
+                escalation.quoting_reading(read(1e-9 * (1.0 + 1e-9))),
+                escalation,
+                "{row}: {escalation:?}"
+            );
+        }
+        let (zero, in_band) = (
+            LeverEscalation::arm(gate(5e-10)),
+            LeverEscalation::arm(gate(5e-9)),
+        );
+        assert!(
+            zero.collapsed_arm().is_some() && in_band.collapsed_arm().is_none(),
+            "{zero:?} {in_band:?}"
+        );
+        for (row, escalation, reading) in [
+            ("zero arm, zero-band reading", zero, read(4e-10)),
+            ("in-band arm, in-band reading", in_band, read(4e-9)),
+            ("in-band arm, zero-band reading", in_band, read(4e-10)),
+        ] {
+            let quoted = escalation.quoting_reading(reading);
+            assert_eq!(
+                (quoted.rung(), quoted.diag(), quoted.refused),
+                (LeverRung::Arm, reading, escalation.refused),
+                "{row}: {escalation:?}"
+            );
+        }
     }
 
     /// A poisoned direction (zero vector normalizes to NaN) escalates

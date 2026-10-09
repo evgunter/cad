@@ -26,7 +26,8 @@
 //! passed has neither; one that carries no verdict (a dual's scalar
 //! runs no at-rest gate) is read at the door
 //! ([`AtRestBody::gate_unverdicted`]) before anything else, refusing
-//! [`BlendError::ScaffoldingOperand`] or [`BlendError::InsideOutOperand`].
+//! [`BlendError::ScaffoldingOperand`], [`BlendError::InsideOutOperand`] or
+//! [`BlendError::UnjoinedOperand`].
 //!
 //! # The assembly front door
 //!
@@ -117,6 +118,10 @@ pub struct Blended<T: Real> {
     /// back to unnamed geometry; an empty struct would be refused by
     /// nothing.
     pub naming: Option<super::naming::BlendNaming>,
+    /// The coincidences the battery decided from values (each isosceles
+    /// turn), in vertex order and the source body's keys
+    /// ([`topo::coincidence`]).
+    pub coincidences: Vec<topo::Coincidence>,
 }
 
 /// **Fillet a set of a body's edges** at constant radius `radius`.
@@ -133,8 +138,8 @@ pub struct Blended<T: Real> {
 /// crosses HERE, once, and the inner [`BlendError`] stays
 /// verb-neutral — around: [`BlendError::Band`] when the committed
 /// tolerance admits no ambiguity band;
-/// [`BlendError::ScaffoldingOperand`] or
-/// [`BlendError::InsideOutOperand`] when the operand carries no
+/// [`BlendError::ScaffoldingOperand`], [`BlendError::InsideOutOperand`] or
+/// [`BlendError::UnjoinedOperand`] when the operand carries no
 /// verdict and is not finished (module docs);
 /// [`BlendError::NonpositiveSize`] when `radius` is not definitely
 /// positive; any refusal the battery produces;
@@ -416,8 +421,8 @@ pub type Chamfered<T> = Blended<T>;
 /// crosses HERE, once, and the inner [`BlendError`] stays
 /// verb-neutral — around: [`BlendError::Band`] when the committed
 /// tolerance admits no ambiguity band;
-/// [`BlendError::ScaffoldingOperand`] or
-/// [`BlendError::InsideOutOperand`] when the operand carries no
+/// [`BlendError::ScaffoldingOperand`], [`BlendError::InsideOutOperand`] or
+/// [`BlendError::UnjoinedOperand`] when the operand carries no
 /// verdict and is not finished (module docs);
 /// [`BlendError::NonpositiveSize`] when `distance` is not definitely
 /// positive; [`BlendError::RepeatedEdge`] when the request names one

@@ -226,6 +226,9 @@ pub struct SplitReduction<T: Real> {
     pub on_vertices: Vec<VertexKey>,
     /// Every null edge minted, in insertion order.
     pub null_edges: Vec<NullEdgeRecord>,
+    /// The pinches the ON verdicts decided, in ON-vertex order, keyed in
+    /// the operand ([`crate::coincidence`]).
+    pub coincidences: Vec<crate::Coincidence>,
 }
 
 /// **A knife edge the split would mint and cannot declare.** The plane
@@ -340,6 +343,14 @@ pub enum SplitReduceError {
     InsideOutOperand {
         /// The validator's findings, each naming its solid (and, for a
         /// shell, the shell).
+        errors: Vec<ValidationError>,
+    },
+    /// The operand holds a vertex the join would take, or one whose
+    /// reading lands in the sliver band (tier 3's check 11): a body every
+    /// finisher would have joined, read where its scalar runs no at-rest
+    /// gate ([`AtRestBody::gate_unverdicted`]).
+    UnjoinedOperand {
+        /// The check-11 findings, each naming its vertex.
         errors: Vec<ValidationError>,
     },
     /// A vertex landed in the sliver band of the plane (F6): the
@@ -469,6 +480,7 @@ impl SplitReduceError {
         match unfinished {
             Unfinished::Scaffolding(errors) => Self::ScaffoldingOperand { errors },
             Unfinished::InsideOut(errors) => Self::InsideOutOperand { errors },
+            Unfinished::Unjoined(errors) => Self::UnjoinedOperand { errors },
         }
     }
 }
@@ -515,15 +527,10 @@ impl core::fmt::Display for SplitReduceError {
             Self::CrossingEscalated { fault, .. } => {
                 let diag = fault.diag();
                 let ending = fault.decision().map_or_else(
-                    || format!("Recourse: {SPLIT_COINCIDENCE_RECOURSE}"),
+                    || geom_core::lever_recourse(SPLIT_COINCIDENCE_RECOURSE, None),
                     |decision| decision.ending_of(&diag),
                 );
-                write!(
-                    f,
-                    "{} is undecided: {}. {ending}",
-                    fault.subject(),
-                    diag.payload()
-                )
+                diag.undecided(fault.subject(), ending).fmt(f)
             }
             Self::TangencyUnsupported { .. } => write!(
                 f,
@@ -536,6 +543,9 @@ impl core::fmt::Display for SplitReduceError {
             }
             Self::InsideOutOperand { .. } => {
                 write!(f, "the body {}", Unfinished::INSIDE_OUT_REFUSAL)
+            }
+            Self::UnjoinedOperand { .. } => {
+                write!(f, "the body {}", Unfinished::UNJOINED_REFUSAL)
             }
             Self::SliverVertex { diag, .. } => write!(
                 f,
@@ -684,13 +694,34 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
     let mut body = reduced.begin_surgery();
 
     classify::carrier_gate(&body, plane, band)?;
-    let (mut sides, mut on_vertices) = classify::classify_vertices(&body, plane, band)?;
+    let (mut sides, mut on_vertices, on_margins) =
+        classify::classify_vertices_margined(&body, plane, band)?;
     classify::insert_crossings(&mut body, plane, &mut sides, &mut on_vertices, tol)?;
 
     let mut null_edges = Vec::new();
+    let mut coincidences = Vec::new();
     for &v in &on_vertices {
         let entries = neighborhood::classify_neighborhood(&body, plane, &sides, v, band)?;
         let runs = insert::above_runs(&entries);
+        // An operand vertex decided ON whose neighbourhood leaves two or
+        // more runs on a side: pieces of that side touch there. A
+        // crossing's vertex was minted on the plane, so no margin
+        // decided it, and one run is a cut, not a touch.
+        if let (true, Some(&margin)) = (runs.len() >= 2, on_margins.get(v)) {
+            coincidences.push(crate::Coincidence {
+                cells: [
+                    crate::RowCell::Input {
+                        input: crate::Operand::A,
+                        cell: crate::Cell::Vertex(v),
+                    },
+                    crate::RowCell::Tool,
+                ],
+                relation: crate::Relation::OnCarrier,
+                site: crate::DecisionSite::SplitOn,
+                margin,
+                discharge: crate::Discharge::Numeric,
+            });
+        }
         insert::insert_null_edges(&mut body, v, &entries, &runs, &mut sides, &mut null_edges)?;
     }
 
@@ -701,6 +732,7 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
         sides,
         on_vertices,
         null_edges,
+        coincidences,
     })
 }
 
@@ -960,9 +992,11 @@ fn split_one_solid<T: geom_core::Decide + crate::props::AtRestPolicy>(
             above,
             below,
             naming,
+            coincidences,
         }) => Ok(SplitResult {
             above: below,
             below: above,
+            coincidences,
             // The naming sides were recorded against the MIRRORED
             // plane; swap them back with the bodies so `sections`
             // states sides in the caller's orientation.

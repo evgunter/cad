@@ -1,24 +1,20 @@
-//! Blinded-review probes for the VERBS-SSIFLAT unit (the fitted lane's
-//! SSI margin payload, and the `m6_3_chart_completion` interval row's
-//! re-scope). Each probe attacks one claim from the review brief.
+//! Blinded-review probes for the VERBS-SSIFLAT unit (the SSI
+//! certificate's margin payload). Each probe attacks one claim from the
+//! review brief. The fixture is a sphere's general circle as a rung-3
+//! carrier against the (sphere, tilted plane) pair, certified at the SSI
+//! door (`geom_brep::ssi::certify_rung3`); an analytic chart's pcurve
+//! row no longer carries this certificate (its image is the projected
+//! one), so the door is driven directly.
 //!
-//! **ε posture, and why it differs from the row under review**: every
-//! band here is built with [`Band::new`], not from `Tol::witness()`.
-//! `PcurveCache::certify_fitted` and `topo::pcurves::validate_pcurves`
-//! both take the band as an ARGUMENT, so the escalation these probes
-//! pin can be driven at any process ε — they run identically under
-//! `CAD_TOLERANCE_EPS` of 1e-6, 1e-9 or 1e-12. That is the property the
-//! reviewed row does not have: it branches on `Tol::witness().eps()`,
-//! so its escalation arm is live only in a CI configuration the
-//! sampler draws occasionally.
+//! **ε posture**: every band here is built with [`Band::new`], not from
+//! `Tol::witness()`, so the escalation these probes pin can be driven at
+//! any process ε — they run identically under `CAD_TOLERANCE_EPS` of
+//! 1e-6, 1e-9 or 1e-12.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::sync::Arc;
-
-use geom::Surface;
-use geom::{Curve3, NurbsCurve2};
-use geom_brep::PcurveCache;
+use geom::{Curve3, NurbsCurve3, Surface};
+use geom_brep::ssi::{SsiCertificate, SsiError, SsiOperand, certify_rung3};
 use geom_core::{Band, Point3, Real, Vec3};
 
 use crate::fixture::arc_chain;
@@ -63,42 +59,41 @@ fn general_circle<T: Real>(radius: f64) -> Curve3<T> {
     }
 }
 
-fn lift2<T: Real>(c: &NurbsCurve2<f64>) -> NurbsCurve2<T> {
-    let control = c.control().iter().map(|p| p.map(T::from_f64)).collect();
-    NurbsCurve2::new(c.knots().clone(), control, c.weights().to_vec()).expect("lifted structure")
+/// The arc as a RUNG-3 carrier at `T` (`fixture::arc_chain`): these
+/// probes are about the SSI certificate's payloads, which only a fitted
+/// carrier runs.
+fn rung3<T: Real>(radius: f64, (f0, f1): (f64, f64)) -> NurbsCurve3<T> {
+    arc_chain::chain(&general_circle::<T>(radius), f0, f1)
 }
 
-/// The arc as a RUNG-3 carrier at `T` (`fixture::arc_chain`), with its
-/// chart image: these probes are about the SSI certificate's payloads,
-/// which only a fitted carrier runs.
-fn rung3<T: Real>(radius: f64, (f0, f1): (f64, f64)) -> (Curve3<T>, Arc<NurbsCurve2<T>>) {
-    let at_f64 = arc_chain::chain(&general_circle::<f64>(radius), f0, f1);
-    let image = Arc::new(lift2::<T>(&arc_chain::image(&at_f64, radius, f0, f1)));
-    let chain = arc_chain::chain(&general_circle::<T>(radius), f0, f1);
-    (Curve3::Nurbs(Arc::new(chain)), image)
+/// The control net's diameter: the tube ladder's arm, as the fitted
+/// lane read it.
+fn diameter<T: Real>(c: &NurbsCurve3<T>) -> T {
+    let ctl = c.control();
+    let mut far = T::zero();
+    for p in ctl {
+        for q in ctl {
+            far = far.max(p.distance(*q));
+        }
+    }
+    far
 }
 
-/// One call at the fitted door, at an explicit band — the whole route,
-/// with the tolerance a parameter.
-fn certify_at<T>(
-    radius: f64,
-    arc: (f64, f64),
-    band: Band,
-) -> Result<PcurveCache<T>, geom_brep::PcurveCertifyError>
+/// One call at the SSI door, at an explicit band — the whole
+/// certificate, with the tolerance a parameter.
+fn certify_at<T>(radius: f64, arc: (f64, f64), band: Band) -> Result<SsiCertificate<T>, SsiError>
 where
-    T: topo::AtRestPolicy,
+    T: geom_core::Decide + geom_core::Bounds + geom_core::CertifiedEnclosure,
 {
-    let (carrier, image) = rung3::<T>(radius, arc);
-    let (t0, t1) = (T::from_f64(arc.0), T::from_f64(arc.1));
-    PcurveCache::<T>::certify_fitted(
-        image,
-        t0,
-        t1,
+    let carrier = rung3::<T>(radius, arc);
+    let (plane, sphere) = (tilted_plane::<T>(), sphere::<T>(radius));
+    certify_rung3(
         &carrier,
-        &sphere::<T>(radius),
-        Some(&tilted_plane::<T>()),
+        None,
+        &SsiOperand::Analytic(&plane),
+        &SsiOperand::Analytic(&sphere),
+        diameter(&carrier),
         band,
-        T::fitted_lane().expect("a certifying scalar holds the fitted door"),
     )
 }
 
@@ -116,30 +111,16 @@ fn the_f64_route_certifies_at_a_1e_12_band_at_any_process_eps() {
 
 /// PROBE 2 (claim C1/C3, the payload): at the interval scalar the same
 /// route escalates at the same band, and the refusal carries a REAL
-/// enclosure — not a poison and not a hole. This is the reviewed row's
-/// content, made unconditional on the run's ε.
+/// enclosure — not a poison and not a hole — at any process ε.
 #[test]
 fn the_interval_route_escalates_with_a_legible_enclosure_at_any_process_eps() {
     use geom_core::interval::Interval;
     let err = certify_at::<Interval>(1.0, ARC, tight_band())
         .expect_err("the interval lane escalates at a 1e-12 band");
-    // AMENDED (fix pass): escalations now leave by their own door,
-    // `FittedEscalated`, carrying the classifier's `Indeterminate`
-    // whole — margin, band and predicate together. The probe's claim is
-    // unchanged (a legible enclosure at any process ε); only the door
-    // it reads it from moved.
-    let geom_brep::PcurveCertifyError::FittedEscalated { cause } = err else {
-        panic!("the fitted door must refuse through its escalation arm: {err:?}");
+    let SsiError::CertificateEscalated { ref cause, .. } = err else {
+        panic!("the door must refuse through its escalation arm: {err:?}");
     };
-    let (limb, what, margin) = (
-        Option::<geom_brep::SsiLimb>::None,
-        cause.predicate.unwrap_or("<unnamed>"),
-        Some(cause.margin),
-    );
-    assert_eq!(
-        limb, None,
-        "an escalation names no limb, only its predicate"
-    );
+    let (what, margin) = (cause.predicate.unwrap_or("<unnamed>"), Some(cause.margin));
     assert_eq!(what, "ssi_hull_sup");
     let Some(geom_core::ErrorTextReading::Enclosure { lo, hi }) =
         margin.map(geom_core::MarginDiag::diagnostic_f64_for_error_text)
@@ -220,8 +201,7 @@ fn the_interval_hull_bound_is_span_dependent() {
         let arc = (0.3, 0.3 + core::f64::consts::FRAC_PI_2 / div);
         match certify_at::<Interval>(1.0, arc, tight_band()) {
             Ok(_) => None,
-            // AMENDED (fix pass): the escalation's own door.
-            Err(geom_brep::PcurveCertifyError::FittedEscalated { cause })
+            Err(SsiError::CertificateEscalated { cause, .. })
                 if cause.predicate == Some("ssi_hull_sup") =>
             {
                 match cause.margin.diagnostic_f64_for_error_text() {
@@ -284,16 +264,9 @@ fn a_structural_tube_refusal_reports_an_honest_typed_shape() {
     // consumer.
     let err = certify_at::<f64>(1.0e-5, ARC, loose_band())
         .expect_err("a 10-micron arc has no certifiable uniqueness tube at a 1e-6 band");
-    let geom_brep::PcurveCertifyError::FittedCertificate {
-        what, magnitude, ..
-    } = err
-    else {
-        panic!("expected the certificate arm: {err:?}");
-    };
     assert!(
-        magnitude.is_none(),
-        "a structural refusal measured nothing and must carry no magnitude: \
-         what={what:?} magnitude={magnitude:?}"
+        matches!(err, SsiError::TubeLadderEmpty { .. }),
+        "a structural refusal is the empty ladder's, measuring nothing: {err:?}"
     );
     let rendered = err.to_string();
     assert!(
@@ -303,137 +276,5 @@ fn a_structural_tube_refusal_reports_an_honest_typed_shape() {
     assert!(
         rendered.contains("ladder"),
         "the refusal must name the empty ladder as its cause: {rendered}"
-    );
-}
-
-/// PROBE 5 (the E2E exercise): drive the escalation through a PUBLIC
-/// `topo` door on a body of the reviewer's own authoring, and read what
-/// a consumer sees. The cache is minted at a loose band and attached;
-/// `validate_pcurves` then RE-DERIVES the full C2 certificate at a
-/// tighter band, which is the at-rest pass a consumer runs. The
-/// question is whether the margin survives that layer or is
-/// re-flattened.
-#[test]
-fn the_margin_is_legible_through_the_public_topo_door() {
-    use geom_core::Tol;
-    use geom_core::interval::Interval;
-    use topo::Body;
-
-    let radius = 1.0;
-    let (carrier, image) = rung3::<Interval>(radius, ARC);
-    let (f0, f1) = ARC;
-    let (t0, t1) = (
-        <Interval as Real>::from_f64(f0),
-        <Interval as Real>::from_f64(f1),
-    );
-    let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
-
-    let mut body = Body::<Interval>::new();
-    let seed = body.mvfs(p0, true).unwrap();
-    let sph_key = body
-        .set_face_surface(
-            seed.face,
-            topo::FaceSurface::New {
-                surface: sphere::<Interval>(radius),
-                sense: true,
-            },
-        )
-        .unwrap();
-    let anchor = body.mvfs(p1, true).unwrap();
-    let pl_key = body
-        .set_face_surface(
-            anchor.face,
-            topo::FaceSurface::New {
-                surface: tilted_plane::<Interval>(),
-                sense: true,
-            },
-        )
-        .unwrap();
-    let mid = <Interval as Real>::from_f64(0.5 * (f0 + f1));
-    let made = body
-        .mev(
-            topo::MevSite::Lone {
-                r#loop: seed.r#loop,
-            },
-            p1,
-            geom_brep::EdgeCurveSpec {
-                description: geom_brep::EdgeDescriptionSpec::Intersection {
-                    s1: sph_key,
-                    s2: pl_key,
-                    witness: carrier.eval(mid),
-                },
-                carrier: carrier.clone(),
-                param_start: t0,
-                param_end: t1,
-            },
-            Tol::witness(),
-        )
-        .expect("the general-circle edge certifies");
-    let edge = body.get_edge(made.edge).expect("edge resolves");
-    for he in [edge.he_plus, edge.he_minus] {
-        let cache = PcurveCache::<Interval>::certify_fitted(
-            Arc::clone(&image),
-            t0,
-            t1,
-            &carrier,
-            &sphere::<Interval>(radius),
-            Some(&tilted_plane::<Interval>()),
-            loose_band(),
-            geom_brep::FittedLane::certified(),
-        )
-        .expect("the cache mints at a loose band");
-        body.attach_pcurve(he, cache);
-    }
-
-    // The public at-rest door, at a band tighter than the cache's.
-    let findings = topo::pcurves::validate_pcurves(&body, tight_band());
-    assert!(
-        !findings.is_empty(),
-        "re-deriving at a tighter band must refuse"
-    );
-    let shown: Vec<String> = findings.iter().map(ToString::to_string).collect();
-    // AMENDED (fix pass): same rewording, same claim — and the band now
-    // survives the public door too.
-    assert!(
-        shown.iter().any(|s| s.contains("enclosure")),
-        "a consumer reading the public door must see the enclosure, not a flattened \
-         value: {shown:?}"
-    );
-    assert!(
-        shown.iter().any(|s| s.contains("ambiguity band (")),
-        "the band must survive the public door with the margin: {shown:?}"
-    );
-    assert!(
-        !shown.iter().any(|s| s.contains("NaN")),
-        "no layer may re-manufacture the NaN: {shown:?}"
-    );
-}
-
-/// PROBE 6 (claim C3, the re-scope's SCOPE): the row under review gates
-/// its escalation arm on `Tol::witness().eps() < HULL_SUP_AT_INTERVAL`
-/// — one-sided. The escalation is only the outcome while the bound is
-/// INSIDE the band, i.e. `band.zero() < HULL_SUP < band.escalate()`.
-/// Below `HULL_SUP / K` the bound is ABOVE the band and the door
-/// refuses definitely instead, which the row's arm does not admit. This
-/// probe names what the door actually does there, at an explicit band
-/// so it does not depend on the run's ε.
-#[test]
-fn below_the_band_the_route_refuses_definitely_not_by_escalation() {
-    use geom_core::interval::Interval;
-    let below = Band::new(1e-13, 1e-12).unwrap();
-    let err = certify_at::<Interval>(1.0, ARC, below)
-        .expect_err("the route cannot certify at a band under the hull bound");
-    println!("below-band refusal: {err:?} / {err}");
-    assert!(
-        !matches!(
-            err,
-            geom_brep::PcurveCertifyError::FittedCertificate {
-                limb: None,
-                what: "ssi_hull_sup",
-                ..
-            }
-        ),
-        "the reviewed row's escalation arm assumes this shape at every eps below the \
-         constant; it is not what the door produces here: {err:?}"
     );
 }

@@ -171,7 +171,7 @@ pub(super) fn build_sectors<T: Decide>(
     vertex: VertexKey,
     band: Band,
 ) -> Result<Vec<BoolSector<T>>, BooleanError> {
-    let corners = orbit_corners(body, operand, vertex);
+    let corners = orbit_corners(body, operand, vertex, band);
     // A lone orbit half-edge's corner runs from its chord round to it.
     let alone = corners.len() == 1;
     let mut sectors = Vec::with_capacity(corners.len() + 2);
@@ -255,6 +255,7 @@ pub(super) fn orbit_corners<T: Decide>(
     body: &Body<T>,
     operand: Operand,
     vertex: VertexKey,
+    band: Band,
 ) -> impl ExactSizeIterator<Item = Result<OrbitCorner<T>, BooleanError>> + '_ {
     let orbit = body.vertex_orbit_linked(vertex);
     if orbit.is_empty() {
@@ -322,7 +323,7 @@ pub(super) fn orbit_corners<T: Decide>(
         let he = orbit[i];
         let (end, end_reach) = chord(he); // this entry's own chord = CCW-last
         let (start, start_reach) = chord(orbit[(i + 1) % n]); // next chord = CCW-first
-        let (face, normal) = sector_face(body, operand, vertex, he)?;
+        let (face, normal) = sector_face(body, operand, vertex, he, band)?;
         Ok(OrbitCorner {
             he,
             start,
@@ -340,11 +341,18 @@ pub(super) fn orbit_corners<T: Decide>(
 /// The walk and the normals are [`crate::sector_face`] — ONE
 /// implementation, called from here and from the splitting lane's
 /// sector walk. What stays here is this lane's
-/// adaptation of it, and only that: the boolean error type, whose
-/// every arm carries the [`Operand`] the shared walk has no notion of.
-/// All four wired arms — `Plane`, `Cylinder`, `Sphere`, `Torus` —
-/// are live on this side; kinds without one refuse typed (C12.1, per
-/// arm).
+/// adaptation of it: the boolean error type, whose every arm carries
+/// the [`Operand`] the shared walk has no notion of, and the cone's
+/// apex. All five wired arms — `Plane`, `Cylinder`, `Sphere`, `Torus`,
+/// `Cone` — are live on this side; kinds without one refuse typed
+/// (C12.1, per arm).
+///
+/// **A sector based at a cone's apex refuses**
+/// ([`BooleanError::NormalAtConeApex`]). The walk mints the cone's
+/// normal from its implicit gradient, which is `0/0` on the axis, and
+/// the apex is the axis point ON the cone: a vertex there has no
+/// tangent plane, and the poison would otherwise reach the first
+/// decision that reads it under that decision's name.
 ///
 /// The normal arrives as an [`OutwardNormal`] with the face's `sense`
 /// folded in (S10), minted at the shared chokepoint — which makes that
@@ -361,6 +369,7 @@ pub(super) fn sector_face<T: Decide>(
     operand: Operand,
     vertex: VertexKey,
     he: HalfEdgeKey,
+    band: Band,
 ) -> Result<(FaceKey, OutwardNormal<T>), BooleanError> {
     let resolved = crate::sector_face::resolve(body, vertex, he).map_err(|e| match e {
         SectorFaceError::Unsupported { face, kind } => BooleanError::CurvedBooleanUnsupported {
@@ -378,14 +387,21 @@ pub(super) fn sector_face<T: Decide>(
         | SectorCarrier::Cylinder
         | SectorCarrier::Sphere
         | SectorCarrier::Torus => {}
-        // The boolean's sector algebra has no cone arm: a cone-carried
-        // sector refuses here, typed, as the split lane's does not.
         SectorCarrier::Cone => {
-            return Err(BooleanError::CurvedBooleanUnsupported {
-                operand,
-                face: resolved.face,
-                kind: geom::SurfaceKind::Cone,
-            });
+            let geom::Surface::Cone { apex, axis, .. } = *body.face_surface_linked(
+                resolved.face,
+                proven(&body.faces, resolved.face, EntityId::Face),
+            ) else {
+                unreachable!("the shared walk's cone arm read a face that carries no cone")
+            };
+            let p = body.resolve_vertex_point(vertex, Proven);
+            crate::face_normal::cone_axis_clearance(apex, axis, p, band).map_err(|_| {
+                BooleanError::NormalAtConeApex {
+                    operand,
+                    face: resolved.face,
+                    band,
+                }
+            })?;
         }
     }
     Ok((resolved.face, resolved.normal))
@@ -449,7 +465,7 @@ pub(super) fn NO_CURVATURE<T: Decide>() -> T {
 ///   (`tangent_lump`), and an undeclared curved on-carrier sector
 ///   refuses typed (C8). What this reading does NOT certify is an arc
 ///   that departs tangentially and curves off; that residue is filed
-///   (`work/contact/boolean-conic-side-code-zero-is-first-order`).
+///   (`work/contacthold/boolean-conic-side-code-zero-is-first-order`).
 /// - [`Reach::Bisector`]: a subdivision direction has no point behind
 ///   it, so it is levered at its sector's arm. Its Zero is not read as
 ///   a verdict where it could decide anything: a bisector's code only
@@ -567,10 +583,62 @@ pub(super) fn side_code<T: Decide>(
     }
 }
 
+/// **The lever a pierced face's side verdicts charge** ([`side_code`]'s
+/// `lever`): the smallest radius of curvature the face has where the
+/// charge reads it, within a bound's reach of the pierce point.
+///
+/// [`geom_brep::min_radius_of_curvature`] bounds every bend of a plane,
+/// sphere, cylinder or torus wherever a bound goes, and is the lever
+/// for every reach. A cone's is `ρ` at the pierce point only: its
+/// normal curvature `cos α·(d·φ̂)²/ρ` grows toward the axis, so a bound
+/// reaching `l` toward it can meet a bend as tight as `ρ − l`.
+///
+/// The charge reads the bound no further than `l* = slope·lever/2`
+/// (capped at the reach), and the slope is a sine, so a lever of `2ρ/3`
+/// is never read past `ρ/3`, where the bend is no tighter than `2ρ/3`.
+/// The cone's lever is therefore `max(ρ − reach, 2ρ/3)`: the bend
+/// nearest the axis within the bound's reach, or within the stretch the
+/// charge reads where that is shorter. It is positive wherever the
+/// pierce normal is, since that door certified `ρ` definitely positive.
+///
+/// It bounds the bend of the pierced point's own nappe only. The charge
+/// does not see the other sheet of the double cone, which on a wide
+/// cone (`α` above about 78.7°) comes within `ρ/3` of the pierce.
+/// What reads a crossing onto that sheet is the crossing layer's
+/// far-nappe verdict, not this lever.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum PierceLever<T: geom_core::Real> {
+    /// A bound on every bend the face makes.
+    Everywhere(T),
+    /// A cone's `ρ` at the pierce point.
+    ConeAt(T),
+}
+
+impl<T: Decide> PierceLever<T> {
+    /// The pierced `surface`'s lever at `p`.
+    pub(super) fn of(surface: &geom::Surface<T>, p: Point3<T>) -> Self {
+        let at_p = geom_brep::min_radius_of_curvature(surface, p);
+        match surface {
+            geom::Surface::Cone { .. } => Self::ConeAt(at_p),
+            _ => Self::Everywhere(at_p),
+        }
+    }
+
+    /// The lever for a bound reaching `reach` from the pierce point.
+    pub(super) fn within(self, reach: T) -> T {
+        match self {
+            Self::Everywhere(lever) => lever,
+            Self::ConeAt(rho) => (rho - reach).max(rho * T::from_f64(2.0 / 3.0)),
+        }
+    }
+}
+
 /// **A side reading's arm gate, quoted at the departure it reads**: the
 /// arm is in band or decided zero, and the reading it meters is the
 /// bound's departure from the face over that arm, `d̂·n̂·arm`, no longer
-/// than the arm. A tolerance that decides the arm but leaves the
+/// than the arm up to the in-band excess of the normal's length over one
+/// (which [`geom_brep::LeverEscalation::quoting_reading`] guards). A
+/// tolerance that decides the arm but leaves the
 /// departure in band reads no side, so the escalation carries the
 /// departure's own margin, through the arm gate's funnel, and the
 /// tolerance it offers decides both, logged under its own name
@@ -587,10 +655,7 @@ fn at_departure<T: Decide>(
 ) -> geom_brep::LeverEscalation {
     // `arm / departure` is finite unless the departure is exactly zero
     // (or poison).
-    if escalation.rung != geom_brep::LeverRung::Arm
-        || !escalation.diag.offers_tolerance()
-        || !geom_core::is_finite_length(arm / departure)
-    {
+    if !escalation.re_quotes() || !geom_core::is_finite_length(arm / departure) {
         return escalation;
     }
     match geom_core::k_stats::decide_positive(
@@ -598,9 +663,10 @@ fn at_departure<T: Decide>(
         Margin::of(departure.abs()),
         band,
     ) {
-        Err(diag) => escalation.with_diag(diag),
-        // Unreachable: the departure is no longer than an arm that did
-        // not read positive.
+        Err(diag) => escalation.quoting_reading(diag),
+        // Only where the face normal's in-band excess over unit length
+        // carries the departure past the band: the arm keeps its own
+        // margin, whose tolerance decides that departure too.
         Ok(()) => escalation,
     }
 }
@@ -1538,7 +1604,8 @@ pub(super) fn wedge_classes<T: Decide>(
 /// edge reads `None` there: no reference reads it and none escalated
 /// (every reference's arc runs through the link, meets a face whose
 /// crossing it cannot locate, or may cross a face inside its sector
-/// without decidedly crossing its plane).
+/// without decidedly crossing its plane, and does not lie decidedly
+/// apart from that face's sector).
 ///
 /// Which side of the corner's link is its cone is read off the link's
 /// mean direction `c` (the mean of its sectors' unit bounds): the side
@@ -1608,6 +1675,11 @@ pub(super) fn cone_read<T: Decide>(
 ///   `S`'s sector. Anywhere else, or where nothing is located, the
 ///   reference is passed over.
 ///
+/// Where a rule would pass the reference over, `S` is read as not
+/// crossed instead if the arc and `S`'s sector lie decidedly apart in
+/// `S`'s plane ([`apart`]): wherever the arc meets that plane, the point
+/// lies outside the sector.
+///
 /// `S` on `p`'s own face is not read: `p` lies on that plane in its own
 /// sector, which no other sector of the face shares.
 ///
@@ -1617,7 +1689,8 @@ pub(super) fn cone_read<T: Decide>(
 /// returned where no reference reads and none escalated: every
 /// reference's arc runs through the link, or meets a face whose
 /// crossing it cannot locate or that it may cross inside its sector
-/// without decidedly crossing its plane.
+/// without decidedly crossing its plane, and from whose sector it does
+/// not lie decidedly apart.
 fn cone_side<T: Decide>(
     dir: Vec3<T>,
     reach: Reach<T>,
@@ -1649,8 +1722,15 @@ fn cone_side<T: Decide>(
             if s.face == s0.face {
                 continue;
             }
+            let arc = GreatArc {
+                dir,
+                reach,
+                p,
+                p_arm: s0.arm,
+            };
             let side = match plane_side_code(p, p_reach, s.normal, band) {
                 Ok(side) => side,
+                Err(_) if apart(s, arc, band) => continue,
                 Err(e) => {
                     escalation.get_or_insert(e);
                     continue 'reference;
@@ -1665,32 +1745,28 @@ fn cone_side<T: Decide>(
             let code = match (side, *code) {
                 (SideCode::In | SideCode::Out, Some(code)) if code == side => continue,
                 (SideCode::In | SideCode::Out, Some(code)) => code,
-                _ => {
-                    let Some((x, lever)) = crossing(d, reach, p, s0.arm, s.normal.vec()) else {
+                _ => match crossing(d, reach, p, s0.arm, s.normal.vec())
+                    .map(|(x, lever)| in_sector(s, x, lever, band))
+                {
+                    Some(Ok(false)) => continue,
+                    _ if apart(s, arc, band) => continue,
+                    Some(Err(e)) => {
+                        escalation.get_or_insert(e);
                         continue 'reference;
-                    };
-                    match in_sector(s, x, lever, band) {
-                        Ok(false) => continue,
-                        Ok(true) => continue 'reference,
-                        Err(e) => {
-                            escalation.get_or_insert(e);
-                            continue 'reference;
-                        }
                     }
-                }
+                    Some(Ok(true)) | None => continue 'reference,
+                },
             };
             let mut crosses = true;
             for (bound, bound_reach, want) in
                 [(s.start, s.start_reach, side), (s.end, s.end_reach, code)]
             {
-                let arc = GreatArc {
-                    dir,
-                    reach,
-                    p,
-                    p_arm: s0.arm,
-                };
                 match arc_side(arc, bound, bound_reach, s.arm, band) {
                     Ok(Some(got)) => crosses &= got == want,
+                    _ if apart(s, arc, band) => {
+                        crosses = false;
+                        break;
+                    }
                     Ok(None) => continue 'reference,
                     Err(e) => {
                         escalation.get_or_insert(e);
@@ -1814,6 +1890,61 @@ fn in_sector<T: Decide>(
         }
     }
     Ok(true)
+}
+
+/// **Whether the arc misses `s` where it meets `s`'s plane, read in
+/// that plane**: wherever the arc from `d` to `p` meets the plane, it
+/// meets it at `a·d + b·p` (`a, b ≥ 0`), a point of the wedge `d` and
+/// `p` span projected into the plane, and the sector is the wedge its
+/// bounds `u`, `v` span. Two such wedges, each under 180°, are apart
+/// where a line through the vertex along one of the four has the other
+/// strictly on its far side: `d` and `p` past `u`'s line or `v`'s, or
+/// `u` and `v` past `d`'s line on the side away from `p`, or past
+/// `p`'s away from `d`. No reading takes the ends' heights over the
+/// plane, so it decides an arc lying in the plane, or meeting it at a
+/// point it cannot locate.
+///
+/// Each reading is the sine `(a × b)·n` of two of the four
+/// (`"bool_cone_apart"`), less its rounding, levered at the least joint
+/// deviation of the two points it reads ([`least_lever`]), each at its
+/// own reach: `d` at the direction's, `p` at its arm, a bound at the
+/// bound's. `false` where no line decides it, a reading zero or in band
+/// counting as no side.
+fn apart<T: Decide>(s: &BoolSector<T>, arc: GreatArc<T>, band: Band) -> bool {
+    let one = T::from_f64(1.0);
+    let n = s.normal.vec();
+    let u = (s.start, s.start_reach.length());
+    let v = (s.end, s.end_reach.length());
+    let d = (arc.dir.normalize(), arc.reach.length());
+    let p = (arc.p, arc.p_arm);
+    let (zero, rounding) = (T::from_f64(0.0), T::from_f64(8.0 * f64::EPSILON));
+    // The decided sign of `(a × b)·n`, `None` where it is zero or in band.
+    // The triple product of unit vectors rounds by a few ulp, which the
+    // lever magnifies: what of it a rounding could account for is no
+    // deviation of the points, so it is taken off first, as in
+    // [`arc_side`].
+    let sine = |(a, la): (Vec3<T>, T), (b, lb): (Vec3<T>, T)| {
+        let lever = least_lever([(la, one), (lb, one)]).unwrap_or(zero);
+        let x = a.cross(b).dot(n);
+        let certain = (x - rounding).max(zero) + (x + rounding).min(zero);
+        match decide("bool_cone_apart", Margin::levered(certain, lever), band) {
+            Ok(Sign::Positive) => Some(1),
+            Ok(Sign::Negative) => Some(-1),
+            Ok(Sign::Zero) | Err(_) => None,
+        }
+    };
+    let (ud, up) = (sine(u, d), sine(u, p));
+    let (vd, vp) = (sine(v, d), sine(v, p));
+    // The sector lies where `(u × x)·n ≥ 0` and `(x × v)·n ≥ 0`.
+    let past_u = ud == Some(-1) && up == Some(-1);
+    let past_v = vd == Some(1) && vp == Some(1);
+    let past_ends = || {
+        let pd = sine(p, d);
+        let past_d = ud.is_some() && ud == vd && pd.is_some_and(|k| Some(-k) == ud);
+        let past_p = up.is_some() && up == vp && pd.is_some() && pd == up;
+        past_d || past_p
+    };
+    past_u || past_v || past_ends()
 }
 
 /// The arc [`cone_side`] reads along: from `dir`, read as `reach`
@@ -2110,6 +2241,32 @@ mod tests {
         );
     }
 
+    /// **An arc lying in a face's plane is read apart from its sector**:
+    /// the saddle above read along `(0, −1, 0.4)`, opposite its valley
+    /// bound, on the planes of the two faces beside that bound, outside
+    /// their sectors (the review fuzz's `saddle0.4`, probe 34). Each
+    /// other face's reference lies on the plane of the face opposite it,
+    /// so the arc to it runs along that plane and locates no crossing;
+    /// it lies decidedly apart from that face's sector, so the direction
+    /// reads `Out`, as it exactly is.
+    #[test]
+    fn an_arc_in_a_faces_plane_is_read_apart_from_its_sector() {
+        let ring: Vec<_> = [
+            (1.0, 0.0, 0.4),
+            (0.0, 1.0, -0.4),
+            (-1.0, 0.0, 0.4),
+            (0.0, -1.0, -0.4),
+        ]
+        .iter()
+        .map(|&(x, y, z)| Vec3::new(x, y, z))
+        .collect();
+        let saddle = cone_sectors(&ring, true);
+        let read = cone_read(&probes(&[Vec3::new(0.0, -1.0, 0.4)]), &saddle, band())
+            .unwrap()
+            .unwrap();
+        assert_eq!(classes(&read), [SideCode::Out], "opposite the valley");
+    }
+
     /// **A saddle whose mean bound has no decided length is not
     /// pointed**: the symmetric saddle with one corner risen 3e-12, so
     /// the mean of its unit bounds is a few 1e-13 long, nonzero but
@@ -2291,6 +2448,193 @@ mod tests {
                 assert_eq!(classes(&read), [class], "{what}, probe {k}");
             }
         }
+    }
+
+    /// **An arc and a sector in one plane are apart across a line through
+    /// a bound**: the sector from bearing 0° to 10° on `z = 0`, and arcs
+    /// in that plane. Two lines part disjoint wedges, one at each end of
+    /// the turn of lines that part them; each arc puts one end's two
+    /// lines within a 1e-12 rad hair of touching, so the other end's line
+    /// alone decides it. An arc through the sector is not apart, nor is
+    /// one apart only within the band, read at its two points' joint
+    /// lever: at a 1 mm reach, where the sine reads zero; at two 1 m
+    /// reaches, where it lies between the zero band and the escalation
+    /// band, and either reach alone would decide it; and at 1 km and
+    /// 1 mm, where the longer would.
+    #[test]
+    fn an_arc_and_a_sector_in_one_plane_are_apart_across_a_bound_line() {
+        let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let at = |deg: f64| {
+            let (s, c) = deg.to_radians().sin_cos();
+            Vec3::new(c, s, 0.0)
+        };
+        let chord = |d: Vec3<f64>, l: f64| Reach::Chord {
+            base: o,
+            far: o + d * l,
+        };
+        let hair = 1e-12f64.to_degrees();
+        let rad = f64::to_degrees;
+        // Each arc: its ends' bearings, the direction's reach, and the
+        // reach of the reference and the sector's bounds.
+        for (what, d, p, (l_d, l), want) in [
+            ("past u's line alone", 185.0, 190.0 + hair, (1.0, 1.0), true),
+            ("past v's line alone", 185.0, 180.0 - hair, (1.0, 1.0), true),
+            ("past d's line alone", 100.0, 190.0 + hair, (1.0, 1.0), true),
+            ("past p's line alone", 190.0 + hair, 100.0, (1.0, 1.0), true),
+            ("through the sector", -20.0, 30.0, (1.0, 1.0), false),
+            (
+                "apart within the band at a 1 mm reach",
+                180.0 + rad(1e-7),
+                190.0 + hair,
+                (1e-3, 1e-3),
+                false,
+            ),
+            (
+                "apart within the band at the joint lever of two 1 m reaches",
+                180.0 + rad(1.5e-8),
+                190.0 + hair,
+                (1.0, 1.0),
+                false,
+            ),
+            (
+                "apart within the band at the joint lever of 1 km and 1 mm",
+                180.0 + rad(1e-7),
+                190.0 + hair,
+                (1e3, 1e-3),
+                false,
+            ),
+        ] {
+            let sector = BoolSector {
+                he: HalfEdgeKey::from(key(1)),
+                start: at(0.0),
+                end: at(10.0),
+                start_reach: chord(at(0.0), l),
+                end_reach: chord(at(10.0), l),
+                face: FaceKey::from(key(11)),
+                normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
+                arm: l,
+            };
+            let arc = GreatArc {
+                dir: at(d),
+                reach: chord(at(d), l_d),
+                p: at(p),
+                p_arm: l,
+            };
+            assert_eq!(apart(&sector, arc, fuzz_band()), want, "{what}");
+        }
+    }
+
+    /// **An arc and a sector are not parted by a sine's rounding**: a
+    /// sector from `(2, 3, 0)` turned 10° about `z`, and an arc from
+    /// `−(2, 3, 0)`, exactly on its start bound's line, to the end
+    /// bound's opposite, every point a million metres out. The sine of
+    /// the start bound and the direction is exactly zero; the unit
+    /// vectors' product rounds to an ulp of it, which at that lever reads
+    /// decided at ε = 1e-12 and parts them across one line or another,
+    /// unless the rounding is taken off first. No line parts them
+    /// strictly, so they are not apart.
+    #[test]
+    fn an_arc_and_a_sector_are_not_parted_by_a_sines_rounding() {
+        let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let band = Band::linear_at(Tol::witness(), 1e-12).unwrap();
+        let far = 1e6;
+        let u = Vec3::new(2.0, 3.0, 0.0).normalize();
+        let (s, c) = 10f64.to_radians().sin_cos();
+        let v = Vec3::new(c * u.x - s * u.y, s * u.x + c * u.y, 0.0);
+        let d_far = Vec3::new(-2.0, -3.0, 0.0) * far;
+        let chord = |far: Vec3<f64>| Reach::Chord {
+            base: o,
+            far: o + far,
+        };
+        let sector = BoolSector {
+            he: HalfEdgeKey::from(key(1)),
+            start: u,
+            end: v,
+            start_reach: chord(u * far),
+            end_reach: chord(v * far),
+            face: FaceKey::from(key(11)),
+            normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
+            arm: far,
+        };
+        let arc = GreatArc {
+            dir: d_far,
+            reach: chord(d_far),
+            p: -v,
+            p_arm: far,
+        };
+        assert!(
+            u.cross(d_far.normalize()).z != 0.0,
+            "the sine rounds off zero"
+        );
+        assert!(!apart(&sector, arc, band), "parted by a rounding");
+    }
+
+    /// **An arc whose side of a bound reads nothing is read apart**: the
+    /// long-probe family's dart void over 1 cm bounds, one edge reflex by
+    /// 1e-5, read by a 1 km edge 1.1e-8 rad above the flat. Each
+    /// reference's arc reads no side of some face's bound ([`arc_side`]),
+    /// and where it lies decidedly apart from that face's sector, the
+    /// face is not crossed, so the edge reads `Out`, as it exactly is,
+    /// 1e-2 m from flipping (`sectors_cone_fuzz` seed 1, effort 10, cone
+    /// 227, probe 10).
+    #[test]
+    fn an_arc_past_a_bound_it_reads_no_side_of_is_read_apart() {
+        let cone = fuzz_cone(&[
+            [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.9999999999500001,
+                -9.9999999995e-6,
+                -0.0,
+                9.9999999995e-6,
+                0.99999999995,
+                1.0,
+                1.0,
+                0.01,
+                0.0,
+                0.0,
+                0.0,
+                0.0099999999995,
+                -9.999999999500001e-8,
+                0.01,
+                0.0,
+            ],
+            [
+                0.0,
+                0.9999999999500001,
+                -9.9999999995e-6,
+                -1.0,
+                0.0,
+                0.0,
+                0.0,
+                9.9999999995e-6,
+                0.99999999995,
+                1.0,
+                1.0,
+                0.0,
+                0.0099999999995,
+                -9.999999999500001e-8,
+                -0.01,
+                0.0,
+                0.0,
+                0.01,
+                1.0,
+            ],
+            [
+                -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, -0.01, 0.0, 0.0, 0.0,
+                -0.01, 0.0, 0.01, 2.0,
+            ],
+            [
+                0.0, -1.0, 0.0, 1.0, 0.0, 0.0, -0.0, 0.0, 1.0, 1.0, 1.0, 0.0, -0.01, 0.0, 0.01,
+                0.0, 0.0, 0.01, 3.0,
+            ],
+        ]);
+        let far = Vec3::new(-43.62942360567253, 999.0477833396342, 1.1146525609545589e-5);
+        reads_exactly("the dart void", &cone, &[(far, SideCode::Out)]);
     }
 
     /// **A thin fin reads as its polygon cone**: a crown whose two faces
@@ -3817,16 +4161,9 @@ mod tests {
         assert!(!matches!(read, Ok(Some(_))), "coplanar, read {read:?}");
     }
 
-    /// **A plane through a reference and a bound is read at the shorter
-    /// of the two sectors' arms**: a fin 1e-4° wide with a 1 mm edge,
-    /// whose references lie within that span's band of the fin's
-    /// bounds at the 1 mm arm. Every reference is passed over and the
-    /// reading escalates; read at the longer arm, the plane's normal
-    /// passes the gate, though at the shorter arm it is not resolved
-    /// (fuzz seed 1, cone 82, probe 81, 1.9e-7 rad off the link, exactly
-    /// `In`). The escalation is the sound answer, not the only one.
-    #[test]
-    fn a_plane_through_a_reference_and_a_bound_is_read_at_the_shorter_arm() {
+    /// A fin 1e-4° wide with a 1 mm edge, and a probe 1.9e-7 rad off its
+    /// link, exactly `In` (fuzz seed 1, cone 82, probe 81).
+    fn shorter_arm_fin() -> (Vec<BoolSector<f64>>, Vec3<f64>) {
         let cone = fuzz_cone(&[
             [
                 0.17364817766686433,
@@ -3935,10 +4272,49 @@ mod tests {
             ],
         ]);
         let far = Vec3::new(1.2249034581828435, -0.7761906779756366, 0.15803647000763973);
-        match cone_read(&probes(&[far]), &cone, fuzz_band()) {
-            Err(BooleanError::Escalated { .. }) => {}
+        (cone, far)
+    }
+
+    /// **A plane through a reference and a bound is read at the shorter
+    /// of the two sectors' arms**: the fin ([`shorter_arm_fin`]), whose
+    /// references lie within that span's band of the fin's bounds at
+    /// the 1 mm arm. The arc to the fourth face's reference escalates at
+    /// the fin's bound: read at the longer arm, the plane's normal passes
+    /// the gate, though at the shorter arm it is not resolved.
+    #[test]
+    fn a_plane_through_a_reference_and_a_bound_is_read_at_the_shorter_arm() {
+        let (cone, far) = shorter_arm_fin();
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let (s0, s) = (&cone[3], &cone[1]);
+        let arc = GreatArc {
+            dir: far,
+            reach: Reach::Chord {
+                base: o,
+                far: o + far,
+            },
+            p: (s0.start + s0.end).normalize(),
+            p_arm: s0.arm,
+        };
+        match arc_side(arc, s.start, s.start_reach, s.arm, fuzz_band()) {
+            Err(BooleanError::Escalated { diag, .. }) => {
+                assert_eq!(diag.predicate, Some("bool_cone_arc_span"), "{diag:?}");
+            }
             other => panic!("the span at the shorter arm escalates, got {other:?}"),
         }
+    }
+
+    /// **A probe whose arcs meet unread faces apart from their sectors
+    /// is decided**: the fin's probe ([`shorter_arm_fin`]), whose every
+    /// reference leaves some face unread, reads `In`, as it exactly is,
+    /// through a reference whose unread faces lie decidedly apart from
+    /// its arc ([`apart`]).
+    #[test]
+    fn a_probe_whose_arcs_meet_unread_faces_apart_from_their_sectors_is_decided() {
+        let (cone, far) = shorter_arm_fin();
+        let read = cone_read(&probes(&[far]), &cone, fuzz_band())
+            .unwrap()
+            .unwrap();
+        assert_eq!(classes(&read), [SideCode::In], "the probe, decided apart");
     }
 
     /// **A reference on a face's plane beside a crossing inside its
@@ -5188,6 +5564,182 @@ mod tests {
             Err(BooleanError::CurvedBooleanUnsupported { .. }) => {}
             other => panic!("sphere tangency is outside the DEV-1 lane: {other:?}"),
         }
+    }
+
+    /// **A cone sector's normal is the cone face's outward normal at
+    /// its corner**, at every rim corner of a frustum wall and for both
+    /// senses: the chart normal `ŵ cos α − ẑ sin α` there, negated where
+    /// the face is reversed, as a subtracted cone's is.
+    #[test]
+    fn a_cone_sector_off_the_apex_is_the_faces_outward_normal() {
+        let alpha = 0.5_f64;
+        let (mut body, face) = super::super::boxes::tests::cone_wall(alpha, 0.0, 1.0, 0.5, 1.0);
+        let vertices: Vec<VertexKey> = body.vertices.keys().collect();
+        for sense in [true, false] {
+            body.set_face_sense(face, sense).unwrap();
+            let mut read = 0;
+            for &v in &vertices {
+                let p = body.resolve_vertex_point(v, Proven);
+                let w = Vec3::new(p.x, p.y, 0.0).normalize();
+                let chart = w * alpha.cos() - Vec3::new(0.0, 0.0, alpha.sin());
+                let want = OutwardNormal::from_chart(chart, sense).vec();
+                for he in body.vertex_orbit_linked(v) {
+                    match sector_face(&body, Operand::B, v, he, band()) {
+                        Ok((f, n)) if f == face => {
+                            read += 1;
+                            assert!(
+                                (n.vec() - want).norm() < 1e-12,
+                                "sense {sense} at {p:?}: {:?}, want {want:?}",
+                                n.vec()
+                            );
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            assert_eq!(read, 4, "sense {sense}: the wall's four corners");
+        }
+    }
+
+    /// **A sector based at a cone's apex refuses, named.** A prism's side
+    /// face is carried by a cone whose apex is one of the face's corners:
+    /// the sector there refuses with the apex refusal, naming the operand
+    /// and the face, where the walk's gradient is `0/0`; the face's next
+    /// corner, off the axis, reads its normal. Without the check the
+    /// poisoned normal reaches the corner rung, which escalated it as
+    /// `Corner(Straight)` on a plane through a full cone's apex.
+    #[test]
+    fn a_cone_sector_at_the_apex_refuses_naming_the_face() {
+        let p = crate::fixtures::raw_prism(3, Tol::witness());
+        let face = p.face_side[0];
+        let mut body = p.body;
+        let he = body
+            .get_loop(body.get_face(face).unwrap().outer)
+            .and_then(|l| match l.boundary {
+                crate::entity::LoopBoundary::Cycle { first } => Some(first),
+                crate::entity::LoopBoundary::Empty { .. } => None,
+            })
+            .unwrap();
+        // The sector CW-after `mate(he)` is this face's corner at `he`'s
+        // start; `next` is the corner after it.
+        let corner = |body: &Body<f64>, he: HalfEdgeKey| {
+            let orbit_he = body.mate(he).unwrap();
+            (body.get_half_edge(orbit_he).unwrap().start, orbit_he)
+        };
+        let (apex_vertex, apex_he) = corner(&body, he);
+        let next = body.get_half_edge(he).unwrap().next;
+        let (off_vertex, off_he) = corner(&body, next);
+        let apex = body.resolve_vertex_point(apex_vertex, Proven);
+        let off = body.resolve_vertex_point(off_vertex, Proven);
+        // An axis square to the edge between the two corners, so the
+        // second stands the edge's length off it.
+        let edge = off - apex;
+        let axis = edge.cross(Vec3::new(1.0, 1.0, 1.0)).normalize();
+        assert!(
+            edge.cross(axis).norm() > 0.1,
+            "the second corner stands off the axis"
+        );
+        body.set_face_surface(
+            face,
+            crate::FaceSurface::New {
+                surface: geom::Surface::Cone {
+                    apex,
+                    axis,
+                    half_angle: 0.5,
+                    u_ref: edge.normalize(),
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+        let b = band();
+        assert!(
+            matches!(
+                sector_face(&body, Operand::A, apex_vertex, apex_he, b),
+                Err(BooleanError::NormalAtConeApex { operand: Operand::A, face: f, band })
+                    if f == face && band == b
+            ),
+            "the apex corner: {:?}",
+            sector_face(&body, Operand::A, apex_vertex, apex_he, b)
+        );
+        let (f, n) = sector_face(&body, Operand::A, off_vertex, off_he, b)
+            .expect("a corner off the axis reads its normal");
+        assert!(f == face && n.vec().norm().is_finite(), "{n:?}");
+    }
+
+    /// **A cone's lever is the bend nearest the axis the charge can
+    /// read.** A bound leaving a pierce at `ρ = 0.1` along the generator
+    /// toward the apex, reaching 0.08, at a slope whose charge clears
+    /// the band read at `ρ` and does not read at the lever, `2ρ/3`
+    /// (`ρ − reach` is shorter, and the charge reads no further than
+    /// `ρ/3`): the side refuses, where read at `ρ` it certifies.
+    /// Measured, the reading at `ρ` never decides a wrong side on a cone
+    /// (over 2·10⁵ poses the ray's true separation never fell below the
+    /// charge's claim), so this row holds the lever against loosening,
+    /// not a wrong answer. A short bound takes `ρ − reach`, and a
+    /// sphere's lever is its own at every reach.
+    #[test]
+    fn a_cone_lever_is_the_bend_nearest_the_axis_within_reach() {
+        let b = band();
+        let alpha = 0.5_f64;
+        let cone = geom::Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: alpha,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let (rho, reach) = (0.1, 0.08);
+        let p = Point3::new(rho, 0.0, rho / alpha.tan());
+        let chart = Vec3::new(alpha.cos(), 0.0, -alpha.sin());
+        let normal = OutwardNormal::from_chart(chart, true);
+        let toward_apex = -(p - Point3::origin()).normalize();
+        // The charge at slope `s` is `s²·lever/4`: 1.2 escalations at
+        // `ρ`, 0.8 of one at `2ρ/3`.
+        let s = (4.8 * b.escalate() / rho).sqrt();
+        let dir = toward_apex * (1.0 - s * s).sqrt() + chart * s;
+        let bound = Reach::Chord {
+            base: p,
+            far: p + dir * reach,
+        };
+        let lever = PierceLever::of(&cone, p);
+        let within = lever.within(reach);
+        assert!(
+            (within - 2.0 * rho / 3.0).abs() < 1e-15,
+            "the lever a long bound reads: {within}"
+        );
+        assert!(
+            (lever.within(0.01) - (rho - 0.01)).abs() < 1e-15,
+            "the lever a short bound reads: {}",
+            lever.within(0.01)
+        );
+        assert!(
+            matches!(
+                side_code(dir, bound, normal, within, b),
+                Err(BooleanError::CurvedSectorSideUnsupported { .. }
+                    | BooleanError::Escalated {
+                        decision: BooleanDecision::PierceCurvature,
+                        ..
+                    })
+            ),
+            "read at the lever the side refuses: {:?}",
+            side_code(dir, bound, normal, within, b)
+        );
+        assert_eq!(
+            side_code(dir, bound, normal, rho, b).unwrap(),
+            SideCode::Out,
+            "read at ρ the same side certifies"
+        );
+        let sphere = geom::Surface::Sphere {
+            center: Point3::origin(),
+            radius: 2.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        assert_eq!(
+            PierceLever::of(&sphere, p).within(1e9),
+            2.0,
+            "a sphere's lever does not depend on the reach"
+        );
     }
 }
 

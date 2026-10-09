@@ -374,6 +374,16 @@ pub enum NormalizationKind {
         /// recognizer's dual track).
         residual: f64,
     },
+    /// **Two edges the file states on one carrier, joined** (Ev's PR
+    /// 4251 ruling; `docs/DESIGN.md`, maximal edges): the file stops an
+    /// edge at a vertex where nothing else meets it and the next edge
+    /// runs on along the same curve, so the vertex is no cell of the
+    /// solid, and the import ends with the join every finisher ends
+    /// with. One record per join, keyed by the least `ADVANCED_FACE`
+    /// the joined edge bounds; its census pair is the join's own
+    /// region — two edges and the vertex between them, become one edge
+    /// — so the records' deltas still sum to the body's totals.
+    JoinedEdges,
 }
 
 /// A **reported structure normalization** (D7 stage-3 repair, in its
@@ -774,13 +784,18 @@ pub fn import_step(
             // below, not a re-derivation of them.
             let mut body = topo::Body::new();
             let mut record = Vec::with_capacity(model.instances.len());
+            // The joins each solid's build ended with, reported once per
+            // solid however many instances place it: every copy is built
+            // from the same spec, so joins the same vertices.
+            let mut normalizations = model.normalizations.clone();
+            let mut joined = std::collections::BTreeSet::new();
             for (index, instance) in model.instances.iter().enumerate() {
                 let spec = &solids[instance.solid];
-                let one = assemble::build_one_solid(
-                    spec,
-                    tol,
-                    geom_core::FileCoincidence::new(eps_in, tol),
-                )?;
+                let (one, joins) =
+                    assemble::build_one_solid(spec, tol, geom_core::FileCoincidence::new(eps_in))?;
+                if joined.insert(instance.solid) {
+                    normalizations.extend(joins);
+                }
                 let one = match instance.placed {
                     Some(entities::Placed {
                         map: Some(map),
@@ -893,7 +908,7 @@ pub fn import_step(
                 body,
                 enclosure,
                 eps_in,
-                normalizations: model.normalizations.clone(),
+                normalizations,
                 curve_promotions: model.curve_promotions.clone(),
                 instances: record,
                 coherence,

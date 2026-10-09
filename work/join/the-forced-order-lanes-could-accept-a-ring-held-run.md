@@ -2,10 +2,11 @@
 id: the-forced-order-lanes-could-accept-a-ring-held-run
 kind: issue
 title: The forced-order join lanes refuse a ring-held run that the outer lane would take
-status: open
+status: dispatched
 opened: 2026-10-07
 priority: P3
 cost: E
+branch: join/three-small-join-rows
 ---
 
 

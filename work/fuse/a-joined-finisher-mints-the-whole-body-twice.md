@@ -4,6 +4,8 @@ kind: issue
 title: The merge door and the boolean's graft and single-operand paths mint the whole body twice, and the merge door's join clones a staged clone
 status: open
 opened: 2026-10-08
+priority: P4
+cost: M
 ---
 
 

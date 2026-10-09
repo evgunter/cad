@@ -1273,6 +1273,13 @@ Signed (JOIN orchestrator).
 
 Signed (JOIN orchestrator).
 
+## 2026-10-08 — the pinch weld's twice-passed vertex (TANG, PR 4346)
+
+TANG's PR 4346 closes `a-pierce-pinch-weld-reads-which-ring-strut-was-minted-first`.
+The weld now reads the corner of a vertex that a face passes twice, and
+a pierce copy whose corners no corner of that vertex holds stays apart.
+The every-root row's eight `Ltop asym` lines build `OK SOUND`.
+
 ## 2026-10-08: the walk-order unit landed (DR-110)
 
 - **PR 4317 merged** (M, SEQUENTIAL arm, byte 19).
@@ -1287,5 +1294,63 @@ Signed (JOIN orchestrator).
 - `a-run-holding-another-whole-is-spelled-three-ways-in-insert` and `a-vertex-orbits-position-has-one-comparator-but-no-fixed-origin` are closed.
 - **Renumbered:** the two `[ev]` forks' rows are 100 (PR 4313) and 101 (PR 4335), not 90 and 91 as logged above. Rows 90–99 were taken on main and by other open `[ev]` PRs.
 - **In flight:** the dual review of PR 4344 (sphere pair, H) on head bf57b509; PR 4345 (wrap-edge, H) is merging main before its dual.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-09: the wrap-edge unit landed (DR-113); main red twice overnight; three small rows dispatched
+
+- **PR 4345 merged** (`9b8ffad9c0`): a wrap edge crossing a planar face is one section site, and the seam zip reads a one-vertex seam's sense from the paired halves' tangents. Dual review DR-113: two APPROVE-WITH-FIXES (0/2/5 and 0/5/6), BILATERAL 7, tally 0, nearest miss the annular tube's `SectionLoopUndecided` (filed). The fix pass closed all eight items. Batteries: 0 lines moved.
+- `a-plane-across-a-one-face-wall-meets-its-wrap-edge-once` is closed. PATHS' `circle-lowers-to-one-segment` was parked on it alone and is now open.
+- **Main red, twice, not this program's:**
+  - PR 4367 left `certified_endpoint_census` counting `offset_fit.rs` at 7 reads where it now has 10. My census row reached main through `a6d0276627`, and PR 4378 closed as empty.
+  - CONTACT-10 (4363) and CONTACT-12 (4372) crossed in `census.rs`, so `topo` stopped compiling. PR 4380/4381 fixed it.
+- **PR 4344** (sphere pair, H): the fix pass took route (ii) with (i)'s pins. Main and PR 4345 are merged in, and DR-114 is the last commit; it merges on green.
+- **Dispatched** `join/three-small-join-rows` (session `session_01FLGAxMAJ9cAzfrRgXMJEU8`, base `5fc6e144fa`). It carries three E rows: the steep-ellipse travel margin, completed null faces across later cuts, and the forced-order lanes' `RingHeld`. Tier: single FULL review (small `join.rs` correctness rows, each fixed, invariant-stated or closed with evidence). Held: `in-band-axis-offset-is-noarm-at-one-arm-and-escalates-at-another`, which is coaxial ground under D10.
+- **[ev] PR 4335:** Ev asked whether the census needs more than a definite minimum distance per pair. Answered: the minimum says whether two cells meet; a shared corner also needs the extent of the in-band set, which stands in for the dimension of where they meet. A clause reword is offered, not pushed.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-09: the sphere-pair unit landed (DR-114)
+
+- **PR 4344 merged** (`5f42bf7bd9`): two spheres that cross in a circle no edge reaches now build.
+  - A closed ball is re-charted along the centre line, the two seams a quarter turn apart, so the radical-plane join mints the circle once.
+  - Trimmed groups and non-parallel multi-cuts take a meridian cut-in, with `merge_skipped` recorded.
+  - `SpheresMeet` is now only the decided-zero touch.
+- **Dual review DR-114.** Two APPROVE-WITH-FIXES (1/4/6 and 0/6/4). BILATERAL 13, tally 0. R1's MAJOR (the cut-in's bodies do not tessellate) is bilateral with R2's MINOR. Nearest miss: R2's sliver that is not a legal operand (filed on CLEAVE). Fair pairs that found any MAJOR: 52.
+- **Route.** The orchestrator ruled on the reviews: (ii) with (i)'s pins.
+  - The quarter turn costs nothing on any class, but does not cure the `Interval` witness. The re-charted ball's seam meridians hold the partner's centre.
+  - Pinned as typed refusals: the `Interval` witness (`Escalated`), the r 50 inside-tangency union (`VolumeUncomputable`), a trimmed ball cut 1e-7 from its pole (`ArcNearPole`), and the two-axis plane escape (`FallbackExtentUnsupported`).
+  - Main refused every class with `SpheresMeet`.
+  - The cut-in classes do not mesh. That is TESS's P0, with evidence on its row.
+- **Batteries:** `pierce_runs_battery` and seven `rc_wide` shards, 7 896 lines, 0 moved. The merge with PR 4345 resolved `.config/nextest.toml` and `differential.rs` as unions. Both PRs' 71 rows pass on the merged tree.
+- `a-sphere-crossing-a-sphere-face-off-every-edge-refuses-spheres-meet` is closed.
+
+- **Dispatched**, two H units, review tier DUAL (concurrent pairs), both on base `ba5b54d875`:
+  - `join/tube-ending-on-a-ball` (session `session_01EghdZhFE3M2G72t3Zurb35`): `a-tube-ending-on-a-ball-refuses-section-loop-mixed`, released from D10 on 2026-10-08.
+  - `join/annular-tube-roles` (session `session_01HWaVG3xWHHV7j6vhuenmqK`): `annular-one-segment-tube-through-a-plate-refuses-section-loop-undecided`, which PATHS unit 4's washers reach.
+  - Not taken, and why:
+    - `closed-in-face-section-loop-has-one-site` and the reflex-corner edge-in-face row are coincidence ground.
+    - The pre-zip pinch weld is blocked on `intent-stage4-is-built`.
+    - The cylinder × sphere and skew rows wait on [ev] PR 4313.
+    - The near-tangent P0 rows wait on [ev] PR 4335.
+
+Signed (JOIN orchestrator).
+- 2026-10-09 — Seam note from ENCL (PR 4386, merged): near-tangent sliver shells at ε = 1e-12 no longer refuse `ShellRoleUndecided` on a straddling enclosure; 22 probe runs that refused now ship with `t3p=false` and `UndeclaredContact { EdgeEdgeCross }` / `CensusUndecidable` findings, which is your P0 census row's class (evidence added there). (ENCL orchestrator)
+
+## 2026-10-09: both forks ruled; the near-tangent follow-ups dispatched
+
+- **[ev] PR 4313 merged** (`c134914258`, fork row 100): the section-first join for a section in no plane. Ev asked for the open INTENT PRs to be checked for overlap first.
+  - Coincident and tangent sections (coaxial, an offset or a tangency decided Zero, in-band) are decided at the section door, never in the join. They refuse until INTENT E. From E on they glue and record there, and E's `cs_pair_frame` `OnCarrier` record moves with the frame's retirement.
+  - The three H build steps land after INTENT A (PR 4364).
+- **[ev] PR 4335 merged** (`8e3edbe545`, fork row 101): no door ships a body its census cannot certify.
+  - **Round 4** on Ev's symbolic-tier question converged (Opus = A, Fable = B). The census reads one number per pair: the minimum distance if the pair shares nothing, else the largest distance beyond what it shares. Q1's three arms read it, and an in-band extent is never read. `Sym` decides only whether a Zero is structural.
+  - Q1 gained Ev's framework sentence ("closeness within ε is not an identity …").
+  - The P0 row is closed.
+  - CONTACT owns the census re-posing (six rows named in the P0 row's `## Closed`).
+- **Dispatched `join/door-types-in-band-results`** (M; rule 1 draw byte 178, mod 3 = 1, so SEQUENTIAL).
+  - The door types a result-side finding born of an in-band margin `Escalated`, and a definite one `ResultInvalid`. The sliver lump's `ShellRoleUndecided` takes the first typing.
+  - It also re-counts the face-corner row's 478 pairs by L·sin α under the largest-distance rule.
+  - It carries `a-near-tangent-intersections-sliver-lump-reads-its-role-in-band-and-refuses` and `a-near-tangent-split-leaves-a-face-corner-that-runs-within-the-band`.
+  - The vertex-on-face row re-parks on the door census.
 
 Signed (JOIN orchestrator).
