@@ -1881,9 +1881,19 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
         (
             "lever arm",
             escalated(CertCheck::TransversalityArm, in_band),
-            "Recourse: move the geometry so that edge is clearly longer, and its faces curve less \
-             tightly there, or, if this length or the gap its faces open is intended, tighten \
-             the tolerance below 5e-10 m",
+            "Recourse: move the geometry so that edge is clearly longer and no face curves tightly \
+             there, or, if this length or the gap its faces open is intended, tighten the \
+             tolerance below 5e-10 m",
+        ),
+        (
+            "lever arm, enclosure",
+            escalated(
+                CertCheck::TransversalityArm,
+                MarginDiag::enclosure(2.0e-9, 5.0e-9),
+            ),
+            "Recourse: move the geometry so that edge is clearly longer and no face curves tightly \
+             there, or, if this length or the gap its faces open is intended, tighten the \
+             tolerance below 2e-10 m",
         ),
         (
             "no lever arm",
@@ -1894,8 +1904,8 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
                     band,
                 }),
             },
-            "Recourse: move the geometry so that edge is clearly longer, and its faces curve less \
-             tightly there; a face curving to a point there, as a cone at its apex, leaves no \
+            "Recourse: move the geometry so that edge is clearly longer and no face curves tightly \
+             there; an edge of no length, or a face curving to a point as a cone does, leaves no \
              angle to measure",
         ),
         (
@@ -4646,8 +4656,10 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
     let render = |source| {
         CheckFinding {
             check: CheckId::Connectedness,
-            root: RecipeNodeId::new(0, tagged(4)),
-            output_ix: 0,
+            subject: editor_core::FindingSubject::Output {
+                root: RecipeNodeId::new(0, tagged(4)),
+                output_ix: 0,
+            },
             evidence: CheckEvidence::Escalated { source },
         }
         .to_string()
@@ -4770,8 +4782,10 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
     let shell = ShellKey::default();
     let finding = |check, evidence| CheckFinding {
         check,
-        root: RecipeNodeId::new(0, tagged(4)),
-        output_ix: 0,
+        subject: editor_core::FindingSubject::Output {
+            root: RecipeNodeId::new(0, tagged(4)),
+            output_ix: 0,
+        },
         evidence,
     };
     let coherence = |condition| CoherenceFinding {
@@ -4949,13 +4963,6 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
                 r#loop: topo::LoopKey::default(),
             }),
         ),
-        (
-            "Loop(Escalated)",
-            PointInSolidError::Loop(topo::PointInLoopError::Escalated {
-                r#loop: topo::LoopKey::default(),
-                diag: diag(),
-            }),
-        ),
         ("ZeroVolumeBody", PointInSolidError::ZeroVolumeBody),
         ("CorruptFace", PointInSolidError::CorruptFace { face }),
         (
@@ -5000,6 +5007,37 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             },
         ),
     ];
+    // The loop walk's escalation, in every form a site of it raises.
+    let with = |margin| geom_core::Indeterminate { margin, ..diag() };
+    let poisoned = with(geom_core::MarginDiag::INVALID);
+    let over_wound = with(geom_core::MarginDiag::value(-3.0e-10));
+    let (margin, straddle) = (topo::Escalation::Margin, topo::Escalation::Straddle);
+    let walk = [
+        (topo::LoopDecision::Boundary, margin, diag(), "Value"),
+        (topo::LoopDecision::Boundary, margin, poisoned, "Invalid"),
+        (topo::LoopDecision::Boundary, straddle, poisoned, "Straddle"),
+        (topo::LoopDecision::Ray, margin, diag(), "Value"),
+        (topo::LoopDecision::Ray, margin, poisoned, "Invalid"),
+        (topo::LoopDecision::ArcSpan, margin, over_wound, "OverWound"),
+        (topo::LoopDecision::ArcSpan, straddle, poisoned, "Straddle"),
+        (topo::LoopDecision::Plane, margin, diag(), "Value"),
+        (topo::LoopDecision::Plane, margin, poisoned, "Invalid"),
+    ]
+    .map(|(decision, escalation, diag, kind)| {
+        (
+            format!("Loop(Escalated/{decision:?}/{kind})"),
+            PointInSolidError::Loop(topo::PointInLoopError::Escalated {
+                r#loop: topo::LoopKey::default(),
+                decision,
+                escalation,
+                diag,
+            }),
+        )
+    });
+    let separation_reasons = separation_reasons
+        .into_iter()
+        .map(|(n, e)| (n.to_owned(), e))
+        .chain(walk);
     for (n, e) in separation_reasons {
         let source = BooleanError::Containment(e);
         rows.push((

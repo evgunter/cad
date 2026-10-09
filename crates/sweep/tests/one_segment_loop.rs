@@ -261,54 +261,55 @@ fn one_segment_circles_extrude_at_interval() {
 /// r = 1 about the z axis from z = 0 to 2, its seam strut on the
 /// meridian x = 1. Every operand pair is plane × cylinder.
 ///
-/// - Cuts ALONG the wall build, at all three tiers and their closed
-///   forms: the half x ≥ 0 cut away (the seam inside the tool), the half
-///   y ≥ 0 cut away (the tool's face through the seam), and a bar united
-///   through the wall around the seam.
-/// - Cuts ACROSS the wall refuse, typed: a cap-parallel plane meets the
-///   wall in a circle that crosses the one seam once, a closed section
-///   loop with one site, which the join does not build
-///   (`Join(SingleSiteSectionLoop)`, `work/join/closed-in-face-section-loop-has-one-site.md`).
+/// Every cut builds, at all three tiers and its closed form:
+///
+/// - ALONG the wall: the half x ≥ 0 cut away (the seam inside the
+///   tool), the half y ≥ 0 cut away (the tool's face through the seam),
+///   and a bar united through the wall around the seam;
+/// - ACROSS it: a slab kept and cut away, each cap-parallel plane
+///   meeting the wall in a circle that crosses the one seam once, a
+///   section loop with one site (every op in both orders:
+///   `a_plane_across_a_one_face_wall.rs`).
 #[test]
-fn a_boolean_on_an_extruded_seam_wall_builds_along_it_and_refuses_across_it() {
+fn a_boolean_on_an_extruded_seam_wall_builds_along_and_across_it() {
     use sweep::test_support::brick;
+    use topo::BooleanDeclarations;
     use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-    use topo::{BooleanDeclarations, BooleanError, SplitJoinError};
 
     let cyl = extruded(vec![circle(0.0, 0.0, 1.0, TAU)], 2.0, ExtrudeSide::Along).body;
     // ∫_{-1/2}^{1/2} √(1 − y²) dy: the disc's share of a bar of width 1
     // reaching past x = 1 from x = 0.
     let bar_in_disc = 0.75f64.sqrt() * 0.5 + (0.5f64).asin();
-    let cases: Vec<(&str, BooleanOp, Body<f64>, Option<f64>)> = vec![
+    let cases: Vec<(&str, BooleanOp, Body<f64>, f64)> = vec![
         (
             "x ≥ 0 cut away",
             BooleanOp::Subtract,
             brick((0.0, 3.0), (-3.0, 3.0), (-1.0, 3.0), tol()),
-            Some(PI),
+            PI,
         ),
         (
             "y ≥ 0 cut away",
             BooleanOp::Subtract,
             brick((-3.0, 3.0), (0.0, 3.0), (-1.0, 3.0), tol()),
-            Some(PI),
+            PI,
         ),
         (
             "a bar through the seam",
             BooleanOp::Union,
             brick((0.0, 3.0), (-0.5, 0.5), (0.5, 1.5), tol()),
-            Some(2.0 * PI + 3.0 - bar_in_disc),
+            2.0 * PI + 3.0 - bar_in_disc,
         ),
         (
             "a slab kept",
             BooleanOp::Intersect,
             brick((-3.0, 3.0), (-3.0, 3.0), (0.5, 1.0), tol()),
-            None,
+            0.5 * PI,
         ),
         (
             "a slab cut away",
             BooleanOp::Subtract,
             brick((-3.0, 3.0), (-3.0, 3.0), (0.5, 1.0), tol()),
-            None,
+            1.5 * PI,
         ),
     ];
     for (what, op, tool, want) in cases {
@@ -320,26 +321,13 @@ fn a_boolean_on_an_extruded_seam_wall_builds_along_it_and_refuses_across_it() {
             SweepStrategy::Realized,
             tol(),
         );
-        match (out, want) {
-            (Ok(out), Some(want)) => {
-                let body = &out
-                    .body()
-                    .unwrap_or_else(|| panic!("{what}: the boolean left no body"))
-                    .body;
-                tiers(body, what);
-                close(volume(body), want, what);
-            }
-            (Err(BooleanError::Join(SplitJoinError::SingleSiteSectionLoop { count })), None) => {
-                assert_eq!(count, 2, "{what}: one loop per cutting plane");
-            }
-            (out, want) => panic!(
-                "{what}: want {}, got {:?}",
-                want.map_or("the single-site refusal".to_string(), |v| format!(
-                    "volume {v}"
-                )),
-                out.map(|_| "a body")
-            ),
-        }
+        let out = out.unwrap_or_else(|e| panic!("{what}: {e:?}"));
+        let body = &out
+            .body()
+            .unwrap_or_else(|| panic!("{what}: the boolean left no body"))
+            .body;
+        tiers(body, what);
+        close(volume(body), want, what);
     }
 }
 

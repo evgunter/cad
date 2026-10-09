@@ -5,9 +5,11 @@
 //! volume. `mesh::tessellate` then refuses the sphere face typed
 //! (`MeridianFreeCurvedFace`, whose doc says why).
 //!
-//! Two statements of the rim, both adopted as they are written — two
-//! half arcs (`rimonly2.step`) and one closed circle edge
-//! (`rimonly1.step`). Fixtures:
+//! Two statements of the rim — two half arcs (`rimonly2.step`) and one
+//! closed circle edge (`rimonly1.step`) — which ship as one: the import
+//! ends with the join (`docs/DESIGN.md`, maximal edges), and the two
+//! half arcs of one circle are joined into the closed edge the other
+//! file states, its vertex now conventional. Fixtures:
 //! `fixtures/rim-only-cap/gen_rim_only_cap.py`.
 //!
 //! **This row is expected to change, by design.** A pole inside a face
@@ -40,7 +42,9 @@ fn an_imported_rim_only_sphere_cap_passes_every_tier_and_the_mesh_lane_refuses_i
     let r = 0.010_f64;
     let h = r * (1.0 - 0.5_f64.sin());
     let exact = core::f64::consts::PI * h * h * (3.0 * r - h) / 3.0;
-    for (name, rim_edges) in [("rimonly2.step", 2), ("rimonly1.step", 1)] {
+    // Both ship one closed rim edge: `rimonly2`'s two half arcs are
+    // joined at import.
+    for (name, rim_edges) in [("rimonly2.step", 1), ("rimonly1.step", 1)] {
         let imported = import_step(&fixture(name), &ImportOptions::default(), tol)
             .unwrap_or_else(|e| panic!("{name} imports: {e:?}"));
         let StepImport::Solid { body, .. } = imported else {

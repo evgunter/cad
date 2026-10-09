@@ -2,11 +2,12 @@
 id: CONTACT-12
 kind: unit
 title: the edge-on-face overlap lane cuts at boundary crossings, and ef_bound_backed migrates to region confinement, measured
-status: dispatched
+status: closed
 opened: 2026-09-29
 priority: P0
 cost: H
 branch: contact/12-ef-crossing-cuts
+closed: 2026-10-09
 ---
 
 
@@ -34,3 +35,35 @@ The unit finishes steps 1 and 3:
 
 Those two are the census's own geometry, which an interference finding
 still needs after stage 4. Nothing on a declared rung is re-baselined.
+
+## Closed
+
+The census's edge-on-face overlap lane now cuts an edge wherever a
+boundary edge of the face crosses it, as well as at coincident vertices
+(`boundary_crossings`, split per carrier):
+- **Straight boundary edges:** read by metric side and span rows.
+- **Circle and ellipse arcs:** their raw roots are placed on the arc
+  through the arc's own metric boundary reading, the `ConicArc` that
+  `carrier_loop` builds.
+- **Spiric and spline arcs:** refused, typed, unless a certified ball
+  clears the edge.
+
+The touch analysis now reads every cell of an overlap, and a decided
+`Crossing` in any cell wins. Coincident cuts have a fixed order. The
+`ef_bound_backed` migration, step 2, was dropped under the D10 hold and
+parked as `ef-bound-backed-migrates-to-region-confinement`.
+
+Review: a dual review, concurrent because the class is H (DR-111).
+Both reviewers returned APPROVE-WITH-FIXES and raised the same MAJOR:
+the conic arm reused the split lane's root-interiority Zero, which is
+metered at the minor semi-axis, so a steep ellipse's crossing near an
+arc end was dropped. That defect was not a regression; main cut no
+crossings at all. The fix pass placed roots with the arc's metric
+reading, made both witnesses rows (red first), and pinned every decide
+with a mutant.
+
+Filed:
+- `census-edge-pass-reads-no-line-conic-crossing`;
+- `edge-face-crossing-cut-and-pass-five-decide-one-crossing-twice`;
+- `work/cleave/conic-plane-root-at-an-arc-end-reads-the-minor-meter`,
+  the splitting twin.

@@ -226,11 +226,11 @@ fn r1_two_hostless_rims_of_one_body_compose_in_one_call() {
         }
         let seq = mass_properties(&body, tol()).unwrap();
         // The same body, not the same history: each carve ends with the
-        // join, which keeps the edge of the vertex's first half-edge in
-        // arena order and extends its interval over the other (`join_all`,
-        // `joined_spec`), so one call and a sequence can keep different
-        // pieces of one rim, and the volume integrates over an interval
-        // that differs in its last bits.
+        // join, which kills the edge of the vertex's first half-edge in
+        // arena order and extends the other's interval over it
+        // (`joinable`'s `gone` and `kept`, `joined_spec`), so one call and
+        // a sequence can keep different pieces of one rim, and the volume
+        // integrates over an interval that differs in its last bits.
         assert_eq!(
             topo::readback::euler_counts(&one_call.body),
             topo::readback::euler_counts(&body),

@@ -1078,6 +1078,16 @@ successor's `keep_out` names the shared ground.
 
 Signed: (CONTACT orchestrator)
 
+## 2026-10-08 — CONTACT-10 lands
+
+- The single style review and the delta review both returned
+  APPROVE-WITH-FIXES, with no MAJOR. The unit was re-applied on top of
+  main's rework and reconciled with TOPO's PR 3493: Carrier is
+  lever-only, and the Boolean carries the walk's decision.
+- The one 1e-12 red row, `parallel_cylinder_join::a_tipped_rod…`, is
+  main's. CONTACT-11's lane confirmed it on `d00100e82`, and it is
+  filed as `work/tint/tipped-rod-join-escalates-at-1e-12`.
+- Landing as `contact/land-10`.
 ## 2026-10-08 — CONTACT-11 lands
 
 - **The review:** REQUEST-CHANGES from a single full review, then
@@ -1089,3 +1099,14 @@ Signed: (CONTACT orchestrator)
 - Landing as `contact/land-11`.
 
 Signed: (CONTACT orchestrator)
+
+## 2026-10-09 — CONTACT-12 lands
+
+- The dual review (DR-111) found one MAJOR, the steep-ellipse root,
+  raised by both reviewers. It has no tally candidate. Fair pairs that
+  found a MAJOR now number 51.
+- The fix pass took the whole union of the two reviews.
+- Landing as `contact/land-12`.
+
+Signed: (CONTACT orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4366, merged): `geom_brep::enters::LeverEscalation`'s `rung` and `diag` are private; read them with `rung()`/`diag()`, re-quote only through `with_diag`, which keeps the gate's verdict. `BooleanError::of_lever_rung(gate, read, rung, diag)` is the one boolean spelling. The dihedral lever-arm decision is told in one shape ("long enough, for how its faces curve, to measure their angle"), with the lever "clearly longer and no face curves tightly there"; pin `validate::tests::the_dihedral_arm_is_told_in_one_shape` (it reads source literals: a natural "long enough … angle … face" wording elsewhere trips it). (ENCL orchestrator)
