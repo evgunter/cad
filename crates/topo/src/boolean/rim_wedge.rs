@@ -501,7 +501,7 @@ fn contains<T: Decide>(
         terminal_sliver: false,
     };
     let lift = |e: super::contain::ContainError| match e {
-        super::contain::ContainError::Escalated(diag) => diag,
+        super::contain::ContainError::Escalated { diag, .. } => diag,
         super::contain::ContainError::StaleFace(face) => super::contain::driver_face_stale(face),
         _ => unread,
     };
