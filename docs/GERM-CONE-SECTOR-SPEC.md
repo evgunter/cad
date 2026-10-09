@@ -510,11 +510,9 @@ production pipeline after the join (`sweep/tests/cone_join_lane.rs`):
   face's reach does: every point of the face, and so of the section the
   join consumes on it, lies within it of the reading point, so a
   definite verdict at that lever holds over the whole face. It
-  overstates by at most about 2× (the reading point is the centre of
-  the face's boundary vertices, and the farthest point is within the
-  face's diameter of it, about twice the radius the best hinge would
-  read), which K = 10 absorbs, and it is the measure the wall side's
-  chord already levers at. `|at − apex|` is not a bound: a frustum far
+  overstates the best hinge's reach by at most about 2×, which K = 10
+  absorbs, and it is the measure the wall side's chord already levers
+  at. `|at − apex|` is not a bound: a frustum far
   from its apex overstates by its distance from the apex (100 m to a
   face 1 m long in `a_frustum_far_from_its_apex_is_levered_at_its_own_reach`),
   deciding margins the face cannot. It is not kept as a fallback; a
