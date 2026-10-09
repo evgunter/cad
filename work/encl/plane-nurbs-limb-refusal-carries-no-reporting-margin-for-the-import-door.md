@@ -2,8 +2,9 @@
 id: plane-nurbs-limb-refusal-carries-no-reporting-margin-for-the-import-door
 kind: issue
 title: geom-brep: the plane x NURBS certificate limb's definite refusal carries its miss as a bare f64, so the import door can only say the miss "may lie" within ε_in
-status: dispatched
+status: review
 branch: encl/limb-refusal-margin
+pr: 4427
 opened: 2026-10-08
 priority: P3
 cost: M
