@@ -51,7 +51,10 @@ retire or needs a witness no hand split supplies.
   hand split that made one is construction state now. **Still
   reachable**: the public offset doors (`topo::offset_charts_together`,
   `topo::replace_face_offset`) take a `&mut Body`, so a construction-state
-  caller still meets these arms (`shell7_dump.rs`'s direct-door lines do).
+  caller still meets these arms, and `shell7_seam_corner.rs`'s rows
+  read all three there (`a_corner_with_no_profile_constraint_refuses_typed_at_the_direct_door`,
+  `a_line_profile_beside_one_meridian_cap_refuses_at_the_direct_door`,
+  `the_line_arm_carries_a_hand_split_drum_seam_to_its_foot_at_the_direct_door`).
   The shell, which takes an `AtRestBody`, no longer does.
 - **The boolean's single-operand fallback joining station vertices**:
   an at-rest operand holds none, so the fallback's join is a no-op on
