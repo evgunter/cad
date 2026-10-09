@@ -2,10 +2,12 @@
 id: span-locator-lands-a-nan-parameter-on-the-first-span
 kind: issue
 title: KnotVector::span_at/span_range land a NaN parameter on the first span by documented tie-break, so every window reader that does not check first reads the first span's hull as certified
-status: spec
+status: closed
 opened: 2026-10-01
 priority: P3
 cost: H
+closed: 2026-10-09
+pr: 4442
 ---
 
 
@@ -146,3 +148,22 @@ take a `ParamRange`, so the unit that builds this closes or re-points
 that row. Off-question finding, filed:
 `work/flux/a-loop-area-nurbs-segment-integrates-an-inverted-window-as-zero.md`.
 (NURBS orchestrator)
+
+## Closed (2026-10-09, PR 4442)
+
+Built as decided. The parts:
+- `KnotVector::span_at` returns `Option<Span>`, `None` exactly at NaN. `find_span` folded in.
+- `ParamRange` (`geom_core::spline::range`) is a bracket with `new`, `spanning` and `certified` constructors and `start`/`end`/`mid`/`clamp_to`.
+- `Param` is a value that cannot be NaN, and `last_at_or_below` is the one knot search that the knot vector, `quad.rs`'s raw and constant locators, and `compose/tensor.rs`'s `cells_touched` share.
+- `span_range(ParamRange)` is total, and `locate_spans` returns `Option` and reads the bracket, so a Trv interval still locates.
+- Every window reader takes a range: props `Collapse::Over`, ssi `NurbsBoxes` (all of it, through `UvWindow`), and pcurve `piece_controls`/`chart_box`/`sweep_box`/`overlapped`/`net_incidence`.
+- Poison arms seed from the parameter (`poison_from`), and one row per arm goes red under a `from_f64(NaN)` mutant.
+- There is one UV-rectangle refusal (`PatchRect::new`).
+
+Review: a DUAL concurrent pair; both returned APPROVE-WITH-FIXES with no MAJOR (DR row in `docs/DUAL-REVIEW-LOG.md`). The fix pass took the union of both reviews. One item's mutant is equivalent: a producer box is a hull, which `Certification::hull` leaves either certified or NaI, never Trv. That is pinned behaviourally.
+
+Rows filed:
+- `work/flux/props-collapse-over-lands-a-nan-window-on-the-first-span` (closed: superseded by this row);
+- `work/flux/piece-monotone-span-drops-a-refused-step-through-f64-min`;
+- `work/chord/nurbs-cell-bounds-cert-drops-a-nan-vertex-and-lands-a-nan-end-on-the-first-cell`;
+- `work/ssiedge/chart-sweep-cells-carry-f64-pairs-and-mint-a-window-per-reading` (the SSI sweeps' own cell type still holds `f64` pairs).

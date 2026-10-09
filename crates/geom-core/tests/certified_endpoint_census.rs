@@ -377,7 +377,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
         "the reads that serve a door, each refusing first: `narrowed_to` (the one body of \
          `clamped_to` and `meet`), `width` and `mag`",
     ),
-    ("crates/geom-core/src/spline/compose/tensor.rs", 6, 6, ""),
+    ("crates/geom-core/src/spline/compose/tensor.rs", 4, 4, ""),
     (
         "crates/geom-core/src/sym/signed.rs",
         13,

@@ -11,17 +11,25 @@
 //! answer (a validated span range — structure) without branching on
 //! values.
 //!
+//! A **poison** scalar locates nothing: the locator answers `None`, and
+//! every caller answers what its type already gives for poison (an
+//! evaluator its NaN/NaI point). Poison flows through values, never
+//! through the choice of a span.
+//!
 //! Per-instantiation behavior:
 //!
 //! - **`f64`**: binary search with the fixed tie-break of
-//!   [`KnotVector::find_span`] — at a knot value, the span *starting*
-//!   there; last span closed. One span, always.
+//!   [`KnotVector::span_at`] — at a knot value, the span *starting*
+//!   there; last span closed. One span; none at NaN.
 //! - **`Probe`**: via its `f64` (it *is* an `f64` with a recorder).
 //! - **`Interval`**: the inclusive hull of the
 //!   spans overlapped by `[lo, hi]` — sound containment (evaluating
 //!   every overlapped span's polynomial extension over the box and
 //!   hulling contains the true image; each span's extension agrees
-//!   with the curve on the span itself).
+//!   with the curve on the span itself). It reads the **bracket**, not
+//!   the certificate: a `Trv` enclosure is sound and still locates, and
+//!   its decoration rides through to the reader that certifies. A NaI
+//!   or empty enclosure has no bracket and locates nothing.
 //! - **`Dual<T>`**: the value channel's spans, verbatim — the ratified
 //!   kink convention ("the derivative of the program as evaluated"):
 //!   at a knot, `Dual<f64>` differentiates the polynomial of the span
@@ -45,6 +53,14 @@
 use super::knots::{KnotVector, Span};
 use crate::real::Real;
 
+/// The answer an evaluator gives for the poison parameter `seed`: `seed`
+/// times NaN, which is poison in every channel `seed` carries. A bare
+/// `T::from_f64(f64::NAN)` is not that at the dual scalar — it is a dual
+/// CONSTANT, whose derivative channel is a zero that reads as data.
+pub fn poison_from<T: Real>(seed: T) -> T {
+    seed * T::from_f64(f64::NAN)
+}
+
 /// Seals [`SpanLocate`]: implemented for exactly the kernel scalars.
 pub(crate) mod sealed {
     /// The sealing supertrait (pub-in-private: unnameable downstream).
@@ -63,7 +79,7 @@ pub(crate) mod sealed {
 ///
 /// Both ends are [`Span`]s rather than bare indices: span validity
 /// originates *here*, in the locator, and every locator route is
-/// [`KnotVector::span_at`], which is total. Carrying the proof out
+/// [`KnotVector::span_at`] or [`KnotVector::span_range`]. Carrying the proof out
 /// means no consumer re-derives *nonemptiness* or the window base — an
 /// evaluator taking a `usize` would have to. The set borrows the
 /// `knots` it was located in, through both of its spans, so a consumer
@@ -85,14 +101,14 @@ pub struct SpanSet<'a> {
 /// enum-level NURBS evaluators run at every kernel scalar without
 /// giving [`Real`] a comparison surface.
 pub trait SpanLocate: sealed::Sealed + Real {
-    /// The spans of `knots` this value overlaps (module docs for the
-    /// per-scalar semantics; [`KnotVector::find_span`] for the f64
-    /// tie-break and NaN totalization).
+    /// The spans of `knots` this value overlaps, or `None` for a poison
+    /// value (module docs for the per-scalar semantics;
+    /// [`KnotVector::span_at`] for the f64 tie-break).
     ///
     /// The lifetime is on the method, not the trait: the answer
     /// borrows the vector it located in, and the scalar implementing
     /// this holds nothing.
-    fn locate_spans<'a>(self, knots: &'a KnotVector) -> SpanSet<'a>;
+    fn locate_spans<'a>(self, knots: &'a KnotVector) -> Option<SpanSet<'a>>;
 
     /// Combines two per-span evaluation results into one enclosure.
     /// Through the evaluators it is invoked only when
@@ -118,12 +134,12 @@ pub trait SpanLocate: sealed::Sealed + Real {
 }
 
 impl SpanLocate for f64 {
-    fn locate_spans<'a>(self, knots: &'a KnotVector) -> SpanSet<'a> {
-        let span = knots.span_at(self);
-        SpanSet {
+    fn locate_spans<'a>(self, knots: &'a KnotVector) -> Option<SpanSet<'a>> {
+        let span = knots.span_at(self)?;
+        Some(SpanSet {
             first: span,
             last: span,
-        }
+        })
     }
 
     fn enclosure_hull(self, _other: Self) -> Self {
@@ -145,16 +161,18 @@ mod tests {
 
     /// `Span`'s fields are private (that is the point), so the
     /// locator's answer is compared as the pair of indices it names.
-    fn indices(set: SpanSet<'_>) -> (usize, usize) {
+    fn indices(set: Option<SpanSet<'_>>) -> (usize, usize) {
+        let set = set.expect("a numeric value locates");
         (set.first.index(), set.last.index())
     }
 
     #[test]
-    fn f64_locates_one_span_with_the_find_span_tie_break() {
+    fn f64_locates_one_span_with_the_span_at_tie_break() {
         let k = kv();
         assert_eq!(indices(0.5.locate_spans(&k)), (2, 2));
         assert_eq!(indices(1.0.locate_spans(&k)), (3, 3));
         assert_eq!(indices(2.0.locate_spans(&k)), (3, 3));
+        assert!(f64::NAN.locate_spans(&k).is_none(), "NaN located a span");
         assert!(0.5f64.enclosure_hull(0.6).is_nan());
     }
 
@@ -172,6 +190,10 @@ mod tests {
         }
         let d = Dual64::variable(1.0);
         assert_eq!(indices(d.locate_spans(&k)), (3, 3));
+        assert!(
+            Dual::new(f64::NAN, 1.0).locate_spans(&k).is_none(),
+            "a poisoned value channel located a span"
+        );
         // Dual hulls channel-wise: over f64 channels that is poison.
         let h = Dual::new(0.25, 1.0).enclosure_hull(Dual::new(0.75, -1.0));
         assert!(h.value.is_nan() && h.deriv.is_nan());

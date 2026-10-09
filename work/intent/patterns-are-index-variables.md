@@ -2,12 +2,12 @@
 id: patterns-are-index-variables
 kind: issue
 title: Patterns are index variables: PatternKind, Node::Pattern, Node::PlacedUnion and Instance(i) retire into index(N), families and Member names; mirror is a construction; presets are the façade's
-status: open
+status: parked
 opened: 2026-10-08
 priority: P0
 cost: H
-design: true
-refs: [interference-at-rest-is-a-finding, a-placement-is-the-bundle-of-mates]
+refs: [interference-at-rest-is-a-finding, a-placement-is-the-bundle-of-mates, intent-stage3-is-built]
+blocked_on: [transform-retires-into-a-placement, a-union-member-is-keyed-by-its-read]
 ---
 
 FORK-PAT (fork log row 99). Ev, 2026-10-08, on interference between a
@@ -110,10 +110,7 @@ façade's full-ring default is relied on to quiet the
 - Corpus: `die_tool` (and `tests/corpus/die_tool.pncad`, the one
   persisted document holding a pattern), `heatsink_union`, `sink`,
   `part_select`.
-- Docs that follow: INTENT-STAGE2 §Pattern; INTENT-STAGE3 A
-  ("explicit frames become `Frame` variables"; `Direction`'s first
-  reader goes: a row's direction is the freedom a mate leaves, so the
-  `Linear` `Direction` slot has no successor); INTENT-STAGE5 B's
+- Docs that follow: INTENT-STAGE2 §Pattern; INTENT-STAGE5 B's
   one-node overlap sentence (an overlap between members is an at-rest
   finding between copies); ASSEMBLY A11 (5)'s member walk (its
   `Pattern` level); NAMES N1 (`Instance` → `Member`).
@@ -136,8 +133,13 @@ and say what moved.
 
 ## Sequencing
 
-After #4324 (poses are variables) and #4326 (a placement is the bundle
-of mates); replaces stage 3's `Linear` `Direction` slot. D10's
-Variables (`Bodies` as the family of `Body`) and Operations wording
-follows once those land; #4326 carries the `Pattern` sentence (a
-pattern is a placement whose reads reach an index).
+Stage 3 PR G (`docs/INTENT-STAGE3-SPEC.md` §8). It waits on stage 3 D,
+which follows B (a placement), C (values: `slide = scalar(k)·pitch`)
+and D itself (no construction reads a frame, and `Transform` is gone).
+It also waits on FORK-DM4 (`a-union-member-is-keyed-by-its-read`):
+`PlacedUnion` retires into a placement and a union reading a family,
+and how a union keys its members' names is what that fork decides. G
+closes `placed-union-places-and-fuses-in-one-node` and
+`explicit-placement-frames-hold-floats`, which ride with it.
+
+An `Explicit` frame or a `Linear` direction that sits off the face (a normal offset, a tilt) goes down the stage 3 spec's restate ladder (§5): a `Plane` mate at a `Standoff`, else `InFrame` of a constructed frame, else the migration names it and refuses to regenerate (Q8). The union this unit writes is against today's `Node::Union` and moves with FORK-DM4's units.

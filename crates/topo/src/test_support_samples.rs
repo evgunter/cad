@@ -1664,28 +1664,23 @@ mod tests {
     use geom_brep::recourse::Reading;
     use geom_core::FileCoincidence;
 
-    /// **Every certification refusal ends at both doors or at neither,
-    /// and alike but for the file's ε_in** (D4 ¶1: one recourse per
-    /// decision, wherever it is read): a variant whose at-rest ending is
-    /// special-cased must have its import-door twin, and that twin reads
-    /// the same decision. The door's ending departs from the at-rest one
-    /// only through its ε_in sentences, which name ε_in. The roster is
+    /// **Every certification refusal ends alike at rest and at the import
+    /// door but for the file's ε_in** (D4 ¶1: one recourse per decision,
+    /// wherever it is read): the door's ending departs from the at-rest
+    /// one only through its ε_in sentences, which name ε_in. The roster is
     /// [`super::certify_errors`], which `nested_coverage_gaps` holds to
     /// every `CertifyError`, `PlaneNurbsRefusal` and `AnalyticRung3Refusal`
-    /// variant. Red where one door gives an ending the other drops, or
-    /// where the two read different decisions.
+    /// variant. Red where the door's ending departs from the at-rest one
+    /// without naming ε_in.
     #[test]
     fn every_certify_refusal_ends_alike_at_rest_and_at_the_import_door() {
         let file = FileCoincidence::new(1e-6);
         let split: Vec<String> = super::certify_errors()
             .iter()
-            .filter(
-                |e| match (e.ending(Reading::AtRest), e.ending_in_file(file)) {
-                    (None, None) => false,
-                    (Some(rest), Some(door)) => rest != door && !door.contains("ε_in"),
-                    _ => true,
-                },
-            )
+            .filter(|e| {
+                let door = e.ending(file);
+                e.ending(Reading::AtRest) != door && !door.is_some_and(|d| d.contains("ε_in"))
+            })
             .map(|e| format!("{e:?}"))
             .collect();
         assert!(

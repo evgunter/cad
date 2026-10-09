@@ -100,7 +100,7 @@ fn probe_refit_seam_refuses_typed() {
                             value,
                             ..
                         }),
-                } => Some((value, a.refusal.render_in_file(*file))),
+                } => Some((value, a.refusal.render(*file))),
                 _ => None,
             });
             let Some((measured, rendered)) = limb else {
