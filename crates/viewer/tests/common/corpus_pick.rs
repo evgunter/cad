@@ -382,7 +382,10 @@ pub fn over_every_landing(mut sweep: impl FnMut(&str, &str, &PickIndex, &Evaluat
     }
     for doc in corpus::documents() {
         let DocEdit::SetParam {
-            node, slot, expr, ..
+            node,
+            slot,
+            value: pncad::document::SlotValue::Formula(expr),
+            ..
         } = doc.bump.clone()
         else {
             continue;

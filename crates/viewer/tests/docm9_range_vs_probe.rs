@@ -48,7 +48,7 @@ fn slab(depth: f64) -> ProfileDoc {
     common::insert_into(
         &mut doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: Formula::named(name("depth"), Dimension::Length),
             side: ExtrudeSide::Along,
         },

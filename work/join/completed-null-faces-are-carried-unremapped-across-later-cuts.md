@@ -2,11 +2,13 @@
 id: completed-null-faces-are-carried-unremapped-across-later-cuts
 kind: issue
 title: bool_connect carries each completed null face across later cut_pair kills unremapped (unverified)
-status: dispatched
+status: closed
 opened: 2026-10-05
 priority: P3
 cost: E
+closed: 2026-10-09
 branch: join/three-small-join-rows
+pr: 4396
 ---
 
 ## What (unverified)
@@ -32,3 +34,43 @@ null edge is not established.
 Establish whether a completed face can be a later `kef`'s victim (a
 row, or the invariant stated at `cut_core`); if it can, carry the
 completed rows through the kills, as `fused_through` does for the zip.
+
+## Built — the invariant, stated and asserted
+
+A completed null face is never a later kef's side. `chord_join.rs`
+`ChordJoiner::cut_core` states it at the kef with its reason: the edge's
+sides are the slivers its own polygon's chords walled off at its two
+ends, and a completed face is bounded by another polygon's two copies,
+which kemr left once that polygon's last null edge was cut. The joiner
+records each face it completes (`completed`), and a `debug_assert!` at
+the kef refuses one on either side. The workspace keeps `debug_assert`s
+in release too (`Cargo.toml`'s `[profile.release]`
+`debug-assertions = true`), so any run that reaches the case, debug or
+release, goes red there, before the key is read at quiescence.
+
+The reason is argued, not proven. The review of PR 4396 notes it does
+not cover a ring re-homed into a sliver before that sliver completes.
+The assertion is what holds the line.
+
+## Measured
+
+Before the assertion, a probe at the same point logged any kef with a
+completed face on a side, and any kef with one face on both sides. It
+logged nothing in:
+
+- the sweep suite at ε 1e-9, 1e-6 and 1e-12 (2 460 tests each);
+- `pierce_runs_battery` (4 536 lines), `pinch_runs_battery` (3 024) and
+  seven `rc_wide` shards (0, 13, 27, 41, 55, 69 and 83 of 84, 480 lines
+  each);
+- the 323-pose search in the sibling row
+  `the-forced-order-lanes-could-accept-a-ring-held-run`.
+
+With the assertion itself live, the fix pass's release runs passed
+too: the sweep suite at ε 1e-9 and 1e-6 (2 474 tests) and 1e-12 (one
+failure, the filed `work/tint/tipped-rod-join-escalates-at-1e-12.md`),
+the same batteries, and the sibling row's 110-pose sphere and cone
+search.
+
+The split sweep shares the joiner and resolves its completed faces at
+once, so only the boolean carries a completed key to quiescence. No
+`fused_through`-style remap is built.

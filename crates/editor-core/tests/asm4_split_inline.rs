@@ -55,7 +55,7 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
     let (doc, _) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -266,7 +266,7 @@ fn row1_split_plain_subtree_preserves_structure() {
     let (doc, e2) = insert(
         doc,
         Node::Extrude {
-            profile: p2,
+            profile: p2.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -561,7 +561,7 @@ fn row3_uncut_param_reference_refuses() {
     let (doc, e1) = insert(
         doc,
         Node::Extrude {
-            profile: p1,
+            profile: p1.into(),
             distance: h(),
             side: ExtrudeSide::Along,
         },
@@ -571,7 +571,7 @@ fn row3_uncut_param_reference_refuses() {
     let (doc, e2) = insert(
         doc,
         Node::Extrude {
-            profile: p2,
+            profile: p2.into(),
             distance: h(),
             side: ExtrudeSide::Along,
         },
@@ -942,7 +942,7 @@ fn a_separated_cut_regroups_at_its_first_root_and_the_round_trip_keeps_the_produ
     let (doc, e) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -1112,7 +1112,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
     let (doc, cut_e) = insert(
         doc,
         Node::Extrude {
-            profile: cut_p,
+            profile: cut_p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -1138,7 +1138,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
     let (doc, kept_twin) = insert(
         doc,
         Node::Extrude {
-            profile: kept_p,
+            profile: kept_p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -1146,7 +1146,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
     let (doc, _) = insert(
         doc,
         Node::Union {
-            members: vec![kept_e, kept_twin],
+            members: vec![kept_e.into(), kept_twin.into()],
             declare: editor_core::declare_rest(vec![(
                 SitedRef::at_mint(straddler.clone()),
                 SitedRef::at_mint(partner),
@@ -1233,8 +1233,8 @@ fn a_reaching_name_names_the_earliest_node_outside_the_cut_in_document_order() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -1287,7 +1287,7 @@ fn selecting_fillet(doc: ProfileDoc, name: StableName) -> (ProfileDoc, BTreeSet<
     let (doc, _fillet) = insert(
         doc,
         Node::Fillet {
-            target: body,
+            target: body.into(),
             radius: len(0.1),
             selection: vec![name],
         },
@@ -1326,8 +1326,8 @@ fn a_reaching_name_names_a_live_node_before_a_deleted_one() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -1572,12 +1572,23 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
     for nested in [false, true] {
         let mut store = PartStore::default();
         let part_doc = part("asm4-min2-stranded-part", 0.0, 1.0);
-        let (part_doc, extra) = on_frame(
+        let (part_doc, extra_profile) = on_frame(
             part_doc,
             [0.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],
             [0.0, 1.0, 0.0],
             vec![square(10.0, 0.0, 0.5)],
+        );
+        // A body the union reads while its pair is written (D10: a pair
+        // names what its node reads), then drops: the re-point reports
+        // the name out of reach, and the delete strands it.
+        let (part_doc, extra) = insert(
+            part_doc,
+            Node::Extrude {
+                profile: extra_profile.into(),
+                distance: len(1.0),
+                side: ExtrudeSide::Along,
+            },
         );
         let body = part_doc.ids()[BODY_POSITION];
         let at_extra = StableName {
@@ -1603,15 +1614,15 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
         let (part_doc, twin) = insert(
             part_doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(1.0),
                 side: ExtrudeSide::Along,
             },
         );
-        let (part_doc, _) = insert(
+        let (part_doc, union) = insert(
             part_doc,
             Node::Union {
-                members: vec![body, twin],
+                members: vec![body.into(), twin.into(), extra.into()],
                 // Both sides are READ at the surviving body; the
                 // stranded side's NAME derives from the extra node,
                 // which is what the delete below strands.
@@ -1619,6 +1630,13 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
                     SitedRef::new(anchor.node, stranded.clone()),
                     SitedRef::at_mint(anchor),
                 )]),
+            },
+        );
+        let (part_doc, _) = step(
+            part_doc,
+            DocEdit::SetMembers {
+                node: union,
+                members: vec![body.into(), twin.into()],
             },
         );
         let (part_doc, _) = step(part_doc, DocEdit::DeleteNode { id: extra });
@@ -1688,7 +1706,7 @@ fn reshaped_component(
     let (doc, e2) = insert(
         doc,
         Node::Extrude {
-            profile: p2,
+            profile: p2.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -1705,7 +1723,7 @@ fn reshaped_component(
         let (doc, id) = insert(
             doc,
             Node::Datum(editor_core::Datum::FaceFrame {
-                at: e2,
+                at: e2.into(),
                 face: fixture::fname(e2, RoleSeg::Lateral(dropped.into())),
                 spin: fixture::ang(0.0),
             }),

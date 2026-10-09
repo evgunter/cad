@@ -19,3 +19,7 @@ scalar slot. `Node::measure` stays as an authored builder returning the edit lis
 ## FORK-5 ruled (2026-10-07, #4218)
 
 A measure's output is observed. Only an assertion reads an observed variable, directly or through a definition. A construction reading one refuses `ConstructionReadsObserved` at the door, and `ObservedRead` at load. Driven dimensions are deferred. The design flag is cleared.
+
+## Carried from unit B (PR 4342)
+
+Fold `NodeErrorKind::UnresolvedSite` into `UnresolvedRead` when a measure's `at` becomes a read.
