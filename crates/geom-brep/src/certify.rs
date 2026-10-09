@@ -2293,12 +2293,12 @@ fn run_checks<T: Decide>(
             /// now lives — not a new predicate.
             declared: Option<crate::mapped::MappedCurve<T>>,
         },
-        /// `Intersection` of a PLANE and a described NURBS wall
-        /// (M7-8): the declare-and-check lane's shape, with the lane
-        /// that derives its limbs.
+        /// `Intersection` of a PLANE and a described NURBS wall or a
+        /// fitted one (M7-8): the declare-and-check lane's shape, with
+        /// the lane that derives its limbs. `wall` has a spline chart.
         PlaneNurbs {
             plane: Surface<T>,
-            wall: std::sync::Arc<geom::NurbsSurface<T>>,
+            wall: Surface<T>,
             witness: Point3<T>,
             lane: NurbsLane<T>,
         },
@@ -2968,6 +2968,10 @@ fn run_checks<T: Decide>(
                 },
             ));
         };
+        // `plane_nurbs_pair` admits only a wall with a chart.
+        let Some(wall) = wall.spline_chart() else {
+            return Err(CertifyError::Unimplemented);
+        };
         let limbs = lane
             .limbs(carrier, plane, wall, extent, band)
             .map_err(from_plane_nurbs)?;
@@ -3086,25 +3090,25 @@ fn run_checks<T: Decide>(
 /// The plane × NURBS pairing, in either order: exactly one PLANE and
 /// exactly one **described** NURBS wall (the mvfs placeholder is a
 /// mid-surgery "no description yet" fact, never an operand), or one
-/// fitted (`Approx`) wall, which is its fit here: the fit's distance
-/// from its description is the face's claim, re-derived per face at
-/// rest, and the edge's limbs are measured against the fit alone.
+/// fitted (`Approx`) wall, which is its fit here
+/// ([`Surface::spline_chart`]): the fit's distance from its description
+/// is the face's claim, re-derived per face at rest, and the edge's
+/// limbs are measured against the fit alone.
 ///
 /// `None` for every other pair, which then takes the analytic path and
 /// its existing refusals verbatim.
 fn plane_nurbs_pair<T: Real>(
     s1: Option<Surface<T>>,
     s2: Option<Surface<T>>,
-) -> Option<(Surface<T>, std::sync::Arc<geom::NurbsSurface<T>>)> {
+) -> Option<(Surface<T>, Surface<T>)> {
     let (a, b) = (s1?, s2?);
     let wall = |s: &Surface<T>| match s {
-        Surface::Nurbs(n) if !n.is_placeholder() => Some(n.clone()),
-        Surface::Approx(f) => Some(std::sync::Arc::new(f.fit().clone())),
-        _ => None,
+        Surface::Nurbs(n) => !n.is_placeholder(),
+        _ => s.spline_chart().is_some(),
     };
     match (&a, &b) {
-        (Surface::Plane { .. }, s) => Some((a.clone(), wall(s)?)),
-        (s, Surface::Plane { .. }) => Some((b.clone(), wall(s)?)),
+        (Surface::Plane { .. }, s) if wall(s) => Some((a, b)),
+        (s, Surface::Plane { .. }) if wall(s) => Some((b, a)),
         _ => None,
     }
 }

@@ -14,13 +14,13 @@ now derives its edges with held planes, but its corners refuse: a corner
 is a root of some surface around it along an edge meeting it, and for a
 moved fitted face none is sought.
 
-- `solve_corners` (`crates/topo/src/replace_face.rs:2997`) skips every
+- `solve_corners` (`crates/topo/src/replace_face.rs:3012`) skips every
   `Surface::Nurbs` / `Surface::Approx` as the rooted surface
-  (`replace_face.rs:3079`), so the moved fit is never rooted along a held
+  (`replace_face.rs:3094`), so the moved fit is never rooted along a held
   edge (a box's vertical line, a loft seam).
-- `incident_edges` (`replace_face.rs:3170`) seeds no root on a derived
+- `incident_edges` (`replace_face.rs:3185`) seeds no root on a derived
   spline section ("A derived spline section seeks no corner",
-  `replace_face.rs:3215`), so the held plane on the corner's other side
+  `replace_face.rs:3230`), so the held plane on the corner's other side
   is never rooted along the new plane × fit section either.
 
 What is left is a corner one of the fit's own rows meets (the iso-row

@@ -610,10 +610,89 @@ fn a_moved_plane_meets_a_fitted_cap_along_their_certified_section() {
         matches!(
             refusals.as_slice(),
             [topo::ValidationError::VolumeUncomputable {
-                source: topo::MassPropsError::Face { face, .. },
+                source: topo::MassPropsError::Face {
+                    face,
+                    source: geom_brep::PropsError::QuadratureUnsupported { what },
+                    ..
+                },
                 ..
-            }] if *face == cap
+            }] if *face == cap && what.starts_with("trimmed exact lane's Newton–Cotes window")
         ),
         "expected only the fitted cap's quadrature refusal, got {refusals:?}"
+    );
+}
+
+/// **A section with a plane names the plane first, whichever seat
+/// either surface held before.** The box with the fitted cap has a side
+/// moved once, giving the side's edge with the cap as
+/// `Intersection { moved side, cap }`; that edge is re-stated with the
+/// seats swapped (`Intersection { cap, moved side }`, the same locus,
+/// which certifies in either order), and the side moved again. The
+/// re-derived edge names the newly moved plane first and the held fit
+/// second.
+#[test]
+fn a_moved_planes_section_with_a_held_fit_names_the_plane_first() {
+    use crate::common::approx::box_with_approx_cap;
+    use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec};
+    let (mut body, cap) = box_with_approx_cap(0.05, Tol::witness().eps());
+    let cap_key = body.get_face(cap).expect("the cap resolves").surface;
+    let side = body
+        .faces()
+        .find(|(_, f)| {
+            matches!(
+                body.get_surface(f.surface),
+                Some(geom::Surface::Plane { normal, origin, .. })
+                    if normal.x.abs() > 0.5 && origin.x > 1.0
+            )
+        })
+        .map(|(k, _)| k)
+        .expect("the box has an x = 2 side");
+    let section_of = |body: &topo::Body<f64>, s1, s2| {
+        body.edges()
+            .find(|(_, e)| {
+                body.get_curve_geom(e.curve)
+                    .and_then(topo::CurveGeom::certified)
+                    .is_some_and(|c| {
+                        matches!(
+                            *c.description(),
+                            EdgeDescription::Intersection { s1: a, s2: b, .. } if a == s1 && b == s2
+                        )
+                    })
+            })
+            .map(|(k, _)| k)
+    };
+    let step = -0.5 * THICKNESS;
+    topo::replace_face_offset(&mut body, side, step, Tol::witness())
+        .expect("the side moves against the fitted cap");
+    let once = body.get_face(side).expect("the side survives").surface;
+    let edge = section_of(&body, once, cap_key).expect("the side's section, plane first");
+    let curve = body
+        .get_curve_geom(body.get_edge(edge).unwrap().curve)
+        .and_then(topo::CurveGeom::certified)
+        .expect("the section is certified");
+    let (t0, t1) = curve.params();
+    let swapped = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::Intersection {
+            s1: cap_key,
+            s2: once,
+            witness: curve.carrier().eval(0.5 * (t0 + t1)),
+        },
+        carrier: curve.carrier().clone(),
+        param_start: t0,
+        param_end: t1,
+    };
+    body.set_edge_curve(edge, swapped, Tol::witness())
+        .expect("the swapped seats certify");
+    assert_eq!(
+        section_of(&body, cap_key, once),
+        Some(edge),
+        "the fit now holds s1"
+    );
+    topo::replace_face_offset(&mut body, side, step, Tol::witness()).expect("the side moves again");
+    let twice = body.get_face(side).expect("the side survives").surface;
+    assert_eq!(
+        section_of(&body, twice, cap_key),
+        Some(edge),
+        "the re-derived section names the moved plane first"
     );
 }

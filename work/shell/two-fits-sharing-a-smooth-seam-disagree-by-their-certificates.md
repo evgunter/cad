@@ -36,7 +36,7 @@ its smooth seam, at ε = 1e-6, 1e-9 and 1e-12:
   its net carrying an interior multiplicity equal to its degree.
 
 The guard's text this item quotes now reads "a row of this fit shared
-with another fitted face" (`crates/topo/src/replace_face.rs:1954`), and
+with another fitted face" (`crates/topo/src/replace_face.rs:2034`), and
 "… with a spline face" where the neighbour is an unmoved NURBS wall.
 Pinned in `crates/sweep/tests/encl_curved_loft_shell.rs`,
 `shelling_the_vase_refuses_at_its_rims_certificate`.

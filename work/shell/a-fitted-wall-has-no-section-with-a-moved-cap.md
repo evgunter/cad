@@ -97,7 +97,9 @@ and it did not hold; measured instead:
 - the twisted loft refuses at its wall's fit at the default ε
   (`BudgetExhausted`, 4.12e-9), and at 1e-6 at its seam's iso-row guard
   (`FittedBoundaryUnsupported`, "a row of this fit shared with a spline
-  face");
+  face"), which the door reaches after planning one rim; each rim's own
+  verdict is in `a-wall-seam-between-two-fits-has-no-section`'s
+  `## Measured`;
 - the vase refuses at its cap's rim limb 2 before any wall moves, and a
   lone wall at its fit (`PatchBound(Crease)`);
 - a moved fitted face's corners have no root

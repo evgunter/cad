@@ -277,8 +277,9 @@ pub enum Surface<T: Real> {
     ///
     /// **Its own kind, not `Nurbs`** ([`SurfaceKind::Approx`]), and its
     /// fit as geometry: evaluation, boxes, pcurves and sections read the
-    /// fit, while intended-surface questions (re-derivation at rest,
-    /// dihedral classification, census) read the description.
+    /// fit, re-derivation at rest reads the description, and the other
+    /// kind-indexed questions (dihedral classification, tangent bounds,
+    /// census) treat it as its own kind.
     Approx(Arc<ApproxSurface<T>>),
 }
 
