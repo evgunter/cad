@@ -37,8 +37,9 @@
 //!    ([`BooleanError::ContactContradicted`]), before the reduction ran,
 //!    so this lane verifies nothing again. With no such pair the lane
 //!    is not this frontier, before matching runs.
-//! 2. **Segments**: the join's own enumeration
-//!    ([`super::join::section_segments`]), read from the germ records
+//! 2. **Segments**: the join's own matching
+//!    ([`super::join::section_segments`]; the join's one-site segments
+//!    on a wrap edge are not read here), read from the germ records
 //!    before the scaffolding is undone (step 3): each segment's two end
 //!    sites and the cell it lies in on each operand, an edge
 //!    ([`super::Locus::OnEdge`]) or a face ([`super::Locus::InFace`]).

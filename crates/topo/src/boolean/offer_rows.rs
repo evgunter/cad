@@ -2800,6 +2800,13 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("vtxfac.rs", "germ_order", "Coincide::Sectors", 1),
     ("vtxfac.rs", "pierce_germ_dir", "Coincide::Sectors", 1),
+    (
+        "zip.rs",
+        "one_vertex_sense",
+        "BooleanDecision::SelfCheck",
+        1,
+    ),
+    ("zip.rs", "one_vertex_sense", "SelfCheck::SeamSense", 1),
 ];
 
 // ------------------------------------------------------------------
