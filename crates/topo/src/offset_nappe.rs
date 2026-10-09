@@ -35,13 +35,17 @@
 //! sum: a sum is a lever, and it answers `Opening` for a face with
 //! corners on both nappes as readily as for one with none there. The
 //! extremes bound every other corner, so deciding the two decides the
-//! set — and a face whose corners do not all stand strictly on one side
-//! of its apex has no nappe and is refused
-//! ([`ReplaceFaceError::NappeStraddles`]), never guessed. That includes
-//! a face merely TOUCHING its apex: the action's displacement is
-//! undetermined there (every azimuth maps to the apex), so the honest
-//! answer is the refusal rather than a nappe the touching corner does
-//! not have.
+//! set.
+//!
+//! A corner whose station decides Zero is the apex itself, the one
+//! point of a cone at its apex station, and it is on both nappes, so it
+//! decides neither. A face that REACHES its apex lies on the nappe its
+//! other corners stand on, and its apex corner moves with the apex: the
+//! offset slides the apex along the axis, so the moved apex is where
+//! that corner lands, whichever nappe the face is on. A face with
+//! corners strictly on both sides of its apex, or with every corner at
+//! it, has no nappe and is refused
+//! ([`ReplaceFaceError::NappeStraddles`]), never guessed.
 
 use geom::Surface;
 use geom_core::k_stats::decide;
@@ -66,8 +70,8 @@ pub use geom_brep::Nappe;
 ///
 /// # Errors
 ///
-/// [`ReplaceFaceError::NappeStraddles`] when the face's corners do not
-/// all stand strictly on one side of its apex (module docs).
+/// [`ReplaceFaceError::NappeStraddles`] when the face has corners
+/// strictly on both sides of its apex, or none off it (module docs).
 /// [`ReplaceFaceError::Escalated`] when either extreme lands in the
 /// ambiguity band, [`ReplaceFaceError::StaleFace`] when `face` does not
 /// resolve.
@@ -92,14 +96,14 @@ pub fn face_nappe<T: Decide>(
     let lo = decide("offset_nappe", Margin::of(station_min), band).map_err(esc)?;
     let hi = decide("offset_nappe", Margin::of(station_max), band).map_err(esc)?;
     match (lo, hi) {
-        (Sign::Positive, Sign::Positive) => Ok(Nappe::Opening),
-        (Sign::Negative, Sign::Negative) => Ok(Nappe::Mirror),
+        (Sign::Zero | Sign::Positive, Sign::Positive) => Ok(Nappe::Opening),
+        (Sign::Negative, Sign::Negative | Sign::Zero) => Ok(Nappe::Mirror),
         _ => Err(ReplaceFaceError::NappeStraddles {
             face,
             station_min,
             station_max,
-            what: "a cone face whose corners reach its apex, so it lies on neither side of the \
-                   apex alone",
+            what: "a cone face whose corners stand on both sides of its apex, or all at it, so \
+                   it lies on neither side of the apex alone",
         }),
     }
 }

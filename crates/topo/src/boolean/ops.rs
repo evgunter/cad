@@ -207,6 +207,9 @@ pub struct BooleanBody<T: Real> {
     /// wiring facts the naming layer consumes — recorded as the
     /// pipeline runs, never reconstructed by post-hoc inspection.
     pub naming: BooleanNaming,
+    /// The coincidences the op decided from values, in decision order
+    /// and operand keys ([`crate::coincidence`]).
+    pub coincidences: Vec<crate::Coincidence>,
 }
 
 /// How one operand's keys relate to the result body's keys.
@@ -654,6 +657,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         };
     let contacts = red.contacts.clone();
     let reduction_contacts = red.contacts.clone();
+    let coincidences = red.coincidences.clone();
     let covered = red.covered.clone();
     let edge_classes = red.edge_classes.clone();
     let null_copies = super::null_copy_rows(&red.null_edges);
@@ -763,6 +767,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         kind: BooleanResultKind::Seamed,
         contacts,
         naming,
+        coincidences,
     }))
 }
 
@@ -2515,7 +2520,7 @@ fn seam_reading<T: Decide>(
     band: Band,
 ) -> Result<geom_brep::DihedralClass, (DihedralReading, Indeterminate)> {
     geom_brep::classify_dihedral(surf1, surf2, witness, extent, band)
-        .map_err(|escalation| (DihedralReading::Lever(escalation.rung), escalation.diag))
+        .map_err(|escalation| (DihedralReading::Lever(escalation.rung()), escalation.diag()))
 }
 
 /// The boolean's refusal for an undecided seam reading: the seam's
@@ -2525,14 +2530,12 @@ fn seam_reading<T: Decide>(
 /// verdict is the gate's to mint.
 pub(super) fn seam_refusal(reading: DihedralReading, diag: Indeterminate) -> BooleanError {
     match reading {
-        DihedralReading::Lever(rung) => BooleanError::Escalated {
-            decision: BooleanDecision::of_lever(
-                super::LeverArm::Seam,
-                super::DeclarationRead::Moot,
-                rung,
-            ),
+        DihedralReading::Lever(rung) => BooleanError::of_lever_rung(
+            super::LeverArm::Seam,
+            super::DeclarationRead::Moot,
+            rung,
             diag,
-        },
+        ),
         DihedralReading::Bend => BooleanError::Escalated {
             decision: BooleanDecision::SeamJet,
             diag,
@@ -2588,7 +2591,7 @@ fn must_carry_reading<T: Decide>(
         MustCarryVerdict::JetDeterminate => Ok(true),
         MustCarryVerdict::UnderDetermined | MustCarryVerdict::Transverse => Ok(false),
         MustCarryVerdict::InBand(MustCarryEscalation::FirstOrder(escalation)) => {
-            Err((DihedralReading::Lever(escalation.rung), escalation.diag))
+            Err((DihedralReading::Lever(escalation.rung()), escalation.diag()))
         }
         MustCarryVerdict::InBand(MustCarryEscalation::SecondOrder(diag)) => {
             Err((DihedralReading::Bend, diag))
@@ -4985,6 +4988,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 kind,
                 contacts,
                 naming,
+                coincidences: red.coincidences.clone(),
             }))
         }
     }
@@ -5061,6 +5065,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         kind,
         contacts,
         naming,
+        coincidences: red.coincidences.clone(),
     }))
 }
 
@@ -6691,11 +6696,8 @@ mod tests {
                 matches!(
                     verdict,
                     geom_brep::MustCarryVerdict::InBand(
-                        geom_brep::MustCarryEscalation::FirstOrder(geom_brep::LeverEscalation {
-                            rung: geom_brep::LeverRung::Reading,
-                            ..
-                        })
-                    )
+                        geom_brep::MustCarryEscalation::FirstOrder(escalation)
+                    ) if escalation.rung() == geom_brep::LeverRung::Reading
                 ),
                 "an in-band wedge anywhere escalates, got {verdict:?}"
             );

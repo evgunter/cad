@@ -589,6 +589,20 @@ def audit_gap_ids():
 #:   next one.)
 BOUND_AS = {
     "CM": "cm",
+    # The coincidence door's row and its verdict (D10) cross as ONE
+    # value, `Coincidence`: its cells as `(node, name)` pairs, the
+    # door's proof as `rung` (`None` unproven) beside `residual`.
+    "NamedCoincidence": "Coincidence",
+    "NamedCell": "Coincidence.cells",
+    "Proof": "Coincidence.rung",
+    "Rung": "Coincidence.rung",
+    "Residual": "Coincidence.residual",
+    # A finding's subject crosses as its three attributes, each `None`
+    # for the arm it is not: `root` and `output_ix`, or `node`.
+    "FindingSubject": "CheckFinding.node",
+    # The door's module: its one question, asked of a node, is
+    # `Evaluation.coincidences`.
+    "coincide": "Evaluation.coincidences",
     # A variable's identity is Python's `Var`, the handle `Doc.var`
     # and `Doc.vars` answer.
     "VarId": "Var",
@@ -2671,6 +2685,11 @@ NOT_BOUND = {
     # spelling of these questions is the document door, already bound:
     # `Evaluation.find_flush_candidates` and `Doc.declare`.
     "flush": SHAPE,
+    # The kernel's coincidence record (`topo::coincidence`): rows keyed
+    # by arena keys, which Python does not name. Its two words cross as
+    # `Coincidence.relation` and `Coincidence.site`, read off the
+    # document's named rows.
+    "coincidence": SHAPE,
     "real": SHAPE,
     # The loops-only resolution door the sketch frame created: a caller
     # with loops in hand and no document — a form previewing what it is
@@ -3529,6 +3548,10 @@ NOT_BOUND = {
 #: reach what that member is about, at that spelling. Not the same shape, not
 #: the same receiver, and nothing about semantics.
 MEMBERS_BOUND_AS = {
+    # --- a one-of subject spelled as its arms' attributes ---------
+    # A finding is about one root output or one node; Python reads the
+    # subject as three attributes, `None` for the arm it is not.
+    "CheckFinding::subject": ("CheckFinding.root", "CheckFinding.output_ix", "CheckFinding.node"),
     # --- a continuous arm spelled per dimension -------------------
     # A continuous free variable or value carries its dimension; Python
     # builds one per dimension, so the arm is the three constructors.
@@ -3583,6 +3606,7 @@ MEMBERS_BOUND_AS = {
     "CheckEvidence::ChartCoherence": "CheckEvidence.variant",
     "CheckEvidence::ChartCoherenceUnexamined": "CheckEvidence.variant",
     "CheckEvidence::ChartCoherenceUnavailable": "CheckEvidence.variant",
+    "CheckEvidence::UnprovenCoincidence": "CheckEvidence.variant",
     "ChecksError::Root": "ChecksError.variant",
     "ChecksError::Band": "ChecksError.variant",
     "ChecksError::EvaluationOfAnotherDocument": "ChecksError.variant",
