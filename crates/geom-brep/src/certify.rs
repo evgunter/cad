@@ -711,7 +711,9 @@ impl CertifyError {
 
     /// The ending this refusal's decision gives it, read at `reading`
     /// ([`recourse`] over [`CertifyError::decision`]), or `None` for a
-    /// refusal that is no decision's refused arm.
+    /// refusal that is no decision's refused arm. The exception is the
+    /// lanes' one-arc proof (`TubeNotOneArc`): it has no `decision()`, and
+    /// ends by its own ([`crate::ssi::OneArcRefusal::ending`]).
     ///
     /// `Display` renders the payload alone: where a refusal is read
     /// decides its ending (D4 ¶1 (i)), so the door that reports it
@@ -729,15 +731,18 @@ impl CertifyError {
 
     /// The ending this refusal's decision gives it at the import door
     /// ([`recourse_in_file`] over [`CertifyError::decision`]): at rest,
-    /// with the file's ε_in words. `None` as [`CertifyError::ending`].
+    /// with the file's ε_in words. `None`, and the lanes' one-arc proof
+    /// ([`crate::ssi::OneArcRefusal::ending_in_file`]), as
+    /// [`CertifyError::ending`].
     #[must_use]
     pub fn ending_in_file(&self, file: FileCoincidence) -> Option<String> {
-        match *self {
-            Self::PlaneNurbs(ref refusal) => refusal.ending_in_file(file),
-            _ => self
-                .decision()
-                .map(|(check, arm)| recourse_in_file(check, arm, file)),
+        match self {
+            Self::PlaneNurbs(refusal) => return refusal.ending_in_file(file),
+            Self::AnalyticRung3(refusal) => return refusal.ending_in_file(file),
+            _ => {}
         }
+        self.decision()
+            .map(|(check, arm)| recourse_in_file(check, arm, file))
     }
 
     /// The payload and, where its decision gives one, the ending read at
@@ -5408,6 +5413,46 @@ mod tests {
                 past.ending_in_file(file),
                 past.ending(Reading::AtRest),
                 "{check:?}: a miss past ε_in is the file's own defect"
+            );
+        }
+    }
+
+    /// **The analytic rung-3 lane's one-arc refusal ends at the import
+    /// door as the plane x NURBS lane's does** (D4 ¶1): one stored edge's
+    /// one-arc proof, whichever lane certified it, with the file's ε_in
+    /// words on its band-decided arm. Red where the door finds no
+    /// decision for the analytic lane's refusal and renders its payload
+    /// with no ending.
+    #[test]
+    fn the_analytic_rung3_one_arc_refusal_ends_at_the_import_door() {
+        use crate::edge_nurbs::{AnalyticRung3Refusal, PlaneNurbsRefusal};
+        use crate::ssi::OneArcRefusal;
+        let file = FileCoincidence::new(1e-6);
+        let undecided = OneArcRefusal::Undecided(Indeterminate {
+            margin: MarginDiag::value(5e-9),
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some("ssi_tube_one_arc"),
+            terminal_sliver: false,
+        });
+        for cause in [
+            OneArcRefusal::Count { solutions: 0 },
+            OneArcRefusal::Unlinked,
+            OneArcRefusal::Short,
+            undecided,
+        ] {
+            let analytic = CertifyError::AnalyticRung3(AnalyticRung3Refusal::TubeNotOneArc {
+                rungs: 3,
+                cause,
+            });
+            let plane =
+                CertifyError::PlaneNurbs(PlaneNurbsRefusal::TubeNotOneArc { rungs: 3, cause });
+            let door = analytic.ending_in_file(file);
+            assert!(door.is_some(), "{cause:?}: the door gives no ending");
+            assert_eq!(door, plane.ending_in_file(file), "{cause:?}");
+            assert_eq!(
+                analytic.render_in_file(file),
+                format!("{analytic}. {}", door.unwrap()),
+                "{cause:?}"
             );
         }
     }
