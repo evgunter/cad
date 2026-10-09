@@ -6,7 +6,7 @@
 //! sheet in `topo`'s `chord_join::cone_ring_rows`).
 //!
 //! The crossing sweep's crossings are held to the closed form here
-//! (`topo::sweep_split_admitting_cones`, `sweep-testing` only), and each
+//! (`topo::sweep_split`, `sweep-testing` only), and each
 //! op's answer to the closed-form overlap. Where the ring stays on the
 //! cone face, the result door refuses its volume
 //! (`work/germ/boolean-sector-algebra-has-no-cone-arm.md`'s D7).
@@ -101,12 +101,68 @@ fn wedge_truth(s: f64, pose: Affine3<f64>) -> Solid {
     Solid::Brick([(0.0, 6.0), (0.0, 6.0), (-3.0, 3.0)]).posed(pose * to * turn)
 }
 
-/// The cone ∩ box at scale 0.6: the box's section is constant along
-/// `z`, so the overlap is the integral over the box's quadrant of the
-/// plane `z = 0` of the cone's chord along `z`, `2√(ρ(y)² − x²)`, by a
-/// midpoint rule at 8000² cells, stable to 1e-6 from 2000². The pose is
-/// self-similar about the apex, so scale `s` holds `(s/0.6)³` of it.
-const OVERLAP: f64 = 0.057_153;
+/// The cone ∩ box at scale `s`, by an exact 1-D quadrature. The box's
+/// section is constant along `z`, so each slice `y` of the overlap is
+/// the cone's disc of radius `ρ(y)` cut to `x ≥ d(y)`, `d` the larger of
+/// the box's two faces' traces: the segment area
+/// `ρ²·acos(d/ρ) − d·√(ρ² − d²)`. That integrand is smooth between
+/// breakpoints taken in closed form (where `d` changes face, and where
+/// `d = ±ρ` on either face), and each piece takes 1000 panels of 5-point
+/// Gauss–Legendre: 0.057152624892371 at `s = 0.6`, within 1e-13 of a
+/// 30-digit adaptive quadrature.
+pub(crate) fn overlap(s: f64) -> f64 {
+    const GL: [(f64, f64); 5] = [
+        (-0.906_179_845_938_664, 0.236_926_885_056_189_1),
+        (-0.538_469_310_105_683_1, 0.478_628_670_499_366_5),
+        (0.0, 0.568_888_888_888_888_9),
+        (0.538_469_310_105_683_1, 0.478_628_670_499_366_5),
+        (0.906_179_845_938_664, 0.236_926_885_056_189_1),
+    ];
+    let (h, k) = (height(), FRAC_PI_6.tan());
+    let e = edge_point(s);
+    let t = 50f64.to_radians().tan();
+    // The two faces' traces `d = a·y + b`.
+    let faces = [(t, e.x - t * e.y), (-1.0 / t, e.x + e.y / t)];
+    let slice = |y: f64| {
+        let r = (h - y) * k;
+        let d = faces
+            .iter()
+            .map(|(a, b)| a * y + b)
+            .fold(f64::NEG_INFINITY, f64::max);
+        if d >= r {
+            0.0
+        } else if d <= -r {
+            core::f64::consts::PI * r * r
+        } else {
+            r * r * (d / r).acos() - d * (r * r - d * d).sqrt()
+        }
+    };
+    let mut cuts = vec![0.0, h, e.y];
+    for (a, b) in faces {
+        cuts.extend(
+            [(h * k - b) / (a + k), (-h * k - b) / (a - k)]
+                .into_iter()
+                .filter(|y| (0.0..h).contains(y)),
+        );
+    }
+    cuts.sort_by(f64::total_cmp);
+    let panels = 1000;
+    cuts.windows(2)
+        .map(|w| {
+            let step = (w[1] - w[0]) / f64::from(panels);
+            (0..panels)
+                .map(|i| {
+                    let m = w[0] + (f64::from(i) + 0.5) * step;
+                    GL.iter()
+                        .map(|(x, wt)| wt * slice(m + x * step / 2.0))
+                        .sum::<f64>()
+                        * step
+                        / 2.0
+                })
+                .sum::<f64>()
+        })
+        .sum()
+}
 
 /// The points the bodies are read at: a grid over the apex's
 /// neighbourhood at scale `s`, moved by `pose`.
@@ -163,7 +219,7 @@ fn a_box_edge_through_a_cone_wall_crosses_it_at_the_rings_corners() {
             let want = pierce_points(s, pose);
             for (order, cone_first) in [("cone first", true), ("box first", false)] {
                 let (a, b) = if cone_first { (&c, &x) } else { (&x, &c) };
-                let (sa, sb, _, _) = topo::sweep_split_admitting_cones(a, b, tol)
+                let (sa, sb, _, _) = topo::sweep_split(a, b, tol)
                     .unwrap_or_else(|e| panic!("{label}, {order}: the sweep refused {e:?}"));
                 let split = if cone_first { sb } else { sa };
                 let fresh: Vec<_> = split
@@ -180,6 +236,11 @@ fn a_box_edge_through_a_cone_wall_crosses_it_at_the_rings_corners() {
                 }
                 let (sc, sx) = (cone_truth(pose), wedge_truth(s, pose));
                 let points = truth_grid(s, pose);
+                // The cone face the box's tilted sections bound has no
+                // trim reading: as built, 16 grid points refuse
+                // `PartialConeFace` (measured at every ε row, scale and
+                // member order); in the other two poses, none does.
+                let partial = if pose_name == "as built" { 16 } else { 0 };
                 // ∪ keeps the ring on the cone face, and the result door
                 // has no volume for a ring there yet.
                 let union = topo::union_with(a, b, &none, tol);
@@ -199,13 +260,14 @@ fn a_box_edge_through_a_cone_wall_crosses_it_at_the_rings_corners() {
                     union.map(|r| r.body().map(|b| b.kind))
                 );
                 let inter = topo::intersect_with(a, b, &none, tol);
-                let vi = solid_truth::assert_is(
+                let vi = solid_truth::assert_is_but(
                     &format!("{label}, {order}, ∩"),
                     &inter,
-                    Want::Body(OVERLAP * (s / 0.6).powi(3), 2e-4 * (s / 0.6).powi(3)),
+                    Want::Body(overlap(s), 1e-9 * overlap(s)),
                     &|q| Op::Intersect.depth(&sc, &sx, q),
                     &[],
                     &points,
+                    partial,
                 );
                 let diff = topo::subtract_with(a, b, &none, tol);
                 if cone_first {
@@ -216,13 +278,14 @@ fn a_box_edge_through_a_cone_wall_crosses_it_at_the_rings_corners() {
                         diff.map(|r| r.body().map(|b| b.kind))
                     );
                 } else {
-                    solid_truth::assert_is(
+                    solid_truth::assert_is_but(
                         &format!("{label}, {order}, box ∖ cone"),
                         &diff,
                         Want::Body(216.0 - vi, 1e-9 * 216.0),
                         &|q| Op::Subtract.depth(&sx, &sc, q),
                         &[],
                         &points,
+                        partial,
                     );
                 }
             }

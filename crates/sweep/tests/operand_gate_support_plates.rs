@@ -27,12 +27,12 @@
 //! empty: red at ε 10⁻⁹ and 10⁻¹². At ε 10⁻⁶ the pad covers that
 //! shrink, and the row stays green.
 //!
-//! **Excluded**: a touch on a RIM circle — the 270° torus's cut-cap rim
-//! (a direction whose support falls on a cut), and every support of the
-//! frustum, which always falls on one of its four rims — at `δ = 0` or
-//! `δ = −ε`, the two gaps inside the band, may build the point touch it
-//! records: `∪` an `Assembly` whose contacts hold the touch, `∩` empty
-//! (`work/tally/a-plate-touching-a-cut-torus-at-its-cap-rim-builds-an-assembly.md`).
+//! **Excluded**: a support that falls on a CUT of a partial turn — the
+//! 270° torus's cut-cap rim, and the 270° frustum's cut face where its
+//! rims end — and, under `∩` alone, every support of the frustum, a
+//! point of one of its rim circles. At `δ = 0` or `δ = −ε`, the two gaps
+//! inside the band, these may build the point touch they record: `∪`
+//! an `Assembly` whose contacts hold the touch, `∩` empty (`work/tally/a-plate-touching-a-cut-torus-at-its-cap-rim-builds-an-assembly.md`).
 //! The rim's graze root is its extremum, the support itself, so `−ε`
 //! reads as `0` does. An excluded `∪` that records no contact is still
 //! wrong, and every excluded result is still sampled.
@@ -255,7 +255,7 @@ fn plates_at_the_exact_support_of_a_frustum_and_a_torus_are_right_at_every_op() 
                             .min(0.15 * s - l.y.abs())
                             .min(0.15 * s - l.z.abs())
                     };
-                    let excluded = shape == Shape::Frustum || (sweep < 2.0 * PI && on_cut);
+                    let cut_touch = sweep < 2.0 * PI && on_cut;
                     for (op, out) in [
                         ("a∪b", topo::union(&a, &b, tol())),
                         ("b∪a", topo::union(&b, &a, tol())),
@@ -264,6 +264,7 @@ fn plates_at_the_exact_support_of_a_frustum_and_a_torus_are_right_at_every_op() 
                         ("b∖a", topo::subtract(&b, &a, tol())),
                     ] {
                         runs += 1;
+                        let excluded = cut_touch || (shape == Shape::Frustum && op == "a∩b");
                         let label = format!(
                             "[ε {eps:e}] {name} s {s:e} dir{k} {d:?} δ {delta:e} {op}: {}",
                             verdict(&out)

@@ -90,7 +90,8 @@ its support always falls on one of its four rim circles. Measured at
 cut) is an `Assembly` holding one `VfContact` (the minted rim vertex
 on the plate face), every ∩ that builds is `Empty` (52), and ∖ in both
 orders returns the operand whole (88), with no contact and no sampled
-point wrong. The other ∪ refuse. The row now excludes the frustum's
-rim touches under the same rule as the torus's cut-cap rim
-(`sweep/tests/operand_gate_support_plates.rs`): this item's question
-covers both.
+point wrong. The other ∪ refuse. The row excludes the measured class
+and no more (`sweep/tests/operand_gate_support_plates.rs`): a support
+on the 270° frustum's cut under the torus's cut-cap rule, and the
+frustum's `∩` at any rim touch (40 of the 52 `Empty` fall off the cut,
+23 of them on the full turn). This item's question covers both.

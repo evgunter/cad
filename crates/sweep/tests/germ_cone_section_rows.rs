@@ -4,7 +4,7 @@
 //!
 //! The rows read the certificate directly: on the crossings path with
 //! the events of the cone's root lane
-//! (`topo::section_report_admitting_cones`, behind `sweep-testing`), and
+//! (`topo::test_support::section_report`), and
 //! on the no-crossings path
 //! (`topo::test_support::no_crossings_section_report`), each pair with
 //! the cone face, its components cleared or refused with no event
@@ -26,8 +26,10 @@ use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use revolve_common::*;
 use sweep::{Revolution, RevolveAxis, revolve};
-use topo::test_support::{brick, no_crossings_certificates, no_crossings_section_report};
-use topo::{Body, BooleanError, FaceKey};
+use topo::test_support::{
+    brick, no_crossings_certificates, no_crossings_section_report, section_report,
+};
+use topo::{Body, BooleanError, BooleanOp, FaceKey};
 
 /// `polygon` (radius, height) revolved about `y`, fully (merged) or
 /// through `theta`.
@@ -316,7 +318,7 @@ fn the_preview_pairs_clear_with_the_sweeps_events() {
     };
     for (what, b) in &fixtures {
         for (x, y, cone_is_a) in [(&cone, b, true), (b, &cone, false)] {
-            let v: Vec<String> = topo::section_report_admitting_cones(x, y, Tol::witness())
+            let v: Vec<String> = section_report(BooleanOp::Union, x, y, Tol::witness())
                 .unwrap_or_else(|e| panic!("{what}: the sweep refused {e:?}"))
                 .into_iter()
                 .filter(|(fa, fb, _)| {
@@ -374,7 +376,7 @@ fn a_ball_across_a_generator_edge_clears_by_w4_through_the_door() {
         Vec3::new(0.45, 0.55, -0.01) + Vec3::new(h, h, 0.0) * 0.045,
     );
     for (a, b, cone_is_a) in [(&quarter, &ball, true), (&ball, &quarter, false)] {
-        let v: Vec<String> = topo::section_report_admitting_cones(a, b, Tol::witness())
+        let v: Vec<String> = section_report(BooleanOp::Union, a, b, Tol::witness())
             .unwrap()
             .into_iter()
             .filter(|(fa, fb, _)| {

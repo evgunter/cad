@@ -3,9 +3,8 @@
 This spec admits `Surface::Cone` as a boolean operand
 (`work/germ/VERBS-CONE.md`). It lists every kind dispatch the admission
 reaches (§1), derives each arm the cone needs (§2), and cuts the units in
-dependency order (§3). The roster flip is the last unit. Until it lands,
-the cone keeps refusing typed at the operand gate. The spec is deleted
-when its last unit merges.
+dependency order (§3). The roster flip is U7; with it the cone passes
+the operand gate. The spec is deleted when its last unit merges.
 
 It builds on PR 3372 (the section certificate, merged) and PR 3375 (the
 circle × torus root lane, in review). §3 names the units that need 3375's

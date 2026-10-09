@@ -32,7 +32,7 @@ answers `CircleRoots::Uncertain`: the frontier
 
 Row: `reduce::line_cone_rows::a_miss_a_graze_and_a_ruling` pins the
 first pose's refusal. No finished body has been built that reaches
-either through the crossing sweep (`topo::sweep_split_admitting_cones`).
+either through the crossing sweep (`topo::sweep_split`).
 
 ## 2026-10-09, a finished body reaches the second pose (VERBS-CONE U7)
 

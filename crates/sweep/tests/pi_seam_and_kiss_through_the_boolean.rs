@@ -34,8 +34,9 @@
 //!   its boundary, and passes the crossing layer the same way; the union
 //!   stops in the join. A same-radius stacked cylinder
 //!   stops there on its own rim, whose parent shares the partner's
-//!   carrier. A cone frustum is refused earlier, at the operand gate,
-//!   on its kind.
+//!   carrier. A cone frustum stops one layer earlier, at the crossing
+//!   layer, on its base rim — a parallel lying on the cone and on the
+//!   tube's wall at once (`CurvedPierceUnsupported`), declared or not.
 //! - **Tube ∪ ball** (overlapping, ball centred on the top cap) stops at
 //!   the crossing layer.
 //! - **The stadium** (slab ∪ cylinder whose wall the slab's top and

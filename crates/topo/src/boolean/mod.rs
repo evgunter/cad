@@ -4237,31 +4237,22 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
 }
 
 /// **The crossing sweep's split operands**: both sweep directions run
-/// undeclared, and the split operands they leave with their traces — the
-/// door through which a suite reads the crossing lanes' splits on
-/// finished bodies, `sweep-testing` only, never production surface.
+/// undeclared and realized, and the split operands they leave with
+/// their traces. The one door that hands a suite the operands as the
+/// SWEEP leaves them — [`sweep_traces`] returns the traces alone, and
+/// `test_support::boolean_through_the_join` the operands after the
+/// join has killed the null edges — so the crossing lanes' splits
+/// are read on finished bodies; `sweep-testing` only.
 ///
 /// # Errors
 ///
 /// [`BooleanError`] as [`sweep_traces`].
 #[cfg(feature = "sweep-testing")]
-pub fn sweep_split_admitting_cones(
+pub fn sweep_split(
     a_operand: &Body<f64>,
     b_operand: &Body<f64>,
     tol: Tol,
 ) -> Result<(Body<f64>, Body<f64>, SweepTrace, SweepTrace), BooleanError> {
-    let (a, b, ab, ba, _) = sweep_admitting_cones(a_operand, b_operand, tol)?;
-    Ok((a, b, ab, ba))
-}
-
-/// [`sweep_split_admitting_cones`], with the contacts the sweep recorded.
-#[cfg(feature = "sweep-testing")]
-#[allow(clippy::type_complexity)] // the split operands, their traces, the contacts
-fn sweep_admitting_cones(
-    a_operand: &Body<f64>,
-    b_operand: &Body<f64>,
-    tol: Tol,
-) -> Result<(Body<f64>, Body<f64>, SweepTrace, SweepTrace, ContactRecords), BooleanError> {
     let band = Band::linear(tol)?;
     let declared = DeclaredPairs::default();
     reduce::gate_operand_pairs(
@@ -4289,121 +4280,7 @@ fn sweep_admitting_cones(
         [Some(&mut ab), Some(&mut ba)],
         tol,
     )?;
-    Ok((a, b, ab, ba, acc.finish()))
-}
-
-/// **The section certificate on the crossings path**: the sweep of
-/// [`sweep_split_admitting_cones`], its contacts read into face-pair
-/// events by the reduction's own reading (`ops::contact_face_pairs`,
-/// before any null edge exists), and every in-scope pair of `a` × `b`
-/// certified with them, as `(A face, B face, outcome)` spelled by
-/// `Debug`; `sweep-testing` only.
-///
-/// # Errors
-///
-/// The sweep's refusals, and the certificate's own
-/// ([`ops::section_pairs`]).
-#[cfg(feature = "sweep-testing")]
-pub fn section_report_admitting_cones(
-    a: &Body<f64>,
-    b: &Body<f64>,
-    tol: Tol,
-) -> Result<Vec<(FaceKey, FaceKey, String)>, BooleanError> {
-    let (sa, sb, _, _, contacts) = sweep_admitting_cones(a, b, tol)?;
-    let events = ops::contact_face_pairs(&sa, &sb, &contacts, &[]);
-    Ok(ops::section_pairs(
-        a,
-        b,
-        Band::linear(tol)?,
-        ops::SectionPath::Crossings,
-        ops::Exempt::Nothing,
-        |fa, fb| events.contains(&(fa, fb)),
-        false,
-    )?
-    .into_iter()
-    .map(|p| (p.a_face, p.b_face, format!("{:?}", p.verdict)))
-    .collect())
-}
-
-/// **The pipeline through its join**: the production sequence
-/// (`ops::through_the_join`) stopped after the join, as
-/// [`sweep_split_admitting_cones`] stops after the sweep, so a suite
-/// reads the join's arms on whole poses. `None` where the pipeline
-/// answers without a join. Undeclared and realized; `sweep-testing`
-/// only.
-///
-/// # Errors
-///
-/// The pipeline's refusal on the way through its join.
-#[cfg(feature = "sweep-testing")]
-pub fn join_admitting_cones(
-    op: BooleanOp,
-    a_operand: &Body<f64>,
-    b_operand: &Body<f64>,
-    tol: Tol,
-) -> Result<Option<ConeJoin>, BooleanError> {
-    Ok(
-        match ops::through_the_join(
-            op,
-            a_operand,
-            b_operand,
-            &BooleanDeclarations::none(),
-            SweepStrategy::Realized,
-            true,
-            tol,
-        )? {
-            ops::Joined::Answered(_) => None,
-            ops::Joined::Connected {
-                red,
-                interior_loops,
-                ..
-            } => Some(ConeJoin {
-                a: red.a,
-                b: red.b,
-                interior_loops,
-            }),
-        },
-    )
-}
-
-/// **The whole op behind the front door**: the production pipeline
-/// ([`ops::boolean_op_recut`]), finished, gated and backstopped, as
-/// [`join_admitting_cones`] runs it to the join. Undeclared and
-/// realized; skips the front door's ∖/∩ revert roster; `sweep-testing`
-/// only.
-///
-/// # Errors
-///
-/// The pipeline's refusals.
-#[cfg(feature = "sweep-testing")]
-pub fn boolean_admitting_cones(
-    op: BooleanOp,
-    a: &crate::AtRestBody<f64>,
-    b: &crate::AtRestBody<f64>,
-    tol: Tol,
-) -> Result<BooleanResult<f64>, BooleanError> {
-    ops::boolean_op_recut(
-        op,
-        a,
-        b,
-        &BooleanDeclarations::none(),
-        SweepStrategy::Realized,
-        true,
-        tol,
-    )
-}
-
-/// [`join_admitting_cones`]' product.
-#[cfg(feature = "sweep-testing")]
-#[derive(Debug)]
-pub struct ConeJoin {
-    /// The A operand as the join leaves it.
-    pub a: Body<f64>,
-    /// The B operand as the join leaves it.
-    pub b: Body<f64>,
-    /// The interior-loop guard's verdict, which the pipeline raises on
-    /// the built body and this door does not.
-    pub interior_loops: Result<(), BooleanError>,
+    Ok((a, b, ab, ba))
 }
 
 /// **The sweep's contact records and the split operands' sizes** under
@@ -4464,7 +4341,8 @@ pub fn sweep_records(
 /// **The boolean pipeline through its join**, undeclared and realized:
 /// the two operand clones as the join leaves them, every null edge
 /// killed, before the finish, the zip and the closing mint — the
-/// production sequence itself (`ops::through_the_join`), stopped there.
+/// production sequence itself (`ops::through_the_join`), stopped there,
+/// with the interior-loop guard's verdict the pipeline raises later.
 /// `None` where the pipeline answers without a join to stop at. Test
 /// vocabulary (`topo::test_support`), for the rows that read the rows
 /// a face carries at that point.
@@ -4490,7 +4368,15 @@ pub(crate) fn through_the_join(
             tol,
         )? {
             ops::Joined::Answered(_) => None,
-            ops::Joined::Connected { red, .. } => Some((red.a, red.b)),
+            ops::Joined::Connected {
+                red,
+                interior_loops,
+                ..
+            } => Some(crate::test_support::JoinedOperands {
+                a: red.a,
+                b: red.b,
+                interior_loops,
+            }),
         },
     )
 }

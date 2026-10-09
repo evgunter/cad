@@ -3,7 +3,7 @@
 //!
 //! The first row runs every op on two of the poses through the public
 //! doors. The rest reach the crossing layer through
-//! `topo::sweep_split_admitting_cones`, the `sweep-testing` door that
+//! `topo::sweep_split`, the `sweep-testing` door that
 //! runs both sweep directions and hands back the split operands.
 //!
 //! Each split is held to an oracle that reads no kernel code: along every
@@ -158,7 +158,7 @@ fn assert_split_matches_oracle(label: &str, f: Frustum, other: &AtRestBody<f64>)
         } else {
             (&*cone, &**other)
         };
-        let (sa, sb, _, _) = topo::sweep_split_admitting_cones(a, b, tol)
+        let (sa, sb, _, _) = topo::sweep_split(a, b, tol)
             .unwrap_or_else(|e| panic!("{label}: the sweep refused {e:?}"));
         let split = if swapped { sa } else { sb };
         let mut got = new_vertices(other, &split);
@@ -197,7 +197,7 @@ fn assert_sweep_refuses(
         ("frustum first", &*cone, &**other),
         ("frustum second", &**other, &*cone),
     ] {
-        match topo::sweep_split_admitting_cones(a, b, Tol::witness()) {
+        match topo::sweep_split(a, b, Tol::witness()) {
             Err(e) if want(&e) => {}
             other => panic!("{label}, {order}: got {:?}", other.map(|_| "a split")),
         }
@@ -358,13 +358,22 @@ fn every_op_on_a_cone_wall_answers_its_truth_or_refuses_typed() {
             vb - vi,
         ),
     ] {
-        solid_truth::assert_is(
+        // ∪ and A ∖ B keep a cone face bounded by the cube's tilted
+        // sections: one grid point refuses `PartialConeFace` there,
+        // measured at every ε row.
+        let partial = if matches!(op_label, "∪" | "A ∖ B") {
+            1
+        } else {
+            0
+        };
+        solid_truth::assert_is_but(
             &format!("the turned cube, {op_label}"),
             &got,
             Want::Body(v, 1e-5),
             &|q| op.depth(x, y, q),
             &[],
             &points,
+            partial,
         );
     }
     let narrowing = NARROWING.body();

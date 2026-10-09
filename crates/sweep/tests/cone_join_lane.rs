@@ -2,9 +2,10 @@
 //! dispatch's plane × cone arms and the planar side's chord, behind the
 //! plane × cone germ frame.
 //!
-//! These rows reach the join through `topo::join_admitting_cones`
-//! (`sweep-testing`), which runs the production pipeline and stops after
-//! the join, and the whole op through `topo::boolean_admitting_cones`.
+//! These rows reach the join through
+//! `topo::test_support::boolean_through_the_join`, which runs the
+//! production pipeline and stops after the join, and the whole op through
+//! the front doors (`topo::union`, `intersect`, `subtract`).
 //! The interior-loop guard certifies every pose's cone pair by its
 //! section certificate's cone rows, so the op goes on to build. The
 //! join's output is pinned by the chords it minted in both operands:
@@ -31,9 +32,10 @@ use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop};
 use sweep::test_support::{brick, finished};
 use sweep::{Revolution, revolve};
+use topo::test_support::JoinedOperands;
 use topo::{
-    AtRestBody, Body, BooleanError, BooleanOp, ConeJoin, MassPropsError, PointInSolidError,
-    SolidContainment, ValidationError,
+    AtRestBody, Body, BooleanError, BooleanOp, MassPropsError, PointInSolidError, SolidContainment,
+    ValidationError,
 };
 
 /// The widening frustum: radius `0.5 → 1` over `y ∈ [0, 1]`, so apex
@@ -109,11 +111,11 @@ fn joined(
     } else {
         (other, cone)
     };
-    let ConeJoin {
+    let JoinedOperands {
         a,
         b,
         interior_loops,
-    } = topo::join_admitting_cones(op, a, b, Tol::witness())
+    } = topo::test_support::boolean_through_the_join(op, a, b, Tol::witness())
         .unwrap_or_else(|e| panic!("{label}: the join refused {e:?}"))
         .unwrap_or_else(|| panic!("{label}: answered without a join"));
     assert!(
@@ -677,7 +679,11 @@ fn poses() -> [Pose; 3] {
             name: "T1",
             cone: crate::a_ring_on_a_cone_face::cone(Affine3::identity()),
             other: crate::a_ring_on_a_cone_face::wedge(0.6, Affine3::identity()),
-            volumes: (PI * 1.2 * 1.2 * height / 3.0, 216.0, t1_overlap()),
+            volumes: (
+                PI * 1.2 * 1.2 * height / 3.0,
+                216.0,
+                crate::a_ring_on_a_cone_face::overlap(0.6),
+            ),
             points: vec![
                 ("in the lune", Point3::new(0.42, 1.178, 0.0), (true, true)),
                 (
@@ -697,9 +703,23 @@ fn poses() -> [Pose; 3] {
     ]
 }
 
+/// `op` through its public front door.
+fn front_door(
+    op: BooleanOp,
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
+    tol: Tol,
+) -> Result<topo::BooleanResult<f64>, BooleanError> {
+    match op {
+        BooleanOp::Union => topo::union(a, b, tol),
+        BooleanOp::Intersect => topo::intersect(a, b, tol),
+        BooleanOp::Subtract => topo::subtract(a, b, tol),
+    }
+}
+
 /// **Each pose's op builds its closed form, or refuses its ring typed.**
-/// The whole op
-/// (`topo::boolean_admitting_cones`), in every op and member order: the
+/// The whole op through
+/// its front door ([`front_door`]), in every op and member order: the
 /// body passes tiers 2 and 3′, the at-rest certificate and the
 /// legal-operand check, measures its closed-form volume
 /// (`differential::outcome`), holds each named point by the op's set
@@ -725,7 +745,7 @@ fn each_poses_body_is_its_closed_form_in_every_op() {
                 BooleanOp::Intersect => (vab, |x, y| x && y),
                 BooleanOp::Subtract => (va - vab, |x, y| x && !y),
             };
-            let got = topo::boolean_admitting_cones(op, a, b, tol);
+            let got = front_door(op, a, b, tol);
             let ring_kept = pose.name == "T1"
                 && (op == BooleanOp::Union || (op == BooleanOp::Subtract && cone_first));
             if ring_kept {
@@ -841,7 +861,7 @@ fn a_parabola_or_a_hyperbola_refuses_by_decision_in_every_op() {
                     [geom::SurfaceKind::Plane, geom::SurfaceKind::Cone],
                 )
             };
-            let got = topo::join_admitting_cones(op, a, b, tol);
+            let got = topo::test_support::boolean_through_the_join(op, a, b, tol);
             assert!(
                 matches!(
                     &got,
@@ -857,42 +877,4 @@ fn a_parabola_or_a_hyperbola_refuses_by_decision_in_every_op() {
             );
         }
     }
-}
-
-/// T1's overlap: the slice `y` of the cone is the disc of radius
-/// `(H − y)·tan(π/6)`, cut by both faces to `x ≥ max(d₁, d₂)`.
-fn t1_overlap() -> f64 {
-    let h = 1.2 / std::f64::consts::FRAC_PI_6.tan();
-    let [(e, _), _] = t1_planes();
-    let t = 50f64.to_radians();
-    let seg = |y: f64| {
-        let r = (h - y) * std::f64::consts::FRAC_PI_6.tan();
-        let d = (e.x + t.tan() * (y - e.y)).max(e.x - (y - e.y) / t.tan());
-        if d >= r {
-            0.0
-        } else if d <= -r {
-            std::f64::consts::PI * r * r
-        } else {
-            r * r * (d / r).acos() - d * (r * r - d * d).sqrt()
-        }
-    };
-    let gl = [
-        (-0.906179845938664, 0.236926885056189),
-        (-0.538469310105683, 0.478628670499366),
-        (0.0, 0.568888888888889),
-        (0.538469310105683, 0.478628670499366),
-        (0.906179845938664, 0.236926885056189),
-    ];
-    let panels = 400_000;
-    let w = h / f64::from(panels);
-    (0..panels)
-        .map(|i| {
-            let m = (f64::from(i) + 0.5) * w;
-            gl.iter()
-                .map(|(x, wt)| wt * seg(m + x * w / 2.0))
-                .sum::<f64>()
-                * w
-                / 2.0
-        })
-        .sum()
 }

@@ -294,10 +294,8 @@ fn p3_the_boundary_refusal_names_the_split_exactly_when_it_is_splittable() {
 /// **P4 — the mixed (ladder + annulus) support is publicly
 /// reachable.** A ball subtracted into the vase's top annulus mints a
 /// plane face carrying both a pip ring and a revolution-wall cycle.
-/// It used to refuse at the operand gate on the vase's cone faces; with
-/// the cone on the boolean's roster it builds, and the body is the
-/// closed form: the vase less the half ball below its top. The blend
-/// gate's mixed arm (`shared_support_gate`) is already rowed on the
+/// It builds, and the body is the closed form: the vase less the half
+/// ball below its top. The blend gate's mixed arm (`shared_support_gate`) is already rowed on the
 /// dome-topped boss (`ring_clearance_forms`).
 #[test]
 fn p4_a_ball_subtracted_into_a_revolves_cap_builds_its_closed_form() {

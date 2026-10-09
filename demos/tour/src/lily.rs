@@ -4019,17 +4019,12 @@ mod verbs_gate_r1_probes {
     use pncad::topo::Surface;
 
     /// The wall-7 finding, re-derived with the reviewer's own
-    /// arithmetic — and the measurement REVERSES the reading the wall
-    /// text invites. The refusal names (Cone, Sphere): the pucker's
-    /// SLAB BOX overlaps the carving ball's box, and that is real —
-    /// but the pucker's EXACT frustum never comes within the ball's
-    /// radius of it, while the sphere ZONE's carrier does meet the
-    /// ball. So the pair the gate names is pure box looseness (the
-    /// cone slab claims max-generator radius along its whole axial
-    /// range); the geometry the model cares about is still
-    /// sphere-on-sphere, and a tighter cone box would restore the
-    /// original steering premise (waits on item 9) without any cone
-    /// germ lane.
+    /// arithmetic. A slab box of the pucker (max-generator radius along
+    /// its whole axial range) overlaps the carving ball's box, but the
+    /// pucker's EXACT frustum never comes within the ball's radius of
+    /// it, while the sphere ZONE's carrier does meet the ball. So a
+    /// (Cone, Sphere) pair named on boxes is pure box looseness; the
+    /// geometry the model cares about is sphere-on-sphere.
     #[test]
     fn wall7_the_cone_pair_is_box_looseness_the_ball_meets_the_zone() {
         let tol = Tol::witness();
@@ -4110,27 +4105,10 @@ mod verbs_gate_r1_probes {
              asking a sphere-on-sphere question any more"
         );
 
-        // **The amendment (r1 fix pass), and it is a NEGATIVE result
-        // stated as one.** The measurement above is the reviewer's,
-        // unchanged: the pucker's exact frustum clears the carving
-        // ball, and the sphere zone meets it. The cone arm now boxes
-        // the FRUSTUM its axial window cuts rather than a slab pinned
-        // at the window's widest radius — a real tightening, measured
-        // below — and it is STILL not enough to separate this pair.
-        //
-        // What is left is not the constant-radius artifact the
-        // reviewer measured. It is the AABB of a TILTED frustum: an
-        // axis-aligned box around a slanted cone is bigger than the
-        // cone, and no per-kind box construction can close that. So
-        // the gate keeps naming (Cone, Sphere), honestly — "may
-        // intersect" is exactly the claim it makes, and the two loci
-        // do not.
-        //
-        // The residual is measured rather than asserted away: this
-        // row prints the frustum's own AABB against the ball's and
-        // the per-axis overlap, so the day an ORIENTED-box door or an
-        // exact cone×sphere separation test lands, the number to beat
-        // is written down.
+        // The cone arm boxes the FRUSTUM its axial window cuts rather
+        // than a slab pinned at the window's widest radius. This row
+        // prints that AABB against the ball's and the per-axis overlap,
+        // and holds the box clear of the ball below.
         let (fa, fb) = frustum_aabb(lant, &pucker, (bc, br));
         let overlap = |lo_a: f64, hi_a: f64, lo_b: f64, hi_b: f64| hi_a.min(hi_b) - lo_a.max(lo_b);
         let per_axis = [

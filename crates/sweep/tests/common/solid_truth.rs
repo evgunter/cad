@@ -181,6 +181,28 @@ pub fn assert_is(
     named: &[Point3<f64>],
     points: &[Point3<f64>],
 ) -> f64 {
+    assert_is_but(label, got, want, truth, named, points, 0)
+}
+
+/// [`assert_is`] on a body with a cone face bounded by a tilted section,
+/// whose `point_in_solid` refuses `PartialConeFace` at the grid points
+/// whose rays it cannot clear
+/// (`work/inside/cone-chart-trim-reads-a-tilted-section-as-its-vertex-window.md`):
+/// at most `partial_cone_refusals` of `points` may refuse so, each row's
+/// measured count, and never a named point.
+///
+/// # Panics
+///
+/// As [`assert_is`], and on more refusals than allowed.
+pub fn assert_is_but(
+    label: &str,
+    got: &Result<BooleanResult<f64>, BooleanError>,
+    want: Want,
+    truth: &dyn Fn(Point3<f64>) -> f64,
+    named: &[Point3<f64>],
+    points: &[Point3<f64>],
+    partial_cone_refusals: usize,
+) -> f64 {
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
     let r = got
@@ -221,10 +243,6 @@ pub fn assert_is(
                 let want_in = d > 0.0;
                 let got_c = match topo::point_in_solid(body, p, band, tol) {
                     Ok(c) => c,
-                    // A cone face bounded by a tilted section has no
-                    // trim reading yet, and the door refuses the points
-                    // whose rays it cannot clear
-                    // (`work/inside/cone-chart-trim-reads-a-tilted-section-as-its-vertex-window.md`).
                     Err(PointInSolidError::PartialConeFace { .. }) if i >= named.len() => {
                         refused += 1;
                         continue;
@@ -243,8 +261,9 @@ pub fn assert_is(
                 checked += 1;
             }
             assert!(
-                checked > named.len() && refused < checked,
-                "{label}: {checked} points answered, {refused} refused"
+                checked > named.len() && refused <= partial_cone_refusals,
+                "{label}: {checked} points answered, {refused} refused `PartialConeFace` \
+                 (at most {partial_cone_refusals})"
             );
             got_v
         }
