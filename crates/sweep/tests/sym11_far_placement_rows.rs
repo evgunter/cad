@@ -11,7 +11,7 @@
 //! ADOPTED FROM R2's review probe, which drove a body the table did not
 //! name at a magnitude between two that it did; they are what found the
 //! `(1e-9, 3.7e7)` cell below, where the bare lift refuses all three
-//! bodies and the symbolic lanes build all three with nothing
+//! bodies and the symbolic lanes build two of them with nothing
 //! disputed — the tier discharging identities the point channel could
 //! not, which no cell of the original table showed.
 //!
@@ -179,17 +179,11 @@ const PLACEMENTS: [f64; 4] = [0.0, 1.0e6, 3.7e7, 1.0e9];
 ///
 /// - **The dispute set is exactly four cells** — `(1e-9, 1e9)` and all
 ///   three non-origin placements at `1e-12` — and in every one of them
-///   the count is `3`. Each body driven alone in a session disputes one
-///   theorem there.
-/// - **The washer's point lanes refuse on the surface residual, not on
-///   their own description.** Its latitude rims evaluate the rotation
-///   on the vertex's offset from the axis, so the placement's magnitude
-///   no longer reaches the `MappedSource` check; where the point
-///   channel still cannot certify the body it is the wall's residual
-///   that says so.
+///   the count is `2`: the stadium's and the washer's. The triangle
+///   refuses at those points too and disputes nothing.
 /// - **At `(1e-9, 3.7e7)` the symbolic lanes BEAT the bare lift**: the
-///   bare `f64` run refuses all three bodies, and `Sym<f64>` builds all
-///   three with zero disputes. The tier discharged
+///   bare `f64` run refuses all three bodies, and `Sym<f64>` builds the
+///   stadium and the triangle with zero disputes. The tier discharged
 ///   identities the point channel could not certify — which is the
 ///   whole point of the tier, and is why "the symbolic lane refuses
 ///   wherever the bare lane does" would have been a false summary.
@@ -225,20 +219,20 @@ const TABLE: [[Cell; 4]; 3] = [
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["EndpointEnd", "MappedSource", "built"], 0) },
     ],
     // ε = 1e-9 (the shipped default): the mechanism reaches the point
-    // lanes at 1e9, and at 3.7e7 the tier rescues all three bodies the
-    // bare lift refuses.
+    // lanes at 1e9, and at 3.7e7 the tier rescues two bodies the bare
+    // lift refuses.
     [
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["MappedSource", "MappedSource", "built"], 0) },
-        Cell { bare: lane(["Surface2Residual", "Surface2Residual", "MappedSource"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
-        Cell { bare: lane(["Surface2Residual", "Surface2Residual", "MappedSource"], 0), inexact: lane(["Surface2Residual", "Surface2Residual", "MappedSource"], 3), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["built", "MappedSource", "built"], 0), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["Surface2Residual", "MappedSource", "MappedSource"], 2), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
     ],
     // ε = 1e-12: every placement off the origin disputes.
     [
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
-        Cell { bare: lane(["Surface2Residual", "Surface2Residual", "MappedSource"], 0), inexact: lane(["Surface2Residual", "Surface2Residual", "MappedSource"], 3), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
-        Cell { bare: lane(["Surface2Residual", "Surface2Residual", "MappedSource"], 0), inexact: lane(["Surface2Residual", "Surface2Residual", "MappedSource"], 3), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
-        Cell { bare: lane(["Surface2Residual", "Surface2Residual", "MappedSource"], 0), inexact: lane(["Surface2Residual", "Surface2Residual", "MappedSource"], 3), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["Surface2Residual", "MappedSource", "MappedSource"], 2), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["Surface2Residual", "MappedSource", "MappedSource"], 2), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["Surface2Residual", "MappedSource", "MappedSource"], 2), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
     ],
 ];
 

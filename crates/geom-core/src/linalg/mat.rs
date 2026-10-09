@@ -162,9 +162,10 @@ impl<T: Real> Mat3<T> {
     /// `t` did. So the entry is `8.88e-16` wide on the axis and the
     /// respell that removes the first term does not remove the sum:
     /// building `t = 2·sin²(θ/2)` alone recovers **0 %** of the width
-    /// of `R·p` at `θ = 0` — the near-unit sum still rounds outward by
-    /// an ulp — and is **WORSE at the full period** (`θ = 2π`: 133 % of
-    /// the shipped width — the diagonal narrows there too, to `7.77e-16`, so the
+    /// of `R·p` at a `RevolvedPoint` start sample (`θ = 0`) — the
+    /// near-unit sum still rounds outward by an ulp — and is **WORSE
+    /// at its full-period sample** (`θ = 2π`: 133 % of the shipped
+    /// width — the diagonal narrows there too, to `7.77e-16`, so the
     /// growth is the off-diagonals', where the half-angle
     /// `s = 2·sin(θ/2)·cos(θ/2)` is wider than `sin θ` at that point);
     /// building both `t` and `c = 1 − t` from the

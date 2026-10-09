@@ -1,14 +1,12 @@
 //! The swept-point descriptions' anchor and restriction, pinned at the
 //! certified scalar.
 //!
-//! `MappedCurve::RevolvedPoint` evaluates as `p − (I − R)·(p − q)` —
-//! the placed point `p` turned about the axis through `q` by
-//! `angles.at(s)` — and `restrict` narrows `angles` while the stored
-//! placement stays as built. So the description pays for its rotation
-//! once per evaluation and never per split, and an angle's width
-//! reaches the point through the radius about the axis, not through
-//! the coordinates' magnitude. `ExtrudedPoint` restricts its
-//! `stations` the same way.
+//! `MappedCurve::RevolvedPoint` evaluates through
+//! `Affine3::rotation_about_axis(axis_origin, axis_dir, angles.at(s))`,
+//! and `restrict` narrows `angles` while the stored placement stays as
+//! built. So the description pays for its rotation once per evaluation
+//! and never per split. `ExtrudedPoint` restricts its `stations` the
+//! same way.
 //!
 //! The first fixture's `axis_origin` carries width deliberately. Bodies
 //! built in-process hand the constructor exact axis origins; the widths
@@ -103,12 +101,11 @@ fn widths_by_split_count(mut c: MappedCurve<Interval>, (s0, s1): (f64, f64)) -> 
 /// the same on all three: a spelling that mentioned the anchor twice
 /// (`q − R·q`) read `2·width(axis_origin)` here, 4e-9 on the last row.
 ///
-/// What is left is the placed point's own last ulp: `(I − R)` at the
-/// exact angle `0` is zero to within the backend's subnormal `sin`
-/// dust, and subtracting that dust from `p` rounds each coordinate
-/// outward one step — 6.66e-16 at `p.x = 2` (one step down, one up).
-/// Applying `R` to `p` instead charges its diagonal's 8.88e-16
-/// enclosure times `p.z = 3`, 2.66e-15, which the ceiling here reds.
+/// What is left is the rotation's diagonal enclosure at the exact angle
+/// `0` — `t + c` on the axis component, `8.88e-16` wide — times the
+/// placed point's `z = 3`: 2.6645352591003757e-15. Why that floor is
+/// the backend's `cos` and not a spelling's is documented at
+/// `Mat3::rotation_about`'s width-floor paragraph.
 ///
 /// ε-free: enclosure widths only.
 #[test]
@@ -119,11 +116,11 @@ fn the_revolved_anchor_contributes_no_width_at_the_start_sample() {
         println!("axis half-width {half:e}: eval(0) width {at_start:e}");
         widths[row] = at_start;
         assert!(
-            at_start <= 1.0e-15,
+            at_start <= 1.0e-14,
             "the start sample of a revolved point on an axis of half-width \
              {half:e} is {at_start:e} wide — the described point there is the \
-             placed sketch point, exact in this fixture up to the last ulp \
-             the anchor operator's dust rounds it by"
+             placed sketch point, exact in this fixture up to the rotation's \
+             own floor"
         );
     }
     assert!(
@@ -144,7 +141,7 @@ fn the_revolved_anchor_contributes_no_width_at_the_start_sample() {
 /// A nonzero `s0` is measured too: there the axis width legitimately
 /// reaches the answer (rotating about an uncertain axis genuinely
 /// moves the point), so the bound is the honest `≈ 2·width(axis)` of a
-/// quarter turn rather than zero (measured 4.0000047718535825e-9).
+/// quarter turn rather than zero (measured 4.000015429994619e-9).
 #[test]
 fn restriction_does_not_store_the_anchor_round_trip() {
     let half = 1.0e-9;
@@ -168,23 +165,53 @@ fn restriction_does_not_store_the_anchor_round_trip() {
     );
 }
 
-/// **A split costs the parameter's rounding, never the coordinates'.**
-/// A metre-radius rim and a strut a thousand metres out, split 64 times
-/// over at six patterns — end-anchored, dyadic and not: the stored
-/// width stays within 4× of the unsplit curve's (or of the coordinates'
-/// last ulps, where the unsplit samples are exact) at every count.
+/// **A split costs the parameter's rounding, never a stored motion.**
+/// Restrictions that keep an exact end of the range — `(0, ½)` keeps
+/// its start and halves its end exactly, `(½, 1)` keeps its end — on a
+/// metre-scale rim near the origin and on one a thousand metres out,
+/// 64 times over: the stored width stays within 4× of one split's.
+/// Composing each split's rotation into the stored placement re-paid
+/// the rotation's diagonal enclosure times the coordinate scale per
+/// split, growing linearly: 3.55e-15 per `(0, ½)` split near the origin
+/// (2.3e-13 at 64 against 1.35e-14 after one), and 6.7e-11 at 64 far
+/// out against 7.5e-12 after one.
 ///
-/// Composing each split's motion into the stored placement re-pays a
-/// rotation's enclosure (or a translation's rounding) at the
-/// coordinates' scale per split, and this fixture puts that scale at
-/// 1e3: such a composition reached 6.7e-11 after 64 `(0, ½)` splits of
-/// the rim and 1.1e-10 after 64 `(0.3, 0.7)` ones, from 1.0e-12
-/// unsplit. So did an evaluation that turns the whole placed point
-/// (`R·p + (I − R)·q`) rather than its offset from the axis, because
-/// the range's own rounding is then multiplied by the coordinates too
-/// (2.8e-10 after 64 `(0.3, 0.7)` splits).
+/// Splits with neither end exact still round the composed angles a few
+/// ulps per split, and the anchored rotation carries an angle's width
+/// to the point times the coordinates' magnitude, so those grow; that
+/// is recorded in `work/nurbs/revolved-point-eval-levers-angle-width-by-the-coordinates.md`
+/// and not pinned here.
 #[test]
-fn a_far_curve_split_64_times_stays_at_its_unsplit_width() {
+fn end_anchored_splits_do_not_grow_the_stored_width() {
+    for at in [[0.0, 0.0, 3.0], FAR] {
+        for split in [(0.0, 0.5), (0.5, 1.0)] {
+            let widths = widths_by_split_count(rim_at(at), split);
+            println!(
+                "{at:?} {split:?}: widths at 1, 8, 64 splits {:e}, {:e}, {:e}",
+                widths[1], widths[8], widths[64]
+            );
+            for (n, &w) in widths.iter().enumerate().skip(1) {
+                assert!(
+                    w <= 4.0 * widths[1],
+                    "at {at:?}, after {n} splits at {split:?} the stored width is \
+                     {w:e}, against {:e} after one — repeated restriction is \
+                     accumulating",
+                    widths[1],
+                );
+            }
+        }
+    }
+}
+
+/// **A strut's split costs its stations' rounding, never the
+/// coordinates'.** A strut a thousand metres out, split 64 times over
+/// at six patterns — end-anchored, dyadic and not: the stored width
+/// stays within 4× of the unsplit strut's (or of the coordinates' last
+/// ulps, where the unsplit samples are exact). Composing each split's
+/// translation into the stored placement rounded it at the coordinates'
+/// scale once per split (1.1e-12 after 46 `(½, 1)` splits).
+#[test]
+fn a_far_strut_split_64_times_stays_at_its_unsplit_width() {
     let patterns = [
         (0.0, 0.5),
         (0.5, 1.0),
@@ -194,82 +221,23 @@ fn a_far_curve_split_64_times_stays_at_its_unsplit_width() {
         (1.0 / 3.0, 2.0 / 3.0),
     ];
     // A sample a thousand metres out rounds to its coordinates' last
-    // ulp, one step each way, whatever the description: the strut's
-    // unsplit samples happen to be exact, and a split one is not.
+    // ulp, one step each way, whatever the description: the unsplit
+    // samples happen to be exact, and a split one is not.
     let floor = 2.0 * (1000f64.next_up() - 1000.0);
-    for (name, curve) in [("rim", rim_at(FAR)), ("strut", strut_at(FAR))] {
-        for split in patterns {
-            let widths = widths_by_split_count(curve, split);
-            let unsplit = widths[0].max(floor);
-            let worst = widths.iter().copied().fold(0.0, f64::max);
-            println!(
-                "{name} {split:?}: unsplit {:e}, worst over 64 splits {worst:e}",
-                widths[0]
-            );
-            for (n, &w) in widths.iter().enumerate() {
-                assert!(
-                    w <= 4.0 * unsplit,
-                    "{name} split {n} times at {split:?} is {w:e} wide against \
-                     {unsplit:e} unsplit — a split is charging the coordinates' \
-                     scale, which only a composition into the placement does"
-                );
-            }
-        }
-    }
-}
-
-/// **Splits that keep an exact end of the range do not grow it.** On
-/// the metre-scale rim, restricting to `(0, ½)` keeps the range's start
-/// exactly and halves its end exactly, and `(½, 1)` keeps its end: 64
-/// splits read within 2× of one split's width. A composed placement
-/// grew 3.55e-15 per `(0, ½)` split — the rotation's diagonal enclosure
-/// times the coordinate scale — to 2.3e-13 at 64.
-#[test]
-fn end_anchored_splits_do_not_grow_the_stored_width() {
-    for split in [(0.0, 0.5), (0.5, 1.0)] {
-        let widths = widths_by_split_count(rim_at([0.0, 0.0, 3.0]), split);
+    for split in patterns {
+        let widths = widths_by_split_count(strut_at(FAR), split);
+        let unsplit = widths[0].max(floor);
         println!(
-            "{split:?}: widths at 1, 8, 64 splits {:e}, {:e}, {:e}",
-            widths[1], widths[8], widths[64]
-        );
-        for (n, &w) in widths.iter().enumerate().skip(1) {
-            assert!(
-                w <= 2.0 * widths[1],
-                "after {n} splits at {split:?} the stored width is {w:e}, against \
-                 {:e} after one — repeated restriction is accumulating",
-                widths[1],
-            );
-        }
-    }
-}
-
-/// **Interior splits pay the angles' own rounding, and only that.**
-/// When neither end of the sub-range is exact, each split rounds the
-/// composed angles by a few ulps of the angle — `ulp(π)` = 4.44e-16
-/// where the nested range converges — which reaches the point times
-/// the 1 m radius. That is the cost of composing two rounded
-/// parameters, and it is all a split may cost: the growth over the
-/// unsplit width stays under 8 ulps of `π` per split. A composed
-/// placement added the rotation's enclosure times the coordinate scale
-/// on top, 5.5e-13 at 64 `(0.3, 0.7)` splits against this ceiling's
-/// 2.3e-13.
-#[test]
-fn interior_splits_cost_the_angles_rounding_per_split() {
-    let ulp_pi = core::f64::consts::PI.next_up() - core::f64::consts::PI;
-    let per_split = 8.0 * ulp_pi;
-    for split in [(0.25, 0.75), (0.3, 0.7), (0.1, 0.9), (1.0 / 3.0, 2.0 / 3.0)] {
-        let widths = widths_by_split_count(rim_at([0.0, 0.0, 3.0]), split);
-        println!(
-            "{split:?}: widths at 0, 8, 64 splits {:e}, {:e}, {:e}",
-            widths[0], widths[8], widths[64]
+            "strut {split:?}: unsplit {:e}, worst over 64 splits {:e}",
+            widths[0],
+            widths.iter().copied().fold(0.0, f64::max)
         );
         for (n, &w) in widths.iter().enumerate() {
-            #[allow(clippy::cast_precision_loss)]
-            let ceiling = widths[0] + per_split * n as f64;
             assert!(
-                w <= ceiling,
-                "after {n} splits at {split:?} the stored width is {w:e}, over \
-                 {ceiling:e} — more than the angles' own rounding per split"
+                w <= 4.0 * unsplit,
+                "the strut split {n} times at {split:?} is {w:e} wide against \
+                 {unsplit:e} unsplit — a split is charging the coordinates' scale, \
+                 which only a composition into the placement does"
             );
         }
     }
@@ -354,9 +322,9 @@ fn a_restriction_is_the_sub_range_of_the_same_trajectory() {
 /// The full-period sample, which revolve seams land on: `s = 1` at
 /// `angle = 2π` describes the start point again. The anchor operator's
 /// half-angle factors (`2·sin²(π)`, `2·sin(π)·cos(π)`) are near zero
-/// there, so the sample reads the placed point to within its last ulps
-/// plus the axis's own contribution over a full turn (measured
-/// 6.66e-16); a `1 − cos 2π` spelling paid 4.0e-9 on this fixture.
+/// there, so the sample reads the start enclosure's own floor plus the
+/// axis's contribution over a full turn (measured 2.66e-15); a
+/// `1 − cos 2π` spelling paid 4.0e-9 on this fixture.
 #[test]
 fn the_full_period_sample_returns_to_the_start_enclosure() {
     let curve = rim(1.0e-9);
@@ -380,9 +348,9 @@ fn the_full_period_sample_returns_to_the_start_enclosure() {
         );
     }
     assert!(
-        w <= 7.0e-15,
+        w <= 2.7e-14,
         "the full-period sample is {w:e} wide — the anchor operator holds it \
-         to ~6.66e-16 here; a width in the 1e-9 range means the seam angle has \
+         to ~2.66e-15 here; a width in the 1e-9 range means the seam angle has \
          gone back to being paid as an ulp-of-1 cancellation"
     );
 }

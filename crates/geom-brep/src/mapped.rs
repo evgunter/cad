@@ -48,7 +48,7 @@
 //! is a construction invariant — and certification is exactly what
 //! makes it checked rather than trusted.
 
-use geom_core::{Affine3, Arc2, Mat3, Point2, Point3, Real, Vec3};
+use geom_core::{Affine3, Arc2, Point2, Point3, Real, Vec3};
 
 /// A 2-D sketch-plane segment in the canonical form (module docs):
 /// verbatim endpoints, and for an arc its carrier and signed sweep. The
@@ -310,15 +310,6 @@ impl<T: Real> MappedCurve<T> {
     /// The described point at normalized parameter `s ∈ [0, 1]` — the
     /// authoritative locus the cached carrier is certified against
     /// (module docs). Total; fixed evaluation orders as written (D9).
-    ///
-    /// A revolved point is the placed point `p` less the anchor
-    /// operator `(I − R)` ([`Mat3::identity_minus_rotation_about`])
-    /// applied to its offset from the axis origin — the rotation about
-    /// the axis, written so the motion acts on that offset alone. At
-    /// `T = Interval` an angle's width then reaches the point scaled by
-    /// the radius about the axis rather than by the coordinates' own
-    /// magnitude, and the start sample (`(I − R)` zero to within dust)
-    /// is the placed point.
     pub fn eval(&self, s: T) -> Point3<T> {
         match *self {
             MappedCurve::PlacedSegment { segment, place } => place_point(place, segment.eval(s)),
@@ -336,7 +327,7 @@ impl<T: Real> MappedCurve<T> {
                 angles,
             } => {
                 let p = place_point(place, point);
-                p - Mat3::identity_minus_rotation_about(axis_dir, angles.at(s)) * (p - axis_origin)
+                Affine3::rotation_about_axis(axis_origin, axis_dir, angles.at(s)).transform_point(p)
             }
         }
     }
