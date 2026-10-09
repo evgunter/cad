@@ -83,12 +83,14 @@ impl Unsized {
     /// the kernel approximated, an arm read at a build, and an undecided
     /// arm read at rest, end in the last resort; a definite arm at rest
     /// ends in the file's defect ending, since no loosening repairs a
-    /// stored contradiction.
+    /// stored contradiction. An arm whose margin could not be read ends
+    /// in the defect ending too: no tolerance makes it readable.
     #[must_use]
     pub fn recourse(self, arm: RefusedArm<'_>, reading: Reading) -> String {
         let defect = defect_ending(reading);
         match self {
             Self::Defect => defect.to_owned(),
+            Self::LastResort if arm.unreadable() => defect.to_owned(),
             Self::LastResort => match (reading, arm) {
                 (Reading::Build, _)
                 | (Reading::AtRest, RefusedArm::Undecided(_) | RefusedArm::Straddle) => {
@@ -222,7 +224,8 @@ pub enum RefusedArm<'a> {
 
 impl RefusedArm<'_> {
     /// Whether the arm's margin could not be read: the test [`not_yet`]
-    /// and [`LeverOnly`] add the unreadable-margin note on. A sized
+    /// and [`LeverOnly`] add the unreadable-margin note on, and
+    /// [`Unsized::LastResort`] ends in the defect ending on. A sized
     /// decision does not use it: [`MarginDiag::sized_recourse`] tests
     /// the margin itself. A straddle is two readable bounds, and a
     /// sign-certain arm was read.
