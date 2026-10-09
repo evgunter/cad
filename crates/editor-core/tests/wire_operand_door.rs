@@ -24,10 +24,8 @@
 //! kind the slot admits — so a door that stopped refusing it, and
 //! started shipping the evaluation's refusal to users, reds here.
 //!
-//! **Three rows are document-reachable**: the kind is right and the
-//! value is not — a 3-D axis where a revolve needs an axis in a sketch
-//! frame, and a half or an instance of a plain body. Their phrases and
-//! families differ, so a door that answered a constant goes red.
+//! **One row is document-reachable**: the kind is right and the value
+//! is not — a 3-D axis where a revolve needs an axis in a sketch frame.
 //!
 //! These refusals are DOCUMENT-REACHABLE: the strings here are what an
 //! author reads. The SOURCE rules behind them (one construction site,
@@ -42,7 +40,7 @@ use editor_core::ExtrudeSide;
 
 use editor_core::{
     AssertionDir, Datum, DocEdit, EditError, EvalOptions, Formula, Node, NodeErrorKind, PartSelect,
-    PatternKind, ProfileDoc, RecipeNodeId, SlotKind, SplitHalf, TubeWindow, VarKind,
+    PatternKind, ProfileDoc, RecipeNodeId, SlotKind, TubeWindow, VarKind,
 };
 use fixture::{ang, desc, insert, len, on_frame_keeping, scl, square};
 use geom_core::Tol;
@@ -311,19 +309,8 @@ fn wired() -> (
     doc = add(
         doc,
         &mut rows,
-        "wire_part's SplitHalf arm (a half of a plain body)",
-        Owes::Refusal("split", "body"),
-        Node::Part {
-            of: editor_core::Operand::output(body, SplitHalf::Above.port()),
-            select: PartSelect::SplitHalf(SplitHalf::Above),
-        },
-        body,
-    );
-    doc = add(
-        doc,
-        &mut rows,
-        "wire_part's Instance arm (an instance of a plain body)",
-        Owes::Refusal("instances", "body"),
+        "wire_part (an instance of a plain body)",
+        Owes::EditDoor(VarKind::Body, SlotKind::Is(VarKind::Bodies)),
         Node::Part {
             of: body.into(),
             select: PartSelect::Instance(Formula::count(0)),
@@ -452,21 +439,12 @@ fn every_operand_refusal_names_the_phrase_asked_for_and_the_family_found() {
             }
         }
     }
-    // A census that read nothing would pass vacuously, and one that
-    // reached a single phrase, family or kind would pin neither half
-    // against a door that answers a constant.
-    assert_eq!(phrases.len(), 3, "the document-reachable rows");
-    assert_eq!(doors.len(), 15, "the rows the edit door refuses");
-    phrases.sort_unstable();
-    phrases.dedup();
-    families.sort_unstable();
-    families.dedup();
-    assert!(
-        phrases.len() == 3 && families.len() == 2,
-        "the reachable rows must vary both halves: {} phrases over {} families",
-        phrases.len(),
-        families.len()
-    );
+    // A census that read nothing would pass vacuously, and one whose
+    // door rows reached a single kind would pin neither half against a
+    // door that answers a constant.
+    assert_eq!(phrases.len(), 1, "the document-reachable row");
+    assert_eq!(families.len(), 1);
+    assert_eq!(doors.len(), 16, "the rows the edit door refuses");
     let mut found: Vec<VarKind> = doors.iter().map(|d| d.0).collect();
     found.sort_unstable_by_key(|k| format!("{k:?}"));
     found.dedup();

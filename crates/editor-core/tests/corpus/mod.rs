@@ -187,11 +187,10 @@ pub fn documents() -> Vec<CorpusDoc> {
         // registry, so the derived frame carries the standard rows
         // (every ε, the Interval lane under DM1c, persistence, latency).
         face_sketch::document(),
-        // `part_select` (DOCM-2): a split's two halves and a pattern's
-        // middle instance each selected by a `Node::Part` and consumed
-        // downstream, so the census counts both selectors and every
-        // standard row (every ε, the Interval lane, persistence,
-        // latency) runs the projection.
+        // `part_select` (DOCM-2): a split's two halves read by port and
+        // a pattern's middle instance selected by a `Node::Part`, each
+        // consumed downstream, so every standard row (every ε, the
+        // Interval lane, persistence, latency) runs both.
         part_select::document(),
         // `loft_prism` (M6-3): R5 shape (iii)'s loft body — the
         // Band 4 corpus's first NURBS-walled solid. Standard rows
@@ -462,9 +461,8 @@ pub const SUB_KINDS: [&str; 20] = [
     "Boolean+Declare",
     "Pattern::Linear",
     "Pattern::Circular",
-    // Both selectors of the projection node: `part_select` reads a
-    // split's two halves and a pattern's middle instance.
-    "Part::SplitHalf",
+    // The projection node: `part_select` reads a pattern's middle
+    // instance.
     "Part::Instance",
     // LIB-PLACEDUNION's two register payoffs. `PlacedUnion::Circular`
     // is deliberately NOT listed: no corpus document needs one, and a
@@ -529,13 +527,10 @@ pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str
             PatternKind::Circular { .. } => "PlacedUnion::Circular",
             PatternKind::Explicit(_) => "PlacedUnion::Explicit",
         }],
-        // The two selectors are two sub-kinds: which value kind the
-        // node reads, and so which refusals it can meet, follows the
-        // selector.
-        Node::Part { select, .. } => vec![match select {
-            PartSelect::SplitHalf(_) => "Part::SplitHalf",
-            PartSelect::Instance(_) => "Part::Instance",
-        }],
+        Node::Part {
+            select: PartSelect::Instance(_),
+            ..
+        } => vec!["Part::Instance"],
         // EXHAUSTIVE on purpose (review MIN-2): no wildcard arm, so a
         // new `Node` variant — or a new `Datum`/`BooleanOp`/
         // `PatternKind` flavour above — is a COMPILE error here rather

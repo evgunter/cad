@@ -413,10 +413,6 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
                 ..none
             }
         }
-        EditError::PartHalfPort { node, .. } => EditPayload {
-            node: Some(node.id()),
-            ..none
-        },
         EditError::UnknownSlot { id, slot } => EditPayload {
             node: Some(id.id()),
             slot: Some(slot_id_tag(slot)),

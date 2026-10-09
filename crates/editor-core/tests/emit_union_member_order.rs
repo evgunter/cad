@@ -307,21 +307,21 @@ fn no_name_rebinds_across_the_member_orders_of_a_cut_seam_union() {
 #[test]
 fn a_seam_passed_through_a_split_and_cut_later_is_named() {
     use crate::fixture::scl;
-    use editor_core::{BooleanOp, Datum, PartSelect, SplitHalf};
+    use editor_core::{BooleanOp, Datum, Operand, SplitHalf};
     let doc = ProfileDoc::empty_derived("emit_union_member_order_split", Tol::witness());
     let (doc, slab, rib) = slab_rib(doc);
-    let pair = |doc, op, a: RecipeNodeId, b: RecipeNodeId| {
+    let pair = |doc, op, a: Operand, b: RecipeNodeId| {
         insert(
             doc,
             Node::Boolean {
                 op,
-                a: a.into(),
+                a,
                 b: b.into(),
                 declare: Vec::new(),
             },
         )
     };
-    let (doc, joined) = pair(doc, BooleanOp::Union, slab, rib);
+    let (doc, joined) = pair(doc, BooleanOp::Union, slab.into(), rib);
     let (doc, tool) = insert(
         doc,
         Node::Datum(Datum::Plane {
@@ -336,13 +336,7 @@ fn a_seam_passed_through_a_split_and_cut_later_is_named() {
             tool: tool.into(),
         },
     );
-    let (doc, below) = insert(
-        doc,
-        Node::Part {
-            of: editor_core::Operand::output(split, SplitHalf::Below.port()),
-            select: PartSelect::SplitHalf(SplitHalf::Below),
-        },
-    );
+    let below = Operand::output(split, SplitHalf::Below.port());
     let (doc, cut) = block(doc, (0.7, 0.8), (0.3, 0.7), 0.95, 0.1);
     let (doc, minus) = pair(doc, BooleanOp::Subtract, below, cut);
     let (doc, plus) = pair(doc, BooleanOp::Union, below, cut);

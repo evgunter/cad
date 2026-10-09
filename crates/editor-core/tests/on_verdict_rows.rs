@@ -10,9 +10,9 @@ use crate::fixture::{Recorder, ang, len, scl};
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, Datum, EntityKind, EvalOptions, Evaluation, Formula,
+    BooleanOp, BooleanValue, CancelToken, EntityKind, EvalOptions, Evaluation, Formula,
     Node, NodeError, NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc, RecipeNodeId,
-    RoleSeg, SplitHalf, StableName, ValuePayload, declared_pairs, evaluate, find_flush_candidates,
+    RoleSeg, StableName, ValuePayload, declared_pairs, evaluate, find_flush_candidates,
 };
 use geom_core::Tol;
 use topo::{BooleanResultKind, mass_properties};
@@ -108,37 +108,34 @@ fn assert_answers(ev: &Evaluation<f64>, rows: &[Row]) {
     }
 }
 
-/// The unit box split at z = 0.25, and two `Part(Above)` of it: one
-/// body at both seats.
-fn two_parts_of_one_half(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
-    let cube = block(r, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let tool = r.insert(Node::Datum(Datum::Plane {
-        origin: [len(0.0), len(0.0), len(0.25)],
-        normal: [scl(0.0), scl(0.0), scl(1.0)],
-    }));
-    let split = r.insert(Node::Split {
-        target: cube.into(),
-        tool: tool.into(),
+/// A 1 × 1 × 0.75 box patterned twice, and two `Part(Instance(1))`
+/// of it: one body at both seats.
+fn two_parts_of_one_copy(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
+    let cube = block(r, (0.0, 1.0), (0.0, 1.0), 0.0, 0.75);
+    let pat = r.insert(Node::Pattern {
+        input: cube.into(),
+        count: Formula::count(2),
+        kind: PatternKind::Linear {
+            direction: [scl(1.0), scl(0.0), scl(0.0)],
+            spacing: len(3.0),
+        },
     });
-    let above = PartSelect::SplitHalf(SplitHalf::Above);
-    let p = r.insert(Node::Part {
-        of: editor_core::Operand::output(split, SplitHalf::Above.port()),
-        select: above.clone(),
-    });
-    let q = r.insert(Node::Part {
-        of: editor_core::Operand::output(split, SplitHalf::Above.port()),
-        select: above,
-    });
+    let copy = || Node::Part {
+        of: pat.into(),
+        select: PartSelect::Instance(Formula::count(1)),
+    };
+    let p = r.insert(copy());
+    let q = r.insert(copy());
     (p, q)
 }
 
-/// **Two `Part(Above)` of one split**: ∪ and ∩ are the half, A's copy;
-/// − is the typed empty result. The n-ary union of the two is the half
-/// too.
+/// **Two `Part(Instance(1))` of one pattern**: ∪ and ∩ are the copy,
+/// A's; − is the typed empty result. The n-ary union of the two is the
+/// copy too.
 #[test]
-fn two_parts_of_one_half_answer_under_every_op() {
+fn two_parts_of_one_copy_answer_under_every_op() {
     let mut r = Recorder::new();
-    let (p, q) = two_parts_of_one_half(&mut r);
+    let (p, q) = two_parts_of_one_copy(&mut r);
     let nodes: Vec<RecipeNodeId> = OPS.iter().map(|&op| boolean(&mut r, op, p, q)).collect();
     let union = r.insert(Node::Union {
         members: vec![p.into(), q.into()],
@@ -152,27 +149,27 @@ fn two_parts_of_one_half_answer_under_every_op() {
             _ => assert_eq!(
                 got.map(|(v, n, k)| ((v - 0.75).abs() < 1e-9, n, k)),
                 Some((true, 1, BooleanResultKind::OperandA)),
-                "{op:?}: the half, one shell, A's copy"
+                "{op:?}: the copy, one shell, A's"
             ),
         }
     }
-    let half = mass_properties(crate::corpus::body_of(&ev, union), Tol::witness()).unwrap();
+    let copy = mass_properties(crate::corpus::body_of(&ev, union), Tol::witness()).unwrap();
     assert!(
-        (half.volume - 0.75).abs() < 1e-9,
-        "the n-ary union is the half: {}",
-        half.volume
+        (copy.volume - 0.75).abs() < 1e-9,
+        "the n-ary union is the copy: {}",
+        copy.volume
     );
 }
 
 /// **The kept `On` shell is named as the boolean names A's surviving
 /// faces**: the result is A's copy (`OperandA`), so the emitter mints
 /// each of its faces as `FromA(<the A seat's name>)` under the boolean
-/// node, exactly the six faces of the half, and no `FromB` name: B's
-/// copy is dropped whole.
+/// node, exactly the six faces of the copy, and no `FromB` name: B's
+/// is dropped whole.
 #[test]
 fn the_kept_copy_is_named_from_the_a_seat() {
     let mut r = Recorder::new();
-    let (p, q) = two_parts_of_one_half(&mut r);
+    let (p, q) = two_parts_of_one_copy(&mut r);
     let joined = boolean(&mut r, BooleanOp::Union, p, q);
     let ev = eval(&r.doc);
     let faces = |id: RecipeNodeId| -> Vec<StableName> {
@@ -185,7 +182,7 @@ fn the_kept_copy_is_named_from_the_a_seat() {
             .collect()
     };
     let seat = faces(p);
-    assert_eq!(seat.len(), 6, "the half has six faces: {seat:?}");
+    assert_eq!(seat.len(), 6, "the copy has six faces: {seat:?}");
     let mut want: Vec<StableName> = seat
         .into_iter()
         .map(|n| StableName {

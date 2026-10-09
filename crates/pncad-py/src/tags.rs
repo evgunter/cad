@@ -600,14 +600,12 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::SetExtrudeSideOnNonExtrude { .. } => "set_extrude_side_on_non_extrude",
         EditError::StepIdsRefused { .. } => "step_ids_refused",
         EditError::TooFewMembers { .. } => "too_few_members",
-        // The read doors: a read that resolves to no output, a node
-        // named alone that defines two or nothing, and a part over a
-        // split reading the other half. A read of a kind its slot does
-        // not admit is `slot_var_kind`, at any slot.
+        // The read doors: a read that resolves to no output, and a node
+        // named alone that defines two or nothing. A read of a kind its
+        // slot does not admit is `slot_var_kind`, at any slot.
         EditError::OperandUnresolved { .. } => "operand_unresolved",
         EditError::AmbiguousOutput { .. } => "ambiguous_output",
         EditError::DefinesNothing { .. } => "defines_nothing",
-        EditError::PartHalfPort { .. } => "part_half_port",
         EditError::UnknownSlot { .. } => "unknown_slot",
         EditError::SlotDimensionMismatch { .. } => "slot_dimension_mismatch",
         EditError::StructuralSlotNeedsStructuralEdit { .. } => {
@@ -1327,7 +1325,6 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::OperandUnresolved { .. } => None,
         EditError::AmbiguousOutput { .. } => None,
         EditError::DefinesNothing { .. } => None,
-        EditError::PartHalfPort { .. } => None,
         EditError::UnknownSlot { .. } => None,
         EditError::SlotDimensionMismatch { .. } => None,
         EditError::StructuralSlotNeedsStructuralEdit { .. } => None,
@@ -2075,7 +2072,6 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::NameStepNotMinted { .. } => "name_step_not_minted",
         SnapshotError::DeclaredNameNotUpstream { .. } => "declared_name_not_upstream",
         SnapshotError::OperandUnminted { .. } => "operand_unminted",
-        SnapshotError::PartHalfPort { .. } => "part_half_port",
         SnapshotError::ReadCycle { .. } => "read_cycle",
         SnapshotError::WitnessSite { .. } => "witness_site",
         SnapshotError::WitnessOnMissingNode { .. } => "witness_on_missing_node",

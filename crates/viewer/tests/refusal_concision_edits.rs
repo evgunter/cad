@@ -226,17 +226,6 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "PartHalfPort",
-            EditError::PartHalfPort {
-                node: s(5, "Part"),
-                half: pncad::select::SplitHalf::Above,
-                var: Box::new(pncad::document::SpokenVar::new(
-                    pncad::document::VarId::new(0, tagged(8)),
-                    None,
-                )),
-            },
-        ),
-        (
             "UnknownSlot",
             EditError::UnknownSlot {
                 id: s(5, "Extrude"),

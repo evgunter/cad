@@ -238,8 +238,17 @@ where
         + crate::mate::SolveScalar,
 {
     use crate::OperandSlot as O;
-    let projected = split_ports_projected(node, doc, results)?;
+    let read = results;
+    let projected = split_ports_projected(&reads_of(node), doc, results)?;
     let results = projected.as_ref().unwrap_or(results);
+    // A boolean's or a union's operands are projected one by one: two
+    // ports of one split are two bodies, which one map keyed by the
+    // split cannot hold.
+    let own = |vars: &[crate::VarId]| {
+        vars.iter()
+            .map(|&var| split_ports_projected(&[var], doc, read))
+            .collect::<Result<Vec<_>, _>>()
+    };
     // An operand reads an output; the op reads the operation's value.
     // Every read resolves here: an unresolved one refused the node
     // before its op was reached (`eval::read_at`).
@@ -344,28 +353,36 @@ where
             results,
             tol,
         ),
-        Node::Boolean { op, a, b, declare } => wire_boolean(
-            &crate::verbs::boolean::boolean(),
-            id,
-            *op,
-            at(O::A, *a)?,
-            at(O::B, *b)?,
-            declare,
-            doc,
-            results,
-            env.boolean_sweep,
-            tol,
-        ),
-        Node::Union { members, declare } => wire_union(
-            &crate::verbs::boolean::boolean(),
-            id,
-            &all(O::Member, members)?,
-            declare,
-            doc,
-            results,
-            env.boolean_sweep,
-            tol,
-        ),
+        Node::Boolean { op, a, b, declare } => {
+            let own = own(&[*a, *b])?;
+            let [ra, rb] = [&own[0], &own[1]].map(|p| p.as_ref().unwrap_or(read));
+            wire_boolean(
+                &crate::verbs::boolean::boolean(),
+                id,
+                *op,
+                (at(O::A, *a)?, ra),
+                (at(O::B, *b)?, rb),
+                declare,
+                doc,
+                env.boolean_sweep,
+                tol,
+            )
+        }
+        Node::Union { members, declare } => {
+            let own = own(members)?;
+            let each: Vec<&Results<T>> =
+                own.iter().map(|p| p.as_ref().unwrap_or(read)).collect();
+            wire_union(
+                &crate::verbs::boolean::boolean(),
+                id,
+                &all(O::Member, members)?,
+                declare,
+                doc,
+                &each,
+                env.boolean_sweep,
+                tol,
+            )
+        }
         Node::Transform { input, placement } => {
             wire_transform(id, at(O::Input, *input)?, placement, results, vals, tol)
         }
@@ -2850,20 +2867,24 @@ fn split_side<T: Decide>(
     }
 }
 
+/// The variables `node`'s operands read, in field order.
+fn reads_of(node: &Node<ProfileProgram>) -> Vec<crate::VarId> {
+    node.operand_rows().into_iter().map(|(_, var)| var).collect()
+}
+
 /// **A read of a split's port is that half** (FORK-1: a split defines
-/// two bodies): `results` with each split `node` reads by port
+/// two bodies): `results` with each split `reads` names by port
 /// replaced by the half the port is — the half's body, the table's
 /// rows for that output re-keyed to body 0, the split's part count.
 /// `None` when `node` reads no split by port.
 fn split_ports_projected<T: Decide>(
-    node: &Node<ProfileProgram>,
+    reads: &[crate::VarId],
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
 ) -> Result<Option<Results<T>>, NodeErrorKind> {
-    let ports: Vec<(RecipeNodeId, u8)> = node
-        .operand_rows()
-        .into_iter()
-        .filter_map(|(_, var)| doc.var(var)?.def().output())
+    let ports: Vec<(RecipeNodeId, u8)> = reads
+        .iter()
+        .filter_map(|&var| doc.var(var)?.def().output())
         .filter(|(split, _)| matches!(doc.node(*split), Some(Node::Split { .. })))
         .collect();
     if ports.is_empty() {
@@ -2924,30 +2945,29 @@ fn wire_boolean<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::boolean::PairVerb<T>,
     id: RecipeNodeId,
     op: BooleanOp,
-    a: RecipeNodeId,
-    b: RecipeNodeId,
+    (a, results_a): (RecipeNodeId, &Results<T>),
+    (b, results_b): (RecipeNodeId, &Results<T>),
     declare: &[DeclaredPair],
     doc: &crate::doc::Doc<ProfileProgram>,
-    results: &Results<T>,
     boolean_sweep: topo::SweepStrategy,
     tol: Tol,
 ) -> OpResult<T> {
     // F5 threading: the declared pairs' names resolve through the
     // OPERANDS' name tables; failures are the N5 typed errors, never a
     // silent drop. The kernel verb receives only the arena-key form.
-    let a_table = Arc::clone(&value_of(results, a)?.name_table);
-    let b_table = Arc::clone(&value_of(results, b)?.name_table);
+    let a_table = Arc::clone(&value_of(results_a, a)?.name_table);
+    let b_table = Arc::clone(&value_of(results_b, b)?.name_table);
     // **The site is the side**: each name resolves in the ONE table its
     // site designates, so a name carried by both operands is not
     // ambiguous.
     let kernel_decls = if declare.is_empty() {
         BooleanDeclarations::none()
     } else {
-        let sided = side_by_operand(declare, a, b, doc)?;
+        let sided = side_by_operand(declare, (a, &a_table), (b, &b_table), doc)?;
         resolve_declarations(&sided, doc, &a_table, &b_table)?
     };
-    let body_a = finished_operand(results, a, tol)?;
-    let body_b = finished_operand(results, b, tol)?;
+    let body_a = finished_operand(results_a, a, tol)?;
+    let body_b = finished_operand(results_b, b, tol)?;
     match (verb.build)(op, kernel_decls)
         .run_pair(&body_a, &body_b, boolean_sweep, tol)
         .map_err(|err| refusal_menu((a, &a_table), (b, &b_table), err))?
@@ -3043,7 +3063,7 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     members: &[RecipeNodeId],
     declared: &[DeclaredPair],
     doc: &crate::doc::Doc<ProfileProgram>,
-    results: &Results<T>,
+    results: &[&Results<T>],
     boolean_sweep: topo::SweepStrategy,
     tol: Tol,
 ) -> OpResult<T> {
@@ -3062,12 +3082,14 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // this node's name space.
     let own_tables = members
         .iter()
-        .map(|&m| Ok(value_of(results, m)?.name_table.as_ref()))
+        .zip(results)
+        .map(|(&m, results)| Ok(value_of(results, m)?.name_table.as_ref()))
         .collect::<Result<Vec<&NameTable>, NodeErrorKind>>()?;
     let operands = members
         .iter()
+        .zip(results)
         .zip(&own_tables)
-        .map(|(&m, own)| {
+        .map(|((&m, results), own)| {
             Ok((
                 Arc::new(finished_operand(results, m, tol)?),
                 Arc::new(names::member_view(id, m, own).map_err(NodeErrorKind::Naming)?),
@@ -3077,7 +3099,7 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let mut acc_body = Arc::clone(&operands[0].0);
     let mut acc_table = Arc::clone(&operands[0].1);
     // Declarations are routed BEFORE the fold, one bucket per step.
-    let buckets = route_declarations(id, members, declared, doc)?;
+    let buckets = route_declarations(id, members, &own_tables, declared, doc)?;
     // Contact is judged here, pairwise, and nowhere else (DM4). Each
     // member's box is the separation certificate's hull, read through
     // the certificate's one box door; a judged pair's body is discarded.
@@ -3093,6 +3115,7 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let (links, coincidences) = judge_pairwise_contact(
         id,
         members,
+        &own_tables,
         &tables,
         &hulls,
         declared,
@@ -3204,18 +3227,11 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     }
     // The members' own bodies and tables: where each member edge the
     // published table ranks pieces of is defined (`name_union`).
-    let member_bodies = members
+    let member_views: Vec<names::UnionMember<'_, T>> = members
         .iter()
         .zip(&operands)
-        .map(|(&m, (body, _))| Ok((m, Arc::clone(body), &value_of(results, m)?.name_table)))
-        .collect::<Result<Vec<_>, NodeErrorKind>>()?;
-    let member_views: Vec<names::UnionMember<'_, T>> = member_bodies
-        .iter()
-        .map(|(node, body, table)| names::UnionMember {
-            node: *node,
-            body,
-            table,
-        })
+        .zip(&own_tables)
+        .map(|((&node, (body, _)), table)| names::UnionMember { node, body, table })
         .collect();
     let (table, published_groups) =
         names::name_union(id, &acc_body, &acc_table, &member_views, &fold, &links, tol)
@@ -3281,6 +3297,7 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 fn judge_pairwise_contact(
     id: RecipeNodeId,
     members: &[RecipeNodeId],
+    own: &[&NameTable],
     tables: &[&NameTable],
     hulls: &[bvh::Aabb],
     declared: &[DeclaredPair],
@@ -3299,7 +3316,7 @@ fn judge_pairwise_contact(
     // sited these pairs through the same door, so a refusal here is a
     // bug.
     let site = |r: &SitedRef, reference: usize| {
-        member_site(id, members, r, reference, doc).map_err(|_| {
+        member_site(id, members, own, r, reference, doc).map_err(|_| {
             NodeErrorKind::Naming(names::NamingError::Emission {
                 what: PAIRWISE_SITE_UNROUTED,
             })
@@ -3430,20 +3447,38 @@ impl SidedName<'_> {
 /// ranks below rung 1: a name whose minting node is gone says THAT,
 /// whatever its site.
 ///
-/// The refusal for a site that is not an operand is the caller's
-/// (`absent`): a site fault for a pair boolean
+/// Two operands that read one operation (a split's two halves) share
+/// its site, and the side is the one whose table (`tables`, the
+/// operands' own) holds the name; this siding lives until declared
+/// pairs retire.
+///
+/// The refusal for a site that is not an operand, or that two operands
+/// share and the name does not tell apart, is the caller's (`absent`):
+/// a site fault for a pair boolean
 /// ([`NodeErrorKind::DeclareSiteNotAnOperand`]), the vanished name DM4
 /// says it is for a union, whose member LIST `SetMembers` rewrites.
 fn site_operand<'n>(
     r: &'n SitedRef,
     reference: usize,
     operands: &[RecipeNodeId],
+    tables: &[&NameTable],
     doc: &crate::doc::Doc<ProfileProgram>,
     absent: impl FnOnce(&ladder::Live<'n>) -> NodeErrorKind,
 ) -> Result<(usize, ladder::Live<'n>), NodeErrorKind> {
     let live = ladder::live(&r.name, doc)
         .map_err(|error| NodeErrorKind::DeclareResolve { error, reference })?;
-    match operands.iter().position(|m| *m == r.at) {
+    let sited: Vec<usize> = (0..operands.len()).filter(|&i| operands[i] == r.at).collect();
+    let side = match sited.as_slice() {
+        [one] => Some(*one),
+        several => {
+            let mut holding = several
+                .iter()
+                .copied()
+                .filter(|&i| tables[i].lookup(&r.name).is_some());
+            holding.next().filter(|_| holding.next().is_none())
+        }
+    };
+    match side {
         Some(i) => Ok((i, live)),
         None => Err(absent(&live)),
     }
@@ -3457,12 +3492,12 @@ fn site_operand<'n>(
 /// mints: a pair boolean's operand tables are the operands' own.
 fn side_by_operand<'n>(
     pairs: &'n [DeclaredPair],
-    a: RecipeNodeId,
-    b: RecipeNodeId,
+    (a, a_table): (RecipeNodeId, &NameTable),
+    (b, b_table): (RecipeNodeId, &NameTable),
     doc: &crate::doc::Doc<ProfileProgram>,
 ) -> Result<Vec<SidedPair<'n>>, NodeErrorKind> {
     let side = |r: &'n SitedRef, reference: usize| -> Result<Side<'n>, NodeErrorKind> {
-        let (i, live) = site_operand(r, reference, &[a, b], doc, |_| {
+        let (i, live) = site_operand(r, reference, &[a, b], &[a_table, b_table], doc, |_| {
             NodeErrorKind::DeclareSiteNotAnOperand { at: r.at }
         })?;
         let op = if i == 0 {
@@ -3501,6 +3536,7 @@ fn side_by_operand<'n>(
 fn route_declarations(
     id: RecipeNodeId,
     members: &[RecipeNodeId],
+    own: &[&NameTable],
     pairs: &[DeclaredPair],
     doc: &crate::doc::Doc<ProfileProgram>,
 ) -> Result<Vec<Vec<SidedPair<'static>>>, NodeErrorKind> {
@@ -3508,8 +3544,8 @@ fn route_declarations(
     let mut buckets: Vec<Vec<SidedPair<'static>>> = vec![Vec::new(); steps];
     for (k, ((r1, r2), class)) in pairs.iter().enumerate() {
         let ((i, n1), (j, n2)) = (
-            member_site(id, members, r1, 2 * k, doc)?,
-            member_site(id, members, r2, 2 * k + 1, doc)?,
+            member_site(id, members, own, r1, 2 * k, doc)?,
+            member_site(id, members, own, r2, 2 * k + 1, doc)?,
         );
         let bucket = i.max(j).saturating_sub(1);
         let joining = bucket + 1;
@@ -3536,11 +3572,12 @@ fn route_declarations(
 fn member_site(
     id: RecipeNodeId,
     members: &[RecipeNodeId],
+    own: &[&NameTable],
     r: &SitedRef,
     reference: usize,
     doc: &crate::doc::Doc<ProfileProgram>,
 ) -> Result<(usize, SidedName<'static>), NodeErrorKind> {
-    let (i, _) = site_operand(r, reference, members, doc, |live| {
+    let (i, _) = site_operand(r, reference, members, own, doc, |live| {
         NodeErrorKind::DeclareResolve {
             error: ladder::vanished(live),
             reference,

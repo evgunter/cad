@@ -19,7 +19,7 @@ use editor_core::{
     Frame, FreeVar, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, MeasureExpr, Node,
     NodeErrorKind, NodeResult, PartSelect, PatternKind, Placement, ProfileDoc, ProfileProgram,
     ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId,
-    SplitHalf, Step, StepArg, TubeWindow, ValuePayload, VarName, evaluate,
+    Step, StepArg, TubeWindow, ValuePayload, VarName, evaluate,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
@@ -772,10 +772,6 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
         Node::Part {
             of: nid(1).into(),
             select: PartSelect::Instance(Formula::count(0)),
-        },
-        Node::Part {
-            of: nid(1).into(),
-            select: PartSelect::SplitHalf(SplitHalf::Above),
         },
         Node::InstantiatePart {
             doc_ref: DocRef {

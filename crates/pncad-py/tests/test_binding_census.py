@@ -3665,7 +3665,6 @@ MEMBERS_BOUND_AS = {
     "EditError::OperandUnresolved": "EditError.variant",
     "EditError::AmbiguousOutput": "EditError.variant",
     "EditError::DefinesNothing": "EditError.variant",
-    "EditError::PartHalfPort": "EditError.variant",
     "EditError::UnknownSlot": "EditError.variant",
     "EditError::SlotDimensionMismatch": "EditError.variant",
     "EditError::StructuralSlotNeedsStructuralEdit": "EditError.variant",
