@@ -463,7 +463,9 @@ mod tests {
     }
 
     /// **An undecided role beside two decided `Outer`s refuses**: a
-    /// sheet `(1 + K)·ε` thick, whose signed volume stays in band.
+    /// sheet `(1 + K)·ε` thick, whose signed volume stays in band. Its
+    /// thickness is a size the user may intend, so the refusal ends in
+    /// the shell-role decision's tightening, never in loosening.
     #[test]
     fn an_in_band_shell_beside_two_pieces_refuses_role_unread() {
         let tol = Tol::witness();
@@ -474,10 +476,64 @@ mod tests {
             ([(6.0, 7.0), (0.0, 1.0), (0.0, t)], false),
         ]);
         let sheet = body.shells().nth(2).unwrap().0;
-        assert!(matches!(
-            sort(&mut body),
-            Err(PieceSortError::RoleUnread { shell }) if shell == sheet
-        ));
+        let err = sort(&mut body).expect_err("the sheet's role is in band");
+        assert!(
+            matches!(err, PieceSortError::RoleUnread { shell, .. } if shell == sheet),
+            "{err:?}"
+        );
+        let text = err.to_string();
+        assert!(
+            text.contains(
+                "Recourse: thicken or remove the degenerate geometry, or, if this thickness is \
+                 intended, tighten the tolerance below"
+            ) && !text.contains("loosen"),
+            "{text}"
+        );
+    }
+
+    /// **A role read over a poisoned volume margin ends in its decision's
+    /// own words, never in loosening**: beside two cubes, a third whose
+    /// every plane's origin is NaN, so its `V/A` margin cannot be read.
+    /// No tolerance reads it, so no tolerance is offered.
+    #[test]
+    fn a_poisoned_role_beside_two_pieces_offers_no_tolerance() {
+        let tol = Tol::witness();
+        let mut body = one_solid(&[
+            ([(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)], false),
+            ([(3.0, 4.0), (0.0, 1.0), (0.0, 1.0)], false),
+        ]);
+        let mut poisoned = brick((6.0, 7.0), (0.0, 1.0), (0.0, 1.0), tol);
+        for surface in poisoned.surfaces.values_mut() {
+            if let geom::Surface::Plane { origin, .. } = surface {
+                *origin = geom_core::Point3::new(f64::NAN, f64::NAN, f64::NAN);
+            }
+        }
+        crate::graft_disjoint_all_keyed(&mut body, &poisoned).unwrap();
+        body.merge_all_solids().unwrap();
+        let third = body.shells().nth(2).unwrap().0;
+        let err = sort(&mut body).expect_err("the third shell's margin is poisoned");
+        assert!(
+            matches!(err, PieceSortError::RoleUnread { shell, .. } if shell == third),
+            "{err:?}"
+        );
+        // The band's numbers are the run's ε; the words around them are
+        // the pin.
+        let text = err.to_string();
+        let (head, tail) = text.split_once(" against the ambiguity band ").expect("a band");
+        assert_eq!(
+            head,
+            "whether a shell of the body bounds material or a cavity could not be decided, so \
+             the piece it belongs to is unknown: the sign of a shell's volume is too close to \
+             call: margin is invalid (NaN or a refused enclosure)"
+        );
+        assert!(
+            tail.ends_with(
+                "). Recourse: thicken or remove the degenerate geometry; an unreadable or \
+                 collapsed margin may indicate a kernel bug worth reporting"
+            ),
+            "{text}"
+        );
+        assert_eq!(body.solids().count(), 1, "nothing moved");
     }
 
     /// **An undecided shell beside one decided `Outer` stays under its
