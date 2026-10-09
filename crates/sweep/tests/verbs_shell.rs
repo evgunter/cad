@@ -1166,6 +1166,30 @@ fn a_nonpositive_thickness_refuses_typed() {
     }
 }
 
+/// An infinite wall decides positive, so the gate asks finiteness
+/// first and says so: no offset door can move a face by it.
+#[test]
+fn an_infinite_thickness_refuses_at_the_gate() {
+    let e = topo::shell(
+        &finished(
+            "the operand",
+            block(2.0, 3.0, 4.0, Tol::witness()),
+            Tol::witness(),
+        ),
+        f64::INFINITY,
+        Tol::witness(),
+    )
+    .expect_err("an infinite wall must not build");
+    assert!(
+        matches!(e, ShellError::Thickness { thickness } if thickness == f64::INFINITY),
+        "expected the thickness gate, got {e}"
+    );
+    assert_eq!(
+        e.to_string(),
+        "the wall thickness (inf m) is not finite. Recourse: supply a finite thickness"
+    );
+}
+
 /// **The reach.** A wall thicker than the vessel's own radius collapses
 /// the cylinder onto its axis — the offset door's realized-radius floor
 /// refuses, and that refusal IS the containment evidence's own decide.
@@ -2102,7 +2126,8 @@ fn a_re_slit_annular_caps_old_glue_reaches_check_9_through_an_outer_edge() {
 /// in closed form.**
 ///
 /// These four were the ordinal-100/101 rows that PINNED the defect:
-/// each refused `ReanchorOffCarrier` with a gap of exactly
+/// each refused at the per-chart door's transported corner (the
+/// since-retired `ReanchorOffCarrier`) with a gap of exactly
 /// `t·|cos θ|`. The law was never wrong — it was measuring a corner
 /// transported once per chart, which accumulates `Σ dᵢ·nᵢ` where an
 /// offset body needs the point satisfying every `nᵢ·x = nᵢ·oᵢ + dᵢ` at

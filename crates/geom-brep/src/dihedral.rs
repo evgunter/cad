@@ -103,16 +103,17 @@ use crate::recourse::{AtZero, SizedDecision, SizedPass, StoredDefinite};
 /// the wedge an angle. Its margin is the wedge the arm meters,
 /// `sin θ · arm` (the arm's own where that wedge reads zero at the
 /// tolerance deciding the arm), so the tolerance it offers decides the
-/// arm and the wedge both. An arm of no length is sound geometry the
-/// metering reaches (a cone's apex), which its zero note says.
+/// arm and the wedge both. Its zero note names both ways the arm reaches
+/// no length: the edge's extent (an edge of none) and a face's radius
+/// (a cone's apex).
 pub const DIHEDRAL_ARM: SizedDecision = SizedDecision {
-    lever: "move the geometry so that edge is clearly longer, and its faces curve less tightly \
-            there",
+    lever: "move the geometry so that edge is clearly longer and no face curves tightly there",
     size: "length or the gap its faces open",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Contradiction,
     at_zero: Some(AtZero::same(
-        "a face curving to a point there, as a cone at its apex, leaves no angle to measure",
+        "an edge of no length, or a face curving to a point as a cone does, leaves no angle to \
+         measure",
     )),
 };
 
@@ -739,7 +740,8 @@ impl MustCarryEscalation {
     #[must_use]
     pub const fn diag(self) -> Indeterminate {
         match self {
-            Self::FirstOrder(LeverEscalation { diag, .. }) | Self::SecondOrder(diag) => diag,
+            Self::FirstOrder(escalation) => escalation.diag(),
+            Self::SecondOrder(diag) => diag,
         }
     }
 }
@@ -956,7 +958,7 @@ mod tests {
         let wall = plane(Vec3::unit_x(), Vec3::unit_y());
         let err = classify_dihedral(&floor, &wall, Point3::origin(), mid, b).unwrap_err();
         assert_eq!(
-            (err.rung, err.diag.predicate),
+            (err.rung(), err.diag().predicate),
             (LeverRung::Arm, Some("dihedral_arm_wedge"))
         );
     }
@@ -980,9 +982,9 @@ mod tests {
             Vec3::unit_x(),
         );
         let undecided = classify_dihedral(&floor, &leaning, Point3::origin(), arm, b).unwrap_err();
-        assert_eq!(undecided.rung, LeverRung::Arm);
+        assert_eq!(undecided.rung(), LeverRung::Arm);
         assert_eq!(
-            undecided.diag.margin.rejected_sign(),
+            undecided.diag().margin.rejected_sign(),
             Some(Sign::Zero),
             "the quoted wedge is a decided zero: {undecided:?}"
         );
@@ -1016,21 +1018,21 @@ mod tests {
         for extent in [mid, 0.5 * b.zero()] {
             let err = classify_dihedral(&floor, &leaning, Point3::origin(), extent, b).unwrap_err();
             let geom_core::ErrorTextReading::Value(m) =
-                err.diag.margin.diagnostic_f64_for_error_text()
+                err.diag().margin.diagnostic_f64_for_error_text()
             else {
                 panic!("a point margin: {err:?}");
             };
-            assert_eq!(err.rung, LeverRung::Arm);
-            assert_eq!(err.diag.predicate, Some("dihedral_arm_wedge"));
+            assert_eq!(err.rung(), LeverRung::Arm);
+            assert_eq!(err.diag().predicate, Some("dihedral_arm_wedge"));
             assert!((m - theta.sin() * extent).abs() <= 1e-6 * m, "{m:e}");
         }
         let err = classify_dihedral(&floor, &floor, Point3::origin(), mid, b).unwrap_err();
         assert_eq!(
-            (err.rung, err.diag.predicate),
+            (err.rung(), err.diag().predicate),
             (LeverRung::Arm, Some("dihedral_arm"))
         );
         assert_eq!(
-            err.diag.margin.diagnostic_f64_for_error_text(),
+            err.diag().margin.diagnostic_f64_for_error_text(),
             geom_core::ErrorTextReading::Value(mid)
         );
     }
@@ -1058,12 +1060,12 @@ mod tests {
         let quoted = |s1: &Surface<f64>, s2: &Surface<f64>, p: Point3<f64>| {
             let err = classify_dihedral(s1, s2, p, extent, b).unwrap_err();
             let geom_core::ErrorTextReading::Value(m) =
-                err.diag.margin.diagnostic_f64_for_error_text()
+                err.diag().margin.diagnostic_f64_for_error_text()
             else {
                 panic!("a point margin: {err:?}");
             };
-            assert_eq!(err.rung, LeverRung::Arm, "{err:?}");
-            (err.diag.predicate, m)
+            assert_eq!(err.rung(), LeverRung::Arm, "{err:?}");
+            (err.diag().predicate, m)
         };
         // The coincv5 review's tangent pose (`seam_tangent_noise`).
         let k = Vec3::new(0.37, -0.81, 0.45).normalize();
@@ -1218,7 +1220,7 @@ mod tests {
         let s2 = plane(n, Vec3::unit_y());
         let err = classify_dihedral(&s1, &s2, Point3::origin(), 1.0, band()).unwrap_err();
         assert_eq!(
-            (err.rung, err.diag.predicate),
+            (err.rung(), err.diag().predicate),
             (LeverRung::Reading, Some("dihedral_wedge"))
         );
     }
@@ -1265,10 +1267,10 @@ mod tests {
         let err = classify_dihedral(&cone, &s1, Point3::origin(), 1.0, band()).unwrap_err();
         assert_eq!(
             (
-                err.rung,
-                err.diag.predicate,
-                err.diag.margin.diagnostic_f64_for_error_text(),
-                err.diag.margin.rejected_sign()
+                err.rung(),
+                err.diag().predicate,
+                err.diag().margin.diagnostic_f64_for_error_text(),
+                err.diag().margin.rejected_sign()
             ),
             (
                 crate::LeverRung::Arm,
@@ -1419,7 +1421,7 @@ mod tests {
             band(),
         )
         .unwrap_err();
-        assert_eq!(err.diag.margin, geom_core::MarginDiag::INVALID);
+        assert_eq!(err.diag().margin, geom_core::MarginDiag::INVALID);
     }
 
     /// **A cylinder's gradient enclosure that reaches zero leaves no
@@ -1495,7 +1497,7 @@ mod tests {
             band(),
         );
         assert!(
-            matches!(off_locus, Err(WedgeEscalation::Lever(e)) if e.rung == LeverRung::Reading),
+            matches!(off_locus, Err(WedgeEscalation::Lever(e)) if e.rung() == LeverRung::Reading),
             "a poisoned point poisons the gradient, which is not a missing tangent plane: \
              {off_locus:?}"
         );
