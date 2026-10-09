@@ -44,3 +44,11 @@ certified reading's `terminal_sliver`, and `finding_arm` only types
 what it found. Typing check 7's `Certified::Open` arm must go through
 that same `certified_by` (a `CertifiedSliver`), not through a second
 reading of the record.
+
+**From PR 4415's second review (NOTE-2).** The class is wider than a
+one-shell result. The witness sliver is refused only because the
+result groups it into the main lump's solid: at d = 1e-8 the binding
+shell shares solid `1v1` with the main lump. At d = 1e-7 the result is
+two solids, `[1, 1]`. So any sliver lump the pieces sort gives a solid
+of its own passes check 10 unread, the same way a one-shell result
+does: check 10 reads roles only within a solid of two or more shells.
