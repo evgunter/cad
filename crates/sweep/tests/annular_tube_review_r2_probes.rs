@@ -402,3 +402,49 @@ fn r2_t3p_cause_of_the_bore_results() {
     let e = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol());
     eprintln!("R2T3P thin through B∖A: {:.300}", format!("{e:?}"));
 }
+
+/// Three nested thin rings with thin gaps, so every section circle's
+/// region faces on both sides are thin annuli: width `w` each, gap `w`.
+/// At `w = 1e-3` the outer annuli need the twelfth halving (`L ≈ 4`,
+/// `4/4096 < 1e-3`); at `w = 9e-4` no halving reaches them.
+#[test]
+fn r2_thin_nested_rings() {
+    let mut w = Vec::new();
+    for width in [1e-3, 9e-4] {
+        let r = |i: f64| 1.0 - i * width;
+        w.extend(nested(
+            &format!("thin nested w={width}"),
+            &[
+                &[(r(0.0), 0.0), (r(1.0), PI)],
+                &[(r(2.0), 0.0), (r(3.0), PI)],
+                &[(r(4.0), 0.0), (r(5.0), PI)],
+            ],
+            (0.5, 2.5),
+        ));
+    }
+    check(w);
+}
+
+/// The witness tube turned over (a half turn about the x axis through
+/// `z = 1.5`), so its circles' parameter sense is reversed against the
+/// plate's faces: the side of `normal × m′` the region lies on flips.
+#[test]
+fn r2_turned_over_tube() {
+    let mut w = Vec::new();
+    for (ao, ai) in [(0.0, PI), (1.0, 4.0), (0.0, 0.0)] {
+        for z in [(0.5, 2.5), (-0.5, 1.5)] {
+            let t = prism(annulus((0.0, 0.0), 1.0, ao, 0.5, ai), z);
+            let mid = 0.5 * (z.0 + z.1);
+            let turn = Affine3::rotation_about_axis(
+                geom_core::Point3::new(0.0, 0.0, mid),
+                Vec3::new(1.0, 0.0, 0.0),
+                PI,
+            );
+            let t = topo::transform_rigid(&t, &turn, tol()).unwrap();
+            let area = PI * 0.75;
+            let v = (area * (z.1 - z.0), 36.0, area * (z.1.min(1.0) - z.0.max(0.0)));
+            w.extend(run(&format!("turned ({ao},{ai}) z{z:?}"), t, plate(), v).1);
+        }
+    }
+    check(w);
+}
