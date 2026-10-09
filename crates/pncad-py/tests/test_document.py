@@ -119,10 +119,10 @@ class TestDocumentEditing(unittest.TestCase):
         box = unit_box(doc, 1 * m, 1 * m, 1 * m)
         before = doc.node_count
         with self.assertRaises(pncad.EditError) as caught:
-            # Deleting a node another node depends on must dangle.
-            doc.apply(DocEdit.delete_node(doc.order()[0]))
+            # An extrude reads a profile, not a body.
+            doc.insert(Node.extrude(box, Formula.length_in(1, m)))
         # The refusal carries a stable tag, not prose (§L4).
-        self.assertEqual(caught.exception.variant, "delete_would_dangle")
+        self.assertEqual(caught.exception.variant, "slot_var_kind")
         self.assertEqual(doc.node_count, before)
         self.assertTrue(evaluate(doc).succeeded(box))
 
@@ -1641,10 +1641,10 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
         doc = Doc()
         frame = doc.sketch_frame()
         profile = self.square(doc, frame)
-        doc.insert(Node.extrude(profile, Formula.length_in(1, m)))
+        body = doc.insert(Node.extrude(profile, Formula.length_in(1, m)))
         with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.delete_node(profile))
-        self.assertEqual(caught.exception.variant, "delete_would_dangle")
+            doc.insert(Node.extrude(body, Formula.length_in(1, m)))
+        self.assertEqual(caught.exception.variant, "slot_var_kind")
         self.assertIsNone(caught.exception.inner_variant)
 
     def test_the_edit_arms_that_hold_a_refusal_are_pre_checked_elsewhere(self):
@@ -1953,22 +1953,22 @@ class TestTheEditDoorsPayload(unittest.TestCase):
             )
         return {a for a in EDIT_ATTRS if getattr(refusal, a) is not None}
 
-    def test_the_two_node_roles_answer_with_the_ids_that_were_used(self):
-        # A delete that would dangle names BOTH ends: the node asked
-        # for, and the live node still reading it. They are different
-        # roles, so folding them into one attribute would lose which
-        # is which — and the pair is what a caller needs to build the
-        # cascade.
+    def test_an_operand_refusal_names_the_slot_and_both_kinds(self):
+        # A read of the wrong kind names the operand it was written at
+        # and the two kinds — the one found and the one the slot
+        # admits — as words, so a caller can branch on them.
         doc = Doc()
         box = self.slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
-        profile = doc.order()[1]
         with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.delete_node(profile))
+            doc.insert(Node.extrude(box, Formula.length_in(1, m)))
         refusal = caught.exception
-        self.assertEqual(refusal.variant, "delete_would_dangle")
-        self.assertEqual(refusal.node, profile)
-        self.assertEqual(refusal.referenced_by, box)
-        self.assertEqual(self.set_of(refusal), {"variant", "node", "referenced_by"})
+        self.assertEqual(refusal.variant, "slot_var_kind")
+        self.assertEqual(
+            (refusal.slot, refusal.found, refusal.expected), ("profile", "body", "profile")
+        )
+        self.assertEqual(
+            self.set_of(refusal), {"variant", "node", "slot", "found", "expected"}
+        )
 
     def test_a_foreign_id_arrives_under_the_role_the_door_read_it_in(self):
         # The SAME id, refused at two doors, lands under two different
@@ -2043,9 +2043,12 @@ class TestTheEditDoorsPayload(unittest.TestCase):
         with self.assertRaises(EditError) as caught:
             doc.apply(DocEdit.bind_count_param(pattern, VarName("len")))
         refusal = caught.exception
+        # The slot's kind refusal is one arm at every slot: `found`
+        # is the kind of the variable read, `expected` what the slot
+        # takes.
         self.assertEqual(refusal.variant, "slot_var_kind")
-        self.assertEqual(refusal.expected, "length")
-        self.assertEqual(refusal.found, "count")
+        self.assertEqual(refusal.expected, "count")
+        self.assertEqual(refusal.found, "length")
         self.assertEqual(
             self.set_of(refusal),
             {"variant", "node", "slot", "param", "expected", "found"},
@@ -2076,9 +2079,10 @@ class TestTheEditDoorsPayload(unittest.TestCase):
         self.assertEqual(eps.exception.value, -1.0)
         self.assertEqual(self.set_of(eps.exception), {"variant", "value"})
 
-        # A root that is an ancestor of another root reads the same
-        # two node roles a dangling delete does: the offender, and the
-        # node downstream that references it. `variant` is the FAULT's
+        # A root that is an ancestor of another root names two node
+        # roles: the offender, and the node downstream that references
+        # it. They are different roles, so folding them into one
+        # attribute would lose which is which. `variant` is the FAULT's
         # word already, so `inner_variant` stays `None`.
         pattern = doc.insert(
             Node.pattern(box, Formula.count(3), PatternKind.linear((

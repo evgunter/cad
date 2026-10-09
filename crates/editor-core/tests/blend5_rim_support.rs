@@ -91,8 +91,8 @@ fn lantern() -> (ProfileDoc, RecipeNodeId) {
     let (doc, revolve) = insert(
         doc,
         Node::Revolve {
-            profile,
-            axis,
+            profile: profile.into(),
+            axis: axis.into(),
             angle: ang(std::f64::consts::TAU),
         },
     );
@@ -106,7 +106,7 @@ fn filleted_mouth() -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Fillet {
-            target: revolve,
+            target: editor_core::Operand::output(revolve, 0),
             radius: len(0.05),
             selection: vec![mouth],
         },
@@ -237,7 +237,7 @@ fn the_host_is_the_planar_support_wherever_the_rim_has_one() {
     let (doc, fillet) = insert(
         doc,
         Node::Fillet {
-            target: revolve,
+            target: editor_core::Operand::output(revolve, 0),
             radius: len(0.05),
             selection: vec![lip],
         },
@@ -339,8 +339,8 @@ fn a_seam_split_rim_gives_all_its_arcs_one_pair_of_roles() {
     let (doc, revolve) = insert(
         doc,
         Node::Revolve {
-            profile,
-            axis,
+            profile: profile.into(),
+            axis: axis.into(),
             angle: ang(std::f64::consts::TAU),
         },
     );
@@ -357,7 +357,7 @@ fn a_seam_split_rim_gives_all_its_arcs_one_pair_of_roles() {
     let (doc, fillet) = insert(
         doc,
         Node::Fillet {
-            target: revolve,
+            target: editor_core::Operand::output(revolve, 0),
             radius: len(0.05),
             selection,
         },

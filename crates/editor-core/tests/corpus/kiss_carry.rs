@@ -67,7 +67,7 @@ pub fn document() -> CorpusDoc {
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     let a = r.insert(Node::Extrude {
-        profile: a_p,
+        profile: a_p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -80,7 +80,7 @@ pub fn document() -> CorpusDoc {
         vec![vec![(1.0, 1.0), (2.0, 1.0), (2.0, 2.0), (1.0, 2.0)]],
     );
     let b = r.insert(Node::Extrude {
-        profile: b_p,
+        profile: b_p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -88,8 +88,8 @@ pub fn document() -> CorpusDoc {
     // DISCOVERED by the op and recorded in the result's contacts.
     let u1 = r.insert(Node::Boolean {
         op: BooleanOp::Union,
-        a,
-        b,
+        a: a.into(),
+        b: b.into(),
         declare: Vec::new(),
     });
 
@@ -101,7 +101,7 @@ pub fn document() -> CorpusDoc {
         vec![vec![(1.5, 1.5), (2.5, 1.5), (2.5, 2.5), (1.5, 2.5)]],
     );
     let c = r.insert(Node::Extrude {
-        profile: c_p,
+        profile: c_p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -125,8 +125,8 @@ pub fn document() -> CorpusDoc {
         editor_core::declare_rest(vec![(SitedRef::new(u1, kiss_a), SitedRef::new(u1, kiss_b))]);
     let u2 = r.insert(Node::Boolean {
         op: BooleanOp::Union,
-        a: u1,
-        b: c,
+        a: u1.into(),
+        b: c.into(),
         declare: decl,
     });
 
@@ -143,7 +143,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: c,
             slot: SlotId::Distance,
-            expr: len(1.25),
+            value: len(1.25).into(),
             fresh: Vec::new(),
         },
         bump_root: c,

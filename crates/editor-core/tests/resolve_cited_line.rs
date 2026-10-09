@@ -45,7 +45,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -62,8 +62,8 @@ fn boolean(
         doc,
         Node::Boolean {
             op,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     )
@@ -91,7 +91,7 @@ fn slide(doc: &ProfileDoc, node: RecipeNodeId, axis: Axis3, by: f64) -> ProfileD
         DocEdit::SetParam {
             node,
             slot: SlotId::Translation(axis),
-            expr: len(by),
+            value: len(by).into(),
             fresh: Vec::new(),
         },
     )
@@ -286,7 +286,7 @@ fn a_union_reads_a_cited_member_line_by_its_rows() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: vec![notched, post],
+            members: vec![notched.into(), post.into()],
             declare: Vec::new(),
         },
     );

@@ -74,7 +74,7 @@ fn solid() -> (ProfileDoc, RecipeNodeId, StableName, StableName, StableName) {
     let (doc, body) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -173,7 +173,7 @@ fn a_derived_frame_named_on_another_kind_refuses_in_its_own_words() {
     let (doc, frame) = insert(
         doc,
         Node::Datum(Datum::FaceFrame {
-            at: body,
+            at: body.into(),
             face: edge,
             spin: ang(0.0),
         }),

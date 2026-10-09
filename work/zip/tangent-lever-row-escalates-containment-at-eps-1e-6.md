@@ -25,3 +25,10 @@ INTENT's stage 4 (`the-declared-rest-zip-retires-at-stage-4-and-the-join-needs-t
 ## Released from the D10 hold (2026-10-08)
 
 Nothing D10 changes gates this row, so it is open: red on main; the escalation is reduce's contfp ON ladder (contain.rs), which runs before the zip and survives stage 4's Zero glue. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Renamed (2026-10-08, INTENT stage 4 A)
+
+The row is `rest_zip_admission::the_tangent_site_keeps_building_pure_contacts`
+now: the zip is deleted and the join builds the tangent site, so no
+"lever" hands the union anywhere. The escalation, if it stands, is the
+reduction's, before the join.

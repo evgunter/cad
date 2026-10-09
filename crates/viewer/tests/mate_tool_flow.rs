@@ -492,7 +492,7 @@ fn a_pick_on_a_union_of_instances_stands_on_the_member() {
     let union = common::insert_into(
         &mut doc,
         pncad::document::Node::Union {
-            members: vec![bench.post_a, bench.post_b],
+            members: vec![bench.post_a.into(), bench.post_b.into()],
             declare: Vec::new(),
         },
         tol,
@@ -775,7 +775,7 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
     let inner = common::insert_into(
         &mut doc,
         Node::Pattern {
-            input: post_i,
+            input: post_i.into(),
             count: Formula::count(2),
             kind: rule([1.0, 0.0, 0.0]),
         },
@@ -784,7 +784,7 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
     let part = common::insert_into(
         &mut doc,
         Node::Part {
-            of: inner,
+            of: inner.into(),
             select: PartSelect::Instance(Formula::count(1)),
         },
         tol,
@@ -792,7 +792,7 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
     let outer = common::insert_into(
         &mut doc,
         Node::Pattern {
-            input: part,
+            input: part.into(),
             count: Formula::count(2),
             kind: rule([0.0, 1.0, 0.0]),
         },
@@ -801,7 +801,7 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
     let loose = common::insert_into(
         &mut doc,
         Node::Part {
-            of: inner,
+            of: inner.into(),
             select: PartSelect::Instance(Formula::count(0)),
         },
         tol,

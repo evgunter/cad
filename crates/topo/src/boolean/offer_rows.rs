@@ -2158,7 +2158,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::GermFrameUnsupported
         | BooleanErrorKind::GermSectionOutsideInventory
         | BooleanErrorKind::GermFrameCylinderPinch
-        | BooleanErrorKind::RestZipUnsupported
         | BooleanErrorKind::JoinDesync
         | BooleanErrorKind::JoinCarrierUnsupported
         | BooleanErrorKind::CurvedRestUnrecorded
@@ -2519,7 +2518,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("join.rs", "bool_connect", "Coincide::Section", 1),
     ("join.rs", "frame_refusal", "BooleanDecision::Radius", 1),
     ("join.rs", "frame_refusal", "Coincide::Section", 1),
-    ("join.rs", "germ_arm", "Coincide::Join", 1),
     ("join.rs", "germs_face_each_other", "Coincide::Join", 1),
     ("join.rs", "nearer", "Coincide::Join", 1),
     ("join.rs", "nearer_along", "Coincide::Join", 1),
@@ -2539,6 +2537,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("join.rs", "rotational_sense", "SelfCheck::ArcFacing", 1),
+    ("join.rs", "travel", "Coincide::Join", 1),
     ("mod.rs", "coincidence", "BooleanDecision::Coincidence", 1),
     ("mod.rs", "decision_words", "BooleanDecision::ArcSpan", 1),
     (

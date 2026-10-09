@@ -16,7 +16,7 @@
 use geom_core::{
     Band, Decided, FileCoincidence, Indeterminate, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE,
     KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag, MissReading, MissSource, NOT_YET_ENDING, Sign,
-    SizedWords, lever_recourse,
+    SizedWords, lever_recourse, noted,
 };
 pub use geom_core::{SizedPass, UNREADABLE_MARGIN_NOTE};
 
@@ -49,24 +49,23 @@ pub fn defect_ending(reading: Reading) -> &'static str {
 /// ([`geom_core::NOT_YET_ENDING`]): nothing the user changes in the
 /// model gets through today, and nothing is wrong with what they asked
 /// for, so the sentence says so plainly rather than labelling a
-/// capability gap `Recourse:`.
-///
-/// It is the one home for that ending beside the others here, and an
-/// unreadable margin adds what it may mean as every ending in this
-/// table does — `topo::validate`'s at-rest readings compose it too, so
-/// the words are not spelled twice.
+/// capability gap `Recourse:`. A margin that could not be read adds
+/// [`UNREADABLE_MARGIN_NOTE`] after the ending's joint ([`noted`]), as
+/// [`LeverOnly`] and [`SizedDecision`] do.
 #[must_use]
 pub fn not_yet(arm: RefusedArm<'_>) -> String {
-    if arm.unreadable() {
-        format!("{NOT_YET_ENDING}: {UNREADABLE_MARGIN_NOTE}")
-    } else {
-        NOT_YET_ENDING.to_owned()
-    }
+    noted(
+        NOT_YET_ENDING,
+        arm.unreadable().then_some(UNREADABLE_MARGIN_NOTE),
+    )
 }
 
 /// A decision with no size the user chose: a residual (it passes only at
 /// zero, so a refused margin is a miss) or a form selection (it passes on
 /// any definite sign). No smaller tolerance is its recourse (D4 ¶1 (i)).
+///
+/// Its endings take no [`UNREADABLE_MARGIN_NOTE`] on a margin that could
+/// not be read: each already asks for the report the note would.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Unsized {
     /// The kernel built what it claims exactly, so a miss is a defect.
@@ -84,12 +83,14 @@ impl Unsized {
     /// the kernel approximated, an arm read at a build, and an undecided
     /// arm read at rest, end in the last resort; a definite arm at rest
     /// ends in the file's defect ending, since no loosening repairs a
-    /// stored contradiction.
+    /// stored contradiction. An arm whose margin could not be read ends
+    /// in the defect ending too: no tolerance makes it readable.
     #[must_use]
     pub fn recourse(self, arm: RefusedArm<'_>, reading: Reading) -> String {
         let defect = defect_ending(reading);
         match self {
             Self::Defect => defect.to_owned(),
+            Self::LastResort if arm.unreadable() => defect.to_owned(),
             Self::LastResort => match (reading, arm) {
                 (Reading::Build, _)
                 | (Reading::AtRest, RefusedArm::Undecided(_) | RefusedArm::Straddle) => {
@@ -222,9 +223,12 @@ pub enum RefusedArm<'a> {
 }
 
 impl RefusedArm<'_> {
-    /// Whether the arm's margin could not be read: the one test every
-    /// ending here adds the unreadable-margin note on. A straddle is two
-    /// readable bounds, and a sign-certain arm was read.
+    /// Whether the arm's margin could not be read: the test [`not_yet`]
+    /// and [`LeverOnly`] add the unreadable-margin note on, and
+    /// [`Unsized::LastResort`] ends in the defect ending on. A sized
+    /// decision does not use it: [`MarginDiag::sized_recourse`] tests
+    /// the margin itself. A straddle is two readable bounds, and a
+    /// sign-certain arm was read.
     fn unreadable(self) -> bool {
         match self {
             Self::Undecided(cause) => cause.margin.is_invalid(),
@@ -718,6 +722,82 @@ mod tests {
             RefusedArm::Straddle,
         ] {
             assert_eq!(lever.recourse(arm), plain, "{arm:?}");
+        }
+    }
+
+    /// **No tolerance answers a poisoned margin** (D4 ¶1 (i)): on an arm
+    /// whose margin could not be read, every table's ending at every door
+    /// names no tolerance to loosen or tighten, and a decision with no
+    /// size the user chose ends in the defect ending its reading names,
+    /// the last resort's too. An arm that was read keeps the last resort
+    /// where the kernel approximated.
+    #[test]
+    fn no_ending_offers_a_tolerance_on_a_poisoned_margin() {
+        let cause = Indeterminate {
+            margin: MarginDiag::INVALID,
+            band: band(),
+            predicate: None,
+            terminal_sliver: false,
+        };
+        let zero = RefusedArm::Zero(Classified {
+            margin: MarginDiag::INVALID,
+            band: band(),
+        });
+        let poisoned = [RefusedArm::Undecided(&cause), zero];
+        let file = FileCoincidence::new(1e-6);
+        let sized: Vec<SizedDecision> = [
+            SizedPass::Positive,
+            SizedPass::NonNegative,
+            SizedPass::NonZero,
+            SizedPass::AnySign,
+            SizedPass::Negative,
+        ]
+        .into_iter()
+        .flat_map(|passes| {
+            [StoredDefinite::Lever, StoredDefinite::Contradiction].map(|stored| SizedDecision {
+                lever: "L",
+                size: "distance",
+                passes,
+                stored,
+                at_zero: Some(AtZero::same("N")),
+            })
+        })
+        .collect();
+        for arm in poisoned {
+            let mut endings = vec![not_yet(arm), LeverOnly { lever: "L" }.recourse(arm)];
+            for residual in [Unsized::Defect, Unsized::LastResort] {
+                for reading in [Reading::Build, Reading::AtRest] {
+                    assert_eq!(
+                        residual.recourse(arm, reading),
+                        defect_ending(reading),
+                        "{residual:?} at {reading:?} on {arm:?}"
+                    );
+                }
+                assert_eq!(
+                    residual.residual_in_file(arm, file),
+                    defect_ending(Reading::AtRest),
+                    "{residual:?} at the import door on {arm:?}"
+                );
+            }
+            for decision in &sized {
+                endings.push(decision.recourse(arm, Reading::Build));
+                endings.push(decision.recourse(arm, Reading::AtRest));
+                endings.push(decision.recourse_in_file(arm, file));
+            }
+            for ending in endings {
+                assert!(!ending.contains("tolerance"), "{arm:?}: {ending}");
+            }
+        }
+        let read = Indeterminate {
+            margin: MarginDiag::value(5e-9),
+            ..cause
+        };
+        for reading in [Reading::Build, Reading::AtRest] {
+            assert_eq!(
+                Unsized::LastResort.recourse(RefusedArm::Undecided(&read), reading),
+                KERNEL_LIMIT_RECOURSE,
+                "a read margin at {reading:?}"
+            );
         }
     }
 }

@@ -63,7 +63,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -87,8 +87,8 @@ fn kiss_base(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Recipe
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -132,8 +132,8 @@ fn reused_kiss_certifies_with_declared_intent_and_refuses_without() {
         doc_undeclared,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: base,
-            b: mover,
+            a: base.into(),
+            b: mover.into(),
             declare: Vec::new(),
         },
     );
@@ -159,8 +159,8 @@ fn reused_kiss_certifies_with_declared_intent_and_refuses_without() {
         doc_declared,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: base,
-            b: mover,
+            a: base.into(),
+            b: mover.into(),
             declare: decl,
         },
     );
@@ -192,8 +192,8 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
         doc.clone(),
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -215,8 +215,8 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: decl,
         },
     );
@@ -252,8 +252,8 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -283,8 +283,8 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: slab,
-            b: b1,
+            a: slab.into(),
+            b: b1.into(),
             declare: Vec::new(),
         },
     );
@@ -303,8 +303,8 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: s1,
-            b: b2,
+            a: s1.into(),
+            b: b2.into(),
             declare: decl,
         },
     );
@@ -370,8 +370,8 @@ fn declare_resolution_failures_are_typed_n5_errors() {
             doc,
             Node::Boolean {
                 op: BooleanOp::Union,
-                a,
-                b,
+                a: a.into(),
+                b: b.into(),
                 declare: decl,
             },
         )
@@ -468,8 +468,8 @@ fn declared_l_corner_caps_merge_at_the_recipe_door_tier3_green() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: decl,
         },
     );
@@ -534,29 +534,40 @@ fn declare_doors_node_gone_and_ambiguous() {
     };
 
     // --- NodeGone by DELETE (the reachable N5 dangling case): the
-    // union declares a third body's face; deleting that node AFTER the
-    // union strands the name; resolution refuses NodeGone with the
-    // derived NodeDeleted edit.
+    // union declares a third member's face, drops that member — a
+    // re-point that reports the name out of reach, never refuses it —
+    // and the delete AFTER it strands the name; resolution refuses
+    // NodeGone with the derived NodeDeleted edit.
     let doc = ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, c) = block(doc, (5.0, 6.0), (0.0, 1.0), 0.0, 1.0);
-    // Sited at the operands, as every declaration is; the NAME is
-    // the third body's, and rung 1 outranks the site's own table
-    // having no such row.
+    // Sited at the members, as every declaration is; the NAME is the
+    // third body's (D10: what the union read when the pair was
+    // written), and rung 1 outranks the site's own table having no
+    // such row.
     let decl = editor_core::declare_rest(vec![(
         SitedRef::new(a, fname(c, RoleSeg::Cap(CapEnd::End))),
         SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::End))),
     )]);
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a,
-            b,
+        Node::Union {
+            members: vec![a.into(), b.into(), c.into()],
             declare: decl,
         },
     );
+    let doc = doc
+        .apply(
+            &DocEdit::SetMembers {
+                node: u,
+                members: vec![a.into(), b.into()],
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .unwrap()
+        .doc;
     let doc = doc
         .apply(
             &DocEdit::DeleteNode { id: c },
@@ -598,7 +609,7 @@ fn declare_doors_node_gone_and_ambiguous() {
     let (doc, ub) = insert(
         doc,
         Node::Extrude {
-            profile: up,
+            profile: up.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -607,8 +618,8 @@ fn declare_doors_node_gone_and_ambiguous() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: ua,
-            b: ub,
+            a: ua.into(),
+            b: ub.into(),
             declare: Vec::new(),
         },
     );
@@ -629,8 +640,8 @@ fn declare_doors_node_gone_and_ambiguous() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: us,
-            b: mate,
+            a: us.into(),
+            b: mate.into(),
             declare: decl,
         },
     );
@@ -677,8 +688,8 @@ fn crossing_slots_swapped_order_hits_the_junction_arm() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: slab,
-            b: b2,
+            a: slab.into(),
+            b: b2.into(),
             declare: Vec::new(),
         },
     );
@@ -695,8 +706,8 @@ fn crossing_slots_swapped_order_hits_the_junction_arm() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: s1,
-            b: b1,
+            a: s1.into(),
+            b: b1.into(),
             declare: decl,
         },
     );
@@ -788,8 +799,8 @@ fn an_unsupported_declared_pair_answers_its_kinds_with_a_tied_name_in_it() {
             doc,
             Node::Boolean {
                 op: BooleanOp::Union,
-                a: us,
-                b: mate,
+                a: us.into(),
+                b: mate.into(),
                 declare: decl,
             },
         )
@@ -898,8 +909,8 @@ fn a_tied_first_name_waits_behind_the_second_names_own_faults() {
             doc,
             Node::Boolean {
                 op: BooleanOp::Union,
-                a: us,
-                b: mate,
+                a: us.into(),
+                b: mate.into(),
                 declare: decl,
             },
         )
@@ -907,17 +918,51 @@ fn a_tied_first_name_waits_behind_the_second_names_own_faults() {
     let mut doc = doc;
     let with_gone;
     let with_absent;
+    // A declaration names only what its node reads (D10), so no door
+    // writes the ghost's cap onto a union of `us` and `mate`; a file can
+    // hold one (the load door asks only that the carrier did not mint
+    // it). The pair is written naming `mate`'s cap, and the save then
+    // names the ghost's in its place.
     (doc, with_gone) = union_of(
         doc,
         (
             SitedRef::new(us, tied.clone()),
-            SitedRef::new(mate, fname(ghost, RoleSeg::Cap(CapEnd::End))),
+            SitedRef::new(mate, fname(mate, RoleSeg::Cap(CapEnd::End))),
         ),
     );
     (doc, with_absent) = union_of(
         doc,
         (SitedRef::new(us, tied.clone()), SitedRef::new(us, absent)),
     );
+    let text = editor_core::save(&doc, &[], Tol::witness()).expect("saves");
+    let text = crate::wire::doctored(&text, |wire| {
+        // Every name in the declaration minted by `mate` — the one side
+        // that names its cap — now names the ghost's.
+        fn rename(value: &mut serde_json::Value, from: &str, to: &str) {
+            match value {
+                serde_json::Value::Object(object) => {
+                    if object.contains_key("path")
+                        && object.get("node").and_then(serde_json::Value::as_str) == Some(from)
+                    {
+                        object.insert("node".to_owned(), serde_json::json!(to));
+                    }
+                    object.values_mut().for_each(|v| rename(v, from, to));
+                }
+                serde_json::Value::Array(items) => {
+                    items.iter_mut().for_each(|v| rename(v, from, to))
+                }
+                _ => {}
+            }
+        }
+        rename(
+            &mut wire["snapshot"]["nodes"][with_gone.0.to_string()]["Boolean"]["declare"],
+            &mate.0.to_string(),
+            &ghost.0.to_string(),
+        );
+    });
+    let doc = editor_core::load(&text, Tol::witness())
+        .expect("a name the carrier does not read loads")
+        .doc;
     let doc = doc
         .apply(
             &DocEdit::DeleteNode { id: ghost },

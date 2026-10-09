@@ -182,9 +182,11 @@
 //! then the whole-body pcurve mint), the clone is validated once at
 //! tier 2 — closed, every edge certified on its charts — and only a
 //! clone that passes is adopted. The body is untouched on every `Err`.
-//! Tier 2 does not read orientation: a move that turns a face through
-//! its neighbours, inverting the body, is adopted and refused only by
-//! the at-rest validator (`work/shell/the-per-chart-door-adopts-an-inverted-body.md`).
+//! Tier 2 does not read orientation: a move that carries a face through
+//! its neighbours, inverting the body, is adopted, and the at-rest
+//! validator refuses it on the rings the move left outside the face
+//! ([`crate::ValidationError::RingOutsideOuter`];
+//! `crates/sweep/tests/a_move_through_a_neighbour_inverts_the_body.rs`).
 
 use std::sync::Arc;
 

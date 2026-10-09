@@ -265,7 +265,7 @@ fn a_body_under_two_roots_lands_with_a_fault_and_no_report() {
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.02),
             side: ExtrudeSide::Along,
         },
@@ -424,7 +424,7 @@ fn an_assembly_whose_gather_refuses_takes_no_at_rest_badge() {
     let extrude = common::insert_into(
         &mut asm,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: Formula::div(common::len(0.008), common::scl(0.0))
                 .expect("length / scalar is a length"),
             side: ExtrudeSide::Along,

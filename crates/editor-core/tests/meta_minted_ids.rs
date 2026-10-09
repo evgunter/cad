@@ -34,7 +34,7 @@ fn minted_high() -> (ProfileDoc, RecipeNodeId) {
             insert(
                 doc,
                 Node::Extrude {
-                    profile,
+                    profile: profile.into(),
                     distance: len(f64::from(d)),
                     side: ExtrudeSide::Along,
                 },
@@ -171,17 +171,17 @@ fn a_profile_program_comes_back_through_metadata_at_every_plane_id() {
         (u32::MAX, u64::MAX),
     ] {
         let program: ProfileProgram = ProfileProgram {
-            plane: RecipeNodeId::new(ordinal, id),
+            frame: editor_core::VarId::new(ordinal, id),
             loops: Vec::new(),
             ids: Vec::new(),
         };
         let value = to_value(&program).expect("a profile program is metadata");
         let back = from_value::<ProfileProgram>(&value)
             .unwrap_or_else(|e| panic!("plane {id} comes back through from_value: {e}"));
-        assert_eq!(back.plane, program.plane, "plane {id} comes back as itself");
+        assert_eq!(back.frame, program.frame, "plane {id} comes back as itself");
         let json = serde_json::to_string(&program).unwrap();
         let read = serde_json::from_str::<ProfileProgram>(&json)
             .unwrap_or_else(|e| panic!("plane {id} reads back from text: {e}"));
-        assert_eq!(read.plane, program.plane, "plane {id} reads back from text");
+        assert_eq!(read.frame, program.frame, "plane {id} reads back from text");
     }
 }

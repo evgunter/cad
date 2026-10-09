@@ -113,7 +113,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                plane: xy,
+                frame: xy.into(),
                 loops: vec![outer],
                 ids: Vec::new(),
             })),
@@ -125,7 +125,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: outer_p,
+                profile: outer_p.into(),
                 distance: len(0.1),
                 side: ExtrudeSide::Along,
             }),
@@ -139,7 +139,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
             &doc,
             &DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
-                    plane: xy,
+                    frame: xy.into(),
                     loops: vec![LoopProgram::Circle {
                         centre: [len(cx), len(0.0)],
                         radius: Formula::named(VarName::from_static(HOLE_R), Dimension::Length),
@@ -154,7 +154,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
             &doc,
             &DocEdit::InsertNode {
                 node: Box::new(Node::Extrude {
-                    profile: hole_p,
+                    profile: hole_p.into(),
                     distance: len(0.1),
                     side: ExtrudeSide::Along,
                 }),
@@ -241,7 +241,7 @@ fn two_slabs() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             &doc,
             &DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
-                    plane,
+                    frame: plane.into(),
                     loops: vec![square()],
                     ids: Vec::new(),
                 })),
@@ -253,7 +253,7 @@ fn two_slabs() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             &doc,
             &DocEdit::InsertNode {
                 node: Box::new(Node::Extrude {
-                    profile,
+                    profile: profile.into(),
                     distance: len(1.0),
                     side: ExtrudeSide::Along,
                 }),
@@ -295,7 +295,7 @@ fn coaxial_pair(bore_r: f64, pin_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNod
             &doc,
             &DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
-                    plane: xy,
+                    frame: xy.into(),
                     loops: vec![LoopProgram::Circle {
                         centre: [len(0.0), len(0.0)],
                         radius: len(r),
@@ -310,7 +310,7 @@ fn coaxial_pair(bore_r: f64, pin_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNod
             &doc,
             &DocEdit::InsertNode {
                 node: Box::new(Node::Extrude {
-                    profile,
+                    profile: profile.into(),
                     distance: len(0.5),
                     side: ExtrudeSide::Along,
                 }),
@@ -388,7 +388,7 @@ fn plate_with_web() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure,
+                measure: measure.into(),
                 bound: len(MIN_WEB),
                 dir: AssertionDir::AtLeast,
             }),
@@ -782,7 +782,7 @@ fn a_non_finite_measure_refuses_and_asserts_nothing() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure,
+                measure: measure.into(),
                 bound: len(1.0),
                 dir: AssertionDir::AtLeast,
             }),
@@ -830,7 +830,7 @@ fn the_same_division_in_a_slot_has_always_refused() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                plane: xy,
+                frame: xy.into(),
                 loops: vec![LoopProgram::Circle {
                     centre: [len(0.0), len(0.0)],
                     radius: len(0.2),
@@ -845,7 +845,7 @@ fn the_same_division_in_a_slot_has_always_refused() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: disc,
+                profile: disc.into(),
                 distance: Formula::div(
                     len(13.0),
                     Formula::named(VarName::from_static("s"), Dimension::Scalar),
@@ -891,7 +891,7 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                plane: xy,
+                frame: xy.into(),
                 loops: vec![LoopProgram::Chain(vec![
                     ProgramStep::At([len(0.0), len(0.0)]),
                     ProgramStep::LineTo(ProgramTarget::Point([len(1.0), len(0.0)])),
@@ -909,7 +909,7 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: square_p,
+                profile: square_p.into(),
                 distance: len(1.0),
                 side: ExtrudeSide::Along,
             }),
@@ -1011,12 +1011,10 @@ fn a_measure_at_interval_contains_the_f64_value() {
 /// vocabulary — never silence, never a measurement of what is left.
 ///
 /// Note which dangling case this is. A measure's references ARE DAG
-/// edges, so deleting a referenced node is refused at the delete door
-/// like any other consumer's input (`DeleteWouldDangle`) — that
-/// departs from the declared-pair/`Mate` carve-out, deliberately, because
-/// a measure consumes the value it names. What remains reachable is
-/// the case the N5 ladder is really for: a well-formed name that the
-/// still-live minting node's table does not carry.
+/// edges, so deleting a referenced node strands its names like any
+/// reader's, reported at the delete. The case the N5 ladder is really
+/// for is this one: a well-formed name that the still-live minting
+/// node's table does not carry.
 #[test]
 fn a_reference_that_stops_resolving_refuses_typed() {
     use editor_core::{EntityKind, RoleSeg};
@@ -1053,14 +1051,13 @@ fn a_reference_that_stops_resolving_refuses_typed() {
     );
 }
 
-/// Deleting a node a measure references is refused at the DELETE door,
-/// because the reference is a consuming edge. Pinned because it is the
-/// one place this node kind departs from the declared-pair/`Mate`
-/// name-reference carve-out, and a silent reversal would take the
-/// ordering guarantee with it.
+/// A measure's references are read at their nodes, so those nodes are
+/// its upstream ([`editor_core::Doc::upstream`]): the measure is
+/// scheduled after them. Deleting one is accepted, as every delete is
+/// (D10), and the measure then refuses at evaluation naming the node
+/// it can no longer read at.
 #[test]
-fn deleting_a_referenced_node_is_refused() {
-    use editor_core::EditError;
+fn deleting_a_referenced_node_leaves_the_measure_refusing() {
     let (doc, _, holes) = plate();
     let walls = hole_walls(&eval(&doc), holes);
     let doc = push(
@@ -1076,15 +1073,16 @@ fn deleting_a_referenced_node_is_refused() {
             fresh: Vec::new(),
         },
     );
-    let err = apply(
-        &doc,
-        &DocEdit::DeleteNode { id: holes[0] },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .expect_err("the measure consumes that node");
+    let measure = last(&doc);
     assert!(
-        matches!(err, EditError::DeleteWouldDangle { .. }),
+        doc.upstream(measure).contains(&holes[0]),
+        "the measure waits for the node it reads at"
+    );
+    let deleted = push(&doc, &DocEdit::DeleteNode { id: holes[0] });
+    let ev = eval(&deleted);
+    let err = failed_kind(&ev, measure);
+    assert!(
+        matches!(err, NodeErrorKind::UnresolvedSite { at } if *at == holes[0]),
         "got {err:?}"
     );
 }
@@ -1190,7 +1188,7 @@ fn an_assertion_over_a_failed_measure_is_poisoned() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure,
+                measure: measure.into(),
                 bound: len(0.1),
                 dir: AssertionDir::AtLeast,
             }),
@@ -1254,7 +1252,7 @@ fn cusp_extrude_doc(id: &str) -> (ProfileDoc, RecipeNodeId) {
     let (doc, profile) = mint(
         &doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![cusp_lune()],
             ids: Vec::new(),
         }),
@@ -1262,7 +1260,7 @@ fn cusp_extrude_doc(id: &str) -> (ProfileDoc, RecipeNodeId) {
     mint(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -1360,7 +1358,7 @@ fn a_cusp_revolve_document_gathers_at_the_product_gate() {
     let (doc, profile) = mint(
         &doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![crescent],
             ids: Vec::new(),
         }),
@@ -1368,8 +1366,8 @@ fn a_cusp_revolve_document_gathers_at_the_product_gate() {
     let (doc, rev) = mint(
         &doc,
         Node::Revolve {
-            profile,
-            axis,
+            profile: profile.into(),
+            axis: axis.into(),
             angle: ang(1.0),
         },
     );
@@ -1398,7 +1396,7 @@ fn a_cusp_loft_document_gathers_with_its_nurbs_seam_unjudged_by_kind() {
         let (d, p) = mint(
             &d,
             Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops: vec![cusp_lune()],
                 ids: Vec::new(),
             }),
@@ -1409,7 +1407,7 @@ fn a_cusp_loft_document_gathers_with_its_nurbs_seam_unjudged_by_kind() {
     let (doc, loft) = mint(
         &doc,
         Node::Loft {
-            profiles,
+            profiles: profiles.into_iter().map(Into::into).collect(),
             v_degree: Formula::count(1),
         },
     );
@@ -1441,7 +1439,7 @@ fn a_cusp_extrude_notched_clear_of_its_strut_gathers() {
     let (doc, tool) = mint(
         &doc,
         Node::Extrude {
-            profile: tool_profile,
+            profile: tool_profile.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -1450,8 +1448,8 @@ fn a_cusp_extrude_notched_clear_of_its_strut_gathers() {
         &doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: ex,
-            b: tool,
+            a: ex.into(),
+            b: tool.into(),
             declare: Vec::new(),
         },
     );
@@ -1471,7 +1469,7 @@ fn a_pattern_of_a_cusp_extrude_gathers() {
     let (doc, pattern) = mint(
         &doc,
         Node::Pattern {
-            input: ex,
+            input: ex.into(),
             count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -1504,11 +1502,17 @@ fn a_split_half_of_a_cusp_extrude_gathers() {
             normal: [scl(0.0), scl(0.0), scl(1.0)],
         }),
     );
-    let (doc, split) = mint(&doc, Node::Split { target: ex, tool });
+    let (doc, split) = mint(
+        &doc,
+        Node::Split {
+            target: ex.into(),
+            tool: tool.into(),
+        },
+    );
     let (doc, above) = mint(
         &doc,
         Node::Part {
-            of: split,
+            of: editor_core::Operand::output(split, SplitHalf::Above.port()),
             select: PartSelect::SplitHalf(SplitHalf::Above),
         },
     );

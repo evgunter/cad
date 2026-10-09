@@ -432,10 +432,8 @@ pub mod test_support {
         crate::boolean::through_the_join(op, a, b, tol)
     }
 
-    /// The join's own refusal of `op` under `decls`, before the
-    /// declared-REST door may take it over (`boolean::join_refusal`):
-    /// `None` where the join connects. A declared union that builds
-    /// while this is `Some` was built by the zip.
+    /// The join's own refusal of `op` under `decls`
+    /// (`boolean::join_refusal`): `None` where the join connects.
     ///
     /// # Errors
     ///
@@ -813,15 +811,15 @@ pub use boolean::{
     JoinReading, JoinRefusal, JoinUndecided, LeverArm, NeighbourOffset, NullEdgePairRecord,
     Operand, OperandKeys, PairFace, PairRefusalSite, PairSite, PairUnread, PatchContact,
     PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung,
-    PointInSolidError, RestZipFrontier, SectorRead, SectorRung, SelfCheck, Settling,
-    ShellOrientation, SideCode, SolidContainment, SolidFaces, SphereQuestion, SweepStrategy,
-    SweepTrace, TorusConvention, VeContact, VfContact, VoidContainment, VoidEvidence,
-    VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce,
-    boolean_reduce_declared, carrier_eq, contfp, curved_face_containment, decision_words,
-    face_carrier, flush_pair_relation, insert_void, insert_voids, intersect, intersect_with,
-    is_conventional_vertex, join_covers, joinable_vertices, joined_edge, lineage_root,
-    oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of, subtract,
-    subtract_with, tangent_pair_relation, union, union_with,
+    PointInSolidError, SectorRead, SectorRung, SelfCheck, Settling, ShellOrientation, SideCode,
+    SolidContainment, SolidFaces, SphereQuestion, SweepStrategy, SweepTrace, TorusConvention,
+    VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact,
+    WallRung, boolean_op_with, boolean_reduce, boolean_reduce_declared, carrier_eq, contfp,
+    curved_face_containment, decision_words, face_carrier, flush_pair_relation, insert_void,
+    insert_voids, intersect, intersect_with, is_conventional_vertex, join_covers,
+    joinable_vertices, joined_edge, lineage_root, oriented_plane_eq, point_in_solid,
+    point_in_solid_faces, point_in_solid_of, subtract, subtract_with, tangent_pair_relation, union,
+    union_with,
 };
 pub use joint::{Deck, JointElement};
 pub use surgery::Surgery;

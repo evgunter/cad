@@ -81,7 +81,7 @@ fn deep_document(levels: usize) -> (Recorder, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     let plane = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(0.0), len(0.0)]),
             ProgramStep::LineTo(ProgramTarget::Point([len(2.0), len(0.0)])),
@@ -95,7 +95,7 @@ fn deep_document(levels: usize) -> (Recorder, RecipeNodeId, RecipeNodeId) {
         ids: Vec::new(),
     }));
     let extrude = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: deep_length(0.5, levels),
         side: ExtrudeSide::Along,
     });
@@ -116,7 +116,7 @@ fn extrude_document(distance: Formula) -> (Recorder, RecipeNodeId) {
         vec![fixture::square(0.0, 0.0, 0.5)],
     )));
     let extrude = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance,
         side: ExtrudeSide::Along,
     });

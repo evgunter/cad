@@ -28,8 +28,8 @@ fn split_of(doc: ProfileDoc, target: RecipeNodeId) -> (ProfileDoc, RecipeNodeId)
     insert(
         doc,
         Node::Split {
-            target,
-            tool: plane,
+            target: target.into(),
+            tool: plane.into(),
         },
     )
 }

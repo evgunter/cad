@@ -2,11 +2,11 @@
 id: a-vertex-of-one-solid-inside-the-rest-contact-has-no-twin
 kind: issue
 title: A vertex of one solid strictly inside a declared Rest contact, with no vertex of the other there, has no twin for the REST zip
-status: parked
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: H
-blocked_on: [intent-stage4-is-built]
+closed: 2026-10-08
 ---
 
 
@@ -75,3 +75,7 @@ This row is on declared-contact ground, so it waits on `d10-one-way-to-say-inten
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: its mirror_edges exit is in the declared-REST zip, which stage 4 retires; the three-arms item subsumes it. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed (2026-10-08, INTENT stage 4 A (`intent/s4-a-join`))
+
+The split collar's through span off the seam builds in the join: `chord_join::chart_ring_side` reads a run vertex at the ray's azimuth by the half-open rule, so the pierce rings at the shaft's ruling azimuth are homed. `full_turn_bore_mate.rs`'s `a_bore_split_on_its_own_carrier_unions_off_the_seam_at_every_span` covers through, flush, proud above and proud below at 60°, every pose, both orders.
