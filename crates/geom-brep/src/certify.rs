@@ -711,7 +711,9 @@ impl CertifyError {
 
     /// The ending this refusal's decision gives it, read at `reading`
     /// ([`recourse`] over [`CertifyError::decision`]), or `None` for a
-    /// refusal that is no decision's refused arm.
+    /// refusal that is no decision's refused arm. The exception is the
+    /// lanes' one-arc proof (`TubeNotOneArc`): it has no `decision()`, and
+    /// ends by its own ([`crate::ssi::OneArcRefusal::ending`]).
     ///
     /// `Display` renders the payload alone: where a refusal is read
     /// decides its ending (D4 ¶1 (i)), so the door that reports it
@@ -729,7 +731,9 @@ impl CertifyError {
 
     /// The ending this refusal's decision gives it at the import door
     /// ([`recourse_in_file`] over [`CertifyError::decision`]): at rest,
-    /// with the file's ε_in words. `None` as [`CertifyError::ending`].
+    /// with the file's ε_in words. `None`, and the lanes' one-arc proof
+    /// ([`crate::ssi::OneArcRefusal::ending_in_file`]), as
+    /// [`CertifyError::ending`].
     #[must_use]
     pub fn ending_in_file(&self, file: FileCoincidence) -> Option<String> {
         match self {

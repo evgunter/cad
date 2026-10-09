@@ -930,6 +930,8 @@ impl AnalyticRung3Refusal {
             }
             Self::Escalated { limb, cause, .. } => (limb.check(), RefusedArm::Undecided(cause)),
             Self::TubeStraddles { verdict, .. } => (CertCheck::Transversality, verdict.arm()),
+            // The one-arc proof is the SSI door's own decision, and
+            // `ending` reads it there.
             Self::NoOffsetBound { .. } | Self::TubeNotOneArc { .. } | Self::Unsupported { .. } => {
                 return None;
             }
