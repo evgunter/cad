@@ -168,6 +168,55 @@ domain of its own. Names and `SetMembers` are N's. **If the op-as-field
 shape appeals, N can be one variant `Combine { op: Union | Intersect,
 members }`; not named fold, not admitting `−`.** Likely.
 
+### 6. Round 2, against designer B's report
+
+**1. The split's `side` drop: in this `[ev]` PR (likely).** I move to B.
+The per-node table is already wrong on D10's own terms, before any union
+is in the picture: a placement "reading a list of shapes … defining a
+copy of each" over `[X, copy(X)]` defines two outputs with identical rows
+(a copy keeps its rows, N1), which one table cannot hold. So "a name is
+scoped by the variable that holds its body" is forced, not optional, and
+the half in a split's roles is that principle's one visible consequence
+today. Asking Ev for the key now and the principle later would put one
+decision in two PRs; the PR ratifies both, the unit that builds the key
+may land first, and the per-variable tables (with `SplitBody(half)`,
+`SectionFace { side }`, `SectionEdge`, `SplitFragment`, `CrossingVertex`
+losing the half) follow as a second unit. One check for that unit: a
+piece whose side flips when the plane moves vanishes from its variable's
+table rather than renaming, so N5 must still diagnose `PredicateFlip`
+from the split's recorded classification, not from the name.
+
+**2. `FromTarget`: fold it into `From` (likely).** A one-input marker is
+`From` with its key omitted because derivable, which is the same sugar
+§4 rejected inside a stored name (`Operand::Node`), and a second segment
+kind meaning "came through an input", told from the first only by arity.
+`From { read: target, of }` says the same thing and one more true thing,
+and the rewriters, the lift and the words handle one segment.
+
+**3. Two node kinds (likely).** `Union { members }` and `Intersect {
+members }`. The node kind is the operation everywhere else in the
+vocabulary, and `Boolean { op }`, the one variant with an op field, is
+what this fork retires; a field would put two levels of discrimination
+on one fact, and the two ops branch anyway (an empty step is a bug for
+union and a result for intersect; the copies fast path is union's).
+Shared machinery is a function over the verb, not a shared variant. To an
+author the words are `union` and `intersect` either way; in the stored
+document the kind alone says it.
+
+**B's family rule: disagree (likely).** `xs[i]` is a definition (DM3: "a
+definition reading the family and one `Count` expression per index"), so
+it is a variable with its own id, and the key is that id, as it is for
+every read: the rule is "the read", with no walk to the output it
+reaches, which is the collapse this fork removes for operations. Then
+`Union[xs]` and `Union[xs[0], …, xs[N−1]]` name differently, and should:
+they are two things (one follows `N`, the other is fixed), and naming
+them alike would hide a second spelling rather than remove it.
+`Union[xs, xs[0]]` is two variables, admitted by DM5 as written, and
+builds as DM5 already says of two nodes evaluating to one body (`A ∪ A`
+is `A` on that member). B's rule holds only if the unit builds `xs[i]` as
+an operand spelling with no id of its own; then the key would have to be
+the family and the index, and the unit should say which it built.
+
 ### Clauses changed
 
 - REFERENCES **DM4**: "Naming keys by member" → by the read; "It sits
