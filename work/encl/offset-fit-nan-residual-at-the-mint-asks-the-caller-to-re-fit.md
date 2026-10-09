@@ -2,7 +2,8 @@
 id: offset-fit-nan-residual-at-the-mint-asks-the-caller-to-re-fit
 kind: issue
 title: offset fit: a NaN sampled residual inside the fit loop reads as a stored surface to re-fit, which the minting op's user never stored
-status: open
+status: review
+pr: 4395
 opened: 2026-10-09
 priority: P3
 cost: E
