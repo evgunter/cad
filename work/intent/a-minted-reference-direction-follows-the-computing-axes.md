@@ -28,3 +28,13 @@ After Ev's principle on #4324 (the computing frame is chosen for
 numerical behaviour and caching), this is required, not optional. Once
 the frame is a free numerical choice, nothing semantic may depend on it.
 
+
+FORK-S3P round 10 (Ev on #4324: a spin within a symmetry "does need to
+be set explicitly, but 0 … is always a valid value") takes the other
+road. A face reads as a plane, and no reader takes a carrier's
+reference direction. A value's zero is charted on the two bodies' own
+construction coordinates, so the minted reference stops carrying
+meaning instead of being re-derived. What remains is retiring its
+readers: the `Frame` mates on a `FaceFrame` and the sketch-on-face zero
+spin (DM1). The carrier's reference may then stay a computing
+convenience.

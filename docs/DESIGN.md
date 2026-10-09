@@ -1255,7 +1255,8 @@ rigid motions and the same `Subgroup` the mates fold (A11 (1)): a plane
 forgets in-plane motion, an axis slide and spin along itself; and the kinds are ordered by which determines which. A
 slot holds its own kind; a finer value is read through its projection,
 and an incidence between poses (an axis in a plane, a point on an axis)
-is a construction over one variable, never a check between two. A 2-D
+is a construction over one variable, never a check between two. A face
+reads as a plane; no reader takes a carrier's reference direction. A 2-D
 value (a profile's step, a revolve's axis line) lives in the node that
 holds its frame, as scalar slots, and is never a variable of a 2-D kind;
 its lift to a 3-D pose is how it leaves.
@@ -1298,13 +1299,16 @@ display state no logic reads; an instance of a part enters a document
 only as a placement. Only a mate reads across kinds, so relating two
 raw coordinate systems cannot be written: a read across two spaces is a
 kind mismatch at the door, and a kernel bug anywhere else. A
-**placement** is the bundle of mates that pins one copy of a part
-relative to others: two placements of a part are two copies; a copy is
-pinned when what its bundle leaves free lies within the symmetry its
-construction states (a revolve about its axis, an extrude of a circle),
-never a measured one; and a mate added to a pinned copy refuses as an
-overconstraint, decided by subgroup algebra (A11 (1)) without
-measuring. A mate places and never
+**placement** is the bundle of mates and values that pins one copy of a
+part relative to others: two placements of a part are two copies; a
+copy is pinned when its mates and values together leave nothing free,
+and a body's symmetry pins nothing (a value it makes unobservable is
+reported, never refused); a constraint that fixes nothing still free
+refuses as an overconstraint, decided by subgroup algebra (A11 (1))
+without measuring. A value is charted on the two bodies' own
+coordinates as the placement carries them, so zero is always a valid
+value, and a placement is the only reader of a body's own coordinates,
+reading them only through the freedoms its mates leave. A mate places and never
 checks. The **world** is one undeletable node that copies may be
 related to like a part; it defines no pose variable, so only a
 placement's mates and export read it, and construction never does. An operation computes in a frame that is
