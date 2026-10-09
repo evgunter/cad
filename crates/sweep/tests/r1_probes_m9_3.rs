@@ -7,6 +7,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::outcomes::outcome;
 use crate::common::operands::{plate6, plate6_cyl};
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
@@ -202,19 +203,28 @@ fn probe_peg_offset_one_ulp_characterized() {
     }
 }
 
-/// Missing declaration group: peg 2's walls undeclared — the second
-/// incidence must keep the typed frontier refusal (C8), never ride
-/// peg 1's declarations.
+/// Missing declaration group: peg 2's walls undeclared. The second
+/// incidence is one carrier by margin, so the boolean declares it
+/// itself: the union is the fully declared union bit for bit (D10),
+/// never one that rode peg 1's declarations into another body.
 #[test]
-fn probe_missing_declared_group_refuses_typed() {
+fn probe_missing_declared_group_is_the_full_declaration() {
     let p = plate_with_pegs(2.0, 4.0, 0.5);
     let q = plate_with_bores();
-    let decls = declarations(&p, &q, true, false);
-    let err = topo::union_with(&p, &q, &decls, Tol::witness())
-        .expect_err("an undeclared second peg must refuse");
-    assert!(
-        matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
-        "the undeclared incidence keeps the frontier door: {err:?}"
+    assert_eq!(
+        outcome(&topo::union_with(
+            &p,
+            &q,
+            &declarations(&p, &q, true, false),
+            Tol::witness()
+        )),
+        outcome(&topo::union_with(
+            &p,
+            &q,
+            &declarations(&p, &q, false, false),
+            Tol::witness()
+        )),
+        "the undeclared second peg is the declared one"
     );
 }
 
@@ -542,10 +552,11 @@ fn probe_tube_chain_additivity_error_measured() {
 }
 
 /// Declared on one side only: drop the wall×wall Tangent declaration
-/// (keep the plane Rest + the two plane×wall Tangents). The wall pair
-/// incidence is then UNDECLARED and must keep a typed refusal.
+/// (keep the plane Rest + the two plane×wall Tangents). The wall pair's
+/// tangency is verified by its witness, so the boolean declares it
+/// itself and the union is the fully declared one bit for bit (D10).
 #[test]
-fn probe_rim_wall_pair_undeclared_refuses_typed() {
+fn probe_rim_wall_pair_undeclared_is_the_declared_union() {
     let a = quarter_round_below();
     let b = quarter_round_above();
     let mut decls = crate::mate2_common::continuations(&a, &b);
@@ -564,23 +575,20 @@ fn probe_rim_wall_pair_undeclared_refuses_typed() {
         plane_face(&b, 1.0, false),
         ContactClass::Tangent,
     ));
-    match topo::union_with(&a, &b, &decls, Tol::witness()) {
-        Ok(out) => {
-            // If it unions anyway the result must still be exact and
-            // valid — but record it: the wall-pair incidence rode
-            // other declarations.
-            let body = body_of(out);
-            let v = mass_properties(&body, Tol::witness()).unwrap().volume;
-            let va = mass_properties(&a, Tol::witness()).unwrap().volume;
-            let vb = mass_properties(&b, Tol::witness()).unwrap().volume;
-            eprintln!(
-                "UNDECLARED WALL PAIR UNIONED: v = {v:.17e} vs {:.17e}",
-                va + vb
-            );
-            panic!("the undeclared wall-pair incidence must keep a typed refusal (C8)");
-        }
-        Err(err) => {
-            eprintln!("undeclared wall pair refused: {err:?}");
-        }
-    }
+    let mut full = decls.clone();
+    full.coincident_faces.push(FacePairDeclaration::new(
+        one_cyl_face(&a),
+        one_cyl_face(&b),
+        ContactClass::Tangent,
+    ));
+    let want = topo::union_with(&a, &b, &full, Tol::witness());
+    assert!(
+        matches!(want, Ok(BooleanResult::Body(_))),
+        "the fully declared union builds: {want:?}"
+    );
+    assert_eq!(
+        outcome(&topo::union_with(&a, &b, &decls, Tol::witness())),
+        outcome(&want),
+        "the undeclared wall pair is the declared one"
+    );
 }

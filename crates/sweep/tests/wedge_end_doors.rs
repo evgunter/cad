@@ -339,6 +339,23 @@ fn a_boolean_that_would_kiss_a_curved_face_refuses_typed_at_the_op() {
             BooleanErrorKind::CurvedBooleanUnsupported,
         ),
     ];
+    {
+        let walls = |b: &Body<f64>| -> Vec<topo::FaceKey> {
+            b.faces()
+                .filter(|(_, f)| matches!(b.get_surface(f.surface), Some(geom::Surface::Cylinder { .. })))
+                .map(|(k, _)| k)
+                .collect()
+        };
+        let mut d = topo::flush::declare_all(&topo::flush::find_flush_candidates(&left, &right, tol()).unwrap());
+        let caps_only = d.clone();
+        for fa in walls(&left) { for fb in walls(&right) {
+            d.coincident_faces.push(topo::FacePairDeclaration::new(fa, fb, topo::ContactClass::Tangent));
+        }}
+        eprintln!("PROBE wedge decls {d:?}");
+        eprintln!("PROBE wedge full {:?}", topo::union_with(&left, &right, &d, tol()).map(|_| ()));
+        eprintln!("PROBE wedge caps {:?}", topo::union_with(&left, &right, &caps_only, tol()).map(|_| ()));
+        for (n, g, _) in &rows { eprintln!("PROBE wedge row {n} {:?}", g.as_ref().map(|_| ())); }
+    }
     for (name, got, want) in rows {
         match got {
             Err(e) => assert_eq!(e.kind(), want, "{name}: {e}"),

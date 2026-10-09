@@ -85,15 +85,25 @@ fn segment(a: f64) -> f64 {
 }
 
 fn run(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Result<Body<f64>, BooleanError> {
+    run_with(op, a, b, &topo::BooleanDeclarations::none())
+}
+
+/// [`run`] under `decls`.
+fn run_with(
+    op: BooleanOp,
+    a: &Body<f64>,
+    b: &Body<f64>,
+    decls: &topo::BooleanDeclarations,
+) -> Result<Body<f64>, BooleanError> {
     let tol = Tol::witness();
     let (a, b) = (
         &finished("operand A", a.clone(), tol),
         &finished("operand B", b.clone(), tol),
     );
     let out = match op {
-        BooleanOp::Union => topo::union(a, b, tol),
-        BooleanOp::Intersect => topo::intersect(a, b, tol),
-        BooleanOp::Subtract => topo::subtract(a, b, tol),
+        BooleanOp::Union => topo::union_with(a, b, decls, tol),
+        BooleanOp::Intersect => topo::intersect_with(a, b, decls, tol),
+        BooleanOp::Subtract => topo::subtract_with(a, b, decls, tol),
     }?;
     Ok(out
         .body()
@@ -266,37 +276,54 @@ fn a_tilted_rod_through_a_rim_reaches_the_germ_frame() {
     }
 }
 
-/// **A rim circle TANGENT to a parallel wall, or crossing or clearing
-/// it by less than the zero band, keeps the pierce door.** Two parallel
-/// unit cylinders `2 + δ` apart, staggered, `|δ|` at most half the zero
-/// band: each rim circle's extreme residual against the other wall is
-/// `δ`. The first-harmonic arm decides on that exact extreme, puts it in the
-/// zero band and escalates to `Uncertain`, and the crossing layer keeps
-/// its door, naming a rim circle. The half-angle ladder does not decide
-/// on the residual's range and can certify an in-band configuration as a
-/// miss (`work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`),
-/// so this row is what goes red if circles square to the axis are routed
-/// to the ladder.
+/// **A rim circle on a parallel wall tangent to its own, or crossing or
+/// clearing it by less than the zero band, is the declared tangency.**
+/// Two parallel unit cylinders `2 + δ` apart, staggered, `|δ|` at most
+/// half the zero band: each rim circle's extreme residual against the
+/// other wall is `δ`, and the two walls touch along a ruling within the
+/// zero band. The boolean verifies that tangency
+/// by its witness and declares it itself, so each op is the op with the
+/// walls declared `Tangent`, bit for bit (D10); the half-angle ladder,
+/// which does not decide on the residual's range and can certify an
+/// in-band configuration as a miss
+/// (`work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`),
+/// is not what answers.
 #[test]
-fn a_rim_circle_within_the_band_of_a_parallel_wall_keeps_the_pierce_door() {
+fn a_rim_circle_within_the_band_of_a_parallel_wall_is_the_declared_tangency() {
     let half_zero = geom_core::Band::linear(Tol::witness()).unwrap().zero() / 2.0;
     let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
+    let walls = |b: &Body<f64>| -> Vec<topo::FaceKey> {
+        b.faces()
+            .filter(|(_, f)| {
+                matches!(
+                    b.get_surface(f.surface),
+                    Some(geom::Surface::Cylinder { .. })
+                )
+            })
+            .map(|(k, _)| k)
+            .collect()
+    };
     for delta in [0.0, -half_zero, half_zero] {
         let b = cyl(2.0 + delta, 0.0, 1.0, 0.5, 2.5);
+        let mut tangent = topo::BooleanDeclarations::none();
+        for fa in walls(&a) {
+            for fb in walls(&b) {
+                tangent
+                    .coincident_faces
+                    .push(topo::FacePairDeclaration::new(
+                        fa,
+                        fb,
+                        topo::ContactClass::Tangent,
+                    ));
+            }
+        }
         for op in [BooleanOp::Union, BooleanOp::Subtract, BooleanOp::Intersect] {
-            let err = run(op, &a, &b).expect_err("an in-band contact is not a crossing");
-            let BooleanError::CurvedPierceUnsupported { operand, edge, .. } = &err else {
-                panic!("δ {delta}, {op:?}: expected the curved pierce door, got {err:?}");
-            };
-            let body = if *operand == topo::Operand::A { &a } else { &b };
-            let carrier = body
-                .get_edge(*edge)
-                .and_then(|e| body.get_curve_geom(e.curve))
-                .and_then(topo::CurveGeom::certified)
-                .map(|c| c.carrier().clone());
-            assert!(
-                matches!(carrier, Some(topo::Curve3::Circle { .. })),
-                "δ {delta}, {op:?}: the refusing edge is a rim circle: {carrier:?}"
+            let want = run_with(op, &a, &b, &tangent);
+            eprintln!("PROBE tang δ {delta} {op:?} {:?}", want.as_ref().map(|_| ()));
+            assert_eq!(
+                format!("{:?}", run(op, &a, &b)),
+                format!("{want:?}"),
+                "δ {delta}, {op:?}: the declared tangency"
             );
         }
     }

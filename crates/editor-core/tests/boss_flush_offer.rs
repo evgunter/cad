@@ -103,9 +103,9 @@ fn the_flush_boss_unions_declared_or_not() {
                 .all(|c| [BooleanCoincidence::Continuation, BooleanCoincidence::REST].contains(c)),
         "the detector finds the flush walls and the resting caps: {classes:?}"
     );
-    let (declared, union) = union_of(found);
+    let (declared, declared_union) = union_of(found);
     assert_eq!(
-        built_bits(&declared, union),
+        built_bits(&declared, declared_union),
         built_bits(&undeclared, union),
         "the declared union is the undeclared one's body"
     );

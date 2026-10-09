@@ -85,8 +85,9 @@ fn builds(
 }
 
 /// **The declared union builds at every seam turn**: six faces (top,
-/// bottom and the four wall halves, unmerged across the mating circle
-/// with the skips recorded), volume 2π.
+/// bottom and the four wall halves, unmerged across the mating circle:
+/// gluing them would close the wall's full period, which the merge
+/// records as one skip), volume 2π.
 #[test]
 fn a_declared_half_rod_stack_unions_at_every_seam_turn() {
     for (label, theta) in POSES {
@@ -106,10 +107,15 @@ fn a_declared_half_rod_stack_unions_at_every_seam_turn() {
         );
         let bb = builds(label, topo::union_with(&a, &b, &d, tol()), 2.0 * PI);
         assert_eq!(bb.body.faces().count(), 6, "{label}: faces");
-        assert_eq!(
-            bb.naming.merge_skipped.len(),
-            3,
-            "{label}: the declared cylinder pairs and each wall's period closure: {:?}",
+        assert!(
+            matches!(
+                bb.naming.merge_skipped[..],
+                [topo::SkippedMerge {
+                    reason: topo::MergeCoplanarError::PeriodClosure { .. },
+                    ..
+                }]
+            ),
+            "{label}: the wall's one period closure: {:?}",
             bb.naming.merge_skipped
         );
     }

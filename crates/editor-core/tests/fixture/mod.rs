@@ -574,7 +574,16 @@ pub fn findings_declared(
 /// The `Debug` of the one body `id` built — its bits, for setting two
 /// runs' bodies side by side.
 pub fn built_bits(ev: &Evaluation<f64>, id: RecipeNodeId) -> String {
-    format!("{:?}", crate::corpus::body_of(ev, id))
+    match ev.value(id).map(|v| &v.payload) {
+        Some(editor_core::ValuePayload::Body(b)) => format!("{b:?}"),
+        Some(editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Body {
+            body, ..
+        })) => format!("{body:?}"),
+        other => panic!(
+            "{id:?} built no body: {other:?} / {:?}",
+            ev.nodes.get(&id)
+        ),
+    }
 }
 
 /// **The insert door's verdict on a mate**, through `reach`: the door

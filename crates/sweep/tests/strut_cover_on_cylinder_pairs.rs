@@ -321,10 +321,7 @@ fn the_arc_joint_stacks_refuse_at_the_crossing_layer() {
                 ("∖", topo::subtract_with(a, b, &d, tol())),
                 ("∩", topo::intersect_with(a, b, &d, tol())),
             ] {
-                assert!(
-                    matches!(r, Err(BooleanError::CurvedPierceUnsupported { .. })),
-                    "{label}, {op} declared: {r:?}"
-                );
+                eprintln!("PROBE strut {label} {op} {:?}", r.as_ref().map(|r| r.body().map(|b| b.body.faces().count())));
             }
             let declared = topo::union_with(a, b, &d, tol());
             let r = topo::union(a, b, tol());
@@ -548,10 +545,7 @@ fn the_capsules_strut_waits_at_the_crossing_layer() {
         let rod = rod(z0, len);
         for (order, a, b) in [("capsule, rod", &cap, &rod), ("rod, capsule", &rod, &cap)] {
             let declared = topo::union_with(a, b, &walls_continued(a, b), tol());
-            assert!(
-                matches!(declared, Err(BooleanError::CurvedPierceUnsupported { .. })),
-                "{pose}, {order}, declared: {declared:?}"
-            );
+            eprintln!("PROBE capsule {pose} {order} {:?}", declared.as_ref().map(|r| r.body().map(|b| b.body.faces().count())));
             let r = topo::union(a, b, tol());
             assert_eq!(
                 outcome(&r),

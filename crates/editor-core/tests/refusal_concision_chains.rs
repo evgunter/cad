@@ -259,8 +259,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "NonPositiveCount",
     "ParamBox/AxisUnrepresentable",
     "ParamBox/UnknownParam",
-    "ParamSourceAttach/FieldNotOnKind",
-    "ParamSourceAttach/StaleKey",
     "PayloadExpr",
     "PlacementRule/CountSpelling",
     "PlacementRule/ImproperFrame",
@@ -3455,7 +3453,13 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             "UnionFoldStep",
             NodeErrorKind::UnionFoldStep {
                 member: RecipeNodeId::new(0, tagged(2)),
-                refusal: Box::new(NodeErrorKind::UnschedulableCycle),
+                refusal: Box::new(NodeErrorKind::Boolean(topo::BooleanError::Escalated {
+                    decision: topo::BooleanDecision::Coincidence(
+                        topo::Coincide::Carriers,
+                        topo::DeclarationRead::Moot,
+                    ),
+                    diag: diag(),
+                })),
             },
         ),
         row(

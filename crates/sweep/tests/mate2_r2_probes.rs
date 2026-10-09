@@ -85,6 +85,10 @@ fn r2_partial_cover_one_bore_face_undeclared_is_the_full_cover() {
     // One bore face dropped.
     let partial = cover(&bore[..2]);
     never_silent("partial cover (2 of 3 bore faces)", &c, &p, &partial);
+    let (c, p) = (
+        finished("the collar", c, Tol::witness()),
+        finished("the peg", p, Tol::witness()),
+    );
     assert_eq!(
         outcome(&topo::union_with(&c, &p, &partial, Tol::witness())),
         outcome(&topo::union_with(&c, &p, &cover(&bore), Tol::witness())),

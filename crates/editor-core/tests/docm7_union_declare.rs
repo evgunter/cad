@@ -1307,15 +1307,15 @@ fn a_member_flush_under_a_merged_wall_fuses_declared_or_not() {
         );
         pairs.extend(found);
     }
-    let (doc, union) = declared_union_classed(doc, &[m1, m2, m3], pairs);
+    let (doc, full) = declared_union_classed(doc, &[m1, m2, m3], pairs);
     let declared = run(&doc);
     assert!(
-        failure(&declared, union).is_none(),
+        failure(&declared, full).is_none(),
         "the fully declared union refused: {:?}",
-        failure(&declared, union)
+        failure(&declared, full)
     );
     assert_eq!(
-        built_bits(&declared, union),
+        built_bits(&declared, full),
         built_bits(&undeclared, union),
         "the declared union is the undeclared one's body"
     );

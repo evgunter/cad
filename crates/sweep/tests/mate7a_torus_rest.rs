@@ -365,8 +365,9 @@ fn an_undeclared_torus_pair_passes_the_gate_and_is_the_declared_rest() {
 /// rung.** A full torus carries NOTHING but its two wall faces, so
 /// declaring every cross pair covers every pair — and the operation
 /// reaches the classification layer, which is the depth the roster and
-/// the carrier-identity rung buy together. Undeclared, the same pair
-/// refuses at the crossing layer.
+/// the carrier-identity rung buy together. Undeclared, the boolean
+/// declares the same continuation itself, and refuses where the
+/// declared union does (D10).
 ///
 /// The two operands are the SAME torus, which is what makes the
 /// declaration true rather than convenient: one carrier, one material
@@ -381,10 +382,13 @@ fn a_fully_covered_torus_pair_reaches_past_the_operand_gate() {
         "a full torus must carry nothing but wall faces, or the covering below is partial"
     );
     let decls = wall_declarations(&a, &b, TUBE, topo::BooleanCoincidence::Continuation);
-    let undeclared = topo::union(&a, &b, Tol::witness());
-    eprintln!("PROBE1 {undeclared:?}");
-    let declared = topo::union_with(&a, &b, &decls, Tol::witness())
-        .expect_err("the lane still stops downstream of the gate");
+    let declared = topo::union_with(&a, &b, &decls, Tol::witness());
+    assert_eq!(
+        outcome(&topo::union(&a, &b, Tol::witness())),
+        outcome(&declared),
+        "undeclared: the declared refusal"
+    );
+    let declared = declared.expect_err("the lane still stops downstream of the gate");
     assert!(
         !matches!(declared, BooleanError::CurvedPairUnsupported { .. }),
         "every offending pair is covered, so the gate must not be what refuses: {declared:?}"
@@ -641,10 +645,11 @@ fn a_torus_pair_with_no_shared_rim_keeps_the_class_refusal() {
 ///   (R-tan);
 /// - the declared chain routes to the seam, the declared kissing pair
 ///   to the unbuilt cusp family;
-/// - undeclared, a pair with a continuation in it refuses that
-///   continuation at the reduction, and the others refuse at the
-///   crossing layer (escalated where the run's band puts the sampled
-///   margin in its window).
+/// - undeclared, the socket and peg and the coincident pair are their
+///   declared outcomes bit for bit (D10: their pairs are one carrier by
+///   margin, and the boolean declares them itself), and the chain and
+///   the kissing pair refuse at the crossing layer (escalated where the
+///   run's band puts the sampled margin in its window).
 #[test]
 fn subtract_and_intersect_on_the_torus_rest_fixtures() {
     let tangency = |what: &str, err: &BooleanError| {
@@ -734,25 +739,44 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures() {
             "the kissing pair, {op}: {err:?}"
         );
     }
-    // Undeclared, a pair with a continuation in it (the socket's flush
-    // end caps, the coincident tori) refuses that continuation at the
-    // reduction; the others refuse at the crossing layer.
-    for (name, (a, b), continuation) in [
-        ("socket and peg", (socket(), segment_a()), true),
+    // Undeclared, the socket and peg are the declared `Rest` and the
+    // coincident tori the declared continuation; the others refuse at
+    // the crossing layer.
+    for (name, (a, b), declared) in [
+        (
+            "socket and peg",
+            (socket(), segment_a()),
+            Some(topo::BooleanCoincidence::REST),
+        ),
         (
             "coincident pair",
             (full_torus(RING), full_torus(RING)),
-            true,
+            Some(topo::BooleanCoincidence::Continuation),
         ),
-        ("chain", (segment_a(), segment_b()), false),
-        ("kissing pair", kissing_pair(), false),
+        ("chain", (segment_a(), segment_b()), None),
+        ("kissing pair", kissing_pair(), None),
     ] {
+        if let Some(class) = declared {
+            let twin = subtract_both_orders_and_intersect(
+                &a,
+                &b,
+                &wall_declarations(&a, &b, TUBE, class),
+            );
+            for ((op, r), (_, want)) in
+                subtract_both_orders_and_intersect(&a, &b, &BooleanDeclarations::none())
+                    .into_iter()
+                    .zip(twin)
+            {
+                assert_eq!(
+                    outcome(&r),
+                    outcome(&want),
+                    "{name} undeclared, {op}: the declared outcome"
+                );
+            }
+            continue;
+        }
         for (op, r) in subtract_both_orders_and_intersect(&a, &b, &BooleanDeclarations::none()) {
             let err = r.expect_err(op);
-            if continuation {
-                eprintln!("PROBE2 {name} {op} {err:?}");
-                continue;
-            }
             // The escalation is the circle rung's sampled clearance
             // landing in the band's window (the `1e-6` row); at the
             // finer rows the same edge refuses at the pierce door.

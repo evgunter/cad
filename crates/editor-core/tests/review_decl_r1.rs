@@ -88,15 +88,15 @@ fn a_contact_against_a_merged_cap_glues_in_every_order_declared_or_not() {
         for m in [a, c] {
             pairs.push((rests(m, d), editor_core::BooleanCoincidence::REST));
         }
-        let (full, union) = declared_union_classed(doc.clone(), &order, pairs);
+        let (full, full_union) = declared_union_classed(doc.clone(), &order, pairs);
         let declared = run(&full);
         assert!(
-            failure(&declared, union).is_none(),
+            failure(&declared, full_union).is_none(),
             "{order:?}: {:?}",
-            failure(&declared, union)
+            failure(&declared, full_union)
         );
         assert_eq!(
-            built_bits(&declared, union),
+            built_bits(&declared, full_union),
             built_bits(&undeclared, union),
             "{order:?}: the declared union is the undeclared one's body"
         );
@@ -119,12 +119,12 @@ fn a_merged_row_contact_is_declared_through_its_constituents() {
         .map(|p| (p, editor_core::BooleanCoincidence::Continuation))
         .collect();
     pairs.push((rests(c, d), editor_core::BooleanCoincidence::REST));
-    let (only_c, union) = declared_union_classed(doc.clone(), &[a, c, d], pairs.clone());
+    let (only_c, partial_union) = declared_union_classed(doc.clone(), &[a, c, d], pairs.clone());
     let partial = run(&only_c);
     assert!(
-        failure(&partial, union).is_none(),
+        failure(&partial, partial_union).is_none(),
         "{:?}",
-        failure(&partial, union)
+        failure(&partial, partial_union)
     );
     pairs.push((rests(a, d), editor_core::BooleanCoincidence::REST));
     let (doc, union) = declared_union_classed(doc, &[a, c, d], pairs);
@@ -134,7 +134,7 @@ fn a_merged_row_contact_is_declared_through_its_constituents() {
     assert!((v - (1.5 + 1.1 * 0.6 * 0.5)).abs() < 1e-9, "{v}");
     assert_eq!(
         built_bits(&ev, union),
-        built_bits(&partial, union),
+        built_bits(&partial, partial_union),
         "the partly declared union is the fully declared one's body"
     );
 }

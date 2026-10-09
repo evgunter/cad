@@ -5,8 +5,8 @@
 //! the crossing layer's one-sided cover).
 //!
 //! The rows: an undeclared continuation glues to the declared body on
-//! a plane and on a cylinder (D10); a declared one merges (planar) or
-//! ships as the recorded curved skip; a `Rest` on an aligned pair and a
+//! a plane and on a cylinder (D10); a declared one merges, planar and
+//! curved alike; a `Rest` on an aligned pair and a
 //! continuation on an opposed one are each contradicted; the rounded
 //! stack's tangent wall edges are covered through a structural tangency
 //! on EITHER operand, and a tangency in the middle of an edge builds in
@@ -245,15 +245,14 @@ fn an_undeclared_continuation_is_the_declared_union_on_a_plane_and_on_a_cylinder
     }
 }
 
-/// **A declared continuation merges a planar pair and ships a curved
-/// one as the recorded skip**, and the stack is exact.
+/// **A declared continuation merges, a planar pair and a curved one
+/// alike**, and the stack is exact.
 ///
 /// Sharp: six faces, nothing skipped. Rounded: the four flat wall pairs
-/// glue, and the four fillet pairs stay two faces each — fourteen
-/// faces, four `SkippedMerge` records, the merge's declared rung having
-/// no cylinder arm.
+/// and the four fillet pairs glue — ten faces, nothing skipped, the
+/// merge reading each fillet pair on the carrier ladder.
 #[test]
-fn a_declared_continuation_merges_planar_walls_and_records_the_curved_skip() {
+fn a_declared_continuation_merges_planar_and_curved_walls() {
     let (p, q) = (plate(sharp(), 0.0), plate(sharp(), 1.0));
     let (mate, walls) = findings(&p, &q);
     let bb = union_honest("sharp", &p, &q, &with(&mate, &walls));
@@ -275,12 +274,11 @@ fn a_declared_continuation_merges_planar_walls_and_records_the_curved_skip() {
         .count();
     assert_eq!(
         (bb.body.faces().count(), cylinders),
-        (14, 8),
-        "rounded: top, bottom, four merged walls, and four fillets in two faces each"
+        (10, 4),
+        "rounded: top, bottom, four merged walls, and four merged fillets"
     );
-    assert_eq!(
-        bb.naming.merge_skipped.len(),
-        4,
+    assert!(
+        bb.naming.merge_skipped.is_empty(),
         "{:?}",
         bb.naming.merge_skipped
     );
@@ -1187,9 +1185,9 @@ fn three_bricks_with_a_reflex_step_fold_in_every_order() {
 /// (`work/reachhold/rounded-stack-subtract-and-intersect-refuse-fallback-extent.md`).
 /// With the declarations keyed for (B, A), B ∖ A, empty (the thin
 /// plate lies inside the thick one), refuses as A ∪ B does, while B ∪ A
-/// builds the thick plate, its walls left split where the thin plate's
-/// lay (18 faces sunk, 14 flush, against the plate's 10): the union
-/// refuses in one operand order only.
+/// builds the thick plate, its walls glued back whole where the thin
+/// plate's lay (the plate's 10 faces): the union refuses in one operand
+/// order only.
 ///
 /// Two results here are an operand itself measured through another
 /// face order, so their `f64` volumes round a few ulps past the operand
@@ -1201,10 +1199,10 @@ fn declared_rounded_continuations_inside_a_wall_build_subtract_and_intersect() {
     let none = BooleanDeclarations::default();
     let a = plate(rounded(R), 0.0);
     let half = area(4.0) / 2.0;
-    for (label, z0, subtract_faces, union_faces) in [
-        ("sunk inside", 0.25, 20, 18),
-        ("flush top", 0.5, 10, 14),
-        ("flush bottom", 0.0, 10, 14),
+    for (label, z0, subtract_faces) in [
+        ("sunk inside", 0.25, 20),
+        ("flush top", 0.5, 10),
+        ("flush bottom", 0.0, 10),
     ] {
         let b = finished(
             "the thin plate",
@@ -1253,7 +1251,7 @@ fn declared_rounded_continuations_inside_a_wall_build_subtract_and_intersect() {
             &format!("{label}, B ∪ A"),
             topo::union_with(&b, &a, &d_ba, tol()),
             area(4.0),
-            union_faces,
+            10,
         );
     }
 }
