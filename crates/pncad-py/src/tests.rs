@@ -4833,6 +4833,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "spine_unsupported",
             "surgery_invariant",
             "tangential_edge",
+            "unjoined_operand",
             "unsupported_chain",
             "unsupported_corner",
             "unsupported_geometry",
@@ -4901,6 +4902,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "torn_component",
             "undeclared_coincidence",
             "underflowed_sector_chord",
+            "unjoined_operand",
             "unrepresentable_result",
             "unsupported_declaration_class",
             "vertex_read_twice",
@@ -6664,6 +6666,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // (`boolean_error_tag`'s doc): ONE coincidence, the same word.
     ("undeclared_coincidence", 2),
     ("underflowed_direction", 2),
+    // One fact for the boolean and the blends: the operand gate
+    // (`topo::Unfinished::Unjoined`) found a vertex tier 3's check 11
+    // refuses.
+    ("unjoined_operand", 2),
     ("unknown_node", 5),
     ("unknown_param", 3),
     ("unminted", 2),

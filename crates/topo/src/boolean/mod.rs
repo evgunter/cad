@@ -2072,6 +2072,18 @@ pub enum BooleanError {
         /// shell, the shell).
         errors: Vec<ValidationError>,
     },
+    /// An operand holds a vertex the join would take, or one whose
+    /// reading lands in the sliver band (tier 3's check 11,
+    /// [`ValidationError::JoinableVertexAtRest`] /
+    /// [`ValidationError::JoinUndecidedAtRest`]). A finished body holds
+    /// none; the door reads the check itself on an operand whose scalar
+    /// runs no at-rest gate (a dual), as it reads checks 7 and 10.
+    UnjoinedOperand {
+        /// The offending operand.
+        operand: Operand,
+        /// The check-11 findings, each naming its vertex.
+        errors: Vec<ValidationError>,
+    },
     /// F7: two adjacent faces of one operand are structurally or
     /// declaredly coplanar — the operand is not maximal-faced; run
     /// `merge_coplanar_faces` explicitly first.
@@ -2943,6 +2955,8 @@ pub enum BooleanErrorKind {
     ScaffoldingOperand,
     /// [`BooleanError::InsideOutOperand`].
     InsideOutOperand,
+    /// [`BooleanError::UnjoinedOperand`].
+    UnjoinedOperand,
     /// [`BooleanError::NonMaximalFaces`].
     NonMaximalFaces,
     /// [`BooleanError::CoplanarNeighbours`].
@@ -3067,6 +3081,9 @@ impl BooleanError {
             crate::validate::Unfinished::InsideOut(errors) => {
                 Self::InsideOutOperand { operand, errors }
             }
+            crate::validate::Unfinished::Unjoined(errors) => {
+                Self::UnjoinedOperand { operand, errors }
+            }
         }
     }
 
@@ -3172,6 +3189,7 @@ impl BooleanError {
             Self::PointInFaceRefused { .. } => BooleanErrorKind::PointInFaceRefused,
             Self::ScaffoldingOperand { .. } => BooleanErrorKind::ScaffoldingOperand,
             Self::InsideOutOperand { .. } => BooleanErrorKind::InsideOutOperand,
+            Self::UnjoinedOperand { .. } => BooleanErrorKind::UnjoinedOperand,
             Self::NonMaximalFaces { .. } => BooleanErrorKind::NonMaximalFaces,
             Self::CoplanarNeighbours { .. } => BooleanErrorKind::CoplanarNeighbours,
             Self::NonFiniteSectorChord { .. } => BooleanErrorKind::NonFiniteSectorChord,
@@ -3435,6 +3453,12 @@ impl core::fmt::Display for BooleanError {
                 "the {} operand {}",
                 operand_word(*operand),
                 crate::validate::Unfinished::INSIDE_OUT_REFUSAL,
+            ),
+            Self::UnjoinedOperand { operand, .. } => write!(
+                f,
+                "the {} operand {}",
+                operand_word(*operand),
+                crate::validate::Unfinished::UNJOINED_REFUSAL,
             ),
             Self::NonMaximalFaces { operand, .. } => write!(
                 f,
@@ -6422,6 +6446,12 @@ mod tests {
                     solid: crate::entity::SolidKey::default(),
                 }],
             },
+            BooleanError::UnjoinedOperand {
+                operand: Operand::A,
+                errors: vec![ValidationError::JoinableVertexAtRest {
+                    vertex: VertexKey::default(),
+                }],
+            },
             BooleanError::NonMaximalFaces {
                 operand: Operand::A,
                 edge,
@@ -6648,6 +6678,7 @@ mod tests {
                 BooleanErrorKind::PointInFaceRefused => "PointInFaceRefused",
                 BooleanErrorKind::ScaffoldingOperand => "ScaffoldingOperand",
                 BooleanErrorKind::InsideOutOperand => "InsideOutOperand",
+                BooleanErrorKind::UnjoinedOperand => "UnjoinedOperand",
                 BooleanErrorKind::NonMaximalFaces => "NonMaximalFaces",
                 BooleanErrorKind::CoplanarNeighbours => "CoplanarNeighbours",
                 BooleanErrorKind::NonFiniteSectorChord => "NonFiniteSectorChord",

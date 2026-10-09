@@ -4,6 +4,8 @@ kind: issue
 title: Door arms only a hand-split operand reached have no at-rest input since tier 3's check 11
 status: open
 opened: 2026-10-08
+priority: P4
+cost: M
 ---
 
 
@@ -27,16 +29,20 @@ retire or needs a witness no hand split supplies.
   (`a_split_rim_is_joined_before_it_blends`,
   `a_rim_band_is_cut_off_at_both_ends`),
   `blend_band_reach_chain_ends.rs`. **Dead code**: the blend doors
-  (`fillet_edges`, `chamfer_edges`) take an `AtRestBody`, and the
-  surgery plans its chains from that operand before anything is
-  carved, so no construction-state caller reaches the arm. Only the
-  test-only meter (`band_reach_for_tests`) still reads a jointed chain.
+  (`fillet_edges`, `chamfer_edges`) take an `AtRestBody`, refused at
+  `f64` by tier 3 and, at a dual, by the door's own operand gate
+  (`AtRestBody::gate_unverdicted`, which reads check 11 since PR D:
+  `unjoined_operand_at_a_dual.rs`), and the surgery plans its chains
+  from that operand before anything is carved, so no construction-state
+  caller reaches the arm at any scalar. Only the test-only meter
+  (`band_reach_for_tests`) still reads a jointed chain.
 - **The blend's half-band gate on a curved support carrying both arcs**
   (`crates/sweep/src/blend/surgery.rs:1333`): its row,
   `fillet_h5_r2_probes.rs`'s merged wall, holds the killed meridian's
   ends between two arcs of each rim, so it is construction state.
   Whether another at-rest operand reaches the gate is open; no
-  construction-state caller does, through the same `AtRestBody` doors.
+  construction-state caller does, through the same `AtRestBody` doors
+  and their gates, at any scalar.
 - **The shell's axial corners at a hand-split vertex**
   (`crates/topo/src/offset_axial.rs:1281`, "no profile constraint";
   `:1322`, "a line profile and a plane parallel to the axis"; and the
