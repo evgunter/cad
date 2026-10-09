@@ -1055,12 +1055,13 @@ fn tagged(o: Operand, f: FaceKey) -> OperandFace {
 /// tangent along a curve on distinct carriers.
 ///
 /// **The source column.** A seam certifies every row above. A
-/// structural tangency (the strut source) certifies plane and cylinder,
-/// both ways, and two cylinders: the rows a union reaches through one.
-/// The sphere and torus rows are as true for a strut as for a seam, but
-/// every union that reaches them through one refuses at a later door,
-/// so they wait for a witness (filed:
-/// `the-strut-cover-on-cylinder-pairs`).
+/// structural tangency (the strut source) certifies only plane and
+/// cylinder, both ways: that is what it covered before the seam came
+/// and what a fixture exercises. The other rows are as true for a strut
+/// as for a seam, but nothing yet reaches them through one, so they
+/// wait for a witness (filed: `the-strut-cover-on-cylinder-pairs`).
+/// The old strut row for plane and sphere is not restored: those are
+/// never tangent along a curve on distinct carriers.
 fn tangency_certifies_side(
     source: TangencySource,
     parent: geom::SurfaceKind,
@@ -1078,10 +1079,7 @@ fn tangency_certifies_side(
         && match source {
             TangencySource::Seam => true,
             TangencySource::Strut => {
-                matches!(
-                    (parent, partner),
-                    (Plane, Cylinder) | (Cylinder, Plane | Cylinder)
-                )
+                matches!((parent, partner), (Plane, Cylinder) | (Cylinder, Plane))
             }
         }
 }
@@ -5870,17 +5868,13 @@ mod tests {
                 (Torus, Sphere),
             ]
         );
-        // The strut source's column: plane and cylinder, and two
-        // cylinders.
+        // The strut source's column: plane and cylinder only.
         let struts: Vec<(SurfaceKind, SurfaceKind)> = all
             .iter()
             .flat_map(|&p| all.iter().map(move |&q| (p, q)))
             .filter(|&(p, q)| tangency_certifies_side(TangencySource::Strut, p, q))
             .collect();
-        assert_eq!(
-            struts,
-            [(Plane, Cylinder), (Cylinder, Plane), (Cylinder, Cylinder)]
-        );
+        assert_eq!(struts, [(Plane, Cylinder), (Cylinder, Plane)]);
         for k in [Nurbs, Approx, Cone] {
             for o in all {
                 for source in [TangencySource::Strut, TangencySource::Seam] {
