@@ -649,8 +649,10 @@ fn cone_about(apex: Point3<f64>, axis: Vec3<f64>, alpha: f64) -> Surface<f64> {
 /// face's nappe in one null loop. Read with the centre's axis offset as
 /// `δ − a(a·δ)`, the axial rounding tilts the meridian frame by about
 /// `ε|δ|/|δ⊥|`, so `w±` are no longer generators and the arm answered
-/// `none()` — W0 on a real loop inside both faces. The mutant is that
-/// naive projection: red.
+/// `none()` — W0 on a real loop inside both faces. The loop's margin,
+/// the centre's axis offset times `cos α`, is about `1e-7 m`: at a band
+/// that wide (the `1e-6` row) R-tan is the right answer, and W0 never
+/// is. The mutant is that naive projection: red.
 #[test]
 fn a_ball_in_a_skewed_conical_seat_is_one_null_loop() {
     let cone = cone_about(
@@ -671,6 +673,20 @@ fn a_ball_in_a_skewed_conical_seat_is_one_null_loop() {
         14.14213533816754,
     );
     let s = both(&cone, &ball);
+    let Surface::Cone { apex, axis, .. } = cone else {
+        unreachable!()
+    };
+    let Surface::Sphere { center, .. } = ball else {
+        unreachable!()
+    };
+    let margin = (center - apex).cross(axis).norm() * FRAC_PI_4.cos();
+    if let Section::Tangent(name) = s {
+        assert!(
+            margin < 4.0 * band().escalate(),
+            "R-tan ({name}) at a margin of {margin}, outside the band"
+        );
+        return;
+    }
     assert_eq!(shape(&s), shape_of(1, true, false, false, false));
     on_both(witness(&s), &cone, &ball);
 }
@@ -749,17 +765,31 @@ fn a_witness_off_a_plane_carrier_has_no_verdict() {
 /// `1e-7` long. Read as `n − a(a·n)`, its rounding along the axis
 /// (`ε`) turns into a `1e-9`-rad lean of the generator off the cone,
 /// and the witness, `10 m` out, lands `1e-8 m` off the cone's carrier.
-/// The mutant is that naive projection: red.
+/// A lean the band cannot tell from none (`lean × lever` inside a few
+/// escalation widths) may refuse R-tan; the `1e-4` lean is decided at
+/// every eps row. The mutant is that naive projection: red.
 #[test]
 fn a_nearly_axis_normal_plane_on_a_tilted_axis_is_witnessed_on_both_carriers() {
     let axis = v(0.3, -0.5, 0.81).normalize();
     let (b1, _) = axis.orthonormal_basis();
     let apex = p(4.0, -3.0, 7.0);
     let cone = cone_about(apex, axis, 0.7);
-    for lean in [1e-7, 3e-6] {
+    // The rows' reach: a ball of radius 2.5 about the origin.
+    let lever = |pl_origin: Point3<f64>, n: Vec3<f64>| {
+        let centre = p(0.0, 0.0, 0.0);
+        (centre - apex).norm() + (centre - pl_origin).dot(n).abs() + 5.0
+    };
+    for lean in [1e-7, 3e-6, 1e-4] {
         let n = (axis * lean.cos() + b1 * lean.sin()).normalize();
         let pl = plane(apex + axis * 10.0, n);
         let s = both(&cone, &pl);
+        if let Section::Tangent(name) = s {
+            assert!(
+                lean * lever(apex + axis * 10.0, n) < 4.0 * band().escalate(),
+                "lean {lean}: R-tan ({name}) outside the band"
+            );
+            continue;
+        }
         assert_eq!(shape(&s), shape_of(1, true, true, false, false), "{lean}");
         on_both(witness(&s), &cone, &pl);
     }
