@@ -170,3 +170,38 @@ Read after the report above was final.
 - **Overlaps:** the `resolve_face` cost (first NOTE-7) and the silent own-space skip (first NOTE-1).
   My Q6 point on the `k` pick (no scheduled `work/` item) extends the first review's MINOR-2, which
   was about the missing interim flag.
+
+## Confirmation at the fix pass head 233d312b3
+Verdict: **APPROVE**. Every finding above is fixed, and each fix was confirmed by execution. I found
+no new path by which a construction reads the world.
+- **MAJOR-A fixed.** Split and inline now share one rule, `world_heir` (`refactor.rs` beside
+  `places_at_identity`).
+  - Split refuses `SplitError::RemainderReadUncarried` before anything moves.
+  - Re-run probes: the posed cut refuses `Posed`, and the two-body cut refuses `Bodies { count: 2 }`.
+  - Mutant N1 (the split guard off) kills
+    `split_refuses_a_remainder_reader_whose_cut_world_is_posed_or_several`.
+- **MAJOR-B fixed.** A later identity host placement is now a reader re-pointed to the inlined body.
+  - Re-run probe: 2 placements before and after, and the digest is unchanged
+    (`10958814186987049123/52`).
+  - Mutant N2 (every identity host placement deleted again) kills
+    `inline_keeps_both_copies_of_an_instance_placed_twice`.
+- **MINOR-C fixed.** A measure site at a placement refuses `EditError::MeasuresWorldCopy` at the door
+  and `SnapshotError::MeasuresWorldCopy` at load.
+  - Re-run probe: refused at the door.
+  - Mutant N3 (door check off) and mutant N5 (load check off) each kill
+    `no_measure_is_sited_at_a_world_placement_at_the_door_or_at_load`.
+- **MINOR-D.** The orchestrator ruled it a known interim gap with a CHROME row filed, so it does not
+  block.
+- **Style items done.**
+  - One read check for the door and load: `edit::read_fault`. Mutant N4 (its `WorldCopy` arm off)
+    kills `no_slot_reads…`.
+  - "Identity placement" is now spelled once, as `places_at_identity`.
+  - Spec §10 and §11 Q9 now agree with §4.
+  - The k pick is filed as `a-split-name-picks-a-pattern-copy-by-its-evaluated-index`.
+  - NOTE-F moved to stage 3's `a-placement-is-the-bundle-of-mates`.
+  - The mate lift's "placed" is now worded as it is computed.
+- **Runs at 233d312b3.**
+  - editor-core with the slow set (`--profile default`, default ε, in 3 partitions): 2894/2895.
+  - The one failure is NOTE-E's timing row, which fails identically on the base.
+  - The C rows, `mate6_gather_mints` and `asm4_split_inline` pass at 1e-6 and 1e-12 (45/45 each).
+- **Not run:** Python, viewer, pncad, tour.
