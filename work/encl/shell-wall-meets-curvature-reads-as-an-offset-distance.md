@@ -2,8 +2,9 @@
 id: shell-wall-meets-curvature-reads-as-an-offset-distance
 kind: issue
 title: offset fit: CurvatureHeadroom's recourse speaks of an offset distance and its side, which a shell user sets as a wall thickness
-status: dispatched
+status: review
 branch: encl/shell-wall-curvature-recourse
+pr: 4377
 opened: 2026-10-06
 priority: P3
 cost: E
