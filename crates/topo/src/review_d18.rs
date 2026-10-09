@@ -3728,7 +3728,7 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
             Err(e @ ContainError::StaleFace(_)) => Err(e.to_string()),
             Ok(_)
             | Err(
-                ContainError::Escalated(_)
+                ContainError::Escalated { .. }
                 | ContainError::RayExhausted
                 | ContainError::EmptyLoop(_)
                 | ContainError::Uncrossable(_)

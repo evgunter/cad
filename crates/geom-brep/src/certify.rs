@@ -5210,7 +5210,7 @@ mod tests {
                 let banded = match arm {
                     RefusedArm::Undecided(cause) => Some(cause.margin),
                     RefusedArm::Zero(Classified { margin, .. }) => Some(margin),
-                    RefusedArm::SignCertain => None,
+                    RefusedArm::SignCertain | RefusedArm::Straddle => None,
                 };
                 // A reading at or across zero has its nearer end below
                 // every ε_in, so even the narrow one reads it in the door's
