@@ -12021,6 +12021,56 @@ mod tests {
         }
     }
 
+    /// **Check 9 reads a pinch on a cone face about the cone's normal,
+    /// and leaves its apex to the residue.** The crossed prism's bottom
+    /// cap is carried by a needle cone along `x` whose outward normal at
+    /// the pinch is within 0.05 rad of the cap's own: the crossing is
+    /// read and refused as on the plane. The same cone with its apex at
+    /// the pinch has no normal there, and the corner is silent (the
+    /// residue `pinch_corner_errors` names).
+    #[test]
+    fn check_9_reads_a_cone_pinch_off_the_apex_and_not_at_it() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the run's band");
+        let alpha = 0.05_f64;
+        let rho = 1.0;
+        let off_apex = Point3::new(-rho / alpha.tan(), 0.0, rho);
+        for (label, apex, refuses) in [
+            ("off the apex", off_apex, true),
+            ("at the apex", Point3::origin(), false),
+        ] {
+            let (mut body, [bottom, _], _) = pinched_prism(true, tol);
+            body.lifting_rechart_refusals_for_tests(|body| {
+                body.set_face_surface(
+                    bottom,
+                    crate::FaceSurface::New {
+                        surface: crate::Surface::Cone {
+                            apex,
+                            axis: geom_core::Vec3::new(1.0, 0.0, 0.0),
+                            half_angle: alpha,
+                            u_ref: geom_core::Vec3::new(0.0, 0.0, -1.0),
+                        },
+                        sense: true,
+                    },
+                )
+            })
+            .unwrap();
+            let face = body.get_face(bottom).unwrap().clone();
+            let mut errors = Vec::new();
+            pinch_corner_errors(&body, bottom, &face, band, &mut errors);
+            let crossed = errors.iter().any(|e| {
+                matches!(e, ValidationError::PinchCornerCrossed { face, .. } if *face == bottom)
+            });
+            assert_eq!(crossed, refuses, "{label}: {errors:?}");
+            assert!(
+                errors
+                    .iter()
+                    .all(|e| matches!(e, ValidationError::PinchCornerCrossed { .. })),
+                "{label}: only a crossing is read: {errors:?}"
+            );
+        }
+    }
+
     /// **Two rings of one face touching at a vertex refuse typed**,
     /// naming both rings and the shape; the same two rings apart pass.
     /// Red where check 9 compares a ring with its outer loop only.

@@ -600,6 +600,12 @@ pub(super) fn side_code<T: Decide>(
 /// nearest the axis within the bound's reach, or within the stretch the
 /// charge reads where that is shorter. It is positive wherever the
 /// pierce normal is, since that door certified `ρ` definitely positive.
+///
+/// It bounds the bend of the pierced point's own nappe only. The charge
+/// does not see the other sheet of the double cone, which on a wide
+/// cone (`α` above about 78.7°) comes within `ρ/3` of the pierce.
+/// What reads a crossing onto that sheet is the crossing layer's
+/// far-nappe verdict, not this lever.
 #[derive(Clone, Copy, Debug)]
 pub(super) enum PierceLever<T: geom_core::Real> {
     /// A bound on every bend the face makes.
