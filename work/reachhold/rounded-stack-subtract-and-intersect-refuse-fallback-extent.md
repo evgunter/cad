@@ -110,6 +110,17 @@ definite "no patch". Whether an abutting continuation can be certified
 from its trims (a shared boundary curve on both faces, the interiors
 on either side of it) is the open question here.
 
+## The arc-joint stacks stop at the same door (TANG, 2026-10-09)
+
+Two plates whose outline runs a big arc into a small arc tangent to it
+(the small arc inside the big circle, or outside it), stacked with
+every finding declared, build their union once the strut column admits
+two cylinders. Their subtract and intersect, in both orders, refuse
+`FallbackExtentUnsupported`, as the rounded stack's do; on main they
+refused `CurvedPierceUnsupported` a door earlier. The oracle once they
+build: each difference the operand's own volume, ∩ empty. Pinned by
+`strut_cover_on_cylinder_pairs::the_stacks_subtract_and_intersect_stop_at_the_fallback_extent`.
+
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: the extent pass's exemption is keyed on declarations (ops.rs Exempt::Declared/Rest), which stage 4 retires. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

@@ -264,8 +264,8 @@ tangencies along a curve, and the condition asks for a certified side,
 not a local touch, so they count only where such a tangency is a global
 side for the two carriers' kinds (`boolean::tangency_certifies_side`). A
 seam counts for plane–cylinder, cylinder–cylinder, cylinder–sphere,
-plane–torus and sphere–torus; a structural tangency only for
-plane–cylinder. A torus with a cylinder or with a torus does not count.
+plane–torus and sphere–torus; a structural tangency for
+plane–cylinder and cylinder–cylinder. A torus with a cylinder or with a torus does not count.
 The exclusion is conservative because the condition is read per pair of
 KINDS: a cylinder coaxial with a torus (radius `R ± r`, tangent along an
 equator) does lie on one side of it, but a straight tube leaving a
