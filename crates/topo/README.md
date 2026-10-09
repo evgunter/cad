@@ -436,7 +436,7 @@ arc's end is that end's vertex), and refuses a face whose spiric or
 spline edge it cannot clear, so no cell spans the face's boundary on a
 decided reading. `ef_bound_backed`'s migration is parked with the
 declared-pair machinery D10 retires
-(`work/contact/ef-bound-backed-migrates-to-region-confinement.md`).
+(`work/contacthold/ef-bound-backed-migrates-to-region-confinement.md`).
 
 **`EdgeFacePierce` stays categorical.** A transverse dive is
 interpenetration until a C6 vocabulary exists; the recourse is

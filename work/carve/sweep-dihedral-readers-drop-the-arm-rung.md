@@ -9,8 +9,8 @@ opened: 2026-09-29
 ## What
 
 `sweep::extrude` (near lines 1332 and 1654) and
-`sweep::revolve::upgrade` (near line 189) bind only
-`geom_brep::LeverEscalation { diag: source, .. }`, so an escalation of
+`sweep::revolve::upgrade` (near line 189) read only
+`geom_brep::LeverEscalation::diag()`, so an escalation of
 the dihedral's arm — undecided, or decided collapsed
 (`LeverEscalation::collapsed_arm`) — refuses as `ExtrudeError::SliverJoin` /
 `SliverRim` or the upgrade's sliver, the wedge's story, rather than as

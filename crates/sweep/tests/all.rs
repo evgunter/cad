@@ -55,6 +55,8 @@ mod common;
 mod mate2_common;
 mod revolve_common;
 
+#[path = "a_plane_across_a_one_face_wall.rs"]
+mod a_plane_across_a_one_face_wall;
 #[path = "a_pole_and_an_apex_join_nothing.rs"]
 mod a_pole_and_an_apex_join_nothing;
 #[path = "a_ring_on_a_cone_face.rs"]
@@ -197,6 +199,8 @@ mod shallow_arc_extrude_grid_interval;
 mod shellfix1_bitdump;
 #[path = "shellfix1_r1_probes.rs"]
 mod shellfix1_r1_probes;
+#[path = "spheres_crossing_off_every_edge.rs"]
+mod spheres_crossing_off_every_edge;
 #[path = "spiric_faces_fuzz.rs"]
 mod spiric_faces_fuzz;
 #[path = "sym11_far_placement_rows.rs"]

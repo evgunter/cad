@@ -449,7 +449,7 @@ pub(super) fn NO_CURVATURE<T: Decide>() -> T {
 ///   (`tangent_lump`), and an undeclared curved on-carrier sector
 ///   refuses typed (C8). What this reading does NOT certify is an arc
 ///   that departs tangentially and curves off; that residue is filed
-///   (`work/contact/boolean-conic-side-code-zero-is-first-order`).
+///   (`work/contacthold/boolean-conic-side-code-zero-is-first-order`).
 /// - [`Reach::Bisector`]: a subdivision direction has no point behind
 ///   it, so it is levered at its sector's arm. Its Zero is not read as
 ///   a verdict where it could decide anything: a bisector's code only
@@ -587,8 +587,8 @@ fn at_departure<T: Decide>(
 ) -> geom_brep::LeverEscalation {
     // `arm / departure` is finite unless the departure is exactly zero
     // (or poison).
-    if escalation.rung != geom_brep::LeverRung::Arm
-        || !escalation.diag.offers_tolerance()
+    if escalation.rung() != geom_brep::LeverRung::Arm
+        || !escalation.diag().offers_tolerance()
         || !geom_core::is_finite_length(arm / departure)
     {
         return escalation;

@@ -1187,14 +1187,14 @@ fn segment_distance(a: ([f64; 3], [f64; 3]), b: ([f64; 3], [f64; 3])) -> f64 {
 ///   edges leave `v` 3.7e-7 rad apart (at the default ε) and run
 ///   within the band for a
 ///   stretch, which the census passes: that class is filed
-///   (`work/contact/two-copies-of-a-pierce-carry-edges-that-run-within-the-band.md`),
+///   (`work/inside/two-copies-of-a-pierce-carry-edges-that-run-within-the-band.md`),
 ///   and this row does not claim them apart.
 ///
 /// Tier 3′ is not asserted: its edge-edge lane reads the section edge
 /// from `v` and the prism's edge piece near `(4, 1)` as an overlap,
 /// because it reads their line offset at the long edge's start, which
 /// lies on the short edge's line
-/// (`work/contact/the-census-edge-edge-collinear-lane-reads-the-offset-at-the-long-edges-start.md`).
+/// (`work/inside/the-census-edge-edge-collinear-lane-reads-the-offset-at-the-long-edges-start.md`).
 #[test]
 fn a_near_tangent_two_run_pierce_builds_with_edges_in_band_only_at_its_copies() {
     let v = [2.0, 0.6, 1.0];
@@ -2354,18 +2354,15 @@ fn a_pinchs_cones_share_one_point_key() {
     assert!(rebound > 0, "no union rebound a class");
 }
 
-/// **A pinch's unions build from every root of the pierce ring but the
-/// one that mints run 1's strut first**
+/// **A pinch's unions build from every root of the pierce ring**
 /// (`topo::test_support::with_ring_root`): [`a_pinchs_cones_share_one_point_key`]'s
 /// poses, each of the two-run ring's three regions taken as its ring
 /// vertex, in both operand orders. The ring's corners are one cyclic
 /// order whichever region roots it, and every root builds `SOUND` at the
-/// clipped volume except, on the four `Ltop asym` poses, the leaf region
-/// inside run 1's chord: there run 1's strut is minted first, with run 0's
-/// hung off its far end, and the pinch weld refuses `JoinDesync`, as
-/// where the hub mints run 1 first
-/// (`work/join/a-pierce-pinch-weld-reads-which-ring-strut-was-minted-first.md`,
-/// whose flip-back row this is).
+/// clipped volume. On the four `Ltop asym` poses the leaf region inside
+/// run 1's chord mints run 1's strut first, and a pierce the weld
+/// already joined then meets another copy of the same pierce, whose
+/// corners no corner of the joined vertex holds: the pair stays apart.
 #[test]
 fn a_pinchs_unions_from_every_root_of_the_ring() {
     for (names, (a, b), seed, fib) in [
@@ -2385,16 +2382,7 @@ fn a_pinchs_unions_from_every_root_of_the_ring() {
                     topo::union_with(x, y, &BooleanDeclarations::default(), tol())
                 });
                 let line = outcome(r, want, tol());
-                if names == "Ltop asym" && root == 2 {
-                    assert!(
-                        line.starts_with(
-                            "ERR JoinDesync { what: \"a pinch face runs through a pierce vertex twice\" }"
-                        ),
-                        "{pose} {order} U: {line}"
-                    );
-                } else {
-                    assert!(line.starts_with("OK SOUND"), "{pose} {order} U: {line}");
-                }
+                assert!(line.starts_with("OK SOUND"), "{pose} {order} U: {line}");
             }
         }
     }

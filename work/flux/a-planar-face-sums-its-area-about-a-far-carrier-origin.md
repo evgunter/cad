@@ -6,12 +6,12 @@ status: open
 opened: 2026-10-03
 priority: P3
 cost: M
-refs: [volume-door-reads-a-tiny-valid-boolean-result-wrong]
+refs: [3977]
 ---
 
 
 Found by REACH while fixing tier 3's check 7 on
-`work/contact/volume-door-reads-a-tiny-valid-boolean-result-wrong`.
+`volume-door-reads-a-tiny-valid-boolean-result-wrong` (closed, PR 3977).
 This is the cause of that item's measurement error. The sign reading is
 fixed separately; this measurement error is not.
 

@@ -2,11 +2,12 @@
 id: a-steep-ellipse-travel-margin-ties-band-apart-sites-and-falls-back-to-the-chord
 kind: issue
 title: On a steep ellipse the join's travel margin can tie two band-apart sites and fall back to the chord order the margin replaced
-status: open
+status: dispatched
 opened: 2026-10-04
 priority: P3
 cost: E
 refs: [a-pocket-crossing-a-side-face-refuses-at-ring-rehoming-on-a-curved-face, join-ranks-conic-facing-germs-by-chord]
+branch: join/three-small-join-rows
 ---
 
 
