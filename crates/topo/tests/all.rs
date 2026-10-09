@@ -77,6 +77,8 @@ mod bool4r2_base_probe;
 mod bool4r2_probes;
 #[path = "boolean_covered.rs"]
 mod boolean_covered;
+#[path = "fused_into_live_cells.rs"]
+mod fused_into_live_cells;
 #[path = "boolean_discards.rs"]
 mod boolean_discards;
 #[path = "boolean_pinch_copies.rs"]

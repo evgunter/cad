@@ -1583,9 +1583,20 @@ impl Fold {
         // graft rows is a record this fold cannot read.
         match naming.a_keys {
             topo::OperandKeys::Direct => {
-                let fused = naming.fused_into();
+                let fused = naming
+                    .fused_into(result)
+                    .map_err(|_| NamingError::Emission {
+                        what: "a vertex the Boolean fused away settles on no cell of its result",
+                    })?;
                 for (v, read) in core::mem::take(&mut self.senses) {
-                    let v = fused.get(&v).copied().unwrap_or(v);
+                    let v = match fused.get(&v) {
+                        None => v,
+                        Some(&topo::Cell::Vertex(s)) => s,
+                        // Fused into a vertex the join or the merge then
+                        // deleted: its point lies inside an edge or a face,
+                        // which holds no crossing.
+                        Some(topo::Cell::Edge(_) | topo::Cell::Face(_)) => continue,
+                    };
                     if result.get_vertex(v).is_some() {
                         carried.entry(v).or_default().extend(read);
                     }

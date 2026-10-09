@@ -24,7 +24,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use topo::{Body, EdgeKey, FaceKey, Provenance, VertexKey};
+use topo::{Body, Cell, EdgeKey, FaceKey, Provenance, VertexKey};
 
 use super::emit::{NamingError, face_half_edges};
 use super::least_root::LeastRoot;
@@ -73,8 +73,10 @@ impl<K: Ord + Clone> Obstacles<K> {
         body: &Body<T>,
         mut parents_of: impl FnMut(topo::Operand, FaceKey) -> Result<BTreeSet<K>, NamingError>,
     ) -> Result<(), NamingError> {
-        let fused = naming.fused_into();
-        let settle = |v: VertexKey| fused.get(&v).copied().unwrap_or(v);
+        let fused = naming
+            .fused_into(body)
+            .map_err(|_| bug("a vertex the Boolean fused away settles on no cell of its result"))?;
+        let settle = |v: VertexKey| fused.get(&v).copied().unwrap_or(Cell::Vertex(v));
         // A bordered stretch settles on a seam edge: the zip made the
         // kept face's section edge one edge with the wall's. A held
         // stretch settles on the kept face's own edge, whichever it is.
@@ -143,7 +145,17 @@ impl<K: Ord + Clone> Obstacles<K> {
             ] {
                 for &(u, w) in stretches {
                     let (u, w) = (settle(u), settle(w));
-                    if let Some(es) = edges.get(&(u.min(w), u.max(w))) {
+                    let between = match (u, w) {
+                        (Cell::Vertex(u), Cell::Vertex(w)) => edges.get(&(u.min(w), u.max(w))),
+                        // An end the join deleted lies inside the joined
+                        // edge, and one the merge pruned inside the merged
+                        // face: neither ends an edge, so the stretch is
+                        // read through the joins or lies along none.
+                        (Cell::Edge(_) | Cell::Face(_), _) | (_, Cell::Edge(_) | Cell::Face(_)) => {
+                            None
+                        }
+                    };
+                    if let Some(es) = between {
                         seams.extend(es.iter().copied());
                     } else if let Some(e) = naming.stretch_through_joins(body, (u, w))
                         && (!seam_only || seam_edges.contains(&e))

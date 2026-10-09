@@ -264,6 +264,12 @@ pub struct BooleanNaming {
     /// Face absorption groups `(kept, absorbed…)`, result keys:
     /// `merge_coplanar_faces`'.
     pub merge_groups: Vec<(FaceKey, Vec<FaceKey>)>,
+    /// The vertices the merge deleted, `(vertex, kept face)` in kill
+    /// order, result keys: each lies inside its group's merged face once
+    /// the glue killed the edges around it (the dangling-seam pruning, or
+    /// a closed shared edge's vertex —
+    /// [`MergedGroup::killed_vertices`](crate::merge_faces::MergedGroup::killed_vertices)).
+    pub merge_killed_vertices: Vec<(VertexKey, FaceKey)>,
     /// Curved merge groups the output stage did NOT glue, as outside
     /// the merge's Euler inventory (M4 PR 5), and declared surface pairs
     /// the door has no rung for (a non-planar carrier) — the record's
@@ -328,17 +334,73 @@ pub struct BooleanNaming {
 }
 
 impl BooleanNaming {
-    /// Each result vertex an A-side weld or a zip fused away → the
-    /// vertex it finally fused into, following `vertex_merges` through
-    /// every hop (a discard's `bordered` ends are read through it). B-side
-    /// welds are not here: they killed B-clone keys before the graft, so
-    /// no result key names them (`weld_merges_b`).
-    #[must_use]
-    pub fn fused_into(&self) -> BTreeMap<VertexKey, VertexKey> {
+    /// Each result vertex an A-side weld or a zip fused away → the live
+    /// cell of `body` its point lies in (a discard's `bordered` ends are
+    /// read through it). The vertex it finally fused into, following
+    /// `vertex_merges` through every hop, is that cell while it lives. A
+    /// later stage can delete it without moving its point, and both such
+    /// stages record the kill: the output stage's join leaves the point
+    /// inside the joined edge ([`Cell::Edge`], read through
+    /// [`Self::joined_edge`]), and the merge's pruning leaves it inside
+    /// the merged face ([`Cell::Face`], through
+    /// `merge_killed_vertices`, the kept face followed through every
+    /// absorption in `merge_groups`). B-side welds are not here: they
+    /// killed B-clone keys before the graft, so no result key names them
+    /// (`weld_merges_b`).
+    ///
+    /// # Errors
+    ///
+    /// [`StaleFusion`] where a chase ends on a cell `body` does not hold:
+    /// a stage removed it without its row.
+    pub fn fused_into<T: Real>(
+        &self,
+        body: &Body<T>,
+    ) -> Result<BTreeMap<VertexKey, Cell>, StaleFusion> {
+        let joined = self.joined_into();
+        let pruned: BTreeMap<VertexKey, FaceKey> =
+            self.merge_killed_vertices.iter().copied().collect();
+        let absorbed_into: BTreeMap<FaceKey, FaceKey> = self
+            .merge_groups
+            .iter()
+            .flat_map(|(kept, absorbed)| absorbed.iter().map(move |&f| (f, *kept)))
+            .collect();
+        let kept_face = |mut f: FaceKey| {
+            // A group's kept face is no other group's absorbed face, so
+            // the walk ends; the bound only keeps a corrupt record finite.
+            for _ in 0..=absorbed_into.len() {
+                match absorbed_into.get(&f) {
+                    Some(&k) if k != f => f = k,
+                    _ => break,
+                }
+            }
+            f
+        };
         self.vertex_merges
             .rows()
             .iter()
-            .map(|&(dead, _)| (dead, self.vertex_merges.survivor(dead)))
+            .map(|&(dead, _)| {
+                let survivor = self.vertex_merges.survivor(dead);
+                let cell = if let Some(&edge) = joined.get(&survivor) {
+                    Cell::Edge(edge)
+                } else if let Some(&face) = pruned.get(&survivor) {
+                    Cell::Face(kept_face(face))
+                } else {
+                    Cell::Vertex(survivor)
+                };
+                let live = match cell {
+                    Cell::Vertex(v) => body.get_vertex(v).is_some(),
+                    Cell::Edge(e) => body.get_edge(e).is_some(),
+                    Cell::Face(f) => body.get_face(f).is_some(),
+                };
+                if live {
+                    Ok((dead, cell))
+                } else {
+                    Err(StaleFusion {
+                        vertex: dead,
+                        reached: cell,
+                    })
+                }
+            })
             .collect()
     }
 
@@ -360,33 +422,66 @@ impl BooleanNaming {
             .collect()
     }
 
-    /// The live edge a stretch between result vertices `u` and `w`
-    /// (fusions settled) lies along when a join removed either end: the
-    /// edge holding that end, where the other end is one of its ends or
-    /// is held by it too. `None` where neither end was joined away, or
-    /// the two do not lie along one edge.
+    /// The live edge a stretch between `u` and `w` lies along when a
+    /// join removed either end: the edge holding that end, where the
+    /// other end is one of its ends or is held by it too. Each end is a
+    /// result vertex, or the cell [`Self::fused_into`] settled it on: an
+    /// end inside an edge ([`Cell::Edge`]) is held by that edge, and an
+    /// end inside a face ([`Cell::Face`]) lies on no edge. `None` where
+    /// neither end was joined away, or the two do not lie along one edge.
     #[must_use]
     pub fn stretch_through_joins<T: Real>(
         &self,
         body: &Body<T>,
-        (u, w): (VertexKey, VertexKey),
+        (u, w): (Cell, Cell),
     ) -> Option<EdgeKey> {
         let joined = self.joined_into();
-        let on = |v: VertexKey, e: EdgeKey| {
-            joined.get(&v) == Some(&e)
-                || body.get_edge(e).is_some_and(|d| {
-                    [d.he_plus, d.he_minus]
-                        .into_iter()
-                        .any(|h| body.get_half_edge(h).is_some_and(|h| h.start == v))
-                })
+        let holder = |c: Cell| match c {
+            Cell::Vertex(v) => joined.get(&v).copied(),
+            Cell::Edge(e) => Some(e),
+            Cell::Face(_) => None,
         };
-        [joined.get(&u), joined.get(&w)]
+        let on = |c: Cell, e: EdgeKey| match c {
+            Cell::Vertex(v) => {
+                joined.get(&v) == Some(&e)
+                    || body.get_edge(e).is_some_and(|d| {
+                        [d.he_plus, d.he_minus]
+                            .into_iter()
+                            .any(|h| body.get_half_edge(h).is_some_and(|h| h.start == v))
+                    })
+            }
+            Cell::Edge(x) => x == e,
+            Cell::Face(_) => false,
+        };
+        [holder(u), holder(w)]
             .into_iter()
             .flatten()
-            .copied()
             .find(|&e| on(u, e) && on(w, e))
     }
 }
+
+/// A fused vertex whose chase through the naming's rows ends on a cell
+/// the result does not hold ([`BooleanNaming::fused_into`]): a stage
+/// deleted it without appending its row.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StaleFusion {
+    /// The fused vertex.
+    pub vertex: VertexKey,
+    /// The cell its chase reached.
+    pub reached: Cell,
+}
+
+impl core::fmt::Display for StaleFusion {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "a vertex the Boolean fused away settles on a cell its result does not hold. {}",
+            geom_core::KERNEL_DEFECT_ENDING
+        )
+    }
+}
+
+impl std::error::Error for StaleFusion {}
 
 /// The typed result of a boolean op: a body, or the typed empty
 /// success (F8: ∅ is a value, not an error).
@@ -752,6 +847,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         vertex_merges,
         weld_merges_b: fin.weld_merges_b,
         merge_groups: merge_rows(&merged),
+        merge_killed_vertices: merge_kill_rows(&merged),
         merge_skipped: merged.skipped.clone(),
         face_fragments_a: [connected.a_fragments, fin.weld_fragments_a].concat(),
         face_fragments_b: [connected.b_fragments, fin.weld_fragments_b].concat(),
@@ -1692,6 +1788,16 @@ pub(super) fn merge_rows(
     m.groups
         .iter()
         .map(|g| (g.kept, g.absorbed.clone()))
+        .collect()
+}
+
+/// The merge's vertex kills as naming rows, `(vertex, kept face)`.
+pub(super) fn merge_kill_rows(
+    m: &crate::merge_faces::MergeCoplanarOutcome,
+) -> Vec<(VertexKey, FaceKey)> {
+    m.groups
+        .iter()
+        .flat_map(|g| g.killed_vertices.iter().map(|&v| (v, g.kept)))
         .collect()
 }
 
@@ -4977,6 +5083,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 graft_dead_edges,
                 graft_faces,
                 merge_groups: merge_rows(&merged),
+                merge_killed_vertices: merge_kill_rows(&merged),
                 merge_skipped: merged.skipped.clone(),
                 reduction_contacts: red.contacts.clone(),
                 covered: red.covered.clone(),
@@ -5040,6 +5147,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             a_keys: OperandKeys::Direct,
             b_keys: OperandKeys::Absent,
             merge_groups: merge_rows(&merged),
+            merge_killed_vertices: merge_kill_rows(&merged),
             merge_skipped: merged.skipped.clone(),
             reduction_contacts: reduction_contacts.clone(),
             covered: covered.to_vec(),
@@ -5053,6 +5161,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             a_keys: OperandKeys::Absent,
             b_keys: OperandKeys::Direct,
             merge_groups: merge_rows(&merged),
+            merge_killed_vertices: merge_kill_rows(&merged),
             merge_skipped: merged.skipped.clone(),
             reduction_contacts: reduction_contacts.clone(),
             covered: covered.to_vec(),
