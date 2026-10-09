@@ -223,8 +223,7 @@ pub(super) fn recl_sectors<T: Decide>(
     let (n_a, n_b) = (a_sectors.len(), b_sectors.len());
     for i in 0..records.len() {
         let r = records[i];
-        let all_on = r.sa == (SideCode::On, SideCode::On) && r.sb == (SideCode::On, SideCode::On);
-        if !all_on {
+        if !r.coplanar() {
             continue;
         }
         let sa = &a_sectors[r.a];

@@ -85,3 +85,27 @@ agree. Outermost cones that disagree are a met and a joined cone side
 by side, whose material between them a reading of both would decide.
 Refuse typed for what no reading decides, as beside a partner that
 reads nothing, and report any cell main built that would then refuse.
+
+## Another witness (2026-10-09, TANG, the partner-along-the-face lane's sweep)
+
+Pairs alone beside two partners nested along a shared ray. The arch
+(`meeting::corners(60.0, 0.5, 0.4)`) less a void whose edge lies on the
+arch's edge to its first corner (the void over `mix(arch, [[1, 0, 0],
+[0.5, 0.3, 0.2], [0.5, 0.2, 0.3]], 0.7)`), against pyramids over it
+(`corners(50.0, 0.7, 0.5)`), in the void (`nest(void, 0.7)`) and beside
+it (`corners(240.0, 0.7, 0.5)`), every op, both orders, at every pose,
+ε = 1e-9: every cell builds, and its naming rows at `MEET`, read
+against the analytic germ (the harness of
+`crates/topo/tests/a_vertex_read_again_classes_every_edge.rs`), are
+doubled: 18, 12 and 12 edges per pose read both `In` and `Out`, as
+"over, at rest, x − y: A's edge at MEET reads [In, Out], the germ Out".
+None is wrong or missing.
+
+Inferred from the code, not instrumented: `layered_alone`'s `inside`
+holds a partner inside another only where every edge of it reads held,
+strictly, so a void sharing a ray with its arch reads inside nothing;
+both read outermost, met and joined disagree, and each pair's rows
+stand. The touch lane (`touch_classes`) reads the same nest right: the
+lying pyramid with a void on its ray along the top builds every row
+right against the germ (rows of that file, "a void on its ray").
+

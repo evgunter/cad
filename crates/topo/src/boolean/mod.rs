@@ -2387,9 +2387,11 @@ pub enum BooleanError {
     /// first read cannot be taken with the second: it pierces two faces
     /// of the other solid, or pierces one and coincides with a vertex of
     /// it while crossing the face, or while that vertex's link does not
-    /// lie strictly on one side of the face; or, in pairs alone, a
-    /// partner's cone reads nothing beside another partner's
-    /// (`vtxfac::pair_classes`). That other solid holds its
+    /// lie on one side of the face, meeting it along rays at most; or
+    /// where that link runs along the face, beside a sector of its own in
+    /// the face's plane or a sector pair the two read on one plane; or,
+    /// in pairs alone, a partner's cone reads nothing beside another
+    /// partner's (`vtxfac::pair_classes`). That other solid holds its
     /// own contact at the vertex's point: two of its faces meet there in
     /// their interiors, or a vertex of it rests on one of its faces. A
     /// vertex-on-face pass hangs struts at a vertex that crosses the

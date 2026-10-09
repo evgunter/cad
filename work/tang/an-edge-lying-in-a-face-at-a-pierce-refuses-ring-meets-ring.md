@@ -1,7 +1,7 @@
 ---
 id: an-edge-lying-in-a-face-at-a-pierce-refuses-ring-meets-ring
 kind: issue
-title: A prism whose side face holds another's edge at a pierce refuses ResultInvalid RingMeetsRing in six member orders
+title: A prism whose side face holds another's edge at a pierce refuses ResultInvalid RingMeetsRing in eight member orders
 status: open
 opened: 2026-10-08
 priority: P2
@@ -21,16 +21,19 @@ over the triangle from 0.3 at 80° and 260° to 0.4 at 350°. The third's
 side face holds the vertical line through (1.5, 1), in no other face's
 plane.
 
-Six left folds of `topo::union` refuse
+Eight left folds of `topo::union` refuse
 `ResultInvalid { errors: [RingMeetsRing { .. }] }`:
 
 - [2, 1, 3, 0], [3, 1, 2, 0], [1, 3, 2, 0] and [1, 2, 3, 0] at step 3;
-- [3, 2, 0, 1] and [2, 3, 0, 1] at step 2.
+- [3, 2, 0, 1] and [2, 3, 0, 1] at step 2;
+- [3, 2, 1, 0] and [2, 3, 1, 0] at step 3, since
+  `a-touching-vertex-beside-a-partner-along-the-face-refuses` read the
+  pair that refused `VertexReadTwice` at their step 2; that step now
+  builds sound (closed-form volume, tier 3, material probes).
 
 Every refusing step is the one that adds the plate to a body holding
-the third prism and the 120° prism. The same orders refuse identically on main (8fd03fce). Twelve orders build
-sound, and three more refuse `VertexReadTwice`
-(`a-touching-vertex-beside-a-partner-along-the-face-refuses`).
+the third prism and the 120° prism. The first six refuse identically
+on main (8fd03fce). Twelve orders build sound.
 
 Unmeasured: which ring meets which, and whether the result's ring
 placement or the classification before it is wrong. The tier-3 check
