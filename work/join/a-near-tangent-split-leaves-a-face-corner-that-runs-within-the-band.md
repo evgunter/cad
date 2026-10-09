@@ -2,12 +2,12 @@
 id: a-near-tangent-split-leaves-a-face-corner-that-runs-within-the-band
 kind: issue
 title: A near-tangent boolean leaves a face whose corner at the pierce point is 1e-8 to 1.6e-7 rad wide, so its two edges lie within the band for 0.06 to 1.0 from it; only the census's arithmetic keeps it from passing
-status: open
+status: dispatched
 opened: 2026-10-08
 priority: P0
 cost: H
-design: true
 refs: [near-tangent-boolean-results-ship-with-an-escalated-tier-3-census]
+branch: join/door-types-in-band-results
 ---
 
 ## What

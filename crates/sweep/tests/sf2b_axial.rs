@@ -3,7 +3,8 @@
 //!
 //! "It hollows" is not the claim. A corner solved to the WRONG point
 //! still produces a valid two-shell body — that is the whole reason
-//! `ReanchorOffCarrier` had to stay load-bearing through PR-2a — so
+//! the per-chart door's corner-gap refusal had to stay load-bearing
+//! through PR-2a — so
 //! each fixture here carries the exact volume of its cavity, derived in
 //! this file from the solid of revolution rather than read off the
 //! door. A wrong corner moves that number and nothing else has to

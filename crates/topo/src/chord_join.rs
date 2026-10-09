@@ -689,6 +689,9 @@ pub(crate) struct ChordJoiner {
     /// in the face it was in until a join connects it to a ring that is
     /// placed, and it moves to that ring's face.
     pending: SecondaryMap<LoopKey, ()>,
+    /// The 2-loop null faces [`Self::cut_core`] completed, which no later
+    /// kef takes as a side.
+    completed: SecondaryMap<FaceKey, ()>,
 }
 
 impl ChordJoiner {
@@ -699,6 +702,7 @@ impl ChordJoiner {
             fragments: Vec::new(),
             band,
             pending: SecondaryMap::new(),
+            completed: SecondaryMap::new(),
         }
     }
 
@@ -1585,12 +1589,12 @@ fn bool_planar_chord_spec<T: Decide>(
 ) -> Result<Option<EdgeCurveSpec<T>>, SplitJoinError> {
     if !matches!(
         wall,
-        geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. }
+        geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. } | geom::Surface::Cone { .. }
     ) {
         return Err(SplitJoinError::SectionInvariant {
             face,
-            what: "boolean planar-side germ partner is neither a cylinder nor a sphere (arm not \
-                   wired)",
+            what: "boolean planar-side germ partner is not a cylinder, a sphere or a cone (arm \
+                   not wired)",
         });
     }
     let (p_o, p_n) = match body.get_surface(plane_key) {
@@ -1629,7 +1633,7 @@ fn bool_planar_chord_spec<T: Decide>(
         SectionCase::Tangent(_) => {
             return Err(SplitJoinError::SectionInvariant {
                 face,
-                what: "tangent plane×cylinder germ pair in the boolean zip — a touching \
+                what: "tangent plane×wall germ pair in the boolean zip — a touching \
                        configuration, the typed frontier of the supported envelope",
             });
         }
@@ -3512,6 +3516,7 @@ impl ChordJoiner {
             // The last null edge of a section polygon: kemr leaves the
             // 2-loop null face.
             let result = body.kemr_minting(edge_data.he_plus, edge_data.he_minus, tol)?;
+            self.completed.insert(f_plus, ());
             Ok(CutOutcome::Completed {
                 face: f_plus,
                 ring: result.ring,
@@ -3520,6 +3525,18 @@ impl ChordJoiner {
             // Interior null edge: kef merges the two slivers. Kill a
             // sliver side (never a real face), deterministically
             // preferring he_plus's side.
+            //
+            // Neither side is a completed null face, though one sits in
+            // `slivers` and the boolean carries its key to quiescence
+            // unremapped: the edge's sides are the slivers its own
+            // polygon's chords walled off at its two ends, and a
+            // completed face is bounded by another polygon's two copies,
+            // which kemr left once that polygon's last null edge was cut.
+            debug_assert!(
+                !self.completed.contains_key(f_plus) && !self.completed.contains_key(f_minus),
+                "{} would kef a completed null face",
+                EntityId::Edge(edge)
+            );
             let victim = if self.slivers.contains_key(f_plus) {
                 edge_data.he_plus
             } else if self.slivers.contains_key(f_minus) {
