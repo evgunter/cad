@@ -204,3 +204,61 @@ it.** A flat family keeps one list kind, `[K]`: no `[[K]]` kind, and no rule tha
 flattens nested lists. `union` reads one family, and a member is one `xs[i, j]` read named
 `Member{(i, j), of}`. `within` still gives dependent bounds and the outer-first order, so
 nesting adds nothing except a second shape for the same family.
+
+## Round 4 (alignment with the settled S3M/S3P: #4326 f93423845, #4324 7147b6046)
+
+**1. Does #4341 still state a member's pose as an `Offset` or a pose family? D10 doesn't; the
+work item does.**
+- **D10, Repetition (655a81c60):** it is silent on how a member's pose is said, and it holds as
+  written.
+- **`work/intent/patterns-are-index-variables.md`:** it still builds pose families. Its
+  Migration section uses `translate(seat, dir, scalar(k)·spacing)`, `rotate(seat, axis, …)`,
+  "through `InFrame` poses" and "the anchor pose". Its Evaluation bullet still says "a
+  construction through a different frame per member". Both are now wrong:
+  - `rotate(seat, …)` needs a `Frame` whose spin is read off geometry. A face now reads only as
+    a plane, and no reader takes a carrier's reference direction, so no such frame exists.
+  - Even where one existed, it would be a second way to say a spin, now that placement values
+    set spins.
+
+**2. Is a pattern now a placement whose values are expressions in the index? Yes (sure).** The
+mates are the same for every member; only the values read `k`:
+- **ring:** an `Axis` mate, `spin = θ₀ + scalar(k)·turn/N`, `slide = 0`
+- **row:** a mate leaving one slide, along an `Axis` read off geometry, with `slide = scalar(k)·pitch` and `spin = 0`
+- **grid:** a `Plane` mate, with `slide₁ = scalar(i)·p₁`, `slide₂ = scalar(j)·p₂` (`j within i`), `spin = 0`
+
+No pose family is constructed. This also narrows the open E12 requirement. Two members under one
+`Axis` mate differ only by a spin about that axis. Ring closure is then a comparison of two
+`Angle` expressions modulo a turn, which the tier can do without ever forming a rotation matrix
+(likely, still unchecked).
+
+**3. What changes for mirror, member names and the façade helpers?**
+- **Mirror:** no change. `Mirror{body, plane}` reads a `Plane`, which a face gives.
+- **Member names:** no change. They stay `Member{(i, j), of}`.
+- **Façade helpers:** they change. Each writes the index, the mates and the value formulas
+  above, not a pose formula. The recogniser matches a placement under an index whose values are
+  affine in the index.
+
+**Exact text changes.**
+- **D10, Repetition:** after "Lockstep is one index read twice.", insert: "A pattern of copies
+  is a placement under an index: its mates are the same for every member and its values are
+  expressions in the index, so an `Axis` mate with `spin = scalar(k)·turn/N` is a ring and a
+  slide of `scalar(k)·pitch` a row; no pose family is constructed."
+- **Work item, Evaluation bullet:** replace "a construction through a different frame per
+  member is built per member (D9 convention 4: …)" with "a construction reads no frame, so a
+  feature at several positions is one body placed per member; a construction is built per
+  member only when its own inputs read the index".
+- **Work item, Façade bullet:** replace "`circular_pattern` defaults the step to `turn/N`" with
+  "`circular_pattern` writes an `Axis` mate and `spin = scalar(k)·turn/N` (a free `Angle` step
+  only when one is typed); `linear_pattern` a one-slide mate and `slide = scalar(k)·pitch`;
+  `grid` a `Plane` mate and two slides over `i` and `j within i`; the recogniser matches a
+  placement under an index whose values are affine in it".
+- **Work item, Migration:** replace the pose formulas with:
+  - "`Linear` → `k = index(N)`, a placement of the master with an `Axis` mate along the stored
+    direction (read off geometry: the anchor #4326 requires) and `slide = scalar(k)·spacing`,
+    `spin = 0`";
+  - "`Circular` → an `Axis` mate on the stored axis, `spin = scalar(k)·step` (stored step kept;
+    the lint proposes `turn/N`), `slide = 0`";
+  - "`PlacedUnion(Explicit(frames))` → one placement per listed frame, its mates and values
+    written out, gathered by `union`".
+- **Work item, Unchecked requirement:** add "two members under one `Axis` mate differ by a spin,
+  so closure is an `Angle` comparison modulo a turn, not a matrix identity".
