@@ -1351,3 +1351,7 @@ coincidence is now a margined verdict (no declarations), checked by the
 - 2026-10-09 — PR 4367 (P2 offset-fit NaN folds) merged at `53c0a00cc4`; row closed. No construction-time row for `NurbsSurface::new`: evaluators are total by design (`NetState::Poisoned`) and the certification door is the catch point.
 - 2026-10-09 — Dispatched P2 `the-role-reads-certified-volume-enclosure-straddles-zero-on-a-sliver-shell` (`encl/shell-volume-local-origin`); props.rs is TALLY ground, so I announced it on their log. No TALLY unit is live.
 - 2026-10-09 — Dispatched P3 E `shell-wall-meets-curvature-reads-as-an-offset-distance` (`encl/shell-wall-curvature-recourse`), announced on SHELL's log.
+- 2026-10-09 — Main was red on two counts, and I opened evgunter/cad#4380 to restore it:
+  - **The build:** `topo` stopped compiling when CONTACT PRs 4363 and 4372 met (`ContainError::Escalated` became a struct variant, and `census.rs` passed a `ReadEscalation` where an `Indeterminate` is held). The fix is two lines; both sites read `diag`.
+  - **The geom-core `certified_endpoint_census`:** it has been red since my PR 4367 added endpoint reads to `offset_fit.rs` without updating the roster. Another session's PR 4378 fixes the roster, and 4380 merges it in.
+  - Lesson: a unit that adds `.lo()`/`.hi()` reads in a certification file must run `cargo nextest run -p geom-core --test all -E 'test(certified_endpoint_census)'`; the PR's own CI filter did not.
