@@ -2879,12 +2879,12 @@ fn block_cell_sums(cuts: &[f64], edges: &[f64]) -> Vec<(f64, f64)> {
 ///    point at `pieces` is `lo + (hi − lo)·(i/pieces)`, and at
 ///    `2·pieces` the same point is `lo + (hi − lo)·(2i/(2·pieces))`
 ///    — the same correctly rounded quotient, hence the same f64 —
-///    while the mandatory cuts (the knots, the block edges) are the
+///    while the mandatory cuts (the knots) and the block edges are the
 ///    same at every round and the clearance that drops a grid point
-///    beside one ([`algebra::GRID_CLEARANCE`] of the spacing) only
-///    shrinks, so a point kept at round `r` is kept at `r + 1`. So
-///    every cut of round `r` is a cut of round `r + 1`, every cell of round `r + 1` lies inside a cell of
-///    round `r`, and per block `Σh³` cannot grow (splitting `h` into
+///    beside a knot ([`algebra::grid_clearance`]) only shrinks, so a
+///    point kept at round `r` is kept at `r + 1`. So every cut of
+///    round `r` is a cut of round `r + 1`, every cell of round `r + 1`
+///    lies inside a cell of round `r`, and per block `Σh³` cannot grow (splitting `h` into
 ///    parts gives `Σ parts³ ≤ h³`) while `Σh` is the block's extent.
 ///    Facts 1–3 applied at round `r` bound round `r`'s width from
 ///    below by round `r`'s separable sum, which is at least the last
@@ -6956,8 +6956,9 @@ mod tests {
     /// expected vector is written out by hand.
     #[test]
     fn refine_dir_skips_a_grid_point_up_to_the_clearance_from_a_knot() {
-        let near = 0.0625 + 1.0 / 4096.0;
-        let clear = (0.375 + 1.0 / 4096.0f64).next_up();
+        let c = algebra::grid_clearance(0.0, 1.0, QUAD2_REFINE_SPANS);
+        let near = 0.0625 + c;
+        let clear = (0.375 + c).next_up();
         let kv =
             KnotVector::clamped(vec![0.0, 0.0, 0.0, near, clear, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
         #[allow(clippy::cast_precision_loss)]
@@ -7018,9 +7019,9 @@ mod tests {
 
     /// `refine_dir`'s width has no cliff at any distance of a stated
     /// knot from a grid point: with the quarter cylinder split at every
-    /// offset of [`crate::grid_offsets::knot_offsets`] from `1/16`, the
-    /// round-0 flux and area widths stay within `1.25×` of the split ON
-    /// `1/16`. A grid point inserted at a gap `g` beside the knot opens
+    /// offset of [`crate::grid_offsets::knot_offsets`] from the first
+    /// point of the [`QUAD2_REFINE_SPANS`] grid, the round-0 flux and
+    /// area widths stay within `1.25×` of the split ON it. A grid point inserted at a gap `g` beside the knot opens
     /// a span of width `g`, whose derivative hulls carry the inserted
     /// point's rounding over `g` — an excess decaying as `1/g`, so a
     /// skip rule that clears too little goes red at the first offset
@@ -7028,12 +7029,12 @@ mod tests {
     #[test]
     fn the_refine_grid_enclosure_has_no_cliff_at_any_knot_offset() {
         let truth = core::f64::consts::PI;
-        let on = quarter_cylinder_split_at(0.0625);
-        let rows: Vec<(String, FaceCutBounds)> =
-            crate::grid_offsets::knot_offsets(0.0625, 1.0 / 16.0)
-                .into_iter()
-                .map(|(label, k)| (label, quarter_cylinder_split_at(k)))
-                .collect();
+        let (g, offsets) = crate::grid_offsets::knot_offsets(QUAD2_REFINE_SPANS, 1);
+        let on = quarter_cylinder_split_at(g);
+        let rows: Vec<(String, FaceCutBounds)> = offsets
+            .into_iter()
+            .map(|(label, k)| (label, quarter_cylinder_split_at(k)))
+            .collect();
         let table: String = rows
             .iter()
             .map(|(label, b)| {
@@ -7185,7 +7186,7 @@ mod tests {
                 0.7
             ]
         );
-        let clearance: f64 = (hi - lo) / 16.0 * algebra::GRID_CLEARANCE;
+        let clearance = algebra::grid_clearance(lo, hi, 16);
         let inside = 0.2875 + clearance;
         let outside = (0.5125 + clearance).next_up();
         assert_eq!(inside, 0.287_646_484_374_999_96);

@@ -24,7 +24,8 @@ when the OQ4-aligned fit is not taken and the two were fitted
 separately to the same feature.
 
 PR 4438 measured the same span shape elsewhere: on the props lane, a
-round-0 width excess of `≈ 1.7e-15 / g`; on the box chain, an axis
+round-0 width excess decaying as `1/g` (the rate is in
+`GRID_CLEARANCE`'s doc); on the box chain, an axis
 error of `≈ 2e-18 / g`. Whether the composite's per-span Bernstein
 hulls are hurt depends on whether that decomposition divides by span
 width. Value hulls of a Bézier piece should not be, so this may cost

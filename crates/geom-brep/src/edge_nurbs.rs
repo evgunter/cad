@@ -1504,8 +1504,9 @@ mod tests {
     /// control point fewer takes the grid.
     #[test]
     fn localized_skips_a_grid_point_up_to_the_clearance_per_direction_with_its_cut_off() {
-        let near = 0.0625 + 1.0 / 4096.0;
-        let clear = (0.375 + 1.0 / 4096.0f64).next_up();
+        let c = geom_core::spline::algebra::grid_clearance(0.0, 1.0, PXN_WALL_SPANS);
+        let near = 0.0625 + c;
+        let clear = (0.375 + c).next_up();
         let at = deg2(&odd64(15));
         assert_eq!(at.control_count(), PXN_WALL_SPANS + 2);
         let out = localized(&wall(deg2(&[near, clear, 0.5]), at.clone()));
@@ -1525,7 +1526,8 @@ mod tests {
 
     /// `localized`'s wall has no cliff at any distance of a stated knot
     /// from a grid point: a degree-1 ruled wall bent at every offset of
-    /// [`crate::grid_offsets::knot_offsets`] from `1/16` keeps every
+    /// [`crate::grid_offsets::knot_offsets`] from the first point of the
+    /// [`PXN_WALL_SPANS`] grid keeps every
     /// span's `u` difference quotient within `1e-9` of the slope of the
     /// leg it lies on. That quotient is the derivative net each cell of
     /// the tube's chart readings is built from. It is read directly
@@ -1535,7 +1537,8 @@ mod tests {
     /// point's rounding by `g`.
     #[test]
     fn the_wall_grid_derivative_net_has_no_cliff_at_any_knot_offset() {
-        let rows: Vec<(String, f64)> = crate::grid_offsets::knot_offsets(0.0625, 1.0 / 16.0)
+        let (_, offsets) = crate::grid_offsets::knot_offsets(PXN_WALL_SPANS, 1);
+        let rows: Vec<(String, f64)> = offsets
             .into_iter()
             .map(|(label, k)| {
                 let ku = KnotVector::clamped(vec![0.0, 0.0, k, 1.0, 1.0], 1).unwrap();

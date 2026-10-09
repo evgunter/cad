@@ -12,8 +12,8 @@ refs: [4438]
 Filed by NURBS (`nurbs/refine-dir-hairline`, PR 4438) from its review.
 That PR made the domain-uniform refinement grid drop a grid point near
 a knot, because a span `g` wide carries rounding over `g` into every
-derivative read off it (measured there: an enclosure width growing as
-`≈ 1.7e-15 / g`, 47× at `g ≈ 2e-15`). The same span can be minted
+derivative read off it (the measured rate is in
+`geom_core::spline::algebra::GRID_CLEARANCE`'s doc). The same span can be minted
 elsewhere, and by the kernel itself rather than by input.
 
 `sweep::skin`'s `make_compatible` (`crates/sweep/src/skin.rs`, the

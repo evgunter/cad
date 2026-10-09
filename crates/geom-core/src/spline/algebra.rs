@@ -674,30 +674,50 @@ pub fn equal_split_plan(
 /// How close a grid point may come to a mandatory point (a knot, a
 /// caller's cut) before it is dropped, as a FRACTION OF THE GRID'S OWN
 /// SPACING `|hi − lo|/pieces`: the clearance of [`domain_grid_points`]
-/// and [`range_grid_points`].
+/// and [`range_grid_points`], spelled out by [`grid_clearance`].
 ///
-/// The grid points are optional — they only subdivide — so dropping one
-/// costs nothing a consumer can see: the span it would have closed runs
-/// on to the mandatory point beside it and is at most `(1 + f)` grid
-/// spacings wide. Keeping one costs a span as narrow as the gap between
-/// it and the mandatory point, and a span of width `g` carries the
-/// inserted point's rounding over `g` into every derivative read off
-/// it. Measured on the rational quarter cylinder (`geom-brep`'s
-/// `props::quad` no-cliff row, split one gap `g` above a `1/16` grid
-/// point), the round-0 flux width grows by `≈ 1.7e-15 / g` over the
-/// on-grid `2.0e-2`: `47×` at `g ≈ 1.8e-15`, still `1.8×` at `1e-13`.
-/// That is why the clearance is a fraction of the spacing and not a
-/// count of ulps: the excess decays as `1/g`, so no ulp count is the
-/// "whole width of the defect".
+/// Grid points only subdivide, so either choice is sound; each costs
+/// width.
 ///
-/// `2⁻⁸` puts the narrowest span the grid can mint beside a mandatory
-/// point at `spacing/256` — `2.4e-4` on that row, where the measured law
-/// gives an excess of `7e-12`, a few parts in `10¹⁰` of the width — and
-/// lets the widest grow by under 0.4%. It is exact in binary, so the
-/// clearance rounds once. It is NOT a tolerance in the ε sense: no
-/// input's meaning depends on it, only whether one optional subdivision
-/// is taken.
+/// * **Skipping** one lets the span it would have closed run on to the
+///   mandatory point: at most `(1 + f)` spacings, under 0.4% wider at
+///   `f = 2⁻⁸`.
+/// * **Inserting** one at a gap `g` opens a span `g` wide, and every
+///   derivative read off it carries the inserted point's rounding over
+///   `g`. That excess grows as `1/g` without bound as the gap closes,
+///   which is why the clearance is a fraction of the spacing and not a
+///   count of ulps.
+///
+/// A measurement, not a guarded contract: on the rational quarter
+/// cylinder split a gap `g` above a point of the 16-span grid
+/// (`geom-brep`'s `props::quad` row
+/// `the_refine_grid_enclosure_has_no_cliff_at_any_knot_offset`), the
+/// round-0 flux width with the point inserted exceeds the on-grid
+/// `2.0e-2` by about `1.7e-15 / g` over `g` from `1.8e-15` (`47×`) to
+/// `1e-8`; with it skipped the width is about 0.2% wider than inserted
+/// at gaps of `1e-10` and more, and the two cross near `g ≈ 4e-11`. That
+/// row asserts only that no offset leaves `1.25×` of on-grid, so the
+/// law and the crossover are unguarded: they are the evidence for `f`,
+/// and nothing reads them.
+///
+/// `2⁻⁸` skips every gap below `spacing/256` — far past that crossover,
+/// paying the skip's few-tenths-of-a-percent there for decades of
+/// margin over the `1/g` regime on grids and consumers the row does not
+/// measure. It is exact in binary, so the clearance rounds once. It is
+/// NOT a tolerance in the ε sense: no input's meaning depends on it,
+/// only whether one optional subdivision is taken.
 pub const GRID_CLEARANCE: f64 = 1.0 / 256.0;
+
+/// The clearance of the `pieces`-span grid on `[lo, hi]`:
+/// [`GRID_CLEARANCE`] of its spacing `|hi − lo|/pieces`. A grid point
+/// within this of a mandatory point, inclusive, is dropped by
+/// [`range_grid_points`].
+#[must_use]
+pub fn grid_clearance(lo: f64, hi: f64, pieces: usize) -> f64 {
+    #[allow(clippy::cast_precision_loss)]
+    let spacing = (hi - lo).abs() / pieces as f64;
+    spacing * GRID_CLEARANCE
+}
 
 /// **The domain-uniform grid**: the interior points
 /// `lo + (hi − lo)·k/pieces`, `0 < k < pieces`, of the vector's DOMAIN
@@ -727,8 +747,8 @@ pub fn domain_grid_points(kv: &KnotVector, pieces: usize) -> Vec<f64> {
 /// **The range-uniform grid** under [`domain_grid_points`]: the
 /// interior points `lo + (hi − lo)·k/pieces`, `0 < k < pieces`, of an
 /// arbitrary range `[lo, hi]`, ascending, minus every point that falls
-/// outside the open range or within `GRID_CLEARANCE · |hi − lo|/pieces`
-/// of a point of `mandatory`.
+/// outside the open range or within [`grid_clearance`] of a point of
+/// `mandatory`.
 ///
 /// `mandatory` is whatever set the grid must defer to, and it is not
 /// the grid's to widen: [`domain_grid_points`] passes a vector's
@@ -741,15 +761,13 @@ pub fn domain_grid_points(kv: &KnotVector, pieces: usize) -> Vec<f64> {
 /// The clearance scales with the grid's spacing, so a coarser grid
 /// clears more: a point a coarse grid shares with a finer one (the
 /// counts dividing) is dropped by the finer grid only if the coarser
-/// one drops it too. A caller that needs every coarse point to be a
-/// fine one as well — cells nested in blocks — gets that from this
-/// order.
+/// one drops it too. So doubling `pieces` keeps every point the
+/// coarser grid kept.
 ///
 /// `pieces` of 0 or 1 yields none.
 #[must_use]
 pub fn range_grid_points(lo: f64, hi: f64, pieces: usize, mandatory: &[f64]) -> Vec<f64> {
-    #[allow(clippy::cast_precision_loss)]
-    let clearance = (hi - lo).abs() / pieces as f64 * GRID_CLEARANCE;
+    let clearance = grid_clearance(lo, hi, pieces);
     (1..pieces)
         .filter_map(|k| {
             #[allow(clippy::cast_precision_loss)]
@@ -1270,8 +1288,8 @@ mod tests {
                 0.653_846_153_846_153_9
             ]
         );
-        // A finite width near `f64::MAX`: the clearance is
-        // `|hi − lo|/pieces·GRID_CLEARANCE`, finite, so a grid point
+        // A finite width near `f64::MAX`: `grid_clearance` divides
+        // before it scales, so it is finite and a grid point
         // clear of the knot stands.
         let big = f64::MAX / 2.0;
         let huge = KnotVector::clamped(vec![-big, -big, 0.5 * big, big, big], 1).unwrap();

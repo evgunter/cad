@@ -1917,8 +1917,9 @@ mod tests {
     /// above `12/32` leaves `12/32` standing.
     #[test]
     fn refined_skips_a_grid_point_up_to_the_clearance_from_a_knot() {
-        let near = 0.0625 + 1.0 / 8192.0;
-        let clear = (0.375 + 1.0 / 8192.0f64).next_up();
+        let c = geom_core::spline::algebra::grid_clearance(0.0, 1.0, super::SSI_CERT_SPANS);
+        let near = 0.0625 + c;
+        let clear = (0.375 + c).next_up();
         let fine = super::refined(&carrier(&[near, clear, 0.5]));
         let mut want = vec![0.0, 0.0, 0.0, near, clear];
         want.extend((1..32).filter(|&k| k != 2).map(|k| f64::from(k) / 32.0));
@@ -1929,7 +1930,8 @@ mod tests {
 
     /// `refined`'s box chain has no cliff at any distance of a stated
     /// knot from a grid point: a degree-1 carrier bent at every offset
-    /// of [`crate::grid_offsets::knot_offsets`] from `2/32` gives every
+    /// of [`crate::grid_offsets::knot_offsets`] from the second point of
+    /// the [`super::SSI_CERT_SPANS`] grid gives every
     /// box the direction of the leg it lies on as its axis, to `1e-10`.
     /// A grid point inserted at a gap `g` beside the bend opens a span
     /// of width `g` whose tangent is the inserted point's rounding over
@@ -1947,7 +1949,8 @@ mod tests {
             d.map(|x| x / n)
         };
         let legs = [unit(bend), unit([0.1, 0.9, 0.7])];
-        let rows: Vec<(String, f64, usize)> = crate::grid_offsets::knot_offsets(0.0625, 1.0 / 32.0)
+        let (_, offsets) = crate::grid_offsets::knot_offsets(super::SSI_CERT_SPANS, 2);
+        let rows: Vec<(String, f64, usize)> = offsets
             .into_iter()
             .map(|(label, k)| {
                 let kv = KnotVector::clamped(vec![0.0, 0.0, k, 1.0, 1.0], 1).unwrap();
@@ -1979,7 +1982,10 @@ mod tests {
             })
             .collect();
         for (label, worst, n) in &rows {
-            assert!(*n >= 32, "knot {label}: {n} boxes{table}");
+            assert!(
+                *n >= super::SSI_CERT_SPANS,
+                "knot {label}: {n} boxes{table}"
+            );
             assert!(*worst < 1e-10, "knot {label}: an axis left its leg{table}");
         }
     }
@@ -1991,7 +1997,7 @@ mod tests {
     /// further below `20/32` leaves it standing with every other 32nd.
     #[test]
     fn chart_breaks_skip_a_grid_point_up_to_the_clearance_from_either_curves_knot() {
-        let c = 1.0f64 / 8192.0;
+        let c = geom_core::spline::algebra::grid_clearance(0.0, 1.0, super::SSI_CERT_SPANS);
         let above = 0.0625 + c;
         let below = 0.375 - c;
         let past = (0.625 - c).next_down();

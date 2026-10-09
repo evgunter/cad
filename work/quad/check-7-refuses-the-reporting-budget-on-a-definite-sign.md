@@ -158,9 +158,8 @@ inserts a refinement point or a cut beside a knot it nearly sits on.
 `props::quad::refine_dir`, `knot_aligned_cuts` and `bezier_blocks` all
 take the grid, and before the change each one could mint a span a few
 `1e-15` to `1e-12` wide. A span `g` wide carries rounding over `g`
-into the second-derivative hulls round 0 reads. On the PR's quarter
-cylinder that excess was `≈ 1.7e-15 / g` of flux width (`47×` the
-on-grid width at `g ≈ 2e-15`).
+into the second-derivative hulls round 0 reads; `GRID_CLEARANCE`'s
+doc gives the rate measured on the PR's quarter cylinder.
 
 Measured on the release tour at that PR's head, with every ε row the
 tour runs:

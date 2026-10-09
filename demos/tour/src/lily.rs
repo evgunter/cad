@@ -1293,7 +1293,7 @@ fn try_lofted_blade<S: Scalar>(
     )
 }
 
-/// Probe 15's attempt: the long basal leaf lofted exactly as the scene
+/// Probe 16's attempt: the long basal leaf lofted exactly as the scene
 /// lofts it, each section of [`leaf_a_plan`] said as the [`Lance`] of
 /// its own width, ridge and keel — then asked of the gate.
 fn try_lofted_lance<S: Scalar>(tol: Tol) -> Result<(), Vec<pncad::topo::ValidationError>> {
@@ -2585,19 +2585,22 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         assert_eq!(outcome.groups.len(), 0, "no cap arrives split");
     }
 
-    println!(
-        "   wall 15 — RETIRED: the swept leaves are fitted at the cubic degree \
-         the lofted blades use, and certify at tier 3 with the scene"
-    );
+    // 15 — RETIRED. The swept leaves fit at `BLADE_V_DEGREE`, and the
+    //      tour's own gate (`gated` in `main.rs`) holds every body to
+    //      tier 3 at each ε row the tour runs, so no probe repeats it.
 
     // 16. The lofted blades with the swept leaves' lens. They skin,
     //     validate at tiers 1-2 and mesh; tier 3 refuses them on the
-    //     reporting budget. Measured on the long leaf at 5, 9,
-    //     17 and 33 stations and degrees 2 and 3, and with each arc
-    //     split in two; on the three sepals, about 2.7 m out, at the
-    //     scene's 13 stations and at 33. Every one of those refuses but
-    //     three, which admit a bracket about 2.5x wide; none certifies
-    //     a number. So the lofted blades keep their straight
+    //     reporting budget. The variant census below was measured on
+    //     2026-10-02, under the domain grid's earlier ulp-count
+    //     clearance, and has not been re-measured under the
+    //     spacing-fraction clearance (`grid_clearance`): the long leaf
+    //     at 5, 9, 17 and 33 stations and degrees 2 and 3, and with
+    //     each arc split in two; the three sepals, about 2.7 m out, at
+    //     the scene's 13 stations and at 33. Every one of those refused
+    //     but three, which admitted a bracket about 2.5x wide; none
+    //     certified a number. The scene's own setting is what this probe
+    //     re-asks at every run. So the lofted blades keep their straight
     //     kite-and-rectangle sections.
     crate::walls::wall_from_default_eps(
         "lily",
