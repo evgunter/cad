@@ -5,8 +5,9 @@
 //! lump at both wall sites; declared `Tangent` pairs descend to the
 //! second-order sector trilean, save a union whose ruling runs through
 //! a plane face's interior, which refuses until the doubled-slit arm
-//! is built. Undeclared touching refuses forever,
-//! typed — the door only widens what a verified declaration unlocks.
+//! is built. Undeclared touching whose margins decide one carrier
+//! glues as the declared pair would (D10): the boolean declares it
+//! itself.
 //!
 //! The canonical reachability fixture is the two-peg kernel shape's
 //! core: a bored plate (through-hole subtract) and an exactly-filling
@@ -15,6 +16,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::outcomes::outcome;
 use crate::common::operands::{slab as plate, three_arc_cylinder};
 use crate::common::three_arc;
 use geom_core::k_stats::Bracket;
@@ -78,28 +80,37 @@ fn wall_declarations(a: &Body<f64>, b: &Body<f64>, class: ContactClass) -> Boole
     decls
 }
 
-/// C8, the invariant half: the same touching geometry WITHOUT a
-/// declaration keeps its typed refusal — value equality never glues,
-/// and the reduction rung's frontier doors are verbatim on undeclared
-/// incidences.
+/// D10: the same touching geometry WITHOUT a declaration is the declared
+/// union bit for bit. The bore and peg walls are one carrier by margin,
+/// so the boolean declares them `Rest` itself, with the flush ends
+/// declared or not.
 #[test]
-fn undeclared_touching_curved_pair_still_refuses_typed() {
+fn undeclared_touching_curved_pair_is_the_declared_union() {
     let bored = bored_plate();
     let peg = cyl(0.0, 1.0, 0.5);
-    // The peg's ends are flush with the plate's faces — continuations,
-    // declared; the wall pair is not.
-    let flush = crate::mate2_common::continuations(&bored, &peg);
-    let err = topo::union_with(&bored, &peg, &flush, Tol::witness())
-        .expect_err("an undeclared exactly-filling peg must refuse");
-    // The SAME typed refusal, at the SAME site, as before this unit
-    // opened the declared rung: the sweep's curved frontier door on
-    // the on-carrier rim circle (the spike's run-1 measurement of the
-    // undeclared posture — bool_conic_curved_clearance decides Zero,
-    // the frontier door fires).
-    assert!(
-        matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
-        "the undeclared refusal stays at the classification frontier, typed: {err:?}"
+    let want = topo::union_with(
+        &bored,
+        &peg,
+        &wall_declarations(&bored, &peg, ContactClass::Rest),
+        Tol::witness(),
     );
+    assert!(
+        matches!(want, Ok(BooleanResult::Body(_))),
+        "the declared exactly-filling union builds: {want:?}"
+    );
+    for (posture, d) in [
+        (
+            "the flush ends declared",
+            crate::mate2_common::continuations(&bored, &peg),
+        ),
+        ("undeclared", BooleanDeclarations::none()),
+    ] {
+        assert_eq!(
+            outcome(&topo::union_with(&bored, &peg, &d, Tol::witness())),
+            outcome(&want),
+            "{posture}: the declared union"
+        );
+    }
 }
 
 /// The opened wall: with the nine bore×peg wall pairs declared `Rest`,

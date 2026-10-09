@@ -18,6 +18,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::outcomes::outcome;
 use geom_core::{Point2, Tol};
 use profile::{Open, ProfileLoop, RawLoop, Start};
 use sweep::test_support::{extruded, finished, sketch_at};
@@ -185,16 +186,6 @@ fn union_honest(
         "{label}: tier 3′"
     );
     bb
-}
-
-/// One outcome of a boolean, as its `Debug`: the body bit for bit, an
-/// empty result, or the refusal.
-fn outcome(out: &Result<BooleanResult<f64>, BooleanError>) -> String {
-    match out {
-        Ok(BooleanResult::Body(bb)) => format!("Body({:?})", bb.body),
-        Ok(BooleanResult::Empty) => "Empty".to_owned(),
-        Err(e) => format!("Err({e:?})"),
-    }
 }
 
 /// **An undeclared continuation glues to the declared body, on a plane

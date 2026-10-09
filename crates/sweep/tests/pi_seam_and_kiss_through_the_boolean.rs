@@ -57,6 +57,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::outcomes::outcome;
 use core::f64::consts::PI;
 
 use crate::common::seam_pairs::meeting;
@@ -1037,7 +1038,7 @@ fn a_cap_abutting_on_the_rim_refuses_at_a_graze_or_as_an_undeclared_continuation
                     .push(FacePairDeclaration::continuation(fa, fb));
             }
         }
-        let want = format!("{:?}", topo::union_with(x, y, &d, Tol::witness()));
+        let want = outcome(&topo::union_with(x, y, &d, Tol::witness()));
         for (posture, r) in [
             ("undeclared", topo::union(x, y, Tol::witness())),
             (
@@ -1051,7 +1052,7 @@ fn a_cap_abutting_on_the_rim_refuses_at_a_graze_or_as_an_undeclared_continuation
             ),
         ] {
             assert_eq!(
-                format!("{r:?}"),
+                outcome(&r),
                 want,
                 "stacked, {posture}, order {order}: the declared union"
             );

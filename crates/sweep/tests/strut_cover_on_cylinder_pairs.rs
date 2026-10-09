@@ -33,6 +33,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::outcomes::outcome;
 use core::f64::consts::PI;
 use geom::SurfaceKind;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
@@ -328,8 +329,8 @@ fn the_arc_joint_stacks_refuse_at_the_crossing_layer() {
             let declared = topo::union_with(a, b, &d, tol());
             let r = topo::union(a, b, tol());
             assert_eq!(
-                format!("{r:?}"),
-                format!("{declared:?}"),
+                outcome(&r),
+                outcome(&declared),
                 "{label}, ∪ undeclared: the declared refusal"
             );
         }
@@ -553,8 +554,8 @@ fn the_capsules_strut_waits_at_the_crossing_layer() {
             );
             let r = topo::union(a, b, tol());
             assert_eq!(
-                format!("{r:?}"),
-                format!("{declared:?}"),
+                outcome(&r),
+                outcome(&declared),
                 "{pose}, {order}, undeclared: the declared refusal"
             );
         }

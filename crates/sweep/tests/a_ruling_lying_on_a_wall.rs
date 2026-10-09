@@ -19,6 +19,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::outcomes::outcome;
 use core::f64::consts::PI;
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
@@ -105,6 +106,34 @@ fn six(
         ("t ∩ b", topo::intersect_with(t, b, &none, tol)),
         ("b ∩ t", topo::intersect_with(b, t, &none, tol)),
     ]
+}
+
+/// The wall (cylinder) faces of `b`.
+fn walls(b: &AtRestBody<f64>) -> Vec<topo::FaceKey> {
+    b.faces()
+        .filter(|(_, f)| {
+            matches!(
+                b.get_surface(f.surface),
+                Some(geom::Surface::Cylinder { .. })
+            )
+        })
+        .map(|(k, _)| k)
+        .collect()
+}
+
+/// Every pair of `x`'s and `y`'s wall faces declared a continuation.
+fn continued(x: &AtRestBody<f64>, y: &AtRestBody<f64>) -> BooleanDeclarations {
+    let mut d = BooleanDeclarations::none();
+    for fa in walls(x) {
+        for fb in walls(y) {
+            d.coincident_faces.push(topo::FacePairDeclaration::new(
+                fa,
+                fb,
+                topo::BooleanCoincidence::Continuation,
+            ));
+        }
+    }
+    d
 }
 
 /// `(faces, edges, vertices, shells)`.
@@ -373,18 +402,17 @@ fn a_ruling_across_an_ellipse_builds_every_op_undeclared() {
     }
 }
 
-/// **A ruling whose own face shares the wall's carrier keeps the door.**
-/// A long tube `t` (`z ∈ [0, 4]`) and a coaxial tube `b` of the same
-/// radius (`z ∈ [1, 3]`, turned `0.4` rad so no seam ruling of one lies
-/// on the other's), their caps apart. `t`'s seam rulings lie on `b`'s
-/// wall, and so does each of its wall faces: the ruling is not a curve
-/// where two carriers meet, and the lying-on lane does not take it.
-/// Swept first, `t`'s edges reach `b`'s wall only through the rulings
-/// (its rims lie beyond `b`), so every op with `t` first refuses on a
-/// fragment of a ruling of `t`. With `b` first, `b`'s rim, which lies
-/// on `t`'s wall the same way, refuses first.
+/// **A ruling whose own face shares the wall's carrier glues as the
+/// continuation it is.** A long tube `t` (`z ∈ [0, 4]`) and a coaxial
+/// tube `b` of the same radius (`z ∈ [1, 3]`, turned `0.4` rad so no
+/// seam ruling of one lies on the other's), their caps apart. `t`'s
+/// seam rulings lie on `b`'s wall, and so does each of its wall faces:
+/// the ruling is not a curve where two carriers meet, and the lying-on
+/// lane does not take it. The walls are one carrier by margin, so every
+/// op, undeclared, is the op with every wall pair declared a
+/// continuation (D10).
 #[test]
-fn a_ruling_whose_face_shares_the_walls_carrier_keeps_the_door() {
+fn a_ruling_whose_face_shares_the_walls_carrier_is_the_declared_continuation() {
     let tol = Tol::witness();
     let t = rod_z(0.0, 4.0);
     let spin = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), 0.4);
@@ -393,15 +421,18 @@ fn a_ruling_whose_face_shares_the_walls_carrier_keeps_the_door() {
         topo::transform_rigid(&rod_z(1.0, H), &spin, tol).unwrap(),
         tol,
     );
-    for (op, r) in six(&t, &b) {
-        let Err(BooleanError::CurvedPierceUnsupported { operand, .. }) = r else {
-            panic!("{op}: the crossing layer's door: {r:?}");
-        };
-        assert_eq!(
-            operand,
-            topo::Operand::A,
-            "{op}: on the first member's edge (t's ruling, or b's rim)"
-        );
+    let (tb, bt) = (continued(&t, &b), continued(&b, &t));
+    let declared = [
+        topo::union_with(&t, &b, &tb, tol),
+        topo::union_with(&b, &t, &bt, tol),
+        topo::subtract_with(&t, &b, &tb, tol),
+        topo::subtract_with(&b, &t, &bt, tol),
+        topo::intersect_with(&t, &b, &tb, tol),
+        topo::intersect_with(&b, &t, &bt, tol),
+    ];
+    for ((op, r), want) in six(&t, &b).into_iter().zip(declared) {
+        eprintln!("PROBE ruling {op} {:?}", want.as_ref().map(|_| ()));
+        assert_eq!(outcome(&r), outcome(&want), "{op}: the declared continuation");
     }
 }
 
@@ -422,30 +453,6 @@ fn a_declared_continuation_on_a_wall_bounded_by_an_ellipse_keeps_the_door() {
         topo::transform_rigid(&rod_z(1.0, H), &spin, tol).unwrap(),
         tol,
     );
-    let walls = |b: &AtRestBody<f64>| -> Vec<topo::FaceKey> {
-        b.faces()
-            .filter(|(_, f)| {
-                matches!(
-                    b.get_surface(f.surface),
-                    Some(geom::Surface::Cylinder { .. })
-                )
-            })
-            .map(|(k, _)| k)
-            .collect()
-    };
-    let continued = |x: &AtRestBody<f64>, y: &AtRestBody<f64>| {
-        let mut d = BooleanDeclarations::none();
-        for fa in walls(x) {
-            for fb in walls(y) {
-                d.coincident_faces.push(topo::FacePairDeclaration::new(
-                    fa,
-                    fb,
-                    topo::BooleanCoincidence::Continuation,
-                ));
-            }
-        }
-        d
-    };
     let (tr, rt) = (continued(&t, &r), continued(&r, &t));
     let (a, b) = (topo::Operand::A, topo::Operand::B);
     for (op, res, rod_is) in [

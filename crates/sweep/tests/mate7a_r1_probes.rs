@@ -427,6 +427,14 @@ fn p2_the_g1_chain_price_is_the_measured_69_rows() {
                 .push(FacePairDeclaration::new(fa, fb, ContactClass::Tangent));
         }
     }
+    {
+        let bracket = geom_core::k_stats::Bracket::open();
+        let r = topo::union_with(&seg_a, &seg_b, &BooleanDeclarations::none(), Tol::witness());
+        let log = bracket.finish().verdicts;
+        let mut h: std::collections::BTreeMap<&'static str, usize> = Default::default();
+        for v in &log { *h.entry(v.predicate).or_default() += 1; }
+        eprintln!("PROBE p2 faces {} {} decls {} undeclared {:?}\n{h:#?}", torus_faces(&seg_a).len(), torus_faces(&seg_b).len(), decls.coincident_faces.len(), r.as_ref().map(|_| ()));
+    }
     let bracket = geom_core::k_stats::Bracket::open();
     let err = topo::union_with(&seg_a, &seg_b, &decls, Tol::witness())
         .expect_err("the chain refuses at the routing");

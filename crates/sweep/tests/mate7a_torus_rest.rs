@@ -37,6 +37,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::outcomes::outcome;
 use crate::common::revert_ops::subtract_both_orders_and_intersect;
 use crate::revolve_common;
 
@@ -335,29 +336,29 @@ fn a_contradicted_torus_rest_declaration_refuses_loudly() {
 // 2. The operand gate's covered-pair rung.
 // -------------------------------------------------------------------
 
-/// **Undeclared, a torus pair passes the gate and still refuses
-/// typed.** The KIND roster has a torus, so the gate has nothing to say
-/// about the socket and the peg; what refuses is the crossing layer,
-/// where the peg's circle edges ride the socket bore's carrier and no
-/// declared cover licenses the endpoint posture. Admitting the kind
-/// loosened nothing an undeclared operand reaches: it is refused at the
-/// circle rung's frontier, or escalated where the run's band puts the
-/// sampled margin in its ambiguity window — never a body.
+/// **Undeclared, a torus pair passes the gate and glues as the declared
+/// `Rest` it is.** The KIND roster has a torus, so the gate has nothing
+/// to say about the socket and the peg; the peg's walls lie on the
+/// socket bore's carrier by margin, so the boolean declares the pair
+/// itself, and the union with only the flush end caps declared, or
+/// nothing, is the union with the walls declared `Rest` bit for bit
+/// (D10), which builds ([`peg_in_socket_union_holds`]).
 #[test]
-fn an_undeclared_torus_pair_passes_the_gate_and_still_refuses() {
+fn an_undeclared_torus_pair_passes_the_gate_and_is_the_declared_rest() {
     let (s, p) = (socket(), segment_a());
-    // The flush end caps are continuations, declared; the torus pair is
-    // not.
-    let flush = crate::mate2_common::continuations(&s, &p);
-    let err = topo::union_with(&s, &p, &flush, Tol::witness())
-        .expect_err("an undeclared torus pair must still refuse");
-    assert!(
-        matches!(
-            err,
-            BooleanError::CurvedPierceUnsupported { .. } | BooleanError::Escalated { .. }
-        ),
-        "the undeclared refusal is the crossing layer's, typed: {err:?}"
-    );
+    let walls = wall_declarations(&s, &p, TUBE, ContactClass::Rest);
+    peg_in_socket_union_holds(&s, &p, &walls);
+    let want = outcome(&topo::union_with(&s, &p, &walls, Tol::witness()));
+    for (posture, d) in [
+        ("the end caps declared", crate::mate2_common::continuations(&s, &p)),
+        ("undeclared", BooleanDeclarations::none()),
+    ] {
+        assert_eq!(
+            outcome(&topo::union_with(&s, &p, &d, Tol::witness())),
+            want,
+            "{posture}: the declared union"
+        );
+    }
 }
 
 /// **Fully covered, nothing refuses at the gate or at the circle

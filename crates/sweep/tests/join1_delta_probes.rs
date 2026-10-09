@@ -386,8 +386,8 @@ fn the_declared_seam_body_is_an_operand() {
     // merge stage glues the two faces.
     let d = topo::flush::declare_all(&topo::flush::find_flush_candidates(&a, &b, tol()).unwrap());
     assert_eq!(
-        format!("{:?}", topo::union(&a, &b, tol())),
-        format!("{:?}", topo::union_with(&a, &b, &d, tol())),
+        crate::common::outcomes::outcome(&topo::union(&a, &b, tol())),
+        crate::common::outcomes::outcome(&topo::union_with(&a, &b, &d, tol())),
         "undeclared is the declared union"
     );
     let r = match topo::union_with(&a, &b, &d, tol()).unwrap() {

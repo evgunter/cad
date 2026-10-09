@@ -16,6 +16,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::outcomes::outcome;
 use geom_core::{Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
@@ -110,8 +111,8 @@ fn a_hexagon_unions_a_box_on_its_corner_edge_soundly() {
     for (what, (x, y)) in [("hex ∪ box", (&hex, &b)), ("box ∪ hex", (&b, &hex))] {
         let d = declare_all(&find_flush_candidates(x, y, tol()).unwrap());
         assert_eq!(
-            format!("{:?}", topo::union(x, y, tol())),
-            format!("{:?}", topo::union_with(x, y, &d, tol())),
+            outcome(&topo::union(x, y, tol())),
+            outcome(&topo::union_with(x, y, &d, tol())),
             "{what}: undeclared is the declared union"
         );
     }

@@ -13,6 +13,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::outcomes::outcome;
 use crate::common::operands::{plate6 as plate, plate6_cyl};
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
@@ -436,10 +437,12 @@ fn wide_slab_below() -> AtRestBody<f64> {
 /// whole.** The quarter round rests on a slab whose top face contains
 /// its rim vertices, so the vertex-on-face door meets the round's wall
 /// sector with both bounds `On`: the tangency ruling, and the arc,
-/// which departs in the plane. Undeclared, that curved on-carrier
-/// sector is the typed frontier; declared `Tangent`, the door lumps it
+/// which departs in the plane. Declared `Tangent`, the door lumps it
 /// and the classification completes — the slab minus the round is the
-/// slab, and their intersection is empty. (The union is not asserted:
+/// slab, and their intersection is empty. Undeclared, or with only the
+/// resting faces declared, the boolean verifies the tangency by its
+/// witness and declares it itself, so each op is the declared one bit
+/// for bit (D10). (The union is not asserted:
 /// at `ε = 1e-6` it refuses `ClassificationInvariant` at the run's germ,
 /// filed with the band-edge split below.)
 ///
@@ -461,15 +464,7 @@ fn a_tangent_curved_sector_on_a_face_lumps_whole() {
         plane_face(&b, 1.0, false),
         ContactClass::Rest,
     ));
-    let undeclared = topo::subtract_with(&a, &b, &decls, Tol::witness())
-        .expect_err("an undeclared curved on-carrier sector is the typed frontier");
-    assert!(
-        matches!(
-            undeclared,
-            topo::BooleanError::CurvedBooleanUnsupported { face, .. } if face == cyl_face(&b)
-        ),
-        "the frontier names the round's wall: {undeclared:?}"
-    );
+    let rest_only = decls.clone();
     decls.coincident_faces.push(FacePairDeclaration::new(
         plane_face(&a, 1.0, true),
         cyl_face(&b),
@@ -491,4 +486,27 @@ fn a_tangent_curved_sector_on_a_face_lumps_whole() {
         matches!(meet, BooleanResult::Empty),
         "a resting contact encloses no volume"
     );
+    for (posture, d) in [
+        ("Rest only", &rest_only),
+        ("undeclared", &BooleanDeclarations::none()),
+    ] {
+        for (op, got, want) in [
+            (
+                "A ∖ B",
+                topo::subtract_with(&a, &b, d, Tol::witness()),
+                topo::subtract_with(&a, &b, &decls, Tol::witness()),
+            ),
+            (
+                "A ∩ B",
+                topo::intersect_with(&a, &b, d, Tol::witness()),
+                topo::intersect_with(&a, &b, &decls, Tol::witness()),
+            ),
+        ] {
+            assert_eq!(
+                outcome(&got),
+                outcome(&want),
+                "{posture}, {op}: the declared outcome"
+            );
+        }
+    }
 }

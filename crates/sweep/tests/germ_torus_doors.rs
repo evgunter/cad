@@ -44,6 +44,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::outcomes::outcome;
 use crate::common::operands::{bar, framed_bar};
 use crate::common::revert_ops::subtract_both_orders_and_intersect;
 use crate::revolve_common;
@@ -273,8 +274,8 @@ fn the_operand_gate_admits_the_torus_and_the_undeclared_pair_glues() {
     );
     let undeclared = topo::union_with(&a, &b, &declarations(&a, &b, None), Tol::witness());
     assert_eq!(
-        format!("{undeclared:?}"),
-        format!("{built:?}"),
+        outcome(&undeclared),
+        outcome(&built),
         "undeclared, the waists glue as the declared continuation"
     );
 }
@@ -1339,8 +1340,8 @@ fn subtract_and_intersect_refuse_where_union_does() {
         ))
     {
         assert_eq!(
-            format!("{r:?}"),
-            format!("{declared:?}"),
+            outcome(&r),
+            outcome(&declared),
             "undeclared dumbbell, {op}: the declared refusal"
         );
     }

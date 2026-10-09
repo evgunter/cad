@@ -29,6 +29,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::outcomes::outcome;
 use crate::mate2_common::{collar_at, peg_at, volume, wall_decls};
 use geom_core::Tol;
 use sweep::test_support::finished;
@@ -59,8 +60,8 @@ fn assert_sound(what: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f
 /// both of its ends. The union is the collar with the peg's proud part:
 /// additive.
 ///
-/// The join discards the bore wall with its surface, so the merge door
-/// is handed no declared cylinder pair, and records none.
+/// The join discards the bore wall with its surface, so what the merge
+/// door records is only a cylinder run's full-period closure.
 #[test]
 fn matching_reads_the_germs_loci() {
     let c = finished("the collar", collar_at(0.0), tol());
@@ -69,8 +70,11 @@ fn matching_reads_the_germs_loci() {
     let r = topo::union_with(&c, &p, &wall_decls(&c, &p), tol());
     if let Ok(BooleanResult::Body(bb)) = &r {
         assert!(
-            bb.naming.merge_skipped.is_empty(),
-            "the merge door records no skip: {:?}",
+            bb.naming.merge_skipped.iter().all(|s| matches!(
+                s.reason,
+                topo::MergeCoplanarError::PeriodClosure { .. }
+            )),
+            "the merge door records only period closures: {:?}",
             bb.naming.merge_skipped
         );
     }
@@ -161,14 +165,14 @@ fn the_crosslap_glues_declared_or_not() {
         .and_then(|r| r.body())
         .map(|bb| bb.body.faces().count());
     assert_eq!(faces, Some(14), "every flush pair declared: {r:?}");
-    let want = format!("{r:?}");
+    let want = outcome(&r);
     assert_sound("crosslap ∪", r, 1.875);
     for (posture, d) in [
         ("the mate alone", declare_all(&mate)),
         ("undeclared", topo::BooleanDeclarations::none()),
     ] {
         assert_eq!(
-            format!("{:?}", topo::union_with(&a, &b, &d, tol())),
+            outcome(&topo::union_with(&a, &b, &d, tol())),
             want,
             "{posture}: the declared union"
         );
