@@ -83,7 +83,7 @@ enum Want {
     /// Two lumps at tier 3 and at their volume, whose tier 3′ the census
     /// cannot decide: curved faces of the two lumps are within reach of
     /// each other
-    /// (`work/contact/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
+    /// (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
     Lumps,
     /// The result gate's refusal of the ball face the ring holes.
     Gate,
