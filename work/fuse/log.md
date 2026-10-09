@@ -707,3 +707,4 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - **P1, verb breadth:** curved edge resting on a face (H, design); sliver arc beside a joinable vertex (M, design); census curved lanes beyond circles (H); chart arm on spline iso images (H); spline-carrier join (H).
   - **P3, guards and latent soundness:** corner on a circle's interior unseen; join re-mint refusing as a kernel defect (design); mirrored split that joins; split join killing a child; wrap-edge arm; chart singularity read by distance alone (design).
   - **P4:** the joined finisher minting twice.
+- 2026-10-09 — `fused-into-names-vertices-not-live-in-the-result` is dispatched to the step-3 lane on `fuse/fused-into-is-live`. It re-measures on main first, since the join is a new vertex remover, then fixes at the remover.
