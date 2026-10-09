@@ -179,7 +179,7 @@ pub fn funnel_vessel(r: f64, h: f64, k: f64) -> Body<f64> {
     )
 }
 
-/// **The D-section**: the half disc of radius `r` on `x ≥ 0` extruded
+/// **The D-section**: the half disc of radius `r` on `x ≤ 0` extruded
 /// `h` along `z` — one half-cylinder face, its flat, and two ends.
 pub fn d_section(r: f64, h: f64) -> Body<f64> {
     let tol = Tol::witness();
