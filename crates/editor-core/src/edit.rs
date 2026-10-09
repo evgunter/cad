@@ -1138,13 +1138,6 @@ fn lower_reads<P: crate::ProfilePayload>(
     fixed: Option<VarKind>,
     spoken: &impl Fn() -> SpokenNode,
 ) -> Result<Vec<VarId>, EditError> {
-    let half = match node {
-        Node::Part {
-            select: crate::PartSelect::SplitHalf(half),
-            ..
-        } => Some(*half),
-        _ => None,
-    };
     let mut reads = Vec::new();
     node.try_map_slots(
         |p, g, r| P::lower(p, g, r),
@@ -1154,7 +1147,7 @@ fn lower_reads<P: crate::ProfilePayload>(
                 (crate::OperandSlot::Input, Some(kind)) => crate::SlotKind::Is(kind),
                 _ => slot.kind(),
             };
-            let var = lower_operand(doc, spoken, SlotId::Operand(slot), read, half, expected)?;
+            let var = lower_operand(doc, spoken, SlotId::Operand(slot), read, expected)?;
             reads.push(var);
             Ok(var)
         },
@@ -1169,14 +1162,12 @@ fn lower_reads<P: crate::ProfilePayload>(
 /// (`expected`). A node with several outputs (a revolve's body and
 /// axis, a split's two halves) refuses the sugar
 /// ([`EditError::AmbiguousOutput`], naming its ports): the read spells
-/// its port. A part projection's selected half (`half`) refuses a read
-/// of the split's other half.
+/// its port.
 fn lower_operand<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     spoken: &impl Fn() -> SpokenNode,
     slot: SlotId,
     read: &crate::Operand,
-    half: Option<crate::SplitHalf>,
     expected: crate::SlotKind,
 ) -> Result<VarId, EditError> {
     let unresolved = || EditError::OperandUnresolved {
@@ -1224,7 +1215,7 @@ fn lower_operand<P: crate::ProfilePayload>(
         crate::Operand::Var(var) => *var,
         crate::Operand::Name(name) => doc.var_named(name.as_str()).ok_or_else(unresolved)?,
     };
-    check_read(doc, spoken, slot, var, half, expected, unresolved)
+    check_read(doc, spoken, slot, var, expected, unresolved)
 }
 
 /// [`lower_operand`]'s checks of the variable an operand resolved to:
@@ -1235,26 +1226,20 @@ fn check_read<P: crate::ProfilePayload>(
     spoken: &impl Fn() -> SpokenNode,
     slot: SlotId,
     var: VarId,
-    half: Option<crate::SplitHalf>,
     expected: crate::SlotKind,
     unresolved: impl Fn() -> EditError,
 ) -> Result<VarId, EditError> {
     let Some(held) = doc.var(var) else {
         return Err(unresolved());
     };
-    match doc.read_fault(held, expected, half) {
+    match doc.read_fault(held, expected) {
         None => Ok(var),
-        Some(crate::doc::ReadFault::Kind { found }) => Err(EditError::SlotVarKind {
+        Some(found) => Err(EditError::SlotVarKind {
             var: Box::new(doc.spoken_var(var)),
             node: spoken(),
             slot,
             found,
             expected,
-        }),
-        Some(crate::doc::ReadFault::OtherHalf { half }) => Err(EditError::PartHalfPort {
-            node: spoken(),
-            half,
-            var: Box::new(doc.spoken_var(var)),
         }),
     }
 }
@@ -1700,16 +1685,6 @@ pub enum EditError {
         input: SpokenNode,
         /// The slot.
         slot: SlotId,
-    },
-    /// A part projection over a split reads the split's other half: the
-    /// read and the selection name one half.
-    PartHalfPort {
-        /// The part projection.
-        node: SpokenNode,
-        /// The half it selects.
-        half: crate::SplitHalf,
-        /// The output it reads, boxed so the refusal stays a small `Err`.
-        var: Box<SpokenVar>,
     },
     /// The recipe graph would contain a cycle (defensive: insertion
     /// referencing only pre-existing nodes cannot cycle, but the
@@ -3020,10 +2995,6 @@ impl EditError {
                 slot: _,
                 read: _,
             } => *node = node.respoken(doc),
-            Self::PartHalfPort { node, half: _, var } => {
-                *node = node.respoken(doc);
-                **var = var.respoken(doc);
-            }
             Self::AmbiguousOutput {
                 input,
                 slot: _,
@@ -3313,10 +3284,6 @@ impl EditError {
             Self::DefinesNothing { input, slot } => {
                 write!(f, "{input} defines nothing a {slot} could read")?;
                 tail.recourse(f, format_args!("read an operation that defines a value"))
-            }
-            Self::PartHalfPort { node, half, var } => {
-                write!(f, "{node} selects the {} half but reads {var}", half.name())?;
-                tail.recourse(f, format_args!("read the split's {} output", half.name()))
             }
             Self::UnknownSlot { id, slot } => {
                 write!(f, "{id} has no slot {}", slot.label())?;
@@ -5597,13 +5564,12 @@ fn set_operand<P: Clone + crate::ProfilePayload>(
             slot: SlotId::Operand(slot),
         });
     }
-    let half = current.selected_half();
     let expected = match (current, new.output(node, 0).and_then(|v| new.var(v))) {
         (Node::Transform { .. }, Some(output)) => crate::SlotKind::Is(output.kind()),
         _ => slot.kind(),
     };
     let spoken = || doc.spoken(node);
-    let var = lower_operand(new, &spoken, SlotId::Operand(slot), read, half, expected)?;
+    let var = lower_operand(new, &spoken, SlotId::Operand(slot), read, expected)?;
     let mut rewritten = current.clone();
     for (at, held) in rewritten.operand_rows_mut() {
         if at == slot {
@@ -6233,7 +6199,6 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     &spoken,
                     SlotId::Operand(slot),
                     member,
-                    None,
                     slot.kind(),
                 )?);
             }
@@ -6403,7 +6368,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 // is.
                 (_, SlotValue::Read(read)) => {
                     let spoken = || doc.spoken(*node);
-                    let var = lower_operand(new, &spoken, *slot, read, None, slot.kind())?;
+                    let var = lower_operand(new, &spoken, *slot, read, slot.kind())?;
                     std::borrow::Cow::Owned(Formula::var(
                         var,
                         slot.dimension()

@@ -710,22 +710,14 @@ fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
             // A minted read no live operation defines is a strand the
             // file keeps (DM7), the reader's refusal at evaluation.
             let held = snapshot.var(var)?;
-            Some(
-                match snapshot.read_fault(held, slot.kind(), node.selected_half())? {
-                    crate::doc::ReadFault::Kind { found } => SnapshotError::SlotVarKind {
-                        node: snapshot.spoken(id),
-                        slot: SlotId::Operand(slot),
-                        var: Box::new(snapshot.spoken_var(var)),
-                        found,
-                        expected: slot.kind(),
-                    },
-                    crate::doc::ReadFault::OtherHalf { half } => SnapshotError::PartHalfPort {
-                        node: snapshot.spoken(id),
-                        half,
-                        var: Box::new(snapshot.spoken_var(var)),
-                    },
-                },
-            )
+            let found = snapshot.read_fault(held, slot.kind())?;
+            Some(SnapshotError::SlotVarKind {
+                node: snapshot.spoken(id),
+                slot: SlotId::Operand(slot),
+                var: Box::new(snapshot.spoken_var(var)),
+                found,
+                expected: slot.kind(),
+            })
         })
     })
 }
@@ -1089,16 +1081,6 @@ pub enum SnapshotError {
         slot: crate::OperandSlot,
         /// The read.
         var: SpokenVar,
-    },
-    /// A part projection over a split reads the split's other half —
-    /// the edit doors' [`crate::EditError::PartHalfPort`].
-    PartHalfPort {
-        /// The part projection.
-        node: SpokenNode,
-        /// The half it selects.
-        half: crate::SplitHalf,
-        /// The output it reads, boxed so the refusal stays a small `Err`.
-        var: Box<SpokenVar>,
     },
     /// The nodes' reads close a loop ([`crate::Doc::upstream`]): no edit
     /// leaves a document so, since every door that writes a read asks
@@ -1498,9 +1480,6 @@ impl core::fmt::Display for SnapshotError {
                  was a read. {}",
                 crate::sentence::Recourse(super::REGENERATE_RECOURSE)
             ),
-            Self::PartHalfPort { node, half, var } => {
-                write!(f, "{node} selects the {} half but reads {var}", half.name())
-            }
             Self::ReadCycle { at } => write!(
                 f,
                 "the nodes' reads close a loop through {at} — no edit writes one. {}",
@@ -2176,7 +2155,6 @@ mod tests {
             NameStepNotMinted,
             DeclaredNameNotUpstream,
             OperandUnminted,
-            PartHalfPort,
             ReadCycle,
             WitnessSite,
             WitnessOnMissingNode,
@@ -2237,9 +2215,7 @@ mod tests {
                 Walk::SlotRead
             }
             SnapshotError::PayloadVarKind { .. } => Walk::PayloadRead,
-            SnapshotError::OperandUnminted { .. } | SnapshotError::PartHalfPort { .. } => {
-                Walk::OperandRead
-            }
+            SnapshotError::OperandUnminted { .. } => Walk::OperandRead,
             SnapshotError::AnonymousVarUnread { .. } => Walk::AnonymousVar,
             SnapshotError::DefinitionReadsUnmintedVar { .. }
             | SnapshotError::DefinitionVarKind { .. } => Walk::DefinitionRead,
@@ -2333,11 +2309,6 @@ mod tests {
                 var: Box::new(crate::SpokenVar::new(crate::VarId::new(0, 7), None)),
                 found: crate::VarKind::Profile,
                 expected: crate::SlotKind::Is(crate::VarKind::Body),
-            },
-            SnapshotError::PartHalfPort {
-                node: node(),
-                half: crate::SplitHalf::Below,
-                var: Box::new(crate::SpokenVar::new(crate::VarId::new(0, 7), None)),
             },
             SnapshotError::ReadCycle { at: at(9) },
             SnapshotError::WitnessSite { node: node() },

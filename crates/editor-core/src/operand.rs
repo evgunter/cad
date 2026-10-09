@@ -107,7 +107,7 @@ pub enum OperandSlot {
     Member(u32),
     /// What a transform, a pattern or a placed union places.
     Input,
-    /// What a part projection picks from.
+    /// The copies a part projection picks one of.
     Of,
     /// The measure an assertion bounds.
     Measure,
@@ -148,7 +148,8 @@ impl OperandSlot {
             Self::Target | Self::A | Self::B | Self::Member(_) | Self::At => {
                 SlotKind::Is(VarKind::Body)
             }
-            Self::Input | Self::Of => SlotKind::Placeable,
+            Self::Of => SlotKind::Is(VarKind::Bodies),
+            Self::Input => SlotKind::Placeable,
             Self::Measure => SlotKind::Measured,
         }
     }

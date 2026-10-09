@@ -1545,28 +1545,17 @@ impl<P> Doc<P> {
         out
     }
 
-    /// **What is wrong with reading `held` at a seat admitting
-    /// `expected`** (D10), if anything: a kind the seat does not admit
-    /// ([`crate::SlotKind::admits`]), or, for a part projection that
-    /// selects `half` of a split, the split's other half. Asked of a
-    /// live read by every door that writes or loads one — the edit
-    /// doors' lowering and the load door's operand walk — so the rule
-    /// is stated once; liveness is each door's own question, asked
-    /// before.
+    /// **The kind of `held` when a seat admitting `expected` does not
+    /// admit it** (D10, [`crate::SlotKind::admits`]). Asked of a live read by every
+    /// door that writes or loads one — the edit doors' lowering and the
+    /// load door's operand walk — so the rule is stated once; liveness
+    /// is each door's own question, asked before.
     pub(crate) fn read_fault(
         &self,
         held: &crate::Var,
         expected: crate::SlotKind,
-        half: Option<crate::SplitHalf>,
-    ) -> Option<ReadFault> {
-        if !expected.admits(held) {
-            return Some(ReadFault::Kind { found: held.kind() });
-        }
-        let half = half?;
-        let (split, port) = held.def().output()?;
-        (matches!(self.node(split), Some(Node::Split { .. }))
-            && u32::from(port) != half.output_body())
-        .then_some(ReadFault::OtherHalf { half })
+    ) -> Option<crate::VarKind> {
+        (!expected.admits(held)).then(|| held.kind())
     }
 
     /// **The variable port `port` of `node` defines**
@@ -2567,19 +2556,3 @@ mod tests {
     }
 }
 
-/// [`Doc::read_fault`]'s answer, rendered by each door in its own
-/// vocabulary.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ReadFault {
-    /// The variable's kind is not one the seat admits.
-    Kind {
-        /// The variable's kind.
-        found: crate::VarKind,
-    },
-    /// A part projection selecting `half` of a split reads the split's
-    /// other half.
-    OtherHalf {
-        /// The half the projection selects.
-        half: crate::SplitHalf,
-    },
-}

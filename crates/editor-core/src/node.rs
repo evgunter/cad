@@ -7,7 +7,6 @@ use core::num::NonZeroUsize;
 use std::collections::BTreeMap;
 
 use crate::expr::{Dimension, Slot};
-use crate::names::SplitHalf;
 use crate::var::VarId;
 // The contact vocabulary is the KERNEL's (CONTACT-DESIGN C4, M9-1
 // PR-1). Imported, never redefined: the boolean's own refusals must
@@ -1322,20 +1321,12 @@ pub enum PatternKind<S: Slot = crate::VarId> {
     Explicit(Vec<crate::placement::Frame>),
 }
 
-/// **Which body of a multi-body value a [`Node::Part`] selects**
-/// (`crates/editor-core/REFERENCES.md` DM3): the named half of a
-/// split, or one instance of a pattern by index.
-///
-/// The two are one enum because the node is one sentence — "this
-/// body, out of those" — and the value it reads decides which arm is
-/// well-typed: a half against a split, an index against a pattern's
-/// instances, and any other pairing refuses at evaluation.
+/// **Which body of a pattern's copies a [`Node::Part`] selects**
+/// (`crates/editor-core/REFERENCES.md` DM3).
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum PartSelect<S = crate::VarId> {
-    /// The named half of a [`Node::Split`] value.
-    SplitHalf(SplitHalf),
-    /// The `i`-th instance of a [`Node::Pattern`] value — a
-    /// Count-typed STRUCTURAL slot ([`SlotId::Instance`]).
+    /// The `i`-th instance of an `Instances` value — a Count-typed
+    /// STRUCTURAL slot ([`SlotId::Instance`]).
     Instance(S),
 }
 
@@ -2552,30 +2543,22 @@ pub enum Node<P, S: Slot = crate::VarId> {
         /// The replication rule.
         kind: PatternKind<S>,
     },
-    /// **One body out of a multi-body value**
-    /// (`crates/editor-core/REFERENCES.md` DM3): the named half of a
-    /// [`Node::Split`] value or the `i`-th
-    /// instance of a [`Node::Pattern`] value, as a `Body` value every
-    /// body-consuming node takes. The recipe's way of saying "union
-    /// the upper half of that split into this block" or "subtract
-    /// instance 3 of that pattern".
+    /// **One body out of a pattern's copies**
+    /// (`crates/editor-core/REFERENCES.md` DM3): the `i`-th instance of
+    /// an `Instances` value, as a `Body` value every body-consuming
+    /// node takes — "subtract instance 3 of that pattern". A split's
+    /// halves need no such node: each is a port of the split, read
+    /// like any other output.
     ///
     /// A projection, not an operation: the selected body is the
-    /// half's or the instance's own (the same `Arc`, no clone, no
-    /// re-stamp), and the node's name table is the input's table
-    /// restricted to that body with every name VERBATIM — a
-    /// pass-through in `Transform`'s sense, contributing no role
-    /// segment, so every selector already spelled against that half
-    /// or that instance resolves here unchanged.
+    /// instance's own (the same `Arc`, no clone, no re-stamp), and the
+    /// node's name table is the input's table restricted to that body
+    /// with every name VERBATIM — a pass-through in `Transform`'s
+    /// sense, contributing no role segment, so every selector already
+    /// spelled against that instance resolves here unchanged.
     ///
-    /// A node rather than a selector inside every consumer's operand:
-    /// one meaning, one node, and every consumer's operand door stays
-    /// as it is ([`Node::PlacedUnion`]'s ruling). A bare split or
-    /// pattern is still refused at a body seat; this node is how a
-    /// user says which body they meant.
-    ///
-    /// Because it moves nothing and renames nothing, an `Instance`
-    /// selection is a pass-through of A11's member walk too
+    /// Because it moves nothing and renames nothing, it is a
+    /// pass-through of A11's member walk too
     /// ([`crate::mate::member_of`]): a mate read at one, or below
     /// one, stands on the same member the pattern's copy does.
     ///
@@ -2584,7 +2567,7 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// two patterns is a user saying WHICH copy to replicate, a
     /// different document from the nest without it.
     Part {
-        /// The split or pattern whose value is read.
+        /// The copies read.
         of: S::Read,
         /// Which body of it.
         select: PartSelect<S>,
@@ -3092,12 +3075,10 @@ macro_rules! node_rows {
                 count,
                 kind,
             } => rule_rows!(count, kind, $out),
-            // A half is recipe payload, not a number anyone sets; an
-            // index is the one structural slot the projection carries.
-            Node::Part { of: _, select } => match select {
-                PartSelect::SplitHalf(_) => {}
-                PartSelect::Instance(index) => $out.push((S::Instance, index)),
-            },
+            Node::Part {
+                of: _,
+                select: PartSelect::Instance(index),
+            } => $out.push((S::Instance, index)),
             Node::Split { target: _, tool: _ }
             | Node::Boolean {
                 op: _,
@@ -3707,18 +3688,6 @@ impl<P> Node<P> {
                 }
                 v
             }
-        }
-    }
-
-    /// **The half a part projection over a split selects**: `None` for
-    /// every other node.
-    pub(crate) fn selected_half(&self) -> Option<crate::SplitHalf> {
-        match self {
-            Node::Part {
-                select: crate::PartSelect::SplitHalf(half),
-                ..
-            } => Some(*half),
-            _ => None,
         }
     }
 
@@ -4344,7 +4313,6 @@ impl<S> PartSelect<S> {
         f: &mut impl FnMut(&S) -> Result<S2, E>,
     ) -> Result<PartSelect<S2>, E> {
         Ok(match self {
-            PartSelect::SplitHalf(half) => PartSelect::SplitHalf(*half),
             PartSelect::Instance(index) => PartSelect::Instance(f(index)?),
         })
     }

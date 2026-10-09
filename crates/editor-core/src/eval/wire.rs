@@ -59,7 +59,7 @@ use super::slots::{self, SlotValues};
 use super::{BooleanValue, DatumValue, NodeErrorKind, NodeResult, SplitSide, ValuePayload};
 use crate::names::{self, NameTable, SplitHalf};
 use crate::node::{
-    Axis3, BooleanOp, Datum, DeclaredPair, Node, PartSelect, PatternKind, RecipeNodeId, SitedRef,
+    Axis3, BooleanOp, Datum, DeclaredPair, Node, PatternKind, RecipeNodeId, SitedRef,
     SlotId,
 };
 use crate::program::ProfileProgram;
@@ -375,7 +375,7 @@ where
         }
         // No `id`: the projection mints no description and no name, so
         // nothing it produces is stamped or keyed by this node.
-        Node::Part { of, select } => wire_part(at(O::Of, *of)?, select, results, vals),
+        Node::Part { of, select: _ } => wire_part(at(O::Of, *of)?, results, vals),
         // The rule gate, FIRST, through the node's own door (the one
         // `apply` reads): a bad placement list refuses with its own
         // name rather than downstream as a separation or rigidity
@@ -2785,33 +2785,27 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         )
 }
 
-/// **The projection node** (DM3): ONE body out of a split's or a
-/// pattern's value, as the `Body` value every consumer already takes.
+/// **The projection node** (DM3): ONE body out of a pattern's copies,
+/// as the `Body` value every consumer already takes. Any value but
+/// `Instances` refuses `WrongOperand`: a single body is NOT its own
+/// instance 0, since nothing is several bodies until a node says so
+/// (D3).
 ///
-/// The selector and the value must agree in kind — a half against a
-/// `Split`, an index against `Instances` — and any other pairing
-/// refuses `WrongOperand`. A single body is NOT its own instance 0:
-/// nothing is several bodies until a node says so (D3).
-///
-/// The body handed on is the half's or the instance's own `Arc`. The
-/// table is the input's PROJECTED onto it ([`NameTable::project`]):
-/// the selected body's rows re-keyed to body 0, names verbatim, no
-/// segment added. So a selector spelled against the input's rows
-/// resolves here unchanged, and one for another instance refuses as
-/// absent, never re-anchored. `check_total` re-checks that the
-/// projection dropped nothing the body still has.
+/// The body handed on is the instance's own `Arc`. The table is the
+/// input's PROJECTED onto it ([`NameTable::project`]): the selected
+/// body's rows re-keyed to body 0, names verbatim, no segment added.
+/// So a selector spelled against the input's rows resolves here
+/// unchanged, and one for another instance refuses as absent, never
+/// re-anchored. `check_total` re-checks that the projection dropped
+/// nothing the body still has.
 fn wire_part<T: Decide>(
     of: RecipeNodeId,
-    select: &PartSelect,
     results: &Results<T>,
     vals: &SlotValues<T>,
 ) -> OpResult<T> {
     let value = value_of(results, of)?;
-    let (body, index) = match (select, &value.payload) {
-        (PartSelect::SplitHalf(half), ValuePayload::Split { above, below }) => {
-            (split_side(of, *half, above, below)?, half.output_body())
-        }
-        (PartSelect::Instance(_), ValuePayload::Instances(instances)) => {
+    let (body, index) = match &value.payload {
+        ValuePayload::Instances(instances) => {
             let index = slots::count(vals, SlotId::Instance).ok_or(NodeErrorKind::MissingSlot {
                 slot: SlotId::Instance,
             })?;
@@ -2830,12 +2824,7 @@ fn wire_part<T: Decide>(
             )?;
             (Arc::clone(&instances[ix as usize]), ix)
         }
-        (PartSelect::SplitHalf(_), _) => {
-            return Err(wrong_operand(value, of, super::family::SPLIT));
-        }
-        (PartSelect::Instance(_), _) => {
-            return Err(wrong_operand(value, of, super::family::INSTANCES));
-        }
+        _ => return Err(wrong_operand(value, of, super::family::INSTANCES)),
     };
     let table = value
         .name_table
@@ -2863,19 +2852,14 @@ fn split_side<T: Decide>(
 
 /// **A read of a split's port is that half** (FORK-1: a split defines
 /// two bodies): `results` with each split `node` reads by port
-/// replaced by the half the port is, projected exactly as
-/// [`wire_part`] projects `Part { SplitHalf }` — the half's body, the
-/// table's rows for that output, the split's part count — so the two
-/// spellings give one value. `None` when `node` reads no split by port.
-/// A part projection reads the split whole: its selector is the half.
+/// replaced by the half the port is — the half's body, the table's
+/// rows for that output re-keyed to body 0, the split's part count.
+/// `None` when `node` reads no split by port.
 fn split_ports_projected<T: Decide>(
     node: &Node<ProfileProgram>,
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
 ) -> Result<Option<Results<T>>, NodeErrorKind> {
-    if matches!(node, Node::Part { .. }) {
-        return Ok(None);
-    }
     let ports: Vec<(RecipeNodeId, u8)> = node
         .operand_rows()
         .into_iter()
