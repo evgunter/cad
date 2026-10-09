@@ -32,6 +32,19 @@ Not checked: whether any mint path can actually raise `ImageMismatch`.
 The mint builds its images from the carrier, so the arm may be
 unreachable from it.
 
+Where "re-mint" is right: `topo/src/pcurves.rs`'s re-certification of a
+STORED row (`restate`, called from the carried-rows pass beside it, which
+wraps its refusal in `PcurveMintError::Certify` too). There the image was
+not made by this call, so re-minting it from the carrier is a real
+recourse. The two readings share one wrapper, which is why the door,
+not the text, has to tell them apart.
+
+Related rows on this slate:
+`pcurve-certify-error-arms-with-no-ending.md` (the arms whose `ending`
+is `None`, `ImageMismatch` among them) and
+`recourse-chain-stops-at-pcurve-certify-error.md` (the chain that stops
+at this carrier). A fix to either may settle this one's text too.
+
 ## Repair shape
 
 Decide reachability first. If the mint reaches it, it ends in the

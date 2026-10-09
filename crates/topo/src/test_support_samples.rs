@@ -771,14 +771,14 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             tolerance: 1e-6,
         },
         // The mint's: the loop's NaN residual, and its certification
-        // of the fit the loop accepted.
+        // sampling the accepted fit above the tolerance.
         OffsetFitError::MintLimb {
             limb: OffsetLimb::OnLocus,
             bound: f64::NAN,
             tolerance: 1e-6,
         },
         OffsetFitError::MintLimb {
-            limb: OffsetLimb::HullSup,
+            limb: OffsetLimb::OnLocus,
             bound: 3e-6,
             tolerance: 1e-6,
         },

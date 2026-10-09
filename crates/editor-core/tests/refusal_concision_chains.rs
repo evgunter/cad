@@ -927,12 +927,14 @@ fn every_offset_fit_refusal_ends_exactly_once() {
         } else if arm.starts_with("Limb") {
             at_rest_limbs += 1;
             assert!(
-                text.ends_with("Recourse: re-fit the offset at this tolerance"),
+                text.ends_with(geom_brep::offset_fit::LIMB_REFIT_RECOURSE),
                 "{name}: {text}"
             );
         }
     }
-    // `MintLimb` on both routes, `Limb` on the transform's alone.
+    // `MintLimb` on both routes, `Limb` on the transform's alone. A
+    // count over the rows `offset_fit_routes` builds: it holds the
+    // roster's route split, not which arms the ops raise.
     assert_eq!(
         (mint_limbs, at_rest_limbs),
         (4, 2),
