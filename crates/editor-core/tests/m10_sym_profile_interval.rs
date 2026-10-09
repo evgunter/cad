@@ -515,10 +515,17 @@ const PLATE_MAX_TERMS: usize = 28;
 ///   `Plain/Decision` call, a theorem, and that line's digest. Every
 ///   other line holds; the untoleranced variables bind as constants
 ///   (VR8), as the literals did.
+/// - **The pcurve envelope sums two more terms (`pcert/projected-image`).**
+///   `EnvelopeTerm` gained `Incidence` and `Fidelity`, the projected
+///   image's, and the closed-form lanes' envelope still folds every slot,
+///   so each `pcurve_envelope` decision adds two zero-valued summands:
+///   `Plain/Decision`'s and `Early/Decision`'s forms rise 24 each
+///   (15710 → 15734, 8633 → 8657, every one an `Add`), their digests
+///   move, and the calls, the freezes and every other line hold.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1048 forms 15710 frozen 252 digest f546be30341cc967d13ab3e347fb52fe\n\
+     Plain/Decision calls 1048 forms 15734 frozen 252 digest cfb4de41dbc5a92ac241864143c51061\n\
      Plain/Assertion calls 654 forms 4173 frozen 360 digest 91787fb61a160072b143278440ea302f\n\
-     Early/Decision calls 352 forms 8633 frozen 0 digest dfd56c276c08ef0be8256716c68484b9\n\
+     Early/Decision calls 352 forms 8657 frozen 0 digest f610d4dbb8133211901db22b14760ad2\n\
      Early/Assertion calls 654 forms 5136 frozen 0 digest da78941ae02f7d0e7e82b8880eda52ac\n\
      Door/Decision calls 396 forms 7099 frozen 0 digest 4b490dcb93367447183d6428998bbfbd\n\
      Door/Assertion calls 396 forms 0 frozen 0 digest 00000000000000000000000000000000";

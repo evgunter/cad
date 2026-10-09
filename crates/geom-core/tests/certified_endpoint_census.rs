@@ -295,6 +295,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          contributes `0` for a non-finite one, so a refused point still yields a \
          finite centre and the widened hulls report the trouble",
     ),
+    ("crates/geom-brep/src/pcurve_cache.rs", 2, 2, ""),
     (
         "crates/geom-brep/src/props/quad.rs",
         12,

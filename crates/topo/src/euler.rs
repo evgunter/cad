@@ -1860,7 +1860,7 @@ pub(crate) fn every_euler_op_error_once()
             error: geom_brep::PcurveCertifyError::UnsupportedCarrier {
                 chart: geom::SurfaceKind::Torus,
                 carrier: geom::CurveKind::Nurbs,
-                class: geom_brep::UncoveredClass::SplineCarrier,
+                class: geom_brep::UncoveredClass::NoFittedClass,
             },
         },
         EulerOpError::PcurveMint {
