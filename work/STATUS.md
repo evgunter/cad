@@ -1620,7 +1620,7 @@ area `kernel`; prefix `germ/`; tag `(GERM orchestrator)`; ab_band `7000-7099`.
 | pri | item | kind | cost | status | title | blocked on | PR |
 |---|---|---|---|---|---|---|---|
 | P0 | `VERBS-CONE` | issue | H | dispatched | cone and torus operand lanes |  |  |
-| P1 | `boolean-sector-algebra-has-no-cone-arm` | issue | H | open | Past the pair gate and the cone's crossing lane, every op on a cone operand refuses at sectors::sector_face: the boolean's sector algebra has no cone arm |  |  |
+| P1 | `boolean-sector-algebra-has-no-cone-arm` | issue | H | open | Past the pair gate and the cone's crossing lane, every op on a cone operand refuses at sectors::sector_face: the boolean's sector algebra has no cone arm |  | #4375 |
 | P1 | `c5-plane-torus-cone-cylinder-arms` | issue | H | open | C5 table - plane x torus and cone x cylinder section arms (blocking the Klein wall-pair debt) |  |  |
 | P2 | `circle-torus-root-slack-crowds-the-zero-band-at-1e-12` | issue | M | open | bool_circle_torus_root_slack's zero-classified margins crowd the coincidence band at eps 1e-12 (8 k-lint rule-2 flags) |  |  |
 | P2 | `cone-pairs-in-general-pose-have-no-section-arm` | issue | M | open | Cone × cylinder and cone × cone in general pose refuse on reach at the section certificate; the ruling reduction makes them tractable |  |  |
