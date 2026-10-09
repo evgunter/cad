@@ -67,7 +67,7 @@ fn block(label: &str, half: f64, height: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(height),
             side: ExtrudeSide::Along,
         },
@@ -251,7 +251,7 @@ fn shorten_or_grow(s: &mut Seat, height: f64) {
         DocEdit::SetParam {
             node: s.post_body,
             slot: SlotId::Distance,
-            expr: len(height),
+            value: len(height).into(),
             fresh: Vec::new(),
         },
     );
@@ -409,8 +409,8 @@ fn revolved(doc: ProfileDoc, loops: Vec<Vec<(f64, f64)>>) -> ProfileDoc {
     let (doc, _) = insert(
         doc,
         Node::Revolve {
-            profile,
-            axis,
+            profile: profile.into(),
+            axis: axis.into(),
             angle: fixture::ang(std::f64::consts::TAU),
         },
     );
@@ -428,7 +428,7 @@ fn revolved_program(doc: ProfileDoc, program: LoopProgram<Formula>) -> ProfileDo
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![program],
             ids: Vec::new(),
         }),
@@ -436,8 +436,8 @@ fn revolved_program(doc: ProfileDoc, program: LoopProgram<Formula>) -> ProfileDo
     let (doc, _) = insert(
         doc,
         Node::Revolve {
-            profile,
-            axis,
+            profile: profile.into(),
+            axis: axis.into(),
             angle: fixture::ang(std::f64::consts::TAU),
         },
     );
@@ -643,7 +643,7 @@ fn a2_a_nurbs_face_refuses_no_canonical_frame_typed() {
     let (part, loft) = insert(
         doc,
         Node::Loft {
-            profiles: vec![lower, upper],
+            profiles: vec![lower.into(), upper.into()],
             v_degree: Formula::count(1),
         },
     );

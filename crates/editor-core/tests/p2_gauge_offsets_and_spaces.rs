@@ -42,7 +42,7 @@ fn block(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(h),
             side: ExtrudeSide::Along,
         },
@@ -371,7 +371,7 @@ fn a_placer_on_each_side_under_nested_parametric_gauges_poses_as_composed_and_ch
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: top,
+            input: top.into(),
             count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
@@ -482,7 +482,7 @@ fn a_member_the_tree_cannot_reach_faults_its_offset_naming_the_stranded_mate() {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: top,
+            input: top.into(),
             count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -875,7 +875,7 @@ fn a_cut_of_a_gauged_instance_and_plain_geometry_lands_on_two_anchors() {
         let (doc, ext) = insert(
             doc,
             Node::Extrude {
-                profile: prof,
+                profile: prof.into(),
                 distance: len(1.0),
                 side: ExtrudeSide::Along,
             },
@@ -1000,7 +1000,7 @@ fn a_cut_group_unplaced_for_lack_of_an_offset_votes_its_gauge() {
     let (doc, ext) = insert(
         doc,
         Node::Extrude {
-            profile: prof,
+            profile: prof.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },

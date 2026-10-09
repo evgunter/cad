@@ -470,9 +470,7 @@ fn ancestry(doc: &Doc<ProfileProgram>, root: RecipeNodeId) -> BTreeSet<RecipeNod
         if !seen.insert(id) {
             continue;
         }
-        if let Some(node) = doc.node(id) {
-            stack.extend(node.inputs());
-        }
+        stack.extend(doc.upstream(id));
     }
     seen
 }

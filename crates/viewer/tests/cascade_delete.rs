@@ -49,7 +49,7 @@ fn die_shaped(tol: Tol) -> Die {
     let (doc, blank) = common::inserted(
         &doc,
         Node::Extrude {
-            profile: blank_profile,
+            profile: blank_profile.into(),
             distance: common::len(0.04),
             side: ExtrudeSide::Along,
         },
@@ -59,7 +59,7 @@ fn die_shaped(tol: Tol) -> Die {
     let (mut doc, pip) = common::inserted(
         &doc,
         Node::Extrude {
-            profile: pip_profile,
+            profile: pip_profile.into(),
             distance: common::len(0.004),
             side: ExtrudeSide::Along,
         },
@@ -89,8 +89,8 @@ fn die_shaped(tol: Tol) -> Die {
             &next,
             Node::Boolean {
                 op: BooleanOp::Subtract,
-                a: body,
-                b: placed,
+                a: body.into(),
+                b: placed.into(),
                 declare: Vec::new(),
             },
             tol,
@@ -103,7 +103,7 @@ fn die_shaped(tol: Tol) -> Die {
     let (doc, inner) = common::inserted(
         &doc,
         Node::Fillet {
-            target: body,
+            target: body.into(),
             radius: common::len(0.001),
             selection: Vec::new(),
         },
@@ -112,7 +112,7 @@ fn die_shaped(tol: Tol) -> Die {
     let (doc, outer) = common::inserted(
         &doc,
         Node::Fillet {
-            target: inner,
+            target: inner.into(),
             radius: common::len(0.0005),
             selection: Vec::new(),
         },

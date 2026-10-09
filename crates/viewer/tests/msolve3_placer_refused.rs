@@ -34,7 +34,7 @@ fn block(label: &str, tol: Tol) -> (ProfileDoc, RecipeNodeId) {
     common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.02),
             side: ExtrudeSide::Along,
         },
@@ -58,7 +58,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     let (doc, pattern) = common::inserted(
         &doc,
         Node::Pattern {
-            input: legs,
+            input: legs.into(),
             count: Formula::count(4),
             kind: PatternKind::Linear {
                 direction: [common::scl(1e200), common::scl(0.0), common::scl(0.0)],
@@ -198,7 +198,7 @@ fn copies(label: &str, copy: u32, part_selects: Option<i64>, tol: Tol) -> Copies
     let (doc, pattern) = common::inserted(
         &doc,
         Node::Pattern {
-            input: legs,
+            input: legs.into(),
             count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
@@ -212,7 +212,7 @@ fn copies(label: &str, copy: u32, part_selects: Option<i64>, tol: Tol) -> Copies
             let (doc, part) = common::inserted(
                 &doc,
                 Node::Part {
-                    of: pattern,
+                    of: pattern.into(),
                     select: PartSelect::Instance(Formula::count(i)),
                 },
                 tol,

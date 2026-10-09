@@ -171,7 +171,7 @@ fn carve(
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![lp],
             ids: Vec::new(),
         }),
@@ -179,7 +179,7 @@ fn carve(
     let (doc, rod) = fixture::insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(height),
             side: ExtrudeSide::Along,
         },
@@ -194,7 +194,7 @@ fn carve(
     let (doc, fillet) = fixture::insert(
         doc,
         Node::Fillet {
-            target: rod,
+            target: rod.into(),
             radius: len(ROD_FILLET),
             selection,
         },

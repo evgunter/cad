@@ -916,7 +916,7 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
     assert_f6(
         &EditError::SlotDimensionMismatch {
             slot: SlotId::Radius,
-            expected: Dimension::Length,
+            expected: editor_core::SlotKind::Is(editor_core::VarKind::Length),
             found: Dimension::Angle,
         },
         &["needs a length expression", "got an angle"],
@@ -953,8 +953,8 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
             )),
             node: held(3, "Extrude"),
             slot: SlotId::Distance,
-            declared: editor_core::VarKind::Scalar,
-            referenced: Dimension::Length,
+            found: editor_core::VarKind::Scalar,
+            expected: editor_core::SlotKind::Is(editor_core::VarKind::Length),
         },
         &["is declared scalar", "reads it as length"],
         &dumps,
@@ -1101,8 +1101,10 @@ test_utils::f6_variants! {
     /// invariant that earns an arm earns a rendered case with it.
     const SNAPSHOT_ERROR: SnapshotError = [
         NodeNotMinted,
-        DanglingInput,
-        ForwardInput,
+        OperandUnminted,
+        SlotVarKind,
+        PartHalfPort,
+        ReadCycle,
         WitnessSite,
         WitnessOnMissingNode,
         LabelOnMissingNode,
@@ -1137,7 +1139,6 @@ test_utils::f6_variants! {
         StepIds,
         MintLogOrder,
         NameStepNotMinted,
-        DeclaredSiteNotAnOperand,
         DeclaredNameNotUpstream,
     ];
 }
@@ -1198,23 +1199,49 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             vec!["Extrude \"base plate\" (000000000005) is not in the document's mint log"],
         ),
         (
-            SnapshotError::DanglingInput {
+            SnapshotError::OperandUnminted {
                 node: node(),
-                input: absent(9),
+                slot: editor_core::OperandSlot::Target,
+                var: editor_core::SpokenVar::new(editor_core::VarId::new(9, tagged(9)), None),
             },
             vec![
-                "Extrude \"base plate\" (000000000005) takes input from node 000000000009",
-                "not live",
+                "Extrude \"base plate\" (000000000005)'s target reads #9:",
+                "mint log does not hold as a variable",
+                "written before an operand was a read",
             ],
         ),
         (
-            SnapshotError::ForwardInput {
+            SnapshotError::SlotVarKind {
                 node: node(),
-                input: absent(9),
+                slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Target),
+                var: Box::new(editor_core::SpokenVar::new(
+                    editor_core::VarId::new(9, tagged(9)),
+                    None,
+                )),
+                found: editor_core::VarKind::Profile,
+                expected: editor_core::SlotKind::Is(editor_core::VarKind::Body),
             },
             vec![
-                "Extrude \"base plate\" (000000000005) takes input from node 000000000009",
-                "was not inserted before it",
+                "Extrude \"base plate\" (000000000005)'s target reads #9:",
+                "which is a profile, where it takes a body",
+            ],
+        ),
+        (
+            SnapshotError::PartHalfPort {
+                node: node(),
+                half: editor_core::SplitHalf::Below,
+                var: Box::new(editor_core::SpokenVar::new(
+                    editor_core::VarId::new(9, tagged(9)),
+                    None,
+                )),
+            },
+            vec!["selects the below half but reads #9:"],
+        ),
+        (
+            SnapshotError::ReadCycle { at: absent(9) },
+            vec![
+                "the nodes' reads close a loop through node 000000000009",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
             ],
         ),
         (
@@ -1413,12 +1440,12 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             SnapshotError::SlotVarKind {
                 node: node(),
                 slot: SlotId::Distance,
-                var: editor_core::SpokenVar::new(
+                var: Box::new(editor_core::SpokenVar::new(
                     editor_core::VarId::new(0, tagged(7)),
                     Some(VarName::from_static("depth")),
-                ),
-                declared: editor_core::VarKind::Angle,
-                referenced: Dimension::Length,
+                )),
+                found: editor_core::VarKind::Angle,
+                expected: editor_core::SlotKind::Is(editor_core::VarKind::Length),
             },
             vec!["depth", "as a length", "declared angle"],
         ),
@@ -1636,25 +1663,6 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
-            SnapshotError::DeclaredSiteNotAnOperand {
-                node: held(6, "Boolean"),
-                name: editor_core::test_support::spoken_name(
-                    StableName {
-                        kind: EntityKind::Face,
-                        node: RecipeNodeId::new(0, tagged(5)),
-                        path: vec![RoleSeg::OutputBody],
-                    },
-                    node(),
-                ),
-                site: held(5, "Extrude"),
-            },
-            vec![
-                "read at Extrude 000000000005, which is not an operand of Boolean 000000000006",
-                "no edit writes such a pair",
-                geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
-            ],
-        ),
-        (
             SnapshotError::DeclaredNameNotUpstream {
                 node: held(6, "Boolean"),
                 name: editor_core::test_support::spoken_name(
@@ -1668,7 +1676,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             },
             vec![
                 "the output body of Extrude \"base plate\" (000000000005)",
-                "is not minted before Boolean 000000000006",
+                "which Boolean 000000000006 mints itself",
                 geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
             ],
         ),
@@ -1725,8 +1733,8 @@ fn the_two_doors_spell_the_var_read_refusals_the_same_way_and_each_reports_its_a
             var: Box::new(var()),
             node: node(),
             slot: SlotId::Radius,
-            declared: editor_core::VarKind::Length,
-            referenced: Dimension::Angle,
+            found: editor_core::VarKind::Length,
+            expected: editor_core::SlotKind::Is(editor_core::VarKind::Angle),
         }),
         arm(&EditError::SlotUnresolvedVar {
             var: var(),
@@ -1752,9 +1760,9 @@ fn the_two_doors_spell_the_var_read_refusals_the_same_way_and_each_reports_its_a
         arm(&SnapshotError::SlotVarKind {
             node: node(),
             slot: SlotId::Radius,
-            var: var(),
-            declared: editor_core::VarKind::Length,
-            referenced: Dimension::Angle,
+            var: Box::new(var()),
+            found: editor_core::VarKind::Length,
+            expected: editor_core::SlotKind::Is(editor_core::VarKind::Angle),
         }),
         arm(&SnapshotError::PayloadVarKind {
             node: node(),
@@ -3017,7 +3025,7 @@ fn a_slot_refusal_addresses_its_slot_in_the_slot_vocabulary() {
         assert_f6(
             &EditError::SlotDimensionMismatch {
                 slot,
-                expected: Dimension::Length,
+                expected: editor_core::SlotKind::Is(editor_core::VarKind::Length),
                 found,
             },
             words,
@@ -3060,6 +3068,7 @@ test_utils::f6_variants! {
         OffsetCleared,
         Strand,
         StrandedAppearance,
+        StrandedRead,
         LabelDropped,
         AnonymousVarRemoved,
     ];
@@ -3116,6 +3125,18 @@ fn maintenance_display_says_what_the_edit_did() {
                  Extrude 000000000007",
                 "this edit kept a step it names but no longer draws that piece",
                 "rebound or cleared",
+            ],
+        ),
+        (
+            Maintenance::StrandedRead {
+                node: held(5, "Fillet"),
+                slot: editor_core::OperandSlot::Target,
+                var: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(7)), None),
+            },
+            vec![
+                "Fillet 000000000005's target reads #0:0000000000070000",
+                "this edit deleted with its operation",
+                "until the target reads a live value",
             ],
         ),
         (
@@ -3488,9 +3509,9 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
             SnapshotError::SlotVarKind {
                 node: node(),
                 slot: SlotId::Radius,
-                var: spoken.clone(),
-                declared: editor_core::VarKind::Length,
-                referenced: Dimension::Angle,
+                var: Box::new(spoken.clone()),
+                found: editor_core::VarKind::Length,
+                expected: editor_core::SlotKind::Is(editor_core::VarKind::Angle),
             }
             .to_string(),
         ),
@@ -3765,13 +3786,6 @@ fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
                 mate: held(6, "Mate"),
             },
             vec![held(3, "Gauge"), held(6, "Mate")],
-        ),
-        (
-            EditError::FoldWouldDangle {
-                node: held(3, "Gauge"),
-                referenced_by: held(5, "Datum"),
-            },
-            vec![held(3, "Gauge"), held(5, "Datum")],
         ),
         (
             EditError::SetDeclareOnNonDeclaring {

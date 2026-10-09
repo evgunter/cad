@@ -66,7 +66,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -96,8 +96,8 @@ fn kiss_part(label: &str) -> ProfileDoc {
         doc,
         Node::Boolean {
             op: editor_core::BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -1099,7 +1099,7 @@ fn row5_e_a_pin_move_that_changes_the_contact_geometry_is_caught_at_rest() {
         DocEdit::SetParam {
             node: body,
             slot: editor_core::SlotId::Distance,
-            expr: len(0.5),
+            value: len(0.5).into(),
             fresh: Vec::new(),
         },
     );

@@ -57,7 +57,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -95,8 +95,8 @@ fn slide_union(tx: f64) -> Slide {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b: transform,
+            a: a.into(),
+            b: transform.into(),
             declare: decl,
         },
     );
@@ -113,7 +113,7 @@ fn slide_to(s: &Slide, tx: f64) -> ProfileDoc {
         DocEdit::SetParam {
             node: s.transform,
             slot: SlotId::Translation(editor_core::Axis3::X),
-            expr: len(tx),
+            value: len(tx).into(),
             fresh: Vec::new(),
         },
     );
@@ -188,7 +188,7 @@ fn structural_count_edit_surfaces_as_divergence_not_fake_flips() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: body,
+            input: body.into(),
             count: editor_core::Formula::count(3),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -230,8 +230,8 @@ fn failure_transitions_surface_as_status_rows() {
     let (doc, split) = insert(
         doc,
         Node::Split {
-            target: body,
-            tool: plane,
+            target: body.into(),
+            tool: plane.into(),
         },
     );
     let ev1 = run(&doc, None);
@@ -240,7 +240,7 @@ fn failure_transitions_surface_as_status_rows() {
         DocEdit::SetParam {
             node: plane,
             slot: SlotId::Normal(editor_core::Axis3::Z),
-            expr: scl(0.0),
+            value: scl(0.0).into(),
             fresh: Vec::new(),
         },
     );
@@ -270,8 +270,8 @@ fn parallel_schedule_preserves_verdict_logs() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
