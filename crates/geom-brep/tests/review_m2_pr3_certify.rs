@@ -98,7 +98,7 @@ fn fixed_winding_aliased_full_period_refused() {
             place: Affine3::translation(Vec3::new(0.0, 0.0, 3.0)),
             axis_origin: center,
             axis_dir: Vec3::unit_z(),
-            angle: TAU,
+            angles: geom_brep::SweepRange::from_zero(TAU),
         }),
         carrier: Curve3::Circle {
             center,
@@ -667,6 +667,7 @@ fn fixed_reversed_interval_refused() {
             point: Point2::new(0.0, 0.0),
             place: Affine3::translation(p1 - Point3::origin()),
             vec: p0 - p1,
+            stations: geom_brep::SweepRange::unit(),
         }),
         // Carrier parameterized from p0, walked BACKWARD: t: 1 -> 0.
         carrier: Curve3::Line {
@@ -701,6 +702,7 @@ fn fixed_zero_length_edge_refused() {
             point: Point2::new(0.0, 0.0),
             place: Affine3::translation(p - Point3::origin()),
             vec: Vec3::zero(),
+            stations: geom_brep::SweepRange::unit(),
         }),
         carrier: Curve3::Line {
             origin: p,
@@ -899,7 +901,9 @@ mod interval_lane {
                 place: Affine3::translation(v3(0.0, 0.0, 3.0)),
                 axis_origin: center,
                 axis_dir: v3(0.0, 0.0, 1.0),
-                angle: Interval::from_f64(core::f64::consts::TAU),
+                angles: geom_brep::SweepRange::from_zero(Interval::from_f64(
+                    core::f64::consts::TAU,
+                )),
             }),
             carrier: Curve3::Circle {
                 center,

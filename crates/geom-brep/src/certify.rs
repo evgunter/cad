@@ -1022,6 +1022,7 @@ impl<T: Real> EdgeCurveSpec<T> {
                 point: Point2::new(T::zero(), T::zero()),
                 place: Affine3::translation(p0 - Point3::origin()),
                 vec: p1 - p0,
+                stations: crate::mapped::SweepRange::unit(),
             }),
             carrier: Curve3::Line {
                 origin: p0,
@@ -1061,7 +1062,7 @@ impl<T: Real> EdgeCurveSpec<T> {
                 place: Affine3::translation(start - Point3::origin()),
                 axis_origin: center,
                 axis_dir: axis,
-                angle: t1 - t0,
+                angles: crate::mapped::SweepRange::from_zero(t1 - t0),
             }),
             carrier,
             param_start: t0,
@@ -1088,6 +1089,7 @@ impl<T: Real> EdgeCurveSpec<T> {
                 point: Point2::new(T::zero(), T::zero()),
                 place: Affine3::translation(start - Point3::origin()),
                 vec: carrier.eval(t1) - start,
+                stations: crate::mapped::SweepRange::unit(),
             }),
             carrier,
             param_start: t0,
@@ -1185,7 +1187,7 @@ impl<T: Real> EdgeCurveSpec<T> {
                 place: Affine3::translation(p - Point3::origin()),
                 axis_origin: center,
                 axis_dir: Vec3::unit_z(),
-                angle: T::tau(),
+                angles: crate::mapped::SweepRange::from_zero(T::tau()),
             }),
             carrier: Curve3::Circle {
                 center,
@@ -4593,7 +4595,7 @@ mod tests {
                 place: Affine3::translation(Vec3::new(0.0, 0.0, 3.0)),
                 axis_origin: center,
                 axis_dir: Vec3::unit_z(),
-                angle: TAU,
+                angles: crate::mapped::SweepRange::from_zero(TAU),
             }),
             carrier: Curve3::Circle {
                 center,

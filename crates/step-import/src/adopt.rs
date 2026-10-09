@@ -938,13 +938,14 @@ fn mapped_self_description(
             point: Point2::new(0.0, 0.0),
             place: Affine3::translation(p_start - Point3::origin()),
             vec: p_end - p_start,
+            stations: geom_brep::SweepRange::unit(),
         }),
         Curve3::Circle { center, axis, .. } => Some(MappedCurve::RevolvedPoint {
             point: Point2::new(0.0, 0.0),
             place: Affine3::translation(p_start - Point3::origin()),
             axis_origin: *center,
             axis_dir: *axis,
-            angle: t1 - t0,
+            angles: geom_brep::SweepRange::from_zero(t1 - t0),
         }),
         Curve3::Ellipse { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
     }

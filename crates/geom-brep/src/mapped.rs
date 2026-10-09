@@ -48,7 +48,7 @@
 //! is a construction invariant — and certification is exactly what
 //! makes it checked rather than trusted.
 
-use geom_core::{Affine3, Arc2, Point2, Point3, Real, Vec3};
+use geom_core::{Affine3, Arc2, Mat3, Point2, Point3, Real, Vec3};
 
 /// A 2-D sketch-plane segment in the canonical form (module docs):
 /// verbatim endpoints, and for an arc its carrier and signed sweep. The
@@ -180,19 +180,22 @@ pub enum MappedCurve<T: Real> {
         place: Affine3<T>,
     },
     /// A sketch point's trajectory under a translation family — extrude
-    /// side struts: `s ↦ place(point) + vec·s`.
+    /// side struts: `s ↦ place(point) + vec·stations.at(s)`.
     ExtrudedPoint {
         /// The authoritative sketch point.
         point: Point2<T>,
         /// The rigid placement of the sketch plane in 3-space.
         place: Affine3<T>,
-        /// The **full** extrusion vector (meters): s = 1 lands at the
-        /// far end — no separate length, no unit convention.
+        /// The extrusion vector (meters), the unit of `stations`.
         vec: Vec3<T>,
+        /// The multiples of `vec` the trajectory sits at for s = 0 and
+        /// s = 1: `[0, 1]` for a whole strut, a sub-range of it after
+        /// [`MappedCurve::restrict`].
+        stations: SweepRange<T>,
     },
     /// A sketch point's trajectory under a rotation family — revolve
     /// latitude arcs: `s ↦ rotate(place(point))` about the axis by
-    /// `s·angle`.
+    /// `angles.at(s)`.
     RevolvedPoint {
         /// The authoritative sketch point.
         point: Point2<T>,
@@ -203,68 +206,137 @@ pub enum MappedCurve<T: Real> {
         /// The axis direction (normalized internally by the rotation —
         /// `Affine3::rotation_about_axis`'s documented posture).
         axis_dir: Vec3<T>,
-        /// The **full** signed revolve angle (radians, right-hand rule
-        /// about `axis_dir`): s = 1 lands at the far end.
-        angle: T,
+        /// The signed angles (radians, right-hand rule about
+        /// `axis_dir`) of the s = 0 and s = 1 samples, measured from
+        /// the placed point: `[0, angle]` for a whole revolve, a
+        /// sub-range of it after [`MappedCurve::restrict`].
+        angles: SweepRange<T>,
     },
+}
+
+/// The sub-range of a sweep coordinate a trajectory covers — a
+/// revolve's angle, an extrusion's multiple of its vector — as the
+/// coordinate's values at s = 0 (`from`) and s = 1 (`to`).
+///
+/// Restriction lives here, in the parameter, and never in the
+/// placement: [`MappedCurve::restrict`] narrows the range and leaves
+/// the placement as built, so however often a trajectory is split its
+/// evaluation applies ONE motion to the placed point. A placement that
+/// absorbed each split's motion would carry one more composition's
+/// rounding — at `T = Interval`, one more enclosure — per split.
+#[derive(Clone, Copy, Debug)]
+pub struct SweepRange<T: Real> {
+    /// The coordinate at s = 0.
+    pub from: T,
+    /// The coordinate at s = 1.
+    pub to: T,
+}
+
+impl<T: Real> SweepRange<T> {
+    /// `[0, to]`: a whole sweep from the placed point.
+    pub fn from_zero(to: T) -> Self {
+        SweepRange {
+            from: T::zero(),
+            to,
+        }
+    }
+
+    /// `[0, 1]`: a whole extrusion, in units of its vector.
+    pub fn unit() -> Self {
+        SweepRange::from_zero(T::one())
+    }
+
+    /// The coordinate at normalized parameter `s`, as the convex
+    /// combination `from·(1 − s) + to·s`: exact at both ends, and at
+    /// `T = Interval` no wider than the wider end plus the rounding of
+    /// the combination (`from + (to − from)·s` would count `from`'s
+    /// width twice). `[0, to]` reads `to·s` bit for bit.
+    pub fn at(self, s: T) -> T {
+        self.from * (T::one() - s) + self.to * s
+    }
+
+    /// The sub-range covering `[s0, s1]` of this one.
+    pub fn restrict(self, s0: T, s1: T) -> Self {
+        SweepRange {
+            from: self.at(s0),
+            to: self.at(s1),
+        }
+    }
 }
 
 impl<T: Real> MappedCurve<T> {
     /// The sub-curve covering `[s0, s1]`, reparameterized to `[0, 1]`
-    /// (M3 PR 1, for `split_edge`): the restricted description is
-    /// again a pushforward of the same shape — the authoritative
-    /// source is restricted ([`SketchSegment::restrict`]) or the map's
-    /// start is advanced by composing the `s0` motion into `place`
-    /// (translation by `vec·s0` / rotation by `s0·angle`) with the
-    /// remaining sweep scaled to `s1 − s0`. In exact arithmetic
-    /// `restrict(s0, s1).eval(s) = eval(s0 + (s1 − s0)·s)`; the float
-    /// discrepancy is metered by the caller's re-certification of the
-    /// restricted spec (D4 ¶2 — nothing is trusted untested). Fixed
-    /// evaluation orders as written (D9).
+    /// (for `split_edge`): the restricted description is again a
+    /// pushforward of the same shape — the authoritative source is
+    /// restricted ([`SketchSegment::restrict`]) or the motion's
+    /// [`SweepRange`] is, with the placement kept as built. In exact
+    /// arithmetic `restrict(s0, s1).eval(s) = eval(s0 + (s1 − s0)·s)`;
+    /// the float discrepancy is metered by the caller's re-certification
+    /// of the restricted spec (D4 ¶2 — nothing is trusted untested).
+    /// Fixed evaluation orders as written (D9).
     pub fn restrict(&self, s0: T, s1: T) -> Self {
         match *self {
             MappedCurve::PlacedSegment { segment, place } => MappedCurve::PlacedSegment {
                 segment: segment.restrict(s0, s1),
                 place,
             },
-            MappedCurve::ExtrudedPoint { point, place, vec } => MappedCurve::ExtrudedPoint {
+            MappedCurve::ExtrudedPoint {
                 point,
-                place: Affine3::translation(vec * s0) * place,
-                vec: vec * (s1 - s0),
+                place,
+                vec,
+                stations,
+            } => MappedCurve::ExtrudedPoint {
+                point,
+                place,
+                vec,
+                stations: stations.restrict(s0, s1),
             },
             MappedCurve::RevolvedPoint {
                 point,
                 place,
                 axis_origin,
                 axis_dir,
-                angle,
+                angles,
             } => MappedCurve::RevolvedPoint {
                 point,
-                place: Affine3::rotation_about_axis(axis_origin, axis_dir, s0 * angle) * place,
+                place,
                 axis_origin,
                 axis_dir,
-                angle: (s1 - s0) * angle,
+                angles: angles.restrict(s0, s1),
             },
         }
     }
 
     /// The described point at normalized parameter `s ∈ [0, 1]` — the
     /// authoritative locus the cached carrier is certified against
-    /// (module docs). Total; fixed evaluation orders as documented per
-    /// variant.
+    /// (module docs). Total; fixed evaluation orders as written (D9).
+    ///
+    /// A revolved point is the placed point `p` less the anchor
+    /// operator `(I − R)` ([`Mat3::identity_minus_rotation_about`])
+    /// applied to its offset from the axis origin — the rotation about
+    /// the axis, written so the motion acts on that offset alone. At
+    /// `T = Interval` an angle's width then reaches the point scaled by
+    /// the radius about the axis rather than by the coordinates' own
+    /// magnitude, and the start sample (`(I − R)` zero to within dust)
+    /// is the placed point.
     pub fn eval(&self, s: T) -> Point3<T> {
         match *self {
             MappedCurve::PlacedSegment { segment, place } => place_point(place, segment.eval(s)),
-            MappedCurve::ExtrudedPoint { point, place, vec } => place_point(place, point) + vec * s,
+            MappedCurve::ExtrudedPoint {
+                point,
+                place,
+                vec,
+                stations,
+            } => place_point(place, point) + vec * stations.at(s),
             MappedCurve::RevolvedPoint {
                 point,
                 place,
                 axis_origin,
                 axis_dir,
-                angle,
+                angles,
             } => {
                 let p = place_point(place, point);
-                Affine3::rotation_about_axis(axis_origin, axis_dir, s * angle).transform_point(p)
+                p - Mat3::identity_minus_rotation_about(axis_dir, angles.at(s)) * (p - axis_origin)
             }
         }
     }
@@ -397,6 +469,7 @@ mod tests {
             point: Point2::new(0.5, 0.25),
             place: Affine3::identity(),
             vec: Vec3::new(0.0, 0.0, 2.0),
+            stations: SweepRange::unit(),
         };
         let p = mc.eval(0.75);
         assert_eq!((p.x, p.y, p.z), (0.5, 0.25, 1.5));
@@ -409,7 +482,7 @@ mod tests {
             place: Affine3::identity(),
             axis_origin: Point3::origin(),
             axis_dir: Vec3::unit_y(),
-            angle: PI,
+            angles: SweepRange::from_zero(PI),
         };
         // s = 0: the placed point itself.
         let p0 = mc.eval(0.0);

@@ -110,9 +110,9 @@ fn constructor_bit_movement_over_the_recorded_corpus() {
     println!("anchor fixed-point residual, relative: retired {res_old:e}, new {res_new:e}");
 }
 
-/// Where the `RevolvedPoint` start sample's residual 2.66e-15 actually
-/// comes from, decomposed against two counterfactual respellings of
-/// `Mat3::rotation_about`.
+/// Where `R·p`'s residual 2.66e-15 at `θ = 0` actually comes from, on
+/// the `revolved_point_anchor` fixture's placed point, decomposed
+/// against two counterfactual respellings of `Mat3::rotation_about`.
 ///
 /// The question this answers is whether retiring `1 − cos θ` — the
 /// audit member on issue 1143 — would buy the residue back. It prints

@@ -2595,9 +2595,9 @@ fn surface_residual<T: Real>(surface: &Surface<T>, p: Point3<T>, frame: &Frame<T
 /// containing the axis and turns the corner on it out of its old
 /// sketch plane, so each end's out-of-plane coordinate — a length — is
 /// decided: an end still in its plane keeps its azimuth, and an end
-/// turned out of it has the sketch plane follow it about the axis (the
-/// start) or the span absorb the turn (the end), the way a restriction
-/// of the same declaration advances its placement. A start turned onto
+/// turned out of it has its end of the sweep range absorb the turn,
+/// the way a restriction of the same declaration narrows its range and
+/// keeps its placement. A start turned onto
 /// its own azimuth and still out of the plane — a sketch plane that
 /// does not contain the axis — refuses typed. Refuses also an arc
 /// whose moved carrier is no circle to subtend at.
@@ -2645,12 +2645,18 @@ fn reauthor<T: Decide>(
                 place,
             }
         }
-        geom_brep::MappedCurve::ExtrudedPoint { place, vec, .. } => {
-            // Each moved end's station `s` along the extrusion, `p =
-            // place(point) + vec·s`: its height off the sketch plane
+        geom_brep::MappedCurve::ExtrudedPoint {
+            place,
+            vec,
+            stations,
+            ..
+        } => {
+            // Each moved end's station along the extrusion, `p =
+            // place(point) + vec·t`: its height off the sketch plane
             // over the vector's own. An end still at its rest station
-            // (`0` for the start, `1` for the end) keeps it, decided on
-            // the height it would be off by — a length.
+            // (`stations.from` for the start, `stations.to` for the end)
+            // keeps it, decided on the height it would be off by — a
+            // length.
             let inv = place.inverse();
             let rise = inv.transform_vec(vec).z;
             match decide("offset_axial_reauthor_rise", Margin::of(rise), band) {
@@ -2666,53 +2672,60 @@ fn reauthor<T: Decide>(
             let station = |name: &'static str, p: Point3<T>, rest: T| {
                 let height = inv.transform_point(p).z;
                 match decide(name, Margin::of(height - rise * rest), band) {
-                    Ok(Sign::Zero) => Ok(None),
-                    Ok(_) => Ok(Some(height / rise)),
+                    Ok(Sign::Zero) => Ok(rest),
+                    Ok(_) => Ok(height / rise),
                     Err(source) => Err(ReplaceFaceError::Escalated { source }),
                 }
             };
-            let s0 = station("offset_axial_reauthor_extrude_start", p_start, T::zero())?;
-            let s1 = station("offset_axial_reauthor_extrude_end", p_end, T::one())?;
-            // The declaration's own restriction (`MappedCurve::restrict`):
-            // the placement slides to the start, the vector spans the
-            // two stations.
-            let place = match s0 {
-                Some(s) => geom_core::Affine3::translation(vec * s) * place,
-                None => place,
+            let stations = geom_brep::SweepRange {
+                from: station(
+                    "offset_axial_reauthor_extrude_start",
+                    p_start,
+                    stations.from,
+                )?,
+                to: station("offset_axial_reauthor_extrude_end", p_end, stations.to)?,
             };
-            let vec = match (s0, s1) {
-                (None, None) => vec,
-                _ => vec * (s1.unwrap_or(T::one()) - s0.unwrap_or(T::zero())),
-            };
-            let q = place.inverse().transform_point(p_start);
+            let q = inv.transform_point(p_start - vec * stations.from);
             geom_brep::MappedCurve::ExtrudedPoint {
                 point: geom_core::Point2::new(q.x, q.y),
                 place,
                 vec,
+                stations,
             }
         }
         geom_brep::MappedCurve::RevolvedPoint {
             place,
             axis_origin,
             axis_dir,
-            angle,
+            angles,
             ..
         } => {
-            let turn = |name, plane: geom_core::Affine3<T>, s: T, moved: Point3<T>| {
+            let plane = |theta: T| {
+                geom_core::Affine3::rotation_about_axis(axis_origin, axis_dir, theta) * place
+            };
+            let turn = |name, theta: T, s: T, moved: Point3<T>| {
                 let old = mapped.eval(s);
-                azimuth_turn(name, plane, (axis_origin, axis_dir), old, moved, band)
+                azimuth_turn(
+                    name,
+                    plane(theta),
+                    (axis_origin, axis_dir),
+                    old,
+                    moved,
+                    band,
+                )
             };
-            let start_turn = turn("offset_axial_reauthor_plane", place, T::zero(), p_start)?;
-            let end_plane =
-                geom_core::Affine3::rotation_about_axis(axis_origin, axis_dir, angle) * place;
-            let end_turn = turn("offset_axial_reauthor_end", end_plane, T::one(), p_end)?;
-            let place = match start_turn {
-                Some(phi) => {
-                    geom_core::Affine3::rotation_about_axis(axis_origin, axis_dir, phi) * place
-                }
-                None => place,
+            let start_turn = turn(
+                "offset_axial_reauthor_plane",
+                angles.from,
+                T::zero(),
+                p_start,
+            )?;
+            let end_turn = turn("offset_axial_reauthor_end", angles.to, T::one(), p_end)?;
+            let angles = geom_brep::SweepRange {
+                from: start_turn.map_or(angles.from, |phi| angles.from + phi),
+                to: end_turn.map_or(angles.to, |phi| angles.to + phi),
             };
-            let q = place.inverse().transform_point(p_start);
+            let q = plane(angles.from).inverse().transform_point(p_start);
             if start_turn.is_some() {
                 match decide("offset_axial_reauthor_azimuth", Margin::of(q.z), band) {
                     Ok(Sign::Zero) => {}
@@ -2726,13 +2739,12 @@ fn reauthor<T: Decide>(
                     Err(source) => return Err(ReplaceFaceError::Escalated { source }),
                 }
             }
-            let zero = T::zero();
             geom_brep::MappedCurve::RevolvedPoint {
                 point: geom_core::Point2::new(q.x, q.y),
                 place,
                 axis_origin,
                 axis_dir,
-                angle: angle + end_turn.unwrap_or(zero) - start_turn.unwrap_or(zero),
+                angles,
             }
         }
     })

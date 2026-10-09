@@ -800,23 +800,29 @@ fn map_mapped_curve<T: Real>(map: &Affine3<T>, mc: &MappedCurve<T>) -> MappedCur
             segment,
             place: *map * place,
         },
-        MappedCurve::ExtrudedPoint { point, place, vec } => MappedCurve::ExtrudedPoint {
+        MappedCurve::ExtrudedPoint {
+            point,
+            place,
+            vec,
+            stations,
+        } => MappedCurve::ExtrudedPoint {
             point,
             place: *map * place,
             vec: map_vec(map, vec),
+            stations,
         },
         MappedCurve::RevolvedPoint {
             point,
             place,
             axis_origin,
             axis_dir,
-            angle,
+            angles,
         } => MappedCurve::RevolvedPoint {
             point,
             place: *map * place,
             axis_origin: map.transform_point(axis_origin),
             axis_dir: map_vec(map, axis_dir),
-            angle,
+            angles,
         },
     }
 }

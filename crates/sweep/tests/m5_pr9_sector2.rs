@@ -211,6 +211,7 @@ fn the_must_carry_fires_when_the_description_is_conventional() {
                 point: Point2::new(origin.x, origin.y),
                 place: geom_core::Affine3::identity(),
                 vec: dir * (t1 - t0),
+                stations: geom_brep::SweepRange::unit(),
             },
         ),
         carrier: geom::Curve3::Line { origin, dir },
