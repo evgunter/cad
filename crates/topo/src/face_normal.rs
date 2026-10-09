@@ -136,9 +136,10 @@ pub(crate) enum NormalAtError {
     /// point ON the face, so this is the caller's invariant, not a
     /// remainder.
     OffSurface,
-    /// `p` is on a cone face but within the band of its axis, at the
-    /// apex, where the face has no tangent plane: definite or in band,
-    /// there is no normal to answer with.
+    /// `p` is not definitely off a cone face's surface and stands within
+    /// the band of its axis, so near the apex, where the face has no
+    /// tangent plane: definite or in band, there is no normal to answer
+    /// with.
     AtConeApex {
         /// The band the distance off the axis was classified against.
         band: Band,
@@ -297,7 +298,7 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
             half_angle,
             ..
         } => {
-            let nappe = face_nappe_or_double(body, face, band)?;
+            let nappe = face_nappe_or_double(body, face, band);
             let elevation = geom_brep::cone_elevation(*apex, *axis, *half_angle, nappe, p);
             let on = decide("bool_pierce_normal_on_cone", Margin::of(elevation), band);
             if let Ok(Sign::Positive | Sign::Negative) = on {
@@ -324,23 +325,22 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
 
 /// The nappe a cone face's points are certified on: the face's own
 /// ([`crate::offset_nappe::face_nappe`]) where its corners decide it,
-/// and the double cone where they reach the apex, as a full cone's do.
-/// There a point on the mirror nappe reads on the carrier, and the
-/// face's trim is what places it elsewhere, as the crossing layer's
-/// far-nappe reading leaves it.
+/// and the double cone where they reach the apex's height, as a full
+/// cone's do. A corner whose station lands in the band stands at that
+/// height too, so it takes the double cone rather than escalating: the
+/// face may reach its apex, and which nappe a point is on is then the
+/// trim's question, as the crossing layer's far-nappe reading leaves
+/// it. On the double cone a point on the mirror nappe reads on the
+/// carrier.
 fn face_nappe_or_double<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     band: Band,
-) -> Result<Option<geom_brep::Nappe>, NormalAtError> {
+) -> Option<geom_brep::Nappe> {
     use crate::replace_face::ReplaceFaceError;
     match crate::offset_nappe::face_nappe(body, face, band) {
-        Ok(nappe) => Ok(Some(nappe)),
-        Err(ReplaceFaceError::NappeStraddles { .. }) => Ok(None),
-        Err(ReplaceFaceError::Escalated { source }) => Err(NormalAtError::Escalated {
-            decision: NormalDecision::OnSurface,
-            diag: source,
-        }),
+        Ok(nappe) => Some(nappe),
+        Err(ReplaceFaceError::NappeStraddles { .. } | ReplaceFaceError::Escalated { .. }) => None,
         Err(other) => unreachable!(
             "the nappe of a cone face this door resolved answered a refusal it does not give: \
              {other:?}"
@@ -351,9 +351,12 @@ fn face_nappe_or_double<T: Decide>(
 /// **Whether `p` stands definitely off a cone's axis**, the one place
 /// the boolean decides it has a normal at a point of a cone face. The
 /// implicit gradient is `0/0` on the axis, and the apex is the axis
-/// point ON the surface, so a point within the band of the axis has no
-/// tangent plane to read: `Zero` and in band refuse alike
-/// ([`NormalAtError::AtConeApex`]).
+/// point ON the surface, so a point of the surface within the band of
+/// the axis has no tangent plane to read: `Zero` and in band refuse
+/// alike ([`NormalAtError::AtConeApex`]). The test is the distance off
+/// the axis, not off the apex: on a cone of half-angle `α` it refuses
+/// surface points up to `band / sin α` along the generator from the
+/// apex, which on a needle cone is a long way.
 pub(crate) fn cone_axis_clearance<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
@@ -607,6 +610,22 @@ mod tests {
             ),
             "a point on the mirror nappe"
         );
+        // Off the surface is decided before the apex: a point on the axis
+        // far up it, or within the band of it, is off the face, not at
+        // its apex.
+        for q in [
+            Point3::new(0.0, 0.0, 0.8),
+            Point3::new(0.5 * b.zero(), 0.0, 0.8),
+            Point3::new(mid, 0.0, 0.8),
+        ] {
+            assert!(
+                matches!(
+                    face_outward_normal_at(&body, face, q, b),
+                    Err(NormalAtError::OffSurface)
+                ),
+                "{q:?}, up the axis"
+            );
+        }
         let (generator, _) = on_wall(0.4, 1.0);
         let along = (generator - Point3::origin()).normalize();
         for (label, q) in [
@@ -635,6 +654,40 @@ mod tests {
             ),
             "in band off the wall"
         );
+    }
+
+    /// **A cone face whose corners reach its apex is certified on the
+    /// double cone**, its trim placing a point on the far nappe: the
+    /// corners decide no nappe, and naming one would refuse a point the
+    /// face may hold. A one-vertex face whose corner is the apex
+    /// answers a normal on either nappe, each the chart normal there,
+    /// where the face's own nappe (here none) would refuse one of them.
+    #[test]
+    fn a_cone_face_reaching_its_apex_is_certified_on_the_double_cone() {
+        let corner = crate::fixtures::mvfs_state()
+            .body
+            .vertex_points()
+            .next()
+            .map(|(_, p)| p)
+            .unwrap();
+        let (body, face) = face_on(geom::Surface::Cone {
+            apex: corner,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: ALPHA,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        });
+        for z in [0.7, -0.7] {
+            let (p, chart) = on_wall(0.4, z);
+            let p = p + (corner - Point3::origin());
+            let got = face_outward_normal_at(&body, face, p, band());
+            // Below the apex `on_wall`'s radial points back through the
+            // axis, so the chart normal there is its negation.
+            let want = chart * z.signum();
+            assert!(
+                matches!(&got, Ok(Some(n)) if (n.vec() - want).norm() < 1e-14),
+                "z = {z}: {got:?}, want {want:?}"
+            );
+        }
     }
 
     /// **The anti-re-fork row for the planar sense flip.** The plane

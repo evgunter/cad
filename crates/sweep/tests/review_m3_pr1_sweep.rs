@@ -171,10 +171,14 @@ fn split_circle_carrier_intersection_edge() {
     // validate_geometric green — the silent-wrong-volume class the
     // review executed at merge base). PR 9 sums spans per (rim level,
     // direction) group, so a split rim integrates EXACTLY: tier 3
-    // holds straight through the split.
+    // holds straight through the split, but for check 11, which names
+    // the split vertex — a split rim is construction state until the
+    // join takes it back.
     assert_eq!(
         validate_geometric(&body, Tol::witness()),
-        Ok(()),
+        Err(vec![topo::ValidationError::JoinableVertexAtRest {
+            vertex: created.vertex
+        }]),
         "tier 3 must survive a rim split since the du_of_rims repair"
     );
     assert_eq!(validate_closed(&body), Ok(()), "tier 2 survives too");
@@ -338,9 +342,10 @@ fn revert_curved_body_reverts_via_the_sense_bit() {
 }
 
 /// TARGETS 2+3 on swept bodies: a split then a null strut on the
-/// prism - split_edge keeps the prism tier-3; the null edge then
-/// closes the tier-3/mass-props doors until killed (the fail-loud
-/// lifecycle on a real consumer body, not a fixture).
+/// prism - split_edge keeps the prism tier-3 but for check 11, which
+/// names the split vertex (construction state until the join); the
+/// null edge then closes the tier-3/mass-props doors until killed (the
+/// fail-loud lifecycle on a real consumer body, not a fixture).
 #[test]
 fn split_then_null_lifecycle_on_prism() {
     let out = extrude(
@@ -363,9 +368,13 @@ fn split_then_null_lifecycle_on_prism() {
         })
         .unwrap();
     let (t0, t1) = curve.params();
-    body.split_edge(edge, t0 + (t1 - t0) * 0.5, Tol::witness())
+    let split = body
+        .split_edge(edge, t0 + (t1 - t0) * 0.5, Tol::witness())
         .unwrap();
-    assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
+    let joinable = Err(vec![topo::ValidationError::JoinableVertexAtRest {
+        vertex: split.vertex,
+    }]);
+    assert_eq!(validate_geometric(&body, Tol::witness()), joinable);
     assert_eq!(
         topo::mass_properties(&body, Tol::witness())
             .unwrap()
@@ -389,5 +398,5 @@ fn split_then_null_lifecycle_on_prism() {
     ));
     assert!(validate_closed(&body).is_err());
     body.kev(created.he_plus).unwrap();
-    assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
+    assert_eq!(validate_geometric(&body, Tol::witness()), joinable);
 }

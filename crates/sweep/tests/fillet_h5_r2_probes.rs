@@ -379,19 +379,21 @@ fn wall_meridians(body: &Body<f64>) -> [EdgeKey; 2] {
         .unwrap_or_else(|f: Vec<_>| panic!("a full revolve's wall has two meridians, got {f:?}"))
 }
 
-/// **A finished CURVED single face carrying both arcs refuses at the
-/// half-band gate.** One of a cylinder wall's two seam meridians is
+/// **A CURVED single face carrying both arcs is construction state.**
+/// One of a cylinder wall's two seam meridians is
 /// killed and the other, either one, restated as the wall's wrap edge
 /// (`kef_describing`), which merges the wall into ONE face that
 /// finishes: the wall touches no pole, so no strut tip is left. A wrap
 /// edge sits wherever the construction cut the wall, so either meridian
-/// carries the wrap flag and meters the cylinder's volume, π. The base
-/// rim's arcs then rest on a support that does not carry exactly its own
-/// rim arc, so the fillet refuses there whether or not the plane side
-/// has been repaired, and the chamfer refuses its arm. The same kill
-/// through plain `kef` leaves the survivor a slit, which tier 3 refuses.
+/// carries the wrap flag and meters the cylinder's volume, π. The kill
+/// leaves each rim two arcs of one circle meeting at the killed
+/// meridian's end with nothing else there, which tier 3's check 11
+/// refuses at rest: the join would take each rim back into one closed
+/// edge, so no blend door meets a support carrying both arcs. The same
+/// kill through plain `kef` leaves the survivor a slit as well, which
+/// tier 3 refuses beside them.
 #[test]
-fn a_finished_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate() {
+fn a_curved_single_face_carrying_both_arcs_is_construction_state() {
     for (repair, order) in [(false, 0), (false, 1), (true, 0), (true, 1)] {
         let mut body = pole_cylinder();
         if repair {
@@ -404,14 +406,27 @@ fn a_finished_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gat
         let (wall, _) = faces_of(&body, wraps);
         let wall = body.get_face(wall).unwrap().surface;
         let dying = body.get_edge(dies).unwrap().he_plus;
+        // The killed meridian's two ends are left between two arcs of
+        // one rim circle each: joinable vertices (tier 3's check 11).
+        let mut ends = [
+            body.get_half_edge(dying).unwrap().start,
+            body.half_edge_end(dying).unwrap(),
+        ];
+        ends.sort();
+        let joinable = || {
+            ends.iter()
+                .map(|&vertex| ValidationError::JoinableVertexAtRest { vertex })
+        };
 
         let mut slit = body.clone();
         slit.kef(dying).expect("the meridian kills");
         assert_eq!(
             AtRestBody::validate(slit, tol()).map(drop),
-            Err(vec![ValidationError::DescriptionNotAdjacent {
-                edge: wraps
-            }]),
+            Err(
+                std::iter::once(ValidationError::DescriptionNotAdjacent { edge: wraps })
+                    .chain(joinable())
+                    .collect()
+            ),
             "repair = {repair}: plain kef leaves a slit, not at rest"
         );
 
@@ -440,25 +455,14 @@ fn a_finished_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gat
             (volume - core::f64::consts::PI).abs() < 1e-9,
             "repair = {repair}, order = {order}: the wall meters π, got {volume}"
         );
-        let operand = AtRestBody::validate(body, tol()).unwrap_or_else(|e| {
-            panic!("repair = {repair}, order = {order}: the merged wall finishes, got {e:?}")
-        });
-        let fillet = fillet_edges(&operand, &arcs, 0.05, tol()).map(drop);
-        assert!(
-            matches!(
-                &fillet,
-                Err(r) if matches!(&r.error, BlendError::UnsupportedChain { detail, .. }
-                    if detail.contains("does not carry exactly its own rim arc"))
-            ),
-            "repair = {repair}, order = {order}: the half-band gate fires on the fillet: {fillet:?}"
-        );
-        let chamfer = chamfer_edges(&operand, &arcs, 0.05, tol()).map(drop);
-        assert!(
-            matches!(
-                &chamfer,
-                Err(r) if matches!(r.error, BlendError::ChamferArmUnsupported { .. })
-            ),
-            "repair = {repair}, order = {order}: the chamfer refuses its arm: {chamfer:?}"
+        // Each rim's two arcs meet at the killed meridian's end with
+        // nothing else there, so the merged wall is construction state
+        // (tier 3's check 11) and no blend door takes it: the join would
+        // take each rim back into one closed edge first.
+        assert_eq!(
+            AtRestBody::validate(body, tol()).map(drop),
+            Err(joinable().collect()),
+            "repair = {repair}, order = {order}: the merged wall's rims are each two arcs"
         );
     }
 }
@@ -500,9 +504,9 @@ fn compose_two_rims(
             .map_err(|e| format!("{what}: sequential result not tier-3 valid: {e:?}"))?;
         let seq = mass_properties(&body, tol()).unwrap();
         // The same body, not the same history: each carve ends with the
-        // join, which keeps the edge of the vertex's first half-edge in
-        // arena order and extends that edge's interval over the other
-        // (`join_all`, `joined_spec`). One call and a sequence of carves
+        // join, which kills the edge of the vertex's first half-edge in
+        // arena order and extends the other's interval over it
+        // (`joinable`'s `gone` and `kept`, `joined_spec`). One call and a sequence of carves
         // reach the join with different arenas, so they can keep
         // different pieces of one rim, and the joined edge's parameter
         // interval — which the volume integrates over — differs in its

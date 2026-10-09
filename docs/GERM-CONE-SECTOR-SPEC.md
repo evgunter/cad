@@ -272,8 +272,11 @@ runs along the axis, so it cuts a hyperbola. But
 origin*. That origin sat level with the apex, so the lever was 0 and the
 section came back as a radius-0 `AxisNormalCircle`. That circle's zero
 tangent gave `0/0` in `arc_leaving`, against a finite germ direction.
-The lever now reads the apex's distance off the plane (`|δ|·tan α`,
-equal to `|h|·tan α` on an axis-normal plane). R6 now refuses with the
+The sine is now levered at `max(|δ/c|·tan α, extent)`. Here `δ` is the
+apex's distance off the plane and `c = â·n̂`. The first term is the
+would-be circle's radius; the second is the reach that `pn_conic_type`
+is metered at. The circle is built where the axis meets the plane.
+Neither term reads the stored origin. R6 now refuses with the
 hyperbola's typed refusal (R1).
 
 ### 1.7 D6 and D7: not this spec's arms

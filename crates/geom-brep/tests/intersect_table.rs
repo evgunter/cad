@@ -805,6 +805,37 @@ fn a_plane_along_the_axis_is_a_hyperbola_wherever_its_origin_sits() {
     }
 }
 
+/// **A needle cone's plane along the axis, just definitely off the
+/// apex, is a hyperbola too.** At α = 0.05 and a gap of 1.01 escalations
+/// the would-be circle's radius is so small that the tilt sine levered
+/// at it alone lands in the zero band, and the plane came back as an
+/// axis-normal circle: radius 0 at the apex with the origin level with
+/// it, and a radius-0.05 circle a metre up the axis with the origin
+/// there. The sine is levered at the extent as well, which the plane
+/// along the axis clears wherever its origin sits.
+#[test]
+fn a_needle_cones_plane_along_the_axis_just_off_the_apex_is_a_hyperbola() {
+    let cone = cone_z(0.05);
+    let gap = 1.01 * band().escalate();
+    let wrong: Vec<String> = [1.0, 2.0]
+        .into_iter()
+        .filter_map(|z| {
+            let plane = Surface::Plane {
+                origin: Point3::new(gap, 0.0, z),
+                normal: Vec3::unit_x(),
+                u_ref: Vec3::unit_y(),
+            };
+            match plane_cone_section(&plane, &cone, 1.0, band()) {
+                Err(SectionError::RoutesToGeneralRung { why, .. }) if why.contains("HYPERBOLA") => {
+                    None
+                }
+                got => Some(format!("origin at z = {z}: {got:?}")),
+            }
+        })
+        .collect();
+    assert!(wrong.is_empty(), "not the hyperbola's refusal: {wrong:#?}");
+}
+
 // ---------------------------------------------------------------------
 // cylinder × sphere, DECLARED coaxial
 // ---------------------------------------------------------------------
