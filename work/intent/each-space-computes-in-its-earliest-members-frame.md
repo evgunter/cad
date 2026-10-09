@@ -8,7 +8,6 @@ priority: P0
 cost: M
 blocked_on: [a-placement-is-the-bundle-of-mates]
 refs: [intent-stage3-is-built]
-needs_ev: true
 ---
 
 INTENT stage 3, PR E. Spec: `docs/INTENT-STAGE3-SPEC.md` §6.

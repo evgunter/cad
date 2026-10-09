@@ -8,7 +8,6 @@ priority: P0
 cost: H
 blocked_on: [select-defines-face-and-edge-variables]
 refs: [explicit-placement-frames-hold-floats, intent-stage3-is-built]
-needs_ev: true
 ---
 
 INTENT stage 3, PR A. Spec: `docs/INTENT-STAGE3-SPEC.md` §2.
