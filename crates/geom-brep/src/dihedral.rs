@@ -102,7 +102,10 @@ use crate::recourse::{AtZero, SizedDecision, SizedPass, StoredDefinite};
 /// passes only on a definitely positive arm; a zero-band one is a size
 /// a smaller tolerance decides. Every door that reads the dihedral's
 /// [`crate::LeverRung::Arm`] ends it here, since the arm is a length and
-/// the wedge an angle. Its margin is the wedge the arm meters,
+/// the wedge an angle, save one that passes a smooth wedge alone: the
+/// tolerance offered decides a wedge that does not read zero transverse,
+/// which that door refuses, so it ends the arm on its own lever with no
+/// tolerance (the blend's contact edge). Its margin is the wedge the arm meters,
 /// `sin θ · arm` (the arm's own where that wedge reads zero at the
 /// tolerance deciding the arm), so the tolerance it offers decides the
 /// arm and the wedge both. Its zero note names both ways the arm reaches

@@ -35,3 +35,12 @@ PR 3431). Certification (`CertCheck::TransversalityArm`,
 `CertifyError::ArmCollapsed`, `CertCheck::ParamSpanMeter`) and the
 validator (`WedgeCheck::Arm`, `ValidationError::NoDihedralArm`) route
 through them.
+
+## Since (ENCL, `encl/sweep-must-carry-escalation`)
+
+`ExtrudeError::SliverJoin`/`SliverRim` and `RevolveError::SliverJoin`/`SliverRim`
+carry `reading: topo::DihedralReading`, `Lever(rung)` at both the witness
+classification and the must-carry rule's first-order stations, and `Bend` for
+the second-order one. The rung now reaches `Display`
+(`sweep::swept::sliver_text`), which still words both rungs as the wedge's
+sliver: the repair is that function's `Lever(LeverRung::Arm)` arm.

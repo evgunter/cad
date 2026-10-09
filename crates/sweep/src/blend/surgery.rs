@@ -5209,11 +5209,12 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
             let extent = edge_extent(&curve, t0, t1, p0.distance(p1));
             must_carry_over_edge(surf1, surf2, &curve, t0, t1, extent, band)
         };
-        // In-band: a separation certifiable as neither positive nor
-        // zero — a band a few K·ε in radius, or a corner arc whose
-        // extent is the lever — escalated typed with the deciding
-        // station's own reading, at the link the contact edge belongs
-        // to. Refuted: a station reads the join a corner, so this
+        // In-band: a station certifiable as neither — a band a few K·ε
+        // in radius, or a corner arc whose extent is the lever —
+        // escalated typed as the decision its reading asks (the
+        // first-order arm or wedge, or the second-order separation),
+        // with that station's own diagnostics, at the link the contact
+        // edge belongs to. Refuted: a station reads the join a corner, so this
         // branch's premise — a definitely-smooth join — is refuted by
         // the geometry. The carrier kind routed the edge here, and
         // every kind whose surfaces cross at an angle is routed to the
@@ -5222,11 +5223,14 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         // repaired by storing a description the routing did not
         // choose.
         let refused = |refusal| match refusal {
-            MustCarryRefusal::InBand(source) => BlendError::Escalated {
-                site: BlendSite::Link { edge: link },
-                decision: BlendDecision::ContactSecondOrder,
-                source: source.diag(),
-            },
+            MustCarryRefusal::InBand(escalation) => {
+                let (decision, source) = BlendDecision::of_contact(escalation);
+                BlendError::Escalated {
+                    site: BlendSite::Link { edge: link },
+                    decision,
+                    source,
+                }
+            }
             MustCarryRefusal::Refuted => BlendError::SurgeryInvariant {
                 at: EntityId::Edge(edge),
                 detail: "a contact edge routed as a smooth join reads definitely \

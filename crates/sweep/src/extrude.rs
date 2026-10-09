@@ -107,8 +107,8 @@ use geom_core::{
 };
 use profile::{SegmentKind, ValidatedLoop, ValidatedProfile};
 use topo::{
-    Body, EdgeKey, EulerOpError, FaceKey, FaceSurface, MefSite, MevCreated, MevSite, ShellKey,
-    SolidKey, SurfaceKey,
+    Body, DihedralReading, EdgeKey, EulerOpError, FaceKey, FaceSurface, MefSite, MevCreated,
+    MevSite, ShellKey, SolidKey, SurfaceKey,
 };
 
 use crate::swept;
@@ -407,12 +407,16 @@ pub enum ExtrudeError {
     /// The dihedral classification at a profile-corner join escalated:
     /// a sliver dihedral, certifiable as neither a corner nor a smooth
     /// join (D2's ratified text — a conventional description is not an
-    /// escape hatch from ill-conditioned geometry).
+    /// escape hatch from ill-conditioned geometry); or, on a join read
+    /// smooth, the must-carry rule's second-order bend did, certifiable
+    /// as neither description.
     SliverJoin {
         /// Canonical index of the loop.
         loop_index: usize,
         /// Canonical index of the join vertex.
         vertex_index: usize,
+        /// The reading that escalated.
+        reading: DihedralReading,
         /// The classifier's diagnostic.
         source: Indeterminate,
     },
@@ -432,6 +436,8 @@ pub enum ExtrudeError {
         loop_index: usize,
         /// Canonical index of the rim's segment.
         segment_index: usize,
+        /// The reading that escalated.
+        reading: DihedralReading,
         /// The classifier's diagnostic.
         source: Indeterminate,
     },
@@ -526,21 +532,23 @@ impl fmt::Display for ExtrudeError {
             Self::SliverJoin {
                 loop_index,
                 vertex_index,
+                reading,
                 source,
-            } => write!(
-                f,
-                "the wall join at loop {loop_index} vertex {vertex_index} is neither a \
-                 definite corner nor definitely smooth: {source}"
-            ),
+            } => {
+                let join = format!("the wall join at loop {loop_index} vertex {vertex_index}");
+                swept::sliver_text(f, &join, *reading, source)
+            }
             Self::SliverRim {
                 loop_index,
                 segment_index,
+                reading,
                 source,
-            } => write!(
-                f,
-                "the rim where loop {loop_index} segment {segment_index}'s wall meets a cap \
-                 is neither a definite corner nor definitely smooth: {source}"
-            ),
+            } => {
+                let rim = format!(
+                    "the rim where loop {loop_index} segment {segment_index}'s wall meets a cap"
+                );
+                swept::sliver_text(f, &rim, *reading, source)
+            }
             Self::SmoothJoinRefuted { edge } => write!(
                 f,
                 "the join along {edge:?} classified definitely smooth at its witness \
@@ -1246,11 +1254,15 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                 // refuses rather than store a description neither
                 // reading chose.
                 let refused = |refusal| match refusal {
-                    geom_brep::MustCarryRefusal::InBand(source) => ExtrudeError::SliverJoin {
-                        loop_index,
-                        vertex_index: segs[j].chord.canonical_vertex,
-                        source: source.diag(),
-                    },
+                    geom_brep::MustCarryRefusal::InBand(escalation) => {
+                        let (reading, source) = crate::swept::must_carry_reading(escalation);
+                        ExtrudeError::SliverJoin {
+                            loop_index,
+                            vertex_index: segs[j].chord.canonical_vertex,
+                            reading,
+                            source,
+                        }
+                    }
                     geom_brep::MustCarryRefusal::Refuted => {
                         ExtrudeError::SmoothJoinRefuted { edge: strut.edge }
                     }
@@ -1335,6 +1347,7 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                 return Err(ExtrudeError::SliverJoin {
                     loop_index,
                     vertex_index: segs[j].chord.canonical_vertex,
+                    reading: DihedralReading::Lever(escalation.rung()),
                     source: escalation.diag(),
                 });
             }
@@ -1627,11 +1640,15 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
         // smooth cap–wall pair has no material side.
         Ok(DihedralClass::Smooth) => {
             let refused = |refusal| match refusal {
-                geom_brep::MustCarryRefusal::InBand(source) => ExtrudeError::SliverRim {
-                    loop_index,
-                    segment_index,
-                    source: source.diag(),
-                },
+                geom_brep::MustCarryRefusal::InBand(escalation) => {
+                    let (reading, source) = crate::swept::must_carry_reading(escalation);
+                    ExtrudeError::SliverRim {
+                        loop_index,
+                        segment_index,
+                        reading,
+                        source,
+                    }
+                }
                 geom_brep::MustCarryRefusal::Refuted => ExtrudeError::SmoothJoinRefuted { edge },
             };
             match geom_brep::must_carry_over_edge(&s_cap, &s_wall, &carrier, t0, t1, extent, band)
@@ -1656,6 +1673,7 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
         Err(escalation) => Err(ExtrudeError::SliverRim {
             loop_index,
             segment_index,
+            reading: DihedralReading::Lever(escalation.rung()),
             source: escalation.diag(),
         }),
     }
@@ -1665,6 +1683,47 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    /// **A smooth strut or cap rim's must-carry escalation says which question
+    /// escalated**: a first-order station is the sliver, neither corner
+    /// nor smooth; a second-order one is a smooth join whose faces'
+    /// bend is too close to call. No fixture reaches a first-order
+    /// station past a witness that read smooth, so the escalations are
+    /// built directly.
+    #[test]
+    fn a_must_carry_escalation_ends_by_the_reading_that_raised_it() {
+        use crate::swept::must_carry_fixtures::{arm, second_order, wedge};
+        for (escalation, bend) in [(arm(), false), (wedge(), false), (second_order(), true)] {
+            let (reading, source) = crate::swept::must_carry_reading(escalation);
+            for text in [
+                ExtrudeError::SliverJoin {
+                    loop_index: 0,
+                    vertex_index: 1,
+                    reading,
+                    source,
+                }
+                .to_string(),
+                ExtrudeError::SliverRim {
+                    loop_index: 0,
+                    segment_index: 1,
+                    reading,
+                    source,
+                }
+                .to_string(),
+            ] {
+                assert_eq!(
+                    text.contains("is definitely smooth, but whether its faces curve apart"),
+                    bend,
+                    "{escalation:?}: {text}"
+                );
+                assert_eq!(
+                    text.contains("is neither a definite corner nor definitely smooth"),
+                    !bend,
+                    "{escalation:?}: {text}"
+                );
+            }
+        }
+    }
 
     /// S6 (two-tolerance, D4 ¶1 addendum): the extrusion pair —
     /// definitely-degenerate (`DegenerateExtrusion`) and in-band
