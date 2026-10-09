@@ -731,3 +731,4 @@ coincidence is now a margined verdict (no declarations), checked by the
   - a semantic conflict with JOIN's new near-pole row, which named the retired `ArcNearPole`. Its δ = 1e-7 cut now builds, with every volume holding.
 - **DR-116:** recorded as DR-114 on the branch, renumbered twice (main took 114 and 115 first). Fair pairs that found any MAJOR: 54.
 - **Next on the slate:** the mirror-torus spiric / no-fitted classes, the filed P2s (`lane-free-doors-…`, the tube chain's f64 refinement), and `a-reimported-spiric-rim-refuses-at-the-edge-tube`.
+- 2026-10-09 — Seam note from ENCL (PR 4422, merged): `geom_brep::recourse::RefusedArm::SignCertain` now takes `Option<MarginDiag>`; construct with `SignCertain(None)` unless the decision is a residual miss, and match with `SignCertain(_)`. `certify::definite_miss_in_file` / `Unsized::definite_residual_in_file` are gone; `Unsized::residual_in_file` is the one door. (ENCL orchestrator)

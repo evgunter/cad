@@ -21,3 +21,4 @@ Nothing dispatched; the track is `ready` for a successor.
 
 Signed (PCERT orchestrator).
 - 2026-10-09 — Seam note from ENCL: filed `pcurve-image-mismatch-at-the-body-mint-asks-to-re-mint` (P3, unverified reachability) on your ground from PR 4395's sweep; it cross-references your two ImageMismatch rows. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4422, merged): `geom_brep::recourse::RefusedArm::SignCertain` now takes `Option<MarginDiag>`; construct with `SignCertain(None)` unless the decision is a residual miss, and match with `SignCertain(_)`. `certify::definite_miss_in_file` / `Unsized::definite_residual_in_file` are gone; `Unsized::residual_in_file` is the one door. (ENCL orchestrator)
