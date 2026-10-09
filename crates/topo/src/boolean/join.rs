@@ -127,8 +127,10 @@
 //! reads only record data — loci, senses, site points, section
 //! frames — none of which the surgery changes, so the segments are
 //! decided before any chord is minted, and the declared-REST zip
-//! ([`super::rest`]) reads the same list. The sweep then joins them in
-//! that order. Joins, retirements, and completions must occur in
+//! ([`super::rest`]) reads the same list. A record left whole whose two
+//! germs are one closed conic through a wrap edge is one more segment
+//! ([`wrap_site_segments`]), which only the join reads
+//! ([`join_segments`]). The sweep then joins them in that order. Joins, retirements, and completions must occur in
 //! BOTH solids together; any divergence is the typed
 //! [`BooleanError::JoinDesync`] refusal, never a silent mis-join.
 //! There is no geometric sort and no section-area certification here:
@@ -497,10 +499,11 @@ impl<T: geom_core::Real> OpenRecord<T> {
     }
 }
 
-/// One section segment as the join's matching decides it: the one
-/// enumeration of "which segments exist and what each one is", read by
-/// the join's surgery ([`bool_connect`]) and the declared-REST zip
-/// ([`super::rest`]) alike.
+/// One section segment as the join's matching decides it: "which
+/// segments exist and what each one is". The matched segments
+/// ([`section_segments`]) are read by the join's surgery and the
+/// declared-REST zip ([`super::rest`]) alike; the join's surgery also
+/// reads the one-site segments ([`join_segments`]).
 #[derive(Clone, Copy, Debug)]
 pub(super) struct SectionSegment<T: geom_core::Real> {
     /// The two ends, `(pair record, germ slot)`, entry end first. The
@@ -573,6 +576,27 @@ pub(super) fn section_segments<T: Decide>(
     red: &BooleanReduction<T>,
     band: Band,
 ) -> Result<Vec<SectionSegment<T>>, BooleanError> {
+    Ok(matched_records(red, band)?.0)
+}
+
+/// **Every segment the join builds**: the matched ones
+/// ([`section_segments`]), then each one-site loop on a wrap edge
+/// ([`wrap_site_segments`]).
+pub(super) fn join_segments<T: Decide>(
+    red: &BooleanReduction<T>,
+    band: Band,
+) -> Result<Vec<SectionSegment<T>>, BooleanError> {
+    let (mut segments, open) = matched_records(red, band)?;
+    segments.extend(wrap_site_segments(red, &open, band)?);
+    Ok(segments)
+}
+
+/// [`section_segments`] with the records as the matching left them.
+#[allow(clippy::type_complexity)] // (segments, records)
+fn matched_records<T: Decide>(
+    red: &BooleanReduction<T>,
+    band: Band,
+) -> Result<(Vec<SectionSegment<T>>, Vec<OpenRecord<T>>), BooleanError> {
     let (sa, sb) = (Sides::new(red, Operand::A), Sides::new(red, Operand::B));
     let mut open = open_records(red)?;
     let mut segments = Vec::new();
@@ -592,11 +616,183 @@ pub(super) fn section_segments<T: Decide>(
             lane,
         });
     }
-    Ok(segments)
+    Ok((segments, open))
 }
 
-/// [`section_segments`] read as sites: the pair-record count and each
-/// segment's two germ sites on the A clone.
+/// **Whether `rec` is a one-site record**: neither of its germs is
+/// used, both name one locus on both operands, and that locus pair's
+/// section is a conic, so the record's germs can only match each other.
+/// Its A germ and the conic's frame.
+#[allow(clippy::type_complexity)] // (germ, (conic center, conic axis))
+fn one_site<T: Decide>(
+    red: &BooleanReduction<T>,
+    rec: &OpenRecord<T>,
+    band: Band,
+) -> Result<Option<(HalfGerm<T>, (Point3<T>, Vec3<T>))>, BooleanError> {
+    let [(g0, used0), (g1, used1)] = rec.a;
+    if used0 || used1 || g0.a_locus != g1.a_locus || g0.b_locus != g1.b_locus {
+        return Ok(None);
+    }
+    Ok(germ_section_frame(red, &g0, band)?.map(|frame| (g0, frame)))
+}
+
+/// **The section loops with one site on a wrap edge**: a transverse
+/// section of a one-face closed wall crosses the wall's wrap edge (both
+/// its halves bound that face) once, so its loop has one site, and the
+/// record there carries both of the loop's germs, one each way round
+/// the conic. The loop is one segment, from that site round the whole
+/// conic back to it ([`crate::chord_join`]'s self-loop chord): its two
+/// ends are the record's two slots.
+///
+/// Read from the records [`section_segments`]' quiescence left. A
+/// [`one_site`] record whose germs lie inside a face on both operands is
+/// taken where its site is a wrap edge of one operand's face and a
+/// pierce of the other's planar face
+/// ([`crate::chord_join::ChordJoiner::join_lone_ring`]), as
+/// [`site_cell`] reads them. Every other one-site record is left for
+/// the [`SplitJoinError::SingleSiteSectionLoop`] refusal: a conic lying
+/// along an operand edge (a coincidence), a pierce of a curved face, and
+/// a site on both operands' wrap edges.
+///
+/// Where a record is taken, three things are kernel bugs, refused as
+/// [`BooleanError::JoinDesync`]: another record naming its locus pair
+/// (a conic of one face pair is one closed curve, which the record's
+/// two germs then cover alone); B germs whose loci are not the A
+/// germs'; and two germs that agree in sense or turn one way round the
+/// conic (insertion mints a null edge's two germs facing apart).
+fn wrap_site_segments<T: Decide>(
+    red: &BooleanReduction<T>,
+    open: &[OpenRecord<T>],
+    band: Band,
+) -> Result<Vec<SectionSegment<T>>, BooleanError> {
+    let desync = |what| BooleanError::JoinDesync { what };
+    let (sa, sb) = (Sides::new(red, Operand::A), Sides::new(red, Operand::B));
+    let planar = |body: &Body<T>, f: FaceKey| {
+        matches!(
+            body.get_face(f).and_then(|d| body.get_surface(d.surface)),
+            Some(geom::Surface::Plane { .. })
+        )
+    };
+    let mut out = Vec::new();
+    for (r, rec) in open.iter().enumerate() {
+        let Some((g0, frame)) = one_site(red, rec, band)? else {
+            continue;
+        };
+        let (super::Locus::InFace(fa), super::Locus::InFace(fb)) = (g0.a_locus, g0.b_locus) else {
+            continue;
+        };
+        let crossed = match (
+            site_cell(&red.a, fa, g0.he)?,
+            site_cell(&red.b, fb, rec.b[0].0.he)?,
+        ) {
+            (SiteCell::Wrap, SiteCell::Pierce) => planar(&red.b, fb),
+            (SiteCell::Pierce, SiteCell::Wrap) => planar(&red.a, fa),
+            _ => false,
+        };
+        if !crossed {
+            continue;
+        }
+        let shared = open.iter().enumerate().any(|(o, other)| {
+            o != r
+                && other
+                    .a
+                    .iter()
+                    .any(|(g, _)| g.a_locus == g0.a_locus && g.b_locus == g0.b_locus)
+        });
+        if shared {
+            return Err(desync(
+                "a one-site record on a wrap edge shares its locus pair with another record",
+            ));
+        }
+        let g1 = rec.a[1].0;
+        if rec
+            .b
+            .iter()
+            .any(|(g, _)| g.a_locus != g0.a_locus || g.b_locus != g0.b_locus)
+        {
+            return Err(desync("B germ loci differ at a one-site record"));
+        }
+        if sa.is_up(&red.a, g0.he)? == sa.is_up(&red.a, g1.he)?
+            || sb.is_up(&red.b, rec.b[0].0.he)? == sb.is_up(&red.b, rec.b[1].0.he)?
+        {
+            return Err(desync("a one-site record's two germs agree in sense"));
+        }
+        let p = red
+            .a
+            .half_edge_start_point(g0.he)
+            .ok_or(desync("germ site has no point"))?;
+        let senses = (
+            rotational_sense(frame, p, g0.dir, band)?,
+            rotational_sense(frame, p, g1.dir, band)?,
+        );
+        match senses {
+            (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => {}
+            (Sign::Zero, _) | (_, Sign::Zero) => return Err(desync(RADIAL_GERM)),
+            _ => {
+                return Err(desync(
+                    "a one-site record's two germs turn one way round its conic",
+                ));
+            }
+        }
+        out.push(SectionSegment {
+            ends: [(r, 0), (r, 1)],
+            germ: g0,
+            lane: SegmentLane::Section,
+        });
+    }
+    Ok(out)
+}
+
+/// What a null half's site is in its germ's face ([`site_cell`]).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SiteCell {
+    /// Every real edge there is a piece of the face's wrap edge.
+    Wrap,
+    /// No real edge reaches it: a pierce of the face's interior.
+    Pierce,
+    /// A real edge there bounds another face.
+    Other,
+}
+
+/// [`SiteCell`] of the site of null half `he` in `face`.
+fn site_cell<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    he: HalfEdgeKey,
+) -> Result<SiteCell, BooleanError> {
+    let desync = |what| BooleanError::JoinDesync { what };
+    let start = body
+        .get_half_edge(he)
+        .ok_or(desync("germ half no longer resolves"))?
+        .start;
+    let end = body
+        .half_edge_end(he)
+        .ok_or(desync("germ half no longer resolves"))?;
+    let site =
+        crate::chord_join::null_site(body, &[start, end]).map_err(super::sectors::stale_site)?;
+    let mut cell = SiteCell::Pierce;
+    for v in site {
+        for k in body.edges_of_vertex_linked(v) {
+            let e = body
+                .get_edge(k)
+                .ok_or(desync("a site edge no longer resolves"))?;
+            if body.edge_curve_linked(k, e).null_scaffold().is_some() {
+                continue;
+            }
+            for h in [e.he_plus, e.he_minus] {
+                if body.face_of_half_edge(h) != Some(face) {
+                    return Ok(SiteCell::Other);
+                }
+            }
+            cell = SiteCell::Wrap;
+        }
+    }
+    Ok(cell)
+}
+
+/// [`join_segments`] read as sites: the pair-record count and each
+/// segment's two germ sites on the A clone (one point twice for a
+/// one-site loop).
 #[cfg(any(test, feature = "test-support"))]
 pub(super) fn segment_sites(
     red: &BooleanReduction<f64>,
@@ -610,7 +806,7 @@ pub(super) fn segment_sites(
                 what: "germ site has no point",
             })
     };
-    let segments = section_segments(red, band)?
+    let segments = join_segments(red, band)?
         .iter()
         .map(|s| Ok([site(s.ends[0])?, site(s.ends[1])?]))
         .collect::<Result<_, BooleanError>>()?;
@@ -644,7 +840,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Connected, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let segments = section_segments(red, band)?;
+    let segments = join_segments(red, band)?;
     let mut sa = SolidJoin::new(red, Operand::A, band);
     let mut sb = SolidJoin::new(red, Operand::B, band);
     let mut completed: Vec<UnresolvedPair> = Vec::new();
@@ -703,13 +899,31 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         // reach past the ball, and a shorter arm never decides a length
         // positive that the full reach would not. Read only by the arms
         // that mint a germ normal, before they mutate the body.
+        // A one-site loop's two sites are one, and its chord runs round
+        // the whole conic: the ball holds the site's antipode through the
+        // conic's centre in the other's place, a point of the conic too.
+        let antipode = if entry == cand {
+            let (center, _) = germ_section_frame(red, &germ, band)?
+                .ok_or(desync("a one-site section loop has no conic frame"))?;
+            let p = red
+                .a
+                .half_edge_start_point(ea)
+                .ok_or(desync("germ site has no point"))?;
+            Some(center + (center - p))
+        } else {
+            None
+        };
         let germ_reach = |body: &Body<T>| -> Result<geom_brep::ExtentBall<T>, BooleanError> {
             let site = |he| {
                 body.half_edge_start_point(he)
                     .map(geom_brep::ExtentBall::point)
                     .ok_or(desync("germ site has no point"))
             };
-            geom_brep::ExtentBall::enclosing(&[site(ea)?, site(ra)?])
+            let other = match antipode {
+                Some(q) => geom_brep::ExtentBall::point(q),
+                None => site(ra)?,
+            };
+            geom_brep::ExtentBall::enclosing(&[site(ea)?, other])
                 .ok_or(desync("a join has no germ sites"))
         };
         let germ_normal = |reach: geom_brep::ExtentBall<T>, origin: Point3<T>, n: Vec3<T>| {
@@ -748,12 +962,14 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             Some(match (&ga, &gb) {
                 (Sf::Plane { .. }, Sf::Plane { .. }) => GermLane::Planar,
                 (Sf::Plane { origin, normal, .. }, Sf::Sphere { .. })
-                | (Sf::Plane { origin, normal, .. }, Sf::Cylinder { .. }) => GermLane::PlaneWall((
+                | (Sf::Plane { origin, normal, .. }, Sf::Cylinder { .. })
+                | (Sf::Plane { origin, normal, .. }, Sf::Cone { .. }) => GermLane::PlaneWall((
                     *origin,
                     germ_normal(germ_reach(&red.a)?, *origin, *normal)?,
                 )),
                 (Sf::Sphere { .. }, Sf::Plane { origin, normal, .. })
-                | (Sf::Cylinder { .. }, Sf::Plane { origin, normal, .. }) => GermLane::WallPlane((
+                | (Sf::Cylinder { .. }, Sf::Plane { origin, normal, .. })
+                | (Sf::Cone { .. }, Sf::Plane { origin, normal, .. }) => GermLane::WallPlane((
                     *origin,
                     germ_normal(germ_reach(&red.a)?, *origin, *normal)?,
                 )),
@@ -939,6 +1155,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             .filter(|&i| open[i].fully_used())
             .collect();
         done.sort_unstable_by(|x, y| y.cmp(x));
+        // A one-site loop's segment ends at one record twice.
+        done.dedup();
         for i in done {
             let r = open[i];
             cut_pair(
@@ -953,19 +1171,12 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         }
     }
 
-    // ---- A closed section loop with one site: a record whose two
-    // germs name one locus on both operands along a conic can only
-    // match itself, which the join does not do (a self-matching record
-    // would see the adjacency skip fire both ways and retire a real face
-    // as the null face). Refused typed before the loose ends are
-    // counted. ----
+    // ---- A one-site record [`wrap_site_segments`] did not take is a
+    // closed section loop the join does not build: refused typed before
+    // the loose ends are counted. ----
     let mut single_site = 0;
     for r in &open {
-        let [(g0, used0), (g1, used1)] = r.a;
-        if used0 || used1 || g0.a_locus != g1.a_locus || g0.b_locus != g1.b_locus {
-            continue;
-        }
-        if germ_section_frame(red, &g0, band)?.is_some() {
+        if one_site(red, r, band)?.is_some() {
             single_site += 1;
         }
     }
@@ -1520,7 +1731,7 @@ fn germ_section_frame<T: Decide>(
 ///
 /// A face pair with no boundary vertices.
 #[allow(clippy::type_complexity)] // (reading point, span) — one reading
-fn frame_reading<T: Decide>(
+pub(super) fn frame_reading<T: Decide>(
     sa: &geom::Surface<T>,
     sb: &geom::Surface<T>,
     on_a: Vec<geom_core::Point3<T>>,
@@ -1571,6 +1782,11 @@ pub(super) enum FrameExtent<T> {
         /// ([`agreed_section`](crate::chord_join::agreed_section)).
         round: T,
     },
+    /// A plane×cone pair's wall face: its farthest distance from `at`,
+    /// each edge levered round its whole carrier
+    /// ([`face_reach_from`](crate::splitting::rules::face_reach_from) on
+    /// a cone).
+    Reach(T),
 }
 
 /// **The consumed region's measure [`pair_section_frame_at`] levers at**,
@@ -1584,13 +1800,15 @@ pub(super) enum FrameExtent<T> {
 /// round its whole carrier
 /// ([`face_reach_round_from`](crate::splitting::rules::face_reach_round_from)),
 /// which [`agreed_section`](crate::chord_join::agreed_section) reads
-/// together. Every other pair takes the
-/// walls' `span`.
+/// together. A plane×cone pair's section lies on the cone face, which
+/// hands the table its farthest distance from `at`: the one measure the
+/// cone's split lane levers the same section at. Every other pair takes
+/// the walls' `span`.
 ///
 /// # Errors
 ///
 /// A wall whose outer loop is a lone vertex, which has no extent.
-fn frame_extent<T: Decide>(
+pub(super) fn frame_extent<T: Decide>(
     (sa, body_a, face_a): (&geom::Surface<T>, &Body<T>, FaceKey),
     (sb, body_b, face_b): (&geom::Surface<T>, &Body<T>, FaceKey),
     at: geom_core::Point3<T>,
@@ -1603,9 +1821,15 @@ fn frame_extent<T: Decide>(
         (geom::Surface::Cylinder { axis, .. }, geom::Surface::Plane { .. }) => {
             (body_a, face_a, *axis)
         }
+        (geom::Surface::Plane { .. }, geom::Surface::Cone { .. }) => {
+            return cone_reach(body_b, face_b, at);
+        }
+        (geom::Surface::Cone { .. }, geom::Surface::Plane { .. }) => {
+            return cone_reach(body_a, face_a, at);
+        }
         _ => return Ok(span.map_or(FrameExtent::Radii, FrameExtent::Span)),
     };
-    let lone = |_| "a germ wall's outer loop is a lone vertex";
+    let lone = |_| LONE_WALL;
     let (below, above) =
         crate::splitting::rules::face_axial_range(body, face, at, axis).map_err(lone)?;
     let across = crate::splitting::rules::face_reach_from(body, face, at).map_err(lone)?;
@@ -1616,6 +1840,20 @@ fn frame_extent<T: Decide>(
         across,
         round,
     })
+}
+
+/// [`frame_extent`]'s refusal: a wall with no extent to lever at.
+const LONE_WALL: &str = "a germ wall's outer loop is a lone vertex";
+
+/// [`frame_extent`]'s plane×cone arm: the cone face's reach from `at`.
+fn cone_reach<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    at: geom_core::Point3<T>,
+) -> Result<FrameExtent<T>, &'static str> {
+    crate::splitting::rules::face_reach_from(body, face, at)
+        .map(FrameExtent::Reach)
+        .map_err(|_| LONE_WALL)
 }
 
 /// **The rulings lane's chords are rulings**: each wall's split lane,
@@ -1770,6 +2008,16 @@ pub(super) fn frame_refusal<T: geom_core::Real>(
             b_face: b.0,
             evidence,
         },
+        FrameError::OutsideInventory { conic, section } => {
+            BooleanError::GermSectionOutsideInventory {
+                a_face: a.0,
+                a_kind: a.1.kind(),
+                b_face: b.0,
+                b_kind: b.1.kind(),
+                conic,
+                section,
+            }
+        }
     }
 }
 
@@ -1809,6 +2057,13 @@ pub(super) enum FrameError {
         /// The radius-equality evidence the germ site read off the
         /// parameter-identity channel.
         evidence: geom_brep::RadiusEvidence,
+    },
+    /// The section is a conic outside the inventory by decision (R1).
+    OutsideInventory {
+        /// The conic.
+        conic: geom_brep::OutsideConic,
+        /// The table's refusal, which names it.
+        section: geom_brep::SectionError,
     },
 }
 
@@ -1938,6 +2193,8 @@ pub(super) fn pair_section_frame_at<T: Decide>(
         // classification first ([`cs_pair_frame`], unreadable here
         // yet), then the transverse frame for a pose off the axis
         // ([`cs_transverse_frame`]).
+        (Sf::Plane { .. }, Sf::Cone { .. }) => return pk_germ_frame(sa, sb, extent, band),
+        (Sf::Cone { .. }, Sf::Plane { .. }) => return pk_germ_frame(sb, sa, extent, band),
         (Sf::Cylinder { .. }, Sf::Sphere { .. }) => return cs_germ_frame(sa, sb, band),
         (Sf::Sphere { .. }, Sf::Cylinder { .. }) => return cs_germ_frame(sb, sa, band),
         // The ONE structurally straight pair: a plane×plane section is
@@ -1979,6 +2236,7 @@ pub(super) fn pair_section_frame_at<T: Decide>(
             let lever = match extent {
                 FrameExtent::Span(l) => l.max(r1.max(*r2)),
                 FrameExtent::Radii | FrameExtent::Wall { .. } => r1.max(*r2),
+                FrameExtent::Reach(_) => return Err(FrameError::Desync(CONE_REACH_ELSEWHERE)),
             };
             let reach = geom_brep::Reach::Measured { at, lever };
             match geom_brep::cylinder_axes_parallel(&reach, (*o1, *a1), (*o2, *a2), band) {
@@ -2035,6 +2293,7 @@ pub(super) fn pair_section_frame_at<T: Decide>(
             &geom_brep::Reach::Measured { at, lever: radius },
             band,
         ),
+        FrameExtent::Reach(_) => return Err(FrameError::Desync(CONE_REACH_ELSEWHERE)),
     };
     match section {
         Ok(geom_brep::PlaneCylinderSection::Rim(geom::Curve3::Circle { center, axis, .. }))
@@ -2050,10 +2309,82 @@ pub(super) fn pair_section_frame_at<T: Decide>(
         Ok(_) => Err(FrameError::Desync(
             "germ pair's section classification is not a locus",
         )),
-        Err(geom_brep::SectionError::Escalated(diag)) => Err(FrameError::Escalated(diag)),
-        Err(_) => Err(FrameError::Desync(
-            "germ pair's section refused at match time",
+        Err(e) => Err(section_refusal(e)),
+    }
+}
+
+/// [`FrameExtent::Reach`] handed to a cylinder pair: only a cone face's
+/// frame is levered at it ([`frame_extent`]).
+const CONE_REACH_ELSEWHERE: &str = "a cone face's reach levered a pair with no cone";
+
+/// A germ pair's section refusal that is not the table's verdict on the
+/// pair's locus: an undecided degeneracy, or a carrier the conic
+/// constructor could not tell from a circle (the table's classifier read
+/// the tilt as definite, `ellipse_axes_distinct` read the semi-axes as
+/// equal or in the band), escalates; anything else is a desync.
+fn section_refusal(e: geom_brep::SectionError) -> FrameError {
+    use geom::EllipseInvalid as Ei;
+    match e {
+        geom_brep::SectionError::Escalated(diag)
+        | geom_brep::SectionError::Carrier(Ei::Escalated(diag) | Ei::CircularAxes(diag)) => {
+            FrameError::Escalated(diag)
+        }
+        _ => FrameError::Desync("germ pair's section refused at match time"),
+    }
+}
+
+/// **The plane×cone germ frame**, through THE table's own
+/// [`geom_brep::plane_cone_section`]: the ellipse's or the axis-normal
+/// circle's centre and axis; a plane through the apex that dips into
+/// the cone cuts two generators, proved straight. The apex's touching
+/// outcomes under a minted germ are the desync the sphere arm's tangent
+/// point is. A parabola or a hyperbola is out of the conic inventory by
+/// decision (R1), and its refusal carries the table's own naming of the
+/// conic ([`FrameError::OutsideInventory`]).
+///
+/// Levered at the cone face's reach from the reading point
+/// ([`FrameExtent::Reach`], the only extent [`frame_extent`] hands a
+/// plane×cone pair); any other extent is a desync.
+#[allow(clippy::type_complexity)] // (conic center, conic axis) — one frame tuple
+fn pk_germ_frame<T: Decide>(
+    plane: &geom::Surface<T>,
+    cone: &geom::Surface<T>,
+    extent: FrameExtent<T>,
+    band: Band,
+) -> Result<Option<(geom_core::Point3<T>, geom_core::Vec3<T>)>, FrameError> {
+    let FrameExtent::Reach(lever) = extent else {
+        return Err(FrameError::Desync(
+            "a plane×cone frame was levered at no cone face's reach",
+        ));
+    };
+    match geom_brep::plane_cone_section(plane, cone, lever, band) {
+        Ok(
+            geom_brep::PlaneConeSection::TiltedEllipse(geom::Curve3::Ellipse {
+                center, axis, ..
+            })
+            | geom_brep::PlaneConeSection::AxisNormalCircle(geom::Curve3::Circle {
+                center,
+                axis,
+                ..
+            }),
+        ) => Ok(Some((center, axis))),
+        Ok(geom_brep::PlaneConeSection::ApexLinePair { .. }) => Ok(None),
+        Ok(
+            geom_brep::PlaneConeSection::ApexTangentLine(_)
+            | geom_brep::PlaneConeSection::ApexPoint(_),
+        ) => Err(FrameError::Desync(
+            "germ pair's plane×cone section is not a locus",
         )),
+        Ok(_) => Err(FrameError::Desync(
+            "plane×cone classification carried a carrier its conic is not",
+        )),
+        Err(e @ geom_brep::SectionError::RoutesToGeneralRung { .. }) => match e.outside_conic() {
+            Some(conic) => Err(FrameError::OutsideInventory { conic, section: e }),
+            None => Err(FrameError::Desync(
+                "the plane×cone table routed a pair to the general rung naming no conic",
+            )),
+        },
+        Err(e) => Err(section_refusal(e)),
     }
 }
 
@@ -2115,7 +2446,12 @@ fn intersecting_cylinder_axes<T: Decide>(
             "the declared equal-radius section of an intersecting-axes cylinder pair \
              classified as a parallel-axes locus",
         ),
-        Err(geom_brep::SectionError::Escalated(diag)) => FrameError::Escalated(diag),
+        Err(
+            e @ (geom_brep::SectionError::Escalated(_)
+            | geom_brep::SectionError::Carrier(
+                geom::EllipseInvalid::Escalated(_) | geom::EllipseInvalid::CircularAxes(_),
+            )),
+        ) => section_refusal(e),
         Err(geom_brep::SectionError::RadiusDeclarationContradicted) => FrameError::Desync(
             "two cylinder radii carrying the SAME lowered parameter source hold \
              different values — one expression evaluated to two numbers",
@@ -2130,8 +2466,9 @@ fn intersecting_cylinder_axes<T: Decide>(
         // Refusals that cannot come out of a cylinder pair this
         // dispatch admitted: the kinds were matched above, the
         // coaxial-equal-radius pose was refused at the parallelism
-        // gate, no coaxiality, torus or conic-carrier question is
-        // asked of two cylinders with meeting axes, and no arm this
+        // gate, no coaxiality or torus question is asked of two
+        // cylinders with meeting axes, the bisector ellipses' semi-axes
+        // are decided positive and major-first, and no arm this
         // pair reaches states a locus off the extent it was handed
         // (the cylinder pair's ellipses stand on the operands
         // themselves).
@@ -2143,7 +2480,9 @@ fn intersecting_cylinder_axes<T: Decide>(
             | geom_brep::SectionError::CoincidentSurfaces
             | geom_brep::SectionError::DegenerateTorus
             | geom_brep::SectionError::BeyondOperandExtent { .. }
-            | geom_brep::SectionError::Carrier(_)
+            | geom_brep::SectionError::Carrier(
+                geom::EllipseInvalid::AxesSwapped | geom::EllipseInvalid::MinorNotPositive,
+            )
             | geom_brep::SectionError::Spiric(_),
         ) => FrameError::Desync(
             "the declared equal-radius cylinder section refused at the germ pair \
@@ -4500,6 +4839,7 @@ mod frame_dispatch_tests {
             Err(FrameError::Escalated(_)) => "an escalation",
             Err(FrameError::RadiusEscalated { .. }) => "a radius escalation",
             Err(FrameError::IntersectingCylinderAxes { .. }) => "the cylinder pinch",
+            Err(FrameError::OutsideInventory { .. }) => "a conic outside the inventory",
         }
     }
 

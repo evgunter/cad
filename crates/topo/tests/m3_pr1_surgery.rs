@@ -206,7 +206,9 @@ fn revert_negates_volume() {
 /// split_edge on the geometric cube at rest: after the prefer-intrinsic
 /// upgrade, splitting an Intersection-described edge yields two
 /// certified Intersection children whose adjacency obligations
-/// transfer — the split body passes tier 3.
+/// transfer — the split body passes every tier-3 check but 11, which
+/// names the split vertex: a split edge is construction state until
+/// the join takes it back.
 #[test]
 fn split_edge_preserves_tier3_at_rest() {
     let mut cube = geometric_cube::<f64>(Tol::witness());
@@ -214,7 +216,12 @@ fn split_edge_preserves_tier3_at_rest() {
     assert_eq!(validate_geometric(&cube.body, Tol::witness()), Ok(()));
     let edge = cube.mevs[0].edge; // A → B chord, params [0, 1]
     let created = cube.body.split_edge(edge, 0.5, Tol::witness()).unwrap();
-    assert_eq!(validate_geometric(&cube.body, Tol::witness()), Ok(()));
+    assert_eq!(
+        validate_geometric(&cube.body, Tol::witness()),
+        Err(vec![topo::ValidationError::JoinableVertexAtRest {
+            vertex: created.vertex
+        }])
+    );
     // The new vertex sits at the carrier midpoint.
     let p = cube.body.get_point(created.point).unwrap();
     assert_eq!((p.x, p.y, p.z), (0.5, 0.0, 0.0));

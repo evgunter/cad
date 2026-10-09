@@ -317,6 +317,24 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      typed `CensusUnsupported`, never samples. Every comparison is a
      named Q1 trilean; indeterminates surface as typed
      `CensusEscalated`, never a silent skip.
+   - A census finding decides one number per pair of cells (two edges,
+     an edge and a face, a vertex and a face, two faces), read between
+     the cells themselves, never between the infinite lines or planes
+     they lie on, and signed where a face gives a side. For cells that
+     share nothing it is their minimum distance. Cells that share a
+     vertex, a point key or an edge meet there by construction, and the
+     question is whether they meet anywhere else: the number is their
+     largest distance over the shorter cell, beyond what they share. For
+     straight cells it falls at the shorter cell's far end, its length
+     times the sine of the angle between them (D4 ¶1's d = r·θ, with
+     the cell's own extent as the arm). Q1's three arms read it: a
+     definite number is a legal configuration, however thin; one in the
+     sliver band refuses; a Zero is a coincidence (the cells are one
+     over their extent), which the op that made the body glues and
+     records (D10), so a census Zero no record backs is that op's
+     defect. Near what two cells share, every pair is within the band
+     whatever its angle. That neighbourhood is not a coincidence, and
+     its extent is not a number the census reads.
    - Certification runs **both directions and never scans-to-bless in
      either**: a census finding with no backing record is never
      silently blessed ((iii) below); a record with no geometric witness
@@ -591,7 +609,7 @@ and (b) the SSI generic-`T` lift are discharged and keep no entry):
   its class's route lands, covers the mirror-torus spiric and
   no-fitted classes, on their PCERT row.
 - **(d) cyl×sphere germ chords** — a fitted carrier's chart image
-  exists as `Pcurve::Fitted` and certifies at rest, and a chord takes
+  exists as `Pcurve::Projected` and certifies at rest, and a chord takes
   its arc from the germs it joins, reading no window; what is missing
   is the C5 table's cyl×sphere arm for the chord's carrier
   (`chord_join::section_case` has no curved×curved arm) and a frame for
@@ -891,11 +909,15 @@ Five commitments:
 3. **Failure is a typed, actionable error naming the failing check and
    the entity** — consumable by humans and by the error-propagation
    machinery. The carrier is `CertifyError::ResidualExceeded { check,
-   sample }`, wrapped by the attachment gates and by
+   sample, margin }`, wrapped by the attachment gates and by
    `ValidationError::EdgeCertification`; the residual MAGNITUDE rides
-   the escalated arm's `Indeterminate`, because no `f64` projection of
-   a generic `T` exists on every lane. Geometry that can't meet ε almost
-   always indicates a modeling mistake; surfacing it beats absorbing it.
+   both arms as the classifier's reporting margin — the definite arm's
+   `margin`, the escalated arm's `Indeterminate` — because no value
+   projection of a generic `T` to an `f64` exists on every lane; the
+   classify seam's `MarginDiag` is the one projection there is, and it
+   is for reporting only, never a value a decision reads.
+   Geometry that can't meet ε almost always indicates a modeling
+   mistake; surfacing it beats absorbing it.
 4. **Fixed internal units — meters and radians — with a documented
    model size range**; geometry outside the range is rejected at
    construction. User-facing units are typed newtypes at the API
@@ -1221,17 +1243,26 @@ intent.
 variable whose type suits the slot. The types are the scalars (`Length`,
 `Angle`, `Scalar`, `Count`), the discrete kinds (a side, a half, a
 sense) and the poses (`Point`, `Direction`, `Axis`, `Plane`, `Frame`),
-which may be free or defined; the shapes (`Body`, `Bodies`,
-an ordered list of bodies whose length is a `Count`, and `Profile`),
-which only an operation defines; and the selections of a shape
+which are only defined: read off a body's geometry (a face's frame, a
+carrier's axis or centre), by coordinates over scalar variables in a
+frame the definition reads, by a construction over other poses, as a
+pose of a copy, or as an output of an operation, so no pose is free,
+none is defined from nothing, and no construction reads one; the shapes
+(`Body`, `Bodies`, an ordered list of bodies whose length is a `Count`,
+and `Profile`), which only an operation defines, a `Profile` being 2-D
+shape whose numbers are read only against each other, and a sweep
+reading a profile and, at most, a direction in the profile's own axes
+(an extrude's slant, held to one side of the profile's plane) or a 2-D
+axis line (a revolve's), never a frame; and the selections of a shape
 (`Face`, `Edge`, and their sets `Faces`, `Edges`). A variable is
 **free** — a value, its written unit (D6) and optionally a distribution
 — or **defined**, by an `Expr` over other variables, by a selection of a
 `Body` variable, or as an output of an operation. A dimensioned literal stands nowhere, neither in a slot
 nor inside a formula: the only constants are dimensionless rationals,
-rational fractions of a turn, and zero, which is the same in every unit
-and so stands at any dimension; each is the shape of a formula rather
-than a dimension. Typing a value in the GUI mints a free variable and
+rational fractions of a turn, and a lone `0`, which carries no unit and
+so stands at any dimension as the omission it marks (`0 mm` is a
+dimensioned literal, so typing it mints a variable); each is the shape
+of a formula rather than a dimension. Typing a value in the GUI mints a free variable and
 offers an existing variable of equal value; declining the offer is what
 makes the two distinct. A variable without a name is read by exactly
 one slot or definition, which is how it is spoken; a variable two
@@ -1243,7 +1274,8 @@ rigid motions and the same `Subgroup` the mates fold (A11 (1)): a plane
 forgets in-plane motion, an axis slide and spin along itself; and the kinds are ordered by which determines which. A
 slot holds its own kind; a finer value is read through its projection,
 and an incidence between poses (an axis in a plane, a point on an axis)
-is a construction over one variable, never a check between two. A 2-D
+is a construction over one variable, never a check between two. A face
+reads as a plane; no reader takes a carrier's reference direction. A 2-D
 value (a profile's step, a revolve's axis line) lives in the node that
 holds its frame, as scalar slots, and is never a variable of a 2-D kind;
 its lift to a 3-D pose is how it leaves.
@@ -1284,15 +1316,32 @@ rather than of what was written; an observed variable, and any
 definition reading one, is read only by an assertion. A construction
 reads what was written.
 
-**Spaces and placement.** A part has no location. A **space** is a set
-of copies related to one another; a part is born in its own space. A
-**placement** is the bundle of constraints that pins one copy of a part
-relative to others: two placements of a part are two copies. Its
-constraints are mates and values, on equal footing. A constraint that
-fixes nothing the rest leave free refuses as an overconstraint, decided
-by subgroup algebra (A11 (1)) without measuring, and so does a mate
-that would take a freedom a value sets. A constraint places and never
-checks. Each mate equates two poses of one kind, modulo that kind's
+**Spaces and placement.** A part has no location, and no body has
+coordinates anyone reads. Every construction is built in coordinates of
+its own, and frames enter only at placement: a feature on a face is a
+construction placed against the face by a bundle of mates, then
+combined, and which side of the face its material lies on is the
+mates' to say. A **root** is a construction that reads no body, the
+world, or a copy whose bundle pins less than its body needs. **Spaces
+are kinds**, decided from the recipe: a body's kind is its root, a
+placement's copy takes its targets' root once its bundle pins it, and a
+copy pinned, transitively, against the world is of the product's kind.
+A loose copy is of its own kind with everything pinned to it, solved
+among itself, read at a pose by nothing outside it, and drawn from
+display state no logic reads; an instance of a part enters a document
+only as a placement. Only a mate reads across kinds, so relating two
+raw coordinate systems cannot be written: a read across two spaces is a
+kind mismatch at the door, and a kernel bug anywhere else. A
+**placement** is the bundle of mates and values that pins one copy of a
+part relative to others: two placements of a part are two copies; a
+copy is pinned when its mates and values together leave nothing free,
+and a body's symmetry pins nothing (a value it makes unobservable is
+reported, never refused). Its mates and values are on equal footing,
+and a constraint any of whose equations the others already fix refuses
+as an overconstraint, pinned or not, decided by subgroup algebra
+(A11 (1)) without measuring; where two copies meet beyond what their
+mates fix is a contact like any other, recorded and linted, and its
+recourse is an assertion. A mate that would take a freedom a value sets refuses as well. Each mate equates two poses of one kind, modulo that kind's
 symmetry: a pose read off the copied shapes' geometry with a pose read
 off geometry of the space the copy joins, never a frame standing for a
 part's coordinates. It holds no number of its own, and its sense is a
@@ -1311,12 +1360,23 @@ mates allow; the façade writes it as a free variable for each freedom a
 gesture leaves unnamed. A rotation left by a lone point mate has no
 such chart and is lowered by a direction mate first. A placement is the
 only reader of a body's own coordinates, and reads them only through
-the freedoms its mates leave. The **world** is one undeletable frame that copies may be
-related to like a part; export reads its coordinates and nothing else
-does. Construction never reads the world; a document builds in a frame
-of its own. The kernel computes each space in the frame of its earliest
-member, chosen from the recipe and never from values or from the world,
-so an unrelated edit moves no bit (D9).
+the freedoms its mates leave. A mate places and never
+checks. A placed copy's frame is not a variable: it is the construction
+its bundle states, which the coincidence door replays like any other. The **world** is one undeletable node that copies may be
+related to like a part; it defines no pose variable, so only a
+placement's mates and export read it, and construction never does. An operation computes in a frame that is
+a function of what it reads and of nothing else, chosen so its
+arithmetic is well conditioned near the geometry it builds, and never
+in the world's; the frame is keyed with its inputs, so an edit that
+leaves an operation's reads alone moves none of its bits (D9). The
+frame is no part of the operation's meaning: the body up to that rigid
+map, its names and every verdict outside the sliver band are the same
+in any frame, and a minted reference direction is a function of the
+inputs, not of the axes. Where conditioning does not decide, a
+construction computes in its own coordinates and an operation over
+copies in its first operand's as the author lists it. A check over a
+space, the at-rest census, is defined order-free: each pair's verdict
+is the same in either member's frame, or the sliver band refuses.
 
 **Coincidence.** Whether two cells coincide is a margined verdict like
 any other (Q1): a margin decided Zero glues them, a definite one keeps
@@ -1342,7 +1402,9 @@ relation, so a chain of blocks each built on its neighbour's floor
 closes into a loop, and a brick laid across two of them sits on both,
 with nothing more said. A computed value never re-enters the
 evaluation as a constant; a numerical routine's output enters as one
-opaque symbol per call.
+opaque symbol per call. The symbolic tier decides only this: whether a
+Zero is structural. A margin in the sliver band is not decided by it,
+since the band is indeterminate under exact arithmetic too (Q1).
 Coaxiality is one `Axis` read twice, directly or as projections of
 one construction; tangency is constructed (a
 sketch may read another surface's trace in its plane and continue
@@ -1370,7 +1432,11 @@ against it, never written by hand.
 otherwise it refuses. It glues what its verdicts decide Zero where an
 arm exists for the carrier pair (D1's frontier), keeping one fixed
 operand's description for a merged face, and refuses what falls in the
-sliver band.
+sliver band. Its result holds no in-band pair or shell: the door's
+finished-body gate decides this on the result alone and refuses it as
+the operands' ill-conditioning (`Escalated`, recourse: tighten ε or move
+the geometry), never silently; a definite finding there is a kernel
+defect (`ResultInvalid`).
 
 **Assertions.** `Assert { measure, relation, bound }` (`≤`, `≥`, `=`,
 the bound a variable) checks and never places. At rest the census
@@ -1392,7 +1458,13 @@ the assertion's two faces bound the overlap and every face bounding it
 lies between the carriers of an asserted pair. An assertion speaks for
 nothing else, so a new contact or overlap anywhere else is loud until
 something says otherwise, and an overlap the kernel cannot bound is
-loud and nothing quiets it.
+loud and nothing quiets it. The bodies of a pattern's `Bodies` are
+examined like any others, and an assertion about each of them is
+written once, as a `map` over the `Bodies`: one assertion per member,
+each reading the one bound variable, as many as the pattern's `Count`.
+That quiets each member against another copy; an overlap between two
+members (neighbours in a ring) is quieted by a map over pairs of
+members, adjacent pairs or all pairs.
 
 D10 governs where a companion clause disagrees, and these retire as
 the program that builds it reaches them: the declared-contact seats
@@ -1735,6 +1807,17 @@ Cross-milestone commitments; each binds at the layer named.
   — not a correctness parameter: soundness rests on
   escalate-never-guess, D4 ¶2 certification and interval replay, for
   any K > 1. K = 10, per-run configuration like ε (`Tolerance.k`).
+  K's noise headroom presumes every margin's f64 error is a few ulp at
+  the model's extent: a formula whose error is amplified by a vanishing
+  quantity (a division by sin θ, |n|², a near-zero determinant) is a
+  defect, re-posed or certified, never covered by K. Interval replay
+  does not rescue it: its enclosure lands in the band, which is
+  terminal.
+  Closeness within ε is not an identity. No decision is inferred
+  from two others; cells are one only by topology (a Zero glued them)
+  or by structure (D10), and both are transitive. A body is valid when
+  every question its topology poses decides definite, or Zero and
+  recorded.
 - At `T = Interval` an indeterminate predicate aborts the operation:
   predicates return `Result<Sign, Indeterminate>` (the trichotomy is
   the primitive; bool predicates are projections) and construction code

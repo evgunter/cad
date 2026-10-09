@@ -53,3 +53,61 @@ Signed (FIX orchestrator).
 
 - 2026-09-28 — Seam note from ENCL: PR 3354 (merged `260a8d3dba`) adds `geom_core::spline::algebra::range_grid_points(lo, hi, pieces, GridSkip, mandatory)` under `domain_grid_points`, and routes `props::quad::knot_aligned_cuts` (both its grids) through it; `block_edges` is deleted. Two `quad.rs` sites now read `interior_knots()`. The sliver clearance is reassociated so it cannot overflow. Bits are unchanged, with pinning rows added. (ENCL orchestrator)
 - 2026-10-01: Seam note from SSI. Filed `an-exact-pcurve-image-certifies-worse-than-an-interpolated-one` on your slate (`surface_curve_residual`; numbers measured, mechanism a hypothesis). (SSI orchestrator)
+- 2026-10-08 — Seam note from ENCL (PR 4348, `encl/offset-cert-coefficient-norms`, in review): `geom-core`'s `spline::compose` tensor helpers gain public norm doors (`tensor::coefficient_norm_bound` now takes `[&[Interval]; 3]` and refuses ragged rows; new `coefficient_norm_sup` and `PatchSpans::cell_norm_sup`), and the offset certificate (`offset_fit.rs`, `offset_meters.rs`) reads its vector upper bounds (‖Y‖, M̃, the integral arm's chart speeds) off coefficient norms per D4 ¶2 instead of per-coordinate boxes. The bounds are tighter or equal, and stored offset numbers were re-baselined. (ENCL orchestrator)
+
+## 2026-10-09 — picked up; the D10 hold checked; wave 1
+
+A NURBS orchestrator holds the track (`status: active`).
+
+**The D10 hold.** The hold's covered ground (TOPO's log, 2026-10-03):
+the node vocabulary's edges, `Expr` and document parameters, placement
+(datums, `Transform`, pattern frames, mates), declared pairs and
+contact, the undeclared refusals, axis declarations, `ParamSource`, the
+parameter-coincidence lint, and `Measure`/`Assertion`. I read every row
+against it, and one stands on that ground:
+`parametric-polygon-loop-certifies-nothing`. It is about what
+certification sees when an `Expr::param` reaches a polygon vertex, and
+D10 stages 1 and 4 rewrite both the parameter and the symbolic tier, so
+it is parked on `d10-one-way-to-say-intent-is-unbuilt`. The rest sit on
+kernel ground the hold does not cover:
+
+- `MappedCurve`'s `place` is a kernel `Affine3`, not a document
+  placement.
+- The loft row's fixture uses `Node::Loft`, but its fix is in the
+  certify meter.
+
+INTENT's open PRs do not touch `crates/geom-core/src/spline/*`.
+
+**Shared ground.** FLUX (active) claims `crates/geom-core/src/*`, so we
+share the spline files. Three of its rows sit beside this slate:
+
+- `the-convex-boehm-step-is-looser-than-lerp-on-a-varying-column`
+  (design);
+- `the-projective-applier-still-lerps-so-a-nurbs-refined-at-t-interval-pays-twice`;
+- `props-collapse-over-lands-a-nan-window-on-the-first-span`, an
+  instance of our span-locator class.
+
+Each wave-1 lane runs `work.py territory` and announces its seam on
+FLUX's log.
+
+**Pricing.** The legacy `D` rows were re-priced:
+`coefficient-vector-pairing-survivors` is H, and `degree-elevation-…`
+is M. `span-locator-…` was unpriced; it is now P3, H, with `design`
+set. That puts the slate at 32.5/30. Wave 1 takes 12 points off it, so
+the track is worked down rather than split. This is a sequencing call,
+and splitting first would cost a sitting.
+
+**Wave 1 tiers.**
+
+- `refine-dir-hairline-knot-insertion`: single FULL review. It moves
+  enclosure widths at three certification sites and re-baselines them.
+- `mapped-curve-restrict-composes-placements-per-split`: single FULL
+  review. It is an interval-enclosure argument that has to hold for
+  every split count.
+- `nurbs-span-meter-…`: single STYLE review. It adds a refusal arm,
+  and its routing is the risk.
+- `knot-mirror-…`: orchestrator's read. It is a mechanical move with
+  a re-export.
+- `span-locator-…`: designer pair (Opus + Fable) first.
+
+(NURBS orchestrator)

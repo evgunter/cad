@@ -457,7 +457,7 @@ impl FloorRefusal {
             (FloorFault::BelowResolution { .. }, ExhaustLane::R3) => R3_SCALE,
             (FloorFault::BelowResolution { .. }, ExhaustLane::Chart { .. }) => CHART_SCALE,
         };
-        decision.recourse(RefusedArm::SignCertain, reading)
+        decision.recourse(RefusedArm::SignCertain(None), reading)
     }
 }
 

@@ -2,7 +2,10 @@
 id: shell-wall-meets-curvature-reads-as-an-offset-distance
 kind: issue
 title: offset fit: CurvatureHeadroom's recourse speaks of an offset distance and its side, which a shell user sets as a wall thickness
-status: open
+status: closed
+closed: 2026-10-09
+branch: encl/shell-wall-curvature-recourse
+pr: 4377
 opened: 2026-10-06
 priority: P3
 cost: E
@@ -37,3 +40,11 @@ therefore has to split that pin by route.
 
 Give the meter's recourse the wall wording when it is read under the
 shell, or render the arm in `AsShelled` with the pin split per route.
+
+## Closed
+
+2026-10-09. PR 4377 merged at `3eb9fe628a` after a review and a fix pass; hosted CI was green.
+- The shell's `AsShelled` renders the curvature meter (verdicts and escalations) as "use a thinner wall", `BoundNotFinite` as "use a thicker wall", and `InvalidRequest` as the shell's own defect.
+- The thickness gate refuses a non-finite wall.
+- `patch_collapse` reads an unbounded κ⁺ as a poisoned margin, so it escalates instead of folding at −5e-324 m, on every route.
+- New `MeterError::{ending,render}_with_lever` and `OffsetFitError::render_with_lever`.
