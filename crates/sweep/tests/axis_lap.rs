@@ -223,7 +223,7 @@ fn full_length_flats_build_at_the_analytic_volume() {
 /// are 3 apart along `z`. The containment door's orientation probe
 /// measures the body in closed form, which an obliquely trimmed wall
 /// has none of, so a probe ray meeting nothing cannot side its point
-/// (`work/contact/at-infinity-probe-measures-in-closed-form-only`); that
+/// (`work/restread/at-infinity-probe-measures-in-closed-form-only`); that
 /// ray is set aside, and one meeting the boundary answers.
 #[test]
 fn an_oblique_cap_flats_through_its_ellipse_arc() {

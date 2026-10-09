@@ -1187,14 +1187,14 @@ fn segment_distance(a: ([f64; 3], [f64; 3]), b: ([f64; 3], [f64; 3])) -> f64 {
 ///   edges leave `v` 3.7e-7 rad apart (at the default ε) and run
 ///   within the band for a
 ///   stretch, which the census passes: that class is filed
-///   (`work/contact/two-copies-of-a-pierce-carry-edges-that-run-within-the-band.md`),
+///   (`work/inside/two-copies-of-a-pierce-carry-edges-that-run-within-the-band.md`),
 ///   and this row does not claim them apart.
 ///
 /// Tier 3′ is not asserted: its edge-edge lane reads the section edge
 /// from `v` and the prism's edge piece near `(4, 1)` as an overlap,
 /// because it reads their line offset at the long edge's start, which
 /// lies on the short edge's line
-/// (`work/contact/the-census-edge-edge-collinear-lane-reads-the-offset-at-the-long-edges-start.md`).
+/// (`work/inside/the-census-edge-edge-collinear-lane-reads-the-offset-at-the-long-edges-start.md`).
 #[test]
 fn a_near_tangent_two_run_pierce_builds_with_edges_in_band_only_at_its_copies() {
     let v = [2.0, 0.6, 1.0];

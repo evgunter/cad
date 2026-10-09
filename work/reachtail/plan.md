@@ -2,19 +2,25 @@
 
 REACH's P4 tail: copied preambles and forms, a long function, and a doc link that moved.
 
+Four rows re-homed from CONTACT at its close (2026-10-09): three P4 rows (a stale phrase, a fold over rim levels, a question with several spellings) and one P3 crossing decided twice.
+
 Opened 2026-10-08 by REACH's closing cut on its priority seam
 (`work/README.md`, Track size), when REACH measured 139 budget points
 against 30 with its six charter rows closed. Nothing dispatched.
 
 ## The slate
 
-**8 budget points** of dispatchable work against a ceiling of 30.
+**13.5 budget points** of dispatchable work against a ceiling of 30.
 
 | pri | item | cost | title |
 |---|---|---|---|
+| P3 | `edge-face-crossing-cut-and-pass-five-decide-one-crossing-twice` | M | A straight crossing is decided twice, by the edge-on-face cut's side rows and by pass 5's gap and span rows, and nothing ties the two |
 | P4 | `apply-cut-ins-walks-its-loops-twice-and-overloads-its-predicate-names` | M | apply_cut_ins walks the face's loops twice, orders two ends on one arc by hand, and names different questions with one predicate |
+| P4 | `c9-ring-class-phrase-names-a-retired-ring-or-the-exclusion-ring` | E | The C9-ring conformal-rest class phrase at four sites: certification arithmetic, or the exclusion ring the same sentence names? |
 | P4 | `contain-doc-links-a-wrap-rims-that-moved` | E | topo boolean/contain.rs links super::solid_contain::wrap_rims, which does not resolve, so rustdoc --document-private-items fails (nightly rustdoc row) |
+| P4 | `full-turn-question-has-three-spellings` | E | topo/geom-brep: the arc's gap to a full turn is asked under four spellings (LoopDecision::ArcSpan, WindowPeriod, certify ParamWinding, BooleanDecision::ArcSpan) |
 | P4 | `line-quadric-root-code-and-the-cone-form-have-several-homes` | M | Line × quadric root code has two homes, the cone's quadric form three spellings, and ConicHarmonics carries two cone-only knobs |
+| P4 | `sphere-chart-trim-folds-any-number-of-rim-levels` | E | sphere_chart_trim reads a trimmed sphere face as the latitude window its rim levels span however many levels there are, so a stepped outline (three or more rim latitudes) is misread; no door builds one today |
 | P4 | `split-insert-crossings-second-edge-clears-arm-is-unpinned` | E | the split's insert_crossings re-checks edge_clears for an unlaned carrier behind gate_operand's identical check, and no row pins the copy |
 | P4 | `the-sweep-preamble-and-the-cone-extreme-read-are-copied` | E | sweep_split_admitting_cones is a third copy of the gate → clone → sweep_and_settle preamble, and conic_clearance's cone arm re-spells first_harmonic_arm's extreme read |
 
