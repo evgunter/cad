@@ -2,10 +2,11 @@
 id: split-edge-cannot-carry-a-fitted-or-general-pcurve-row
 kind: issue
 title: split_edge carries only the Decide-door pcurve lanes; a Fitted/General row is left as found because its certification doors carry the PcurveFittedLane bound
-status: open
+status: closed
 opened: 2026-09-13
 priority: P1
 cost: H
+closed: 2026-10-09
 ---
 
 
@@ -117,3 +118,17 @@ general circle is deleted. `crates/topo/tests/m6_2_fitted_at_rest.rs`,
 **Still open:** `Fitted` and `General` rows on a spline chart certify
 over their own knot domains, and `split_cache` still leaves them as
 found.
+
+## Closed (branch `pcert/split-edge-fitted-rows`, 2026-10-09)
+
+`split_cache` carries a `Fitted` or `General` row the way it carries
+every other row. The parent's image is restricted to each child's
+sub-interval and re-certified through `restate`, with the fitted door
+passed in from `split_edge`'s `AtRestPolicy`. The children keep the
+parent's carrier (`EdgeCurve::split_specs` cuts only the interval), and
+a fitted-grade image is a function of that carrier's parameter. Its
+check 4 (`ssi::certify_rung3`) bounds the whole carrier against the
+operand pair, which covers each child's span. No bound moved.
+`crates/sweep/tests/split_edge_fitted_rows.rs` pins a minted `General`
+row and an attached `Fitted` row on a spline chart, both carried, with
+tier 3 clean after the split, at `f64` and `Interval`.

@@ -201,10 +201,10 @@
 //! to the child's sub-interval. The op re-certifies both restrictions
 //! before it mutates ([`split_cache`]) and writes them onto the parent
 //! halves and the two new halves, deriving nothing and minting nothing
-//! where there was nothing (a projected row restricts like the rest).
-//! Two frontiers ride with it, both stated at [`split_cache`]: a
-//! `Fitted` or `General` row is left exactly as found, and
-//! on a SPLINE chart the carry is exact but [`mint_pcurves`] — the
+//! where there was nothing (projected and fitted-grade rows restrict
+//! like the rest). One frontier rides with it, stated at
+//! [`split_cache`]: on a SPLINE chart the carry is exact but
+//! [`mint_pcurves`] — the
 //! recovery step this module's caveats name for a face left rowless —
 //! refuses on the split body, because [`nurbs_iso_derive`]'s rim arms
 //! map an edge's whole carrier interval onto the chart's whole `u`
@@ -546,8 +546,6 @@ pub enum PcurveMintError {
     ///   [`crate::Body::kev_describing`] that lists it), or the band kill
     ///   of the edge ([`crate::Body::plan_released_rows`]) — mints it
     ///   whole, except on a spline chart;
-    /// - `split_edge`'s `Fitted`/`General` frontier ([`split_cache`]),
-    ///   past the sphere's general circle;
     /// - a caller's own [`crate::Body::detach_pcurve`];
     ///
     /// and a face that arrives half-minted any of these ways, but for a
@@ -2393,7 +2391,8 @@ pub(crate) enum SplitRefusal {
 /// `[t, t₁]`. So this re-certifies the parent's own image over each
 /// sub-interval, through the image's own door ([`restate`], with
 /// `fitted`, the scalar's [`crate::AtRestPolicy::fitted_lane`], for a
-/// projected row's hull terms), rather than deriving anything.
+/// projected row's hull terms and a fitted-grade row's check 4), rather
+/// than deriving anything.
 ///
 /// **`t₀` and `t₁` are the EDGE's certified interval**, read from the
 /// carrier through [`half_edge_carrier`] — the same interval
@@ -2407,18 +2406,11 @@ pub(crate) enum SplitRefusal {
 /// Read-only, so a refusal reaches `split_edge` before any mutation
 /// and the op's "untouched on `Err`" contract is unaffected.
 ///
-/// # `None`, and what it does NOT claim
+/// # `None`
 ///
-/// - `half_edge` carries no row (an all-planar body, a face of an
-///   uncovered class, or one a door has left rowless for its
-///   producer's closing mint);
-/// - the row's image is [`Pcurve::General`] or [`Pcurve::Fitted`]:
-///   neither restricts (each certifies over its own knot domain) and no
-///   route derives the child's afresh, so a split leaves that face
-///   exactly as it found it — tracked on PCERT's slate as
-///   `split-edge-cannot-carry-a-fitted-or-general-pcurve-row`.
-///
-/// In both cases the caller writes nothing, so the map is left exactly
+/// `half_edge` carries no row (an all-planar body, a face of an
+/// uncovered class, or one a door has left rowless for its producer's
+/// closing mint). The caller writes nothing, so the map is left exactly
 /// as found. A key that does not resolve is NOT one of them: it
 /// panics (below).
 ///
@@ -2506,15 +2498,12 @@ pub(crate) fn split_cache<T: Decide>(
                 }
             })
         };
-        // Every image but a fitted-grade one is a function of the
-        // carrier's parameter, and each child's is the parent's
-        // restricted: the same net or coefficients and pieces, over a
-        // sub-interval. A fitted-grade image certifies over its own knot
-        // domain, so no restriction carries it.
-        let (first, second) = match &image {
-            Pcurve::Fitted(_) | Pcurve::General(_) => continue,
-            _ => (image.clone(), image.clone()),
-        };
+        // Every image is a function of the carrier's parameter, and the
+        // children keep the parent's carrier, so each child's image is
+        // the parent's restricted to its sub-interval. A fitted-grade
+        // image's check 4 bounds the whole carrier, a superset of the
+        // child's span.
+        let (first, second) = (image.clone(), image);
         // The children meet at the first's point at `t`, so the joint is
         // decided there as every joint is, which reads whether the split
         // point is on the chart's singular set.
