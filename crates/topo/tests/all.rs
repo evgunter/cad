@@ -115,6 +115,8 @@ mod cube_doors_agree;
 mod display_contract;
 #[path = "euler_site_pcurve_rows.rs"]
 mod euler_site_pcurve_rows;
+#[path = "fused_into_live_cells.rs"]
+mod fused_into_live_cells;
 #[path = "geom_origin_rows.rs"]
 mod geom_origin_rows;
 #[path = "geometric_cube.rs"]

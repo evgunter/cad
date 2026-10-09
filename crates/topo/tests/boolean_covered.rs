@@ -183,8 +183,11 @@ fn stretches(
     rows: &[(topo::VertexKey, topo::VertexKey)],
 ) -> Vec<Ends> {
     let body = &out.body;
-    let fused = out.naming.fused_into();
-    let settle = |v| fused.get(&v).copied().unwrap_or(v);
+    let fused = out
+        .naming
+        .fused_into(body)
+        .expect("every fused vertex settles on a live cell");
+    let settle = |v| fused.get(&v).copied().unwrap_or(topo::Cell::Vertex(v));
     let at = |v| {
         let p = topo::readback::vertex_point(body, v).expect("an edge's end is live");
         [p.x, p.y, p.z].map(|c| (c * 1000.0).round() as i64)
@@ -197,20 +200,25 @@ fn stretches(
         .iter()
         .filter_map(|&(u, w)| {
             let (u, w) = (settle(u), settle(w));
-            let edge = body
-                .edges()
-                .map(|(k, _)| k)
-                .find(|&k| {
-                    let [s, t] = ends(k);
-                    (s, t) == (u, w) || (s, t) == (w, u)
-                })
-                .or_else(|| out.naming.stretch_through_joins(body, (u, w)));
+            let between = match (u, w) {
+                (topo::Cell::Vertex(u), topo::Cell::Vertex(w)) => {
+                    body.edges().map(|(k, _)| k).find(|&k| {
+                        let [s, t] = ends(k);
+                        (s, t) == (u, w) || (s, t) == (w, u)
+                    })
+                }
+                // An end inside a joined edge or a merged face ends no edge.
+                _ => None,
+            };
+            let edge = between.or_else(|| out.naming.stretch_through_joins(body, (u, w)));
             let Some(edge) = edge else {
+                let joined_away = |c| match c {
+                    topo::Cell::Vertex(v) => out.naming.edge_joins.iter().any(|j| j.vertex == v),
+                    topo::Cell::Edge(_) => true,
+                    topo::Cell::Face(_) => false,
+                };
                 assert!(
-                    out.naming
-                        .edge_joins
-                        .iter()
-                        .any(|j| j.vertex == u || j.vertex == w),
+                    joined_away(u) || joined_away(w),
                     "a held stretch {u:?}..{w:?} that no live edge holds has no end the \
                      output stage joined away"
                 );

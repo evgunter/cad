@@ -104,7 +104,7 @@ use super::combine::graft_solid;
 use super::fragments::{Lineage, sole_common_face};
 use super::ops::{
     Descendants, KeyView, carry, declared_surface_pairs, finish_output, gate, graft_rows,
-    merge_rows, split_lineage,
+    merge_kill_rows, merge_rows, split_lineage,
 };
 use super::plane_eq::{PlaneEqError, PlaneIdentity, PlaneRelation};
 use super::reduce::{face_oriented_source, face_plane};
@@ -450,6 +450,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         vertex_merges,
         weld_merges_b: Fusions::default(),
         merge_groups: merge_rows(&merged),
+        merge_killed_vertices: merge_kill_rows(&merged),
         merge_skipped: merged.skipped.clone(),
         face_fragments_a: a_fragments,
         face_fragments_b: b_fragments,
