@@ -2,10 +2,12 @@
 id: main-red-cone-join-lane-guard-passes-after-cone-section-rows
 kind: issue
 title: Main is red: cone_join_lane's three refusal rows fail because the cone section rows (PR 4352) satisfied the guard the cone join door (PR 4375) pins as refusing
-status: open
+status: review
 opened: 2026-10-09
 priority: P0
 cost: E
+branch: fix/cone-join-lane-guard-rows
+pr: 4419
 ---
 
 
