@@ -90,7 +90,6 @@ found in 552 probe runs plus 108 declared runs. The fixes are test pins and pros
   No row sits at that boundary.
 - **n4 NOTE (executed)** Undeclared coincident runs refuse `UndeclaredCoincidence` (42) and
   `CurvedPierceUnsupported` (24), identically on base and head; none is this PR's.
-
 ## Style lane (questions exercised: Q1–Q8)
 
 - **Q1** `stands.rs:224-233` vs `stands.rs:311-321`: rung 2 and `across_edges` each spell the
