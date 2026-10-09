@@ -346,3 +346,52 @@ Where my earlier rounds read otherwise, Ev's words win. The corrections:
   defines no copy. The bodies it names lie in one space, which the world is related to by one mate of its own, read
   by export alone. An instance of a part defines one `Bodies`, the bodies the part's world names, in one space."
 - Spaces: "A **space** is a set of bodies related by construction or placement; nothing else makes one."
+
+## Round 6 — mates and values on equal footing (Ev, #4326, #4325)
+
+**1. Yes, and I withdraw "a mate is a clause".** The constraints are a placement's own list, not each other's
+clauses. There are two kinds of constraint in it:
+- A **mate** equates two poses of one kind. It fixes the components that the kind's symmetry does not forget.
+- A **value**, `Value { mate, coord, by }`, sets one coordinate of what that mate leaves free to a scalar variable
+  `by` (a `Length` or an `Angle`, Ev 2's "type suits its slot").
+  - `coord` is one generator of the mate's residual subgroup. After a `Plane` mate those are `SlideX`, `SlideY` and
+    `Spin`. After an `Axis` mate they are `Slide` and `Spin`.
+  - The axes come from the **frames the mate's two sides project from**. The value refuses, typed `Uncharted`,
+    unless each side is a projection of a `Frame` read off geometry.
+  - A frame read off geometry has its reference read off an edge, an axis or a second face. A planar face's default
+    u-reference is not one, because it is derived from the computing coordinates. So no raw coordinate ever names a
+    degree of freedom (E1).
+  - Zero is where the two sides' frames coincide. The value is that coordinate of their relative motion, in a chart
+    fixed once per subgroup (translate, then spin about the target frame's normal or axis).
+  - So the degree of freedom is named by the residual subgroup plus the frame read off geometry, as you put it.
+
+**2. `Offset` as a mate target retires; values are the kernel form.**
+- `Frame: a ≅ Offset(F, dx, dy, θ)` says exactly what `Plane: a ≅ F` plus three values says. Of the two, only the
+  values can leave a coordinate loose. A partial value set (slide along a slot, spin free) has no coset form, so no
+  mate against an `Offset` can say it.
+- So the general form is mates plus values. A full offset, a stand-off and a roll become values, and the façade's
+  `at=` / "offset by" are sugar that write those values.
+- With no construction reading a frame (S3P round 8) and no mate target carrying numbers, nothing reads `Offset`,
+  and it goes. This is Ev 1's "many ways to say these things", now said one way.
+
+**3. Stated symmetry.** One rule decides both a mate and a value: each must lower the dimension of the residual
+**modulo the construction's stated symmetry**, or it refuses (#4325, E5).
+- On a round pin in a round hole, the `Spin` left after an `Axis` mate lies within the pin's stated symmetry. The pin
+  is pinned without it, and a `Spin` value there refuses as fixing nothing, exactly as a repeated mate does.
+- What stays free (outside the stated symmetry, with no value given) leaves the copy **loose**, per Ev's #4325 hope.
+  This bends A11's "anything else refuses `Under`", which I recommended in round 1. I now withdraw it.
+  - A loose copy has a position only as display state, never as anything real (E1).
+  - Export, and any measure that needs its pose, refuse and name the free coordinates.
+  - A boolean reading it refuses, because it is not yet related enough (E6).
+
+**4. Text.**
+- D10 Operations: "A placement (`Place`) reads one shape and defines its copy, constrained by a list of mates and
+  values on equal footing. A mate equates a pose of the copy with a pose of what it joins, both read off geometry,
+  modulo their kind's symmetry. A value sets one coordinate the mates leave free, in the chart of the frames the mate
+  reads, to a scalar variable. Each constraint must fix something the rest leave free, modulo the shape's stated
+  symmetry, or it refuses. A copy whose constraints leave nothing free outside that symmetry is pinned; otherwise it
+  is loose, and nothing that needs its pose reads it. Nothing moves a body."
+- Spaces: "A **space** is a set of bodies related by placements; nothing else, no coordinates, makes one."
+- **Principles relied on:** E1, E2 (a placement relates and does not efface), E5 / Ev 4 (no fallback, no
+  cleverness), E6, Ev 1 (one way), Ev 2 (type suits slot).
+- **Ratified text bent:** A11's `Under` refusal, now loose; my rounds 1–5 "clause" wording.
