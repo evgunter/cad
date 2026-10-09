@@ -1609,10 +1609,16 @@ impl crate::real::CertifiedEnclosure for Probe {
 /// `Probe` locates spans through its `f64` (module docs of
 /// [`crate::spline::locate`]): it IS an `f64` with a recorder, and span
 /// selection is structure selection, not a recorded decision — no
-/// margin sample is emitted (span choice never drives topology).
+/// margin sample is emitted (span choice never drives topology). The
+/// one branch it takes, locating nothing at NaN, is a poison test on
+/// the value, not a margin compared against a band, so it records
+/// nothing either.
 #[cfg(feature = "probe")]
 impl crate::spline::SpanLocate for Probe {
-    fn locate_spans<'a>(self, knots: &'a crate::spline::KnotVector) -> crate::spline::SpanSet<'a> {
+    fn locate_spans<'a>(
+        self,
+        knots: &'a crate::spline::KnotVector,
+    ) -> Option<crate::spline::SpanSet<'a>> {
         crate::spline::SpanLocate::locate_spans(self.0, knots)
     }
 
