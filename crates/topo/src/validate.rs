@@ -379,6 +379,7 @@
 //! other scaffolding shapes).
 
 use core::fmt;
+use core::ops::ControlFlow;
 use std::borrow::Cow;
 
 use geom::{NetState, Surface};
@@ -3044,7 +3045,7 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
             P::DegenerateFace => reading(
                 "a face's area could not be certified positive at this tolerance",
                 geom_brep::props::FACE_EXTENT
-                    .recourse(RefusedArm::SignCertain, Reading::AtRest)
+                    .recourse(RefusedArm::SignCertain(None), Reading::AtRest)
                     .into(),
                 false,
             ),
@@ -3534,7 +3535,7 @@ impl fmt::Display for ValidationError {
             Self::PlanarFaceResidual { .. } => write!(
                 f,
                 "a corner of a flat face lies off that face's plane. {}",
-                PLANAR_CORNER.recourse(RefusedArm::SignCertain, Reading::AtRest)
+                PLANAR_CORNER.recourse(RefusedArm::SignCertain(None), Reading::AtRest)
             ),
             Self::PlanarFaceEscalated { cause, .. } => write!(
                 f,
@@ -3545,7 +3546,7 @@ impl fmt::Display for ValidationError {
             Self::PlanarBoundaryResidual { .. } => write!(
                 f,
                 "an edge of a flat face leaves that face's plane between its ends. {}",
-                PLANAR_BOUNDARY.recourse(RefusedArm::SignCertain, Reading::AtRest)
+                PLANAR_BOUNDARY.recourse(RefusedArm::SignCertain(None), Reading::AtRest)
             ),
             Self::PlanarBoundaryEscalated { cause, .. } => write!(
                 f,
@@ -5494,6 +5495,77 @@ pub(crate) enum MaterialArmOutcome {
     },
 }
 
+/// Check 4's material reads at each station of the edge-level
+/// second-order walk ([`geom_brep::second_order_walk`]): the faces'
+/// material pairing before the station's second-order decision, and
+/// the wedge end after a `Positive` one. A read that escalates stops
+/// the walk with its cause, which the caller reports.
+struct MaterialStations<'s, T: Real> {
+    s_plus: &'s Surface<T>,
+    sense_plus: bool,
+    s_minus: &'s Surface<T>,
+    sense_minus: bool,
+    band: Band,
+    opposed: bool,
+    aligned: bool,
+    side: Option<MaterialWedge>,
+    side_mixed: bool,
+}
+
+impl<T: Decide> geom_brep::StationHook<T> for MaterialStations<'_, T> {
+    type Break = Indeterminate;
+
+    fn before_decision(&mut self, station: &geom_brep::Station<T>) -> ControlFlow<Indeterminate> {
+        match classify_material_pairing(
+            self.s_plus,
+            self.sense_plus,
+            self.s_minus,
+            self.sense_minus,
+            station.p,
+            station.arm,
+            self.band,
+        ) {
+            Ok(MaterialPairing::Aligned) => self.opposed = false,
+            Ok(MaterialPairing::Opposed) => self.aligned = false,
+            Err(cause) => return ControlFlow::Break(cause),
+        }
+        ControlFlow::Continue(())
+    }
+
+    /// Which end, decided only where it is asked: the SIGN, in the
+    /// material frame, of the quantity whose magnitude just classified
+    /// definitely positive — so neither `Zero` nor an escalation is
+    /// reachable through a margin the run can read. Both are announced
+    /// anyway, as an escalation: a state that cannot occur is reported,
+    /// never swallowed, and a validator's "I cannot say" is an error in
+    /// its vector, not a panic.
+    fn after_positive(&mut self, station: &geom_brep::Station<T>) -> ControlFlow<Indeterminate> {
+        let signed = geom_brep::material_kappa_rel(station.jet.kappa_rel, self.sense_plus);
+        let this = match decide(
+            "material_cusp_side",
+            Margin::sagitta(signed, station.arm),
+            self.band,
+        ) {
+            Ok(Sign::Positive) => MaterialWedge::Cusp,
+            Ok(Sign::Negative) => MaterialWedge::Slit,
+            Ok(Sign::Zero) => {
+                return ControlFlow::Break(Indeterminate {
+                    margin: geom_core::MarginDiag::INVALID,
+                    band: self.band,
+                    predicate: Some("material_cusp_side"),
+                    terminal_sliver: false,
+                });
+            }
+            Err(cause) => return ControlFlow::Break(cause),
+        };
+        match self.side {
+            Some(seen) if seen != this => self.side_mixed = true,
+            _ => self.side = Some(this),
+        }
+        ControlFlow::Continue(())
+    }
+}
+
 /// The material arm's fold: the flags one edge's sample loop
 /// accumulates, resolved into the ONE outcome that edge earns.
 ///
@@ -6417,8 +6489,8 @@ pub(crate) fn tier3_local_checks_marked<
         let extent = geom_brep::edge_extent(curve.carrier(), t0, t1, chord);
         // The interior schedule samples, evaluated once (D9: the same
         // parameters certification used) and shared by checks 4 and 5.
-        let samples: Vec<_> = (1..(geom_brep::CERT_SAMPLES - 1))
-            .map(|i| curve.carrier().eval(curve.sample_param(i)))
+        let samples: Vec<_> = geom_brep::interior_stations(curve.carrier(), t0, t1)
+            .map(|(p, _)| p)
             .collect();
         // Check 4: dihedral — plus the prefer-intrinsic enforcement
         // (D2; ratified 2026-07-19): reusing the SAME per-sample
@@ -6555,111 +6627,58 @@ pub(crate) fn tier3_local_checks_marked<
                 Some(face) => face.sense,
                 None => continue, // unreachable on tier-1 input
             };
-            let mut jet_determinate = true;
-            let mut jet_escalated = false;
-            let mut opposed = true;
-            let mut aligned = true;
-            let mut side: Option<MaterialWedge> = None;
-            let mut side_mixed = false;
-            for i in 1..(geom_brep::CERT_SAMPLES - 1) {
-                let t = curve.sample_param(i);
-                let (p, tau) = curve.carrier().ders1(t);
-                let jet = geom_brep::tangent_jet(s_plus, s_minus, p, tau);
-                let arm = geom_brep::folded_lever_arm(s_plus, s_minus, p, extent);
-                match classify_material_pairing(
-                    s_plus,
-                    sense_plus,
-                    s_minus,
-                    sense_minus,
-                    p,
-                    arm,
-                    band,
-                ) {
-                    Ok(MaterialPairing::Aligned) => opposed = false,
-                    Ok(MaterialPairing::Opposed) => aligned = false,
-                    Err(cause) => {
-                        errors.push(ValidationError::SliverDihedral {
-                            edge: edge_key,
-                            check: WedgeCheck::MaterialSide,
-                            cause,
-                        });
-                        jet_escalated = true;
-                        break;
-                    }
+            let mut stations = MaterialStations {
+                s_plus,
+                sense_plus,
+                s_minus,
+                sense_minus,
+                band,
+                opposed: true,
+                aligned: true,
+                side: None,
+                side_mixed: false,
+            };
+            let walk = geom_brep::second_order_walk(
+                s_plus,
+                s_minus,
+                curve.carrier(),
+                t0,
+                t1,
+                extent,
+                band,
+                &mut stations,
+            );
+            let MaterialStations {
+                opposed,
+                aligned,
+                side,
+                side_mixed,
+                ..
+            } = stations;
+            let (jet_determinate, escalation) = match walk {
+                geom_brep::SecondOrderWalk::Determinate => (true, None),
+                // One zero-side station denies the WHOLE edge its
+                // determinacy — on the opposed arm, the lamina refusal:
+                // a wedge end is legal only where the surfaces determine
+                // the locus along the edge, the rule the mark follows
+                // too (`SmoothUnderdetermined`). ε-tightening makes
+                // zero-side verdicts rarer, so it can only remove this
+                // refusal, never introduce one.
+                geom_brep::SecondOrderWalk::UnderDetermined => (false, None),
+                geom_brep::SecondOrderWalk::InBand(cause) => {
+                    (true, Some((WedgeCheck::SecondOrder, cause)))
                 }
-                let margin = Margin::sagitta(jet.kappa_rel.abs(), arm);
-                match decide("tangent_second_order", margin, band) {
-                    Ok(Sign::Positive) => {}
-                    // ONE zero-side sample ends the edge's determinacy
-                    // — and on the opposed arm that is the lamina
-                    // refusal for the WHOLE edge, on the strength of a
-                    // single sample. Deliberate, and conservative in
-                    // the direction the ε rule cares about: a wedge end
-                    // is legal where the surfaces determine the locus
-                    // ALONG the edge, so one place they do not is
-                    // enough to deny it (the same rule
-                    // the mark already follows — any zero-side sample
-                    // marks `SmoothUnderdetermined`). ε-tightening
-                    // makes zero-side verdicts RARER, so it can only
-                    // remove this refusal, never introduce one.
-                    Ok(Sign::Zero | Sign::Negative) => {
-                        jet_determinate = false;
-                        break;
-                    }
-                    Err(cause) => {
-                        errors.push(ValidationError::SliverDihedral {
-                            edge: edge_key,
-                            check: WedgeCheck::SecondOrder,
-                            cause,
-                        });
-                        jet_escalated = true;
-                        break;
-                    }
+                geom_brep::SecondOrderWalk::Stopped(cause) => {
+                    (true, Some((WedgeCheck::MaterialSide, cause)))
                 }
-                // Which end, decided only where it is asked: the
-                // magnitude just classified definitely positive, so
-                // this reads the SIGN of the same quantity in the
-                // material frame and cannot honestly land on Zero.
-                let signed = geom_brep::material_kappa_rel(jet.kappa_rel, sense_plus);
-                let this = match decide("material_cusp_side", Margin::sagitta(signed, arm), band) {
-                    Ok(Sign::Positive) => MaterialWedge::Cusp,
-                    Ok(Sign::Negative) => MaterialWedge::Slit,
-                    // Neither outcome is reachable through a margin
-                    // the run can read: this is the SAME quantity
-                    // whose magnitude classified definitely positive
-                    // one decision above. Announced anyway — a state
-                    // that cannot occur is reported, never swallowed —
-                    // and as an escalation rather than a panic,
-                    // because a validator's answer to "I cannot say"
-                    // is an error in its vector.
-                    Ok(Sign::Zero) => {
-                        errors.push(ValidationError::SliverDihedral {
-                            edge: edge_key,
-                            check: WedgeCheck::MaterialSide,
-                            cause: Indeterminate {
-                                margin: geom_core::MarginDiag::INVALID,
-                                band,
-                                predicate: Some("material_cusp_side"),
-                                terminal_sliver: false,
-                            },
-                        });
-                        jet_escalated = true;
-                        break;
-                    }
-                    Err(cause) => {
-                        errors.push(ValidationError::SliverDihedral {
-                            edge: edge_key,
-                            check: WedgeCheck::MaterialSide,
-                            cause,
-                        });
-                        jet_escalated = true;
-                        break;
-                    }
-                };
-                match side {
-                    Some(seen) if seen != this => side_mixed = true,
-                    _ => side = Some(this),
-                }
+            };
+            let jet_escalated = escalation.is_some();
+            if let Some((check, cause)) = escalation {
+                errors.push(ValidationError::SliverDihedral {
+                    edge: edge_key,
+                    check,
+                    cause,
+                });
             }
             if !jet_escalated {
                 arm = Some(material_arm_outcome(
@@ -15837,6 +15856,7 @@ mod certify_escalation_rows {
                     geom_brep::PlaneNurbsRefusal::Limb {
                         limb: geom_brep::ssi::SsiLimb::OnLocus,
                         value: 2.0e-8,
+                        margin: geom_core::MarginDiag::value(2.0e-8),
                     },
                 )),
                 "its stored description does not match its geometry. There is no way through: \

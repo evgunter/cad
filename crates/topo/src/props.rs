@@ -2860,7 +2860,7 @@ impl ShellClassifyError {
         let arm = match self {
             Self::Escalated { source, .. } => RefusedArm::Undecided(source),
             Self::ZeroVolume { verdict, .. } => RefusedArm::Zero(*verdict),
-            Self::Straddles { .. } => RefusedArm::SignCertain,
+            Self::Straddles { .. } => RefusedArm::SignCertain(None),
             Self::Props { .. } | Self::Band { .. } => return None,
         };
         Some(SHELL_ROLE.recourse(arm, Reading::Build))

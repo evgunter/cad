@@ -737,15 +737,14 @@ impl core::fmt::Display for SectionError {
                 f,
                 "the two surfaces' configuration is ill-conditioned at this tolerance: {diag}"
             ),
-            Self::RadiusEscalated { radius, diag } => write!(
-                f,
-                "{} is undecided: {}. {}",
-                radius.subject(),
-                diag.payload(),
-                radius
-                    .sized()
-                    .recourse(RefusedArm::Undecided(diag), Reading::Build)
-            ),
+            Self::RadiusEscalated { radius, diag } => diag
+                .undecided(
+                    radius.subject(),
+                    radius
+                        .sized()
+                        .recourse(RefusedArm::Undecided(diag), Reading::Build),
+                )
+                .fmt(f),
             Self::RoutesToGeneralRung { pair, why } => write!(f, "the {pair} section: {why}"),
             Self::RadiusDeclarationContradicted => write!(
                 f,
