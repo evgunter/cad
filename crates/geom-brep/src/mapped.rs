@@ -232,8 +232,10 @@ pub enum MappedCurve<T: Real> {
 /// re-mixed, which an endpoint form (`from·(1 − s) + to·s`) pays and
 /// cannot contract.
 ///
-/// A whole range starts at `−0`, the additive identity of IEEE
-/// addition, so [`SweepRange::at`] reads `span·s` bit for bit on it.
+/// A whole range starts at the literal zero, so [`SweepRange::at`]
+/// reads `span·s` on it: bit for bit at `f64` and `Interval` up to the
+/// sign of a zero angle (which no evaluated point carries), and as the
+/// same form at `Sym`, whose sum folds a literal zero away.
 #[derive(Clone, Copy, Debug)]
 pub struct SweepRange<T: Real> {
     start: T,
@@ -244,7 +246,7 @@ impl<T: Real> SweepRange<T> {
     /// A whole sweep from the placed point through `span`.
     pub fn from_zero(span: T) -> Self {
         SweepRange {
-            start: -T::zero(),
+            start: T::zero(),
             span,
         }
     }
@@ -264,7 +266,7 @@ impl<T: Real> SweepRange<T> {
         self.span
     }
 
-    /// The coordinate at normalized parameter `s`: `span·s + start`.
+    /// The coordinate at normalized parameter `s`: `start + span·s`.
     ///
     /// This is [`geom_core::Point3::lerp`]'s form with the difference
     /// already stored, so the start is named once: exact at `s = 0`,
@@ -272,7 +274,7 @@ impl<T: Real> SweepRange<T> {
     /// `start`'s width, `|span|·width(s)` and `|s|·width(span)`, plus
     /// the roundings of the product and the sum.
     pub fn at(self, s: T) -> T {
-        self.span * s + self.start
+        self.start + self.span * s
     }
 
     /// The sub-range covering `[s0, s1]` of this one: the start moves

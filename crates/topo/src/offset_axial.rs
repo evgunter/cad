@@ -3021,7 +3021,7 @@ mod tests {
             );
             assert_eq!(
                 (angles.start().to_bits(), angles.span().to_bits()),
-                ((-0.0f64).to_bits(), core::f64::consts::TAU.to_bits()),
+                (0.0f64.to_bits(), core::f64::consts::TAU.to_bits()),
                 "at {at:?} the re-authored range moved: {angles:?}"
             );
         }

@@ -279,19 +279,30 @@ fn eps_row(eps: f64) -> usize {
 /// INTENT-LITERALS PR C moves the `Plain/Decision` line as it moves
 /// [`PLATE_LEDGER`]'s: one more call, the non-finite door's theorem on
 /// the anonymous definition a slot's formula lowers to.
+///
+/// Re-captured when a restricted swept point began keeping its
+/// placement and narrowing a `geom_brep::SweepRange` instead of
+/// composing each split's motion into the placement: a split strut now
+/// evaluates as `place(point) + vec·(start + span·s)` rather than a
+/// translated placement plus a scaled vector, so the decision walk
+/// builds 9545 forms where it built 9426, at every row, and that
+/// line's digest moves. Calls, frozen counts, every other line and the
+/// plate do not move. Dropping the range's start from the evaluation
+/// on a probe leaves 9536: nine forms are a whole range's `0 + span·s`,
+/// and the rest are the restricted and re-authored descriptions'.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 981 forms 9426 frozen 0 digest c5a152514b522899526a41668175a0de\n\
+     Plain/Decision calls 981 forms 9545 frozen 0 digest e5e0fe5b235d83fbb728a3bd89983fbd\n\
      Plain/Assertion calls 514 forms 998 frozen 0 digest 5206c920343d6282631593785c59fd94\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
      Early/Assertion calls 514 forms 2041 frozen 0 digest 3db9ed51fb47a298354b2832b038c78a",
     "\
-     Plain/Decision calls 981 forms 9426 frozen 0 digest e7826bcc06fc0e40f560d482194172fe\n\
+     Plain/Decision calls 981 forms 9545 frozen 0 digest 04f628303147e4252016b23b007059b0\n\
      Plain/Assertion calls 514 forms 998 frozen 0 digest bcfbe11c2bdeed2409771fd302947d91\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
      Early/Assertion calls 514 forms 2041 frozen 0 digest e17861a58d5e7b4a5b43d4001d4bce08",
     "\
-     Plain/Decision calls 981 forms 9426 frozen 0 digest bcfbe11bda9c90c6b10f188ca7b67066\n\
+     Plain/Decision calls 981 forms 9545 frozen 0 digest 3cee4d5fe1b796d7726bf5c5c470608f\n\
      Plain/Assertion calls 514 forms 998 frozen 0 digest 88893d9f9257c4f96979ed9188e3ff26\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
      Early/Assertion calls 514 forms 2041 frozen 0 digest 4265056406dca4880d3caf74f355b9cb",
@@ -522,8 +533,14 @@ const PLATE_MAX_TERMS: usize = 28;
 ///   `Plain/Decision`'s and `Early/Decision`'s forms rise 24 each
 ///   (15710 → 15734, 8633 → 8657, every one an `Add`), their digests
 ///   move, and the calls, the freezes and every other line hold.
+/// - **A restricted swept point keeps its placement
+///   (`nurbs/restrict-in-the-parameter`).** Its description narrows a
+///   `geom_brep::SweepRange` instead of composing each split's motion
+///   into the placement, and a whole range evaluates `0 + span·s`:
+///   `Plain/Decision`'s forms rise 15734 → 15802 and its digest moves;
+///   the calls, the freezes and every other line hold.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1048 forms 15734 frozen 252 digest cfb4de41dbc5a92ac241864143c51061\n\
+     Plain/Decision calls 1048 forms 15802 frozen 252 digest 2262c9afa7724cd031ab364493de93a5\n\
      Plain/Assertion calls 654 forms 4173 frozen 360 digest 91787fb61a160072b143278440ea302f\n\
      Early/Decision calls 352 forms 8657 frozen 0 digest f610d4dbb8133211901db22b14760ad2\n\
      Early/Assertion calls 654 forms 5136 frozen 0 digest da78941ae02f7d0e7e82b8880eda52ac\n\
