@@ -2,11 +2,12 @@
 id: tilted-read-takes-a-spline-or-spiric-edge-as-its-carrier-ball
 kind: issue
 title: moved_walls_cross reads a planar face's spline or spiric edge as its whole carrier ball, so it may refuse a pair whose walls clear
-status: open
+status: dispatched
 opened: 2026-10-08
 priority: P3
 cost: M
 refs: [shell-clearance-gate-skips-planar-pairs-tilted-off-antiparallel]
+branch: shell/tilted-read-gaps
 ---
 
 
