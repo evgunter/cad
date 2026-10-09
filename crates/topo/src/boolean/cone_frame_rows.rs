@@ -97,7 +97,9 @@ fn shape(frame: &Frame) -> String {
         Ok(None) => "straight".into(),
         Err(FrameError::Escalated(d)) => format!("escalated {:?}", d.predicate),
         Err(FrameError::Desync(what)) => format!("desync {what}"),
-        Err(FrameError::OutsideInventory { conic, section }) => format!("outside {conic:?} {section}"),
+        Err(FrameError::OutsideInventory { conic, section }) => {
+            format!("outside {conic:?} {section}")
+        }
         Err(FrameError::NoArm) => "no arm".into(),
         Err(FrameError::RadiusEscalated { .. }) => "radius escalated".into(),
         Err(FrameError::IntersectingCylinderAxes { .. }) => "pinch".into(),
@@ -233,10 +235,7 @@ fn a_parabola_or_a_hyperbola_refuses_by_decision_naming_the_conic() {
             section: SectionError::RoutesToGeneralRung { pair, .. },
         }) = &got
         else {
-            panic!(
-                "{label}: {named} refuses by decision, got {}",
-                shape(&got)
-            );
+            panic!("{label}: {named} refuses by decision, got {}", shape(&got));
         };
         assert_eq!(*pair, "plane×cone", "{label}: the pair the table names");
         assert_eq!(*got_conic, conic, "{label}: the conic the refusal names");

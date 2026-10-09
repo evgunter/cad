@@ -2379,10 +2379,7 @@ fn pk_germ_frame<T: Decide>(
             "plane×cone classification carried a carrier its conic is not",
         )),
         Err(e @ geom_brep::SectionError::RoutesToGeneralRung { .. }) => match e.outside_conic() {
-            Some(conic) => Err(FrameError::OutsideInventory {
-                conic,
-                section: e,
-            }),
+            Some(conic) => Err(FrameError::OutsideInventory { conic, section: e }),
             None => Err(FrameError::Desync(
                 "the plane×cone table routed a pair to the general rung naming no conic",
             )),

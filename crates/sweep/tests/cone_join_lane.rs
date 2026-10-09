@@ -17,7 +17,9 @@
 //! The poses are the cone sector spec's: B4, the slab `y ∈ [0.3, 0.6]`
 //! across the widening frustum; C1, a half-space brick whose face is
 //! tilted 10° off axis-normal; T1, TANG's box turned −50° against the
-//! π/6 cone, whose two ellipses bound a ring on the cone face.
+//! π/6 cone, whose two ellipses bound a ring on the cone face. C2, B1
+//! and C3 cut a hyperbola or a parabola, which the frame refuses by
+//! decision.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -367,9 +369,8 @@ fn t1_planes() -> [(Point3<f64>, Vec3<f64>); 2] {
 
 /// Whether `chord` is cut from `cone` by the plane `(q, n)`.
 fn cut_by_plane(chord: &Chord, cone: &Surface<f64>, (q, n): (Point3<f64>, Vec3<f64>)) -> bool {
-    cut_by(chord, cone).is_some_and(|(o, m)| {
-        m.normalize().cross(n).norm() < 1e-12 && (o - q).dot(n).abs() < 1e-12
-    })
+    cut_by(chord, cone)
+        .is_some_and(|(o, m)| m.normalize().cross(n).norm() < 1e-12 && (o - q).dot(n).abs() < 1e-12)
 }
 
 /// The point of an ellipse carrier at its angle parameter `t`, and the
@@ -514,7 +515,10 @@ fn lune_loops(
             } else if every {
                 LuneRole::Scaffolding
             } else {
-                assert_ne!(lp, face.outer, "a lune outer loop on a face with other loops");
+                assert_ne!(
+                    lp, face.outer,
+                    "a lune outer loop on a face with other loops"
+                );
                 LuneRole::Ring
             };
             found.push((role, winding));
@@ -542,7 +546,10 @@ fn the_rings_island_on_the_cone_face_winds_by_the_sections_curve() {
     for op in OPS {
         let label = format!("T1, {op:?}");
         let (cone_side, box_side) = joined(&label, &c, &x, op);
-        for (side, body) in [("the cone's side", &cone_side), ("the box's side", &box_side)] {
+        for (side, body) in [
+            ("the cone's side", &cone_side),
+            ("the box's side", &box_side),
+        ] {
             for (i, &(q, n)) in planes.iter().enumerate() {
                 let label = format!("{label}, {side}, face {i}");
                 assert_section_chords(&label, body, &cone, q, n);
@@ -569,5 +576,79 @@ fn the_rings_island_on_the_cone_face_winds_by_the_sections_curve() {
             "{label}: the island's only loop winds counter-clockwise about the cone's outward \
              normal and the ring its remainder holds clockwise, got {lune:?}"
         );
+    }
+}
+
+/// **A parabola or a hyperbola refuses by decision, end to end.** C2's
+/// half-space brick, whose face `x = 0.3` runs along the axis, and B1,
+/// the brick `[0.6, 2] × [0.3, 0.8] × [−0.2, 0.2]` across the widening
+/// wall, whose faces `x = 0.6` and `z = ±0.2` do too, each cut the
+/// frustum in hyperbolas; C3's, whose face through `(0.5, 0.5, 0)` lies
+/// parallel to a generator, in a parabola. In every op and member order
+/// the pipeline refuses at the germ pair's frame with the conic named,
+/// the plane×cone pair in the operands' order: neither the missing-arm
+/// refusal nor a desync.
+#[test]
+fn a_parabola_or_a_hyperbola_refuses_by_decision_in_every_op() {
+    let tol = Tol::witness();
+    let frustum = widening();
+    let alpha = 0.5_f64.atan();
+    let c3_turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), -alpha);
+    let poses = [
+        (
+            "C2",
+            finished(
+                "C2's brick",
+                brick((0.3, 6.3), (-3.0, 3.0), (-3.0, 3.0), tol),
+                tol,
+            ),
+            geom_brep::OutsideConic::Hyperbola,
+        ),
+        (
+            "B1",
+            finished("B1", brick((0.6, 2.0), (0.3, 0.8), (-0.2, 0.2), tol), tol),
+            geom_brep::OutsideConic::Hyperbola,
+        ),
+        (
+            "C3",
+            posed(
+                "C3's brick",
+                brick((0.0, 6.0), (-3.0, 3.0), (-3.0, 3.0), tol),
+                Affine3::translation(Vec3::new(0.5, 0.5, 0.0)) * c3_turn,
+            ),
+            geom_brep::OutsideConic::Parabola,
+        ),
+    ];
+    for (pose, other, conic) in &poses {
+        for (op, cone_first) in OPS {
+            let label = format!("{pose}, {op:?}, cone first: {cone_first}");
+            let (a, b, kinds) = if cone_first {
+                (
+                    &frustum,
+                    other,
+                    [geom::SurfaceKind::Cone, geom::SurfaceKind::Plane],
+                )
+            } else {
+                (
+                    other,
+                    &frustum,
+                    [geom::SurfaceKind::Plane, geom::SurfaceKind::Cone],
+                )
+            };
+            let got = topo::join_admitting_cones(op, a, b, tol);
+            assert!(
+                matches!(
+                    &got,
+                    Err(BooleanError::GermSectionOutsideInventory {
+                        a_kind,
+                        b_kind,
+                        conic: named,
+                        ..
+                    }) if [*a_kind, *b_kind] == kinds && named == conic
+                ),
+                "{label}: the {conic:?} refuses by decision at the germ pair's frame, got {:?}",
+                got.map(|j| j.is_some())
+            );
+        }
     }
 }
