@@ -358,7 +358,7 @@ impl core::fmt::Display for FrameError {
             } => i
                 .undecided(
                     input.subject(),
-                    format_args!("Recourse: {NO_DECLARATION_RECOURSE}"),
+                    crate::predicate::lever_recourse(NO_DECLARATION_RECOURSE, None),
                 )
                 .fmt(f),
             FrameError::NonFiniteLength { input } => write!(

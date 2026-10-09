@@ -933,7 +933,7 @@ pub fn recourse(check: CertCheck, arm: RefusedArm<'_>, reading: Reading) -> Stri
     match check.ending() {
         Ending::Sized(sized) => sized.recourse(arm, reading),
         Ending::Unsized(no_size) | Ending::Residual(no_size) => no_size.recourse(arm, reading),
-        Ending::Undefined(recourse) => format!("Recourse: {recourse}"),
+        Ending::Undefined(recourse) => geom_core::lever_recourse(recourse, None),
     }
 }
 

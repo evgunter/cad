@@ -1938,7 +1938,7 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                     return source
                         .undecided(
                             "the fillet at this corner",
-                            format_args!("Recourse: {recourse}"),
+                            geom_core::lever_recourse(recourse, None),
                         )
                         .fmt(f);
                 }
@@ -2003,7 +2003,7 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                     ) => source
                         .undecided(
                             "the fillet arc about to be stored",
-                            format_args!("Recourse: {FILLET_STORED_FORM_INBAND_RECOURSE}"),
+                            geom_core::lever_recourse(FILLET_STORED_FORM_INBAND_RECOURSE, None),
                         )
                         .fmt(f),
                     // The junction keys keep the full `Indeterminate`

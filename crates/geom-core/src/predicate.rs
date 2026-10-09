@@ -1979,8 +1979,10 @@ impl Indeterminate {
     /// **An undecided refusal's sentence** (D4 ¶1):
     /// `{subject} is undecided: {payload}. {ending}` — the question the
     /// decision asks, this escalation's [`Indeterminate::payload`], and
-    /// the one ending its decision's table gives. The one spelling of
-    /// that shape, for every door's Display.
+    /// the refusal's ending, whether a decision's table composes it or
+    /// the door holds a constant one. The one spelling of that shape,
+    /// for every door's Display.
+    #[must_use]
     pub fn undecided<S: fmt::Display, E: fmt::Display>(
         &self,
         subject: S,

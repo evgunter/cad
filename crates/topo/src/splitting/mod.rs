@@ -527,7 +527,7 @@ impl core::fmt::Display for SplitReduceError {
             Self::CrossingEscalated { fault, .. } => {
                 let diag = fault.diag();
                 let ending = fault.decision().map_or_else(
-                    || format!("Recourse: {SPLIT_COINCIDENCE_RECOURSE}"),
+                    || geom_core::lever_recourse(SPLIT_COINCIDENCE_RECOURSE, None),
                     |decision| decision.ending_of(&diag),
                 );
                 diag.undecided(fault.subject(), ending).fmt(f)
