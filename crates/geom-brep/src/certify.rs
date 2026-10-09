@@ -502,6 +502,12 @@ pub enum CertifyError {
     /// hold up — this variant is the evidence's verdict, with the
     /// number.
     PlaneNurbs(crate::edge_nurbs::PlaneNurbsRefusal),
+    /// `Intersection` of two analytic surfaces over a rung-3
+    /// (`Curve3::Nurbs`) carrier: the analytic rung-3 certificate (C2's
+    /// limbs: the carrier's distance from each operand, and the
+    /// uniqueness tube) refused, carrying its own verdict
+    /// ([`crate::analytic_rung3`]).
+    AnalyticRung3(crate::edge_nurbs::AnalyticRung3Refusal),
 }
 
 impl core::fmt::Display for CertifyError {
@@ -592,6 +598,10 @@ impl core::fmt::Display for CertifyError {
             Self::PlaneNurbs(refusal) => {
                 write!(f, "the plane × NURBS Intersection lane refused — {refusal}")
             }
+            Self::AnalyticRung3(refusal) => write!(
+                f,
+                "the analytic Intersection's rung-3 certificate refused — {refusal}"
+            ),
             Self::NotTransverse { sample, lever, .. } => {
                 write!(f, "the faces meet tangentially at sample {sample}")?;
                 if let Some(lever) = lever {
@@ -683,6 +693,7 @@ impl CertifyError {
             Self::Escalated { check, cause, .. } => (*check, RefusedArm::Undecided(cause)),
             Self::ChartImageUnavailable { .. } => (CertCheck::ChartImage, RefusedArm::SignCertain),
             Self::PlaneNurbs(refusal) => return refusal.decision(),
+            Self::AnalyticRung3(refusal) => return refusal.decision(),
             Self::UnresolvedSurface { .. }
             | Self::Unimplemented
             | Self::NurbsLaneNotSupplied
@@ -702,8 +713,10 @@ impl CertifyError {
     /// appends this, or renders both through [`CertifyError::render`].
     #[must_use]
     pub fn ending(&self, reading: Reading) -> Option<String> {
-        if let Self::PlaneNurbs(refusal) = self {
-            return refusal.ending(reading);
+        match self {
+            Self::PlaneNurbs(refusal) => return refusal.ending(reading),
+            Self::AnalyticRung3(refusal) => return refusal.ending(reading),
+            _ => {}
         }
         self.decision()
             .map(|(check, arm)| recourse(check, arm, reading))
@@ -1304,6 +1317,15 @@ impl<T: Decide> EdgeCurve<T> {
     ///    marching exists (M3) — the mid-pin verifies the carrier
     ///    traverses the witness's arc, not that the witness sits on
     ///    the component the modeler intended.
+    /// 6. `Intersection` of two analytic surfaces over a `Nurbs`
+    ///    carrier, with a [`NurbsLane`] in hand
+    ///    ([`EdgeCurve::certify_via`], [`EdgeCurve::recertify_via`]):
+    ///    C2's limbs over `[t₀, t₁]` ([`crate::analytic_rung3`]). This
+    ///    door holds no lane and does not state them; nor do
+    ///    [`EdgeCurve::recertify`], a scalar with no certification
+    ///    rights, the `_structural` at-rest doors, or the graft's
+    ///    `Bridge::Recertify` (`topo`), which calls this door
+    ///    (`work/pcert/lane-free-doors-skip-the-analytic-rung3-limbs.md`).
     ///
     /// # Errors
     ///
@@ -1497,6 +1519,14 @@ pub struct NurbsLane<T: Real> {
             Band,
         )
             -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal>,
+    /// [`crate::analytic_rung3`] at `T`.
+    analytic_rung3: fn(
+        &geom::NurbsCurve3<T>,
+        (T, T),
+        &Surface<T>,
+        &Surface<T>,
+        Band,
+    ) -> Result<(), crate::edge_nurbs::AnalyticRung3Refusal>,
     /// [`NurbsLane::carrier_foot`]'s Newton at `T`.
     foot: fn(
         &geom::NurbsCurve3<T>,
@@ -1513,6 +1543,7 @@ impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
     pub const fn certified() -> Self {
         Self {
             limbs: crate::edge_nurbs::plane_nurbs_limbs::<T>,
+            analytic_rung3: crate::edge_nurbs::analytic_rung3::<T>,
             foot: Self::seeded_foot,
         }
     }
@@ -1540,6 +1571,19 @@ impl<T: Real> NurbsLane<T> {
         band: Band,
     ) -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal> {
         (self.limbs)(carrier, plane, wall, extent, band)
+    }
+
+    /// The between-samples certificate of a rung-3 carrier between two
+    /// analytic surfaces ([`crate::analytic_rung3`]).
+    fn analytic_rung3(
+        self,
+        carrier: &geom::NurbsCurve3<T>,
+        params: (T, T),
+        s1: &Surface<T>,
+        s2: &Surface<T>,
+        band: Band,
+    ) -> Result<(), crate::edge_nurbs::AnalyticRung3Refusal> {
+        (self.analytic_rung3)(carrier, params, s1, s2, band)
     }
 
     /// The foot of `point` on a NURBS `carrier`, by Newton from `seed`:
@@ -2189,7 +2233,7 @@ fn run_checks<T: Decide>(
     // stand-in does not have. Admitting one would meter poison.
     let resolve = |key: SurfaceKey| -> Result<Surface<T>, CertifyError> {
         let s = surfaces(key).ok_or(CertifyError::UnresolvedSurface { key })?;
-        if matches!(s, Surface::Nurbs(_) | Surface::Approx(_)) {
+        if !crate::edge_nurbs::is_analytic(&s) {
             return Err(CertifyError::Unimplemented);
         }
         Ok(s)
@@ -2951,6 +2995,23 @@ fn run_checks<T: Decide>(
         )?;
     }
 
+    // ---- Intersection of two analytic surfaces over a rung-3 carrier:
+    // C2's limbs, through the lane, which holds certification
+    // arithmetic — the carrier's distance from each operand over the
+    // edge's interval, and the uniqueness tube over it. A door holding
+    // no lane does not state them
+    // (`work/pcert/lane-free-doors-skip-the-analytic-rung3-limbs.md`). A
+    // spline operand's pair is the plane × NURBS lane's above, whose
+    // limbs are its own. ----
+    if let (Resolved::Intersection { surf1, surf2, .. }, Curve3::Nurbs(carrier), Some(lane)) =
+        (&resolved, &spec.carrier, lane)
+        && crate::edge_nurbs::is_analytic(surf1)
+        && crate::edge_nurbs::is_analytic(surf2)
+    {
+        lane.analytic_rung3(carrier, (t0, t1), surf1, surf2, band)
+            .map_err(CertifyError::AnalyticRung3)?;
+    }
+
     // ---- Check 5: witness residuals + mid-parameter pin
     // (Intersection and TangentIntersection; see the check-sequence
     // docs for the witness contract: the witness IS the edge's
@@ -3117,6 +3178,12 @@ mod wiring_rows {
         if !std::ptr::fn_addr_eq(lane.foot, NurbsLane::<T>::seeded_foot as fn(_, _, _) -> _) {
             return Err("foot is not `NurbsLane::seeded_foot`");
         }
+        if !std::ptr::fn_addr_eq(
+            lane.analytic_rung3,
+            crate::edge_nurbs::analytic_rung3::<T> as fn(_, _, _, _, _) -> _,
+        ) {
+            return Err("analytic_rung3 is not `edge_nurbs::analytic_rung3`");
+        }
         Ok(())
     }
 
@@ -3125,7 +3192,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<f64>(),
             Ok(()),
-            "`NurbsLane::<f64>::certified()` holds something other than `plane_nurbs_limbs` and `seeded_foot`"
+            "`NurbsLane::<f64>::certified()` holds something other than `plane_nurbs_limbs`, `seeded_foot` and `analytic_rung3`"
         );
     }
 

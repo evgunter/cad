@@ -26,7 +26,7 @@ use crate::common::approx::band;
 use crate::common::charts::{charts, moves_by};
 use crate::common::cone_nappe::{
     H, R_NARROW, R_WIDE, T, cone_faces, corners, mirror_frustum, opening_frustum, reanchor_cone,
-    revolved, rim_refusal_gap, stations, surface_of,
+    revolved, stations, surface_of,
 };
 
 fn cone_of(body: &topo::Body<f64>, face: FaceKey) -> Surface<f64> {
@@ -68,15 +68,10 @@ fn face_nappe_reads_the_frustums_own_wall() {
 ///
 /// The doors are pinned against ONE expression —
 /// `offset_surface(cone, group_nappe(..).turn(d))` — bit for bit, on
-/// both nappes. They are pinned at different `d` because their reaches
-/// differ and neither reach is about the nappe: the per-chart door's
-/// `ReanchorOffCarrier` compares the rim's displacement `|d|·sin α`
-/// against ε, so it builds only BELOW `ε/sin α`; the axial door meters
-/// the request itself (`offset_axial_request`) and escalates on a `d`
-/// that small. So the per-chart door is read at half that threshold —
-/// stated in the RUN's own ε, because a fixed number is a different
-/// question at each of the three eps rows — and the axial one at the
-/// wall thickness.
+/// both nappes. The per-chart door is read at half of `ε/sin α`,
+/// stated in the RUN's own ε, and the axial one at the wall thickness:
+/// the axial door meters the request itself (`offset_axial_request`)
+/// and escalates on a `d` that small.
 ///
 /// The turn stays observable there: the two nappes' apexes stand
 /// `2d/sin α = ε/sin²α ≈ 17ε` apart, so a door that took the wrong one
@@ -167,14 +162,16 @@ fn both_doors_mint_the_turned_offset_on_both_nappes() {
 /// **What the per-chart door does as `|d|` grows** (R2's `r2p3`, the
 /// reachability sweep, asserted rather than reported).
 ///
-/// Below `ε/sin α` the rims still land on their carriers and the door
-/// builds; above it the caps refuse — `ReanchorOffCarrier` at the gap
-/// `|d|·sin α`, or the rim's re-chart where the door reaches that edge
-/// first (`common::cone_nappe::rim_refusal_gap`). Both nappes, both signs, one threshold — so the door's
-/// reachability is a statement about ε and the fixture, never about the
-/// nappe.
+/// The rims are each the moved cone's section with its untouched cap
+/// and the corners its roots along the band seams, so the door builds
+/// at a `|d|` under the rim tolerance `ε/sin α` and at one a thousand
+/// times past it alike: both nappes, both signs. Its reach is the apex
+/// window read on the rims as derived — the moved apex against the
+/// window the caps put them at (the row below, and
+/// `offd_r1_probes::a_derived_rim_past_the_moved_apex_refuses_the_apex_window`)
+/// — not the rim tolerance.
 #[test]
-fn the_per_chart_doors_reach_is_a_threshold_in_the_rim_tolerance() {
+fn the_per_chart_doors_reach_is_not_the_rim_tolerance() {
     let tol = Tol::witness();
     let alpha = ((R_WIDE - R_NARROW) / H).atan();
     let threshold = tol.eps() / alpha.sin();
@@ -183,28 +180,12 @@ fn the_per_chart_doors_reach_is_a_threshold_in_the_rim_tolerance() {
         ("widening upward (opening)", opening_frustum()),
     ] {
         let faces = cone_faces(&body);
-        // Stated in the threshold's own units, so the row asks the same
-        // question at every eps row: one magnitude whose gap lands
-        // under the band's zero, one whose gap clears its escalate end.
         for mag in [0.5 * threshold, 1e3 * threshold] {
             for signed in [-mag, mag] {
                 let mut work = body.clone();
-                let got = topo::replace_faces_offset(&mut work, &faces, signed, tol);
-                if mag > threshold {
-                    let Some(gap) = rim_refusal_gap(&got) else {
-                        panic!("{what} d={signed:e}: wanted the rim refusal, got {got:?}");
-                    };
-                    if let Some(gap) = gap {
-                        assert!(
-                            (gap - mag * alpha.sin()).abs() <= 1e-15 * gap.max(1.0),
-                            "{what} d={signed:e}: the gap is |d|·sin α, got {gap:e}"
-                        );
-                    }
-                } else {
-                    got.unwrap_or_else(|e| {
-                        panic!("{what} d={signed:e}: below the rim tolerance the door builds: {e}")
-                    });
-                }
+                topo::replace_faces_offset(&mut work, &faces, signed, tol).unwrap_or_else(|e| {
+                    panic!("{what} d={signed:e}: the door builds the moved cone: {e}")
+                });
             }
         }
     }
@@ -214,7 +195,7 @@ fn the_per_chart_doors_reach_is_a_threshold_in_the_rim_tolerance() {
 /// inward request larger than the wall's own slant to its apex must
 /// refuse `ApexWindow` on BOTH nappes: the window's near end, shifted
 /// by `d·cot α`, has crossed the apex. Below that distance the gate
-/// passes and the door refuses at its neighbouring caps instead.
+/// passes and the door builds.
 ///
 /// The threshold is the slant from the apex to the near rim times
 /// `tan α`: `0.0322119…` m for both frustums here. It is the mirror
@@ -256,13 +237,13 @@ fn the_apex_window_gate_fires_on_both_nappes_at_the_same_reach() {
                          (v [{v_min}, {v_max}], shift {shift})"
                     );
                 }
-                (refused, false) if rim_refusal_gap(refused).is_some() => {}
+                (Ok(_), false) => {}
                 other => panic!(
                     "{what} d={d}: wanted {}, got {other:?}",
                     if expect_window {
                         "ApexWindow"
                     } else {
-                        "ReanchorOffCarrier"
+                        "the moved cone"
                     }
                 ),
             }

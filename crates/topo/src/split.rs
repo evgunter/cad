@@ -178,12 +178,10 @@ impl<T: Decide> Body<T> {
     /// what is there, and minting what is missing is the producer's
     /// closing mint.
     ///
-    /// A sphere's general circle's `Fitted` row certifies over its own
-    /// knot domain only, so each child's is derived afresh through the
-    /// fitted door ([`crate::AtRestPolicy::fitted_lane`]) and pinned onto
-    /// the parent's branch. Two frontiers, both stated at `split_cache`.
-    /// Any other `Fitted` row, and a `General` one, is left exactly as
-    /// found. And on a
+    /// A projected row restricts like any other, its hull terms read
+    /// through the fitted door ([`crate::AtRestPolicy::fitted_lane`]).
+    /// Two frontiers, both stated at `split_cache`. A `Fitted` or
+    /// `General` row is left exactly as found. And on a
     /// SPLINE chart the carry is exact — a described-NURBS wall's
     /// `IsoLine`/`IsoArc` rows restrict like any other and tier 3
     /// reads `Ok` — but the recovery step the caveat below names,

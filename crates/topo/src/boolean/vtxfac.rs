@@ -1216,7 +1216,7 @@ fn germ_order<T: Decide>(
 /// edge lies in it to the tolerance and the resolution is ε-true of it.
 /// A curved edge's On is its departure's, to first order
 /// (`Reach::Extent`; the residue is
-/// `work/contact/boolean-conic-side-code-zero-is-first-order`).
+/// `work/contacthold/boolean-conic-side-code-zero-is-first-order`).
 ///
 /// A bisector entry's On is a direction's, levered at its sector's arm,
 /// and it is resolved only where its code changes no topology. Its two

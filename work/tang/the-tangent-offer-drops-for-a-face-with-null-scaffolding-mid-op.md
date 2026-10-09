@@ -21,7 +21,7 @@ pair has no measured extent, so the probe reads
 `rest::pair_extent` on the mid-operation bodies, and discards a failure
 with `.ok()`: a face whose boundary carries a null-scaffold edge
 mid-union has no readable box (`census::face_reach` answers `None`;
-see `work/contact/census-face-reach-returns-a-nan-box-for-an-unclaimable-boundary-edge.md`),
+see `work/restread/census-face-reach-returns-a-nan-box-for-an-unclaimable-boundary-edge.md`),
 so the probe reads "no tangency" and the refusal drops the `Tangent`
 offer it would otherwise make.
 

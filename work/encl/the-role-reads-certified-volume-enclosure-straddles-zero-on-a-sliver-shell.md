@@ -2,12 +2,13 @@
 id: the-role-reads-certified-volume-enclosure-straddles-zero-on-a-sliver-shell
 kind: issue
 title: The role read's certified volume enclosure on a sliver shell is 1e-9 to 5e-7 wide in V/A at ε = 1e-12, straddling zero where the point reading is about 30 bands positive
-status: dispatched
-branch: encl/shell-volume-local-origin
+status: review
 opened: 2026-10-08
 priority: P2
 cost: M
 refs: [near-tangent-boolean-results-ship-with-an-escalated-tier-3-census]
+pr: 4386
+branch: encl/shell-volume-local-origin
 ---
 
 ## What
