@@ -3355,11 +3355,16 @@ fn resolve_roles_geometric<T: Decide + crate::props::AtRestPolicy>(
 /// (`join1_delta_probes::overlapping_lens_prisms_declared_union_builds`
 /// pins the pose; `insert::strut_faces_first` is the rule it holds).
 ///
-/// **Neither deciding** is the curved-face frontier, refused
+/// **Neither deciding** is the ladder's frontier, refused
 /// [`SplitJoinError::SectionLoopUndecided`]: every witness of both
-/// loops' regions read the other boundary or too near it, which a
-/// crossing's two flanks cannot both do unless their faces are all
-/// curved (`work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior`).
+/// loops' regions read the other boundary or too near it. A crossing's
+/// two flanks can both do that only where no region face offers an
+/// interior witness off it: a curved face
+/// (`work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior`),
+/// or a planar face on each of whose edges the inward line from the
+/// midpoint meets no line or conic carrier beyond the band
+/// (`crate::stands`, rung 3): for example one whose nearest boundary
+/// there is a spline or a spiric, or one narrower than the band.
 /// No in-band reading is named as the cause: it is about one point. A
 /// witness refused near a face the door cannot read is, as it is for a
 /// shell ([`super::shell_witness`]).
