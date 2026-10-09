@@ -7,8 +7,8 @@ opened: 2026-10-06
 priority: P1
 cost: H
 refs: [VERBS-CONE, 4135]
-branch: germ/cone-sector-normals
-pr: 4369
+branch: germ/cone-sector-join
+pr: 4375
 ---
 
 
@@ -130,7 +130,7 @@ roster:
 
 ## U-S3, U-S4, U-S0 (2026-10-09, `germ/cone-sector-join`)
 
-D3, D4 and D5 are open below the operand gate. U-S1, U-S2 and U-S6 ride
+D3, D4 and D5 are open below the operand gate (PR 4375). U-S1, U-S2 and U-S6 ride
 PR 4369 (`germ/cone-sector-normals`).
 
 - **D3.** `join::pair_section_frame_at` has a plane × cone arm
