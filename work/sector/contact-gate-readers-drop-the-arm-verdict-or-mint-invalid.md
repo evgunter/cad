@@ -13,8 +13,8 @@ cost: M
 Found by ENCL's sweep of the collapse gates (PR 3431), re-read against
 main on 2026-10-08:
 
-- `topo::census` (near line 2180) binds only
-  `LeverEscalation { diag, .. }` from `classify_dihedral`, so an arm
+- `topo::census` (near line 2180) reads only
+  `LeverEscalation::diag()` from `classify_dihedral`, so an arm
   the gate decided collapsed, and an undecided one, both reach the
   census as an undecided candidate, with no rung to end them by.
 - `topo::boolean::contact_verify` hand-mints `MarginDiag::INVALID`

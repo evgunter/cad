@@ -3410,10 +3410,10 @@ fn wall_crossing<T: Decide + Bounds>(
     // states; a cone face lies on one nappe, and a root definitely off
     // THAT nappe ([`geom_brep::cone_elevation`] asked about it) lies on
     // the other: the carrier is crossed, not here. A face whose corners
-    // do not decide its nappe (one reaching its apex) leaves the
-    // question to its trim; a corner station in the band escalates, as
-    // the trim's own reading would, and a face the sweep holds that does
-    // not resolve is the sweep's desync.
+    // do not decide its nappe (corners on both sides of its apex)
+    // leaves the question to its trim; a corner station in the band
+    // escalates, as the trim's own reading would, and a face the sweep
+    // holds that does not resolve is the sweep's desync.
     let nappe = match *surface {
         geom::Surface::Cone {
             apex,

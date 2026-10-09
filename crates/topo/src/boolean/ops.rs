@@ -2520,7 +2520,7 @@ fn seam_reading<T: Decide>(
     band: Band,
 ) -> Result<geom_brep::DihedralClass, (DihedralReading, Indeterminate)> {
     geom_brep::classify_dihedral(surf1, surf2, witness, extent, band)
-        .map_err(|escalation| (DihedralReading::Lever(escalation.rung), escalation.diag))
+        .map_err(|escalation| (DihedralReading::Lever(escalation.rung()), escalation.diag()))
 }
 
 /// The boolean's refusal for an undecided seam reading: the seam's
@@ -2530,14 +2530,12 @@ fn seam_reading<T: Decide>(
 /// verdict is the gate's to mint.
 pub(super) fn seam_refusal(reading: DihedralReading, diag: Indeterminate) -> BooleanError {
     match reading {
-        DihedralReading::Lever(rung) => BooleanError::Escalated {
-            decision: BooleanDecision::of_lever(
-                super::LeverArm::Seam,
-                super::DeclarationRead::Moot,
-                rung,
-            ),
+        DihedralReading::Lever(rung) => BooleanError::of_lever_rung(
+            super::LeverArm::Seam,
+            super::DeclarationRead::Moot,
+            rung,
             diag,
-        },
+        ),
         DihedralReading::Bend => BooleanError::Escalated {
             decision: BooleanDecision::SeamJet,
             diag,
@@ -2593,7 +2591,7 @@ fn must_carry_reading<T: Decide>(
         MustCarryVerdict::JetDeterminate => Ok(true),
         MustCarryVerdict::UnderDetermined | MustCarryVerdict::Transverse => Ok(false),
         MustCarryVerdict::InBand(MustCarryEscalation::FirstOrder(escalation)) => {
-            Err((DihedralReading::Lever(escalation.rung), escalation.diag))
+            Err((DihedralReading::Lever(escalation.rung()), escalation.diag()))
         }
         MustCarryVerdict::InBand(MustCarryEscalation::SecondOrder(diag)) => {
             Err((DihedralReading::Bend, diag))
@@ -6698,11 +6696,8 @@ mod tests {
                 matches!(
                     verdict,
                     geom_brep::MustCarryVerdict::InBand(
-                        geom_brep::MustCarryEscalation::FirstOrder(geom_brep::LeverEscalation {
-                            rung: geom_brep::LeverRung::Reading,
-                            ..
-                        })
-                    )
+                        geom_brep::MustCarryEscalation::FirstOrder(escalation)
+                    ) if escalation.rung() == geom_brep::LeverRung::Reading
                 ),
                 "an in-band wedge anywhere escalates, got {verdict:?}"
             );
