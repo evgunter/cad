@@ -481,16 +481,21 @@ const HALFCAP_EPS6: &str = "tests/fixtures/halfcap/halfcap_eps6.step";
 const HALFCAP_EPS7: &str = "tests/fixtures/halfcap/halfcap_eps7.step";
 /// The halfcap near-pole twins' default-band refusal (Ev, PR 4251):
 /// the join's regularity reading lands in the sliver band, and the
-/// recourse names the tolerance that decides it, the margin over K —
-/// pinned as the whole recourse, number included, so a refusal that
-/// drifted to another door or lost its tolerance cannot stand in.
-const HALFCAP_EPS6_TIGHTEN: &str = "Recourse: move the vertex clear of the pole, apex or \
-     tangency it sits near, or, if this size is intended, tighten the tolerance below \
-     9.99999999978799e-10 m";
+/// recourse names both levers — moving the vertex, and the tolerance
+/// that decides it, the margin over K. Pinned as the whole message,
+/// solid, margin, band and number included, so a refusal that drifted
+/// to another door, another solid or lost a lever cannot stand in.
+const HALFCAP_EPS6_TIGHTEN: &str = "step import: joining the edges of the solid at #15: whether \
+     two edges meeting at a vertex on one curve are one edge is undecided (margin \
+     9.99999999978799e-9 lies inside the ambiguity band (1e-9, 1e-8)). Recourse: move the \
+     vertex clear of the pole, apex or tangency it sits near, or, if this size is intended, \
+     tighten the tolerance below 9.99999999978799e-10 m";
 /// As [`HALFCAP_EPS6_TIGHTEN`], for the twin a decade nearer the pole.
-const HALFCAP_EPS7_TIGHTEN: &str = "Recourse: move the vertex clear of the pole, apex or \
-     tangency it sits near, or, if this size is intended, tighten the tolerance below \
-     1.00000000119619e-10 m";
+const HALFCAP_EPS7_TIGHTEN: &str = "step import: joining the edges of the solid at #15: whether \
+     two edges meeting at a vertex on one curve are one edge is undecided (margin \
+     1.00000000119619e-9 lies inside the ambiguity band (1e-9, 1e-8)). Recourse: move the \
+     vertex clear of the pole, apex or tangency it sits near, or, if this size is intended, \
+     tighten the tolerance below 1.00000000119619e-10 m";
 
 /// Coarse enough for the two walls to read as one: the Intersection
 /// transversality precondition fails, and the ladder says which. A zero

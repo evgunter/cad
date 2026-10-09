@@ -161,7 +161,7 @@ fn joined_bands_build_across_link_counts_and_by_corners() {
 /// joint at the plain box's radii: joined, each run is one edge, so the
 /// box builds at every radius it does unjoined.
 #[test]
-fn the_clearance_screen_lets_joined_chains_the_band_can_carve_build() {
+fn a_joined_run_blends_as_one_edge_at_every_radius_it_does_unjoined() {
     builds("short interior link", 2.0, &[0.9, 0.95, 1.0], &[], 0.25, 6);
     builds("mid joint, r = 0.51", 2.0, &[1.0], &[], 0.51, 2);
     builds("mid joint, r = 0.9", 2.0, &[1.0], &[], 0.9, 2);
@@ -173,7 +173,7 @@ fn the_clearance_screen_lets_joined_chains_the_band_can_carve_build() {
 /// at-rest gate refuses it (tier 3's check 11) before any clearance is
 /// read — and joined, each is the plain box, which builds.
 #[test]
-fn a_joint_inside_a_corners_setback_refuses() {
+fn a_joint_anywhere_in_a_corners_reach_is_construction_state_and_builds_joined() {
     let t = Tol::witness();
     let band = geom_core::Band::linear(t).expect("the run's linear band");
     let step = 2.0 * band.escalate();

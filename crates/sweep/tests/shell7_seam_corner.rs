@@ -32,7 +32,7 @@ use super::common::shell_operands::vessel;
 use super::shell7_common::*;
 use crate::common::charts::hollow_moves;
 use crate::common::latitude_seam::{ring_on_cap, ring_on_wall};
-use crate::common::stations::{construction_state, joined};
+use crate::common::stations::construction_state;
 use crate::common::torus_walls::props_door;
 use sweep::test_support::finished;
 

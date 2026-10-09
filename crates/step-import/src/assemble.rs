@@ -975,11 +975,10 @@ fn join(
         solid,
         refusal: topo::JoinRefusal::of(refusal),
     };
-    // A tolerance that makes no band reads no vertex; the at-rest gate
-    // the import runs next refuses it with its own `Band` verdict.
-    let Ok(band) = geom_core::Band::linear(tol) else {
-        return Ok(Vec::new());
-    };
+    // A tolerance that makes no band (an ε within K of `f64::MAX`) cannot
+    // read whether a vertex is joinable, so the join refuses here rather
+    // than leave one unread for the gate behind it.
+    let band = geom_core::Band::linear(tol).map_err(|e| refused(&topo::BooleanError::Band(e)))?;
     let joins = body.join_edges(band, tol).map_err(|e| refused(&e))?;
     joins
         .iter()

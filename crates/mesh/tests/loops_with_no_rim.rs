@@ -405,12 +405,18 @@ fn two_coincident_edges_still_walk_to_zero_width_and_this_is_what_answers() {
 
 /// Whether `body` fails tier 3 on something other than check 11: a
 /// hand-built body holding a joinable vertex is construction state, so
-/// that verdict alone says nothing about what these rows refuse.
+/// that verdict alone says nothing about what these rows refuse — and
+/// neither does check 11's undecided verdict, which asks the same
+/// question at a vertex whose reading lands in the band.
 fn not_valid_but_for_joins(body: &Body<f64>) -> bool {
     topo::validate_geometric(body, Tol::witness()).is_err_and(|errors| {
-        errors
-            .iter()
-            .any(|e| !matches!(e, topo::ValidationError::JoinableVertexAtRest { .. }))
+        errors.iter().any(|e| {
+            !matches!(
+                e,
+                topo::ValidationError::JoinableVertexAtRest { .. }
+                    | topo::ValidationError::JoinUndecidedAtRest { .. }
+            )
+        })
     })
 }
 
