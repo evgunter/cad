@@ -7026,33 +7026,43 @@ mod tests {
         bounds_of(&out)
     }
 
-    /// A stated knot one ulp off a `refine_dir` grid point costs the
-    /// enclosure nothing: split one ulp above `1/16`, the quarter
-    /// cylinder's round-0 width stays within `2×` of the split ON
-    /// `1/16` (where the grid point is the knot). Were the grid point
-    /// inserted beside the knot, the hairline span between them would
-    /// divide every derivative hull the round reads.
+    /// `refine_dir`'s width has no cliff at any distance of a stated
+    /// knot from a grid point: with the quarter cylinder split at every
+    /// offset of [`crate::grid_offsets::knot_offsets`] from `1/16`, the
+    /// round-0 flux and area widths stay within `1.25×` of the split ON
+    /// `1/16`. A grid point inserted at a gap `g` beside the knot opens
+    /// a span of width `g`, whose derivative hulls carry the inserted
+    /// point's rounding over `g` — an excess decaying as `1/g`, so a
+    /// skip rule that clears too little goes red at the first offset
+    /// past its clearance.
     #[test]
-    fn a_knot_an_ulp_off_the_refine_grid_costs_the_enclosure_nothing() {
-        let on = quarter_cylinder_split_at(0.0625);
-        let near = quarter_cylinder_split_at(f64::from_bits(0.0625f64.to_bits() + 1));
+    fn the_refine_grid_enclosure_has_no_cliff_at_any_knot_offset() {
         let truth = core::f64::consts::PI;
-        for (b, at) in [(on, "on 1/16"), (near, "1 ulp above 1/16")] {
-            encloses(b.flux, truth, &format!("flux split {at}"));
-            encloses(b.area, truth, &format!("area split {at}"));
+        let on = quarter_cylinder_split_at(0.0625);
+        let rows: Vec<(String, FaceCutBounds)> =
+            crate::grid_offsets::knot_offsets(0.0625, 1.0 / 16.0)
+                .into_iter()
+                .map(|(label, k)| (label, quarter_cylinder_split_at(k)))
+                .collect();
+        let table: String = rows
+            .iter()
+            .map(|(label, b)| {
+                format!(
+                    "\n  {label:>26}: flux {:.4e}  area {:.4e}",
+                    b.flux.width(),
+                    b.area.width()
+                )
+            })
+            .collect();
+        for (label, b) in &rows {
+            encloses(b.flux, truth, &format!("flux, knot {label}"));
+            encloses(b.area, truth, &format!("area, knot {label}"));
+            assert!(
+                b.flux.width() <= 1.25 * on.flux.width()
+                    && b.area.width() <= 1.25 * on.area.width(),
+                "knot {label}: the width left 1.25x of on-grid{table}"
+            );
         }
-        assert!(
-            near.flux.width() <= 2.0 * on.flux.width(),
-            "flux: {:e} one ulp off the grid vs {:e} on it",
-            near.flux.width(),
-            on.flux.width()
-        );
-        assert!(
-            near.area.width() <= 2.0 * on.area.width(),
-            "area: {:e} one ulp off the grid vs {:e} on it",
-            near.area.width(),
-            on.area.width()
-        );
     }
 
     /// `refine_dir` has no "already fine enough" cut-off: a vector

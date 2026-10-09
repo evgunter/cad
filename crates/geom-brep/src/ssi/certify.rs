@@ -1938,41 +1938,60 @@ mod tests {
         assert_eq!(fine.knots().knots(), want);
     }
 
-    /// A knot one ulp off a `refined` grid point costs the box chain
-    /// nothing: on a degree-1 carrier bent at `k`, every box over
-    /// `[0, k]` takes the first leg's direction as its axis, whether
-    /// the bend sits on `2/32` or one ulp above it. A grid point
-    /// inserted beside the bend opens a one-ulp span whose tangent is
-    /// the inserted point's rounding over that ulp.
+    /// `refined`'s box chain has no cliff at any distance of a stated
+    /// knot from a grid point: a degree-1 carrier bent at every offset
+    /// of [`crate::grid_offsets::knot_offsets`] from `2/32` gives every
+    /// box the direction of the leg it lies on as its axis, to `1e-10`.
+    /// A grid point inserted at a gap `g` beside the bend opens a span
+    /// of width `g` whose tangent is the inserted point's rounding over
+    /// `g`, an axis error decaying as `1/g` from `~1e-3` at `g ≈ 2e-15`;
+    /// `1e-10` is crossed near `g ≈ 2e-8`, far inside any clearance
+    /// that holds and far outside one that does not.
     #[test]
     #[allow(clippy::unwrap_used)]
-    fn a_knot_an_ulp_off_the_refine_grid_keeps_every_box_axis() {
+    fn the_refine_grid_box_axes_have_no_cliff_at_any_knot_offset() {
         use geom_core::spline::KnotVector;
         use geom_core::{Bounds, Point3};
-        let leg = [0.9, 0.1, 0.3];
-        let norm = leg.iter().map(|x| x * x).sum::<f64>().sqrt();
-        for k in [0.0625, f64::from_bits(0.0625f64.to_bits() + 1)] {
-            let kv = KnotVector::clamped(vec![0.0, 0.0, k, 1.0, 1.0], 1).unwrap();
-            let control = vec![
-                Point3::new(0.0, 0.0, 0.0),
-                Point3::new(leg[0], leg[1], leg[2]),
-                Point3::new(1.0, 1.0, 1.0),
-            ];
-            let curve = geom::NurbsCurve3::new(kv, control, vec![1.0; 3]).unwrap();
-            let chain = super::box_chain(&curve);
-            let first_leg: Vec<_> = chain.iter().filter(|(b, _)| b.x.hi() <= leg[0]).collect();
-            assert!(
-                first_leg.len() >= 2,
-                "bend at {k:e}: {} boxes",
-                first_leg.len()
-            );
-            for (b, axis) in first_leg {
-                let off = (axis.x - leg[0] / norm)
-                    .abs()
-                    .max((axis.y - leg[1] / norm).abs())
-                    .max((axis.z - leg[2] / norm).abs());
-                assert!(off < 1e-12, "bend at {k:e}: box {b:?} axis {axis:?}");
-            }
+        let bend = [0.9, 0.1, 0.3];
+        let unit = |d: [f64; 3]| {
+            let n = d.iter().map(|x| x * x).sum::<f64>().sqrt();
+            d.map(|x| x / n)
+        };
+        let legs = [unit(bend), unit([0.1, 0.9, 0.7])];
+        let rows: Vec<(String, f64, usize)> = crate::grid_offsets::knot_offsets(0.0625, 1.0 / 32.0)
+            .into_iter()
+            .map(|(label, k)| {
+                let kv = KnotVector::clamped(vec![0.0, 0.0, k, 1.0, 1.0], 1).unwrap();
+                let control = vec![
+                    Point3::new(0.0, 0.0, 0.0),
+                    Point3::new(bend[0], bend[1], bend[2]),
+                    Point3::new(1.0, 1.0, 1.0),
+                ];
+                let curve = geom::NurbsCurve3::new(kv, control, vec![1.0; 3]).unwrap();
+                let chain = super::box_chain(&curve);
+                let worst = chain
+                    .iter()
+                    .map(|(b, axis)| {
+                        let leg = legs[usize::from(b.x.hi() > bend[0])];
+                        (axis.x - leg[0])
+                            .abs()
+                            .max((axis.y - leg[1]).abs())
+                            .max((axis.z - leg[2]).abs())
+                    })
+                    // A NaN axis (a zero tangent) must surface, not fold away.
+                    .fold(0.0, |a: f64, e| if e.is_nan() || e > a { e } else { a });
+                (label, worst, chain.len())
+            })
+            .collect();
+        let table: String = rows
+            .iter()
+            .map(|(label, worst, n)| {
+                format!("\n  {label:>26}: axis error {worst:.4e} over {n} boxes")
+            })
+            .collect();
+        for (label, worst, n) in &rows {
+            assert!(*n >= 32, "knot {label}: {n} boxes{table}");
+            assert!(*worst < 1e-10, "knot {label}: an axis left its leg{table}");
         }
     }
 
