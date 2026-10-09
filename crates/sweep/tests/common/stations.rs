@@ -125,3 +125,30 @@ pub fn station_vertices(body: &Body<f64>) -> Vec<VertexKey> {
         })
         .collect()
 }
+
+/// **A body holding stations is construction state** (tier 3's check
+/// 11; Ev's PR 4251 ruling): the at-rest gate refuses it with exactly
+/// one `JoinableVertexAtRest` per station, so no door takes it as an
+/// operand. Asserts that and returns the stations, in vertex-arena
+/// order.
+#[track_caller]
+pub fn construction_state(body: &Body<f64>, t: Tol) -> Vec<VertexKey> {
+    let Err(errors) = topo::AtRestBody::validate(body.clone(), t) else {
+        panic!("a body holding stations is not at rest");
+    };
+    errors
+        .into_iter()
+        .map(|e| match e {
+            topo::ValidationError::JoinableVertexAtRest { vertex } => vertex,
+            other => panic!("the gate refuses the stations and nothing else: {other:?}"),
+        })
+        .collect()
+}
+
+/// `body` with every station joined back (`Body::join_edges`), and the
+/// joins: what the door that left the stations finishes with.
+pub fn joined(mut body: Body<f64>, t: Tol) -> (Body<f64>, Vec<topo::EdgeJoin>) {
+    let band = geom_core::Band::linear(t).unwrap();
+    let joins = body.join_edges(band, t).unwrap();
+    (body, joins)
+}

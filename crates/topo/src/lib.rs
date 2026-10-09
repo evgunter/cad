@@ -145,6 +145,7 @@ pub mod chart_region;
 // the same rustdoc reason as the sector modules below.
 pub(crate) mod chord_join;
 pub mod coherence;
+pub mod coincidence;
 pub mod contact;
 pub mod entity;
 pub mod euler;
@@ -465,8 +466,9 @@ pub mod test_support {
         crate::boolean::maximal_faces_gate(body, operand, tol)
     }
 
-    /// The join's section segments of `op`: the pair-record count and
-    /// each segment's two germ sites (`boolean::section_segment_sites`).
+    /// Every segment the join of `op` builds, one-site loops included:
+    /// the pair-record count and each segment's two germ sites
+    /// (`boolean::section_segment_sites`).
     /// `None` where the reduction registers no pair.
     ///
     /// # Errors
@@ -849,6 +851,7 @@ pub use coherence::{
     CoherenceCondition, CoherenceFinding, CoherenceReport, StructureRead, Unexaminable, Unexamined,
     examine_chart_coherence, gap_is_noise,
 };
+pub use coincidence::{Coincidence, DecisionSite, Discharge, Relation, RowCell};
 pub use geom::Curve3;
 pub use geom::Surface;
 pub use geom_brep::{
