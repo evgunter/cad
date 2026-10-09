@@ -7,8 +7,8 @@ opened: 2026-10-06
 priority: P1
 cost: H
 refs: [VERBS-CONE, 4135]
-branch: germ/cone-sector-normals
-pr: 4369
+branch: germ/cone-sector-join
+pr: 4375
 ---
 
 
@@ -127,3 +127,10 @@ roster:
   of `2ρ/3`, so that is the floor. With every other door opened in
   scratch, all 51 of §0.2's bodies still return and are correct.
 
+
+**2026-10-09, U-S1, U-S2 and U-S6 land (PR 4369).**
+- The cone face's pierce normal and sector normal answer, and both refuse typed at the apex (`NormalAtConeApex`).
+- The lever is capped at `2ρ/3`.
+- `plane_cone_section`'s axis-normal sine is levered at `max(|δ/c|·tan α, extent)`, with the circle built where the axis meets the plane. This was the single review's MAJOR: a plane along the axis just off the apex was served as a circle.
+
+U-S3 and U-S4 continue on PR 4375.
