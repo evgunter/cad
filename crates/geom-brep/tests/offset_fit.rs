@@ -41,6 +41,7 @@ use geom_core::KERNEL_LIMIT_LAST_RESORT;
 use geom_core::MarginDiag;
 use geom_core::Point3;
 use geom_core::interval::certification::Certification;
+use geom_core::interval::{max_bound, min_bound};
 use geom_core::spline::KnotVector;
 
 use crate::shared::fixture::{bumpy_patch, kv1, kv2, quarter_cylinder, sphere_band};
@@ -118,7 +119,7 @@ fn cylinder_fit_matches_the_closed_form_both_signs() {
             let p = base.eval(u, v);
             let want = cylinder_offset_closed_form(p, r, d);
             let got = fit.eval(u, v);
-            worst = worst.max((got - want).norm());
+            worst = max_bound(worst, (got - want).norm());
             // The base point really is on the cylinder (the fixture
             // is exact, not approximately exact).
             let rad = (p.x * p.x + p.y * p.y).sqrt();
@@ -223,7 +224,7 @@ fn sphere_band_fit_matches_the_closed_form_both_signs() {
                 "fixture is not an exact sphere: |p| = {rad} at ({u}, {v})"
             );
             let want = sphere_offset_closed_form(p, r, d);
-            worst = worst.max((fit.eval(u, v) - want).norm());
+            worst = max_bound(worst, (fit.eval(u, v) - want).norm());
         }
         assert!(
             worst <= cert.hull_sup,
@@ -295,7 +296,7 @@ fn the_regularity_floor_is_positive_on_a_regular_patch_and_conservative() {
     let mut inf = f64::INFINITY;
     for (u, v) in grid(23, 19) {
         let j = base.ders(u, v);
-        inf = inf.min(j.du.cross(j.dv).norm());
+        inf = min_bound(inf, j.du.cross(j.dv).norm());
     }
     assert!(
         reg.floor <= inf,
@@ -444,6 +445,39 @@ fn a_degraded_fit_fails_the_certificate_and_names_the_limb() {
         other => panic!("a degraded fit certified: {other:?}"),
     }
     assert!(cert.hull_sup <= 1e-3);
+}
+
+/// **A NaN sample reaches limb 1's guard.** The exact offset of the
+/// quarter cylinder certifies (`approx_surface.rs`); one NaN control
+/// point poisons its samples. A fold that dropped them would report
+/// the max over the samples that answered, pass limb 1, and leave the
+/// refusal to limb 2. Limb 1 must refuse, with the poison as its
+/// bound.
+#[test]
+fn a_nan_sample_refuses_at_the_on_locus_limb() {
+    let base = quarter_cylinder(1.0, 1.0);
+    let d = 0.3;
+    let exact = quarter_cylinder(1.0 + d, 1.0);
+    assert!(
+        certify_offset_at(&base, &exact, d, 1e-3, band()).is_ok(),
+        "FIXTURE: the unpoisoned exact offset certifies"
+    );
+    let mut control = exact.control().to_vec();
+    control[0] = Point3::new(f64::NAN, 0.0, 0.0);
+    let poisoned = NurbsSurface::new(
+        exact.knots_u().clone(),
+        exact.knots_v().clone(),
+        control,
+        exact.weights().to_vec(),
+    )
+    .unwrap();
+    match certify_offset_at(&base, &poisoned, d, 1e-3, band()) {
+        Err(OffsetFitError::Limb { limb, bound, .. }) => {
+            assert_eq!(limb, OffsetLimb::OnLocus, "the NaN sample was dropped");
+            assert!(bound.is_nan(), "limb 1 reported {bound:e}, not the poison");
+        }
+        other => panic!("a NaN control point did not refuse at the on-locus limb: {other:?}"),
+    }
 }
 
 #[test]

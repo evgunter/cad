@@ -361,3 +361,8 @@ pub fn parallelepiped(s: f64) -> Body<f64> {
     );
     sweep::test_support::realized(topo::boolean::BooleanOp::Intersect, &along_y, &along_x, tol)
 }
+
+/// The axis-aligned block `x × y × z` ([`brick`]), at rest.
+pub fn bar(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> topo::AtRestBody<f64> {
+    sweep::test_support::finished("the bar", brick(x, y, z, Tol::witness()), Tol::witness())
+}
