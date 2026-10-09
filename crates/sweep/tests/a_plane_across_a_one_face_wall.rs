@@ -19,9 +19,9 @@
 //!
 //! Two classes no row here owns are pinned as known, by row: a box
 //! less a tube, which leaves a rod in the bore, fails tier 3′
-//! (`work/topo/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`),
+//! (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`),
 //! and a result under a tilted plane is no legal operand
-//! (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`);
+//! (`work/restread/at-infinity-probe-measures-in-closed-form-only.md`);
 //! a two-arc wall fails both the same way.
 //!
 //! The one-site loops the join does not build keep

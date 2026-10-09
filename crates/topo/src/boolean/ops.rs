@@ -189,7 +189,7 @@ pub enum BooleanResultKind {
 /// the tier-3′ pass over them, empty or not. The door does not run
 /// that census: a curved solid within reach of another solid is
 /// beyond its cross-solid lane, which would refuse valid disjoint
-/// unions (`work/contact/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
+/// unions (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
 #[derive(Debug)]
 pub struct BooleanBody<T: Real> {
     /// The result body: one solid per piece of material

@@ -96,5 +96,5 @@ and on EMIT
 The strut-hanging prisms (`meeting::wedge`, `meeting::leaned`) still
 refuse, and so does a vertex piercing two blocks' faces
 (`crates/topo/tests/a_vertex_read_by_two_sector_passes.rs`). Filed:
-`work/contact/a-solid-touching-itself-at-a-vertex-reads-its-star-from-the-vertex-alone.md`
+`work/inside/a-solid-touching-itself-at-a-vertex-reads-its-star-from-the-vertex-alone.md`
 (P2).
