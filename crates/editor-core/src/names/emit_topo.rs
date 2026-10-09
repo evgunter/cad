@@ -5628,8 +5628,8 @@ mod touch_reread_rows {
     use crate::node::{RecipeNodeId, StepId};
     use geom_core::Tol;
     use topo::test_support::meeting::{
-        PLATE, Pose, apex_pyramid, bearing, corners, mix, near_flat, nest, nest_polygon, posed_box,
-        poses,
+        PLATE, Pose, along_lying_ray, apex_pyramid, bearing, corners, lying, mix, near_flat, nest,
+        nest_polygon, posed_box, poses,
     };
     use topo::{AtRestBody, BooleanResult, intersect, subtract, union};
 
@@ -5920,6 +5920,19 @@ mod touch_reread_rows {
                 ),
             ] {
                 named += names(label, x, y, pose);
+            }
+            // A pyramid lying on the top, its ray along it, and the
+            // pyramids beside it and beside that ray.
+            let lying = built(union(&plate, &p(lying(0.0)), t()));
+            for (label, x) in [
+                ("standing beside a lying pyramid", cone.clone()),
+                ("over a lying pyramid", over.clone()),
+                ("hanging below a lying pyramid", hang.clone()),
+            ]
+            .into_iter()
+            .chain(along_lying_ray().map(|(label, base)| (label, p(base))))
+            {
+                named += names(label, &x, &lying, pose);
             }
         }
         named

@@ -35,6 +35,20 @@ At ε = 1e-12 and 1e-6 the same sites fire, at other tilts.
 Repro: `NT_ONLY=convex NT_POSE="nt e0 a4" NT_D=1e-5 cargo run -p sweep
 --release --example near_tangent_census_probe`.
 
+## Another witness (2026-10-09, TANG)
+
+The second site, from a pierce whose partner is tipped off the face:
+`crates/topo/tests/a_vertex_read_by_two_sector_passes.rs`,
+`a_partner_tipped_off_the_face_builds_sound_or_refuses_typed_at_every_pose`.
+The plate united with a pyramid lying on its top, its corner at 60°
+lifted 100ε off the top (`lie`), against "inside the lying pyramid"
+(`along_ray`), whose edge along the top at 60° runs 60ε under the lying
+pyramid's lifted edge. Every op, both orders, every pose, at each ε row:
+`ClassificationInvariant { what: "pierce germ direction not uniquely
+within its sector" }`. Identical on main (db51132ff): the partner is
+strictly above the top there, so `vtxfac::partner_side` reads it as
+before. The row allows it by this item's name for that scene alone.
+
 ## Owed
 
 For each site, find which earlier decision disagrees with the later one,

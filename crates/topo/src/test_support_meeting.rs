@@ -746,6 +746,88 @@ pub fn nest(base: [[f64; 3]; 3], s: f64) -> [[f64; 3]; 3] {
     mix(base, [[a, b, b], [b, a, b], [b, b, a]], s)
 }
 
+/// Base corners relative to [`MEET`] of a pyramid lying on the top, its
+/// link running along it: two above it, at 40° and 80°, and one `lift`
+/// off it at 60°.
+#[must_use]
+pub fn lying(lift: f64) -> [[f64; 3]; 3] {
+    [
+        bearing(80.0, 0.4, 0.5),
+        bearing(40.0, 0.4, 0.5),
+        bearing(60.0, 0.5, lift),
+    ]
+}
+
+/// Pyramids beside the lying one's ray along the top, at 60°: one
+/// hanging below the top with an edge on the ray; one standing with an
+/// edge on it, beside the lying one; one holding the lying one; one
+/// inside it, an edge on the ray; and one hanging whose face continues
+/// the lying one's across the ray. Each touches the top and pairs with
+/// the lying one's apex there.
+#[must_use]
+pub fn along_lying_ray() -> [(&'static str, [[f64; 3]; 3]); 5] {
+    let [up, _, ray] = lying(0.0);
+    [
+        (
+            "under the lying pyramid's ray",
+            [
+                bearing(60.0, 0.3, 0.0),
+                bearing(100.0, 0.4, -0.3),
+                bearing(20.0, 0.4, -0.3),
+            ],
+        ),
+        (
+            "on the lying pyramid's ray, beside it",
+            [
+                bearing(60.0, 0.3, 0.0),
+                bearing(110.0, 0.4, 0.2),
+                bearing(150.0, 0.4, 0.4),
+            ],
+        ),
+        (
+            "around the lying pyramid",
+            [
+                bearing(60.0, 0.6, 0.0),
+                bearing(30.0, 0.6, 0.7),
+                bearing(90.0, 0.6, 0.7),
+            ],
+        ),
+        (
+            "inside the lying pyramid",
+            [
+                bearing(60.0, 0.3, 0.0),
+                bearing(55.0, 0.3, 0.1),
+                bearing(65.0, 0.3, 0.1),
+            ],
+        ),
+        (
+            "continuing the lying pyramid's face",
+            [
+                bearing(60.0, 0.3, 0.0),
+                [0, 1, 2].map(|k| ray[k] - 0.3 * up[k]),
+                bearing(60.0, 0.4, -0.5),
+            ],
+        ),
+    ]
+}
+
+/// A pyramid with a face flush on the top across the lying pyramid's
+/// ray, and one with a face on the lying pyramid's face from 60° to 80°,
+/// off the ray, standing outside it.
+#[must_use]
+pub fn on_the_lying_faces() -> [[[f64; 3]; 3]; 2] {
+    let [up, _, ray] = lying(0.0);
+    let on = |a: f64, b: f64| [0, 1, 2].map(|k| a * ray[k] + b * up[k]);
+    [
+        [
+            bearing(40.0, 0.5, 0.0),
+            bearing(80.0, 0.5, 0.0),
+            bearing(60.0, 0.4, 0.4),
+        ],
+        [on(0.3, 0.2), on(0.1, 0.4), bearing(100.0, 0.4, 0.3)],
+    ]
+}
+
 /// A corner relative to [`MEET`]: radius `r` at `bearing` (degrees), `z`
 /// above it.
 #[must_use]
