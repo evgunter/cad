@@ -18,14 +18,11 @@ pub(crate) type Stretch = Option<(EdgeKey, [FaceKey; 2])>;
 
 /// The result edge each discard's bordered stretch settles onto, and the
 /// kept faces on either side of it; `None` for a stretch whose ends
-/// fused or that no live edge joins.
+/// fused, or lie inside a merged face, or that no live edge joins.
 pub(crate) fn bordered_edges(out: &BooleanBody<f64>) -> Vec<Vec<Stretch>> {
     let body: &Body<f64> = &out.body;
-    let fused = out
-        .naming
-        .fused_into(body)
-        .expect("every fused vertex settles on a live cell");
-    let settle = |v: VertexKey| fused.get(&v).copied().unwrap_or(Cell::Vertex(v));
+    let settler = out.naming.settler(body);
+    let settle = |v: VertexKey| settler.settle(v).expect("every end settles on a live cell");
     let face_of = |he| body.face_of_half_edge(he).unwrap();
     let mut by_ends: BTreeMap<(VertexKey, VertexKey), (EdgeKey, [FaceKey; 2])> = BTreeMap::new();
     for (k, e) in body.edges() {

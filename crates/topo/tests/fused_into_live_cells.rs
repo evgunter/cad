@@ -27,8 +27,7 @@ use topo::{
 fn planes(b: &Body<f64>) -> Vec<(FaceKey, [f64; 3], f64)> {
     b.faces()
         .map(|(k, f)| {
-            let Some(geom::Surface::Plane { origin, normal, .. }) = b.get_surface(f.surface)
-            else {
+            let Some(geom::Surface::Plane { origin, normal, .. }) = b.get_surface(f.surface) else {
                 panic!("a brick is planar")
             };
             let s = if f.sense { 1.0 } else { -1.0 };
@@ -50,7 +49,9 @@ fn declarations(a: &Body<f64>, b: &Body<f64>) -> BooleanDeclarations {
                     .coincident_faces
                     .push(FacePairDeclaration::continuation(fa, fb));
             } else if dot == -1.0 && da == -db {
-                decls.coincident_faces.push(FacePairDeclaration::rest(fa, fb));
+                decls
+                    .coincident_faces
+                    .push(FacePairDeclaration::rest(fa, fb));
             }
         }
     }
@@ -58,12 +59,13 @@ fn declarations(a: &Body<f64>, b: &Body<f64>) -> BooleanDeclarations {
 }
 
 /// The corpus, counted: every result builds, every fused vertex settles
-/// on a live cell, and the cells split as measured on main before the
-/// map was typed — 336 fused vertices whose survivor the output stage's
-/// join deleted (inside the joined edge), 432 whose survivor the merge
-/// pruned (inside the merged face: 420 by the dangling-seam pruning, 12
-/// by a lone ring's deletion), and the rest at a live survivor. Before,
-/// each of the 768 named a dead key.
+/// on a live cell, and so does each end of every stretch a discard
+/// bordered. 336 fused vertices lie inside an edge the output stage's
+/// join made and 432 inside a face the merge glued (420 pruned as a
+/// dangling seam's end, 12 with a lone ring); the rest at a live
+/// survivor. Of the bordered stretches, those with an end inside an
+/// edge or a face are counted too: the naming layer reads them as
+/// bordering no edge.
 #[test]
 fn every_fused_vertex_of_the_lattice_corpus_settles_on_a_live_cell() {
     let tol = Tol::witness();
@@ -85,6 +87,7 @@ fn every_fused_vertex_of_the_lattice_corpus_settles_on_a_live_cell() {
         tol,
     );
     let (mut bodies, mut vertices, mut edges, mut faces) = (0, 0, 0, 0);
+    let (mut stretches, mut inside) = (0, 0);
     for x in spans {
         for y in spans {
             for z in spans {
@@ -105,6 +108,20 @@ fn every_fused_vertex_of_the_lattice_corpus_settles_on_a_live_cell() {
                         .naming
                         .fused_into(&out.body)
                         .unwrap_or_else(|e| panic!("{who}: {e:?}"));
+                    let settler = out.naming.settler(&out.body);
+                    for d in &out.naming.discards {
+                        for &(u, w) in &d.bordered {
+                            let ends = [u, w].map(|v| {
+                                settler
+                                    .settle(v)
+                                    .unwrap_or_else(|e| panic!("{who}: a bordered end: {e:?}"))
+                            });
+                            stretches += 1;
+                            if ends.iter().any(|c| !matches!(c, Cell::Vertex(_))) {
+                                inside += 1;
+                            }
+                        }
+                    }
                     for cell in fused.values() {
                         match cell {
                             Cell::Vertex(_) => vertices += 1,
@@ -121,5 +138,10 @@ fn every_fused_vertex_of_the_lattice_corpus_settles_on_a_live_cell() {
         (vertices, edges, faces),
         (12_732, 336, 432),
         "fused vertices settled at a live survivor, inside a joined edge, inside a merged face"
+    );
+    assert_eq!(
+        (stretches, inside),
+        (27_000, 2448),
+        "bordered stretches, and those with an end inside an edge or a face"
     );
 }

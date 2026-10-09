@@ -335,73 +335,42 @@ pub struct BooleanNaming {
 
 impl BooleanNaming {
     /// Each result vertex an A-side weld or a zip fused away → the live
-    /// cell of `body` its point lies in (a discard's `bordered` ends are
-    /// read through it). The vertex it finally fused into, following
-    /// `vertex_merges` through every hop, is that cell while it lives. A
-    /// later stage can delete it without moving its point, and both such
-    /// stages record the kill: the output stage's join leaves the point
-    /// inside the joined edge ([`Cell::Edge`], read through
-    /// [`Self::joined_edge`]), and the merge's pruning leaves it inside
-    /// the merged face ([`Cell::Face`], through
-    /// `merge_killed_vertices`, the kept face followed through every
-    /// absorption in `merge_groups`). B-side welds are not here: they
-    /// killed B-clone keys before the graft, so no result key names them
-    /// (`weld_merges_b`).
+    /// cell of `body` its point lies in ([`Self::settler`]). B-side
+    /// welds are not here: they killed B-clone keys before the graft,
+    /// so no result key names them (`weld_merges_b`).
     ///
     /// # Errors
     ///
-    /// [`StaleFusion`] where a chase ends on a cell `body` does not hold:
-    /// a stage removed it without its row.
+    /// [`SettleError`], as [`Settler::settle`].
     pub fn fused_into<T: Real>(
         &self,
         body: &Body<T>,
-    ) -> Result<BTreeMap<VertexKey, Cell>, StaleFusion> {
-        let joined = self.joined_into();
-        let pruned: BTreeMap<VertexKey, FaceKey> =
-            self.merge_killed_vertices.iter().copied().collect();
-        let absorbed_into: BTreeMap<FaceKey, FaceKey> = self
-            .merge_groups
-            .iter()
-            .flat_map(|(kept, absorbed)| absorbed.iter().map(move |&f| (f, *kept)))
-            .collect();
-        let kept_face = |mut f: FaceKey| {
-            // A group's kept face is no other group's absorbed face, so
-            // the walk ends; the bound only keeps a corrupt record finite.
-            for _ in 0..=absorbed_into.len() {
-                match absorbed_into.get(&f) {
-                    Some(&k) if k != f => f = k,
-                    _ => break,
-                }
-            }
-            f
-        };
+    ) -> Result<BTreeMap<VertexKey, Cell>, SettleError> {
+        let settler = self.settler(body);
         self.vertex_merges
             .rows()
             .iter()
-            .map(|&(dead, _)| {
-                let survivor = self.vertex_merges.survivor(dead);
-                let cell = if let Some(&edge) = joined.get(&survivor) {
-                    Cell::Edge(edge)
-                } else if let Some(&face) = pruned.get(&survivor) {
-                    Cell::Face(kept_face(face))
-                } else {
-                    Cell::Vertex(survivor)
-                };
-                let live = match cell {
-                    Cell::Vertex(v) => body.get_vertex(v).is_some(),
-                    Cell::Edge(e) => body.get_edge(e).is_some(),
-                    Cell::Face(f) => body.get_face(f).is_some(),
-                };
-                if live {
-                    Ok((dead, cell))
-                } else {
-                    Err(StaleFusion {
-                        vertex: dead,
-                        reached: cell,
-                    })
-                }
-            })
+            .map(|&(dead, _)| Ok((dead, settler.settle(dead)?)))
             .collect()
+    }
+
+    /// Settles result vertices on the live cells of `body` their points
+    /// lie in, read off this naming's rows ([`Settler::settle`]).
+    #[must_use]
+    pub fn settler<'a, T: Real>(&'a self, body: &'a Body<T>) -> Settler<'a, T> {
+        let mut rows = BTreeMap::new();
+        for j in &self.edge_joins {
+            rows.insert(Cell::Vertex(j.vertex), Cell::Edge(j.kept));
+            rows.insert(Cell::Edge(j.gone), Cell::Edge(j.kept));
+        }
+        for &(v, f) in &self.merge_killed_vertices {
+            rows.insert(Cell::Vertex(v), Cell::Face(f));
+        }
+        Settler {
+            body,
+            fusions: &self.vertex_merges,
+            rows,
+        }
     }
 
     /// The live edge `edge` is part of after the output stage's joins:
@@ -422,66 +391,139 @@ impl BooleanNaming {
             .collect()
     }
 
-    /// The live edge a stretch between `u` and `w` lies along when a
-    /// join removed either end: the edge holding that end, where the
-    /// other end is one of its ends or is held by it too. Each end is a
-    /// result vertex, or the cell [`Self::fused_into`] settled it on: an
-    /// end inside an edge ([`Cell::Edge`]) is held by that edge, and an
-    /// end inside a face ([`Cell::Face`]) lies on no edge. `None` where
-    /// neither end was joined away, or the two do not lie along one edge.
+    /// The live edge a stretch lies along when a join removed either
+    /// end, its ends settled ([`Settler::settle`]): the edge holding the
+    /// joined-away end ([`Cell::Edge`]), where the other end is one of its
+    /// ends or is held by it too. An end inside a face lies on no edge.
+    /// `None` where neither end was joined away, or the two do not lie
+    /// along one edge.
     #[must_use]
     pub fn stretch_through_joins<T: Real>(
         &self,
         body: &Body<T>,
         (u, w): (Cell, Cell),
     ) -> Option<EdgeKey> {
-        let joined = self.joined_into();
-        let holder = |c: Cell| match c {
-            Cell::Vertex(v) => joined.get(&v).copied(),
-            Cell::Edge(e) => Some(e),
-            Cell::Face(_) => None,
-        };
         let on = |c: Cell, e: EdgeKey| match c {
-            Cell::Vertex(v) => {
-                joined.get(&v) == Some(&e)
-                    || body.get_edge(e).is_some_and(|d| {
-                        [d.he_plus, d.he_minus]
-                            .into_iter()
-                            .any(|h| body.get_half_edge(h).is_some_and(|h| h.start == v))
-                    })
-            }
+            Cell::Vertex(v) => body.get_edge(e).is_some_and(|d| {
+                [d.he_plus, d.he_minus]
+                    .into_iter()
+                    .any(|h| body.get_half_edge(h).is_some_and(|h| h.start == v))
+            }),
             Cell::Edge(x) => x == e,
             Cell::Face(_) => false,
         };
-        [holder(u), holder(w)]
+        [u, w]
             .into_iter()
-            .flatten()
+            .filter_map(|c| match c {
+                Cell::Edge(e) => Some(e),
+                Cell::Vertex(_) | Cell::Face(_) => None,
+            })
             .find(|&e| on(u, e) && on(w, e))
     }
 }
 
-/// A fused vertex whose chase through the naming's rows ends on a cell
-/// the result does not hold ([`BooleanNaming::fused_into`]): a stage
-/// deleted it without appending its row.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct StaleFusion {
-    /// The fused vertex.
-    pub vertex: VertexKey,
-    /// The cell its chase reached.
-    pub reached: Cell,
+/// [`BooleanNaming::settler`]: result vertices settled on live cells.
+#[derive(Debug)]
+pub struct Settler<'a, T: Real> {
+    body: &'a Body<T>,
+    fusions: &'a Fusions,
+    /// Each deleted cell → the cell holding its interior: a joined
+    /// vertex or edge → the join's kept edge, a pruned vertex → its
+    /// merge group's kept face.
+    rows: BTreeMap<Cell, Cell>,
 }
 
-impl core::fmt::Display for StaleFusion {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "a vertex the Boolean fused away settles on a cell its result does not hold. {}",
-            geom_core::KERNEL_DEFECT_ENDING
-        )
+impl<T: Real> Settler<'_, T> {
+    /// The live cell `vertex`'s point lies in: the vertex it finally
+    /// fused into, following the welds' and zips' fusions through every
+    /// hop, while that lives. A later stage can delete it without
+    /// moving its point, and both such stages record the kill: the
+    /// output stage's join leaves the point inside the joined edge
+    /// ([`Cell::Edge`], followed through every later join), and the
+    /// merge's pruning inside its group's kept face ([`Cell::Face`]),
+    /// which no group absorbs.
+    ///
+    /// # Errors
+    ///
+    /// [`SettleError::Dead`] where the chase ends on a cell `body` does
+    /// not hold (a stage deleted it without its row), and
+    /// [`SettleError::Cyclic`] where the rows cycle.
+    pub fn settle(&self, vertex: VertexKey) -> Result<Cell, SettleError> {
+        let start = Cell::Vertex(self.fusions.survivor(vertex));
+        match chase_live(self.body, start, self.rows.len(), |c| {
+            self.rows.get(&c).copied()
+        }) {
+            Ok(Ok(cell)) => Ok(cell),
+            Ok(Err(reached)) => Err(SettleError::Dead { vertex, reached }),
+            Err(RowsCycle) => Err(SettleError::Cyclic { vertex }),
+        }
     }
 }
 
-impl std::error::Error for StaleFusion {}
+/// A result vertex the naming's rows cannot settle on a live cell
+/// ([`Settler::settle`]): a corrupt record, which a reader must not
+/// take for a stale key.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SettleError {
+    /// The chase ended on a cell the result does not hold: a stage
+    /// deleted it without appending its row.
+    Dead {
+        /// The vertex asked about.
+        vertex: VertexKey,
+        /// The dead cell the chase reached.
+        reached: Cell,
+    },
+    /// The rows cycle.
+    Cyclic {
+        /// The vertex asked about.
+        vertex: VertexKey,
+    },
+}
+
+impl core::fmt::Display for SettleError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let what = match self {
+            Self::Dead { .. } => "settles on a cell the result does not hold",
+            Self::Cyclic { .. } => "is settled through rows that cycle",
+        };
+        write!(f, "a vertex of a Boolean's result {what}")
+    }
+}
+
+impl std::error::Error for SettleError {}
+
+/// Whether `body` holds `cell`.
+pub(super) fn holds<T: Real>(body: &Body<T>, cell: Cell) -> bool {
+    match cell {
+        Cell::Vertex(v) => body.get_vertex(v).is_some(),
+        Cell::Edge(e) => body.get_edge(e).is_some(),
+        Cell::Face(f) => body.get_face(f).is_some(),
+    }
+}
+
+/// The rows a chase walked revisit a cell.
+pub(super) struct RowsCycle;
+
+/// The first cell `body` holds along `step` from `at`: `Ok(live)`, or
+/// `Err(dead)` where `step` stops at a dead cell. A walk longer than
+/// `rows` steps has revisited a cell, and refuses.
+pub(super) fn chase_live<T: Real>(
+    body: &Body<T>,
+    mut at: Cell,
+    rows: usize,
+    step: impl Fn(Cell) -> Option<Cell>,
+) -> Result<Result<Cell, Cell>, RowsCycle> {
+    for _ in 0..=rows {
+        if holds(body, at) {
+            return Ok(Ok(at));
+        }
+        match step(at) {
+            Some(next) => at = next,
+            None => return Ok(Err(at)),
+        }
+    }
+    Err(RowsCycle)
+}
 
 /// The typed result of a boolean op: a body, or the typed empty
 /// success (F8: ∅ is a value, not an error).
@@ -2979,31 +3021,22 @@ impl Descendants {
             Cell::Edge(e) => view.edge(e).map(Cell::Edge),
             Cell::Face(f) => view.face(f).map(Cell::Face),
         };
-        let Some(mut at) = start else {
+        let Some(at) = start else {
             return Ok(None);
         };
-        let is_live = |c: Cell| match c {
-            Cell::Vertex(v) => body.get_vertex(v).is_some(),
-            Cell::Edge(e) => body.get_edge(e).is_some(),
-            Cell::Face(f) => body.get_face(f).is_some(),
-        };
-        for _ in 0..=self.faces.len() + self.cells.len() {
-            if is_live(at) {
-                return Ok(Some(at));
-            }
-            let next = match at {
+        let step = |at: Cell| {
+            match at {
                 Cell::Face(f) => self.faces.get(&f).map(|&k| Cell::Face(k)),
                 _ => None,
             }
-            .or_else(|| self.cells.get(&at).copied());
-            match next {
-                Some(n) => at = n,
-                None => return Ok(None),
-            }
+            .or_else(|| self.cells.get(&at).copied())
+        };
+        match chase_live(body, at, self.faces.len() + self.cells.len(), step) {
+            Ok(reached) => Ok(reached.ok()),
+            Err(RowsCycle) => Err(BooleanError::JoinDesync {
+                what: "a cell's substitution rows are cyclic",
+            }),
         }
-        Err(BooleanError::JoinDesync {
-            what: "a cell's substitution rows are cyclic",
-        })
     }
 }
 

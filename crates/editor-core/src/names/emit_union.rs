@@ -1583,11 +1583,7 @@ impl Fold {
         // graft rows is a record this fold cannot read.
         match naming.a_keys {
             topo::OperandKeys::Direct => {
-                let fused = naming
-                    .fused_into(result)
-                    .map_err(|_| NamingError::Emission {
-                        what: "a vertex the Boolean fused away settles on no cell of its result",
-                    })?;
+                let fused = naming.fused_into(result)?;
                 for (v, read) in core::mem::take(&mut self.senses) {
                     let v = match fused.get(&v) {
                         None => v,

@@ -165,8 +165,9 @@ pub use edge_join::{
 };
 pub use join::CompletedPolygonPair;
 pub use ops::{
-    BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, StaleFusion,
-    boolean_op_with, intersect, intersect_with, subtract, subtract_with, union, union_with,
+    BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, SettleError,
+    Settler, boolean_op_with, intersect, intersect_with, subtract, subtract_with, union,
+    union_with,
 };
 pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, oriented_plane_eq};
 #[cfg(feature = "sweep-testing")]
@@ -552,6 +553,10 @@ pub(crate) struct EdgeSplit {
 ///
 /// A side is a shell, or one side of a shell's pinch: a pinch's two
 /// sides touch within one shell, and their records name its cells.
+///
+/// It is also the live cell a point lies inside: where a Boolean's
+/// result settles a vertex a later stage deleted without moving its
+/// point ([`crate::boolean::Settler::settle`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Cell {
     /// A vertex.

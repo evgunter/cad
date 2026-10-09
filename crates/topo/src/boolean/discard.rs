@@ -35,10 +35,13 @@ pub struct DiscardRow {
     pub face: FaceKey,
     /// Each stretch along which it bordered a face the result KEPT:
     /// the kept side's two end vertices, in result keys before the
-    /// zip's fusions (settle them through `vertex_merges`). The result
-    /// edge between the two settled ends is where the kept face meets
-    /// the region this face held; a stretch whose ends fuse, or that no
-    /// live edge joins, merged away with the faces beside it.
+    /// zip's fusions and the output stage's join and merge (settle them
+    /// through `BooleanNaming::settler`). The result edge between the
+    /// two settled ends, or the joined edge holding one of them
+    /// (`BooleanNaming::stretch_through_joins`), is where the kept face
+    /// meets the region this face held; a stretch whose ends fuse, or
+    /// lie inside a merged face, or that no live edge joins, merged away
+    /// with the faces beside it.
     pub bordered: Vec<(VertexKey, VertexKey)>,
     /// Each other boundary edge with its split ancestry (the edge,
     /// then each edge it was split from), in the same clone keys as

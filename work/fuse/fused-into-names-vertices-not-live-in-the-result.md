@@ -52,9 +52,10 @@ Measured on a committed lattice corpus
 a dead value, 768 values in all. Each survivor was deleted by a stage
 that records the kill without moving the point: the output stage's join
 (336, inside the joined edge) and the merge's pruning (432, inside the
-merged face). `fused_into` now settles each fused vertex on that live
-cell (`topo::Cell`), carrying the merge's kills into the naming
-(`merge_killed_vertices`), and refuses `StaleFusion` where a chase ends
-on no live cell. The naming layer's answers are unchanged; citing a
+merged face). `BooleanNaming::settler` settles each result vertex,
+fused or not, on that live cell (`topo::Cell`), carrying the merge's
+kills into the naming (`merge_killed_vertices`), and refuses
+`SettleError` where a chase ends on no live cell or its rows cycle;
+`fused_into` is the fused vertices settled. The naming layer's answers are unchanged; citing a
 border that runs inside a face or an edge is
 `a-discard-border-inside-a-merged-face-or-joined-edge-reads-as-no-border`.

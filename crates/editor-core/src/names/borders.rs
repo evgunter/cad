@@ -73,10 +73,7 @@ impl<K: Ord + Clone> Obstacles<K> {
         body: &Body<T>,
         mut parents_of: impl FnMut(topo::Operand, FaceKey) -> Result<BTreeSet<K>, NamingError>,
     ) -> Result<(), NamingError> {
-        let fused = naming
-            .fused_into(body)
-            .map_err(|_| bug("a vertex the Boolean fused away settles on no cell of its result"))?;
-        let settle = |v: VertexKey| fused.get(&v).copied().unwrap_or(Cell::Vertex(v));
+        let settler = naming.settler(body);
         // A bordered stretch settles on a seam edge: the zip made the
         // kept face's section edge one edge with the wall's. A held
         // stretch settles on the kept face's own edge, whichever it is.
@@ -144,7 +141,7 @@ impl<K: Ord + Clone> Obstacles<K> {
                 (&row.held, &any_by_ends, false),
             ] {
                 for &(u, w) in stretches {
-                    let (u, w) = (settle(u), settle(w));
+                    let (u, w) = (settler.settle(u)?, settler.settle(w)?);
                     let between = match (u, w) {
                         (Cell::Vertex(u), Cell::Vertex(w)) => edges.get(&(u.min(w), u.max(w))),
                         // An end the join deleted lies inside the joined
