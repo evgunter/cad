@@ -146,11 +146,6 @@ above:
 - `crates/topo/src/boolean/reduce.rs` `vertex_on_curved_face`:
   `Ok(Sign::Negative)` of a distance → a struct-literal
   `BooleanError::Escalated { decision: VertexOnVertex, .. }`.
-- `crates/topo/src/boolean/rim_wedge.rs` `classify_shared_rim`: the
-  `Sign::Zero` arm on a quantity whose magnitude decided nonzero one
-  decision above → a hand mint (`decide_nonzero` is the door; the
-  same shape in `validate.rs` is filed on restfront,
-  `work/restfront/validate-material-side-zero-mints-an-indeterminate.md`).
 - `crates/topo/src/boolean/carrier_eq.rs` `data_rungs`:
   `Ok(Sign::Positive | Sign::Negative)` → an `INVALID` diagnostic
   under the decided datum's own name — the "contradiction dressed as
