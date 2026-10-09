@@ -148,3 +148,35 @@ pinned at the default ε and tighter, and assert the pass at 1e-6.
 The lily's lofted blades (the long leaf, the three sepals) keep their
 straight kite-and-rectangle sections, and its swept leaves are fitted
 at degree 2 rather than the cubic the lofted blades use.
+
+## 2026-10-09 — wall 15 retired by the domain grid's clearance (NURBS, PR 4438)
+
+PR 4438 changes the clearance of the domain-uniform grid
+(`geom_core::spline::algebra::GRID_CLEARANCE`, `2⁻⁸` of the grid's
+own spacing, replacing the 8-domain-ulp rule). The grid no longer
+inserts a refinement point or a cut beside a knot it nearly sits on.
+`props::quad::refine_dir`, `knot_aligned_cuts` and `bezier_blocks` all
+take the grid, and before the change each one could mint a span a few
+`1e-15` to `1e-12` wide. A span `g` wide carries rounding over `g`
+into the second-derivative hulls round 0 reads. On the PR's quarter
+cylinder that excess was `≈ 1.7e-15 / g` of flux width (`47×` the
+on-grid width at `g ≈ 2e-15`).
+
+Measured on the release tour at that PR's head, with every ε row the
+tour runs:
+
+- **Wall 15 (the cubic swept leaf) certifies at the default ε,
+  1e-12 and 1e-6.** It was retired there: the swept leaves are now
+  fitted at `BLADE_V_DEGREE` (3), and the scene's `lily_leaf_b` reads
+  `V = 0.003134 m³ ± 8.0e-8` at the default ε (Pappus
+  `3.134e-3`). At 1e-12 the reading is the bracket
+  `[3.0846e-3, 3.1865e-3]`, still the reporting-floor bracket of
+  "A second consequence" above.
+- **Wall 16 (the lofted lanceolate long leaf) still refuses**, with
+  the same shape at the default ε and at 1e-12: `QuadratureBudget {
+  width_len: 1.5524e-5, target_len: 1.024e-6 (1.024e-9), rounds: 1 }`.
+  Its width dropped from the 2.7e-5 class recorded above, but it is
+  still 15× the reporting target. It passes at 1e-6 as before.
+
+So the swept half of this row's evidence was the narrow-span defect.
+The lofted half is not, or not only. The row stays open on wall 16.

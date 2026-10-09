@@ -90,9 +90,7 @@
 //! and the sepals skins and meshes, and then tier 3 refuses it:
 //! check 7's quadrature gives up at the reporting target on a solid
 //! whose sign is not in doubt (probe 16). The swept leaves carry the
-//! lens because their skin is fitted at degree 2 along the path; at
-//! the cubic fit the lofted blades use, the swept lens refuses the
-//! same way (probe 15).
+//! lens at the same cubic fit along the path, and certify.
 //!
 //! Proportions are chosen, not measured: a stylized lily that the
 //! kernel can state exactly beats a literal one it must approximate.
@@ -796,8 +794,8 @@ impl Lance {
 }
 
 /// A swept leaf's numbers — [`leaf`]'s arguments bar `up`, which is
-/// world `z` for both — named once because probe 15 and the Pappus
-/// rows rebuild the same blades.
+/// world `z` for both — named once because the scene and the Pappus
+/// rows build the same blades.
 #[derive(Clone, Copy, Debug)]
 struct SweptLeaf {
     base: Point3<f64>,
@@ -913,12 +911,7 @@ fn leaf_a_plan() -> Plan {
 /// Stations along a leaf's swept spine (the swept-elbow corpus
 /// fixture's count).
 const LEAF_STATIONS: usize = 9;
-/// The swept leaf skin's fit degree along the path. Quadratic, and
-/// that is a wall's doing: the lens's arcs make every lateral wall
-/// rational, and at the cubic fit [`BLADE_V_DEGREE`] the gate refuses
-/// the blade (probe 15).
-const LEAF_V_DEGREE: usize = 2;
-/// The lofted blades' skin fit degree along the path.
+/// Every blade's skin fit degree along the path, swept and lofted alike.
 const BLADE_V_DEGREE: usize = 3;
 /// Stations along the LOFTED long leaf. More than the swept blades
 /// use, because a loft's stations carry the taper and the roll as well
@@ -956,25 +949,6 @@ fn leaf<S: Scalar>(
     curl: f64,
     tol: Tol,
 ) -> Body<S> {
-    try_leaf(base, dir, up, len, section, curl, LEAF_V_DEGREE, tol)
-        .expect("the leaf sweeps along its spine")
-        .body
-}
-
-/// [`leaf`] at a chosen skin degree, with the refusal surfaced, so
-/// probe 15 can sweep the same blade at the cubic fit and ask the
-/// gate about it.
-#[allow(clippy::too_many_arguments)] // the 8th is the run-tolerance witness
-fn try_leaf<S: Scalar>(
-    base: Point3<f64>,
-    dir: Vec3<f64>,
-    up: Vec3<f64>,
-    len: f64,
-    section: Lance,
-    curl: f64,
-    v_degree: usize,
-    tol: Tol,
-) -> Result<pncad::sweep::Lofted<S>, pncad::sweep::LoftError> {
     let (d, v, u) = blade_frame(dir, up, tol);
     // The spine: a circular arc of length `len` turning through `curl`
     // in the (d, v) plane, i.e. radius len/curl, sampled exactly.
@@ -996,9 +970,11 @@ fn try_leaf<S: Scalar>(
         place,
         &path,
         LEAF_STATIONS,
-        v_degree,
+        BLADE_V_DEGREE,
         tol,
     )
+    .expect("the leaf sweeps along its spine")
+    .body
 }
 
 // ---------------------------------------------------------------
@@ -1881,12 +1857,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 // takes 2e-3. The names below are the lofted blades; a
                 // piece added, renamed or rebuilt with another section
                 // is placed by this rule, not by its name.
-                let sb = if p.name == "lily_leaf_a" || p.name.starts_with("lily_sepal") {
+                if p.name == "lily_leaf_a" || p.name.starts_with("lily_sepal") {
                     sb
                 } else {
                     sb.finer(2e-3)
-                };
-                sb
+                }
             })
             .collect(),
     }]
@@ -2172,8 +2147,8 @@ fn wall<T, E: core::fmt::Debug>(
     crate::walls::wall("lily", n, what, outcome, pinned, retire);
 }
 
-/// Walls 15 and 16 pin one refusal: a lanceolate blade the gate
-/// refuses on the quadrature's REPORTING budget (`1024·ε`). Through
+/// Wall 16's refusal: a lanceolate blade the gate refuses on the
+/// quadrature's REPORTING budget (`1024·ε`). Through
 /// [`crate::walls::wall_from_default_eps`], since the refusal is the
 /// reporting target's and a looser ε clears it.
 fn reporting_budget_refusal(e: &[pncad::topo::ValidationError]) -> bool {
@@ -2610,40 +2585,14 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         assert_eq!(outcome.groups.len(), 0, "no cap arrives split");
     }
 
-    // 15. The swept leaves at the cubic skin. The lens's arcs make
-    //     every lateral wall rational, and at the degree the lofted
-    //     blades are fitted at, tier 3 refuses the blade: check 7's
-    //     quadrature stops after round 0 against the REPORTING target
-    //     (`rounds: 1`, `target_len` = 1024·ε) on a solid of 3.1e-3
-    //     m³ whose sign is not in doubt. The scene fits its swept
-    //     leaves at degree 2, where the gate certifies
-    //     (`work/quad/check-7-refuses-the-reporting-budget-on-a-definite-sign.md`).
-    let cubic = try_leaf::<S>(
-        LEAF_B.base,
-        LEAF_B.dir,
-        Vec3::unit_z(),
-        LEAF_B.len,
-        LEAF_B.section,
-        LEAF_B.curl,
-        BLADE_V_DEGREE,
-        tol,
-    )
-    .expect("the cubic leaf sweeps")
-    .body;
-    crate::walls::wall_from_default_eps(
-        "lily",
-        15,
-        "fit the lanceolate swept leaf's skin at the cubic degree the lofted \
-         blades use, and validate it",
-        pncad::topo::validate_geometric_certificate(&cubic, tol).map(|_| ()),
-        |e: &Vec<_>| reporting_budget_refusal(e),
-        "fit the swept leaves at BLADE_V_DEGREE",
-        tol,
+    println!(
+        "   wall 15 — RETIRED: the swept leaves are fitted at the cubic degree \
+         the lofted blades use, and certify at tier 3 with the scene"
     );
 
     // 16. The lofted blades with the swept leaves' lens. They skin,
-    //     validate at tiers 1-2 and mesh; tier 3 refuses them as it
-    //     refuses probe 15's cubic. Measured on the long leaf at 5, 9,
+    //     validate at tiers 1-2 and mesh; tier 3 refuses them on the
+    //     reporting budget. Measured on the long leaf at 5, 9,
     //     17 and 33 stations and degrees 2 and 3, and with each arc
     //     split in two; on the three sepals, about 2.7 m out, at the
     //     scene's 13 stations and at 33. Every one of those refuses but
@@ -3271,8 +3220,8 @@ mod review_probes {
     /// stored, not which torus they describe, so the tessellator sees
     /// the same surface and splits it the same way. The two SWEPT
     /// blade rows are the other half of the finding, and it runs the
-    /// other way: a swept lens skin costs nearly EIGHT times the stem
-    /// tube at the same δ (6_468 against 828 at 2e-3). Part of that
+    /// other way: a swept lens skin costs nearly SEVEN times the stem
+    /// tube at the same δ (5_576 against 828 at 2e-3). Part of that
     /// is geometry — the lens is curved across, where a straight-sided
     /// section is flat — and part is the sizing lane: a rational wall
     /// is sized per cell of the 16 × 16 refinement its certified bound
@@ -3303,8 +3252,11 @@ mod review_probes {
             // half-discs — 1_084 -> 1_080 and 2_560 -> 2_556.
             ("lily_lantern", 5e-3, 1_080),
             ("lily_lantern", 2e-3, 2_556),
-            ("lily_leaf_b", 2e-3, 6_468),
-            ("lily_leaf_c", 2e-3, 5_992),
+            // RE-BASELINED: the swept leaves are fitted at the cubic
+            // degree along the path (wall 15 retired) — 6_468 -> 5_576
+            // and 5_992 -> 5_164.
+            ("lily_leaf_b", 2e-3, 5_576),
+            ("lily_leaf_c", 2e-3, 5_164),
         ];
         // Measured first, compared once: a row-at-a-time assert stops
         // at the first move and hides the rest, and this table is read
@@ -3365,14 +3317,14 @@ mod review_probes {
         // when the enclosure is narrow — under `BRACKET_CEILING` of
         // Pappus, a tenth of the mesh's own deficit below, so a closed
         // form off by more than that is excluded. At the default ε the
-        // full widths are 1.4e-4 and 8.2e-5 of it. At 1e-6 the pad,
+        // full widths are 5.1e-5 (b) and 1.4e-4 (c) of it. At 1e-6 the pad,
         // and at 1e-12 the bracket the budget refusal keeps
         // (`work/quad/check-7-refuses-the-reporting-budget-on-a-definite-sign.md`),
         // are wider than the ceiling, and the row says so beside the
         // containment it still asserts. And the mesh must fall
         // SHORT of it by between 3e-3 and 6e-3: every chord across the
         // convex lens cuts inside it, and the inscribed deficit measured
-        // 4.3e-3 and 5.0e-3 at δ = 2e-3. A mesh that met Pappus would
+        // 4.4e-3 and 5.0e-3 at δ = 2e-3. A mesh that met Pappus would
         // not have been measured off a real tessellation; one further
         // off would mean the section rolled about the tangent on its
         // way down the path.
