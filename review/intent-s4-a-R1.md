@@ -62,8 +62,7 @@ a test diverging earlier does not end the pairing as it did for the PR's ordinal
 - Events at default ε across topo + sweep: 134 along-ray junction rows `(Zero,Zero)`, each flanked by
   `(Zero,Positive)`/`(Negative,Zero)` or `(Positive,Zero)`/`(Zero,Negative)` edges; 48 full windows, all in
   the blind-shaft row's wholly-inside span; **0 seam shifts at any of the three ε**.
-- **Every integration verdict is `Out`** (1402 + 48 full-window). `In` comes only from the chord_join unit
-  rows.
+- **Every integration-suite verdict is `Out`** (1363 at default ε); `In` comes only from chord_join unit rows.
 - The case each way: **vertex exactly at the ray**, reached only beside an along-ray row, where the
   crossing lies below the ring vertex either way; **a transversal or touching single-vertex crossing**,
   never reached; **a window of exactly one period**, reached, and M4 kills it; **just under**, the ordinary
@@ -191,14 +190,13 @@ pairs all 125, not 74. Recommend the fingerprint method for the spec's §11 row 
   Look also in `docs/KERNEL-VERBS.md` and `demos/` beyond the two named files.
 - **Q5 (sure).** `ops.rs`'s module doc now lists "a shaft in a bore, a plate on a rounded plate" as
   boundary-on-boundary unions the join builds. True and tested.
-  `carrier_pair.rs:1-6` promises the doors and delivers them; `flush_pair_relation` still states that it has no in-tree consumer (`:27-30`), carried over verbatim. It
-    is a published door with no caller, moved without asking whether it should be.
+  `carrier_pair.rs:1-6` promises the doors and delivers them; `flush_pair_relation` still says it has no
+  in-tree consumer (`:27-30`): a published door with no caller, moved without asking whether it should be.
 - **Q6 (sure).** "Partner-edge chord built, then removed" is an improvement; "torus beyond the spec" is mis-attributed (MINOR-3).
 - **Q7 (unsure).** `across_tangent` re-indexes a `PairRecord` while keeping a code tuple read against a
   different sector. I would have re-read the codes on the moved pair (`pair_codes`) and resolved the `On` as
   `recl` does, rather than carry a tuple whose positions mean something else. It works on every fixture.
-- **Q8 (likely).** I read `carrier_pair.rs` end to end. It is a verbatim move: 12 lines differ, all
-  imports or the header.
+- **Q8 (likely).** I read `carrier_pair.rs` end to end: a verbatim move (12 new lines: imports, header, a rewrap).
   Its `face_witnesses` and `pair_extent` are read by `join.rs` (germ frames) and `merge_faces.rs`: a module
   named for the carrier-pair verdict hosts join and merge helpers, a core hosted in one consumer, the shape
   that drifts. I did not read `chord_join.rs` (≈5200 lines) whole.
