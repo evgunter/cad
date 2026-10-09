@@ -27,8 +27,7 @@ use topo::{
 fn planes(b: &Body<f64>) -> Vec<(FaceKey, [f64; 3], f64)> {
     b.faces()
         .map(|(k, f)| {
-            let Some(geom::Surface::Plane { origin, normal, .. }) = b.get_surface(f.surface)
-            else {
+            let Some(geom::Surface::Plane { origin, normal, .. }) = b.get_surface(f.surface) else {
                 panic!("a brick is planar")
             };
             let s = if f.sense { 1.0 } else { -1.0 };
@@ -50,7 +49,9 @@ fn declarations(a: &Body<f64>, b: &Body<f64>) -> BooleanDeclarations {
                     .coincident_faces
                     .push(FacePairDeclaration::continuation(fa, fb));
             } else if dot == -1.0 && da == -db {
-                decls.coincident_faces.push(FacePairDeclaration::rest(fa, fb));
+                decls
+                    .coincident_faces
+                    .push(FacePairDeclaration::rest(fa, fb));
             }
         }
     }
