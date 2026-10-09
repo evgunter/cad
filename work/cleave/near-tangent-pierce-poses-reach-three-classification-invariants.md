@@ -43,9 +43,10 @@ The second site, from a pierce whose partner is tipped off the face:
 The plate united with a pyramid lying on its top, its corner at 60°
 lifted 100ε off the top (`lie`), against "inside the lying pyramid"
 (`along_ray`), whose edge along the top at 60° runs 60ε under the lying
-pyramid's lifted edge. Every op, both orders, every pose, at each ε row:
-`ClassificationInvariant { what: "pierce germ direction not uniquely
-within its sector" }`. Identical on main (db51132ff): the partner is
+pyramid's lifted edge. Every op, both orders, every pose, at ε = 1e-9
+and 1e-12: `ClassificationInvariant { what: "pierce germ direction not
+uniquely within its sector" }`. At 1e-6 the same cells escalate
+`bool_sector_within` in band instead. Identical on main (db51132ff): the partner is
 strictly above the top there, so `vtxfac::partner_side` reads it as
 before. The row allows it by this item's name for that scene alone.
 
