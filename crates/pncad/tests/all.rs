@@ -7087,3 +7087,52 @@ fn a_lattice_built_loft_section_decides_no_consistency_check() {
         "the tables decide the checks: {asked:?}"
     );
 }
+
+/// **The façade's slot arguments share a variable by its name** (VR2,
+/// VR9): passing a slot's unnamed variable to a second slot refuses
+/// `SharedVarNeedsName`, naming it; once it is named, the same insert
+/// shares it.
+#[test]
+fn a_facade_slot_shares_an_unnamed_variable_only_once_it_is_named() {
+    use pncad::document::{
+        Axis3, Datum, Dimension, DocEdit, EditError, Formula, Node, ProfileDoc, SlotId, VarName,
+    };
+    let point = |x: Formula| DocEdit::InsertNode {
+        node: Box::new(Node::Datum(Datum::Point {
+            position: [
+                x,
+                Formula::literal(0.0, Dimension::Length).unwrap(),
+                Formula::literal(0.0, Dimension::Length).unwrap(),
+            ],
+        })),
+        fresh: Vec::new(),
+    };
+    let apply = |doc: &ProfileDoc, edit: &DocEdit<_>| {
+        pncad::document::apply(doc, edit, Tol::witness(), &pncad::document::RefusingReach)
+    };
+    let doc = ProfileDoc::empty_derived("facade-fork7", Tol::witness());
+    let first = apply(
+        &doc,
+        &point(Formula::literal(0.5, Dimension::Length).unwrap()),
+    )
+    .expect("a typed point");
+    let a = first.record.minted.expect("minted");
+    let x = first.doc.slot(a, SlotId::Origin(Axis3::X)).expect("a reads x");
+    let second = point(Formula::var(x, Dimension::Length));
+    match apply(&first.doc, &second) {
+        Err(EditError::SharedVarNeedsName { var }) => assert_eq!(var.id(), x),
+        other => panic!("an unnamed variable's second reader refuses, got {other:?}"),
+    }
+    let named = apply(
+        &first.doc,
+        &DocEdit::RenameVar {
+            var: x.into(),
+            name: Some(VarName::from_static("x")),
+        },
+    )
+    .expect("the name lands")
+    .doc;
+    let shared = apply(&named, &second).expect("a named variable is shared");
+    let b = shared.record.minted.expect("minted");
+    assert_eq!(shared.doc.slot(b, SlotId::Origin(Axis3::X)), Some(x));
+}
