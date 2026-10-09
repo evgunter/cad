@@ -225,7 +225,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_conic_face_plane_offset" => Coincide::EdgeOnPlane.subject(),
         "bool_line_cylinder_clearance" => Coincide::EdgeOnCurvedFace.subject(),
         "bool_sector_within" | "bool_flank_offset" | "bool_wedge_reflex" | "bool_cone_arc"
-        | "bool_cone_arc_span" | "bool_cone_within" | "bool_cone_facing" => {
+        | "bool_cone_arc_span" | "bool_cone_within" | "bool_cone_facing" | "bool_cone_apart" => {
             Coincide::Sectors.subject()
         }
         "bool_cone_pointed" => "whether a corner's link leans to one side of its vertex",
@@ -453,8 +453,9 @@ impl SideCode {
 /// - A vertex that touches a face and pairs too records each edge once,
 ///   read against the face and its partners together, or the boolean
 ///   refuses (`vtxfac::touch_classes`). A vertex in several pairs alone
-///   does the same where its partners' layering decides, and keeps each
-///   pair's rows where it does not (`vtxfac::pair_classes`).
+///   does the same where its partners' layering decides, refuses where
+///   a partner's cone reads nothing, and keeps each pair's rows where
+///   the layering leaves an edge undecided (`vtxfac::pair_classes`).
 ///
 /// `In` and `On` both lie in the other operand's closed body.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -1189,6 +1190,12 @@ pub(crate) struct VerifiedDeclarations {
     /// that read. Only a union consumes it.
     pub(crate) through_a_face:
         Option<Result<(crate::contact::DeclaredContact, Operand), BooleanError>>,
+    /// The one-carrier pairs a margin decided, one row each in
+    /// declaration order: a declaration's verification is a value
+    /// decision, so its glue is recorded like any other
+    /// ([`crate::coincidence`]). A pair the same-source rung settled is
+    /// structure and has none.
+    pub(crate) coincidences: Vec<crate::Coincidence>,
 }
 
 impl<T: Decide> DeclaredPairs<T> {
@@ -1742,6 +1749,9 @@ pub struct BooleanReduction<T: Real> {
     /// Each point where the insertion hung runs at a turned run's copy
     /// ([`HungPoint`]).
     pub(crate) hung: Vec<HungPoint>,
+    /// The coincidences the declaration door decided from values, in
+    /// operand keys ([`crate::coincidence`]).
+    pub coincidences: Vec<crate::Coincidence>,
 }
 
 /// A cross-operand face pair the coincidence ladder settled one
@@ -2377,7 +2387,9 @@ pub enum BooleanError {
     /// first read cannot be taken with the second: it pierces two faces
     /// of the other solid, or pierces one and coincides with a vertex of
     /// it while crossing the face, or while that vertex's link does not
-    /// lie strictly on one side of the face. That other solid holds its
+    /// lie strictly on one side of the face; or, in pairs alone, a
+    /// partner's cone reads nothing beside another partner's
+    /// (`vtxfac::pair_classes`). That other solid holds its
     /// own contact at the vertex's point: two of its faces meet there in
     /// their interiors, or a vertex of it rests on one of its faces. A
     /// vertex-on-face pass hangs struts at a vertex that crosses the
@@ -2390,7 +2402,8 @@ pub enum BooleanError {
         /// sweep may have minted on one of its edges.
         vertex: VertexKey,
         /// Its first pierce, then its next read: a second pierce, or a
-        /// pair.
+        /// pair; in pairs alone, the partner whose cone reads nothing,
+        /// then one beside it.
         reads: [SectorRead; 2],
     },
     /// The result would hold a non-manifold vertex: both operands hold
@@ -2586,19 +2599,23 @@ pub enum BooleanError {
         /// The precise uncertifiable sub-configuration.
         what: &'static str,
     },
-    /// **Two sphere faces of the two solids meet** at the curved-extent
+    /// **Two sphere faces of the two solids touch** at the curved-extent
     /// scan, which runs only where the crossing layer found no edge
-    /// crossing a face: either their spheres touch within the tolerance,
-    /// the smaller inside the larger (a decided zero), at a touch the
-    /// section certificate does not certify off either face, or their
-    /// spheres cross and the certificate certifies the circle they cross
-    /// in inside both faces (its R-loop). Whatever the faces share lies
-    /// off every edge, so the join's sphere-pair arm (the radical plane,
-    /// `join::bool_connect`) had no chord to run. A crossing whose circle
-    /// the certificate cannot place refuses with the certificate's own
-    /// reason instead ([`BooleanError::FallbackExtentUnsupported`]). It is
-    /// the decided refusal of [`SphereQuestion::Nested`], and ends as
-    /// that question's escalation does ([`refusal_routes::SPHERES`]).
+    /// crossing a face: their spheres touch within the tolerance, the
+    /// smaller inside the larger (a decided zero), at a touch the section
+    /// certificate does not certify off either face. Whatever the faces
+    /// share lies off every edge, so the join's sphere-pair arm (the
+    /// radical plane, `join::bool_connect`) had no chord to run. Spheres
+    /// that cross, in a circle the certificate certifies inside both
+    /// faces (its R-loop), are not refused: each sphere is re-cut so an
+    /// edge of it reaches the circle (a closed ball re-charted with its
+    /// pole on the centre line, any other face cut along a meridian
+    /// through the circle, `ops::sphere_extent_scan`), and a crossing
+    /// whose circle the certificate cannot place refuses with the
+    /// certificate's own reason
+    /// ([`BooleanError::FallbackExtentUnsupported`]). It is the decided
+    /// refusal of [`SphereQuestion::Nested`], and ends as that question's
+    /// escalation does ([`refusal_routes::SPHERES`]).
     /// One sphere touching the other on one carrier is not asked when
     /// every face of it is a verified `Rest` against the other face:
     /// such a pair touches without overlapping (`ops::Exempt::Rest`).
@@ -3118,9 +3135,20 @@ impl BooleanError {
         read: DeclarationRead,
         escalation: geom_brep::LeverEscalation,
     ) -> Self {
+        Self::of_lever_rung(gate, read, escalation.rung(), escalation.diag())
+    }
+
+    /// [`BooleanError::of_lever`] from its parts, for a door that carries
+    /// the rung apart from the escalation.
+    pub(crate) const fn of_lever_rung(
+        gate: refusal_routes::LeverArm,
+        read: DeclarationRead,
+        rung: geom_brep::LeverRung,
+        diag: Indeterminate,
+    ) -> Self {
         Self::Escalated {
-            decision: BooleanDecision::of_lever(gate, read, escalation.rung),
-            diag: escalation.diag,
+            decision: BooleanDecision::of_lever(gate, read, rung),
+            diag,
         }
     }
 
@@ -3712,6 +3740,21 @@ impl core::fmt::Display for BooleanError {
                  in the kernel yet",
                 operand_word(*operand)
             ),
+            Self::VertexReadTwice {
+                operand,
+                reads: [SectorRead::Pair(_), SectorRead::Pair(_)],
+                ..
+            } => write!(
+                f,
+                "a corner of the {} solid lands where two corners of the other solid meet \
+                 at one point, and one of those corners gives no side for its edges: its \
+                 faces fold onto one another, exactly or to within the input tolerance \
+                 (ε_input, K·ε), or it lies on fewer than two faces. The Boolean cannot \
+                 classify the first corner against both without it. Recourse: move the \
+                 parts so the other solid's corners do not meet at that point, or open its \
+                 folded faces apart by more than ε_input",
+                operand_word(*operand)
+            ),
             Self::VertexReadTwice { operand, reads, .. } => write!(
                 f,
                 "a corner of the {} solid lands where the other solid touches itself \
@@ -4297,9 +4340,9 @@ pub(crate) fn join_refusal(
     Ok(connected.err())
 }
 
-/// The join's section segments of `op` ([`join::section_segments`]):
+/// Every segment the join of `op` builds ([`join::join_segments`]):
 /// how many pair records the reduction registered, and each segment's
-/// two germ sites, read on the A clone. `None` where the reduction
+/// two germ sites, read on the A clone (a one-site loop's twice). `None` where the reduction
 /// registers no pair.
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn section_segment_sites(
@@ -4556,7 +4599,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         read.push(((operand, vertex), classes));
     }
     for (&key, pairs) in &paired {
-        read.push((key, vtxfac::pair_classes(pairs, band)?));
+        read.push((key, vtxfac::pair_classes(key.0, key.1, pairs, band)?));
     }
     for ((operand, vertex), classes) in read {
         let body = match operand {
@@ -4658,6 +4701,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         edge_splits,
         edge_classes,
         hung,
+        coincidences: declared.verified.coincidences.clone(),
     })
 }
 
@@ -4917,8 +4961,15 @@ fn verify_declared_contacts<T: Decide>(
                 verified.tangent.insert((fa, fb));
             }
             BooleanCoincidence::Contact(ContactClass::Rest) | BooleanCoincidence::Continuation => {
-                if verify_one_carrier_declaration(a, fa, b, fb, class, band)? {
-                    verified.one_carrier.insert((fa, fb));
+                match verify_one_carrier_declaration(a, fa, b, fb, class, band)? {
+                    OneCarrier::Unread => {}
+                    OneCarrier::Structural => {
+                        verified.one_carrier.insert((fa, fb));
+                    }
+                    OneCarrier::Decided(row) => {
+                        verified.one_carrier.insert((fa, fb));
+                        verified.coincidences.push(row);
+                    }
                 }
             }
             BooleanCoincidence::Seam => {
@@ -4974,14 +5025,28 @@ pub(super) fn sense_contradiction(
     }
 }
 
+/// **What the declaration door made of one `Rest` or continuation
+/// pair** that it did not refuse.
+enum OneCarrier {
+    /// A carrier kind the ladder cannot describe: no certificate.
+    Unread,
+    /// One carrier with the class's sense, settled by structure before
+    /// any margin was read: a certificate and no row (stage 4 spec §14
+    /// Q1).
+    Structural,
+    /// One carrier with the class's sense, decided by a margin: a
+    /// certificate and the row recording the decision.
+    Decided(crate::Coincidence),
+}
+
 /// The `Rest` and continuation half of [`verify_declared_contacts`]:
 /// the carrier ladder in its declared posture — a definitely-different
 /// carrier contradicts, an in-band residue is bridged (C4), a sliver
 /// escalates — and then the sense bit the class demands.
 ///
-/// `Ok(true)` when the ladder called the two faces ONE carrier with
-/// that sense — the certificate the crossing layer's carrier-identity
-/// rung reads, recorded once here instead of re-derived per event.
+/// One carrier with the class's sense, either way it was settled, is
+/// the certificate the crossing layer's carrier-identity rung reads,
+/// recorded once here instead of re-derived per event.
 fn verify_one_carrier_declaration<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -4989,29 +5054,49 @@ fn verify_one_carrier_declaration<T: Decide>(
     fb: FaceKey,
     class: BooleanCoincidence,
     band: Band,
-) -> Result<bool, BooleanError> {
-    let outcome = match rest::carrier_pair_relation(a, fa, b, fb, true, band) {
+) -> Result<OneCarrier, BooleanError> {
+    let outcome = match rest::carrier_pair_reading(a, fa, b, fb, true, band) {
         Ok(outcome) => outcome,
         Err(rest::PairUnread::Extent(face)) => return Err(unreadable_extent(face)),
         // A carrier kind the ladder cannot describe: `validate_
         // declarations` has already had its say about which kinds this
         // op accepts, so there is nothing left to add here — and
         // nothing for the identity rung to read.
-        Err(rest::PairUnread::OutsideInventory) => return Ok(false),
+        Err(rest::PairUnread::OutsideInventory) => return Ok(OneCarrier::Unread),
     };
     let aligned = class == BooleanCoincidence::Continuation;
+    let one = |relation, margin: Option<MarginDiag>| match margin {
+        None => OneCarrier::Structural,
+        Some(margin) => OneCarrier::Decided(crate::Coincidence {
+            cells: [
+                crate::RowCell::face(Operand::A, fa),
+                crate::RowCell::face(Operand::B, fb),
+            ],
+            relation,
+            site: declared_site(a, fa, b, fb),
+            margin,
+            discharge: crate::Discharge::Numeric,
+        }),
+    };
     match outcome {
-        Ok(carrier_eq::CarrierRelation::SameOriented) if aligned => Ok(true),
-        Ok(carrier_eq::CarrierRelation::SameOpposite) if !aligned => Ok(true),
-        Ok(
+        Ok((carrier_eq::CarrierRelation::SameOriented, _, margin)) if aligned => {
+            Ok(one(crate::Relation::SameOriented, margin))
+        }
+        Ok((carrier_eq::CarrierRelation::SameOpposite, _, margin)) if !aligned => {
+            Ok(one(crate::Relation::SameOpposite, margin))
+        }
+        Ok((
             carrier_eq::CarrierRelation::SameOriented | carrier_eq::CarrierRelation::SameOpposite,
-        ) => Err(sense_contradiction(fa, fb, class, band)),
+            ..,
+        )) => Err(sense_contradiction(fa, fb, class, band)),
         // The declared posture contradicts a definite difference, it
         // never answers `Distinct`: the same kernel-defect answer the
         // REST lane gives (`rest.rs`).
-        Ok(carrier_eq::CarrierRelation::Distinct) => Err(BooleanError::ClassificationInvariant {
-            what: "declaration door: declared rung returned Distinct instead of contradicting",
-        }),
+        Ok((carrier_eq::CarrierRelation::Distinct, ..)) => {
+            Err(BooleanError::ClassificationInvariant {
+                what: "declaration door: declared rung returned Distinct instead of contradicting",
+            })
+        }
         Err(carrier_eq::CarrierEqError::Contradicted { fact, diag }) => Err(match class {
             BooleanCoincidence::Continuation => BooleanError::ContinuationContradicted {
                 a: fa,
@@ -5053,6 +5138,27 @@ fn verify_one_carrier_declaration<T: Decide>(
             [(Operand::A, fa), (Operand::B, fb)],
             relation,
         )),
+    }
+}
+
+/// Which ladder decided a declared one-carrier pair: the plane ladder
+/// where both faces are planes, the carrier ladder otherwise.
+fn declared_site<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+) -> crate::DecisionSite {
+    let plane = |body: &Body<T>, f| {
+        matches!(
+            rest::face_carrier(body, f),
+            Some(carrier_eq::CarrierDesc::Plane { .. })
+        )
+    };
+    if plane(a, fa) && plane(b, fb) {
+        crate::DecisionSite::PlaneLadder
+    } else {
+        crate::DecisionSite::CarrierLadder
     }
 }
 

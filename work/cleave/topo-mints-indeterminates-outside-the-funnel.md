@@ -206,7 +206,7 @@ User-visible, measured:
 - **`r2_p7`.** The margin no longer reaches the text since PR 3493, but `INVALID` survives in the public `margin` field.
 
 Cited, not run: `bool_wall_trim_period` refuses 567 of 729 `point_in_solid`
-probes on a revolved tube (`work/contact/revolved-tube-wall-...`).
+probes on a revolved tube (`work/inside/revolved-tube-wall-refuses-bool-wall-trim-period.md`).
 
 Six readers treat `is_invalid()` as "decided exactly zero":
 `carrier_eq.rs:315`, `flush.rs:302`, `boolean/mod.rs:2967`,

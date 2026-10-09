@@ -1466,14 +1466,23 @@ impl ViewerApp {
                             ui.horizontal_top(|ui| {
                                 if ui
                                     .button(row.button)
-                                    .on_hover_text("select the root this finding is about")
+                                    .on_hover_text("select the node this finding is about")
                                     .clicked()
                                 {
-                                    ops.push(SessionOp::Select(Selection::Node(row.root)));
+                                    ops.push(SessionOp::Select(Selection::Node(row.node)));
                                 }
                                 // A sentence, so `widgets::message`.
                                 crate::widgets::message(ui, row.sentence);
                             });
+                            for (label, select) in row.cells {
+                                if ui
+                                    .button(label)
+                                    .on_hover_text("select this cell of the coincidence")
+                                    .clicked()
+                                {
+                                    ops.push(SessionOp::Select(select));
+                                }
+                            }
                         }
                         if !report.skipped.is_empty() {
                             ui.separator();

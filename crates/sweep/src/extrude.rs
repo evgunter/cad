@@ -1329,11 +1329,11 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                     }
                 }
             }
-            Err(geom_brep::LeverEscalation { diag: source, .. }) => {
+            Err(escalation) => {
                 return Err(ExtrudeError::SliverJoin {
                     loop_index,
                     vertex_index: segs[j].chord.canonical_vertex,
-                    source,
+                    source: escalation.diag(),
                 });
             }
         }
@@ -1651,10 +1651,10 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
             }
             Ok(())
         }
-        Err(geom_brep::LeverEscalation { diag: source, .. }) => Err(ExtrudeError::SliverRim {
+        Err(escalation) => Err(ExtrudeError::SliverRim {
             loop_index,
             segment_index,
-            source,
+            source: escalation.diag(),
         }),
     }
 }

@@ -896,14 +896,16 @@ pub enum SphereQuestion {
     /// inside the larger (`bool_sphere_sphere_nested`): a positive
     /// clearance passes, and so do a negative one and a decided zero
     /// whose two spheres' faces the section certificate certifies apart.
-    /// A crossing whose circle lies inside both faces, and a decided
-    /// zero touching on both faces, refuse (`BooleanError::SpheresMeet`
-    /// is its decided refusal).
+    /// A crossing whose circle lies inside both faces re-cuts both
+    /// spheres, and a decided zero touching on both faces refuses
+    /// (`BooleanError::SpheresMeet` is its decided refusal).
     Nested,
-    /// Whether the plane faces one sphere pokes through are parallel
-    /// (`bool_sphere_escape_parallel`): only a zero passes (a single
-    /// re-chart serves parallel planes), so no smaller tolerance
-    /// decides a margin passing.
+    /// Whether the escapes one closed sphere group re-charts for share
+    /// an axis: plane faces' normals, other spheres' centre lines
+    /// (`bool_sphere_escape_parallel`). Only a zero is one re-chart; a
+    /// definite lean cuts sphere escapes in instead, or refuses where a
+    /// plane is among them, so no smaller tolerance decides a margin
+    /// passing.
     EscapeParallel,
     /// Whether the sphere's stored polar axis leans away from the escape
     /// normal it is re-charted onto (`bool_sphere_recut_align`, the
@@ -1034,6 +1036,11 @@ pub enum SelfCheck {
     /// undecided answer is a contact the census could not confirm
     /// either.
     CarriedLineage,
+    /// Which way a one-vertex seam edge runs against its partner
+    /// (`bool_zip_one_vertex_sense`, `zip::one_vertex_sense`): the two
+    /// halves leave one point along one conic, so a tangent too short
+    /// to read is a degenerate seam.
+    SeamSense,
 }
 
 impl SelfCheck {
@@ -1048,6 +1055,7 @@ impl SelfCheck {
             Self::RingWinding => "which way a ring run of the section winds",
             Self::CarrierLadder => "whether a face of each solid lies on one surface",
             Self::CarriedLineage => "where a carried contact lands on the pieces of a split edge",
+            Self::SeamSense => "which way a seam that closes at one vertex runs",
         }
     }
 }
@@ -1113,8 +1121,8 @@ impl LeverArm {
                 "whether a corner's edges are long enough to read which way a face curves there"
             }
             Self::Seam => {
-                "whether a seam edge is long enough, for how its faces curve, to measure the \
-                 angle between them"
+                "whether a seam edge is long enough, for how its faces curve, to measure their \
+                 angle"
             }
         }
     }
@@ -2280,11 +2288,11 @@ pub(in crate::boolean) mod tests {
                 Ending::Sized(LONGER, SizedPass::Positive),
             ),
             BooleanDecision::LeverArm(LeverArm::Seam) => (
-                "whether a seam edge is long enough, for how its faces curve, to measure the \
-                 angle between them",
+                "whether a seam edge is long enough, for how its faces curve, to measure their \
+                 angle",
                 Ending::Sized(
-                    "Recourse: move the geometry so that edge is clearly longer, and its faces \
-                     curve less tightly there",
+                    "Recourse: move the geometry so that edge is clearly longer and no face curves \
+                     tightly there",
                     SizedPass::Positive,
                 ),
             ),
@@ -2442,6 +2450,10 @@ pub(in crate::boolean) mod tests {
             ),
             BooleanDecision::SelfCheck(SelfCheck::CarriedLineage) => (
                 "where a carried contact lands on the pieces of a split edge",
+                Ending::Defect,
+            ),
+            BooleanDecision::SelfCheck(SelfCheck::SeamSense) => (
+                "which way a seam that closes at one vertex runs",
                 Ending::Defect,
             ),
             BooleanDecision::PierceCurvature => (

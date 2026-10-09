@@ -7,6 +7,7 @@ opened: 2026-10-06
 priority: P2
 cost: M
 refs: [shell-open-refuses-a-curved-designated-face]
+branch: shell/band-between-boundaries
 pr: 4391
 closed: 2026-10-09
 ---
