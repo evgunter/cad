@@ -142,33 +142,23 @@ fn accepted_against_torus(
 /// stem face's own chart, both ends are definitely off the carrier, so
 /// the arc meets that face nowhere). Both pairs now answer, and the op
 /// stops at the join, where the germ pair of the stem's weld cap
-/// (plane) against the arch's wall (torus) has no section frame arm:
-/// a typed refusal downstream, and no body to measure.
+/// (plane) against the arch's wall (torus) has no join arm; the
+/// declared-REST door re-examines the mate and refuses it as a zip
+/// frontier: a typed refusal downstream, and no body to measure.
 #[test]
 fn the_lily_stem_glue_is_past_the_circle_torus_pairs() {
     let (s, a) = (stem(), arch());
     let (decls, _) = weld_declarations(&s, &a);
     let err = topo::union_with(&s, &a, &decls, Tol::witness())
-        .expect_err("the stem glue still refuses, at the join");
-    let BooleanError::GermFrameUnsupported {
-        a_face,
-        a_kind: geom::SurfaceKind::Plane,
-        b_face,
-        b_kind: geom::SurfaceKind::Torus,
-    } = err
-    else {
-        panic!("the lily's next door is the plane × torus germ frame: {err:?}");
-    };
+        .expect_err("the stem glue still refuses, past the join");
     assert!(
         matches!(
-            s.get_face(a_face).and_then(|f| s.get_surface(f.surface)),
-            Some(geom::Surface::Plane { .. })
+            err,
+            BooleanError::RestZipUnsupported {
+                what: topo::RestZipFrontier::SegmentsBetweenIsolatedPierces
+            }
         ),
-        "the stem's face is its weld cap: {a_face:?}"
-    );
-    assert!(
-        torus_faces(&a).contains(&b_face),
-        "the arch's face is its tube wall"
+        "the lily's next door is the declared-REST zip: {err:?}"
     );
 }
 
