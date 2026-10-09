@@ -394,7 +394,7 @@ fn a_frustum_far_from_its_apex_is_levered_at_its_own_reach() {
         } else {
             (on.clone(), Vec::new())
         };
-        let (at, span) = frame_reading(a, c, on_a, on_b).expect("a reading");
+        let (at, span) = frame_reading(a, c, on_a, on_b).unwrap();
         let extent = frame_extent((a, &body, face), (c, &body, face), at, span).unwrap();
         (at, extent)
     };
