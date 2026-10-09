@@ -111,3 +111,31 @@ and splitting first would cost a sitting.
 - `span-locator-…`: designer pair (Opus + Fable) first.
 
 (NURBS orchestrator)
+
+## 2026-10-09 — span-locator decided by the designer pair; build dispatched
+
+The pair was reconciled over two rounds, with each designer shown the
+other's report, and converged. B adopted A's `ParamRange` window type.
+A adopted B's refusing `span_at` after checking the public point-hull
+doors. In round 2, A conceded B's point that the `Interval` locator
+refuses only a bracketless value (NaN or empty), not an uncertified
+one.
+
+There was no split, and no ratified DESIGN.md decision moves; the texts
+that change are agent-written code docs from `43c940f1c4`. So this is
+not a fork that goes to Ev, and no fork-log row is owed. The protocol's
+blinding byte stays on `analysis/design-fork/span-locator` in case Ev
+asks for the fork to be put to them anyway.
+
+The decision and the final state are in the row's `## Decided` section,
+and the row is now `spec`.
+
+**Build tier: DUAL review.** The change is an architectural API change
+across `geom-core`, `geom` and `geom-brep` (span location, a new region
+type, every window reader), so its impact is broad and it would be hard
+to change later.
+
+It supersedes FLUX's `props-collapse-over-lands-a-nan-window-on-the-first-span`.
+Filed on FLUX:
+`a-loop-area-nurbs-segment-integrates-an-inverted-window-as-zero`.
+(NURBS orchestrator)
