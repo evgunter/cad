@@ -1449,9 +1449,9 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     }
 }
 
-/// Which normalization a record reports, matched EXHAUSTIVELY: a fifth
+/// Which normalization a record reports, matched EXHAUSTIVELY: a sixth
 /// kind minted kernel-side stops this compiling rather than arriving
-/// under one of these four words.
+/// under one of these five words.
 ///
 /// `SurfacePromotion` carries the discriminant the refusal side
 /// carries too, and it is read here through the same `PromotedKind`
@@ -1461,6 +1461,7 @@ fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
         NormalizationKind::EdgeFreeSphere => "edge_free_sphere",
         NormalizationKind::DegenerateApexCone => "degenerate_apex_cone",
         NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
+        NormalizationKind::JoinedEdges => "joined_edges",
         NormalizationKind::SurfacePromotion { to, residual } => {
             named::<&f64>(residual);
             match to {

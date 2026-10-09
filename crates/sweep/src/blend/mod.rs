@@ -156,8 +156,7 @@ use topo::{EdgeKey, EntityId, FaceKey, VertexKey};
 
 pub use arms::{BlendArm, CornerBall, EdgeBlend, RimBlend};
 pub use battery::{
-    BatteryVerdict, BlendRequest, ChainClosure, Convexity, DecidedCoincidence, Link, Turn,
-    run_battery, run_battery_for,
+    BatteryVerdict, BlendRequest, ChainClosure, Convexity, Link, Turn, run_battery, run_battery_for,
 };
 pub use build::{Blended, Chamfered, Filleted, chamfer_edges, fillet_edges};
 pub use naming::{BlendNaming, RimSide};
@@ -488,6 +487,23 @@ pub(crate) fn classify<T: Decide>(
         site,
         decision,
         source,
+    })
+}
+
+/// [`classify`], with the margin the sign was decided on.
+pub(crate) fn classify_reported<T: Decide>(
+    site: BlendSite,
+    decision: BlendDecision,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<geom_core::Decided, BlendError> {
+    let name = decision.predicate();
+    geom_core::k_stats::decide_reported(name, margin, band).map_err(|source| {
+        BlendError::Escalated {
+            site,
+            decision,
+            source,
+        }
     })
 }
 
@@ -1596,6 +1612,16 @@ pub enum BlendError {
         /// shell, the shell).
         errors: Vec<topo::ValidationError>,
     },
+    /// **The operand holds a joinable vertex**, read where no tier-3
+    /// verdict rides it: tier 3's check 11 finds a vertex the join would
+    /// take ([`topo::ValidationError::JoinableVertexAtRest`]), or one
+    /// whose reading lands in the sliver band
+    /// ([`topo::ValidationError::JoinUndecidedAtRest`]). A finished body
+    /// holds none; this one is construction state.
+    UnjoinedOperand {
+        /// The check-11 findings, each naming its vertex.
+        errors: Vec<topo::ValidationError>,
+    },
     /// **The surgery's OWN invariant did not hold** (D2 addendum row 4,
     /// announced instead of panicked): a carve step reached a state its
     /// own earlier steps rule out.
@@ -1710,6 +1736,7 @@ impl From<topo::Unfinished> for BlendError {
         match unfinished {
             topo::Unfinished::Scaffolding(errors) => Self::ScaffoldingOperand { errors },
             topo::Unfinished::InsideOut(errors) => Self::InsideOutOperand { errors },
+            topo::Unfinished::Unjoined(errors) => Self::UnjoinedOperand { errors },
         }
     }
 }
@@ -1883,6 +1910,9 @@ impl fmt::Display for BlendError {
             Self::InsideOutOperand { .. } => {
                 write!(f, "the body {}", topo::Unfinished::INSIDE_OUT_REFUSAL)
             }
+            Self::UnjoinedOperand { .. } => {
+                write!(f, "the body {}", topo::Unfinished::UNJOINED_REFUSAL)
+            }
             Self::SurgeryInvariant { at, detail } => write!(
                 f,
                 "{detail} — at {at}: the blend surgery contradicted its own earlier \
@@ -1997,8 +2027,8 @@ mod recourse_tests {
     /// `blend_recourse_followability::a_nonpositive_size_gives_advice_the_recourse_table_says_it_has_none_of`
     /// and
     /// `blend_recourse_followability::a_repeated_edge_gives_advice_the_recourse_table_says_it_has_none_of`
-    /// execute both requests. `ScaffoldingOperand` and
-    /// `InsideOutOperand` route here too and end in `topo::Unfinished`'s
+    /// execute both requests. `ScaffoldingOperand`, `InsideOutOperand`
+    /// and `UnjoinedOperand` route here too and end in `topo::Unfinished`'s
     /// shared refusal, whose advice
     /// `pole_slit_window::a_slit_operand_refuses_at_both_blend_doors_at_a_dual`
     /// and
@@ -2058,6 +2088,7 @@ mod recourse_tests {
             BlendError::BodyNotIntact { .. } => Recourse::None,
             BlendError::ScaffoldingOperand { .. } => Recourse::None,
             BlendError::InsideOutOperand { .. } => Recourse::None,
+            BlendError::UnjoinedOperand { .. } => Recourse::None,
             // The surgery's own invariant (row 4, announced).
             BlendError::SurgeryInvariant { .. } => Recourse::None,
             BlendError::Certify { .. } => Recourse::None,
@@ -2191,6 +2222,7 @@ mod recourse_tests {
             },
             BlendError::ScaffoldingOperand { errors: Vec::new() },
             BlendError::InsideOutOperand { errors: Vec::new() },
+            BlendError::UnjoinedOperand { errors: Vec::new() },
             BlendError::SurgeryInvariant {
                 at: EntityId::Face(FaceKey::default()),
                 detail: "an invariant this carve's own earlier steps establish",

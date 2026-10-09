@@ -464,8 +464,9 @@ pub(super) fn gate_operand<T: Decide>(
 /// **The operand gate where no at-rest gate ran**: what the finished-body
 /// type promises, read on an operand that carries no verdict (a dual's,
 /// [`crate::AtRestBody::gate_unverdicted`] — the split's door reads the
-/// same), refused as [`BooleanError::ScaffoldingOperand`] or
-/// [`BooleanError::InsideOutOperand`]. It runs before the pipeline reads
+/// same), refused as [`BooleanError::ScaffoldingOperand`],
+/// [`BooleanError::InsideOutOperand`] or [`BooleanError::UnjoinedOperand`].
+/// It runs before the pipeline reads
 /// a several-solid operand as one solid (`ops::one_solid`), since the
 /// orientation read's subjects are the solid and, within it, the shell.
 pub(super) fn gate_unverdicted_operand<T: Decide + crate::props::AtRestPolicy>(

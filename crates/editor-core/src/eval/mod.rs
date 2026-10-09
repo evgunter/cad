@@ -535,6 +535,13 @@ pub struct NodeValue<T: Decide> {
     /// descendant map. Rides the value, so memo reuse transfers mate
     /// identity with the geometry it is keyed into.
     pub carried: Arc<crate::assembly::CarriedDeclarations>,
+    /// **The coincidences the node's op decided from values**
+    /// ([`crate::coincide`]), in decision order, each cell named in the
+    /// table of the input the decision read, so a row survives a later
+    /// merge or split of its cells. A function of the evaluation, as
+    /// the verdicts are, so no content key reads it; it rides the value
+    /// with the names it is spelled in.
+    pub coincidences: Arc<[crate::coincide::NamedCoincidence]>,
     /// How many parts each of this value's output bodies is
     /// (`crates/editor-core/ASSEMBLY.md`, A2 and A10): a document's
     /// product is its roots, so an instantiation's bodies are as many
@@ -4705,6 +4712,7 @@ where
                 fragment_groups: out.groups,
                 contacts: out.contacts,
                 carried: out.carried,
+                coincidences: out.coincidences,
                 parts: out.parts,
                 verdicts: Arc::new(recorded.verdicts),
                 escalations,

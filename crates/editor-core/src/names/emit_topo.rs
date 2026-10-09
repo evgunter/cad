@@ -1760,10 +1760,11 @@ fn joined_cover<T: Decide>(
     })
 }
 
-/// The name of a joined edge that lies along the operand edges `set`:
-/// `Merged` of their names, each wrapped by its side, and flat — an
-/// operand edge that is itself a set stands for its constituents (N3).
-/// Whether any of them is tied comes with it.
+/// The name of a joined edge that lies along the operand edges `set`
+/// (several, `joined_one` holding the single ones): `Merged` of their
+/// names, each wrapped by its side, and flat — an operand edge that is
+/// itself a set stands for its constituents (N3). Whether any of them
+/// is tied comes with it (`join_names::joined_name`).
 fn set_name<T: Decide>(
     node: RecipeNodeId,
     set: &[OpSide<EdgeKey>],
@@ -1771,14 +1772,12 @@ fn set_name<T: Decide>(
     b: &OperandCtx<'_, T>,
 ) -> Result<(StableName, bool), NamingError> {
     let mut names = Vec::with_capacity(set.len());
-    let mut from_tie = false;
     for &r in set {
         let (op, k) = r.of(a, b);
         let up = upstream_name(op.table, op.node, ent(0, EntityKey::Edge(k)))?;
-        from_tie |= up.tied;
-        names.push(name1(EntityKind::Edge, node, r.wrap(up.name)));
+        names.push((name1(EntityKind::Edge, node, r.wrap(up.name)), up.tied));
     }
-    Ok((merged::edge_set(node, names), from_tie))
+    Ok(super::join_names::joined_name(node, names))
 }
 
 /// The edges of a pair boolean's result that share one parent: its

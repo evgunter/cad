@@ -436,13 +436,16 @@ enum HostFoot {
 ///
 /// # One shape this door does not serve, measured
 ///
-/// **A CURVED single face carrying every arc CAN arise, and refuses.**
-/// It is reachable through `topo`'s public `kef_describing` — kill one
+/// **A CURVED single face carrying every arc is construction state.**
+/// It is authorable through `topo`'s public `kef_describing` — kill one
 /// of a cylinder wall's two seam meridians and restate the other as the
-/// wall's wrap edge, and the remaining face carries both rim arcs and
-/// finishes — and through no sweep or boolean door. It refuses at the
-/// half-band gate on either route, and never carves
-/// (`fillet_h5_r2_probes::a_finished_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate`).
+/// wall's wrap edge, and the remaining face carries both rim arcs — and
+/// through no sweep or boolean door. Each rim's two arcs then meet at
+/// the killed meridian's end with nothing else there, a joinable vertex
+/// tier 3's check 11 refuses at rest, so no blend door takes the body
+/// (`fillet_h5_r2_probes::a_curved_single_face_carrying_both_arcs_is_construction_state`).
+/// The half-band gate that refused it has no at-rest witness left
+/// (`work/fuse/door-arms-only-a-hand-split-operand-reached.md`).
 ///
 /// A RINGED host is served under [`Self::Struts`]: the band's host trim
 /// becomes that face's new outer boundary, and each ring is admissible
@@ -1042,6 +1045,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
         corner_faces,
         band_faces,
         naming: Some(rec),
+        coincidences: verdict.coincidences().copied().collect(),
     })
 }
 

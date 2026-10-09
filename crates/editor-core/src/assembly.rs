@@ -1824,6 +1824,8 @@ fn attribute(
         // that two of its own faces osculate, which no mate names.
         | ValidationError::LaminaWedge { .. }
         | ValidationError::ScaffoldAtRest { .. }
+        | ValidationError::JoinableVertexAtRest { .. }
+        | ValidationError::JoinUndecidedAtRest { .. }
         | ValidationError::LoopRoleInverted { .. }
         | ValidationError::CurvedSenseInverted { .. }
         | ValidationError::NegativeVolume { .. }

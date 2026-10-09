@@ -1634,6 +1634,7 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::BodyNotIntact { .. } => "body_not_intact",
         BlendError::ScaffoldingOperand { .. } => "scaffolding_operand",
         BlendError::InsideOutOperand { .. } => "inside_out_operand",
+        BlendError::UnjoinedOperand { .. } => "unjoined_operand",
         BlendError::SurgeryInvariant { .. } => "surgery_invariant",
         BlendError::RingClearance { .. } => "ring_clearance",
         BlendError::Certify { .. } => "certify",
@@ -1683,6 +1684,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::PointInFaceRefused => "point_in_face_refused",
         BooleanErrorKind::ScaffoldingOperand => "scaffolding_operand",
         BooleanErrorKind::InsideOutOperand => "inside_out_operand",
+        BooleanErrorKind::UnjoinedOperand => "unjoined_operand",
         BooleanErrorKind::NonMaximalFaces => "non_maximal_faces",
         BooleanErrorKind::CoplanarNeighbours => "coplanar_neighbours",
         BooleanErrorKind::NonFiniteSectorChord => "non_finite_sector_chord",
@@ -2212,6 +2214,7 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::WallColumnStructure { .. } => "wall_column_structure",
         StepImportError::RecognitionAmbiguous { .. } => "recognition_ambiguous",
         StepImportError::Pcurves { .. } => "pcurves",
+        StepImportError::Join { .. } => "join",
         StepImportError::Placement { .. } => "placement",
         StepImportError::Instance { .. } => "instance",
         StepImportError::TierInvalid { .. } => "tier_invalid",
@@ -2262,15 +2265,16 @@ pub fn promoted_kind_tag(kind: &PromotedKind) -> &'static str {
 /// one word whichever kind it was, and the residual that certifies it
 /// is a number rather than a spelling.
 ///
-/// The match is exhaustive, so a fifth normalization minted
+/// The match is exhaustive, so a sixth normalization minted
 /// kernel-side stops this crate compiling instead of arriving under
-/// one of these four words.
+/// one of these five words.
 pub fn normalization_kind_tag(kind: &NormalizationKind) -> &'static str {
     match kind {
         NormalizationKind::EdgeFreeSphere => "edge_free_sphere",
         NormalizationKind::DegenerateApexCone => "degenerate_apex_cone",
         NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
         NormalizationKind::SurfacePromotion { .. } => "surface_promotion",
+        NormalizationKind::JoinedEdges => "joined_edges",
     }
 }
 
@@ -3034,6 +3038,39 @@ pub fn check_evidence_tag(evidence: &CheckEvidence) -> &'static str {
         CheckEvidence::ChartCoherence { .. } => "chart_coherence",
         CheckEvidence::ChartCoherenceUnexamined { .. } => "chart_coherence_unexamined",
         CheckEvidence::ChartCoherenceUnavailable => "chart_coherence_unavailable",
+        CheckEvidence::UnprovenCoincidence { .. } => "unproven_coincidence",
+    }
+}
+
+/// The stable tag for what a coincidence row decided between its two
+/// cells ([`pncad::document::coincidence::Relation`]).
+pub fn coincidence_relation_tag(relation: pncad::document::coincidence::Relation) -> &'static str {
+    use pncad::document::coincidence::Relation as R;
+    match relation {
+        R::SameOriented => "same_oriented",
+        R::SameOpposite => "same_opposite",
+        R::OnCarrier => "on_carrier",
+        R::EqualAngles => "equal_angles",
+    }
+}
+
+/// The stable tag for where a coincidence row was decided
+/// ([`pncad::document::coincidence::DecisionSite`]).
+pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'static str {
+    use pncad::document::coincidence::DecisionSite as S;
+    match site {
+        S::PlaneLadder => "plane_ladder",
+        S::CarrierLadder => "carrier_ladder",
+        S::SplitOn => "split_on",
+        S::BatteryTurn => "battery_turn",
+    }
+}
+
+/// The stable tag for the rung of the coincidence door that proved a
+/// row ([`pncad::document::Rung`]).
+pub fn coincidence_rung_tag(rung: pncad::document::Rung) -> &'static str {
+    match rung {
+        pncad::document::Rung::SameConstruction => "same_construction",
     }
 }
 
@@ -3137,6 +3174,8 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::NoDihedralArm { .. } => "no_dihedral_arm",
         ValidationError::TransverseNotIntrinsic { .. } => "transverse_not_intrinsic",
         ValidationError::ScaffoldAtRest { .. } => "scaffold_at_rest",
+        ValidationError::JoinableVertexAtRest { .. } => "joinable_vertex_at_rest",
+        ValidationError::JoinUndecidedAtRest { .. } => "join_undecided_at_rest",
         ValidationError::TangentNotIntrinsic { .. } => "tangent_not_intrinsic",
         ValidationError::LaminaWedge { .. } => "lamina_wedge",
         ValidationError::LoopRoleInverted { .. } => "loop_role_inverted",
