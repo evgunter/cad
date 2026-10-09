@@ -2122,9 +2122,7 @@ fn boundary_crossings<T: Decide>(
             Ok(lp) => lp,
             Err(err) => {
                 let r = match ContainError::from(err) {
-                    ContainError::Escalated { diag: cause, .. } => {
-                        CrossRefusal::Escalated(vec![cause])
-                    }
+                    ContainError::Escalated { diag, .. } => CrossRefusal::Escalated(vec![diag]),
                     other => CrossRefusal::Unsupported(other),
                 };
                 refused(r, errors);
