@@ -373,13 +373,15 @@ fn an_unnamed_offer_is_accepted_under_a_name_in_one_step() {
         name,
     };
     let refused = session.perform(accept(None));
-    match refused.refusal {
-        Some(Refusal::Edit(edit)) => match *edit {
-            EditError::SharedVarNeedsName { var } => assert_eq!(var.id(), shared),
-            other => panic!("not SharedVarNeedsName: {other:?}"),
-        },
-        other => panic!("an unnamed offer accepted with no name refuses, got {other:?}"),
-    }
+    assert!(
+        matches!(
+            &refused.refusal,
+            Some(Refusal::Edit(edit))
+                if matches!(**edit, EditError::SharedVarNeedsName { ref var } if var.id() == shared)
+        ),
+        "an unnamed offer accepted with no name refuses, naming it: {:?}",
+        refused.refusal
+    );
     assert_ne!(reads(&session, a), shared, "nothing moved");
     assert_eq!(session.history().len(), before);
 
@@ -416,13 +418,18 @@ fn a_shared_slot_is_made_its_own_by_its_text() {
         slot: SlotId::Distance,
         value: SlotValue::Continuous(0.020),
     });
-    match refused.refusal {
+    let named: Option<Vec<_>> = match &refused.refusal {
         Some(Refusal::DrivenByExpression { variables, .. }) => {
-            let named: Vec<_> = variables.iter().map(|var| var.name()).collect();
-            assert_eq!(named, vec![Some(&name)], "the refusal names depth");
+            Some(variables.iter().map(|var| var.name().cloned()).collect())
         }
-        other => panic!("a typed value at a shared slot is refused, got {other:?}"),
-    }
+        _ => None,
+    };
+    assert_eq!(
+        named,
+        Some(vec![Some(name.clone())]),
+        "a typed value at a shared slot is refused, naming depth: {:?}",
+        refused.refusal
+    );
     assert_eq!(reads(&session, a), shared, "nothing moved");
 
     let own = session.perform(SessionOp::SetSlotExpression {

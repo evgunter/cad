@@ -303,13 +303,13 @@ impl VarDecl {
 /// name it is minted under, if any. An entry two readers share is named
 /// (VR2): an unnamed variable has exactly one reader.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FreshEntry {
     /// The name, unique within the document; none for an entry one
     /// reader reads.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<crate::VarName>,
     /// The definition.
-    #[serde(flatten)]
     pub decl: VarDecl,
 }
 
