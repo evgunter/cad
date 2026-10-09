@@ -2,12 +2,13 @@
 id: near-tangent-boolean-results-ship-with-an-escalated-tier-3-census
 kind: issue
 title: Near-tangent booleans ship results whose tier-3′ census escalates: 139 runs on main, 72 more built by PR 4026 at 26 poses
-status: open
+status: closed
 opened: 2026-10-04
 priority: P0
 cost: H
 refs: [3987, two-copies-of-a-pierce-carry-edges-that-run-within-the-band]
 branch: join/near-tangent-census-measure
+closed: 2026-10-09
 ---
 
 
@@ -341,3 +342,10 @@ No door ships a body its census cannot certify. Each question has one owner. The
 - **`a-near-tangent-split-leaves-a-face-corner-that-runs-within-the-band`:** a legal needle under the lever rule, unless a pair's far-end gap is itself in band. Count the 478 pairs by sin α × the shorter length.
 - **The lump row:** closes as `Escalated` at the gate.
 - **The vertex-on-face row:** a composed pair (PR 4338). It moves to the door's typing unit.
+
+## Closed (2026-10-09)
+
+Ev ruled on the shape above in PR 4335 (fork row 101). The question is answered, and the work belongs to the owners it names:
+- **The census re-posing:** CONTACT. It takes one number per pair (the minimum distance if the pair shares nothing, else the largest distance beyond what it shares) through well-conditioned formulas. These rows carry it: `the-census-crossing-lane-misplaces-a-shared-points-crossing-on-a-near-collinear-pair`, `the-census-parallel-test-reads-two-edges-through-one-point-end-to-end-as-a-near-parallel-pair`, `the-census-crossing-lane-escalates-a-line-gap-where-the-segments-lie-far-apart`, `the-census-edge-face-lane-escalates-a-plane-residual-at-an-end-far-outside-the-face`, `the-census-edge-face-cut-escalates-a-line-gap-at-a-boundary-vertex-beyond-the-edge` and `the-census-edge-edge-collinear-lane-reads-the-offset-at-the-long-edges-start`.
+- **The door's typing:** JOIN. `a-near-tangent-intersections-sliver-lump-reads-its-role-in-band-and-refuses` now carries the unit, branch `join/door-types-in-band-results`, together with the face-corner re-count.
+- **The composed vertex-on-face pair:** `a-near-tangent-vertex-lands-within-the-band-of-a-face-and-ships-unrecorded`. It is parked on the door census (`boolean-door-runs-the-census-over-its-result`).
