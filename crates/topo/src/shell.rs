@@ -5052,7 +5052,7 @@ mod tests {
         let got = wall.cut(Point3::new(0.5, 0.0, 0.0), up, band).unwrap();
         let lo = got.iter().map(|c| c.0).fold(f64::INFINITY, f64::min);
         let hi = got.iter().map(|c| c.1).fold(f64::NEG_INFINITY, f64::max);
-        let slack = tol.k() * tol.eps();
+        let slack = band.escalate();
         assert!(
             lo.abs() <= slack && (hi - 0.75).abs() <= slack,
             "the parabola at x = 0.5 covers [0, 0.75], got {got:?}"
