@@ -2,9 +2,11 @@
 id: must-carry-reads-an-out-of-lane-in-band-seam-as-under-determined
 kind: issue
 title: must_carry_over_edge answers UnderDetermined for an out-of-lane smooth join whose sagitta is in band, which tier 3 refuses SliverDihedral
-status: open
+status: review
 opened: 2026-10-02
 priority: P3
+pr: 4411
+branch: encl/must-carry-out-of-lane-in-band
 ---
 
 ## Finding (FUSE's sweep for the boolean rebuild's second-order fold)
@@ -46,3 +48,17 @@ Either the rule reads the sagitta's in-band arm on every pair (escalate
 only), or tier 3 gates its second-order reading by the same lane. The
 first keeps tier 3's F6 stance; the second changes what tier 3 refuses
 and is a design question.
+
+## Repaired by the first option (PR 4411)
+
+`must_carry_over_edge` reads the sagitta on every pair in tier 3's walk
+order; the lane gates the demand only (all-`Positive` out of lane is
+`UnderDetermined`). Tier 3 is unchanged. Every caller already routed
+`InBand(SecondOrder)` to its own typed refusal; the split's
+`topo::splitting::finish` is a fifth caller the list above missed
+(`DescribeBendEscalated`). No constructor was found to reach an
+out-of-lane smooth join (extrude, revolve and blend mint only in-lane
+triples; the boolean refuses cone operands before the describe stage;
+the split needs an operand that already carries one), so the pin is at
+the rule:
+`geom_brep::dihedral::tests::an_out_of_lane_in_band_sagitta_escalates_and_a_definite_one_is_under_determined`.
