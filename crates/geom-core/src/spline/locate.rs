@@ -53,6 +53,14 @@
 use super::knots::{KnotVector, Span};
 use crate::real::Real;
 
+/// The answer an evaluator gives for the poison parameter `seed`: `seed`
+/// times NaN, which is poison in every channel `seed` carries. A bare
+/// `T::from_f64(f64::NAN)` is not that at the dual scalar — it is a dual
+/// CONSTANT, whose derivative channel is a zero that reads as data.
+pub fn poison_from<T: Real>(seed: T) -> T {
+    seed * T::from_f64(f64::NAN)
+}
+
 /// Seals [`SpanLocate`]: implemented for exactly the kernel scalars.
 pub(crate) mod sealed {
     /// The sealing supertrait (pub-in-private: unnameable downstream).

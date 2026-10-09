@@ -77,7 +77,7 @@ use geom_core::interval::max_bound;
 use geom_core::{Interval, Point3, SizedPass, SupSpeed, Vec3};
 
 use super::SsiError;
-use super::enclose::{Box3, NurbsBoxes, implicit_enclosure, ordered_window, refused_box};
+use super::enclose::{Box3, NurbsBoxes, UvWindow, implicit_enclosure, refused_box};
 use crate::recourse::{Reading, RefusedArm, SizedDecision, StoredDefinite, defect_ending};
 
 /// The refinement floor, as a multiple of ε: a cell narrower than this
@@ -997,6 +997,13 @@ pub(crate) struct UvRect {
 }
 
 impl UvRect {
+    /// The rectangle as a [`UvWindow`], or `None` when a side has a NaN
+    /// end or is inverted: such a rectangle names no region, and no
+    /// reading is taken over it.
+    pub(crate) fn window(self) -> Option<UvWindow> {
+        UvWindow::new(self.u.0, self.u.1, self.v.0, self.v.1)
+    }
+
     /// The wider side; `NaN` when either side is, so a NaN side fails
     /// the floor test rather than dropping out of it.
     fn width(self) -> f64 {
@@ -1197,8 +1204,9 @@ fn sweep_chart_plane(
 ) -> Result<(SweepTally, Vec<(f64, f64)>), SsiError> {
     let boxes = NurbsBoxes::new(surface);
     sweep(floor, duty, |cell| {
-        let b = ordered_window(cell.u.0, cell.u.1, cell.v.0, cell.v.1)
-            .map_or_else(refused_box, |(u, v)| boxes.rect_box(u, v));
+        let b = cell
+            .window()
+            .map_or_else(refused_box, |w| boxes.rect_box(w));
         let phi = Interval::point(plane_normal.x) * (b.x - Interval::point(plane_origin.x))
             + Interval::point(plane_normal.y) * (b.y - Interval::point(plane_origin.y))
             + Interval::point(plane_normal.z) * (b.z - Interval::point(plane_origin.z));

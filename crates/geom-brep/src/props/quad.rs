@@ -154,7 +154,7 @@ use geom_core::interval::certification::Certification;
 use geom_core::spline::algebra::{self, GridSkip, SLIVER_CLEARANCE_ULPS};
 use geom_core::spline::derivative_knot_slice;
 use geom_core::spline::net::TensorNet;
-use geom_core::spline::{KnotVector, ParamRange, Span};
+use geom_core::spline::{KnotVector, Param, ParamRange, Span, last_at_or_below};
 use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 
 use super::{PropsCheck, PropsError};
@@ -1240,36 +1240,40 @@ enum Dir {
 }
 
 /// The span index of `t` in a raw knot slice: the last nonempty span
-/// whose lower knot does not exceed `t`, clamped into the valid range,
-/// or `None` when `t` is NaN, which names no span.
-fn raw_span(knots: &[f64], degree: usize, count: usize, t: f64) -> Option<usize> {
-    (!t.is_nan()).then(|| raw_search(knots, degree, count, t))
-}
-
-/// [`raw_span`]'s search, for a `t` that is not NaN (a NaN compares
-/// below every knot and would read as the first span): a [`ParamRange`]
-/// end, or a value [`raw_span`] checked.
-fn raw_search(knots: &[f64], degree: usize, count: usize, t: f64) -> usize {
+/// whose lower knot does not exceed `t`, clamped into the valid range
+/// (`degree` when none does). It is [`last_at_or_below`] over the span
+/// starts `knots[degree ..= top]`, which lands on a run's last copy —
+/// nonempty unless the run continues past `top`, where it steps back to
+/// the nonempty span below the run.
+fn raw_span(knots: &[f64], degree: usize, count: usize, t: Param) -> usize {
     let last = count.saturating_sub(1).max(degree);
-    let mut span = degree;
-    let mut i = degree;
-    while i <= last && i + 1 < knots.len() {
-        if knots[i] <= t && knots[i] < knots[i + 1] {
-            span = i;
-        }
-        i += 1;
+    let top = last.min(knots.len().saturating_sub(2));
+    if top < degree {
+        return degree;
     }
-    span.min(last)
+    let Some(j) = last_at_or_below(&knots[degree..=top], t) else {
+        return degree;
+    };
+    // Indexing justified: degree ≤ i ≤ top ≤ len − 2.
+    let mut i = degree + j;
+    while knots[i] == knots[i + 1] {
+        if i == degree {
+            return degree;
+        }
+        i -= 1;
+    }
+    i
 }
 
 /// In-span de Boor on a raw knot slice (the [`Dir::Raw`] evaluator).
 fn raw_eval(knots: &[f64], degree: usize, coeffs: &[Interval], t: f64) -> Interval {
-    if coeffs.len() < degree + 1 || knots.len() < coeffs.len() + degree + 1 || !t.is_finite() {
+    if coeffs.len() < degree + 1 || knots.len() < coeffs.len() + degree + 1 {
         return Interval::refused();
     }
-    let Some(span) = raw_span(knots, degree, coeffs.len(), t) else {
+    let Some(at) = finite_param(t) else {
         return Interval::refused();
     };
+    let span = raw_span(knots, degree, coeffs.len(), at);
     let mut d: Vec<Interval> = (0..=degree).map(|j| coeffs[span - degree + j]).collect();
     for r in 1..=degree {
         for j in (r..=degree).rev() {
@@ -1294,9 +1298,10 @@ fn raw_range_hull(
     if coeffs.len() < degree + 1 {
         return Interval::refused();
     }
+    let (start, end) = range.ends();
     let (s0, s1) = (
-        raw_search(knots, degree, coeffs.len(), range.lo()),
-        raw_search(knots, degree, coeffs.len(), range.hi()),
+        raw_span(knots, degree, coeffs.len(), start),
+        raw_span(knots, degree, coeffs.len(), end),
     );
     let mut acc = Interval::refused();
     let mut seeded = false;
@@ -1326,7 +1331,7 @@ fn raw_deriv(knots: &[f64], degree: usize, coeffs: &[Interval]) -> Vec<Interval>
             };
             // `knots[i+1] == knots[i+degree+1]` marks a DEGENERATE
             // (empty) span — the derivative has no coefficient there
-            // because the function has no value there. `raw_search`
+            // because the function has no value there. `raw_span`
             // never selects an empty span, so this slot is only ever
             // hulled; zero is the safe filler (enlarging a hull can
             // never make a containment claim false).
@@ -1343,21 +1348,22 @@ fn raw_deriv(knots: &[f64], degree: usize, coeffs: &[Interval]) -> Vec<Interval>
 type DerivTake = Box<dyn Fn(&[Interval]) -> Vec<Interval>>;
 
 impl Dir {
-    /// The per-span-constant coefficient index for a point, or `None`
-    /// when `t` is NaN, which names no span.
-    fn const_index(knots: &[f64], t: f64, count: usize) -> Option<usize> {
-        (!t.is_nan()).then(|| Self::const_search(knots, t, count))
-    }
-
-    /// [`Dir::const_index`]'s search, for a `t` that is not NaN (a NaN
-    /// compares below every knot and would read as the first span).
-    fn const_search(knots: &[f64], t: f64, count: usize) -> usize {
-        let mut i = 0usize;
-        while i + 1 < count && i + 1 < knots.len() && knots[i + 1] <= t {
-            i += 1;
+    /// The per-span-constant coefficient index for `t`: how many span
+    /// ends at or below it the coefficients reach ([`last_at_or_below`]
+    /// over `knots[1..m]`), so `0` below the first end.
+    fn const_index(knots: &[f64], t: Param, count: usize) -> usize {
+        let m = count.min(knots.len());
+        if m <= 1 {
+            return 0;
         }
-        i
+        last_at_or_below(&knots[1..m], t).map_or(0, |j| j + 1)
     }
+}
+
+/// `t` as a [`Param`] when it is finite: the point arms refuse an
+/// infinite point as well as a NaN one.
+fn finite_param(t: f64) -> Option<Param> {
+    Param::new(t).filter(|p| p.get().is_finite())
 }
 
 /// In-span de Boor at an ENCLOSED parameter: evaluates the span's
@@ -1553,9 +1559,10 @@ impl PatchGrid {
             (Dir::Raw { knots, degree }, Collapse::AtSpan { mid, t }) => {
                 // The node lies in the closure of `mid`'s span; the
                 // span polynomial is what the rule integrates.
-                let Some(span) = raw_span(knots, *degree, coeffs.len(), mid) else {
+                let Some(mid) = Param::new(mid) else {
                     return Interval::refused();
                 };
+                let span = raw_span(knots, *degree, coeffs.len(), mid);
                 let mut d: Vec<Interval> = (0..=*degree)
                     .map(|j| {
                         coeffs
@@ -1582,22 +1589,18 @@ impl PatchGrid {
             }
             // A non-finite point refuses, as the `Kv` and `Raw` point
             // arms beside it do.
-            (Dir::Const { knots }, Collapse::At(t)) => {
-                if t.is_finite() {
-                    coeffs[Dir::const_search(knots, t, coeffs.len())]
-                } else {
-                    Interval::refused()
-                }
-            }
-            (Dir::Const { knots }, Collapse::AtSpan { mid, .. }) => {
-                match Dir::const_index(knots, mid, coeffs.len()) {
-                    Some(i) => coeffs[i],
-                    None => Interval::refused(),
-                }
-            }
+            (Dir::Const { knots }, Collapse::At(t)) => match finite_param(t) {
+                Some(t) => coeffs[Dir::const_index(knots, t, coeffs.len())],
+                None => Interval::refused(),
+            },
+            (Dir::Const { knots }, Collapse::AtSpan { mid, .. }) => match Param::new(mid) {
+                Some(mid) => coeffs[Dir::const_index(knots, mid, coeffs.len())],
+                None => Interval::refused(),
+            },
             (Dir::Const { knots }, Collapse::Over(range)) => {
-                let a = Dir::const_search(knots, range.lo(), coeffs.len());
-                let b = Dir::const_search(knots, range.hi(), coeffs.len());
+                let (start, end) = range.ends();
+                let a = Dir::const_index(knots, start, coeffs.len());
+                let b = Dir::const_index(knots, end, coeffs.len());
                 let mut acc = coeffs[a];
                 for c in &coeffs[a..=b.max(a)] {
                     acc = Interval::hull(acc, *c);
@@ -2518,6 +2521,44 @@ fn debug_assert_area_gauge(area: Interval, perimeter_caller: f64, perimeter_lo: 
     }
 }
 
+/// A patch lane's UV rectangle: finite and of positive extent on each
+/// side, held as the two ranges the lanes read over. [`PatchRect::new`]
+/// is the lanes' one rectangle refusal.
+#[derive(Clone, Copy)]
+struct PatchRect {
+    u: ParamRange,
+    v: ParamRange,
+}
+
+impl PatchRect {
+    /// `(u0, u1, v0, v1)` as a rectangle, or the refusal for one that is
+    /// empty, inverted, NaN or not finite.
+    fn new((u0, u1, v0, v1): (f64, f64, f64, f64)) -> Result<Self, PropsError> {
+        // A finite difference of a strictly ordered pair: both ends are
+        // finite and the side has positive extent.
+        let side = |a: f64, b: f64| ParamRange::new(a, b).filter(|_| (b - a).is_finite() && a < b);
+        match (side(u0, u1), side(v0, v1)) {
+            (Some(u), Some(v)) => Ok(Self { u, v }),
+            _ => Err(PropsError::QuadratureUnsupported {
+                what: "empty or non-finite UV rectangle",
+            }),
+        }
+    }
+
+    /// The corners as `(u0, u1, v0, v1)`.
+    fn corners(self) -> (f64, f64, f64, f64) {
+        (self.u.start(), self.u.end(), self.v.start(), self.v.end())
+    }
+}
+
+/// The window between two adjacent cuts of a [`PatchRect`] side.
+/// [`knot_aligned_cuts`] of a finite range is a sorted list of numbers,
+/// so the pair is ordered and neither end is NaN.
+fn cut_window(a: f64, b: f64) -> ParamRange {
+    ParamRange::new(a, b)
+        .unwrap_or_else(|| unreachable!("adjacent cuts of a finite range are ordered numbers"))
+}
+
 /// One cell of the shared area grid: its closed extent per axis and the
 /// midpoint the rule evaluates at (carried rather than re-derived, so
 /// every lane's midpoint is the SAME float).
@@ -2587,14 +2628,14 @@ struct AreaCell {
 ///
 /// The area is a certified DENOMINATOR (the +V meter and the extent
 /// gate) — `boundary_defect` pads it directly.
-fn area_midpoint_taylor(
-    rect: (f64, f64, f64, f64),
+fn area_midpoint_taylor<E>(
+    rect: PatchRect,
     n: usize,
     boundary_defect: f64,
     knots: (&[f64], &[f64]),
-    mut cell: impl FnMut(AreaBox) -> Result<AreaCell, PropsError>,
-) -> Result<Interval, PropsError> {
-    let (u0, u1, v0, v1) = rect;
+    mut cell: impl FnMut(AreaBox) -> Result<AreaCell, E>,
+) -> Result<Interval, E> {
+    let (u0, u1, v0, v1) = rect.corners();
     let cuts_u = knot_aligned_cuts(u0, u1, n, knots.0);
     let cuts_v = knot_aligned_cuts(v0, v1, n, knots.1);
     let mut acc = Interval::zero();
@@ -2604,18 +2645,10 @@ fn area_midpoint_taylor(
         for iv in 0..cuts_v.len() - 1 {
             let (c_vlo, c_vhi) = (cuts_v[iv], cuts_v[iv + 1]);
             let hv = c_vhi - c_vlo;
-            // Adjacent cuts of a sorted list of numbers are ordered; a
-            // pair that is not names no cell, and its rectangle none.
-            let (Some(u), Some(v)) = (ParamRange::new(c_ulo, c_uhi), ParamRange::new(c_vlo, c_vhi))
-            else {
-                return Err(PropsError::QuadratureUnsupported {
-                    what: "empty or non-finite UV rectangle",
-                });
-            };
             let c = cell(AreaBox {
-                u,
+                u: cut_window(c_ulo, c_uhi),
                 umid: c_ulo.midpoint(c_uhi),
-                v,
+                v: cut_window(c_vlo, c_vhi),
                 vmid: c_vlo.midpoint(c_vhi),
             })?;
             // The cell width as an ENCLOSURE, not a rounded float:
@@ -3217,7 +3250,7 @@ fn rational_patch_face<T: Decide>(
     kv_v: &KnotVector,
     control: &[RVec3],
     weights: &[f64],
-    rect: (f64, f64, f64, f64),
+    rect: PatchRect,
     perimeter: f64,
     boundary_defect: f64,
     eps: f64,
@@ -3230,12 +3263,7 @@ fn rational_patch_face<T: Decide>(
          {QUAD2_RATIONAL_MAX_ROUNDS}",
         window.first
     );
-    let (u0, u1, v0, v1) = rect;
-    let (Some(rect_u), Some(rect_v)) = (ParamRange::new(u0, u1), ParamRange::new(v0, v1)) else {
-        return Err(PropsError::QuadratureUnsupported {
-            what: "empty or non-finite UV rectangle",
-        });
-    };
+    let (u0, u1, v0, v1) = rect.corners();
     if weights.len() != control.len() {
         return Err(PropsError::QuadratureUnsupported {
             what: "a rational patch whose weight count does not match its control net",
@@ -3286,7 +3314,7 @@ fn rational_patch_face<T: Decide>(
     let knots_u = interior(kv_u, u0, u1);
     let knots_v = interior(kv_v, v0, v1);
 
-    let over_all = (Collapse::Over(rect_u), Collapse::Over(rect_v));
+    let over_all = (Collapse::Over(rect.u), Collapse::Over(rect.v));
     let g_w = w.chan(over_all.0, over_all.1);
     let g_w_lo = lo_or_refuse(g_w);
     if g_w_lo <= 0.0 || !g_w_lo.is_finite() {
@@ -3323,14 +3351,10 @@ fn rational_patch_face<T: Decide>(
         let (b_ulo, b_uhi) = (edges_u[bu], edges_u[bu + 1]);
         for bv in 0..nbv {
             let (b_vlo, b_vhi) = (edges_v[bv], edges_v[bv + 1]);
-            let (Some(block_u), Some(block_v)) =
-                (ParamRange::new(b_ulo, b_uhi), ParamRange::new(b_vlo, b_vhi))
-            else {
-                return Err(PropsError::QuadratureUnsupported {
-                    what: "empty or non-finite UV rectangle",
-                });
-            };
-            let o = (Collapse::Over(block_u), Collapse::Over(block_v));
+            let o = (
+                Collapse::Over(cut_window(b_ulo, b_uhi)),
+                Collapse::Over(cut_window(b_vlo, b_vhi)),
+            );
             let (n, bw) = (a.num(o.0, o.1), w.chan(o.0, o.1));
             blocks.push((
                 quotient_second(
@@ -3426,9 +3450,12 @@ fn rational_patch_face<T: Decide>(
     };
 
     let perimeter_lo = || {
-        boundary_chord_perimeter_lo(rect, QUAD2_PERIM_CHORDS, (&knots_u, &knots_v), |cu, cv| {
-            a.point(&w, cu, cv)
-        })
+        boundary_chord_perimeter_lo(
+            rect.corners(),
+            QUAD2_PERIM_CHORDS,
+            (&knots_u, &knots_v),
+            |cu, cv| a.point(&w, cu, cv),
+        )
     };
 
     let target_len = QUAD_TARGET_LEN_FACTOR * eps;
@@ -3681,15 +3708,8 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
         "a window resuming at round {} is past this lane's last round {QUAD2_MAX_ROUNDS}",
         window.first
     );
-    let (u0, u1, v0, v1) = rect;
-    if !(u1 - u0).is_finite() || u1 <= u0 || !(v1 - v0).is_finite() || v1 <= v0 {
-        return Err(PropsError::QuadratureUnsupported {
-            what: "empty or non-finite UV rectangle",
-        });
-    }
-    let (Some(rect_u), Some(rect_v)) = (ParamRange::new(u0, u1), ParamRange::new(v0, v1)) else {
-        unreachable!("a finite rectangle with u0 < u1 and v0 < v1 is a pair of ranges")
-    };
+    let rect = PatchRect::new(rect)?;
+    let (u0, u1, v0, v1) = rect.corners();
     // M8-3: the rational patch is the SAME integrand over a polynomial
     // cube (`f = N/w³`), so it takes its own lane rather than refusing.
     if weights.iter().any(|w| *w != 1.0) {
@@ -3732,7 +3752,7 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     // Position magnitude bound over the rectangle (the flux pad's
     // lever): a 1-norm over-bound of the 2-norm suffices — only an
     // upper bound is consumed.
-    let s_hull = s.vec(Collapse::Over(rect_u), Collapse::Over(rect_v));
+    let s_hull = s.vec(Collapse::Over(rect.u), Collapse::Over(rect.v));
     let p_bound = s_hull[0].mag() + s_hull[1].mag() + s_hull[2].mag();
 
     let target_len = QUAD_TARGET_LEN_FACTOR * eps;
@@ -3747,7 +3767,7 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     // the cells are cut on the interior knots, so each one lies inside
     // a single smooth piece and the Taylor remainder is the whole
     // error there.
-    let over_all = (Collapse::Over(rect_u), Collapse::Over(rect_v));
+    let over_all = (Collapse::Over(rect.u), Collapse::Over(rect.v));
     let g_s = s_hull;
     let g_su = grid_vec(su.as_ref(), over_all.0, over_all.1);
     let g_sv = grid_vec(sv.as_ref(), over_all.0, over_all.1);
@@ -3820,9 +3840,12 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     )?;
 
     let perimeter_lo = || {
-        boundary_chord_perimeter_lo(rect, QUAD2_PERIM_CHORDS, (&knots_u, &knots_v), |cu, cv| {
-            s.vec(Collapse::At(cu), Collapse::At(cv))
-        })
+        boundary_chord_perimeter_lo(
+            rect.corners(),
+            QUAD2_PERIM_CHORDS,
+            (&knots_u, &knots_v),
+            |cu, cv| s.vec(Collapse::At(cu), Collapse::At(cv)),
+        )
     };
 
     // ---- The exact per-span lane first (fn docs): one tensor
@@ -4810,21 +4833,28 @@ fn chord_polygon_area(
         if ua == ub {
             continue;
         }
-        let (lo, hi) = (ua.min(ub), ua.max(ub));
+        // `spanning`, not `min`/`max`: those drop a NaN end and would
+        // mint the chord's window from the other end alone.
+        let Some(span_u) = ParamRange::spanning(ua, ub) else {
+            return Interval::refused();
+        };
         let slope = (vb - va) / (ub - ua);
         let ell = |u: f64| va + (u - ua) * slope;
         let mut chord = Interval::zero();
-        for w in knot_aligned_cuts(lo, hi, TRIM_AREA_PIECES, &ku).windows(2) {
+        for w in knot_aligned_cuts(span_u.start(), span_u.end(), TRIM_AREA_PIECES, &ku).windows(2) {
             let (p, q) = (w[0], w[1]);
-            // Adjacent cuts of a sorted list of numbers are ordered; a
-            // pair that is not names no region, and the area refuses.
+            // Adjacent cuts of a sorted list are ordered; a pair that is
+            // not (an infinite end cuts to NaN) names no region, and the
+            // area refuses.
             let Some(sub) = ParamRange::new(p, q) else {
                 return Interval::refused();
             };
             let hu = q - p;
             let um = p.midpoint(q);
             let top = ell(um);
-            let (ilo, ihi) = (v0.min(top), v0.max(top));
+            let Some(column) = ParamRange::spanning(v0, top) else {
+                return Interval::refused();
+            };
             // The COLUMN under this sub-chord's midpoint, cell by cell
             // — and each cell's pad is the rectangle lane's own,
             // `½h_u·G_u + ½h_v·G_v`, with both hulls read over the
@@ -4833,7 +4863,9 @@ fn chord_polygon_area(
             // this column into the rectangle `[p,q] × [v₀, ℓ(u_m)]`,
             // and the cell rule pads that rectangle directly.
             let mut col = Interval::zero();
-            for wc in knot_aligned_cuts(ilo, ihi, TRIM_AREA_PIECES, &kvb).windows(2) {
+            for wc in
+                knot_aligned_cuts(column.start(), column.end(), TRIM_AREA_PIECES, &kvb).windows(2)
+            {
                 let (c0, c1) = (wc[0], wc[1]);
                 let Some(cell_v) = ParamRange::new(c0, c1) else {
                     return Interval::refused();
@@ -4866,7 +4898,7 @@ fn chord_polygon_area(
             // `|∫_p^q ∫_{ℓ(u_m)}^{ℓ(u)} g| ≤ |ℓ′|·h_u²·width(g)/8`,
             // the constant term of `g` integrating to zero against
             // `∫(u − u_m) du`.
-            let Some(band) = ParamRange::new(ell(p).min(ell(q)), ell(p).max(ell(q))) else {
+            let Some(band) = ParamRange::spanning(ell(p), ell(q)) else {
                 return Interval::refused();
             };
             let (band_g, _, _) = area_cell(

@@ -1238,22 +1238,16 @@ impl<T: geom_core::CertifiedBounds> NurbsSurface<T> {
     }
 }
 
-/// The scalar's poison, seeded by the parameters `seed = u + v`: NaN
-/// times the seed is poison in every channel the parameters carry (a
-/// bare `from_f64(NaN)` would hand a dual scalar a certified zero
-/// derivative).
-fn poison<T: Real>(seed: T) -> T {
-    seed * T::from_f64(f64::NAN)
-}
-
-/// The point a poison parameter pair evaluates to.
+/// The point a poison parameter pair evaluates to:
+/// [`spline::poison_from`] of `seed = u + v`, which carries both
+/// parameters' channels, in every coordinate.
 fn poison_point<T: Real>(seed: T) -> Point3<T> {
-    Point3::new(poison(seed), poison(seed), poison(seed))
+    Point3::<T>::origin().map(|_| spline::poison_from(seed))
 }
 
 /// A vector of poison.
 fn poison_vec<T: Real>(seed: T) -> Vec3<T> {
-    Vec3::new(poison(seed), poison(seed), poison(seed))
+    Vec3::<T>::zero().map(|_| spline::poison_from(seed))
 }
 
 /// The jet a poison parameter pair evaluates to.

@@ -228,11 +228,9 @@ fn net_interior_iso_u<T: SpanLocate>(
     };
     let ku = net.knots_u;
     let Some(spans) = u.locate_spans(ku) else {
-        // A poison `u*` locates no span, and the row is poison: `u*`
-        // times NaN in every coordinate, so every channel it carries
-        // is poisoned.
-        let poison = u * T::from_f64(f64::NAN);
-        let control = vec![Point3::new(poison, poison, poison); nv];
+        // A poison `u*` locates no span, and the row is poison in every
+        // channel `u*` carries.
+        let control = vec![Point3::<T>::origin().map(|_| geom_core::spline::poison_from(u)); nv];
         return NurbsCurve3::new(net.knots_v.clone(), control, weights)
             .map_err(|source| IsoRowError::Structure { source });
     };

@@ -119,7 +119,7 @@ use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve3, Surface};
 use geom_core::predicate::Band;
-use geom_core::spline::{KnotVector, SpanLocate};
+use geom_core::spline::{KnotVector, ParamRange, SpanLocate, poison_from};
 use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3};
 
 use crate::offset::Nappe;
@@ -433,21 +433,25 @@ fn rotate_box<T: Real>(m: i32, x: (T, T), y: (T, T)) -> ((T, T), (T, T)) {
     }
 }
 
-/// The control points and weights of a net's restriction to `[a, b]`,
-/// a sub-interval of one of its knot spans: the blossom
+/// The control points and weights of a net's restriction to `piece`
+/// `= [a, b]`, a sub-interval of one of its knot spans: the blossom
 /// `B(a^{p−m}, b^m)`, `m = 0…p`, in homogeneous coordinates
 /// (de Boor's recursion with the arguments taken in turn). Each control
 /// is a convex combination of the span's, so the weights stay positive.
 /// The recursion's ratios are formed in the scalar, so at an enclosure
-/// scalar the controls enclose the true restriction's. A NaN midpoint
-/// names no span, and every control is poison.
-pub(crate) fn piece_controls<T: Real>(net: &NurbsCurve3<T>, a: f64, b: f64) -> Vec<(Vec3<T>, T)> {
+/// scalar the controls enclose the true restriction's.
+///
+/// The span is the one `a` locates in. Inside one knot span's closure
+/// with `a < b` that is the span holding the piece; at `a == b` on a
+/// knot it is the span starting there, whose closure holds the point.
+pub(crate) fn piece_controls<T: Real>(
+    net: &NurbsCurve3<T>,
+    piece: ParamRange,
+) -> Vec<(Vec3<T>, T)> {
+    let (a, b) = (piece.start(), piece.end());
     let kv = net.knots();
     let p = kv.degree();
-    let Some(span) = kv.span_at(0.5 * (a + b)) else {
-        let nan = T::from_f64(f64::NAN);
-        return vec![(Vec3::new(nan, nan, nan), nan); p + 1];
-    };
+    let (span, _) = kv.span_range(piece);
     let j = span.index();
     let knots = kv.knots();
     let base: Vec<(Vec3<T>, T)> = span
@@ -487,8 +491,7 @@ impl<T: SpanLocate> ProjectedImage<T> {
         // A poison parameter locates no piece: the point is poison in
         // every channel `s` carries.
         let Some(set) = s.locate_spans(&self.breaks) else {
-            let poison = s * T::from_f64(f64::NAN);
-            return Point2::new(poison, poison);
+            return Point2::<T>::origin().map(|_| poison_from(s));
         };
         let mut acc = self.raw(p, set.first.index() - 1);
         for span in set.first.index() + 1..=set.last.index() {
@@ -513,20 +516,32 @@ impl<T: SpanLocate> ProjectedImage<T> {
     /// the piece.
     pub(crate) fn frame_box(&self, k: usize, t0: T, t1: T) -> FrameBox<T> {
         let knots = self.breaks.knots();
-        self.frame_box_on(k, knots[k + 1], knots[k + 2], t0, t1)
+        // The breaks are a knot vector's, so a piece's ends are ordered
+        // numbers; a pair that is not names no piece, and its box is
+        // poison.
+        let Some(piece) = ParamRange::new(knots[k + 1], knots[k + 2]) else {
+            let poison = poison_from(t0 + t1);
+            return FrameBox {
+                x: (poison, poison),
+                y: (poison, poison),
+                z: (poison, poison),
+            };
+        };
+        self.frame_box_on(k, piece, t0, t1)
     }
 
     /// The chart-frame box of `[s0, s1]`, a sub-interval of piece `k`
     /// on the piece parameter, read on that piece's branch. A circle's
     /// sub-interval at the partition's first or last break is stretched
     /// to `t0` or `t1`, as [`Self::frame_box`] stretches an end piece.
-    fn frame_box_on(&self, k: usize, s0: f64, s1: f64, t0: T, t1: T) -> FrameBox<T> {
+    fn frame_box_on(&self, k: usize, part: ParamRange, t0: T, t1: T) -> FrameBox<T> {
+        let (s0, s1) = (part.start(), part.end());
         let theta = self.azimuth.get(k).copied().unwrap_or(0);
         let sigma = self.chart.sigma();
         let knots = self.breaks.knots();
         match &self.carrier {
             FramedCarrier::Net(net) => {
-                let controls = piece_controls(net, s0, s1);
+                let controls = piece_controls(net, part);
                 let first = controls[0].0;
                 let mut x = (first.x, first.x);
                 let mut y = (first.y, first.y);
@@ -665,10 +680,10 @@ impl<T: SpanLocate> ProjectedImage<T> {
         self.place_box(w)
     }
 
-    /// The window a poison read answers: `seed` times NaN in every
-    /// bound, so poison in every channel `seed` carries.
+    /// The window a poison read answers: [`poison_from`] of `seed` in
+    /// every bound.
     fn poison_window(seed: T) -> ChartWindow<T> {
-        let poison = seed * T::from_f64(f64::NAN);
+        let poison = poison_from(seed);
         ChartWindow {
             u_min: poison,
             u_max: poison,
@@ -737,14 +752,17 @@ impl<T: SpanLocate> ProjectedImage<T> {
         let last = lo.last.index().max(hi.last.index()) - 1;
         let cuts = fine.knots();
         let part = |j: usize| {
-            let (a, b) = (cuts[j + 1], cuts[j + 2]);
-            // The cuts are finite, so a NaN midpoint is a malformed
-            // partition; its part reads as poison.
-            let Some(span) = self.breaks.span_at(0.5 * (a + b)) else {
+            // The cuts are a knot vector's, so a part's ends are ordered
+            // numbers; a pair that is not names no part, and reads as
+            // poison.
+            let Some(part) = ParamRange::new(cuts[j + 1], cuts[j + 2]) else {
                 return Self::poison_window(t0 + t1);
             };
-            let k = span.index() - 1;
-            self.window(k, &self.frame_box_on(k, a, b, t0, t1))
+            // The piece holding the part is the one its start locates
+            // in: the start is inside it and the part does not cross a
+            // break.
+            let k = self.breaks.span_range(part).0.index() - 1;
+            self.window(k, &self.frame_box_on(k, part, t0, t1))
         };
         self.placed_hull(part(first), (first + 1..=last).map(part))
     }

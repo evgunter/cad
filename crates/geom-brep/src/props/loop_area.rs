@@ -155,8 +155,7 @@ fn nurbs_vector_area<T: SpanLocate>(
     let (Some(lo_spans), Some(hi_spans)) = (t0.locate_spans(kv), t1.locate_spans(kv)) else {
         // A poison end locates no span, and the area is poison in every
         // channel the ends carry.
-        let poison = (t0 + t1) * T::from_f64(f64::NAN);
-        return Ok(Vec3::new(poison, poison, poison));
+        return Ok(Vec3::<T>::zero().map(|_| geom_core::spline::poison_from(t0 + t1)));
     };
     let first = lo_spans.first.index().min(hi_spans.first.index());
     let last = lo_spans.last.index().max(hi_spans.last.index());

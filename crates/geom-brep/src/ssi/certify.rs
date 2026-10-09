@@ -129,7 +129,7 @@ use crate::certify::{CERT_SAMPLES, sample_param};
 use crate::dihedral::{decide_positive, decide_reported};
 
 use super::enclose::{
-    Box3, NurbsBoxes, chart_transverse_margin, graph_margin, zero_free_lower_bound,
+    Box3, NurbsBoxes, UvWindow, chart_transverse_margin, graph_margin, zero_free_lower_bound,
 };
 use super::exhaust::UvRect;
 use super::one_arc::{Shortfall, dominant_axis, one_arc, one_arc_r3};
@@ -1001,8 +1001,11 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
                 super::TubeDegeneracy::PcurveTangentUnusable,
             ));
         }
-        let Some(margin) = chart_transverse_margin(&boxes, n, (u0, u1, v0, v1), (tx, ty, tn))?
-        else {
+        // A window that names no region has no stretch to read.
+        let Some(rect) = UvWindow::new(u0, u1, v0, v1) else {
+            return Ok(None);
+        };
+        let Some(margin) = chart_transverse_margin(&boxes, n, rect, (tx, ty, tn))? else {
             return Ok(None);
         };
         if margin < worst {

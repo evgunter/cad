@@ -599,7 +599,7 @@ fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector) -> T {
     // A poison parameter locates no span; `g` is poison in every
     // channel `x` carries.
     let Some(set) = x.locate_spans(breaks) else {
-        return x * T::from_f64(f64::NAN);
+        return geom_core::spline::poison_from(x);
     };
     let degree = breaks.degree();
     let mut acc: Option<T> = None;
@@ -2610,8 +2610,19 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
                 .windows(2)
                 .position(|w| w[0] <= range.0 && range.1 <= w[1])
                 .map_or(f64::NAN, |i| whole_sup[i]);
+            // The breaks are a knot vector's, so a part's ends are
+            // ordered numbers; a pair that is not names no part, and its
+            // hull is the uncertified one.
+            let Some(piece) = geom_core::spline::ParamRange::new(range.0, range.1) else {
+                return SpanHull {
+                    range,
+                    f_sup: f64::NAN,
+                    rho_lo: f64::NAN,
+                    z: (f64::NAN, f64::NAN),
+                };
+            };
             let (boxed, support, z) =
-                projected::part_floors(&projected::piece_controls(&twin_net, range.0, range.1));
+                projected::part_floors(&projected::piece_controls(&twin_net, piece));
             // The support's divisor may not certify (a chord through the
             // axis): the box's floor stands alone then.
             let rho = if support.is_certified() {

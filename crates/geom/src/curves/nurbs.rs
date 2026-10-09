@@ -1470,23 +1470,15 @@ macro_rules! nurbs_curve {
                 acc
             }
 
-            /// The point the poison parameter `t` evaluates to: `t`
-            /// times NaN in every coordinate, which is poison in every
-            /// channel `t` carries (a bare `from_f64(NaN)` would hand a
-            /// dual scalar a certified zero derivative).
+            /// The point the poison parameter `t` evaluates to:
+            /// [`spline::poison_from`] in every coordinate.
             fn poison_point(t: T) -> $Point<T> {
-                $Point::new($({
-                    let _ = stringify!($c);
-                    t * T::from_f64(f64::NAN)
-                }),+)
+                $Point::<T>::origin().map(|_| spline::poison_from(t))
             }
 
             /// The vector the poison parameter `t` evaluates to.
             fn poison_vector(t: T) -> $Vector<T> {
-                $Vector::new($({
-                    let _ = stringify!($c);
-                    t * T::from_f64(f64::NAN)
-                }),+)
+                $Vector::<T>::zero().map(|_| spline::poison_from(t))
             }
 
             /// The per-channel enclosure hull of two point answers.
