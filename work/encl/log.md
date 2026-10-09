@@ -1244,6 +1244,7 @@ class of 65 sites is PRED's row.
 - 2026-09-29 — Dispatched `certify-zero-verdicts-carry-the-seams-reporting-margin` (P2/M; Ev's structural-fence condition; full review) on `encl/zero-verdicts-reporting-margin`. Held behind it, because they touch the same code:
   - `adoption-certification-reads-as-at-rest-with-the-eps-in-stopgap` needs the structured verdict;
   - `certify-collapsed-arm-gates-…` touches the same `decide_positive` gates.
+- 2026-10-08 — Seam note from CONTACT-10 (branch `contact/10-contain-endings`): `geom_brep::recourse`, which `work.py territory` places under no program, gains two things. `RefusedArm::Straddle` is two sound bounds straddling the band; it names a sized decision's lever alone, `Unsized::LastResort` reads it as undecided, and `not_yet` adds no note. `LeverOnly` is the shared shape of a lever-only decision, with the unreadable-margin note on a poisoned margin only. Existing decisions are unchanged. The row is `a_straddle_and_a_lever_only_decision_name_the_lever_alone`. (CONTACT-10 implementer)
 - 2026-09-29 — PR 3418 merged (`3094222a13`, head `78f8af39f2`, hosted green). Row `certify-zero-verdicts-…` closed.
   - **What it does:** implements Ev's #3402 ruling. The opaque `MarginDiag` serves error reporting only (door, mint, sentence and `terminal_sliver` lists, all gated). Certify's Zero arms quote `m/K`. The zero span goes through the table with a reading-aware note. `CertifyError::decision()` feeds the import door.
   - **Reviews:** a full review (approve-with-fixes: M1 vacuous doctest; M2 terminal-sliver decided at classify time) and a delta re-review (behaviour preserved; the flag is gate-held).
@@ -1317,3 +1318,49 @@ coincidence is now a margined verdict (no declarations), checked by the
     - P2: `offset-fit-on-locus-fold-drops-a-nan-sample` (fail-loud);
     - P3: the rest.
   - Next: bring PR 3431 up to main and give it a full review; dispatch the import follow-through.
+- 2026-10-08 — PR 4331 (the import follow-through) is open; a full review is running. Dispatched the P1 `the-offset-certificate-reads-vector-norms-off-per-coordinate-cell-hulls` on `encl/offset-cert-coefficient-norms`. The PROPS f64-refinement blocker moved to FLUX on PROPS' close and is still open, so the four rows parked on it stay parked. The `loop-boundary-discards.sh --selftest` clean fixture fails on main (reported by the 4331 lane); to be passed to the gate's owner.
+- 2026-10-08 — The full review of PR 4331 came back APPROVE-WITH-FIXES. Adjudication:
+  - F1 (a one-arc arm bypasses `recourse_in_file`): fix.
+  - F2: withholding moves to the near rule, per D4 and the fork log's "a size at or below ε_in".
+  - F3: the re-export advice takes three arms (valued, re-export **and** tighten, and Zero quoting no value). The base-wide sub-resolution tighten values go to a new ENCL class row.
+  - F4: carry the margin on `ResidualExceeded` if contained, else file a row.
+  - F5: add to the EXCH row.
+  - F6: stale prose.
+  - All the style items are accepted.
+  - A fix pass is dispatched.
+- 2026-10-08 — The `loop-boundary-discards --selftest` failure is already filed on GUARD (`loop-boundary-selftest-cannot-plant-an-arm-fragment`, opened 2026-10-06). It needs no handoff.
+- 2026-10-08 — PR 3431 is up to main at `0819ff7d6f`; a full review is dispatched.
+- 2026-10-08 — The full review of PR 3431 came back APPROVE-WITH-FIXES; hosted CI is green on `0819ff7d6f`.
+  - The premise holds: main's `at_wedge` re-quote loses the gate's verdict, so `collapsed` is earned. Merge resolution, fence and D10 are clean.
+  - The fix pass, sent to the original lane:
+    - the verdict becomes private, minted only from the gate, re-quoted through one method; `of_rung` goes; a verdict enum if contained;
+    - `DIHEDRAL_ARM` gets an `at_zero` note for the cone apex;
+    - the retired ssi row's residue (march.rs still says "too close to call" on a definite collapse) is re-filed on ssimarch;
+    - one sign→variant mapping; the two arm texts tell one story;
+    - validate's lost text check is restored.
+- 2026-10-08 — The re-review of PR 4331 at `34e975f490` came back REQUEST-CHANGES, and the fault was my own order.
+  - The F3(c) Zero-arm sentence forked one decision's recourse on the run's zero-or-in-band verdict, against D4 ¶1 (i).
+  - poleband_eps12 read "file states the coincidence … kernel defect" at 1e-9, and "re-export and tighten" at 1e-12, for the same sub-ε_in feature.
+  - Ruled: one import-door sentence for every band-decided arm at or below ε_in. It quotes declare and tighten values where they exist; otherwise the lever plus `otherwise`. It makes no coincidence claim and has no `BandArm`.
+  - Also ordered: a default-ε pin on the carried residual margin; the D4 item 3 reword; the hedge for an interval straddling ε_in; the gate's truncated fired-name; style.
+  - The second fix pass is with the same lane.
+- 2026-10-08 — PR 3431 (collapsed-arm gates) is merged at `cd9214980a`. The delta re-review APPROVED it; hosted CI was green. Row closed. Seam notes posted (recipe, ssiarith, ssiedge, ssimarch, cleave, fuse, hone, orbit, reachtail, apex, germ, tcost, tint, lib, restfront). The re-review's notes and style findings are filed as `lever-escalation-rung-is-public-and-its-arm-is-told-three-ways` (P3, E). PR 4331 now conflicts in certify.rs, and its lane is merging main; I told it 3431's new sized arms must route through `recourse_in_file`.
+- 2026-10-08 — PR 4331's delta re-review came back APPROVE-WITH-FIXES. Its MINOR-1 was my own error: dropping re-export from the Fit arm contradicted ratified D4 ¶1. A third, small fix pass is in at `8f172fe566`; I read its core diff myself.
+- 2026-10-08 — PR 4348 (P1 vector norms) is open with CI green; a full review is running.
+- 2026-10-08 — PR 4331 (import follow-through) is merged at `fd14a18873`. The lane merged main after 3431 and routed 3431's two new sized arms through the door, pinned by `the_collapsed_arm_gates_read_the_import_door`. Hosted CI green. Row closed; seam notes posted (exch, flux, topo, guard, tcost, tint, ssiarith, ssiedge).
+- 2026-10-08 — PR 4348 (P1 vector norms, D4 ¶2) is merged at `4ba86f014d`. It had a full review (APPROVE-WITH-FIXES) and a fix pass; I merged main myself after GitHub reported a stale conflict. Hosted CI green. The row was closed in the PR. Seam notes are posted (flux, offset, tcost, tint, chord, quad; nurbs and shell earlier). The review surfaced a real torus fuzz counterexample, filed by the lane as P1 on CLEAVE (`ellipse-torus-graze-certifies-six-roots-where-the-true-distance-crosses-four`). Next: the P2 NaN-fold row is dispatched.
+- 2026-10-09 — PR 4367 (P2 offset-fit NaN folds) merged at `53c0a00cc4`; row closed. No construction-time row for `NurbsSurface::new`: evaluators are total by design (`NetState::Poisoned`) and the certification door is the catch point.
+- 2026-10-09 — Dispatched P2 `the-role-reads-certified-volume-enclosure-straddles-zero-on-a-sliver-shell` (`encl/shell-volume-local-origin`); props.rs is TALLY ground, so I announced it on their log. No TALLY unit is live.
+- 2026-10-09 — Dispatched P3 E `shell-wall-meets-curvature-reads-as-an-offset-distance` (`encl/shell-wall-curvature-recourse`), announced on SHELL's log.
+- 2026-10-09 — Main was red on two counts, and I opened evgunter/cad#4380 to restore it:
+  - **The build:** `topo` stopped compiling when CONTACT PRs 4363 and 4372 met (`ContainError::Escalated` became a struct variant, and `census.rs` passed a `ReadEscalation` where an `Indeterminate` is held). The fix is two lines; both sites read `diag`.
+  - **The geom-core `certified_endpoint_census`:** it has been red since my PR 4367 added endpoint reads to `offset_fit.rs` without updating the roster. Another session's PR 4378 fixes the roster, and 4380 merges it in.
+  - Lesson: a unit that adds `.lo()`/`.hi()` reads in a certification file must run `cargo nextest run -p geom-core --test all -E 'test(certified_endpoint_census)'`; the PR's own CI filter did not.
+- 2026-10-09 — PR 4366 (lever one-shape) is merged at `5e0ed71933`: full review, fix pass, then the delta re-review APPROVED it; CI green. Row closed. Follow-ups filed as `the-dihedral-arm-clause-is-seven-literals-held-by-a-source-census` (P3, E).
+- 2026-10-09 — PR 4386's soundness review came back APPROVE-WITH-FIXES. The `two_sum` helper is dead and re-reds the endpoint census. More important: mixing the polygon route with carrier-route neighbours mints a new seam with a c-dependent flux error, so I ordered an all-or-nothing route per shell. The soundness row must also assert against the known volume.
+- 2026-10-09 — PR 4377 (shell-wall wording) is merged at `3eb9fe628a`; I merged main myself to clear a row-header conflict. Row closed.
+- 2026-10-09 — PR 4377 merged; sync 4392. Dispatched two P3 E rows: `offset-fit-nan-residual-at-the-mint-asks-the-caller-to-re-fit` (`encl/offset-fit-mint-nan-limb`) and `the-dihedral-arm-clause-is-seven-literals-held-by-a-source-census` (`encl/dihedral-arm-one-clause`).
+- 2026-10-09 — PR 4386 (sliver-shell volume) merged at `e923120c15`; row closed. The review caught a new seam (polygon faces beside carrier-route faces) and a vacuous mixed-walk pin; both fixed before merge (all-or-nothing per walk, independent reference).
+- 2026-10-09 — PR 4401 (dihedral arm one clause) merged at `c3be784594`; row closed.
+- 2026-10-09 — PR 4401 merged; sync 4408. Dispatched P3 `must-carry-reads-an-out-of-lane-in-band-seam-as-under-determined` on `encl/must-carry-out-of-lane-in-band`, taking the non-design repair: the rule escalates `InBand` out of lane.
+- 2026-10-09 — PR 4395 (MintLimb) merged at `67c756d147`; row closed.

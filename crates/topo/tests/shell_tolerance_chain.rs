@@ -86,10 +86,11 @@ const CHAIN: [Stretch; 6] = [
         file: "crates/topo/src/replace_face.rs",
         source: include_str!("../src/replace_face.rs"),
         sentinels: None,
-        eps_reads: 2,
-        eps_reads_are: "two DECIDE margins (`offset_vertex_agreement`, \
-                        `offset_reanchor_on_carrier`) — a coincidence threshold in metres, \
-                        which is ε by its own right and not the fit target",
+        eps_reads: 3,
+        eps_reads_are: "three DECIDE margins, each `offset_vertex_agreement` (the corners' \
+                        pairwise agreement, an edge read at its corners, an untouched edge \
+                        read at a moved corner) — a coincidence threshold in metres, which is \
+                        ε by its own right and not the fit target",
     },
     Stretch {
         file: "crates/topo/src/offset_axial.rs",

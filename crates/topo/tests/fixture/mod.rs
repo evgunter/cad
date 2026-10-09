@@ -17,27 +17,22 @@
 //! chart image be split at the SAME parameters and keep the OQ4
 //! same-`t` identity trivially.
 //!
-//! **The chart image is fitted here, and the reason is a real
-//! absence.** `SsiBranch` carries `pcurve_a`/`pcurve_b` only when the
-//! trace produced them — the ℝ⁴ parametric lane does; the ℝ³ implicit
-//! lane this analytic pair runs on calls `fit_branch(&points, None)`
-//! and both fields are `None` (`geom_brep::ssi::finish_r3`). There is
-//! therefore no kernel-minted chart image to restrict, so the fixture
-//! builds one the way `fit_branch` would: sample the branch's own
-//! carrier, take the exact cylinder-chart preimages, and interpolate
-//! them **on the carrier's own parameters**, so `P(t)` and `C(t)` are
-//! the same `t` by construction rather than by coincidence.
+//! **The rows are the mint's.** The cylinder face's rows are minted by
+//! the public pass (`mint_pcurves`): the carrier has no closed-form
+//! image on the cylinder chart, so its row is the projected image, the
+//! chart's inverse of the carrier (C4). The uniqueness tube that says
+//! the carrier is one arc of the pair's crossing is the EDGE's: `mev`
+//! certifies the rung-3 edge through the scalar's lane, which runs it
+//! (C2's limb 3), and tier 3 re-derives it at rest.
 //!
-//! **The scaffold caveat, stated once.** This is a scaffold BY DESIGN:
-//! no kernel constructor mints a `Pcurve::Fitted` cache into a body
-//! today, because the cyl×sphere fitted-chord join lane is banked past
-//! M6. When that lane lands, this row should re-anchor to a
-//! constructor-built body and the hand assembly below should go.
+//! **The scaffold caveat, stated once.** The body is assembled by
+//! hand: the cyl×sphere fitted-chord join lane is banked past M6. When
+//! that lane lands, this row should re-anchor to a constructor-built
+//! body and the hand assembly below should go.
 //!
 //! Nothing here invents a certificate: the edge goes in through
-//! `EdgeCurve::certify`'s rung-3 gate and the cache through
-//! `PcurveCache::certify_fitted`, both of which refuse typed.
-
+//! `EdgeCurve::certify`'s rung-3 gate and the rows through the mint,
+//! both of which refuse typed.
 #![allow(dead_code)]
 // one instance per binary; no single consumer uses all of it
 // Why a helper tree allows these: `crates/editor-core/tests/fixture/mod.rs`.
@@ -47,11 +42,11 @@
 use std::sync::Arc;
 
 use geom::Surface;
-use geom::{Curve3, NurbsCurve2, NurbsCurve3};
+use geom::{Curve3, NurbsCurve3};
 use geom_brep::ssi::{self, SsiDomain};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, PcurveCache};
 use geom_core::Tol;
-use geom_core::{Band, Point2, Point3, Real, Vec3};
+use geom_core::{Band, Point3, Real, Vec3};
 use topo::{Body, HalfEdgeKey};
 
 pub mod arc_chain;
@@ -63,21 +58,12 @@ const CYL_ORIGIN: Point3<f64> = Point3::new(0.03, 0.0, 0.0);
 const CYL_RADIUS: f64 = 0.08;
 const SPH_RADIUS: f64 = 1.0;
 
-/// How many samples the chart image is interpolated from, over the
-/// WHOLE traced loop. Structure (C6), fixed for determinism (D9); the
-/// quarter each row uses keeps a quarter of them.
-const SAMPLES: usize = 481;
-
-/// The fitted degree — the SSI lane's own.
-const DEGREE: usize = 3;
-
 /// A built fixture: the body and the two half-edges of its rung-3 edge.
 pub struct Built<T: Real> {
     pub body: Body<T>,
     pub he_plus: HalfEdgeKey,
     pub he_minus: HalfEdgeKey,
     pub carrier: Arc<NurbsCurve3<T>>,
-    pub image: Arc<NurbsCurve2<T>>,
     pub cylinder: Surface<T>,
     pub sphere: Surface<T>,
 }
@@ -107,20 +93,12 @@ fn sphere<T: Real>() -> Surface<T> {
 /// fixture is "built once, at any scalar": every caller here restricts
 /// the SAME traced locus, so a second trace re-derives a bit-identical
 /// branch (D9) and buys nothing. INVARIANT: no row asserts that two
-/// INDEPENDENT traces agree — the cross-scalar dominance claim (the
-/// `DOMINANCE` half of
-/// `certified::the_fitted_certificate_is_derived_at_the_interval_scalar_and_dominates_f64`)
-/// compares an interval LIFT against the f64 one, which is a claim
-/// about the lift and is unaffected by (indeed sharpened by) sharing
-/// one f64 structure. Sharing must therefore never become an assertion
-/// this file relies on: if a row ever wants two independent traces, it
-/// must call `trace_branch` directly and say why.
+/// INDEPENDENT traces agree; a row that ever wants two must call
+/// `trace_branch` directly and say why.
 ///
 /// nextest is process-per-test, so this only helps WITHIN one test —
 /// which is exactly where the duplication is (`build` + `foreign_cache`
-/// in one row, and the interval + f64 `build`s of the dominance half of
-/// the row above; the test-cost audit merged that row INTO the interval
-/// row precisely so the memo has something to share).
+/// in one row).
 fn branch() -> &'static ssi::SsiBranch {
     static BRANCH: std::sync::OnceLock<ssi::SsiBranch> = std::sync::OnceLock::new();
     BRANCH.get_or_init(trace_branch)
@@ -146,103 +124,36 @@ fn trace_branch() -> ssi::SsiBranch {
     }
 }
 
-/// The cylinder chart coordinates of a locus point: `u` the azimuth
-/// about the axis, `v` the axial height. Both exact arithmetic on the
-/// chart's own frame — this is the chart map's inverse, not a fit.
-fn chart_of(p: Point3<f64>) -> Point2<f64> {
-    let w = p - CYL_ORIGIN;
-    Point2::new(w.y.atan2(w.x), w.z)
-}
-
-/// The `f64` structure both lanes share: a sub-arc of the branch's own
-/// carrier, its chart image, and the parameter they agree on.
-struct Structure {
-    carrier: NurbsCurve3<f64>,
-    image: NurbsCurve2<f64>,
-}
-
-/// Restrict the branch to one sub-arc: the kernel's own carrier and the
-/// chart image built on its parameter, both cut at the SAME parameters
-/// by knot insertion.
+/// The branch's own carrier restricted to one sub-arc, by knot
+/// insertion (exact in ℝ, so the arc is the traced one).
 ///
 /// `frac` picks which quarter of the loop — the fixture uses the first,
 /// and the planted-corruption row the third, which is a genuinely
 /// different arc of the same locus and therefore the sharpest thing to
 /// attach to the first one's edge.
-fn restrict(branch: &ssi::SsiBranch, frac: (f64, f64)) -> Structure {
+fn restrict(branch: &ssi::SsiBranch, frac: (f64, f64)) -> NurbsCurve3<f64> {
     let Curve3::Nurbs(ref loop_carrier) = branch.carrier else {
         panic!("a rung-3 carrier is a NURBS curve")
     };
     // `fit_branch` interpolates on chord parameters, so the traced
-    // carrier's domain is exactly [0, 1] — which is also what
-    // `interpolate_with_params` requires of the image's parameters.
-    // Checked rather than assumed: a domain convention change fails the
-    // fixture, not silently skews the parameter identity.
+    // carrier's domain is exactly [0, 1]. Checked rather than assumed.
     let (d0, d1) = loop_carrier.domain();
     assert!(
         d0 == 0.0 && d1 == 1.0,
         "a fitted carrier's domain is [0, 1]: [{d0}, {d1}]"
     );
-    // The image's interpolation nodes ARE carrier parameters, so
-    // `P(tᵢ) = chart(C(tᵢ))` holds at every node by construction and
-    // the shared-parameter contract survives the split below.
-    #[allow(clippy::cast_precision_loss)]
-    let params: Vec<f64> = (0..SAMPLES)
-        .map(|i| i as f64 / (SAMPLES - 1) as f64)
-        .collect();
-    let pts: Vec<Point3<f64>> = params.iter().map(|t| loop_carrier.eval(*t)).collect();
-    // The chart images, on ONE branch: `atan2` is principal, so the
-    // azimuths are unwrapped continuously ONCE here, exactly as the
-    // per-face loop walk chooses a branch once and never per sample
-    // (the M2 PR 5 meridian finding). The loop winds exactly once, so
-    // the unwrapped channel is monotone across the whole domain and no
-    // quarter of it contains a period jump.
-    let mut chart: Vec<Point2<f64>> = pts.iter().map(|p| chart_of(*p)).collect();
-    let tau = core::f64::consts::TAU;
-    for i in 1..chart.len() {
-        let mut u = chart[i].x;
-        while u - chart[i - 1].x > tau / 2.0 {
-            u -= tau;
-        }
-        while chart[i - 1].x - u > tau / 2.0 {
-            u += tau;
-        }
-        chart[i].x = u;
-    }
-    let image = NurbsCurve2::<f64>::interpolate_with_params(&chart, DEGREE, &params)
-        .expect("the chart image interpolates");
-    // Knot insertion is exact in ℝ and preserves the parameter, so
-    // both halves of the pair stay the same `t` after cutting.
-    let carrier = sub_arc3(loop_carrier, frac).expect("the carrier's sub-arc");
-    let image = sub_arc2(&image, frac).expect("the image's sub-arc");
-    Structure { carrier, image }
-}
-
-/// The `[a, b]` restriction of a 3-D curve, by two exact splits.
-fn sub_arc3(c: &NurbsCurve3<f64>, frac: (f64, f64)) -> Option<NurbsCurve3<f64>> {
     let tail = if frac.0 > 0.0 {
-        c.split_at(frac.0).ok()?.1
+        loop_carrier
+            .split_at(frac.0)
+            .expect("the carrier's sub-arc")
+            .1
     } else {
-        c.clone()
+        (**loop_carrier).clone()
     };
     if frac.1 < 1.0 {
-        Some(tail.split_at(frac.1).ok()?.0)
+        tail.split_at(frac.1).expect("the carrier's sub-arc").0
     } else {
-        Some(tail)
-    }
-}
-
-/// The 2-D counterpart, cut at the SAME parameters.
-fn sub_arc2(c: &NurbsCurve2<f64>, frac: (f64, f64)) -> Option<NurbsCurve2<f64>> {
-    let tail = if frac.0 > 0.0 {
-        c.split_at(frac.0).ok()?.1
-    } else {
-        c.clone()
-    };
-    if frac.1 < 1.0 {
-        Some(tail.split_at(frac.1).ok()?.0)
-    } else {
-        Some(tail)
+        tail
     }
 }
 
@@ -251,47 +162,43 @@ fn lift3<T: Real>(c: &NurbsCurve3<f64>) -> NurbsCurve3<T> {
     NurbsCurve3::new(c.knots().clone(), control, c.weights().to_vec()).expect("lifted structure")
 }
 
-fn lift2<T: Real>(c: &NurbsCurve2<f64>) -> NurbsCurve2<T> {
-    let control = c.control().iter().map(|p| p.map(T::from_f64)).collect();
-    NurbsCurve2::new(c.knots().clone(), control, c.weights().to_vec()).expect("lifted structure")
-}
-
-/// Build the fixture at `T`.
+/// Build the fixture at `T`: the edge, and the rows the mint derives.
 pub fn build<T>() -> Built<T>
 where
     T: topo::AtRestPolicy + geom_core::Bounds,
 {
-    assemble(&restrict(branch(), (0.0, 0.25)))
+    let mut built = assemble(&restrict(branch(), (0.0, 0.25)));
+    topo::mint_pcurves(&mut built.body, Tol::witness()).expect("the cylinder face mints");
+    built
 }
 
-/// The planted corruption for the at-rest row: a cache certified —
-/// honestly, through the same door — for a DIFFERENT arc of the same
-/// locus (the third quarter). Attaching it to this edge is the sharpest
-/// test of "the re-certification re-derives and never consults the
-/// stored certificate": every stored number in it is true, and true
-/// about the wrong carrier.
+/// The planted corruption for the at-rest row: a row the mint derived
+/// and certified — honestly — for a DIFFERENT arc of the same locus (the
+/// third quarter). Attaching it to this edge is the sharpest test of
+/// "the re-certification re-derives and never consults the stored
+/// certificate": every stored number in it is true, and true about the
+/// wrong carrier.
 pub fn foreign_cache(built: &Built<f64>) -> PcurveCache<f64> {
-    let s = restrict(branch(), (0.5, 0.75));
-    let other = assemble::<f64>(&s);
+    let mut other = assemble::<f64>(&restrict(branch(), (0.5, 0.75)));
+    topo::mint_pcurves(&mut other.body, Tol::witness()).expect("the other arc mints");
     let _ = built;
     other
         .body
         .pcurve(other.he_plus)
-        .expect("the foreign cache")
+        .expect("the foreign row")
         .clone()
 }
 
 /// Assemble the body: the cylinder face carries the edge (its chart is
 /// the well-conditioned one — azimuth about the axis, height along it),
-/// the sphere is the mate the edge's own DESCRIPTION names.
-fn assemble<T>(s: &Structure) -> Built<T>
+/// the sphere is the mate the edge's own DESCRIPTION names. No row is
+/// stored yet.
+fn assemble<T>(arc: &NurbsCurve3<f64>) -> Built<T>
 where
     T: topo::AtRestPolicy + geom_core::Bounds,
 {
-    let band = Band::linear(Tol::witness()).unwrap();
-    let carrier = Arc::new(lift3::<T>(&s.carrier));
-    let image = Arc::new(lift2::<T>(&s.image));
-    let (f0, f1) = s.carrier.domain();
+    let carrier = Arc::new(lift3::<T>(arc));
+    let (f0, f1) = arc.domain();
     let (t0, t1) = (T::from_f64(f0), T::from_f64(f1));
     let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
 
@@ -339,30 +246,11 @@ where
 
     let edge = body.get_edge(made.edge).expect("the edge resolves");
     let (he_plus, he_minus) = (edge.he_plus, edge.he_minus);
-    for he in [he_plus, he_minus] {
-        let cache = PcurveCache::<T>::certify_fitted(
-            Arc::clone(&image),
-            t0,
-            t1,
-            &Curve3::Nurbs(Arc::clone(&carrier)),
-            &cylinder::<T>(),
-            Some(&sphere::<T>()),
-            band,
-            T::fitted_lane().expect("a certifying scalar holds the fitted door"),
-        )
-        .expect("the fitted cache certifies through the M6-2 door");
-        body.attach_pcurve(he, cache);
-        // The spur's two halves share the image, so each joint turns
-        // back on the point the other left: the identity.
-        body.attach_joint(he, topo::JointElement::IDENTITY);
-    }
-
     Built {
         body,
         he_plus,
         he_minus,
         carrier,
-        image,
         cylinder: cylinder::<T>(),
         sphere: sphere::<T>(),
     }

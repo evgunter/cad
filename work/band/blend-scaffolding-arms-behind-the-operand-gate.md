@@ -39,4 +39,4 @@ built scaffolding operands; each is now settled:
 The half-band gate's curved single host was never on this list: a
 cylinder wall merged into one face over its wrap edge
 (`kef_describing`, either meridian) finishes and reaches it
-(`fillet_h5_r2_probes::a_finished_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate`).
+(`fillet_h5_r2_probes::a_curved_single_face_carrying_both_arcs_is_construction_state`).

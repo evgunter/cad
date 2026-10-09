@@ -609,7 +609,7 @@ and (b) the SSI generic-`T` lift are discharged and keep no entry):
   its class's route lands, covers the mirror-torus spiric and
   no-fitted classes, on their PCERT row.
 - **(d) cyl×sphere germ chords** — a fitted carrier's chart image
-  exists as `Pcurve::Fitted` and certifies at rest, and a chord takes
+  exists as `Pcurve::Projected` and certifies at rest, and a chord takes
   its arc from the germs it joins, reading no window; what is missing
   is the C5 table's cyl×sphere arm for the chord's carrier
   (`chord_join::section_case` has no curved×curved arm) and a frame for
@@ -909,11 +909,15 @@ Five commitments:
 3. **Failure is a typed, actionable error naming the failing check and
    the entity** — consumable by humans and by the error-propagation
    machinery. The carrier is `CertifyError::ResidualExceeded { check,
-   sample }`, wrapped by the attachment gates and by
+   sample, margin }`, wrapped by the attachment gates and by
    `ValidationError::EdgeCertification`; the residual MAGNITUDE rides
-   the escalated arm's `Indeterminate`, because no `f64` projection of
-   a generic `T` exists on every lane. Geometry that can't meet ε almost
-   always indicates a modeling mistake; surfacing it beats absorbing it.
+   both arms as the classifier's reporting margin — the definite arm's
+   `margin`, the escalated arm's `Indeterminate` — because no value
+   projection of a generic `T` to an `f64` exists on every lane; the
+   classify seam's `MarginDiag` is the one projection there is, and it
+   is for reporting only, never a value a decision reads.
+   Geometry that can't meet ε almost always indicates a modeling
+   mistake; surfacing it beats absorbing it.
 4. **Fixed internal units — meters and radians — with a documented
    model size range**; geometry outside the range is rejected at
    construction. User-facing units are typed newtypes at the API

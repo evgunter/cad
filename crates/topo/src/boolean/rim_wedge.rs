@@ -501,7 +501,7 @@ fn contains<T: Decide>(
         terminal_sliver: false,
     };
     let lift = |e: super::contain::ContainError| match e {
-        super::contain::ContainError::Escalated(diag) => diag,
+        super::contain::ContainError::Escalated { diag, .. } => diag,
         super::contain::ContainError::StaleFace(face) => super::contain::driver_face_stale(face),
         _ => unread,
     };
@@ -1011,7 +1011,7 @@ pub(crate) fn classify_shared_rim<T: Decide>(
     for i in 0..n {
         let (p, _) = station(i);
         match geom_brep::classify_dihedral(s_plus, s_minus, p, extent, band)
-            .map_err(|escalation| escalation.diag)?
+            .map_err(|escalation| escalation.diag())?
         {
             geom_brep::DihedralClass::Transverse => all_smooth = false,
             geom_brep::DihedralClass::Smooth => all_transverse = false,

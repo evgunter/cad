@@ -79,9 +79,13 @@ use geom::{NurbsSurface, Surface};
 use geom_core::predicate::KERNEL_OR_FILE_DEFECT_ENDING;
 use geom_core::spline::algebra::{GridSkip, domain_grid_points};
 use geom_core::spline::{KnotVector, KnotVectorIssue, SplineError};
-use geom_core::{Band, Bounds, Decide, Indeterminate, Point2, Point3, Readable, Real, Vec3};
+use geom_core::{
+    Band, Bounds, Decide, FileCoincidence, Indeterminate, Point2, Point3, Readable, Real, Vec3,
+};
 
-use crate::certify::{CERT_SAMPLES, CertCheck, recourse, schedule_fraction, schedule_param};
+use crate::certify::{
+    CERT_SAMPLES, CertCheck, recourse, recourse_in_file, schedule_fraction, schedule_param,
+};
 use crate::recourse::{Reading, Refused, RefusedArm};
 use crate::ssi::{
     ChartSpeedRefusal, OneArcRefusal, PointLever, SsiError, SsiLimb, SsiOperand, SsiTube,
@@ -336,6 +340,18 @@ impl PlaneNurbsRefusal {
         }
         self.decision()
             .map(|(check, arm)| recourse(check, arm, reading))
+    }
+
+    /// The ending this refusal gives at the STEP import door
+    /// ([`recourse_in_file`]), as [`PlaneNurbsRefusal::ending`] gives it
+    /// at rest.
+    #[must_use]
+    pub fn ending_in_file(&self, file: FileCoincidence) -> Option<String> {
+        if let Self::TubeNotOneArc { cause, .. } = *self {
+            return Some(cause.ending_in_file(crate::ssi::OneArcDoor::AtRest, file));
+        }
+        self.decision()
+            .map(|(check, arm)| recourse_in_file(check, arm, file))
     }
 
     /// The decision this refusal is a refused arm of, and which arm
@@ -601,6 +617,345 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         tube_boxes: cert.tube_boxes,
         min_sin_theta: min_sin,
     })
+}
+
+/// Whether `surface` is an analytic operand: one with an implicit form
+/// and a chart frame, which the analytic rung-3 certificate reads
+/// ([`analytic_rung3`]). A spline operand's pair is the plane × NURBS
+/// lane's ([`plane_nurbs_limbs`]).
+#[must_use]
+pub fn is_analytic<T: Real>(surface: &Surface<T>) -> bool {
+    !matches!(surface, Surface::Nurbs(_) | Surface::Approx(_))
+}
+
+/// **The between-samples certificate of a rung-3 carrier between two
+/// ANALYTIC surfaces** — C2's limbs, the edge certificate's own (C2:
+/// "the proof is the same at every door, a search's and an edge's at
+/// rest"), stated here for every analytic operand whatever faces store
+/// pcurve rows:
+///
+/// - **limb 2, per operand**: the carrier's distance from the operand,
+///   certified over the edge's interval `params`
+///   ([`crate::pcurve_cache::projected::net_offset_sup`]: the operand's
+///   canonical implicit form composed along the carrier, converted to
+///   metres per span) and decided zero against the band. Limb 1, the
+///   same distance at the schedule's samples, is implied by it;
+/// - **limb 3**: over a chain of boxes around the carrier the
+///   enclosure of `(∇f₁ × ∇f₂)·e` excludes zero, so the solution set in
+///   the chain is one arc and it spans the carrier over `params`.
+///
+/// Both read the carrier cut to `params` (its bracket's outer ends, so
+/// the piece covers the interval at every scalar): the net past the
+/// edge's ends is not the edge's (C4), and a split edge keeps its
+/// parent's carrier.
+///
+/// # Errors
+///
+/// [`AnalyticRung3Refusal`]: a limb's measured refusal or escalation,
+/// the tube's verdict, an operand whose distance bound has no
+/// certificate, a spline operand, or an interval the carrier cannot be
+/// cut to.
+pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
+    carrier: &NurbsCurve3<T>,
+    params: (T, T),
+    s1: &Surface<T>,
+    s2: &Surface<T>,
+    band: Band,
+) -> Result<(), AnalyticRung3Refusal> {
+    if !(is_analytic(s1) && is_analytic(s2)) {
+        return Err(AnalyticRung3Refusal::Unsupported {
+            what: "the analytic rung-3 certificate reads two analytic operands",
+        });
+    }
+    let (t0, t1) = params;
+    let piece = edge_piece(carrier, t0.lo().min(t1.lo()), t0.hi().max(t1.hi()))?;
+    let lane = crate::FittedLane::<T>::certified();
+    for operand in [s1, s2] {
+        let kind = operand.kind();
+        let offset =
+            crate::pcurve_cache::projected::net_offset_sup(carrier, params, operand, band, lane)
+                .map_err(|e| AnalyticRung3Refusal::of_offset(kind, e))?;
+        match crate::dihedral::decide("ssi_hull_sup", geom_core::Margin::of(offset), band) {
+            Ok(geom_core::Sign::Zero) => {}
+            Ok(geom_core::Sign::Positive | geom_core::Sign::Negative) => {
+                return Err(AnalyticRung3Refusal::Limb {
+                    operand: kind,
+                    limb: SsiLimb::HullSup,
+                    value: offset.hi(),
+                });
+            }
+            Err(cause) => {
+                return Err(AnalyticRung3Refusal::Escalated {
+                    operand: Some(kind),
+                    limb: SsiLimb::HullSup,
+                    cause,
+                });
+            }
+        }
+    }
+    crate::ssi::certify::certify_branch(
+        &piece,
+        crate::ssi::certify::Lane::AtRest {
+            a: &SsiOperand::Analytic(s1),
+            b: &SsiOperand::Analytic(s2),
+            pcurve_b: None,
+        },
+        // The tube's extent, from the object being certified: the
+        // piece's control-net diameter (a closed carrier's chord says
+        // nothing about its size).
+        crate::pcurve_cache::carrier_diameter(&piece),
+        band,
+        crate::ssi::certify::Limbs::Tube,
+        &mut Vec::new(),
+    )
+    .map(|_| ())
+    .map_err(AnalyticRung3Refusal::of_tube)
+}
+
+/// The piece of the carrier the tube reads: the carrier over `[lo, hi]`
+/// — the edge's interval from its lower end's infimum to its upper
+/// end's supremum — clamped to the knot domain (a poison end reads as
+/// the domain's, the wider piece).
+///
+/// **What holds at each scalar.** A carrier whose weights are all one
+/// value `c` is polynomial, and so is its piece: the piece's weights are
+/// `c` exactly, and its controls — the blossoms of each knot span's
+/// stretch, joined at full multiplicity — are formed with ratios in the
+/// scalar ([`crate::pcurve_cache::projected::piece_controls`]), so at an
+/// enclosure scalar each encloses the true piece's control. A carrier
+/// with unequal weights has no piece whose weights are `f64` at an
+/// enclosure scalar (an `f64` insertion plan would re-round them into a
+/// neighbouring curve's), so the tube reads the whole carrier: sound,
+/// since the chain around the piece is a stretch of the whole carrier's
+/// chain, and conservative, since geometry past the edge's ends can
+/// refuse it (`work/pcert/the-tube-reads-a-rational-carriers-whole-net.md`).
+fn edge_piece<T: Real>(
+    carrier: &NurbsCurve3<T>,
+    lo: f64,
+    hi: f64,
+) -> Result<NurbsCurve3<T>, AnalyticRung3Refusal> {
+    let refuse = |what| AnalyticRung3Refusal::Unsupported { what };
+    let (d0, d1) = carrier.domain();
+    let (a, b) = (lo.max(d0), hi.min(d1));
+    if a.partial_cmp(&b) != Some(core::cmp::Ordering::Less) {
+        return Err(refuse(
+            "the edge's interval is empty on the carrier's domain",
+        ));
+    }
+    let weights = carrier.weights();
+    let constant = weights.iter().all(|w| w.to_bits() == weights[0].to_bits());
+    if (a <= d0 && b >= d1) || !constant {
+        return Ok(carrier.clone());
+    }
+    let kv = carrier.knots();
+    let p = kv.degree();
+    // The stretch's breaks: its ends and every interior knot strictly
+    // between them.
+    let mut breaks = vec![a];
+    breaks.extend(kv.knot_runs().map(|(k, _)| k).filter(|&k| k > a && k < b));
+    breaks.push(b);
+    let mut knots = vec![a; p + 1];
+    let mut control: Vec<Point3<T>> = Vec::new();
+    for (i, w) in breaks.windows(2).enumerate() {
+        let segment = crate::pcurve_cache::projected::piece_controls(carrier, w[0], w[1]);
+        // Neighbouring segments share their joining control; each
+        // segment's own encloses it, and the earlier one is kept.
+        let skip = usize::from(i > 0);
+        control.extend(
+            segment
+                .iter()
+                .skip(skip)
+                .map(|(v, _)| Point3::origin() + *v),
+        );
+        let last = i + 2 == breaks.len();
+        knots.extend(std::iter::repeat_n(w[1], if last { p + 1 } else { p }));
+    }
+    let n = control.len();
+    KnotVector::clamped(knots, p)
+        .ok()
+        .and_then(|kv| NurbsCurve3::new(kv, control, vec![weights[0]; n]).ok())
+        .ok_or(refuse(
+            "the carrier's piece over the edge's interval is malformed",
+        ))
+}
+
+/// [`analytic_rung3`]'s typed refusal — the analytic pair's own
+/// vocabulary, closed, and carrying the measured number where one
+/// exists.
+#[derive(Clone, Copy, Debug, PartialEq)]
+// The variant roster `topo`'s sample-coverage row reads (this
+// crate's `test-support` feature, test builds only).
+#[cfg_attr(
+    feature = "test-support",
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(AnalyticRung3RefusalKind), derive(strum::EnumIter), doc(hidden))
+)]
+pub enum AnalyticRung3Refusal {
+    /// The carrier's certified distance from an operand exceeds the
+    /// band: it is not on that surface between the schedule's samples,
+    /// by this much.
+    Limb {
+        /// The operand the carrier is off.
+        operand: geom::SurfaceKind,
+        /// Which limb refused.
+        limb: SsiLimb,
+        /// The measured bound, in metres.
+        value: f64,
+    },
+    /// A limb's margin escalated.
+    Escalated {
+        /// The operand whose distance escalated; `None` for the tube.
+        operand: Option<geom::SurfaceKind>,
+        /// Which limb.
+        limb: SsiLimb,
+        /// The classifier's diagnostic.
+        cause: Indeterminate,
+    },
+    /// No certified distance bound exists for the carrier against this
+    /// operand: the composite or its metre conversion refused (on a
+    /// cone, a span reaching the apex's height or the other nappe).
+    NoOffsetBound {
+        /// The operand.
+        operand: geom::SurfaceKind,
+        /// Why, in a clause.
+        why: &'static str,
+    },
+    /// The uniqueness tube's transversality is not certified clear of
+    /// the zero band — a sliver of the pair along the carrier at this
+    /// tolerance ([`PlaneNurbsRefusal::TubeStraddles`] reads the same
+    /// verdict).
+    TubeStraddles {
+        /// The verdict on the transversality's certified clearance.
+        verdict: Refused,
+        /// How many boxes of the chain it was certified over.
+        boxes: u32,
+    },
+    /// The tube was a graph at some rung, but at none was its chain
+    /// proved to hold one arc spanning the carrier and nothing else.
+    TubeNotOneArc {
+        /// How many rungs were graphs but not proved one arc.
+        rungs: u32,
+        /// What the narrowest of them found.
+        cause: OneArcRefusal,
+    },
+    /// The pair is outside this certificate's inventory, named.
+    Unsupported {
+        /// The refused class.
+        what: &'static str,
+    },
+}
+
+impl AnalyticRung3Refusal {
+    fn of_offset(operand: geom::SurfaceKind, e: crate::PcurveCertifyError) -> Self {
+        match e {
+            crate::PcurveCertifyError::Escalated { cause, .. } => Self::Escalated {
+                operand: Some(operand),
+                limb: SsiLimb::HullSup,
+                cause,
+            },
+            crate::PcurveCertifyError::SectorRefused { channel, .. } => Self::NoOffsetBound {
+                operand,
+                why: channel.describe(),
+            },
+            _ => Self::NoOffsetBound {
+                operand,
+                why: "the operand's canonical implicit form composed along the carrier has no \
+                      certified bound",
+            },
+        }
+    }
+
+    fn of_tube(e: SsiError) -> Self {
+        match e {
+            SsiError::TubeStraddles { verdict, boxes } => Self::TubeStraddles { verdict, boxes },
+            SsiError::TubeNotOneArc { rungs, cause } => Self::TubeNotOneArc { rungs, cause },
+            SsiError::CertificateEscalated { limb, cause } => Self::Escalated {
+                operand: None,
+                limb,
+                cause,
+            },
+            SsiError::UnsupportedCertificate { what } => Self::Unsupported { what },
+            _ => Self::Unsupported {
+                what: "the uniqueness tube refused for a reason outside this certificate's \
+                       vocabulary",
+            },
+        }
+    }
+
+    /// The ending this refusal's decision gives it, read at `reading`,
+    /// or `None` for a refusal that is no decision's refused arm
+    /// ([`PlaneNurbsRefusal::ending`]'s structure).
+    #[must_use]
+    pub fn ending(&self, reading: Reading) -> Option<String> {
+        if let Self::TubeNotOneArc { cause, .. } = *self {
+            return Some(cause.ending(crate::ssi::OneArcDoor::AtRest, reading));
+        }
+        self.decision()
+            .map(|(check, arm)| recourse(check, arm, reading))
+    }
+
+    /// The decision this refusal is a refused arm of, and which arm.
+    #[must_use]
+    pub fn decision(&self) -> Option<(CertCheck, RefusedArm<'_>)> {
+        Some(match self {
+            Self::Limb { limb, .. } => (limb.check(), RefusedArm::SignCertain),
+            Self::Escalated { limb, cause, .. } => (limb.check(), RefusedArm::Undecided(cause)),
+            Self::TubeStraddles { verdict, .. } => (CertCheck::Transversality, verdict.arm()),
+            Self::NoOffsetBound { .. } | Self::TubeNotOneArc { .. } | Self::Unsupported { .. } => {
+                return None;
+            }
+        })
+    }
+}
+
+impl core::fmt::Display for AnalyticRung3Refusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Limb {
+                operand,
+                limb,
+                value,
+            } => write!(
+                f,
+                "{} measured {value:e} m from the {} against the run tolerance — the \
+                 carrier leaves that surface between the schedule's samples",
+                limb.name(),
+                operand.name()
+            ),
+            Self::Escalated {
+                operand,
+                limb,
+                cause,
+            } => {
+                write!(f, "{}", limb.name())?;
+                if let Some(kind) = operand {
+                    write!(f, " against the {}", kind.name())?;
+                }
+                write!(f, " escalated: {}", cause.payload())
+            }
+            Self::NoOffsetBound { operand, why } => write!(
+                f,
+                "the carrier's distance from the {} has no certified bound: {why}",
+                operand.name()
+            ),
+            Self::TubeStraddles { verdict, boxes } => write!(
+                f,
+                "the uniqueness tube's transversality is not certified clear of the zero band \
+                 over {boxes} boxes of the chain — the two surfaces meet in a sliver along the \
+                 carrier at this tolerance; the certificate's proven clearance from zero is {:e} \
+                 m, which is the bound it could prove and not the sliver's own extent",
+                verdict.margin()
+            ),
+            Self::TubeNotOneArc { rungs, cause } => write!(
+                f,
+                "the tube was not proved to hold one arc spanning the carrier at {rungs} rungs; \
+                 at the narrowest, {cause}"
+            ),
+            Self::Unsupported { what } => {
+                write!(f, "outside the analytic rung-3 certificate: {what}")
+            }
+        }
+    }
 }
 
 /// **The chart image of a declared carrier on a NURBS wall** — the one
@@ -922,7 +1277,7 @@ mod tests {
             OneArcRefusal::Undecided(undecided),
         ] {
             let refusal = PlaneNurbsRefusal::TubeNotOneArc { rungs: 20, cause };
-            for reading in [Reading::Build, Reading::AtRest, Reading::Adopt] {
+            for reading in [Reading::Build, Reading::AtRest] {
                 let ending = refusal.ending(reading).unwrap();
                 let rendered = format!("{refusal} {ending}");
                 let words = rendered.split_whitespace().count();
@@ -931,6 +1286,45 @@ mod tests {
                 assert!(!rendered.contains("searched region"), "{rendered}");
             }
         }
+    }
+
+    /// **Limb 3's at-rest refusal reads the file's ε_in at the import
+    /// door** (D4 ¶1): an undecided one-arc clearance at or below ε_in is
+    /// not offered a tolerance alone, and one past it is offered the
+    /// at-rest value. Red where `ending_in_file` reads the one-arc
+    /// decision at rest, which offers "tighten below 5e-10 m" for a
+    /// 5e-9 m clearance within the file's 1e-6 m.
+    #[test]
+    fn the_tube_not_one_arc_refusal_reads_eps_in_at_the_import_door() {
+        use crate::ssi::OneArcRefusal;
+        let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+        let refusal = |m| PlaneNurbsRefusal::TubeNotOneArc {
+            rungs: 20,
+            cause: OneArcRefusal::Undecided(Indeterminate {
+                margin: geom_core::MarginDiag::value(m),
+                band,
+                predicate: Some("ssi_tube_one_arc"),
+                terminal_sliver: false,
+            }),
+        };
+        let file = |eps_in| FileCoincidence::new(eps_in, geom_core::Tol::witness());
+        let within = refusal(5e-9).ending_in_file(file(1e-6)).unwrap();
+        assert!(
+            within.starts_with(
+                "This clearance is below the file's declared coincidence distance ε_in = 1e-6 \
+                 m, so the file does not state it. Recourse: store the edge's curve"
+            ) && within.ends_with(
+                ", or, if this clearance is intended, re-export the file with its uncertainty \
+                 declared below 5e-9 m and tighten the tolerance below 5e-10 m"
+            ),
+            "{within}"
+        );
+        let past = refusal(5e-9);
+        assert_eq!(
+            past.ending_in_file(file(1e-9)),
+            past.ending(Reading::AtRest),
+            "a clearance past ε_in reads as at rest"
+        );
     }
 
     /// The carrier interval the rows use: `0.3 + (0.9 − 0.3)` is an
@@ -1084,5 +1478,151 @@ mod tests {
         assert_eq!(below.control_count(), 17);
         let out = localized(&wall(deg2(&[0.5]), below));
         assert_eq!(out.knots_v().control_count(), 17 + 15);
+    }
+
+    /// An exact rational: `n / d`, `d > 0`, for the oracle below.
+    #[derive(Clone, Debug)]
+    struct Q {
+        n: num_bigint::BigInt,
+        d: num_bigint::BigInt,
+    }
+
+    impl Q {
+        /// The exact value of a finite `f64` (`m · 2^e`).
+        fn of(x: f64) -> Self {
+            use num_bigint::BigInt;
+            let bits = x.to_bits();
+            let sign: i64 = if bits >> 63 == 1 { -1 } else { 1 };
+            let exp = i32::try_from((bits >> 52) & 0x7ff).unwrap();
+            let frac = i64::try_from(bits & ((1 << 52) - 1)).unwrap();
+            let (m, e) = if exp == 0 {
+                (frac, -1074)
+            } else {
+                (frac | (1 << 52), exp - 1075)
+            };
+            let m = BigInt::from(sign * m);
+            if e >= 0 {
+                Self {
+                    n: m << usize::try_from(e).unwrap(),
+                    d: BigInt::from(1),
+                }
+            } else {
+                Self {
+                    n: m,
+                    d: BigInt::from(1) << usize::try_from(-e).unwrap(),
+                }
+            }
+        }
+        fn add(&self, o: &Self) -> Self {
+            Self {
+                n: &self.n * &o.d + &o.n * &self.d,
+                d: &self.d * &o.d,
+            }
+        }
+        fn sub(&self, o: &Self) -> Self {
+            Self {
+                n: &self.n * &o.d - &o.n * &self.d,
+                d: &self.d * &o.d,
+            }
+        }
+        fn mul(&self, o: &Self) -> Self {
+            Self {
+                n: &self.n * &o.n,
+                d: &self.d * &o.d,
+            }
+        }
+        fn div(&self, o: &Self) -> Self {
+            let (n, d) = (&self.n * &o.d, &self.d * &o.n);
+            if d.sign() == num_bigint::Sign::Minus {
+                Self { n: -n, d: -d }
+            } else {
+                Self { n, d }
+            }
+        }
+        /// `lo ≤ self ≤ hi`, exactly.
+        fn within(&self, lo: f64, hi: f64) -> bool {
+            let (lo, hi) = (Self::of(lo), Self::of(hi));
+            &lo.n * &self.d <= &self.n * &lo.d && &self.n * &hi.d <= &hi.n * &self.d
+        }
+    }
+
+    /// The exact controls of a polynomial B-spline's restriction to
+    /// `[a, b]` inside one knot span: the blossoms `B(a^{p−m}, b^m)` by
+    /// de Boor's recursion in exact rationals.
+    fn exact_piece(knots: &[f64], p: usize, ctl: &[[f64; 3]], a: f64, b: f64) -> Vec<[Q; 3]> {
+        let mid = 0.5 * (a + b);
+        let j = (p..knots.len() - p - 1)
+            .rfind(|&j| knots[j] <= mid)
+            .unwrap();
+        (0..=p)
+            .map(|m| {
+                let mut d: Vec<[Q; 3]> = (0..=p).map(|i| ctl[j - p + i].map(Q::of)).collect();
+                for r in 1..=p {
+                    let u = Q::of(if r <= p - m { a } else { b });
+                    for i in (r..=p).rev() {
+                        let lo = Q::of(knots[j - p + i]);
+                        let hi = Q::of(knots[j + 1 + i - r]);
+                        let alpha = u.sub(&lo).div(&hi.sub(&lo));
+                        let beta = Q::of(1.0).sub(&alpha);
+                        let prev = d[i - 1].clone();
+                        d[i] = [0, 1, 2].map(|k| prev[k].mul(&beta).add(&d[i][k].mul(&alpha)));
+                    }
+                }
+                d[p].clone()
+            })
+            .collect()
+    }
+
+    /// **The tube's piece encloses the true piece at the enclosure
+    /// scalar** (`edge_piece`). A polynomial carrier with non-dyadic knots,
+    /// controls and a non-unit constant weight, cut to a non-dyadic
+    /// interval: at `Interval` every control of the piece contains the
+    /// exact rational control of the true restriction, and the piece's
+    /// weights are the carrier's weight exactly. The same cut through an
+    /// `f64` insertion plan (`split_at`) misses the exact controls, which
+    /// is what this row tells apart.
+    #[test]
+    fn the_tubes_piece_encloses_the_exact_restriction_at_interval() {
+        use geom_core::{Bounds, Interval};
+        let p = 2;
+        let knots = vec![0.0, 0.0, 0.0, 0.3, 0.7, 1.0, 1.0, 1.0];
+        let ctl = [
+            [0.1, 0.2, 0.3],
+            [1.1, 0.7, -0.3],
+            [1.9, -0.6, 0.4],
+            [2.7, 0.3, 1.3],
+            [3.1, 1.7, 0.1],
+        ];
+        let w = 1.3;
+        let carrier = NurbsCurve3::new(
+            KnotVector::clamped(knots.clone(), p).unwrap(),
+            ctl.iter().map(|c| Point3::new(c[0], c[1], c[2])).collect(),
+            vec![w; ctl.len()],
+        )
+        .unwrap()
+        .map_scalar(Interval::from_f64);
+        let (a, b) = (0.1, 0.55);
+        let piece = edge_piece(&carrier, a, b).unwrap();
+        assert_eq!(piece.domain(), (a, b));
+        assert!(piece.weights().iter().all(|&x| x.to_bits() == w.to_bits()));
+        let exact: Vec<[Q; 3]> = exact_piece(&knots, p, &ctl, a, 0.3)
+            .into_iter()
+            .chain(exact_piece(&knots, p, &ctl, 0.3, b).into_iter().skip(1))
+            .collect();
+        let encloses = |c: &[Point3<Interval>]| {
+            c.len() == exact.len()
+                && c.iter().zip(&exact).all(|(got, want)| {
+                    [got.x, got.y, got.z]
+                        .iter()
+                        .zip(want)
+                        .all(|(g, q)| q.within(g.lo(), g.hi()))
+                })
+        };
+        assert!(encloses(piece.control()), "{:?}", piece.control());
+        let planned = carrier.split_at(b).unwrap().0.split_at(a).unwrap().1;
+        assert!(
+            !encloses(planned.control()),
+            "an f64 insertion plan misses the exact restriction"
+        );
     }
 }

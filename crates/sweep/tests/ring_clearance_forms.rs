@@ -116,7 +116,9 @@ fn the_bosss_dome_rim_carves_inside_its_hosts_circular_boundary() {
         let body = repaired(up);
         assert_eq!(census(&body), (7, 10, 6), "{name}: the repaired census");
         let (measured, out) = carve(name, &body, &[(0.5, 1.0)], 0.1);
-        assert_eq!(census(&out), (9, 13, 7), "{name}: the band's census delta");
+        // (7, 10, 6) + the two-crossing band's (1, 2, 1): its host
+        // trimlines join at the foot the slit does not reach.
+        assert_eq!(census(&out), (8, 12, 7), "{name}: the band's census delta");
         agrees(name, measured, if adds { form } else { -form });
     }
 }
@@ -161,7 +163,8 @@ fn the_bosss_top_outer_rim_carves_on_a_ringed_host() {
             "{name}: the host is an annulus"
         );
         let (measured, out) = carve(name, &body, &[(1.0, 1.0)], 0.1);
-        assert_eq!(census(&out), (9, 13, 7), "{name}: the band's census delta");
+        // The two-crossing band's (1, 2, 1), its host trimlines joined.
+        assert_eq!(census(&out), (8, 12, 7), "{name}: the band's census delta");
         assert_eq!(
             body.get_face(host).unwrap().rings.len(),
             out.get_face(host).map_or(0, |fd| fd.rings.len()),
@@ -204,7 +207,8 @@ fn the_bosss_two_rims_refuse_together_and_compose_sequentially() {
         let before = mass_properties(&body, tol()).unwrap().volume;
         let (_, after_ladder) = carve(name, &body, &[(0.5, 1.0)], 0.1);
         let (_, out) = carve(name, &after_ladder, &[(1.0, 1.0)], 0.1);
-        assert_eq!(census(&out), (11, 16, 8), "{name}: two bands' census");
+        // Each band's host trimlines joined: one vertex and one edge fewer apiece.
+        assert_eq!(census(&out), (9, 14, 8), "{name}: two bands' census");
         let measured = mass_properties(&out, tol()).unwrap().volume - before;
         agrees(name, measured, if up { ladder } else { -ladder } - annulus);
     }

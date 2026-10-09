@@ -97,9 +97,10 @@ use geom_core::Bounds;
 use std::ops::RangeInclusive;
 
 use geom::surfaces::NurbsSurface;
-use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
+use geom_core::interval::{Interval, norm_sup};
 use geom_core::spline::algebra::{equal_split_plan, equal_split_points};
+use geom_core::spline::compose::tensor::coefficient_norm_sup;
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{CurvePlan, KnotVector};
 
@@ -270,6 +271,16 @@ pub struct PatchCell {
     pub s_uv: [Interval; 3],
     /// Signed componentwise enclosure of `S_vv` on the cell.
     pub s_vv: [Interval; 3],
+    /// Certified upper bound on `‖S_u‖` over the cell. The integral arm
+    /// reads it from the norms of the derived control VECTORS active on
+    /// the cell (D4 ¶2), so a rigid map moves it only by rounding; the
+    /// rational arm's `S_u` is a quotient-rule enclosure with no
+    /// coefficient form, and its bound is the norm of [`Self::s_u`]'s
+    /// box. `NaN` when refused.
+    pub s_u_sup: f64,
+    /// Certified upper bound on `‖S_v‖` over the cell, read as
+    /// [`Self::s_u_sup`] is.
+    pub s_v_sup: f64,
 }
 
 /// Whether a patch is rational under the kernel's definition (any
@@ -560,8 +571,13 @@ struct CellWindows {
 }
 
 /// Assembles a cell from the five signed componentwise enclosures
-/// (`S_u, S_v, S_uu, S_uv, S_vv`, in that order).
-fn cell_from(uv: ((f64, f64), (f64, f64)), signed: [[Interval; 3]; 5]) -> PatchCell {
+/// (`S_u, S_v, S_uu, S_uv, S_vv`, in that order) and the upper bounds
+/// on `‖S_u‖` and `‖S_v‖`.
+fn cell_from(
+    uv: ((f64, f64), (f64, f64)),
+    signed: [[Interval; 3]; 5],
+    [s_u_sup, s_v_sup]: [f64; 2],
+) -> PatchCell {
     PatchCell {
         u: uv.0,
         v: uv.1,
@@ -570,7 +586,24 @@ fn cell_from(uv: ((f64, f64), (f64, f64)), signed: [[Interval; 3]; 5]) -> PatchC
         s_uu: signed[2],
         s_uv: signed[3],
         s_vv: signed[4],
+        s_u_sup,
+        s_v_sup,
     }
+}
+
+/// A certified upper bound on the norm of the VECTOR B-spline whose
+/// coordinates are `nets`, over the cell whose active window is
+/// `wu × wv`: the largest norm of one active control vector
+/// ([`coefficient_norm_sup`]), since on one knot span the form is a
+/// convex combination of them.
+fn window_norm_sup(nets: [&Net; 3], wu: &RangeInclusive<usize>, wv: &RangeInclusive<usize>) -> f64 {
+    let row = |net: &Net| -> Vec<Interval> {
+        wu.clone()
+            .flat_map(|i| wv.clone().map(move |j| net.get(i, j)))
+            .collect()
+    };
+    let [x, y, z] = nets.map(row);
+    coefficient_norm_sup([&x, &y, &z])
 }
 
 /// The INTEGRAL arm (all weights bitwise `1.0`): the plain hull
@@ -668,9 +701,20 @@ fn integral_cells_on(
                 s_u[c] = g10;
                 s_v[c] = g01;
             }
+            let s_u_sup = window_norm_sup(
+                [&nets[0].d10, &nets[1].d10, &nets[2].d10],
+                &w.u_d1,
+                &w.v_val,
+            );
+            let s_v_sup = window_norm_sup(
+                [&nets[0].d01, &nets[1].d01, &nets[2].d01],
+                &w.u_val,
+                &w.v_d1,
+            );
             cells.push(cell_from(
                 (span_extent(kv_u, su), span_extent(kv_v, sv)),
                 [s_u, s_v, s_uu, s_uv, s_vv],
+                [s_u_sup, s_v_sup],
             ));
         }
     }
@@ -859,6 +903,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
             cells.push(cell_from(
                 (span_extent(&kv_u, su), span_extent(&kv_v, sv)),
                 [s_u, s_v, s_uu, s_uv, s_vv],
+                [norm_sup(&s_u), norm_sup(&s_v)],
             ));
         }
     }

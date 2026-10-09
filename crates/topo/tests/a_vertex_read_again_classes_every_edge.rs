@@ -1,29 +1,35 @@
-//! **A vertex read again classes every edge it reads, or refuses
-//! typed**: every naming row at `MEET`, in every built cell of every
-//! scene, read against an analytic germ (a CSG formula over the plate's
-//! half-space and the pyramids' cones, independent of the kernel), and
-//! every edge at `MEET` that no row classes counted.
+//! **A vertex read again classes every edge it reads**: every naming
+//! row at `MEET`, in every built cell of every scene, read against an
+//! analytic germ (a CSG formula over the plate's half-space and the
+//! pyramids' cones, independent of the kernel), and every edge at
+//! `MEET` that no row classes counted.
 //!
 //! Each scene is a pyramid against a body holding its own contact at
-//! `MEET` (`a_vertex_read_by_two_sector_passes` builds the same ones),
-//! nested to three levels on either side of the plate's top, an island
-//! in a void buried in a block (no face through `MEET`), and a
-//! dart, whose apex is a reflex edge no corner reading reads. Every
-//! scene classes every edge at `MEET` in every op, with no row wrong
-//! and none doubled, except:
-//! - a pyramid touching the top beside a dart refuses `VertexReadTwice`;
-//! - a pyramid paired with a bare dart alone keeps that pair's reading,
-//!   which is none;
-//! - a pyramid inside a dart beside an arch keeps each pair's own rows,
-//!   one an edge, as main did.
+//! `MEET` (`a_vertex_read_by_two_sector_passes` builds most of the same
+//! ones), nested to three levels on either side of the plate's top, an
+//! island in a void buried in a block (no face through `MEET`), and
+//! partners whose corner is neither convex nor hollow, read as polygon
+//! cones (`sectors::cone_read`): darts of four and five faces, whose
+//! apex is a reflex edge, on the plate, bare, and beside an arch; the
+//! apex of a pyramid over an L; a saddle, bare and under an arch; a
+//! crown with a thin fin folded at a short edge, bare and buried; a
+//! crown flat but for one corner dented beside a short edge, bare and
+//! buried; and
+//! near-flat quadrilateral voids, dented 1e-3 and ten zero bands (1e-8
+//! at the default ε) either way, buried with an island and under the
+//! plate's top. Every scene builds in every op and classes every edge
+//! at `MEET`, none wrong, none missing and none doubled; the row prints
+//! each scene's tally.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
 
 use common::meeting::{
-    MEET, PLATE, Pose, apex_pyramid, at, bearing, corners, mix, nest, posed_box, poses,
+    MEET, PLATE, Pose, apex_pyramid, at, bearing, corners, fin, mix, near_flat, nest, nest_polygon,
+    posed_box, posed_crown, poses,
 };
-use geom_core::{Tol, Vec3};
+use geom_core::{Band, Tol, Vec3};
+use std::collections::BTreeMap;
 use topo::{
     AtRestBody, BooleanError, BooleanResult, Operand, SideCode, intersect, readback, subtract,
     union, validate_geometric,
@@ -48,6 +54,10 @@ enum G {
     Cone(Vec<[f64; 3]>),
     /// The cone over a possibly non-convex planar polygon, by fan.
     Fan(Vec<[f64; 3]>),
+    /// Below the fan of planes from the origin through a ring's
+    /// consecutive corners, counterclockwise from above around the z
+    /// axis ([`posed_crown`]).
+    Crown(Vec<[f64; 3]>),
     U(Box<G>, Box<G>),
     D(Box<G>, Box<G>),
 }
@@ -116,6 +126,25 @@ impl G {
                 }
                 inside
             }
+            G::Crown(ring) => {
+                let n = ring.len();
+                let at = |q: [f64; 3]| q[1].atan2(q[0]).rem_euclid(std::f64::consts::TAU);
+                let a = at(d);
+                (0..n).any(|i| {
+                    let (p, q) = (ring[i], ring[(i + 1) % n]);
+                    let (a0, mut a1) = (at(p), at(q));
+                    if a1 <= a0 {
+                        a1 += std::f64::consts::TAU;
+                    }
+                    let a = if a < a0 { a + std::f64::consts::TAU } else { a };
+                    let up = [
+                        p[1] * q[2] - p[2] * q[1],
+                        p[2] * q[0] - p[0] * q[2],
+                        p[0] * q[1] - p[1] * q[0],
+                    ];
+                    a < a1 && (0..3).map(|k| up[k] * d[k]).sum::<f64>() < 0.0
+                })
+            }
             G::U(a, b) => a.has(d) || b.has(d),
             G::D(a, b) => a.has(d) && !b.has(d),
         }
@@ -164,22 +193,6 @@ fn built(what: &str, r: Result<BooleanResult<f64>, BooleanError>) -> AtRestBody<
     }
 }
 
-/// What a scene does at `MEET`.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum Expect {
-    /// Every op that builds classes every edge at `MEET`.
-    Classes,
-    /// Every op refuses `VertexReadTwice`.
-    Refuses,
-    /// A single pair whose partner reads neither way keeps its own
-    /// reading: no row.
-    Unread,
-    /// Pairs alone beside a partner that reads neither way keep each
-    /// pair's own rows, as main did: one row per edge, not the germ's
-    /// (`work/tang/pairs-beside-an-unread-partner-keep-mains-rows.md`).
-    PairsOwn,
-}
-
 fn pick(x: &(AtRestBody<f64>, G)) -> (&AtRestBody<f64>, &G) {
     (&x.0, &x.1)
 }
@@ -191,18 +204,31 @@ fn local(pose: &Pose, w: Vec3<f64>) -> [f64; 3] {
     cols.map(|cv| cv.x * w.x + cv.y * w.y + cv.z * w.z)
 }
 
-/// Every op on `(x, y)` in both orders: each edge at `MEET` of a built
-/// result's operands has one row, the germ's side, or none where
-/// `expect` says so. Returns the rows read.
+/// One scene's cells, over every pose and op: what refused, and each
+/// edge at `MEET` of a built result's operands, by its rows against the
+/// germ.
+#[derive(Default, Debug)]
+struct Tally {
+    built: usize,
+    refused: BTreeMap<String, usize>,
+    rows: usize,
+    wrong: usize,
+    missing: usize,
+    doubled: usize,
+    /// The first wrong or missing row, to name in a failure.
+    first: Option<String>,
+}
+
+/// Every op on `(x, y)` in both orders, tallied: each edge at `MEET` of
+/// a built result's operands has one row, the germ's side.
 fn check(
     label: &str,
     x: (&AtRestBody<f64>, &G),
     y: (&AtRestBody<f64>, &G),
-    expect: Expect,
     pose: &Pose,
-) -> usize {
+    tally: &mut Tally,
+) {
     let meet = at(pose.at(MEET));
-    let mut rows = 0;
     for (what, (a, ag), (b, bg), r) in [
         ("x − y", x, y, subtract(x.0, y.0, t())),
         ("y − x", y, x, subtract(y.0, x.0, t())),
@@ -212,16 +238,17 @@ fn check(
         ("y ∩ x", y, x, intersect(y.0, x.0, t())),
     ] {
         let what = format!("{label}, {}, {what}", pose.label);
-        let r = match (r, expect) {
-            (Err(BooleanError::VertexReadTwice { .. }), Expect::Refuses) => continue,
-            (other, Expect::Refuses) => panic!(
-                "{what}: refuses VertexReadTwice, got {:?}",
-                other.map(|_| ())
-            ),
-            (Ok(BooleanResult::Body(r)), _) => r,
-            (Ok(BooleanResult::Empty), _) => continue,
-            (Err(e), _) => panic!("{what}: builds, got {e:?}"),
+        let r = match r {
+            Ok(BooleanResult::Body(r)) => r,
+            Ok(BooleanResult::Empty) => continue,
+            Err(e) => {
+                let kind = format!("{e:?}");
+                let kind = kind.split([' ', '{', '(']).next().unwrap_or("").to_owned();
+                *tally.refused.entry(kind).or_default() += 1;
+                continue;
+            }
         };
+        tally.built += 1;
         assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{what}: tier 3");
         for (op, own, other) in [(Operand::A, a, bg), (Operand::B, b, ag)] {
             for (v, _) in own.vertices() {
@@ -254,36 +281,51 @@ fn check(
                             })
                             .map(|row| row.class)
                             .collect();
-                        match (got.as_slice(), expect) {
-                            ([], Expect::Unread) => {}
-                            ([], _) => panic!(
-                                "{what}: {op:?}'s edge {e:?} at MEET has no row; the germ reads {want:?}"
-                            ),
-                            ([_], Expect::PairsOwn) => rows += 1,
-                            ([g], _) => {
-                                rows += 1;
-                                assert_eq!(
-                                    *g, want,
-                                    "{what}: {op:?}'s edge {e:?} at MEET against the germ"
-                                );
+                        let bad = match got.as_slice() {
+                            [] => {
+                                tally.missing += 1;
+                                true
                             }
-                            (many, _) => {
-                                panic!("{what}: {op:?}'s edge {e:?} at MEET has rows {many:?}")
+                            [g] => {
+                                tally.rows += 1;
+                                let wrong = *g != want;
+                                tally.wrong += usize::from(wrong);
+                                wrong
                             }
+                            _ => {
+                                tally.doubled += 1;
+                                true
+                            }
+                        };
+                        if bad && tally.first.is_none() {
+                            tally.first = Some(format!(
+                                "{what}: {op:?}'s edge {e:?} at MEET reads {got:?}, the germ {want:?}"
+                            ));
                         }
                     }
                 }
             }
         }
     }
-    rows
+}
+
+/// The ring of [`saddle`]: four corners around `MEET`, risen and fallen
+/// in turn, counterclockwise from above.
+fn crown() -> Vec<[f64; 3]> {
+    [0.0, 90.0, 180.0, 270.0]
+        .iter()
+        .zip([0.2, -0.2, 0.2, -0.2])
+        .map(|(&b, z)| bearing(b, 0.5, z))
+        .collect()
 }
 
 /// **Every edge a vertex read again reads is classed, against the
-/// germ**, in every scene at every pose (module docs).
+/// germ**, in every scene at every pose (module docs). Prints each
+/// scene's tally, then asserts it.
 #[test]
 fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
-    let mut rows = 0;
+    let mut tallies: BTreeMap<&'static str, Tally> = BTreeMap::new();
+    let mut order: Vec<&'static str> = Vec::new();
     for pose in poses() {
         let p = |b: [[f64; 3]; 3]| tet(b, &pose);
         let arch = corners(60.0, 0.5, 0.4);
@@ -391,6 +433,98 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
             subtract(&block_b, &apex_pyramid(&pentagon, &pose, t()), t()),
         );
         let pentagonal = dd(G::All, G::Cone(pentagon.clone()));
+        // Near-flat quadrilateral voids, buried in the block with an
+        // island in each, and under the plate's top: a dent of -1e-3 or
+        // ten zero bands in is a reflex edge at the void's apex, and one
+        // out a convex one. Ten zero bands is 1e-8 at the default ε, as
+        // near flat as the run can tell from flat; a dent within the
+        // band builds no pyramid.
+        let ten = 10.0 * Band::linear(t()).unwrap().zero();
+        let quads = [-1e-3, 1e-3, -ten, ten].map(|dent| {
+            let q = near_flat(dent);
+            let q_b = apex_pyramid(&q, &pose, t());
+            // The review's island, a quadrilateral nested in the void,
+            // whose own corner ten zero bands leaves in band, so that
+            // void takes a triangle.
+            let isle = if dent.abs() < 1e-4 {
+                nest([q[0], q[1], q[3]], 0.7).to_vec()
+            } else {
+                nest_polygon(&q, 0.6)
+            };
+            let buried = built(
+                "a near-flat void buried, an island in it",
+                union(
+                    &built("a near-flat void buried", subtract(&block_b, &q_b, t())),
+                    &apex_pyramid(&isle, &pose, t()),
+                    t(),
+                ),
+            );
+            let under = built(
+                "the plate less a near-flat void",
+                subtract(&plate_b, &q_b, t()),
+            );
+            let fan = G::Fan(q.to_vec());
+            (
+                (buried, u(dd(G::All, fan.clone()), G::Fan(isle))),
+                (under, dd(plate.clone(), fan)),
+            )
+        });
+        // A dart of five faces, one edge reflex; a pyramid over an L,
+        // whose apex has one reflex edge among six; and a saddle, its
+        // edges ridges and valleys in turn. The dart and an arch apart
+        // in one body.
+        let dart5 = vec![
+            pol(25.0, 0.45, 0.5),
+            pol(45.0, 0.62, 0.5),
+            pol(75.0, 0.62, 0.5),
+            pol(95.0, 0.45, 0.5),
+            pol(60.0, 0.52, 0.5),
+        ];
+        let dart5_b = apex_pyramid(&dart5, &pose, t());
+        let dart5_g = G::Fan(dart5.clone());
+        let in_dart5 = [
+            pol(55.0, 0.59, 0.5),
+            pol(65.0, 0.59, 0.5),
+            pol(60.0, 0.575, 0.5),
+        ]
+        .map(|q| q.map(|x| 0.8 * x));
+        let dart5_beside = [
+            bearing(180.0, 0.45, 0.5),
+            bearing(200.0, 0.62, 0.5),
+            bearing(230.0, 0.62, 0.5),
+            bearing(250.0, 0.45, 0.5),
+            bearing(215.0, 0.52, 0.5),
+        ];
+        let arch_dart5_b = built(
+            "an arch and a five-face dart",
+            union(&arch_b, &apex_pyramid(&dart5_beside, &pose, t()), t()),
+        );
+        let arch_dart5 = u(c(arch), G::Fan(dart5_beside.to_vec()));
+        let in_dart5_beside = [
+            bearing(210.0, 0.59, 0.5),
+            bearing(220.0, 0.59, 0.5),
+            bearing(215.0, 0.575, 0.5),
+        ]
+        .map(|q| q.map(|x| 0.8 * x));
+        let ell: Vec<[f64; 3]> = [
+            (0.15, 0.15),
+            (0.55, 0.15),
+            (0.55, 0.35),
+            (0.35, 0.35),
+            (0.35, 0.55),
+            (0.15, 0.55),
+        ]
+        .iter()
+        .map(|&(x, y)| [x, y, 0.5])
+        .collect();
+        let ell_b = apex_pyramid(&ell, &pose, t());
+        let ell_g = G::Fan(ell.clone());
+        let in_ell = [[0.16, 0.16, 0.4], [0.4, 0.16, 0.4], [0.24, 0.24, 0.4]];
+        let across_ell = [[0.2, 0.2, 0.4], [0.4, 0.2, 0.4], [0.2, 0.4, 0.4]];
+        let saddle_b = posed_crown(&crown(), [0.0, 0.0, -1.0], &pose, t());
+        let saddle = G::Crown(crown());
+        let arch_saddle_b = built("an arch over a saddle", union(&arch_b, &saddle_b, t()));
+        let arch_saddle = u(c(arch), saddle.clone());
         let pyr = |b: [[f64; 3]; 3]| (p(b), c(b));
         let (cone, over) = (pyr(corners(240.0, 0.7, 0.5)), pyr(corners(50.0, 0.7, 0.5)));
         let (hang, hang_over) = (
@@ -403,209 +537,354 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
             pyr(nest(hvoid, 0.7)),
         );
         let (cross3, on2, cross_in, in_dart) = (pyr(cross3), pyr(on2), pyr(cross_in), pyr(in_dart));
-        use Expect::{Classes, PairsOwn, Refuses, Unread};
-        for (label, x, y, expect) in [
-            ("the arches", pick(&cone), (&arches_b, &arches), Classes),
-            ("one standing pyramid", pick(&cone), (&one_b, &one), Classes),
-            ("over the arch", pick(&over), (&one_b, &one), Classes),
-            (
-                "over the arches",
-                pick(&over),
-                (&arches_b, &arches),
-                Classes,
-            ),
-            (
-                "hanging below the arch",
-                pick(&hang),
-                (&one_b, &one),
-                Classes,
-            ),
+        let (in_dart5, in_dart5_beside, in_ell, across_ell) = (
+            pyr(in_dart5),
+            pyr(in_dart5_beside),
+            pyr(in_ell),
+            pyr(across_ell),
+        );
+        let across_saddle = pyr([
+            bearing(20.0, 0.5, -0.1),
+            bearing(70.0, 0.5, 0.1),
+            bearing(45.0, 0.3, 0.15),
+        ]);
+        // A pyramid with an edge opposite the saddle's valley at 90°,
+        // on the planes of the two faces beside that valley, outside
+        // their sectors, and its other two edges under the saddle.
+        let along_unread = pyr([
+            bearing(270.0, 0.5, 0.2),
+            bearing(250.0, 0.5, -0.5),
+            bearing(290.0, 0.5, -0.5),
+        ]);
+        let mut scenes = vec![
+            ("the arches", pick(&cone), (&arches_b, &arches)),
+            ("one standing pyramid", pick(&cone), (&one_b, &one)),
+            ("over the arch", pick(&over), (&one_b, &one)),
+            ("over the arches", pick(&over), (&arches_b, &arches)),
+            ("hanging below the arch", pick(&hang), (&one_b, &one)),
             (
                 "hanging across below the arch",
                 pick(&hang_over),
                 (&one_b, &one),
-                Classes,
             ),
             (
                 "standing over the cavity",
                 pick(&cone),
                 (&cavity_b, &cavity),
-                Classes,
             ),
             (
                 "hanging below the cavity",
                 pick(&hang),
                 (&cavity_b, &cavity),
-                Classes,
             ),
             (
                 "hanging across the cavity",
                 pick(&hang_over),
                 (&cavity_b, &cavity),
-                Classes,
             ),
             (
                 "hanging into the void",
                 pick(&in_void),
                 (&cavity_b, &cavity),
-                Classes,
             ),
-            (
-                "standing on the plate",
-                pick(&cone),
-                (&plate_b, &plate),
-                Classes,
-            ),
-            ("the bare arches", pick(&cone), (&bare_b, &bare), Classes),
-            (
-                "over the bare arches",
-                pick(&over),
-                (&bare_b, &bare),
-                Classes,
-            ),
-            (
-                "two up, one over the arch",
-                pick(&two_up),
-                (&one_b, &one),
-                Classes,
-            ),
+            ("standing on the plate", pick(&cone), (&plate_b, &plate)),
+            ("the bare arches", pick(&cone), (&bare_b, &bare)),
+            ("over the bare arches", pick(&over), (&bare_b, &bare)),
+            ("two up, one over the arch", pick(&two_up), (&one_b, &one)),
             (
                 "two up over the arch and void",
                 pick(&two_up),
                 (&both_b, &both),
-                Classes,
             ),
             (
                 "two down beside the void",
                 pick(&two_down),
                 (&both_b, &both),
-                Classes,
             ),
-            (
-                "over the arch and void",
-                pick(&over),
-                (&both_b, &both),
-                Classes,
-            ),
+            ("over the arch and void", pick(&over), (&both_b, &both)),
             (
                 "hanging across the arch and void",
                 pick(&hang_over),
                 (&both_b, &both),
-                Classes,
             ),
             (
                 "in the island in the void",
                 pick(&in_island),
                 (&island_b, &island),
-                Classes,
             ),
             (
                 "in the void in the arch",
                 pick(&in_hollow),
                 (&hollow_b, &hollow),
-                Classes,
             ),
             (
                 "over a void in the bare arch",
                 pick(&over),
                 (&bare_hollow_b, &bare_hollow),
-                Classes,
             ),
             (
                 "two up over a void in the bare arch",
                 pick(&two_up),
                 (&bare_hollow_b, &bare_hollow),
-                Classes,
             ),
             (
                 "over the void in the arch",
                 pick(&over),
                 (&hollow_b, &hollow),
-                Classes,
             ),
             (
                 "crossing the void in the arch",
                 pick(&cross3),
                 (&hollow_b, &hollow),
-                Classes,
             ),
             (
                 "on the void's face in the arch",
                 pick(&on2),
                 (&hollow_b, &hollow),
-                Classes,
             ),
             (
                 "crossing the island in the void",
                 pick(&cross_in),
                 (&island_b, &island),
-                Classes,
             ),
             (
                 "beside the void in the arch",
                 pick(&cone),
                 (&hollow_b, &hollow),
-                Classes,
             ),
             (
                 "beside the island in the void",
                 pick(&cone),
                 (&island_b, &island),
-                Classes,
             ),
             (
                 "crossing three levels in the arch",
                 pick(&cross3),
                 (&deep_b, &deep),
-                Classes,
             ),
             (
                 "on the void's face, the island in it",
                 pick(&on2),
                 (&deep_b, &deep),
-                Classes,
             ),
-            ("over the deep arch", pick(&over), (&deep_b, &deep), Classes),
+            ("over the deep arch", pick(&over), (&deep_b, &deep)),
             (
                 "crossing an island in a buried void",
                 pick(&cross_in),
                 (&buried_island_b, &buried_island),
-                Classes,
             ),
-            (
-                "over a dart",
-                pick(&over),
-                (&dart_one_b, &dart_one),
-                Refuses,
-            ),
-            (
-                "beside a dart",
-                pick(&cone),
-                (&dart_one_b, &dart_one),
-                Refuses,
-            ),
+            ("over a dart", pick(&over), (&dart_one_b, &dart_one)),
+            ("beside a dart", pick(&cone), (&dart_one_b, &dart_one)),
             (
                 "hanging into a pentagonal void",
                 pick(&hang),
                 (&pentagonal_b, &pentagonal),
-                Classes,
             ),
             (
                 "hanging across a pentagonal void",
                 pick(&hang_over),
                 (&pentagonal_b, &pentagonal),
-                Classes,
             ),
-            ("over a bare dart", pick(&over), (&dart_b, &dart_g), Unread),
+            ("over a bare dart", pick(&over), (&dart_b, &dart_g)),
             (
                 "inside a bare dart beside a bare arch",
                 pick(&in_dart),
                 (&arch_dart_b, &arch_dart),
-                PairsOwn,
             ),
-        ] {
-            rows += check(label, x, y, expect, &pose);
+            ("over a five-face dart", pick(&over), (&dart5_b, &dart5_g)),
+            ("in a five-face dart", pick(&in_dart5), (&dart5_b, &dart5_g)),
+            (
+                "in a five-face dart beside an arch",
+                pick(&in_dart5_beside),
+                (&arch_dart5_b, &arch_dart5),
+            ),
+            ("over an L's apex", pick(&over), (&ell_b, &ell_g)),
+            ("in an L's apex", pick(&in_ell), (&ell_b, &ell_g)),
+            ("across an L's notch", pick(&across_ell), (&ell_b, &ell_g)),
+            ("above a saddle", pick(&cone), (&saddle_b, &saddle)),
+            ("below a saddle", pick(&hang), (&saddle_b, &saddle)),
+            (
+                "across a saddle",
+                pick(&across_saddle),
+                (&saddle_b, &saddle),
+            ),
+            (
+                "above a saddle beside an arch",
+                pick(&cone),
+                (&arch_saddle_b, &arch_saddle),
+            ),
+            (
+                "in an arch over a saddle",
+                pick(&in_hollow),
+                (&arch_saddle_b, &arch_saddle),
+            ),
+            (
+                "opposite a saddle's valley",
+                pick(&along_unread),
+                (&saddle_b, &saddle),
+            ),
+            (
+                "opposite a saddle's valley beside an arch",
+                pick(&along_unread),
+                (&arch_saddle_b, &arch_saddle),
+            ),
+        ];
+        // The fin, bare and as a void buried in the block, each against
+        // pyramids standing and hanging at three bearings. A pyramid
+        // hanging at 10° refuses `CrossingInsertion` in every op, as on
+        // main, so it is left out. The fin's fold is 1e-4° wide, and the
+        // dented crown below is dented 3e-7, both in band at ε = 1e-6,
+        // where neither crown builds; each is read where it builds.
+        let fin_builds = Band::linear(t()).unwrap().zero() < 1e-8;
+        if !fin_builds && pose.label == poses()[0].label {
+            test_utils::vacuity::stood_down(
+                "the fin and the dented crown",
+                "the fin's fold and the crown's dents are in band at this ε, their crowns do \
+                 not build, and no row of theirs is read",
+            );
+        }
+        let fin_scene = fin_builds.then(|| {
+            let fin_b = posed_crown(&fin(), [0.0, 0.2, -0.6], &pose, t());
+            let fin_void_b = built("a fin void buried", subtract(&block_b, &fin_b, t()));
+            (fin_b, fin_void_b)
+        });
+        let fin_g = G::Crown(fin());
+        let fin_void_g = dd(G::All, fin_g.clone());
+        let fin_probes: Vec<_> = [
+            (10.0, 0.3),
+            (130.0, 0.3),
+            (130.0, -0.3),
+            (250.0, 0.3),
+            (250.0, -0.3),
+        ]
+        .iter()
+        .map(|&(b, rise)| pyr(corners(b, rise, 0.5)))
+        .collect();
+        let fin_labels: Vec<&'static str> = (0..fin_probes.len())
+            .flat_map(|k| {
+                [
+                    format!("a fin, probe {k}"),
+                    format!("a fin void, probe {k}"),
+                ]
+            })
+            .map(|l| &*Box::leak(l.into_boxed_str()))
+            .collect();
+        if let Some((fin_b, fin_void_b)) = &fin_scene {
+            for (k, probe) in fin_probes.iter().enumerate() {
+                scenes.push((fin_labels[2 * k], pick(probe), (fin_b, &fin_g)));
+                scenes.push((
+                    fin_labels[2 * k + 1],
+                    pick(probe),
+                    (fin_void_b, &fin_void_g),
+                ));
+            }
+        }
+        // A crown whose top is flat but for one corner dented beside a
+        // 1 mm edge, probed by pyramids whose top edge runs 2e-7 rad
+        // under or over the face beyond the dent (PR 4289's second
+        // review): the dented face's reference lies within the band of
+        // the flat faces' plane, and the arc to it crosses one of them
+        // far from it.
+        let dir = |a: f64, z: f64, l: f64| [l * a.cos(), l * a.sin(), l * z];
+        let dented = vec![
+            dir(-0.01, 1.5e-5 * 0.06f64.sin(), 0.4),
+            dir(0.05, 0.0, 1e-3),
+            dir(0.5, 0.0, 0.4),
+            dir(2.0, 3e-7, 0.4),
+            dir(3.5, -3e-7, 0.4),
+            dir(5.0, 3e-7, 0.4),
+        ];
+        // The height over z = 0, per unit, of the face from bearing 0.5
+        // to 2.0 along bearing `a`.
+        let beyond = |a: f64| {
+            let (b, c) = (dir(0.5, 0.0, 1.0), dir(2.0, 3e-7, 1.0));
+            let n = [
+                b[1] * c[2] - b[2] * c[1],
+                b[2] * c[0] - b[0] * c[2],
+                b[0] * c[1] - b[1] * c[0],
+            ];
+            -(a.cos() * n[0] + a.sin() * n[1]) / n[2]
+        };
+        let dented_scene = fin_builds.then(|| {
+            let dented_b = posed_crown(&dented, [0.0, 0.0, -0.6], &pose, t());
+            let dented_void_b = built("a dented crown void", subtract(&block_b, &dented_b, t()));
+            (dented_b, dented_void_b)
+        });
+        let dented_g = G::Crown(dented.clone());
+        let dented_void_g = dd(G::All, dented_g.clone());
+        // The probes 0.8 rad round from the dent, under the face beyond
+        // it, and 1.0 rad round, over it. Others at 0.6 to 1.2 rad
+        // refuse `bool_sector_within` in band in every op (the sector
+        // pair search, as on head), so they are left out.
+        let dented_probe = |a: f64, s: f64| {
+            pyr([
+                dir(a, beyond(a) - 2e-7 * s, 0.5),
+                dir(a + 0.3 * s, -0.6 * s, 0.5),
+                dir(a - 0.3 * s, -0.6 * s, 0.5),
+            ])
+        };
+        let (under, over) = (dented_probe(0.8, 1.0), dented_probe(1.0, -1.0));
+        if let Some((dented_b, dented_void_b)) = &dented_scene {
+            scenes.extend([
+                (
+                    "a dented crown void, under",
+                    pick(&under),
+                    (dented_void_b, &dented_void_g),
+                ),
+                ("a dented crown, over", pick(&over), (dented_b, &dented_g)),
+                (
+                    "a dented crown void, over",
+                    pick(&over),
+                    (dented_void_b, &dented_void_g),
+                ),
+            ]);
+        }
+        let dents = ["-1e-3", "+1e-3", "-ten zero bands", "+ten zero bands"];
+        let labels: Vec<_> = dents
+            .iter()
+            .flat_map(|d| {
+                [
+                    format!("near-flat quad void {d} buried, island, hang"),
+                    format!("near-flat quad void {d} buried, island, hang_over"),
+                    format!("near-flat quad void {d} under the top, cone"),
+                    format!("near-flat quad void {d} under the top, hang"),
+                    format!("near-flat quad void {d} under the top, hang_over"),
+                ]
+            })
+            .map(|l| &*Box::leak(l.into_boxed_str()))
+            .collect();
+        for (k, ((buried, buried_g), (under, under_g))) in quads.iter().enumerate() {
+            let l = &labels[5 * k..5 * k + 5];
+            scenes.extend([
+                (l[0], pick(&hang), (buried, buried_g)),
+                (l[1], pick(&hang_over), (buried, buried_g)),
+                (l[2], pick(&cone), (under, under_g)),
+                (l[3], pick(&hang), (under, under_g)),
+                (l[4], pick(&hang_over), (under, under_g)),
+            ]);
+        }
+        for (label, x, y) in scenes {
+            if !tallies.contains_key(label) {
+                order.push(label);
+            }
+            let tally = tallies.entry(label).or_default();
+            check(label, x, y, &pose, tally);
         }
     }
+    let mut failures = Vec::new();
+    let mut rows = 0;
+    eprintln!("scene | built | refused | rows | wrong | missing | doubled");
+    for label in &order {
+        let tally = &tallies[label];
+        rows += tally.rows;
+        eprintln!(
+            "{label} | {} | {:?} | {} | {} | {} | {}",
+            tally.built, tally.refused, tally.rows, tally.wrong, tally.missing, tally.doubled
+        );
+        if !tally.refused.is_empty() || tally.wrong + tally.missing + tally.doubled > 0 {
+            failures.push(format!("{label}: {tally:?}"));
+        }
+    }
+    assert!(failures.is_empty(), "{failures:#?}");
     assert!(rows > 0, "rows were read");
 }

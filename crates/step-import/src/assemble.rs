@@ -63,12 +63,13 @@
 
 use std::collections::BTreeMap;
 
-use topo::{Body, HalfEdgeKey, LoopKey, MefSite, MekrSite, MevSite, VertexKey};
+use topo::{Body, FaceKey, HalfEdgeKey, LoopKey, MefSite, MekrSite, MevSite, VertexKey};
 
 use crate::adopt;
 use crate::entities::SolidSpec;
 use crate::error::StepImportError;
-use geom_core::Tol;
+use crate::{FaceCensus, NormalizationKind, StructureNormalization};
+use geom_core::{FileCoincidence, Tol};
 
 /// The absolute offset, along +x, that mints a temporary strut's far
 /// endpoint beside an existing vertex ([`strut_endpoint`]).
@@ -290,6 +291,8 @@ struct Builder<'a> {
     body: &'a mut Body<f64>,
     target: Target,
     solid: &'a SolidSpec,
+    /// The file's ε_in, for the refusals assembly reports.
+    file: FileCoincidence,
     /// `Some(he)` once a use is realized.
     use_he: Vec<Option<HalfEdgeKey>>,
     vstate: BTreeMap<u64, VState>,
@@ -297,10 +300,14 @@ struct Builder<'a> {
 
 impl<'a> Builder<'a> {
     /// Wraps an operator refusal with the entity being assembled.
-    fn op_err(id: u64) -> impl FnOnce(topo::EulerOpError) -> StepImportError {
+    fn op_err(
+        id: u64,
+        file: FileCoincidence,
+    ) -> impl FnOnce(topo::EulerOpError) -> StepImportError {
         move |source| StepImportError::Assembly {
             id,
             source: source.from_driver(),
+            file,
         }
     }
 
@@ -359,7 +366,7 @@ impl<'a> Builder<'a> {
         let created = self
             .body
             .mev_line(site, p_end, tol)
-            .map_err(Self::op_err(edge_id))?;
+            .map_err(Self::op_err(edge_id, self.file))?;
         self.use_he[fwd] = Some(created.he_plus);
         self.use_he[rev] = Some(created.he_minus);
         self.set_built(spec.start, start_key);
@@ -407,7 +414,7 @@ impl<'a> Builder<'a> {
             // fall through to the cross-face demotion below.
             self.body
                 .mfkrh_plug(keep, true)
-                .map_err(Self::op_err(edge_id))?;
+                .map_err(Self::op_err(edge_id, self.file))?;
             return self.make_ring_of(edge_id, keep, dying);
         }
         if dying_is_outer {
@@ -427,11 +434,11 @@ impl<'a> Builder<'a> {
             for ring in rings {
                 self.body
                     .ring_move(ring, keep_face)
-                    .map_err(Self::op_err(edge_id))?;
+                    .map_err(Self::op_err(edge_id, self.file))?;
             }
             self.body
                 .kfmrh(keep_face, dying_face)
-                .map_err(Self::op_err(edge_id))?;
+                .map_err(Self::op_err(edge_id, self.file))?;
         } else {
             let keep_face = self
                 .body
@@ -440,7 +447,7 @@ impl<'a> Builder<'a> {
                 .face;
             self.body
                 .ring_move(dying, keep_face)
-                .map_err(Self::op_err(edge_id))?;
+                .map_err(Self::op_err(edge_id, self.file))?;
         }
         Ok(())
     }
@@ -475,7 +482,7 @@ impl<'a> Builder<'a> {
                 let c = self
                     .body
                     .mef_chord(MefSite::Lone { r#loop }, tol)
-                    .map_err(Self::op_err(edge_id))?;
+                    .map_err(Self::op_err(edge_id, self.file))?;
                 (c.he_plus, c.he_minus, vertex, vertex)
             }
             (
@@ -498,7 +505,7 @@ impl<'a> Builder<'a> {
                         },
                         tol,
                     )
-                    .map_err(Self::op_err(edge_id))?;
+                    .map_err(Self::op_err(edge_id, self.file))?;
                 (c.he_plus, c.he_minus, v1, v2)
             }
             (
@@ -520,7 +527,7 @@ impl<'a> Builder<'a> {
                         },
                         tol,
                     )
-                    .map_err(Self::op_err(edge_id))?;
+                    .map_err(Self::op_err(edge_id, self.file))?;
                 (c.he_plus, c.he_minus, v1, v2)
             }
             (
@@ -542,7 +549,7 @@ impl<'a> Builder<'a> {
                         },
                         tol,
                     )
-                    .map_err(Self::op_err(edge_id))?;
+                    .map_err(Self::op_err(edge_id, self.file))?;
                 (c.he_plus, c.he_minus, v1, v2)
             }
             (VState::Built(v1), VState::Built(v2)) => {
@@ -562,7 +569,7 @@ impl<'a> Builder<'a> {
                         let c = self
                             .body
                             .mef_chord(MefSite::Chords { he1: s_f, he2: s_r }, tol)
-                            .map_err(Self::op_err(edge_id))?;
+                            .map_err(Self::op_err(edge_id, self.file))?;
                         (c.he_plus, c.he_minus, v1, v2)
                     } else {
                         self.make_ring_of(edge_id, lf, lr)?;
@@ -575,7 +582,7 @@ impl<'a> Builder<'a> {
                                 },
                                 tol,
                             )
-                            .map_err(Self::op_err(edge_id))?;
+                            .map_err(Self::op_err(edge_id, self.file))?;
                         (c.he_plus, c.he_minus, v1, v2)
                     }
                 }
@@ -627,7 +634,7 @@ impl<'a> Builder<'a> {
             let c = self
                 .body
                 .mef_chord(MefSite::Chords { he1: s, he2: s }, tol)
-                .map_err(Self::op_err(edge_id))?;
+                .map_err(Self::op_err(edge_id, self.file))?;
             return Ok((c.he_plus, c.he_minus));
         }
         // Strut before `s`, self-loop spliced around it, strut killed.
@@ -641,7 +648,7 @@ impl<'a> Builder<'a> {
         let strut = self
             .body
             .mev_line(MevSite::Fan { he1: s, he2: s }, offset, tol)
-            .map_err(Self::op_err(edge_id))?;
+            .map_err(Self::op_err(edge_id, self.file))?;
         let c = self
             .body
             .mef_chord(
@@ -651,10 +658,10 @@ impl<'a> Builder<'a> {
                 },
                 tol,
             )
-            .map_err(Self::op_err(edge_id))?;
+            .map_err(Self::op_err(edge_id, self.file))?;
         self.body
             .kev(strut.he_plus)
-            .map_err(Self::op_err(edge_id))?;
+            .map_err(Self::op_err(edge_id, self.file))?;
         Ok((c.he_plus, c.he_minus))
     }
 
@@ -675,11 +682,11 @@ impl<'a> Builder<'a> {
             let strut = self
                 .body
                 .mev_line(MevSite::Fan { he1: he, he2: he }, p, tol)
-                .map_err(Self::op_err(edge_id))?;
+                .map_err(Self::op_err(edge_id, self.file))?;
             let kill = self
                 .body
                 .kemr(strut.he_plus, strut.he_minus)
-                .map_err(Self::op_err(edge_id))?;
+                .map_err(Self::op_err(edge_id, self.file))?;
             self.vstate.insert(
                 vertex_id,
                 VState::Lone {
@@ -821,7 +828,8 @@ fn assemble_solid(
     body: &mut Body<f64>,
     solid: &SolidSpec,
     tol: Tol,
-) -> Result<(), StepImportError> {
+    file: FileCoincidence,
+) -> Result<BTreeMap<FaceKey, u64>, StepImportError> {
     let target = Target::build(solid)?;
     // Root: the first non-self-loop edge's start vertex (so the seed
     // grows by `mev`), else the first edge's vertex (an all-self-loop
@@ -857,6 +865,7 @@ fn assemble_solid(
             .map_err(|source| StepImportError::Assembly {
                 id: solid.id,
                 source: source.from_driver(),
+                file,
             })?;
     let mut vstate = BTreeMap::new();
     for &v in solid.vertices.keys() {
@@ -874,6 +883,7 @@ fn assemble_solid(
         body: &mut *body,
         target,
         solid,
+        file,
         use_he: vec![None; use_count],
         vstate,
     };
@@ -905,7 +915,13 @@ fn assemble_solid(
         })
         .collect::<Result<_, _>>()?;
     let assembled = Assembled { target, use_he };
-    adopt::finish(body, solid, &assembled, tol)
+    // Each body face's `ADVANCED_FACE`: the join the build ends with
+    // reports against the file's faces.
+    let keys = adopt::finish(body, solid, &assembled, tol, file)?;
+    Ok(keys
+        .into_iter()
+        .zip(solid.faces.iter().map(|f| f.id))
+        .collect())
 }
 
 /// The assembly proper: one `MANIFOLD_SOLID_BREP` into a body of its
@@ -918,7 +934,11 @@ fn assemble_solid(
 /// cannot see a single inside-out solid whose neighbours cancel it.
 /// Nothing assembles two specs into one arena — each instance is
 /// built into a body of its own and the copies are grafted (`lib.rs`).
-pub(crate) fn build_one_solid(solid: &SolidSpec, tol: Tol) -> Result<Body<f64>, StepImportError> {
+pub(crate) fn build_one_solid(
+    solid: &SolidSpec,
+    tol: Tol,
+    file: FileCoincidence,
+) -> Result<(Body<f64>, Vec<StructureNormalization>), StepImportError> {
     let mut body = Body::new();
     // The import IS a door: it runs the operator sequence a foreign
     // file describes, and D1's whole-body tier-1 postcondition is paid
@@ -927,10 +947,69 @@ pub(crate) fn build_one_solid(solid: &SolidSpec, tol: Tol) -> Result<Body<f64>, 
     // it used to cost one per mint. The guard owns the borrow, so a
     // refusal part-way closes the scope by dropping it.
     let mut door = body.begin_surgery();
-    assemble_solid(&mut door, solid, tol)?;
+    let faces = assemble_solid(&mut door, solid, tol, file)?;
     topo::mint_pcurves(&mut door, tol).map_err(|source| StepImportError::Pcurves { source })?;
     door.sweep_and_close();
-    Ok(body)
+    let joins = join(&mut body, solid.id, &faces, tol)?;
+    Ok((body, joins))
+}
+
+/// **The import ends with the join** every finisher ends with
+/// (`docs/DESIGN.md`, maximal edges; Ev's PR 4251 ruling): where the
+/// file stops an edge at a vertex the next edge runs on through along
+/// the same carrier, the kernel joins the two. Each join is reported,
+/// never silent, as a [`NormalizationKind::JoinedEdges`] record keyed
+/// by the least `ADVANCED_FACE` the joined edge bounds.
+///
+/// A file finer than the run can state such a vertex inside the band
+/// (the halfcap files: a split vertex 1e-8 m off a pole, read at the
+/// default ε), and the join refuses that typed, with the tighten-ε
+/// recourse, rather than guessing.
+fn join(
+    body: &mut Body<f64>,
+    solid: u64,
+    faces: &BTreeMap<FaceKey, u64>,
+    tol: Tol,
+) -> Result<Vec<StructureNormalization>, StepImportError> {
+    let refused = |refusal: &topo::BooleanError| StepImportError::Join {
+        solid,
+        refusal: topo::JoinRefusal::of(refusal),
+    };
+    // A tolerance that makes no band (an ε within K of `f64::MAX`) cannot
+    // read whether a vertex is joinable, so the join refuses here rather
+    // than leave one unread for the gate behind it.
+    let band = geom_core::Band::linear(tol).map_err(|e| refused(&topo::BooleanError::Band(e)))?;
+    let joins = body.join_edges(band, tol).map_err(|e| refused(&e))?;
+    joins
+        .iter()
+        .map(|j| {
+            let face = body
+                .get_edge(j.kept)
+                .into_iter()
+                .flat_map(|e| [e.he_plus, e.he_minus])
+                .filter_map(|h| body.face_of_half_edge(h))
+                .filter_map(|f| faces.get(&f).copied())
+                .min()
+                .ok_or(StepImportError::Topology {
+                    id: solid,
+                    what: "internal: a joined edge bounds no assembled face",
+                })?;
+            Ok(StructureNormalization {
+                face,
+                kind: NormalizationKind::JoinedEdges,
+                file_census: FaceCensus {
+                    faces: 0,
+                    edges: 2,
+                    vertices: 1,
+                },
+                kernel_census: FaceCensus {
+                    faces: 0,
+                    edges: 1,
+                    vertices: 0,
+                },
+            })
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -1124,6 +1203,7 @@ mod tests {
             body: &mut body,
             target: target(),
             solid: &swallowed,
+            file: FileCoincidence::new(1e-6, tol),
             use_he: vec![None, None, Some(s)],
             vstate: BTreeMap::new(),
         }
@@ -1150,6 +1230,7 @@ mod tests {
             body: &mut body,
             target: target(),
             solid: &ordinary,
+            file: FileCoincidence::new(1e-6, tol),
             use_he: vec![None, None, Some(s)],
             vstate: BTreeMap::new(),
         }

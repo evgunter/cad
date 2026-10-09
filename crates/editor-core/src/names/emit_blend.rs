@@ -25,10 +25,13 @@
 //! # The provenance channels, and the totality that closes them
 //!
 //! An output entity is either a recorded mint or a survivor keeping
-//! its source arena key ([`BlendNaming`]'s module docs). Survivors
-//! take [`RoleSeg::FromTarget`] of their upstream name; mints take
-//! their role. Anything that is neither — a key minted without a
-//! record — has no upstream name and surfaces as
+//! its source arena key ([`BlendNaming`]'s module docs), less the cells
+//! the closing join killed. Survivors take [`RoleSeg::FromTarget`] of
+//! their upstream name; mints take their role; a join's kept edge, a
+//! survivor or a mint by its key, takes the name of the input edges its
+//! cover lies along (`join_names`), which replaces its row's. Anything
+//! that is neither — a key minted without a record — has no upstream
+//! name and surfaces as
 //! [`NamingError::MissingUpstream`], loudly, rather than being guessed
 //! around. The final [`check_total`] closes the other direction.
 //!
@@ -261,6 +264,35 @@ pub(super) fn name_blend<T: geom_core::Real>(
         )?;
     }
 
+    // ---- The joins (`BlendNaming::edge_joins`). ----
+    // The blend ends with the join, so an edge it made is named by the
+    // input edges its cover lies along (`join_names`), each read by the
+    // rows above: a trimline of an input edge on one support (`TrimEdge`),
+    // a rim trim on one support (`BandTrim`), or a surviving input edge
+    // (`FromTarget`). An edge the blend minted outright (an end arc, a
+    // mitre, a band's slit, a remnant) reads no input edge, and a cover
+    // holding one refuses.
+    let joined = super::join_names::name_joins(node, body, &rec.edge_joins, |m| {
+        Ok(match minted.get(&EntityKey::Edge(m)) {
+            Some((seg @ (RoleSeg::TrimEdge { .. } | RoleSeg::BandTrim { .. }), tied)) => {
+                super::join_names::Member::Image {
+                    seg: seg.clone(),
+                    tied: *tied,
+                }
+            }
+            Some(_) => super::join_names::Member::Outright,
+            None => {
+                let u = up_e(m)?;
+                super::join_names::Member::Image {
+                    seg: RoleSeg::FromTarget(u.name),
+                    tied: u.tied,
+                }
+            }
+        })
+    })?;
+    // The joined names replace whatever the rows gave the kept edge.
+    minted.extend(joined);
+
     // ---- The table: the body row, then every output entity. ----
     let mut t = NameTable::new();
     let mut tie = TieRows::default();
@@ -373,6 +405,94 @@ mod tie_tests {
         )
         .expect("the extrude names");
         (built.body, table)
+    }
+
+    /// **A join that takes an edge the blend minted outright refuses**:
+    /// an end arc has no input edge of its own to read, so a joined edge
+    /// covering one has no input-cell reading (the ruling's stop case).
+    /// No blend run on `ci` reaches it (the joins it makes are trims,
+    /// rim trims or surviving input edges, `BlendNaming::edge_joins`), so
+    /// the row plants the record: a join whose `gone` edge the surgery
+    /// minted as an arc.
+    #[test]
+    fn a_join_over_an_edge_the_blend_minted_outright_refuses() {
+        let (body, table) = cube();
+        let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
+        let v = body.vertices().next().unwrap().0;
+        let rec = BlendNaming {
+            arcs: vec![(edges[1], v, edges[0])],
+            edge_joins: vec![topo::EdgeJoin {
+                vertex: v,
+                gone: edges[1],
+                kept: edges[2],
+                conventional: None,
+            }],
+            ..BlendNaming::default()
+        };
+        let named = name_blend(
+            RecipeNodeId::new(0, 2),
+            RecipeNodeId::new(0, 1),
+            &table,
+            &body,
+            &rec,
+        );
+        assert!(
+            matches!(
+                named,
+                Err(NamingError::Emission { what }) if what.contains("minted outright")
+            ),
+            "the stop case refuses typed"
+        );
+    }
+
+    /// **A join over a trimline and a survivor names their flat set**:
+    /// each is the image of one input edge — the trimline of the edge it
+    /// parallels on its support, the survivor of itself — so the joined
+    /// edge spans several input edges and is the `Merged` set of their
+    /// images, kinds mixed as they come. No blend run makes this join
+    /// (the joins it makes are trims, rim trims or survivors among
+    /// themselves), so the row plants the record: a join of a trim the
+    /// surgery minted with an edge it carried.
+    #[test]
+    fn a_join_over_a_trim_and_a_survivor_names_their_set() {
+        let (body, table) = cube();
+        let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
+        let v = body.vertices().next().unwrap().0;
+        let f = body.faces().next().unwrap().0;
+        let rec = BlendNaming {
+            trims: vec![(edges[1], edges[0], f)],
+            edge_joins: vec![topo::EdgeJoin {
+                vertex: v,
+                gone: edges[1],
+                kept: edges[2],
+                conventional: None,
+            }],
+            ..BlendNaming::default()
+        };
+        let named = name_blend(
+            RecipeNodeId::new(0, 2),
+            RecipeNodeId::new(0, 1),
+            &table,
+            &body,
+            &rec,
+        )
+        .expect("a mixed set is a reading");
+        let name = named
+            .name_of(&ent(0, EntityKey::Edge(edges[2])))
+            .expect("the kept edge is named");
+        let [RoleSeg::Merged(cs)] = name.path.as_slice() else {
+            panic!("the joined edge is a set: {name:?}");
+        };
+        let kinds: Vec<_> = cs
+            .iter()
+            .map(|c| match c.path.as_slice() {
+                [RoleSeg::TrimEdge { .. }] => "trim",
+                [RoleSeg::FromTarget(_)] => "survivor",
+                other => panic!("an image of one input edge: {other:?}"),
+            })
+            .collect();
+        assert_eq!(kinds.len(), 2, "the trimline and the survivor: {name:?}");
+        assert!(kinds.contains(&"trim") && kinds.contains(&"survivor"));
     }
 
     /// Rebuilds `table` with `a` and `b` TIED under `a`'s name — the

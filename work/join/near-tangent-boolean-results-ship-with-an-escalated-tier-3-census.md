@@ -313,6 +313,20 @@ the design pass:
 - CLEAVE: `near-tangent-pierce-poses-reach-three-classification-invariants`
   (345 runs, outside this row's question).
 
+## More runs reach this row (ENCL, branch `encl/shell-volume-local-origin`)
+
+ENCL's fix for
+`work/encl/the-role-reads-certified-volume-enclosure-straddles-zero-on-a-sliver-shell`
+lets a near-tangent ∩'s sliver lump read its role at ε = 1e-12. Over the
+probe's 23 040 runs at `NT_D=±1e-8,±1e-9,±1e-10,±1e-11`, the 74 runs
+that refused `ShellRoleUndecided` on a straddling enclosure now build.
+52 of them are sound. 22 ship with a correct volume, tier 2 and the
+certificate, but tier 3′ does not certify them (`t3p=false`). Every one
+has an `UndeclaredContact { EdgeEdgeCross }` finding; 12 also have
+`CensusUndecidable`, and one a `CensusEscalated`. They are on vee300 (7), asym
+(6), w345 (4), notch307 (3) and shallow200 (2), at d = 1e-9 (13),
+1e-10 (8) and −1e-9 (1).
+
 ## The shape to give
 
 No door ships a body its census cannot certify. Each question has one owner. The three DESIGN.md additions on this branch state them: Q1's conditioning premise, tier 3′'s census clause, and D10's "Booleans" clause.

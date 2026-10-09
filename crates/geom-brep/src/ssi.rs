@@ -130,7 +130,9 @@ pub mod system;
 use geom::{Collocation, Curve3, FitError, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::Bounds;
-use geom_core::{Band, Indeterminate, Margin, NOT_YET_ENDING, Point3, Real, SizedPass};
+use geom_core::{
+    Band, FileCoincidence, Indeterminate, Margin, NOT_YET_ENDING, Point3, Real, SizedPass,
+};
 
 use crate::certify::CertCheck;
 use crate::recourse::{
@@ -2079,8 +2081,8 @@ impl TraceDecision {
     /// `reading`: the one its decided verdicts carry (D4 ¶1 (iv)).
     ///
     /// - The transversality decision ends by [`CertCheck::Transversality`],
-    ///   and its arm gate as the decision it guards, as the edge
-    ///   certifier's does.
+    ///   and its arm gate by [`CertCheck::TransversalityArm`], as a
+    ///   length, as the edge certifier's does.
     /// - The step and the closure angle are the march's own, no size a
     ///   caller intends, so they end in their lever alone, as
     ///   [`SsiError::StepCollapsed`] and [`SsiError::SelfCrossingLocus`] do.
@@ -2098,7 +2100,10 @@ impl TraceDecision {
     pub fn ending(self, cause: &Indeterminate, reading: Reading) -> String {
         let arm = RefusedArm::Undecided(cause);
         match self {
-            Self::TransversalityArm | Self::Transversality => {
+            Self::TransversalityArm => {
+                crate::certify::recourse(CertCheck::TransversalityArm, arm, reading)
+            }
+            Self::Transversality => {
                 crate::certify::recourse(CertCheck::Transversality, arm, reading)
             }
             Self::PairTangency => PAIR_TANGENCY.recourse(arm, reading),
@@ -2186,16 +2191,30 @@ impl OneArcRefusal {
     /// end, and escalating for a walk that resolved nothing.
     #[must_use]
     pub fn ending(self, door: OneArcDoor, reading: Reading) -> String {
+        let (decision, arm) = self.decision(door);
+        decision.recourse(arm, reading)
+    }
+
+    /// The ending this refusal carries at `door`, read at the STEP import
+    /// door ([`SizedDecision::recourse_in_file`]): at rest, with the
+    /// file's ε_in words on a band-decided arm.
+    #[must_use]
+    pub fn ending_in_file(self, door: OneArcDoor, file: FileCoincidence) -> String {
+        let (decision, arm) = self.decision(door);
+        decision.recourse_in_file(arm, file)
+    }
+
+    /// The decision `door` reads this refusal as, and which arm of it.
+    fn decision(&self, door: OneArcDoor) -> (SizedDecision, RefusedArm<'_>) {
         let decision = match door {
             OneArcDoor::Search => TUBE_ONE_ARC,
             OneArcDoor::AtRest => REST_ONE_ARC,
         };
-        match self {
-            Self::Undecided(cause) => decision.recourse(RefusedArm::Undecided(&cause), reading),
-            Self::Count { .. } | Self::Unlinked | Self::Short => {
-                decision.recourse(RefusedArm::SignCertain, reading)
-            }
-        }
+        let arm = match self {
+            Self::Undecided(cause) => RefusedArm::Undecided(cause),
+            Self::Count { .. } | Self::Unlinked | Self::Short => RefusedArm::SignCertain,
+        };
+        (decision, arm)
     }
 }
 
@@ -3127,10 +3146,11 @@ mod ending_tests {
     /// decision's verdicts end**, and its `Display` is the payload alone,
     /// never the coincidence menu (no SSI door takes a declaration):
     ///
-    /// - the transversality decision, its arm gate and limb 3 — the
-    ///   march's verdict, the tube's verdict and both escalations — all
-    ///   end in the one lever, with the tolerance an in-band margin
-    ///   gives;
+    /// - the transversality decision and limb 3 — the march's verdict,
+    ///   the tube's verdict and both escalations — all end in the one
+    ///   lever, with the tolerance an in-band margin gives;
+    /// - its arm gate ends as a length, the edge certifier's
+    ///   [`CertCheck::TransversalityArm`];
     /// - the pair's tangency escalation ends as its verdict does;
     /// - the step and the closure angle end exactly as their decided
     ///   refusals (`StepCollapsed`, `SelfCrossingLocus`);
@@ -3147,9 +3167,15 @@ mod ending_tests {
             margin: MarginDiag::value(5e-9),
             band: band(),
         });
+        assert_eq!(
+            escalated(TraceDecision::TransversalityArm).ending(Reading::Build),
+            "Recourse: move the geometry so that edge is clearly longer and no face curves tightly \
+             there, or, if this length or the gap its faces open is intended, tighten the \
+             tolerance below 5e-10 m",
+            "the arm gate ends as a length, not the angle it guards"
+        );
         let transversal = [
             escalated(TraceDecision::Transversality),
-            escalated(TraceDecision::TransversalityArm),
             SsiError::TransversalityBand {
                 sin_theta: 5e-9,
                 arm: 1.0,

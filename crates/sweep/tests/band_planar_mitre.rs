@@ -22,8 +22,7 @@ use geom_core::{Band, Bounds, Interval, Point2, Point3, Sign, Vec3};
 use sweep::blend::battery::TURN_NOT_ISOSCELES;
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::blend::{
-    BlendDecision, BlendError, CornerConfig, DecidedCoincidence, FILLET3_CORNER_RECOURSE,
-    run_battery_for,
+    BlendDecision, BlendError, CornerConfig, FILLET3_CORNER_RECOURSE, run_battery_for,
 };
 use sweep::test_support::{
     assert_naming_totality, block, finished, pocket_die, prism, prism_on, realized,
@@ -350,13 +349,44 @@ fn an_isosceles_turn_is_recorded_as_a_value_decided_coincidence() {
             "{kind:?}: one record per turn"
         );
         for turn in &verdict.turns {
-            let DecidedCoincidence::IsoscelesTurn { vertex, reading } = &turn.coincidence;
-            assert_eq!(*vertex, turn.vertex, "{kind:?}: recorded at the turn");
+            let row = &turn.coincidence;
+            let cell = |e| topo::RowCell::Input {
+                input: topo::Operand::A,
+                cell: topo::Cell::Edge(e),
+            };
+            assert_eq!(
+                row.cells,
+                turn.requested.map(cell),
+                "{kind:?}: the row names the turn's two requested edges"
+            );
+            assert_eq!(row.relation, topo::Relation::EqualAngles, "{kind:?}");
+            assert_eq!(row.site, topo::DecisionSite::BatteryTurn, "{kind:?}");
+            let reading = row
+                .margin
+                .diagnostic_f64_for_error_text()
+                .value()
+                .expect("an f64 margin");
             assert!(
                 reading.abs() < 1e-15,
                 "{kind:?}: the reading decided Zero, got {reading}"
             );
         }
+        // The rows leave the battery on the blended body, in vertex order.
+        let at_rest = sweep::test_support::at_rest(&body, tol());
+        let blended = match kind {
+            sweep::blend::BlendKind::Chamfer => {
+                sweep::blend::build::chamfer_edges(&at_rest, &rim, D, tol())
+            }
+            sweep::blend::BlendKind::Fillet => {
+                sweep::blend::build::fillet_edges(&at_rest, &rim, D, tol())
+            }
+        }
+        .expect("the rim blends");
+        assert_eq!(
+            blended.coincidences,
+            verdict.coincidences().copied().collect::<Vec<_>>(),
+            "{kind:?}: the blended body carries the battery's rows"
+        );
     }
 }
 

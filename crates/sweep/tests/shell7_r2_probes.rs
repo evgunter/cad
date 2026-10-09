@@ -237,12 +237,16 @@ fn p4_split_edge_carries_its_childrens_pcurves() {
         })
         .map(|(e, _)| e)
         .expect("the drum seam");
-    split_mid(&mut d, seam);
+    let split = split_mid(&mut d, seam);
     let after_seam = topo::validate_geometric(&d, tol());
     eprintln!("[p4b] drum cylinder seam, tier 3 after split_edge: {after_seam:?}");
+    // Nothing but check 11, which names the split vertex: a split seam
+    // is construction state until the join takes it back.
     assert_eq!(
         after_seam,
-        Ok(()),
+        Err(vec![topo::ValidationError::JoinableVertexAtRest {
+            vertex: split
+        }]),
         "a split on a CURVED chart carries the parent's rows to both children"
     );
     // And the whole-body pass is idempotent over what the op left: the
@@ -259,7 +263,12 @@ fn p4_split_edge_carries_its_childrens_pcurves() {
         carried,
         "the op's rows are the mint pass's rows"
     );
-    assert_eq!(topo::validate_geometric(&d, tol()), Ok(()));
+    assert_eq!(
+        topo::validate_geometric(&d, tol()),
+        Err(vec![topo::ValidationError::JoinableVertexAtRest {
+            vertex: split
+        }])
+    );
 }
 
 // ---------------------------------------------------------------------

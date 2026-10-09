@@ -998,22 +998,31 @@ impl core::fmt::Display for MergeCoplanarError {
                 edge,
                 reading,
                 diag,
-            } => write!(
-                f,
-                "merge_coplanar_faces: re-describing kept face {face:?}'s boundary edge \
-                 {edge:?}, {} is undecided: {}. Recourse: move the geometry so the faces at \
-                 that edge clearly cross or are clearly smooth",
-                match reading {
-                    DihedralReading::Lever(geom_brep::LeverRung::Arm) => {
-                        "whether the edge is long enough to measure the faces' angle over"
-                    }
-                    DihedralReading::Lever(geom_brep::LeverRung::Reading) => {
-                        "whether the faces at it cross or meet smoothly"
-                    }
-                    DihedralReading::Bend => "whether the faces at it bend apart",
-                },
-                diag.payload()
-            ),
+            } => {
+                const CROSS_OR_SMOOTH: &str = "Recourse: move the geometry so the faces at that \
+                                               edge clearly cross or are clearly smooth";
+                let (question, ending) = match reading {
+                    DihedralReading::Lever(geom_brep::LeverRung::Arm) => (
+                        concat!("whether the edge is ", geom_brep::dihedral_arm_clause!()),
+                        geom_brep::DIHEDRAL_ARM
+                            .recourse(RefusedArm::Undecided(diag), Reading::Build),
+                    ),
+                    DihedralReading::Lever(geom_brep::LeverRung::Reading) => (
+                        "whether the faces at it cross or meet smoothly",
+                        CROSS_OR_SMOOTH.to_owned(),
+                    ),
+                    DihedralReading::Bend => (
+                        "whether the faces at it bend apart",
+                        CROSS_OR_SMOOTH.to_owned(),
+                    ),
+                };
+                write!(
+                    f,
+                    "merge_coplanar_faces: re-describing kept face {face:?}'s boundary edge \
+                     {edge:?}, {question} is undecided: {}. {ending}",
+                    diag.payload()
+                )
+            }
         }
     }
 }

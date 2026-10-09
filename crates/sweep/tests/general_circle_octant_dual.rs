@@ -1,9 +1,10 @@
 //! **The oblique trihedron fillets at a scalar with no fitted door.**
-//! Its corner octants' general circles are imaged only by the fitted
-//! lane, which a dual does not hold (`AtRestPolicy::fitted_lane` answers
-//! `None`, DL1): such a scalar certifies nothing fitted, so those faces
-//! are not owed rows there, and the mint leaves them rowless instead of
-//! refusing the fillet.
+//! Its corner octants are bounded by general circles on their spheres.
+//! Such a circle stores its projected image, whose certificate is
+//! closed-form arithmetic on the circle (its incidence is
+//! `off_sphere_sup`) and reads no fitted door. So a dual, which holds no
+//! such door (`AtRestPolicy::fitted_lane` answers `None`, DL1), mints
+//! the corners' rows as `f64` does, and tier 3 reads them clean.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -75,8 +76,8 @@ fn oblique_clip() -> Body<Dual64> {
     .into_body()
 }
 
-/// Red if a doorless scalar's mint refuses the faces only the fitted
-/// lane can image instead of leaving them rowless.
+/// Red if a doorless scalar's mint leaves an oblique corner rowless,
+/// or refuses the fillet, instead of minting its projected rows.
 #[test]
 fn the_oblique_trihedron_fillets_at_the_dual_scalar() {
     let clipped = oblique_clip();
@@ -88,24 +89,28 @@ fn the_oblique_trihedron_fillets_at_the_dual_scalar() {
         Tol::witness(),
     )
     .expect("the oblique trihedron fillets at a dual");
-    let rowless = f
-        .corner_faces
-        .iter()
-        .filter(|&&corner| {
-            let face = f.body.get_face(corner).unwrap();
-            let topo::LoopBoundary::Cycle { first } = f.body.get_loop(face.outer).unwrap().boundary
-            else {
-                return false;
-            };
-            f.body
-                .loop_cycle(first)
-                .unwrap()
-                .into_iter()
-                .all(|he| f.body.pcurve(he).is_none())
-        })
-        .count();
+    let mut projected = 0;
+    for &corner in &f.corner_faces {
+        let face = f.body.get_face(corner).unwrap();
+        let topo::LoopBoundary::Cycle { first } = f.body.get_loop(face.outer).unwrap().boundary
+        else {
+            continue;
+        };
+        for he in f.body.loop_cycle(first).unwrap() {
+            let row = f
+                .body
+                .pcurve(he)
+                .unwrap_or_else(|| panic!("corner {corner:?}: {he:?} is rowless at a dual"));
+            if matches!(row.pcurve(), geom_brep::Pcurve::Projected(_)) {
+                projected += 1;
+            }
+        }
+    }
     assert!(
-        rowless > 0,
-        "the oblique corners, imaged only by the fitted lane, are left rowless at a dual"
+        projected > 0,
+        "the oblique corners' general circles carry projected rows at a dual"
     );
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let findings = topo::pcurves::validate_pcurves(&f.body, band);
+    assert!(findings.is_empty(), "AT-REST at a dual: {findings:?}");
 }
