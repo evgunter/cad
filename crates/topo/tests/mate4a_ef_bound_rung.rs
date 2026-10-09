@@ -219,9 +219,10 @@ fn a_wrong_pair_backs_no_ef_bound() {
 /// point lies in the declared pair's verified overlap region (a
 /// corner of the `[0.30,0.60] × [0.20,0.30]` interface) and the
 /// material lies on opposite sides of the shared `z = 0.5` carrier
-/// (cap below, shelf above: the legal overhang) — and the shelf
-/// edge's dive through the cap's face certifies through the
-/// (grandfathered) ef-bound rung as before, so NOTHING of the
+/// (cap below, shelf above: the legal overhang). The shelf edge's dive
+/// through the cap's face is cut at those two crossings, so each bound
+/// of its one cell is a crossing the same rung backs; the cap's side
+/// edges resting under the shelf are cut there too. NOTHING of the
 /// declared seat is left: the seat a user draws by dragging a part
 /// until it overhangs certifies outright.
 #[test]
@@ -235,12 +236,14 @@ fn the_declared_straddle_seat_certifies() {
     );
 }
 
-/// The crossing rung reads DECLARATIONS only: bare, the straddle
-/// seat's WHOLE error list is pinned character for character —
-/// witnesses included (the fence's discipline: the crossing rung reads
-/// declarations, so on an undeclared document it gains no finding,
-/// loses none, and moves no witness). The two `EdgeEdgeCross` witnesses are PLAIN — no
-/// verdict is named where no declared pair answered.
+/// The rungs read DECLARATIONS only: bare, the straddle seat's WHOLE
+/// error list is pinned character for character, witnesses included.
+/// The two `EdgeEdgeCross` witnesses are PLAIN — no verdict is named
+/// where no declared pair answered. Each cap side edge rests under the
+/// shelf from its lower corner up to where it crosses the shelf's
+/// `y = 0.30` edge, and that stretch is its own edge-on-face overlap
+/// (witness `y = 0.25`, the cell's midpoint); the shelf edge's overlap
+/// with the cap is the cell between the two crossings.
 #[test]
 fn the_bare_straddle_seat_is_untouched() {
     let (body, _, _) = straddle_seat();
@@ -253,13 +256,16 @@ fn the_bare_straddle_seat_is_untouched() {
          face: FaceKey(8v1) }, witness: \"(0.6, 0.2, 0.5)\" }, \
          UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(9v1), \
          face: FaceKey(8v1) }, witness: \"(0.44999999999999996, 0.2, 0.5)\" }, \
+         UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(10v1), \
+         face: FaceKey(8v1) }, witness: \"(0.6, 0.25, 0.5)\" }, \
+         UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(12v1), \
+         face: FaceKey(8v1) }, witness: \"(0.3, 0.25, 0.5)\" }, \
          UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(15v1), \
-         face: FaceKey(1v1) }, witness: \"(0.45, 0.3, 0.5)\" }, \
+         face: FaceKey(1v1) }, witness: \"(0.44999999999999996, 0.3, 0.5)\" }, \
          UndeclaredContact { contact: EdgeEdgeCross { a: EdgeKey(10v1), \
          b: EdgeKey(15v1) }, witness: \"(0.6, 0.3, 0.5)\" }, \
          UndeclaredContact { contact: EdgeEdgeCross { a: EdgeKey(12v1), \
          b: EdgeKey(15v1) }, witness: \"(0.3, 0.3, 0.5)\" }]",
-        "the bare straddle seat's whole census: not a finding gained, \
-         not a finding lost, not a witness moved"
+        "the bare straddle seat's whole census"
     );
 }
