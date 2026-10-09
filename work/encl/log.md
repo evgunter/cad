@@ -1365,3 +1365,4 @@ coincidence is now a margined verdict (no declarations), checked by the
 - 2026-10-09 — PR 4401 merged; sync 4408. Dispatched P3 `must-carry-reads-an-out-of-lane-in-band-seam-as-under-determined` on `encl/must-carry-out-of-lane-in-band`, taking the non-design repair: the rule escalates `InBand` out of lane.
 - 2026-10-09 — PR 4395 (MintLimb) merged at `67c756d147`; row closed.
 - 2026-10-09 — PR 4395 merged; sync 4409. Dispatched P3 `recourse-table-has-no-lever-only-ending` (`encl/recourse-lever-only`) beside the must-carry lane.
+- 2026-10-09 — Main red from GERM's 4352×4375 crossing (their P0, no PR). Dispatched `fix/cone-join-lane-guard-rows` to do the row's owed check. PR 4411 (must-carry) is reviewed with its fixes in and waits on it.
