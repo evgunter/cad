@@ -2,8 +2,9 @@
 id: rim-wedge-walks-the-second-order-stations-by-hand
 kind: issue
 title: boolean::rim_wedge::classify_shared_rim hand-rolls the material arm's per-station body and the second-order walk that check 4 reads through geom_brep::second_order_walk, differing only in schedule and transport
-status: dispatched
+status: review
 branch: encl/rim-wedge-one-walk
+pr: 4433
 priority: P3
 cost: M
 opened: 2026-10-09
