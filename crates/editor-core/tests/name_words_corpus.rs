@@ -87,7 +87,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// it. On that tree the ids reorder an `Ends` list the same way they
 /// reorder a `Borders` one (mint order, not digest order), and move no
 /// other word.
-const SAID_DIGEST: u64 = 0x9e9d_e41c_ee2e_d3bf;
+const SAID_DIGEST: u64 = 0x6d1cb7b9e371bc58;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

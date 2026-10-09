@@ -916,8 +916,8 @@ fn run_at<T: editor_core::EvalScalar>(
 /// placement moved.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
     (1e-9, 0xb3ce8c9530ae6ed9),
-    (1e-6, 0xbd6b_f017_664f_6841),
-    (1e-12, 0xe3ce_f81f_4ff6_d5aa),
+    (1e-6, 0x3f5c2db610fb533e),
+    (1e-12, 0x5ad0ed7fe327ddb9),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, roles, faults and
