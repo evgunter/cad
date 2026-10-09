@@ -2,11 +2,13 @@
 id: shell-open-band-wrapping-between-two-boundaries
 kind: issue
 title: shell_open refuses a designated chart that wraps its period between two boundaries (a tube's outer wall); only a pole-touching wrap opens
-status: open
+status: closed
 opened: 2026-10-06
 priority: P2
 cost: M
 refs: [shell-open-refuses-a-curved-designated-face]
+pr: 4391
+closed: 2026-10-09
 ---
 
 
@@ -34,3 +36,23 @@ on its ring corner as `seamed_band` does at a pole. The record's
 running boundary to boundary has none until it is cut.
 The design call is whether the second band takes a `HoleRim` row with
 one face or with one face per branch.
+
+## Closed
+
+PR 4391. A chart of one face walking one seam between two boundaries
+opens as two seamed bands (`shell::band_between_boundaries`): the
+guest keeps its seam through `canonicalize_chart`, the glue's ring is
+split at it (`kemr`), the host seam is cut twice between the ring
+corners, each outer piece re-anchored on its corner (strut `mekr` +
+`kev`), the middle killed and the end's side promoted (`mfkrh`, with
+the host's bit restored — the parted loop is the host's region, not a
+hole). The record's choice: the second band is ONE `HoleRim` row (a row
+per rim region, as `RimNaming::rim` names one face for a band of several
+branches), and the divided seam's pieces are `RimNaming::seam_pieces`,
+which the shell emitter names as pieces by their ends. Pinned in
+`shell_curved_mouth.rs` (both tube walls, both void band walls, closed
+forms, tier 3, mesh), the record audit in `verbs_shell.rs`, and the
+document row in `lib_g17_shell_node.rs`. A band of several branches
+between two boundaries still refuses typed (only hand-built operands
+reach it: a full revolve wears a tube's wall on one face, and a band of
+a genus-0 vessel disconnects its remainder).
