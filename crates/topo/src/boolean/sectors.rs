@@ -636,7 +636,9 @@ impl<T: Decide> PierceLever<T> {
 /// **A side reading's arm gate, quoted at the departure it reads**: the
 /// arm is in band or decided zero, and the reading it meters is the
 /// bound's departure from the face over that arm, `d̂·n̂·arm`, no longer
-/// than the arm. A tolerance that decides the arm but leaves the
+/// than the arm up to the in-band excess of the normal's length over one
+/// (which [`geom_brep::LeverEscalation::quoting_reading`] guards). A
+/// tolerance that decides the arm but leaves the
 /// departure in band reads no side, so the escalation carries the
 /// departure's own margin, through the arm gate's funnel, and the
 /// tolerance it offers decides both, logged under its own name
@@ -653,10 +655,7 @@ fn at_departure<T: Decide>(
 ) -> geom_brep::LeverEscalation {
     // `arm / departure` is finite unless the departure is exactly zero
     // (or poison).
-    if escalation.rung() != geom_brep::LeverRung::Arm
-        || !escalation.diag().offers_tolerance()
-        || !geom_core::is_finite_length(arm / departure)
-    {
+    if !escalation.re_quotes() || !geom_core::is_finite_length(arm / departure) {
         return escalation;
     }
     match geom_core::k_stats::decide_positive(
@@ -664,9 +663,10 @@ fn at_departure<T: Decide>(
         Margin::of(departure.abs()),
         band,
     ) {
-        Err(diag) => escalation.with_diag(diag),
-        // Unreachable: the departure is no longer than an arm that did
-        // not read positive.
+        Err(diag) => escalation.quoting_reading(diag),
+        // Only where the face normal's in-band excess over unit length
+        // carries the departure past the band: the arm keeps its own
+        // margin, whose tolerance decides that departure too.
         Ok(()) => escalation,
     }
 }

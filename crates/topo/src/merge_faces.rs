@@ -1003,8 +1003,7 @@ impl core::fmt::Display for MergeCoplanarError {
                                                edge clearly cross or are clearly smooth";
                 let (question, ending) = match reading {
                     DihedralReading::Lever(geom_brep::LeverRung::Arm) => (
-                        "whether the edge is long enough, for how its faces curve, to measure \
-                         their angle",
+                        concat!("whether the edge is ", geom_brep::dihedral_arm_clause!()),
                         geom_brep::DIHEDRAL_ARM
                             .recourse(RefusedArm::Undecided(diag), Reading::Build),
                     ),
