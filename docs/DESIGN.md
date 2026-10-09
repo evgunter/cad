@@ -1228,12 +1228,14 @@ sense) and the poses (`Point`, `Direction`, `Axis`, `Plane`, `Frame`),
 which are only defined: read off a body's geometry (a face's frame, a
 carrier's axis or centre), by coordinates over scalar variables in a
 frame the definition reads, by a construction over other poses, as a
-pose of a copy, or as an output of an operation, so no pose is free and
-none is defined from nothing; the shapes (`Body`, `Bodies`,
-an ordered list of bodies whose length is a `Count`, and `Profile`),
-which only an operation defines, a `Profile` being 2-D shape with no
-frame that each reader reads through a frame it supplies, or through
-none; and the selections of a shape
+pose of a copy, or as an output of an operation, so no pose is free,
+none is defined from nothing, and no construction reads one; the shapes
+(`Body`, `Bodies`, an ordered list of bodies whose length is a `Count`,
+and `Profile`), which only an operation defines, a `Profile` being 2-D
+shape whose numbers are read only against each other, and a sweep
+reading a profile and, at most, a direction in the profile's own axes
+(an extrude's slant, held to one side of the profile's plane) or a 2-D
+axis line (a revolve's), never a frame; and the selections of a shape
 (`Face`, `Edge`, and their sets `Faces`, `Edges`). A variable is
 **free** — a value, its written unit (D6) and optionally a distribution
 — or **defined**, by an `Expr` over other variables, by a selection of a
@@ -1280,25 +1282,29 @@ rather than of what was written; an observed variable, and any
 definition reading one, is read only by an assertion. A construction
 reads what was written.
 
-**Spaces and placement.** A part has no location, and no coordinates
-are anyone's: raw coordinates are never compared with one another. A
-document has one **base**, its one construction that reads no frame,
-built in coordinates of its own that no variable stands for and nothing
-reads; every other construction reads a frame off existing geometry.
-**Spaces are kinds**, decided from the recipe: a `Body` is in the
-base's space; a copy placed, transitively, against the world is of the
-product's kind; a copy whose bundle pins fewer degrees of freedom than
-it has is loose, of its own kind with everything pinned to it, solved
+**Spaces and placement.** A part has no location, and no body has
+coordinates anyone reads. Every construction is built in coordinates of
+its own, and frames enter only at placement: a feature on a face is a
+construction placed against the face by a bundle of mates, then
+combined, and which side of the face its material lies on is the
+mates' to say. A **root** is a construction that reads no body, the
+world, or a copy whose bundle pins less than its body needs. **Spaces
+are kinds**, decided from the recipe: a body's kind is its root, a
+placement's copy takes its targets' root once its bundle pins it, and a
+copy pinned, transitively, against the world is of the product's kind.
+A loose copy is of its own kind with everything pinned to it, solved
 among itself, read at a pose by nothing outside it, and drawn from
-display state no logic reads. A placement's copy takes the kind of its
-targets, and an instance of a part enters a document only as a
-placement. Only a mate reads across kinds, so relating two raw
-coordinate systems cannot be written: a read across two spaces is a
+display state no logic reads; an instance of a part enters a document
+only as a placement. Only a mate reads across kinds, so relating two
+raw coordinate systems cannot be written: a read across two spaces is a
 kind mismatch at the door, and a kernel bug anywhere else. A
 **placement** is the bundle of mates that pins one copy of a part
-relative to others: two placements of a part are two copies, and a mate
-added to a pinned copy refuses as an overconstraint, decided by
-subgroup algebra (A11 (1)) without measuring. A mate places and never
+relative to others: two placements of a part are two copies; a copy is
+pinned when what its bundle leaves free lies within the symmetry its
+construction states (a revolve about its axis, an extrude of a circle),
+never a measured one; and a mate added to a pinned copy refuses as an
+overconstraint, decided by subgroup algebra (A11 (1)) without
+measuring. A mate places and never
 checks. The **world** is one undeletable node that copies may be
 related to like a part; it defines no pose variable, so only a
 placement's mates and export read it, and construction never does. An operation computes in a frame that is
@@ -1310,7 +1316,7 @@ frame is no part of the operation's meaning: the body up to that rigid
 map, its names and every verdict outside the sliver band are the same
 in any frame, and a minted reference direction is a function of the
 inputs, not of the axes. Where conditioning does not decide, a
-construction computes in the base's coordinates and an operation over
+construction computes in its own coordinates and an operation over
 copies in its first operand's as the author lists it. A check over a
 space, the at-rest census, is defined order-free: each pair's verdict
 is the same in either member's frame, or the sliver band refuses.
