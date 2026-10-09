@@ -655,7 +655,7 @@ fn corner_holds_pierce<T: Decide>(
     // A corner's face boundary leaves `v` along the orbit step of its
     // own half-edge, `next(mate(he))`.
     let mut corner = None;
-    for c in sectors::orbit_corners(body, operand, v) {
+    for c in sectors::orbit_corners(body, operand, v, band) {
         let c = c?;
         if body.orbit_step(c.he) == Some(hv) {
             corner = Some(c);
@@ -664,7 +664,7 @@ fn corner_holds_pierce<T: Decide>(
     let corner = corner.ok_or(BooleanError::JoinDesync {
         what: "a pinch face's half-edge leaves no corner of its vertex",
     })?;
-    for leaving in sectors::orbit_corners(body, operand, other) {
+    for leaving in sectors::orbit_corners(body, operand, other, band) {
         let leaving = leaving?;
         if !corner_holds(&corner, leaving.end, leaving.end_reach.length(), band)? {
             return Ok(false);
