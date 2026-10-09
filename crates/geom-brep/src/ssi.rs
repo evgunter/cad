@@ -1192,7 +1192,7 @@ impl SsiError {
                 crate::certify::recourse(limb.check(), RefusedArm::Undecided(cause), reading)
             }
             Self::CertificateLimb { limb, .. } => {
-                crate::certify::recourse(limb.check(), RefusedArm::SignCertain, reading)
+                crate::certify::recourse(limb.check(), RefusedArm::SignCertain(None), reading)
             }
             // The search's one lever ([`OneArcRefusal::ending`]).
             Self::TubeNotOneArc { cause, .. } => cause.ending(OneArcDoor::Search, reading),
@@ -1200,7 +1200,7 @@ impl SsiError {
                 crate::certify::recourse(SsiLimb::Tube.check(), verdict.arm(), reading)
             }
             Self::SelfCrossingLocus { .. } => {
-                SELF_CROSSING.recourse(RefusedArm::SignCertain, reading)
+                SELF_CROSSING.recourse(RefusedArm::SignCertain(None), reading)
             }
             // Only a certifying door edited to march at another tolerance
             // reaches it.
@@ -1227,12 +1227,12 @@ impl SsiError {
                     (ExhaustLane::R3, ReachBound::Domain) => DOMAIN_SCALE,
                     (ExhaustLane::Chart { .. }, _) => exhaust::CHART_SCALE,
                 };
-                scale.recourse(RefusedArm::SignCertain, reading)
+                scale.recourse(RefusedArm::SignCertain(None), reading)
             }
             // The same decision, and so the same ending, as the edge
             // lane's refusal of the same fact.
             Self::ChartSpeed(r) => {
-                crate::certify::recourse(r.check(), RefusedArm::SignCertain, reading)
+                crate::certify::recourse(r.check(), RefusedArm::SignCertain(None), reading)
             }
             // A step that cannot be taken or that collapses into the
             // band is the operands' scale against the domain the caller
@@ -1243,7 +1243,7 @@ impl SsiError {
             | Self::StepUnusable {
                 fault: StepFault::NotFinite | StepFault::DoesNotMove,
                 ..
-            } => STEP_SCALE.recourse(RefusedArm::SignCertain, reading),
+            } => STEP_SCALE.recourse(RefusedArm::SignCertain(None), reading),
             Self::StepUnusable {
                 fault: StepFault::SpeedUnusable,
                 ..
@@ -1305,7 +1305,7 @@ impl SsiError {
                 | FitError::ParamCountMismatch { .. }
                 | FitError::Structure(_)
                 | FitError::Lsq(_),
-            ) => Unsized::LastResort.recourse(RefusedArm::SignCertain, reading),
+            ) => Unsized::LastResort.recourse(RefusedArm::SignCertain(None), reading),
             Self::TraceUnresolved { .. } => TRACE_UNRESOLVED_RECOURSE.to_owned(),
             Self::BoundaryGraze { side, verdict, .. } => graze_recourse(*side, verdict, reading),
             // The surfaces' tangency along the side: the march's own
@@ -1318,12 +1318,12 @@ impl SsiError {
             // root is there; one that will not settle is the settling's
             // limit.
             Self::EndNotOnLocus { .. } => {
-                Unsized::LastResort.recourse(RefusedArm::SignCertain, reading)
+                Unsized::LastResort.recourse(RefusedArm::SignCertain(None), reading)
             }
             // The march is untrusted: a march that loses its branch is the
             // march's limit, whatever it matched.
             Self::CrossingUnmatched { .. } => {
-                Unsized::LastResort.recourse(RefusedArm::SignCertain, reading)
+                Unsized::LastResort.recourse(RefusedArm::SignCertain(None), reading)
             }
             Self::ShortBranchUncertified {
                 verdict,
@@ -1339,7 +1339,7 @@ impl SsiError {
             // A candidate generator's limit: the march's samples and
             // every midpoint between them, read as they settled.
             Self::MarchShortOfFit { .. } => {
-                Unsized::LastResort.recourse(RefusedArm::SignCertain, reading)
+                Unsized::LastResort.recourse(RefusedArm::SignCertain(None), reading)
             }
             Self::WindowShortOfWall { reach, .. } => format!(
                 "Recourse: name a domain half-extent of at least {reach:e} m, so the plane's \
@@ -1365,10 +1365,12 @@ impl SsiError {
             // (`SettlingUnresolvable`), so a step that still will not
             // settle is the march's own limit.
             Self::StepRefinementFailed { .. } => {
-                Unsized::LastResort.recourse(RefusedArm::SignCertain, reading)
+                Unsized::LastResort.recourse(RefusedArm::SignCertain(None), reading)
             }
             // `r >= floor` is decided exactly, so the extent alone.
-            Self::TubeLadderEmpty { .. } => TUBE_EXTENT.recourse(RefusedArm::SignCertain, reading),
+            Self::TubeLadderEmpty { .. } => {
+                TUBE_EXTENT.recourse(RefusedArm::SignCertain(None), reading)
+            }
             Self::TubeDegenerate(TubeDegeneracy::WallConstantAcrossLocus) => {
                 WALL_COLLAPSED_RECOURSE.to_owned()
             }
@@ -1382,9 +1384,11 @@ impl SsiError {
             // A wall that validated re-wraps every boundary row.
             Self::ChartRow { .. } => defect_ending(reading).to_owned(),
             // Limb 1 with no residual to state: its own decision.
-            Self::FootPointInconclusive { .. } => {
-                crate::certify::recourse(SsiLimb::OnLocus.check(), RefusedArm::SignCertain, reading)
-            }
+            Self::FootPointInconclusive { .. } => crate::certify::recourse(
+                SsiLimb::OnLocus.check(),
+                RefusedArm::SignCertain(None),
+                reading,
+            ),
             Self::UnsupportedCertificate { .. } => NOT_YET_ENDING.to_owned(),
             Self::WrongLane { .. } => WRONG_LANE_RECOURSE.to_owned(),
         }
@@ -2112,9 +2116,9 @@ impl TraceDecision {
             {
                 defect_ending(reading).to_owned()
             }
-            Self::StepProgress => STEP_SCALE.recourse(RefusedArm::SignCertain, reading),
-            Self::ClosureTangent => SELF_CROSSING.recourse(RefusedArm::SignCertain, reading),
-            Self::BranchOpenEnd => OPEN_END.recourse(RefusedArm::SignCertain, reading),
+            Self::StepProgress => STEP_SCALE.recourse(RefusedArm::SignCertain(None), reading),
+            Self::ClosureTangent => SELF_CROSSING.recourse(RefusedArm::SignCertain(None), reading),
+            Self::BranchOpenEnd => OPEN_END.recourse(RefusedArm::SignCertain(None), reading),
             Self::ClosureReturn => Unsized::LastResort.recourse(arm, reading),
             // Every arm is reported; a poisoned distance is no input's,
             // since both operands are refused at the door unless finite.
@@ -2212,7 +2216,7 @@ impl OneArcRefusal {
         };
         let arm = match self {
             Self::Undecided(cause) => RefusedArm::Undecided(cause),
-            Self::Count { .. } | Self::Unlinked | Self::Short => RefusedArm::SignCertain,
+            Self::Count { .. } | Self::Unlinked | Self::Short => RefusedArm::SignCertain(None),
         };
         (decision, arm)
     }

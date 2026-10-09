@@ -740,7 +740,7 @@ impl core::fmt::Display for PropsError {
                 f,
                 "this face's parameter extent is coincident with zero, so its area cannot be \
                  certified positive. {}",
-                FACE_EXTENT.recourse(RefusedArm::SignCertain, Reading::AtRest)
+                FACE_EXTENT.recourse(RefusedArm::SignCertain(None), Reading::AtRest)
             ),
             Self::Escalated { cause, check } => write!(
                 f,

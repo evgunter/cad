@@ -595,7 +595,7 @@ impl ClassifiedMargin {
                 margin: self.reading,
                 band: self.band,
             }),
-            Sign::Positive | Sign::Negative => RefusedArm::SignCertain,
+            Sign::Positive | Sign::Negative => RefusedArm::SignCertain(None),
         }
     }
 }

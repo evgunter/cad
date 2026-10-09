@@ -363,7 +363,7 @@ impl PlaneNurbsRefusal {
             Self::TransversalityEscalated { cause, .. } => {
                 (CertCheck::Transversality, RefusedArm::Undecided(cause))
             }
-            Self::Limb { limb, .. } => (limb.check(), RefusedArm::SignCertain),
+            Self::Limb { limb, .. } => (limb.check(), RefusedArm::SignCertain(None)),
             // The tube's margin is the lane's transversality over the
             // chain (`ssi_tube_transversality`), and this refusal is its
             // decided verdict.
@@ -373,7 +373,7 @@ impl PlaneNurbsRefusal {
                 CertCheck::PlaneNurbsReportedTransversality,
                 RefusedArm::Undecided(cause),
             ),
-            Self::ChartSpeed(r) => (r.check(), RefusedArm::SignCertain),
+            Self::ChartSpeed(r) => (r.check(), RefusedArm::SignCertain(None)),
             // The one-arc proof is the SSI door's own decision, and
             // `ending` reads it there.
             Self::FootPointInconclusive { .. }
@@ -898,7 +898,7 @@ impl AnalyticRung3Refusal {
     #[must_use]
     pub fn decision(&self) -> Option<(CertCheck, RefusedArm<'_>)> {
         Some(match self {
-            Self::Limb { limb, .. } => (limb.check(), RefusedArm::SignCertain),
+            Self::Limb { limb, .. } => (limb.check(), RefusedArm::SignCertain(None)),
             Self::Escalated { limb, cause, .. } => (limb.check(), RefusedArm::Undecided(cause)),
             Self::TubeStraddles { verdict, .. } => (CertCheck::Transversality, verdict.arm()),
             Self::NoOffsetBound { .. } | Self::TubeNotOneArc { .. } | Self::Unsupported { .. } => {
