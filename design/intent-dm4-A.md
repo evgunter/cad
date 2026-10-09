@@ -122,8 +122,7 @@ re-key every name through it. **Not worth one. Sure.**
   VarId }` for the declaration channel's life until stage 4 F,
   `coincide::construction` takes the read, `eval/class.rs` and the Python
   tag, tests `dm5_is_over_the_variables_read` (builds, volume 1.0) and
-  `a_pair_declared_across_one_splits_halves_is_sided_by_table`.
-  Reversible: the key is one field's type.
+  `a_pair_declared_across_one_splits_halves_is_sided_by_table`. Reversible: one field's type.
 
 ## For the orchestrator
 
