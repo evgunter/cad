@@ -2,10 +2,11 @@
 id: the-declared-rest-zip-retires-at-stage-4-and-the-join-needs-three-arms
 kind: issue
 title: Stage 4 retires the declared-REST zip with declared pairs: the join must first build what the zip builds today (three arms), then boolean/rest.rs's surgery goes
-status: open
+status: closed
 opened: 2026-10-06
 priority: P0
 cost: H
+closed: 2026-10-08
 refs: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
@@ -67,3 +68,12 @@ Order it so nothing regresses: ring homing first (the cylinder mates), the partn
 - every REST-lane row on ZIP's slate
 
 Each closes when the zip is deleted, or moves to the join if its scene still refuses there.
+
+## Closed (2026-10-08, INTENT stage 4 A, `intent/s4-a-join`)
+
+The join builds what the zip built, and the zip is deleted. Measured first with a probe at the door: 185 openings, 125 builds (41 behind `RingHomingAmbiguous`, 57 behind tangent `SectionInvariant`, 27 behind `mekr`'s `NotSameFace`), all from sweep's suites; editor-core and topo open it 0 times.
+
+1. **Ring re-homing on a wall chart.** A run vertex at the ray's azimuth reads by the half-open rule, so the rulings of the other solid no longer make every pierce-ring vertex degenerate; a row along the ray is met only by a vertex on it. A run whose window is exactly one period is read on the branch from its low edge, which builds the shaft wholly inside a full-turn bore.
+2. **The tangent `SectionInvariant` and the `mekr` `NotSameFace` were one cause**, not a missing chord: a germ only tangent to a bound of its sector (the straight edge passing a fillet's tangent point) was minted in that sector, on the wall, while its locus is the face across the bound its segment lies in. `boolean::insert` now mints such a germ in the sector across the bound, keeping its crossing codes, and the run logic decides strut or fan from there. The partner-edge chord was built and then removed: no row reaches it once the germ is in the right face.
+3. `try_rest_union` and its surgery, `RestZipFrontier`, `BooleanError::RestZipUnsupported` and the door in `through_the_join` are deleted; the carrier-pair doors moved to `boolean/carrier_pair.rs`.
+

@@ -687,20 +687,21 @@ pub(crate) fn spaces_of<P: crate::ProfilePayload, T: Real>(
 }
 
 /// [`Spaces`] for `doc`, given each instance's space, in one pass in
-/// document order, which puts every input before its consumer.
+/// the evaluation schedule's order, which puts every input before its
+/// consumer.
 pub(crate) fn spaces_with<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     space_of: impl Fn(RecipeNodeId) -> Space,
 ) -> Spaces {
     let mut out = Spaces::default();
-    for id in doc.ids() {
+    for id in crate::eval::schedule::schedule(doc).order {
         let Some(node) = doc.node(id) else { continue };
         let here = match node {
             Node::Gauge { .. } | Node::Mate { .. } => continue,
             Node::InstantiatePart { .. } => space_of(id),
             _ => {
                 let mut distinct: Vec<Space> = Vec::new();
-                for input in node.inputs() {
+                for input in doc.upstream_of(node) {
                     if let Some(&s) = out.space.get(&input)
                         && !distinct.contains(&s)
                     {
@@ -882,7 +883,7 @@ pub fn relative_freedom_components<P: crate::ProfilePayload>(
     for id in doc.ids() {
         adjacency.entry(id).or_default();
         if let Some(node) = doc.node(id) {
-            edges.extend(node.inputs().into_iter().map(|input| (id, input)));
+            edges.extend(doc.upstream_of(node).into_iter().map(|input| (id, input)));
         }
     }
     edges.extend(reading_edges(doc));

@@ -33,7 +33,7 @@ fn accepting_each_offer_in_turn_builds_the_flush_boss_union() {
     let (doc, top) = insert(
         doc,
         Node::Datum(editor_core::Datum::FaceFrame {
-            at: blk,
+            at: blk.into(),
             face: fname(blk, RoleSeg::Cap(CapEnd::End)),
             spin: ang(0.0),
         }),
@@ -53,7 +53,7 @@ fn accepting_each_offer_in_turn_builds_the_flush_boss_union() {
     let (doc, boss) = insert(
         doc,
         Node::Extrude {
-            profile: path,
+            profile: path.into(),
             distance: len(4.0 * MM),
             side: ExtrudeSide::Along,
         },
@@ -65,8 +65,8 @@ fn accepting_each_offer_in_turn_builds_the_flush_boss_union() {
             doc.clone(),
             Node::Boolean {
                 op: BooleanOp::Union,
-                a: blk,
-                b: boss,
+                a: blk.into(),
+                b: boss.into(),
                 declare: accepted.clone(),
             },
         );

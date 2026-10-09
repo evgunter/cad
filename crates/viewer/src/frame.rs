@@ -1510,6 +1510,10 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
 pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
     let retold = match row {
         Maintenance::Strand { .. } => Retold::Never,
+        // The reading node's own row refuses `UnresolvedRead` at the
+        // next evaluation, before any poison from upstream, naming the
+        // operand.
+        Maintenance::StrandedRead { .. } => Retold::Again,
         Maintenance::StrandedAppearance { .. } => Retold::Never,
         // A fold's dropped label is said nowhere else: the gauge is
         // gone, and nothing evaluates a label.

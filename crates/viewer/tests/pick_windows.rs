@@ -58,7 +58,7 @@ fn fixture(tol: Tol) -> Doc<ProfileProgram> {
     let (doc, block) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.01),
             side: ExtrudeSide::Along,
         },
@@ -67,7 +67,7 @@ fn fixture(tol: Tol) -> Doc<ProfileProgram> {
     let (doc, _pattern) = common::inserted(
         &doc,
         Node::Pattern {
-            input: block,
+            input: block.into(),
             count: Formula::count(3),
             kind: pncad::document::PatternKind::Linear {
                 direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
@@ -80,7 +80,7 @@ fn fixture(tol: Tol) -> Doc<ProfileProgram> {
     let (doc, twinned) = common::inserted(
         &doc,
         Node::Extrude {
-            profile: twinned,
+            profile: twinned.into(),
             distance: common::len(0.008),
             side: ExtrudeSide::Along,
         },
@@ -102,7 +102,7 @@ fn fixture(tol: Tol) -> Doc<ProfileProgram> {
     let (doc, _last) = common::inserted(
         &doc,
         Node::Extrude {
-            profile: last,
+            profile: last.into(),
             distance: common::len(0.004),
             side: ExtrudeSide::Along,
         },

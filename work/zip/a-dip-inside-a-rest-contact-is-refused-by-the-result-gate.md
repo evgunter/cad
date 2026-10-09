@@ -8,7 +8,7 @@ priority: P3
 cost: M
 design: true
 refs: [a-flush-declared-reflex-union-ships-the-wrong-volume]
-blocked_on: [intent-stage4-is-built]
+blocked_on: [booleans-glue-on-zero]
 ---
 
 
@@ -123,3 +123,10 @@ This row is on declared-contact ground, so it waits on `d10-one-way-to-say-inten
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: the fix site is the declared-REST zip's admission (rest::patch_faces), which stage 4 deletes. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Re-pointed (2026-10-08, INTENT stage 4 A (`intent/s4-a-join`))
+
+The zip is deleted, and the join takes both shapes.
+
+- **Shape 1 closes.** The three dips (across the south wall, inside the contact, deep across the south wall) build sound at box arithmetic in both orders: `rest_zip_admission.rs`'s `a_box_dipping_into_a_plate_at_a_tangent_site_never_ships_the_overlap_twice` now requires the build.
+- **Shape 2 stands, in the join.** All 20 line-kiss runs (the ten poses, both orders) build at `vol a + vol b′` (to 4e-15), and tier 3′ fails with the same two `UndeclaredContact` findings (`VertexOnFace` and `EdgeFaceOverlap` along the kissing edge) the zip shipped. The contact is decided Zero and backed by no record. Stage 4 E glues and records a Zero-decided contact, which backs the census, so the row waits on it.

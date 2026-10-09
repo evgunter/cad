@@ -157,7 +157,7 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
     });
     let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
@@ -165,7 +165,7 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
         ids: Vec::new(),
     }));
     let solid = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(2.0),
         side: ExtrudeSide::Along,
     });
@@ -199,7 +199,7 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
         .expect("both indices in range"),
     );
     let assertion = r.insert(Node::Assertion {
-        measure,
+        measure: measure.into(),
         // The bound IS the measured value, so no enclosure separates
         // them: E10's third state at every leaf.
         bound: len(1.0),
@@ -292,7 +292,7 @@ fn pins(d: f64, r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let plane = r_.insert(fixture::xy_frame());
     let mut pin = |cx: f64| {
         let profile = r_.insert(Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
                 radius: len(r),
@@ -300,7 +300,7 @@ fn pins(d: f64, r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             ids: Vec::new(),
         }));
         r_.insert(Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         })
@@ -389,7 +389,7 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     let plane = r.insert(fixture::xy_frame());
     let c_profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([
                 (0.0, 0.0),
@@ -410,12 +410,12 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         ids: Vec::new(),
     }));
     let c = r.insert(Node::Extrude {
-        profile: c_profile,
+        profile: c_profile.into(),
         distance: len(2.0),
         side: ExtrudeSide::Along,
     });
     let block_profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(2.2, 0.1), (2.8, 0.1), (2.8, 0.7), (2.2, 0.7)])
                 .expect("finite corners"),
@@ -423,7 +423,7 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         ids: Vec::new(),
     }));
     let block = r.insert(Node::Extrude {
-        profile: block_profile,
+        profile: block_profile.into(),
         distance: len(2.0),
         side: ExtrudeSide::Along,
     });
@@ -438,7 +438,7 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         .expect("both indices in range"),
     );
     let assertion = r.insert(Node::Assertion {
-        measure,
+        measure: measure.into(),
         bound: len(bound),
         dir: AssertionDir::AtLeast,
     });

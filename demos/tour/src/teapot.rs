@@ -727,12 +727,13 @@ fn spout_loft(
             insert(
                 doc,
                 Node::Profile(ProfileProgram {
-                    plane,
+                    frame: plane.into(),
                     loops,
                     ids: Vec::new(),
                 }),
                 tol,
             )
+            .into()
         })
         .collect();
     insert(
@@ -813,7 +814,7 @@ fn revolved(
     let profile = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![loop_],
             ids: Vec::new(),
         }),
@@ -822,8 +823,8 @@ fn revolved(
     insert(
         doc,
         Node::Revolve {
-            profile,
-            axis,
+            profile: profile.into(),
+            axis: axis.into(),
             angle: ang(TAU),
         },
         tol,
@@ -837,7 +838,7 @@ fn pieces_of(doc: &Doc<ProfileProgram>, sweep: RecipeNodeId, tol: Tol) -> Profil
     let Some(Node::Revolve { profile, .. }) = doc.node(sweep) else {
         panic!("node {} is a revolve", sweep.0);
     };
-    let Some(Node::Profile(program)) = doc.node(*profile) else {
+    let Some(Node::Profile(program)) = doc.operation_of(*profile).and_then(|p| doc.node(p)) else {
         panic!("a revolve's operand is a profile");
     };
     program
@@ -889,7 +890,7 @@ fn frame_and_axis(doc: &mut Doc<ProfileProgram>, tol: Tol) -> (RecipeNodeId, Rec
     let axis = insert(
         doc,
         Node::Datum(Datum::AxisInPlane {
-            plane,
+            frame: plane.into(),
             origin: [len(0.0), len(0.0)],
             direction: [scl(0.0), scl(1.0)],
         }),
@@ -909,8 +910,24 @@ fn build_doc(tol: Tol) -> Recipe {
     // so the mouth disc is ONE face, its `Band`.
     let lip = edge_at(&doc, bellied, SEG_MOUTH, tol);
     let mouth = vec![band(bellied, lip)];
-    let pot = insert(&mut doc, Node::shell(bellied, len(WALL), Vec::new()), tol);
-    let cup = insert(&mut doc, Node::shell(bellied, len(WALL), mouth), tol);
+    let pot = insert(
+        &mut doc,
+        Node::shell(
+            pncad::document::Operand::output(bellied, 0),
+            len(WALL),
+            Vec::new(),
+        ),
+        tol,
+    );
+    let cup = insert(
+        &mut doc,
+        Node::shell(
+            pncad::document::Operand::output(bellied, 0),
+            len(WALL),
+            mouth,
+        ),
+        tol,
+    );
 
     // ---- the lid ----
     let plain_lid = revolved(&mut doc, plane, axis, lid_meridian(), tol);
@@ -929,7 +946,15 @@ fn build_doc(tol: Tol) -> Recipe {
         .iter()
         .flat_map(|&(v, ..)| rim_arcs(plain_lid, vertex_at(&doc, plain_lid, v, tol)))
         .collect();
-    let lid = insert(&mut doc, Node::fillet(plain_lid, len(ROLL), rims), tol);
+    let lid = insert(
+        &mut doc,
+        Node::fillet(
+            pncad::document::Operand::output(plain_lid, 0),
+            len(ROLL),
+            rims,
+        ),
+        tol,
+    );
 
     // ---- the spout: a CANAL lofted about its own bent spine, then
     // placed. The placement is unchanged from when this was a revolved
@@ -951,19 +976,21 @@ fn build_doc(tol: Tol) -> Recipe {
     );
 
     // ---- the handle ----
+    // The frame the handle is bent in: its centre the bend's, its
+    // normal the bend's axis, its x the radial its window starts from.
     let spine = insert(
         &mut doc,
-        Node::Datum(Datum::Axis {
+        Node::Datum(Datum::Frame {
             origin: [len(HANDLE_C.x), len(HANDLE_C.y), len(HANDLE_C.z)],
-            direction: [scl(0.0), scl(0.0), scl(1.0)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
         }),
         tol,
     );
     let handle = insert(
         &mut doc,
         Node::Tube {
-            spine,
-            u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+            frame: spine.into(),
             major_radius: len(HANDLE_R),
             window: TubeWindow::Arc {
                 t0: ang(-(FRAC_PI_2 + HANDLE_OVER)),
@@ -980,15 +1007,15 @@ fn build_doc(tol: Tol) -> Recipe {
             doc,
             Node::Boolean {
                 op: BooleanOp::Union,
-                a: cup,
+                a: cup.into(),
                 b,
                 declare: Vec::new(),
             },
             tol,
         )
     };
-    let handle_union = union_node(&mut doc, handle);
-    let spout_union = union_node(&mut doc, spout);
+    let handle_union = union_node(&mut doc, handle.into());
+    let spout_union = union_node(&mut doc, spout.into());
 
     Recipe {
         doc,
@@ -1019,7 +1046,15 @@ fn wall_one_pot(tol: Tol) -> Body<f64> {
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("teapot-wall-1", tol);
     let (plane, axis) = frame_and_axis(&mut doc, tol);
     let belly = revolved(&mut doc, plane, axis, torus_belly_meridian(), tol);
-    let hollow = insert(&mut doc, Node::shell(belly, len(WALL), Vec::new()), tol);
+    let hollow = insert(
+        &mut doc,
+        Node::shell(
+            pncad::document::Operand::output(belly, 0),
+            len(WALL),
+            Vec::new(),
+        ),
+        tol,
+    );
     let ev = evaluate::<f64>(
         &doc,
         None,
@@ -1344,7 +1379,15 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String, Option<Census>)> {
         .map(|(&(_, _, _, what), rim)| {
             (
                 what,
-                insert(&mut doc, Node::fillet(lid, len(ROLL), rim.to_vec()), tol),
+                insert(
+                    &mut doc,
+                    Node::fillet(
+                        pncad::document::Operand::output(lid, 0),
+                        len(ROLL),
+                        rim.to_vec(),
+                    ),
+                    tol,
+                ),
             )
         })
         .collect();

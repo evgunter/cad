@@ -73,7 +73,7 @@ fn with_measure() -> (ProfileDoc, RecipeNodeId) {
         vec![fixture::square(0.0, 0.0, 0.5)],
     );
     let _ = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -86,17 +86,18 @@ fn with_measure() -> (ProfileDoc, RecipeNodeId) {
 
 fn assertion(measure: RecipeNodeId, bound: Formula) -> AuthoredNode {
     Node::Assertion {
-        measure,
+        measure: measure.into(),
         bound,
         dir: editor_core::AssertionDir::AtLeast,
     }
 }
 
-/// **The reference is not a measure — both doors.** The edit door
-/// names it `AssertionTarget`; the load door names it
-/// `SnapshotError::AssertionTarget`, its own arm since this unit,
-/// because a reader should not have to decode an absent dimension to
-/// learn which of the two assertion faults happened.
+/// **The reference is not a measure — both doors.** The measure slot
+/// reads a measured value, so the edit door refuses the frame's
+/// output by kind (`SlotVarKind`), and the load door names it
+/// `SnapshotError::AssertionTarget`, because a reader should not have
+/// to decode an absent dimension to learn which of the two assertion
+/// faults happened.
 #[test]
 fn an_assertion_over_a_non_measure_is_refused_at_both_doors() {
     let (doc, measure) = with_measure();
@@ -113,20 +114,27 @@ fn an_assertion_over_a_non_measure_is_refused_at_both_doors() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::AssertionTarget { measure: m, .. }) => assert_eq!(m.id(), frame_node),
+        Err(EditError::SlotVarKind {
+            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Measure),
+            found: editor_core::VarKind::Frame,
+            expected: editor_core::SlotKind::Measured,
+            ..
+        }) => {}
         other => panic!("an assertion over a non-measure must refuse typed, got {other:?}"),
     }
 
     // The same fact at the load door: a file whose assertion is
     // re-pointed at the frame.
     let (text, id) = saved_assertion(&doc, measure, len(1.0));
-    let corrupt = repoint_measure(&text, id, measure, frame_node);
+    let read = |node| doc.output(node, 0).expect("the node defines a value");
+    let corrupt = repoint_measure(&text, id, read(measure), read(frame_node));
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::AssertionTarget {
-            measure: m,
-            bound: Dimension::Length,
+        Err(PersistError::Snapshot(SnapshotError::SlotVarKind {
+            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Measure),
+            found: editor_core::VarKind::Frame,
+            expected: editor_core::SlotKind::Measured,
             ..
-        })) => assert_eq!(m.id(), frame_node),
+        })) => {}
         other => panic!("a non-measure target must refuse typed at load, got {other:?}"),
     }
 }
@@ -193,12 +201,12 @@ fn saved_assertion(
     (text, id)
 }
 
-/// Re-points the assertion's `measure` field.
+/// Re-points the assertion's `measure` read.
 fn repoint_measure(
     text: &str,
     assertion: RecipeNodeId,
-    from: RecipeNodeId,
-    to: RecipeNodeId,
+    from: editor_core::VarId,
+    to: editor_core::VarId,
 ) -> String {
     doctored(text, |wire| {
         let field = &mut wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["measure"];
@@ -279,7 +287,7 @@ fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },

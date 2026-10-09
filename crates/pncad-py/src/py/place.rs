@@ -483,9 +483,9 @@ impl PatternKind {
     /// (`degenerate_step`), and so does one at or past a full turn
     /// (`full_range_step`), wherever a second copy reads it.
     #[staticmethod]
-    fn circular(py: Python<'_>, axis: &super::doc::NodeId, step: SlotArg) -> PyResult<Self> {
+    fn circular(py: Python<'_>, axis: super::doc::OperandArg, step: SlotArg) -> PyResult<Self> {
         Ok(Self(d::PatternKind::Circular {
-            axis: axis.0,
+            axis: axis.read(),
             step: super::doc::slot_expr(py, d::SlotId::Step, &step)?,
         }))
     }

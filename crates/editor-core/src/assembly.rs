@@ -1538,7 +1538,8 @@ fn resolve_face<P, T: Decide>(
             let Some(consumer_node) = doc.node(consumer) else {
                 continue;
             };
-            for step in crate::names::lift(consumer, consumer_node, node, &name) {
+            let defined_by = |var| doc.defined_by(var).map(|(at, _)| at);
+            for step in crate::names::lift(consumer, consumer_node, node, &name, &defined_by) {
                 match step {
                     crate::names::Lift::Spelled(carried) if spells(consumer, &carried) => {
                         frontier.push_back((consumer, carried));

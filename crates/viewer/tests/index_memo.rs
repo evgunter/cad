@@ -109,7 +109,10 @@ impl Edit {
 /// document carries one — and the text that reverts it.
 fn bump_of(c: &corpus::CorpusDoc) -> Option<(Edit, Edit)> {
     let DocEdit::SetParam {
-        node, slot, expr, ..
+        node,
+        slot,
+        value: pncad::document::SlotValue::Formula(expr),
+        ..
     } = c.bump.clone()
     else {
         return None;

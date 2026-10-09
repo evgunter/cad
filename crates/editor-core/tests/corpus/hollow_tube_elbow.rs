@@ -49,13 +49,13 @@ pub fn inner(wall: f64) -> f64 {
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
 
-    let spine = r.insert(Node::Datum(Datum::Axis {
+    let spine = r.insert(Node::Datum(Datum::Frame {
         origin: [len(0.0), len(0.0), len(0.0)],
-        direction: [scl(0.0), scl(1.0), scl(0.0)],
+        u: [scl(1.0), scl(0.0), scl(0.0)],
+        v: [scl(0.0), scl(0.0), scl(-1.0)],
     }));
     let elbow = r.insert(Node::HollowTube {
-        spine,
-        u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+        frame: spine.into(),
         major_radius: len(R),
         window: TubeWindow::Arc {
             t0: ang(T0),
@@ -76,7 +76,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: elbow,
             slot: SlotId::TubeWall,
-            expr: len(WALL_BUMPED),
+            value: len(WALL_BUMPED).into(),
             fresh: Vec::new(),
         },
         bump_root: elbow,

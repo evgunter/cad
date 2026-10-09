@@ -876,7 +876,7 @@ fn r1_a_patterned_instance_propagates_hide_and_probe_to_the_drawn_pattern() {
     let pattern = common::insert_into(
         &mut doc,
         Node::Pattern {
-            input: instance,
+            input: instance.into(),
             count: parse_formula("3", &scope).expect("a count"),
             kind: PatternKind::Linear {
                 direction: [

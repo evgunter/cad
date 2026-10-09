@@ -1283,13 +1283,27 @@ its lift to a 3-D pose is how it leaves.
 **Operations.** A node is an operation: it reads variables and defines
 the variables its signature states, a fixed list of named, typed ports
 set by its variant (a split defines two bodies; a revolve its body and its axis; an instance of a part
-defines one `Body` variable per world placement of the part), possibly none:
-an assertion or a mate defines none. Reading is the only dependency; nothing consumes anything,
+is a placement, defining one output per world placement of the part,
+named by that placement and a family where that placement is one, all
+of its targets' space), possibly none: an assertion defines
+none, and a mate or a value is a constraint of a placement, not an operation. Reading is the only dependency; nothing consumes anything,
 so an operand stays a first-class value after a boolean reads it. The
-product is the world: every copy a world placement defines. A world
-placement is an operation reading one `Body` and defining its copy;
-building or combining bodies places nothing, and an operand appears
-only if a placement names it. A document whose world holds nothing has
+product is every copy whose space reaches the world, in placement
+order; the world is one frame among many that cannot be deleted, and a
+body enters the product by a placement of a copy against it or against
+what is related to it. A placement is an operation reading a list of shapes of
+one space, as a union reads its operands (a list of reads, not a list
+literal), and a bundle of constraints, and defining a copy of each shape under
+the one rigid motion its constraints pin; building, combining or placing
+shapes adds nothing to the product, and a body appears only as a copy
+whose space reaches the world. Nothing
+moves a body: a copy is defined by its one placement and never moved
+after, and an operation that would move one (today's `Transform`) is a
+placement. No construction reads a frame (FORK-S3P), so a feature at
+several positions is one body placed several times, each placement a
+copy. A pattern
+is a placement whose reads reach an index (FORK-PAT): one copy per
+value, the index entering as a value or through a mate's target. A document with nothing related to its world has
 an empty product. A `Face` or `Edge`
 variable, or a set of them, is a selection of a `Body` variable by
 `StableName`: a definition, not a node, stating its body once, and the
@@ -1301,6 +1315,49 @@ defines an *observed* variable, a function of the built geometry
 rather than of what was written; an observed variable, and any
 definition reading one, is read only by an assertion. A construction
 reads what was written.
+
+**Repetition.** A document repeats by an **index**: `k = index(N)`
+defines a `Count` variable over `0..N`, `N` any `Count` expression. A
+definition or operation whose reads reach `k` is evaluated once per
+value of it, and each of its outputs is a **family** of that kind (a
+`Bodies` is the family of `Body`), one member per value, keyed by the
+tuple of the indices it reaches, outer first. Membership is derived
+from reads, as dependency is: no node holds a template, and there is
+no pattern operation. A variable defined by reading `k` is, to a
+reader that reaches the same `k`, its member at the same value, and to
+every other reader the whole family: `xs[i, j]` reads one member, and
+`union` and `subtract` read a family as their members. Lockstep is one
+index read twice. An index enters a placement as a value, a slide or a
+spin that is a `Length` or `Angle` expression over it, or through a
+mate whose target is a member of another family
+(`bolt.axis ≡ holes[k].axis`); no pose is constructed from an index, so
+an `Axis` mate with `spin = scalar(k)·turn/N` is a ring and a slide of
+`scalar(k)·pitch` a row. Two indices meet in one reader only when one is
+declared `within` the other, which is implied when its count reads the
+other; a reader of two unrelated indices refuses. `Count` arithmetic is
+exact and includes `mod`, so a relation between a ring's neighbours is
+one statement (`assert(gap(c[k].r, c[(k + 1) mod N].l) = −b)`), while a
+ring stepped by `turn/N` closes by construction and needs none. There
+is no list literal: an irregular family is its members written out,
+each saying where it is. A definer that refuses at one index refuses
+the whole family, naming the index; a read whose index leaves the
+range is unresolved and typed, never re-pointed. A member's names are
+`Member { (i, j), of }`, keyed by the index variables' ids and the
+integers. Copies of one body are built once and mapped; a construction
+whose scalar inputs read an index is built per member, and no
+construction reads a frame. A mirror image is not a copy, because a
+reflection is not a pose: `Mirror { body, plane }`
+is a construction defining a new `Body` in its source's root, the
+plane a `Plane` pose whose reads reach that root alone (a face read as a
+plane, or a plane constructed from the body's geometry), and every pose
+is proper. A symmetric part is `union(body, Mirror { body, plane })`,
+one construction whose seam is the plane's face read twice; a chiral
+twin elsewhere is a placement of the image, and there the plane carries
+no shape.
+Linear, circular, grid and bolt-circle patterns and mirroring are the
+façade's functions, which write this program; the document stores no
+preset, and the GUI's reading of one ("circular, 12 about A") is
+recognised from the program for display only.
 
 **Spaces and placement.** A part has no location, and no body has
 coordinates anyone reads. Every construction is built in coordinates of
@@ -1327,10 +1384,26 @@ and a constraint any of whose equations the others already fix refuses
 as an overconstraint, pinned or not, decided by subgroup algebra
 (A11 (1)) without measuring; where two copies meet beyond what their
 mates fix is a contact like any other, recorded and linted, and its
-recourse is an assertion. A value is charted on the two bodies' own
-coordinates as the placement carries them, so zero is always a valid
-value, and a placement is the only reader of a body's own coordinates,
-reading them only through the freedoms its mates leave. A mate places and never
+recourse is an assertion. A mate that would take a freedom a value sets refuses as well. Each mate equates two poses of one kind, modulo that kind's
+symmetry: a pose read off the copied shapes' geometry with a pose read
+off geometry of the space the copy joins, never a frame standing for a
+part's coordinates. It holds no number of its own, and its sense is a
+construction (`Flip`) on one side; a number a kind's own equation
+fixes (a standoff along a plane's normal) is a construction on the
+target, never a value. Which copy is defined is which placement reads
+it, and a pose of another copy is read as that copy carries it. A
+**value** sets one freedom the bundle's mates leave, a slide or a spin,
+to a `Length` or `Angle` variable, charted on the two bodies' own
+coordinates as the placement carries them: a slide is the copy's origin
+measured from the target's along the freedom, a spin the angle between
+their reference directions about it, each a function of the relative
+pose alone, so no order of the values is chosen. Zero is always a valid
+value and says the two bodies' own coordinates agree as far as the
+mates allow; the façade writes it as a free variable for each freedom a
+gesture leaves unnamed. A rotation left by a lone point mate has no
+such chart and is lowered by a direction mate first. A placement is the
+only reader of a body's own coordinates, and reads them only through
+the freedoms its mates leave. A mate places and never
 checks. A placed copy's frame is not a variable: it is the construction
 its bundle states, which the coincidence door replays like any other. The **world** is one undeletable node that copies may be
 related to like a part; it defines no pose variable, so only a

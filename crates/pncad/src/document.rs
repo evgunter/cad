@@ -90,7 +90,8 @@
 pub use editor_core::{
     Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, Maintenance,
     MaintenanceNet, MetaVersionError, PiecesFault, ProgramRefusal, Recorded, Recording,
-    RegaugeThenMateOutcome, StepId, StepIdFault, Took, apply, apply_replayed, regauge_then_mate,
+    RegaugeThenMateOutcome, SlotValue, StepId, StepIdFault, Took, apply, apply_replayed,
+    regauge_then_mate,
 };
 pub use editor_core::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
@@ -104,12 +105,14 @@ pub use editor_core::cascade_delete_order;
 // carries directly; it is re-exported here so document-layer code can
 // spell the whole node vocabulary through one module. `CountMismatch`
 // rides with `PlacementRuleFault`: it is what that fault and
-// `EditError::PlacementRuleMismatch` carry.
+// `EditError::PlacementRuleMismatch` carry. An operand field is an
+// `Operand` read, written at an `OperandSlot` (a `SlotId::Operand`)
+// that admits a `SlotKind`; `DocEdit::SetParam` writes a `SlotValue`.
 pub use editor_core::{
     Axis3, BooleanOp, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault, ListFault,
-    MeasureNodeFault, MintId, Node, OutputPort, PartSelect, PatternKind, PlacementRuleFault,
-    PortKind, RecipeNodeId, RigidArg, SlotId, TubeWindow, VectorSlot, declare_continuation,
-    declare_rest,
+    MeasureNodeFault, MintId, Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind,
+    PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SlotId, SlotKind, TubeWindow, VectorSlot,
+    declare_continuation, declare_rest,
 };
 
 // How a sentence names a node: the kind noun and tag a person reads, the
