@@ -2,10 +2,12 @@
 id: knot-mirror-symmetry-belongs-on-knotvector
 kind: issue
 title: mirror_symmetric and KnotMirrorError sit on NurbsSurface, where a curve reversal cannot reach them
-status: open
+status: closed
 opened: 2026-09-15
 priority: P1
 cost: E
+closed: 2026-10-09
+pr: 4439
 ---
 
 
@@ -42,3 +44,23 @@ and `KnotMirrorError` would be re-exported from `geom` where
 
 Filed by SCALAR's VREV fix pass (PR 2627), as the one thing it was
 asked to consider and decline.
+
+## Closed (2026-10-09, PR 4439)
+
+`KnotVector::mirror_symmetric(&self) -> Result<(), KnotMirrorError>`
+now lives in `geom_core::spline::knots`. `KnotMirrorError` is beside it
+and is re-exported from `geom_core::spline`. `NurbsSurface::reversed_u`
+and `reversed_v` call it, and their signatures and refusal values are
+unchanged. The `geom::KnotMirrorError` re-export was dropped rather
+than kept as a second spelling: `geom` re-exports no other spline error
+type, and nothing used that path.
+
+Each refusal now ends in a labelled `Recourse:`, following the
+module's convention, and
+`every_knot_mirror_error_arm_names_a_recourse` enforces it. The move
+happened without waiting for a curve reversal: the orchestrator ruled
+it is a property of a `KnotVector` alone, so it belongs there whatever
+calls it next.
+
+Filed from the sweep: `row-space-reflection-compares-rounded-knots`.
+Review tier: the orchestrator's read.
