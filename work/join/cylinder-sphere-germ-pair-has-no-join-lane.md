@@ -8,7 +8,6 @@ priority: P1
 cost: H
 design: true
 refs: [cylinder-sphere-germ-pair-has-no-section-frame, skew-cylinder-germ-pair-has-no-section-frame]
-needs_ev: true
 ---
 
 Found by the cylinder × sphere frame lane (branch
