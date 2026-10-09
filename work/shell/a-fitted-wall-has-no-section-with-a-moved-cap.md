@@ -2,11 +2,12 @@
 id: a-fitted-wall-has-no-section-with-a-moved-cap
 kind: issue
 title: C5 routes no Approx x Plane section, so every lofted shell refuses at its first moved wall: may a fitted chart's section be its fitted spline's, with the fit certificate as an error bound?
-status: open
+status: dispatched
 opened: 2026-10-08
 priority: P2
 cost: H
 refs: [shell-of-a-lofted-body-meets-the-oblique-corner-on-a-slanted-spline-seam]
+branch: shell/fitted-wall-section
 ---
 
 Filed by the unit 9 designer pair. Once a moved cap's corner is solved

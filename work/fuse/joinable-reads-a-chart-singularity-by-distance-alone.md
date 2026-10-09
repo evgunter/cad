@@ -4,6 +4,9 @@ kind: issue
 title: joinable keeps a pole or an apex a vertex by its metric distance from the chart's singular set alone; no structural backstop holds it
 status: open
 opened: 2026-10-07
+priority: P3
+cost: M
+design: true
 ---
 
 ## The finding

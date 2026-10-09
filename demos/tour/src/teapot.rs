@@ -2230,8 +2230,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
 
     // WALL 1 — RETIRED at #1081's PR-2b, and the retirement is the
     // pot above: the belly IS the arc now. What this wall pinned was
-    // the sealed hollow of a sphere-zone meridian refusing
-    // `ReanchorOffCarrier`, and it refused because `shell` moved one
+    // the sealed hollow of a sphere-zone meridian refusing at the
+    // per-chart door's moved corner (a refusal since retired: the door
+    // derives corners by root now), and it refused because `shell` moved one
     // chart at a time. The simultaneous door solves each corner
     // against every surface meeting it, so the arc ships and the
     // squared shoulders are gone from the scene entirely.
@@ -2405,8 +2406,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              by Archimedes' zone and the stack, both met to 1e-12. THREE rims roll \
              in ONE request, each asked for WHOLE — both its half-arcs, BandRim and \
              BandRimPi, minted by `band_rim` and `band_rim_pi` — and each band \
-             carves over both arcs: 14/23/11 rolled, every band the same \
-             (+2, +3, +1). The flange's rim and the \
+             carves over both arcs: 12/21/11 rolled, the sum of the lone bands' \
+             deltas — (+2, +3, +1) each, less one vertex and one edge where the \
+             blend's closing join makes a trimline on a WHOLE disc (the base under \
+             the flange, the top under the knob) one closed circle; the dome's foot \
+             runs between two half-walled supports and keeps both. The flange's rim and the \
              dome's foot are the two ends of ONE meridian segment, so both bands slit \
              and cross THAT segment's meridians, and their names tell the two apart \
              by the band that made each. Their supports are three \

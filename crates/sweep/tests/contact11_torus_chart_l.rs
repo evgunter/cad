@@ -7,7 +7,7 @@
 //! that refuses such a face at the containment doors is pinned in
 //! `topo`'s `an_l_shaped_torus_face_refuses_rather_than_trim_by_its_hull`;
 //! what this row asserts once the pair is admitted is scheduled by
-//! `work/contact/notched-half-donut-owes-its-notch-and-volume-when-torus-plane-lands.md`.
+//! `work/contacthold/notched-half-donut-owes-its-notch-and-volume-when-torus-plane-lands.md`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

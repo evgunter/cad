@@ -186,6 +186,7 @@ pub mod movefac;
 mod n2r1_probes;
 pub mod null;
 pub mod offset_axial;
+pub mod offset_derive;
 pub mod offset_nappe;
 pub(crate) mod offset_restate;
 pub mod offset_together;
@@ -465,8 +466,9 @@ pub mod test_support {
         crate::boolean::maximal_faces_gate(body, operand, tol)
     }
 
-    /// The join's section segments of `op`: the pair-record count and
-    /// each segment's two germ sites (`boolean::section_segment_sites`).
+    /// Every segment the join of `op` builds, one-site loops included:
+    /// the pair-record count and each segment's two germ sites
+    /// (`boolean::section_segment_sites`).
     /// `None` where the reduction registers no pair.
     ///
     /// # Errors
@@ -614,7 +616,7 @@ pub mod test_support {
     /// refusal's obligation (`test_utils::offer::judge_laters`).
     pub const LATER_STORIES_OWNED: &[(&str, &str)] = &[(
         "Containment",
-        "work/contact/point-in-solid-escalation-carries-no-decision.md",
+        "work/inside/point-in-solid-escalation-carries-no-decision.md",
     )];
 
     /// The offers the executed-offer census counts as run in `sweep`,
@@ -866,6 +868,7 @@ pub use merge_faces::{
 };
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use offset_axial::{is_axial, offset_charts_together};
+pub use offset_derive::{CornerVerdict, SectionLane, SectionVerdict};
 pub use offset_nappe::{Nappe, face_nappe, group_nappe};
 pub use offset_together::{ChartMove, offset_planes_together};
 pub use pcurves::{
