@@ -2334,8 +2334,8 @@ impl fmt::Display for StaleDeclaration {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WedgeCheck {
     /// The folded lever arm the first-order wedge is metered at: whether
-    /// the edge is long enough, for how its faces curve, to read an
-    /// angle over ([`geom_brep::DIHEDRAL_ARM`]).
+    /// the edge is [`geom_brep::DIHEDRAL_ARM_CLAUSE`]
+    /// ([`geom_brep::DIHEDRAL_ARM`]).
     Arm,
     /// The first-order wedge between the faces' tangent planes, metered
     /// at a definitely positive arm: a crease or a smooth join.
@@ -11383,7 +11383,10 @@ mod tests {
     /// kept-boundary arm. A definite arm names no tolerance before its
     /// recourse: the exact zero no tolerance decides reads it too.
     /// Certify's [`CertCheck`] word is a noun naming the length, not the
-    /// question, so it is held to that noun. The SSI march's question is
+    /// question, so it is held to that noun. The pin reads rendered text,
+    /// so a door that re-spells the clause identically rather than
+    /// composing the const passes it; that copy goes unseen until the
+    /// clause changes. The SSI march's question is
     /// worded apart, held below until
     /// `work/ssimarch/ssi-march-reports-a-collapsed-arm-as-too-close-to-call.md`
     /// lands it.

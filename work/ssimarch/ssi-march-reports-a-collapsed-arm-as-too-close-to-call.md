@@ -37,7 +37,8 @@ verdict) and give a decided arm a definite `SsiError` variant that ends
 through `CertCheck::TransversalityArm` on `verdict.arm()`, as
 certification's `CertifyError::ArmCollapsed` does. A reader that
 re-quotes the arm's margin first must keep the gate's verdict instead,
-as `geom_brep::LeverEscalation::with_diag` does.
+through `geom_brep::LeverEscalation::quoting_reading`, the one re-quote
+door, which keeps the verdict and quotes only a reading it pairs with.
 
 
 ## The question's shape (ENCL, PR 4366)

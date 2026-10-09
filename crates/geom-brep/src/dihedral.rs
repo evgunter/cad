@@ -298,9 +298,7 @@ pub(crate) fn wedge_decided<T: Decide>(
     // The collapsed-arm gate (module docs): the wedge margin is only
     // meaningful through a definitely-positive arm.
     decide_positive("dihedral_arm", Margin::of(arm), band).map_err(|gate| {
-        WedgeEscalation::Lever(
-            LeverEscalation::arm(gate).with_diag(at_wedge(gate, arm, sin_theta, band)),
-        )
+        WedgeEscalation::Lever(at_wedge(LeverEscalation::arm(gate), arm, sin_theta, band))
     })?;
     let margin = Margin::levered(sin_theta, arm);
     // The cause of an invalid margin, read only once the decision has
@@ -334,7 +332,9 @@ pub(crate) fn wedge_decided<T: Decide>(
 
 /// **The arm gate's escalation, quoted at the wedge it meters**: the arm
 /// is in band or decided zero, and the reading it meters is the wedge
-/// `sin θ · arm`, no longer than the arm. A tolerance that decides the
+/// `sin θ · arm`, no longer than the arm up to the in-band excess of the
+/// gradients' quotient over one (which
+/// [`LeverEscalation::quoting_reading`] guards). A tolerance that decides the
 /// arm but leaves that wedge in band reads no class, so the escalation
 /// carries the wedge's own margin, through the arm gate's funnel
 /// (`"dihedral_arm_wedge"`), and the tolerance it offers decides both.
@@ -345,22 +345,29 @@ pub(crate) fn wedge_decided<T: Decide>(
 /// seam, whose own value would offer a tolerance many decades below the
 /// one that already decides the seam. An arm no smaller tolerance
 /// decides positive — poisoned, decided negative, or a zero on the
-/// negative side — keeps its own too: there is no tolerance to quote.
-fn at_wedge<T: Decide>(gate: Indeterminate, arm: T, sin_theta: T, band: Band) -> Indeterminate {
+/// negative side — keeps its own too: there is no tolerance to quote
+/// ([`LeverEscalation::re_quotes`]).
+fn at_wedge<T: Decide>(
+    escalation: LeverEscalation,
+    arm: T,
+    sin_theta: T,
+    band: Band,
+) -> LeverEscalation {
     let wedge = sin_theta * arm;
     // `arm / wedge` is finite unless the wedge is exactly zero, or poison
     // (a gradient the arm's decided zero leaves unread, at a cone's apex).
-    if !gate.offers_tolerance()
+    if !escalation.re_quotes()
         || !geom_core::is_finite_length(arm / wedge)
         || wedge_reads_zero_at_the_arm(sin_theta, band)
     {
-        return gate;
+        return escalation;
     }
     match decide_positive("dihedral_arm_wedge", Margin::of(wedge.abs()), band) {
-        Err(diag) => diag,
-        // Unreachable: the wedge is no longer than an arm that did not
-        // read positive.
-        Ok(()) => gate,
+        Err(diag) => escalation.quoting_reading(diag),
+        // Only where `sin θ`'s in-band excess over one carries the wedge
+        // past the band: the arm keeps its own margin, whose tolerance
+        // decides that wedge too.
+        Ok(()) => escalation,
     }
 }
 
