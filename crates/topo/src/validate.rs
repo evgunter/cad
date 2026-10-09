@@ -2908,6 +2908,7 @@ fn classify_offset_fit(e: &geom_brep::OffsetFitError) -> (&'static str, Cow<'sta
         | O::InvalidRequest { .. }
         | O::NonFiniteSample { .. }
         | O::WindowUnsupported { .. }
+        | O::MintLimb { .. }
         | O::Elevation(_) => ("its stored fit is not well-formed", DEFECT),
         // The body was checked at a valid tolerance whose derived band
         // failed anyway, so `classify_band`'s repairs (thresholds that

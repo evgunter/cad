@@ -770,6 +770,18 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             bound: 3e-6,
             tolerance: 1e-6,
         },
+        // The mint's: the loop's NaN residual, and its certification
+        // of the fit the loop accepted.
+        OffsetFitError::MintLimb {
+            limb: OffsetLimb::OnLocus,
+            bound: f64::NAN,
+            tolerance: 1e-6,
+        },
+        OffsetFitError::MintLimb {
+            limb: OffsetLimb::HullSup,
+            bound: 3e-6,
+            tolerance: 1e-6,
+        },
         // The payload the elevation's own `check_weights` produces.
         OffsetFitError::Elevation(geom_core::spline::KnotAlgebraError::Structure(
             geom_core::spline::SplineError::NonPositiveWeight {
