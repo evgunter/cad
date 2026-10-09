@@ -242,6 +242,52 @@ in. I lean to the full answer above.
 - `nest*.rs`;
 - persist (one load-time migration).
 
+### Round 2 (after reading the other report; this supersedes earlier text where they differ)
+
+1. **The split's `side` drop goes after this fork, as its own fork.**
+   *Likely.* Dropping `side` needs a table per output variable, which is
+   the evaluator's `Results` keyed by read. That belongs to
+   `part-split-half-retires`, and the drop should ride with it.
+   The read key can ship first: nothing that exists today collides in the
+   per-node tables.
+   - The split's halves already name apart through `side`.
+   - A revolve's second output is an axis, not a body.
+   - A part instance's outputs are qualified per copy.
+   - The one future collision is D10's placement over a list of shapes
+     holding two copies of one body. So per-output tables, and with them
+     the drop, must land before that placement is built.
+   - The union's view only has to restrict itself to the port's rows,
+     which `EntityRef`'s output index already allows.
+2. **`FromTarget` folds into `From { read, of }`.** *Likely.* This reverses
+   my first draft. It makes one carry-through segment, so N6's walk ("down
+   the name's carry-through segments and the reads they name") reads one
+   segment kind and never consults the node. The read is derivable from a
+   one-input node, but a union's member read is derivable from the node
+   too. Redundancy is therefore no argument for keeping a second segment.
+3. **Two node kinds, `Union` and `Intersect`, both to authors and in the
+   stored document.** *Likely.*
+   - To an author, `union(...)` and `intersect(...)` are the verbs they
+     think in.
+   - In the stored document, a kind is what a reader checks first. An
+   `op` field reopens the door to admitting `Subtract` into the list
+   shape, which (F) showed is wrong. The two kinds share their
+   implementation in code.
+
+**The four places where an operation stands in for a read.** I agree they
+are one final state:
+- the union key;
+- `SitedRef.at`;
+- `coincide::construction`'s entry;
+- `Results` keyed by node.
+
+This fork's unit should take the first three. The union key is the fork
+itself. `coincide::construction` is needed as soon as a union of two
+halves builds: its recorded cells would otherwise lower both halves to
+one operation. `SitedRef.at` becomes a `VarId` for as long as
+declarations live (until stage 4 F). The fourth, `Results` keyed by read,
+together with per-output tables and the `side` drop, is
+`part-split-half-retires`'s target.
+
 ## For the orchestrator
 
 - Assumed: a `Body` variable is always a `VarDef::Output` (D10: "the
