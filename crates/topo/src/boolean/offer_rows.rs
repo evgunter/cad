@@ -2541,7 +2541,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     (
         "mod.rs",
         "decision_words",
-        "BooleanDecision::Containment",
+        "BooleanDecision::CONTAINMENT_UNNAMED",
         1,
     ),
     (
@@ -2606,6 +2606,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "recut_lean", "BooleanDecision::Sphere", 1),
     ("ops.rs", "recut_lean", "SphereQuestion::RecutAlign", 1),
     ("ops.rs", "seam_refusal", "BooleanDecision::SeamJet", 1),
+    ("ops.rs", "seam_refusal", "BooleanDecision::of_lever", 1),
     ("ops.rs", "seam_refusal", "LeverArm::Seam", 1),
     ("ops.rs", "sphere_extent_scan", "BooleanDecision::Sphere", 1),
     (
@@ -2735,10 +2736,17 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     (
         "reduce.rs",
         "wall_crossing",
+        "BooleanDecision::CONTAINMENT_UNNAMED",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "wall_crossing",
         "BooleanDecision::Containment",
-        2,
+        1,
     ),
     ("reduce.rs", "wall_crossing", "BooleanDecision::Crossing", 1),
+    ("sectors.rs", "arc_side", "Coincide::Sectors", 1),
     (
         "sectors.rs",
         "bisector_zero_refusal",
@@ -2746,6 +2754,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("sectors.rs", "build_sectors", "BooleanDecision::Corner", 1),
+    ("sectors.rs", "in_sector", "Coincide::Sectors", 1),
     (
         "sectors.rs",
         "direction_sense",
@@ -2771,7 +2780,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("sectors.rs", "within", "Coincide::Sectors", 1),
-    ("sphere_region.rs", "-", "BooleanDecision::Containment", 1),
+    (
+        "sphere_region.rs",
+        "-",
+        "BooleanDecision::CONTAINMENT_UNNAMED",
+        1,
+    ),
     (
         "vtxfac.rs",
         "classify_vertex_on_face",

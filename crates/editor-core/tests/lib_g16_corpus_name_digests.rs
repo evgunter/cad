@@ -139,6 +139,12 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// **Re-pinned for INTENT-LITERALS PR D** (`Expr` holds no float):
 /// `kitchen_sink` alone, whose formulas hold written quantities that
 /// now mint variables of their own; every other row held its word.
+///
+/// **Re-pinned for the blend's closing join** (3881 step 3, PR C;
+/// `docs/DESIGN.md`, maximal edges): the two rim-filleting documents,
+/// `die_composed` and `die_composed_tour`, moved, and no other row did.
+/// Each band's two host trimlines are one edge, named as the set of
+/// both, and the host foot between them is gone with its name.
 const PINNED: &[(&str, u64)] = &[
     ("die", 0x5611f361e1805560),
     ("corner_table", 0x0281e12ba95e535e),
@@ -160,8 +166,8 @@ const PINNED: &[(&str, u64)] = &[
     ("face_sketch", 0x07a27a920bf53e24),
     ("part_select", 0xb8754e5ad4247a4b),
     ("loft_prism", 0x749f5f07d2a32b1d),
-    ("die_composed", 0x159cdfedac400d92),
-    ("die_composed_tour", 0x1b685398734cd88c),
+    ("die_composed", 0x74b825c304879ff7),
+    ("die_composed_tour", 0xb93ccc3f1f2abd05),
     ("plate_param", 0x398971ffc28bccd8),
     ("kiss_carry", 0x2aa0c23dc0371893),
     ("tube_ring", 0xbb1ef69349c42c17),

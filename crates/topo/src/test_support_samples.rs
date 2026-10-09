@@ -210,6 +210,8 @@ fn point_in_solid_errors() -> Vec<crate::boolean::PointInSolidError> {
         S::ZeroVolumeBody,
         S::Loop(L::Escalated {
             r#loop,
+            decision: crate::splitting::LoopDecision::Boundary,
+            escalation: crate::splitting::Escalation::Margin,
             diag: diag(),
         }),
         S::Loop(L::RayExhausted { r#loop }),
@@ -250,21 +252,54 @@ fn point_in_solid_errors() -> Vec<crate::boolean::PointInSolidError> {
 }
 
 fn contain_errors() -> Vec<ContainError> {
-    vec![
-        ContainError::Escalated(diag()),
+    use crate::boolean::ContainDecision;
+    use crate::splitting::{Escalation, LoopDecision};
+    let [value, _, poisoned] = diags();
+    let over_wound = Indeterminate {
+        margin: MarginDiag::value(-5e-9),
+        ..value
+    };
+    // Each ending form a site can raise: the valued tighten (or the lever
+    // alone where the margin gives none), the lever with the
+    // unreadable-margin note, a straddle of two bounds, and a row decided
+    // and still refused. The span rule escalates only on an over-wound
+    // margin or a straddle.
+    let arc_span = Some(ContainDecision::Loop(LoopDecision::ArcSpan));
+    let escalated = |decision, escalation, diag| ContainError::Escalated {
+        decision,
+        escalation,
+        diag,
+    };
+    // Every pair a site raises (`boolean::CONTAINMENT_RAISED`), in each form
+    // its reading can take there.
+    let mut v: Vec<ContainError> = crate::boolean::CONTAINMENT_RAISED
+        .into_iter()
+        .flat_map(|(decision, escalation)| match escalation {
+            Escalation::Margin if decision == arc_span => {
+                vec![escalated(decision, escalation, over_wound)]
+            }
+            Escalation::Margin => vec![
+                escalated(decision, escalation, value),
+                escalated(decision, escalation, poisoned),
+            ],
+            Escalation::Straddle | Escalation::Decided => {
+                vec![escalated(decision, escalation, poisoned)]
+            }
+        })
+        .collect();
+    v.extend([
         ContainError::RayExhausted,
         ContainError::StaleFace(crate::entity::FaceKey::default()),
         ContainError::EmptyLoop(LoopKey::default()),
         ContainError::LoopUnreadable(LoopKey::default()),
         ContainError::Uncrossable(uncrossable()),
-    ]
-    .into_iter()
-    .chain(
+    ]);
+    v.extend(
         point_in_solid_errors()
             .into_iter()
             .map(ContainError::Curved),
-    )
-    .collect()
+    );
+    v
 }
 
 /// The carrier-domain refusal on a width that overflows.
@@ -391,11 +426,28 @@ fn certify_errors() -> Vec<CertifyError> {
         CertifyError::ResidualExceeded {
             check: CertCheck::Surface1Residual,
             sample: 4,
+            margin: MarginDiag::value(3e-8),
         },
         CertifyError::NotTransverse {
             lever: None,
             sample: 4,
             verdict: zero_verdict(5e-10),
+        },
+        // A lever arm or a spline's metered length that is not there:
+        // one a smaller tolerance decides, and one of no length at all.
+        CertifyError::ArmCollapsed {
+            sample: 4,
+            verdict: zero_verdict(0.0),
+        },
+        CertifyError::ArmCollapsed {
+            sample: 4,
+            verdict: zero_verdict(5e-10),
+        },
+        CertifyError::SpanMeterCollapsed {
+            verdict: zero_verdict(0.0),
+        },
+        CertifyError::SpanMeterCollapsed {
+            verdict: negative_verdict(-1e-3),
         },
         CertifyError::NotSecondOrderSeparated {
             sample: 4,
@@ -411,6 +463,16 @@ fn certify_errors() -> Vec<CertifyError> {
         CertifyError::Escalated {
             check: CertCheck::Transversality,
             sample: 4,
+            cause: diag(),
+        },
+        CertifyError::Escalated {
+            check: CertCheck::TransversalityArm,
+            sample: 4,
+            cause: diag(),
+        },
+        CertifyError::Escalated {
+            check: CertCheck::ParamSpanMeter,
+            sample: geom_brep::certify::NOT_A_SAMPLE,
             cause: diag(),
         },
     ];
@@ -862,6 +924,24 @@ fn path_label<T: core::fmt::Debug>(arm: &str, nested: &T) -> String {
         path = format!("{path}/{head}");
         match rest[head.len()..].strip_prefix('(') {
             Some(inner) if matches!(head.as_str(), "Curved" | "Loop") => rest = inner,
+            // An escalation's ending differs by its decision, how its
+            // reading stood, and its margin's kind.
+            _ if head == "Escalated" && rest.contains("escalation: ") => {
+                let field = |name: &str| {
+                    rest.split_once(name)
+                        .map_or("", |(_, tail)| tail.split([',', ' ']).next().unwrap_or(""))
+                };
+                let decision = rest
+                    .split_once("decision: ")
+                    .and_then(|(_, tail)| tail.split_once(", escalation"))
+                    .map_or("", |(d, _)| d);
+                let kind = rest.split_once("margin: ").map_or("", |(_, tail)| {
+                    tail.split(|c: char| !c.is_alphanumeric())
+                        .next()
+                        .unwrap_or("")
+                });
+                return format!("{path}/{decision}/{}/{kind}", field("escalation: "));
+            }
             // An off-plane loop's refusals differ by cause alone.
             _ if head == "OffPlane" => match rest.split_once("cause: ") {
                 Some((_, cause)) => rest = cause,
@@ -1022,6 +1102,10 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         ValidationError::ScaffoldAtRest { edge },
         ValidationError::TangentNotIntrinsic { edge },
         ValidationError::LaminaWedge { edge },
+        ValidationError::NoDihedralArm {
+            edge,
+            verdict: zero_verdict(0.0),
+        },
         ValidationError::LoopRoleInverted {
             face,
             r#loop: loop_,
@@ -1350,7 +1434,9 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     }
     // Every `what` the backstop raises, on the pair kind its arm raises
     // it on (`Undecided` is their one source).
-    for why in Undecided::iter() {
+    let carried = crate::splitting::LoopDecision::ALL
+        .map(|decision| Undecided::WitnessTooClose(Some(decision)));
+    for why in Undecided::iter().chain(carried) {
         let (a, b) = if why.on_faces() {
             (EntityId::Face(face), EntityId::Face(face))
         } else {

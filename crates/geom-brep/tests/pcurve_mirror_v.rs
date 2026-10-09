@@ -469,7 +469,8 @@ fn mirrored_chart_images_recertify_on_the_reverted_plane_with_the_same_certifica
                 stale,
                 Err(CertifyError::ResidualExceeded {
                     check: CertCheck::ChartResidual,
-                    sample: 0
+                    sample: 0,
+                    ..
                 })
             ),
             "{name}: the stored image on the reverted plane: {stale:?}"

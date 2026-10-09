@@ -4,8 +4,9 @@ kind: issue
 title: The census's cross-solid backstop answers CensusUndecidable for curved solids within reach of each other, so 26 multi-solid shell results fail the empty-contact tier 3' they should pass
 status: open
 opened: 2026-10-03
-priority: P2
+priority: P1
 refs: [3870]
+cost: H
 ---
 
 
@@ -144,3 +145,19 @@ Each is two shells. Tier 3 passes and the volume matches the slice
 integral. Tier 3′ answers only `CensusUndecidable` pairs, between the
 two lumps' sphere faces and the planar faces within reach of them. The
 row accepts that refusal, and only it, on those results.
+
+## Also in `join1_delta_arc_battery` (2026-10-08)
+
+Measured on main `047d10d5` and on `join/battery-hygiene`, unmoved
+between them: 336 lines of `crates/sweep/tests/join1_delta_probes.rs`
+`join1_delta_arc_battery` build at the closed-form volume, with tier
+2, the certificate and a legal operand, and fail tier 3′ on
+`CensusUndecidable` alone. They are z-prisms over arc profiles that
+meet at an edge or a cap and come out as two solids. Sampled:
+`ARC half lower d=(0.5, 0.0) zb=(2.0, 4.0) decl=false U` is two
+solids, and every error is "a curved face of one is within reach of
+the other".
+
+## CONTACT close-out triage (2026-10-08)
+
+Priced P1, H: arm 1 refuses `CurvedWithinReach` (`census.rs`), which blocks SHELL adopting the tier-3-prime bar and REACHHOLD's census door. `census-backstop-separates-curved-pairs-only-along-world-axes` is a sub-step: do them together.

@@ -4,6 +4,8 @@ kind: issue
 title: point_in_solid's wall outline refuses any ringed cylinder wall, so a later union member's containment probe stops on a pierced boss
 status: open
 opened: 2026-10-02
+priority: P2
+cost: M
 ---
 
 

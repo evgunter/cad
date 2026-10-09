@@ -333,12 +333,17 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
         s2,
         witness: Point3::new(0.0, -1.0, 0.0),
     };
-    assert_eq!(
-        EdgeCurve::certify(wrong_side, p0, p1, &lookup, band()).unwrap_err(),
-        CertifyError::ResidualExceeded {
-            check: CertCheck::WitnessMidpoint,
-            sample: 4
-        }
+    let refusal = EdgeCurve::certify(wrong_side, p0, p1, &lookup, band()).unwrap_err();
+    assert!(
+        matches!(
+            refusal,
+            CertifyError::ResidualExceeded {
+                check: CertCheck::WitnessMidpoint,
+                sample: 4,
+                ..
+            }
+        ),
+        "{refusal:?}"
     );
 }
 
@@ -505,6 +510,113 @@ fn fixed_sub_epsilon_extent_true_corner_escalates() {
         (err.rung, err.diag.predicate),
         (geom_brep::LeverRung::Arm, Some("dihedral_arm")),
         "zero extent"
+    );
+}
+
+/// **A collapsed spline meter refuses as the meter's decision**, not as
+/// an unreadable span margin. A degree-2 net along the z axis (the
+/// intersection of the planes x = 0 and y = 0) that stalls at its end —
+/// its last two control points coincide — has a speed floor of exactly
+/// zero, and one that turns back on itself a floor below zero: neither
+/// has a metre scale for its stored interval. Each carries the meter's
+/// own verdict and ends in its lever, the stall with what a vanishing
+/// floor means, and never in the poisoned-margin note; a poisoned net
+/// keeps the note, under the meter's own check.
+#[test]
+fn a_collapsed_spline_meter_refuses_as_the_meter_decision() {
+    use std::sync::Arc;
+
+    use geom::NurbsCurve3;
+    use geom_brep::certify::NOT_A_SAMPLE;
+    use geom_brep::keys::SurfaceKey;
+    use geom_brep::recourse::Reading;
+    use geom_core::spline::KnotVector;
+    const LEVER: &str = "Recourse: move the geometry so this spline edge runs steadily forward, \
+                         never stalling or turning back";
+    let net = |degree: usize, control: &[f64]| {
+        let n = control.len();
+        let knots = [vec![0.0; degree + 1], vec![1.0; degree + 1]].concat();
+        assert_eq!(knots.len(), n + degree + 1, "a single-span clamped net");
+        let knots = KnotVector::clamped(knots, degree).expect("knots");
+        let control = control.iter().map(|&z| Point3::new(0.0, 0.0, z)).collect();
+        let net = NurbsCurve3::new(knots, control, vec![1.0; n]).expect("the net builds");
+        Curve3::Nurbs(Arc::new(net))
+    };
+    let certify = |carrier: Curve3<f64>| {
+        let mut arena: slotmap::SlotMap<SurfaceKey, Surface<f64>> = slotmap::SlotMap::with_key();
+        let s1 = arena.insert(Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_x(),
+            u_ref: Vec3::unit_y(),
+        });
+        let s2 = arena.insert(Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_y(),
+            u_ref: Vec3::unit_x(),
+        });
+        let spec = EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                s1,
+                s2,
+                witness: carrier.eval(0.5),
+            },
+            carrier: carrier.clone(),
+            param_start: 0.0,
+            param_end: 1.0,
+        };
+        let (start, end) = (carrier.eval(0.0), carrier.eval(1.0));
+        EdgeCurve::certify(spec, start, end, |k| arena.get(k).cloned(), band()).unwrap_err()
+    };
+    for (name, control, zero) in [
+        ("stalls", [0.0, 1.0, 1.0], true),
+        ("turns back", [0.0, 1.0, 0.5], false),
+    ] {
+        let err = certify(net(2, &control));
+        match err {
+            CertifyError::SpanMeterCollapsed {
+                verdict: Refused::Zero(_),
+            } => assert!(zero, "{name}: {err:?}"),
+            CertifyError::SpanMeterCollapsed {
+                verdict: Refused::Negative { .. },
+            } => assert!(!zero, "{name}: {err:?}"),
+            other => panic!("{name}: the meter must refuse as its own decision: {other:?}"),
+        }
+        assert_eq!(
+            err.decision().map(|(check, _)| check),
+            Some(CertCheck::ParamSpanMeter),
+            "{name}"
+        );
+        let text = err.render(Reading::Build);
+        assert!(!text.contains("unreadable"), "{name}: {text}");
+        let want = if zero {
+            format!(
+                "{LEVER}; a vanishing speed floor means the spline stalls or turns back, or that \
+                 the floor has reached its limit, which is worth reporting"
+            )
+        } else {
+            LEVER.to_owned()
+        };
+        assert!(text.ends_with(&want), "{name}: {text}");
+    }
+    // A net whose control points all coincide has no chord to project
+    // on: its floor is poison, which stays undecided under the meter's
+    // own check and keeps the note.
+    let err = certify(net(1, &[1.0, 1.0]));
+    assert!(
+        matches!(
+            err,
+            CertifyError::Escalated {
+                check: CertCheck::ParamSpanMeter,
+                sample: NOT_A_SAMPLE,
+                ..
+            }
+        ),
+        "{err:?}"
+    );
+    let text = err.render(Reading::Build);
+    assert!(
+        text.ends_with(&format!("{LEVER}; {}", geom_core::UNREADABLE_MARGIN_NOTE)),
+        "{text}"
     );
 }
 

@@ -4,6 +4,8 @@ kind: issue
 title: sphere_chart_trim reads a trimmed sphere face as the latitude window its rim levels span however many levels there are, so a stepped outline (three or more rim latitudes) is misread; no door builds one today
 status: open
 opened: 2026-09-26
+priority: P4
+cost: E
 ---
 
 
@@ -44,3 +46,13 @@ Count the distinct rim latitudes, as `wall_outline` counts rim levels,
 and keep the rectangle for exactly two (one if a pole closes the face).
 Read anything else by parity along the meridian, or refuse it as
 `PartialSphereFace`. Either is the cylinder's discipline.
+
+## A second closing shape (CONTACT-11)
+
+The cone and torus trims now decide whether a face is its box with one
+linear test, `solid_contain::chart_polygon_box`: every side of the
+chart polygon has to lie on a side of its bounding box, and each side's
+distance is decided in metres. The sphere could share that test, with
+the pole junction as a side on the pole's latitude, the way the cone's
+apex jump is one. Counting rim levels, as this row proposes and as the
+cylinder and the props door do, would also close it.
