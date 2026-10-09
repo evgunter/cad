@@ -67,6 +67,8 @@ mod a_ring_on_a_sphere_face;
 mod a_ruling_lying_on_a_wall;
 #[path = "a_swept_cusp_is_legal_at_rest.rs"]
 mod a_swept_cusp_is_legal_at_rest;
+#[path = "r2_probes.rs"]
+mod r2_probes;
 #[path = "a_tube_ending_on_a_ball.rs"]
 mod a_tube_ending_on_a_ball;
 #[path = "at_rest_pcurve_faces.rs"]
