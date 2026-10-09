@@ -3129,30 +3129,27 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
     (why, recourse.into())
 }
 
-/// A point too near a boundary to place: the lever is the point's own.
-/// The refusal does not carry which of the walk's decisions it is.
-const OFF_BOUNDARY: &str = "Recourse: move the geometry clear of the boundary";
-
-fn classify_contain(e: &ContainError) -> (Cow<'static, str>, &'static str) {
+fn classify_contain(e: &ContainError) -> (Cow<'static, str>, Cow<'static, str>) {
     match e {
-        ContainError::Escalated(diag) => close_to_boundary(diag),
-        ContainError::RayExhausted => (GRAZED.into(), MOVE_GEOMETRY),
+        ContainError::Escalated {
+            decision,
+            escalation,
+            diag,
+        } => close_to_boundary(*decision, *escalation, diag),
+        ContainError::RayExhausted => (GRAZED.into(), MOVE_GEOMETRY.into()),
         ContainError::StaleFace(_) => (
             "a face the check asked about does not resolve in the body".into(),
-            DEFECT,
+            DEFECT.into(),
         ),
         ContainError::EmptyLoop(_) => (
             "a loop of its boundary is a lone vertex, which bounds no region".into(),
-            DEFECT,
+            DEFECT.into(),
         ),
-        ContainError::LoopUnreadable(_) => (UNWALKABLE.into(), DEFECT),
+        ContainError::LoopUnreadable(_) => (UNWALKABLE.into(), DEFECT.into()),
         ContainError::Curved(e) => classify_point_in_solid(e),
-        ContainError::Uncrossable(u) => (uncrossable(u), NOT_YET),
+        ContainError::Uncrossable(u) => (uncrossable(u), NOT_YET.into()),
     }
 }
-
-const CLOSE_TO_BOUNDARY: &str =
-    "a point of it lies too close to a boundary to place at this tolerance";
 
 const UNWALKABLE: &str = "its boundary could not be walked";
 
@@ -3164,10 +3161,21 @@ const GRAZED: &str = "a point the check read is off the boundary, but no test ra
 /// The lever for a point with nothing to declare a coincidence with.
 const MOVE_GEOMETRY: &str = concat!("Recourse: ", geom_core::coincidence_move_arm!());
 
-fn close_to_boundary(diag: &Indeterminate) -> (Cow<'static, str>, &'static str) {
+/// A point too near a boundary to place ends as the escalation's decision
+/// gives it at rest, or in the unnamed lever where it names none
+/// (`boolean::placement_ending`).
+fn close_to_boundary(
+    decision: Option<crate::boolean::ContainDecision>,
+    escalation: crate::splitting::Escalation,
+    diag: &Indeterminate,
+) -> (Cow<'static, str>, Cow<'static, str>) {
     (
-        CLOSE_TO_BOUNDARY.into(),
-        own_close(&diag.margin, OFF_BOUNDARY),
+        format!(
+            "{} is undecided at this tolerance",
+            crate::boolean::placement_subject(decision)
+        )
+        .into(),
+        crate::boolean::placement_ending(decision, escalation, diag, Reading::AtRest).into(),
     )
 }
 
@@ -3191,15 +3199,23 @@ fn uncrossable(u: &crate::splitting::Uncrossable) -> Cow<'static, str> {
 /// corrupt or off-plane loop) is the producer's defect.
 fn classify_point_in_solid(
     e: &crate::boolean::PointInSolidError,
-) -> (Cow<'static, str>, &'static str) {
+) -> (Cow<'static, str>, Cow<'static, str>) {
     use crate::boolean::PointInSolidError as S;
     use crate::splitting::{OffPlaneCause, PointInLoopError as L};
     match e {
-        S::Escalated { diag, .. } | S::Loop(L::Escalated { diag, .. }) => close_to_boundary(diag),
-        S::RayExhausted | S::Loop(L::RayExhausted { .. }) => (GRAZED.into(), MOVE_GEOMETRY),
-        S::Loop(L::CorruptLoop { .. }) => (UNWALKABLE.into(), DEFECT),
+        S::Escalated { diag, .. } => {
+            close_to_boundary(None, crate::splitting::Escalation::Margin, diag)
+        }
+        S::Loop(L::Escalated {
+            decision,
+            escalation,
+            diag,
+            ..
+        }) => close_to_boundary(Some((*decision).into()), *escalation, diag),
+        S::RayExhausted | S::Loop(L::RayExhausted { .. }) => (GRAZED.into(), MOVE_GEOMETRY.into()),
+        S::Loop(L::CorruptLoop { .. }) => (UNWALKABLE.into(), DEFECT.into()),
         S::Loop(L::Uncrossable(u)) | S::EdgeCarrierUnsupported { cause: u, .. } => {
-            (uncrossable(u), NOT_YET)
+            (uncrossable(u), NOT_YET.into())
         }
         S::Loop(L::OffPlane(o)) => (
             match o.cause {
@@ -3212,17 +3228,17 @@ fn classify_point_in_solid(
                 }
             }
             .into(),
-            DEFECT,
+            DEFECT.into(),
         ),
         S::CorruptFace { .. } => (
             "a face the check read is broken: it cannot be walked, or names something that is \
              gone"
                 .into(),
-            DEFECT,
+            DEFECT.into(),
         ),
         S::NoSuchSolid { .. } => (
             "a solid the check asked about does not resolve in the body".into(),
-            DEFECT,
+            DEFECT.into(),
         ),
         // Check 7 passes a volume in band of zero, so the body may carry
         // such a solid at rest; it is the model's to fix, as the census
@@ -3230,12 +3246,12 @@ fn classify_point_in_solid(
         S::ZeroVolumeBody => (
             "a solid the check read encloses no measurable volume, so nothing can be inside it"
                 .into(),
-            "Recourse: fix that solid so it encloses a volume",
+            "Recourse: fix that solid so it encloses a volume".into(),
         ),
         S::VolumeUncertified => (
             "a solid's volume cannot be certified, so which side of it is inside cannot be read"
                 .into(),
-            NOT_YET,
+            NOT_YET.into(),
         ),
         S::KindUnsupported { kind, .. } => (
             format!(
@@ -3243,14 +3259,14 @@ fn classify_point_in_solid(
                 crate::boolean::kind_word(*kind)
             )
             .into(),
-            NOT_YET,
+            NOT_YET.into(),
         ),
         S::PartialSphereFace { .. }
         | S::PartialConeFace { .. }
         | S::PartialTorusFace { .. }
         | S::WallOutlineUnsupported { .. } => (
             "a curved face's trim is one the check cannot yet read".into(),
-            NOT_YET,
+            NOT_YET.into(),
         ),
     }
 }
@@ -3332,20 +3348,20 @@ fn classify_contact_lane(e: &ContactRefusal) -> (&'static str, &'static str) {
     }
 }
 
-fn classify_census_cause(cause: &CensusUnsupportedCause) -> (Cow<'static, str>, &'static str) {
+fn classify_census_cause(cause: &CensusUnsupportedCause) -> (Cow<'static, str>, Cow<'static, str>) {
     match cause {
         CensusUnsupportedCause::ChartRegion(e) => {
             let (why, recourse) = classify_chart_region(e);
-            (why.into(), recourse)
+            (why.into(), recourse.into())
         }
         CensusUnsupportedCause::ContactLane(e) => {
             let (why, recourse) = classify_contact_lane(e);
-            (why.into(), recourse)
+            (why.into(), recourse.into())
         }
         CensusUnsupportedCause::Containment(e) => classify_contain(e),
         CensusUnsupportedCause::FaceUnboundable => (
             "a face has no corner to bound it by (an empty or broken outer loop)".into(),
-            DEFECT,
+            DEFECT.into(),
         ),
     }
 }
@@ -10810,10 +10826,26 @@ mod tests {
         // The arms the face door also raises at its top level read as
         // that top-level arm does.
         for (carried, own) in [
-            (S::Escalated { face, diag }, ContainError::Escalated(diag)),
             (
-                S::Loop(L::Escalated { r#loop, diag }),
-                ContainError::Escalated(diag),
+                S::Escalated { face, diag },
+                ContainError::Escalated {
+                    decision: None,
+                    escalation: crate::splitting::Escalation::Margin,
+                    diag,
+                },
+            ),
+            (
+                S::Loop(L::Escalated {
+                    r#loop,
+                    decision: crate::splitting::LoopDecision::Boundary,
+                    escalation: crate::splitting::Escalation::Margin,
+                    diag,
+                }),
+                ContainError::Escalated {
+                    decision: Some(crate::splitting::LoopDecision::Boundary.into()),
+                    escalation: crate::splitting::Escalation::Margin,
+                    diag,
+                },
             ),
             (S::RayExhausted, ContainError::RayExhausted),
             (
@@ -10832,9 +10864,13 @@ mod tests {
         ] {
             assert_eq!(read(carried.clone()), top(own), "{carried:?}");
         }
-        assert_eq!(read(S::Escalated { face, diag }).1, super::OFF_BOUNDARY);
-        // A poisoned margin is a defect on the carried path as on the
-        // top-level one (`own_close`).
+        // The door's own escalation names no decision: the unnamed lever.
+        assert_eq!(
+            read(S::Escalated { face, diag }).1,
+            "Recourse: move the point clearly inside or outside the face"
+        );
+        // A poisoned margin adds the unreadable-margin note, on the carried
+        // path as on the top-level one.
         let poisoned = Indeterminate {
             margin: MarginDiag::INVALID,
             ..diag
@@ -10846,16 +10882,23 @@ mod tests {
             },
             S::Loop(L::Escalated {
                 r#loop,
+                decision: crate::splitting::LoopDecision::Ray,
+                escalation: crate::splitting::Escalation::Margin,
                 diag: poisoned,
             }),
         ] {
-            assert_eq!(read(carried.clone()).1, super::DEFECT, "{carried:?}");
+            assert!(
+                read(carried.clone())
+                    .1
+                    .ends_with(geom_core::UNREADABLE_MARGIN_NOTE),
+                "{carried:?}"
+            );
         }
         // Every ray grazed a point the pre-pass placed off the boundary:
         // nothing about it is close, at either level.
         assert_eq!(
             top(ContainError::RayExhausted),
-            (super::GRAZED.into(), super::MOVE_GEOMETRY)
+            (super::GRAZED.into(), super::MOVE_GEOMETRY.into())
         );
         assert_eq!(read(S::Loop(L::CorruptLoop { r#loop })).1, super::DEFECT);
         // The solid door's own arena claims: defects at rest.
@@ -10915,7 +10958,7 @@ mod tests {
                 read(e.clone()),
                 (
                     "a curved face's trim is one the check cannot yet read".into(),
-                    super::NOT_YET
+                    super::NOT_YET.into()
                 ),
                 "{e:?}"
             );
@@ -13458,7 +13501,7 @@ mod tests {
                 // gap — is the predicate that speaks, not a ray's.
                 _ => matches!(
                     verdict,
-                    RingNestingVerdict::Undecided(ContainError::Escalated(ref d))
+                    RingNestingVerdict::Undecided(ContainError::Escalated { diag: ref d, .. })
                         if d.predicate == Some("point_in_arc_loop_conic_on")
                 ),
             };
@@ -13567,7 +13610,7 @@ mod tests {
                 "near the spiric" => matches!(verdict, RingNestingVerdict::Inside),
                 "in the spiric's band" => matches!(
                     verdict,
-                    RingNestingVerdict::Undecided(ContainError::Escalated(ref d))
+                    RingNestingVerdict::Undecided(ContainError::Escalated { diag: ref d, .. })
                         if d.predicate.is_some_and(|p| p.starts_with("point_in_arc_loop_spiric"))
                 ),
                 _ => matches!(
@@ -13584,7 +13627,7 @@ mod tests {
                         ValidationError::RingNestingUndecided {
                             face: at_face,
                             ring,
-                            source: ContainError::Escalated(_),
+                            source: ContainError::Escalated { .. },
                         } if *at_face == face && *ring == lone
                     )),
                     "check 9 reports the unplaced ring: {words:?}"

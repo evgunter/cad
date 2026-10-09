@@ -147,7 +147,10 @@ use crate::validate::ValidationError;
 pub use carrier_eq::{
     CarrierDesc, CarrierEqError, CarrierRelation, CoincidenceMeasure, ConsumedExtent, carrier_eq,
 };
-pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment};
+pub use contain::{
+    CONTAINMENT_RAISED, ContainDecision, ContainError, FaceContainment, contfp,
+    curved_face_containment, placement_ending, placement_lever, placement_subject,
+};
 // Crate-internal: tier 3's check 9 decides two whole-circle loops
 // against each other (its contact arm 4) on the same loop
 // classification this module's own walk dispatches on.
@@ -342,7 +345,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "point_in_arc_loop_spiric_leaf"
         | "point_in_arc_loop_spiric_side"
         | "point_in_arc_loop_spiric_turn"
-        | "point_in_arc_loop_spiric_advance" => BooleanDecision::Containment.subject(),
+        | "point_in_arc_loop_spiric_advance" => BooleanDecision::CONTAINMENT_UNNAMED.subject(),
         _ => return None,
     })
 }
@@ -3437,7 +3440,7 @@ impl core::fmt::Display for BooleanError {
                         write!(f, "{preamble}: {}", crate::ray_walk::NoRaySettled)
                     }
                     ContainError::Curved(e) => write!(f, "the Boolean {e}"),
-                    ContainError::Escalated(_)
+                    ContainError::Escalated { .. }
                     | ContainError::StaleFace(_)
                     | ContainError::Uncrossable(_) => write!(f, "{preamble}: {refusal}"),
                 }
