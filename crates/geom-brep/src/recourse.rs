@@ -29,10 +29,46 @@ pub enum Reading {
     Build,
     /// Over a body at rest, which a damaged file reaches as surely as a
     /// defective operation does. Certification at STEP adoption reads
-    /// here too (D4 ¶1); the import door's own ε_in words are
-    /// [`SizedDecision::recourse_in_file`]'s and
-    /// [`Unsized::residual_in_file`]'s.
+    /// here too (D4 ¶1); the import door's own ε_in words are the
+    /// margin's ([`MarginDiag::sized_recourse_in_file`],
+    /// [`FileCoincidence::miss_recourse_in_file`]).
     AtRest,
+}
+
+/// **The door a refusal's ending is read at** (D4 ¶1): a [`Reading`] at
+/// this run's ε, or the STEP import door, which reads as at rest with the
+/// file's declared coincidence distance picking the words. Every ending
+/// in the refusal stack takes one, so one body serves both doors.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ReadAt {
+    /// At this run's ε.
+    Run(Reading),
+    /// At the import door, with the file's ε_in.
+    File(FileCoincidence),
+}
+
+impl ReadAt {
+    /// The reading this door certifies at: the import door reads as at
+    /// rest (D4 ¶1).
+    #[must_use]
+    pub const fn reading(self) -> Reading {
+        match self {
+            Self::Run(reading) => reading,
+            Self::File(_) => Reading::AtRest,
+        }
+    }
+}
+
+impl From<Reading> for ReadAt {
+    fn from(reading: Reading) -> Self {
+        Self::Run(reading)
+    }
+}
+
+impl From<FileCoincidence> for ReadAt {
+    fn from(file: FileCoincidence) -> Self {
+        Self::File(file)
+    }
 }
 
 /// The defect ending at `reading`: a build's is the kernel's alone; over
@@ -112,6 +148,7 @@ impl Unsized {
     /// arm too, which every residual refusal carries its reading on.
     #[must_use]
     pub fn residual_in_file(self, arm: RefusedArm<'_>, file: FileCoincidence) -> String {
+        let reading = ReadAt::File(file).reading();
         let miss = match arm {
             RefusedArm::Undecided(cause) => MissReading::Banded(cause.margin, cause.band),
             RefusedArm::Zero(Classified { margin, band }) => MissReading::Banded(margin, band),
@@ -120,14 +157,14 @@ impl Unsized {
             // carries no single reading of the miss to compare with the
             // file's coincidence distance: it ends at rest.
             RefusedArm::SignCertain(None) | RefusedArm::Straddle => {
-                return self.recourse(arm, Reading::AtRest);
+                return self.recourse(arm, reading);
             }
         };
         let source = match self {
             Self::Defect => MissSource::File,
             Self::LastResort => MissSource::Fit,
         };
-        file.miss_recourse_in_file(miss, source, &self.recourse(arm, Reading::AtRest))
+        file.miss_recourse_in_file(miss, source, &self.recourse(arm, reading))
     }
 }
 
@@ -327,10 +364,10 @@ pub struct SizedDecision {
 
 impl SizedDecision {
     /// The one ending a refusal of this decision carries on `arm`, read
-    /// at `reading` (D4 ¶1 (i)/(iv)).
+    /// at `at` (D4 ¶1 (i)/(iv)).
     ///
     /// - Every band-decided arm — in band, zero where zero does not
-    ///   pass, or an enclosure straddling zero — ends in the lever at
+    ///   pass, or an undecided enclosure straddling zero — ends in the lever at
     ///   every reading, with the words the arm's reporting margin gives
     ///   ([`MarginDiag::sized_recourse`]): at a build or at rest, the
     ///   tolerance below which a smaller one decides the margin passing,
@@ -339,8 +376,15 @@ impl SizedDecision {
     ///   one.
     /// - The sign-certain arm names the lever alone at a build. Read
     ///   over stored geometry it ends as [`SizedDecision::stored`] says.
+    /// - The import door ([`ReadAt::File`]) reads as at rest, except that
+    ///   a band-decided arm whose margin's nearer end lies at or below the
+    ///   file's declared coincidence distance ends in the door's one
+    ///   sentence for a size the file does not state
+    ///   ([`MarginDiag::sized_recourse_in_file`]), whichever arm the run's
+    ///   band placed it on. A straddle carries no single margin to place
+    ///   against ε_in.
     #[must_use]
-    pub fn recourse(self, arm: RefusedArm<'_>, reading: Reading) -> String {
+    pub fn recourse(self, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
         let Self {
             lever,
             passes,
@@ -348,10 +392,20 @@ impl SizedDecision {
             at_zero,
             ..
         } = self;
+        let at = at.into();
+        let reading = at.reading();
+        let file = match at {
+            ReadAt::Run(_) => None,
+            ReadAt::File(file) => Some(file),
+        };
         match arm {
             RefusedArm::Zero(_) if passes.passes_zero() => lever_recourse(lever, None),
             RefusedArm::Zero(Classified { margin, band }) => {
-                margin.sized_recourse(band, self.words(at_zero.map(|note| note.at(reading))))
+                let words = self.words(at_zero.map(|note| note.at(reading)));
+                match file {
+                    None => margin.sized_recourse(band, words),
+                    Some(file) => margin.sized_recourse_in_file(band, words, file),
+                }
             }
             // No single margin is carried, so none sizes a tolerance.
             RefusedArm::Straddle => lever_recourse(lever, None),
@@ -363,37 +417,14 @@ impl SizedDecision {
                     KERNEL_OR_FILE_DEFECT_ENDING.to_owned()
                 }
             },
-            RefusedArm::Undecided(cause) => {
-                cause.margin.sized_recourse(cause.band, self.words(None))
-            }
-        }
-    }
-
-    /// The ending a refusal of this decision carries on `arm` at the
-    /// import door (D4 ¶1): read at rest, except that a band-decided arm
-    /// whose margin's nearer end lies at or below the file's declared
-    /// coincidence distance ends in the door's one sentence for a size the
-    /// file does not state ([`MarginDiag::sized_recourse_in_file`]),
-    /// whichever arm the run's band placed it on.
-    #[must_use]
-    pub fn recourse_in_file(self, arm: RefusedArm<'_>, file: FileCoincidence) -> String {
-        match arm {
-            RefusedArm::Zero(_) if self.passes.passes_zero() => self.recourse(arm, Reading::AtRest),
-            RefusedArm::Zero(Classified { margin, band }) => margin.sized_recourse_in_file(
-                band,
-                self.words(self.at_zero.map(|note| note.stored)),
-                file,
-            ),
-            RefusedArm::Undecided(cause) => {
-                cause
-                    .margin
-                    .sized_recourse_in_file(cause.band, self.words(None), file)
-            }
-            // A straddle carries no single margin to place against the
-            // file's coincidence distance.
-            RefusedArm::SignCertain(_) | RefusedArm::Straddle => {
-                self.recourse(arm, Reading::AtRest)
-            }
+            RefusedArm::Undecided(cause) => match file {
+                None => cause.margin.sized_recourse(cause.band, self.words(None)),
+                Some(file) => {
+                    cause
+                        .margin
+                        .sized_recourse_in_file(cause.band, self.words(None), file)
+                }
+            },
         }
     }
 
@@ -493,7 +524,7 @@ mod tests {
                     for reading in [Some(Reading::Build), Some(Reading::AtRest), None] {
                         let end = |arm: RefusedArm<'_>| match reading {
                             Some(reading) => decision.recourse(arm, reading),
-                            None => decision.recourse_in_file(arm, file),
+                            None => decision.recourse(arm, file),
                         };
                         for margin in margins() {
                             let negative = end(Refused::Negative { margin }.arm());
@@ -593,9 +624,8 @@ mod tests {
             zero(MarginDiag::value(-0.0), Reading::AtRest),
             "Recourse: L; at rest"
         );
-        let in_file = |arm: RefusedArm<'_>, eps_in| {
-            decision.recourse_in_file(arm, FileCoincidence::new(eps_in))
-        };
+        let in_file =
+            |arm: RefusedArm<'_>, eps_in| decision.recourse(arm, FileCoincidence::new(eps_in));
         let zero_in_file = |eps_in| {
             in_file(
                 RefusedArm::Zero(Classified {
@@ -782,7 +812,7 @@ mod tests {
             for decision in &sized {
                 endings.push(decision.recourse(arm, Reading::Build));
                 endings.push(decision.recourse(arm, Reading::AtRest));
-                endings.push(decision.recourse_in_file(arm, file));
+                endings.push(decision.recourse(arm, file));
             }
             for ending in endings {
                 assert!(!ending.contains("tolerance"), "{arm:?}: {ending}");

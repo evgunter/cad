@@ -130,14 +130,11 @@ pub mod system;
 use geom::{Collocation, Curve3, FitError, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::Bounds;
-use geom_core::{
-    Band, FileCoincidence, Indeterminate, Margin, MarginDiag, NOT_YET_ENDING, Point3, Real,
-    SizedPass,
-};
+use geom_core::{Band, Indeterminate, Margin, MarginDiag, NOT_YET_ENDING, Point3, Real, SizedPass};
 
 use crate::certify::CertCheck;
 use crate::recourse::{
-    Reading, Refused, RefusedArm, SizedDecision, StoredDefinite, Unsized, defect_ending,
+    ReadAt, Reading, Refused, RefusedArm, SizedDecision, StoredDefinite, Unsized, defect_ending,
 };
 
 pub use boundary::{BoundaryPoint, ChartCorner, ChartEnd, ChartSide, SsiBoundaryContact};
@@ -2195,23 +2192,16 @@ pub enum OneArcDoor {
 }
 
 impl OneArcRefusal {
-    /// The ending this refusal carries at `door`, read at `reading`: the
+    /// The ending this refusal carries at `door`, read at `at`: the
     /// door's one recourse ([`TUBE_ONE_ARC`], [`REST_ONE_ARC`]), on its
     /// sign-certain arm for a certified count, missing link or short
-    /// end, and escalating for a walk that resolved nothing.
+    /// end, and escalating for a walk that resolved nothing; at the STEP
+    /// import door, with the file's ε_in words on a band-decided arm
+    /// ([`SizedDecision::recourse`]).
     #[must_use]
-    pub fn ending(self, door: OneArcDoor, reading: Reading) -> String {
+    pub fn ending(self, door: OneArcDoor, at: impl Into<ReadAt>) -> String {
         let (decision, arm) = self.decision(door);
-        decision.recourse(arm, reading)
-    }
-
-    /// The ending this refusal carries at `door`, read at the STEP import
-    /// door ([`SizedDecision::recourse_in_file`]): at rest, with the
-    /// file's ε_in words on a band-decided arm.
-    #[must_use]
-    pub fn ending_in_file(self, door: OneArcDoor, file: FileCoincidence) -> String {
-        let (decision, arm) = self.decision(door);
-        decision.recourse_in_file(arm, file)
+        decision.recourse(arm, at)
     }
 
     /// The decision `door` reads this refusal as, and which arm of it.

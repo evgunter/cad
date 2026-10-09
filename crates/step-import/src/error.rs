@@ -15,7 +15,7 @@ pub struct AdoptionAttempt {
     /// The interpretation attempted.
     pub candidate: AdoptionCandidate,
     /// The certification/attachment gate's refusal, rendered as at rest
-    /// with the file's ε_in words (`topo::EulerOpError::render_in_file`).
+    /// with the file's ε_in words (`topo::EulerOpError::render`).
     pub refusal: topo::EulerOpError,
 }
 
@@ -404,7 +404,7 @@ impl fmt::Display for StepImportError {
             Self::Assembly { id, source, file } => write!(
                 f,
                 "step import: assembling entity #{id}: {}",
-                source.render_in_file(*file)
+                source.render(*file)
             ),
             Self::Adoption { id, attempts, file } => {
                 write!(
@@ -421,7 +421,7 @@ impl fmt::Display for StepImportError {
                         f,
                         "{}: {}",
                         attempt.candidate,
-                        attempt.refusal.render_in_file(*file)
+                        attempt.refusal.render(*file)
                     )?;
                 }
                 Ok(())
