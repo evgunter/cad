@@ -280,7 +280,7 @@ impl Escalation {
         match self {
             Self::Margin => RefusedArm::Undecided(diag),
             Self::Straddle => RefusedArm::Straddle,
-            Self::Decided => RefusedArm::SignCertain,
+            Self::Decided => RefusedArm::SignCertain(None),
         }
     }
 }

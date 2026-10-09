@@ -934,7 +934,7 @@ impl core::fmt::Display for MergeCoplanarError {
             Self::DeclaredOppositeOrientation { .. } => write!(
                 f,
                 "the two declared faces face opposite ways across the edge they share. {}",
-                DECLARED_ORIENTATION.recourse(RefusedArm::SignCertain, Reading::Build)
+                DECLARED_ORIENTATION.recourse(RefusedArm::SignCertain(None), Reading::Build)
             ),
             Self::DeclaredCarrierUnsupported { pair, kind } => write!(
                 f,

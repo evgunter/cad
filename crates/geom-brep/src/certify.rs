@@ -409,8 +409,9 @@ pub enum CertifyError {
         /// witness/endpoint checks).
         sample: u32,
         /// What the classifier saw of the miss, for error reporting only
-        /// ([`MarginDiag`]): the import door's words on a definite miss
-        /// ([`CertifyError::ending_in_file`]).
+        /// ([`MarginDiag`]): it rides [`CertifyError::decision`]'s
+        /// sign-certain arm into [`Unsized::residual_in_file`], the import
+        /// door's words on a definite miss.
         margin: MarginDiag,
     },
     /// `Intersection` only: the tangent planes coincide at a sample —
@@ -680,7 +681,9 @@ impl CertifyError {
     #[must_use]
     pub fn decision(&self) -> Option<(CertCheck, RefusedArm<'_>)> {
         Some(match self {
-            Self::ResidualExceeded { check, .. } => (*check, RefusedArm::SignCertain),
+            Self::ResidualExceeded { check, margin, .. } => {
+                (*check, RefusedArm::SignCertain(Some(*margin)))
+            }
             Self::NotTransverse { verdict, .. } => (CertCheck::Transversality, verdict.arm()),
             Self::NotSecondOrderSeparated { verdict, .. } => {
                 (CertCheck::TangentSecondOrder, verdict.arm())
@@ -689,9 +692,11 @@ impl CertifyError {
             Self::IntervalNotForward { verdict } => (CertCheck::ParamSpan, verdict.arm()),
             Self::SpanMeterCollapsed { verdict } => (CertCheck::ParamSpanMeter, verdict.arm()),
             Self::ArmCollapsed { verdict, .. } => (CertCheck::TransversalityArm, verdict.arm()),
-            Self::WindingExceeded => (CertCheck::ParamWinding, RefusedArm::SignCertain),
+            Self::WindingExceeded => (CertCheck::ParamWinding, RefusedArm::SignCertain(None)),
             Self::Escalated { check, cause, .. } => (*check, RefusedArm::Undecided(cause)),
-            Self::ChartImageUnavailable { .. } => (CertCheck::ChartImage, RefusedArm::SignCertain),
+            Self::ChartImageUnavailable { .. } => {
+                (CertCheck::ChartImage, RefusedArm::SignCertain(None))
+            }
             Self::PlaneNurbs(refusal) => return refusal.decision(),
             Self::AnalyticRung3(refusal) => return refusal.decision(),
             Self::UnresolvedSurface { .. }
@@ -729,9 +734,6 @@ impl CertifyError {
     pub fn ending_in_file(&self, file: FileCoincidence) -> Option<String> {
         match *self {
             Self::PlaneNurbs(ref refusal) => refusal.ending_in_file(file),
-            Self::ResidualExceeded { check, margin, .. } => {
-                Some(definite_miss_in_file(check, margin, file))
-            }
             _ => self
                 .decision()
                 .map(|(check, arm)| recourse_in_file(check, arm, file)),
@@ -951,20 +953,6 @@ pub fn recourse_in_file(check: CertCheck, arm: RefusedArm<'_>, file: FileCoincid
         Ending::Sized(sized) => sized.recourse_in_file(arm, file),
         Ending::Residual(residual) => residual.residual_in_file(arm, file),
         Ending::Unsized(_) | Ending::Undefined(_) => recourse(check, arm, Reading::AtRest),
-    }
-}
-
-/// [`recourse_in_file`] on the sign-certain arm of a refusal of `check`
-/// that carries `margin`, the reading of its definite miss: a residual's
-/// door words compare that reading with ε_in
-/// ([`Unsized::definite_residual_in_file`]), and every other decision's
-/// sign-certain arm takes no margin.
-fn definite_miss_in_file(check: CertCheck, margin: MarginDiag, file: FileCoincidence) -> String {
-    match check.ending() {
-        Ending::Residual(residual) => residual.definite_residual_in_file(margin, file),
-        Ending::Sized(_) | Ending::Unsized(_) | Ending::Undefined(_) => {
-            recourse_in_file(check, RefusedArm::SignCertain, file)
-        }
     }
 }
 
@@ -4737,7 +4725,7 @@ mod tests {
                 };
                 assert_eq!(at_zero, offer("5e-11"), "{reading:?}");
                 assert_eq!(in_band, offer("5e-10"), "{reading:?}");
-                let definite = recourse(check, RefusedArm::SignCertain, reading);
+                let definite = recourse(check, RefusedArm::SignCertain(None), reading);
                 match (reading, check) {
                     // The tube's margin is a lower bound: its definite
                     // refusal is the certificate's limit, not a stored
@@ -4898,7 +4886,7 @@ mod tests {
             for (error, want) in rows {
                 let got = error.ending(reading).unwrap();
                 assert_eq!(got, want, "{reading:?}: {error:?}");
-                if let Some((_, RefusedArm::SignCertain)) = error.decision() {
+                if let Some((_, RefusedArm::SignCertain(_))) = error.decision() {
                     assert!(
                         !got.contains("tighten"),
                         "a Negative arm offers a tolerance: {got}"
@@ -5145,7 +5133,7 @@ mod tests {
             (
                 recourse(
                     CertCheck::EndpointStart,
-                    RefusedArm::SignCertain,
+                    RefusedArm::SignCertain(None),
                     Reading::AtRest,
                 ),
                 KERNEL_OR_FILE_DEFECT_ENDING,
@@ -5157,7 +5145,7 @@ mod tests {
             (
                 recourse(
                     CertCheck::ParamSpan,
-                    RefusedArm::SignCertain,
+                    RefusedArm::SignCertain(None),
                     Reading::AtRest,
                 ),
                 KERNEL_OR_FILE_DEFECT_ENDING,
@@ -5261,7 +5249,8 @@ mod tests {
                 .iter()
                 .map(|(cause, miss)| (RefusedArm::Undecided(cause), *miss))
                 .collect();
-            arms.push((RefusedArm::SignCertain, true));
+            arms.push((RefusedArm::SignCertain(None), true));
+            arms.push((RefusedArm::SignCertain(Some(MarginDiag::value(5e-9))), true));
             for m in [5e-10, 0.0, -5e-10] {
                 let zero = Classified {
                     margin: MarginDiag::value(m),
@@ -5274,7 +5263,7 @@ mod tests {
                 let banded = match arm {
                     RefusedArm::Undecided(cause) => Some(cause.margin),
                     RefusedArm::Zero(Classified { margin, .. }) => Some(margin),
-                    RefusedArm::SignCertain | RefusedArm::Straddle => None,
+                    RefusedArm::SignCertain(_) | RefusedArm::Straddle => None,
                 };
                 // A reading at or across zero has its nearer end below
                 // every ε_in, so even the narrow one reads it in the door's
@@ -5688,7 +5677,7 @@ mod tests {
             };
             assert_eq!(&got, want, "{check:?}");
             // A lever is named exactly where the decision is sized.
-            let named = recourse(check, RefusedArm::SignCertain, Reading::Build)
+            let named = recourse(check, RefusedArm::SignCertain(None), Reading::Build)
                 .starts_with("Recourse: move the geometry");
             assert_eq!(named, matches!(want, Sized(_)), "{check:?}");
         }
