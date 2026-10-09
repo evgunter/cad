@@ -436,3 +436,17 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+
+## 2026-10-08 — the tilted rod lands (PR 3428)
+
+- **The change:** the section certificate's interior-loop verdict is raised before the volume backstop, at both sites that run it (`boolean_op_recut`, `try_rest_union`), re-applied on main's new output stage.
+- **Re-measured on main:**
+  - main's backstop now measures by certified quadrature and PASSES the wrong body here (∪ missing the 0.0078 m³ lens at β 0.5, spin π/2). So the certificate is the ONLY barrier;
+  - 11 rows pin its refusal and go red when it is bypassed;
+  - not live, since every reaching pose refuses.
+- **Tier:** orchestrator read.
+- **A lane slip:** an empty commit was pushed to retrigger CI. It is against the rules and did no harm. Lanes are reminded.
+- 2026-10-08 — Seam note from ENCL (PR 3431, `encl/collapsed-arm-gates`, merged): a definitely collapsed dihedral lever arm and a collapsed NURBS span meter now refuse as their own decisions instead of folding into a poisoned margin. `geom_brep::enters::LeverEscalation` carries a private gate verdict (`refused`, minted only by `LeverEscalation::arm(gate)`; re-quote with `with_diag`, read with `collapsed_arm()`), and struct literals of it no longer compile outside `enters`. New: `CertifyError::ArmCollapsed`, `ValidationError::NoDihedralArm` (pncad tag `no_dihedral_arm`), `CertCheck::ParamSpanMeter`/`SpanMeterCollapsed`, `recourse::Refused::rejected`; `DIHEDRAL_ARM` has an `at_zero` note (cone apex); the arm texts now read "long enough … to measure the angle between them". `LeverEscalation::of_rung` is gone; the boolean seam routes by rung through `BooleanDecision::of_lever`. (ENCL orchestrator)
+- 2026-10-09 — PR 4352 (U4 cone rows) state-sync: DR-117 written last (concurrent, H; 0 tallied, the MAJOR bilateral; fair, flagged; the fair-pairs-with-MAJOR count goes to 55). Main merged at the sync; `.config/nextest.toml`'s slow set conflicted, and both sides' entries were kept.
+- 2026-10-09 — PR 4357 (P0, circle × torus and conic × quadric root slack) state-sync. The single Opus review gave APPROVE-WITH-FIXES with no MAJOR: 0 wrong over ~200k fuzzed answers, and the `None` mutant gives 644 / 1,245 wrong. The fixes were ledger and doc only: the DR-54 later-escape line re-dated to `31116eeaee` (PR 3805's first fix pass, still DR-54: H, concurrent, no M-tier miss, so no readout); the item and log agree; the `RootSlack` doc gets the clause for an F-unit residual. Advisory, not taken: a sign-bracket check recovers about 2–3% of the newly refused answers. Head `b2fb3dbf3` green on every job; merged.
+- 2026-10-09 — PR 4369 (cone sector U-S1/2/6) state-sync. The single Opus review found one MAJOR (U-S6's lever still decided Zero for a plane along the axis on a needle cone, within a narrow gap of the apex), and the fix pass took the reviewer's executed candidate. The orchestrator read the fix and its soundness argument: the stand-in circle's reach is `max(radius, extent)`, read off the normal. The MINORs got rows, each killed by its named mutant, and an in-band nappe now takes the double cone. Merged after a clean main merge and green CI.

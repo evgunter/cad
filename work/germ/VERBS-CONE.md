@@ -43,7 +43,9 @@ measured consequences bank here rather than in that PR's body:
   simultaneous axial door, not about a section arm.
 - What the flag actually buys today is one door of honesty at the
   PER-CHART door: `replace_face_offset` on a coned tube's cone stops at
-  `ReanchorOffCarrier` (`d·cos α`) instead of `NeighborPairUnroutable`.
+  a corner gap (`d·cos α`, the since-retired `ReanchorOffCarrier`)
+  instead of `NeighborPairUnroutable`; the door now derives that rim
+  as the cone × coaxial cylinder section, and the offset builds.
 
 **The consumer that would make the arm load-bearing** is a caller that
 asks for the cone×cylinder RIM CURVE rather than for the pair's
@@ -94,3 +96,17 @@ and sphere pairs certified on the no-crossings path".
 
 - **`reduce.rs` `curved_face_arm`, the "both endpoints inside" arm (about `:1519` on `2ba90bced`).** It rests on the carrier's convexity, which holds for a cylinder or a sphere. A cone's is not the same: a nappe pair is not convex, and the apex breaks it. Unreachable today only through the roster.
 - **The section certificate's cone arms (its spec's Q3):** the crossings-path half, AND the no-crossings arm that replaces the extent gates. These land with this item.
+
+**2026-09-29, U4 (the certificate's cone rows).** `section_cert::classify`
+answers cone × {plane, sphere, coaxial cylinder, coaxial cone, coaxial
+torus, parallel-axis cylinder}; oblique cylinders, tilted and
+parallel-axis cones, non-coaxial tori and splines stay R-reach. Cone ×
+plane is decided on the aperture margin alone, never on the apex's
+offset (a Zero offset does not bound the ellipse). The roster stays
+closed until U7.
+
+**2026-10-09, U4 lands (PR 4352).** The cone rows ship with the near-axis
+offset taken through `square_to` at every arm (the dual pair's bilateral
+MAJOR, DR-117). The witness is checked against the plane's carrier, and
+the search samples down into the band. Still owed before U7: the cone
+sector units U-S1..U-S4 (`docs/GERM-CONE-SECTOR-SPEC.md`).

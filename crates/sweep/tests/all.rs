@@ -55,6 +55,8 @@ mod common;
 mod mate2_common;
 mod revolve_common;
 
+#[path = "a_plane_across_a_one_face_wall.rs"]
+mod a_plane_across_a_one_face_wall;
 #[path = "a_pole_and_an_apex_join_nothing.rs"]
 mod a_pole_and_an_apex_join_nothing;
 #[path = "a_ring_on_a_cone_face.rs"]
@@ -105,6 +107,8 @@ mod cylinder_sphere_frame;
 mod four_crossings_on_one_section_circle;
 #[path = "general_circle_octant_dual.rs"]
 mod general_circle_octant_dual;
+#[path = "join_door_is_whole.rs"]
+mod join_door_is_whole;
 #[path = "lane1_r2_probes.rs"]
 mod lane1_r2_probes;
 #[path = "offb_r1_loft_probes.rs"]
@@ -115,6 +119,10 @@ mod offc_r1_probes;
 mod offd2_r1_probes;
 #[path = "offd_r1_probes.rs"]
 mod offd_r1_probes;
+#[path = "offset_axial_door_reads_charts_not_material.rs"]
+mod offset_axial_door_reads_charts_not_material;
+#[path = "offset_doors_end_with_the_join.rs"]
+mod offset_doors_end_with_the_join;
 #[path = "offset_restates_a_neighbour_chart_rim.rs"]
 mod offset_restates_a_neighbour_chart_rim;
 #[path = "one_door_for_coincident_sections.rs"]
@@ -191,6 +199,8 @@ mod shallow_arc_extrude_grid_interval;
 mod shellfix1_bitdump;
 #[path = "shellfix1_r1_probes.rs"]
 mod shellfix1_r1_probes;
+#[path = "spheres_crossing_off_every_edge.rs"]
+mod spheres_crossing_off_every_edge;
 #[path = "spiric_faces_fuzz.rs"]
 mod spiric_faces_fuzz;
 #[path = "sym11_far_placement_rows.rs"]
@@ -209,6 +219,8 @@ mod torax_interval;
 mod transform_nurbs_walls;
 #[path = "trim_3_chart_bound_bodies.rs"]
 mod trim_3_chart_bound_bodies;
+#[path = "unjoined_operand_at_a_dual.rs"]
+mod unjoined_operand_at_a_dual;
 #[path = "verbs_offc_consumer.rs"]
 mod verbs_offc_consumer;
 #[path = "verbs_offd.rs"]
@@ -290,6 +302,8 @@ mod cert8_r1_probes;
 mod closed_chain_junctions;
 #[path = "conic_edge_curved_face.rs"]
 mod conic_edge_curved_face;
+#[path = "contact11_torus_chart_l.rs"]
+mod contact11_torus_chart_l;
 #[path = "contact_edge_must_carry.rs"]
 mod contact_edge_must_carry;
 #[path = "contained_flush_cylinder.rs"]
@@ -558,6 +572,8 @@ mod s393_start_frame_door;
 mod s49_census_jurisdiction;
 #[path = "seam_vertex_sites.rs"]
 mod seam_vertex_sites;
+#[path = "strut_cover_on_cylinder_pairs.rs"]
+mod strut_cover_on_cylinder_pairs;
 
 #[path = "run_walls_built.rs"]
 mod run_walls_built;
@@ -684,6 +700,8 @@ mod germ_circle_torus;
 mod germ_cone_apex_closure;
 #[path = "germ_cone_doors.rs"]
 mod germ_cone_doors;
+#[path = "germ_cone_section_rows.rs"]
+mod germ_cone_section_rows;
 #[path = "germ_conic_plane_roots.rs"]
 mod germ_conic_plane_roots;
 #[path = "germ_coplanar_conic.rs"]
@@ -694,6 +712,8 @@ mod germ_interior_oval;
 mod germ_interior_saddle;
 #[path = "germ_sphere_no_crossings.rs"]
 mod germ_sphere_no_crossings;
+#[path = "germ_tilted_rod.rs"]
+mod germ_tilted_rod;
 #[path = "germ_torus_doors.rs"]
 mod germ_torus_doors;
 #[path = "germ_torus_rods.rs"]

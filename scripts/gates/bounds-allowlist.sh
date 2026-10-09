@@ -643,14 +643,14 @@ BOUNDS_ALLOWLIST=(
   # split meters it; the two sliver constructors became one.
   'crates/sweep/src/blend/open/end_face.rs 7 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # M6-2, the SSI rung-3 certificate.
-  # 7 -> 8: the fitted door gained a fourth body,
-  # `sphere_circle_image_lane` (`Decide + Bounds + CertifiedEnclosure`,
-  # the bound its three siblings carry): a sphere chart's general
-  # circle's image, whose f64 structure (C6) it reads off the data's
-  # bracket midpoints — the reading `rational_arc_chain` did for the
-  # same circles' certificate, which left this file when the Circle
-  # arm's check 4 became closed-form arithmetic at `T`. Same seam,
-  # reached only through `FittedLane::certified`.
+  # The fitted door's fourth body is `projected_hull_lane` (`Decide +
+  # Bounds + CertifiedEnclosure`, the bound its three siblings carry):
+  # a net's projected row's piece hulls and its canonical-composite span
+  # bounds, every value crossing into certification arithmetic through
+  # `Interval::from_certified`. It took the seat of
+  # `sphere_circle_image_lane`, retired with the Hermite image, so the
+  # count is unmoved. Same seam, reached only through
+  # `FittedLane::certified`.
   'crates/geom-brep/src/pcurve_cache.rs 8 M6-2, the SSI rung-3 certificate'
   # The fitted lane's door value, beside the bodies it holds:
   # `FittedLane::certified`'s block (`Decide + CertifiedBounds`) is the
@@ -670,7 +670,17 @@ BOUNDS_ALLOWLIST=(
   # The seam is unmoved: the branch certificate keeps its bounds.
   'crates/geom-brep/src/ssi/certify.rs 14 M6-2, the SSI rung-3 certificate'
   # M7-8, the declare-and-check edge lane.
-  'crates/geom-brep/src/edge_nurbs.rs 6 M7-8, the declare-and-check edge lane'
+  # 6 -> 8: the edge lane's door value (`NurbsLane`) gained a second
+  # body, `analytic_rung3` (`Decide + Bounds + CertifiedEnclosure`, two
+  # occurrences): the analytic rung-3 carrier's C2 limbs checked at the
+  # edge certificate — its offset from each operand (limbs 1–2, through
+  # `pcurve_cache::projected::net_offset_sup`) and the uniqueness tube
+  # (limb 3). It reads no bracket. It hands the carrier and the two
+  # analytic operands to `ssi::certify::certify_branch` (M6-2's seam,
+  # ratified at this bound) with `Limbs::Tube`, and its bound is its
+  # callee's: nothing weaker compiles. The kernel reaches it only through `NurbsLane::certified`;
+  # it is public so the at-rest rows can run the limb directly.
+  'crates/geom-brep/src/edge_nurbs.rs 8 M7-8, the declare-and-check edge lane; the rung-3 tube body at M6-2'
   # M7-8's 2026-09-02 amendment, the lane's split as a BOUND: the one
   # DOOR that names the certified body `plane_nurbs_limbs`, the lane's
   # door value `NurbsLane::certified`'s block (`Decide +

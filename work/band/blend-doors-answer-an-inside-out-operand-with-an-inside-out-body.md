@@ -44,7 +44,7 @@ unrelated reasons (a valence-2 corner, tangential supports, a chart-seam
 vertex): none says the operand is not finished.
 
 What closes it: the blend doors take `AtRestBody` (their own adoption
-unit, per `work/reach/boolean-door-adopts-the-finished-body-type.md`), or
+unit, per `boolean-door-adopts-the-finished-body-type` (REACH, closed by PR 3987)), or
 read tier 2 and check 7 per solid at the door where no verdict rides
 (`AtRestBody::gate_unverdicted`, shared by the Boolean and the split).
 

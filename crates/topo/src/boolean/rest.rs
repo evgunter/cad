@@ -37,8 +37,9 @@
 //!    ([`BooleanError::ContactContradicted`]), before the reduction ran,
 //!    so this lane verifies nothing again. With no such pair the lane
 //!    is not this frontier, before matching runs.
-//! 2. **Segments**: the join's own enumeration
-//!    ([`super::join::section_segments`]), read from the germ records
+//! 2. **Segments**: the join's own matching
+//!    ([`super::join::section_segments`]; the join's one-site segments
+//!    on a wrap edge are not read here), read from the germ records
 //!    before the scaffolding is undone (step 3): each segment's two end
 //!    sites and the cell it lies in on each operand, an edge
 //!    ([`super::Locus::OnEdge`]) or a face ([`super::Locus::InFace`]).
@@ -100,11 +101,10 @@ use slotmap::SecondaryMap;
 use super::RestZipFrontier;
 use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation};
 use super::combine::graft_solid;
-use super::edge_join::join_stage;
 use super::fragments::{Lineage, sole_common_face};
 use super::ops::{
-    Descendants, KeyView, carry, declared_surface_pairs, describe_minted_edges, gate, graft_rows,
-    merge_rows, of_merge, split_lineage,
+    Descendants, KeyView, carry, declared_surface_pairs, finish_output, gate, graft_rows,
+    merge_rows, split_lineage,
 };
 use super::plane_eq::{PlaneEqError, PlaneIdentity, PlaneRelation};
 use super::reduce::{face_oriented_source, face_plane};
@@ -176,7 +176,9 @@ struct Segment {
 /// reduction whose normal join REFUSED; its bodies must be the
 /// pre-join annotated clones. Returns `Ok(None)` when the
 /// configuration is not this lane's frontier — the caller then
-/// surfaces the original join refusal unchanged.
+/// surfaces the original join refusal unchanged. `interior_loops` is
+/// the section certificate's verdict on the reduction, raised on the
+/// zipped body where the crossings path raises it.
 ///
 /// # Errors
 ///
@@ -193,6 +195,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a_pristine: &Body<T>,
     b_pristine: &Body<T>,
     decls: &BooleanDeclarations,
+    interior_loops: Result<(), BooleanError>,
     band: Band,
     tol: Tol,
 ) -> Result<Option<BooleanResult<T>>, BooleanError> {
@@ -416,12 +419,14 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let edge_classes = red.edge_classes;
     let null_copies = super::null_copy_rows(&red.null_edges);
     let declared_pairs = declared_surface_pairs(&body, a_pristine, b_pristine, decls, &graft);
-    let merged = body
-        .merge_coplanar_faces_declared(&declared_pairs, tol)
-        .map_err(of_merge)?;
-    desc.absorb_merge(&merged);
-    describe_minted_edges(&mut body, &seam_edges, &merged, band, tol)?;
-    let edge_joins = join_stage(&mut body, &mut desc, band, tol)?;
+    let (merged, edge_joins) = finish_output(
+        &mut body,
+        &mut desc,
+        &declared_pairs,
+        &seam_edges,
+        band,
+        tol,
+    )?;
     let contacts = carry(
         &body,
         &contacts,
@@ -431,6 +436,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     )?;
     body.sweep_and_close();
     let body = gate(zipped, band, tol)?;
+    interior_loops?;
     T::gate_volume_backstop(BooleanOp::Union, a_pristine, b_pristine, &body, band, tol)?;
     let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&graft);
     let naming = BooleanNaming {
@@ -459,6 +465,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         kind: BooleanResultKind::Seamed,
         contacts,
         naming,
+        coincidences: red.coincidences,
     })))
 }
 
@@ -804,7 +811,7 @@ pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierD
 /// [`face_oriented_source`], and the pair's consumed extent through
 /// [`pair_extent`]: a declared verdict that bridges is one whose
 /// displacement stays in band at every point of both faces
-/// ([`super::carrier_eq::pair_door_verdict`]). One door for the
+/// ([`super::carrier_eq::pair_door_reading`]). One door for the
 /// verify-at-use site and the detector's candidate-generation mode.
 ///
 /// # Errors
@@ -849,6 +856,28 @@ pub fn carrier_pair_verdict<T: Decide>(
     declared: bool,
     band: Band,
 ) -> Result<Result<(CarrierRelation, crate::contact::ContactVerdict), CarrierEqError>, PairUnread> {
+    Ok(carrier_pair_reading(a, fa, b, fb, declared, band)?.map(|(rel, verdict, _)| (rel, verdict)))
+}
+
+/// [`carrier_pair_verdict`] with the declared reading's margin
+/// ([`super::carrier_eq::CarrierReading`]), which the declaration door
+/// records.
+///
+/// # Errors
+///
+/// As [`carrier_pair_relation`].
+///
+/// # Panics
+///
+/// As [`carrier_pair_relation`].
+pub(crate) fn carrier_pair_reading<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    declared: bool,
+    band: Band,
+) -> Result<Result<super::carrier_eq::CarrierReading, CarrierEqError>, PairUnread> {
     let ca = face_carrier(a, fa).ok_or(PairUnread::OutsideInventory)?;
     let cb = face_carrier(b, fb).ok_or(PairUnread::OutsideInventory)?;
     let extent = pair_extent(a, fa, b, fb, band).map_err(PairUnread::Extent)?;
@@ -858,7 +887,7 @@ pub fn carrier_pair_verdict<T: Decide>(
         s2: gb.as_ref(),
         declared,
     };
-    Ok(super::carrier_eq::pair_door_verdict(
+    Ok(super::carrier_eq::pair_door_reading(
         &ca,
         &cb,
         id,

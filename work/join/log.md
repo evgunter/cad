@@ -1240,3 +1240,99 @@ Signed (JOIN orchestrator).
   - `the-pre-zip-pinch-weld-retires-once-coincident-pierces-split-per-cone`, on D10.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-08: the near-tangent measurement landed; two forks with Ev; the w345 reading dispatched
+
+- **PR 4328 merged** (the measurement unit; orchestrator read; probe, classifier and filed rows only, no kernel code).
+  - Every escalated body measured is right.
+  - The escalations are the census's: f64 formulas that lose the margin (b-arith), or a line or plane read in place of a segment or face (b-proxy). At ε = 1e-12 the same arithmetic gives 845 definite false `EdgeEdgeCross` findings.
+  - The real in-band residue: thin corners, a vertex 9.55e-9 off a face, and sliver lumps.
+  - Ten rows filed, across CONTACT, JOIN, ENCL and CLEAVE.
+- **`[ev]` PR 4313: the join on one certified section per face pair** (fork row 90, recommendation half). The non-planar section designers agreed on their first reports.
+- **`[ev]` PR 4335: near-tangent census** (fork row 91, recommendation half). It converged after two reconciliation rounds, the first a crossover. The outcome: no door ships an uncertified body; CONTACT re-poses the census on cell gaps; the split refuses in band; the door's gate types in-band findings `Escalated` and definite ones `ResultInvalid`. It proposes three DESIGN.md additions.
+- **Dispatched:** `a-near-tangent-vertex-lands-within-the-band-of-a-face-and-ships-unrecorded` (P0 M), branch `join/near-tangent-vertex-in-band`. Both designers call it a split reading defect under the already-ratified Q1, so it does not wait on 4335. If the vertex turns out to be a composed quantity rather than a missed reading, the lane stops with a draft PR. Rule-1 arm: byte 71, mod 3 = 2, SEQUENTIAL.
+- **In flight:**
+  - wrap-edge (H) and sphere pair (H);
+  - battery hygiene (E, PR 4334);
+  - walk order (M, PR 4317), under its sequential review.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-08: battery hygiene landed; the w345 vertex is composed
+
+- **PR 4334 merged** (E, orchestrator read).
+  - `join1_delta_probes` uses the shared judge, with a Richardson oracle to 1e-7.
+  - `Body::split_edge_onto` keeps an existing vertex's bits where an edge split lands on it, so the 324 edge-placement lines read one vertex per cone.
+  - Pierce, pinch and corner batteries are byte-identical; 36 `rc_wide` lines moved only in margin digits.
+  - `join1-delta-probes-keep-their-own-outcome` and `vertices-at-misses-an-edge-split-ulps-off-the-pierce-point` are closed.
+- **PR 4338 merged** (the w345 unit stopped at its case (b)).
+  - Every split reading on the four poses was definite.
+  - The 9.55e-9 vertex-face gap is a pierce 3.69e-8 along a 345° edge, against the same operand's 0° face across the 15° corner: a composed pair no reading compares.
+  - So the door gate, not a split fix, catches it. `[ev]` PR 4335's row and body now say so.
+  - The row is parked on 4335. The unit drew byte 71 (SEQUENTIAL) but built nothing, so no DR row.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-08 — the pinch weld's twice-passed vertex (TANG, PR 4346)
+
+TANG's PR 4346 closes `a-pierce-pinch-weld-reads-which-ring-strut-was-minted-first`.
+The weld now reads the corner of a vertex that a face passes twice, and
+a pierce copy whose corners no corner of that vertex holds stays apart.
+The every-root row's eight `Ltop asym` lines build `OK SOUND`.
+
+## 2026-10-08: the walk-order unit landed (DR-110)
+
+- **PR 4317 merged** (M, SEQUENTIAL arm, byte 19).
+  - `walks_before` reads one order from the orbit's entry 0, checked to open a physical sector.
+  - `on_arc` is the one interval reading; `arc_holds` is the one "holds whole" reading, with its tie rule at its definition.
+  - `precedes` and the backward walk are gone.
+  - 0 lines moved over every battery, including three the PR did not run.
+- **Its one review:** APPROVE-WITH-FIXES, 0/1/4.
+  - The case table was re-modelled exhaustively; its one differing input is unreachable by `is_strut`'s definition.
+  - Mutants M1, M3 and M4 are killed; M2 is equivalent.
+  - The fix pass corrected `on_arc`'s doc, made a fan whose ends share one entry fail loud, made `arc_holders`' comparator infallible, and aligned the module header with `run_fan`.
+- `a-run-holding-another-whole-is-spelled-three-ways-in-insert` and `a-vertex-orbits-position-has-one-comparator-but-no-fixed-origin` are closed.
+- **Renumbered:** the two `[ev]` forks' rows are 100 (PR 4313) and 101 (PR 4335), not 90 and 91 as logged above. Rows 90–99 were taken on main and by other open `[ev]` PRs.
+- **In flight:** the dual review of PR 4344 (sphere pair, H) on head bf57b509; PR 4345 (wrap-edge, H) is merging main before its dual.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-09: the wrap-edge unit landed (DR-113); main red twice overnight; three small rows dispatched
+
+- **PR 4345 merged** (`9b8ffad9c0`): a wrap edge crossing a planar face is one section site, and the seam zip reads a one-vertex seam's sense from the paired halves' tangents. Dual review DR-113: two APPROVE-WITH-FIXES (0/2/5 and 0/5/6), BILATERAL 7, tally 0, nearest miss the annular tube's `SectionLoopUndecided` (filed). The fix pass closed all eight items. Batteries: 0 lines moved.
+- `a-plane-across-a-one-face-wall-meets-its-wrap-edge-once` is closed. PATHS' `circle-lowers-to-one-segment` was parked on it alone and is now open.
+- **Main red, twice, not this program's:**
+  - PR 4367 left `certified_endpoint_census` counting `offset_fit.rs` at 7 reads where it now has 10. My census row reached main through `a6d0276627`, and PR 4378 closed as empty.
+  - CONTACT-10 (4363) and CONTACT-12 (4372) crossed in `census.rs`, so `topo` stopped compiling. PR 4380/4381 fixed it.
+- **PR 4344** (sphere pair, H): the fix pass took route (ii) with (i)'s pins. Main and PR 4345 are merged in, and DR-114 is the last commit; it merges on green.
+- **Dispatched** `join/three-small-join-rows` (session `session_01FLGAxMAJ9cAzfrRgXMJEU8`, base `5fc6e144fa`). It carries three E rows: the steep-ellipse travel margin, completed null faces across later cuts, and the forced-order lanes' `RingHeld`. Tier: single FULL review (small `join.rs` correctness rows, each fixed, invariant-stated or closed with evidence). Held: `in-band-axis-offset-is-noarm-at-one-arm-and-escalates-at-another`, which is coaxial ground under D10.
+- **[ev] PR 4335:** Ev asked whether the census needs more than a definite minimum distance per pair. Answered: the minimum says whether two cells meet; a shared corner also needs the extent of the in-band set, which stands in for the dimension of where they meet. A clause reword is offered, not pushed.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-09: the sphere-pair unit landed (DR-114)
+
+- **PR 4344 merged** (`5f42bf7bd9`): two spheres that cross in a circle no edge reaches now build.
+  - A closed ball is re-charted along the centre line, the two seams a quarter turn apart, so the radical-plane join mints the circle once.
+  - Trimmed groups and non-parallel multi-cuts take a meridian cut-in, with `merge_skipped` recorded.
+  - `SpheresMeet` is now only the decided-zero touch.
+- **Dual review DR-114.** Two APPROVE-WITH-FIXES (1/4/6 and 0/6/4). BILATERAL 13, tally 0. R1's MAJOR (the cut-in's bodies do not tessellate) is bilateral with R2's MINOR. Nearest miss: R2's sliver that is not a legal operand (filed on CLEAVE). Fair pairs that found any MAJOR: 52.
+- **Route.** The orchestrator ruled on the reviews: (ii) with (i)'s pins.
+  - The quarter turn costs nothing on any class, but does not cure the `Interval` witness. The re-charted ball's seam meridians hold the partner's centre.
+  - Pinned as typed refusals: the `Interval` witness (`Escalated`), the r 50 inside-tangency union (`VolumeUncomputable`), a trimmed ball cut 1e-7 from its pole (`ArcNearPole`), and the two-axis plane escape (`FallbackExtentUnsupported`).
+  - Main refused every class with `SpheresMeet`.
+  - The cut-in classes do not mesh. That is TESS's P0, with evidence on its row.
+- **Batteries:** `pierce_runs_battery` and seven `rc_wide` shards, 7 896 lines, 0 moved. The merge with PR 4345 resolved `.config/nextest.toml` and `differential.rs` as unions. Both PRs' 71 rows pass on the merged tree.
+- `a-sphere-crossing-a-sphere-face-off-every-edge-refuses-spheres-meet` is closed.
+
+- **Dispatched**, two H units, review tier DUAL (concurrent pairs), both on base `ba5b54d875`:
+  - `join/tube-ending-on-a-ball` (session `session_01EghdZhFE3M2G72t3Zurb35`): `a-tube-ending-on-a-ball-refuses-section-loop-mixed`, released from D10 on 2026-10-08.
+  - `join/annular-tube-roles` (session `session_01HWaVG3xWHHV7j6vhuenmqK`): `annular-one-segment-tube-through-a-plate-refuses-section-loop-undecided`, which PATHS unit 4's washers reach.
+  - Not taken, and why:
+    - `closed-in-face-section-loop-has-one-site` and the reflex-corner edge-in-face row are coincidence ground.
+    - The pre-zip pinch weld is blocked on `intent-stage4-is-built`.
+    - The cylinder × sphere and skew rows wait on [ev] PR 4313.
+    - The near-tangent P0 rows wait on [ev] PR 4335.
+
+Signed (JOIN orchestrator).
+- 2026-10-09 — Seam note from ENCL (PR 4386, merged): near-tangent sliver shells at ε = 1e-12 no longer refuse `ShellRoleUndecided` on a straddling enclosure; 22 probe runs that refused now ship with `t3p=false` and `UndeclaredContact { EdgeEdgeCross }` / `CensusUndecidable` findings, which is your P0 census row's class (evidence added there). (ENCL orchestrator)

@@ -69,10 +69,15 @@ in metres for an analytic operand (`implicit.rs`); for a NURBS operand
 residual is banded too, so a bad projection cannot launder a bad cache.
 (2) Sup-norm honesty between samples, by control-coefficient hull bounds
 in certification arithmetic (C9): `geom_core::spline::compose` composes
-the implicit form with the carrier (converted to metres exactly for
-plane, cylinder and sphere; cone and torus need a root, and certification
-arithmetic takes none, which is why their rung-3 arms are unretired),
-and `compose::tensor` encloses
+the implicit form with the carrier (converted to metres by a constant
+factor for plane, cylinder and sphere; on the cone and the torus the
+metres form is a root of a polynomial, which no polynomial composite
+carries, so the conversion is a per-span lever instead: a scalar bound
+on the carrier's distance from the axis, whose one square root is of a
+bound, in the scalar's own outward-rounded arithmetic. The edge
+certificate reads it (`pcurve_cache::projected::net_offset_sup`); the
+search's limbs do not yet, which is why their rung-3 arms are
+unretired), and `compose::tensor` encloses
 `S(P(t)) − C(t)` as one composite for a NURBS operand so the
 cancellation that is the whole content of the claim survives into the
 bound. (3) The uniqueness tube: over a chain of boxes of certified radius
@@ -81,7 +86,14 @@ by a mean-value argument each slice holds at most one solution, and each
 connected piece of the solution set in a box ends on the box's boundary
 at two points. The solution set in the chain is one arc, and it spans
 the carrier; the proof is the same at every door, a search's and an
-edge's at rest. Each box, cut to the wall's knot rectangle (and to the
+edge's at rest. For a carrier between two analytic surfaces the three
+limbs are the edge certificate's own (`edge_nurbs::analytic_rung3`,
+through the scalar's certified lane): limb 2 against each operand, its
+distance from that surface over the edge's interval, whatever faces
+store pcurve rows (a planar face stores none), which implies limb 1;
+and the tube over the same interval, or over the whole carrier where
+the carrier is rational with unequal weights (no piece of it has `f64`
+weights at an enclosure scalar). Each box, cut to the wall's knot rectangle (and to the
 ℝ³ slab where a search clips to one), holds exactly one piece: two
 simple solutions on its boundary, or a stretch of its boundary on a
 side of the wall's domain that the boundary pass reads within ε of the
@@ -259,7 +271,7 @@ wall's image, or the door refuses (`SsiError::WindowShortOfWall`), so a
 march ends only at the knot rectangle. The ℝ³ lane still ends an open
 branch at the caller's slab by its boundary search
 (`ssi_branch_open_end`), and the slab is not
-geometry (`work/ssi/ssi-r3-slab-is-not-geometry.md`). Neither candidate
+geometry (`work/ssiedge/ssi-r3-slab-is-not-geometry.md`). Neither candidate
 is trusted, its pairing of crossings included: the certificate decides
 each on the chart lane, so limb 3 proves its tube one arc in the knot
 rectangle, and a cubic to another branch's crossing either leaves the
@@ -290,7 +302,8 @@ may be long and the step is the short quantity, and the refusal is the
 step's (`SsiError::MarchStepInBand`), carrying the Hermite's, its
 levers the bend and the tolerance below which the step clears the
 band. The extent sizes no realized
-step; it is the lever arm's clamp, the seeding floor and the tube
+step; it is the point decisions' clamp, the region decisions' lever,
+the seeding floor and the tube
 ladder's widest rung.
 Exhaustiveness is an in-op obligation (`ssi/exhaust.rs`): every cell of
 the bounded domain is *excluded* (an implicit residual bounded away from
@@ -317,14 +330,21 @@ The op does not return until every branch is found or it refuses; the
 subdivision doubles as the seed generator, so finding never depends on
 luck. Closure of a trace and loop
 topology are named trileans on parameter-space distances. Near-tangential
-configurations refuse toward C7, each candidate by what it reads: a
-marched branch by the transversality decision at every state, `sin θ`
-levered by the smaller of the operands' lever arm (on a wall, its
-chart's) and the extent; a Hermite branch by that decision at its two
-ends, and between them by limb 3's tube, whose clearance is levered by
-the extent alone. The levers differ where a wall's chart bends and its
-surface does not
-(`work/ssi/ssi-transversality-at-a-point-is-spelled-three-ways.md`).
+configurations refuse toward C7, each decision by what it reads. A
+decision at a point reads `sin θ · min(ρ, E)`, its arm from
+`ssi::point_arm`: `E` the extent, and `ρ` the reciprocal of the larger
+principal curvature of either surface there, read on the plane × NURBS
+lane from each chart's first and second fundamental forms
+(`shape_operator`) and on the ℝ³ lane from each implicit form's
+Hessian (`implicit_max_normal_curvature`), a plane's being zero; no
+chart's parameter lines enter it. The point decisions are the march's
+states, a Hermite candidate's two ends and refinement's unsettled chord
+midpoint, which refuse `SsiError::TransversalityBand`, and the at-rest
+per-sample check in `plane_nurbs_limbs`, which refuses
+`PlaneNurbsRefusal::NotTransverse`; each names which of `ρ` and `E`
+its arm was (`PointLever`). A decision over a region (the boundary
+strip, and limb 3's tube on both lanes) reads the certified least
+`sin θ` over it, levered by `E` alone.
 Hoffmann §6.5's tracing through singular points is deliberately not
 adopted. Subdivision is recursive bisection with a linear scan over
 tubes; the C10 tree is not wired in.
@@ -380,9 +400,13 @@ envelope bounds `|S(P(t)) − C(t)|` over the whole span as the
 carrier's distance from the chart (the composite of the chart's
 implicit form along the carrier, in metres through a per-span lever),
 plus the stored net's fidelity to the re-derived one through the
-projection's Lipschitz bound and the frame's defect; per span, the
+projection's Lipschitz bound and the frame's defect; per piece, the
 sector condition is decided, and a span reaching a pole or the apex
-refuses. The row reads no mate surface: an intersection carrier's
+refuses. Every condition is decided over the pieces and spans the
+edge's own interval overlaps: the net's geometry past the edge's ends
+is not the edge's. The period gate reads the image's sweep on a cover
+finer than its pieces, graded toward its two ends, so a whole turn
+certifies and a sweep past one refuses. The row reads no mate surface: an intersection carrier's
 uniqueness tube is the edge's certificate (C2), not the row's. No
 UV-space tolerance appears in any certified statement; the chart's
 stretch is the lever arm. A row certifies against its carrier and chart alone, on one branch (a τ jump
@@ -422,7 +446,11 @@ stored row, a half-minted face's included. A topology door may drop
 rows mid-surgery; every public producer ends with a full mint, so
 validity is judged on what the producer returns. Every class of carrier
 a chart can hold has a route into a certified row, and a face no route
-covers refuses at the producer rather than reaching rest uncached. The
+covers refuses at the producer rather than reaching rest uncached. A
+carrier whose route refuses (a spline or a circle whose projected image
+reaches a pole) refuses at the producer like any other refusal: the
+exemption excuses only a class no route reaches, and a scalar that holds
+no certified lane, at which a net's projected row cannot read its hull. The
 lanes: `Harmonic`, `IsoLine`, `IsoArc`, `Spiric` (the
 plane-cap and torus-wall images of a `Curve3::Spiric`, data-free and
 closed from the carrier's own parameter), `FocalSection` (a conic
@@ -433,15 +461,17 @@ its torus, its second channel the tube angle, linear in the parameter;
 the azimuth is the projection's Kepler true anomaly, and, as for
 `Harmonic`, the envelope alone is the certified statement — the
 harmonic closed form of the Kepler decomposition plus its remainder,
-drift and frame terms — with the schedule its cross-check), `Fitted`, `General`
-(the general curve-in-UV at the honest fitted grade). Carrier-primary
+drift and frame terms — with the schedule its cross-check), `Projected`
+(the projected image above, on an analytic chart), `Fitted` and `General`
+(on a spline chart; the general curve-in-UV at the honest fitted grade). Carrier-primary
 stands: the 3-D carrier is the authoritative machinery and the edge's
 parameter stays chart-neutral. The description form every conventional
 edge takes is `EdgeDescription::Chart { surface, pcurve, seam }`, with
 `EdgeAuthority` recording who declared the locus; that collapse and its
-fence are `docs/PCURVE-UNIFY-DESIGN.md`, not restated here. Volume, area
-and tessellation still refuse typed on a face carrying a `General`
-pcurve.
+fence are `docs/PCURVE-UNIFY-DESIGN.md`, not restated here. Volume and
+area read a face carrying a `General` pcurve through the trimmed
+quadrature lane (`crates/topo/src/props/quad_lane.rs`), and tessellation through the
+mesher's trimmed path; a rational `General` image refuses typed there.
 
 ### Dispatch
 
@@ -685,7 +715,9 @@ base's own chart parameters. Meters (`offset_meters.rs`, read off
 floor*, a certified lower bound on `‖S_u × S_v‖` (three assemblies, the
 largest wins: componentwise mignitude, fixed-direction projection, and
 the Gram determinant `EG − F²`), classified by `offset_normal_floor` with
-the patch's faster chart speed as lever, deliberately not `|d|`, since
+the patch's faster chart speed as lever (on an integral patch read from
+the norms of the derived control vectors, D4 ¶2; on a rational one from
+the speed's componentwise enclosure), deliberately not `|d|`, since
 whether the normal degenerates does not depend on `d`; and the
 *collapse headroom*, principal curvatures `[κ_lo, κ_hi]` from the closed
 form of the two fundamental forms, refusing through
@@ -728,8 +760,9 @@ moved to its inward offset (all-planar bodies through
 `offset_planes_together`, which solves each corner against all moved
 planes at once; planes meeting revolved walls through
 `offset_charts_together`; anything else chart by chart through
-`replace_faces_offset`, whose oblique corners refuse
-`ReanchorOffCarrier`), then inserted through the shared void-insertion
+`replace_faces_offset`, which derives each edge between a moved and a
+held surface as their section and each moved corner as a root of the
+surfaces meeting it), then inserted through the shared void-insertion
 door `boolean::voids::insert_void` with the construction's own
 d-vs-reach margins carried as `VoidContainment::Carried` evidence; the
 door never derives containment. The result is a two-shell solid, and the

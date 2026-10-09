@@ -837,7 +837,7 @@ fn r1_a_partial_column_restatement_takes_general_and_certifies() {
         "its between-samples bound is inside eps: {:e} vs {eps:e}",
         cert.envelope
     );
-    assert!(cert.ssi.is_some(), "the FULL C2 certificate: {cert:?}");
+    assert!(cert.ssi().is_some(), "the FULL C2 certificate: {cert:?}");
     println!(
         "R1: a partial column takes General and certifies, envelope {:e} m",
         cert.envelope

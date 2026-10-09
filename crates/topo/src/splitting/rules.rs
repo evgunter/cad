@@ -244,10 +244,9 @@ pub(super) fn apply_rule_a<T: Decide>(
                                     "a {kind:?} wall reached rule (a): `sector_face` admits \
                                      only planes, cylinders and cones"
                                 ),
-                                geom_brep::WallBendError::Lever(geom_brep::LeverEscalation {
-                                    diag,
-                                    ..
-                                }) => sliver(diag),
+                                geom_brep::WallBendError::Lever(escalation) => {
+                                    sliver(escalation.diag())
+                                }
                             })?;
                             match bend {
                                 WallBend::IntoMaterial => {
@@ -322,7 +321,7 @@ pub(super) fn apply_rule_a<T: Decide>(
                     "enters_material",
                 )));
             }
-            Err(geom_brep::LeverEscalation { diag, .. }) => return Err(sliver(diag)),
+            Err(escalation) => return Err(sliver(escalation.diag())),
         };
         entries[k].class = class;
         entries[(k + 1) % n].class = class;
@@ -437,7 +436,7 @@ fn edge_wedge<T: Decide>(
     match geom_brep::classify_dihedral(s_own, s_mate, p, extent, band) {
         Ok(geom_brep::DihedralClass::Smooth) => return Ok(None),
         Ok(geom_brep::DihedralClass::Transverse) => {}
-        Err(geom_brep::LeverEscalation { diag, .. }) => return Err(sliver(diag)),
+        Err(escalation) => return Err(sliver(escalation.diag())),
     }
     // The mate runs the edge backwards, so its face's interior lies at
     // `n_mate × (−along)` (interior-left, the orbit conventions in
@@ -451,7 +450,7 @@ fn edge_wedge<T: Decide>(
         // so only the two normal reads' rounding can land here; it reads
         // as smooth.
         Ok(EntersMaterial::Tangent) => Ok(None),
-        Err(geom_brep::LeverEscalation { diag, .. }) => Err(sliver(diag)),
+        Err(escalation) => Err(sliver(escalation.diag())),
     }
 }
 
@@ -491,7 +490,7 @@ fn wall_graze<T: Decide>(
                         "wall_bend_order2",
                     )));
                 }
-                Err(geom_brep::LeverEscalation { diag, .. }) => return Err(sliver(diag)),
+                Err(escalation) => return Err(sliver(escalation.diag())),
             }
         } else {
             side.opposite()

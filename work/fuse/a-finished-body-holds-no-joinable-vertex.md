@@ -2,13 +2,14 @@
 id: a-finished-body-holds-no-joinable-vertex
 kind: unit
 title: Step 3 of the 3881 ruling: no joinable vertex at rest, checked at tier 3 by the join's predicate; every finisher, import included, ends with the join
-status: open
+status: closed
 opened: 2026-10-07
-pr: 4251
-branch: fuse/ev-where-maximal-edges-is-checked
+pr: 4373
+branch: fuse/tier2-no-joinable
 priority: P1
 cost: H
 refs: [a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made, curved-joinable-vertices-are-left-unjoined, 4233]
+closed: 2026-10-09
 ---
 
 
@@ -30,7 +31,8 @@ is not an op's output (an import, a hand-built body) must meet it.
 
 The designer pair (fork-log row 88) ended agreeing. The check is a
 tier-3 arm at rest, and every finisher, import included, ends with
-the join. A vertex whose reading lands in band is exempt at rest.
+the join. Both recommended that a vertex whose reading lands in band
+be exempt at rest; Ev ruled instead that it refuses (Ruled, below).
 
 ## Ruled (Ev, PR 4251, 2026-10-08)
 
@@ -66,8 +68,8 @@ the join. A vertex whose reading lands in band is exempt at rest.
   - the public merge door;
   - import, which reports its joins as `StructureNormalization`.
 - **The tier-3 arm.** `JoinableVertexAtRest { vertex }` in
-  `validate_geometric` and `_structural`, with in-band readings
-  exempt.
+  `validate_geometric` and `_structural`; an in-band reading refuses
+  with the tighten-ε recourse, as ruled.
 - **Classify the 344 bodies first.** These are at-rest bodies on main
   that hold joinable vertices (FUSE log, 2026-10-07). Each is either a
   door output, which the door must fix, or a hand-built body, which

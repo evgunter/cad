@@ -76,6 +76,7 @@ pub mod pcurve;
 pub mod pcurve_cache;
 pub mod props;
 pub mod recourse;
+pub(crate) mod shape_operator;
 mod sphere_circle;
 pub mod ssi;
 pub mod tangent;
@@ -89,14 +90,14 @@ pub use description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
 };
 pub use dihedral::{
-    DIHEDRAL_ARM, DihedralClass, MaterialPairing, MaterialWedge, MustCarryDescription,
-    MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, SecondOrder, classify_dihedral,
-    classify_material_pairing, classify_material_pairing_as, folded_lever_arm, material_kappa_rel,
-    must_carry_over_edge, tangent_second_order,
+    DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DihedralClass, MaterialPairing, MaterialWedge,
+    MustCarryDescription, MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, SecondOrder,
+    classify_dihedral, classify_material_pairing, classify_material_pairing_as, folded_lever_arm,
+    material_kappa_rel, must_carry_over_edge, tangent_second_order,
 };
 pub use edge_nurbs::{
-    CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal, PlaneNurbsLimbs,
-    PlaneNurbsRefusal, plane_nurbs_limbs,
+    AnalyticRung3Refusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal,
+    PlaneNurbsLimbs, PlaneNurbsRefusal, analytic_rung3, is_analytic, plane_nurbs_limbs,
 };
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, OutwardNormal, ReferenceNormal, WallBend,
@@ -112,11 +113,11 @@ pub use implicit::{
     ARC_RESIDUAL_SAMPLES, CircleSphereHarmonic, Conic, ConicHarmonics, ConicTorusHarmonics,
     HARMONIC_NOISE_ULPS, SurfaceSide, circle_arc_residual_range, circle_residual_curvature_bound,
     circle_residual_extremes, circle_sphere_harmonic, cone_elevation, conic_arc_residual_range,
-    conic_cone_harmonics, conic_cone_residual, conic_cylinder_harmonics, conic_residual_extremes,
-    conic_sphere_harmonics, conic_torus_harmonics, conic_torus_residual, curvature_lever_arm,
-    implicit_gradient, implicit_hessian_form, implicit_max_normal_curvature,
-    implicit_outward_normal, implicit_residual, min_radius_of_curvature,
-    min_radius_of_curvature_toward, rounding_charge,
+    conic_cone_harmonics, conic_cone_residual, conic_cylinder_harmonics, conic_quadric_residual,
+    conic_residual_extremes, conic_sphere_harmonics, conic_torus_harmonics, conic_torus_implicit,
+    conic_torus_residual, curvature_lever_arm, implicit_gradient, implicit_hessian_form,
+    implicit_max_normal_curvature, implicit_outward_normal, implicit_residual,
+    min_radius_of_curvature, min_radius_of_curvature_toward, rounding_charge,
 };
 pub use intersect::{
     CoaxialEvidence, ConeCylinderSection, CylinderSphereSection, EqualCylinderSection, PairRoute,
@@ -146,10 +147,11 @@ pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };
 pub use pcurve_cache::{
-    BranchMiss, ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm, FocalImage, Grazer,
-    IsoFamily, IsoFamilyRefusal, MAX_BRANCH_PERIODS, NoChartSup, Pcurve, PcurveCache,
-    PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, SpiricImage, UncoveredClass,
-    chart_iso_family, chart_pcurve, chart_stretch_inf, chart_stretch_sup, chart_stretch_sup_v,
+    BranchMiss, ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm, FocalImage,
+    FramedCarrier, Grazer, IsoFamily, IsoFamilyRefusal, MAX_BRANCH_PERIODS, NoChartSup, Pcurve,
+    PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, ProjectedChart,
+    ProjectedImage, SectorChannel, SpiricImage, UncoveredClass, chart_iso_family, chart_pcurve,
+    chart_pcurve_over, chart_stretch_inf, chart_stretch_sup, chart_stretch_sup_v,
     whole_period_count, whole_periods,
 };
 pub use props::{

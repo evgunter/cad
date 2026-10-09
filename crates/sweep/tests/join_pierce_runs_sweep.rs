@@ -1187,14 +1187,14 @@ fn segment_distance(a: ([f64; 3], [f64; 3]), b: ([f64; 3], [f64; 3])) -> f64 {
 ///   edges leave `v` 3.7e-7 rad apart (at the default ε) and run
 ///   within the band for a
 ///   stretch, which the census passes: that class is filed
-///   (`work/contact/two-copies-of-a-pierce-carry-edges-that-run-within-the-band.md`),
+///   (`work/inside/two-copies-of-a-pierce-carry-edges-that-run-within-the-band.md`),
 ///   and this row does not claim them apart.
 ///
 /// Tier 3′ is not asserted: its edge-edge lane reads the section edge
 /// from `v` and the prism's edge piece near `(4, 1)` as an overlap,
 /// because it reads their line offset at the long edge's start, which
 /// lies on the short edge's line
-/// (`work/contact/the-census-edge-edge-collinear-lane-reads-the-offset-at-the-long-edges-start.md`).
+/// (`work/inside/the-census-edge-edge-collinear-lane-reads-the-offset-at-the-long-edges-start.md`).
 #[test]
 fn a_near_tangent_two_run_pierce_builds_with_edges_in_band_only_at_its_copies() {
     let v = [2.0, 0.6, 1.0];
@@ -2354,6 +2354,40 @@ fn a_pinchs_cones_share_one_point_key() {
     assert!(rebound > 0, "no union rebound a class");
 }
 
+/// **A pinch's unions build from every root of the pierce ring**
+/// (`topo::test_support::with_ring_root`): [`a_pinchs_cones_share_one_point_key`]'s
+/// poses, each of the two-run ring's three regions taken as its ring
+/// vertex, in both operand orders. The ring's corners are one cyclic
+/// order whichever region roots it, and every root builds `SOUND` at the
+/// clipped volume. On the four `Ltop asym` poses the leaf region inside
+/// run 1's chord mints run 1's strut first, and a pierce the weld
+/// already joined then meets another copy of the same pierce, whose
+/// corners no corner of the joined vertex holds: the pair stays apart.
+#[test]
+fn a_pinchs_unions_from_every_root_of_the_ring() {
+    for (names, (a, b), seed, fib) in [
+        ("Ltop asym", (ltop(), asym()), 2296, 21),
+        ("Ltop asym", (ltop(), asym()), 2296, 3),
+        ("Ltop asym", (ltop(), asym()), 2296, 8),
+        ("Ltop asym", (ltop(), asym()), 2959, 3),
+        ("asym asym", (asym(), asym()), 15, 6),
+        ("asym asym", (asym(), asym()), 225, 6),
+    ] {
+        let d = dbl((&a, &b), seed, fib);
+        let want = d.volume + SIDE.powi(3) - d.common;
+        for root in 0..3 {
+            let pose = format!("{names} seed={seed} fib{fib}, rooted at region {root}");
+            for (order, x, y) in [("xy", &d.pinched, &d.cube), ("yx", &d.cube, &d.pinched)] {
+                let r = fixtures::with_ring_root(root, || {
+                    topo::union_with(x, y, &BooleanDeclarations::default(), tol())
+                });
+                let line = outcome(r, want, tol());
+                assert!(line.starts_with("OK SOUND"), "{pose} {order} U: {line}");
+            }
+        }
+    }
+}
+
 /// The near-tangent corners: the L-prism's, review r1's `vee300` and
 /// `asym` notches, and the 345° and 60° wedges.
 fn near_tangent_corners() -> [(&'static str, Corner); 5] {
@@ -2459,10 +2493,8 @@ fn corner_pieces(c: &Corner, f: [[f64; 3]; 3], lo: [f64; 3]) -> (Pieces, Pieces)
 /// **Near-tangent pierces** (PR 4139's review r1, its `nt` set): each
 /// corner against the cube whose near face is tilted ±1e-3, ±1e-5 or
 /// 1e-7 off one of the corner's three edges, `v` inside the face or on
-/// its edge. Every op in both orders prints its [`outcome`], and in the
-/// face placement its [`pierce_point_finding`] at `v`. On the cube's
-/// edge, the cube-first ops hold `v` as the edge's split, ulps off `v`,
-/// which the exact point match does not read.
+/// its edge. Every op in both orders prints its [`outcome`] and its
+/// [`pierce_point_finding`] at `v`.
 ///
 /// `cargo test -p sweep --release --test all near_tangent_battery --
 /// --ignored --nocapture`, on two trees, and diff the lines.
@@ -2478,7 +2510,7 @@ fn near_tangent_battery() {
                         let (x, y) = corner_pieces(&c, f, *lo);
                         for (tag, r, want) in corner_runs(&c, f, *lo) {
                             let body = r.as_ref().ok().and_then(BooleanResult::body);
-                            let at = body.filter(|_| *place == "face").map(|bb| {
+                            let at = body.map(|bb| {
                                 pierce_point_finding(&bb.body, c.v, tag_cones(&tag, "ac", (&x, &y)))
                                     .unwrap_or_else(|| "one vertex per cone".into())
                             });
@@ -2492,6 +2524,36 @@ fn near_tangent_battery() {
                 }
             }
         }
+    }
+}
+
+/// **An edge split on an existing vertex keeps that vertex's bits.**
+/// The L's top corner `v` on the cube's edge, its face tilted 1e-3
+/// ([`near_tangent_battery`]'s `Ltop nt e0 a1 d1e-3 edge`): the cube's
+/// edge splits at `v`, and every op in both orders holds `v` exactly,
+/// one vertex per cone, on one point key, and meshes. Red if the split
+/// mints the edge's carrier at the parameter read back from `v`, which
+/// is ulps off it, and the cube-first ops keep that point.
+#[test]
+fn an_edge_split_on_the_corner_keeps_its_bits() {
+    let (_, c) = near_tangent_corners()
+        .into_iter()
+        .find(|(name, _)| *name == "Ltop")
+        .unwrap();
+    let lo = PLACEMENTS[1].1;
+    let f = near_tangent_frame(&c, 0, 1, 1e-3);
+    let (x, y) = corner_pieces(&c, f, lo);
+    for (tag, r, want) in corner_runs(&c, f, lo) {
+        let Some(bb) = r.as_ref().ok().and_then(BooleanResult::body) else {
+            panic!("{tag}: the op did not build: {r:?}");
+        };
+        assert_eq!(
+            pierce_point_finding(&bb.body, c.v, tag_cones(&tag, "ac", (&x, &y))),
+            None,
+            "{tag} at v"
+        );
+        let line = outcome(r, want, tol());
+        assert!(line.starts_with("OK SOUND"), "{tag}: {line}");
     }
 }
 

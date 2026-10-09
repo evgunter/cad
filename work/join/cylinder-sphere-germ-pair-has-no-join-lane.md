@@ -38,7 +38,7 @@ at `boolean::join::bool_connect`'s lane dispatch, the `(a_s, b_s)`
 catch-all. Not every pose reaches this door: a ball whose turned chart
 crosses a cap passes the frame and the matcher and stops earlier, at
 `Join(SectionNotPolar)` (144 of 1 152 runs in the PR 4025 review's drum
-× ball grid; `work/reach/tilted-sphere-pair-section-refuses-at-the-polar-gate.md`).
+× ball grid; `tilted-sphere-pair-section-refuses-at-the-polar-gate` (REACH, closed by PR 3817)).
 The rows hold each run to its volume (an independent oracle,
 the slices' closed-form areas integrated) the day it builds.
 

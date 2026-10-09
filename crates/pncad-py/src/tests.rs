@@ -3438,6 +3438,7 @@ fn import_report_row_tags_are_stable() {
             NormalizationKind::SeamlessPeriodicBand,
             "seamless_periodic_band",
         ),
+        (NormalizationKind::JoinedEdges, "joined_edges"),
     ] {
         assert_eq!(normalization_kind_tag(&kind), word);
     }
@@ -3948,6 +3949,37 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
         other_root: RecipeNodeId::new(0, 4),
         other_output: 2,
     };
+    // An unproven coincidence: its two words and the residual's
+    // sentence; the cells cross on the Python value, not the payload.
+    let tool = pncad::document::NamedCell::Tool {
+        input: RecipeNodeId::new(0, 3),
+    };
+    let unproven = E::UnprovenCoincidence {
+        row: Box::new(pncad::document::NamedCoincidence {
+            cells: [tool.clone(), tool],
+            relation: pncad::document::coincidence::Relation::OnCarrier,
+            site: pncad::document::coincidence::DecisionSite::SplitOn,
+            margin: pncad::geom_core::MarginDiag::value(0.0),
+            discharge: pncad::document::coincidence::Discharge::Numeric,
+        }),
+        residual: Box::new(pncad::document::Residual {
+            constructions: [
+                Err(pncad::document::coincide::Unwalked::Absent(
+                    RecipeNodeId::new(0, 3),
+                )),
+                Err(pncad::document::coincide::Unwalked::Absent(
+                    RecipeNodeId::new(0, 3),
+                )),
+            ],
+        }),
+        recourse: pncad::document::coincide::Recourse::OneConstruction,
+    };
+    carries(&unproven, &["reason", "relation", "site"]);
+    let words = check_payload(&unproven);
+    assert_eq!(
+        (words.relation, words.site),
+        (Some("on_carrier"), Some("split_on"))
+    );
     let pair = check_payload(&separated);
     assert_eq!(pair.other_root, Some(RecipeNodeId::new(0, 4)));
     assert_eq!(pair.other_output, Some(2));
@@ -4832,12 +4864,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "spine_unsupported",
             "surgery_invariant",
             "tangential_edge",
+            "unjoined_operand",
             "unsupported_chain",
             "unsupported_corner",
             "unsupported_geometry",
             "unsupported_run_out",
         ],
-        delegates: &[],
+        delegates: &["join_refusal_tag"],
     },
     TagEntry {
         function: "boolean_error_tag",
@@ -4878,11 +4911,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "non_finite_sector_chord",
             "non_manifold_result",
             "non_maximal_faces",
+            "normal_at_cone_apex",
             "nurbs_extent_unsupported",
             "pairing_mismatch",
             "pcurves",
             "pieces",
-            "pierce_runs_nested",
             "pinch_cones_on_separate_keys",
             "point_in_face_refused",
             "point_split_carrier_unsupported",
@@ -4901,6 +4934,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "torn_component",
             "undeclared_coincidence",
             "underflowed_sector_chord",
+            "unjoined_operand",
             "unrepresentable_result",
             "unsupported_declaration_class",
             "vertex_read_twice",
@@ -4955,6 +4989,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_separated",
             "separation_unavailable",
             "stale_expectation",
+            "unproven_coincidence",
             "unsupported",
         ],
         delegates: &[],
@@ -4984,6 +5019,21 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "coincidence_relation_tag",
+        values: &[
+            "equal_angles",
+            "on_carrier",
+            "same_opposite",
+            "same_oriented",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "coincidence_rung_tag",
+        values: &["same_construction"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "corner_reason_tag",
         values: &[
             "anchor_outside_trimmed_extent",
@@ -5002,6 +5052,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "listed_with_count",
             "stepped_without_count",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "decision_site_tag",
+        values: &["battery_turn", "carrier_ladder", "plane_ladder", "split_on"],
         delegates: &[],
     },
     TagEntry {
@@ -5341,6 +5396,15 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &["node_standing_tag", "readback_error_tag"],
     },
     TagEntry {
+        function: "join_refusal_tag",
+        values: &[],
+        delegates: &[
+            "boolean_error_tag",
+            "boolean_error_tag",
+            "boolean_error_tag",
+        ],
+    },
+    TagEntry {
         function: "label_fault_tag",
         values: &[
             "label_blank",
@@ -5639,6 +5703,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "degenerate_apex_cone",
             "edge_free_sphere",
+            "joined_edges",
             "seamless_periodic_band",
             "surface_promotion",
         ],
@@ -6010,22 +6075,21 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "lift",
             "no_solid",
             "not_valid",
+            "offsets_cross",
             "open_face_chart_partial",
             "open_face_repeated",
             "open_face_rim_not_expressible",
             "open_face_stale",
             "open_faces_disconnect",
             "open_faces_exhaust_shell",
-            "operand_outer_shells",
             "partition",
             "pcurve",
-            "pieces",
             "rim",
             "roles",
             "thickness",
             "wall_clearance",
         ],
-        delegates: &[],
+        delegates: &["join_refusal_tag"],
     },
     TagEntry {
         function: "skin_error_tag",
@@ -6175,7 +6239,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "split_op_error_tag",
         values: &["finish", "join", "pcurves", "pieces", "reduce"],
-        delegates: &[],
+        delegates: &["join_refusal_tag"],
     },
     TagEntry {
         function: "stale_declaration_tag",
@@ -6220,6 +6284,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "declaration_unresolved",
             "instance",
             "invalid_eps_override",
+            "join",
             "malformed_real",
             "malformed_record",
             "missing_uncertainty",
@@ -6383,6 +6448,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "half_edge_multiply_claimed",
             "half_edge_unclaimed",
             "instance_interference",
+            "join_undecided_at_rest",
+            "joinable_vertex_at_rest",
             "lamina_wedge",
             "leaked_null_face_record",
             "leaked_provenance",
@@ -6393,6 +6460,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "multiply_owned",
             "negative_volume",
             "next_prev_mismatch",
+            "no_dihedral_arm",
             "null_edge_at_rest",
             "null_face_at_rest",
             "null_scaffold_shared",
@@ -6589,7 +6657,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("inside_out_operand", 2),
     ("instance", 2),
     ("io", 2),
-    ("join", 2),
+    // Three: the join every finisher ends with refused, at a door that
+    // tags it by its stage (the boolean's, the split's, the import's).
+    ("join", 3),
     // One rule (A4's frame rule) refused in both directions across the
     // seam: a split's kept mate and an inline's host mate.
     ("mate_frame_crosses", 2),
@@ -6620,10 +6690,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("payload_var_kind", 2),
     ("pcurve", 6),
     ("pcurves", 3),
-    // One fact for the boolean, the shell and the split: the result sort
+    // One fact for the boolean and the split: the result sort
     // (`topo::PieceSortError`) could not read a shell's piece, carried
     // whole by each verb. The profile program's word is a coincidence.
-    ("pieces", 4),
+    ("pieces", 3),
     // One fact: a placement on an instance's frame did not evaluate —
     // the instance's own row, and why its checked offset went unchecked.
     ("placement_refused", 2),
@@ -6649,6 +6719,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // (`boolean_error_tag`'s doc): ONE coincidence, the same word.
     ("undeclared_coincidence", 2),
     ("underflowed_direction", 2),
+    // One fact for the boolean and the blends: the operand gate
+    // (`topo::Unfinished::Unjoined`) found a vertex tier 3's check 11
+    // refuses.
+    ("unjoined_operand", 2),
     ("unknown_node", 5),
     ("unknown_param", 3),
     ("unminted", 2),
@@ -6763,6 +6837,37 @@ fn ring_pair_words_are_the_outer_contact_words() {
             "{outer:?} and {pair:?}"
         );
     }
+}
+
+/// **The edge join's refusal is spelled alike at every door** that ends
+/// with the join: the split's, the shell's and the blend's
+/// (`join_refusal_tag`) read the boolean's own words for the same arm
+/// (`boolean_error_tag`, which `join_refusal_tag` delegates to), pinned
+/// here as the words themselves.
+#[test]
+fn the_edge_joins_refusal_is_spelled_alike_at_every_door() {
+    use crate::tags::join_refusal_tag;
+    use pncad::geom_core::{Band, Indeterminate, MarginDiag};
+    use pncad::topo::{BooleanErrorKind, JoinReading, JoinRefusal, JoinUndecided};
+    let undecided = JoinRefusal::Undecided(JoinUndecided {
+        vertex: VertexKey::default(),
+        reading: JoinReading::Regularity(Indeterminate {
+            margin: MarginDiag::value(3.0e-10),
+            band: Band::linear(Tol::witness()).expect("the witness band"),
+            predicate: Some("join_regular_point"),
+            terminal_sliver: false,
+        }),
+    });
+    let carrier = JoinRefusal::CarrierUnsupported {
+        carrier: pncad::geom::CurveKind::Nurbs,
+        closed: false,
+    };
+    let kernel = JoinRefusal::Kernel {
+        kind: BooleanErrorKind::Euler,
+    };
+    assert_eq!(join_refusal_tag(&undecided), "join_undecided");
+    assert_eq!(join_refusal_tag(&carrier), "join_carrier_unsupported");
+    assert_eq!(join_refusal_tag(&kernel), "euler");
 }
 
 #[test]

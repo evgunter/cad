@@ -33,9 +33,17 @@ after that cut, as units:
    walls meeting at an angle across less than `2t` shell silently.
    A silent wrong body; first in line.
 9. **The lofted oblique corner** — `shell-of-a-lofted-body-meets-the-oblique-corner-on-a-slanted-spline-seam`
-   (P1, H): the per-chart door moves a cap rigidly, so a loft with
-   slanted seams refuses `ReanchorOffCarrier`. Measure first; a
-   design question goes to the designer pair before a spec.
+   (P1, H): decided 2026-10-08 (the item's `## Decided`): the
+   per-chart door derives edges by section and corners by crossing,
+   carrying ISO's `nurbs-iso-derive-line-rim-arm-refuses-an-interior-row`
+   first. Lofts then stop at the first wall:
+   `a-fitted-wall-has-no-section-with-a-moved-cap` is decided
+   2026-10-08 (a fitted face's section is its fit's; P2, after unit 9),
+   and behind it the wall–wall seams
+   (`a-wall-seam-between-two-fits-has-no-section`, P2;
+   `two-fits-sharing-a-smooth-seam-disagree-by-their-certificates`, P3).
+   The one-door merge `offset-doors-are-one-door-with-a-held-distance`
+   (P3, H) follows.
 10. **The face door is at rest** — `replace-face-offset-answers-for-the-complement-of-an-inside-out-body`
     (P2, M) carrying `shell-operand-shape-arms-behind-the-at-rest-gate`
     (P3, E): decided 2026-10-08 (the item's `## Decided`): the
@@ -54,6 +62,23 @@ The P3 re-anchor rows (`reanchor-does-not-extend-…`,
 `nurbs-lane-absence-has-three-spellings-…`) and the per-chart door's
 `per-chart-door-transports-a-torus-rim-…` follow; the two unpriced
 rows are priced before they are dispatched.
+
+then, as units:
+
+13. **A fitted wall's section is its fit's** — `a-fitted-wall-has-no-section-with-a-moved-cap`
+    (P2, H): decided 2026-10-08 (the item's `## Decided`). C5 routes
+    `(Plane, Approx)` over `approx.fit()`, the edge stores the `Approx`
+    key, and nothing is composed into its bound. Lofts then stop at the
+    wall–wall seams. Dual review.
+14. **The per-chart door's inverted body** — `the-per-chart-door-adopts-an-inverted-body`
+    (P2, M): unit 10's `## Decided` already rules that the doors are
+    construction steps, finished only through `AtRestBody::validate`.
+    What is owed is the check that every caller adopting the door's
+    result passes that gate, and pins showing the frustum and tube
+    moves refuse there. Single review.
+
+After 13, re-measure and price `a-wall-seam-between-two-fits-has-no-section`
+(P2, H) before dispatching it.
 
 Units 8 and 10 run in parallel (different files); unit 9's measure
 runs beside them.

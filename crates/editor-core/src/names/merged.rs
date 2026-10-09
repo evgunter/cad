@@ -28,15 +28,19 @@ pub(crate) const NESTED_MERGED: &str =
     "a boolean table carries a merged face whose constituent is itself a merged face";
 
 /// One descent wrapper a set-holding name is read through: a pair
-/// boolean's `FromA`/`FromB`, or a union's `FromMember`, with the member
-/// it names. A face carried through any of them untouched is still that
-/// face, so its set is read through them and each constituent re-wrapped
-/// by the same chain.
+/// boolean's `FromA`/`FromB`, a union's `FromMember`, with the member
+/// it names, or a one-operand door's `FromTarget` (an entity carried
+/// through it) and the shell's `Inner` (a cavity twin). A face carried
+/// through any of them untouched is still that face, and a twin of a
+/// set is the set of the twins, so its set is read through them and
+/// each constituent re-wrapped by the same chain.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Wrap {
     A,
     B,
     Member(crate::node::RecipeNodeId),
+    Target,
+    Inner,
 }
 
 impl Wrap {
@@ -55,6 +59,8 @@ impl Wrap {
                 Self::A => RoleSeg::FromA(inner),
                 Self::B => RoleSeg::FromB(inner),
                 Self::Member(member) => RoleSeg::FromMember { member, of: inner },
+                Self::Target => RoleSeg::FromTarget(inner),
+                Self::Inner => RoleSeg::Inner(inner),
             }],
         }
     }
@@ -67,6 +73,8 @@ fn peel(name: &StableName) -> Option<(Wrap, &StableName)> {
         [RoleSeg::FromA(inner)] => Some((Wrap::A, inner)),
         [RoleSeg::FromB(inner)] => Some((Wrap::B, inner)),
         [RoleSeg::FromMember { member, of }] => Some((Wrap::Member(*member), of)),
+        [RoleSeg::FromTarget(inner)] => Some((Wrap::Target, inner)),
+        [RoleSeg::Inner(inner)] => Some((Wrap::Inner, inner)),
         _ => None,
     }
 }
@@ -111,8 +119,10 @@ pub(crate) fn constituents_through_wrappers(name: &StableName) -> Option<Vec<Sta
 /// `along`**: `Merged` of them, flat and in name order. An edge that is
 /// itself a set, read through its descent wrappers, stands for its
 /// constituents ([`constituents_through_wrappers`]), so a set of sets
-/// lists edges, never sets (N3's flatness). The one builder both the
-/// pair boolean and the union mint an edge set through.
+/// lists edges, never sets (N3's flatness). The one builder every door
+/// mints an edge set through: the pair boolean, the union, and the
+/// joins the split, the shell and the blend end with
+/// (`join_names::joined_name`).
 pub(crate) fn edge_set(
     node: crate::node::RecipeNodeId,
     along: impl IntoIterator<Item = StableName>,

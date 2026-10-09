@@ -473,6 +473,7 @@ pub(super) fn split_cones<T: Decide + crate::props::AtRestPolicy>(
         )?;
         let base = pairs.len();
         for (j, (&o, &r)) in ob.iter().zip(&rs).enumerate() {
+            one_vertex_sense(body, (a_face, b_face), (o, r), tol)?;
             pairs.push((o, r));
             next.push(base + (j + 1) % ob.len());
         }
@@ -584,7 +585,8 @@ fn cones(sigma_a: &[usize], sigma_b: &[usize]) -> (Vec<usize>, Vec<usize>) {
 }
 
 /// Splits each of one side's vertices per cone, its first cone's runs
-/// staying; whether any vertex was split.
+/// staying, one cone at a time: a cone whose runs lie together round the
+/// vertex, first in orbit order; whether any vertex was split.
 ///
 /// The null edge each `mev_null` leaves lies between two section
 /// corners, on the section faces the zips consume, and is killed there:
@@ -595,8 +597,11 @@ fn cones(sigma_a: &[usize], sigma_b: &[usize]) -> (Vec<usize>, Vec<usize>) {
 /// # Errors
 ///
 /// [`BooleanError::ZipCorrespondence`] where a vertex's cones interleave
-/// round it. No battery line reaches it: two cones' runs alternating
-/// round one vertex would need their boundary cycles to cross there.
+/// round it. Cones nest round a vertex, one's runs between two of
+/// another's, where a pierce ring is a tree deeper than a path; each
+/// split takes a cone whose runs lie together, which nesting always
+/// leaves, so only two cones' runs alternating, their boundary cycles
+/// crossing there, refuse. No battery line reaches that.
 /// The Euler operators' refusals, typed.
 fn split_side<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
@@ -608,29 +613,14 @@ fn split_side<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<bool, BooleanError> {
     let mut moved = false;
     for at in runs.values() {
-        let r = at.len();
-        let cones_here: BTreeSet<usize> = at.iter().map(|&k| cone_of[k]).collect();
-        if cones_here.len() < 2 {
-            continue;
-        }
-        let edges = (0..r)
-            .filter(|&i| cone_of[at[i]] != cone_of[at[(i + 1) % r]])
-            .count();
-        if edges != cones_here.len() {
-            return Err(BooleanError::ZipCorrespondence {
-                what: "a vertex's cones interleave round it",
-            });
-        }
-        // Group starts: the runs whose cone differs from the run before.
-        let starts: Vec<usize> = (0..r)
-            .filter(|&i| cone_of[at[i]] != cone_of[at[(i + r - 1) % r]])
-            .collect();
-        for (g, &s) in starts.iter().enumerate().skip(1) {
-            let end = starts[(g + 1) % starts.len()];
+        let plan = peel(at, cone_of).ok_or(BooleanError::ZipCorrespondence {
+            what: "a vertex's cones interleave round it",
+        })?;
+        for (from, to) in plan {
             let made = body.mev_null(
                 MevSite::Fan {
-                    he1: he_of(at[s]),
-                    he2: he_of(at[end]),
+                    he1: he_of(from),
+                    he2: he_of(to),
                 },
                 crate::NewVertexSide::Above,
             )?;
@@ -648,6 +638,41 @@ fn split_side<T: Decide + crate::props::AtRestPolicy>(
         }
     }
     Ok(moved)
+}
+
+/// One vertex's splits, read before any is written: each the first and
+/// the next pair index of a group of runs one cone holds alone, the
+/// group moved off the vertex (the `mev_null` fan between them), until
+/// one cone is left. Groups are maximal runs of one cone round the
+/// vertex; the first stays, and the split takes the first later group
+/// whose cone has no other. `None` where no such group is left while
+/// two cones are: their runs alternate round the vertex.
+fn peel(at: &[usize], cone_of: &[usize]) -> Option<Vec<(usize, usize)>> {
+    let mut at = at.to_vec();
+    let mut plan = Vec::new();
+    loop {
+        let r = at.len();
+        let cones_here: BTreeSet<usize> = at.iter().map(|&k| cone_of[k]).collect();
+        if cones_here.len() < 2 {
+            return Some(plan);
+        }
+        let starts: Vec<usize> = (0..r)
+            .filter(|&i| cone_of[at[i]] != cone_of[at[(i + r - 1) % r]])
+            .collect();
+        let whole = |g: usize| {
+            let c = cone_of[at[starts[g]]];
+            (0..starts.len()).all(|h| h == g || cone_of[at[starts[h]]] != c)
+        };
+        let g = (1..starts.len()).find(|&g| whole(g))?;
+        let (s, end) = (starts[g], starts[(g + 1) % starts.len()]);
+        plan.push((at[s], at[end]));
+        if end > s {
+            at.drain(s..end);
+        } else {
+            at.drain(s..);
+            at.drain(..end);
+        }
+    }
 }
 
 /// The seams after a split: an A section edge is the B ring edge it zips
@@ -844,6 +869,60 @@ fn align<T: Decide>(
     Ok(rs)
 }
 
+/// **A one-vertex seam edge's sense**, which [`align`]'s vertex test
+/// cannot read: a whole section conic through one site starts and ends
+/// at that site, so a co-wound ring half there leaves the right vertex
+/// and arrives at the right one too. The paired halves must run against
+/// each other along their carriers there, read off their tangents at the
+/// site (`bool_zip_one_vertex_sense`); a half that runs with the outer
+/// one is [`BooleanError::SeamOrientation`]. A half between two vertices
+/// is [`align`]'s and passes.
+fn one_vertex_sense<T: Decide>(
+    body: &Body<T>,
+    (a_face, b_face): (FaceKey, FaceKey),
+    (outer, ring): (HalfEdgeKey, HalfEdgeKey),
+    tol: Tol,
+) -> Result<(), BooleanError> {
+    let corr = |what| BooleanError::ZipCorrespondence { what };
+    let end = body
+        .half_edge_end(outer)
+        .ok_or_else(|| corr("seam half-edge has no end"))?;
+    if start_of(body, outer)? != end {
+        return Ok(());
+    }
+    // The tangent a half leaves its start along: its carrier's at the
+    // start parameter, reversed on the minus half.
+    let leaving = |he: HalfEdgeKey| -> Result<geom_core::Vec3<T>, BooleanError> {
+        let edge = body
+            .get_half_edge(he)
+            .ok_or_else(|| corr("seam half-edge no longer resolves"))?
+            .edge;
+        let data = body
+            .get_edge(edge)
+            .ok_or_else(|| corr("seam edge no longer resolves"))?;
+        let curve = body
+            .edge_curve_linked(edge, data)
+            .certified()
+            .ok_or_else(|| corr("a one-vertex seam edge has no certified curve"))?;
+        let (t0, t1) = curve.params();
+        Ok(if data.he_plus == he {
+            curve.carrier().deriv(t0)
+        } else {
+            -curve.carrier().deriv(t1)
+        })
+    };
+    let band = geom_core::Band::linear(tol).map_err(|_| corr("the zip's band does not read"))?;
+    let margin = geom_core::Margin::of(leaving(outer)?.dot(leaving(ring)?));
+    match crate::validate::decide("bool_zip_one_vertex_sense", margin, band) {
+        Ok(geom_core::Sign::Negative) => Ok(()),
+        Ok(_) => Err(BooleanError::SeamOrientation { a_face, b_face }),
+        Err(diag) => Err(BooleanError::Escalated {
+            decision: super::BooleanDecision::SelfCheck(super::SelfCheck::SeamSense),
+            diag,
+        }),
+    }
+}
+
 /// The vertex a half-edge starts at.
 fn start_of<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<VertexKey, BooleanError> {
     Ok(body
@@ -927,9 +1006,36 @@ mod cone_rows {
 mod tests {
     #![allow(clippy::unwrap_used, clippy::panic)]
 
-    use super::{BooleanError, Fusions};
+    use super::{BooleanError, Fusions, peel};
     use crate::entity::VertexKey;
     use slotmap::SlotMap;
+
+    /// **A vertex's cones peel one group at a time, read before any is
+    /// written** ([`peel`]), runs as pair indices round the vertex, each
+    /// run's cone given:
+    /// - cones apart, each together: each later group in turn, the first
+    ///   staying (the one-pass split's order);
+    /// - a cone nested between two runs of another, itself between two
+    ///   runs of a third: the innermost first, which leaves the next one
+    ///   together, and then the group after the first;
+    /// - two cones alternating: none.
+    #[test]
+    fn a_vertexs_cones_peel_innermost_first_and_refuse_alternating() {
+        type Row = (&'static str, Vec<usize>, Option<Vec<(usize, usize)>>);
+        let rows: [Row; 3] = [
+            ("apart", vec![0, 0, 1, 2, 2], Some(vec![(2, 3), (3, 0)])),
+            (
+                "nested twice",
+                vec![0, 1, 2, 1, 0],
+                Some(vec![(2, 3), (4, 1)]),
+            ),
+            ("alternating", vec![0, 1, 0, 1], None),
+        ];
+        for (what, cone_of, want) in rows {
+            let at: Vec<usize> = (0..cone_of.len()).collect();
+            assert_eq!(peel(&at, &cone_of), want, "{what}");
+        }
+    }
 
     /// **A fusion list refuses every row that would fold a key onto a
     /// dead one, and folds a well-ordered chain through every hop.** A

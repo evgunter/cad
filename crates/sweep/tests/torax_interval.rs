@@ -291,7 +291,7 @@ fn interval_the_sphere_lune_rim_encloses_its_corners() {
     let mut cavity = body.clone();
     let band = geom_core::Band::linear(tol).expect("band");
     match topo::offset_charts_together(&mut cavity, &moves, band, tol) {
-        Ok(()) => {}
+        Ok(_) => {}
         // The closing mint certifies the lens face's general-circle
         // rims too, and at a tight band a fitted rim row's own map
         // residual escalates the same way — an enclosure as wide as the

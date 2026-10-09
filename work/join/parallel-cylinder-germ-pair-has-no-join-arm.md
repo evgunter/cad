@@ -6,7 +6,7 @@ status: closed
 opened: 2026-10-02
 priority: P1
 cost: H
-refs: [non-circle-conic-edge-refuses-against-every-curved-face, slab-cut-cylinder-refuses-sector-side]
+refs: [3805, 3627]
 branch: join/parallel-cylinder-arm
 pr: 4031
 closed: 2026-10-04
@@ -53,7 +53,7 @@ only touches keep the refusal they had.
 
 The row's own poses now pass the join and stop at the classification's
 at-infinity probe, `Containment(VolumeUncertified)` (evidence added to
-`work/contact/at-infinity-probe-measures-in-closed-form-only.md`).
+`work/restread/at-infinity-probe-measures-in-closed-form-only.md`).
 `crates/sweep/tests/parallel_cylinder_join.rs` holds eight poses against
 an uncut drum, 48 runs, SOUND at their closed-form volumes. The frame
 levers the pair's parallelism by the walls' reach (their boundary

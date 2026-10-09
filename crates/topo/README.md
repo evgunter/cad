@@ -29,7 +29,7 @@ feeds a decision, every walk is bounded.
 | Booleans | `src/boolean/mod.rs` (reduction, classification, `ContactRecords`, `BooleanDeclarations`), `reduce.rs`, `vtxfac.rs`, `sectors.rs`, `recl.rs`, `tables.rs`, `insert.rs`, `join.rs`, `finish.rs`, `zip.rs`, `ops.rs`, `combine.rs`, `voids.rs`, `boxes.rs`, `contain.rs`, `solid_contain.rs`, `surface_group.rs`, `rim_wedge.rs` |
 | Declared-REST zip (C7 join lane) | `src/boolean/rest.rs` |
 | Instances, separation | `src/instance.rs` (disjoint graft), `src/separation.rs` (certified no-touch), `src/transform.rs` (rigid placement) |
-| Shell and offset surgery | `src/shell.rs`, `src/replace_face.rs`, `src/offset_together.rs`, `src/offset_axial.rs`, `src/merge_faces.rs` — decisions in `crates/geom-brep/README.md` (OFFSET-DESIGN) |
+| Shell and offset surgery | `src/shell.rs`, `src/replace_face.rs`, `src/offset_together.rs`, `src/offset_axial.rs`, `src/merge_faces.rs` — decisions in `crates/geom-brep/README.md` (OFFSET-DESIGN). `shell` and `shell_open` take a finished body (`AtRestBody`): their thickness is measured into the solid's material. `replace_face_offset`, `replace_faces_offset`, `offset_planes_together` and `offset_charts_together` take construction state (`Body`), tier 2 in and tier 2 out: their argument is a distance along each chart's stored normal, which no face's sense decides, and `shell` runs them over a clone mid-construction. Their result becomes finished only through `AtRestBody::validate`, where an inside-out result refuses `NegativeVolume` |
 | Queries, flush detection, read-back | `src/query.rs` (the EXACT/DECIDED atoms and `rim_of`; `crates/verbs/README.md` S1), `src/flush.rs`, `src/readback.rs`, `src/props.rs` (mass properties, `AtRestPolicy`), `src/ray_walk.rs` |
 
 The census's sweeps and backstop examine only pairs whose padded boxes
@@ -429,9 +429,14 @@ sense-invariant.
 `ve_face_backed`, and the face-pair arms of `ee_bound_backed` and
 `ef_bound_backed` confine by structural incidence only, so they can back
 an event outside the pair's overlap region. Each migrates to the unified
-strength one at a time, measured. `ef_bound_backed`'s migration waits on
-boundary-crossing cuts: the edge-on-face lane cuts cells only at
-coincident boundary vertices (the D3 reach gap, `census.rs` module docs).
+strength one at a time, measured. The edge-on-face lane cuts an edge
+at every boundary vertex on it and every place a boundary edge crosses
+it, each placed in metres along both (a crossing within the band of an
+arc's end is that end's vertex), and refuses a face whose spiric or
+spline edge it cannot clear, so no cell spans the face's boundary on a
+decided reading. `ef_bound_backed`'s migration is parked with the
+declared-pair machinery D10 retires
+(`work/contacthold/ef-bound-backed-migrates-to-region-confinement.md`).
 
 **`EdgeFacePierce` stays categorical.** A transverse dive is
 interpenetration until a C6 vocabulary exists; the recourse is
@@ -458,7 +463,8 @@ affects only what declines, never what certifies.
 ## Open
 
 - The `EdgeFacePierce` arm (issue 973) waits for the C6 interference era.
-- `ef_bound_backed`'s migration waits on boundary-crossing cuts (1500).
+- `ef_bound_backed`'s migration is parked
+  (`ef-bound-backed-migrates-to-region-confinement`, D10).
 - `interior_witness`'s budget-exhaustion decline is untyped (1478).
 - The declared-cusp wedge-0/2π arm is defined, unbuilt (941).
 - Sphere, cone and torus cross-description declared pairs refuse

@@ -2,11 +2,12 @@
 id: fused-into-names-vertices-not-live-in-the-result
 kind: issue
 title: BooleanNaming::fused_into maps a fused vertex to a key that is not a live vertex of the result in about 1 in 8 lattice-brick results that build a body
-status: open
+status: dispatched
 opened: 2026-10-06
 priority: P1
 cost: M
 refs: [emit-topo-reads-a-fusion-chain-one-hop, 4116]
+branch: fuse/fused-into-is-live
 ---
 
 Found by the review of PR 4116 (ZIP, `zip/survivor-and-recourse`).

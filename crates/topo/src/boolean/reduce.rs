@@ -464,8 +464,9 @@ pub(super) fn gate_operand<T: Decide>(
 /// **The operand gate where no at-rest gate ran**: what the finished-body
 /// type promises, read on an operand that carries no verdict (a dual's,
 /// [`crate::AtRestBody::gate_unverdicted`] — the split's door reads the
-/// same), refused as [`BooleanError::ScaffoldingOperand`] or
-/// [`BooleanError::InsideOutOperand`]. It runs before the pipeline reads
+/// same), refused as [`BooleanError::ScaffoldingOperand`],
+/// [`BooleanError::InsideOutOperand`] or [`BooleanError::UnjoinedOperand`].
+/// It runs before the pipeline reads
 /// a several-solid operand as one solid (`ops::one_solid`), since the
 /// orientation read's subjects are the solid and, within it, the shell.
 pub(super) fn gate_unverdicted_operand<T: Decide + crate::props::AtRestPolicy>(
@@ -497,7 +498,7 @@ pub(super) fn gate_unverdicted_operand<T: Decide + crate::props::AtRestPolicy>(
 /// - the continuation scan ([`refuse_undeclared_continuations`]), which
 ///   cannot bound a face a spline edge bounds (`ClassificationInvariant`).
 ///
-/// Retiring it is `work/reach/delete-the-boolean-operand-edge-gate.md`.
+/// Retiring it is `work/orbit/delete-the-boolean-operand-edge-gate.md`.
 fn gate_operand_edges<T: Decide>(body: &Body<T>, operand: Operand) -> Result<(), BooleanError> {
     for (edge_key, edge) in body.edges() {
         match certified(body.get_curve_geom(edge.curve))?.carrier() {
@@ -1219,7 +1220,15 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         requeue(&mut worklist, x, edge_key, w, j)?;
                     }
                     FaceContainment::OnVertex(vy) => {
-                        let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
+                        let w = split_logged(
+                            x,
+                            x_is,
+                            edge_key,
+                            t,
+                            Some(y.resolve_vertex_point(vy, crate::live::Proven)),
+                            tol,
+                            contacts,
+                        )?;
                         push_vv(contacts, x_is, w, vy);
                         requeue(&mut worklist, x, edge_key, w, j)?;
                     }
@@ -1409,7 +1418,15 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                     break 'faces;
                                 }
                                 FaceContainment::OnVertex(vy) => {
-                                    let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
+                                    let w = split_logged(
+                                        x,
+                                        x_is,
+                                        edge_key,
+                                        t,
+                                        Some(y.resolve_vertex_point(vy, crate::live::Proven)),
+                                        tol,
+                                        contacts,
+                                    )?;
                                     push_vv(contacts, x_is, w, vy);
                                     requeue(&mut worklist, x, edge_key, w, j)?;
                                     break 'faces;
@@ -1492,7 +1509,15 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             break 'faces;
                         }
                         FaceContainment::OnVertex(vy) => {
-                            let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
+                            let w = split_logged(
+                                x,
+                                x_is,
+                                edge_key,
+                                t,
+                                Some(y.resolve_vertex_point(vy, crate::live::Proven)),
+                                tol,
+                                contacts,
+                            )?;
                             push_vv(contacts, x_is, w, vy);
                             requeue(&mut worklist, x, edge_key, w, j + 1)?;
                             break 'faces;
@@ -2421,14 +2446,14 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         //   its rulings, which answer `Constant`, and no line lies on a
         //   sphere or a torus. For a CIRCLE against a sphere: a circle
         //   lying on it is centred on its axis, answered `LiesOn`. For a
-        //   CIRCLE against a torus: a circle lying on it is either
-        //   coaxial (a rim or latitude circle, answered `LiesOn`) or has
-        //   `F ≡ 0`, whose pole no anchor can put definitely off the
-        //   torus (`Unsettled`). And its interior meets this face
-        //   nowhere: the edge meets the carrier only at its certified
-        //   roots, each root strictly inside the span was placed outside
-        //   the trim, and each root at an end is that end's own
-        //   incidence. So the ends decide, under the same rule as the
+        //   CIRCLE against a torus: a circle lying on it is coaxial (a
+        //   rim or latitude circle) or a meridian, both answered
+        //   `LiesOn`, or a Villarceau circle, whose `F ≡ 0` puts the
+        //   pole on the torus at every anchor (`Unsettled`). And its
+        //   interior meets this face nowhere: the edge meets the carrier
+        //   only at its certified roots, each root strictly inside the
+        //   span was placed outside the trim, and each root at an end is
+        //   that end's own incidence. So the ends decide, under the same rule as the
         //   mixed-sign arm ([`Placement::undeclared_no_interior`]).
         // - **`OffFace`**: every meeting of the span with the carrier, the
         //   ends' among them, lies off this face whether or not the edge
@@ -3385,10 +3410,10 @@ fn wall_crossing<T: Decide + Bounds>(
     // states; a cone face lies on one nappe, and a root definitely off
     // THAT nappe ([`geom_brep::cone_elevation`] asked about it) lies on
     // the other: the carrier is crossed, not here. A face whose corners
-    // do not decide its nappe (one reaching its apex) leaves the
-    // question to its trim; a corner station in the band escalates, as
-    // the trim's own reading would, and a face the sweep holds that does
-    // not resolve is the sweep's desync.
+    // do not decide its nappe (corners on both sides of its apex)
+    // leaves the question to its trim; a corner station in the band
+    // escalates, as the trim's own reading would, and a face the sweep
+    // holds that does not resolve is the sweep's desync.
     let nappe = match *surface {
         geom::Surface::Cone {
             apex,
@@ -3400,7 +3425,7 @@ fn wall_crossing<T: Decide + Bounds>(
             Err(ReplaceFaceError::NappeStraddles { .. }) => None,
             Err(ReplaceFaceError::Escalated { source }) => {
                 return Err(BooleanError::Escalated {
-                    decision: BooleanDecision::Containment,
+                    decision: BooleanDecision::CONTAINMENT_UNNAMED,
                     diag: source,
                 });
             }
@@ -3485,9 +3510,16 @@ fn wall_crossing<T: Decide + Bounds>(
             // still land in the face, so the loop continues.
             Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))) => crossed_elsewhere = true,
             Ok(CurvedPlacement::Trim(Some(at))) => return Ok(SpanVerdict::Pierce { t, p, at }),
-            Err(super::contain::ContainError::Escalated(diag)) => {
+            Err(super::contain::ContainError::Escalated {
+                decision,
+                escalation,
+                diag,
+            }) => {
                 return Err(BooleanError::Escalated {
-                    decision: BooleanDecision::Containment,
+                    decision: BooleanDecision::Containment {
+                        decision,
+                        escalation,
+                    },
                     diag,
                 });
             }
@@ -3964,8 +3996,15 @@ fn vertex_on_curved_face_at<T: Decide + crate::props::AtRestPolicy>(
 /// is carried whole with the face it read.
 pub(super) fn esc(e: ContainError, operand: Operand, face: FaceKey) -> BooleanError {
     match e {
-        ContainError::Escalated(diag) => BooleanError::Escalated {
-            decision: BooleanDecision::Containment,
+        ContainError::Escalated {
+            decision,
+            escalation,
+            diag,
+        } => BooleanError::Escalated {
+            decision: BooleanDecision::Containment {
+                decision,
+                escalation,
+            },
             diag,
         },
         ContainError::Uncrossable(cause) => {
@@ -4041,13 +4080,29 @@ fn split_at<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
     contacts: &mut ContactAcc,
 ) -> Result<VertexKey, BooleanError> {
-    let created = x
-        .split_edge(edge, t, tol)
-        .map_err(|source| BooleanError::CrossingInsertion {
-            operand: x_is,
-            edge,
-            source: source.from_driver(),
-        })?;
+    split_logged(x, x_is, edge, t, None, tol, contacts)
+}
+
+/// [`split_at`], the new vertex holding `at`'s bits where it is `Some`
+/// ([`Body::split_edge_onto`]).
+fn split_logged<T: Decide + crate::props::AtRestPolicy>(
+    x: &mut Body<T>,
+    x_is: Operand,
+    edge: EdgeKey,
+    t: T,
+    at: Option<Point3<T>>,
+    tol: Tol,
+    contacts: &mut ContactAcc,
+) -> Result<VertexKey, BooleanError> {
+    let created = match at {
+        None => x.split_edge(edge, t, tol),
+        Some(p) => x.split_edge_onto(edge, t, p, tol),
+    }
+    .map_err(|source| BooleanError::CrossingInsertion {
+        operand: x_is,
+        edge,
+        source: source.from_driver(),
+    })?;
     contacts.splits.push(super::EdgeSplit {
         operand: x_is,
         parent: edge,
@@ -4059,7 +4114,10 @@ fn split_at<T: Decide + crate::props::AtRestPolicy>(
 
 /// Splits the OTHER solid's boundary edge at the (already-computed)
 /// event point `p` — the both-edges-split lane that turns an edge-edge
-/// crossing into a v-v pair.
+/// crossing into a v-v pair. The new vertex holds `p`'s own bits, not
+/// its carrier's at the parameter read back from `p`, so the pair it
+/// joins (an existing vertex, or the piercing edge's split at `p`)
+/// reads one point whichever operand's point the merge keeps.
 ///
 /// Two carriers have an exact point parameter and both are taken:
 ///
@@ -4159,7 +4217,7 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
             operand: y_is,
             edge,
         })?;
-    split_at(y, y_is, edge, t, tol, contacts)
+    split_logged(y, y_is, edge, t, Some(p), tol, contacts)
 }
 
 /// Requeues both children of a just-split edge (parent keeps the
@@ -4971,7 +5029,7 @@ mod declaration_order_rows {
     /// neither reaches the declared-REST zip). Standing
     /// tilted UP, the union's residue crosses `vol(A) + vol(B)` and the
     /// volume backstop refuses it
-    /// (`work/reach/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`,
+    /// (`work/reachhold/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`,
     /// pinned in `topo/tests/door_backstop_settled_residue.rs`). Undeclared,
     /// the sector offers the class the senses make the pair; following
     /// the offer, the union builds at the volume box arithmetic gives,

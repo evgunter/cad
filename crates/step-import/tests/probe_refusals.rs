@@ -145,7 +145,7 @@ fn a_vertex_at_the_conic_centre_is_a_residual_refusal_not_a_finiteness_one() {
         "#23 = CARTESIAN_POINT('',(0.,0.,1.));",
     );
     match import_step(&m, &ImportOptions::default(), Tol::witness()) {
-        Err(StepImportError::Adoption { id, attempts }) => {
+        Err(StepImportError::Adoption { id, attempts, .. }) => {
             assert_eq!(id, 21, "the rim edge is the offender");
             assert!(!attempts.is_empty(), "an adoption refusal names its rungs");
             for a in &attempts {
