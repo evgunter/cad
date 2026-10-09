@@ -131,6 +131,9 @@ reading it keys the names it carries in by that id (DM4), as it does any
 read, with no walk to the family it indexes: `Union[xs]` and `Union[xs[0],
 …, xs[N−1]]` are two documents and name differently, one following `N`
 and the other fixed, and `Union[xs, xs[0]]` reads two variables (DM5).
+Typing `xs[0]` in a slot mints an unnamed definition, as typing a number
+mints a free variable; a member two readers share is a named definition,
+`third_bolt = bolts[2]`.
 Names pass through unchanged, as `Transform`'s do (`role.rs`): the member
 keeps its `Member { (i, …), of }` names, keyed by the index variables' ids
 and the integers. A name is scoped by the variable that holds its body

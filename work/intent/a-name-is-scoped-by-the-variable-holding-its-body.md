@@ -14,10 +14,13 @@ refs: [part-split-half-retires, operands-are-reads]
 
 The second unit of FORK-DM4 (`a-union-member-is-keyed-by-its-read`),
 after the read key lands. NAMES N1 ("the scope"): a name is scoped by the
-variable that holds its body, one name table per output variable. D10
-forces it: a placement over `[X, copy(X)]` defines two outputs whose rows
-are identical (a copy keeps its rows, N1), which one table per operation
-cannot hold, so this lands before that placement is built.
+variable that holds its body, one name table per output variable. Built
+evidence: the split's half segments and the pattern's `Instance { i }`
+segment exist only to keep one node's table distinct by restating the
+output. D10 text not yet built: `X'`, a copy of `X` placed against `X`,
+takes `X`'s root, and `Place [X, X']` defines two copies with identical
+tables (a copy keeps its rows, N1), which a per-node `NameTable` refuses
+as `DuplicateName`; so this lands before that placement is built.
 
 The work:
 

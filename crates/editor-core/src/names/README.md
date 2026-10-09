@@ -51,9 +51,12 @@ a name which output holds the entity, so a split's roles carry no half
 (`SplitBody`, `SectionFace`, `SectionEdge`, `SplitFragment`,
 `CrossingVertex`): the variable says it, through the read that carries the
 entity on (`From { read: split.above, of }`) or the body a selection
-states. D10 forces this: a placement over `[X, copy(X)]` defines two
-outputs whose rows are identical (a copy keeps its rows), which one table
-per operation cannot hold.
+states. The per-node table compensates today by restating the output:
+the split's half and the pattern's `Instance { i }` segment exist only to
+keep one node's table distinct. D10 makes the compensation fail: `X'` is a
+copy of `X` placed against `X`, so it takes `X`'s root, and `Place [X, X']`
+defines two copies whose tables are identical (a copy keeps its rows),
+which one table per operation refuses as `DuplicateName`.
 
 **N1, the revolve poles.** `Pole(v)` names the ONE body vertex an on-axis
 profile vertex revolves to, looked up in the sweep's `poles` export.

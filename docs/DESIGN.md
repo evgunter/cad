@@ -1249,7 +1249,9 @@ frame the definition reads, by a construction over other poses, as a
 pose of a copy, or as an output of an operation, so no pose is free,
 none is defined from nothing, and no construction reads one; the shapes
 (`Body`, `Bodies`, an ordered list of bodies whose length is a `Count`,
-and `Profile`), which only an operation defines, a `Profile` being 2-D
+and `Profile`), which only an operation or a member read defines (`xs[i]`,
+a definition reading a family at one `Count` per index, REFERENCES DM3),
+a `Profile` being 2-D
 shape whose numbers are read only against each other, and a sweep
 reading a profile and, at most, a direction in the profile's own axes
 (an extrude's slant, held to one side of the profile's plane) or a 2-D
