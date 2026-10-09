@@ -416,13 +416,15 @@ fn two_trimmed_spheres_build() {
 
 /// The trimmed unit ball's face is cut along its meridian through a
 /// circle passing `δ` from its pole, the meridian's boundary hit there
-/// ordered against the circle's crossing by the arc between them. At
-/// `δ = 10⁻⁷` the arc's pcurve beside the pole refuses certification by
-/// name. The distances are band-relative (at `ε = 10⁻⁶` the `10⁻⁵`
-/// circle's crossings read the meridian's half in the escalation gap),
-/// so the other ε rows stand down.
+/// ordered against the circle's crossing by the arc between them. Every
+/// `δ` builds, `10⁻⁷` included: the arc's pcurve beside the pole is the
+/// projected image (C4), whose sector pieces refine toward the pole and
+/// certify while the arc stays clear of it, and every op's volume holds.
+/// The distances are band-relative (at `ε = 10⁻⁶` the `10⁻⁵` circle's
+/// crossings read the meridian's half in the escalation gap), so the
+/// other ε rows stand down.
 #[test]
-fn a_trimmed_face_cut_beside_its_pole_builds_or_refuses_by_name() {
+fn a_trimmed_face_cut_beside_its_pole_builds() {
     if Tol::witness().get().eps != 1e-9 {
         test_utils::vacuity::stood_down(
             "non-default eps",
@@ -438,23 +440,7 @@ fn a_trimmed_face_cut_beside_its_pole_builds_or_refuses_by_name() {
     ));
     let r = 0.01f64;
     let theta = (1.0 - r * r / 2.0).acos();
-    let near_pole = |e: &BooleanError| {
-        let certify = |s: &topo::PcurveMintError| {
-            matches!(
-                s,
-                topo::PcurveMintError::Certify {
-                    error: geom_brep::PcurveCertifyError::ArcNearPole,
-                    ..
-                }
-            )
-        };
-        match e {
-            BooleanError::Pcurves { source } => certify(source),
-            BooleanError::Merge(topo::MergeCoplanarError::Pcurve { source }) => certify(source),
-            _ => false,
-        }
-    };
-    for (delta, want) in [(1e-3, Tilted), (1e-5, Tilted), (1e-7, Refuses(near_pole))] {
+    for delta in [1e-3, 1e-5, 1e-7] {
         let a = theta + delta;
         let small = toward(r, 1.0, Vec3::new(0.0, a.cos(), a.sin()), 0.0);
         assert_six(
@@ -466,7 +452,7 @@ fn a_trimmed_face_cut_beside_its_pole_builds_or_refuses_by_name() {
                 ball_volume(r),
                 lens(1.0, r, 1.0),
             ),
-            [want; 6],
+            [Tilted; 6],
         );
     }
 }

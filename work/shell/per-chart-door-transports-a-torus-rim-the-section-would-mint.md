@@ -2,8 +2,10 @@
 id: per-chart-door-transports-a-torus-rim-the-section-would-mint
 kind: issue
 title: the per-chart door transports a plane×torus rim the C5 pose gate now serves, so an off-axis torus cap refuses at the re-anchor rather than at the pose
-status: open
+status: closed
 opened: 2026-10-06
+pr: 4351
+closed: 2026-10-08
 ---
 
 
@@ -41,3 +43,10 @@ Either the per-chart door's carrier for a curved-wall × plane rim comes
 from the section, as the axial door's does (`offset_axial.rs`,
 `mint_carrier`'s wall-and-cap arm), or its neighbour gate refuses, by
 name, a pose whose section changes the carrier's kind.
+
+## Closed
+
+PR #4351. The per-chart door now sections an edge between the moved
+cap and a held torus (the spiric, `plane_torus_section`) rather than
+transporting it; the klein elbow's cap offset refuses later, on a seam's
+sketch-arc record (`offd2_r1_probes::probe_late_err_leaves_body_untouched`).

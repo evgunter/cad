@@ -75,7 +75,7 @@ use super::plane_eq::PlaneEqError;
 use super::reduce::face_plane;
 use std::collections::BTreeMap;
 
-use super::sectors::{BoolSector, build_sectors, side_code};
+use super::sectors::{BoolSector, PierceLever, build_sectors, side_code};
 use super::tables::{eq15_3_lump, lump_keeps_one};
 use super::{
     BoolNullEdgeRecord, BooleanError, BooleanOp, ContactRecords, NullEdgePairRecord, Operand,
@@ -139,7 +139,7 @@ pub(super) fn pierced_and_paired(
 #[derive(Clone, Copy, Debug)]
 pub(super) struct PierceDatum<T: geom_core::Real> {
     pub normal: OutwardNormal<T>,
-    pub lever: T,
+    pub lever: PierceLever<T>,
 }
 
 /// **The side of a pierced face a paired vertex's link lies on**, where
@@ -172,7 +172,8 @@ pub(super) fn partner_side<T: Decide>(
     for s in partner {
         let mut on = 0;
         for (dir, reach) in [(s.start, s.start_reach), (s.end, s.end_reach)] {
-            match side_code(dir, reach, datum.normal, datum.lever, band)? {
+            let lever = datum.lever.within(reach.length());
+            match side_code(dir, reach, datum.normal, lever, band)? {
                 SideCode::On => on += 1,
                 c if side.is_none_or(|k| k == c) => side = Some(c),
                 _ => return Ok(None),
@@ -473,8 +474,8 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     let n_pierced =
         match crate::face_normal::face_outward_normal_at(pierced_body, contact.face, p, band) {
             Ok(Some(n)) => n,
-            // Cone / NURBS pierced faces: the C5 typed refusal, naming
-            // the kind that has no arm.
+            // NURBS / `Approx` pierced faces: the C5 typed refusal,
+            // naming the kind that has no arm.
             Ok(None) => {
                 return Err(BooleanError::CurvedBooleanUnsupported {
                     operand: pierced_op,
@@ -490,12 +491,14 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 ));
             }
         };
-    // The pierced face's smallest radius of curvature — the lever the
-    // sector side verdicts charge their sagitta against (`side_code`'s
-    // argument), so it must bound the tightest bend, not the chart's
-    // scale: on a fat torus those differ. A plane reports `f64::MAX`, so
-    // its charge is vacuous and the planar lane's verdicts are unmoved.
-    let pierced_lever = geom_brep::min_radius_of_curvature(pierced_surface, p);
+    // The pierced face's smallest radius of curvature within each
+    // bound's reach — the lever the sector side verdicts charge their
+    // sagitta against (`side_code`'s argument), so it must bound the
+    // tightest bend, not the chart's scale: on a fat torus those differ,
+    // and on a cone the bend tightens toward the axis. A plane reports
+    // `f64::MAX`, so its charge is vacuous and the planar lane's
+    // verdicts are unmoved.
+    let pierced_lever = PierceLever::of(pierced_surface, p);
     let sectors = build_sectors(piercing_body, piercing, vertex, band)?;
     let n = sectors.len();
 
@@ -511,7 +514,13 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         entries.push(Entry {
             he: s.he,
             is_edge: s.end_edge(),
-            class: side_code(s.end, s.end_reach, n_pierced, pierced_lever, band)?,
+            class: side_code(
+                s.end,
+                s.end_reach,
+                n_pierced,
+                pierced_lever.within(s.end_reach.length()),
+                band,
+            )?,
             lumped: false,
         });
     }
@@ -1768,7 +1777,7 @@ mod tests {
     /// whose side the face's bend leaves undecided, escalates.
     #[test]
     fn a_partners_side_of_a_face_is_read_off_its_bounds() {
-        use super::super::sectors::{BoolSector, NO_CURVATURE, Reach};
+        use super::super::sectors::{BoolSector, NO_CURVATURE, PierceLever, Reach};
         use geom_brep::OutwardNormal;
         use geom_core::{Point3, Vec3};
         let band = Band::linear(Tol::witness()).unwrap();
@@ -1801,7 +1810,7 @@ mod tests {
         };
         let plane = PierceDatum {
             normal,
-            lever: NO_CURVATURE(),
+            lever: PierceLever::Everywhere(NO_CURVATURE()),
         };
         let read = |rays: &[[f64; 3]], datum, flush| {
             partner_side(&cone(rays), datum, flush, band).map(|r| r.map(|r| (r.side, r.along)))
@@ -1877,7 +1886,10 @@ mod tests {
             Some((Out, false)),
             "on a plane"
         );
-        let bent = PierceDatum { normal, lever: 1.0 };
+        let bent = PierceDatum {
+            normal,
+            lever: PierceLever::Everywhere(1.0),
+        };
         assert!(
             read(&rays, bent, false).is_err(),
             "on a face bent at a unit radius"

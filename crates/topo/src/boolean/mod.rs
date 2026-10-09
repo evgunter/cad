@@ -78,6 +78,8 @@ mod carrier_touch;
 mod circle_roots;
 mod circle_torus;
 pub(crate) mod combine;
+#[cfg(test)]
+mod cone_frame_rows;
 mod conic_quadric;
 pub mod contact_verify;
 // The conic rows' shared test oracles (test builds only).
@@ -98,12 +100,12 @@ pub(crate) mod insert;
 mod join;
 mod ops;
 pub(crate) mod section_cert;
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) use ops::no_crossings_certificates;
 pub(crate) use ops::volume_backstop;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use ops::{ChartCache, section_report};
 pub(crate) use ops::{boundary_edges, describe_edges};
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) use ops::{no_crossings_certificates, no_crossings_section_report};
 pub mod plane_eq;
 #[cfg(test)]
 mod r2_probes;
@@ -249,7 +251,10 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         separating::PAIR_GAP => {
             "how far apart two faces lie along a direction that turns with them"
         }
-        "bool_pierce_normal_on_chart" => BooleanDecision::PierceOnFace.subject(),
+        "bool_pierce_normal_on_chart" | "bool_pierce_normal_on_cone" => {
+            BooleanDecision::PierceOnFace.subject()
+        }
+        "bool_cone_off_axis" => "whether a point of a cone face stands clear of the cone's apex",
         // `geom`'s torus convention, which the pierce point's normal
         // reads before it differentiates the torus.
         "torus_tube_positive" => TorusConvention::Tube.subject(),
@@ -1970,6 +1975,22 @@ pub enum BooleanError {
         /// The band the apex distance was classified against.
         band: Band,
     },
+    /// A vertex the boolean classifies sits within the band of the APEX
+    /// of a cone face of `operand`: the cone's own apex vertex as the
+    /// corner of one of its sectors, or another operand's vertex landing
+    /// on the cone there. The face has no tangent plane at its apex, so
+    /// there is no normal to read a material side by, and the sector and
+    /// pierce lanes refuse rather than read one. The definite half: an
+    /// in-band distance off the axis refuses the same way, with no
+    /// tolerance named.
+    NormalAtConeApex {
+        /// The operand the cone face belongs to.
+        operand: Operand,
+        /// The cone face.
+        face: FaceKey,
+        /// The band the distance off the axis was classified against.
+        band: Band,
+    },
     /// The operand gate (F5) refused a spiric or spline (`Nurbs`)
     /// carrier in an INPUT operand: no crossing lane reads either kind,
     /// and the join and section lanes behind the sweep have no row for
@@ -2656,6 +2677,26 @@ pub enum BooleanError {
         /// Its kind — the B half of the germ pair.
         b_kind: geom::SurfaceKind,
     },
+    /// **A germ pair whose section is a conic outside the inventory by
+    /// decision**: a plane cutting a cone face in a parabola (parallel to
+    /// a generator) or a hyperbola (meeting both nappes). Neither curve is
+    /// in the conic inventory (`geom_brep`'s C1/C5, ruling R1), so the
+    /// pair is refused, not missing an arm: `section` is the table's own
+    /// refusal, naming the conic.
+    GermSectionOutsideInventory {
+        /// The A-side germ face.
+        a_face: FaceKey,
+        /// Its kind.
+        a_kind: geom::SurfaceKind,
+        /// The B-side germ face.
+        b_face: FaceKey,
+        /// Its kind.
+        b_kind: geom::SurfaceKind,
+        /// The conic.
+        conic: geom_brep::OutsideConic,
+        /// The section table's refusal, naming the conic.
+        section: geom_brep::SectionError,
+    },
     /// **A germ pair of two cylinder walls whose axes definitely
     /// INTERSECT** — the frame dispatch's named sub-case of "no
     /// frame", and the door the intersecting equal-radius family
@@ -2961,6 +3002,8 @@ pub enum BooleanErrorKind {
     CurvedPierceUnsupported,
     /// [`BooleanError::CrossingAtConeApex`].
     CrossingAtConeApex,
+    /// [`BooleanError::NormalAtConeApex`].
+    NormalAtConeApex,
     /// [`BooleanError::CurvedEdgeUnsupported`].
     CurvedEdgeUnsupported,
     /// [`BooleanError::CrossingCarrierUnsupported`].
@@ -3033,6 +3076,8 @@ pub enum BooleanErrorKind {
     SpheresMeet,
     /// [`BooleanError::GermFrameUnsupported`].
     GermFrameUnsupported,
+    /// [`BooleanError::GermSectionOutsideInventory`].
+    GermSectionOutsideInventory,
     /// [`BooleanError::GermFrameCylinderPinch`].
     GermFrameCylinderPinch,
     /// [`BooleanError::Euler`].
@@ -3192,6 +3237,11 @@ impl BooleanError {
             NormalAtError::OffSurface => Self::ClassificationInvariant {
                 what: "pierce point definitely off the pierced face's surface",
             },
+            NormalAtError::AtConeApex { band } => Self::NormalAtConeApex {
+                operand,
+                face,
+                band,
+            },
         }
     }
 
@@ -3210,6 +3260,7 @@ impl BooleanError {
             }
             Self::CurvedPierceUnsupported { .. } => BooleanErrorKind::CurvedPierceUnsupported,
             Self::CrossingAtConeApex { .. } => BooleanErrorKind::CrossingAtConeApex,
+            Self::NormalAtConeApex { .. } => BooleanErrorKind::NormalAtConeApex,
             Self::CurvedEdgeUnsupported { .. } => BooleanErrorKind::CurvedEdgeUnsupported,
             Self::CrossingCarrierUnsupported { .. } => BooleanErrorKind::CrossingCarrierUnsupported,
             Self::PointSplitCarrierUnsupported { .. } => {
@@ -3252,6 +3303,9 @@ impl BooleanError {
             Self::FallbackExtentUnsupported { .. } => BooleanErrorKind::FallbackExtentUnsupported,
             Self::SpheresMeet { .. } => BooleanErrorKind::SpheresMeet,
             Self::GermFrameUnsupported { .. } => BooleanErrorKind::GermFrameUnsupported,
+            Self::GermSectionOutsideInventory { .. } => {
+                BooleanErrorKind::GermSectionOutsideInventory
+            }
             Self::GermFrameCylinderPinch { .. } => BooleanErrorKind::GermFrameCylinderPinch,
             Self::Euler(_) => BooleanErrorKind::Euler,
             Self::Pcurves { .. } => BooleanErrorKind::Pcurves,
@@ -3384,6 +3438,13 @@ impl core::fmt::Display for BooleanError {
                 "an edge of the {} operand meets a cone face of the other operand at \
                  the cone's tip, where the face has no direction to cross it by. \
                  Recourse: move the parts so the edge clearly passes the tip",
+                operand_word(*operand),
+            ),
+            Self::NormalAtConeApex { operand, .. } => write!(
+                f,
+                "a corner of one part sits at the tip of a cone face of the {} operand, \
+                 where the face has no direction to read the other part's side by. \
+                 Recourse: move the parts so nothing meets the cone's tip",
                 operand_word(*operand),
             ),
             Self::CurvedSectorSideUnsupported { verdict } => write!(
@@ -3577,6 +3638,17 @@ impl core::fmt::Display for BooleanError {
                 kind_word(*a_kind),
                 kind_word(*b_kind),
                 meeting_recourse(kind_word(*a_kind)),
+            ),
+            Self::GermSectionOutsideInventory { conic, .. } => write!(
+                f,
+                "a flat face of one part cuts a cone face of the other along a curve \
+                 that never closes ({}), which the Boolean does not build. Recourse: \
+                 tilt the parts so the flat face cuts the cone all the way round, or \
+                 keep it clear of the cone face",
+                match conic {
+                    geom_brep::OutsideConic::Parabola => "a parabola",
+                    geom_brep::OutsideConic::Hyperbola => "a hyperbola",
+                },
             ),
             // True for BOTH radius cases: the raise site refuses on the
             // axis relation alone when no radius evidence exists, so the
@@ -4058,6 +4130,7 @@ pub fn boolean_reduce_declared<T: Decide + Bounds + crate::props::AtRestPolicy>(
         b_operand,
         decls,
         SweepStrategy::Realized,
+        reduce::boolean_arm_exists,
         tol,
     )
 }
@@ -4181,6 +4254,18 @@ pub fn sweep_split_admitting_cones(
     b_operand: &Body<f64>,
     tol: Tol,
 ) -> Result<(Body<f64>, Body<f64>, SweepTrace, SweepTrace), BooleanError> {
+    let (a, b, ab, ba, _) = sweep_admitting_cones(a_operand, b_operand, tol)?;
+    Ok((a, b, ab, ba))
+}
+
+/// [`sweep_split_admitting_cones`], with the contacts the sweep recorded.
+#[cfg(feature = "sweep-testing")]
+#[allow(clippy::type_complexity)] // the split operands, their traces, the contacts
+fn sweep_admitting_cones(
+    a_operand: &Body<f64>,
+    b_operand: &Body<f64>,
+    tol: Tol,
+) -> Result<(Body<f64>, Body<f64>, SweepTrace, SweepTrace, ContactRecords), BooleanError> {
     let band = Band::linear(tol)?;
     let declared = DeclaredPairs::default();
     reduce::gate_operand_pairs(a_operand, b_operand, &declared, band, |s| {
@@ -4204,7 +4289,102 @@ pub fn sweep_split_admitting_cones(
         [Some(&mut ab), Some(&mut ba)],
         tol,
     )?;
-    Ok((a, b, ab, ba))
+    Ok((a, b, ab, ba, acc.finish()))
+}
+
+/// **The section certificate on the crossings path past the cone
+/// refusal**: the sweep of [`sweep_split_admitting_cones`], its contacts
+/// read into face-pair events by the reduction's own reading
+/// (`ops::contact_face_pairs`, before any null edge exists), and every
+/// in-scope pair of `a` × `b` certified with them, as
+/// `(A face, B face, outcome)` spelled by `Debug`. The crossings path's
+/// certificate on a cone pair, until the roster admits the cone;
+/// `sweep-testing` only.
+///
+/// # Errors
+///
+/// The sweep's refusals, and the certificate's own
+/// ([`ops::section_pairs`]).
+#[cfg(feature = "sweep-testing")]
+pub fn section_report_admitting_cones(
+    a: &Body<f64>,
+    b: &Body<f64>,
+    tol: Tol,
+) -> Result<Vec<(FaceKey, FaceKey, String)>, BooleanError> {
+    let (sa, sb, _, _, contacts) = sweep_admitting_cones(a, b, tol)?;
+    let events = ops::contact_face_pairs(&sa, &sb, &contacts, &[]);
+    Ok(ops::section_pairs(
+        a,
+        b,
+        Band::linear(tol)?,
+        ops::SectionPath::Crossings,
+        ops::Exempt::Nothing,
+        |fa, fb| events.contains(&(fa, fb)),
+        false,
+    )?
+    .into_iter()
+    .map(|p| (p.a_face, p.b_face, format!("{:?}", p.verdict)))
+    .collect())
+}
+
+/// **The pipeline through its join with `Cone` on the operand gate's
+/// roster**: the production sequence (`ops::through_the_join`) stopped
+/// after the join, as [`sweep_split_admitting_cones`] stops after the
+/// sweep, so the cone's join arms are read on whole poses while the
+/// public gate still refuses the cone. `None` where the pipeline answers
+/// without a join. Undeclared and realized; `sweep-testing` only.
+///
+/// # Errors
+///
+/// The pipeline's refusal on the way through its join.
+#[cfg(feature = "sweep-testing")]
+pub fn join_admitting_cones(
+    op: BooleanOp,
+    a_operand: &Body<f64>,
+    b_operand: &Body<f64>,
+    tol: Tol,
+) -> Result<Option<ConeJoin>, BooleanError> {
+    fn roster(s: &geom::Surface<f64>) -> bool {
+        reduce::boolean_arm_exists(s) || matches!(s, geom::Surface::Cone { .. })
+    }
+    Ok(
+        match ops::through_the_join(
+            op,
+            a_operand,
+            b_operand,
+            &BooleanDeclarations::none(),
+            ops::JoinSweep {
+                strategy: SweepStrategy::Realized,
+                roster,
+            },
+            true,
+            tol,
+        )? {
+            ops::Joined::Answered(_) => None,
+            ops::Joined::Connected {
+                red,
+                interior_loops,
+                ..
+            } => Some(ConeJoin {
+                a: red.a,
+                b: red.b,
+                interior_loops,
+            }),
+        },
+    )
+}
+
+/// [`join_admitting_cones`]' product.
+#[cfg(feature = "sweep-testing")]
+#[derive(Debug)]
+pub struct ConeJoin {
+    /// The A operand as the join leaves it.
+    pub a: Body<f64>,
+    /// The B operand as the join leaves it.
+    pub b: Body<f64>,
+    /// The interior-loop guard's verdict, which the pipeline raises on
+    /// the built body and this door does not.
+    pub interior_loops: Result<(), BooleanError>,
 }
 
 /// **The sweep's contact records and the split operands' sizes** under
@@ -4286,7 +4466,10 @@ pub(crate) fn through_the_join(
             a,
             b,
             &BooleanDeclarations::none(),
-            SweepStrategy::Realized,
+            ops::JoinSweep {
+                strategy: SweepStrategy::Realized,
+                roster: reduce::boolean_arm_exists,
+            },
             true,
             tol,
         )? {
@@ -4332,7 +4515,15 @@ pub(crate) fn join_refusal(
     tol: Tol,
 ) -> Result<Option<BooleanError>, BooleanError> {
     let band = Band::linear(tol)?;
-    let mut red = boolean_reduce_declared_strategy(op, a, b, decls, SweepStrategy::Realized, tol)?;
+    let mut red = boolean_reduce_declared_strategy(
+        op,
+        a,
+        b,
+        decls,
+        SweepStrategy::Realized,
+        reduce::boolean_arm_exists,
+        tol,
+    )?;
     if red.null_pairs.is_empty() {
         return Ok(None);
     }
@@ -4370,12 +4561,17 @@ pub type SegmentSites = (usize, Vec<[Point3<f64>; 2]>);
 /// the idealized/realized door (PERF-PLAN §4.4): production always
 /// runs `Realized`; the differential suite runs both and pins
 /// bit-equality. Reached via [`boolean_op_with`] for full ops.
+///
+/// `roster` is the operand gate's face-kind roster: production reads
+/// [`reduce::boolean_arm_exists`], and a test door admits a kind whose
+/// arms are landing below the gate (`join_admitting_cones`).
 pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a_operand: &Body<T>,
     b_operand: &Body<T>,
     decls: &BooleanDeclarations,
     strategy: SweepStrategy,
+    roster: fn(&geom::Surface<T>) -> bool,
     tol: Tol,
 ) -> Result<BooleanReduction<T>, BooleanError> {
     let band = Band::linear(tol)?;
@@ -4389,13 +4585,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         });
     }
     let declared = DeclaredPairs::build(decls, verified, a_operand, b_operand, band)?;
-    reduce::gate_operand_pairs(
-        a_operand,
-        b_operand,
-        &declared,
-        band,
-        reduce::boolean_arm_exists,
-    )?;
+    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band, roster)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
     // The scan is `Decide`-only; its boxes are built here, at the
@@ -6533,6 +6723,11 @@ mod tests {
                 edge,
                 band,
             },
+            BooleanError::NormalAtConeApex {
+                operand: Operand::A,
+                face,
+                band,
+            },
             BooleanError::CurvedEdgeUnsupported {
                 operand: Operand::B,
                 edge,
@@ -6703,6 +6898,17 @@ mod tests {
                 b_face: face,
                 b_kind: geom::SurfaceKind::Torus,
             },
+            BooleanError::GermSectionOutsideInventory {
+                a_face: face,
+                a_kind: geom::SurfaceKind::Plane,
+                b_face: face,
+                b_kind: geom::SurfaceKind::Cone,
+                conic: geom_brep::OutsideConic::Hyperbola,
+                section: geom_brep::SectionError::RoutesToGeneralRung {
+                    pair: "plane×cone",
+                    why: "a hyperbola",
+                },
+            },
             BooleanError::GermFrameCylinderPinch {
                 a_face: face,
                 b_face: face,
@@ -6799,6 +7005,7 @@ mod tests {
                 BooleanErrorKind::CurvedSectorSideUnsupported => "CurvedSectorSideUnsupported",
                 BooleanErrorKind::CurvedPierceUnsupported => "CurvedPierceUnsupported",
                 BooleanErrorKind::CrossingAtConeApex => "CrossingAtConeApex",
+                BooleanErrorKind::NormalAtConeApex => "NormalAtConeApex",
                 BooleanErrorKind::CurvedEdgeUnsupported => "CurvedEdgeUnsupported",
                 BooleanErrorKind::CrossingCarrierUnsupported => "CrossingCarrierUnsupported",
                 BooleanErrorKind::PointSplitCarrierUnsupported => "PointSplitCarrierUnsupported",
@@ -6835,6 +7042,7 @@ mod tests {
                 BooleanErrorKind::FallbackExtentUnsupported => "FallbackExtentUnsupported",
                 BooleanErrorKind::SpheresMeet => "SpheresMeet",
                 BooleanErrorKind::GermFrameUnsupported => "GermFrameUnsupported",
+                BooleanErrorKind::GermSectionOutsideInventory => "GermSectionOutsideInventory",
                 BooleanErrorKind::GermFrameCylinderPinch => "GermFrameCylinderPinch",
                 BooleanErrorKind::Euler => "Euler",
                 BooleanErrorKind::Pcurves => "Pcurves",

@@ -31,12 +31,11 @@ on lily wall 7's carve (`demos/tour/src/lily.rs`,
 cites `require_iso_rectangle` and refuses (`mesh/src/curved.rs`,
 `require_iso_rectangle_face`); the trimmed lane
 (`mesh/src/trimmed.rs`) has no sphere arm ("conic trims on
-cone/sphere/torus charts refuse typed naming that frontier"). The
-closed-form chart door has no image for a tilted circle on a sphere
-(`UncoveredClass::SphereGeneralCircle` in `geom_brep::pcurve_cache`);
-the pcurve mint routes it through the fitted lane, and a fitted image
-"still refuses typed on every chart" in the trimmed lane (its doc), for
-want of a certified UV chord-step bound.
+cone/sphere/torus charts refuse typed naming that frontier"). A tilted
+circle on a sphere stores its projected image (`Pcurve::Projected`,
+`pcert/projected-image`), which the trimmed lane's chord pass reads
+exactly. The face still refuses, at the trimmed lane's chart roster,
+which has no sphere arm.
 
 ## What a fix owes
 

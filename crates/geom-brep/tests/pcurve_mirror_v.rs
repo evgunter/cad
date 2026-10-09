@@ -152,7 +152,30 @@ fn kinds() -> Vec<(&'static str, Pcurve<f64>, f64, f64)> {
             -0.4,
             0.9,
         ),
+        ("Projected", projected_on_plane(), 0.0, 1.0),
     ]
+}
+
+/// A spline's projected image on a plane chart: its mapped net.
+fn projected_on_plane() -> Pcurve<f64> {
+    let carrier = Curve3::Nurbs(Arc::new(
+        geom::NurbsCurve3::new(
+            kv(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2),
+            vec![
+                Point3::new(0.1, -0.2, 0.0),
+                Point3::new(0.7, 0.9, 0.0),
+                Point3::new(1.3, 0.2, 0.0),
+            ],
+            vec![1.0, 0.6, 1.0],
+        )
+        .unwrap(),
+    ));
+    let plane = Surface::Plane {
+        origin: Point3::new(0.05, 0.1, 0.0),
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    geom_brep::chart_pcurve(&carrier, &plane, Band::linear(Tol::witness()).unwrap()).unwrap()
 }
 
 /// Which kinds have a reflected locus at all: every one but a spiric
@@ -174,7 +197,7 @@ fn reflects(p: &Pcurve<f64>) -> bool {
 /// the hand-written `kinds()` above could not be on its own.
 #[test]
 fn every_variant_appears_in_the_kinds_census() {
-    let mut seen = [false; 7];
+    let mut seen = [false; 8];
     for (_, p, _, _) in kinds() {
         let slot = match p {
             Pcurve::Harmonic { .. } => 0,
@@ -184,6 +207,7 @@ fn every_variant_appears_in_the_kinds_census() {
             Pcurve::IsoArc { .. } => 4,
             Pcurve::Spiric { .. } => 5,
             Pcurve::FocalSection(_) => 6,
+            Pcurve::Projected(_) => 7,
         };
         seen[slot] = true;
     }

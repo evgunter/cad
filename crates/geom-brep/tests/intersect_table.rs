@@ -775,6 +775,67 @@ fn plane_cone_parabola_and_hyperbola_refuse_naming_the_conic() {
     assert_eq!(diag.predicate, Some("pn_conic_type"));
 }
 
+/// **A plane's classification does not depend on where its origin
+/// sits.** A plane along the cone's axis, 0.03 off the apex, cuts a
+/// hyperbola wherever the point the plane stores as its origin lies on
+/// it, and refuses naming that conic. Stored level with the apex, the
+/// would-be circle's radius read off that point's axial height is zero,
+/// and a zero lever decided the axis-normal sine Zero: a radius-0
+/// "circle" at the apex, whose zero tangent poisoned the join's chord
+/// orientation downstream (the thin brick past a full cone's apex).
+#[test]
+fn a_plane_along_the_axis_is_a_hyperbola_wherever_its_origin_sits() {
+    let cone = cone_z(core::f64::consts::FRAC_PI_4);
+    for origin in [
+        Point3::new(-0.03, 0.0, 1.0),
+        Point3::new(-0.03, 0.4, 1.0),
+        Point3::new(-0.03, 0.0, 0.0),
+        Point3::new(-0.03, -2.0, 3.5),
+    ] {
+        let plane = Surface::Plane {
+            origin,
+            normal: -Vec3::unit_x(),
+            u_ref: Vec3::unit_y(),
+        };
+        let got = plane_cone_section(&plane, &cone, 1.0, band());
+        let Err(SectionError::RoutesToGeneralRung { why, .. }) = got else {
+            panic!("origin {origin:?}: expected the hyperbola's refusal, got {got:?}");
+        };
+        assert!(why.contains("HYPERBOLA"), "origin {origin:?}: {why}");
+    }
+}
+
+/// **A needle cone's plane along the axis, just definitely off the
+/// apex, is a hyperbola too.** At α = 0.05 and a gap of 1.01 escalations
+/// the would-be circle's radius is so small that the tilt sine levered
+/// at it alone lands in the zero band, and the plane came back as an
+/// axis-normal circle: radius 0 at the apex with the origin level with
+/// it, and a radius-0.05 circle a metre up the axis with the origin
+/// there. The sine is levered at the extent as well, which the plane
+/// along the axis clears wherever its origin sits.
+#[test]
+fn a_needle_cones_plane_along_the_axis_just_off_the_apex_is_a_hyperbola() {
+    let cone = cone_z(0.05);
+    let gap = 1.01 * band().escalate();
+    let wrong: Vec<String> = [1.0, 2.0]
+        .into_iter()
+        .filter_map(|z| {
+            let plane = Surface::Plane {
+                origin: Point3::new(gap, 0.0, z),
+                normal: Vec3::unit_x(),
+                u_ref: Vec3::unit_y(),
+            };
+            match plane_cone_section(&plane, &cone, 1.0, band()) {
+                Err(SectionError::RoutesToGeneralRung { why, .. }) if why.contains("HYPERBOLA") => {
+                    None
+                }
+                got => Some(format!("origin at z = {z}: {got:?}")),
+            }
+        })
+        .collect();
+    assert!(wrong.is_empty(), "not the hyperbola's refusal: {wrong:#?}");
+}
+
 // ---------------------------------------------------------------------
 // cylinder × sphere, DECLARED coaxial
 // ---------------------------------------------------------------------
