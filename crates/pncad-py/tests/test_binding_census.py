@@ -2300,6 +2300,10 @@ NOT_BOUND = {
     # The free-or-defined half of `VarDef`, which a declaration writes:
     # Python declares through `VarDecl`.
     "WrittenDef": SHAPE,
+    # An entry of an edit's fresh table: Python writes a formula's
+    # quantities at the slot and mints no table, and a variable two
+    # slots share is a `Var` it names first (`DocEdit.rename_var`).
+    "FreshEntry": SHAPE,
     "Uncarried": SHAPE,
     "Affine3": SHAPE,
     "Applied": SHAPE,
