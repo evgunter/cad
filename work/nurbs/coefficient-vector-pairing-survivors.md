@@ -5,7 +5,7 @@ title: The loose (knot vector, coefficient array) shape survives outside hull: e
 status: open
 opened: 2026-09-05
 priority: P1
-cost: D
+cost: H
 ---
 
 
