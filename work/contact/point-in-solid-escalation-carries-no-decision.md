@@ -4,6 +4,8 @@ kind: issue
 title: topo: PointInSolidError::Escalated carries no decision, and its refusals end in the coincidence menu with no declaration door
 status: open
 opened: 2026-09-29
+priority: P2
+cost: H
 ---
 
 

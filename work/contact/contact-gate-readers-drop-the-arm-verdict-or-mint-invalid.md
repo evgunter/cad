@@ -4,6 +4,8 @@ kind: issue
 title: topo: census's dihedral read drops the arm's rung and verdict, and contact_verify mints its gate refusals as Invalid
 status: open
 opened: 2026-09-29
+priority: P3
+cost: M
 ---
 
 ## What

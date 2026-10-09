@@ -5,6 +5,7 @@ title: A straight crossing is decided twice, by the edge-on-face cut's side rows
 status: open
 opened: 2026-10-08
 priority: P3
+cost: M
 ---
 
 

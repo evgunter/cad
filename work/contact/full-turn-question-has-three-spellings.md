@@ -4,6 +4,8 @@ kind: issue
 title: topo/geom-brep: the arc's gap to a full turn is asked under four spellings (LoopDecision::ArcSpan, WindowPeriod, certify ParamWinding, BooleanDecision::ArcSpan)
 status: open
 opened: 2026-09-29
+priority: P4
+cost: E
 ---
 
 

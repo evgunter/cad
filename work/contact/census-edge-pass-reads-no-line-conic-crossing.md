@@ -2,8 +2,11 @@
 id: census-edge-pass-reads-no-line-conic-crossing
 kind: issue
 title: The census's edge passes never read a line crossing a coplanar conic boundary arc as an event
-status: open
+status: parked
 opened: 2026-10-08
+priority: P3
+cost: M
+blocked_on: [declared-pairs-retire]
 ---
 
 
@@ -24,3 +27,5 @@ event underneath is the crossing.
 Whether this wants a line × conic crossing class, or nothing because
 D10's INTENT stage 4 retires declared pairs, is the owner's call. The
 lane-level gap (pass 5 sees no curved edge) stands either way.
+
+Parked 2026-10-09 at CONTACT's close-out: the row's symptom is a declared seat that no declaration can answer, which D10's stage-4 unit `declared-pairs-retire` removes; the lane gap is re-measured when that unit lands. (CONTACT orchestrator)

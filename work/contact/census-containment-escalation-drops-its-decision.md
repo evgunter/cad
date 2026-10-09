@@ -4,6 +4,8 @@ kind: issue
 title: topo: four doors drop or ignore the containment decision a refusal carries (census, ring re-homing, rim wedge, sphere region)
 status: open
 opened: 2026-10-08
+priority: P2
+cost: M
 ---
 
 
