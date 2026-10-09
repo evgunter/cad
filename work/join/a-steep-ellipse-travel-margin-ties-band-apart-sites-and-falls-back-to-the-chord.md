@@ -9,6 +9,7 @@ cost: E
 refs: [a-pocket-crossing-a-side-face-refuses-at-ring-rehoming-on-a-curved-face, join-ranks-conic-facing-germs-by-chord]
 closed: 2026-10-09
 branch: join/three-small-join-rows
+pr: 4396
 ---
 
 

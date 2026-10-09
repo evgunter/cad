@@ -8,6 +8,7 @@ priority: P3
 cost: E
 closed: 2026-10-09
 branch: join/three-small-join-rows
+pr: 4396
 ---
 
 ## What (unverified)
