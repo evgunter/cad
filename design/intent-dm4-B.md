@@ -376,6 +376,51 @@ which becomes "a read of the family at one `Count` expression per index".
   its world, is kept apart by stage 2's per-copy qualifier, which is
   that same per-port qualifier in another spelling.
 
+### Round 5: I concede to (i)
+
+**I withdraw (iii) and recommend (i), likely.** This supersedes round 4.
+The other designer's objections hold, and the ratified text is already on
+their side.
+
+1. **VR4.** VR4 already lists "a member read's index" among the slots that
+   hold one variable id, and says "Formulas have one home: definitions".
+   So a member read is already a definition with an index slot, and (iii)
+   would turn VR4's one sentence into "a variable, or a variable
+   subscripted by expressions". That reopens the formula-in-a-slot case
+   VR4 closed.
+2. **Saying the index twice.** Under (iii) I would key by `xs` alone and
+   leave the index in `Member`, so nothing is said twice. But then the
+   read and the key differ, which is the walk under another name. Either
+   way (iii) departs from "the key is what the slot holds"; (i) does not.
+3. **Minting.** Typing `xs[0]` mints an unnamed definition, exactly as
+   typing a number mints a free variable. That answers the alias
+   question: "the third bolt" shared by two readers is a named
+   definition, `third_bolt = bolts[2]`, as any shared value is (D10: "a
+   variable two readers share has a name"). Under (iii) it would have to
+   be `bolts` plus a named `Count`: workable, but a member could then never
+   be named, unlike every other value.
+
+**My round-4 departures, re-weighed.**
+- `Union[xs, xs[0]]` as `A ∪ A` is not a loophole. DM5 already answers
+  two variables holding one body that way (`Part(Instance(0))` beside its
+  master).
+- The two documents naming apart is the rule working: they are different
+  programs, and one follows `N`.
+- What remains:
+  - Inside a per-`k` reader, an explicit `xs[k]` and the implicit `xs`
+    name apart (keys `d` and `xs`). That is two spellings of one lockstep
+    read, but not a departure from the naming rule. If Ev's "special
+    cases" is this, the façade can write the implicit form.
+  - D10's "the shapes … which only an operation defines" sits beside
+    DM3's "a definition reading the family". The final state should add
+    member definitions to D10's list of what defines a shape. That is a
+    wording fix, which (i) needs and (iii) would not.
+
+**Wording kept.** Both Ev-ratified texts stay, and they agree under (i):
+D10 Repetition's "`xs[i, j]` reads one member" (the definition reads one
+member), and DM3's "a definition reading the family". The amendment is
+D10's Variables sentence above.
+
 ## For the orchestrator
 
 - Assumed: a `Body` variable is always a `VarDef::Output` (D10: "the
