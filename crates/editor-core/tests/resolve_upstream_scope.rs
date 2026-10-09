@@ -50,7 +50,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -77,7 +77,7 @@ fn slide(doc: ProfileDoc, node: RecipeNodeId, axis: Axis3, to: f64) -> ProfileDo
         DocEdit::SetParam {
             node,
             slot: SlotId::Translation(axis),
-            expr: len(to),
+            value: len(to).into(),
             fresh: Vec::new(),
         },
     )
@@ -95,8 +95,8 @@ fn slot(doc: ProfileDoc, dx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b: tr,
+            a: a.into(),
+            b: tr.into(),
             declare: Vec::new(),
         },
     );
@@ -168,6 +168,9 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
     let Some(Node::Transform { input: bar1, .. }) = doc.node(tr1) else {
         panic!("slot() places the bar behind a transform");
     };
+    let bar1 = &doc
+        .operation_of(*bar1)
+        .expect("the transform reads a live bar");
     let wall = |segment| StableName {
         kind: EntityKind::Face,
         node: *bar1,
@@ -232,8 +235,8 @@ fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: b1,
-            b: tr,
+            a: b1.into(),
+            b: tr.into(),
             declare: Vec::new(),
         },
     );
@@ -241,8 +244,8 @@ fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b: cutter,
+            a: a.into(),
+            b: cutter.into(),
             declare: Vec::new(),
         },
     );
@@ -303,7 +306,14 @@ fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
 }
 
 fn set_members(doc: ProfileDoc, node: RecipeNodeId, members: Vec<RecipeNodeId>) -> ProfileDoc {
-    step(doc, DocEdit::SetMembers { node, members }).0
+    step(
+        doc,
+        DocEdit::SetMembers {
+            node,
+            members: members.into_iter().map(Into::into).collect(),
+        },
+    )
+    .0
 }
 
 /// The strict ancestors of `node` in ONE document — the test's own
@@ -311,10 +321,10 @@ fn set_members(doc: ProfileDoc, node: RecipeNodeId, members: Vec<RecipeNodeId>) 
 /// walk under test.
 fn ancestors_in(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
     let mut seen = BTreeSet::new();
-    let mut stack = doc.node(node).map(|n| n.inputs()).unwrap_or_default();
+    let mut stack = doc.upstream(node);
     while let Some(n) = stack.pop() {
         if seen.insert(n) {
-            stack.extend(doc.node(n).map(|x| x.inputs()).unwrap_or_default());
+            stack.extend(doc.upstream(n));
         }
     }
     seen
@@ -356,14 +366,14 @@ fn an_ancestor_is_one_in_either_run_walked_within_that_run() {
     let (doc, p) = insert(
         doc,
         Node::Union {
-            members: vec![c1, c2],
+            members: vec![c1.into(), c2.into()],
             declare: Vec::new(),
         },
     );
     let (doc, x) = insert(
         doc,
         Node::Union {
-            members: vec![tr, p],
+            members: vec![tr.into(), p.into()],
             declare: Vec::new(),
         },
     );
@@ -371,8 +381,8 @@ fn an_ancestor_is_one_in_either_run_walked_within_that_run() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b: x,
+            a: a.into(),
+            b: x.into(),
             declare: Vec::new(),
         },
     );
@@ -437,7 +447,7 @@ fn a_node_that_feeds_the_name_only_now_is_upstream_too() {
     let (doc, x) = insert(
         doc,
         Node::Union {
-            members: vec![b1, b2],
+            members: vec![b1.into(), b2.into()],
             declare: Vec::new(),
         },
     );
@@ -480,7 +490,7 @@ fn a_recipe_edit_upstream_is_reported_as_upstream() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: vec![bar, f1],
+            members: vec![bar.into(), f1.into()],
             declare: Vec::new(),
         },
     );
@@ -489,8 +499,8 @@ fn a_recipe_edit_upstream_is_reported_as_upstream() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b: tr,
+            a: a.into(),
+            b: tr.into(),
             declare: Vec::new(),
         },
     );
@@ -533,7 +543,7 @@ fn a_structural_parameter_upstream_is_reported_as_upstream() {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: bar,
+            input: bar.into(),
             count: editor_core::Formula::count(2),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
@@ -544,7 +554,7 @@ fn a_structural_parameter_upstream_is_reported_as_upstream() {
     let (doc, part) = insert(
         doc,
         Node::Part {
-            of: pat,
+            of: pat.into(),
             select: editor_core::PartSelect::Instance(editor_core::Formula::count(0)),
         },
     );
@@ -552,8 +562,8 @@ fn a_structural_parameter_upstream_is_reported_as_upstream() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b: part,
+            a: a.into(),
+            b: part.into(),
             declare: Vec::new(),
         },
     );

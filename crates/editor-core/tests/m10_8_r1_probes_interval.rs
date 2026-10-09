@@ -297,7 +297,7 @@ pub(crate) fn annulus(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
     let plane = r.insert(xy_frame());
     let thickness = Formula::div(plen("outer_r"), scl(5.0)).expect("Length / Scalar");
     let disc_profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), len(0.0)],
             radius: plen("outer_r"),
@@ -305,12 +305,12 @@ pub(crate) fn annulus(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
         ids: Vec::new(),
     }));
     let disc = r.insert(Node::Extrude {
-        profile: disc_profile,
+        profile: disc_profile.into(),
         distance: thickness.clone(),
         side: ExtrudeSide::Along,
     });
     let bore_profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [plen("offset"), len(0.0)],
             radius: plen("bore_r"),
@@ -318,7 +318,7 @@ pub(crate) fn annulus(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
         ids: Vec::new(),
     }));
     let bore = r.insert(Node::Extrude {
-        profile: bore_profile,
+        profile: bore_profile.into(),
         distance: thickness,
         side: ExtrudeSide::Along,
     });
@@ -353,7 +353,7 @@ pub(crate) fn annulus(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
     let wall = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
     let measure = r.insert(Node::measure(wall, refs).expect("both indices in range"));
     let assertion = r.insert(Node::Assertion {
-        measure,
+        measure: measure.into(),
         bound: len(2.25e-3 - 1.0e-4),
         dir: editor_core::AssertionDir::AtLeast,
     });

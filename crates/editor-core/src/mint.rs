@@ -660,7 +660,7 @@ mod tests {
 
     fn extrude(profile: u64, distance: f64) -> Node<ProfileProgram> {
         Node::Extrude {
-            profile: RecipeNodeId::new(0, profile),
+            profile: VarId::new(0, profile),
             distance: VarId::new(0, distance.to_bits()),
             side: crate::ExtrudeSide::Along,
         }
@@ -843,7 +843,7 @@ mod tests {
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).unwrap();
         let steps = square.authored_steps();
         let node = Node::Profile(ProfileProgram {
-            plane: RecipeNodeId::new(0, 0),
+            frame: crate::Operand::Node(RecipeNodeId::new(0, 0)),
             loops: vec![square],
             ids: Vec::new(),
         });
@@ -868,10 +868,10 @@ mod tests {
         );
     }
 
-    const PIN_NODE: &str = "1:90bea142d63f9c8e";
-    const PIN_FIRST: &str = "2:68976136f9f05b41";
-    const PIN_LAST: &str = "6:f9596cc085049b34";
-    const PIN_CHAIN: &str = "f9596cc085049b34ef2b287aceec347cfcbceabc6afadef8f5fe9c9f3bedfc6b";
+    const PIN_NODE: &str = "1:3891bf6f915959d8";
+    const PIN_FIRST: &str = "2:b44f6e15ece0cab7";
+    const PIN_LAST: &str = "6:8c2dcbfc1bd2df19";
+    const PIN_CHAIN: &str = "8c2dcbfc1bd2df19e446f386e23b0310cb4485596bbc3701844ffcd33b3d94c8";
 
     const LEN: VarKind = VarKind::Length;
 

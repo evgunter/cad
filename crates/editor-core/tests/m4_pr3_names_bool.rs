@@ -57,7 +57,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -76,8 +76,8 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: decl,
         },
     );
@@ -160,8 +160,8 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b: n,
+            a: a.into(),
+            b: n.into(),
             declare: Vec::new(),
         },
     );
@@ -225,8 +225,8 @@ fn slot_subtract_names_cap_fragments_by_the_walls_they_border() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -298,7 +298,7 @@ fn symmetric_u_cutter_fragments_tie_and_naming_stays_total() {
     let (doc, b) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -307,8 +307,8 @@ fn symmetric_u_cutter_fragments_tie_and_naming_stays_total() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -342,7 +342,7 @@ fn slide(doc: ProfileDoc, node: RecipeNodeId, to: f64) -> ProfileDoc {
         editor_core::DocEdit::SetParam {
             node,
             slot: editor_core::SlotId::Translation(editor_core::Axis3::X),
-            expr: len(to),
+            value: len(to).into(),
             fresh: Vec::new(),
         },
     )
@@ -373,8 +373,8 @@ fn no_flip_translation_edit_leaves_every_table_identical() {
             doc,
             Node::Boolean {
                 op: BooleanOp::Union,
-                a,
-                b: tb,
+                a: a.into(),
+                b: tb.into(),
                 declare: decl,
             },
         );
@@ -418,8 +418,8 @@ fn flip_changes_exactly_the_boolean_nodes_table() {
             doc,
             Node::Boolean {
                 op: BooleanOp::Union,
-                a,
-                b: tb,
+                a: a.into(),
+                b: tb.into(),
                 declare: decl,
             },
         );

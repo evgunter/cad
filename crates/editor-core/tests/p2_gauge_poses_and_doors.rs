@@ -45,7 +45,7 @@ fn block(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(h),
             side: ExtrudeSide::Along,
         },
@@ -477,7 +477,7 @@ fn a_pattern_placer_poses_as_composed() {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: top,
+            input: top.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [0.0, 1.0, 0.0].map(scl),
@@ -663,7 +663,7 @@ fn an_unreachable_member_with_an_offset_faults_and_does_not_evaluate() {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: top,
+            input: top.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [0.0, 1.0, 0.0].map(scl),

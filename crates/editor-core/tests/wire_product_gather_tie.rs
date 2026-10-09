@@ -60,7 +60,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -93,7 +93,7 @@ fn u_cutter_subtract() -> (ProfileDoc, RecipeNodeId) {
     let (doc, b) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -102,8 +102,8 @@ fn u_cutter_subtract() -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -125,8 +125,8 @@ fn u_cutter_split_across_the_tie() -> (ProfileDoc, RecipeNodeId) {
     let (doc, split) = insert(
         doc,
         Node::Split {
-            target: sub,
-            tool: plane,
+            target: sub.into(),
+            tool: plane.into(),
         },
     );
     (doc, split)
@@ -276,8 +276,8 @@ fn two_roots_aliasing_a_strict_name_still_refuse() {
     let (doc, split) = insert(
         doc,
         Node::Split {
-            target: a,
-            tool: plane,
+            target: a.into(),
+            tool: plane.into(),
         },
     );
     let (doc, moved) = insert(

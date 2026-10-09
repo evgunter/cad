@@ -154,7 +154,7 @@ fn the_distance_slot_is_named_and_dimensioned_for_the_setback() {
     assert_eq!(node.slots(), vec![SlotId::ChamferDistance]);
     assert_eq!(
         SlotId::ChamferDistance.dimension(),
-        editor_core::Dimension::Length
+        Some(editor_core::Dimension::Length)
     );
     assert!(!SlotId::ChamferDistance.is_structural());
     assert_eq!(SlotId::ChamferDistance.label(), "chamfer distance");
@@ -194,7 +194,7 @@ fn an_empty_selection_refuses_as_a_chamfer() {
     let (doc, cube) = fixture::insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: fixture::len(1.0),
             side: ExtrudeSide::Along,
         },

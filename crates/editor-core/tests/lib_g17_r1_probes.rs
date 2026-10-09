@@ -84,7 +84,7 @@ fn a_thick_wall_bump_builds_below_half_the_side_and_refuses_at_it() {
             &DocEdit::SetParam {
                 node: shell,
                 slot: SlotId::ShellThickness,
-                expr: fixture::len(t),
+                value: fixture::len(t).into(),
                 fresh: Vec::new(),
             },
             Tol::witness(),
@@ -213,7 +213,7 @@ fn a_thickness_only_edit_moves_the_content_key_and_the_memo() {
         &DocEdit::SetParam {
             node: shell,
             slot: SlotId::ShellThickness,
-            expr: fixture::len(cup::T_BUMPED),
+            value: fixture::len(cup::T_BUMPED).into(),
             fresh: Vec::new(),
         },
         Tol::witness(),

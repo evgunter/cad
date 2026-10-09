@@ -629,8 +629,8 @@ class TestBracket(unittest.TestCase):
             )
         )
         split = doc.insert(Node.split(bracket, tool))
-        offcuts = doc.insert(Node.part(split, PartSelect.split_half(SplitHalf.Above)))
-        corner = doc.insert(Node.part(split, PartSelect.split_half(SplitHalf.Below)))
+        offcuts = doc.insert(Node.part(doc.output(split, 0), PartSelect.split_half(SplitHalf.Above)))
+        corner = doc.insert(Node.part(doc.output(split, 1), PartSelect.split_half(SplitHalf.Below)))
 
         whole = volume_of(doc, bracket)
         off = volume_of(doc, offcuts)
@@ -860,9 +860,11 @@ class TestSnowman(unittest.TestCase):
         axis = y_axis(doc, frame)
         bottom = self.ball(doc, frame, axis, self.R1, 0.0)
         head = self.ball(doc, frame, axis, self.R2, self.D)
-        union = doc.insert(Node.boolean(BooleanOp.Union, bottom, head))
-        bitten = doc.insert(Node.boolean(BooleanOp.Subtract, bottom, head))
-        lens = doc.insert(Node.boolean(BooleanOp.Intersect, bottom, head))
+        # A revolve defines its body and its axis: each read names the body.
+        a, b = doc.output(bottom, 0), doc.output(head, 0)
+        union = doc.insert(Node.boolean(BooleanOp.Union, a, b))
+        bitten = doc.insert(Node.boolean(BooleanOp.Subtract, a, b))
+        lens = doc.insert(Node.boolean(BooleanOp.Intersect, a, b))
         below, above = self.level(doc, 0.0), self.level(doc, self.D)
 
         ev = evaluate(doc)
@@ -1713,7 +1715,7 @@ class DieScene:
                 placed.append(
                     doc.insert(
                         Node.transform(
-                            origin_ball,
+                            doc.output(origin_ball, 0),
                             (
                                 Formula.length_in(c[0], m),
                                 Formula.length_in(c[1], m),
@@ -2673,7 +2675,7 @@ class TestBudfillet(unittest.TestCase):
             [GeomPred.adjacent_kinds(SurfaceKind.Sphere, SurfaceKind.Cone)],
         )
         self.assertEqual(len(mouth), 1, "the description names one rim")
-        first = doc.insert(Node.fillet(sharp, Formula.length_in(self.ROLL, m), mouth))
+        first = doc.insert(Node.fillet(doc.output(sharp, 0), Formula.length_in(self.ROLL, m), mouth))
 
         ev = evaluate(doc)
         lip = ev.select_where(
@@ -3114,8 +3116,8 @@ class TestTeapot(unittest.TestCase):
             "the mouth disc is the meridian's fourth segment in program order",
         )
         mouth = [bands[seg_mouth]]
-        sealed = doc.insert(Node.shell(pot, Formula.length_in(self.WALL, m), []))
-        cup = doc.insert(Node.shell(pot, Formula.length_in(self.WALL, m), mouth))
+        sealed = doc.insert(Node.shell(doc.output(pot, 0), Formula.length_in(self.WALL, m), []))
+        cup = doc.insert(Node.shell(doc.output(pot, 0), Formula.length_in(self.WALL, m), mouth))
 
         # ---- the lid: three rims, by name ----
         lid_profile = doc.insert(Node.profile(self.lid_meridian(), plane=frame))
@@ -3135,7 +3137,7 @@ class TestTeapot(unittest.TestCase):
                 got[1].meters, station, delta=1e-12, msg=f"rim at vertex {v}"
             )
         lid = doc.insert(
-            Node.fillet(sharp, Formula.length_in(self.ROLL, m), [rims[v] for v, _, _ in self.RIMS])
+            Node.fillet(doc.output(sharp, 0), Formula.length_in(self.ROLL, m), [rims[v] for v, _, _ in self.RIMS])
         )
 
         # ---- the spout: built about its own axis, then placed ----
@@ -3154,18 +3156,17 @@ class TestTeapot(unittest.TestCase):
         )
 
         # ---- the handle ----
-        spine = doc.insert(
-            Node.datum_axis(tuple(Formula.length_in(c, m) for c in self.HANDLE_C), (
-                Formula.literal(0.0),
-                Formula.literal(0.0),
-                Formula.literal(1.0),
-            ))
+        frame = doc.insert(
+            Node.datum_frame(
+                tuple(Formula.length_in(c, m) for c in self.HANDLE_C),
+                (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+                (Formula.literal(0.0), Formula.literal(1.0), Formula.literal(0.0)),
+            )
         )
         half = math.pi / 2 + self.HANDLE_OVER
         handle = doc.insert(
             Node.tube(
-                spine,
-                (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+                frame,
                 Formula.length_in(self.HANDLE_R, m),
                 TubeWindow.arc(Formula.angle_in(-half, rad), Formula.angle_in(half, rad)),
                 Formula.length_in(self.HANDLE_TUBE, m),
@@ -3237,7 +3238,7 @@ class TestTeapot(unittest.TestCase):
                 ev.face_carrier_kind(pot, name), SurfaceKind.Plane, "no planar pi half"
             )
 
-        node = doc.insert(Node.shell(pot, Formula.length_in(self.WALL, m), [mouth]))
+        node = doc.insert(Node.shell(doc.output(pot, 0), Formula.length_in(self.WALL, m), [mouth]))
         ev = evaluate(doc)
         body = ev.value(node).body()
         body.validate()
@@ -3633,7 +3634,7 @@ class TestTorusvessel(unittest.TestCase):
         )
         frame, axis = teapot_frame_and_axis(doc)
         operand = fully_revolved(doc, frame, axis, meridian)
-        return operand, doc.insert(Node.shell(operand, Formula.length_in(self.WALL, m), []))
+        return operand, doc.insert(Node.shell(doc.output(operand, 0), Formula.length_in(self.WALL, m), []))
 
     def test_a_torus_walled_vessel_hollows_through_the_document(self):
         doc = Doc()
@@ -4006,22 +4007,24 @@ class TestTubeAndHollowTube(unittest.TestCase):
     R, OUTER, WALL = 2.0, 0.5, 0.125
     T0, T1 = 0.0, 1.5
 
-    def spine(self, doc, direction=SPINE_Z):
+    def frame(self, doc, normal=(0.0, 0.0, 1.0)):
+        """The tube's frame: centred at the origin, `u` along x, and `v`
+        chosen so that `u x v` is `normal` (the spine axis)."""
+        n = normal
         return doc.insert(
-            Node.datum_axis((
-                Formula.length_in(0, m),
-                Formula.length_in(0, m),
-                Formula.length_in(0, m),
-            ), direction)
+            Node.datum_frame(
+                (Formula.length_in(0, m), Formula.length_in(0, m), Formula.length_in(0, m)),
+                (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+                (Formula.literal(0.0), Formula.literal(n[2]), Formula.literal(-n[1])),
+            )
         )
 
     def test_the_solid_ring_meters_its_closed_form(self):
         doc = Doc()
-        spine = self.spine(doc)
+        frame = self.frame(doc)
         ring = doc.insert(
             Node.tube(
-                spine,
-                (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+                frame,
                 Formula.length_in(self.R, m),
                 TubeWindow.full(),
                 Formula.length_in(self.OUTER, m),
@@ -4039,11 +4042,10 @@ class TestTubeAndHollowTube(unittest.TestCase):
         """Row 27: the full window, which closes the inner wall into a
         CAVITY rather than leaving an open end."""
         doc = Doc()
-        spine = self.spine(doc)
+        frame = self.frame(doc)
         torus = doc.insert(
             Node.hollow_tube(
-                spine,
-                (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+                frame,
                 Formula.length_in(self.R, m),
                 TubeWindow.full(),
                 Formula.length_in(self.OUTER, m),
@@ -4067,11 +4069,10 @@ class TestTubeAndHollowTube(unittest.TestCase):
         """Row 26: the windowed hollow tube, an open elbow of annular
         section."""
         doc = Doc()
-        spine = self.spine(doc, (Formula.literal(0.0), Formula.literal(1.0), Formula.literal(0.0)))
+        frame = self.frame(doc, (0.0, 1.0, 0.0))
         elbow = doc.insert(
             Node.hollow_tube(
-                spine,
-                (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+                frame,
                 Formula.length_in(self.R, m),
                 TubeWindow.arc(Formula.angle_in(self.T0, rad), Formula.angle_in(self.T1, rad)),
                 Formula.length_in(self.OUTER, m),
@@ -4092,21 +4093,20 @@ class TestTubeAndHollowTube(unittest.TestCase):
     def test_solid_minus_hollow_is_the_bore_in_one_document(self):
         """The row that DISCRIMINATES the two doors from outside.
 
-        One document, one spine, one window, two nodes with identical
+        One document, one frame, one window, two nodes with identical
         radii. Their volume difference is the bore's Pappus form,
         which is only true if the second node reached the hollow
         kernel door — a single door with a mode flag could pass a
         volume row on either node alone, but not this one."""
         doc = Doc()
-        spine = self.spine(doc, (Formula.literal(0.0), Formula.literal(1.0), Formula.literal(0.0)))
+        frame = self.frame(doc, (0.0, 1.0, 0.0))
         window = TubeWindow.arc(Formula.angle_in(self.T0, rad), Formula.angle_in(self.T1, rad))
         solid = doc.insert(
-            Node.tube(spine, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(self.R, m), window, Formula.length_in(self.OUTER, m))
+            Node.tube(frame, Formula.length_in(self.R, m), window, Formula.length_in(self.OUTER, m))
         )
         hollow = doc.insert(
             Node.hollow_tube(
-                spine,
-                (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+                frame,
                 Formula.length_in(self.R, m),
                 TubeWindow.arc(Formula.angle_in(self.T0, rad), Formula.angle_in(self.T1, rad)),
                 Formula.length_in(self.OUTER, m),
@@ -4129,16 +4129,15 @@ class TestTubeAndHollowTube(unittest.TestCase):
         vertex the materializers answer with is a name a later node
         could carry."""
         doc = Doc()
-        spine = self.spine(doc)
+        frame = self.frame(doc)
         ring = doc.insert(
             Node.tube(
-                spine, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(self.R, m), TubeWindow.full(), Formula.length_in(self.OUTER, m)
+                frame, Formula.length_in(self.R, m), TubeWindow.full(), Formula.length_in(self.OUTER, m)
             )
         )
         elbow = doc.insert(
             Node.hollow_tube(
-                spine,
-                (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+                frame,
                 Formula.length_in(self.R, m),
                 TubeWindow.arc(Formula.angle_in(self.T0, rad), Formula.angle_in(self.T1, rad)),
                 Formula.length_in(self.OUTER, m),
@@ -4170,11 +4169,10 @@ class TestTubeAndHollowTube(unittest.TestCase):
         narrowing what it PRODUCES, and that is the same flow every
         other body node offers."""
         doc = Doc()
-        spine = self.spine(doc, (Formula.literal(0.0), Formula.literal(1.0), Formula.literal(0.0)))
+        frame = self.frame(doc, (0.0, 1.0, 0.0))
         elbow = doc.insert(
             Node.hollow_tube(
-                spine,
-                (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+                frame,
                 Formula.length_in(self.R, m),
                 TubeWindow.arc(Formula.angle_in(self.T0, rad), Formula.angle_in(self.T1, rad)),
                 Formula.length_in(self.OUTER, m),
@@ -4210,8 +4208,7 @@ class TestTubeAndHollowTube(unittest.TestCase):
         the solid door has no wall to be wrong about."""
         with self.assertRaises(TypeError):
             Node.tube(
-                self.spine(Doc()),
-                (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+                self.frame(Doc()),
                 Formula.length_in(self.R, m),
                 TubeWindow.full(),
                 Formula.length_in(self.OUTER, m),
@@ -4220,11 +4217,10 @@ class TestTubeAndHollowTube(unittest.TestCase):
 
         def refuse(minor, wall):
             doc = Doc()
-            spine = self.spine(doc)
+            frame = self.frame(doc)
             node = doc.insert(
                 Node.hollow_tube(
-                    spine,
-                    (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+                    frame,
                     Formula.length_in(self.R, m),
                     TubeWindow.full(),
                     Formula.length_in(minor, m),
@@ -4242,10 +4238,10 @@ class TestTubeAndHollowTube(unittest.TestCase):
         self.assertIn("wall is not definitely thicker", refuse(self.OUTER, 0.0))
         self.assertIn("wall leaves no bore", refuse(self.OUTER, self.OUTER))
         doc = Doc()
-        spine = self.spine(doc)
+        frame = self.frame(doc)
         collapsed = doc.insert(
             Node.hollow_tube(
-                spine, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(1e14, m), TubeWindow.full(),
+                frame, Formula.length_in(1e14, m), TubeWindow.full(),
                 Formula.length_in(1e12, m), Formula.length_in(1e-6, m),
             )
         )
@@ -4259,18 +4255,13 @@ class TestTubeAndHollowTube(unittest.TestCase):
         refuses rather than being read as the full ring."""
         with self.assertRaises(TypeError):
             Node.tube(
-                self.spine(Doc()), (
-                    Formula.literal(1.0),
-                    Formula.literal(0.0),
-                    Formula.literal(0.0),
-                ), Formula.length_in(self.R, m), None, Formula.length_in(self.OUTER, m)
+                self.frame(Doc()), Formula.length_in(self.R, m), None, Formula.length_in(self.OUTER, m)
             )
         doc = Doc()
-        spine = self.spine(doc)
+        frame = self.frame(doc)
         node = doc.insert(
             Node.tube(
-                spine,
-                (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+                frame,
                 Formula.length_in(self.R, m),
                 TubeWindow.arc(Formula.angle_in(0, rad), Formula.angle_in(7, rad)),
                 Formula.length_in(self.OUTER, m),
@@ -4811,9 +4802,9 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         """The operand rule, measured rather than assumed — and the
         two nodes that live on either side of it.
 
-        A boolean's operand door refuses a plural payload: a split's
-        two halves refuse below, and a `Node.pattern`'s `instances`
-        refuse for the same reason. That was the argument for leaving
+        A boolean's operand reads one body, and the door refuses a
+        plural read: a split named alone is either of its two halves,
+        and a `Node.pattern`'s `instances` are a list of bodies. That was the argument for leaving
         `Node.pattern` unbound, and it stopped being one when
         `Node.part` bound (LIB-B-PART): a Part PROJECTS one body out
         of a plural value, so the pattern's family reaches every
@@ -4849,10 +4840,9 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             Formula.literal(1.0),
         )))
         halves = doc.insert(Node.split(box, plane))
-        fused = doc.insert(Node.boolean(BooleanOp.Union, halves, other))
-        with self.assertRaises(EvaluationError) as caught:
-            evaluate(doc).value(fused)
-        self.assertEqual(caught.exception.kind, "wrong_operand")
+        with self.assertRaises(EditError) as caught:
+            doc.insert(Node.boolean(BooleanOp.Union, halves, other))
+        self.assertEqual(caught.exception.variant, "ambiguous_output")
 
         # The pattern refuses at the same seat for the same reason...
         family = doc.insert(
@@ -4863,10 +4853,9 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             ), Formula.length_in(4, m)))
         )
         self.assertEqual(evaluate(doc).value(family).kind, "instances")
-        plural = doc.insert(Node.boolean(BooleanOp.Union, family, other))
-        with self.assertRaises(EvaluationError) as plural_caught:
-            evaluate(doc).value(plural)
-        self.assertEqual(plural_caught.exception.kind, "wrong_operand")
+        with self.assertRaises(EditError) as plural_caught:
+            doc.insert(Node.boolean(BooleanOp.Union, family, other))
+        self.assertEqual(plural_caught.exception.variant, "slot_var_kind")
 
         # ...and a Part of it does not: one instance, one body, one
         # ordinary operand. The middle copy stands at x in [4, 5], and

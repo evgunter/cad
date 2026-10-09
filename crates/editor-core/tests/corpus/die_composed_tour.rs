@@ -238,7 +238,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: pip,
             slot: SlotId::Translation(Axis3::Y),
-            expr: len(PIP_Y_BUMPED),
+            value: len(PIP_Y_BUMPED).into(),
             fresh: Vec::new(),
         },
         bump_root: pip,

@@ -69,7 +69,7 @@ fn a_listed_pattern_with_an_unheld_count_refuses_the_rule_not_a_panic() {
     let refused = edit(
         &doc,
         &insert(Node::Pattern {
-            input: b,
+            input: b.into(),
             count: Formula::named(name("nope"), Dimension::Count),
             kind: PatternKind::Explicit(vec![Frame::IDENTITY]),
         }),
@@ -94,7 +94,7 @@ fn a_listed_union_with_an_unheld_count_refuses_the_rule_not_a_panic() {
     let refused = edit(
         &doc,
         &insert(Node::PlacedUnion {
-            input: b,
+            input: b.into(),
             count: Some(Formula::named(name("nope"), Dimension::Count)),
             kind: PatternKind::Explicit(vec![Frame::IDENTITY]),
         }),
@@ -163,7 +163,7 @@ fn a_refused_insert_speaks_one_id_by_name_or_by_id() {
     let doc = applied.doc;
     let node = |first: Formula| -> AuthoredNode {
         Node::Pattern {
-            input: b,
+            input: b.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -279,32 +279,42 @@ fn kind_of(node: &AuthoredNode) -> String {
 #[test]
 fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
     let (edge_doc, b) = body();
+    // The block's own sketch frame and profile, for the slots that read
+    // those kinds.
+    let held = |is: fn(&Node<ProfileProgram>) -> bool| {
+        edge_doc
+            .ids()
+            .into_iter()
+            .find(|&id| edge_doc.node(id).is_some_and(is))
+            .expect("the block holds it")
+    };
+    let frame = held(|n| matches!(n, Node::Datum(editor_core::Datum::Frame { .. })));
+    let profile = held(|n| matches!(n, Node::Profile(_)));
     // The listed-rule counts no slot addresses (p1/p2), and the slot
     // types no corpus document holds: a shell, a sweep, a windowed
     // tube, a gauge's and an instance's placements, a mate's frame
-    // offsets. The door lowers before it reads an input, so the inputs
-    // here need only be ids.
+    // offsets. Each operand reads a live output of the kind its slot
+    // admits, so the refusal is the formula's.
     let edges: Vec<AuthoredNode> = vec![
         Node::Pattern {
-            input: b,
+            input: b.into(),
             count: Formula::count(2),
             kind: PatternKind::Explicit(vec![Frame::IDENTITY]),
         },
         Node::PlacedUnion {
-            input: b,
+            input: b.into(),
             count: Some(Formula::count(2)),
             kind: PatternKind::Explicit(vec![Frame::IDENTITY]),
         },
         Node::shell(b, len(0.01), Vec::new()),
         Node::Sweep {
-            profile: b,
-            path: b,
+            profile: profile.into(),
+            path: profile.into(),
             stations: Formula::count(4),
             v_degree: Formula::count(3),
         },
         Node::Tube {
-            spine: b,
-            u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+            frame: frame.into(),
             major_radius: len(0.5),
             minor_radius: len(0.1),
             window: TubeWindow::Arc {
@@ -356,7 +366,11 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
             let mut at = 0;
             loop {
                 let (mutated, seen) = unheld_at(form, at, |f| {
-                    node.try_map_slots(|p, g| p.try_map_slots(&mut |e| g(e)), &mut |e| f(e))
+                    node.try_map_slots(
+                        |p, g, r| p.try_map_slots(&mut |e| g(e), &mut |at, read| r(at, read)),
+                        &mut |e| f(e),
+                        &mut |_, read| Ok(read.clone()),
+                    )
                 });
                 if at >= seen {
                     break;
@@ -483,6 +497,10 @@ impl editor_core::ProfilePayload for Unlisted<editor_core::VarId> {
     fn lower<E>(
         authored: &Unlisted<Formula>,
         f: &mut dyn FnMut(&Formula) -> Result<editor_core::VarId, E>,
+        _read: &mut dyn FnMut(
+            editor_core::OperandSlot,
+            &editor_core::Operand,
+        ) -> Result<editor_core::VarId, E>,
     ) -> Result<Self, E> {
         Ok(Unlisted {
             hidden: f(&authored.hidden)?,
