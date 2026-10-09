@@ -75,6 +75,9 @@ geom = { path = "../geom" }
 slotmap = { workspace = true }
 
 [dev-dependencies]
+# Exact rationals for the polygon-cone reader's oracle
+# (`boolean/sectors/cone_fuzz.rs`).
+num-bigint = { workspace = true }
 # The explicit-width pools the face walks' thread-count rows run under
 # (`props.rs`'s tests). The walks themselves map through
 # `geom_core::k_stats::map_detached`, so production takes no rayon edge

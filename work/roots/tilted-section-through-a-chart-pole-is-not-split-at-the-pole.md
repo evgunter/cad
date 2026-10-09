@@ -32,3 +32,11 @@ Split a section chord at any pole of the divided face's chart its arc
 passes through (a closed-form root: the circle meets the pole point),
 so the arc's pieces each have a chart image; the row above, under
 every op, against the lens closed form.
+
+Re-measured on `pcert/projected-image` (2026-10-08): with the Hermite
+image retired, the same union refuses `Pcurves { Certify {
+SectorRefused { channel: Azimuth, .. } } }` at ε 1e-6, 1e-9 and 1e-12.
+The projected image refines toward the pole, and the piece holding it
+has no azimuth sector. Pinned by `crates/sweep/tests/tilted_sphere_pair.rs`,
+`a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed`.
+The near-pole sibling is closed: δ ≥ 1e-5 builds at every ε.

@@ -173,8 +173,10 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
                     body.set_edge_curve(edge, spec, tol)?;
                 }
                 MustCarryDescription::Conventional => {
-                    // The surfaces UNDER-determine the locus, so the
-                    // description stays CONVENTIONAL — but the edge is
+                    // No intrinsic tangency is demanded (a zero-side
+                    // station, or an all-positive pair outside the
+                    // certificate's lane), so the description stays
+                    // CONVENTIONAL — but the edge is
                     // at rest between two faces now, so it says where
                     // it rests: an image in `s1`'s chart (D3's
                     // transience fence). The pushforward it was
@@ -186,7 +188,7 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
             }
             Ok(())
         }
-        Err(geom_brep::LeverEscalation { diag: source, .. }) => Err(sliver(source)),
+        Err(escalation) => Err(sliver(escalation.diag())),
     }
 }
 

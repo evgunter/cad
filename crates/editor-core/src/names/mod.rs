@@ -19,7 +19,7 @@
 //! Layering (D1, G1): the kernel never sees a `StableName` — ops emit
 //! birth facts; THIS module (editor-core) names things.
 
-mod attribute;
+pub(crate) mod attribute;
 mod borders;
 mod canonical;
 mod defer;
@@ -36,12 +36,13 @@ mod flush;
 mod geompred;
 mod groups;
 pub(crate) mod interrogate;
+mod join_names;
 mod least_root;
 pub(crate) mod merged;
 mod nest;
 #[cfg(test)]
 mod nest_reference;
-mod role;
+pub(crate) mod role;
 mod seam_pair;
 mod select;
 mod table;

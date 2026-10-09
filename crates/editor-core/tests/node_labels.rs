@@ -1041,7 +1041,7 @@ fn a_checks_report_and_its_refusal_speak_the_labelled_roots() {
         report.findings.iter().any(|finding| matches!(
             finding.evidence,
             CheckEvidence::NotSeparated { other_root, .. }
-                if finding.root == base && other_root == boss
+                if finding.subject == editor_core::FindingSubject::Output { root: base, output_ix: 0 } && other_root == boss
         )),
         "the two overlapping roots are a separation finding: {report}"
     );
@@ -1105,7 +1105,10 @@ fn a_checks_report_spoken_from_another_document_fails_loud() {
     );
     let report = run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect("the checks run");
     assert!(
-        report.findings.iter().any(|finding| finding.root == base),
+        report.findings.iter().any(|finding| matches!(
+            finding.subject,
+            editor_core::FindingSubject::Output { root, .. } if root == base
+        )),
         "a finding names the root the other document also holds: {report}"
     );
     let _ = report.spoken(&other);

@@ -100,7 +100,7 @@ fn body_of(r: Result<BooleanResult<f64>, BooleanError>, what: &str) -> Body<f64>
 /// the one edge of these results whose faces that length cannot tell
 /// from tangent: tier 3 finds it a scaffold at rest, and may read its
 /// wedge as a lamina's, on that edge and no other
-/// (`work/contact/seam-description-reads-a-dihedral-at-the-seams-own-length.md`).
+/// (`work/restread/seam-description-reads-a-dihedral-at-the-seams-own-length.md`).
 /// The refusal withholds the body, so the edge is pinned by the count; a
 /// second scaffold, another edge, or a different finding turns the row
 /// red.
@@ -320,7 +320,7 @@ fn a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on() {
     // radians apart, which that edge's length cannot tell from tangent:
     // the seam is left a scaffold, and the result gate refuses it at
     // rest. That is the seam description's lever, filed as
-    // `work/contact/seam-description-reads-a-dihedral-at-the-seams-own-length`.
+    // `work/restread/seam-description-reads-a-dihedral-at-the-seams-own-length`.
     for (what, r) in [
         ("∩", intersect(&block, &wedge, tol)),
         ("−", subtract(&block, &wedge, tol)),
@@ -616,7 +616,7 @@ fn a_pierce_germ_line_is_read_at_the_sectors_reach() {
 /// typed. Read by its bounds instead, the pair is half a crossing, and
 /// the vertex's germs came out odd (a kernel invariant). The same pose
 /// under 1 m edges answers. Making the short pose answer is filed:
-/// `work/contact/a-vertex-pair-near-coincidence-refuses-where-its-long-edges-decide`.
+/// `work/sector/a-vertex-pair-near-coincidence-refuses-where-its-long-edges-decide`.
 #[test]
 fn a_near_coincident_pair_at_a_corner_refuses_typed() {
     let tol = Tol::witness();
