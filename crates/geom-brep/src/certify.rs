@@ -409,8 +409,9 @@ pub enum CertifyError {
         /// witness/endpoint checks).
         sample: u32,
         /// What the classifier saw of the miss, for error reporting only
-        /// ([`MarginDiag`]): the import door's words on a definite miss
-        /// ([`CertifyError::ending_in_file`]).
+        /// ([`MarginDiag`]): it rides [`CertifyError::decision`]'s
+        /// sign-certain arm into [`Unsized::residual_in_file`], the import
+        /// door's words on a definite miss.
         margin: MarginDiag,
     },
     /// `Intersection` only: the tangent planes coincide at a sample —

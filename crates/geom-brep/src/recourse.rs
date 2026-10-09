@@ -194,7 +194,8 @@ impl Refused {
     pub fn arm(self) -> RefusedArm<'static> {
         match self {
             Self::Zero(classified) => RefusedArm::Zero(classified),
-            Self::Negative { margin } => RefusedArm::SignCertain(Some(margin)),
+            // A sized verdict's margin is a signed size, not a residual miss.
+            Self::Negative { .. } => RefusedArm::SignCertain(None),
         }
     }
 }
