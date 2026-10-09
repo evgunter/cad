@@ -241,6 +241,24 @@ pub fn cap_volume(r: f64, h: f64) -> f64 {
     PI * h.powi(2) * (3.0 * r - h) / 3.0
 }
 
+/// The volume balls of radii `big` and `small` share at centre distance
+/// `d`, in the closed form that never forms the radical plane (so it
+/// does not share a formula with the kernel's section circle): all of
+/// the smaller ball when one holds the other, nothing when they stand
+/// apart.
+pub fn ball_lens(big: f64, small: f64, d: f64) -> f64 {
+    if d >= big + small {
+        return 0.0;
+    }
+    if d <= (big - small).abs() {
+        return ball_volume(big.min(small));
+    }
+    PI * (big + small - d).powi(2)
+        * (d.powi(2) + 2.0 * d * small - 3.0 * small.powi(2) + 2.0 * d * big + 6.0 * small * big
+            - 3.0 * big.powi(2))
+        / (12.0 * d)
+}
+
 /// The lens two balls `r1`, `r2` at centre distance `d` share.
 pub fn lens_volume(r1: f64, r2: f64, d: f64) -> f64 {
     let x = (d.powi(2) + r1.powi(2) - r2.powi(2)) / (2.0 * d);
