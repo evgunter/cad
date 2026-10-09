@@ -4,6 +4,9 @@ kind: issue
 title: A row the join's re-mint carries at its old interval on a face no door owes refuses as JoinRefusal::Kernel, where the route is unbuilt
 status: open
 opened: 2026-10-08
+priority: P3
+cost: M
+design: true
 ---
 
 
