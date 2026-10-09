@@ -2728,9 +2728,9 @@ pub(crate) fn path_island_winding<T: Decide>(
 /// `Ellipse`, `Spiric` and NURBS ones
 /// (`work/restfront/check-9-meeting-arms-silent-off-a-plane-and-on-ellipse-spiric-nurbs-edges.md`).
 /// Under it, which decided reading is taken changes nothing.
-fn first_decided<R, E>(
-    readings: impl IntoIterator<Item = Result<Result<Option<R>, Indeterminate>, E>>,
-) -> Result<Result<Option<R>, Indeterminate>, E> {
+fn first_decided<R, D, E>(
+    readings: impl IntoIterator<Item = Result<Result<Option<R>, D>, E>>,
+) -> Result<Result<Option<R>, D>, E> {
     let mut escalated = None;
     for reading in readings {
         match reading? {
@@ -3506,16 +3506,13 @@ fn ring_side<T: Decide>(
         Ok(LoopContainment::In) => Ok(Ok(Some(RingSide::In))),
         Ok(LoopContainment::Out) => Ok(Ok(Some(RingSide::Out))),
         Ok(LoopContainment::OnBoundary) => Ok(Ok(None)),
-        Err(PointInLoopError::Escalated { diag, .. }) => Ok(Err(diag)),
+        Err(e @ PointInLoopError::Escalated { .. }) => Ok(Err(e)),
         Err(e) => Err(SplitJoinError::from(e)),
     };
     match first_decided(ring_vertices(body, ring)?.into_iter().map(read))? {
         Ok(Some(side)) => Ok(side),
         Ok(None) => Ok(RingSide::OnRun),
-        Err(diag) => Err(SplitJoinError::RingHoming(PointInLoopError::Escalated {
-            r#loop: run,
-            diag,
-        })),
+        Err(e) => Err(SplitJoinError::RingHoming(e)),
     }
 }
 

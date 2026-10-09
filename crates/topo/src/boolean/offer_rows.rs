@@ -2543,7 +2543,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     (
         "mod.rs",
         "decision_words",
-        "BooleanDecision::Containment",
+        "BooleanDecision::CONTAINMENT_UNNAMED",
         1,
     ),
     (
@@ -2738,8 +2738,14 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     (
         "reduce.rs",
         "wall_crossing",
+        "BooleanDecision::CONTAINMENT_UNNAMED",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "wall_crossing",
         "BooleanDecision::Containment",
-        2,
+        1,
     ),
     ("reduce.rs", "wall_crossing", "BooleanDecision::Crossing", 1),
     ("sectors.rs", "arc_side", "Coincide::Sectors", 1),
@@ -2776,7 +2782,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("sectors.rs", "within", "Coincide::Sectors", 1),
-    ("sphere_region.rs", "-", "BooleanDecision::Containment", 1),
+    (
+        "sphere_region.rs",
+        "-",
+        "BooleanDecision::CONTAINMENT_UNNAMED",
+        1,
+    ),
     (
         "vtxfac.rs",
         "classify_vertex_on_face",
