@@ -141,3 +141,5 @@ It also waits on FORK-DM4 (`a-union-member-is-keyed-by-its-read`):
 and how a union keys its members' names is what that fork decides. G
 closes `placed-union-places-and-fuses-in-one-node` and
 `explicit-placement-frames-hold-floats`, which ride with it.
+
+An `Explicit` frame or a `Linear` direction that sits off the face (a normal offset, a tilt) goes down the stage 3 spec's restate ladder (§5): a `Plane` mate at a `Standoff`, else `InFrame` of a constructed frame, else the migration names it and refuses to regenerate (Q8). The union this unit writes is against today's `Node::Union` and moves with FORK-DM4's units.

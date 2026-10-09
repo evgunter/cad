@@ -17,4 +17,4 @@ The at-rest census records a coincidence between copies that no mate attributes 
 
 A pierce or a same-side crossing stays interference evidence (stage 5 B). A mate's own contact is still minted as a declaration until I.
 
-Waits on stage 4 B (the door) and C (rung 2). Stage 4 D (rung 3) has merged. With C and D, most contacts prove, so the findings stay few.
+Waits on stage 4 B (the door) and C (rung 2). Stage 4 D (rung 3) has merged. The contacts between differently placed copies, which stage 3 B's dropped declaring mates used to declare, stay unproven findings until H, because C compares a placement chain as one opaque atom. The interim is loud and refuses nothing.

@@ -28,7 +28,7 @@ Scope: D10's **Spaces and placement** and **Repetition** paragraphs, the pose ha
 
 D10's last paragraph retires, here, **ASSEMBLY A3**, **A11 (2)'s gauges and offsets** and **A11 (4)'s declaring mates**. §9 quotes each clause this stage retires or rewrites.
 
-**Baseline.** This spec is written against stage 2's **final shapes**, not today's code: after stage 2 F, every operand is a read, `Select` defines `Face`/`Edge` variables, and mate sides read `Face` variables. Stage 2 C's `PlaceInWorld` is not on main yet (`node.rs` has no such variant), so §3 retires it if it has landed and skips it if it has not.
+**Baseline.** This spec is written against stage 2's **final shapes**, not today's code: after stage 2 F, every operand is a read, `Select` defines `Face`/`Edge` variables, and mate sides read `Face` variables. Stage 2 C's `PlaceInWorld` has landed by B: B waits on stage 2 F, which follows stage 2 D, which waits on stage 2 C (`the-product-is-an-explicit-list`). B's migration covers it, since it is how a plain document's bodies reach the world.
 
 **Line numbers.** They cite main at the stage 3 spec's first baseline (`044b5eb2e`) and drift under stage 2's units. Each unit's dispatching orchestrator re-greps at the merge of the unit it waits on and states the drift.
 
@@ -84,9 +84,9 @@ Why this order:
 Each intermediate state is a whole representation:
 
 - After A, a pose is a defined variable, and every pose a reader reads is one. Absolute datums, and a `Datum::FaceFrame` read as a frame (a sketch on a face, a frame mate), are still the operations that define the poses constructions read: a named interim. C restates the frame mates and D retires the rest, with `Datum`.
-- After B, a placement owns its mates and the world is a node. A mate is still today's payload, an alignment with offset frames and its numbers, and may name the world as a base: a migration interim that C ends.
+- After B, a placement owns its mates, the world is a node, and copies take kinds from their bundles; constructions reading no body and absolute datums are all of the document's one kind until D (a named interim). A mate is still today's payload, an alignment with offset frames and its numbers, and may name the world as a base: a migration interim that C ends.
 - After C, a mate equates two poses and values set freedoms. Constructions still read absolute datums, and `Transform` still stands.
-- After D, frames enter only at placement, and only a placement defines a copy.
+- After D, frames enter only at placement, and only a placement defines a copy, except `Node::Pattern` and `Node::PlacedUnion`, which still place their copies by a rule until G ends them (a named interim).
 - After E, every operation computes in a frame of its reads.
 - After F, a constraint any of whose equations is already fixed refuses, pinned or not.
 - After G, the document stores no pattern preset.
@@ -168,7 +168,7 @@ Each is a function of the relative pose alone, so no order of the values is chos
 2. **Evaluation.** A pose's value can depend on built geometry (a face's plane reads a `Face`), so a pose definition is bound when its reads are, at the lane scalar, by one evaluator `eval_pose` that replaces `wire_datum`. Its helpers are today's `frame_axes`, `frame_value` and `frame_plane_lane`. The schedule treats a pose definition as a node of the dependency graph over `Doc::upstream`: stage 2 D's machinery for observed definitions, generalised to "a definition bound mid-evaluation".
 3. **`AxisInPlane` retires into `Revolve`** (FORK-1b). `Revolve` gains `axis_origin: [S; 2]` and `axis_direction: [S; 2]` in its profile's axes, and its `axis: Axis` port is the lift. `wire_revolve` reads the slots. The F15 doc on `AxisInPlane` moves to `Revolve`'s fields, still saying why: four numbers in the plane cannot leave it.
 4. **`FaceFrame` retires from its plane readers.** A face reads as a plane (FORK-S3P round 10), so a reader that reads it as a plane reads `Plane { face }`. One read as a frame stays a `Datum::FaceFrame` until C (a frame mate) or D (a sketch on a face) restates it, and D removes the last with `Datum`. A reader that needs a frame on a face reads a constructed one (`Through`). DM1's sketch-on-face is D's: a construction placed against the face's plane, its spin a value.
-5. **`Split`'s tool** reads a `Plane` pose whose reads reach its operand's root alone. A tool reading a pose of another space refuses `SpaceMismatch` from B on. Until D, an absolute `Datum::Plane` output is also a `Plane` pose (stage 2 A's port).
+5. **`Split`'s tool** reads a `Plane` pose whose reads reach its operand's root alone. A tool reading a pose of another space refuses `SpaceMismatch` from B on. Until D, an absolute `Datum::Plane` output is also a `Plane` pose (stage 2 A's port), of the document's one kind like every construction on a datum (§3's interim).
 6. **One `Subgroup`.** `PoseSymmetry` moves from `DatumValue` (`mate/coset.rs`) to `PoseValue`, with `Point` (spherical) and `Direction` arms. `VarKind::symmetry` has no callers in src today, and the two tables are kept in step by a test (`intent_s2_a_outputs.rs`); A folds them into one.
 
 **Migration** (a one-time regenerate):
@@ -197,7 +197,7 @@ The largest unit. Its size is in the gauge sites, which are compile-driven, and 
 - **The solve** (`mate/solve.rs`) is per placement. Each bundle folds through `fold_pair`'s coset intersection, and a copy's pose is its target composed with the folded representative.
   - **Retired:** `solve_group` and its BFS; `groups`, `root_and_cause`, `root_of` and `places`; `group_frame`, `gauge_chain` and `gauge_frame`; `MateRole`, its Python door and 93 test mentions; `Unplaced::{NoOffset, DeadGauge}`; `MateFault::Under`, since an under-pinned copy is a loose copy.
   - `SolvedPoses` keeps `placement` and the A2a pairing door, keyed by placement.
-- **A mate beyond the pin refuses** (#4326: there is no interim that verifies a mate). A constraint added after the bundle's fold is `Trivial` refuses `Overconstrained` at the insert door and in the solve. F extends the rule to every constraint, pinned or not.
+- **A mate beyond the pin refuses** (#4326: there is no interim that verifies a mate). At the insert door, a constraint added to a bundle whose fold is already `Trivial` refuses `Overconstrained`. The solve, for a state the door did not see (a load, a rebind), refuses naming every constraint whose removal leaves the fold's codimension unchanged, never "the later one": constraints have no order. F extends the rule to every constraint, pinned or not.
 - **A loose copy.** A bundle that pins less than its body needs makes a loose copy, a root of its own kind (§1), not a refusal.
 - **Gauges and offsets retire:**
   - `Node::Gauge` and `InstantiatePart.gauge`/`offset` (the serde `present` door in `persist/wire.rs`);
@@ -206,8 +206,9 @@ The largest unit. Its size is in the gauge sites, which are compile-driven, and 
   - the thirteen gauge `EditError`s and `Maintenance::OffsetCleared`;
   - `check_offsets` and `MateFault::OffsetDisagrees`/`OffsetUnchecked`/`OffsetCheck`/`OFFSET_RECOURSE`;
   - `GaugeRefFault` (`doc.rs`), the load walk's gauge check (`persist/check.rs`) and `SnapshotError::NotAGauge`/`GaugeCycle`.
-- **`PlaceInWorld` retires**, if stage 2 C landed it, into `Place` with one mate to the world. Stage 2 C's product gather reads the placements whose space reaches the world.
-- **Spaces are kinds** (§1). The kind walk replaces `Product::spaces`/`own_spaces`, `gate_spaces`, `Evaluation::across_spaces`/`unplaced`/`unplaced_below` and `CarriedUnplaced`, each keeping its meaning, read from the recipe instead of gauges. `NodeErrorKind::Unplaced` becomes `SpaceMismatch`.
+- **`PlaceInWorld` retires** into `Place` with one mate to the world. Stage 2 C's product gather reads the placements whose space reaches the world.
+- **Spaces are kinds** (§1). The kind walk replaces `Product::spaces`/`own_spaces`, `gate_spaces`, `Evaluation::across_spaces`/`unplaced`/`unplaced_below` and `CarriedUnplaced`, read from the recipe instead of gauges. `NodeErrorKind::Unplaced` becomes `SpaceMismatch`.
+  - **Interim until D.** Every construction that reads no body, and every absolute datum, is of one kind, the document's own, because today they all share world coordinates. So `union(box on datum P, cylinder on datum Q)` still evaluates, and test 7's bit-equality holds. Copies take kinds from their bundles as §1 says. D lands "a body's kind is its root" for constructions, with the migration that places each one (§5).
 - **A9** (`relative_freedom_components`) runs over `Doc::upstream` alone. The gauge edges stage 2 F kept (its Q3) are gone with gauges.
 - **An instance is a placement** (§1). `eval/parts.rs` delivers one output per world placement of the part, keyed by that placement, and no `frame` port.
 - **Refactor** (`refactor.rs`). Split cuts a set of placements and the bodies they read; inline puts an instance's part's placements back as copies.
@@ -255,7 +256,7 @@ The largest unit. Its size is in the gauge sites, which are compile-driven, and 
   - the `Offset { frame, (dx, dy, θ) }` mate target, a second way to write three values (FORK-S3M);
   - `SlotId::MateFrameStep` and `VectorSlot::MateFrame*`.
 - `mate_coset` reads the two sides' `PoseValue`s and their common `Subgroup`, the table's row by kind. The face-base read (`resolve_side`, `topo::readback::face_pose`) moves into `eval_pose`, so it runs once per definition, not once per mate.
-- **The world as a target** (Q7): a mate's `to` reads the world through a projection of its frame.
+- **The world as a target** (Q7): a mate's `to` may read the world through any pose read the world offers and the target constructions, inside the mate (`WorldRead`).
 - **Analysis.** A value is a slot variable, seeded and boxed as any slot is, through `Doc::reads`. The solve's lanes (MSOLVE-14) are unchanged.
 
 **Migration.** Each mate is restated over geometry plus values:
@@ -294,14 +295,19 @@ Frames enter only at placement (FORK-S3P), and nothing moves a body (FORK-S3M).
 - **`Node::Transform` and `PortKind::PlacedFrom` retire** (`wire_transform`, `placeable_operand`). A rigid motion of a body is a `Place`. "You can't Transform an already placed part" (Ev) is unrepresentable: a copy is defined by its one placement and never moved after.
 - **Names.** A copy's names pass through unchanged (`names::role`), as `Transform`'s did, so downstream selectors spell what they already spell. DM3's sentence is re-worded to say so.
 - **The member walk** (`mate/member.rs` `transform_map`, `Placing::Transform`) has nothing left to walk through.
-- **`placement::Frame`** stays as the evaluated value type. `Step::Literal` retires: no document holds a literal frame, so A6's admission (`Frame::admission_fault`) runs on evaluated pose values in `eval_pose`. A mirror is G's construction, so no placement needs an improper frame.
+- **`placement::Frame`** stays as the evaluated value type. `Step::Literal` retires: no document holds a literal frame except `PatternKind::Explicit`'s, until G, so A6's admission (`Frame::admission_fault`) runs on evaluated pose values in `eval_pose`. A mirror is G's construction, so no placement needs an improper frame.
 - **Sketch on a face.** The façade's gesture writes profile, construction, placement (a `Plane` mate to the face's plane, the side a `Flip`, its slides and spin values) and combine, as one gesture.
 
 **Migration.**
 
-- **A construction on an absolute datum** becomes the same construction in its own coordinates. Where it is combined with another body, it is placed against that body, the combine's first operand's root: a mate read off that body's geometry, with values computed from `datum_first⁻¹ ∘ datum_this`. Its bits move by one composition, which the migration reports per body. The first operand keeps its datum's coordinates as its own and is placed nowhere new. No construction is placed against the world by this migration: only B's migrated world mates (former gauge roots and `PlaceInWorld`) read the world, so a cutter that is only subtracted never joins the product. Where no geometry of the target pins the same coset (a tilt no face or carrier offers), Q8 applies.
+- **A construction on an absolute datum** is rebuilt in its own coordinates: its 2-D profile is the datum-plane coordinates of today's profile, so its geometry is today's mapped by the inverse of its datum. Then:
+  - **combined with another body**, it is placed against that body, the combine's first operand's root, by the restate ladder below, with values computed from `datum_first⁻¹ ∘ datum_this`;
+  - **the first operand of a combine, or never combined**, it is placed nowhere new: whatever placed it in the world (B's migrated world mate, a former `PlaceInWorld`) keeps placing it;
+  - **every value charted on a re-coordinated body** (C's world-mate values, any mate value naming it) is recomputed from the pre-D solve, so no solved world pose moves (test 10).
+  
+  No construction is placed against the world by this migration, so a cutter that is only subtracted never joins the product. Product body digests move by one composition (the construction now computes in its own coordinates) and the world placement compensates it, so export moves by rounding.
+- **The restate ladder**, one for a construction's placement and for an absolute pose a non-root operation reads (a `Split` tool): a `Plane` mate to a parallel planar face of the target, at a `Standoff` where the planes differ; else a mate to `InFrame` of a frame constructed from the target's carriers; failing both, the migration names the node and the document refuses to regenerate (Q8).
 - **A `Transform`** becomes a `Place` of its input with one mate to the target plus values computed from its chain.
-- **An absolute pose read by a non-root operation** (a `Split` tool, an `Explicit` frame) becomes a `Standoff` of a parallel planar face of the operand where one exists, else `InFrame` of a frame constructed from the operand's carriers; failing both, the migration names the node and the document refuses to regenerate (Q8).
 - The tour: `chain.rs` (links), `diefillet.rs` (a pip ball per transform, then a union; the copies are placed against the die's faces, so they are of one space and the union stands) and `teapot.rs` (the spout).
 
 **Sites** (counts at the first baseline):
@@ -363,7 +369,7 @@ The unit's design is FORK-PAT's (row 99), and `work/intent/patterns-are-index-va
 - **A pattern is a placement** whose values are expressions in the index: `spin = scalar(k)·turn/N` under an `Axis` mate is a ring, `slide = scalar(k)·pitch` a row. Copies of one body are built once and mapped.
 - **Mirror.** `Mirror { body, plane }`, a construction defining a new `Body` in its source's root, the plane read off the source alone (MIRROR-DESIGN P1–P4, P6).
 - **`PlacedUnion` retires** into a placement of the copies and a `Node::Union` reading the family. It is written against today's node (REFERENCES DM4 as it stands) and moves with FORK-DM4's units. Its `Separation` certificate becomes the union's fast path when its bodies are rigid images of one body. This closes `placed-union-places-and-fuses-in-one-node`.
-- **Explicit frames.** `PatternKind::Explicit(frames)` becomes one placement per frame, a `Plane` mate against the face with the frame's in-plane offsets and spin as values, computed from the stored frame once at migration. This closes `explicit-placement-frames-hold-floats` (`die_tool.pncad` holds six `Explicit` frames, not the row's "twenty-one").
+- **Explicit frames.** `PatternKind::Explicit(frames)` becomes one placement per frame by D's restate ladder (§5): a `Plane` mate against the face, at a `Standoff` where the frame sits off it, else `InFrame` of a constructed frame, else Q8; the frame's in-plane offsets and spin become values, computed from the stored frame once at migration. A `Linear` direction is restated by the same ladder. This closes `explicit-placement-frames-hold-floats` (`die_tool.pncad` holds six `Explicit` frames, not the row's "twenty-one").
 - **Retired:** `PatternKind`, `Node::Pattern`, `Node::PlacedUnion`, `PartSelect::Instance`, the placement-rule slot table, `placement_rule_fault`, `CountMismatch`, P5's placement-major layout, and the boxed `Pattern` angle half of `topo/a-boxed-rotation-refuses-not-rigid-at-every-placer`.
 - **Façade.** `linear_pattern`, `circular_pattern`, `grid`, `bolt_circle` and `mirror` write the program; a display-only recogniser reads it back for the GUI's forms.
 
@@ -394,7 +400,7 @@ The unit's design is FORK-PAT's (row 99), and `work/intent/patterns-are-index-va
 | Var table, mint log | grows (pose definitions) | grows (`Carried`) | grows (values, standoffs) | grows | — | — | grows (indices) |
 | Wire | `Revolve` slots; pose definitions | `Gauge`, `gauge`/`offset`, `PlaceInWorld` gone; `Place`, `World` | `Mate` | `Datum`, `Transform`, profile plane, tube frame, extrude side gone | — | mates dropped | `Pattern`, `PlacedUnion` gone |
 | Solved poses | — | **bit-equal** (test 7) | within stated rounding (test 8) | — | relative to the computing frame | **bit-equal** | — |
-| Product body digests | **bit-equal** | **bit-equal** | within stated rounding | **move by one composition** (reported) | **move** (computing frame) | **bit-equal** | **bit-equal** for copies |
+| Product body digests | **bit-equal** | **bit-equal** | within stated rounding | **move by one composition**, compensated by the world placement (reported) | **move** (computing frame) | **bit-equal** | **bit-equal** for copies |
 | STEP export bytes | equal | equal | rounding | rounding | **rounding** | equal | equal |
 | Names | — | — | — | — | — | — | `Instance` → `Member` |
 | Python `.pyi` | pose builders | `place`, `world`; gauge doors go | `Mate(on, to)`, values | datum builders, `transform` go | — | — | presets become façade functions |
@@ -413,7 +419,7 @@ The unit's design is FORK-PAT's (row 99), and `work/intent/patterns-are-index-va
 8. **(C) The mate respelling.** Every MSOLVE fixture's solved poses agree with pre-C within the rounding of one value re-composition, and the report names every dropped mate. *Breaks if* a migrated standoff lands in the other side's frame (a non-zero standoff flips sign).
 9. **(C) Values.** A `Plane` mate leaves two slides and a spin. Setting each to zero places the copy with its own coordinates agreeing with the target's in the plane, whatever order the values are listed in. A spin value on a lone point mate refuses `NoChart`. A second mate taking a freedom a value sets refuses `Overconstrained`. *Breaks if* a slide is charted along the other slide's moved axis (order-dependent).
 10. **(D) A construction is placed, not framed.** The corpus's sketch-on-face bodies: each copy's digest equals the pre-D digest within one composition, and editing a value moves the copy, not the construction (the construction's digest is unmoved). *Breaks if* a construction reads the frame it is placed by.
-11. **(D) Nothing moves a body.** No variant reads a body and defines it moved except `Place`; a second placement of a copy is a second copy. *Breaks if* `Transform` survives under another name (a census of `Node` variants reading a `Body` and a rigid motion).
+11. **(D, G) Nothing moves a body.** No variant reads a body and defines it moved except `Place`, and, until G, `Pattern` and `PlacedUnion`; from G the exemption is gone. A second placement of a copy is a second copy. *Breaks if* `Transform` survives under another name (a census of `Node` variants reading a `Body` and a rigid motion).
 12. **(B, E) The world is read by placements and export alone.** `Delete(world)` refuses `WorldIsUndeletable`. A construction reading the world refuses at the door. The gate admits no `world_of` caller outside `pncad/src/export.rs`. *Breaks if* the world is admitted as an ordinary pose.
 13. **(E) The computing frame is no part of meaning.** Every corpus operation computed in its frame and in a second frame (the first rotated by an irrational angle and translated) gives the same body up to that map, the same names, and the same verdicts outside the sliver band. Moving a document's only world mate moves no body digest and no measured bit, and moves the STEP bytes. *Breaks if* a minted u-reference follows the axes (a seam moves, a name changes) or a path composes the world's map.
 14. **(F) A constraint already fixed refuses, measure-free.** A copy pinned by a mate and values: inserting any further mate refuses `Overconstrained { held: Trivial }` with an empty predicate log. A `Plane` mate, then a second `Plane` mate on any other face, refuses whatever the faces' angle. *Breaks if* the door folds the new mate before checking codimension, or admits a redundant mate whose offset agrees (the fallback Ev rejected).
@@ -430,7 +436,7 @@ Loud census rows: `pncad-py` `tags.rs` / `surface_census` / `prose_census`, `dis
 - **The migrations that cannot restate.** C and D restate absolute coordinates over geometry where a face or carrier pins the same coset, and otherwise drop and name a mate (C) or refuse to regenerate (D, Q8). Measure the corpus's count before C dispatches.
 - **Pose definitions bound mid-evaluation** (A). A face's plane exists only after the body it reads. If stage 2 D's machinery is narrower than this needs, A widens it, and the content key hashes a pose definition's upstream keys, not its id.
 - **Constraints reading copies** (B). `Carried` is new: a pose a copy carries is a function of that copy's solved pose, so a bundle's fold reads poses that depend on other bundles. The order is the bundles' read order over `Doc::upstream`, acyclic by the door: A placed against B and B against A is a read cycle and refuses, which replaces A11 (4)'s "no cycle is ever solved".
-- **The contacts declaring mates declared** (B). B drops declaring mates, so their contacts are unattributed. Stage 4 J makes them findings before B lands (§12). They are loud until rungs 2 and 3 prove them or an assertion quiets them.
+- **The contacts declaring mates declared** (B). B drops declaring mates, so their contacts are unattributed. Stage 4 J makes them findings before B lands (§12). They are unproven findings from B until stage 4 H, because stage 4 C compares a placement chain as one opaque atom until H, unless B's migration asserts them. B's migration report counts them.
 - **E moves goldens on purpose.** Every assembly digest, the STEP bytes and the gallery frames move. The check is test 13's map, not bit equality.
 - **Migration reproducing the tree** (B). Today's tree is "the first member pair per instance pair in `Member` key order". The migration orients mates by that exact rule, or test 7 fails where two orders differ.
 - **Load.** Seven units (H, H, H, H, M, M, H: 30 points by the work README's weights) are filed `parked` behind stage 2 and so count nothing until it closes. At stage 2's close the orchestrator splits stage 3 into its own program or confirms it fits.
@@ -467,7 +473,7 @@ FORK-PAT (row 99, PR 4341) added unit G.
 - **Stage 4.**
   - **H waits on this stage's C** (`placed-carriers-compare-through-their-frames`). A placed copy's frame is the construction its bundle states (FORK-S3O), and H replays that fold at `Sym`. The bundle exists after B, but its mates' poses are read off geometry only after C, so H waits on C rather than replaying today's offset frames and then rewriting the replay. This moves H from "after B" to "after C".
   - **F waits on stage 4's C** (D has merged). F turns redundant mates into contacts the census records, and the rungs C and D are what prove those contacts structural rather than report them as unproven.
-  - **B waits on stage 4 J** (`an-unattributed-contact-at-rest-is-a-finding`). B drops declaring mates, so a contact one declared is unattributed, and A5's hard error would refuse that document's product. Stage 4 I retired that error but waits on H, which waits on this stage, so the orchestrator cut it out of I (2026-10-09) into J, after stage 4 B and C (D has merged). Contacts no mate attributes are then non-refusing `unproven-coincidence` findings, as D10 says ("recorded and linted, and its recourse is an assertion"), and most prove at rungs 2 and 3.
+  - **B waits on stage 4 J** (`an-unattributed-contact-at-rest-is-a-finding`). B drops declaring mates, so a contact one declared is unattributed, and A5's hard error would refuse that document's product. Stage 4 I retired that error but waits on H, which waits on this stage, so the orchestrator cut it out of I (2026-10-09) into J, after stage 4 B and C (D has merged). Contacts no mate attributes are then non-refusing `unproven-coincidence` findings, as D10 says ("recorded and linted, and its recourse is an assertion"). The contacts between differently placed copies stay unproven until stage 4 H, which proves mate-placed faces; the interim is loud and refuses nothing.
   - Stage 4's canonical forms compare poses "modulo the kind's own symmetry", the same `Subgroup` A shares.
 - **Stage 5.**
   - Its unit C (`the-at-rest-census-is-a-check`) checks per space and names F as its stage-3 trigger, which stands.

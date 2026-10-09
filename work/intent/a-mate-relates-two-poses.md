@@ -12,7 +12,7 @@ refs: [intent-stage3-is-built]
 
 INTENT stage 3, PR C. Spec: `docs/INTENT-STAGE3-SPEC.md` §4. Built on FORK-S3M (fork log row 97, PR 4326).
 
-A mate is `{ on, to }`, two pose variables of one kind, and the kind is the primitive. `on` is read off the copied shapes' geometry. `to` is read off geometry of the space the copy joins, or reads the world through a projection of its frame (spec Q7). There is no part frame to read, and no reader of a carrier's reference direction. A mate holds no number. Its sense is `Flip` on one side. A standoff is `Standoff`, a construction on the target.
+A mate is `{ on, to }`, two pose variables of one kind, and the kind is the primitive. `on` is read off the copied shapes' geometry. `to` is read off geometry of the space the copy joins, or reads the world through any pose read the world offers and the target constructions, inside the mate (spec Q7). There is no part frame to read, and no reader of a carrier's reference direction. A mate holds no number. Its sense is `Flip` on one side. A standoff is `Standoff`, a construction on the target.
 
 A value sets one freedom the mates leave, a slide or a spin, to a `Length` or `Angle` variable. It is charted on the two bodies' own coordinates as the placement carries them, as a function of the relative pose alone, and zero is always valid. A value on a lone point mate's rotation refuses `NoChart`. A mate taking a freedom a value sets refuses `Overconstrained`.
 
