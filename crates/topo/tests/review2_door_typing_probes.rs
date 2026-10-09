@@ -151,3 +151,27 @@ fn r2_thin_void_across_the_band() {
         }
     }
 }
+
+/// The filed P0: the notch prism's convex piece beyond the notch, ∩ the
+/// same cube, leaves only the sliver lump; and the whole prism's ∩, for
+/// the solid/shell layout of the result.
+#[test]
+fn r2_one_shell_sliver_and_layout() {
+    if !on() {
+        return;
+    }
+    let tol = Tol::witness();
+    for d in [1e-8, 2e-8, 3e-8, 1e-9, 1e-7] {
+        let (prism, cube) = witness(3, d, 0.0, tol);
+        let r = topo::intersect(&prism, &cube, tol);
+        println!("R2 WHOLE eps={:e} d={d:e}: {}", tol.eps(), describe(&r));
+        let piece = [(2.0, 0.0), (4.0, 0.0), (4.0, 2.0), (2.0, 1.0)];
+        let piece = at_rest(common::prism::<f64>(&piece, 1.0, tol).body, tol);
+        let r = topo::intersect(&piece, &cube, tol);
+        let roles = r.as_ref().ok().and_then(|r| r.body()).map(|b| topo::classify_shells(&b.body, tol).map(|s| s.iter().map(|s| (s.role, s.volume)).collect::<Vec<_>>()).map_err(|e| match e {
+            ShellClassifyError::Escalated { source, sliver, .. } => format!("Escalated walk={:?} sliver={:?}", source.margin, sliver.map(|s| s.reading().margin)),
+            other => format!("{other:?}"),
+        }));
+        println!("R2 PIECE eps={:e} d={d:e}: {} classify={roles:?}", tol.eps(), describe(&r));
+    }
+}
