@@ -2,10 +2,11 @@
 id: a-pierce-pinch-weld-reads-which-ring-strut-was-minted-first
 kind: issue
 title: The pinch weld refuses JoinDesync when a k = 2 pierce ring mints its struts in the other cyclic rotation
-status: open
+status: closed
 opened: 2026-10-08
 priority: P2
 cost: M
+closed: 2026-10-08
 ---
 
 
@@ -67,3 +68,22 @@ At k ≥ 4 the default root's walk does not always mint run 0 first:
 measured over every closed meander (PR 4300's second review), 6 of 42
 at k = 4 up to 5,090 of 13,820 at k = 7 mint another run first. No row
 measures a pinch weld meeting such a ring.
+
+## Closed (2026-10-08, TANG, PR 4346)
+
+Measured: from the leaf inside run 1's chord, the weld first joins one
+copy of the run-1 pierce (`16v1`) to the other pierce (`30v1`), and then
+meets the pair (`18v1`, `30v1`). `18v1` is another copy of the same
+pierce, and the joined vertex passes the fragment's boundary twice.
+`finish::pinch_site` now reads which of the twice-passed vertex's
+corners holds the other pierce's edges (`pinch_corner_holds`, the
+decide `corners_nest` reads). Here none does: the copies' corners are
+disjoint, so the pair stays apart, as `corners_nest` leaves a pair whose
+corners do not nest. All eight lines of
+`sweep::all join_pierce_runs_sweep::a_pinchs_unions_from_every_root_of_the_ring`
+now build `OK SOUND` at the clipped volume, and the row asserts that
+for every root.
+
+The k ≥ 4 note above stands as measured: no row meets a pinch weld with
+such a ring.
+

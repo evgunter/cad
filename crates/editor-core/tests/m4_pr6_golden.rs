@@ -397,9 +397,9 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     // DESIGNATION ORDER (the first named face carries the rim), here
     // one name — a box's end cap. The box is its own three nodes (a
     // square on the sketch frame, its extrude, the shell) rather than
-    // a shell of the bulged block: the shell verb refuses the bulged block's
-    // cylindrical wall at its inward offset (`ReanchorOffCarrier`), a
-    // kernel scope fact this fixture is not the place to argue.
+    // a shell of the bulged block: what the shell verb does with the
+    // bulged block's cylindrical wall is a kernel scope fact this
+    // fixture is not the place to argue.
     // The wall clears every dimension of
     // the box by an order of magnitude, so the golden evaluates green.
     doc = push(

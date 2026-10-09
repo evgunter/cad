@@ -3569,6 +3569,15 @@ pub trait AtRestPolicy: Decide {
     /// Euler door).
     fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>>;
 
+    /// **This scalar's section lane, or `None` where it is not
+    /// derived here** — the per-chart offset door's plane × spline-wall
+    /// section and the plane's root along a spline edge
+    /// ([`crate::offset_derive::SectionLane`]). Its march is written at
+    /// `f64` alone, so that arm answers `Some`; an offset whose edge or
+    /// corner needs it refuses at any other scalar by name
+    /// ([`crate::ReplaceFaceError::NurbsLaneUnsupported`]).
+    fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>>;
+
     /// **This scalar's shell door, or `None` where it may not form the
     /// call** — the ONE seam the `Some` comes from, read by the verb
     /// seat's `verbs::Verb::run_shell` and, above it, the document
@@ -3684,6 +3693,11 @@ impl AtRestPolicy for f64 {
         Some(geom_brep::NurbsLane::certified())
     }
 
+    /// The march is written here.
+    fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
+        Some(crate::offset_derive::SectionLane::f64())
+    }
+
     /// The decide-with-escalation lane certifies, so it runs the door.
     fn shell_door() -> Option<ShellDoor<Self>> {
         Some(ShellDoor::certified())
@@ -3750,6 +3764,11 @@ impl AtRestPolicy for geom_core::Probe {
         Some(geom_brep::NurbsLane::certified())
     }
 
+    /// The march is written at `f64` alone.
+    fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
+        None
+    }
+
     /// The recording scalar is `f64` with a sink attached, so it
     /// carries exactly what `f64` carries — here, the door.
     fn shell_door() -> Option<ShellDoor<Self>> {
@@ -3811,6 +3830,11 @@ impl AtRestPolicy for geom_core::interval::Interval {
     /// its brackets are what their hull bounds are made of.
     fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>> {
         Some(geom_brep::NurbsLane::certified())
+    }
+
+    /// The march is written at `f64` alone.
+    fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
+        None
     }
 
     /// The certified interval scalar runs the door: its brackets are
@@ -3884,6 +3908,11 @@ where
     /// fitted door above gives.
     fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>> {
         Some(geom_brep::NurbsLane::certified())
+    }
+
+    /// The march is written at `f64` alone.
+    fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
+        None
     }
 
     /// For the reason [`QuadLane`] gives at the symbolic tier: the
@@ -3967,6 +3996,11 @@ where
     /// are certification arithmetic, so no `Dual` can hold the lane
     /// ([`geom_brep::NurbsLane::certified`]'s bound).
     fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>> {
+        None
+    }
+
+    /// The march is written at `f64` alone.
+    fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
         None
     }
 
