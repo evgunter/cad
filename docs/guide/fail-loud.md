@@ -191,9 +191,9 @@ is deliberate.
 
 ## 4. The edit door: refusals before anything is evaluated
 
-Document edits are checked when applied. Deleting a node something
-else depends on would leave a dangling reference, so it is refused
-and the document is left untouched:
+Document edits are checked when applied. An operand reads a value of
+the kind its slot admits, so an extrude of a body — where the slot
+reads a profile — is refused, and the document is left untouched:
 
 ```
 use pncad::prelude::*;
@@ -221,17 +221,21 @@ let applied = apply(&doc, &DocEdit::InsertNode {
 }, tol, &pncad::document::RefusingReach)?;
 let (doc, frame) = (applied.doc, applied.record.minted.expect("minted"));
 let applied = apply(&doc, &DocEdit::InsertNode {
-    node: Box::new(Node::Profile(ProfileProgram { plane: frame, loops: vec![square], ids: Vec::new() })),
+    node: Box::new(Node::Profile(ProfileProgram { frame: frame.into(), loops: vec![square], ids: Vec::new() })),
     fresh: Vec::new(),
 }, tol, &pncad::document::RefusingReach)?;
 let (doc, profile) = (applied.doc, applied.record.minted.expect("minted"));
-let doc = apply(&doc, &DocEdit::InsertNode {
-    node: Box::new(Node::Extrude { profile, distance: len(1.0), side: ExtrudeSide::Along }),
+let applied = apply(&doc, &DocEdit::InsertNode {
+    node: Box::new(Node::Extrude { profile: profile.into(), distance: len(1.0), side: ExtrudeSide::Along }),
     fresh: Vec::new(),
-}, tol, &pncad::document::RefusingReach)?.doc;
+}, tol, &pncad::document::RefusingReach)?;
+let (doc, body) = (applied.doc, applied.record.minted.expect("minted"));
 
-let refused = apply(&doc, &DocEdit::DeleteNode { id: profile }, tol, &pncad::document::RefusingReach);
-assert!(matches!(refused, Err(EditError::DeleteWouldDangle { .. })));
+let refused = apply(&doc, &DocEdit::InsertNode {
+    node: Box::new(Node::Extrude { profile: body.into(), distance: len(1.0), side: ExtrudeSide::Along }),
+    fresh: Vec::new(),
+}, tol, &pncad::document::RefusingReach);
+assert!(matches!(refused, Err(EditError::SlotVarKind { .. })));
 assert_eq!(doc.len(), 3, "the refused edit changed nothing");
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```

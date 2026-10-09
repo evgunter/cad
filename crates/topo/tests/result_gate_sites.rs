@@ -1,13 +1,11 @@
 //! **Every site that builds a Boolean result gates it at tier 3.** The
-//! door builds a [`BooleanBody`] at four sites — the seamed join, the
-//! two-operand fallback (`Assembly`, `Voided`), the single-operand
-//! fallback (`OperandA`, `OperandB`) and the declared-REST union — and
-//! each passes its result through `ops::gate` before returning it. One
-//! pose per result kind of the first three, each asserting the kind it
-//! reaches and that the body it returns carries tier 3's `Validated`
-//! verdict, so a site that skipped the gate (sorting pieces only) goes
-//! red here. The REST union is the join's fallback, reached by the mate
-//! rows, and `sweep`'s `full_turn_bore_mate` pins its verdict.
+//! door builds a [`BooleanBody`] at three sites — the seamed join, the
+//! two-operand fallback (`Assembly`, `Voided`) and the single-operand
+//! fallback (`OperandA`, `OperandB`) — and each passes its result
+//! through `ops::gate` before returning it. One pose per result kind,
+//! each asserting the kind it reaches and that the body it returns
+//! carries tier 3's `Validated` verdict, so a site that skipped the
+//! gate (sorting pieces only) goes red here.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;

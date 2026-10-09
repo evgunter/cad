@@ -52,6 +52,8 @@ pub use compose::{
     BernsteinSpans, CanonicalSurface, ComposeError, CompositeForm, CurveCertData, ImplicitSurface,
 };
 pub use hull::{CoeffWindow, RationalCoeffs, RationalWindow, SplineCoeffs};
-pub use knots::{KnotVector, KnotVectorIssue, Span, SplineError, derivative_knot_slice};
+pub use knots::{
+    KnotMirrorError, KnotVector, KnotVectorIssue, Span, SplineError, derivative_knot_slice,
+};
 pub use locate::{SpanLocate, SpanSet};
 pub use net::TensorNet;

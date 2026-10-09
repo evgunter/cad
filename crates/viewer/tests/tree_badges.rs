@@ -123,7 +123,7 @@ fn an_independent_subgraph_completes_beside_a_failure() {
     let (doc, other_extrude) = common::inserted(
         &doc,
         pncad::document::Node::Extrude {
-            profile: other_profile,
+            profile: other_profile.into(),
             distance: common::len(0.005),
             side: ExtrudeSide::Along,
         },
@@ -1352,7 +1352,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         common::inserted(
             &doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: common::len(0.02),
                 side: ExtrudeSide::Along,
             },
@@ -1365,8 +1365,8 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         &doc,
         Node::Boolean {
             op: BooleanOp::Intersect,
-            a: near,
-            b: far,
+            a: near.into(),
+            b: far.into(),
             declare: Vec::new(),
         },
         tol,
@@ -1426,11 +1426,18 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         }),
         tol,
     );
-    let (doc, split) = common::inserted(&doc, Node::Split { target: near, tool }, tol);
+    let (doc, split) = common::inserted(
+        &doc,
+        Node::Split {
+            target: near.into(),
+            tool: tool.into(),
+        },
+        tol,
+    );
     let (doc, above) = common::inserted(
         &doc,
         Node::Part {
-            of: split,
+            of: pncad::document::Operand::output(split, SplitHalf::Above.port()),
             select: PartSelect::SplitHalf(SplitHalf::Above),
         },
         tol,
@@ -1442,8 +1449,8 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         &doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: near,
-            b: far,
+            a: near.into(),
+            b: far.into(),
             declare: Vec::new(),
         },
         tol,
@@ -1459,8 +1466,8 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     let (doc, halved) = common::inserted(
         &doc,
         Node::Split {
-            target: near,
-            tool: through,
+            target: near.into(),
+            tool: through.into(),
         },
         tol,
     );
@@ -1469,7 +1476,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     let (doc, pattern) = common::inserted(
         &doc,
         Node::Pattern {
-            input: far,
+            input: far.into(),
             count: pncad::document::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
@@ -1481,7 +1488,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     let (doc, past) = common::inserted(
         &doc,
         Node::Part {
-            of: pattern,
+            of: pattern.into(),
             select: PartSelect::Instance(pncad::document::Formula::count(3)),
         },
         tol,
@@ -1497,7 +1504,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     let (doc, stranger) = common::inserted(
         &doc,
         Node::Datum(Datum::AxisInPlane {
-            plane: other_plane,
+            frame: other_plane.into(),
             origin: [common::len(-0.01), common::len(0.0)],
             direction: [common::scl(0.0), common::scl(1.0)],
         }),
@@ -1508,8 +1515,8 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     let (doc, revolved) = common::inserted(
         &doc,
         Node::Revolve {
-            profile: section,
-            axis: stranger,
+            profile: section.into(),
+            axis: stranger.into(),
             angle: common::ang(std::f64::consts::PI),
         },
         tol,

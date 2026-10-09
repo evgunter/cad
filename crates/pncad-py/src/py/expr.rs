@@ -430,6 +430,20 @@ impl SlotArg {
             Self::Scalar(x) => literal(py, *x, d::Dimension::Scalar),
         }
     }
+    /// The dimension a value or a formula carries of itself, for an
+    /// expression offered where no dimension is fixed (an operand,
+    /// whose refusal names it). A variable has none of its own and
+    /// `DocEdit.set_param` writes one there as a read; asked anyway, it
+    /// answers a length.
+    pub(crate) fn own_dimension(&self) -> d::Dimension {
+        match self {
+            Self::Formula(formula) => formula.0.dim(),
+            Self::WrittenAngle(_) | Self::Angle(_) => d::Dimension::Angle,
+            Self::Count(_) => d::Dimension::Count,
+            Self::Scalar(_) => d::Dimension::Scalar,
+            Self::Var(_) | Self::WrittenLength(_) | Self::Length(_) => d::Dimension::Length,
+        }
+    }
 }
 
 /// **A stored expression** — what a document holds once the edit door

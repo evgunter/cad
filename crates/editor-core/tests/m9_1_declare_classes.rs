@@ -39,7 +39,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -122,8 +122,8 @@ fn an_authored_class_is_what_the_node_holds() {
     let (doc, a, b) = stacked();
     let node: AuthoredNode = Node::Boolean {
         op: BooleanOp::Union,
-        a,
-        b,
+        a: a.into(),
+        b: b.into(),
         declare: vec![
             (
                 (cap(a, CapEnd::End), cap(b, CapEnd::Start)),
@@ -175,8 +175,8 @@ fn a_wrong_class_declaration_refuses_at_the_op() {
                 &DocEdit::InsertNode {
                     node: Box::new(Node::Boolean {
                         op: BooleanOp::Union,
-                        a,
-                        b,
+                        a: a.into(),
+                        b: b.into(),
                         declare: vec![((cap(a, CapEnd::End), cap(b, CapEnd::Start)), class)],
                     }),
                     fresh: Vec::new(),

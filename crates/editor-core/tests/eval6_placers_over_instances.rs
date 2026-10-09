@@ -49,7 +49,7 @@ pub(crate) fn cube_doc(label: &str) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -59,7 +59,7 @@ pub(crate) fn cube_doc(label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// A linear pattern of `count` along `dir` at `spacing`.
 pub(crate) fn linear(input: RecipeNodeId, dir: [f64; 3], spacing: f64, count: i64) -> AuthoredNode {
     Node::Pattern {
-        input,
+        input: input.into(),
         count: editor_core::Formula::count(count),
         kind: PatternKind::Linear {
             direction: dir.map(scl),
@@ -71,7 +71,7 @@ pub(crate) fn linear(input: RecipeNodeId, dir: [f64; 3], spacing: f64, count: i6
 /// `Part(Instance(i))` of `of`.
 pub(crate) fn part(of: RecipeNodeId, i: i64) -> AuthoredNode {
     Node::Part {
-        of,
+        of: of.into(),
         select: PartSelect::Instance(editor_core::Formula::count(i)),
     }
 }
@@ -371,12 +371,15 @@ fn a_part_over_a_nested_pattern_indexes_the_flat_list() {
 
 // ---- the door ----
 
-/// **The operand door.** A placer takes a body or instances and
-/// refuses everything else typed, naming both admitted shapes; a
-/// boolean still takes ONE body and refuses instances — the asymmetry
-/// `ValuePayload::Instances` states.
+/// **The operand door.** A placer reads a body or instances and the
+/// door refuses everything else typed, before any evaluation: a split
+/// named alone is two bodies, so the read names a port, and a datum is
+/// not placeable. A boolean reads ONE body and refuses instances — the
+/// asymmetry `ValuePayload::Instances` states — as a kind at the same
+/// door.
 #[test]
 fn the_placers_admit_a_body_or_instances_and_the_boolean_one_body() {
+    use editor_core::{EditError, OperandSlot, SlotKind, VarKind};
     let (doc, cube) = cube_doc("eval6-door");
     let (doc, plane) = insert(
         doc,
@@ -388,55 +391,60 @@ fn the_placers_admit_a_body_or_instances_and_the_boolean_one_body() {
     let (doc, split) = insert(
         doc,
         Node::Split {
-            target: cube,
-            tool: plane,
+            target: cube.into(),
+            tool: plane.into(),
         },
     );
     let (doc, pattern) = insert(doc, linear(cube, [1.0, 0.0, 0.0], 2.0, M));
-    let (doc, xf_split) = insert(doc, skew(split));
-    let (doc, xf_plane) = insert(doc, skew(plane));
-    let (doc, pat_split) = insert(doc, linear(split, [0.0, 1.0, 0.0], 2.0, N));
+    for node in [skew(split), linear(split, [0.0, 1.0, 0.0], 2.0, N)] {
+        let refusal = fixture::insert_refused(&doc, node);
+        assert!(
+            matches!(
+                &refusal,
+                EditError::AmbiguousOutput { input, slot: editor_core::SlotId::Operand(OperandSlot::Input), .. } if input.id() == split
+            ),
+            "a split named alone: {refusal:?}"
+        );
+    }
+    let refusal = fixture::insert_refused(&doc, skew(plane));
+    assert!(
+        matches!(
+            &refusal,
+            EditError::SlotVarKind {
+                slot: editor_core::SlotId::Operand(OperandSlot::Input),
+                found: VarKind::Plane,
+                expected: SlotKind::Placeable,
+                ..
+            }
+        ),
+        "a datum: {refusal:?}"
+    );
     let (doc, pat_pattern) = insert(doc, linear(pattern, [0.0, 1.0, 0.0], 2.0, N));
     let (doc, xf_pattern) = insert(doc, skew(pattern));
-    let (doc, boolean) = insert(
-        doc,
+    let refusal = fixture::insert_refused(
+        &doc,
         Node::Boolean {
             op: editor_core::BooleanOp::Union,
-            a: pattern,
-            b: cube,
+            a: pattern.into(),
+            b: cube.into(),
             declare: Vec::new(),
         },
     );
-    let ev = run(&doc, &opts());
-    for (node, found) in [
-        (xf_split, "split"),
-        (xf_plane, "datum"),
-        (pat_split, "split"),
-    ] {
-        assert!(
-            matches!(
-                ev.node_error(node).map(|e| &e.kind),
-                Some(NodeErrorKind::WrongOperand { expected, found: f, .. })
-                    if *expected == "body or instances" && *f == found
-            ),
-            "{found}: {:?}",
-            ev.node_error(node)
-        );
-    }
-    assert_eq!(instances_of(&ev, pat_pattern).len() as i64, N * M);
-    assert_eq!(instances_of(&ev, xf_pattern).len() as i64, M);
     assert!(
         matches!(
-            ev.node_error(boolean).map(|e| &e.kind),
-            Some(NodeErrorKind::WrongOperand {
-                expected: "body",
-                found: "instances",
+            &refusal,
+            EditError::SlotVarKind {
+                slot: editor_core::SlotId::Operand(OperandSlot::A),
+                found: VarKind::Bodies,
+                expected: SlotKind::Is(VarKind::Body),
                 ..
-            })
+            }
         ),
-        "a boolean takes one body: {:?}",
-        ev.node_error(boolean)
+        "a boolean reads one body: {refusal:?}"
     );
+    let ev = run(&doc, &opts());
+    assert_eq!(instances_of(&ev, pat_pattern).len() as i64, N * M);
+    assert_eq!(instances_of(&ev, xf_pattern).len() as i64, M);
 }
 
 // ---- the lanes the hosted matrix does not draw: Dual64 ----

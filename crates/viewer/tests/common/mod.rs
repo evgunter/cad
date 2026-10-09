@@ -172,7 +172,7 @@ pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeN
     let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             // `thickness / 2` — a composed expression over a
             // variable, which is the shape the refusal affordance
             // exists for.
@@ -201,7 +201,7 @@ pub fn broken_document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNo
     let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: Formula::div(len(0.008), scl(0.0)).expect("length / scalar is a length"),
             side: ExtrudeSide::Along,
         },

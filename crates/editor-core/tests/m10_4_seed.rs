@@ -149,7 +149,7 @@ fn two_param_web() -> ProfileDoc {
         DocEdit::SetParam {
             node: plate,
             slot: editor_core::SlotId::Distance,
-            expr: param("depth"),
+            value: param("depth").into(),
             fresh: Vec::new(),
         },
     );
@@ -200,12 +200,12 @@ fn width_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
     ]);
     let frame = r.insert(fixture::xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: frame,
+        frame: frame.into(),
         loops: vec![chain],
         ids: Vec::new(),
     }));
     let slab = r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });

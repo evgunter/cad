@@ -576,7 +576,7 @@ fn twin(id: &str) -> ProfileDoc {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -598,8 +598,8 @@ fn failing_root(id: &str) -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     )
@@ -617,7 +617,7 @@ fn slab(doc: ProfileDoc, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -679,7 +679,7 @@ fn one_body_under_two_roots(id: &str) -> ProfileDoc {
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -720,7 +720,7 @@ fn twin_pair(id: &str, apart: f64) -> ProfileDoc {
     let (doc, _) = insert(
         doc,
         Node::Extrude {
-            profile: first,
+            profile: first.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -735,7 +735,7 @@ fn twin_pair(id: &str, apart: f64) -> ProfileDoc {
     insert(
         doc,
         Node::Extrude {
-            profile: second,
+            profile: second.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },

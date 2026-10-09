@@ -2269,8 +2269,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     );
 
     // 1. The stem is ONE stem. Its two arcs meet on a shared disk —
-    //    an exact coincident planar contact, the crosslap mate — so
-    //    the glue is the M5 S1 declared REST zip if it reaches it.
+    //    an exact coincident planar contact, the crosslap mate, which
+    //    the join builds once declared.
     //
     //    The torus is on the operand gate's KIND roster, and the
     //    crossing layer has a circle × torus root lane: the stem's inner

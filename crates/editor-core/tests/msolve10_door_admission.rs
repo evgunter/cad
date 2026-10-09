@@ -58,7 +58,7 @@ fn box_part(label: &str, half: f64, height: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(height),
             side: ExtrudeSide::Along,
         },
@@ -724,7 +724,7 @@ fn a2_a_mate_on_a_pair_the_fold_never_reads_is_refused_on_the_datum_alone() {
         let (doc, copies) = insert(
             doc,
             Node::Pattern {
-                input: ids[0],
+                input: ids[0].into(),
                 count: editor_core::Formula::count(2),
                 kind: editor_core::PatternKind::Linear {
                     direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],
@@ -1055,7 +1055,7 @@ fn corpus() -> Vec<Row> {
         let (doc, copies) = insert(
             doc,
             Node::Pattern {
-                input: ids[0],
+                input: ids[0].into(),
                 count: editor_core::Formula::count(2),
                 kind: editor_core::PatternKind::Linear {
                     direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],
@@ -1090,7 +1090,7 @@ fn corpus() -> Vec<Row> {
         let (doc, local) = insert(
             doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(1.0),
                 side: ExtrudeSide::Along,
             },
@@ -1142,7 +1142,7 @@ fn corpus() -> Vec<Row> {
         let (doc, pattern) = insert(
             doc,
             Node::Pattern {
-                input: ids[1],
+                input: ids[1].into(),
                 count: editor_core::Formula::count(3),
                 kind: editor_core::PatternKind::Linear {
                     direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],
@@ -1153,7 +1153,7 @@ fn corpus() -> Vec<Row> {
         let (doc, part) = insert(
             doc,
             Node::Part {
-                of: pattern,
+                of: pattern.into(),
                 select: editor_core::PartSelect::Instance(editor_core::Formula::count(0)),
             },
         );
