@@ -6,13 +6,14 @@
 //! (`reach_cone_root_lane.rs` pins that), so these rows reach the join
 //! through `topo::join_admitting_cones` (`sweep-testing`), which runs
 //! the production pipeline with the cone on the gate's roster and stops
-//! after the join. The interior-loop guard decides every cone pair
-//! `Intractable` until its section certificate has cone rows, so each
-//! pose's verdict there is the guard's refusal, and the rows say so. The
+//! after the join, and the whole op through `topo::boolean_admitting_cones`.
+//! The interior-loop guard certifies every pose's cone pair by its
+//! section certificate's cone rows, so the op goes on to build. The
 //! join's output is pinned by the chords it minted in both operands:
 //! every new conic edge is the closed-form section, carried by the
 //! cutting plane and by the cone (the operand's own face on its side,
-//! an equal aux copy on the planar side).
+//! an equal aux copy on the planar side); the built body by its
+//! closed-form volume, its tiers and named points.
 //!
 //! The poses are the cone sector spec's: B4, the slab `y ∈ [0.3, 0.6]`
 //! across the widening frustum; C1, a half-space brick whose face is
@@ -23,6 +24,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::approx::band;
+use crate::common::differential::outcome;
 use crate::revolve_common::{axis_y, validated};
 use geom::{Curve3, Surface};
 use geom_brep::EdgeDescription;
@@ -30,7 +33,10 @@ use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop};
 use sweep::test_support::{brick, finished};
 use sweep::{Revolution, revolve};
-use topo::{AtRestBody, Body, BooleanError, BooleanOp, ConeJoin, PairRefusalSite};
+use topo::{
+    AtRestBody, Body, BooleanError, BooleanOp, ConeJoin, MassPropsError, PointInSolidError,
+    SolidContainment, ValidationError,
+};
 
 /// The widening frustum: radius `0.5 → 1` over `y ∈ [0, 1]`, so apex
 /// `(0, −1, 0)`, axis `+y`, `tan α = 1/2`.
@@ -92,7 +98,8 @@ const OPS: [(BooleanOp, bool); 6] = [
 
 /// The pose joined under `op`: the cone's operand and the other's as the
 /// join leaves them, after holding the interior-loop guard's verdict to
-/// its cone refusal.
+/// the certificate's: the cone pair certified, so the op goes on to
+/// build.
 fn joined(
     label: &str,
     cone: &Body<f64>,
@@ -112,16 +119,9 @@ fn joined(
         .unwrap_or_else(|e| panic!("{label}: the join refused {e:?}"))
         .unwrap_or_else(|| panic!("{label}: answered without a join"));
     assert!(
-        matches!(
-            interior_loops,
-            Err(BooleanError::CurvedPairUnsupported {
-                site: PairRefusalSite::InteriorLoopGuard,
-                kind: geom::SurfaceKind::Cone,
-                ..
-            })
-        ),
-        "{label}: the interior-loop guard refuses the cone pair until its certificate \
-         has cone rows, got {interior_loops:?}"
+        interior_loops.is_ok(),
+        "{label}: the interior-loop guard certifies the cone pair by the certificate's cone \
+         rows, got {interior_loops:?}"
     );
     if cone_first { (a, b) } else { (b, a) }
 }
@@ -579,6 +579,214 @@ fn the_rings_island_on_the_cone_face_winds_by_the_sections_curve() {
     }
 }
 
+/// One pose for the whole op: the cone's operand and the other's, their
+/// volumes and their overlap's, closed form, and named points by which
+/// operands hold them `(cone, other)`.
+struct Pose {
+    name: &'static str,
+    cone: AtRestBody<f64>,
+    other: AtRestBody<f64>,
+    volumes: (f64, f64, f64),
+    points: Vec<(&'static str, Point3<f64>, (bool, bool))>,
+    /// Whether the result keeps a cone face short of a full turn, which
+    /// `point_in_solid` refuses where it could decide (`PartialConeFace`).
+    partial_cone: bool,
+}
+
+fn poses() -> [Pose; 3] {
+    use std::f64::consts::{FRAC_PI_6, PI};
+    let tol = Tol::witness();
+    let frustum_v = 7.0 * PI / 12.0;
+    let (q, n) = c1_plane();
+    let (_, _, major, minor) = section(&cone_of(&widening()), q, n);
+    let height = 1.2 / FRAC_PI_6.tan();
+    [
+        Pose {
+            name: "B4",
+            cone: widening(),
+            other: finished(
+                "B4's slab",
+                brick((-2.0, 2.0), (0.3, 0.6), (-2.0, 2.0), tol),
+                tol,
+            ),
+            volumes: (
+                frustum_v,
+                4.8,
+                PI / 12.0 * (1.6f64.powi(3) - 1.3f64.powi(3)),
+            ),
+            points: vec![
+                (
+                    "on the axis in the slab",
+                    Point3::new(0.0, 0.45, 0.0),
+                    (true, true),
+                ),
+                (
+                    "on the axis above the slab",
+                    Point3::new(0.0, 0.8, 0.0),
+                    (true, false),
+                ),
+                (
+                    "in the slab off the wall",
+                    Point3::new(1.5, 0.45, 0.0),
+                    (false, true),
+                ),
+                (
+                    "above the slab off the wall",
+                    Point3::new(1.5, 0.8, 0.0),
+                    (false, false),
+                ),
+            ],
+            partial_cone: false,
+        },
+        Pose {
+            name: "C1",
+            cone: widening(),
+            other: c1_brick(),
+            // Below the plane the frustum is the elliptic cone from the
+            // apex to the section, `π·a·b·h/3` with `h = 1.5·cos 10°`
+            // the apex's distance to the plane, less the cone's tip
+            // under `y = 0`.
+            volumes: (
+                frustum_v,
+                216.0,
+                PI * major * minor * (1.5 * n.normalize().y) / 3.0 - PI / 12.0,
+            ),
+            points: vec![
+                (
+                    "on the axis under the plane",
+                    Point3::new(0.0, 0.2, 0.0),
+                    (true, true),
+                ),
+                (
+                    "on the axis over the plane",
+                    Point3::new(0.0, 0.8, 0.0),
+                    (true, false),
+                ),
+                (
+                    "under the frustum",
+                    Point3::new(0.0, -0.5, 0.0),
+                    (false, true),
+                ),
+                (
+                    "over the plane off the wall",
+                    Point3::new(2.0, 0.95, 0.0),
+                    (false, false),
+                ),
+            ],
+            partial_cone: false,
+        },
+        Pose {
+            name: "T1",
+            cone: crate::a_ring_on_a_cone_face::cone(Affine3::identity()),
+            other: crate::a_ring_on_a_cone_face::wedge(0.6, Affine3::identity()),
+            volumes: (PI * 1.2 * 1.2 * height / 3.0, 216.0, t1_overlap()),
+            points: vec![
+                ("in the lune", Point3::new(0.42, 1.178, 0.0), (true, true)),
+                (
+                    "on the axis off the box",
+                    Point3::new(0.0, 1.178, 0.0),
+                    (true, false),
+                ),
+                (
+                    "in the box off the wall",
+                    Point3::new(1.5, 1.178, 0.0),
+                    (false, true),
+                ),
+                ("off both", Point3::new(-1.5, 2.5, 0.0), (false, false)),
+            ],
+            partial_cone: true,
+        },
+    ]
+}
+
+/// **Each pose's op builds its closed form, or refuses its ring typed.**
+/// The whole op past the cone's operand gate
+/// (`topo::boolean_admitting_cones`), in every op and member order: the
+/// body passes tiers 2 and 3′, the at-rest certificate and the
+/// legal-operand check, measures its closed-form volume
+/// (`differential::outcome`), holds each named point by the op's set
+/// algebra, and either meshes into a mesh `check_mesh` passes or refuses
+/// the conic trim the trimmed lanes have no arm for. The one exception is
+/// T1's ∪ and cone ∖ box, which keep the lune as a ring on the cone face:
+/// those refuse at the result's tier 3, the ring's volume unread.
+#[test]
+fn each_poses_body_is_its_closed_form_in_every_op() {
+    let tol = Tol::witness();
+    for pose in poses() {
+        let (vc, vo, vab) = pose.volumes;
+        for (op, cone_first) in OPS {
+            let label = format!("{}, {op:?}, cone first: {cone_first}", pose.name);
+            let (a, b) = if cone_first {
+                (&pose.cone, &pose.other)
+            } else {
+                (&pose.other, &pose.cone)
+            };
+            let (va, vb) = if cone_first { (vc, vo) } else { (vo, vc) };
+            let (want, holds): (f64, fn(bool, bool) -> bool) = match op {
+                BooleanOp::Union => (va + vb - vab, |x, y| x || y),
+                BooleanOp::Intersect => (vab, |x, y| x && y),
+                BooleanOp::Subtract => (va - vab, |x, y| x && !y),
+            };
+            let got = topo::boolean_admitting_cones(op, a, b, tol);
+            let ring_kept = pose.name == "T1"
+                && (op == BooleanOp::Union || (op == BooleanOp::Subtract && cone_first));
+            if ring_kept {
+                assert!(
+                    matches!(
+                        &got,
+                        Err(BooleanError::ResultInvalid { errors }) if errors.iter().all(|e| matches!(
+                            e,
+                            ValidationError::VolumeUncomputable {
+                                source: MassPropsError::RingOnCurvedFace { .. },
+                                ..
+                            }
+                        ))
+                    ),
+                    "{label}: the lune is a ring on the cone face, whose volume the result's \
+                     tier 3 cannot read, got {got:?}"
+                );
+                continue;
+            }
+            let body = match &got {
+                Ok(r) => r.body().map(|bb| bb.body.clone()),
+                Err(e) => panic!("{label}: the op refused {e:?}"),
+            };
+            let body = body.unwrap_or_else(|| panic!("{label}: an empty result"));
+            match mesh::tessellate(&body, 5e-3, tol) {
+                Ok(m) => mesh::validate::check_mesh(&m)
+                    .unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}")),
+                Err(e) => assert!(
+                    matches!(e, mesh::TessellateError::UnsupportedCurve { .. }),
+                    "{label}: the mesh refuses only the conic trim, got {e:?}"
+                ),
+            }
+            for (what, p, (in_cone, in_other)) in &pose.points {
+                let (in_a, in_b) = if cone_first {
+                    (*in_cone, *in_other)
+                } else {
+                    (*in_other, *in_cone)
+                };
+                let want_in = holds(in_a, in_b);
+                let at = match topo::point_in_solid(&body, *p, band(), tol) {
+                    Err(PointInSolidError::PartialConeFace { .. }) if pose.partial_cone => continue,
+                    at => at.unwrap_or_else(|e| panic!("{label}: {what}: {e:?}")),
+                };
+                assert_eq!(
+                    at,
+                    if want_in {
+                        SolidContainment::In
+                    } else {
+                        SolidContainment::Out
+                    },
+                    "{label}: {what} {p:?}"
+                );
+            }
+            let line = outcome(got, want, tol);
+            assert!(line.starts_with("OK SOUND"), "{label}: {line}");
+        }
+    }
+}
+
 /// **A parabola or a hyperbola refuses by decision, end to end.** C2's
 /// half-space brick, whose face `x = 0.3` runs along the axis, and B1,
 /// the brick `[0.6, 2] × [0.3, 0.8] × [−0.2, 0.2]` across the widening
@@ -651,4 +859,42 @@ fn a_parabola_or_a_hyperbola_refuses_by_decision_in_every_op() {
             );
         }
     }
+}
+
+/// T1's overlap: the slice `y` of the cone is the disc of radius
+/// `(H − y)·tan(π/6)`, cut by both faces to `x ≥ max(d₁, d₂)`.
+fn t1_overlap() -> f64 {
+    let h = 1.2 / std::f64::consts::FRAC_PI_6.tan();
+    let [(e, _), _] = t1_planes();
+    let t = 50f64.to_radians();
+    let seg = |y: f64| {
+        let r = (h - y) * std::f64::consts::FRAC_PI_6.tan();
+        let d = (e.x + t.tan() * (y - e.y)).max(e.x - (y - e.y) / t.tan());
+        if d >= r {
+            0.0
+        } else if d <= -r {
+            std::f64::consts::PI * r * r
+        } else {
+            r * r * (d / r).acos() - d * (r * r - d * d).sqrt()
+        }
+    };
+    let gl = [
+        (-0.906179845938664, 0.236926885056189),
+        (-0.538469310105683, 0.478628670499366),
+        (0.0, 0.568888888888889),
+        (0.538469310105683, 0.478628670499366),
+        (0.906179845938664, 0.236926885056189),
+    ];
+    let panels = 400_000;
+    let w = h / f64::from(panels);
+    (0..panels)
+        .map(|i| {
+            let m = (f64::from(i) + 0.5) * w;
+            gl.iter()
+                .map(|(x, wt)| wt * seg(m + x * w / 2.0))
+                .sum::<f64>()
+                * w
+                / 2.0
+        })
+        .sum()
 }
