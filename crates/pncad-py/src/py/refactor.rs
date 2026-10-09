@@ -219,6 +219,19 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             input: i,
             ..
         } => (none(), id(c), id(i), none(), none(), none(), none(), none()),
+        // As inline's `instance_read_uncarried`: the reader is the
+        // consumer, and why no one body carries the read is in the
+        // message.
+        E::RemainderReadUncarried { reader, why: _ } => (
+            none(),
+            id(reader),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
         // The reading edge's own severed case: the MATE takes the
         // `node` slot and the OPERAND the `input` slot, which is the
         // pair a caller reads off `severed_edge` too — one shape for

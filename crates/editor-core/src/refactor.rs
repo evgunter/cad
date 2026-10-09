@@ -502,6 +502,16 @@ pub enum SplitError {
         /// The colliding identity.
         id: DocumentId,
     },
+    /// A remainder node reads a body the cut places, and no one body of
+    /// the part stands where it did: the instance's body it would be
+    /// re-pointed to is the part's whole world, and that world is not
+    /// one placement at the identity ([`Uncarried`]; inline's rule).
+    RemainderReadUncarried {
+        /// The remainder reader.
+        reader: SpokenNode,
+        /// Why no one body carries the read.
+        why: Uncarried,
+    },
     /// A recipe edge crosses the cut: its consumer is on one side and
     /// its input on the other, so the cut would sever it (D-2 — the
     /// cut must be ancestor- and consumer-closed).
@@ -962,6 +972,34 @@ impl core::fmt::Display for SplitError {
                     Recourse(&format!("add {kept} to the cut, or leave {cut} out of it"))
                 )
             }
+            Self::RemainderReadUncarried { reader, why } => {
+                write!(
+                    f,
+                    "split: {reader} stays and reads a body the cut places, and "
+                )?;
+                match why {
+                    Uncarried::Bodies { count } => write!(
+                        f,
+                        "the cut places {count} bodies, so the instance's body would be all of \
+                         them"
+                    )?,
+                    Uncarried::Posed { placement } => write!(
+                        f,
+                        "{placement} places it at a pose of its own, so the instance's body would \
+                         be that world copy, which construction never reads"
+                    )?,
+                    Uncarried::HeirNamed { held } => {
+                        write!(f, "the body standing where it did is named {held} already")?
+                    }
+                }
+                write!(
+                    f,
+                    ". {}",
+                    Recourse(&format!(
+                        "cut {reader} too, or cut one placement of that body at the identity"
+                    ))
+                )
+            }
             Self::UncutVarReference {
                 var,
                 cut_node,
@@ -1161,8 +1199,11 @@ fn cut_and_kept(first_is_cut: bool) -> (&'static str, &'static str) {
     }
 }
 
-/// **Why the referenced document has no one output to carry the
-/// instance's named body onto** ([`InlineError::InstanceOutputUncarried`]).
+/// **Why no one body stands where an instance's body does**: the
+/// instance's body is its part's whole world, so a read carried across
+/// the seam — inline's reader of the instance, split's remainder reader
+/// of a cut body — keeps its value only when that world is one
+/// placement at the identity ([`world_heir`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Uncarried {
     /// It places this many bodies, not one.
@@ -1179,7 +1220,7 @@ pub enum Uncarried {
     /// the instance's body did is that placement's world copy, which no
     /// construction reads.
     Posed {
-        /// The referenced document's placement, spoken from it.
+        /// The placement, spoken from the document that holds it.
         placement: SpokenNode,
     },
 }
@@ -2829,6 +2870,22 @@ pub fn split(
             }
         }
     }
+    // A remainder reader re-pointed to the instance's body reads the
+    // part's whole world: by inline's rule ([`world_heir`]), the cut's
+    // placements must be one at the identity, or it refuses.
+    if let Some(&(reader, _)) = crossing_reads.first() {
+        let world: Vec<RecipeNodeId> = doc
+            .placements()
+            .into_iter()
+            .filter(|p| cut.contains(p))
+            .collect();
+        if let Err(why) = world_heir(&world, |p| places_at_identity(doc, p), |p| doc.spoken(p)) {
+            return Err(SplitError::RemainderReadUncarried {
+                reader: doc.spoken(reader),
+                why,
+            });
+        }
+    }
     // A11's group precondition, checked FOR REAL now that mates can
     // make a group multi-node (this module's docs have promised the
     // re-check since ASM-4; review MAJOR-2 found it missing). Run
@@ -3603,6 +3660,34 @@ pub fn split(
 
 // ---- Inline ----
 
+/// **Whether `placement` is a world placement at the identity**: its
+/// pose is the empty chain, so its copy is its body unmoved.
+fn places_at_identity(doc: &ProfileDoc, placement: RecipeNodeId) -> bool {
+    matches!(doc.node(placement), Some(Node::PlaceInWorld { pose, .. }) if pose.steps.is_empty())
+}
+
+/// **The one placement whose body stands where an instance's body does**
+/// (A4, A10), split's and inline's one re-point rule. An instance's body
+/// is its part's whole `world`: a reader re-pointed between the instance
+/// and the part's content reads the same value only when that world is
+/// ONE placement at the identity (`at_identity`), its body then the
+/// instance's body. Several placements, or none, refuse
+/// [`Uncarried::Bodies`]; one at a pose of its own refuses
+/// [`Uncarried::Posed`], its world copy being all that stands there.
+fn world_heir(
+    world: &[RecipeNodeId],
+    at_identity: impl Fn(RecipeNodeId) -> bool,
+    speak: impl Fn(RecipeNodeId) -> SpokenNode,
+) -> Result<RecipeNodeId, Uncarried> {
+    match world {
+        [one] if at_identity(*one) => Ok(*one),
+        [one] => Err(Uncarried::Posed {
+            placement: speak(*one),
+        }),
+        _ => Err(Uncarried::Bodies { count: world.len() }),
+    }
+}
+
 /// **Whether a world placement's copy stands where a gauge puts it**
 /// (A4): one placing an instance's body at the identity, whose copy is
 /// wherever the instance sits, so it lands on any gauge; any other copy
@@ -3611,8 +3696,8 @@ pub fn split(
 /// ([`SplitError::UnplaceableRoot`], [`InlineError::UnplaceableFrame`]).
 fn places_an_instance(doc: &ProfileDoc, placement: RecipeNodeId) -> bool {
     match doc.node(placement) {
-        Some(Node::PlaceInWorld { body, pose }) => {
-            pose.steps.is_empty()
+        Some(Node::PlaceInWorld { body, .. }) => {
+            places_at_identity(doc, placement)
                 && matches!(
                     doc.operation_of(*body).and_then(|at| doc.node(at)),
                     Some(Node::InstantiatePart { .. })
@@ -3855,16 +3940,15 @@ pub fn inline(
             }
         }
     }
-    // The instance's readers (A4, A10). A host placement of it at the
-    // identity goes: the part's world is spliced as the part's own
-    // placements. One at a pose of its own keeps it, read through the
-    // part's one placement at the identity, which then is not carried.
-    // Every other reader is re-pointed to the inlined body: the body
-    // the part's one placement places. Where that placement holds a pose
-    // of its own, only its world copy stands where the instance's body
-    // did, and a reader refuses (`Uncarried::Posed`).
+    // The instance's readers (A4, A10). The host's first placement of it
+    // at the identity goes: the part's world is spliced as the part's
+    // own placements. One at a pose of its own keeps it, read through
+    // the part's one placement at the identity, which then is not
+    // carried. Every other reader — a later identity placement among
+    // them, a second copy — is re-pointed to the inlined body by the
+    // one rule split shares ([`world_heir`]), or refuses.
     let part_placements = part.placements();
-    let identity = |p: RecipeNodeId| matches!(part.node(p), Some(Node::PlaceInWorld { pose, .. }) if pose.steps.is_empty());
+    let identity = |p: RecipeNodeId| places_at_identity(&part, p);
     let mut host_placements: Vec<RecipeNodeId> = Vec::new();
     let mut posed: Vec<RecipeNodeId> = Vec::new();
     let mut readers: Vec<(RecipeNodeId, crate::OperandSlot)> = Vec::new();
@@ -3875,8 +3959,12 @@ pub fn inline(
                 continue;
             }
             match reader {
-                Node::PlaceInWorld { pose, .. } if pose.steps.is_empty() => {
-                    host_placements.push(id);
+                Node::PlaceInWorld { .. } if places_at_identity(doc, id) => {
+                    if host_placements.is_empty() {
+                        host_placements.push(id);
+                    } else {
+                        readers.push((id, slot));
+                    }
                 }
                 Node::PlaceInWorld { .. } => posed.push(id),
                 _ => readers.push((id, slot)),
@@ -3901,23 +3989,17 @@ pub fn inline(
         }
     }
     let dropped = if posed.is_empty() { None } else { one };
-    // The part's one placement at a pose of its own (not the one a
-    // posed host placement reads through) leaves only its world copy
-    // standing where the instance's body did.
-    let posed_one = one.filter(|&p| !identity(p) && dropped != Some(p));
-    let uncarried = match (one, posed_one) {
-        (None, _) => Some(Uncarried::Bodies {
-            count: part_placements.len(),
-        }),
-        (Some(_), Some(placement)) => Some(Uncarried::Posed {
-            placement: part.spoken(placement),
-        }),
-        (Some(_), None) => None,
-    };
-    if let (Some(&(reader, _)), Some(why)) = (readers.first(), uncarried) {
+    // The part's one placement a posed host placement reads through
+    // counts as at the identity: its pose is the host placement's.
+    let heir_placement = world_heir(
+        &part_placements,
+        |p| identity(p) || dropped == Some(p),
+        |p| part.spoken(p),
+    );
+    if let (Some(&(reader, _)), Err(why)) = (readers.first(), &heir_placement) {
         return Err(InlineError::InstanceReadUncarried {
             reader: doc.spoken(reader),
-            why,
+            why: why.clone(),
         });
     }
     // At an offset the instance's frame becomes a gauge by a promote of
@@ -4072,22 +4154,13 @@ pub fn inline(
     let instance_name = match doc.output(instance, 0).and_then(|body| doc.var_name(body)) {
         None => None,
         Some(name) => {
-            let Some(placement) = one else {
-                return Err(InlineError::InstanceOutputUncarried {
-                    name: name.clone(),
-                    why: Uncarried::Bodies {
-                        count: part_placements.len(),
-                    },
-                });
-            };
-            if posed_one.is_some() {
-                return Err(InlineError::InstanceOutputUncarried {
-                    name: name.clone(),
-                    why: Uncarried::Posed {
-                        placement: part.spoken(placement),
-                    },
-                });
-            }
+            let placement =
+                heir_placement
+                    .clone()
+                    .map_err(|why| InlineError::InstanceOutputUncarried {
+                        name: name.clone(),
+                        why,
+                    })?;
             let held = part_heir(placement).and_then(|body| part.var_name(body));
             if let Some(held) = held {
                 return Err(InlineError::InstanceOutputUncarried {
@@ -4164,11 +4237,10 @@ pub fn inline(
             RemapMiss::Name { name, missing } => InlineError::stranded(&part, &name, missing),
         },
     )?;
-    // What the inlined body is in the host: the body the part's one
-    // placement places, read as the host now holds it. A placement at a
-    // pose of its own leaves no heir (`posed_one` refused above).
+    // What the inlined body is in the host: the body [`world_heir`]'s
+    // placement places, read as the host now holds it.
     let heir = |host: &ProfileDoc| -> Option<VarId> {
-        let placement = one.filter(|&p| posed_one != Some(p))?;
+        let placement = heir_placement.clone().ok()?;
         let (at, port) = part_heir(placement).and_then(|body| part.defined_by(body))?;
         host.output(*node_map.get(&at)?, port)
     };

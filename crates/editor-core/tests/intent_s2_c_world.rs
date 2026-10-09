@@ -743,3 +743,157 @@ fn an_empty_world_names_a_pattern_and_how_to_place_one_of_its_bodies() {
     let said = refused.to_string();
     assert!(said.contains("through a Part pick"), "{said}");
 }
+
+/// A split scene whose cut is `{frame, profile, b, placement}`: `b`
+/// placed (at `pose` when given), and a kept `Transform` of `b`, itself
+/// placed, reading `b` across the seam. With `second`, the cut also
+/// holds a second block `c` placed at the identity. Answers the
+/// document, the cut and the reader.
+fn cut_with_a_reader(
+    label: &str,
+    pose: Option<editor_core::Placement<editor_core::Formula>>,
+    second: bool,
+) -> (
+    ProfileDoc,
+    BTreeSet<RecipeNodeId>,
+    RecipeNodeId,
+    RecipeNodeId,
+) {
+    let doc = ProfileDoc::empty_derived(label, Tol::witness());
+    let before = doc.ids().len();
+    let (doc, b) = block(doc, 0.0);
+    let (doc, p) = crate::fixture::step(doc, DocEdit::place(b, pose));
+    let p = p.expect("the placement's node");
+    let mut cut: BTreeSet<RecipeNodeId> = doc.ids()[before..].iter().copied().collect();
+    let doc = if second {
+        let mark = doc.ids().len();
+        let (doc, c) = block(doc, 3.0);
+        let (doc, _) = place(doc, c);
+        cut.extend(doc.ids()[mark..].iter().copied());
+        doc
+    } else {
+        doc
+    };
+    let (doc, reader) = insert(
+        doc,
+        crate::fixture::xform(b, [10.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0),
+    );
+    let (doc, _) = place(doc, reader);
+    (doc, cut, reader, p)
+}
+
+/// **Split shares inline's re-point rule** ([`editor_core::Uncarried`]).
+/// A kept reader of a body the cut places is re-pointed to the
+/// instance's body only when the cut's world is one placement at the
+/// identity; the instance's body is the part's whole world, so a cut
+/// placing its body at a pose, or placing two bodies, refuses naming
+/// the reader rather than moving or widening what it reads.
+///
+/// Red if split re-points the reader anyway: the reader's geometry then
+/// moves with the pose, or takes in the second block (the review
+/// probes' digests).
+#[test]
+fn split_refuses_a_remainder_reader_whose_cut_world_is_posed_or_several() {
+    let pose: editor_core::Placement<editor_core::Formula> = editor_core::Step::Rigid {
+        translation: [0.0, 0.0, 2.0].map(len),
+        axis: [0.0, 0.0, 1.0].map(crate::fixture::scl),
+        angle: crate::fixture::ang(0.0),
+    }
+    .into();
+    let (doc, cut, reader, p) = cut_with_a_reader("intent-c-split-posed", Some(pose), false);
+    match editor_core::split(
+        &doc,
+        &cut,
+        DocumentId::derive("intent-c-split-posed-part"),
+        Tol::witness(),
+        None,
+    ) {
+        Err(SplitError::RemainderReadUncarried {
+            reader: named,
+            why: editor_core::Uncarried::Posed { placement },
+        }) => {
+            assert_eq!(named.id(), reader, "the refusal names the reader");
+            assert_eq!(placement.id(), p, "and the posed cut placement");
+        }
+        other => panic!("a posed cut world refuses its remainder reader: {other:?}"),
+    }
+
+    let (doc, cut, reader, _) = cut_with_a_reader("intent-c-split-two", None, true);
+    match editor_core::split(
+        &doc,
+        &cut,
+        DocumentId::derive("intent-c-split-two-part"),
+        Tol::witness(),
+        None,
+    ) {
+        Err(SplitError::RemainderReadUncarried {
+            reader: named,
+            why: editor_core::Uncarried::Bodies { count: 2 },
+        }) => assert_eq!(named.id(), reader, "the refusal names the reader"),
+        other => panic!("a cut placing two bodies refuses its remainder reader: {other:?}"),
+    }
+}
+
+/// **Inline keeps every copy the host places.** The host places one
+/// instance twice at the identity, over a part that places its block
+/// once: the inlined host still places two copies, and its product is
+/// the one it had. A part that places two bodies cannot stand twice
+/// where one instance body did, so the second host placement refuses as
+/// a reader the part's world does not carry.
+///
+/// Red if inline deletes every identity host placement and splices the
+/// part's world once (one copy, the product moves), or drops the second
+/// placement silently.
+#[test]
+fn inline_keeps_both_copies_of_an_instance_placed_twice() {
+    let host_of = |part: ProfileDoc, label: &str| {
+        let mut store = PartStore::default();
+        let part_ref = store.insert(part, Tol::witness());
+        let host = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+        let (host, instance) = insert(host, Node::instantiate_part(part_ref));
+        let (host, first) = place(host, instance);
+        let (host, second) = place(host, instance);
+        (host, instance, [first, second], store)
+    };
+    let part = {
+        let doc = ProfileDoc::empty(DocumentId::derive("intent-c-twice-part"), Tol::witness());
+        let (doc, body) = block(doc, 0.0);
+        place(doc, body).0
+    };
+    let (host, instance, _, store) = host_of(part, "intent-c-twice");
+    let opts = crate::fixture::resolver::with_resolver(store.clone());
+    let before = product(&host, &crate::fixture::run(&host, &opts), Tol::witness())
+        .expect("the host gathers");
+    let resolver: std::sync::Arc<dyn editor_core::PartResolver> = std::sync::Arc::new(store);
+    let inlined = match editor_core::inline(&host, instance, &resolver, Tol::witness()) {
+        Ok(inlined) => inlined,
+        Err(other) => panic!("inline of an instance placed twice succeeds: {other}"),
+    };
+    assert_eq!(inlined.doc.placements().len(), 2, "both copies stay placed");
+    let after = product(&inlined.doc, &ev(&inlined.doc), Tol::witness()).expect("gathers");
+    assert_eq!(
+        body_digest(&after),
+        body_digest(&before),
+        "the product is unchanged"
+    );
+
+    let two = {
+        let doc = ProfileDoc::empty(
+            DocumentId::derive("intent-c-twice-two-part"),
+            Tol::witness(),
+        );
+        let (doc, a) = block(doc, 0.0);
+        let (doc, b) = block(doc, 3.0);
+        let (doc, _) = place(doc, a);
+        place(doc, b).0
+    };
+    let (host, instance, [_, second], store) = host_of(two, "intent-c-twice-two");
+    let resolver: std::sync::Arc<dyn editor_core::PartResolver> = std::sync::Arc::new(store);
+    match editor_core::inline(&host, instance, &resolver, Tol::witness()) {
+        Err(InlineError::InstanceReadUncarried {
+            reader,
+            why: editor_core::Uncarried::Bodies { count: 2 },
+        }) => assert_eq!(reader.id(), second, "the second copy is the reader refused"),
+        other => panic!("a two-body part placed twice refuses: {other:?}"),
+    }
+}
