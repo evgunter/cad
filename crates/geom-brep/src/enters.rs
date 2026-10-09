@@ -92,8 +92,8 @@ pub struct LeverEscalation {
     /// Only [`LeverEscalation::arm`] mints it, from the gate's own
     /// escalation, so it is `Some` on the arm's rung alone; it is kept,
     /// never recomputed, when the escalation re-quotes the reading the
-    /// arm meters ([`LeverEscalation::with_diag`]), and a door outside
-    /// this crate cannot re-quote it at all
+    /// arm meters ([`LeverEscalation::with_diag`]). A door outside this
+    /// crate re-quotes only an arm a smaller tolerance decides
     /// ([`LeverEscalation::quoting_reading`]).
     refused: Option<Sign>,
 }
@@ -125,16 +125,17 @@ impl LeverEscalation {
         Self { diag, ..self }
     }
 
-    /// The same escalation quoting `diag`, the reading an undecided arm
-    /// meters, for the margin its refusal offers: the rung is kept. An
-    /// arm the gate decided not there is a verdict on the gate's own
-    /// margin, so it is returned unchanged.
+    /// The same escalation quoting `diag`, the reading the arm meters,
+    /// for the margin its refusal offers: the rung and the gate's verdict
+    /// are kept. An arm whose refusal offers no tolerance (an exact zero,
+    /// a poisoned margin) is a verdict no smaller tolerance re-decides,
+    /// so it is returned unchanged, quoting the gate's own margin.
     #[must_use]
     pub fn quoting_reading(self, diag: Indeterminate) -> Self {
-        if self.refused.is_some() {
-            self
-        } else {
+        if self.diag.offers_tolerance() {
             self.with_diag(diag)
+        } else {
+            self
         }
     }
 
@@ -532,33 +533,40 @@ mod tests {
         );
     }
 
-    /// A door outside the crate re-quotes an undecided arm at the
-    /// reading it meters, but never an arm the gate decided not there:
-    /// that verdict stands on the gate's own margin.
+    /// A door outside the crate re-quotes an arm at the reading it
+    /// meters only where a smaller tolerance decides the arm, keeping the
+    /// gate's verdict; an exact zero is a verdict no tolerance re-decides,
+    /// so it keeps the gate's own margin.
     #[test]
-    fn a_collapsed_arm_is_never_re_quoted() {
+    fn only_an_arm_a_tolerance_decides_is_re_quoted() {
         let n_out = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
-        let collapsed = enters_material(n_out.vec(), n_out, 0.0, band()).unwrap_err();
-        let verdict = collapsed.collapsed_arm();
-        assert!(verdict.is_some(), "a zero arm is a verdict: {collapsed:?}");
         let reading = Indeterminate {
-            margin: geom_core::MarginDiag::value(5e-10),
+            margin: geom_core::MarginDiag::value(1e-15),
             band: band(),
             predicate: Some("enters_material_rise"),
             terminal_sliver: false,
         };
-        let kept = collapsed.quoting_reading(reading);
-        assert_eq!(kept, collapsed, "a collapsed arm keeps its own quote");
-        let undecided = LeverEscalation::arm(Indeterminate {
-            predicate: Some("enters_material_arm"),
-            ..reading
-        });
-        assert_eq!(undecided.collapsed_arm(), None, "{undecided:?}");
-        let requoted = undecided.quoting_reading(reading);
+        let exact = enters_material(n_out.vec(), n_out, 0.0, band()).unwrap_err();
+        assert!(
+            exact.collapsed_arm().is_some() && !exact.diag().offers_tolerance(),
+            "an exact zero arm is a verdict with no tolerance: {exact:?}"
+        );
         assert_eq!(
-            (requoted.rung(), requoted.diag()),
-            (LeverRung::Arm, reading),
-            "an undecided arm quotes the reading it meters"
+            exact.quoting_reading(reading),
+            exact,
+            "an exact zero arm keeps its own quote"
+        );
+        let zero_band = enters_material(n_out.vec(), n_out, 1e-14, band()).unwrap_err();
+        let verdict = zero_band.collapsed_arm();
+        assert!(
+            verdict.is_some() && zero_band.diag().offers_tolerance(),
+            "a zero-band arm is a verdict a smaller tolerance re-decides: {zero_band:?}"
+        );
+        let requoted = zero_band.quoting_reading(reading);
+        assert_eq!(
+            (requoted.rung(), requoted.diag(), requoted.refused),
+            (LeverRung::Arm, reading, zero_band.refused),
+            "a zero-band arm quotes the reading it meters and keeps its verdict"
         );
     }
 
