@@ -93,13 +93,12 @@ For each question:
   rewrite a chain of nodes, and every link above the removed one renames.
 - **What a glue keeps.** For union and intersect alike, names are defined
   over the finished body, through the member-face parents (N2), so they
-  are order-free. A glued face keeps one member's *description*. I would
-  make that the member whose read was minted first, the rule N2's flush
-  edges already use, not the first listed. Then a member list means a
-  set, the document stores it in canonical order, and there is exactly
-  one way to say a union of three (*likely*). Today's "earlier member
-  keeps it" stays the fallback if Ev prefers that the list order be the
-  author's.
+  are order-free. A glued face keeps the *description* of the earlier
+  member in the list, as #4323 ruled. Ev kept list order there because
+  a mint-order sort "hides arbitrariness". So `[a, b]` and `[b, a]` are
+  not two spellings of one thing: they differ in one authored choice,
+  whose carrier a glue keeps, and nothing else. (My first draft proposed
+  minted-first; I withdraw it.)
 - **Intersect specifically.** Intersect commutes, so the same pairwise
   judgement and parent naming apply unchanged. One difference: an empty
   fold step is a legitimate result (the typed empty body), not the kernel
@@ -112,6 +111,41 @@ For each question:
   `subtract` read a family as their members" narrows: subtract's `b` seat
   holds one `Body`, so a family of tools is `subtract(a, union[holes])`.
   This changes D10's text.
+
+**(F), a stored fold `fold(op, members)` over a binary op.** Rejected
+against (N), *likely*.
+- **Union.** `fold(∪, [a, b, c])` is `Union[a, b, c]` with the op as a
+  parameter. It is not a fold: #4323's verdicts are pairwise over the
+  members, and the names and the result are defined over the member set
+  and the finished body. They hold only because ∪ and ∩ commute, so the
+  kernel does not evaluate left to right as written. The list order
+  decides only whose description a glue keeps. Calling it a fold would
+  promise a sequence the node does not compute.
+- **Subtract.** `fold(−, [a, b, c])` really is sequential: `(a − b) − c`,
+  with an intermediate body per step and names nesting per step. It also
+  says "a is what is cut" by position, the first slot of a list: the
+  declare-by-position defect D10 set out to remove. Its tools commute, but
+  the list states an order anyway. As point sets it equals
+  `a − (b ∪ c)`, which `subtract(a, union[tools])` says with no position:
+  the target in a named seat, and the tools as a set in a union whose
+  order decides only descriptions. That keeps
+  `subtract(a, union[tools])` as the one way. Its cost: tool–tool
+  coincidences are judged even where they lie outside `a`, so a pair of
+  tools in the sliver band refuses even though it never touches the cut
+  (rare; D10 makes the rest of such contacts lint findings).
+- **Index variables.** FORK-PAT chose index variables over a `map`
+  combinator, and `union` reading a family is already the reduction over
+  the index. `fold(∪, xs)` would be a second way to say that, and a
+  combinator the same ruling declined. So (F) brings back what FORK-PAT
+  removed.
+- **Names and `SetMembers`.** For ∪ and ∩ they are exactly (N)'s. For −,
+  they are either a per-step nesting (a removal re-keys the steps after
+  it) or a flat `From` over a list whose first entry is special.
+- **What survives of (F).** The op as a parameter. One node
+  `Combine { op: Union | Intersect, members }` in place of two node kinds
+  is (F) restricted to the ops that commute, with no claim to fold. It is
+  as good as two kinds, since they share every line of machinery
+  (*unsure* which reads better; either is one way).
 
 **The naming rule across all three.** An operation that takes in entities
 from several shape inputs wraps each in `From { read: VarId, of }`. That
@@ -226,6 +260,6 @@ in. I lean to the full answer above.
   whether Ev wrote or approved it. Treat it as agent text unless shown
   otherwise.
 - Not checked: how instance outputs are qualified today (`eval/parts.rs`).
-- Folded in Ev's three addenda (n-ary union/intersect, binary subtract,
-  (N) vs (S)). The intersect carrier rule (minted-first member) is my own
-  proposal: it makes a member list a set.
+- Folded in Ev's addenda: n-ary union and intersect, binary subtract,
+  (N) vs (S), and (F) the stored fold. Withdrew the minted-first glue rule
+  in favour of #4323's list order.
