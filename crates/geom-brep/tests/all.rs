@@ -210,6 +210,8 @@ mod review_m6_surgery_rider;
 mod review_pr12_meridian_probe;
 #[path = "review_r1_rational_probes.rs"]
 mod review_r1_rational_probes;
+#[path = "restrict_delta_probe.rs"]
+mod restrict_delta_probe;
 #[path = "revolved_point_anchor.rs"]
 mod revolved_point_anchor;
 #[path = "rim_dim_review_probes.rs"]
