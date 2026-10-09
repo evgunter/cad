@@ -217,15 +217,65 @@ class TestTheContinuousSlotEdit(unittest.TestCase):
                 DocEdit.set_param(box, junk, doc.parse_formula("1 m"))
 
     def test_a_profile_programs_expression_is_not_addressable_by_word(self):
-        """`profile` is a word of the alphabet with no slot to read
+        """`program` is a word of the alphabet with no slot to read
         back: the rest of that address is a loop index, a step index
         and which argument, none of which the word carries. It refuses
-        in its own sentence rather than as a misspelling."""
+        in its own sentence rather than as a misspelling; so do a
+        loft's `section` and a union's `member`, whose position the
+        word does not carry."""
         doc = Doc()
         box = blank(doc)
         with self.assertRaises(ValueError) as caught:
-            DocEdit.set_param(box, "profile", doc.parse_formula("1 m"))
+            DocEdit.set_param(box, "program", doc.parse_formula("1 m"))
         self.assertIn("profile program", str(caught.exception))
+        for word in ["section", "member"]:
+            with self.assertRaises(ValueError) as caught:
+                DocEdit.set_param(box, word, box)
+            self.assertIn("set_members", str(caught.exception))
+
+    def test_an_operand_is_written_at_its_word(self):
+        """One door (D10): at an operand's word the value is a read —
+        a node, read at its output — and the node reads it from then
+        on; a read of the wrong kind refuses `slot_var_kind` naming
+        both kinds, and an expression there refuses
+        `slot_dimension_mismatch`."""
+        doc = Doc(seed="one-door")
+        box = blank(doc)
+        tall = blank(doc, side=2 * L)
+        other = doc.insert(
+            Node.polygon(
+                [
+                    (Formula.length_in(0, m), Formula.length_in(0, m)),
+                    (Formula.length_in(2 * L, m), Formula.length_in(0, m)),
+                    (Formula.length_in(2 * L, m), Formula.length_in(2 * L, m)),
+                    (Formula.length_in(0, m), Formula.length_in(2 * L, m)),
+                ],
+                plane=doc.sketch_frame(),
+            )
+        )
+        doc.apply(DocEdit.set_param(box, "profile", other))
+        self.assertAlmostEqual(volume(doc, box), 4 * L * L * H)
+
+        with self.assertRaises(EditError) as caught:
+            doc.apply(DocEdit.set_param(box, "profile", tall))
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "slot_var_kind")
+        self.assertEqual(
+            (refusal.slot, refusal.found, refusal.expected), ("profile", "body", "profile")
+        )
+
+        with self.assertRaises(EditError) as caught:
+            doc.apply(DocEdit.set_param(box, "profile", doc.parse_formula("1 m")))
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "slot_dimension_mismatch")
+        self.assertEqual(
+            (refusal.slot, refusal.expected, refusal.found), ("profile", "profile", "length")
+        )
+
+        with self.assertRaises(EditError) as caught:
+            doc.apply(DocEdit.set_param(box, "target", other))
+        self.assertEqual(caught.exception.variant, "unknown_slot")
+        self.assertEqual(caught.exception.slot, "target")
 
 
 class TestTheNameRepair(unittest.TestCase):

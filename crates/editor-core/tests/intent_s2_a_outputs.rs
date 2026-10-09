@@ -27,7 +27,7 @@ fn block(seed: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: editor_core::ExtrudeSide::Along,
         },
@@ -63,22 +63,29 @@ fn every_operation_defines_its_signature_at_insert() {
     let (doc, revolve) = insert(
         doc,
         Node::Revolve {
-            profile,
-            axis,
+            profile: profile.into(),
+            axis: axis.into(),
             angle: ang(1.0),
         },
+    );
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(editor_core::Datum::Plane {
+            origin: [len(0.0), len(0.0), len(0.5)],
+            normal: [scl(0.0), scl(0.0), scl(1.0)],
+        }),
     );
     let (doc, split) = insert(
         doc,
         Node::Split {
-            target: extrude,
-            tool: frame,
+            target: extrude.into(),
+            tool: plane.into(),
         },
     );
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: extrude,
+            input: extrude.into(),
             count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -94,6 +101,7 @@ fn every_operation_defines_its_signature_at_insert() {
     );
     for (node, want) in [
         (frame, vec![VarKind::Frame]),
+        (plane, vec![VarKind::Plane]),
         (profile, vec![VarKind::Profile]),
         (extrude, vec![VarKind::Body]),
         (axis, vec![VarKind::Axis]),
@@ -120,7 +128,7 @@ fn an_insert_reports_its_outputs_and_a_delete_takes_them_with_its_node() {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(Node::Extrude {
-                    profile,
+                    profile: profile.into(),
                     distance: len(2.0),
                     side: editor_core::ExtrudeSide::Along,
                 }),
@@ -150,7 +158,7 @@ fn an_insert_reports_its_outputs_and_a_delete_takes_them_with_its_node() {
         DocEdit::SetParam {
             node,
             slot: SlotId::Distance,
-            expr: len(3.0),
+            value: len(3.0).into(),
             fresh: Vec::new(),
         },
     );
@@ -210,14 +218,19 @@ fn a_formula_reading_a_body_refuses_naming_its_kind() {
     let edit = DocEdit::SetParam {
         node: extrude,
         slot: SlotId::Distance,
-        expr: Formula::named(
+        value: Formula::named(
             VarName::new("plate").expect("a name"),
             editor_core::Dimension::Length,
-        ),
+        )
+        .into(),
         fresh: Vec::new(),
     };
     match doc.apply(&edit, Tol::witness(), &editor_core::RefusingReach) {
-        Err(error @ EditError::SlotVarKind { declared, .. }) => {
+        Err(
+            error @ EditError::SlotVarKind {
+                found: declared, ..
+            },
+        ) => {
             assert_eq!(declared, VarKind::Body);
             assert!(error.to_string().contains("body"), "{error}");
         }
@@ -468,7 +481,7 @@ fn signature_row(node: &editor_core::AuthoredNode) -> String {
         .into_iter()
         .map(|port| match port.kind {
             editor_core::PortKind::Of(kind) => format!("{}:{kind:?}", port.name),
-            editor_core::PortKind::PlacedFrom(_) => format!("{}:placed", port.name),
+            editor_core::PortKind::Placed => format!("{}:placed", port.name),
         })
         .collect();
     format!("{variant} -> [{}]", ports.join(", "))
@@ -628,7 +641,7 @@ fn instance_named_bracket(
         doc = insert(
             doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(2.0),
                 side: editor_core::ExtrudeSide::Along,
             },
@@ -735,7 +748,8 @@ fn a_slot_reading_an_output_refuses_naming_it() {
         DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
-            expr: Formula::named(VarName::new("gap").unwrap(), editor_core::Dimension::Length),
+            value: Formula::named(VarName::new("gap").unwrap(), editor_core::Dimension::Length)
+                .into(),
             fresh: Vec::new(),
         },
     );
@@ -748,24 +762,33 @@ fn a_slot_reading_an_output_refuses_naming_it() {
     assert!(!said.contains("deleted"), "{said}");
 }
 
-/// **A placer whose operand is gone is the structural walk's**: the
-/// output walk has no kind to hold its port to, and the walk after it
-/// refuses the dangling input, so the file refuses either way.
+/// **A placer whose operand is gone loads, and refuses at evaluation**:
+/// deleting the operation it reads strands its read (D10), and the
+/// output walk, which has no kind to hold its port to, leaves it to
+/// the read's own refusal, `UnresolvedRead`.
 #[test]
-fn a_placer_on_a_dangling_operand_refuses_at_the_structural_walk() {
+fn a_placer_on_a_deleted_operand_loads_and_refuses_its_read() {
     let (doc, _, _, extrude) = block("s2a-dangling-placer");
     let (doc, moved) = insert(doc, xform(extrude, [0.0, 0.0, 1.0], [0.0, 0.0, 1.0], 0.0));
-    let (doc, gone) = insert(doc, fixture::xy_frame());
-    let (doc, _) = fixture::step(doc, DocEdit::DeleteNode { id: gone });
+    let read = doc.output(extrude, 0).expect("the extrude's body");
+    let (doc, _) = fixture::step(doc, DocEdit::DeleteNode { id: extrude });
     let text = save(&doc, &[], Tol::witness()).expect("saves");
-    let (moved, gone) = (moved.0.to_string(), gone);
-    let dangling = doctored(&text, |wire| {
-        wire["snapshot"]["nodes"][&moved]["Transform"]["input"] = gone.0.to_string().into();
-    });
-    match load(&dangling, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::DanglingInput { input, .. })) => {
-            assert_eq!(input.id(), gone);
-        }
-        other => panic!("a placer on a deleted node refuses DanglingInput, got {other:?}"),
+    let loaded = load(&text, Tol::witness())
+        .expect("a stranded read loads")
+        .doc;
+    let ev = crate::corpus::eval::<f64>(&loaded);
+    match ev.nodes.get(&moved) {
+        Some(editor_core::NodeResult::Failed(error)) => assert!(
+            matches!(
+                error.kind,
+                editor_core::NodeErrorKind::UnresolvedRead {
+                    slot: editor_core::OperandSlot::Input,
+                    var,
+                } if var == read
+            ),
+            "{:?}",
+            error.kind
+        ),
+        other => panic!("the placer refuses its stranded read, got {other:?}"),
     }
 }

@@ -114,19 +114,19 @@ pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, R
         }),
     ]);
     let seg_profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![seg_loop],
         ids: Vec::new(),
     }));
     let thickness = Formula::div(plen("chord_half"), scl(4.0)).expect("Length / Scalar");
     let seg = r.insert(Node::Extrude {
-        profile: seg_profile,
+        profile: seg_profile.into(),
         distance: thickness.clone(),
         side: ExtrudeSide::Along,
     });
     let bore_centre_y = Formula::mul(plen("chord_half"), scl(0.2)).expect("Length * Scalar");
     let bore_profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), bore_centre_y],
             radius: plen("bore_r"),
@@ -134,7 +134,7 @@ pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, R
         ids: Vec::new(),
     }));
     let bore = r.insert(Node::Extrude {
-        profile: bore_profile,
+        profile: bore_profile.into(),
         distance: thickness,
         side: ExtrudeSide::Along,
     });
@@ -169,7 +169,7 @@ pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, R
     let web = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
     let measure = r.insert(Node::measure(web, refs).expect("both indices in range"));
     let assertion = r.insert(Node::Assertion {
-        measure,
+        measure: measure.into(),
         bound: len(0.25e-3),
         dir: editor_core::AssertionDir::AtLeast,
     });

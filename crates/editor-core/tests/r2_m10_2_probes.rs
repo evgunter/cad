@@ -188,7 +188,7 @@ fn boxed(
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: p,
+                profile: p.into(),
                 distance: len(h),
                 side: ExtrudeSide::Along,
             }),
@@ -237,7 +237,7 @@ fn sphere(doc: &editor_core::ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, Recipe
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops: vec![half],
                 ids: Vec::new(),
             })),
@@ -249,8 +249,8 @@ fn sphere(doc: &editor_core::ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, Recipe
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Revolve {
-                profile: p,
-                axis,
+                profile: p.into(),
+                axis: axis.into(),
                 angle: ang(std::f64::consts::TAU),
             }),
             fresh: Vec::new(),
@@ -286,7 +286,7 @@ fn cylinder(
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops: vec![LoopProgram::Circle {
                     centre: [len(cx), len(cy)],
                     radius: len(r),
@@ -301,7 +301,7 @@ fn cylinder(
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: p,
+                profile: p.into(),
                 distance: len(h),
                 side: ExtrudeSide::Along,
             }),
@@ -750,7 +750,7 @@ fn r2_a_sub_epsilon_tilt_at_ten_millimetres() {
         &d1,
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops: vec![LoopProgram::Circle {
                     centre: [len(0.0), len(0.0)],
                     radius: len(0.001),
@@ -765,7 +765,7 @@ fn r2_a_sub_epsilon_tilt_at_ten_millimetres() {
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: p,
+                profile: p.into(),
                 distance: len(0.01),
                 side: ExtrudeSide::Along,
             }),
@@ -816,7 +816,7 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure,
+                measure: measure.into(),
                 // A bound the measure VIOLATES: the box diagonal is at
                 // most sqrt(3) < 100.
                 bound: len(100.0),
@@ -842,8 +842,8 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
                 "boolean-a",
                 Node::Boolean {
                     op: BooleanOp::Union,
-                    a: victim,
-                    b,
+                    a: victim.into(),
+                    b: b.into(),
                     declare: Vec::new(),
                 },
             ),
@@ -851,8 +851,8 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
                 "boolean-b",
                 Node::Boolean {
                     op: BooleanOp::Subtract,
-                    a: b,
-                    b: victim,
+                    a: b.into(),
+                    b: victim.into(),
                     declare: Vec::new(),
                 },
             ),
@@ -870,7 +870,7 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
             (
                 "extrude-profile",
                 Node::Extrude {
-                    profile: victim,
+                    profile: victim.into(),
                     distance: len(1.0),
                     side: ExtrudeSide::Along,
                 },
@@ -925,7 +925,7 @@ fn r2_a_violated_assertion_is_invisible_to_every_shared_node() {
         &with_measure_doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure,
+                measure: measure.into(),
                 bound: len(100.0),
                 dir: AssertionDir::AtLeast,
             }),
@@ -1166,7 +1166,7 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure,
+                measure: measure.into(),
                 bound: len(0.5),
                 dir: AssertionDir::AtLeast,
             }),
@@ -1211,7 +1211,7 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure,
+                measure: measure.into(),
                 bound: ang(0.5),
                 dir: AssertionDir::AtLeast,
             }),
@@ -1226,7 +1226,7 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure: b,
+                measure: b.into(),
                 bound: len(0.5),
                 dir: AssertionDir::AtLeast,
             }),
@@ -1283,7 +1283,7 @@ fn r2_e2e_ball_in_socket_authored_and_saved() {
             &d3,
             &DocEdit::InsertNode {
                 node: Box::new(Node::Assertion {
-                    measure,
+                    measure: measure.into(),
                     bound: len(0.02),
                     dir: AssertionDir::AtLeast,
                 }),
@@ -1362,7 +1362,7 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure,
+                measure: measure.into(),
                 bound: len(0.5),
                 dir: AssertionDir::AtLeast,
             }),
@@ -1402,17 +1402,21 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
             &mut wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["measure"];
         assert_eq!(
             *target,
-            serde_json::json!(measure.0),
+            serde_json::json!(
+                doc.output(measure, 0)
+                    .expect("a measure defines its value")
+                    .0
+            ),
             "the surgery is aimed at the assertion's target"
         );
-        *target = serde_json::json!(b.0);
+        *target = serde_json::json!(doc.output(b, 0).expect("a body").0);
     });
     match editor_core::load(&tgt_corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::AssertionTarget {
-            measure,
-            bound: Dimension::Length,
+        Err(PersistError::Snapshot(SnapshotError::SlotVarKind {
+            found: editor_core::VarKind::Body,
+            expected: editor_core::SlotKind::Measured,
             ..
-        })) => assert_eq!(measure.id(), b),
+        })) => {}
         other => panic!("an assertion over a non-measure must refuse typed, got {other:?}"),
     }
 }
@@ -1466,7 +1470,7 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: d1.ids()[1],
+                profile: d1.ids()[1].into(),
                 distance: Formula::div(
                     len(13.0),
                     Formula::named(VarName::from_static("s"), Dimension::Scalar),
@@ -1532,7 +1536,7 @@ fn r2_an_assertion_over_a_non_finite_measure() {
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure,
+                measure: measure.into(),
                 bound: len(1.0),
                 dir: AssertionDir::AtLeast,
             }),

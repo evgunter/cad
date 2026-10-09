@@ -3760,7 +3760,7 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
         let (doc, body) = insert(
             doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(1.0),
                 side: ExtrudeSide::Along,
             },
@@ -3772,7 +3772,7 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
         let (doc, block) = insert(
             doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(1.0),
                 side: ExtrudeSide::Along,
             },
@@ -3787,8 +3787,8 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
         let (doc, _) = insert(
             doc,
             Node::Split {
-                target: block,
-                tool: plane,
+                target: block.into(),
+                tool: plane.into(),
             },
         );
         moved(doc, block, 2.0)
@@ -4622,7 +4622,7 @@ fn found_arms() -> Vec<(String, NodeErrorKind)> {
     let (doc, body) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -4635,7 +4635,7 @@ fn found_arms() -> Vec<(String, NodeErrorKind)> {
     let (doc, frame) = insert(
         doc,
         Node::Datum(Datum::FaceFrame {
-            at: body,
+            at: body.into(),
             face: edge,
             spin: ang(0.0),
         }),

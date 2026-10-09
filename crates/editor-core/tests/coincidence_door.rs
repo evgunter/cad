@@ -70,8 +70,8 @@ fn a_declared_rest_is_one_unproven_row_named_by_its_operands() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: base,
-            b: plate,
+            a: base.into(),
+            b: plate.into(),
             declare: vec![(
                 (
                     SitedRef::at_mint(top.clone()),
@@ -193,21 +193,21 @@ fn a_row_over_one_placed_construction_is_proven_the_same_construction() {
     let (doc, split) = insert(
         doc,
         Node::Split {
-            target: placed,
-            tool,
+            target: placed.into(),
+            tool: tool.into(),
         },
     );
     let (doc, above) = insert(
         doc,
         Node::Part {
-            of: split,
+            of: editor_core::Operand::output(split, SplitHalf::Above.port()),
             select: PartSelect::SplitHalf(SplitHalf::Above),
         },
     );
     let (doc, below) = insert(
         doc,
         Node::Part {
-            of: split,
+            of: editor_core::Operand::output(split, SplitHalf::Below.port()),
             select: PartSelect::SplitHalf(SplitHalf::Below),
         },
     );
@@ -301,7 +301,7 @@ fn a_patterns_instances_are_two_constructions_of_one_minted_face() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: the_box,
+            input: the_box.into(),
             count: editor_core::Formula::count(3),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -313,7 +313,7 @@ fn a_patterns_instances_are_two_constructions_of_one_minted_face() {
         insert(
             doc,
             Node::Part {
-                of: pattern,
+                of: pattern.into(),
                 select: PartSelect::Instance(editor_core::Formula::count(i)),
             },
         )
@@ -442,7 +442,7 @@ fn split_prism(
     let (doc, prism) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: editor_core::ExtrudeSide::Along,
         },
@@ -457,8 +457,8 @@ fn split_prism(
     let (doc, split) = insert(
         doc,
         Node::Split {
-            target: prism,
-            tool,
+            target: prism.into(),
+            tool: tool.into(),
         },
     );
     let ev = run(&doc);
@@ -541,15 +541,15 @@ fn a_reunited_splits_section_caps_are_one_construction() {
     let (doc, split) = insert(
         doc,
         Node::Split {
-            target: the_box,
-            tool,
+            target: the_box.into(),
+            tool: tool.into(),
         },
     );
-    let half = |doc, side| {
+    let half = |doc, side: SplitHalf| {
         insert(
             doc,
             Node::Part {
-                of: split,
+                of: editor_core::Operand::output(split, side.port()),
                 select: PartSelect::SplitHalf(side),
             },
         )
@@ -569,8 +569,8 @@ fn a_reunited_splits_section_caps_are_one_construction() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: above,
-            b: below,
+            a: above.into(),
+            b: below.into(),
             declare: vec![
                 (
                     (
@@ -649,8 +649,8 @@ fn apart(op: BooleanOp, id: &str) -> (ProfileDoc, Evaluation<f64>, RecipeNodeId,
         doc,
         Node::Boolean {
             op,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: pairs
                 .into_iter()
                 .map(|p| (p, BooleanCoincidence::Continuation))

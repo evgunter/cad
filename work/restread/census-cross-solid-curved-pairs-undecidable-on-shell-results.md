@@ -161,3 +161,16 @@ the other".
 ## CONTACT close-out triage (2026-10-08)
 
 Priced P1, H: arm 1 refuses `CurvedWithinReach` (`census.rs`), which blocks SHELL adopting the tier-3-prime bar and REACHHOLD's census door. `census-backstop-separates-curved-pairs-only-along-world-axes` is a sub-step: do them together.
+
+## Also an annular tube in a plate (JOIN, `join/annular-tube-roles`)
+
+`crates/sweep/tests/an_annular_tube_through_a_plate.rs` pins four
+results that build at the closed form, with tier 2, the certificate
+and a legal operand, and fail tier 3′ on `CensusUndecidable` alone
+(all 8 and all 15 errors). Each is two solids, one in the other's
+bore:
+- the plate `(−3, 3)² × (0, 1)` less the tube `r ∈ [0.5, 1]`,
+  `z ∈ [−0.5, 1.5]`: the holed plate and the rod in its bore;
+- the union of the nested tubes `r ∈ [0.75, 1]` and `[0.25, 0.5]`,
+  `z ∈ [0.5, 2.5]`, and its `∩` with the plate (both orders) and its
+  `∖` the plate.

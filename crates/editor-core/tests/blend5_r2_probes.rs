@@ -67,8 +67,8 @@ fn lantern_with(profile_pts: Vec<(f64, f64)>) -> (ProfileDoc, RecipeNodeId) {
     let (doc, revolve) = insert(
         doc,
         Node::Revolve {
-            profile,
-            axis,
+            profile: profile.into(),
+            axis: axis.into(),
             angle: ang(std::f64::consts::TAU),
         },
     );
@@ -93,7 +93,7 @@ fn filleted(profile_pts: Vec<(f64, f64)>, v: u32) -> (ProfileDoc, RecipeNodeId) 
     insert(
         doc,
         Node::Fillet {
-            target: revolve,
+            target: editor_core::Operand::output(revolve, 0),
             radius: len(0.05),
             selection: vec![rim],
         },

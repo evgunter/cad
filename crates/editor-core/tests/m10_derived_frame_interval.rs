@@ -153,12 +153,12 @@ pub(crate) fn boss_on_widened_box(half: f64) -> (ProfileDoc, RecipeNodeId, Recip
         vec![fixture::square(0.0, 0.0, 1.0)],
     );
     let cube = r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: Formula::named(VarName::from_static("h"), Dimension::Length),
         side: ExtrudeSide::Along,
     });
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
-        at: cube,
+        at: cube.into(),
         face: fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
         spin: ang(0.0),
     }));
@@ -167,7 +167,7 @@ pub(crate) fn boss_on_widened_box(half: f64) -> (ProfileDoc, RecipeNodeId, Recip
         vec![fixture::square(0.0, 0.0, 0.5)],
     )));
     let boss = r.insert(Node::Extrude {
-        profile: boss_p,
+        profile: boss_p.into(),
         distance: len(0.25),
         side: ExtrudeSide::Along,
     });
@@ -195,7 +195,7 @@ pub(crate) fn boss_on_widened_authored_frame(half: f64) -> (ProfileDoc, RecipeNo
         vec![fixture::square(0.0, 0.0, 0.5)],
     )));
     let boss = r.insert(Node::Extrude {
-        profile: boss_p,
+        profile: boss_p.into(),
         distance: len(0.25),
         side: ExtrudeSide::Along,
     });
@@ -215,7 +215,7 @@ pub(crate) fn transform_lifted_boss(half: f64) -> ProfileDoc {
         vec![fixture::square(0.0, 0.0, 1.0)],
     );
     let cube = r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -232,7 +232,7 @@ pub(crate) fn transform_lifted_boss(half: f64) -> ProfileDoc {
         },
     ));
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
-        at: lifted,
+        at: lifted.into(),
         face: fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
         spin: ang(0.0),
     }));
@@ -241,7 +241,7 @@ pub(crate) fn transform_lifted_boss(half: f64) -> ProfileDoc {
         vec![fixture::square(0.0, 0.0, 0.5)],
     )));
     r.insert(Node::Extrude {
-        profile: boss_p,
+        profile: boss_p.into(),
         distance: len(0.25),
         side: ExtrudeSide::Along,
     });

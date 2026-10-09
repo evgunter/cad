@@ -229,7 +229,7 @@ fn extrude_body() -> (Recorder, StableName) {
         vec![fixture::square(0.0, 0.0, 0.5)],
     )));
     let extrude = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(0.5),
         side: ExtrudeSide::Along,
     });

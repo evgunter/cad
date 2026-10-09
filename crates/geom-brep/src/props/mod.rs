@@ -744,10 +744,11 @@ impl core::fmt::Display for PropsError {
             ),
             Self::Escalated { cause, check } => write!(
                 f,
-                "{} is too close to call at this tolerance: {}. {}",
-                check.subject(),
-                cause.payload(),
-                check.ending(RefusedArm::Undecided(cause), Reading::AtRest)
+                "{}",
+                cause.undecided(
+                    check.subject(),
+                    check.ending(RefusedArm::Undecided(cause), Reading::AtRest)
+                )
             ),
             Self::QuadratureBudget {
                 width_len,
@@ -969,8 +970,8 @@ mod tests {
         assert_eq!(
             converged,
             format!(
-                "whether the quadrature's enclosure has converged is too close to call at \
-                 this tolerance: margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8). {}",
+                "whether the quadrature's enclosure has converged is undecided: margin 5e-9 lies \
+                 inside the ambiguity band (1e-9, 1e-8). {}",
                 geom_core::KERNEL_LIMIT_RECOURSE
             )
         );

@@ -134,7 +134,7 @@ on PR 3102's thread (2026-09-23); names spelling minted step ids rather
 than canonical positions on #3193, with the role lists on #3202.*
 
 **V4 — The stored form, chain-only.** `Node::Profile` carries
-`ProfileProgram { plane: RecipeNodeId, loops: Vec<LoopProgram>, ids: Vec<Vec<StepId>> }`.
+`ProfileProgram { frame: VarId, loops: Vec<LoopProgram>, ids: Vec<Vec<StepId>> }`.
 `LoopProgram` is `Chain(Vec<ProgramStep>)`, `Circle { centre, radius }`
 or `CircleSplit { centre, radius, n, phase }`, the carrier forms being
 one-step programs whose form is structural. There is one wire
