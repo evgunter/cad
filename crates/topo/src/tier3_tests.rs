@@ -1917,33 +1917,81 @@ fn the_second_order_band_has_three_outcomes_and_they_are_three_answers() {
     );
 }
 
-/// **Check 4 spells no second-order reading of its own.** The validator
-/// reads its stations through `geom_brep::interior_stations` and the
-/// second-order margin through `geom_brep::second_order_walk`, once each,
-/// so the rows that pin the walk speak for tier 3: a loop or a
-/// `"tangent_second_order"` decide inlined back into the validator reds
-/// here.
+/// **Check 4 and the shared-rim routing spell no second-order reading
+/// of their own.** Both read the second-order margin through
+/// `geom_brep::second_order_walk` once, with the material reads in
+/// `validate::MaterialStations`; the validator takes its stations from
+/// `geom_brep::interior_stations`. So the rows that pin the walk and
+/// the hook speak for both: a loop, a `"tangent_second_order"` decide
+/// or a material read inlined back into either file's production code
+/// reds here. The `#[cfg(test)]` modules are blanked first: a row there
+/// asserting a predicate name is not a second spelling.
 #[test]
-fn check_4_routes_its_second_order_reading_through_the_one_walk() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/validate.rs");
-    let source = test_utils::source::code_and_literals(&std::fs::read_to_string(path).unwrap());
-    for (call, count) in [("second_order_walk(", 1), ("interior_stations(", 1)] {
-        assert_eq!(
-            source.matches(call).count(),
-            count,
-            "the validator calls `{call}` once"
-        );
-    }
-    for spelling in [
+fn check_4_and_the_rim_route_their_second_order_reading_through_the_one_walk() {
+    // The code-and-literals view with every `#[cfg(test)] mod … { … }`
+    // blanked, carved on the code-only view where every bracket is real.
+    let production = |text: &str| {
+        use test_utils::source::{balanced_end, code_and_literals, code_only, skip_ws, word_at};
+        let code = code_only(text);
+        let mut kept = code_and_literals(text).into_bytes();
+        assert_eq!(code.len(), kept.len(), "the two views align byte for byte");
+        let mut from = 0;
+        while let Some(at) = code[from..].find("#[cfg(test)]").map(|i| i + from) {
+            let mut item = skip_ws(&code, at + "#[cfg(test)]".len());
+            while code[item..].starts_with("#[") {
+                let attr_end = balanced_end(&code, item + 1).expect("an attribute closes");
+                item = skip_ws(&code, attr_end + 1);
+            }
+            from = item;
+            if !word_at(&code, item, "mod") {
+                continue;
+            }
+            let open = item + code[item..].find('{').expect("a test module has a body");
+            let close = balanced_end(&code, open).expect("a test module closes");
+            kept[at..=close].fill(b' ');
+            from = close;
+        }
+        String::from_utf8(kept).expect("only ASCII spans are blanked")
+    };
+    let scan = |file: &str, calls: &[(&str, usize)], spellings: &[&str]| {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(file);
+        let source = production(&std::fs::read_to_string(path).unwrap());
+        for &(call, count) in calls {
+            assert_eq!(
+                source.matches(call).count(),
+                count,
+                "`{file}` calls `{call}` {count} time(s)"
+            );
+        }
+        for spelling in spellings {
+            assert!(
+                !source.contains(spelling),
+                "`{file}` spells `{spelling}` beside the walk"
+            );
+        }
+    };
+    let walk = [
         "\"tangent_second_order\"",
         "tangent_second_order(",
         "tangent_jet(",
-    ] {
-        assert!(
-            !source.contains(spelling),
-            "the validator spells `{spelling}` beside the walk"
-        );
-    }
+    ];
+    let material = [
+        "\"material_cusp_side\"",
+        "\"material_wedge_side\"",
+        "classify_material_pairing(",
+        "material_kappa_rel(",
+        "folded_lever_arm(",
+    ];
+    scan(
+        "src/validate.rs",
+        &[("second_order_walk(", 1), ("interior_stations(", 1)],
+        &walk,
+    );
+    scan(
+        "src/boolean/rim_wedge.rs",
+        &[("second_order_walk(", 1), ("MaterialStations::new(", 1)],
+        &[walk.as_slice(), material.as_slice()].concat(),
+    );
 }
 
 /// **Row: the must-carry rule and tier 3 read one second-order walk.**
