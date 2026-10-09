@@ -3452,7 +3452,9 @@ fn nurbs_chord<T: Decide>(
         return Ok(None);
     }
     let knots = nurbs.knots();
-    let (s0, s1) = (t0.locate_spans(knots), t1.locate_spans(knots));
+    let (Some(s0), Some(s1)) = (t0.locate_spans(knots), t1.locate_spans(knots)) else {
+        return Ok(None);
+    };
     let first = s0.first.first_control().min(s1.first.first_control());
     let last = s0.last.index().max(s1.last.index());
     let control = nurbs
@@ -4488,7 +4490,7 @@ mod split_carries_candidates {
         let (doc, profile) = ins(
             doc,
             Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops: vec![LoopProgram::polygon(pts.iter().copied()).expect("finite")],
                 ids: Vec::new(),
             }),
@@ -4496,7 +4498,7 @@ mod split_carries_candidates {
         ins(
             doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(dz),
                 side: crate::ExtrudeSide::Along,
             },
@@ -4535,8 +4537,8 @@ mod split_carries_candidates {
             doc,
             Node::Boolean {
                 op: BooleanOp::Subtract,
-                a,
-                b,
+                a: a.into(),
+                b: b.into(),
                 declare: Vec::new(),
             },
         );
@@ -4547,7 +4549,13 @@ mod split_carries_candidates {
                 normal: [scl(0.0), scl(ny), scl(0.0)],
             }),
         );
-        let (doc, split) = ins(doc, Node::Split { target: sub, tool });
+        let (doc, split) = ins(
+            doc,
+            Node::Split {
+                target: sub.into(),
+                tool: tool.into(),
+            },
+        );
         let ev = evaluate::<f64>(
             &doc,
             None,
@@ -4773,7 +4781,7 @@ mod crossings_rank_along_the_line {
         let (doc, profile) = ins(
             doc,
             Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops: vec![loop_],
                 ids: Vec::new(),
             }),
@@ -4781,7 +4789,7 @@ mod crossings_rank_along_the_line {
         ins(
             doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(dz),
                 side: crate::ExtrudeSide::Along,
             },
@@ -4826,8 +4834,8 @@ mod crossings_rank_along_the_line {
             doc,
             Node::Boolean {
                 op: BooleanOp::Subtract,
-                a: disc,
-                b: notch,
+                a: disc.into(),
+                b: notch.into(),
                 declare: Vec::new(),
             },
         );
@@ -4988,7 +4996,7 @@ mod nurbs_crossings_rank_by_parameter {
             let (d, profile) = ins(
                 d,
                 Node::Profile(ProfileProgram {
-                    plane,
+                    frame: plane.into(),
                     loops: vec![LoopProgram::polygon(square).expect("finite")],
                     ids: Vec::new(),
                 }),
@@ -4999,7 +5007,7 @@ mod nurbs_crossings_rank_by_parameter {
         let (doc, loft) = ins(
             doc,
             Node::Loft {
-                profiles,
+                profiles: profiles.into_iter().map(Into::into).collect(),
                 v_degree: Formula::count(2),
             },
         );
@@ -5347,7 +5355,7 @@ mod edge_pieces_of_one_line_tie {
         let (doc, profile) = ins(
             doc,
             Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops: vec![loop_],
                 ids: Vec::new(),
             }),
@@ -5355,7 +5363,7 @@ mod edge_pieces_of_one_line_tie {
         ins(
             doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(dz),
                 side: crate::ExtrudeSide::Along,
             },
@@ -5382,8 +5390,8 @@ mod edge_pieces_of_one_line_tie {
             doc,
             Node::Boolean {
                 op: BooleanOp::Subtract,
-                a: rod,
-                b: top,
+                a: rod.into(),
+                b: top.into(),
                 declare: Vec::new(),
             },
         );

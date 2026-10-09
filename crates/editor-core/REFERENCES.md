@@ -12,9 +12,10 @@ symbol beside them; the symbol is the stable half.
 
 The recipe admits three reference shapes, and every node is built from them:
 
-- **A DAG edge**: a `RecipeNodeId` in a node's inputs, structural, liveness-
-  and cycle-checked at the edit door (`edit.rs`, `InsertNode`:
-  `UnresolvedInput`, `WouldCycle`), enumerated by `Node::inputs`. Ids are
+- **A DAG edge**: an operand's read of an output variable (D10), typed
+  by the kind its slot admits, liveness- and cycle-checked at the edit
+  door (`edit.rs`, `lower_operand`: `OperandUnresolved`,
+  `SlotVarKind`, `WouldCycle`), enumerated by `Doc::upstream`. Ids are
   minted from the document's mint chain and never reused (D3, N1; `mint.rs`).
 - **A frozen `StableName`**: `{ kind, node, path }` (N1, `names/role.rs`),
   stored at authoring and resolved at evaluation through a name table under
@@ -36,7 +37,7 @@ The recipe admits three reference shapes, and every node is built from them:
 
 Two precedents these clauses extend. `SitedRef { at, name }` (`node.rs`)
 pairs a DAG edge with a frozen name: `at` says which evaluated value to read,
-`name` says which entity. `Datum::AxisInPlane { plane, .. }` (`node.rs`) is
+`name` says which entity. `Datum::AxisInPlane { frame, .. }` (`node.rs`) is
 the one datum with a DAG input: its meaning comes from another node, which
 does not make the check cheaper but makes the error unrepresentable.
 
@@ -117,23 +118,28 @@ is stored. `select_where` filters on `SurfaceKind` exactly
 
 *Built: DOCM-1 (PR 1829).*
 
-## DM3 — One body of a `Bodies` is picked by index; a split's halves are ports
+## DM3 — One member of a family is read by index; a split's halves are ports
 
 A `Split` defines two `Body` outputs, `above` and `below` (the port index is
 `SplitHalf::output_body`'s), read like any other output; DM3's split-half
-projection retires. One body of a `Bodies` value (a pattern's copies) is
-picked by an operation that reads the `Bodies` and a `Count` index and
-defines one `Body`; an index at or beyond the count refuses typed at
-evaluation. Names pass through unchanged, as `Transform`'s do (`role.rs`):
-the picked body keeps the pattern's `Instance { i, of }` names, and a split
-half keeps its `SplitBody(half)` names, so every downstream selector spells
-what it already spells. A body seat reading a `Bodies`, a profile or a
-split as a whole refuses by kind at the door (`SlotVarKind`).
+projection retires. One member of a family (D10, Repetition) is read as
+`xs[i]`, or `xs[i, j]` for a family keyed by two indices: a definition
+reading the family and one `Count` expression per index; an index outside
+the range leaves the reader unresolved and typed at evaluation, never
+re-pointed. Names pass through unchanged, as `Transform`'s do (`role.rs`):
+the member keeps its `Member { (i, …), of }` names, keyed by the index
+variables' ids and the integers, and a split half keeps its
+`SplitBody(half)` names, so every downstream selector spells what it
+already spells. A body seat reading a whole family, a profile or a split
+as a whole refuses by kind at the door (`SlotVarKind`).
 
 ## DM4 — Flat operators before splice: an n-ary union
 
-`Node::Union { members: Vec<RecipeNodeId>, declare }` fuses two or more
-members into one body, and names each entity by the member it came from.
+`Node::Union { members: Vec<RecipeNodeId>, declare }` fuses its members
+into one body, and names each entity by the member it came from. A member
+is a body or a family (D10, Repetition), whose members join in index order
+at that member's place in the list; a family's length is a `Count`, so the
+floor of two bodies in all is evaluation's, refused typed there.
 
 **Why.** A multi-shell tool assembled as a chain of pairwise
 `Boolean(Union)`s is an artifact of the vocabulary rather than of the model.
@@ -148,7 +154,7 @@ twenty for the last), repairable only by a `Rebind` per name through N5's
 offers. A splice edit that assumed intent about which input survives would
 carry that cost on top of its own. So the chain goes, not the link:
 
-- **The node.** An n-ary union, two or more members, one body out. It
+- **The node.** An n-ary union, two or more bodies, one body out. It
   evaluates as a fold of the kernel's pair verb in member order: the order
   is the list's, the author's statement, as a pair boolean's operand order
   is. What the union decides is defined over its members, not over the
@@ -159,28 +165,36 @@ carry that cost on top of its own. So the chain goes, not the link:
   glue keeps the earlier member's description, as a pair boolean keeps
   operand A's, and a refusal raised at a fold step names the member whose
   step refused. It sits beside `Boolean(Union)`, which
-  stays for a pair, and beside `PlacedUnion`, which fuses instances of one
-  prototype and is a different sentence (`node.rs`).
+  stays for a pair. A union reads shapes already in one space and places
+  nothing: a placement defines copies, and the union reads them, so the
+  union of a pattern's copies is this node over the pattern's members.
+  `PlacedUnion` (`node.rs`) both places copies of one prototype and
+  fuses them, so it retires into those two: a placement of the copies,
+  and this union reading them. When its bodies are rigid images of one
+  body, visible in the reads, the union has a fast path: bodies it
+  certifies disjoint are grafted without a boolean (the group boolean,
+  `README.md`).
 - **Naming keys by member, not by depth.** The emitter wraps a member's names
   in `FromMember { member: RecipeNodeId, of: Box<StableName> }`: `member` is
   the member's own node id (the edge in the list), `of` the entity's name in
   that member's table. The key is the edge, never the inner name's minting
-  node: a pass-through op contributes no segment (N1; `Transform` keeps the
-  input's rows verbatim), so two members that are transforms of one body
-  carry identical tables — the die's 21 pips are exactly that — and the inner
-  name alone cannot tell them apart. The member id can; it is data the node
+  node: a copy keeps the rows of the body it copies (N1), so two members
+  that are copies of one body carry identical tables, and the inner name
+  alone cannot tell them apart. The member id can; it is data the node
   already carries, and DM5 makes it unique within one union. No position is
   recorded, so removing a member leaves every other member's names as they
-  were. The `Instance { i, of }` segment is the precedent shape, with an
-  identity where it has an index.
-- **`DocEdit::SetMembers { node, members: Vec<RecipeNodeId> }`** is the one
+  were. A family's members keep their `Member { (i, …), of }` segments
+  (DM3), keyed by the index variables' ids, so they too are told apart by
+  identity, never by position in the list.
+- **`DocEdit::SetMembers { node, members: Vec<Operand> }`** is the one
   edit that changes a list input, by naming the whole new list; nothing is
   inferred. It refuses typed an unknown or non-live member, a cycle
-  (`WouldCycle` through the existing check), a duplicate (DM5), or fewer than
-  two members. Deleting a pip is `SetMembers` without it, and the other
-  twenty rims survive. The transform stays a value, out of the product
-  because nothing places it; deleting it too is tidiness, not a
-  requirement. `Loft`'s `profiles`
+  (`WouldCycle` through the existing check), a duplicate (DM5), or an empty
+  list; fewer than two bodies in all refuses at evaluation (above).
+  Deleting a pip is `SetMembers` without it, and the other
+  twenty rims survive. The pip the union no longer reads is still
+  defined, and out of the product because no placement names it;
+  deleting it too is tidiness, not a requirement. `Loft`'s `profiles`
   list is the same shape and takes the same edit; nothing else in the
   vocabulary is a list.
 - The viewer's combining doors take a union seat of N body picks (not yet
@@ -314,18 +328,24 @@ ruled on PR 2677; the pairwise contact rule (#3200, built in PR 3213).*
 
 ## DM5 — A node's inputs are pairwise distinct
 
-`Boolean { a: X, b: X }`, a union or loft list with a repeated member, and a
-split whose target and tool coincide are all refused. The rule is stated
+`Boolean { a: X, b: X }` and a union or loft list with a repeated member
+are refused. The rule is stated
 once, as a structural validity check on a node's inputs, and called by
-`InsertNode`, by `SetMembers` on the rewritten node, and by the load
+the edit doors' per-node checks — `InsertNode`, and `SetParam` at an
+operand and `SetMembers` on the rewritten node — and by the load
 validator (`persist/check.rs`, `validate_document`) on every node of a
-snapshot, so the three doors share the logic rather than mirror it. Replayed
+snapshot, so the doors share the logic rather than mirror it. Replayed
 edits meet it through `InsertNode`; the load validator is needed because a
 hand-written snapshot never passes an edit door. Refusal:
 `EditError::DuplicateInput { node, input }` at the edit doors, the
 validator's own `SnapshotError` arm at load.
 
-Distinctness is over node ids, and only node ids. Two distinct nodes that
+Distinctness is over the variables read, and only those (D10: a read is
+of a variable): two outputs of one operation are two variables, so a
+union of a split's two halves, or a revolve's body patterned about its own
+axis port, is admitted. (The union then refuses the two halves at
+evaluation, `MembersShareAnOperation`: DM4 keys a member's names by the
+operation it reads. A pair boolean of them builds.) Two distinct nodes that
 evaluate to one body — two `Part`s selecting one half of a split, or
 `Part(Instance(0))` beside its master — meet DM5, and the boolean answers
 them as it answers any operands whose shells coincide by structure or by
@@ -339,9 +359,11 @@ result.
 A read changes only by an edit that names its new variable in full. An
 operand slot is written by the one slot door every slot has: the formula
 lowers to a read of the slot's kind (`SlotVarKind` otherwise), the read is
-live, and the rewritten node passes the checks the insert door and
-`SetMembers` already make of a node's reads (DM5's distinctness,
-acyclicity over reads). A list operand is the same door with a list. The
+live, and the rewritten node passes every check the insert door makes of
+a node — one function both doors call (`edit.rs`, `check_written_node`:
+DM5's distinctness, an assertion's bound against its measure's
+dimension, the slots' reads, the alignment and frame rules) — and
+acyclicity over reads. A list operand is the same door with a list. The
 write reports, and never refuses, the downstream names it strands, as DM7
 has a removal do; the N5 ladder diagnoses them and `Rebind` repairs them.
 No door picks a survivor: a delete leaves its readers unresolved and typed

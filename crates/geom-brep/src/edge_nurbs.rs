@@ -80,13 +80,12 @@ use geom_core::predicate::KERNEL_OR_FILE_DEFECT_ENDING;
 use geom_core::spline::algebra::{GridSkip, domain_grid_points};
 use geom_core::spline::{KnotVector, KnotVectorIssue, SplineError};
 use geom_core::{
-    Band, Bounds, Decide, FileCoincidence, Indeterminate, Point2, Point3, Readable, Real, Vec3,
+    Band, Bounds, Decide, Decided, Indeterminate, MarginDiag, Point2, Point3, Readable, Real, Sign,
+    Vec3,
 };
 
-use crate::certify::{
-    CERT_SAMPLES, CertCheck, recourse, recourse_in_file, schedule_fraction, schedule_param,
-};
-use crate::recourse::{Reading, Refused, RefusedArm};
+use crate::certify::{CERT_SAMPLES, CertCheck, recourse, schedule_fraction, schedule_param};
+use crate::recourse::{ReadAt, Refused, RefusedArm};
 use crate::ssi::{
     ChartSpeedRefusal, OneArcRefusal, PointLever, SsiError, SsiLimb, SsiOperand, SsiTube,
     certify_rung3,
@@ -166,6 +165,10 @@ pub enum PlaneNurbsRefusal {
         limb: SsiLimb,
         /// The measured bound, in meters.
         value: f64,
+        /// What the classifier saw of the miss, for error reporting only
+        /// ([`MarginDiag`]): it rides [`PlaneNurbsRefusal::decision`]'s
+        /// sign-certain arm to the import door's words on a definite miss.
+        margin: MarginDiag,
     },
     /// The uniqueness tube's transversality is not certified clear of
     /// the zero band — a genuine sliver of the operand pair along the
@@ -324,7 +327,7 @@ impl core::fmt::Display for CarrierDomainRefusal {
 }
 
 impl PlaneNurbsRefusal {
-    /// The ending this refusal's decision gives it, read at `reading`
+    /// The ending this refusal's decision gives it, read at `at`
     /// ([`recourse`]), or `None` for a refusal that is no decision's
     /// refused arm. `Display` renders the payload alone, as
     /// [`crate::CertifyError`]'s does, and the door appends this.
@@ -334,24 +337,11 @@ impl PlaneNurbsRefusal {
     /// ¶1 (iv)); a certificate limb's refusal, definite or escalated,
     /// ends by its limb's decision ([`SsiLimb::check`]).
     #[must_use]
-    pub fn ending(&self, reading: Reading) -> Option<String> {
+    pub fn ending(&self, at: impl Into<ReadAt>) -> Option<String> {
         if let Self::TubeNotOneArc { cause, .. } = *self {
-            return Some(cause.ending(crate::ssi::OneArcDoor::AtRest, reading));
+            return Some(cause.ending(crate::ssi::OneArcDoor::AtRest, at));
         }
-        self.decision()
-            .map(|(check, arm)| recourse(check, arm, reading))
-    }
-
-    /// The ending this refusal gives at the STEP import door
-    /// ([`recourse_in_file`]), as [`PlaneNurbsRefusal::ending`] gives it
-    /// at rest.
-    #[must_use]
-    pub fn ending_in_file(&self, file: FileCoincidence) -> Option<String> {
-        if let Self::TubeNotOneArc { cause, .. } = *self {
-            return Some(cause.ending_in_file(crate::ssi::OneArcDoor::AtRest, file));
-        }
-        self.decision()
-            .map(|(check, arm)| recourse_in_file(check, arm, file))
+        self.decision().map(|(check, arm)| recourse(check, arm, at))
     }
 
     /// The decision this refusal is a refused arm of, and which arm
@@ -363,7 +353,9 @@ impl PlaneNurbsRefusal {
             Self::TransversalityEscalated { cause, .. } => {
                 (CertCheck::Transversality, RefusedArm::Undecided(cause))
             }
-            Self::Limb { limb, .. } => (limb.check(), RefusedArm::SignCertain),
+            Self::Limb { limb, margin, .. } => {
+                (limb.check(), RefusedArm::SignCertain(Some(*margin)))
+            }
             // The tube's margin is the lane's transversality over the
             // chain (`ssi_tube_transversality`), and this refusal is its
             // decided verdict.
@@ -373,7 +365,7 @@ impl PlaneNurbsRefusal {
                 CertCheck::PlaneNurbsReportedTransversality,
                 RefusedArm::Undecided(cause),
             ),
-            Self::ChartSpeed(r) => (r.check(), RefusedArm::SignCertain),
+            Self::ChartSpeed(r) => (r.check(), RefusedArm::SignCertain(None)),
             // The one-arc proof is the SSI door's own decision, and
             // `ending` reads it there.
             Self::FootPointInconclusive { .. }
@@ -412,7 +404,7 @@ impl core::fmt::Display for PlaneNurbsRefusal {
             ),
             Self::PcurveFit => write!(f, "{PCURVE_FIT_REFUSAL}. {KERNEL_OR_FILE_DEFECT_ENDING}"),
             Self::CarrierDomain(refusal) => write!(f, "{refusal}"),
-            Self::Limb { limb, value } => write!(
+            Self::Limb { limb, value, .. } => write!(
                 f,
                 "{} measured {value:e} m against the run tolerance — the declared carrier \
                  is not on both surfaces",
@@ -675,13 +667,17 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         let offset =
             crate::pcurve_cache::projected::net_offset_sup(carrier, params, operand, band, lane)
                 .map_err(|e| AnalyticRung3Refusal::of_offset(kind, e))?;
-        match crate::dihedral::decide("ssi_hull_sup", geom_core::Margin::of(offset), band) {
-            Ok(geom_core::Sign::Zero) => {}
-            Ok(geom_core::Sign::Positive | geom_core::Sign::Negative) => {
+        match crate::dihedral::decide_reported("ssi_hull_sup", geom_core::Margin::of(offset), band)
+        {
+            Ok(Decided {
+                sign: Sign::Zero, ..
+            }) => {}
+            Ok(Decided { margin, .. }) => {
                 return Err(AnalyticRung3Refusal::Limb {
                     operand: kind,
                     limb: SsiLimb::HullSup,
                     value: offset.hi(),
+                    margin,
                 });
             }
             Err(cause) => {
@@ -757,7 +753,13 @@ fn edge_piece<T: Real>(
     let mut knots = vec![a; p + 1];
     let mut control: Vec<Point3<T>> = Vec::new();
     for (i, w) in breaks.windows(2).enumerate() {
-        let segment = crate::pcurve_cache::projected::piece_controls(carrier, w[0], w[1]);
+        // The breaks ascend strictly, so each stretch is a range.
+        let Some(stretch) = geom_core::spline::ParamRange::new(w[0], w[1]) else {
+            return Err(refuse(
+                "the carrier's piece over the edge's interval is malformed",
+            ));
+        };
+        let segment = crate::pcurve_cache::projected::piece_controls(carrier, stretch);
         // Neighbouring segments share their joining control; each
         // segment's own encloses it, and the earlier one is kept.
         let skip = usize::from(i > 0);
@@ -801,6 +803,10 @@ pub enum AnalyticRung3Refusal {
         limb: SsiLimb,
         /// The measured bound, in metres.
         value: f64,
+        /// What the classifier saw of the miss, for error reporting only
+        /// ([`MarginDiag`]): it rides [`AnalyticRung3Refusal::decision`]'s
+        /// sign-certain arm to the import door's words on a definite miss.
+        margin: MarginDiag,
     },
     /// A limb's margin escalated.
     Escalated {
@@ -882,25 +888,28 @@ impl AnalyticRung3Refusal {
         }
     }
 
-    /// The ending this refusal's decision gives it, read at `reading`,
-    /// or `None` for a refusal that is no decision's refused arm
+    /// The ending this refusal's decision gives it, read at `at`, or
+    /// `None` for a refusal that is no decision's refused arm
     /// ([`PlaneNurbsRefusal::ending`]'s structure).
     #[must_use]
-    pub fn ending(&self, reading: Reading) -> Option<String> {
+    pub fn ending(&self, at: impl Into<ReadAt>) -> Option<String> {
         if let Self::TubeNotOneArc { cause, .. } = *self {
-            return Some(cause.ending(crate::ssi::OneArcDoor::AtRest, reading));
+            return Some(cause.ending(crate::ssi::OneArcDoor::AtRest, at));
         }
-        self.decision()
-            .map(|(check, arm)| recourse(check, arm, reading))
+        self.decision().map(|(check, arm)| recourse(check, arm, at))
     }
 
     /// The decision this refusal is a refused arm of, and which arm.
     #[must_use]
     pub fn decision(&self) -> Option<(CertCheck, RefusedArm<'_>)> {
         Some(match self {
-            Self::Limb { limb, .. } => (limb.check(), RefusedArm::SignCertain),
+            Self::Limb { limb, margin, .. } => {
+                (limb.check(), RefusedArm::SignCertain(Some(*margin)))
+            }
             Self::Escalated { limb, cause, .. } => (limb.check(), RefusedArm::Undecided(cause)),
             Self::TubeStraddles { verdict, .. } => (CertCheck::Transversality, verdict.arm()),
+            // The one-arc proof is the SSI door's own decision, and
+            // `ending` reads it there.
             Self::NoOffsetBound { .. } | Self::TubeNotOneArc { .. } | Self::Unsupported { .. } => {
                 return None;
             }
@@ -915,6 +924,7 @@ impl core::fmt::Display for AnalyticRung3Refusal {
                 operand,
                 limb,
                 value,
+                ..
             } => write!(
                 f,
                 "{} measured {value:e} m from the {} against the run tolerance — the \
@@ -1201,7 +1211,15 @@ fn on_carrier_domain<T: Real>(
 /// The SSI refusal, in this lane's vocabulary.
 fn refusal(e: SsiError) -> PlaneNurbsRefusal {
     match e {
-        SsiError::CertificateLimb { limb, value } => PlaneNurbsRefusal::Limb { limb, value },
+        SsiError::CertificateLimb {
+            limb,
+            value,
+            margin,
+        } => PlaneNurbsRefusal::Limb {
+            limb,
+            value,
+            margin,
+        },
         SsiError::TubeStraddles { verdict, boxes } => {
             PlaneNurbsRefusal::TubeStraddles { verdict, boxes }
         }
@@ -1232,7 +1250,10 @@ fn refusal(e: SsiError) -> PlaneNurbsRefusal {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use geom_core::FileCoincidence;
     use geom_core::spline::KnotVector;
+
+    use crate::recourse::Reading;
 
     use super::*;
 
@@ -1260,7 +1281,6 @@ mod tests {
     /// the payload and ending growing past the budget.
     #[test]
     fn the_tube_not_one_arc_refusal_renders_within_the_standard() {
-        use crate::recourse::Reading;
         use crate::ssi::OneArcRefusal;
         let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
         let undecided = geom_core::k_stats::decide_positive(
@@ -1291,7 +1311,7 @@ mod tests {
     /// **Limb 3's at-rest refusal reads the file's ε_in at the import
     /// door** (D4 ¶1): an undecided one-arc clearance at or below ε_in is
     /// not offered a tolerance alone, and one past it is offered the
-    /// at-rest value. Red where `ending_in_file` reads the one-arc
+    /// at-rest value. Red where the door's `ending` reads the one-arc
     /// decision at rest, which offers "tighten below 5e-10 m" for a
     /// 5e-9 m clearance within the file's 1e-6 m.
     #[test]
@@ -1307,8 +1327,8 @@ mod tests {
                 terminal_sliver: false,
             }),
         };
-        let file = |eps_in| FileCoincidence::new(eps_in, geom_core::Tol::witness());
-        let within = refusal(5e-9).ending_in_file(file(1e-6)).unwrap();
+        let file = |eps_in| FileCoincidence::new(eps_in);
+        let within = refusal(5e-9).ending(file(1e-6)).unwrap();
         assert!(
             within.starts_with(
                 "This clearance is below the file's declared coincidence distance ε_in = 1e-6 \
@@ -1321,7 +1341,7 @@ mod tests {
         );
         let past = refusal(5e-9);
         assert_eq!(
-            past.ending_in_file(file(1e-9)),
+            past.ending(file(1e-9)),
             past.ending(Reading::AtRest),
             "a clearance past ε_in reads as at rest"
         );

@@ -88,26 +88,47 @@ fn probe_refit_seam_refuses_typed() {
             // stage would mean the seam was adopted and something
             // downstream objected — a different fact, and not this
             // probe's.
-            let step_import::StepImportError::Adoption { attempts, .. } = &e else {
+            let step_import::StepImportError::Adoption { attempts, file, .. } = &e else {
                 panic!("the plant must be caught at ADOPTION, not downstream: {msg}");
             };
-            let measured = attempts.iter().find_map(|a| match a.refusal {
+            // The limb attempt's measured bound, and that same attempt's
+            // text as the import door renders it.
+            let limb = attempts.iter().find_map(|a| match a.refusal {
                 topo::EulerOpError::Certification {
                     error:
                         geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
                             value,
                             ..
                         }),
-                } => Some(value),
+                } => Some((value, a.refusal.render(*file))),
                 _ => None,
             });
-            let Some(measured) = measured else {
+            let Some((measured, rendered)) = limb else {
                 panic!("the refusal must carry the lane's measured bound: {attempts:?}");
             };
             assert!(
                 measured > eps && measured < 1e-6,
                 "the refusal's own number explains it: on-locus residual {measured:e} m \
                  past ε_in {eps:e}, and of the plant's own order ({PLANT:e} m)"
+            );
+            // The import door reads the limb's own miss against the
+            // file's ε_in: past it, no stopgap is named and the refusal
+            // ends at rest, at every tolerance it refuses at.
+            assert!(
+                measured > file.eps_in(),
+                "the plant is past the file's ε_in {:e}: {measured:e}",
+                file.eps_in()
+            );
+            assert!(
+                rendered.ends_with(
+                    "the declared carrier is not on both surfaces. There is no way through: this \
+                     is a kernel defect or a damaged file; report it"
+                ),
+                "a miss past ε_in ends at rest at the import door: {rendered}"
+            );
+            assert!(
+                msg.contains(&rendered),
+                "the door's message carries the limb attempt's own text: {msg}"
             );
         }
         Ok(StepImport::Solid { body, .. }) => {

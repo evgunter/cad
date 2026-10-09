@@ -50,7 +50,7 @@ fn cube(doc: ProfileDoc, x0: f64, side: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(side),
             side: ExtrudeSide::Along,
         },
@@ -147,7 +147,7 @@ fn an_extrude_against_the_normal_has_its_end_cap_below_its_start_cap() {
     let (doc, block) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             // The sketch plane's normal is u x v = +z.
             distance: len(1.0),
             side: ExtrudeSide::Against,
@@ -199,8 +199,8 @@ fn revolve_doc(pts: Vec<(f64, f64)>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Revolve {
-            profile: p,
-            axis,
+            profile: p.into(),
+            axis: axis.into(),
             angle: ang(angle),
         },
     )
@@ -224,7 +224,7 @@ fn ball_doc(angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![meridian],
             ids: Vec::new(),
         }),
@@ -239,8 +239,8 @@ fn ball_doc(angle: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Revolve {
-            profile: p,
-            axis,
+            profile: p.into(),
+            axis: axis.into(),
             angle: ang(angle),
         },
     )
@@ -420,8 +420,8 @@ fn full_holed_revolve_names_the_cavity_loop() {
     let (doc, rev) = insert(
         doc,
         Node::Revolve {
-            profile: p,
-            axis,
+            profile: p.into(),
+            axis: axis.into(),
             angle: ang(std::f64::consts::TAU),
         },
     );
@@ -620,8 +620,8 @@ fn split_names_sections_fragments_and_crossings() {
     let (doc, split) = insert(
         doc,
         Node::Split {
-            target: ext,
-            tool: plane,
+            target: ext.into(),
+            tool: plane.into(),
         },
     );
     let ev = run(&doc);
@@ -762,7 +762,7 @@ fn transform_passes_names_through_and_pattern_wraps_instances() {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: tr,
+            input: tr.into(),
             count: editor_core::Formula::count(3),
             kind: editor_core::PatternKind::Linear {
                 direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],

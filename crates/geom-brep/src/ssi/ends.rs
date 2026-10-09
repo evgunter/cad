@@ -632,6 +632,7 @@ mod tests {
         let limb = || SsiError::CertificateLimb {
             limb: SsiLimb::OnLocus,
             value: 3e-9,
+            margin: MarginDiag::value(3e-9),
         };
         let step = |margin| SsiError::Escalated {
             decision: TraceDecision::StepProgress,

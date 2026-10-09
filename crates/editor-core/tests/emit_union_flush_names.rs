@@ -620,7 +620,7 @@ fn a_member_of_two_touching_shells_names_each_shell_for_itself() {
         let (doc, u1) = insert(
             doc,
             Node::Union {
-                members: vec![ids[0], ids[1]],
+                members: vec![ids[0].into(), ids[1].into()],
                 declare: Vec::new(),
             },
         );

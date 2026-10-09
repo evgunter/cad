@@ -124,7 +124,7 @@ fn fixture(tol: Tol) -> (DocSession, RecipeNodeId) {
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(0.005),
             side: ExtrudeSide::Along,
         },
@@ -336,7 +336,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         SessionOp::EditProfile {
             node,
             base: pncad::document::ProfileProgram {
-                plane: node,
+                frame: node.into(),
                 loops: vec![],
                 ids: Vec::new(),
             },
@@ -1649,7 +1649,7 @@ fn two_fields(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, VarName) {
     let (doc, first) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(0.005),
             side: ExtrudeSide::Along,
         },
@@ -1658,7 +1658,7 @@ fn two_fields(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, VarName) {
     let (doc, second) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(0.003),
             side: ExtrudeSide::Along,
         },

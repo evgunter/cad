@@ -54,7 +54,7 @@ fn prism(doc: ProfileDoc, pts: Vec<(f64, f64)>, z0: f64, dz: f64) -> (ProfileDoc
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -81,7 +81,7 @@ fn set(doc: ProfileDoc, node: RecipeNodeId, slot: SlotId, to: f64) -> ProfileDoc
         DocEdit::SetParam {
             node,
             slot,
-            expr,
+            value: expr.into(),
             fresh: Vec::new(),
         },
     )
@@ -162,8 +162,8 @@ fn tied_prongs_cut() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b: u,
+            a: a.into(),
+            b: u.into(),
             declare: Vec::new(),
         },
     );
@@ -183,8 +183,8 @@ fn tied_prongs_cut() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: sub,
-            b: tr,
+            a: sub.into(),
+            b: tr.into(),
             declare: Vec::new(),
         },
     );
@@ -280,7 +280,13 @@ fn a_split_that_stops_dividing_a_face_leaves_a_group_of_one() {
             normal: [scl(1.0), scl(1.0), scl(0.0)],
         }),
     );
-    let (doc, split) = insert(doc, Node::Split { target: ext, tool });
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: ext.into(),
+            tool: tool.into(),
+        },
+    );
     let ev1 = run(&doc, None);
     let mut doc2 = doc.clone();
     for (slot, to) in [
@@ -382,7 +388,7 @@ fn a_unions_group_resized_at_any_fold_step_reads_two_to_one() {
         let (doc, u) = insert(
             doc,
             Node::Union {
-                members: order.iter().map(|&i| m[i]).collect(),
+                members: order.iter().map(|&i| m[i].into()).collect(),
                 declare: Vec::new(),
             },
         );
@@ -517,7 +523,7 @@ fn a_union_group_a_later_step_partly_swallows_names_what_is_published() {
         let (doc, u) = insert(
             doc,
             Node::Union {
-                members: vec![plate, tr, cblock],
+                members: vec![plate.into(), tr.into(), cblock.into()],
                 declare: Vec::new(),
             },
         );
@@ -569,7 +575,7 @@ fn a_tie_carried_through_a_later_fold_step_counts_one_parent() {
         let (doc, u) = insert(
             doc,
             Node::Union {
-                members: order.iter().map(|&i| m[i]).collect(),
+                members: order.iter().map(|&i| m[i].into()).collect(),
                 declare: Vec::new(),
             },
         );
@@ -642,8 +648,8 @@ fn plate_and_bar() -> (
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: plate,
-            b: tr,
+            a: plate.into(),
+            b: tr.into(),
             declare: Vec::new(),
         },
     );
@@ -801,7 +807,7 @@ fn a_cutter_a_fold_step_requalified_is_the_same_cutter() {
         let (doc, u) = insert(
             doc,
             Node::Union {
-                members: vec![m[order[0]], m[order[1]], plate],
+                members: vec![m[order[0]].into(), m[order[1]].into(), plate.into()],
                 declare: Vec::new(),
             },
         );
@@ -859,8 +865,8 @@ fn the_pieces_of_one_line_from_two_parents_are_one_group() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: bar,
-            b: notch,
+            a: bar.into(),
+            b: notch.into(),
             declare: Vec::new(),
         },
     );
@@ -886,7 +892,7 @@ fn the_pieces_of_one_line_from_two_parents_are_one_group() {
     let (doc, cutter) = insert(
         doc,
         Node::Extrude {
-            profile: u_profile,
+            profile: u_profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -895,8 +901,8 @@ fn the_pieces_of_one_line_from_two_parents_are_one_group() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: notched,
-            b: cutter,
+            a: notched.into(),
+            b: cutter.into(),
             declare: Vec::new(),
         },
     );

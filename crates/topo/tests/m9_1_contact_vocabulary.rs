@@ -141,8 +141,8 @@ fn a_wrong_class_declaration_contradicts_instead_of_being_ignored() {
 /// rather than pointing at a variant that does not exist.
 #[test]
 fn a_false_rest_is_contradicted_naming_the_margin_and_steering_to_fit() {
-    // Full-face stacked plates: the mate is a pure REST contact, so
-    // the declared-REST lane runs and verifies every declared pair.
+    // Full-face stacked plates: the mate is a pure REST contact, and
+    // the op door verifies every declared pair.
     let a = finished(
         "the lower plate",
         brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness()),

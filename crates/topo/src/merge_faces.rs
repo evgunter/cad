@@ -599,6 +599,29 @@ pub enum DihedralReading {
     Bend,
 }
 
+impl DihedralReading {
+    /// A first-order dihedral escalation ([`geom_brep::classify_dihedral`])
+    /// as the rung that raised it, with its diagnostics.
+    #[must_use]
+    pub const fn of_lever(escalation: geom_brep::LeverEscalation) -> (Self, Indeterminate) {
+        (Self::Lever(escalation.rung()), escalation.diag())
+    }
+
+    /// A must-carry station's escalation
+    /// ([`geom_brep::MustCarryEscalation`]) as the reading that raised
+    /// it — the first-order dihedral by rung, or the second-order bend —
+    /// with its diagnostics.
+    #[must_use]
+    pub const fn of_must_carry(
+        escalation: geom_brep::MustCarryEscalation,
+    ) -> (Self, Indeterminate) {
+        match escalation {
+            geom_brep::MustCarryEscalation::FirstOrder(lever) => Self::of_lever(lever),
+            geom_brep::MustCarryEscalation::SecondOrder(diag) => (Self::Bend, diag),
+        }
+    }
+}
+
 /// Why the edge describer refused one edge, before a door words it:
 /// the merge door as [`MergeCoplanarError::KeptBoundaryUndescribed`] /
 /// [`MergeCoplanarError::KeptBoundaryUndecided`], the boolean in its
@@ -934,7 +957,7 @@ impl core::fmt::Display for MergeCoplanarError {
             Self::DeclaredOppositeOrientation { .. } => write!(
                 f,
                 "the two declared faces face opposite ways across the edge they share. {}",
-                DECLARED_ORIENTATION.recourse(RefusedArm::SignCertain, Reading::Build)
+                DECLARED_ORIENTATION.recourse(RefusedArm::SignCertain(None), Reading::Build)
             ),
             Self::DeclaredCarrierUnsupported { pair, kind } => write!(
                 f,
@@ -968,13 +991,9 @@ impl core::fmt::Display for MergeCoplanarError {
                      winds counterclockwise about its outward normal, as tier 3 requires at rest"
                 ),
             },
-            Self::Escalated { decision, diag } => write!(
-                f,
-                "{} is undecided: {}. {}",
-                decision.subject(),
-                diag.payload(),
-                decision.ending(diag)
-            ),
+            Self::Escalated { decision, diag } => diag
+                .undecided(decision.subject(), decision.ending(diag))
+                .fmt(f),
             Self::Band { error } => write!(f, "merge_coplanar_faces: {error}"),
             Self::Pcurve { source } => write!(
                 f,
@@ -1019,8 +1038,8 @@ impl core::fmt::Display for MergeCoplanarError {
                 write!(
                     f,
                     "merge_coplanar_faces: re-describing kept face {face:?}'s boundary edge \
-                     {edge:?}, {question} is undecided: {}. {ending}",
-                    diag.payload()
+                     {edge:?}, {}",
+                    diag.undecided(question, ending)
                 )
             }
         }
@@ -2437,17 +2456,15 @@ impl<T: Decide> Body<T> {
             // declaration. A face whose extent does not read has no
             // reach to settle, which the reach decision names.
             let (on1, on2) = (self.boundary_points(f1), self.boundary_points(f2));
-            let reach =
-                crate::boolean::rest::pair_extent(self, f1, self, f2, band).map_err(|_| {
-                    MergeCoplanarError::Escalated {
-                        decision: MergeDecision::DeclaredReach,
-                        diag: Indeterminate {
-                            margin: geom_core::MarginDiag::INVALID,
-                            band,
-                            predicate: Some("merge_declared_extent"),
-                            terminal_sliver: false,
-                        },
-                    }
+            let reach = crate::boolean::carrier_pair::pair_extent(self, f1, self, f2, band)
+                .map_err(|_| MergeCoplanarError::Escalated {
+                    decision: MergeDecision::DeclaredReach,
+                    diag: Indeterminate {
+                        margin: geom_core::MarginDiag::INVALID,
+                        band,
+                        predicate: Some("merge_declared_extent"),
+                        terminal_sliver: false,
+                    },
                 })?;
             let extent = crate::boolean::ConsumedExtent {
                 reach: reach.reach,

@@ -484,10 +484,12 @@ fn a_rigid_map_of_an_offset_is_the_offset_of_the_rigid_map() {
 // Dispositions that answer for the kind structurally
 // ---------------------------------------------------------------------
 
-/// `Approx` is its own [`geom::SurfaceKind`] — not the kind its
-/// fit is — and every pair the routing table names for it is refused.
+/// `Approx` is its own [`geom::SurfaceKind`] — not the kind its fit
+/// is — and the routing table routes each of its pairs as the fit's
+/// kind does: plane×Approx is the plane×NURBS arm, every other pair
+/// the unimplemented NURBS arm its fit would take.
 #[test]
-fn approx_is_its_own_kind_and_every_pair_refuses() {
+fn approx_is_its_own_kind_and_routes_as_its_fit() {
     use geom::SurfaceKind;
     use geom_brep::intersect::route;
     let s = approx_offset_surface_at(Arc::new(bowed()), 0.05, 1e-6, band()).unwrap();
@@ -502,14 +504,104 @@ fn approx_is_its_own_kind_and_every_pair_refuses() {
         SurfaceKind::Nurbs,
         SurfaceKind::Approx,
     ] {
+        let fit_kind = |k| match k {
+            SurfaceKind::Approx => SurfaceKind::Nurbs,
+            k => k,
+        };
         for (a, b) in [(SurfaceKind::Approx, other), (other, SurfaceKind::Approx)] {
-            assert!(
-                !route(a, b).implemented,
-                "{a:?} x {b:?} must refuse: an SSI claim about a fit is not one about the \
-                 described surface"
+            assert_eq!(
+                route(a, b),
+                route(fit_kind(a), fit_kind(b)),
+                "{a:?} x {b:?} routes as its fit's kind does"
+            );
+            assert_eq!(
+                route(a, b).implemented,
+                other == SurfaceKind::Plane,
+                "{a:?} x {b:?}: only the plane pair is implemented"
             );
         }
     }
+}
+
+/// **A plane's section of a CURVED fit certifies, and certifies as the
+/// fit's.** The offset fit of a cubic wall extruded in `z` (the SSI
+/// suite's certifiable wall, `m5_pr7_ssi.rs`), cut by the plane
+/// `z = 0.4` along one of the fit's rows: the section the door states
+/// for a plane its wall's rows lie level in (`topo`'s `level_row`), a
+/// curved spline, stored as an `Intersection` of the plane and the
+/// `Approx` surface. It certifies through the plane × NURBS lane, and
+/// its certificate is bit-identical to the one the same carrier earns
+/// against the bare fit: the edge's limbs are measured against the
+/// fit, and nothing about the description is composed in.
+///
+/// A marched trace across the fit's rows does not certify at rest, on
+/// the bare fit either: the lane's own chart image of it misses the
+/// hull limb (measured 1.4e-5 m on this fit). That is the lane's reach,
+/// not this unit's.
+#[test]
+fn a_plane_section_of_a_curved_fit_certifies_as_the_fits() {
+    use geom::Curve3;
+    use geom_brep::keys::SurfaceKey;
+    use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
+    use geom_core::spline::KnotVector;
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let mut control = Vec::new();
+    for (x, y) in [(0.0, 0.0), (0.35, 0.14), (0.70, 0.24), (1.05, 0.30)] {
+        control.push(Point3::new(x, y, 0.0));
+        control.push(Point3::new(x, y, 0.8));
+    }
+    let base = NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap();
+    let s = approx_offset_surface_at(Arc::new(base), 0.01, 1e-6, band()).unwrap();
+    let fit = approx_of(&s).fit().clone();
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.4),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let row = geom_brep::interior_iso_u(&fit.transposed(), 0.5).unwrap();
+    let (t0, t1) = row.domain();
+    let carrier = Curve3::Nurbs(Arc::new(row));
+    let at = |k: u32| carrier.eval(t0 + (t1 - t0) * f64::from(k) / 8.0);
+    for k in 0..=8 {
+        assert!(
+            (at(k).z - 0.4).abs() < 1e-12,
+            "the row lies in the plane: {:?}",
+            at(k)
+        );
+    }
+    let (a, b, m) = (at(0), at(8), at(4));
+    let chord = (b - a) / (b - a).norm();
+    let bow = ((m - a) - chord * (m - a).dot(chord)).norm();
+    assert!(
+        bow > 1e-2,
+        "the section is curved: it bows {bow:e} m off its chord"
+    );
+    let certify = |wall: Surface<f64>| {
+        let mut arena = slotmap::SlotMap::<SurfaceKey, Surface<f64>>::with_key();
+        let s1 = arena.insert(plane.clone());
+        let s2 = arena.insert(wall);
+        EdgeCurve::certify_via(
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection { s1, s2, witness: m },
+                carrier: carrier.clone(),
+                param_start: t0,
+                param_end: t1,
+            },
+            a,
+            b,
+            move |k| arena.get(k).cloned(),
+            band(),
+            Some(geom_brep::NurbsLane::certified()),
+        )
+    };
+    let fitted = certify(s.clone()).expect("the plane × Approx edge certifies over the fit");
+    let bare = certify(Surface::Nurbs(Arc::new(fit))).expect("and over the bare fit");
+    assert_eq!(
+        fitted.certificate().max_residual.to_bits(),
+        bare.certificate().max_residual.to_bits(),
+        "the Approx operand certifies as its fit, bit for bit"
+    );
 }
 
 /// Offsetting an approximating surface would nest one description

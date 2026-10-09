@@ -280,7 +280,7 @@ impl Escalation {
         match self {
             Self::Margin => RefusedArm::Undecided(diag),
             Self::Straddle => RefusedArm::Straddle,
-            Self::Decided => RefusedArm::SignCertain,
+            Self::Decided => RefusedArm::SignCertain(None),
         }
     }
 }
@@ -456,13 +456,12 @@ impl core::fmt::Display for PointInLoopError {
                 escalation,
                 diag,
                 ..
-            } => write!(
-                f,
-                "{} is undecided: {}. {}",
-                decision.subject(),
-                diag.payload(),
-                decision.ending(*escalation, diag, Reading::Build)
-            ),
+            } => diag
+                .undecided(
+                    decision.subject(),
+                    decision.ending(*escalation, diag, Reading::Build),
+                )
+                .fmt(f),
             Self::RayExhausted { .. } => write!(
                 f,
                 "whether a point lies in a loop is undecided: {}",

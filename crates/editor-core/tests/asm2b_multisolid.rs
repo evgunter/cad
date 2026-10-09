@@ -38,7 +38,7 @@ fn part(label: &str, cx: f64) -> ProfileDoc {
     let (doc, _) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -385,7 +385,7 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
 /// row that is about geometry.
 /// INTENT-LITERALS PR C moved it — a node's id is minted from slots
 /// holding variable ids — and only it.
-const SINGLE_SOLID_NAMES_DIGEST: u64 = 2_213_939_999_209_492_797;
+const SINGLE_SOLID_NAMES_DIGEST: u64 = 291340718972983711;
 const SINGLE_SOLID_VOLUME_BITS: u64 = 4_611_686_018_427_387_904; // 2.0
 
 #[test]

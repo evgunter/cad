@@ -147,12 +147,12 @@ pub mod surgery;
 
 use core::fmt;
 
+use geom_brep::LeverRung;
 use geom_brep::recourse::{
-    Classified, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
-    UNREADABLE_MARGIN_NOTE,
+    Classified, LeverOnly, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
 };
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, MarginDiag, MarginKind, Sign};
-use topo::{EdgeKey, EntityId, FaceKey, VertexKey};
+use topo::{DihedralReading, EdgeKey, EntityId, FaceKey, VertexKey};
 
 pub use arms::{BlendArm, CornerBall, EdgeBlend, RimBlend};
 pub use battery::{
@@ -257,12 +257,20 @@ pub enum BlendDecision {
     /// `fillet3_support_coaxiality`: a curved support pair shares the
     /// axis or ruling its arm is derived from. Passes only at zero.
     SupportCoaxiality,
-    /// `tangent_second_order`: the must-carry rule's reading of a
-    /// contact edge the surgery is about to describe. Decided in
-    /// `geom_brep` (`must_carry_over_edge`), whose in-band verdict may
-    /// instead carry a station's first-order wedge reading
-    /// (`dihedral_wedge`, `dihedral_arm`) without saying which; the
-    /// surgery reports either as this decision.
+    /// `dihedral_arm`: the must-carry rule's first-order arm gate at a
+    /// contact edge the surgery is about to describe — whether the
+    /// edge is [`geom_brep::DIHEDRAL_ARM_CLAUSE`]. Decided in
+    /// `geom_brep` (`must_carry_over_edge`), whose in-band verdict names
+    /// the rung ([`geom_brep::MustCarryEscalation::FirstOrder`]).
+    ContactArm,
+    /// `dihedral_wedge`: the must-carry rule's first-order wedge at a
+    /// contact edge — whether the faces meet smoothly or at an angle.
+    /// The surgery routes only smooth joins here, so it passes only at
+    /// zero: a wedge decided transverse refutes the routing.
+    ContactWedge,
+    /// `tangent_second_order`: the must-carry rule's second-order
+    /// separation at a contact edge, read once every station is
+    /// smooth first-order ([`geom_brep::MustCarryEscalation::SecondOrder`]).
     ContactSecondOrder,
     /// `fillet3_corner_independence`: a uniform trivalent corner's three
     /// support normals are independent.
@@ -300,7 +308,7 @@ pub enum BlendDecision {
 impl BlendDecision {
     /// Every decision, for the suites that read the closed set.
     #[cfg(any(test, feature = "test-support"))]
-    pub const ALL: [Self; 15] = [
+    pub const ALL: [Self; 17] = [
         Self::RadiusHeadroom,
         Self::FaceClearance,
         Self::SpineRegularity,
@@ -309,6 +317,8 @@ impl BlendDecision {
         Self::ConvexitySign,
         Self::RingClearance,
         Self::SupportCoaxiality,
+        Self::ContactArm,
+        Self::ContactWedge,
         Self::ContactSecondOrder,
         Self::CornerIndependence,
         Self::CapTransverse,
@@ -317,6 +327,17 @@ impl BlendDecision {
         Self::TurnIsosceles,
         Self::MitreSection,
     ];
+
+    /// The contact-edge decision the reading a must-carry station
+    /// escalated asks ([`topo::DihedralReading::of_must_carry`]): the
+    /// first-order arm or wedge by rung, or the second-order separation.
+    pub(crate) const fn of_contact(reading: DihedralReading) -> Self {
+        match reading {
+            DihedralReading::Lever(LeverRung::Arm) => Self::ContactArm,
+            DihedralReading::Lever(LeverRung::Reading) => Self::ContactWedge,
+            DihedralReading::Bend => Self::ContactSecondOrder,
+        }
+    }
 
     /// The `k_stats` name the decision is metered under.
     #[must_use]
@@ -330,6 +351,8 @@ impl BlendDecision {
             Self::ConvexitySign => "fillet3_convexity_sign",
             Self::RingClearance => "fillet3_ring_clearance",
             Self::SupportCoaxiality => "fillet3_support_coaxiality",
+            Self::ContactArm => "dihedral_arm",
+            Self::ContactWedge => "dihedral_wedge",
             Self::ContactSecondOrder => "tangent_second_order",
             Self::CornerIndependence => "fillet3_corner_independence",
             Self::CapTransverse => "fillet3_cap_transverse",
@@ -356,6 +379,13 @@ impl BlendDecision {
             Self::ConvexitySign => "whether the edge is convex or concave",
             Self::RingClearance => "whether a trimline clears a hole in its support face",
             Self::SupportCoaxiality => "whether the two support faces share an axis or a ruling",
+            Self::ContactArm => concat!(
+                "whether an edge where the band touches a face is ",
+                geom_brep::dihedral_arm_clause!()
+            ),
+            Self::ContactWedge => {
+                "whether the band meets a face it touches smoothly or at an angle"
+            }
             Self::ContactSecondOrder => "whether the faces curve apart",
             Self::CornerIndependence => {
                 "whether the three face normals at the corner are independent"
@@ -402,6 +432,8 @@ impl BlendDecision {
             Self::ConvexitySign => FILLET3_TANGENTIAL_RECOURSE,
             Self::RingClearance => FILLET3_RING_RECOURSE,
             Self::SupportCoaxiality => FILLET3_SPINE_KIND_RECOURSE,
+            Self::ContactArm => FILLET3_CONTACT_ARM_RECOURSE,
+            Self::ContactWedge => FILLET3_CONTACT_WEDGE_RECOURSE,
             Self::ContactSecondOrder => FILLET3_CONTACT_RECOURSE,
             Self::CornerIndependence => FILLET3_CORNER_INDEPENDENCE_RECOURSE,
             Self::CapTransverse => FILLET3_CAP_TILT_RECOURSE,
@@ -414,7 +446,7 @@ impl BlendDecision {
     /// The size a smaller tolerance could decide passing, and what the
     /// decision passes on — `None` where no smaller tolerance is a true
     /// offer: a decision that passes only at zero, whose refused margin
-    /// is a miss and not a size (D4 ¶1 (i)), and the must-carry relay.
+    /// is a miss and not a size (D4 ¶1 (i)), and the contact edge's arm.
     fn sized(self) -> Option<(&'static str, SizedPass)> {
         match self {
             Self::RadiusHeadroom | Self::SpineRegularity => {
@@ -428,17 +460,22 @@ impl BlendDecision {
             }
             Self::ConvexitySign => Some(("wedge opening", SizedPass::NonZero)),
             Self::CornerIndependence => Some(("spread of the face normals", SizedPass::Positive)),
+            // Either definite sign of the sagitta picks a description.
+            Self::ContactSecondOrder => Some(("separation", SizedPass::AnySign)),
             Self::ChainG1
             | Self::SupportCoaxiality
+            | Self::ContactWedge
             | Self::CapTransverse
             | Self::TurnIsosceles
             | Self::MitreSection => None,
-            // The second-order separation passes on any definite sign,
-            // but the relay's in-band verdict may be a station's
-            // first-order wedge, which a smaller tolerance decides
-            // transverse and refuses; with no way to tell the two
-            // apart, no tolerance is offered rather than a false one.
-            Self::ContactSecondOrder => None,
+            // `geom_brep::DIHEDRAL_ARM`'s offer is withheld: a tolerance
+            // that decides the arm decides the wedge it meters too
+            // (`geom_brep`'s `at_wedge`), transverse unless the wedge
+            // reads zero there, and the surgery refuses a transverse
+            // contact edge. The escalation does not say whether its
+            // margin is the arm's own or that wedge's, so the offer
+            // would be false wherever the wedge reads nonzero.
+            Self::ContactArm => None,
         }
     }
 
@@ -463,12 +500,7 @@ impl BlendDecision {
                 at_zero: None,
             }
             .recourse(arm, Reading::Build),
-            None => match arm {
-                RefusedArm::Undecided(cause) if cause.margin.is_invalid() => {
-                    format!("Recourse: {lever}; {UNREADABLE_MARGIN_NOTE}")
-                }
-                _ => format!("Recourse: {lever}"),
-            },
+            None => LeverOnly { lever }.recourse(arm),
         }
     }
 }
@@ -601,7 +633,7 @@ impl ClassifiedMargin {
                 margin: self.reading,
                 band: self.band,
             }),
-            Sign::Positive | Sign::Negative => RefusedArm::SignCertain,
+            Sign::Positive | Sign::Negative => RefusedArm::SignCertain(None),
         }
     }
 }
@@ -931,15 +963,24 @@ pub const FILLET3_RADIUS_RECOURSE: &str =
 /// `review_contact_edge_must_carry_r2_probes::r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it`,
 /// `review_contact_edge_must_carry_r1_probes::r1_a_sphere_supported_rim_in_the_octave_refuses_typed_at_the_annulus_door`.
 /// Ball language kept: only a fillet mints a tangential contact.
-///
-/// It is the whole ending, with no tolerance arm: the must-carry
-/// relay's in-band verdict does not say whether the second-order
-/// separation or a station's first-order wedge escalated, and a smaller
-/// tolerance decides the wedge transverse, which refuses
-/// (`BlendDecision::ContactSecondOrder`).
 pub const FILLET3_CONTACT_RECOURSE: &str = "change the radius: larger on a plane support or one curving away from the \
      band; smaller on one curving the band's way (past the margin's peak), or on a slim \
      corner arc, which builds conventionally; or blend a larger feature";
+/// The recourse for a contact edge whose first-order arm the must-carry
+/// rule finds in band (`dihedral_arm`, `BlendDecision::ContactArm`):
+/// the arm is the shorter of the edge's extent and its faces' radii of
+/// curvature, and the band's radius is one of those radii and sets a
+/// corner arc's extent.
+pub const FILLET3_CONTACT_ARM_RECOURSE: &str = "enlarge the radius, or blend a longer edge, so \
+     every edge where the band touches a face is clearly longer than the tolerance and no face \
+     curves tightly beside it";
+/// The recourse for a contact edge whose first-order wedge the
+/// must-carry rule finds in band (`dihedral_wedge`,
+/// `BlendDecision::ContactWedge`): the band is built tangent to the
+/// faces it touches, so a wedge it cannot call smooth is the
+/// construction's precision against the faces' own.
+pub const FILLET3_CONTACT_WEDGE_RECOURSE: &str = "change the radius, or blend a larger \
+     feature, so the band meets every face it touches clearly tangentially";
 /// The recourse for a support face whose survival the clearance screen
 /// cannot certify. Both verbs meter clearance (each on its own
 /// setbacks), so the sentence names the blend size, which is the
@@ -1874,13 +1915,12 @@ impl fmt::Display for BlendError {
             // ending is the only recourse.
             Self::Escalated {
                 decision, source, ..
-            } => write!(
-                f,
-                "{} is undecided: {}. {}",
-                decision.subject(),
-                source.payload(),
-                decision.recourse(RefusedArm::Undecided(source))
-            ),
+            } => source
+                .undecided(
+                    decision.subject(),
+                    decision.recourse(RefusedArm::Undecided(source)),
+                )
+                .fmt(f),
             Self::RepeatedEdge { .. } => write!(
                 f,
                 "the request names one edge twice. Recourse: request each edge once"
@@ -1964,9 +2004,11 @@ impl core::error::Error for BlendError {}
 /// `test-support` for the same reason `test_support` is — a `tests/`
 /// file cannot name a `#[cfg(test)]` item.
 #[cfg(any(test, feature = "test-support"))]
-pub const ALL_RECOURSES: [(&str, &str); 19] = [
+pub const ALL_RECOURSES: [(&str, &str); 21] = [
     ("radius", FILLET3_RADIUS_RECOURSE),
     ("contact", FILLET3_CONTACT_RECOURSE),
+    ("contact-arm", FILLET3_CONTACT_ARM_RECOURSE),
+    ("contact-wedge", FILLET3_CONTACT_WEDGE_RECOURSE),
     ("clearance", FILLET3_CLEARANCE_RECOURSE),
     ("clearance-split", FILLET3_CLEARANCE_SPLIT_RECOURSE),
     ("tangential", FILLET3_TANGENTIAL_RECOURSE),
@@ -2001,6 +2043,45 @@ mod recourse_tests {
         FILLET3_RING_RECOURSE, FILLET3_SEAM_VERTEX_RECOURSE, FILLET3_SPINE_KIND_RECOURSE,
         FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
     };
+
+    /// **A contact edge's must-carry escalation ends as the decision its
+    /// reading asks**: the first-order arm and wedge each on their own
+    /// lever with no tolerance (a smaller one decides a wedge
+    /// transverse, which the surgery refuses), and the second-order
+    /// separation on its lever with the tolerance that decides it, which
+    /// either definite sign passes.
+    #[test]
+    fn a_contact_escalation_ends_as_the_decision_its_reading_asks() {
+        use crate::swept::must_carry_fixtures::{arm, second_order, wedge};
+        for (escalation, want, offers) in [
+            (arm(), BlendDecision::ContactArm, false),
+            (wedge(), BlendDecision::ContactWedge, false),
+            (second_order(), BlendDecision::ContactSecondOrder, true),
+        ] {
+            let (reading, source) = topo::DihedralReading::of_must_carry(escalation);
+            let decision = BlendDecision::of_contact(reading);
+            assert_eq!(
+                (decision, source),
+                (want, escalation.diag()),
+                "{escalation:?}"
+            );
+            let text = BlendError::Escalated {
+                site: BlendSite::Link {
+                    edge: EdgeKey::default(),
+                },
+                decision,
+                source,
+            }
+            .to_string();
+            assert!(text.contains(want.lever()), "{want:?}: {text}");
+            assert!(text.contains(want.subject()), "{want:?}: {text}");
+            assert_eq!(
+                text.contains("tighten the tolerance below "),
+                offers,
+                "{want:?}: {text}"
+            );
+        }
+    }
 
     /// What a variant's `Display` is allowed to append.
     enum Recourse {

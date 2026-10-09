@@ -1487,6 +1487,88 @@ impl<P> Doc<P> {
         self.vars.get(&id)
     }
 
+    /// **The operation `var` is an output of**, and its port: `None`
+    /// for a variable this document does not hold, or one no operation
+    /// defines.
+    pub fn defined_by(&self, var: VarId) -> Option<(RecipeNodeId, u8)> {
+        self.vars.get(&var)?.def().output()
+    }
+
+    /// **The operation `var` is an output of** ([`Self::defined_by`]
+    /// without the port): what an operand reading `var` depends on.
+    pub fn operation_of(&self, var: VarId) -> Option<RecipeNodeId> {
+        self.defined_by(var).map(|(node, _)| node)
+    }
+
+    /// **The operations `node` depends on** (D10: reading is the only
+    /// dependency): the operations defining the variables its operands
+    /// read ([`Node::operand_rows`]), then the live nodes a measure's
+    /// sited references are read at ([`Node::measure_sites`]). In read
+    /// order, each once; a read this document does not resolve, or a
+    /// site no live node is, contributes nothing (an unresolved read is
+    /// the reader's refusal at evaluation, not an edge). Empty for a
+    /// node this document does not hold.
+    ///
+    /// A slot reads free and defined variables, which no operation
+    /// defines; a slot reading an operation's output refuses at
+    /// evaluation ([`crate::EvalError::OutputRead`]), so it adds no
+    /// edge.
+    pub fn upstream(&self, node: RecipeNodeId) -> Vec<RecipeNodeId>
+    where
+        P: crate::ProfilePayload,
+    {
+        self.nodes
+            .get(&node)
+            .map_or_else(Vec::new, |n| self.upstream_of(n))
+    }
+
+    /// [`Self::upstream`] of a node read in this document, live or not.
+    pub(crate) fn upstream_of(&self, node: &Node<P>) -> Vec<RecipeNodeId>
+    where
+        P: crate::ProfilePayload,
+    {
+        let mut out: Vec<RecipeNodeId> = Vec::new();
+        let at = node
+            .operand_rows()
+            .into_iter()
+            .filter_map(|(_, var)| self.operation_of(var))
+            .chain(
+                node.measure_sites()
+                    .into_iter()
+                    .filter(|site| self.nodes.contains_key(site)),
+            );
+        for id in at {
+            if !out.contains(&id) {
+                out.push(id);
+            }
+        }
+        out
+    }
+
+    /// **What is wrong with reading `held` at a seat admitting
+    /// `expected`** (D10), if anything: a kind the seat does not admit
+    /// ([`crate::SlotKind::admits`]), or, for a part projection that
+    /// selects `half` of a split, the split's other half. Asked of a
+    /// live read by every door that writes or loads one — the edit
+    /// doors' lowering and the load door's operand walk — so the rule
+    /// is stated once; liveness is each door's own question, asked
+    /// before.
+    pub(crate) fn read_fault(
+        &self,
+        held: &crate::Var,
+        expected: crate::SlotKind,
+        half: Option<crate::SplitHalf>,
+    ) -> Option<ReadFault> {
+        if !expected.admits(held) {
+            return Some(ReadFault::Kind { found: held.kind() });
+        }
+        let half = half?;
+        let (split, port) = held.def().output()?;
+        (matches!(self.node(split), Some(Node::Split { .. }))
+            && u32::from(port) != half.output_body())
+        .then_some(ReadFault::OtherHalf { half })
+    }
+
     /// **The variable port `port` of `node` defines**
     /// ([`crate::VarDef::Output`]), if `node` is live and has that port.
     pub fn output(&self, node: RecipeNodeId, port: u8) -> Option<VarId> {
@@ -1494,6 +1576,18 @@ impl<P> Doc<P> {
             .iter()
             .find(|(_, var)| var.def().output() == Some((node, port)))
             .map(|(&id, _)| id)
+    }
+
+    /// **What an operand naming `node` alone reads**
+    /// ([`crate::Operand::Node`], spec Q5): its one output. `None` for a
+    /// node that is not live, defines nothing, or defines several
+    /// outputs (a revolve's body and axis, a split's two halves), whose
+    /// read names its port; the edit door refuses each typed.
+    pub fn read_of_node(&self, node: RecipeNodeId) -> Option<VarId> {
+        match self.outputs(node).as_slice() {
+            [one] => Some(*one),
+            _ => None,
+        }
     }
 
     /// **The variables `node` defines**, in port order: one per port of
@@ -1517,9 +1611,8 @@ impl<P> Doc<P> {
     }
 
     /// **`node`'s signature resolved**: each port's name and kind, a
-    /// placer's read through its operand ([`crate::PortKind::PlacedFrom`]).
-    /// `None` when `node`, or an operand a placer's kind is read
-    /// through, is not live.
+    /// placer's read off the variable it reads ([`crate::PortKind::Placed`]).
+    /// `None` when `node`, or the variable a placer reads, is not live.
     pub fn signature(&self, node: RecipeNodeId) -> Option<Vec<(&'static str, crate::VarKind)>> {
         self.signature_of(self.nodes.get(&node)?)
     }
@@ -1531,29 +1624,24 @@ impl<P> Doc<P> {
     ) -> Option<Vec<(&'static str, crate::VarKind)>> {
         node.outputs()
             .into_iter()
-            .map(|port| Some((port.name, self.port_kind(port.kind)?)))
+            .map(|port| {
+                let kind = match port.kind {
+                    crate::PortKind::Of(kind) => kind,
+                    // A placer has the shape of what it reads: `Bodies`
+                    // over a `Bodies`, `Body` otherwise.
+                    crate::PortKind::Placed => {
+                        let Node::Transform { input, .. } = node else {
+                            unreachable!("only a transform's port is placed")
+                        };
+                        match self.vars.get(input)?.kind() {
+                            crate::VarKind::Bodies => crate::VarKind::Bodies,
+                            _ => crate::VarKind::Body,
+                        }
+                    }
+                };
+                Some((port.name, kind))
+            })
             .collect()
-    }
-
-    /// The kind `kind` decides, `None` where a placer's operand chain
-    /// reaches a node that is not live.
-    fn port_kind(&self, kind: crate::PortKind) -> Option<crate::VarKind> {
-        let mut at = match kind {
-            crate::PortKind::Of(kind) => return Some(kind),
-            crate::PortKind::PlacedFrom(input) => input,
-        };
-        // A chain of placers ends at a node whose first port's kind is
-        // fixed: the insert door refuses a node reading itself or
-        // anything after it, so the walk is finite.
-        loop {
-            match self.nodes.get(&at)?.outputs().first().map(|port| port.kind) {
-                Some(crate::PortKind::Of(crate::VarKind::Bodies)) => {
-                    return Some(crate::VarKind::Bodies);
-                }
-                Some(crate::PortKind::PlacedFrom(input)) => at = input,
-                Some(crate::PortKind::Of(_)) | None => return Some(crate::VarKind::Body),
-            }
-        }
     }
 
     /// The free variable `id`, if live and free.
@@ -1819,7 +1907,7 @@ impl<P> Doc<P> {
             .vars
             .get(&var)
             .and_then(|v| v.kind().dimension())
-            .unwrap_or(slot.dimension());
+            .unwrap_or_else(|| slot.expr_dimension());
         Some(self.written(&Expr::var(var, dim)))
     }
 
@@ -2308,8 +2396,8 @@ mod tests {
             RecipeNodeId::new(0, 0),
             Node::Boolean {
                 op: crate::BooleanOp::Union,
-                a: RecipeNodeId::new(0, 98),
-                b: RecipeNodeId::new(0, 99),
+                a: crate::VarId::new(0, 98),
+                b: crate::VarId::new(0, 99),
                 declare: vec![(
                     (
                         SitedRef::at_mint(first.clone()),
@@ -2323,8 +2411,8 @@ mod tests {
             RecipeNodeId::new(0, 1),
             Node::Boolean {
                 op: crate::BooleanOp::Union,
-                a: RecipeNodeId::new(0, 98),
-                b: RecipeNodeId::new(0, 99),
+                a: crate::VarId::new(0, 98),
+                b: crate::VarId::new(0, 99),
                 declare: vec![(
                     (
                         SitedRef::at_mint(third.clone()),
@@ -2477,4 +2565,21 @@ mod tests {
         assert_eq!(sizes[&VarId::new(0, 2)], 3);
         assert_eq!(sizes[&prev], crate::edit::DEFINITION_NODE_BOUND + 1);
     }
+}
+
+/// [`Doc::read_fault`]'s answer, rendered by each door in its own
+/// vocabulary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ReadFault {
+    /// The variable's kind is not one the seat admits.
+    Kind {
+        /// The variable's kind.
+        found: crate::VarKind,
+    },
+    /// A part projection selecting `half` of a split reads the split's
+    /// other half.
+    OtherHalf {
+        /// The half the projection selects.
+        half: crate::SplitHalf,
+    },
 }

@@ -86,6 +86,8 @@
 //! an escalation, never a classification, and every door ends it as
 //! [`DIHEDRAL_ARM`], the arm's own decision, not the wedge's.
 
+use core::ops::ControlFlow;
+
 use crate::enters::LeverEscalation;
 use geom::Surface;
 use geom_core::k_stats::{Magnitude, NonzeroSign};
@@ -100,7 +102,8 @@ use crate::recourse::{AtZero, SizedDecision, SizedPass, StoredDefinite};
 /// passes only on a definitely positive arm; a zero-band one is a size
 /// a smaller tolerance decides. Every door that reads the dihedral's
 /// [`crate::LeverRung::Arm`] ends it here, since the arm is a length and
-/// the wedge an angle. Its margin is the wedge the arm meters,
+/// the wedge an angle, save a door that refuses a nonzero wedge, which
+/// withholds the offer. Its margin is the wedge the arm meters,
 /// `sin θ · arm` (the arm's own where that wedge reads zero at the
 /// tolerance deciding the arm), so the tolerance it offers decides the
 /// arm and the wedge both. Its zero note names both ways the arm reaches
@@ -451,12 +454,13 @@ fn pair_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point3<T>) -> T 
 /// `DescriptionNotAdjacent`. Every smooth-join arm in the sweep verbs,
 /// the boolean rebuild's smooth seams and the split's section boundary
 /// route here through [`must_carry_over_edge`], which is where the
-/// gate, the stations and the verdict policy live;
-/// `Intersection`-tangency certification and the boolean rim wedge fold
-/// this reading into walks of their own. Two hand-rolled siblings
-/// remain, both issue 1439's work: the tier-3 validator's
-/// (`topo::validate`), which folds this margin into a per-sample walk
-/// it already runs, and `topo::boolean::contact_verify`'s, which meters
+/// gate and the verdict policy live; it, the tier-3 validator's check 4
+/// (`topo::validate`) and the boolean's shared-rim routing
+/// (`topo::boolean::rim_wedge`) read their stations through the one
+/// [`second_order_walk`]. `Intersection`-tangency certification folds
+/// this reading into a walk of its own. One
+/// hand-rolled sibling remains, issue 1439's work:
+/// `topo::boolean::contact_verify`'s, which meters
 /// `Margin::sagitta(|κ_rel| − drift, arm)` under its own predicate
 /// (`"contact_tangent_second_order"`). A new site spelling its own is a
 /// silent non-comparability.
@@ -476,12 +480,142 @@ pub fn tangent_second_order<T: Decide>(
 ) -> SecondOrder<T> {
     let jet = crate::tangent::tangent_jet(s1, s2, p, tangent);
     let arm = folded_lever_arm(s1, s2, p, extent);
-    let verdict = decide_reported(
+    let verdict = second_order_verdict(&jet, arm, band);
+    SecondOrder { jet, arm, verdict }
+}
+
+/// The one `"tangent_second_order"` decision: the sagitta `|κ_rel|`
+/// subtends over `arm`, classified against `band`.
+fn second_order_verdict<T: Decide>(
+    jet: &crate::TangentJet<T>,
+    arm: T,
+    band: Band,
+) -> Result<Decided, Indeterminate> {
+    decide_reported(
         "tangent_second_order",
         Margin::sagitta(jet.kappa_rel.abs(), arm),
         band,
-    );
-    SecondOrder { jet, arm, verdict }
+    )
+}
+
+/// **The edge-level stations**: the certification schedule's interior
+/// (`1..`[`crate::CERT_SAMPLES`]`-1`, through [`crate::sample_param`])
+/// over `[t0, t1]`, as the carrier's point and tangent at each — the one
+/// home of the schedule the must-carry rule's first-order gate,
+/// [`second_order_walk`] and tier 3's check 4 read.
+///
+/// Kernel-internal: public only so `topo`'s tier 3 reads the same
+/// stations, and hidden from the docs of the crates that re-export this
+/// one.
+#[doc(hidden)]
+pub fn interior_stations<T: Decide>(
+    carrier: &geom::Curve3<T>,
+    t0: T,
+    t1: T,
+) -> impl Iterator<Item = (Point3<T>, geom_core::Vec3<T>)> + '_ {
+    (1..crate::CERT_SAMPLES - 1).map(move |i| carrier.ders1(crate::sample_param(t0, t1, i)))
+}
+
+/// One station of [`second_order_walk`]: the contact point, and the
+/// two quantities its second-order margin is read from.
+/// Kernel-internal, as [`second_order_walk`] is.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug)]
+pub struct Station<T: Real> {
+    /// The contact point the caller's schedule placed.
+    pub p: Point3<T>,
+    /// The pair's jet at `p` along the carrier tangent
+    /// ([`crate::tangent_jet`]).
+    pub jet: crate::TangentJet<T>,
+    /// The folded lever arm at `p` ([`folded_lever_arm`]).
+    pub arm: T,
+}
+
+/// A caller's per-station reads inside [`second_order_walk`]: one
+/// before the station's second-order decision, one after a `Positive`
+/// one. Either may stop the walk, which then answers
+/// [`SecondOrderWalk::Stopped`] with the hook's break value. `()` is
+/// the hook that reads nothing and never stops. Kernel-internal, as
+/// [`second_order_walk`] is.
+#[doc(hidden)]
+pub trait StationHook<T: Real> {
+    /// What a stopped walk carries back.
+    type Break;
+    /// Read at each station before its second-order decision.
+    fn before_decision(&mut self, _station: &Station<T>) -> ControlFlow<Self::Break> {
+        ControlFlow::Continue(())
+    }
+    /// Read at each station whose second-order decision was `Positive`.
+    fn after_positive(&mut self, _station: &Station<T>) -> ControlFlow<Self::Break> {
+        ControlFlow::Continue(())
+    }
+}
+
+impl<T: Real> StationHook<T> for () {
+    type Break = core::convert::Infallible;
+}
+
+/// [`second_order_walk`]'s answer. Kernel-internal, as the walk is.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SecondOrderWalk<B> {
+    /// Every station read `Positive`.
+    Determinate,
+    /// The first station not `Positive` read `Zero`/`Negative`.
+    UnderDetermined,
+    /// The first station not `Positive` was in band.
+    InBand(Indeterminate),
+    /// The hook stopped the walk.
+    Stopped(B),
+}
+
+/// **The second-order walk** — [`tangent_second_order`]'s reading at
+/// each of `stations` (a point on the contact and the tangent there),
+/// in order, where the first station not `Positive` decides.
+///
+/// The one home of the walk's decision, which the must-carry rule
+/// ([`must_carry_over_edge`]), tier 3's check 4 (`topo::validate`) and
+/// the boolean's shared-rim routing (`topo::boolean::rim_wedge`) all
+/// ask: the constructor that stores a description and the validators
+/// that demand it read one walk, so the demanded set and the stored set
+/// are one set. The caller owns the schedule — an edge passes
+/// [`interior_stations`], a closed rim its every uniform phase — and a
+/// caller with reads of its own at each station (the material pairing
+/// and cusp side) takes them through `hook`, not a second loop.
+///
+/// The walk assumes the caller has established the contact as smooth
+/// first-order at every station; it does not gate.
+///
+/// Kernel-internal: public only for `topo`, and hidden from the docs of
+/// the crates that re-export this one.
+#[doc(hidden)]
+pub fn second_order_walk<T: Decide, H: StationHook<T>>(
+    s1: &Surface<T>,
+    s2: &Surface<T>,
+    stations: impl IntoIterator<Item = (Point3<T>, geom_core::Vec3<T>)>,
+    extent: T,
+    band: Band,
+    hook: &mut H,
+) -> SecondOrderWalk<H::Break> {
+    for (p, tau) in stations {
+        let station = Station {
+            p,
+            jet: crate::tangent::tangent_jet(s1, s2, p, tau),
+            arm: folded_lever_arm(s1, s2, p, extent),
+        };
+        if let ControlFlow::Break(b) = hook.before_decision(&station) {
+            return SecondOrderWalk::Stopped(b);
+        }
+        match second_order_verdict(&station.jet, station.arm, band).map(|d| d.sign) {
+            Ok(Sign::Positive) => {}
+            Ok(Sign::Zero | Sign::Negative) => return SecondOrderWalk::UnderDetermined,
+            Err(source) => return SecondOrderWalk::InBand(source),
+        }
+        if let ControlFlow::Break(b) = hook.after_positive(&station) {
+            return SecondOrderWalk::Stopped(b);
+        }
+    }
+    SecondOrderWalk::Determinate
 }
 
 /// [`tangent_second_order`]'s reading: the verdict, and the two
@@ -575,21 +709,21 @@ pub struct SecondOrder<T: geom_core::Real> {
 /// then the coincidence levers) names no lever that reaches it.
 ///
 /// **The stations are the certification schedule's interior**
-/// (`1..`[`crate::CERT_SAMPLES`]`-1`, through [`crate::sample_param`]),
-/// read in two passes, in tier 3's order. Every station is classified
-/// first-order before any is metered second-order: an in-band station
-/// anywhere answers `InBand`, else a transverse one anywhere answers
-/// `Transverse`; only an edge smooth at every station descends, where
-/// the first station not `Positive` decides. The stations are the
-/// tier-3 must-carry arm's, which re-asks this question of the stored
-/// description, and that is what keeps the demanded set and the stored
-/// set ONE set: a constructor reading a coarser schedule can store a
-/// description tier 3 then refuses, and one reading a finer schedule
-/// can refuse what tier 3 would have accepted. The order is part of
-/// that: tier 3 escalates at any first-order in-band station, so a
-/// walk that answered `Transverse` from an earlier station would leave
-/// a caller that keeps a mixed edge conventional (the boolean's seams)
-/// storing an edge tier 3 then refuses.
+/// ([`interior_stations`]), read in two passes, in tier 3's order.
+/// Every station is classified first-order before any is metered
+/// second-order: an in-band station anywhere answers `InBand`, else a
+/// transverse one anywhere answers `Transverse`; only an edge smooth at
+/// every station descends into [`second_order_walk`], where the first
+/// station not `Positive` decides. The tier-3 must-carry arm re-asks
+/// this question of the stored description through the same walk, and
+/// that is what keeps the demanded set and the stored set ONE set: a
+/// constructor reading a coarser schedule can store a description tier
+/// 3 then refuses, and one reading a finer schedule can refuse what
+/// tier 3 would have accepted. The order is part of that: tier 3
+/// escalates at any first-order in-band station, so a walk that
+/// answered `Transverse` from an earlier station would leave a caller
+/// that keeps a mixed edge conventional (the boolean's seams) storing
+/// an edge tier 3 then refuses.
 ///
 /// **Why the extra stations never disagree on the joins this kernel
 /// mints**, stated because it is an argument and not a licence to read
@@ -604,9 +738,10 @@ pub struct SecondOrder<T: geom_core::Real> {
 /// for the pairs ONE caller mints, while this walk must hold for every
 /// pair it is handed, so none licenses reading one station.
 ///
-/// **The one home of the EDGE-level rule** — gate, stations, verdict
-/// policy — as [`folded_lever_arm`] is of the fold and
-/// [`tangent_second_order`] of the metered margin. A constructor
+/// **The one home of the EDGE-level rule** — gate and verdict policy,
+/// over the stations [`interior_stations`] owns and the walk
+/// [`second_order_walk`] owns — as [`folded_lever_arm`] is of the fold
+/// and [`tangent_second_order`] of the metered margin. A constructor
 /// spelling its own is a second verdict policy, and the in-band case
 /// is where such spellings have disagreed.
 pub fn must_carry_over_edge<T: Decide>(
@@ -618,10 +753,8 @@ pub fn must_carry_over_edge<T: Decide>(
     extent: T,
     band: Band,
 ) -> MustCarryVerdict {
-    let stations =
-        || (1..crate::CERT_SAMPLES - 1).map(|i| carrier.ders1(crate::sample_param(t0, t1, i)));
     let mut transverse = false;
-    for (p, _) in stations() {
+    for (p, _) in interior_stations(carrier, t0, t1) {
         match classify_dihedral(s1, s2, p, extent, band) {
             Ok(DihedralClass::Smooth) => {}
             Ok(DihedralClass::Transverse) => transverse = true,
@@ -633,20 +766,26 @@ pub fn must_carry_over_edge<T: Decide>(
     if transverse {
         return MustCarryVerdict::Transverse;
     }
-    for (p, tau) in stations() {
-        let reading = tangent_second_order(s1, s2, p, tau, extent, band);
-        match reading.verdict.map(|d| d.sign) {
-            Ok(Sign::Positive) => {}
-            Ok(Sign::Zero | Sign::Negative) => return MustCarryVerdict::UnderDetermined,
-            Err(source) => {
-                return MustCarryVerdict::InBand(MustCarryEscalation::SecondOrder(source));
-            }
+    match second_order_walk(
+        s1,
+        s2,
+        interior_stations(carrier, t0, t1),
+        extent,
+        band,
+        &mut (),
+    ) {
+        SecondOrderWalk::Determinate
+            if crate::tangent::tangent_certificate_lane(carrier, s1, s2) =>
+        {
+            MustCarryVerdict::JetDeterminate
         }
-    }
-    if crate::tangent::tangent_certificate_lane(carrier, s1, s2) {
-        MustCarryVerdict::JetDeterminate
-    } else {
-        MustCarryVerdict::UnderDetermined
+        SecondOrderWalk::Determinate | SecondOrderWalk::UnderDetermined => {
+            MustCarryVerdict::UnderDetermined
+        }
+        SecondOrderWalk::InBand(source) => {
+            MustCarryVerdict::InBand(MustCarryEscalation::SecondOrder(source))
+        }
+        SecondOrderWalk::Stopped(never) => match never {},
     }
 }
 
@@ -1252,6 +1391,149 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// A scripted [`StationHook`]: logs the index of every station it
+    /// is shown, before and after the decision, and breaks where told.
+    #[derive(Default)]
+    struct Script {
+        break_before: Option<usize>,
+        break_after: Option<usize>,
+        next: usize,
+        before: Vec<usize>,
+        after: Vec<usize>,
+    }
+
+    impl<T: Real> StationHook<T> for Script {
+        type Break = usize;
+
+        fn before_decision(&mut self, _: &Station<T>) -> ControlFlow<usize> {
+            let i = self.next;
+            self.next += 1;
+            self.before.push(i);
+            match self.break_before {
+                Some(k) if k == i => ControlFlow::Break(i),
+                _ => ControlFlow::Continue(()),
+            }
+        }
+
+        fn after_positive(&mut self, _: &Station<T>) -> ControlFlow<usize> {
+            let i = self.next - 1;
+            self.after.push(i);
+            match self.break_after {
+                Some(k) if k == i => ControlFlow::Break(i),
+                _ => ControlFlow::Continue(()),
+            }
+        }
+    }
+
+    /// Two cylinders of radii 1 and `r2` kissing along the y axis, and
+    /// the unit stretch of that axis: `r2 = 2` reads `Positive` at every
+    /// station (sagitta 1/4 over the unit arm), `r2 = 1` osculates.
+    fn walk<T: Decide>(r2: f64, script: &mut Script) -> SecondOrderWalk<usize> {
+        let f = T::from_f64;
+        let cylinder = |radius: f64| Surface::Cylinder {
+            origin: Point3::new(f(0.0), f(0.0), f(radius)),
+            axis: Vec3::new(f(0.0), f(1.0), f(0.0)),
+            radius: f(radius),
+            u_ref: Vec3::new(f(1.0), f(0.0), f(0.0)),
+        };
+        let axis = geom::Curve3::Line {
+            origin: Point3::new(f(0.0), f(0.0), f(0.0)),
+            dir: Vec3::new(f(0.0), f(1.0), f(0.0)),
+        };
+        second_order_walk(
+            &cylinder(1.0),
+            &cylinder(r2),
+            interior_stations(&axis, f(0.0), f(1.0)),
+            f(1.0),
+            band(),
+            script,
+        )
+    }
+
+    /// **The walk's stop paths.** A break before a station's decision
+    /// answers `Stopped` and nothing after it is read; a break after a
+    /// `Positive` decision likewise; `after_positive` is never shown a
+    /// station that did not read `Positive`.
+    #[test]
+    fn the_walk_stops_where_its_hook_breaks_and_reads_on_only_past_positive() {
+        let interior = usize::try_from(crate::CERT_SAMPLES - 2).expect("a small count");
+        let all: Vec<usize> = (0..interior).collect();
+
+        let mut s = Script::default();
+        assert_eq!(walk::<f64>(2.0, &mut s), SecondOrderWalk::Determinate);
+        assert_eq!((&s.before, &s.after), (&all, &all), "an unbroken walk");
+
+        let mut s = Script {
+            break_before: Some(3),
+            ..Script::default()
+        };
+        assert_eq!(walk::<f64>(2.0, &mut s), SecondOrderWalk::Stopped(3));
+        assert_eq!(
+            (s.before, s.after),
+            (vec![0, 1, 2, 3], vec![0, 1, 2]),
+            "a break before station 3's decision: station 3 is not decided, and none after it is read"
+        );
+
+        let mut s = Script {
+            break_after: Some(2),
+            ..Script::default()
+        };
+        assert_eq!(walk::<f64>(2.0, &mut s), SecondOrderWalk::Stopped(2));
+        assert_eq!(
+            (s.before, s.after),
+            (vec![0, 1, 2], vec![0, 1, 2]),
+            "a break after station 2's decision: none after it is read"
+        );
+
+        let mut s = Script::default();
+        assert_eq!(walk::<f64>(1.0, &mut s), SecondOrderWalk::UnderDetermined);
+        assert_eq!(
+            (s.before, s.after),
+            (vec![0], vec![]),
+            "a zero-side station decides the walk, and is never shown to after_positive"
+        );
+    }
+
+    /// **The walk's stop paths, metered**: a break before station k's
+    /// decision spends k `tangent_second_order` samples, not k + 1; a
+    /// break after it spends k + 1.
+    #[cfg(feature = "probe")]
+    #[test]
+    fn a_stopped_walk_meters_only_the_stations_it_decided() {
+        use geom_core::k_stats::{self, Probe};
+        let metered = |script: &mut Script| {
+            k_stats::start_recording();
+            let answer = walk::<Probe>(2.0, script);
+            let n = k_stats::take_samples()
+                .iter()
+                .filter(|s| s.predicate == "tangent_second_order")
+                .count();
+            (answer, n)
+        };
+        let interior = usize::try_from(crate::CERT_SAMPLES - 2).expect("a small count");
+        assert_eq!(
+            metered(&mut Script::default()),
+            (SecondOrderWalk::Determinate, interior),
+            "an unbroken walk decides every station"
+        );
+        assert_eq!(
+            metered(&mut Script {
+                break_before: Some(3),
+                ..Script::default()
+            }),
+            (SecondOrderWalk::Stopped(3), 3),
+            "a break before station 3 decides stations 0..3 only"
+        );
+        assert_eq!(
+            metered(&mut Script {
+                break_after: Some(2),
+                ..Script::default()
+            }),
+            (SecondOrderWalk::Stopped(2), 3),
+            "a break after station 2 decides stations 0..=2 only"
+        );
     }
 
     fn plane(normal: Vec3<f64>, u_ref: Vec3<f64>) -> Surface<f64> {

@@ -64,7 +64,7 @@ fn leaf_labelled(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let (doc, block) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -79,7 +79,7 @@ fn leaf_labelled(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let (doc, boss) = insert(
         doc,
         Node::Extrude {
-            profile: boss_profile,
+            profile: boss_profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -88,8 +88,8 @@ fn leaf_labelled(label: &str) -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: block,
-            b: boss,
+            a: block.into(),
+            b: boss.into(),
             declare: Vec::new(),
         },
     );

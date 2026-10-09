@@ -331,7 +331,7 @@ impl BernsteinSpans {
 /// **The Boehm structure is shared with `algebra::insert_once` (private
 /// there, so this is a name and not a link), and so is the coefficient
 /// arithmetic.** Both derive the span through the same search
-/// ([`super::knots::find_span_in`] here, `find_span` there), both
+/// ([`super::knots::find_span_in`] in both), both
 /// insert one knot at `k + 1`, and both combine in the convex form.
 /// What separates them is the SHAPE of the schedule: this one folds
 /// interval coefficients in place over a RAW knot list, to full
@@ -350,12 +350,12 @@ fn insert_once_ring(
     u: InteriorKnot,
 ) {
     // Strictly interior by type plus privacy (`InteriorKnot`'s docs):
-    // the span search below is total and would answer an END span for
-    // an outside value, which is why it may only run on a proven one.
-    let u = u.value();
+    // the span search below would answer an END span for an outside
+    // value, which is why it takes only a proven one.
     // Span k: knots[k] ≤ u < knots[k+1], the last copy's span, so
     // 0 < k < len − 1.
     let k = find_span_in(knots, p, u);
+    let u = u.value();
     let n_old = coeffs.len();
     let mut out = Vec::with_capacity(n_old + 1);
     for i in 0..=n_old {
@@ -1211,7 +1211,7 @@ mod tests {
     /// f64 rational-curve oracle: `x_d(t)` via A2.2 basis values —
     /// independent of every ring/decomposition code path.
     fn rat_eval(kv: &KnotVector, w: &[f64], coords: &[Vec<f64>], t: f64) -> Vec<f64> {
-        let span = kv.span_at(t);
+        let span = kv.span_at(t).expect("a numeric parameter");
         let n = basis::basis_funs(span, t);
         let mut den = 0.0;
         let mut num = vec![0.0; coords.len()];
@@ -1352,7 +1352,7 @@ mod tests {
                 // stands at this step — the state a static fixture has
                 // no way to reach.
                 assert_eq!(
-                    find_span_in(&knots, p, v),
+                    find_span_in(&knots, p, *k),
                     retired(&knots, v),
                     "step {step} at {v}: the binary search left the linear scan"
                 );
@@ -1500,8 +1500,15 @@ mod tests {
     /// The exact shadow of one [`insert_once_ring`] step, over the same
     /// `f64` knot list the ring fold reads: `λ` is the exact ratio of
     /// exact knot differences, and nothing here rounds.
-    fn insert_once_exact(knots: &[f64], p: usize, s: usize, coeffs: &[QInt], u: f64) -> Vec<QInt> {
+    fn insert_once_exact(
+        knots: &[f64],
+        p: usize,
+        s: usize,
+        coeffs: &[QInt],
+        u: InteriorKnot,
+    ) -> Vec<QInt> {
         let k = find_span_in(knots, p, u);
+        let u = u.value();
         let n_old = coeffs.len();
         let uq = Q::from_f64(u);
         let one = Q::new(BigInt::from(1), BigInt::from(1));
@@ -1766,7 +1773,7 @@ mod tests {
             let interior: Vec<(InteriorKnot, usize)> = kv.interior_knot_runs().collect();
             for (v, m) in &interior {
                 for step in *m..p {
-                    exact = insert_once_exact(&knots, p, step, &exact, v.value());
+                    exact = insert_once_exact(&knots, p, step, &exact, *v);
                     insert_once_ring(&mut knots, p, step, &mut ring, *v);
                     assert_eq!(ring.len(), exact.len(), "{name}: the two folds left step");
                     for (i, (r, x)) in ring.iter().zip(exact.iter()).enumerate() {

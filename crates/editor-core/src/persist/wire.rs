@@ -61,7 +61,6 @@ use crate::doc::VarName;
 use crate::expr::{AuthoredLeaf, Dimension, DimensionError, Expr, ExprKind, Slot};
 use crate::formula::Formula;
 use crate::measure::{MeasureExpr, MeasureKind, MeasurePrimitive};
-use crate::node::RecipeNodeId;
 use crate::var::VarId;
 
 use super::nesting::Child;
@@ -452,35 +451,6 @@ pub(crate) fn present<'de, D: Deserializer<'de>, T: serde::Deserialize<'de>>(
     de: D,
 ) -> Result<Option<T>, D::Error> {
     Option::deserialize(de)
-}
-
-/// The profile's `plane`, read so that a document written before the
-/// sketch plane became a node refuses in terms that NAME what moved.
-///
-/// Those files carry a twelve-float placement object in this field.
-/// Serde's own report for that is `invalid type: map, expected u64` —
-/// true, and useless: it says nothing about which field of which node
-/// changed shape, which is the whole job of an `Unreadable` refusal
-/// (a reader has to know what to regenerate). The visitor's `expecting`
-/// is where that sentence goes.
-pub(crate) fn plane_ref<'de, D: Deserializer<'de>>(de: D) -> Result<RecipeNodeId, D::Error> {
-    struct PlaneRef;
-    impl serde::de::Visitor<'_> for PlaneRef {
-        type Value = RecipeNodeId;
-        fn expecting(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-            f.write_str(
-                "a `plane` node id: the frame node (`Datum::Frame` or `Datum::FaceFrame`) \
-                 a profile is drawn on (a document that carries a sketch-plane PLACEMENT \
-                 here predates the frame node and cannot be read by this build)",
-            )
-        }
-        fn visit_str<E: serde::de::Error>(self, text: &str) -> Result<RecipeNodeId, E> {
-            crate::MintId::parse(text)
-                .map(RecipeNodeId)
-                .ok_or_else(|| E::invalid_value(serde::de::Unexpected::Str(text), &self))
-        }
-    }
-    de.deserialize_str(PlaneRef)
 }
 
 /// The persisted MEASUREMENT expression (ERROR-DESIGN E3): the same

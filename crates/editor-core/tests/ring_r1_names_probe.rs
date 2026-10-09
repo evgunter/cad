@@ -65,8 +65,8 @@ fn full_wire_holed_revolve_names_totally() {
     let (doc, rev) = insert(
         doc,
         Node::Revolve {
-            profile: p,
-            axis,
+            profile: p.into(),
+            axis: axis.into(),
             angle: ang(std::f64::consts::TAU),
         },
     );

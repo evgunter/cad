@@ -3055,8 +3055,8 @@ pub(crate) fn face_reach<T: Decide>(
 /// Where `f`, which every caller read out of `body`, or a record on the
 /// walk from it does not resolve, or a loop walk does not close (D2
 /// row 4): a torn boundary is not one with no claim. The bodies are at
-/// rest (the census, the split's gate), or mid-operation (the REST
-/// lane, the split's crossing insertion), where the links hold by
+/// rest (the census, the split's gate), or mid-operation (the split's
+/// crossing insertion), where the links hold by
 /// [`crate::live::OPERATORS_KEEP_LINKS`].
 pub(crate) fn face_reach_in<T: Decide>(
     body: &Body<T>,
@@ -3620,9 +3620,12 @@ impl Undecided {
                  meet without overlapping, or not at all"
             }
             Self::TouchInBand => {
-                "they touch, and whether they overlap there is too close to call at this \
-                 tolerance. There is no way through yet for a designed resting contact; \
-                 otherwise move them until their bounding boxes no longer overlap"
+                concat!(
+                    "they touch, and ",
+                    geom_core::undecided!("whether they overlap there"),
+                    ". There is no way through yet for a designed resting contact; otherwise \
+                     move them until their bounding boxes no longer overlap"
+                )
             }
             Self::TouchPieceInBand => {
                 "they touch where a face of one, seen from the touch, has corners or edges \

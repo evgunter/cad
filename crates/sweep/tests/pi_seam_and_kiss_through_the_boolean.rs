@@ -896,7 +896,7 @@ fn a_rim_in_band_of_the_partners_wall_escalates() {
 /// - `k ∈ {0, ¼, ½}`: both build, the census of the exact abutment and
 ///   the volume within `zero · A` of the closed form (a boundary within
 ///   the zero band of the true one encloses no more). The rim keeps the
-///   first operand's circle (the REST zip's surviving copy), and the
+///   first operand's circle (the copy the join keeps), and the
 ///   merge certifies the second operand's row against it: on the tube's
 ///   wall in one order, on the dome's sphere in the other. Each row's
 ///   envelope reads the offset once, so both clear the zero band.
@@ -1054,7 +1054,7 @@ fn a_cap_abutting_on_the_rim_refuses_at_a_graze_or_as_an_undeclared_continuation
                     .push(FacePairDeclaration::continuation(fa, fb));
             }
         }
-        // Declared, the union builds: the zip matches the rim's two
+        // Declared, the union builds: the join matches the rim's two
         // semicircles as arcs, and the four wall faces stay unmerged
         // (a curved continuation's merge is skipped).
         let (v, c, k) = built(

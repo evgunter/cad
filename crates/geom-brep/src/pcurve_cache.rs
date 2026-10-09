@@ -595,7 +595,12 @@ fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector) -> T {
     // own `sin_cos` (the same door every harmonic pcurve uses).
     let (s_q, c_q) = (h * T::from_f64(0.25)).sin_cos();
     let tan_q = s_q / c_q;
-    let set = ((t - t0) / angle).locate_spans(breaks);
+    let x = (t - t0) / angle;
+    // A poison parameter locates no span; `g` is poison in every
+    // channel `x` carries.
+    let Some(set) = x.locate_spans(breaks) else {
+        return geom_core::spline::poison_from(x);
+    };
     let degree = breaks.degree();
     let mut acc: Option<T> = None;
     for span in set.first.index()..=set.last.index() {
@@ -1936,10 +1941,12 @@ impl PcurveCertifyError {
     pub fn ending(&self, reading: Reading) -> Option<String> {
         let (check, arm) = match self {
             Self::Escalated { check, cause, .. } => (*check, RefusedArm::Undecided(cause)),
-            Self::ResidualExceeded { check, .. } => (*check, RefusedArm::SignCertain),
-            Self::IntervalNotForward => (PcurveCheck::ParamSpan, RefusedArm::SignCertain),
-            Self::AzimuthPeriodExceeded => (PcurveCheck::AzimuthPeriod, RefusedArm::SignCertain),
-            Self::TubePeriodExceeded => (PcurveCheck::TubePeriod, RefusedArm::SignCertain),
+            Self::ResidualExceeded { check, .. } => (*check, RefusedArm::SignCertain(None)),
+            Self::IntervalNotForward => (PcurveCheck::ParamSpan, RefusedArm::SignCertain(None)),
+            Self::AzimuthPeriodExceeded => {
+                (PcurveCheck::AzimuthPeriod, RefusedArm::SignCertain(None))
+            }
+            Self::TubePeriodExceeded => (PcurveCheck::TubePeriod, RefusedArm::SignCertain(None)),
             // The fitted lane's SSI certificate is an approximation's, as
             // the plane × NURBS lane's residual limbs are
             // (`CertCheck::PlaneNurbsOnLocus`, `CertCheck::PlaneNurbsHull`).
@@ -2603,8 +2610,19 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
                 .windows(2)
                 .position(|w| w[0] <= range.0 && range.1 <= w[1])
                 .map_or(f64::NAN, |i| whole_sup[i]);
+            // The breaks are a knot vector's, so a part's ends are
+            // ordered numbers; a pair that is not names no part, and its
+            // hull is the uncertified one.
+            let Some(piece) = geom_core::spline::ParamRange::new(range.0, range.1) else {
+                return SpanHull {
+                    range,
+                    f_sup: f64::NAN,
+                    rho_lo: f64::NAN,
+                    z: (f64::NAN, f64::NAN),
+                };
+            };
             let (boxed, support, z) =
-                projected::part_floors(&projected::piece_controls(&twin_net, range.0, range.1));
+                projected::part_floors(&projected::piece_controls(&twin_net, piece));
             // The support's divisor may not certify (a chord through the
             // axis): the box's floor stands alone then.
             let rho = if support.is_certified() {
@@ -2752,7 +2770,7 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         // Only a marching door refines; the refusal it could not answer
         // is the certificate's, and reads as it.
         E::RefinementExhausted { refusal, .. } => return ssi_refusal(*refusal),
-        E::CertificateLimb { limb, value } => (
+        E::CertificateLimb { limb, value, .. } => (
             Some(limb),
             "a certificate limb exceeded ε",
             Some(FittedMagnitude::LimbResidual(value)),
@@ -10250,5 +10268,28 @@ mod iso_family {
             chart_iso_family(&line(1e-7), &cylinder, band),
             Err(IsoFamilyRefusal::Undecided(_))
         ));
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod iso_arc_poison {
+    use super::*;
+    use geom_core::Dual64;
+
+    /// A poison parameter locates no span, so the iso arc's chart
+    /// parameter is poison in every channel it carries — at `Dual` the
+    /// derivative channel too, where a bare `from_f64(NaN)` would be a
+    /// dual constant whose derivative reads as a zero.
+    #[test]
+    fn a_poison_parameter_is_poison_in_every_dual_channel() {
+        let breaks = KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap();
+        let g = iso_arc_g(
+            Dual64::variable(f64::NAN),
+            Dual64::constant(0.0),
+            Dual64::constant(1.0),
+            &breaks,
+        );
+        assert!(g.value.is_nan() && g.deriv.is_nan(), "{g:?}");
     }
 }

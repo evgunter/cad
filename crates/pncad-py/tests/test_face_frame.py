@@ -47,7 +47,6 @@ import unittest
 from pncad import (
     Doc,
     DocEdit,
-    EditError,
     EntityKind,
     EvaluationError,
     Formula,
@@ -91,17 +90,21 @@ def top_face(ev, node, height):
 def ring(doc):
     """A solid ring torus about the world z axis — a CURVED carrier,
     which is what a non-planar refusal needs."""
-    spine = doc.insert(Node.datum_axis((
+    frame = doc.insert(Node.datum_frame((
         Formula.length_in(0, m),
         Formula.length_in(0, m),
         Formula.length_in(0, m),
     ), (
+        Formula.literal(1.0),
         Formula.literal(0.0),
+        Formula.literal(0.0),
+    ), (
         Formula.literal(0.0),
         Formula.literal(1.0),
+        Formula.literal(0.0),
     )))
     return doc.insert(
-        Node.tube(spine, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(1, m), TubeWindow.full(), Formula.length_in(0.3, m))
+        Node.tube(frame, Formula.length_in(1, m), TubeWindow.full(), Formula.length_in(0.3, m))
     )
 
 
@@ -204,18 +207,22 @@ class TestTheOrientationSense(unittest.TestCase):
         is `-axis` there and the bool is the only thing that says so.
         Four faces, two of them inner."""
         doc = Doc()
-        spine = doc.insert(Node.datum_axis((
+        frame = doc.insert(Node.datum_frame((
             Formula.length_in(0, m),
             Formula.length_in(0, m),
             Formula.length_in(0, m),
         ), (
+            Formula.literal(1.0),
             Formula.literal(0.0),
+            Formula.literal(0.0),
+        ), (
             Formula.literal(0.0),
             Formula.literal(1.0),
+            Formula.literal(0.0),
         )))
         tube = doc.insert(
             Node.hollow_tube(
-                spine, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(1, m), TubeWindow.full(), Formula.length_in(0.3, m), Formula.length_in(0.1, m)
+                frame, Formula.length_in(1, m), TubeWindow.full(), Formula.length_in(0.3, m), Formula.length_in(0.1, m)
             )
         )
         ev = evaluate(doc)
@@ -390,21 +397,22 @@ class TestTheFrameIsRead(unittest.TestCase):
                 origin = evaluate(doc).value(frame).datum().origin
                 self.assertAlmostEqual(origin[2].meters, thickness, delta=1e-12)
 
-    def test_the_body_is_a_dag_input(self):
-        """`at` is an INPUT, exactly as `datum_axis_in_plane`'s plane
-        is — so the document refuses to delete the body out from under
-        the frame, naming both nodes."""
+    def test_the_body_is_a_read(self):
+        """`at` is a READ, exactly as `datum_axis_in_plane`'s plane is —
+        so deleting the body out from under the frame is accepted and
+        reported, naming the frame, which refuses until re-pointed."""
         doc = Doc()
         node = plate(doc, 0.2 * m)
         ev = evaluate(doc)
         frame = doc.insert(
             Node.datum_face_frame(node, top_face(ev, node, 0.2), Formula.angle_in(0, rad))
         )
-        with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.delete_node(node))
-        err = caught.exception
-        self.assertEqual(err.variant, "delete_would_dangle")
-        self.assertIsInstance(frame, NodeId)
+        doc.apply(DocEdit.delete_node(node))
+        stranded = [m.node for m in doc.last_maintenance if m.variant == "stranded_read"]
+        self.assertEqual(stranded, [frame])
+        with self.assertRaises(EvaluationError) as caught:
+            evaluate(doc).value(frame)
+        self.assertEqual(caught.exception.kind, "unresolved_read")
 
 
 class TestTheDerivedFrameRefuses(unittest.TestCase):
