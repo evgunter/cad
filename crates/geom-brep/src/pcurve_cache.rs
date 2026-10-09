@@ -1936,10 +1936,12 @@ impl PcurveCertifyError {
     pub fn ending(&self, reading: Reading) -> Option<String> {
         let (check, arm) = match self {
             Self::Escalated { check, cause, .. } => (*check, RefusedArm::Undecided(cause)),
-            Self::ResidualExceeded { check, .. } => (*check, RefusedArm::SignCertain),
-            Self::IntervalNotForward => (PcurveCheck::ParamSpan, RefusedArm::SignCertain),
-            Self::AzimuthPeriodExceeded => (PcurveCheck::AzimuthPeriod, RefusedArm::SignCertain),
-            Self::TubePeriodExceeded => (PcurveCheck::TubePeriod, RefusedArm::SignCertain),
+            Self::ResidualExceeded { check, .. } => (*check, RefusedArm::SignCertain(None)),
+            Self::IntervalNotForward => (PcurveCheck::ParamSpan, RefusedArm::SignCertain(None)),
+            Self::AzimuthPeriodExceeded => {
+                (PcurveCheck::AzimuthPeriod, RefusedArm::SignCertain(None))
+            }
+            Self::TubePeriodExceeded => (PcurveCheck::TubePeriod, RefusedArm::SignCertain(None)),
             // The fitted lane's SSI certificate is an approximation's, as
             // the plane × NURBS lane's residual limbs are
             // (`CertCheck::PlaneNurbsOnLocus`, `CertCheck::PlaneNurbsHull`).
@@ -2752,7 +2754,7 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         // Only a marching door refines; the refusal it could not answer
         // is the certificate's, and reads as it.
         E::RefinementExhausted { refusal, .. } => return ssi_refusal(*refusal),
-        E::CertificateLimb { limb, value } => (
+        E::CertificateLimb { limb, value, .. } => (
             Some(limb),
             "a certificate limb exceeded ε",
             Some(FittedMagnitude::LimbResidual(value)),
