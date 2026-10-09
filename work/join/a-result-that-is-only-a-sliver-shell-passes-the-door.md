@@ -37,3 +37,10 @@ reading wholly in band) and types it `Escalated { ShellRole }`, the way
 `finding_arm` types check 10's. Check 7's at-rest exemption is not
 touched. A body at rest that is wholly a sliver is a separate question
 from what a boolean may return.
+
+**From PR 4415's first review (NOTE-6).** Keep the in-band judgement in
+one home. `RoleUnread::certified_by` is the only reader of the
+certified reading's `terminal_sliver`, and `finding_arm` only types
+what it found. Typing check 7's `Certified::Open` arm must go through
+that same `certified_by` (a `CertifiedSliver`), not through a second
+reading of the record.
