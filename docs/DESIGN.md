@@ -358,7 +358,8 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    such a coincidence, which share its point; the result carries
    machine-checkable contact records (the ON-set survivors, carried
    across seam-zip/merge mints by a descendant map, never re-derived),
-   each checked by the `unproven-coincidence` lint; (iii) a contact the
+   each citing the coincidence (D10) that backs it, which the
+   `unproven-coincidence` lint checks; (iii) a contact the
    census discovers that no record backs is never silently blessed:
    between copies at rest it is an `unproven-coincidence` finding
    (D10), and inside one op's result it is that op's defect, refused
@@ -890,11 +891,15 @@ Five commitments:
 3. **Failure is a typed, actionable error naming the failing check and
    the entity** — consumable by humans and by the error-propagation
    machinery. The carrier is `CertifyError::ResidualExceeded { check,
-   sample }`, wrapped by the attachment gates and by
+   sample, margin }`, wrapped by the attachment gates and by
    `ValidationError::EdgeCertification`; the residual MAGNITUDE rides
-   the escalated arm's `Indeterminate`, because no `f64` projection of
-   a generic `T` exists on every lane. Geometry that can't meet ε almost
-   always indicates a modeling mistake; surfacing it beats absorbing it.
+   both arms as the classifier's reporting margin — the definite arm's
+   `margin`, the escalated arm's `Indeterminate` — because no value
+   projection of a generic `T` to an `f64` exists on every lane; the
+   classify seam's `MarginDiag` is the one projection there is, and it
+   is for reporting only, never a value a decision reads.
+   Geometry that can't meet ε almost always indicates a modeling
+   mistake; surfacing it beats absorbing it.
 4. **Fixed internal units — meters and radians — with a documented
    model size range**; geometry outside the range is rejected at
    construction. User-facing units are typed newtypes at the API
@@ -1227,8 +1232,9 @@ which only an operation defines; and the selections of a shape
 **free** — a value, its written unit (D6) and optionally a distribution
 — or **defined**, by an `Expr` over other variables, by a selection of a
 `Body` variable, or as an output of an operation. A dimensioned literal stands nowhere, neither in a slot
-nor inside a formula: the only constants are dimensionless rationals and
-rational fractions of a turn, which are the shape of a formula rather
+nor inside a formula: the only constants are dimensionless rationals,
+rational fractions of a turn, and zero, which is the same in every unit
+and so stands at any dimension; each is the shape of a formula rather
 than a dimension. Typing a value in the GUI mints a free variable and
 offers an existing variable of equal value; declining the offer is what
 makes the two distinct. A variable without a name is read by exactly
@@ -1286,19 +1292,26 @@ any other (Q1): a margin decided Zero glues them, a definite one keeps
 them apart, and one in the sliver band between refuses. Structure
 decides something else: whether the coincidence holds across the
 family. Two cells are **structurally** one when they are the same
-construction of the same variables. Each construction states which of
-its inputs each output carrier is a function of (an extrude's end cap
-is `plane(frame, direction, depth)`, independent of the profile; a side
-wall is independent of where along the direction it sits), and carriers
-compare in a canonical form per kind: the frame modulo the kind's own
-symmetry (a plane forgets in-plane motion and folds a shift along its
-normal into its offset; an axis forgets slide and spin along itself;
-a projection of a construction reduces to what it was built from),
-with offsets summed as linear forms over the variables with exact
-rational coefficients and derived variables read as their formulas.
-Equality of canonical forms is an equivalence relation, so a chain of
-blocks each built on its neighbour's floor closes into a loop, and a
-brick laid across two of them sits on both, with nothing more said.
+construction of the same variables. Each output carrier is the
+function of its construction's inputs that the construction's own code
+computes, read by evaluating that code with every variable a symbol; no
+operation describes its outputs a second time (an extrude's end cap
+comes out as `plane(frame, direction, depth)` with no profile variable
+in it, and a side wall with no depth). A coincidence is structural when
+the kernel's own carrier-pair verdict, run on the two cells' symbolic
+carriers, or the margin that decided it, is zero as a polynomial in
+those symbols with exact rational coefficients: a theorem for every
+value at which the construction takes the decisions it took here
+(E12). The verdicts read each kind modulo its own symmetry (a plane
+forgets in-plane motion and folds a shift along its normal into its
+offset; an axis forgets slide and spin along itself), so that
+reduction is written once, and a projection of a construction reduces
+to what it was built from. Polynomial identity is an equivalence
+relation, so a chain of blocks each built on its neighbour's floor
+closes into a loop, and a brick laid across two of them sits on both,
+with nothing more said. A computed value never re-enters the
+evaluation as a constant; a numerical routine's output enters as one
+opaque symbol per call.
 Coaxiality is one `Axis` read twice, directly or as projections of
 one construction; tangency is constructed (a
 sketch may read another surface's trace in its plane and continue
@@ -1313,9 +1326,14 @@ at the current values of the variables: the f64 build glues it all the
 same, so no setting changes a built body, and the lint reports it with
 the edit that would make it one construction. The analysis lanes, which
 run over a parameter box, see such a coincidence as the point it is and
-escalate there. "Structurally" is decided at that door; today it is the
-canonical-form equality above, and a later rung — such as the symbolic
-tier's identities — is one addition there that may only prove more.
+escalate there. "Structurally" is decided at that door and nowhere
+else: the same construction read twice, then the identities above. A
+recorded coincidence names its cells as the reads they entered the
+deciding operation through and their names there, never by a stamp
+the kernel carries; a contact record a result carries cites the
+coincidence that backs it. A per-construction table of output forms is
+only ever a cache generated from the symbolic evaluation and checked
+against it, never written by hand.
 
 **Booleans.** A boolean's operands must already be in one space;
 otherwise it refuses. It glues what its verdicts decide Zero where an
@@ -1324,14 +1342,26 @@ operand's description for a merged face, and refuses what falls in the
 sliver band.
 
 **Assertions.** `Assert { measure, relation, bound }` (`≤`, `≥`, `=`,
-the bound a variable) checks and never places. At rest, contact
-between copies is an `unproven-coincidence` finding unless it is
-structural (a mate-placed face is), and interference is a finding of
-its own; neither refuses where the census has a lane. A finding is
-quiet exactly when an assertion on the same measure at the same site has
-a bound the observation meets and that does not straddle zero: a
-contact finding under an assertion that the gap is zero, an
-interference finding under a bound on one side of zero.
+the bound a variable) checks and never places. At rest the census
+examines the copies of each space pairwise, and nothing it finds
+refuses. Contact between copies is an `unproven-coincidence` finding
+unless it is structural (a mate-placed face is); an overlap of their
+material is an interference finding; and a pair the census has no lane
+for is a finding too, saying it could not look, so no outcome of the
+census is silence. A contact or interference finding observes the sign
+of the gap (CONTACT-DESIGN C5) between two copies: a contact is `g = 0`
+at two cells, an interference `g < 0` over one connected overlap of
+their material. Holding assertions quiet a finding when they say the
+same: each reads a `Gap`'s output directly, over an opposed pair of
+faces of the two copies, and admits only values of the finding's sign
+(`= 0` for a contact; `≤ b` or `= b` with `b` negative for an
+interference). A contact is quiet when such an assertion's two faces
+are the two cells the census found coincident; an interference, when
+the assertion's two faces bound the overlap and every face bounding it
+lies between the carriers of an asserted pair. An assertion speaks for
+nothing else, so a new contact or overlap anywhere else is loud until
+something says otherwise, and an overlap the kernel cannot bound is
+loud and nothing quiets it.
 
 D10 governs where a companion clause disagrees, and these retire as
 the program that builds it reaches them: the declared-contact seats
@@ -1340,10 +1370,13 @@ the program that builds it reaches them: the declared-contact seats
 undeclared-contact and undeclared-tangency refusals, which become
 `unproven-coincidence` findings, with ASSEMBLY A5's hard error on an
 unattributed contact; DISCIPLINES DS2's identification grade; the axis
-declaration channel; `ParamSource`'s literal tokens; PARAM-LINT's
-declared-distinct record; the profiles' stored tangent-joint flags; and
+declaration channel; `ParamSource`; NAMES N6's recipe-source stamps
+(`GeomSource`, with `AxisSource`); PARAM-LINT's
+declared-distinct record; the profiles' stored tangent-joint flags;
 ASSEMBLY A3, A10's sink rule, A11 (2)'s gauges and offsets, A11 (4)'s
-declaring mates and A12's reading edges.
+declaring mates and A12's reading edges; and A5's at-rest gate
+(`assemble` and its refusal), whose census becomes a check, with
+DISCIPLINES DS6's product-separation resident (`Separation`).
 
 ## Layering
 

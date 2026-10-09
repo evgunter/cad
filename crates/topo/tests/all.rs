@@ -89,6 +89,8 @@ mod census_g2_carrier;
 mod cone_apex_cap_body;
 #[path = "cone_apex_sector_joints.rs"]
 mod cone_apex_sector_joints;
+#[path = "contact12_crossing_cuts.rs"]
+mod contact12_crossing_cuts;
 #[path = "contact1_touch_cones.rs"]
 mod contact1_touch_cones;
 #[path = "contact5_gate_and_beam.rs"]
@@ -195,6 +197,8 @@ mod mesh12_rim_row_reach;
 mod mesh8_coherence;
 #[path = "neighbours_across_a_closed_edge.rs"]
 mod neighbours_across_a_closed_edge;
+#[path = "offset_doors_read_charts_not_material.rs"]
+mod offset_doors_read_charts_not_material;
 #[path = "on_verdict.rs"]
 mod on_verdict;
 #[path = "pcurve_door_refusals.rs"]
