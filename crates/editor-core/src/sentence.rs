@@ -6,7 +6,7 @@
 //! resolve, a store's "refused to load") draws the same refusal as a
 //! bare sentence. [`Staged`] is that pair: a type renders its arms
 //! once, at a [`Labels`], and [`Staged::sentence`] is the stripped
-//! rendering.
+//! rendering. The label is the kernel's ([`Recourse`]).
 
 /// Whether a rendering keeps a refusal's own labels: its stage word,
 /// and whatever labels its arms carry (a finding's `root N output M`
@@ -60,15 +60,7 @@ impl<E: Staged + ?Sized> core::fmt::Display for Labelled<'_, E> {
     }
 }
 
-/// **The recourse, labelled**: `Recourse: {action}`, the one spelling
-/// of the label a refusal's way through opens with.
-pub struct Recourse<A>(pub A);
-
-impl<A: core::fmt::Display> core::fmt::Display for Recourse<A> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "Recourse: {}", self.0)
-    }
-}
+pub use geom_core::Recourse;
 
 /// What an API door that was given no part resolver says to do: every
 /// door that evaluates, solves, edits or splits over parts takes one.

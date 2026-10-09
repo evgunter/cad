@@ -42,7 +42,7 @@ fn block_part(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -122,7 +122,7 @@ fn r1_conjugation_through_a_non_identity_group_frame() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
+            input: leg.into(),
             count: Formula::count(4),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -271,10 +271,10 @@ fn r1_oblique_circular_axis_with_a_non_identity_group_frame() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
+            input: leg.into(),
             count: Formula::count(3),
             kind: PatternKind::Circular {
-                axis,
+                axis: axis.into(),
                 step: ang(theta),
             },
         },
@@ -363,7 +363,7 @@ fn r1_no_mate_can_give_one_copy_a_pose_apart_from_its_siblings() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
+            input: leg.into(),
             count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -578,7 +578,7 @@ fn r1_which_branch_does_the_consistent_loop_row_take() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
+            input: leg.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -656,7 +656,7 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_transform_places() 
     let (doc, inner) = insert(
         doc,
         Node::Pattern {
-            input: leg,
+            input: leg.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -667,7 +667,7 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_transform_places() 
     let (doc, outer) = insert(
         doc,
         Node::Pattern {
-            input: inner,
+            input: inner.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
@@ -731,7 +731,7 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_transform_places() 
     let (doc2, pat) = insert(
         doc2,
         Node::Pattern {
-            input: xf,
+            input: xf.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -803,7 +803,7 @@ fn r1_an_out_of_range_copy_refuses_on_a_declaring_mate_too() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
+            input: leg.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -903,7 +903,7 @@ fn r1_reproduce_the_quoted_red_first_fault() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
+            input: leg.into(),
             count: Formula::count(4),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],

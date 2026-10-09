@@ -74,7 +74,7 @@ fn prism(id: &str, n: u32) -> (ProfileDoc, RecipeNodeId) {
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -528,7 +528,7 @@ fn a_later_evaluation_of_the_same_document_is_admitted() {
                 &DocEdit::SetParam {
                     node: ext,
                     slot: SlotId::Distance,
-                    expr: len(distance),
+                    value: len(distance).into(),
                     fresh: Vec::new(),
                 },
                 tol,
@@ -796,7 +796,7 @@ fn what_the_admitted_later_evaluation_answers() {
             &DocEdit::SetParam {
                 node: ext,
                 slot: SlotId::Distance,
-                expr: len(2.0),
+                value: len(2.0).into(),
                 fresh: Vec::new(),
             },
             tol,

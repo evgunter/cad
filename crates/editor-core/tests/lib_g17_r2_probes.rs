@@ -112,7 +112,7 @@ fn p2_raw_variant_with_a_repeat_is_refused_at_the_insert_door() {
     let d = cup::document();
     let blank = blank_of(&d.doc);
     let raw = Node::Shell {
-        target: blank,
+        target: blank.into(),
         thickness: fixture::len(cup::T),
         open: vec![cup::top(blank), cup::bottom(blank), cup::top(blank)],
     };
@@ -205,7 +205,7 @@ fn p4_thick_wall_bump_refuses_typed_with_numbers() {
             &DocEdit::SetParam {
                 node: shell,
                 slot: SlotId::ShellThickness,
-                expr: fixture::len(t),
+                value: fixture::len(t).into(),
                 fresh: Vec::new(),
             },
             Tol::witness(),
@@ -389,12 +389,12 @@ fn p7_a_holed_designated_face_mints_a_hole_rim() {
     .unwrap();
     let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![outer, hole],
         ids: Vec::new(),
     }));
     let blank = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: fixture::len(1.0),
         side: ExtrudeSide::Along,
     });

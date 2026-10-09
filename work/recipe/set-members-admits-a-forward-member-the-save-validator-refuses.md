@@ -2,8 +2,9 @@
 id: set-members-admits-a-forward-member-the-save-validator-refuses
 kind: issue
 title: SetMembers accepts a member inserted after the union, and the saved document then refuses ForwardInput: insertion order is not topological by construction
-status: open
+status: closed
 opened: 2026-10-07
+closed: 2026-10-08
 ---
 
 
@@ -51,3 +52,15 @@ rather than one pass; `DeclaredNameNotUpstream` asks the relation. A row
 pins the forward `SetMembers` round-tripping through `save`/`load`.
 
 Found by the FORK-4 designer lane (`design/intent-s2-fork4-A.md`).
+
+## Closed
+
+By INTENT stage 2 unit B (`operands-are-reads`, branch
+`intent/s2-b-reads`), on the fix this row states. `Doc::upstream` is
+the one dependency relation: the load door's positional `ForwardInput`
+(and `DanglingInput`) retired, and a cycle over reads refuses
+`SnapshotError::ReadCycle`; `cascade_delete_order` closes over readers
+in schedule order; `DeclaredNameNotUpstream` asks the relation alone (a
+name minted by a node the carrier does not read, directly or through
+what it reads). The row is
+`crates/editor-core/tests/intent_s2_b_reads.rs::a_forward_member_saves_loads_and_cascades`.

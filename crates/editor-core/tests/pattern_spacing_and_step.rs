@@ -51,7 +51,7 @@ fn block(th: Option<(&VarName, f64)>) -> (corpus::Recorder, RecipeNodeId, Recipe
         vec![vec![(4.0, -0.5), (5.0, -0.5), (5.0, 0.5), (4.0, 0.5)]],
     );
     let solid = r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -96,7 +96,7 @@ fn built(
             .expect("a stepped rule takes a count")
     } else {
         Node::Pattern {
-            input: solid,
+            input: solid.into(),
             count: Formula::count(count),
             kind,
         }
@@ -353,7 +353,10 @@ fn a_driven_step_past_a_turn_says_what_it_evaluated_to() {
 
 /// A circular rule about the block's axis at `step`.
 fn circular(step: Formula) -> impl FnOnce(RecipeNodeId) -> PatternKind<Formula> {
-    move |axis| PatternKind::Circular { axis, step }
+    move |axis| PatternKind::Circular {
+        axis: axis.into(),
+        step,
+    }
 }
 
 /// `text` parsed as a parameter-free expression.
@@ -405,7 +408,7 @@ fn a_one_copy_rule_reads_no_step() {
         let ring = patterned(
             1,
             |axis| PatternKind::Circular {
-                axis,
+                axis: axis.into(),
                 step: ang(TAU),
             },
             union,
@@ -440,7 +443,7 @@ fn a_placed_union_refuses_the_spacing_not_the_placements() {
     let step = patterned(
         3,
         |axis| PatternKind::Circular {
-            axis,
+            axis: axis.into(),
             step: ang(0.0),
         },
         true,

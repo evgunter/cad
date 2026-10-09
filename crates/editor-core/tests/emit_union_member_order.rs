@@ -65,7 +65,7 @@ fn slab_rib(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, rib) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -266,7 +266,7 @@ fn no_name_rebinds_across_the_member_orders_of_a_cut_seam_union() {
                 let (doc, u) = insert(
                     doc,
                     Node::Union {
-                        members: p.iter().map(|&i| m[i]).collect(),
+                        members: p.iter().map(|&i| m[i].into()).collect(),
                         declare: Vec::new(),
                     },
                 );
@@ -310,13 +310,13 @@ fn a_seam_passed_through_a_split_and_cut_later_is_named() {
     use editor_core::{BooleanOp, Datum, PartSelect, SplitHalf};
     let doc = ProfileDoc::empty_derived("emit_union_member_order_split", Tol::witness());
     let (doc, slab, rib) = slab_rib(doc);
-    let pair = |doc, op, a, b| {
+    let pair = |doc, op, a: RecipeNodeId, b: RecipeNodeId| {
         insert(
             doc,
             Node::Boolean {
                 op,
-                a,
-                b,
+                a: a.into(),
+                b: b.into(),
                 declare: Vec::new(),
             },
         )
@@ -332,14 +332,14 @@ fn a_seam_passed_through_a_split_and_cut_later_is_named() {
     let (doc, split) = insert(
         doc,
         Node::Split {
-            target: joined,
-            tool,
+            target: joined.into(),
+            tool: tool.into(),
         },
     );
     let (doc, below) = insert(
         doc,
         Node::Part {
-            of: split,
+            of: editor_core::Operand::output(split, SplitHalf::Below.port()),
             select: PartSelect::SplitHalf(SplitHalf::Below),
         },
     );
@@ -399,8 +399,8 @@ fn a_seam_between_two_placements_of_one_prototype_is_named() {
             doc,
             Node::Boolean {
                 op,
-                a,
-                b,
+                a: a.into(),
+                b: b.into(),
                 declare: Vec::new(),
             },
         );
@@ -410,7 +410,7 @@ fn a_seam_between_two_placements_of_one_prototype_is_named() {
     let (doc, node) = insert(
         doc,
         Node::Union {
-            members: vec![rib, turned],
+            members: vec![rib.into(), turned.into()],
             declare: Vec::new(),
         },
     );

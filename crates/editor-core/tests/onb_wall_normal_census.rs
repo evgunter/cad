@@ -185,6 +185,10 @@ fn face_frames_and_the_faces_they_could_sit_on() {
                 continue;
             };
             frames += 1;
+            let at = &doc
+                .doc
+                .operation_of(*at)
+                .expect("a face frame reads a live body");
             let mut c = SeamClasses::default();
             let named = ev.value(*at).map_or(0, |_| all_faces(&ev, *at).len());
             if let Some(ValuePayload::Body(b)) = ev.value(*at).map(|v| &v.payload) {

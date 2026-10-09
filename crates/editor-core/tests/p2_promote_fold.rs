@@ -542,44 +542,33 @@ fn p4_a_cut_then_a_fold_moves_no_pose_bit_under_rotations() {
 
 // ---- what a fold takes out ----
 
-/// **A fold goes as a delete does** (item: one cleanup): a gauge an
-/// in-plane axis reads as its plane refuses the delete and the fold
-/// alike, naming the reader with a recourse; taking the recourse, the
-/// fold leaves a document the save door accepts.
+/// **A gauge defines nothing to read** (D10: a gauge is no
+/// operation's output): an in-plane axis drawn on a gauge refuses at
+/// its insert, so no node reads a gauge and a fold never strands a
+/// read; the folded document is one the save door accepts.
 #[test]
-fn a_fold_refuses_a_gauge_another_node_reads_as_an_input() {
+fn a_gauge_is_read_by_no_operand_and_folds_cleanly() {
     let p = parts("pf-dangle");
     let doc = ProfileDoc::empty(DocumentId::derive("pf-dangle"), Tol::witness());
     let (doc, g) = insert(doc, Node::gauge(None, literal([0.0, 8.0, 0.0])));
     let (doc, on_g) = insert(doc, Node::instantiate_part(p.base));
     let doc = set_gauge(doc, on_g, Some(g));
-    let (doc, axis) = insert(
-        doc,
-        Node::Datum(editor_core::Datum::AxisInPlane {
-            plane: g,
-            origin: [fixture::len(0.0), fixture::len(0.0)],
-            direction: [fixture::scl(1.0), fixture::scl(0.0)],
-        }),
+    let err = refused(
+        &doc,
+        DocEdit::InsertNode {
+            node: Box::new(Node::Datum(editor_core::Datum::AxisInPlane {
+                frame: g.into(),
+                origin: [fixture::len(0.0), fixture::len(0.0)],
+                direction: [fixture::scl(1.0), fixture::scl(0.0)],
+            })),
+            fresh: Vec::new(),
+        },
     );
-    assert!(matches!(
-        refused(&doc, DocEdit::DeleteNode { id: g }),
-        EditError::DeleteWouldDangle { id, referenced_by } if id.id() == g && referenced_by.id() == axis
-    ));
-    let err = refused(&doc, DocEdit::Fold { gauge: g });
     assert!(
-        matches!(&err, EditError::FoldWouldDangle { node, referenced_by } if node.id() == g && referenced_by.id() == axis),
+        matches!(&err, EditError::DefinesNothing { input, slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Frame) } if input.id() == g),
         "{err:?}"
     );
-    assert!(
-        err.to_string().contains(&format!(
-            "Recourse: delete {} (and what reads it), then fold {}",
-            doc.spoken(axis),
-            doc.spoken(g)
-        )),
-        "{err}"
-    );
-    let cleared = step(doc, DocEdit::DeleteNode { id: axis }).0;
-    let folded = fold(cleared, g);
+    let folded = fold(doc, g);
     assert_eq!(gauge_of(&folded, on_g), None);
     editor_core::persist::save(&folded, &[], Tol::witness()).expect("the folded document saves");
 }

@@ -64,7 +64,7 @@ pub fn document() -> CorpusDoc {
     // one frame node between them.
     let plane = r.insert(xy_frame());
     let plate_profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(-1.0, -0.5), (1.0, -0.5), (1.0, 0.5), (-1.0, 0.5)])
                 .expect("finite plate corners"),
@@ -72,14 +72,14 @@ pub fn document() -> CorpusDoc {
         ids: Vec::new(),
     }));
     let plate = r.insert(Node::Extrude {
-        profile: plate_profile,
+        profile: plate_profile.into(),
         distance: len(0.1),
         side: ExtrudeSide::Along,
     });
 
     let hole = |cx: f64| {
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
                 radius: Formula::named(VarName::from_static(HOLE_R), Dimension::Length),
@@ -89,13 +89,13 @@ pub fn document() -> CorpusDoc {
     };
     let pa = r.insert(hole(-HOLE_X));
     let hole_a = r.insert(Node::Extrude {
-        profile: pa,
+        profile: pa.into(),
         distance: len(0.1),
         side: ExtrudeSide::Along,
     });
     let pb = r.insert(hole(HOLE_X));
     let hole_b = r.insert(Node::Extrude {
-        profile: pb,
+        profile: pb.into(),
         distance: len(0.1),
         side: ExtrudeSide::Along,
     });
@@ -149,7 +149,7 @@ pub fn document() -> CorpusDoc {
         Node::measure(web, vec![wall(hole_a), wall(hole_b)]).expect("both indices in range"),
     );
     let _assertion = r.insert(Node::Assertion {
-        measure,
+        measure: measure.into(),
         bound: len(MIN_WEB),
         dir: AssertionDir::AtLeast,
     });
@@ -176,7 +176,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: plate,
             slot: editor_core::SlotId::Distance,
-            expr: len(0.125),
+            value: len(0.125).into(),
             fresh: Vec::new(),
         },
         bump_root: plate,

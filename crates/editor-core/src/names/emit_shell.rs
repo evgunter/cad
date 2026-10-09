@@ -14,14 +14,16 @@
 //! | `rims[i].rim` | the chart's annular rim face | [`RoleSeg::Rim`] of `sources[0]`'s name — `RimNaming::sources` preserves designation order, which is what makes "the first designated face" a fact of the record |
 //! | `rims[i].sources[1..]`, where live | a seamed band's other branch faces | [`RoleSeg::Rim`] of each one's own name |
 //! | `rims[i].ring_edges` / `ring_vertices` | the rim's ring | rows of `inner_edges` / `inner_vertices` verbatim, so `Inner` of the boundary edge — no second role |
-//! | `rims[i].holes[j].face` | a promoted hole annulus | [`RoleSeg::HoleRim`], `j` in pairing order |
+//! | `rims[i].holes[j].face` | a promoted hole annulus, or the second band of a chart that wraps between two boundaries | [`RoleSeg::HoleRim`], `j` in pairing order |
+//! | `rims[i].seam_pieces` | the pieces a band's divided seam became | each the divided edge's own name (its `FromTarget`, or its twin's `Inner` on a void) as a piece: its line + `Fragment(Ends)` (`emit_topo::name_edge_pieces`) |
 //! | `dead` | nothing | nothing — a designated face's own name VANISHES |
 //! | `edge_joins` | an edge the closing join made | its input edges' names: the one it covers, or a [`RoleSeg::Merged`] set of each covered edge's name by the rows above |
 //!
 //! Every surviving edge and vertex is a source entity carried through
 //! ([`RoleSeg::FromTarget`]): the rim face keeps its designated face's
 //! outer loop, so those edges are the operand's, and every other
-//! surviving edge or vertex is the outer wall's.
+//! surviving edge or vertex is the outer wall's — save a divided seam's
+//! pieces, which its `seam_pieces` row names as pieces.
 //!
 //! # Covariance
 //!
@@ -208,6 +210,27 @@ pub(crate) fn name_shell<T: geom_core::Real>(
         body.vertices()
             .map(|(k, _)| (EntityKind::Vertex, EntityKey::Vertex(k))),
     );
+    // A DIVIDED seam's pieces are named as pieces once their ends are
+    // named, below; the row pass skips them. Each source seam's pieces,
+    // in the record's order, and the name the divided edge carried.
+    let mut divided: BTreeMap<EdgeKey, (RoleSeg, bool, Vec<EdgeKey>)> = BTreeMap::new();
+    for rim in &rec.rims {
+        for &(piece, source) in &rim.seam_pieces {
+            let entry = match divided.entry(source) {
+                std::collections::btree_map::Entry::Occupied(o) => o.into_mut(),
+                std::collections::btree_map::Entry::Vacant(v) => {
+                    let u = up_e(source)?;
+                    let seg = match rim.side {
+                        topo::RimShell::Outer => RoleSeg::FromTarget(u.name),
+                        topo::RimShell::Void => RoleSeg::Inner(u.name),
+                    };
+                    v.insert((seg, u.tied, Vec::new()))
+                }
+            };
+            entry.2.push(piece);
+        }
+    }
+    let pieces: BTreeSet<EdgeKey> = divided.values().flat_map(|d| d.2.iter().copied()).collect();
     // The retired set, as a lookup: a key the construction RETIRED can
     // never be a survivor, whatever its arena says.
     let retired_f: BTreeSet<FaceKey> = rec.dead.faces.iter().copied().collect();
@@ -217,6 +240,9 @@ pub(crate) fn name_shell<T: geom_core::Real>(
     // lists every non-designated source face, result key first.
     let outer: BTreeSet<FaceKey> = rec.outer.iter().map(|&(result, _)| result).collect();
     for (kind, key) in rows {
+        if matches!(key, EntityKey::Edge(e) if pieces.contains(&e)) {
+            continue;
+        }
         let (seg, from_tie) = match minted.get(&key) {
             Some((seg, tied)) => (seg.clone(), *tied),
             None => {
@@ -250,8 +276,23 @@ pub(crate) fn name_shell<T: geom_core::Real>(
             ent(0, key),
         )?;
     }
-    // ONE stage, so one flush — and it must precede the totality
-    // check, which reads the table this drains into.
+    // Two stages: the pieces read their end vertices' names off the
+    // table the first flush fills, and the second must precede the
+    // totality check, which reads the table it drains into.
+    tie.flush(&mut t)?;
+    let mut named_pieces = super::emit_topo::EdgePieces::default();
+    for (seg, tied, edges) in divided.into_values() {
+        super::emit_topo::name_edge_pieces(
+            &mut named_pieces,
+            &t,
+            tied,
+            &name1(EntityKind::Edge, node, seg),
+            (body, 0),
+            &edges,
+            super::emit_topo::Lone::Piece,
+        )?;
+    }
+    named_pieces.mint(&mut t, &mut tie)?;
     tie.flush(&mut t)?;
     check_total(&t, body, 0)?;
     Ok(Arc::new(t))

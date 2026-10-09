@@ -50,7 +50,10 @@ fn wall(
             test_utils::refusal::tag(node.0.digest())
         );
     };
-    let Some(Node::Profile(program)) = doc.node(*profile) else {
+    let Some(Node::Profile(program)) = doc
+        .defined_by(*profile)
+        .and_then(|(profile, _)| doc.node(profile))
+    else {
         panic!("an extrude's operand is a profile");
     };
     let piece = program
@@ -76,7 +79,7 @@ fn extruded(
     let (doc, profile) = common::inserted(
         &doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops,
             ids: Vec::new(),
         }),
@@ -85,7 +88,7 @@ fn extruded(
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -110,7 +113,7 @@ fn frame_on(
     common::inserted(
         doc,
         Node::Datum(Datum::FaceFrame {
-            at,
+            at: at.into(),
             face,
             spin: common::ang(0.0),
         }),
