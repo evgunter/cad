@@ -323,7 +323,7 @@ fn probe_no_spelling_sneaks_an_authored_tangency_through() {
         "an in-band-but-not-exact director must still refuse"
     );
     // (e) declared identity — RULED LEGAL (Ev, in-chat, 2026-09-02):
-    // every zero-turn joint is a declared tangent joint, and the
+    // every zero-turn joint is a tangent joint, and the
     // lattice never asks whether the carriers are the same. This used
     // to refuse `SameCarrierJunction`. It is the one arm of this probe
     // that moved, and it moved by ruling: the probe's subject is that
@@ -398,7 +398,7 @@ fn probe_curved_zero_turn_and_cusp_still_refuse_off_a_continuation() {
 
 /// The declaration/continuation interaction: `.tangent()` DECLARES the
 /// joint it binds, so a run that leaves an arc declared and then
-/// subdivides structurally must carry exactly ONE declared joint (the
+/// subdivides structurally must carry exactly ONE constructed joint (the
 /// arc/line one) and no others — the continuation must neither inherit
 /// nor re-emit the declaration.
 #[test]

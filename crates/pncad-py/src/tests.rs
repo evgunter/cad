@@ -3476,7 +3476,7 @@ fn path_error_tags_are_stable() {
 
     // The collinear tangent-arc close: carrier identity is no longer a
     // refusal (Ev, in-chat, 2026-09-02 — every zero-turn joint is a
-    // declared tangent joint). What refuses is the GEOMETRY: `Start` is
+    // tangent joint). What refuses is the GEOMETRY: `Start` is
     // collinear with the declared departure and BEHIND it, so the
     // tangent-chord angle is pi, the bulge unbounded, and no arc spans
     // the chord.

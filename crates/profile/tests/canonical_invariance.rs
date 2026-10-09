@@ -68,9 +68,9 @@ fn fixtures() -> Vec<(&'static str, Profile<f64>)> {
         ("l_profile", profile(vec![l_profile()])),
         ("rounded_rect", profile(vec![rounded_rect(4.0, 3.0, 0.5)])),
         ("circle", profile(vec![circle_h(0.0, 0.0, 2.0)])),
-        // Mixed declared/undeclared joints (2 tangent of 7): the
-        // partial declaration set discriminates rotation/reversal
-        // remapping bugs the fully-declared fixtures cannot.
+        // Mixed tangent and corner joints (2 tangent of 7): the
+        // partial tangent set discriminates rotation/reversal
+        // remapping bugs the all-tangent fixtures cannot.
         ("bracket", profile(vec![bracket()])),
         ("annulus", annulus()),
         ("lens", profile(vec![lens()])),

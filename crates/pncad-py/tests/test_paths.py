@@ -150,9 +150,9 @@ class TestTheLatticeWalks(unittest.TestCase):
             with self.subTest(mode=name):
                 self.assertEqual(loop.vertex_count, 2)
 
-    def test_two_arcs_on_one_carrier_meet_at_a_declared_tangent_joint(self):
+    def test_two_arcs_on_one_carrier_meet_at_a_constructed_tangent_joint(self):
         # The half-disc equator's shape at the +y pole: the second arc
-        # leaves along the first's tangent (a DECLARED tangent joint —
+        # leaves along the first's tangent (a CONSTRUCTED tangent joint —
         # the sixth round's spelling for adjacent same-carrier arcs)
         # and is derived from that tangent and its target. The verb
         # `arc_continue` this shape used to need is removed (BOOL-10).
@@ -315,7 +315,7 @@ class TestRefusalsFireAtTheCallSite(unittest.TestCase):
 
     def test_the_collinear_tangent_arc_close_refuses(self):
         # Carrier identity is no longer the reason (ruled 2026-09-02:
-        # every zero-turn joint is a declared tangent joint). What
+        # every zero-turn joint is a tangent joint). What
         # refuses is the geometry: Start is collinear with the declared
         # departure and BEHIND it, so the tangent-chord angle is pi and
         # no arc spans the chord.

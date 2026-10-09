@@ -1010,7 +1010,7 @@ transition_table! {
         row {
             /// Consumes a **directed point only**: re-uses the incoming end
             /// tangent as the departure — exact by construction, nothing for
-            /// verification to contradict — and emits the DECLARED flag on
+            /// verification to contradict — and constructs the joint on
             /// lowering. Ill-typed on plain points (no direction to inherit),
             /// which is what makes "fillets sit between defined geometry"
             /// structural rather than a rule.
@@ -1033,8 +1033,8 @@ transition_table! {
             /// [`tangent`](Self::tangent) does, and departs along the
             /// REVERSE of the incoming end tangent — the ray negated, so the
             /// junction is exactly reverse-tangent by construction and
-            /// nothing is left for verification to contradict — emitting the
-            /// same DECLARED flag on lowering.
+            /// nothing is left for verification to contradict — constructing
+            /// the joint on lowering as `.tangent()` does.
             ///
             /// This is the wedge-0/2π authoring door (D1's tier-3 ruling):
             /// a solid swept from a loop with such a joint carries a cusp
@@ -1086,13 +1086,13 @@ transition_table! {
             /// the arrival side's one leg past its anchor (no collinear
             /// neighbor is minted — §4 item 4's by-construction exemption).
             ///
-            /// A declared straight continuation of a straight leg
+            /// A tangent straight continuation of a straight leg
             /// (`.tangent().line(len)` after a line) IS the same carrier, and
             /// since 2026-09-02 that is legal: every zero-turn joint is a
-            /// declared tangent joint, so the joint is declared and the leg
+            /// tangent joint (D1), so the joint is constructed and the leg
             /// emitted. The straight-continuation row below says the same
             /// thing without the explicit `.tangent()` — `line(len)` off the
-            /// directed point declares the joint it mints.
+            /// directed point constructs the joint it mints.
             ///
             /// `len` must classify definitely positive
             /// ([`PathError::NonpositiveLeg`] otherwise): a negative length
@@ -1351,8 +1351,8 @@ transition_table! {
             /// **§2c round 10 — RAY EXTENSION**: bare `fillet(r)` directly on a
             /// leg end. The incoming contact sits on the TANGENT RAY ahead of
             /// the directed point, as new path: the surviving ray piece is a
-            /// genuine line leg extending from the leg's end (declared tangent
-            /// by construction — the ray IS the tangent), whatever leg came
+            /// genuine line leg extending from the leg's end (tangent by
+            /// construction — the ray IS the tangent), whatever leg came
             /// before. Line arrival.
             on [T: ArcCarrierScalar] PartialPath<T, HasPos<WithIncoming>, NoAng>;
             fn fillet [(
@@ -1763,9 +1763,9 @@ transition_table! {
             /// **Exact trim fit** — the fillet arc reaching `anchor` with no
             /// straight run left — is not an error. The side simply IS the arc:
             /// no degenerate segment is emitted, the tip carries the arc as its
-            /// incoming carrier, the arc's outgoing joint is left UNDECLARED
-            /// (the side ends here, so the next direction is free — declaring
-            /// would be a claim, not a construction), and the authored anchor is
+            /// incoming carrier, the arc's outgoing joint is left unconstructed
+            /// (the side ends here, so the next direction is free — a joint
+            /// there would be a claim, not a construction), and the authored anchor is
             /// ABSORBED into the tangent point the fit gate just classified as
             /// coincident with it, rather than emitted as a second vertex a
             /// hair away. That absorption is the hand door's behaviour too, and
@@ -1833,8 +1833,8 @@ transition_table! {
             /// counterclockwise — is the primitive's PRIVATE lowering, exactly the
             /// M2 closed-carrier precedent: a detail of how a closed carrier
             /// reaches a vertex-and-segment document, not a junction anyone said. The two
-            /// joints are same-carrier identities, so nothing is declared tangent
-            /// (there is no tangency to declare — it is one circle).
+            /// joints are same-carrier identities the form constructs, so
+            /// validation verifies them and records neither (it is one circle).
             ///
             /// `radius` must classify definitely positive
             /// ([`PathError::NonpositiveCircleRadius`]), through the same funnel as
@@ -1880,8 +1880,8 @@ transition_table! {
             /// equal sweep, the first vertex at angle `phase` from the +x axis,
             /// counterclockwise. Like [`circle`] it is a **one-step complete-loop
             /// program form**, not a chain, so PQ4 is untouched: the vertices are
-            /// STRUCTURAL subdivisions of one carrier (same-carrier identities,
-            /// nothing declared tangent), not junctions anyone claimed — the
+            /// STRUCTURAL subdivisions of one carrier (same-carrier identities
+            /// the form constructs, none recorded), not junctions anyone claimed — the
             /// difference from [`circle`] is only that here the subdivision COUNT
             /// and PHASE are authored data rather than a private lowering detail,
             /// for the loops whose downstream naming depends on the seam count

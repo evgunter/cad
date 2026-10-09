@@ -810,7 +810,7 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         .to(Start, Tol::witness())
         .unwrap();
 
-    // 5. The declared tangent joint and the unique tangent arc.
+    // 5. The constructed tangent joint and the unique tangent arc.
     let tangent_arc = Open
         .at(Point2::new(0.0, 0.0))
         .line_to(Point2::new(2.0, 0.0), Tol::witness())
@@ -822,7 +822,7 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         .unwrap();
 
     // 6. Two quarter arcs on one carrier — the half-disc equator —
-    //    the second through the lattice's own declared-joint
+    //    the second through the lattice's own constructed-joint
     //    spelling, `.tangent().tangent_arc_to(p)`.
     let subdivided = Open
         .at(Point2::new(0.0, -0.5))

@@ -1053,7 +1053,7 @@ impl<T: Real> Guide<T> {
     ///
     /// Returns the signs the emission must use. Under guidance those
     /// are the RECORDED ones: a fit sign decides whether a straight
-    /// piece and its declared joint exist at all, so the lane's own
+    /// piece and its constructed joint exist at all, so the lane's own
     /// answer is compared and reported, never adopted.
     pub(crate) fn line_fits(
         &mut self,

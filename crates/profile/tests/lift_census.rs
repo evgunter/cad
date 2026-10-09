@@ -104,7 +104,7 @@ fn thirds() -> ProfileLoop<f64> {
         .into_loop()
 }
 
-/// A plain arc chain: no declared joints, no same-carrier run.
+/// A plain arc chain: no constructed joints, no same-carrier run.
 fn arc_chain() -> ProfileLoop<f64> {
     chain(&[(0.0, 0.0, 0.3), (2.0, 0.0, -0.2), (2.0, 2.0, 0.1)])
 }
@@ -216,7 +216,7 @@ fn the_fidelity_report_is_honest() {
         other => panic!("bracket should lift: {}", describe(&other)),
     }
     // `rounded_rect` joined the value-equal class when the lift widened
-    // (BOOL-9: a declared joint before a closing straight is the
+    // (BOOL-9: a constructed joint before a closing straight is the
     // continuation verb, so this loop lifts instead of refusing), and it
     // arrived with no ceiling of its own — the coarse `LiftOutcome`
     // bucketing was holding it, and there the RELATIVE criterion is

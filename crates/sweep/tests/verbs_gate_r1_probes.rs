@@ -41,7 +41,7 @@ fn vol(body: &Body<f64>) -> f64 {
 /// volume: bulge b = 0.6 on the vertical chord (0.5, 1) → (0.5, 1.5),
 /// so sagitta s = b·c/2, arc radius R = ((c/2)² + s²)/(2s), centre
 /// (0.5 + s − R, 1.25). b < 1 keeps the arc's end tangents off both
-/// neighbouring segments (no undeclared tangency) and R < centre-x
+/// neighbouring segments (no tangent junction to decide) and R < centre-x
 /// keeps the revolved torus a ring torus (r < R).
 const BULGE: f64 = 0.6;
 

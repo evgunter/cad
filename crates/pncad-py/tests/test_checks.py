@@ -535,3 +535,24 @@ class TestAProfileJunctionDecidedTangent(unittest.TestCase):
         self.assertEqual([at for at, _ in row.cells], [node, node])
         (_, line), (_, arc) = row.cells
         self.assertNotEqual(line, arc)
+
+    def test_a_junction_on_one_carrier_is_same_oriented(self):
+        # A leg of 1e-10 m turns off the line by its whole length: a
+        # corner to the lattice, one carrier continuing to validation,
+        # so the row is carrier identity, not a tangency of two.
+        loop = (
+            Open.at((0 * m, 0 * m))
+            .line_to((10 * m, 0 * m))
+            .line_to((10.001 * m, 1e-10 * m))
+            .line_to((10.001 * m, 5 * m))
+            .line_to(Start)
+        )
+        doc = Doc()
+        node = doc.insert(Node.profile(loop, plane=doc.sketch_frame()))
+        ev = evaluate(doc)
+        self.assertTrue(ev.succeeded(node))
+        rows = ev.coincidences(node)
+        self.assertEqual(
+            [(r.relation, r.site) for r in rows],
+            [("same_oriented", "profile_junction")],
+        )

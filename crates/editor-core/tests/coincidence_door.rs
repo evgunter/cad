@@ -787,3 +787,42 @@ fn a_profile_junction_decided_tangent_is_one_unproven_row_on_its_profile() {
         "{said}"
     );
 }
+
+/// **A same-carrier junction no constructor made is recorded
+/// `SameOriented`**, carrier identity, not a tangency between two
+/// carriers. A leg of `1e-10` turns off the line by its whole length,
+/// so the lattice (`sin φ · arm` over the long arriving leg) reads a
+/// corner while validation, reading the short leg's far end against
+/// the line, reads one carrier continuing: the node holds one
+/// `SameOriented` row at `ProfileJunction`, and the check says so.
+///
+/// Red if the same-carrier arm is recorded as `Tangent`, or not at all.
+#[test]
+fn a_profile_junction_decided_on_one_carrier_is_one_same_oriented_row() {
+    let doc = ProfileDoc::empty_derived("g_profile_same_carrier", Tol::witness());
+    let (doc, p) = profile_of(
+        doc,
+        LoopProgram::Chain(vec![
+            ProgramStep::At(len2([0.0, 0.0])),
+            ProgramStep::LineTo(ProgramTarget::Point(len2([10.0, 0.0]))),
+            ProgramStep::LineTo(ProgramTarget::Point(len2([10.001, 1e-10]))),
+            ProgramStep::LineTo(ProgramTarget::Point(len2([10.001, 5.0]))),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ]),
+    );
+    let ev = run(&doc);
+    let got = rows(&ev, p);
+    assert_eq!(
+        got.iter().map(|r| (r.relation, r.site)).collect::<Vec<_>>(),
+        [(Relation::SameOriented, DecisionSite::ProfileJunction)],
+        "{got:?}"
+    );
+    let findings = unproven(&doc, &ev);
+    assert_eq!(findings.len(), 1, "{findings:?}");
+    let said = spoken_by(&findings[0], &doc);
+    assert!(
+        said.contains("continues on one carrier with")
+            && said.contains("a profile junction no constructor made"),
+        "{said}"
+    );
+}

@@ -201,7 +201,7 @@ proptest! {
         // The property SAID DIRECTLY (LIB-RETTAIL): a sharp chain's
         // lowering is the authored table verbatim — one vertex per
         // authored point, in order, bit-for-bit, every bulge +0.0, no
-        // declared joints. This used to be stated as "identical to the
+        // constructed joints. This used to be stated as "identical to the
         // LoopBuilder chain"; against a random input a recorded fixture
         // is impossible, and the twin was only ever a second way of
         // saying this. Said against the INPUT it is strictly stronger:
@@ -358,9 +358,9 @@ fn turn_pi_refuses_as_cusp_naming_the_declaration_door() {
 }
 
 #[test]
-fn declared_straight_continuation_of_a_line_is_a_declared_tangent_joint() {
+fn declared_straight_continuation_of_a_line_is_a_constructed_tangent_joint() {
     // RULED (Ev, in-chat, 2026-09-02): every zero-turn joint is a
-    // declared tangent joint, and the lattice never asks whether the
+    // tangent joint, and the lattice never asks whether the
     // carriers are the same. This used to refuse `SameCarrierJunction`.
     let leg = Open
         .at(Point2::new(0.0, 0.0))
@@ -387,8 +387,8 @@ fn cocircular_tangent_arc_is_same_carrier() {
         )
         .unwrap()
         .tangent();
-    // RULED (2026-09-02): cocircular under a declared tangency is a
-    // declared tangent joint, not a refusal.
+    // RULED (2026-09-02): cocircular under a constructed tangency is a
+    // constructed tangent joint, not a refusal.
     assert!(
         arc_end
             .tangent_arc_to(Point2::new(0.0, 1.0), Tol::witness())
@@ -924,7 +924,7 @@ fn far_end_anchor_refuses_at_the_entry() {
 // LIB-G1 fix pass: the far-end anchor's EXACT-FIT branch (both
 // reviewers' MAJOR-1). When the fillet trim reaches the authored
 // anchor exactly, the side IS the arc — so the arc's outgoing joint
-// must be a FREE junction, not a declared tangency.
+// must be a FREE junction, not a constructed tangency.
 // ------------------------------------------------------------------
 
 /// A right-angle corner at (1, 1) with r = 0.5: the setback is exactly
@@ -2070,7 +2070,7 @@ fn authored_collinear_target_refuses_naming_the_structural_spelling() {
 
 /// A CURVED zero-turn junction keeps refusing: the departure is
 /// authored, and off an arc the same direction is tangency onto a
-/// DISTINCT carrier — the undeclared-tangency doctrine, untouched.
+/// DISTINCT carrier — the lattice's tangent-junction refusal, untouched.
 #[test]
 fn curved_zero_turn_still_refuses() {
     let arc_end = Open
@@ -2234,7 +2234,7 @@ fn the_seam_wall_ends_at_the_departure_and_stands_at_the_seam() {
             .expect("the declared closer ends the run that crosses the seam"),
     );
     assert_eq!(closed.vertices().len(), 8);
-    // The subdivisions the run mints are declared joints now.
+    // The subdivisions the run mints are constructed joints now.
     assert_eq!(closed.constructed_joints(), &[1, 3, 5, 7]);
     validate_ok(&closed);
     // Rotation 2 — seam at the subdivision vertex `mid(keel, right)`:
@@ -2296,7 +2296,7 @@ fn the_seam_wall_ends_at_the_departure_and_stands_at_the_seam() {
 /// `JunctionTangent`, which is the probe's whole subject and is
 /// unchanged. The DECLARED spelling used to refuse
 /// `SameCarrierJunction` and is legal since the Q1 sixth round (Ev,
-/// in-chat, 2026-09-02: every zero-turn joint is a declared tangent
+/// in-chat, 2026-09-02: every zero-turn joint is a constructed tangent
 /// joint), so the accepting spellings are now the declared one and the
 /// one with NO authored direction at all — never an authored direction
 /// that happens to land in band.

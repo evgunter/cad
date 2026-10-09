@@ -206,7 +206,7 @@ fn r1_a_straight_arrival_into_an_arc_first_side_closes_constructed_and_validates
         "{:?}",
         fan(false)
     );
-    // DECLARED: the algebra closes and joint 0 is declared tangent.
+    // DECLARED: the algebra closes and joint 0 is constructed tangent.
     // (An intermediate reading had a second token, `arrives_straight`,
     // that declared a SUBDIVISION joint here and declared nothing;
     // both it and that distinction are retired — Q1 sixth round.)
@@ -214,7 +214,7 @@ fn r1_a_straight_arrival_into_an_arc_first_side_closes_constructed_and_validates
     // RULED AGAIN (2026-09-02, addendum 3): there is ONE arrival token
     // and it declares the seam's joint TANGENT, so a straight leg
     // arriving G1 into an arc first side declares exactly the joint
-    // that is there. Joint 0 is declared and the DATA gate accepts —
+    // that is there. Joint 0 is constructed and the DATA gate accepts —
     // the finding's whole subject, an undeclared tangency reaching the
     // gate, is gone because the declaration reaches it first.
     assert_eq!(closed.loop_.constructed_joints(), &[0]);
@@ -252,7 +252,7 @@ fn r1_a_straight_arrival_into_an_arc_first_side_closes_constructed_and_validates
 /// lattice may not ask whether the carriers are the same, and identity
 /// is not a reason to refuse a declaration — identity is a fact about
 /// the CARRIERS, tangency a fact about the DIRECTIONS, and the
-/// directions agree here. Every zero-turn joint is a declared tangent
+/// directions agree here. Every zero-turn joint is a constructed tangent
 /// joint. The loop closes, joint 0 is declared, `validate` is green.
 ///
 /// Fixture: entry (1,0) heading north; a 3/4 unit circle to (0,-1);
@@ -277,10 +277,10 @@ fn r1_a_cocircular_declared_tangent_arrival_is_carrier_identity_the_algebra_miss
         .angle(FRAC_PI_4, t)
         .unwrap()
         .tangent_arc_to(Start.arrives_tangent(), t);
-    let closed = closed.expect("a declared tangent joint onto one carrier is a tangent joint");
+    let closed = closed.expect("a constructed tangent joint onto one carrier is a tangent joint");
     assert!(closed.loop_.constructed_joints().contains(&0));
     let verdict = validate(&closed);
-    println!("R1: cocircular declared tangent seam -> {verdict:?}");
+    println!("R1: cocircular constructed tangent seam -> {verdict:?}");
     verdict.expect("the data gate accepts it too: the directions agree");
 }
 

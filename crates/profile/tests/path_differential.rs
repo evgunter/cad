@@ -455,8 +455,8 @@ fn sharp_arc_chain_matches_loopbuilder() {
     assert_validate_identically(&algebra, &hand);
 }
 
-/// D3 — declared tangent leg: `.tangent().tangent_arc_to(p)` lowers to
-/// a joint declared tangent plus the arc whose sweep is 4·atan(X), X =
+/// D3 — constructed tangent leg: `.tangent().tangent_arc_to(p)` lowers to
+/// a joint constructed tangent plus the arc whose sweep is 4·atan(X), X =
 /// tan(Δ/2) of the tangent-chord angle Δ spelled algebraically,
 /// `across / (|d| + along)` — bit-identical to that closed form
 /// evaluated directly on the same inputs (the oracle below).

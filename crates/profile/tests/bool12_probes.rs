@@ -127,10 +127,10 @@ fn the_d_shape_closes_with_the_declared_straight_arrival() {
         // carrier continues through it, and the #433 ruling says data
         // like that claims no tangency. The arc's two junctions are
         // corners.
-        // The seam is a DECLARED tangent joint, and so is the
+        // The seam is a CONSTRUCTED tangent joint, and so is the
         // interior continuation the forward rotation mints (Ev,
-        // in-chat, 2026-09-02: every zero-turn joint is a declared
-        // tangent joint). The arc's two junctions turn.
+        // in-chat, 2026-09-02: every zero-turn joint is a tangent
+        // joint). The arc's two junctions turn.
         assert!(
             closed.constructed_joints().contains(&0),
             "{name}: {:?}",
@@ -210,7 +210,7 @@ fn stadium(declared: bool) -> Result<ClosedLoop<f64>, PathError<f64>> {
 
 #[test]
 fn the_stadium_closes_with_the_declared_tangent_arrival() {
-    let closed = pinned_constructed(stadium(true).expect("the declared tangent seam closes"));
+    let closed = pinned_constructed(stadium(true).expect("the constructed tangent seam closes"));
     validate_ok(&closed);
     assert_eq!(closed.vertices().len(), 4);
     // Joint 0 — the seam — carries the declared flag, and the verify
@@ -519,14 +519,14 @@ fn a_sharp_arc_seam_that_arrives_tangent_refuses_as_a_seam() {
     );
 }
 
-/// **Every zero-turn joint is a declared tangent joint** (Ev,
+/// **Every zero-turn joint is a tangent joint** (Ev,
 /// in-chat, 2026-09-02). There is ONE arrival token, every closing verb
 /// takes it, and it declares the seam's joint tangent; the continuation
 /// verbs declare the zero-turn joints they mint the same way. This row
 /// walks the four closers and asserts the declared SET each produces —
 /// which is the whole observable difference the declaration makes.
 #[test]
-fn every_zero_turn_joint_is_a_declared_tangent_joint() {
+fn every_zero_turn_joint_is_a_tangent_joint() {
     let t = Tol::witness();
     // The D-shape: the seam joint (0) declared by the target, the
     // interior subdivision (3) declared by `continue_to`.

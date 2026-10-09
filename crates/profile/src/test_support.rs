@@ -6,7 +6,8 @@ use crate::{ArcData, ArcSide, ProfileLoop, Step, Target, TipState, Verb};
 
 /// The loop a chain of (position, bulge) pairs lowers to — each vertex
 /// with the bulge of the segment leaving it, the last one's closing
-/// back to the first — with no declared-tangent joints.
+/// back to the first. A [`ProfileLoop`] stores no joints: validation
+/// decides every tangent junction on it and records each one.
 ///
 /// It forwards to the lowering the lattice's emission layer uses for
 /// `arc_to(Bulge)` and computes nothing of its own, so a loop written

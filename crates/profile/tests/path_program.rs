@@ -524,7 +524,7 @@ fn circle_split_refuses_nonpositive_radius_and_tiny_counts() {
 /// **The half-disc equator through the lattice's own spelling** (the
 /// need `arc_continue` served, re-authored — BOOL-10, Ev's ruling of
 /// 2026-09-13: the sixth round already admits adjacent same-carrier
-/// arcs as declared tangent joints, so no second verb and no split form
+/// arcs as constructed tangent joints, so no second verb and no split form
 /// is needed). Two quarter arcs on ONE carrier: the first authored
 /// (`arc_to(Bulge { .. })`, bulge tan(π/8)), the second
 /// `.tangent().tangent_arc_to(p)` — its joint DECLARED, its arc derived

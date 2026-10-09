@@ -239,7 +239,7 @@ fn the_door_refuses_a_fillet_its_stored_form_cannot_carry() {
 
 /// **Every corner kind, the same contract.** At a turn inside the
 /// window the door either refuses — typed, through one of the
-/// validator's own classifications — or builds a loop whose declared
+/// validator's own classifications — or builds a loop whose constructed
 /// tangency validation accepts. What it never does is mint a
 /// declaration validation contradicts.
 ///
@@ -343,7 +343,7 @@ fn the_recourse_the_refusal_names_builds_and_validates() {
     validates(sharp, tol()).expect("and the sharp corner validates");
 }
 
-/// **No loop the fillet doors build carries a declared tangency
+/// **No loop the fillet doors build carries a constructed tangency
 /// validation refuses** — swept over the whole corpus of door shapes
 /// this crate can author, at whatever ε the run committed.
 ///
@@ -354,12 +354,12 @@ fn the_recourse_the_refusal_names_builds_and_validates() {
 /// `TangencyContradicted` — the refusal that is ABOUT a joint the door
 /// constructed — never arrives.
 #[test]
-fn no_door_output_is_refused_for_its_declared_tangency() {
+fn no_door_output_is_refused_for_its_constructed_tangency() {
     for (name, lp) in corpus() {
         if let Err(e) = validates(lp, tol()) {
             assert!(
                 !matches!(e, ProfileError::TangencyContradicted { .. }),
-                "{name}: the door built a loop validation refuses for its declared tangency: {e}"
+                "{name}: the door built a loop validation refuses for its constructed tangency: {e}"
             );
         }
     }

@@ -6892,7 +6892,9 @@ class CheckEvidence:
     as `coincidence`) — a node decided two cells one from values and
     the coincidence door does not prove it structural. `reason` says
     what separates the two constructions, or why a cell's could not be
-    read. A report, never a refusal."""
+    read. A `profile_junction` row's `relation` is `tangent` or `cusp`
+    between two carriers and `same_oriented` on one. A report, never a
+    refusal."""
 
     @property
     def variant(self) -> str: ...
@@ -6938,7 +6940,9 @@ class Coincidence:
     profile's own piece is `(profile, piece)`. `relation` is
     `same_oriented`, `same_opposite`, `on_carrier`, `equal_angles`,
     `tangent` or `cusp`; `site` is `plane_ladder`, `carrier_ladder`,
-    `split_on`, `battery_turn` or `profile_junction`. `rung` is the door's rung that proved
+    `split_on`, `battery_turn` or `profile_junction`. A `profile_junction`
+    row is `tangent` or `cusp` between two carriers and `same_oriented`
+    where its two pieces continue one carrier. `rung` is the door's rung that proved
     it structural (`same_construction`), or `None`, and then `residual` says
     what separates the two constructions."""
 

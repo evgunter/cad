@@ -6,7 +6,7 @@
 //! the file means the same thing on every ε leg the battery walks.
 //!
 //! - the two pre-build MEASUREMENTS, re-taken on this head, including
-//!   the stored ORDER of the stadium's declared joints (the body states
+//!   the stored ORDER of the stadium's constructed joints (the body states
 //!   the sorted form);
 //! - the ESCALATION message at the two new funnel keys — §8 claims the
 //!   recourse direction is the authored-data one, and the escalated arm
@@ -98,7 +98,7 @@ fn r2_measurement_a_on_the_head() {
     println!("R2: undeclared stadium -> {refused:?}");
     assert!(matches!(refused, Err(PathError::SeamTangent { .. })));
 
-    let closed = stadium(true).expect("the declared tangent seam closes");
+    let closed = stadium(true).expect("the constructed tangent seam closes");
     println!(
         "R2: declared stadium joints (stored order) -> {:?}",
         closed.loop_.constructed_joints()
@@ -477,7 +477,7 @@ fn r2_lily_near_kite_sections_are_where_the_demo_would_panic() {
 /// first side is a LINE. When it is an ARC, a straight closing leg
 /// arriving along the arc's start tangent is a G1 joint between
 /// DISTINCT carriers — exactly what the #101 discipline says must be
-/// DECLARED — and the straight arrival declares nothing (`declare_seam`
+/// DECLARED — and the straight arrival declares nothing (`construct_seam`
 /// runs only on the tangent-arc closer, `path.rs:3297`).
 ///
 /// So the lattice MINTS a loop the data gate then refuses
@@ -564,7 +564,7 @@ fn r2_a_straight_arrival_onto_an_arc_first_side_authors_but_does_not_validate() 
 
 /// The SIBLING of the row above, on the tangent member: a closing arc
 /// that arrives G1 at a seam whose first side is an arc on the SAME
-/// circle. `declare_seam` marks joint 0 tangent unconditionally, and a
+/// circle. `construct_seam` marks joint 0 tangent unconditionally, and a
 /// declaration on carrier IDENTITY is what `ProfileLoop::tangent_joints`
 /// says is contradicted. `tangent_arc_geom`'s identity refusal compares
 /// the closing arc against the PREVIOUS segment's carrier, not the
@@ -593,7 +593,7 @@ fn r2_a_declared_g1_seam_onto_a_cocircular_first_side() {
     // following carrier, so this closes and the DATA gate refuses the
     // declaration the carriers contradict.
     // RULED the other way (Ev, in-chat, 2026-09-02, addendum 3):
-    // every zero-turn joint is a declared tangent joint, so declaring
+    // every zero-turn joint is a tangent joint, so declaring
     // one onto an identical carrier is true rather than contradicted.
     let closed = built.expect("the declared G1 arrival closes");
     assert!(closed.loop_.constructed_joints().contains(&0));

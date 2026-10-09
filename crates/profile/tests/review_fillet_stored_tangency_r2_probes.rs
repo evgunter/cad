@@ -3,7 +3,7 @@
 //! ε the run committed.
 //!
 //! The door's promise is narrow and exact: no loop it emits carries a
-//! declared tangency `Profile::validate` contradicts. These rows push on
+//! constructed tangency `Profile::validate` contradicts. These rows push on
 //! the edges of that promise — a joint whose stored NEIGHBOUR is what
 //! loses the tangency (a leg between two fillets too short to hold its
 //! own direction), a fixed turn that sits inside the window on one ε

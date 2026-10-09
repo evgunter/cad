@@ -197,7 +197,7 @@ fn exact_fit_line_arc() -> ConstructedLoop<f64> {
 }
 
 #[test]
-fn line_arc_internal_validates_with_declared_tangency() {
+fn line_arc_internal_validates_with_constructed_tangency() {
     let lp = line_arc_internal(0.5).expect("the fillet fits");
     // (0,2) → (0,0) → T1 on y = 0 → fillet arc → T2 on the circle ⤾.
     assert_eq!(lp.vertices().len(), 4);
@@ -269,7 +269,7 @@ fn a_short_closing_run_out_on_the_arrival_circle_is_named_the_run_out() {
 }
 
 #[test]
-fn line_arc_external_validates_with_declared_tangency() {
+fn line_arc_external_validates_with_constructed_tangency() {
     let lp = line_arc_external(0.5).expect("the fillet fits");
     assert_eq!(lp.vertices().len(), 6);
     let t2 = lp.vertices()[5];
@@ -279,7 +279,7 @@ fn line_arc_external_validates_with_declared_tangency() {
 }
 
 #[test]
-fn arc_line_validates_with_declared_tangency() {
+fn arc_line_validates_with_constructed_tangency() {
     let lp = arc_line(0.5).expect("the fillet fits");
     assert_eq!(lp.vertices().len(), 6);
     let t1 = lp.vertices()[1];
@@ -291,7 +291,7 @@ fn arc_line_validates_with_declared_tangency() {
 }
 
 #[test]
-fn arc_arc_internal_validates_with_declared_tangency() {
+fn arc_arc_internal_validates_with_constructed_tangency() {
     let lp = arc_arc_internal(0.5).expect("the fillet fits");
     let t1 = lp.vertices()[1];
     let t2 = lp.vertices()[2];
@@ -301,7 +301,7 @@ fn arc_arc_internal_validates_with_declared_tangency() {
 }
 
 #[test]
-fn arc_arc_mixed_validates_with_declared_tangency() {
+fn arc_arc_mixed_validates_with_constructed_tangency() {
     let lp = arc_arc_mixed(0.5).expect("the fillet fits");
     let t1 = lp.vertices()[1];
     let t2 = lp.vertices()[2];
@@ -469,7 +469,7 @@ fn radius_too_large_for_the_corner_has_no_tangent_circle() {
 #[test]
 fn a_negative_radius_is_refused_by_the_sign_gate_at_the_verb() {
     // r = 0 degenerates the arc and r < 0 mirrors the tangent points
-    // past the corner: either way the declared-tangent construction the
+    // past the corner: either way the constructed-tangent construction the
     // fillet promises does not exist, so the radius is classified
     // through the funnel at the fillet verb itself, before an arrival
     // can be authored against it.
@@ -786,7 +786,7 @@ fn ulp_perturbed_lens_pick_is_deterministic_within_the_lane() {
 }
 
 #[test]
-fn an_already_tangent_corner_asks_for_the_declaration_instead() {
+fn an_already_tangent_corner_asks_for_the_tangent_construction_instead() {
     // The line y = 0 is tangent to the circle about (2,2) at (2,0):
     // the carriers touch, so there is no corner to cut. One refusal for
     // the whole tangent/anti-tangent class — a doubled-back contact is

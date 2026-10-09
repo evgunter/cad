@@ -349,7 +349,7 @@ fn short(s: &str) -> String {
 /// on to `carrier_circles_internal` when it does not, so the door's
 /// share is 11 or 12 decisions depending on which side of its leg the
 /// fillet sits. Both are the same three calls — `build_seg` on the
-/// fillet and on each declared joint's neighbour, `joint_tangency` on
+/// fillet and on each constructed joint's neighbour, `joint_tangency` on
 /// each joint — and the row says so by branch rather than by pinning
 /// the one it happens to meet.
 #[test]
@@ -414,7 +414,7 @@ fn the_stored_form_read_costs_a_fixed_k_count_per_fillet() {
             "{name}: the K measurement reads a door that BUILDS"
         );
         // The read's own share: `build_seg`'s three gates on the fillet
-        // and on each declared joint's neighbour, plus the joint
+        // and on each constructed joint's neighbour, plus the joint
         // classification itself. Every name below is one the verify
         // layer fires on this loop already.
         let share: usize = [

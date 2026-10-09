@@ -84,7 +84,7 @@ fn mismatched_radius_continuation() {
     );
     // … and the mismatched-r continuation departs the anchor on the
     // DERIVED carrier (7.3, 0) r 1.2, tangent there by construction —
-    // a declared joint at the anchor.
+    // a constructed joint at the anchor.
     let next = lp.vertices()[anchor_idx + 1];
     let (dep_c, dep_r) = circle_from_bulge(
         Point2::new(8.5, 0.0),
@@ -137,7 +137,7 @@ fn sharp_after_arc_arrival() {
         .expect("the sharp continuation closes");
     let lp = &closed.loop_;
     // The authored anchor is a VERTEX (the hard-anchor rule) and its
-    // joint is SHARP: not in the declared-tangency set.
+    // joint is SHARP: not in the constructed set.
     let anchor_idx = lp
         .vertices()
         .iter()
@@ -154,7 +154,7 @@ fn sharp_after_arc_arrival() {
     );
     assert!(
         !declared.contains(&anchor_idx),
-        "the sharp junction at the anchor is not declared tangent, among {declared:?}"
+        "the sharp junction at the anchor is not constructed tangent, among {declared:?}"
     );
     // And the continuation is the sharp one that was authored: the leg
     // leaves the anchor on the authored heading of 2.6 rad, where the
