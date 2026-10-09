@@ -262,3 +262,36 @@ No pose family is constructed. This also narrows the open E12 requirement. Two m
     written out, gathered by `union`".
 - **Work item, Unchecked requirement:** add "two members under one `Axis` mate differ by a spin,
   so closure is an `Angle` comparison modulo a turn, not a matrix identity".
+
+## Round 5
+
+**(a) Agree (sure).** An index can also enter through a mate whose target is a member of another
+family: `bolt.axis ≡ holes[k].axis`. This is lockstep (one index read through two families), and
+it is what makes bolt k and hole k one `Axis`, structurally coaxial.
+
+**(b) Agree with B's sentence as written (sure).** "A pattern is a placement whose reads reach
+an index (Repetition): one copy per value, the index entering as a value or through a mate's
+target." It replaces S3M's pose-family sentence.
+
+**(c) Keep a plane, and read it off the source body, as B proposes: `Mirror { body, face }`
+(likely). Not `Mirror { body }`.** Reflections about two planes do differ by a rigid motion, so
+the plane carries no shape. What it carries is the image's relation to its source, and only the
+source's own coordinates can say that.
+
+The deciding case is a mirror fused to its source: a symmetric part, `union(A, mirror(A, P))`.
+- **With `Mirror { body, face }`:** the image is built in A's coordinates, reflected about P. A
+  placement at zero values against A puts it exactly there. The image of P is P itself, so the
+  shared face is one construction. The union glues it structurally, and the census sees a
+  structural contact.
+- **With `Mirror { body }`:** the image has coordinates of its own. A `Plane` mate (flipped)
+  onto P pins only P's normal; the two slides and the spin have to equal the reflection's. No
+  value can say "the reflection's" without reading where P sits in A's coordinates. That means
+  a computed number, raw coordinates compared, and the seam an `unproven-coincidence`, which are
+  exactly the defects D10 removes. A self-symmetric body is the same case: `Mirror(A, P)` is A
+  structurally only if P is read off A.
+- **The ±h analogy fails.** The extrude's sign changes only a body that a placement then
+  relates to others. A mirror's plane is the relation between two bodies.
+
+A mirror plane that is not a face of the body (a midplane through air) is a face plus a standoff
+along its normal. That is the same construction-on-the-plane a mate target uses (S3M), so no
+pose is read.
