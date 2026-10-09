@@ -2,11 +2,11 @@
 id: the-rest-lane-zips-no-pinch-apex
 kind: issue
 title: The REST lane reads its vertex correspondence one-to-one, so a pinch apex meeting one vertex refuses
-status: parked
+status: closed
 opened: 2026-10-05
 priority: P3
 cost: M
-blocked_on: [intent-stage4-is-built]
+closed: 2026-10-08
 ---
 
 ## What
@@ -66,3 +66,7 @@ This row is on declared-contact ground, so it waits on `d10-one-way-to-say-inten
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: try_rest_union's one-to-one vcorr and glue_pair are the declared-REST zip, retired at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed (2026-10-08, INTENT stage 4 A (`intent/s4-a-join`))
+
+The pinch apex meeting one vertex builds in the join, in both orders: `rest_nested_strut.rs`'s `a_pinch_apex_meeting_one_vertex_builds_in_either_order` (the join connects, the volume is the two stacked solids' sum, tiers 2, 3 and 3′). The zip and its one-to-one correspondence are deleted.

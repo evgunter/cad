@@ -2,11 +2,11 @@
 id: blind-shaft-in-a-full-turn-bore-revisits-the-seam-vertex
 kind: issue
 title: A shaft ending inside a full-turn bore refuses in the REST zip - ChordEndpointRevisited (a seam chord's end on the bore's self-mated seam) or ChordBetweenIsolatedPierces
-status: parked
+status: closed
 opened: 2026-10-02
 priority: P0
 cost: M
-blocked_on: [intent-stage4-is-built]
+closed: 2026-10-08
 ---
 
 
@@ -115,3 +115,7 @@ This row is on declared-contact ground, so it waits on `d10-one-way-to-say-inten
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: ChordEndpointRevisited is in rest.rs mint_chord, deleted at stage 4; the rest is arm 2 of the three-arms item. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed (2026-10-08, INTENT stage 4 A (`intent/s4-a-join`))
+
+The join builds every blind span, the shaft wholly inside the bore (`y ∈ [1.2, 1.8]`) included: `chord_join::chart_ring_side` reads a run whose azimuth window is exactly one period on the branch from its low edge. `full_turn_bore_mate.rs`'s `a_blind_shaft_unions_on_and_off_the_bores_seam` now carries the wholly-inside span at 0°, 60° and 90°, every pose, both orders (closed-form volume, one shell, tier 3, the census).

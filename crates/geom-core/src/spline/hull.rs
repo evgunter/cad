@@ -165,7 +165,7 @@ use crate::real::CertifiedBounds;
 /// let theirs = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.75, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
 /// let coeffs = vec![0.0f64; mine.control_count()];
 /// let pair = mine.with_coeffs(&coeffs).unwrap();
-/// let _ = pair.span(theirs.span_at(0.3)).unwrap().hull();
+/// let _ = pair.span(theirs.span_at(0.3).unwrap()).unwrap().hull();
 /// ```
 ///
 /// Its twin, differing in one respect — the span is asked of the pair,
@@ -176,7 +176,7 @@ use crate::real::CertifiedBounds;
 /// let mine = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
 /// let coeffs = vec![0.0f64; mine.control_count()];
 /// let pair = mine.with_coeffs(&coeffs).unwrap();
-/// let _ = pair.span_at(0.3).hull();
+/// let _ = pair.span_at(0.3).unwrap().hull();
 /// ```
 ///
 /// **(b) A span whose index is EMPTY in the coefficients' vector.**
@@ -215,7 +215,7 @@ use crate::real::CertifiedBounds;
 /// let quad = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.3, 0.6, 0.8, 1.0, 1.0, 1.0], 2).unwrap();
 /// let coeffs = vec![0.0f64; mine.control_count()];
 /// let pair = mine.with_coeffs(&coeffs).unwrap();
-/// let _ = pair.span_at(0.7).sup_norm_bound(quad.span_at(0.7));
+/// let _ = pair.span_at(0.7).unwrap().sup_norm_bound(quad.span_at(0.7).unwrap());
 /// ```
 ///
 /// The twin differs in one respect — the door is called with nothing:
@@ -225,7 +225,7 @@ use crate::real::CertifiedBounds;
 /// let mine = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
 /// let coeffs = vec![0.0f64; mine.control_count()];
 /// let pair = mine.with_coeffs(&coeffs).unwrap();
-/// assert!(pair.span_at(0.7).sup_norm_bound().is_finite());
+/// assert!(pair.span_at(0.7).unwrap().sup_norm_bound().is_finite());
 /// ```
 ///
 /// **(d) A rational claim on a pair minted without weights.** There
@@ -237,7 +237,7 @@ use crate::real::CertifiedBounds;
 /// let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
 /// let coeffs = vec![0.0f64; kv.control_count()];
 /// let pair = kv.with_coeffs(&coeffs).unwrap();
-/// let _ = pair.span_at(0.3).hull_rational();
+/// let _ = pair.span_at(0.3).unwrap().hull_rational();
 /// ```
 ///
 /// The twin differs in one respect — the pair is minted with the
@@ -249,7 +249,7 @@ use crate::real::CertifiedBounds;
 /// let coeffs = vec![0.0f64; kv.control_count()];
 /// let weights = vec![1.0f64; kv.control_count()];
 /// let pair = kv.with_rational_coeffs(&coeffs, &weights).unwrap();
-/// assert!(pair.span_at(0.3).hull_rational().is_certified());
+/// assert!(pair.span_at(0.3).unwrap().hull_rational().is_certified());
 /// ```
 ///
 /// **What these rows do and do not check.** Stable rustdoc checks only
@@ -540,14 +540,14 @@ impl<'a, E: CertifiedBounds> SplineCoeffs<'a, E> {
         })
     }
 
-    /// The window containing `t` — total on all of `f64` for exactly
-    /// the reasons [`KnotVector::span_at`] is (out-of-domain clamps to
-    /// an end span, NaN lands on the first).
-    pub fn span_at(self, t: f64) -> CoeffWindow<'a, E> {
-        CoeffWindow {
+    /// The window containing `t`, or `None` at NaN, exactly as
+    /// [`KnotVector::span_at`] locates it (out-of-domain clamps to an
+    /// end span).
+    pub fn span_at(self, t: f64) -> Option<CoeffWindow<'a, E>> {
+        Some(CoeffWindow {
             pair: self,
-            span: self.knots.span_at(t),
-        }
+            span: self.knots.span_at(t)?,
+        })
     }
 
     /// Enclosure of the scalar B-spline's values over its whole domain:
@@ -661,13 +661,13 @@ impl<'a, E: CertifiedBounds> RationalCoeffs<'a, E> {
         })
     }
 
-    /// The window containing `t` — total on all of `f64` for exactly
-    /// the reasons [`KnotVector::span_at`] is.
-    pub fn span_at(self, t: f64) -> RationalWindow<'a, E> {
-        RationalWindow {
+    /// The window containing `t`, or `None` at NaN, exactly as
+    /// [`KnotVector::span_at`] locates it.
+    pub fn span_at(self, t: f64) -> Option<RationalWindow<'a, E>> {
+        Some(RationalWindow {
             pair: self,
-            span: self.knots.span_at(t),
-        }
+            span: self.knots.span_at(t)?,
+        })
     }
 
     /// The same coefficients as a proof about the same vector, with

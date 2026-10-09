@@ -775,11 +775,11 @@ impl<T: Real> NurbsSurface<T> {
         Some(self.window_of(self.knots_u.span(span_u)?, self.knots_v.span(span_v)?))
     }
 
-    /// The window containing parameters `(u, v)` — total on all of
-    /// `f64`² for exactly the reasons [`KnotVector::span_at`] is
-    /// (out-of-domain clamps to an end span, NaN lands on the first).
-    pub fn window_at(&self, u: f64, v: f64) -> SurfaceWindow<'_, T> {
-        self.window_of(self.knots_u.span_at(u), self.knots_v.span_at(v))
+    /// The window containing parameters `(u, v)`, or `None` when either
+    /// is NaN, exactly as [`KnotVector::span_at`] locates each
+    /// (out-of-domain clamps to an end span).
+    pub fn window_at(&self, u: f64, v: f64) -> Option<SurfaceWindow<'_, T>> {
+        Some(self.window_of(self.knots_u.span_at(u)?, self.knots_v.span_at(v)?))
     }
 
     /// The transposed surface: `u` and `v` swapped (knot vectors
@@ -1117,10 +1117,13 @@ impl<T: SpanLocate> NurbsSurface<T> {
     /// the sealed [`SpanLocate`] seam, the core per overlapped span
     /// cell, channel-independent hulls across cells for
     /// interval-natured scalars (rectangle iteration: ascending u
-    /// spans outer, v spans inner).
+    /// spans outer, v spans inner). A poison parameter locates no span,
+    /// and its jet is poison in every channel.
     pub fn ders(&self, u: T, v: T) -> SurfaceJet<T> {
-        let su = u.locate_spans(&self.knots_u);
-        let sv = v.locate_spans(&self.knots_v);
+        let (Some(su), Some(sv)) = (u.locate_spans(&self.knots_u), v.locate_spans(&self.knots_v))
+        else {
+            return poison_jet(u + v);
+        };
         // The seed cell's window comes straight from the located
         // spans, which ARE proofs — no re-validation.
         let (su_first, su_last) = (su.first.index(), su.last.index());
@@ -1133,7 +1136,7 @@ impl<T: SpanLocate> NurbsSurface<T> {
                 }
                 // Empty spans (interior multiplicity) have no window,
                 // so the skip and the validation are one operation:
-                // find_span assigns every parameter — a repeated knot
+                // span_at assigns every parameter — a repeated knot
                 // value included — to the nonempty span starting at
                 // it, which the rectangle always covers, so nothing
                 // is discarded (containment preserved); an empty span
@@ -1159,8 +1162,10 @@ impl<T: SpanLocate> NurbsSurface<T> {
     /// selection and channel-independent cell hulling, one order up
     /// (M5 PR 7's ℝ⁴ trace).
     pub fn ders3(&self, u: T, v: T) -> SurfaceJet3<T> {
-        let su = u.locate_spans(&self.knots_u);
-        let sv = v.locate_spans(&self.knots_v);
+        let (Some(su), Some(sv)) = (u.locate_spans(&self.knots_u), v.locate_spans(&self.knots_v))
+        else {
+            return poison_jet3(u + v);
+        };
         // Seed window and empty-span skip: see [`NurbsSurface::ders`].
         let (su_first, su_last) = (su.first.index(), su.last.index());
         let (sv_first, sv_last) = (sv.first.index(), sv.last.index());
@@ -1196,8 +1201,10 @@ impl<T: SpanLocate> NurbsSurface<T> {
     /// The point at `(u, v)` (span selection as [`NurbsSurface::ders`];
     /// point-only pass).
     pub fn eval(&self, u: T, v: T) -> Point3<T> {
-        let su = u.locate_spans(&self.knots_u);
-        let sv = v.locate_spans(&self.knots_v);
+        let (Some(su), Some(sv)) = (u.locate_spans(&self.knots_u), v.locate_spans(&self.knots_v))
+        else {
+            return poison_point(u + v);
+        };
         // Seed window and empty-span skip: see [`NurbsSurface::ders`].
         let (su_first, su_last) = (su.first.index(), su.last.index());
         let (sv_first, sv_last) = (sv.first.index(), sv.last.index());
@@ -1228,6 +1235,41 @@ impl<T: geom_core::CertifiedBounds> NurbsSurface<T> {
     /// (`net::certified_coords`).
     pub fn certified_coords(&self) -> Vec<Vec<geom_core::Interval>> {
         net::certified_coords(&self.control)
+    }
+}
+
+/// The point a poison parameter pair evaluates to:
+/// [`spline::poison_from`] of `seed = u + v`, which carries both
+/// parameters' channels, in every coordinate.
+fn poison_point<T: Real>(seed: T) -> Point3<T> {
+    Point3::<T>::origin().map(|_| spline::poison_from(seed))
+}
+
+/// A vector of poison.
+fn poison_vec<T: Real>(seed: T) -> Vec3<T> {
+    Vec3::<T>::zero().map(|_| spline::poison_from(seed))
+}
+
+/// The jet a poison parameter pair evaluates to.
+fn poison_jet<T: Real>(seed: T) -> SurfaceJet<T> {
+    SurfaceJet {
+        point: poison_point(seed),
+        du: poison_vec(seed),
+        dv: poison_vec(seed),
+        duu: poison_vec(seed),
+        duv: poison_vec(seed),
+        dvv: poison_vec(seed),
+    }
+}
+
+/// The third-order jet a poison parameter pair evaluates to.
+fn poison_jet3<T: Real>(seed: T) -> SurfaceJet3<T> {
+    SurfaceJet3 {
+        jet: poison_jet(seed),
+        duuu: poison_vec(seed),
+        duuv: poison_vec(seed),
+        duvv: poison_vec(seed),
+        dvvv: poison_vec(seed),
     }
 }
 

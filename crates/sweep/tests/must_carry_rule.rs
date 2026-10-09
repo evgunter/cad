@@ -297,7 +297,16 @@ fn an_extrude_strut_with_a_definite_zero_margin_stores_the_conventional_descript
 #[test]
 fn an_extrude_strut_with_an_in_band_margin_refuses_typed() {
     match filleted_block(free_length_for(in_band_margin())) {
-        Err(ExtrudeError::SliverJoin { source, .. }) => assert_in_band_payload(source),
+        Err(ExtrudeError::SliverJoin {
+            reading, source, ..
+        }) => {
+            assert_eq!(
+                reading,
+                topo::DihedralReading::Bend,
+                "the strut's in-band station is the second-order bend's"
+            );
+            assert_in_band_payload(source);
+        }
         Err(other) => panic!("the in-band strut must refuse as a sliver JOIN, not {other}"),
         Ok(_) => panic!("an in-band second-order margin was built silently"),
     }
@@ -349,7 +358,16 @@ fn a_revolve_latitude_join_with_a_definite_zero_margin_stores_the_conventional_d
 #[test]
 fn a_revolve_latitude_join_with_an_in_band_margin_refuses_typed() {
     match bored_ring(free_length_for(in_band_margin())) {
-        Err(sweep::RevolveError::SliverJoin { source, .. }) => assert_in_band_payload(source),
+        Err(sweep::RevolveError::SliverJoin {
+            reading, source, ..
+        }) => {
+            assert_eq!(
+                reading,
+                topo::DihedralReading::Bend,
+                "the latitude join's in-band station is the second-order bend's"
+            );
+            assert_in_band_payload(source);
+        }
         Err(other) => panic!("the in-band latitude join must refuse as a sliver JOIN, not {other}"),
         Ok(_) => panic!("an in-band second-order margin was built silently"),
     }

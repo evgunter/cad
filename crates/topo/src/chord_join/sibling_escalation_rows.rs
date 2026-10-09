@@ -16,11 +16,11 @@ use crate::euler::{MefSite, MevSite};
 use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet, prism_z};
 use geom_core::Tol;
 
-fn tol() -> Tol {
+pub(super) fn tol() -> Tol {
     Tol::witness()
 }
 
-fn band() -> Band {
+pub(super) fn band() -> Band {
     Band::linear(tol()).unwrap()
 }
 
@@ -36,7 +36,12 @@ fn offsets() -> impl Iterator<Item = f64> {
 /// vertex and the bridge killed; then a chain of struts from `p` through
 /// `then`, so the ring's cycle starts at `p` and visits each point of
 /// `then` in order (and back).
-fn ring_at(body: &mut Body<f64>, face: FaceKey, p: Point3<f64>, then: &[Point3<f64>]) -> LoopKey {
+pub(super) fn ring_at(
+    body: &mut Body<f64>,
+    face: FaceKey,
+    p: Point3<f64>,
+    then: &[Point3<f64>],
+) -> LoopKey {
     let outer = body.get_face(face).unwrap().outer;
     let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
         panic!("outer is a cycle");
@@ -156,7 +161,7 @@ fn a_planar_ring_vertex_escalating_hands_re_homing_to_the_next() {
 /// A circle arc of the unit cylinder about `+z` at height `v`, from
 /// azimuth `u0` to `u1` (either way round), described as the cylinder cut
 /// by the plane at that height.
-fn rim_arc(
+pub(super) fn rim_arc(
     body: &mut Body<f64>,
     cyl: SurfaceKey,
     v: f64,

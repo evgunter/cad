@@ -1314,7 +1314,17 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
             E::SliverJoin {
                 loop_index: 0,
                 vertex_index: 3,
-                source: diag(),
+                reading: topo::DihedralReading::Lever(geom_brep::LeverRung::Reading),
+                source: named("dihedral_wedge"),
+            },
+        ),
+        (
+            "SliverJoin(bend)",
+            E::SliverJoin {
+                loop_index: 0,
+                vertex_index: 3,
+                reading: topo::DihedralReading::Bend,
+                source: named("tangent_second_order"),
             },
         ),
         (
@@ -1322,7 +1332,17 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
             E::SliverRim {
                 loop_index: 0,
                 segment_index: 3,
-                source: diag(),
+                reading: topo::DihedralReading::Lever(geom_brep::LeverRung::Reading),
+                source: named("dihedral_wedge"),
+            },
+        ),
+        (
+            "SliverRim(bend)",
+            E::SliverRim {
+                loop_index: 0,
+                segment_index: 3,
+                reading: topo::DihedralReading::Bend,
+                source: named("tangent_second_order"),
             },
         ),
         (
@@ -1438,7 +1458,17 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
             E::SliverJoin {
                 loop_index: 0,
                 vertex_index: 3,
-                source: diag(),
+                reading: topo::DihedralReading::Lever(geom_brep::LeverRung::Reading),
+                source: named("dihedral_wedge"),
+            },
+        ),
+        (
+            "SliverJoin(bend)",
+            E::SliverJoin {
+                loop_index: 0,
+                vertex_index: 3,
+                reading: topo::DihedralReading::Bend,
+                source: named("tangent_second_order"),
             },
         ),
         (
@@ -1446,7 +1476,17 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
             E::SliverRim {
                 loop_index: 0,
                 segment_index: 3,
-                source: diag(),
+                reading: topo::DihedralReading::Lever(geom_brep::LeverRung::Reading),
+                source: named("dihedral_wedge"),
+            },
+        ),
+        (
+            "SliverRim(bend)",
+            E::SliverRim {
+                loop_index: 0,
+                segment_index: 3,
+                reading: topo::DihedralReading::Bend,
+                source: named("tangent_second_order"),
             },
         ),
         (
@@ -2530,6 +2570,22 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
                 site: BlendSite::Joint { vertex },
                 decision: BlendDecision::ChainG1,
                 source: escalated("fillet3_chain_g1"),
+            },
+        ),
+        (
+            "Escalated(contact-arm)",
+            E::Escalated {
+                site: BlendSite::Link { edge },
+                decision: BlendDecision::ContactArm,
+                source: escalated("dihedral_arm"),
+            },
+        ),
+        (
+            "Escalated(contact-wedge)",
+            E::Escalated {
+                site: BlendSite::Link { edge },
+                decision: BlendDecision::ContactWedge,
+                source: escalated("dihedral_wedge"),
             },
         ),
         (
