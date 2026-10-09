@@ -2,7 +2,8 @@
 id: offset-fit-on-locus-fold-drops-a-nan-sample
 kind: issue
 title: offset fit folds its on-locus samples with f64::max, so a NaN sample never reaches the limb-1 guard
-status: dispatched
+status: review
+pr: 4367
 branch: encl/offset-fit-nan-fold
 opened: 2026-10-01
 priority: P2
@@ -26,15 +27,23 @@ the limb-1 guard in the certifying door,
 on NaN — but a NaN sample norm is dropped by both folds before it gets
 there, and the reported bound is the max over the samples that answered.
 
-## Why it is latent today
+## Reachable through the certifying door
 
-A fitted NURBS with finite control points evaluates finite, and an
-`offset_point` that cannot answer returns `INFINITY` on its own path. No
-fixture is known to reach a NaN sample.
+A NaN fit sample is reachable: evaluators are total by design
+(`NetState::Poisoned` in `crates/geom/src/surfaces/nurbs.rs`;
+`crates/geom/src/lib.rs`, "Totality and poison"), and `NurbsSurface::new` validates weights, not control
+points, so a fit with one NaN control point reaches `certify_offset_at`
+and samples NaN. With the folds dropping it, limb 1 passed and limb 2
+refused (`cell_bound` maps the non-finite cell to `INFINITY`): loud,
+but on the wrong limb with the wrong bound. The certification door is
+the designated catch point, not construction.
 
 ## Repair
 
-`Real::max(m, ..)` and `Real::max(on_locus_max, ..)`: one line per
-site, and the limb-1 guard already refuses the NaN that would then
-arrive. `hull_sup`'s fold beside it reads `cell_bound`, which maps every
-non-finite to `INFINITY`, so it cannot see a NaN and is not this shape.
+`max_bound(m, ..)` and `max_bound(on_locus_max, ..)`
+(`geom_core::interval::max_bound`, `Real::max` at `f64` for the
+certification files that may not name `Real`): one line per site, and
+the limb-1 guard then refuses the NaN that arrives. `hull_sup`'s fold
+beside it reads `cell_bound`, which maps every non-finite to
+`INFINITY`, so it cannot see a NaN; it takes `max_bound` too, for one
+policy.
