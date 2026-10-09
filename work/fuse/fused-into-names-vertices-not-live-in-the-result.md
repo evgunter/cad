@@ -2,11 +2,13 @@
 id: fused-into-names-vertices-not-live-in-the-result
 kind: issue
 title: BooleanNaming::fused_into maps a fused vertex to a key that is not a live vertex of the result in about 1 in 8 lattice-brick results that build a body
-status: open
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: M
 refs: [emit-topo-reads-a-fusion-chain-one-hop, 4116]
+closed: 2026-10-09
+pr: 4398
 ---
 
 Found by the review of PR 4116 (ZIP, `zip/survivor-and-recourse`).
@@ -42,3 +44,17 @@ survivor can mis-name a discard's border.
 
 Sibling: `emit-topo-reads-a-fusion-chain-one-hop` (WIRE), the naming
 layer's own read of the same rows.
+
+## Closed (PR 4398, 2026-10-09)
+
+Measured on a committed lattice corpus
+(`crates/topo/tests/fused_into_live_cells.rs`): 387 of 2721 results held
+a dead value, 768 values in all. Each survivor was deleted by a stage
+that records the kill without moving the point: the output stage's join
+(336, inside the joined edge) and the merge's pruning (432, inside the
+merged face). `fused_into` now settles each fused vertex on that live
+cell (`topo::Cell`), carrying the merge's kills into the naming
+(`merge_killed_vertices`), and refuses `StaleFusion` where a chase ends
+on no live cell. The naming layer's answers are unchanged; citing a
+border that runs inside a face or an edge is
+`a-discard-border-inside-a-merged-face-or-joined-edge-reads-as-no-border`.
