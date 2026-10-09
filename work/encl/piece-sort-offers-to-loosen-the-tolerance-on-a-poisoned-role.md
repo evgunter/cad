@@ -2,8 +2,11 @@
 id: piece-sort-offers-to-loosen-the-tolerance-on-a-poisoned-role
 kind: issue
 title: topo: PieceSortError::RoleUnread drops the role read's refusal and ends in "loosen the tolerance", a poisoned volume included
-status: open
+status: dispatched
+branch: encl/piece-sort-poisoned-role
 opened: 2026-10-09
+priority: P3
+cost: E
 ---
 
 

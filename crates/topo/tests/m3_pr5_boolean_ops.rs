@@ -511,9 +511,8 @@ fn merge_ladder_fires_only_on_declared_planes() {
     // Full-overlap stacked bricks: the whole seam runs ALONG existing
     // operand edges (boundary-on-boundary coincidence). UNDECLARED,
     // the coincidence ladder refuses — no numeric rung, nothing
-    // merges without declaration. DECLARED, the union builds since
-    // M5 S1 (the REST zip), and — per this test's own extension
-    // instruction — the declared-rung merge census holds (F7): the
+    // merges without declaration. DECLARED, the union builds, and the
+    // declared-rung merge census holds (F7): the
     // four declared same-plane side pairs merge, leaving exactly the
     // (0..2)²×(0..4) brick's six maximal faces.
     let a = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
@@ -593,7 +592,7 @@ fn stacked_union_with_a_reversed_face(
     (a, b, reversed)
 }
 
-/// **The REST lane reads the contact face's sense.** The upper brick's
+/// **A rest's verification reads the contact face's sense.** The upper brick's
 /// bottom (z = 2, outward -z) is charted +z with `sense: false`, so the
 /// contact's carriers face apart only through the bit: the flush
 /// detector must class the pair a rest, and the declaration door

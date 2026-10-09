@@ -198,8 +198,8 @@ This is the build order the zip row states (`work/intent/the-declared-rest-zip-r
 **Goldens and tests.**
 
 - The zip suites become join suites: `topo/tests/crosslap_rest.rs` and `m5_s1_rest_zip.rs`, and `sweep/tests/m9_3_zip.rs`, `rest_nested_strut.rs`, `rest_zip_admission.rs`, `curved_mergedoor.rs` and `mate7a_torus_rest.rs`.
-- **The 91 unions the zip builds today move to the join, so their body digests move.** The check is that each builds, passes tier 3′ with the same contact records, and has a volume equal to the zip's within its certified bound. Every other body digest is bit-equal.
-- The torus's `SectionLoopUndecided` at ε ≥ 3e-7 stays a refusal (a band escalation).
+- **The 91 unions the zip builds today move to the join, so their body digests move.** The check is that each builds, passes tier 3′ with the same contact records, and has a volume equal to the zip's within its certified bound. Outside them, the tangent-site unions the join already built move too: the germ that `boolean::insert::across_tangent` reads in the sector across its tangent bound is minted there, so `join2_r1_probes` and `join2_r2_probes` bodies change bits (the volume at the last ulp), with the same face, edge, vertex and shell counts, contact records and tier 3′. No pinned digest moves.
+- The torus peg-in-socket union builds through the join at every ε; main's join built it before A.
 
 **Docs.**
 
@@ -498,7 +498,7 @@ D1's profile-tangency paragraph is already ratified for this: "a junction decide
 ## 11. Test plan (each row names the runtime value that breaks it)
 
 1. **(A) The join builds the zip's 91.** With `through_the_join`'s zip door deleted, each of the 91 unions builds, passes tier 3′, and has a volume within the certified bound of the zip's. *Breaks if* a ring on a constant-azimuth ray reads `Undecided` (the 41 refuse `RingHomingAmbiguous`), or a tangent chord is computed instead of read from the partner edge (the 33 refuse `SectionInvariant`).
-2. **(A) Nothing else moves.** Every body digest outside the 91 is bit-equal. *Breaks if* a moved carrier-pair door changed a verdict (a digest moves in the crosslap suite).
+2. **(A) Nothing else moves but the tangent sites.** Outside the 91, the digests that move are the tangent-site unions the join built before A, whose germ A mints in the sector across its tangent bound (`join2_r1_probes`, `join2_r2_probes`; the volume at the last ulp), each with the same counts, contact records and tier 3′; no pinned digest moves. *Breaks if* a moved carrier-pair door changed a verdict (a digest moves in the crosslap suite).
 3. **(B) A declared glue is recorded.** A flush plate pair joined under a declared `Rest`: `coincidences(node)` holds one `SameOpposite` row naming the two cap faces by their operand names, and the lint reports it `Unproven` with residual "two sources". *Breaks if* emission keys rows by arena key (the name is absent after the merge), or the declared rung is treated as structural (no finding).
 4. **(B) Same source is proven.** Two faces of one extrude glued back through a split-and-union proves `Structural(SameSource)`. *Breaks if* the door compares sources before composing placements (a transformed copy fails).
 5. **(B) The mitre leaves the battery.** A filleted box's eight corners give eight `EqualAngles` rows on the blend node, in vertex order, each `Unproven` in B. *Breaks if* `Blended` drops them (zero rows).

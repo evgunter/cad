@@ -152,11 +152,9 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                         "boolean-error.md"),
     "Contradiction": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
                       "boolean-error.md"),
-    # `BooleanError::CoplanarNeighbours`'s refused offset and
-    # `RestZipUnsupported`'s sub-frontier: the same carrier, the same row.
+    # `BooleanError::CoplanarNeighbours`'s refused offset: the same
+    # carrier, the same row.
     "NeighbourOffset": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
-                        "boolean-error.md"),
-    "RestZipFrontier": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
                         "boolean-error.md"),
     # `BooleanError::VertexReadTwice`'s two reads (PR 4234): the same
     # carrier, the same row.

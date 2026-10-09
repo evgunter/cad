@@ -2,11 +2,11 @@
 id: rest-zip-seam-chord-on-cylinder-wall
 kind: issue
 title: The declared-REST zip leaves a straight seam chord where a cap rim cuts a bore wall mid-height; the merge door's refusal hid it
-status: parked
+status: closed
 opened: 2026-09-07
 priority: P0
 cost: H
-blocked_on: [intent-stage4-is-built]
+closed: 2026-10-08
 ---
 
 
@@ -118,3 +118,7 @@ This row is on declared-contact ground, so it waits on `d10-one-way-to-say-inten
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: mint_chord's straight chord in the declared-REST zip is deleted at stage 4; its reproducers now build in the join. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed (2026-10-08, INTENT stage 4 A (`intent/s4-a-join`))
+
+Its reproducers (scenes A and B) build in the join, pinned by `curved_mergedoor.rs`'s `floating_and_mid_bore_pegs_ship_honest_with_one_record`; `mint_chord`, the only minter of the straight chord, is deleted with the zip.
