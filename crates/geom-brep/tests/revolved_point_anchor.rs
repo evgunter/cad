@@ -184,7 +184,7 @@ fn chain(name: &str, k: usize) -> Split {
     let fuzzy = Interval::from_bounds(a - 1e-13, a + 1e-13);
     let quotient = iv(a * 3.0) / iv(3.0);
     let alternate = |x: Interval| {
-        if k % 2 == 0 {
+        if k.is_multiple_of(2) {
             (x, iv(1.0))
         } else {
             (iv(0.0), x)
@@ -192,6 +192,7 @@ fn chain(name: &str, k: usize) -> Split {
     };
     match name {
         "(0, 1/2)" => (iv(0.0), iv(0.5)),
+        "(1/2, 1)" => (iv(0.5), iv(1.0)),
         "(0, a)" => (iv(0.0), iv(a)),
         "(0.3, 0.7)" => (iv(0.3), iv(0.7)),
         "(0.3, 0.7) as quotients" => (iv(0.9) / iv(3.0), iv(2.1) / iv(3.0)),
@@ -316,9 +317,8 @@ fn composed(c: &MappedCurve<Interval>, (s0, s1): Split) -> MappedCurve<Interval>
 /// on alternating `a ± 1e-13` far.
 #[test]
 fn restriction_is_never_much_wider_than_a_composed_placement() {
-    let mut chains: Vec<(&str, Box<dyn Fn(usize) -> Split>)> =
-        vec![("(1/2, 1)", Box::new(|_| (iv(0.5), iv(1.0))))];
-    for name in [
+    let chains = [
+        "(1/2, 1)",
         "(0, 1/2)",
         "(0, a)",
         "(0.3, 0.7)",
@@ -327,11 +327,10 @@ fn restriction_is_never_much_wider_than_a_composed_placement() {
         "alternate, a = t/span",
         "alternate, a ± 1e-13",
         "(a ± 1e-13, 1)",
-    ] {
-        chains.push((name, Box::new(move |k| chain(name, k))));
-    }
+    ];
     for at in [NEAR, FAR] {
-        for (name, split) in &chains {
+        for name in chains {
+            let split = |k| chain(name, k);
             let (mut ours, mut theirs) = (rim_at(at), rim_at(at));
             let mut worst: f64 = 0.0;
             for k in 0..64 {
