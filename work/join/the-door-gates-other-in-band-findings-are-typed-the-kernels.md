@@ -34,7 +34,9 @@ these, so they stay `ResultInvalid`.
 **Evidence.** `near_tangent_census_probe` at ε = 1e-9, d = 1e-8: three
 runs refuse `ResultInvalid { RingContactEscalated }` at the gate:
 `vee300 nt e1 a11 d1e-8` pc U, cp U and cp S. Each has margin −2.2566e-9
-(`ring_outer_meet_side`), in band. TALLY's
+(`ring_outer_meet_side`), in band. `near_tangent_battery` refuses six
+more the same way (`vee300 nt e0 a0 d1e-7 face` ac U, ca U, ca S, and
+`e1 a4` likewise). TALLY's
 `a-nested-brick-k-eps-from-a-far-carrier-escalates-at-the-result-gate`
 is the same finding on a brick.
 

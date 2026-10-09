@@ -5637,6 +5637,67 @@ mod tests {
         );
     }
 
+    /// **The gate's findings take their arm** (D10, Booleans): a shell
+    /// certified a sliver alone is the operands' ill-conditioning,
+    /// refused `Escalated` on its certified enclosure; the same shell
+    /// beside a definite finding, or an escalation the arithmetic may
+    /// have made, is the kernel's.
+    #[test]
+    fn the_gate_types_only_certified_in_band_findings_escalated() {
+        use crate::ShellClassifyError as S;
+        use crate::ValidationError as V;
+        use crate::entity::{ShellKey, SolidKey};
+        use geom_core::{Band, Indeterminate, MarginDiag};
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let read = |margin, terminal_sliver| Indeterminate {
+            margin,
+            band,
+            predicate: Some("positive_volume"),
+            terminal_sliver,
+        };
+        let walk = read(MarginDiag::value(3.05e-9), false);
+        let certified = read(MarginDiag::enclosure(3.28e-9, 3.29e-9), true);
+        let role = |sliver: Option<Indeterminate>| V::ShellRoleUndecided {
+            solid: SolidKey::default(),
+            error: S::Escalated {
+                shell: ShellKey::default(),
+                source: walk,
+                sliver: sliver.map(Box::new),
+            },
+        };
+        let definite = V::NegativeVolume {
+            solid: SolidKey::default(),
+        };
+        assert!(
+            matches!(
+                super::finished_body_refusal(vec![role(Some(certified)), role(Some(certified))]),
+                BooleanError::Escalated {
+                    decision: BooleanDecision::ShellRole,
+                    diag,
+                } if diag == certified
+            ),
+            "certified slivers alone"
+        );
+        for (what, errors) in [
+            ("an uncertified escalation", vec![role(None)]),
+            ("beside one", vec![role(Some(certified)), role(None)]),
+            (
+                "beside a definite finding",
+                vec![role(Some(certified)), definite],
+            ),
+            ("nothing", Vec::new()),
+        ] {
+            let n = errors.len();
+            assert!(
+                matches!(
+                    super::finished_body_refusal(errors),
+                    BooleanError::ResultInvalid { errors } if errors.len() == n
+                ),
+                "{what}: the kernel's, every finding kept"
+            );
+        }
+    }
+
     /// **At a dual the result gate is main's structural gate.** A dual's
     /// policy runs no at-rest gate, so tiers 1 and 2 and the transience
     /// fence run in its place: the undescribed box refuses one
