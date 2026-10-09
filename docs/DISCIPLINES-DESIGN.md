@@ -387,8 +387,14 @@ staleness is its own verdict (a `Gap = 0` whose faces separate is
 `Violated`, loud by itself). A quiet finding is listed with what
 quiets it. A finding outside what the document can yet say (a pair the
 census could not look at, an overlap the kernel could not intersect, a
-carrier pair no signed `Gap` covers) stays loud and refuses at
-`error`: a gate certifies, and cannot pass what it could not judge.
+carrier pair no signed `Gap` covers) is reported loud, never refuses
+whatever the severity, and is not quietable: that the check could not
+judge is not something the document said, and a refusal there would
+have no recourse but changing geometry. That is a frontier the census
+is meant to close, not the final state. An overlap about ε thick, which
+refuses as a sliver, is not on that frontier: the representation cannot
+tell it from contact or a gap, nor verify a bound written on it, so it
+is undecidable at that ε rather than a defect.
 A waiver is the check-side analogue of the parameter lint's
 declared-distinct arm: it records intent *about a finding* rather
 than making a geometric claim, so there is nothing to verify — only

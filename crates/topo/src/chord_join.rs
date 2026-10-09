@@ -689,6 +689,9 @@ pub(crate) struct ChordJoiner {
     /// in the face it was in until a join connects it to a ring that is
     /// placed, and it moves to that ring's face.
     pending: SecondaryMap<LoopKey, ()>,
+    /// The 2-loop null faces [`Self::cut_core`] completed, which no later
+    /// kef takes as a side.
+    completed: SecondaryMap<FaceKey, ()>,
 }
 
 impl ChordJoiner {
@@ -699,6 +702,7 @@ impl ChordJoiner {
             fragments: Vec::new(),
             band,
             pending: SecondaryMap::new(),
+            completed: SecondaryMap::new(),
         }
     }
 
@@ -3513,6 +3517,7 @@ impl ChordJoiner {
             // The last null edge of a section polygon: kemr leaves the
             // 2-loop null face.
             let result = body.kemr_minting(edge_data.he_plus, edge_data.he_minus, tol)?;
+            self.completed.insert(f_plus, ());
             Ok(CutOutcome::Completed {
                 face: f_plus,
                 ring: result.ring,
@@ -3521,6 +3526,18 @@ impl ChordJoiner {
             // Interior null edge: kef merges the two slivers. Kill a
             // sliver side (never a real face), deterministically
             // preferring he_plus's side.
+            //
+            // Neither side is a completed null face, though one sits in
+            // `slivers` and the boolean carries its key to quiescence
+            // unremapped: the edge's sides are the slivers its own
+            // polygon's chords walled off at its two ends, and a
+            // completed face is bounded by another polygon's two copies,
+            // which kemr left once that polygon's last null edge was cut.
+            debug_assert!(
+                !self.completed.contains_key(f_plus) && !self.completed.contains_key(f_minus),
+                "{} would kef a completed null face",
+                EntityId::Edge(edge)
+            );
             let victim = if self.slivers.contains_key(f_plus) {
                 edge_data.he_plus
             } else if self.slivers.contains_key(f_minus) {

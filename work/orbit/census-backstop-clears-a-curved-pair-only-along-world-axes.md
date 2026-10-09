@@ -35,3 +35,20 @@ narrow phase does (`boolean::separating::apart`, at the census's own
 scalar already). Measure first: two solids of one body, a cone wall
 clear of a brick by a gap smaller than the cone's world-box growth
 under a turn, swept through poses.
+
+## 2026-10-09 — measured on a ball cut by a comb (JOIN, PR 4396)
+
+A search of the join's sphere ring lane reached it through the public
+booleans. The operands were the unit ball, poles turned onto `z`, and
+two- or three-pronged combs (prongs 0.2 wide, from a bridge at
+`z ∈ [1.6, 2.2]` down to `z = 0.3` or `−0.4`), turned 0°, 25° or 60°
+about `z` and tilted 0° or 15°.
+- Every `A ∩ B` and `B ∩ A` (36 poses × 2) built one lump per prong.
+- Each such result fails `validate_pseudomanifold`, with
+  `CensusUndecidable` on pairs of the lumps' sphere-cap faces: "a
+  curved face of one is within reach of the other".
+- The same 72 runs answer identically on PR 4396's earlier head,
+  whose join reads no slack. The failing check is the census, not the
+  join.
+- The lumps are a prong-width apart, but their reach boxes overlap in
+  world axes.

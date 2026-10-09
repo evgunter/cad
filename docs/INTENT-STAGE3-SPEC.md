@@ -67,7 +67,7 @@ Today's state of what this stage touches:
 | C | `a-placement-is-the-bundle-of-mates` | `Place { body, mates }` defines a copy (FORK-S3-2), and the world is an undeletable `Frame` variable. `PlaceInWorld`, gauges, offsets, `SetOffset`/`SetGauge`/`Promote`/`Fold`/`regauge_then_mate`, the spanning tree, roots and `MateRole::Declaring` retire, and spaces are derived from the bundles | **a placement is a bundle of mates; the world is a frame** | re-blessed. One-time migration check: poses and product bit-equal |
 | D | `transform-retires-into-a-placement` | `Node::Transform` retires. A rigid motion of a body is a copy placed by one frame mate. `PlacedFrom` ports retire | **nothing moves a body but a placement** | re-blessed. Geometry bit-equal |
 | E | `each-space-computes-in-its-earliest-members-frame` | the per-space computing frame (D9). Export composes the world's map, and nothing else reads it | **construction never reads the world** | **product body digests move** (computing-frame coordinates), and STEP bytes move by rounding. Measured values move within rounding |
-| F | `a-mate-on-a-pinned-copy-refuses` | overconstraint refuses by subgroup algebra (FORK-S3-4): a mate that lowers no dimension of its bundle's fold refuses at the insert door and in the solve. The interim verify path and the redundant-member re-measures retire | **a mate places and never checks** | re-blessed: corpus mates that overconstrain are dropped by a one-time migration that names each. Poses unmoved |
+| F | `a-mate-on-a-pinned-copy-refuses` | overconstraint refuses by subgroup algebra (FORK-S3-4): a mate that lowers no dimension of its bundle's fold refuses at the insert door and in the solve. The redundant-member re-measures retire | **a mate places and never checks** | re-blessed: corpus mates that overconstrain are dropped by a one-time migration that names each. Poses unmoved |
 
 Why this order:
 
@@ -83,14 +83,14 @@ Why this order:
 - **D and E are independent** of each other, and both can be dispatched at C's merge.
 - **F waits on stage 4 as well as on C.** Today a contact between two copies that are not directly mated is declared by a *declaring mate* (A11 (2), "contact between groups on different gauges is declared and verified at the at-rest gate").
   - If F refused such a mate before stage 4 retires A5's hard error on an unattributed contact ("Undeclared contact between instances is a hard error, never blessed"), every such contact would turn from a declaration into a refusal, and the documents that rest one placed copy on another through a third would have no product.
-  - So F lands after stage 4's unit that retires that error, `mates-declare-no-contact` (I). Until then, a mate beyond its bundle's pin is verified and minted (C's interim, §4), which is today's behaviour respelled.
+  - A mate beyond its bundle's pin refuses from C on (PRs 4325 and 4326): nothing verifies and mints it, and C's migration turns each declaring mate into an assertion or drops it, naming each. Until stage 4's `mates-declare-no-contact` (I) retires A5's hard error, the contact such a mate declared is unattributed. F, the overconstraint test in general, lands after I.
   - Stage 4's I in turn needs this stage's C, so the order is C → stage 4 H → stage 4 I → F (§11, boundary).
 
 Each intermediate state is a whole representation:
 
 - After A, poses are variables and every reader reads one. Mates still read faces and frame offsets, and gauges still place.
 - After B, a mate equates two poses. Gauges, offsets and the tree still decide what places.
-- After C, placements are bundles and the world is a frame. `Transform` remains as a body operation, computing is in world coordinates, and over-pinning mates are verified.
+- After C, placements are bundles and the world is a frame. `Transform` remains as a body operation, computing is in world coordinates, and a mate beyond its bundle's pin refuses.
 - After D, only placements move bodies.
 - After E, each space computes in its earliest member's frame.
 - F leaves "a mate places and never checks".
@@ -177,14 +177,13 @@ A pose variable has no free arm with a value (FORK-S3-1). It has no unit, and it
 
 - A body is computed in its construction space's seed frame. A copy is a rigid image of it under its placement, and the at-rest census and cross-copy measures of a space run in the frame of that space's earliest copy.
 - The choice reads document order only, never a value and never the world, so the world mate is never chosen.
-- Export composes "computing frame → world" once per copy. The viewer composes the same map as display state, which no logic reads (Q8).
+- Export composes "computing frame → world" once per copy, and nothing else reads the world. The viewer reads no map to the world: it draws each space from display state of its own, which no logic reads (Q8).
 
 **Instances** (C; FORK-S3-5, recommended). `InstantiatePart` defines, beside its per-world-placement `Body` ports (FORK-1):
 
-- one `Bodies` port, `world`, holding all of them in placement order;
-- one `Frame` port, `frame`: the part's world frame as a pose in the instance's own space, so its copies keep their relative poses.
+- one `Bodies` port, `world`, holding all of them in placement order, in one space, so its copies keep their relative poses.
 
-Placing the instance places `world`, which is one `Place` reading a `Bodies`. Picking one body is DM3's index operation. The part's world frame's *coordinates* are never read: only its relation to the part's copies.
+It defines no `Frame` port: no part's world frame is readable by a parent (PR 4326). Placing the instance places `world`, which is one `Place` reading a `Bodies`, and its mates read poses off the copies' geometry. Picking one body is DM3's index operation.
 
 ## 2. PR A — `poses-are-variables` (cost H; ~220 files, 6–9k lines, about half compile-driven)
 
@@ -314,9 +313,7 @@ The largest unit. Its size is in the gauge sites, which are compile-driven, and 
     - `MateRole` (`:216`), its Python door, and 93 test mentions;
     - `Unplaced::{NoOffset, DeadGauge}` (`:263`), which become "an empty bundle" and "a bundle reading an unresolved pose".
   - `SolvedPoses` (`:375`) keeps `placement` (`:588`) and the A2a pairing door, keyed by placement.
-- **Interim, until F.** A bundle mate after its fold is `Trivial` is verified against the pose and minted as today's declaring mates are, because A5's hard error on an unattributed contact still stands (§0).
-  - `MateRole` is replaced by one bit, `Mate::pins: bool`, derived per solve and never stored.
-  - This is today's behaviour respelled, and F deletes it.
+- **A mate beyond the pin refuses.** A bundle mate after its fold is `Trivial` refuses `Overconstrained` at the insert door and in the solve; nothing verifies and mints it (PRs 4325 and 4326 state the rule).
 - **Gauges and offsets retire:**
   - `Node::Gauge` (`node.rs:2646`) and `InstantiatePart.gauge`/`offset` (`:2629`, `:2637`, the serde `present` door `persist/wire.rs:451`);
   - `DocEdit::SetOffset`, `SetGauge`, `Promote` and `Fold` (`edit.rs:521`, `:543`, `:567`, `:595`; applied at `:6547`, `:6617`, `:6648`, `:6684`);
@@ -328,14 +325,14 @@ The largest unit. Its size is in the gauge sites, which are compile-driven, and 
   - Stage 2 C's product gather reads placements in the world's space.
   - The derived spaces replace `Product::spaces`/`own_spaces` (`product.rs:924`, `:947`), `gate_spaces` (`assembly.rs:1199`), `Evaluation::across_spaces`/`unplaced`/`unplaced_below` (`eval/mod.rs:181`, `:130`, `:136`) and `CarriedUnplaced` (`assembly.rs:357`). Each keeps its meaning, read from bundles instead of gauges.
 - **A9** (`relative_freedom_components`, `mate/solve.rs:877`) runs over `Doc::upstream` alone. The gauge edges stage 2 F kept (its Q3) are gone with gauges.
-- **Instances** (FORK-S3-5): the `world: Bodies` and `frame: Frame` ports. `eval/parts.rs` delivers the part's world copies in one space.
+- **Instances** (FORK-S3-5): the `world: Bodies` port, and no `frame` port (PR 4326). `eval/parts.rs` delivers the part's world copies in one space.
 - **Refactor** (`refactor.rs`). Split cuts a set of placements and the bodies they read. Inline puts an instance's part's placements back as copies.
   - **Retired:**
     - the anchor vote (`:2885–2918`, `TwoAnchors` `:554`), `UnplaceableRoot` (`:599`), `UnplacedAlone` (`:609`) and `SeveredGauge` (`:541`);
     - `DeadGaugeReference` (`:577`), `TornGroup` (`:528`), `PlacingMateLeft` (`:569`) and `WouldStartPlacing` (`:620`);
     - inline's `UnplaceableFrame`, `MatePlaced`, `Unplaced`, `MovedMemberOffset` and `PartDeadGauge` (`:1229–1273`);
     - `gauges_first` (`:235`) and the offset re-statement (`:372–425`).
-  - **What replaces them.** A cut takes whole placements, and a bundle mate reading across the cut re-points through the instance's `frame` port (`OfCopy` of the instance's copy) or refuses as a severed read.
+  - **What replaces them.** A cut takes whole placements, and a bundle mate reading across the cut re-points to the same pose as the instance's copy carries it (`OfCopy`), or refuses as a severed read.
   - **Acceptance** keeps A4's form: split-then-evaluate equals unsplit evaluation at structural and name identity, and inline-of-split returns the document up to minted ids.
   - `split-and-inline-over-a-mate-read-at-a-union-are-unmeasured` gets its rows here if stage 2 F did not land them, because C rewrites `is_mate_edge_end`, `frame_survives`, `MateFrameCrosses` and `MatePairSplits`.
 
@@ -344,7 +341,7 @@ The largest unit. Its size is in the gauge sites, which are compile-driven, and 
 - **Gauges.** Each `Gauge { parent, placement }` becomes a `Frame` variable `Offset { base: <parent's frame, or World>, by: placement }`, keeping its name if it had one. The turntable (`demos/tour/src/assembly.rs:598`) becomes a named `Frame` driven by its angle.
 - **A group root on a live gauge chain.** It becomes `Place { body, mates: [Frame(copy seed) = Offset { gauge frame, offset }] }`.
 - **Every tree mate** goes into the bundle of the copy it determined: the child in today's BFS from the root (`mate/solve.rs:2337–2383`). So every pose is reproduced by the fold that produced it.
-- **Non-tree (declaring) mates** go into the bundle of the later copy in document order, as interim verified mates (above).
+- **Non-tree (declaring) mates** become assertions where a stage 2 D measure states them, and are otherwise dropped; the migration's report names each.
 - **A non-root member offset** (a check under A11 (2)) is dropped, and the migration's report names each. Stage 5's `Assert` is the place to say it again.
 - **An unplaced group** (no live chain) becomes copies whose bundles read each other and not the world, so it is its own space.
 - **The check** (test 6): every corpus document's `SolvedPoses::placement`, for every copy, and its product digests are bit-equal to pre-C.
@@ -357,7 +354,7 @@ The largest unit. Its size is in the gauge sites, which are compile-driven, and 
   - `test_gauges.py` (73 lines) is restated as placements.
 - Viewer: there is no gauge UI. Its exhaustive arms (`session/refuse.rs:160`, `:1415`; `combine.rs:1028`; `tree.rs:646`, `:842`, `:886`, `:1189`; `session.rs:3137–3143`, `:3372`) follow.
   - The mate tool commits into a `Place`'s bundle. Across two unrelated spaces it first places one copy relative to the other, so `vseam/the-mate-tool-across-two-gauges-commits-a-declaring-mate` is answered.
-  - "Place where shown" (`offer/viewer-free-move-and-place-where-shown-over-a-whole-group`) is one bundle mate to the world at the shown frame, whose numbers the user supplies.
+  - A GUI gesture may author a mate ("place where shown", `offer/viewer-free-move-and-place-where-shown-over-a-whole-group`), but the mate reads poses off geometry and numbers the user supplies. The viewer's display location is never real and is never read as a mate's target.
 - Tour: `assembly.rs` (43 gauge lines) and `bench`.
 - Docs: `docs/guide/assembly.md` :26–28, :134–151, :246, :304–312, :480–487, :711, :752–753, :870 and :1052.
 
@@ -395,8 +392,8 @@ The largest unit. Its size is in the gauge sites, which are compile-driven, and 
   - The world is never a member.
   - A seed's space computes bodies in the seed's frame, which A already does, since a seed is the identity.
   - A space of copies computes the at-rest census, the cross-copy measures (`clearance.rs`, `names/flush.rs`) and the boolean of copies in the frame of its earliest copy. Each other copy is mapped relative to it.
-- **The world's map.** `SolvedPoses::world_of(space) -> Frame` is the one door that composes a space with the world. Export (`pncad/src/export.rs:185`, `:239`) and the viewer's display read it, and **nothing else may**.
-  - A lint test greps `editor-core/src` for callers outside `export`, `persist` and the display door, as `scripts/gates/test-features-dev-only.sh` does for its feature.
+- **The world's map.** `SolvedPoses::world_of(space) -> Frame` is the one door that composes a space with the world. Export (`pncad/src/export.rs:185`, `:239`) reads it, and **nothing else may**, the viewer included.
+  - A lint test greps `editor-core/src` for callers outside `export` and `persist`, as `scripts/gates/test-features-dev-only.sh` does for its feature.
 - **D9's promise.** An edit that changes only the world mate moves no body bit and no measured bit. Only the export bytes move.
 - **What moves.** Product body digests on every corpus assembly whose earliest copy is not at the world's origin: they are now in computing coordinates.
   - STEP export bytes move at rounding level (one more composition).
@@ -413,7 +410,6 @@ The largest unit. Its size is in the gauge sites, which are compile-driven, and 
   - The rows the refusal's dimension test reads are `coset::table` (`mate/coset.rs:647–824`). The pinned case is `(Trivial, _) => Trivial` (`:660–662`), with no predicate.
 - **The solve** refuses the same in `fold_pair` (`:1779`) for a state the door did not see: a rebind, a load, or a definition edit that changed a kind's family. It reports `MateFault::Overconstrained`, keeping A11 (1)'s split.
 - **Retired:**
-  - C's interim verify-and-mint path;
   - `coset::intersect`'s membership re-measure of a non-lowering mate (`:1039–1046`) and `trivial_member` (`:974`);
   - the redundant arms of `Refuted` (`mate.rs:1496`).
 - **Kept:** `Contradictory` for a lowering mate whose cosets do not meet (`FoldStop::Clash`, `Subgroup::Empty`), with its recourse.
@@ -516,7 +512,7 @@ The largest unit. Its size is in the gauge sites, which are compile-driven, and 
     - `DeleteVar(world)` refuses `WorldIsUndeletable`. A construction slot (an extrude's profile frame) reading `World` refuses `ConstructionReadsTheWorld` at the door.
     - *Breaks if* the world is admitted as an ordinary frame (D10: "construction never reads the world").
 14. **(C) Split and inline over bundles.**
-    - A cut taking one of two mated copies re-points the remainder's bundle mate through the instance's `frame` port, and split-then-evaluate equals the unsplit poses.
+    - A cut taking one of two mated copies re-points the remainder's bundle mate to the pose as the instance's copy carries it, and split-then-evaluate equals the unsplit poses.
     - Inline-of-split returns the document up to minted ids.
     - *Breaks if* the re-pointed mate reads the part's *world* coordinates (the copy moves by the part's world offset).
 15. **(E) The computing frame.**
@@ -553,7 +549,7 @@ Loud census rows: `pncad-py` `tags.rs` / `surface_census` / `prose_census`, `dis
   - If D's machinery is narrower than this needs, A widens it, and the content key must hash a pose definition's upstream keys, not its id.
 - **Mates reading poses of copies** (C). `OfCopy` is new: a pose as carried by a copy is a function of the copy's solved pose, so the bundle fold reads poses that depend on other bundles' solves.
   - The order is the bundles' read order over `Doc::upstream`, acyclic by the door (test 14's twin). A placement graph that forms a cycle (A against B, B against A) is a read cycle and refuses at the door, which replaces A11 (4)'s "no cycle is ever solved" with something stronger.
-- **F's dependency on stage 4.** If stage 4 retires A5's hard error late, F waits. C's interim (verify and mint the over-pinning mates) is exactly today's declaring behaviour, so the stage can stand there.
+- **F's dependency on stage 4.** If stage 4 retires A5's hard error late, F waits, and from C until then a contact a declaring mate used to declare is unattributed at the at-rest gate (PRs 4325 and 4326).
 - **E moves goldens on purpose.** Every assembly digest, the STEP bytes and the gallery frames move. The test is test 15's mapping, not bit equality. A reviewer must check that each moved digest moved by its world map and nothing else.
 - **Migration reproducing the tree** (C). Today's tree is "the first member pair per instance pair in `Member` key order" (`mate/solve.rs:2269`). The migration must orient mates by that exact rule, or test 6 fails on the documents where two orders differ.
 - **The member walk after stage 2 F.** B and C assume F leaves the walk starting from a select's body read. If F instead deletes the walk for face reads, B's "pose read on a placed member" is simpler, and the reconciliation is at F's merge.
@@ -606,10 +602,10 @@ Loud census rows: `pncad-py` `tags.rs` / `surface_census` / `prose_census`, `dis
 
 - **The problem.** An instance of a multi-body part defines "one `Body` variable per world placement of the part" (FORK-1). A `Place` reads one `Body`. Placing each output separately loses their relative poses, and the part's world frame, which relates them, is the inner world, whose coordinates D10 says nothing but export reads.
 - **Options:**
-  - **(a) `Place` reads a `Body` or a `Bodies`, and an instance adds `world: Bodies` and `frame: Frame` ports** (recommended). The instance's copies are one space in the outer document, related by the part's own relations. `frame` is the part's world as a pose relative to those copies, never as coordinates.
+  - **(a) `Place` reads a `Body` or a `Bodies`, and an instance adds a `world: Bodies` port** (recommended). The instance's copies are one space in the outer document, related by the part's own relations. No part's world frame is readable by a parent, so there is no `frame` port (PR 4326).
   - **(b) An instance defines one multi-solid `Body`** (A2's "its evaluation is one kernel `Body`"). FORK-1's per-placement ports go.
   - **(c) Each output is placed by its own bundle**, and the part's internal relations are re-stated as mates in the outer document.
-- **Recommendation: (a)**, *likely*. It keeps FORK-1's ports and adds two.
+- **Recommendation: (a)**, *likely*. It keeps FORK-1's ports and adds one.
 
 **FORK-S3-6 — What a "member" of a space is, for the computing frame.** *A clarification of D10's "the frame of its earliest member" (`docs/prompts/designer.md` §2); a designer pair. It goes to Ev only if the text changes.*
 
@@ -629,7 +625,7 @@ Loud census rows: `pncad-py` `tags.rs` / `surface_census` / `prose_census`, `dis
 5. **`Point` and `Direction` subgroups.** **Recommendation:** none in this stage. A ball mate (`Point`–`Point`) and a parallel mate (`Direction`–`Direction`) add `Subgroup` arms when someone authors one. `KindsDiffer`'s sibling `NoMateForKind` refuses them until then.
 6. **`Coaxial` + `Clocking`** (today's `Prismatic` residual). A clocked coaxial pins rotation and frees slide. **Recommendation:** after B it is an `Axis`–`Axis` mate plus a `Plane`–`Plane` mate through the axis (the clocking plane). B's migration emits both, and test 7 checks the pose.
 7. **Where the door reads the held fold** (F). **Recommendation:** fold the bundle at the door from the definitions. It is cheap (a handful of table rows), and it keeps "the doors decide edits" free of a stored solve.
-8. **The viewer and the world.** "Export reads its coordinates and nothing else does." **Recommendation:** the viewer draws the world's space through `world_of`, as display state no logic reads, the rule G3's free-move probe already follows. E's grep gate admits the display door by name.
+8. **The viewer and the world.** "Export reads its coordinates and nothing else does." **Recommendation:** the viewer does not read `world_of`. It draws every space from display state of its own that no logic reads, the rule G3's free-move probe already follows, and E's grep gate admits no display door.
 9. **`Transform`'s Python spelling.** **Recommendation:** `body.transform(by)` becomes façade sugar for `doc.place(body, at=Offset(seed, by))`, with one semantics in Python and Rust (Ev on #4220).
 
 ### Boundaries with the neighbouring stages
