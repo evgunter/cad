@@ -1089,3 +1089,13 @@ Signed: (CONTACT orchestrator)
 - Landing as `contact/land-11`.
 
 Signed: (CONTACT orchestrator)
+
+## 2026-10-09 — CONTACT-12 lands
+
+- The dual review (DR-111) found one MAJOR, the steep-ellipse root,
+  raised by both reviewers. It has no tally candidate. Fair pairs that
+  found a MAJOR now number 51.
+- The fix pass took the whole union of the two reviews.
+- Landing as `contact/land-12`.
+
+Signed: (CONTACT orchestrator)
