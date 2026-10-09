@@ -25,8 +25,18 @@ The refactor doors are rewritten over placements. Instances gain no `frame` port
 The one-time migration check: every corpus copy's pose and the product digests are bit-equal. The unit closes `a-declaring-mates-alignment-is-never-read`, `gauge-of-recomputes-the-clusters-per-placement-lookup`, `a-placer-row-states-what-a-poisoned-row-cannot`, `placement-step-slots-are-spelled-three-ways` and `a-mate-frame-is-written-in-the-reading-instances-coordinates`, plus the placement half of `a-boxed-rotation-refuses-not-rigid-at-every-placer`. FORK-S3-2 and FORK-S3-5 go to designer pairs, then `[ev]`, before dispatch.
 
 FORK-S3-2 and S3-5 were weighed with S3-3 as FORK-S3M (fork log row 97,
-PR 4326), and this unit builds on that answer. `Place` owns its mates,
-each a clause addressed by (placement, position), never a node. Which
+PR 4326), and this unit builds on that answer. `Place` owns its
+constraints, mates and values on equal footing, each addressed by
+(placement, an id minted with it), never by its position in the list
+and never a node. A value sets one freedom the mates leave, a slide or
+a spin, to a `Length` or `Angle` variable, charted on the two bodies'
+own coordinates (the copy's origin from the target's; the angle between
+their references), zero always valid; a constraint fixing nothing still
+free refuses, and so does a mate taking a freedom a value sets. Pinning
+within a stated symmetry is gone: a round pin's spin is a value too,
+which the façade writes as a free `0` variable. The `Offset` mate target
+carrying in-plane numbers retires; a standoff stays a construction on
+the target. Which
 copy is defined is which `Place` reads it, so there is no tree, root or
 declaring role. `Place` defines no `Frame` port (FORK-S3O, row 96): a
 copy's poses are read as `Carried { copy, pose }`, keyed by the

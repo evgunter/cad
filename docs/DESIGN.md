@@ -1253,14 +1253,14 @@ the variables its signature states, a fixed list of named, typed ports
 set by its variant (a split defines two bodies; a revolve its body and its axis; an instance of a part
 is a placement, defining one `Body` variable per copy in the part's
 world, all of its targets' space), possibly none: an assertion defines
-none, and a mate is a clause of a placement, not an operation. Reading is the only dependency; nothing consumes anything,
+none, and a mate or a value is a constraint of a placement, not an operation. Reading is the only dependency; nothing consumes anything,
 so an operand stays a first-class value after a boolean reads it. The
 product is every copy whose space reaches the world, in placement
 order; the world is one frame among many that cannot be deleted, and a
 body enters the product by a placement of a copy against it or against
 what is related to it. A placement is an operation reading shapes of one
-space and a bundle of mates, and defining a copy of each shape under
-the one rigid motion its mates pin; building, combining or placing
+space and a bundle of constraints, and defining a copy of each shape under
+the one rigid motion its constraints pin; building, combining or placing
 shapes adds nothing to the product, and a body appears only as a copy
 whose space reaches the world. Nothing
 moves a body: a copy is defined by its one placement and never moved
@@ -1284,17 +1284,32 @@ reads what was written.
 
 **Spaces and placement.** A part has no location. A **space** is a set
 of copies related to one another; a part is born in its own space. A
-**placement** is the bundle of mates that pins one copy of a part
-relative to others: two placements of a part are two copies, and a mate
-added to a pinned copy refuses as an overconstraint, decided by
-subgroup algebra (A11 (1)) without measuring. A mate places and never
+**placement** is the bundle of constraints that pins one copy of a part
+relative to others: two placements of a part are two copies. Its
+constraints are mates and values, on equal footing. A constraint that
+fixes nothing the rest leave free refuses as an overconstraint, decided
+by subgroup algebra (A11 (1)) without measuring, and so does a mate
+that would take a freedom a value sets. A constraint places and never
 checks. Each mate equates two poses of one kind, modulo that kind's
 symmetry: a pose read off the copied shapes' geometry with a pose read
 off geometry of the space the copy joins, never a frame standing for a
 part's coordinates. It holds no number of its own, and its sense is a
-construction (`Flip`) on one side; which copy is defined is which
-placement reads it, and a pose of another copy is read as that copy
-carries it. The **world** is one undeletable frame that copies may be
+construction (`Flip`) on one side; a number a kind's own equation
+fixes (a standoff along a plane's normal) is a construction on the
+target, never a value. Which copy is defined is which placement reads
+it, and a pose of another copy is read as that copy carries it. A
+**value** sets one freedom the bundle's mates leave, a slide or a spin,
+to a `Length` or `Angle` variable, charted on the two bodies' own
+coordinates as the placement carries them: a slide is the copy's origin
+measured from the target's along the freedom, a spin the angle between
+their reference directions about it, each a function of the relative
+pose alone, so no order of the values is chosen. Zero is always a valid
+value and says the two bodies' own coordinates agree as far as the
+mates allow; the façade writes it as a free variable for each freedom a
+gesture leaves unnamed. A rotation left by a lone point mate has no
+such chart and is lowered by a direction mate first. A placement is the
+only reader of a body's own coordinates, and reads them only through
+the freedoms its mates leave. The **world** is one undeletable frame that copies may be
 related to like a part; export reads its coordinates and nothing else
 does. Construction never reads the world; a document builds in a frame
 of its own. The kernel computes each space in the frame of its earliest
