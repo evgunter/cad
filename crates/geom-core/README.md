@@ -49,7 +49,7 @@ clause:
   from. A door taking `(structure, proof)` has two arguments nothing
   relates; a door taking only the proof has nothing to relate.
 - **The mints are `&self`, and they are the only ones.**
-  `KnotVector::{span, span_at, span_range}` for a `Span`;
+  `KnotVector::{span, span_at, span_of, span_range}` for a `Span`;
   `KnotVector::with_coeffs` for a `SplineCoeffs` and
   `KnotVector::with_rational_coeffs` for a `RationalCoeffs`, each
   pair's `{span, span_at}` for its window;
@@ -57,9 +57,11 @@ clause:
   for a window. So a window names the curve or surface that minted it,
   and that is the one it answers for.
 - **No pairing guard, and no poison route for one.** The state a guard
-  would test is not representable, so these doors are total on their
-  inputs and D9's "the kernel never panics on any input" holds by
-  construction rather than by check. There is no `admits` predicate on
+  would test is not representable, so no door checks that a span,
+  window or coefficient array belongs to the structure beside it, none
+  has a refusal for a mismatch, and D9's "the kernel never panics on
+  any input" holds for the pairing by construction rather than by
+  check. There is no `admits` predicate on
   `KnotVector` or on `NurbsSurface`.
 - **Equality on all three types is address equality on the borrow**,
   plus the indices. A proof is about *that* structure; two bit-equal

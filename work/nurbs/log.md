@@ -155,6 +155,15 @@ This was a move. The refusal texts gained recourses, and the
 `a + b − k` and `==`; it has no other owner. Tier: the orchestrator's
 read. (NURBS orchestrator)
 
+## 2026-10-09 — PR 4442: a NaN has no span, and a window is a ParamRange
+
+The span-locator design, built and through a dual review (DR-124: no MAJOR on either review, 11 bilateral findings, tally 0). The fix pass:
+- collapsed three hand-written NaN-checked searches into one `Param` + `last_at_or_below`;
+- put all of `NurbsBoxes` on windows;
+- gave `ParamRange::spanning` to the sites that took a range from `f64::min`/`max`, which drop NaN;
+- pinned every poison arm by mutation.
+
+The reviewers found one unswept locator, `cells_touched`, which is now on the shared search. The remainder, the SSI sweep cell type, is filed on SSIEDGE. (NURBS orchestrator)
 ## 2026-10-09 — PR 4438 review: the ulp clearance narrows the class without closing it
 
 Single FULL review, verdict APPROVE-WITH-FIXES, and it raised one MAJOR. I adjudicated it real.
