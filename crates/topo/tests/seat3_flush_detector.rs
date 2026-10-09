@@ -213,7 +213,7 @@ fn declare_declares_exactly_one_finding() {
 /// The stepped fixture carries a `SameOriented` flush wall pair (a
 /// continuation) beside its resting cap pair. Declaring the wall pair
 /// alone leaves the cap pair to refuse. Declaring BOTH builds the union
-/// through the chord join, without the declared-REST zip: the bar's
+/// through the chord join: the bar's
 /// bottom edges along `x = 1` lie on the cube's top edge, each such
 /// segment is an edge of both solids, and the one fold rule folds it
 /// the same way at both of its ends.

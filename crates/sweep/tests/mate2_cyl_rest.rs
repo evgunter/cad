@@ -12,18 +12,13 @@
 //!       the cylindrical ones.
 //!
 //! **Two different classes, and this suite is careful about which is
-//! which.** What the fix widens is the class that REACHES THE REST
-//! LANE: a declared cylindrical `Rest` on an azimuth-SPLIT shared
-//! carrier is no longer refused by the reduction. That is strictly
-//! larger than the class that actually UNIONS. Several azimuth-split
-//! configurations get through the reduction and stop further
-//! downstream: a partially engaged or floating peg leaves a
-//! cylindrical declared pair alive in the result, the F7 merge door
-//! records it (`DeclaredCarrierUnsupported`, no curved declared rung)
-//! and ships the body, and the output stage's edge re-description
-//! then refuses the floating and mid-bore pegs at the zip's own seam
-//! chord (`work/curved/rest-zip-seam-chord-on-cylinder-wall`). The
-//! probe suites beside this one carry those rows
+//! which.** What the fix widens is the class the reduction admits: a
+//! declared cylindrical `Rest` on an azimuth-SPLIT shared carrier is no
+//! longer refused there. Not every member of that class leaves the
+//! union clean: a partially engaged, floating or mid-bore peg leaves a
+//! cylindrical declared pair alive in the result, which the F7 merge
+//! door records (`DeclaredCarrierUnsupported`, no curved declared
+//! rung) as it ships the body. The probe suites beside this one carry those rows
 //! (`curved_mergedoor`, `r1_probes_m9_3`) and pin each as what it is.
 //!
 //! **ε posture.** Every row runs at `Tol::witness()`, and the arm they
@@ -58,7 +53,7 @@ fn threaded_collar_partial_engagement_unions() {
     assert_eq!(decls.coincident_faces.len(), 9, "3 bore faces against 3");
     let out = topo::union_with(&c, &p, &decls, Tol::witness());
     println!("partial engagement: {:?}", out.as_ref().err());
-    let bb = boolean_body(out.expect("the cylindrical Rest reaches the rest lane"));
+    let bb = boolean_body(out.expect("the cylindrical Rest unions"));
     let body = bb.body;
     // Additive: the interiors are disjoint (the peg fills the bore
     // over z ∈ [1,2] and stands proud of it at both ends).
@@ -88,7 +83,7 @@ fn threaded_collar_full_engagement_unions() {
     let decls = wall_decls(&c, &p);
     let out = topo::union_with(&c, &p, &decls, Tol::witness());
     println!("full engagement: {:?}", out.as_ref().err());
-    let body = body_of(out.expect("full engagement reaches the rest lane"));
+    let body = body_of(out.expect("full engagement unions"));
     assert_additive(volume(&body), volume(&c), volume(&p));
     if let Err(errs) = topo::validate_geometric(&body, Tol::witness()) {
         panic!("the fully engaged mate must be tier-3 valid: {errs:?}");

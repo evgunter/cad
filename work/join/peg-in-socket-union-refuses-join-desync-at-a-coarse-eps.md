@@ -2,9 +2,9 @@
 id: peg-in-socket-union-refuses-join-desync-at-a-coarse-eps
 kind: issue
 title: The torus peg-in-socket union's chord join cannot read its section loops' roles above eps 2e-7
-status: parked
+status: closed
+closed: 2026-10-08
 opened: 2026-10-02
-blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -34,3 +34,7 @@ I have not measured which witness reads in band above 2e-7, or whether a witness
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: it builds only because the declared-REST zip takes over SectionLoopUndecided at ε≥3e-7; stage 4 retires that zip. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed (2026-10-08, INTENT stage 4 A (`intent/s4-a-join`))
+
+Main's join built the union at every ε before stage 4 A: at A's base `4908d4725`, with the zip door still in place, both reviews of PR 4364 instrumented the door and found the union built by the join at 3e-7, 1e-6 and 2e-6, the zip never reached (`zip=false`, tier 3′ ok, volume 0.048854541785392246). Which merge to main did it is not bisected; stage 4 A's germ change did not. With the zip deleted, `mate7a_torus_rest.rs`'s `peg_in_socket_union_holds` (tiers 2 and 3′, the at-rest certificate, additive volume, 4 faces, 6 edges, 4 vertices, one shell, a legal operand) passes at 3e-7, 1e-6, 2e-6, 1e-12 and the default row, through `a_declared_torus_rest_pair_passes_the_declaration_door` and `a_partly_covered_torus_pair_is_no_longer_a_gate_question`.

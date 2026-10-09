@@ -81,7 +81,9 @@ zip's admission fix (`work/zip/a-flush-declared-reflex-union-ships-the-wrong-vol
 The REST zip shipped `vol a + vol b′` at all 16 runs of what is now
 `crates/sweep/tests/rest_zip_admission.rs`
 `a_reflex_union_behind_a_join_lever_never_ships_the_overlap_twice`
-(8 poses, both orders). 12 of those 16 passed the door's tier-3 gate and
+(8 poses, both orders; renamed
+`a_reflex_union_at_a_tangent_site_never_ships_the_overlap_twice` when
+stage 4 A deleted the zip). 12 of those 16 passed the door's tier-3 gate and
 failed `validate_pseudomanifold` over their own `BooleanBody::contacts`
 when the probe ran it. The other 4 passed tier 3′ as well, so the census
 would not have caught every one of them. The admission fix makes the zip

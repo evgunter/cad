@@ -60,8 +60,8 @@
 //! coincidence ladder has no numeric rung).
 //!
 //! After the merge and its re-description, every output stage (the
-//! seamed path, the graft and single-operand fallbacks, the declared
-//! REST lane, all through [`finish_output`]) runs the edge join
+//! seamed path, the graft and single-operand fallbacks, all through
+//! [`finish_output`]) runs the edge join
 //! ([`super::edge_join::join_stage`]): every joinable vertex is joined
 //! away, so every result has maximal edges (`docs/DESIGN.md`, the
 //! merge stage). Each join writes its substitution rows into the
@@ -97,24 +97,13 @@
 //! Still refusing — typed, deterministic, operands untouched; never a
 //! silent wrong body:
 //!
-//! - **Boundary-on-boundary seams** — NARROWED by M5 S1: declared
-//!   UNIONS of pure REST contacts (the full-overlap stacked union,
-//!   corner-flush rests, the mated cross-lap) now build through the
-//!   declared-REST zip (`rest` module): when the chord join refuses
-//!   typed on a declared ∪, the lane re-examines the reduction,
-//!   realizes the seam structurally (existing edges reused, single
-//!   chords minted), removes the coincident contact patches, and
-//!   fuses the boundary — exact dyadic volume additivity. What still
-//!   refuses, typed: undeclared mates (the coincidence door, ladder
-//!   rung (b)); REST sub-frontiers the lane names
-//!   (`RestZipUnsupported` — e.g. ring-carrying contact patches,
-//!   non-star patch adjacency); and boundary-on-boundary
-//!   configurations whose seam has a segment off the contact patches
-//!   (the join's own refusal stands verbatim, whichever of `Join`,
-//!   `JoinDesync` or `CurvedBooleanUnsupported` it was). An edge-in-face
-//!   contact beside the patch that leaves no segment is not seen there
-//!   (`work/zip/a-dip-inside-a-rest-contact-is-refused-by-the-result-gate.md`).
-//!   The ∩ and ∖ of a
+//! - **Boundary-on-boundary seams**: declared unions of pure REST
+//!   contacts (the full-overlap stacked union, corner-flush rests, the
+//!   mated cross-lap, a shaft in a bore, a plate on a rounded plate)
+//!   build through the join, which discards each contact side whole
+//!   and fuses along the seam. What still refuses, typed: undeclared
+//!   mates (the coincidence door, ladder rung (b)), and the join's own
+//!   refusals. The ∩ and ∖ of a
 //!   pure REST contact leave no null pair, so they take the
 //!   no-crossings fallback, which keeps or drops whole shells; its
 //!   certificates answer a verified `Rest` pair as a touch
@@ -305,8 +294,8 @@ pub struct BooleanNaming {
     /// one fact whichever copy is kept. Clone keys, as
     /// [`super::DiscardRow::face`]: chase `face_fragments_a`/`face_fragments_b`
     /// for the operand faces. Read off the classification, so every path
-    /// that classifies records it — the section path, the containment
-    /// fallback and the declared-REST union — sorted and deduplicated;
+    /// that classifies records it — the section path and the
+    /// containment fallback — sorted and deduplicated;
     /// a path that never classifies (disjoint boxes) has none.
     pub covered: Vec<(FaceKey, FaceKey)>,
     /// Every operand edge piece the classification read beside a vertex,
@@ -797,8 +786,7 @@ fn fused_through(map: &SeamCorrespondence, merges: &Fusions) -> SeamCorresponden
 /// What the pipeline reaches through its join ([`through_the_join`]).
 pub(super) enum Joined<T: Real> {
     /// The pipeline's answer, reached without a join to finish: the
-    /// no-crossings path (the re-cut or the containment fallback), or
-    /// the declared-REST door taking a refused join.
+    /// no-crossings path (the re-cut or the containment fallback).
     Answered(Box<BooleanResult<T>>),
     /// The join, done: the reduction with both operands as it leaves
     /// them, every null edge killed, what it completed (never empty),
@@ -827,7 +815,7 @@ pub(super) struct JoinSweep<T: geom_core::Real> {
 
 /// **The pipeline through its join**: the reduction, then the
 /// no-crossings path where there is no null pair, and otherwise the
-/// join, with the declared-REST door behind a join that refuses.
+/// join.
 /// [`boolean_op_recut`] finishes what it returns, and the test hook
 /// that stops at the join (`boolean::through_the_join`) reads it, so
 /// the two run one sequence.
@@ -912,19 +900,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
             .map(|result| Joined::Answered(Box::new(result)));
     }
 
-    // The declared-REST union door (M5 S1): a declared union whose
-    // join refuses typed may be the boundary-on-boundary REST
-    // frontier — the lane re-examines the UNMUTATED reduction and
-    // either zips the mate or reproduces the original refusal
-    // verbatim. The clones are taken only when the door can open
-    // (declared union), so undeclared and non-union ops pay nothing.
-    // Decided on the reduction, while its contacts still name the
-    // operands' own faces; raised on the built body, after the
-    // structural gate and before the volume backstop
-    // ([`interior_loop_verdict`]).
     let interior_loops = interior_loop_verdict(op, a, b, &red, decls, band);
-    let rest_door = op == BooleanOp::Union && !decls.coincident_faces.is_empty();
-    let saved = rest_door.then(|| (red.a.clone(), red.b.clone()));
     // The join carves both reduction operands through the Euler
     // operators; one scope per operand body, and what certifies the
     // result is `gate` below, over the body they are finished into.
@@ -935,35 +911,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
     red.enter_join_surgery();
     let connected = bool_connect(&mut red, a, b, band, tol);
     red.leave_join_surgery(connected.is_ok());
-    let connected = match connected {
-        Ok(c) => c,
-        Err(
-            err @ (BooleanError::Join(_)
-            | BooleanError::JoinDesync { .. }
-            | BooleanError::CurvedBooleanUnsupported { .. }),
-        ) => match saved {
-            Some((sa, sb)) => {
-                red.a = sa;
-                red.b = sb;
-                return match super::rest::try_rest_union(
-                    red,
-                    a,
-                    b,
-                    decls,
-                    interior_loops,
-                    band,
-                    tol,
-                )? {
-                    Some(result) => Ok(Joined::Answered(Box::new(result))),
-                    // Not the REST frontier: the original join
-                    // refusal stands, verbatim.
-                    None => Err(err),
-                };
-            }
-            None => return Err(err),
-        },
-        Err(e) => return Err(e),
-    };
+    let connected = connected?;
     if connected.completed.is_empty() {
         return Err(BooleanError::JoinDesync {
             what: "null pairs joined into no completed polygon",

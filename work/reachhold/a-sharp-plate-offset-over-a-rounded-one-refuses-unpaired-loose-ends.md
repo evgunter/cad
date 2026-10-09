@@ -2,11 +2,11 @@
 id: a-sharp-plate-offset-over-a-rounded-one-refuses-unpaired-loose-ends
 kind: issue
 title: A sharp plate offset over a rounded one refuses its union Join(UnpairedLooseEnds) in both operand orders
-status: parked
+status: closed
 opened: 2026-10-02
 priority: P3
 cost: M
-blocked_on: [intent-stage4-is-built]
+closed: 2026-10-08
 ---
 
 Found by the dual review of PR 3846 (lanes r1 and r2) and measured on
@@ -41,3 +41,7 @@ boundary mixes both operands' edges, not a tangency one.
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: its repro reaches the chord join only after the declared-Rest zip declines; stage 4 retires that zip and moves its arms into the join, so the route is measured there. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed (2026-10-08, INTENT stage 4 A (`intent/s4-a-join`))
+
+Every pose of the table builds in the join, in both operand orders, additive at tiers 3 and 3′: `reach_continuation.rs`'s `a_sharp_plate_offset_over_a_rounded_one_unions_in_either_order` ((0, ±1e-7), (0, ±1e-3), (±0.25, 0)), at the default, 1e-6 and 1e-12 rows; at 1e-12 the two poses 1e-7 off may refuse `Escalated` in the crossing layer instead (a margin of 1.07e-12 inside the band), and the row allows that and nothing else.
