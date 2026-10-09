@@ -669,7 +669,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         composed.edges().count(),
         composed.vertices().count(),
     );
-    assert_eq!((cf, ce, cv), (26 + 21 * 3, 48 + 21 * 7, 24 + 21 * 5));
+    // Per pip: the sphere's two half-faces and the band, (+3, +7, +5)
+    // as carved, less the vertex and edge the blend's closing join
+    // takes where the band's trimline runs on the WHOLE die face — its
+    // two half-arcs meet at a vertex no other edge reaches, and join
+    // into one circle.
+    assert_eq!((cf, ce, cv), (26 + 21 * 3, 48 + 21 * 6, 24 + 21 * 4));
 
     vec![
         Stop {
