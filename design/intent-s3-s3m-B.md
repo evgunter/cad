@@ -414,3 +414,34 @@ its kind's symmetry, a pose of the copy with a pose of what it joins, both read 
 scalar variable in those poses' definitions (`Offset`, `Rotate`). A mate that fixes nothing the others leave free,
 modulo the shape's stated symmetry, refuses. A copy with anything free outside that symmetry is loose and has no
 pose: nothing reads it that needs one. Nothing moves a body."
+
+## Round 8 — the order-free chart, and the one condition values need
+
+1. **Yes, the order-free chart holds.**
+   - On `Planar`, (x, y of the copy frame's origin in the target frame, the angle between their references) are global
+     coordinates of SE(2). On `Cylindrical`, (the axial coordinate, the angle about the axis) are global coordinates.
+   - Each is a function of the relative pose alone. None composes another, so no order is chosen. That answers my
+     round-7 objection, and I withdraw my round-7 concession: Ev's #4325 hope is per freedom, and the values carry it.
+2. **I accept, with one condition. Here is the case that fails without it.**
+   - Take `Plane ≅ F`, then `SlideX = dx`, then a `Point` mate (a copy point `p` at offset `r` from its origin, to a
+     partner point `q`).
+   - The point fixes the position `t = q − R(θ)r`. The value then demands `(q − R(θ)r)ₓ = dx`, which is a cosine
+     equation in θ with two roots, or none.
+   - So a value's level set is not a coset. `{tₓ = dx}` holds rotations about every point of a line. Once a mate folds
+     against it, the solve leaves coset intersection, and the two-branch answer it yields is decided by no structure
+     (A11 (1), and E5's "no cleverness").
+   - **Condition:** values chart the residual of the bundle's mates, folded first, because the constraints are a set,
+     not a sequence. A value's `coord` must be a generator of that residual, and is otherwise refused.
+     - The door refuses an added mate that would remove a free coordinate a value already sets, and names the value.
+       The solve refuses the same for a state the door never saw.
+     - So in the case above, the `Point` mate refuses at insert, naming `SlideX`. Its own residual, `Revolute` about
+       `q`, has no x-slide.
+   - **What the condition keeps.** Ev's case is a mate, then values on what it leaves, then a later mate that removes
+     only the coordinates no value sets. That still works. The copy is loose until mates and values cover every
+     coordinate outside its stated symmetry, and is then one point, with no branches.
+
+**D10 sentence.** "A placement constrains its copy by mates and values on equal footing: a mate equates, modulo its
+kind's symmetry, a pose of the copy with a pose of what it joins, both read off geometry; a value sets one coordinate
+of what the mates leave free, charted by frames read off geometry, to a scalar variable. A constraint that fixes
+nothing the rest leave free, modulo the shape's stated symmetry, refuses, and so does a mate that would take a
+coordinate a value sets. A copy with anything free outside that symmetry is loose and has no pose."
