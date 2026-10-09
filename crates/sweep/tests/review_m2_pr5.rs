@@ -1113,7 +1113,8 @@ fn survives_near_full_period_rim_span_escalates() {
             place: geom_core::Affine3::identity(),
             axis_origin: center,
             axis_dir: Vec3::new(0.0, 1.0, 0.0),
-            angles: geom_brep::SweepRange::from_zero(span),
+            angle: span,
+            range: geom_brep::SweepRange::whole(),
         }),
         carrier: Curve3::Circle {
             center,

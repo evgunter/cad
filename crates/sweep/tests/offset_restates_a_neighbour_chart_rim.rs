@@ -153,7 +153,8 @@ fn a_declared_rim_in_the_caps_chart_keeps_its_declaration_on_the_minted_wall() {
             place: Affine3::identity(),
             axis_origin: Point3::new(0.0, 0.0, 0.0),
             axis_dir: Vec3::new(0.0, 1.0, 0.0),
-            angles: geom_brep::SweepRange::from_zero(std::f64::consts::PI),
+            angle: std::f64::consts::PI,
+            range: geom_brep::SweepRange::whole(),
         }));
     let minted = offset_the_wall(&mut body, wall);
     validate_closed(&body).expect("the offset drum is tier-2 valid");

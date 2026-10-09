@@ -326,18 +326,18 @@ fn both_sweeps_evaluate_in_one_document() {
 /// point moved (the id-free fence held).
 ///
 /// RE-BLESSED, `cut_cylinder` and `boss_union` only, when a swept point's description began
-/// carrying a `geom_brep::SweepRange` (`angles` / `stations`) and a
-/// restricted one kept its placement instead of composing the split's
-/// motion into it: the digest feeds each curve's `Debug`, and these are
-/// the documents whose bodies store a swept-point description, split or
-/// whole.
+/// carrying a `geom_brep::SweepRange` (`range`) beside its angle or
+/// vector, and a restricted one kept its placement instead of composing
+/// the split's motion into it: the digest feeds each curve's `Debug`,
+/// and these are the documents whose bodies store a swept-point
+/// description, split or whole.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0xe819f496ce33fb3d),
         ("corner_table", 0x9ff2be4edc3c4682),
-        ("cut_cylinder", 0x1b95852c65188974),
-        ("boss_union", 0x13219406f9d36995),
+        ("cut_cylinder", 0x3708816be1b0c21a),
+        ("boss_union", 0x1870d3ed109bbe2d),
         ("kitchen_sink", 0xc2abf71ebbda8055),
     ];
     let mut moved: Vec<String> = Vec::new();

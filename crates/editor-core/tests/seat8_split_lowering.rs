@@ -192,16 +192,16 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// point moved (the id-free fence held).
 ///
 /// RE-BLESSED, `cut_cylinder` only, when a swept point's description began
-/// carrying a `geom_brep::SweepRange` (`angles` / `stations`) and a
-/// restricted one kept its placement instead of composing the split's
-/// motion into it: the digest feeds each curve's `Debug`, and these are
-/// the documents whose bodies store a swept-point description, split or
-/// whole.
+/// carrying a `geom_brep::SweepRange` (`range`) beside its angle or
+/// vector, and a restricted one kept its placement instead of composing
+/// the split's motion into it: the digest feeds each curve's `Debug`,
+/// and these are the documents whose bodies store a swept-point
+/// description, split or whole.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x1b95852c65188974u64),
+        ("cut_cylinder", 0x3708816be1b0c21au64),
         ("part_select", 0x9860839ff73afcc3),
         ("kitchen_sink", 0xc2abf71ebbda8055),
     ] {

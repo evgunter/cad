@@ -25,7 +25,8 @@ fn r1_f64_nested_restrict_round_trip() {
         place,
         axis_origin: Point3::new(1.0, 2.0, 3.0),
         axis_dir: Vec3::new(2.0, 1.0, -2.0),
-        angles: geom_brep::SweepRange::from_zero(TAU),
+        angle: TAU,
+        range: geom_brep::SweepRange::whole(),
     };
     // restrict twice: [0.3, 0.7] then [0.5, 1.0] of that = [0.5, 0.7].
     let r1 = curve.restrict(0.3, 0.7);
@@ -43,7 +44,8 @@ fn r1_f64_nested_restrict_round_trip() {
         place,
         axis_origin: Point3::new(1.0, 2.0, 3.0),
         axis_dir: Vec3::new(2.0, 1.0, -2.0),
-        angles: geom_brep::SweepRange::from_zero(1.0e-8),
+        angle: 1.0e-8,
+        range: geom_brep::SweepRange::whole(),
     };
     let p0 = tiny.eval(0.0);
     let p1 = tiny.eval(1.0);
@@ -79,7 +81,8 @@ mod interval_lane {
             ),
             axis_origin: Point3::new(wd(1.0), wd(2.0), wd(3.0)),
             axis_dir: Vec3::new(wd(2.0), wd(1.0), wd(-2.0)),
-            angles: geom_brep::SweepRange::from_zero(iv(angle)),
+            angle: iv(angle),
+            range: geom_brep::SweepRange::whole(),
         }
     }
 

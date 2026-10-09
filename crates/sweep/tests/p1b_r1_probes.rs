@@ -586,7 +586,8 @@ fn uncarriable_declarations_refuse_loudly_instead_of_flipping() {
             place: Affine3::translation(Vec3::new(0.4, 0.0, 0.0)),
             axis_origin: Point3::new(0.0, 0.0, 0.0),
             axis_dir: Vec3::unit_y(),
-            angles: geom_brep::SweepRange::from_zero(0.5),
+            angle: 0.5,
+            range: geom_brep::SweepRange::whole(),
         }),
     };
     let err = body
@@ -623,7 +624,7 @@ fn dummy_declaration() -> MappedCurve<f64> {
         point: Point2::new(0.0, 0.0),
         place: Affine3::translation(Vec3::new(123.0, -456.0, 789.0)),
         vec: Vec3::new(0.0, 0.0, 1.0),
-        stations: geom_brep::SweepRange::unit(),
+        range: geom_brep::SweepRange::whole(),
     }
 }
 

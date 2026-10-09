@@ -2622,12 +2622,12 @@ pub(crate) fn translate_mapped<T: Real>(
             point,
             place,
             vec,
-            stations,
+            range,
         } => geom_brep::MappedCurve::ExtrudedPoint {
             point,
             place: shifted(place),
             vec,
-            stations,
+            range,
         },
         _ => return None,
     })

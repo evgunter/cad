@@ -2666,11 +2666,11 @@ mod tests {
         let over = spec.param_end + 0.5 * eps;
         spec.param_end = over;
         if let geom_brep::EdgeDescriptionSpec::Scaffold(geom_brep::MappedCurve::RevolvedPoint {
-            ref mut angles,
+            ref mut angle,
             ..
         }) = spec.description
         {
-            *angles = geom_brep::SweepRange::from_zero(over);
+            *angle = over;
         }
         body.set_edge_curve(circ.edge, spec, tol)
             .expect("an overlap inside the build's band certifies");

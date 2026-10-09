@@ -2,11 +2,11 @@
 //! certified scalar.
 //!
 //! `MappedCurve::RevolvedPoint` evaluates through
-//! `Affine3::rotation_about_axis(axis_origin, axis_dir, angles.at(s))`,
-//! and `restrict` narrows `angles` while the stored placement stays as
-//! built. So the description pays for its rotation once per evaluation
-//! and never per split. `ExtrudedPoint` restricts its `stations` the
-//! same way.
+//! `Affine3::rotation_about_axis(axis_origin, axis_dir, range.at(s)·angle)`,
+//! and `restrict` narrows `range`, a sub-range of the whole sweep's
+//! normalized parameter, while the stored placement stays as built. So
+//! the description pays for its rotation once per evaluation and never
+//! per split. `ExtrudedPoint` restricts its `range` the same way.
 //!
 //! The first fixture's `axis_origin` carries width deliberately. Bodies
 //! built in-process hand the constructor exact axis origins; the widths
@@ -20,7 +20,7 @@ use core::f64::consts::TAU;
 
 use crate::shared::interval::iv;
 use geom_brep::{MappedCurve, SweepRange};
-use geom_core::{Affine3, Bounds, Interval, Point2, Point3, Vec3};
+use geom_core::{Affine3, Bounds, Interval, Point2, Point3, Real, Vec3};
 
 fn width(e: Interval) -> f64 {
     e.hi() - e.lo()
@@ -40,7 +40,8 @@ fn rim(half: f64) -> MappedCurve<Interval> {
         place: Affine3::translation(Vec3::new(iv(0.0), iv(0.0), iv(3.0))),
         axis_origin: Point3::new(w(1.0), w(2.0), w(3.0)),
         axis_dir: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
-        angles: SweepRange::from_zero(iv(TAU)),
+        angle: iv(TAU),
+        range: SweepRange::whole(),
     }
 }
 
@@ -59,7 +60,8 @@ fn rim_at(at: [f64; 3]) -> MappedCurve<Interval> {
         place: Affine3::translation(Vec3::new(iv(x), iv(y), iv(z))),
         axis_origin: Point3::new(iv(1.0 + x), iv(2.0 + y), iv(z)),
         axis_dir: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
-        angles: SweepRange::from_zero(iv(TAU)),
+        angle: iv(TAU),
+        range: SweepRange::whole(),
     }
 }
 
@@ -71,7 +73,7 @@ fn strut_at(at: [f64; 3]) -> MappedCurve<Interval> {
         point: Point2::new(iv(2.0), iv(2.0)),
         place: Affine3::translation(Vec3::new(iv(x), iv(y), iv(z))),
         vec: Vec3::new(iv(0.5), iv(-1.5), iv(3.0)),
-        stations: SweepRange::unit(),
+        range: SweepRange::whole(),
     }
 }
 
@@ -81,17 +83,6 @@ fn sampled_width(c: &MappedCurve<Interval>) -> f64 {
         .into_iter()
         .map(|s| point_width(c.eval(iv(s))))
         .fold(0.0, f64::max)
-}
-
-/// `sampled_width` of `c` after each of `0..=64` restrictions to
-/// `[s0, s1]`, each applied to the previous one's result.
-fn widths_by_split_count(mut c: MappedCurve<Interval>, (s0, s1): (f64, f64)) -> Vec<f64> {
-    let mut widths = Vec::with_capacity(65);
-    for _ in 0..=64 {
-        widths.push(sampled_width(&c));
-        c = c.restrict(iv(s0), iv(s1));
-    }
-    widths
 }
 
 /// The described point at `s = 0` is the placed sketch point, so **the
@@ -194,6 +185,9 @@ fn chain(name: &str, k: usize) -> Split {
         "(0, 1/2)" => (iv(0.0), iv(0.5)),
         "(1/2, 1)" => (iv(0.5), iv(1.0)),
         "(0, a)" => (iv(0.0), iv(a)),
+        "(a, 1)" => (iv(a), iv(1.0)),
+        "(1/4, 3/4)" => (iv(0.25), iv(0.75)),
+        "(0, a ± 1e-13)" => (iv(0.0), fuzzy),
         "(0.3, 0.7)" => (iv(0.3), iv(0.7)),
         "(0.3, 0.7) as quotients" => (iv(0.9) / iv(3.0), iv(2.1) / iv(3.0)),
         "alternate (a, 1) / (0, a)" => alternate(iv(a)),
@@ -204,13 +198,15 @@ fn chain(name: &str, k: usize) -> Split {
     }
 }
 
-/// `sampled_width` of `c` after each of `0..=64` splits of `name`.
-fn widths_along(mut c: MappedCurve<Interval>, name: &str) -> Vec<f64> {
+/// `sampled_width` of `c` before any split and after each of 64, the
+/// `k`-th split `split(k)` applied to the previous one's result.
+fn widths_along(mut c: MappedCurve<Interval>, split: impl Fn(usize) -> Split) -> Vec<f64> {
     let mut widths = Vec::with_capacity(65);
-    for k in 0..=64 {
-        widths.push(sampled_width(&c));
-        let (s0, s1) = chain(name, k);
+    widths.push(sampled_width(&c));
+    for k in 0..64 {
+        let (s0, s1) = split(k);
         c = c.restrict(s0, s1);
+        widths.push(sampled_width(&c));
     }
     widths
 }
@@ -218,145 +214,225 @@ fn widths_along(mut c: MappedCurve<Interval>, name: &str) -> Vec<f64> {
 /// The near rim, a metre off an axis through `(1, 2, 3)`.
 const NEAR: [f64; 3] = [0.0, 0.0, 3.0];
 
-/// **Splits from the start do not grow the stored width.** `(0, ½)`
-/// and `(0, a)` keep the range's start exactly and only scale its
-/// span, so 64 of them leave the rim's samples under a fixed ceiling —
-/// the unsplit rim's own widths, with room for the sample angles
-/// moving. Composing each split's rotation into the stored placement
-/// re-paid the rotation's diagonal enclosure per split, even at a
-/// zero angle: 2.3e-13 near and 6.7e-11 far at 64.
+/// **A split chain's stored width stays under a ceiling 2.5× what this
+/// form measures**, for every chain at both placements, at every count
+/// up to 64: each ceiling is 2.5× the worst width over its chain,
+/// rounded up. A range stored as its two ends and interpolated breaks
+/// one; an eval that rotates by the range's start and then by its span
+/// stays under them and breaks
+/// [`restriction_is_no_wider_than_composing_into_the_placement`].
 #[test]
-fn splits_from_the_start_do_not_grow_the_stored_width() {
-    for (at, ceiling) in [(NEAR, 4.0e-14), (FAR, 2.0e-11)] {
-        for name in ["(0, 1/2)", "(0, a)"] {
-            let widths = widths_along(rim_at(at), name);
-            let worst = widths.iter().copied().fold(0.0, f64::max);
-            println!("{at:?} {name}: worst over 64 splits {worst:e}");
-            for (n, &w) in widths.iter().enumerate() {
-                assert!(
-                    w <= ceiling,
-                    "at {at:?}, after {n} splits of {name} the stored width is {w:e}, \
-                     over {ceiling:e} — a split from the start is accumulating"
-                );
-            }
-        }
-    }
-}
-
-/// **Interior and alternating splits pay the parameters' rounding and
-/// width once, not a stored rotation.** Non-dyadic chains, chains whose
-/// parameters are quotients, and chains whose parameters carry
-/// `±1e-13` of width, as a caller's `(t − t0)/span` does: 64 splits
-/// stay under ceilings set at about half of what composing each
-/// split's rotation into the placement reached on the same chain
-/// (measured, worst over 64: `(0.3, 0.7)` 5.5e-13 composed against
-/// 2.4e-13 here; alternating 5.8e-13 against 1.3e-13; `(a ± 1e-13, 1)`
-/// 1.3e-10 against 2.7e-11 near and 4.5e-8 against 1.3e-8 far). An
-/// alternating chain with `± 1e-13` parameters is dominated by the
-/// parameters' own width times the span, which both forms pay alike;
-/// [`restriction_is_never_much_wider_than_a_composed_placement`] holds
-/// it.
-#[test]
-fn interior_and_alternating_splits_stay_under_the_composed_cost() {
-    let rows = [
-        (NEAR, "(0.3, 0.7)", 3.5e-13),
-        (NEAR, "(0.3, 0.7) as quotients", 3.5e-13),
-        (NEAR, "alternate (a, 1) / (0, a)", 2.5e-13),
-        (NEAR, "alternate, a = t/span", 2.5e-13),
-        (NEAR, "(a ± 1e-13, 1)", 6.0e-11),
-        (FAR, "(a ± 1e-13, 1)", 2.5e-8),
+fn restricted_widths_stay_under_their_ceilings() {
+    let rows: [([f64; 3], &str, f64); 24] = [
+        (NEAR, "(0, 1/2)", 2.7e-14),
+        (NEAR, "(1/2, 1)", 2.8e-13),
+        (NEAR, "(0, a)", 4.9e-14),
+        (NEAR, "(a, 1)", 9.4e-13),
+        (NEAR, "(1/4, 3/4)", 1.5e-13),
+        (NEAR, "(0.3, 0.7)", 5.7e-13),
+        (NEAR, "(0.3, 0.7) as quotients", 6.1e-13),
+        (NEAR, "alternate (a, 1) / (0, a)", 4.7e-13),
+        (NEAR, "alternate, a = t/span", 4.7e-13),
+        (NEAR, "alternate, a ± 1e-13", 4.4e-11),
+        (NEAR, "(a ± 1e-13, 1)", 6.8e-11),
+        (NEAR, "(0, a ± 1e-13)", 1.8e-11),
+        (FAR, "(0, 1/2)", 1.6e-11),
+        (FAR, "(1/2, 1)", 1.4e-10),
+        (FAR, "(0, a)", 2.6e-11),
+        (FAR, "(a, 1)", 4.7e-10),
+        (FAR, "(1/4, 3/4)", 7.4e-11),
+        (FAR, "(0.3, 0.7)", 2.9e-10),
+        (FAR, "(0.3, 0.7) as quotients", 3.1e-10),
+        (FAR, "alternate (a, 1) / (0, a)", 2.4e-10),
+        (FAR, "alternate, a = t/span", 2.4e-10),
+        (FAR, "alternate, a ± 1e-13", 2.2e-8),
+        (FAR, "(a ± 1e-13, 1)", 3.4e-8),
+        (FAR, "(0, a ± 1e-13)", 8.6e-9),
     ];
     for (at, name, ceiling) in rows {
-        let widths = widths_along(rim_at(at), name);
+        let widths = widths_along(rim_at(at), |k| chain(name, k));
         let worst = widths.iter().copied().fold(0.0, f64::max);
         println!("{at:?} {name}: worst over 64 splits {worst:e} (ceiling {ceiling:e})");
         for (n, &w) in widths.iter().enumerate() {
             assert!(
                 w <= ceiling,
-                "at {at:?}, after {n} splits of {name} the stored width is {w:e}, \
-                 over {ceiling:e}"
+                "at {at:?}, after {n} splits of {name} the stored width is {w:e}, over \
+                 {ceiling:e}"
             );
         }
     }
 }
 
-/// `restrict` as a composed placement, on a whole range: the split's
-/// start rotation moved into `place` and the span scaled — the
-/// comparison column of [`restriction_is_never_much_wider_than_a_composed_placement`].
-fn composed(c: &MappedCurve<Interval>, (s0, s1): Split) -> MappedCurve<Interval> {
-    let MappedCurve::RevolvedPoint {
-        point,
-        place,
-        axis_origin,
-        axis_dir,
-        angles,
-    } = *c
-    else {
-        unreachable!("a rim")
-    };
-    let angle = angles.span();
-    MappedCurve::RevolvedPoint {
-        point,
-        place: Affine3::rotation_about_axis(axis_origin, axis_dir, s0 * angle) * place,
-        axis_origin,
-        axis_dir,
-        angles: SweepRange::from_zero((s1 - s0) * angle),
+/// **A chain anchored at either end stays flat.** In the normalized
+/// parameter a dyadic split is exact, so `(0, ½)` and `(½, 1)` store no
+/// rounding at all, and `(0, a)` only scales the span: every count up to
+/// 52 stays within 1.5× of the widest of the unsplit rim and its first
+/// split. Past 52 halvings `(½, 1)`'s start `1 − 2⁻ⁿ` is no longer an
+/// `f64`, and the range — `2π·2⁻⁵³` of turn — rounds.
+#[test]
+fn end_anchored_chains_stay_flat() {
+    for at in [NEAR, FAR] {
+        for name in ["(0, 1/2)", "(1/2, 1)", "(0, a)"] {
+            let widths = widths_along(rim_at(at), |k| chain(name, k));
+            let base = widths[0].max(widths[1]);
+            let worst = widths[..=52].iter().copied().fold(0.0, f64::max);
+            println!("{at:?} {name}: unsplit/first {base:e}, worst to 52 {worst:e}");
+            for (n, &w) in widths[..=52].iter().enumerate() {
+                assert!(
+                    w <= 1.5 * base,
+                    "at {at:?}, after {n} splits of {name} the stored width is {w:e} \
+                     against {base:e} unsplit or split once — an end-anchored chain grew"
+                );
+            }
+        }
     }
 }
 
-/// **No chain is much wider than composing the splits into the
-/// placement**, at either placement, at any count up to 64: restricted
-/// in the parameter, the rim stays within 2.5× of the composed rim on
-/// every chain above and on `(½, 1)` and `(0.3, 0.7)`. The worst ratio
-/// measured is `(½, 1)` far, 1.9× (2.2e-10 against 1.2e-10 at 64): the
-/// range's start rounds once per split at the angle's own ulp and the
-/// anchored rotation carries that to the point times the coordinates'
-/// magnitude (`work/nurbs/revolved-point-eval-levers-angle-width-by-the-coordinates.md`).
-/// An endpoint form, `from·(1 − s) + to·s`, counted the endpoints'
-/// widths at every split and reached 2.6× on `(0.3, 0.7)` far and 12×
-/// on alternating `a ± 1e-13` far.
-#[test]
-fn restriction_is_never_much_wider_than_a_composed_placement() {
-    let chains = [
-        "(1/2, 1)",
-        "(0, 1/2)",
-        "(0, a)",
-        "(0.3, 0.7)",
-        "(0.3, 0.7) as quotients",
-        "alternate (a, 1) / (0, a)",
-        "alternate, a = t/span",
-        "alternate, a ± 1e-13",
-        "(a ± 1e-13, 1)",
-    ];
-    for at in [NEAR, FAR] {
-        for name in chains {
-            let split = |k| chain(name, k);
-            let (mut ours, mut theirs) = (rim_at(at), rim_at(at));
-            let mut worst: f64 = 0.0;
-            for k in 0..64 {
-                ours = ours.restrict(split(k).0, split(k).1);
-                theirs = composed(&theirs, split(k));
-                let ratio = sampled_width(&ours) / sampled_width(&theirs);
-                worst = worst.max(ratio);
-                assert!(
-                    ratio <= 2.5,
-                    "at {at:?}, after {} splits of {name} the rim is {:e} wide against \
-                     {:e} composed — {ratio}×",
-                    k + 1,
-                    sampled_width(&ours),
-                    sampled_width(&theirs),
-                );
-            }
-            println!("{at:?} {name}: worst ratio to the composed rim {worst}");
+/// Columns of a 3×3 linear map and a translation.
+type Pose = ([[Interval; 3]; 3], [Interval; 3]);
+
+/// `cols · v`, as `(c0·x + c1·y) + c2·z` per component.
+fn apply(cols: [[Interval; 3]; 3], v: [Interval; 3]) -> [Interval; 3] {
+    core::array::from_fn(|i| cols[0][i] * v[0] + cols[1][i] * v[1] + cols[2][i] * v[2])
+}
+
+/// The rotation by `theta` about `+z` through `q`, written out: the
+/// linear part from `cos`/`sin` with the axis entry `(1 − c) + c`, and
+/// the translation `(I − R)·q` from the half-angle factors `2 sin²(θ/2)`
+/// and `2 sin(θ/2) cos(θ/2)`.
+fn turn_z(theta: Interval, q: [Interval; 3]) -> Pose {
+    let zero = iv(0.0);
+    let (s, c) = theta.sin_cos();
+    let (hs, hc) = (theta * iv(0.5)).sin_cos();
+    let (s2, t2) = (iv(2.0) * hs * hc, iv(2.0) * hs.powi(2));
+    (
+        [[c, s, zero], [-s, c, zero], [zero, zero, (iv(1.0) - c) + c]],
+        [t2 * q[0] + s2 * q[1], -(s2 * q[0]) + t2 * q[1], zero],
+    )
+}
+
+/// `a` after `b`.
+fn compose((al, at): Pose, (bl, bt): Pose) -> Pose {
+    let t = apply(al, bt);
+    (
+        core::array::from_fn(|j| apply(al, bl[j])),
+        core::array::from_fn(|i| t[i] + at[i]),
+    )
+}
+
+/// `rim_at(at)` restricted by composing each split's start rotation
+/// into the stored placement and scaling the angle — the restriction
+/// this form replaced — spelled out by hand for the `+z` axis, so it
+/// shares no code with `MappedCurve`, `SweepRange` or
+/// `Affine3::rotation_about_axis`.
+#[derive(Clone, Copy)]
+struct Composed {
+    place: Pose,
+    q: [Interval; 3],
+    angle: Interval,
+}
+
+impl Composed {
+    fn at(at: [f64; 3]) -> Self {
+        let (zero, one) = (iv(0.0), iv(1.0));
+        Composed {
+            place: (
+                [[one, zero, zero], [zero, one, zero], [zero, zero, one]],
+                [iv(at[0]), iv(at[1]), iv(at[2])],
+            ),
+            q: [iv(1.0 + at[0]), iv(2.0 + at[1]), iv(at[2])],
+            angle: iv(TAU),
         }
+    }
+
+    fn restrict(self, (s0, s1): Split) -> Self {
+        Composed {
+            place: compose(turn_z(s0 * self.angle, self.q), self.place),
+            angle: (s1 - s0) * self.angle,
+            ..self
+        }
+    }
+
+    fn sampled_width(self) -> f64 {
+        let (lin, t) = self.place;
+        let p = apply(lin, [iv(2.0), iv(2.0), iv(0.0)]);
+        let placed: [Interval; 3] = core::array::from_fn(|i| p[i] + t[i]);
+        [0.0, 0.5, 1.0]
+            .into_iter()
+            .map(|s| {
+                let (rl, rt) = turn_z(iv(s) * self.angle, self.q);
+                let r = apply(rl, placed);
+                (0..3).map(|i| width(r[i] + rt[i])).fold(0.0, f64::max)
+            })
+            .fold(0.0, f64::max)
+    }
+}
+
+/// **No chain is wider than composing its splits into the placement**,
+/// at either placement and every count up to 64, against the composed
+/// restriction spelled out by hand ([`Composed`]). End-anchored and
+/// dyadic chains stay at or under it; chains whose start moves by an
+/// inexact amount each split stay within 1.25×. Those pay one outward
+/// rounding of the start per split, at the start's own ulp; the
+/// anchored rotation carries that to the point at the coordinates'
+/// scale, as it carries the composed placement's per-split rotation
+/// (`work/nurbs/revolved-point-eval-levers-angle-width-by-the-coordinates.md`):
+/// `(0.3, 0.7)` far reaches 1.06× and its quotient form 1.03×.
+///
+/// Each row's allowance is the lesser of that bar and 1.2× the ratio
+/// this form measures, so a chain that sits well under the composed
+/// rim must stay there: an eval that rotated by the range's start and
+/// then by its span pays the composed rim's width again, and reads
+/// 0.97–1.0 on chains this form holds at 0.5–0.7.
+#[test]
+fn restriction_is_no_wider_than_composing_into_the_placement() {
+    let rows: [([f64; 3], &str, f64); 24] = [
+        (NEAR, "(0, 1/2)", 0.95),
+        (NEAR, "(1/2, 1)", 0.71),
+        (NEAR, "(0, a)", 1.00),
+        (NEAR, "(a, 1)", 0.94),
+        (NEAR, "(1/4, 3/4)", 0.58),
+        (NEAR, "(0.3, 0.7)", 0.69),
+        (NEAR, "(0.3, 0.7) as quotients", 0.87),
+        (NEAR, "alternate (a, 1) / (0, a)", 0.93),
+        (NEAR, "alternate, a = t/span", 0.87),
+        (NEAR, "alternate, a ± 1e-13", 1.16),
+        (NEAR, "(a ± 1e-13, 1)", 0.80),
+        (NEAR, "(0, a ± 1e-13)", 1.00),
+        (FAR, "(0, 1/2)", 1.00),
+        (FAR, "(1/2, 1)", 0.74),
+        (FAR, "(0, a)", 1.00),
+        (FAR, "(a, 1)", 1.12),
+        (FAR, "(1/4, 3/4)", 0.60),
+        (FAR, "(0.3, 0.7)", 1.25),
+        (FAR, "(0.3, 0.7) as quotients", 1.24),
+        (FAR, "alternate (a, 1) / (0, a)", 1.20),
+        (FAR, "alternate, a = t/span", 1.14),
+        (FAR, "alternate, a ± 1e-13", 1.18),
+        (FAR, "(a ± 1e-13, 1)", 0.83),
+        (FAR, "(0, a ± 1e-13)", 1.00),
+    ];
+    for (at, name, allowed) in rows {
+        let ours = widths_along(rim_at(at), |k| chain(name, k));
+        let mut theirs = Composed::at(at);
+        let mut worst: f64 = 0.0;
+        for (k, &w) in ours.iter().enumerate().skip(1) {
+            theirs = theirs.restrict(chain(name, k - 1));
+            worst = worst.max(w / theirs.sampled_width());
+        }
+        println!("{at:?} {name}: worst ratio to the composed rim {worst} (allowed {allowed})");
+        assert!(
+            worst <= allowed,
+            "at {at:?}, {name} reaches {worst}× the composed rim, over {allowed}×"
+        );
     }
 }
 
 /// **A whole range evaluates as the unrestricted rotation, bit for
 /// bit**, at `f64` and at `Interval`, at every sample and placement:
-/// `SweepRange::from_zero(angle).at(s)` is `angle·s` exactly, so
-/// nothing a body builds unrestricted moves. Struts likewise read
-/// `vec·s`.
+/// `SweepRange::whole().at(s)` is `s` itself, so the angle is `s·angle`
+/// as it always was and nothing a body builds unrestricted moves.
+/// Struts likewise read `vec·s`.
 #[test]
 fn a_whole_range_evaluates_as_the_unrestricted_motion_bit_for_bit() {
     let mut mismatches = Vec::new();
@@ -371,14 +447,16 @@ fn a_whole_range_evaluates_as_the_unrestricted_motion_bit_for_bit() {
                 place,
                 axis_origin: q,
                 axis_dir: n,
-                angles: SweepRange::from_zero(angle),
+                angle,
+                range: SweepRange::whole(),
             };
             let ci = MappedCurve::RevolvedPoint {
                 point: Point2::new(iv(2.0), iv(2.0)),
                 place: Affine3::translation(Vec3::new(iv(at[0]), iv(at[1]), iv(at[2]))),
                 axis_origin: Point3::new(iv(q.x), iv(q.y), iv(q.z)),
                 axis_dir: Vec3::new(iv(n.x), iv(n.y), iv(n.z)),
-                angles: SweepRange::from_zero(iv(angle)),
+                angle: iv(angle),
+                range: SweepRange::whole(),
             };
             for i in 0..=64 {
                 let s = if i == 7 {
@@ -417,7 +495,7 @@ fn a_whole_range_evaluates_as_the_unrestricted_motion_bit_for_bit() {
                 point: pt,
                 place,
                 vec: v,
-                stations: SweepRange::unit(),
+                range: SweepRange::whole(),
             };
             for i in 0..=16 {
                 let s = f64::from(i) / 16.0;
@@ -460,18 +538,18 @@ fn a_far_strut_split_64_times_stays_at_its_unsplit_width() {
     // ulp, one step each way, whatever the description: the unsplit
     // samples happen to be exact, and a split one is not.
     let floor = 2.0 * (1000f64.next_up() - 1000.0);
-    for split in patterns {
-        let widths = widths_by_split_count(strut_at(FAR), split);
+    for (s0, s1) in patterns {
+        let widths = widths_along(strut_at(FAR), |_| (iv(s0), iv(s1)));
         let unsplit = widths[0].max(floor);
         println!(
-            "strut {split:?}: unsplit {:e}, worst over 64 splits {:e}",
+            "strut ({s0}, {s1}): unsplit {:e}, worst over 64 splits {:e}",
             widths[0],
             widths.iter().copied().fold(0.0, f64::max)
         );
         for (n, &w) in widths.iter().enumerate() {
             assert!(
                 w <= 4.0 * unsplit,
-                "the strut split {n} times at {split:?} is {w:e} wide against \
+                "the strut split {n} times at ({s0}, {s1}) is {w:e} wide against \
                  {unsplit:e} unsplit — a split is charging the coordinates' scale, \
                  which only a composition into the placement does"
             );
@@ -533,13 +611,14 @@ fn a_restriction_is_the_sub_range_of_the_same_trajectory() {
         place: Affine3::translation(Vec3::new(0.0, 0.0, 3.0)),
         axis_origin: Point3::new(1.0, 2.0, 3.0),
         axis_dir: Vec3::new(0.0, 0.0, 1.0),
-        angles: SweepRange::from_zero(TAU),
+        angle: TAU,
+        range: SweepRange::whole(),
     };
     let strut64 = MappedCurve::ExtrudedPoint {
         point: Point2::new(2.0, 2.0),
         place: Affine3::translation(Vec3::new(FAR[0], FAR[1], FAR[2])),
         vec: Vec3::new(0.5, -1.5, 3.0),
-        stations: SweepRange::unit(),
+        range: SweepRange::whole(),
     };
     for (name, c) in [("rim", rim64), ("strut", strut64)] {
         // [0.3, 0.7], then its [0.1, 0.6]: [0.34, 0.54].

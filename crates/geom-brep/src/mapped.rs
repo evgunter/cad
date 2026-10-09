@@ -180,22 +180,23 @@ pub enum MappedCurve<T: Real> {
         place: Affine3<T>,
     },
     /// A sketch point's trajectory under a translation family — extrude
-    /// side struts: `s ↦ place(point) + vec·stations.at(s)`.
+    /// side struts: `s ↦ place(point) + vec·range.at(s)`.
     ExtrudedPoint {
         /// The authoritative sketch point.
         point: Point2<T>,
         /// The rigid placement of the sketch plane in 3-space.
         place: Affine3<T>,
-        /// The extrusion vector (meters), the unit of `stations`.
+        /// The **full** extrusion vector (meters) of the whole strut:
+        /// its normalized parameter 1 lands at the far end.
         vec: Vec3<T>,
-        /// The multiples of `vec` the trajectory covers from s = 0 to
-        /// s = 1: [`SweepRange::unit`] for a whole strut, a sub-range of
+        /// The part of the whole strut's normalized parameter this
+        /// trajectory covers: [`SweepRange::whole`], or a sub-range of
         /// it after [`MappedCurve::restrict`].
-        stations: SweepRange<T>,
+        range: SweepRange<T>,
     },
     /// A sketch point's trajectory under a rotation family — revolve
     /// latitude arcs: `s ↦ rotate(place(point))` about the axis by
-    /// `angles.at(s)`.
+    /// `range.at(s)·angle`.
     RevolvedPoint {
         /// The authoritative sketch point.
         point: Point2<T>,
@@ -206,97 +207,106 @@ pub enum MappedCurve<T: Real> {
         /// The axis direction (normalized internally by the rotation —
         /// `Affine3::rotation_about_axis`'s documented posture).
         axis_dir: Vec3<T>,
-        /// The signed angles (radians, right-hand rule about
-        /// `axis_dir`, measured from the placed point) the trajectory
-        /// covers from s = 0 to s = 1: [`SweepRange::from_zero`] of the
-        /// revolve angle for a whole revolve, a sub-range of it after
-        /// [`MappedCurve::restrict`].
-        angles: SweepRange<T>,
+        /// The **full** signed revolve angle of the whole sweep
+        /// (radians, right-hand rule about `axis_dir`): its normalized
+        /// parameter 1 lands at the far end.
+        angle: T,
+        /// The part of the whole sweep's normalized parameter this
+        /// trajectory covers: [`SweepRange::whole`], or a sub-range of
+        /// it after [`MappedCurve::restrict`].
+        range: SweepRange<T>,
     },
 }
 
-/// The sub-range of a sweep coordinate a trajectory covers — a
-/// revolve's angle, an extrusion's multiple of its vector — as the
-/// coordinate at s = 0 and the signed span from there to s = 1.
+/// The sub-range of a whole sweep's normalized parameter `u ∈ [0, 1]`
+/// a trajectory covers, as `u` at s = 0 and the signed span from there
+/// to s = 1. The sweep's own angle or vector is stored once beside it
+/// and applied at evaluation, as `angle·u` or `vec·u`.
 ///
 /// Restriction lives here, in the parameter, and never in the
 /// placement: [`MappedCurve::restrict`] narrows the range and leaves
 /// the placement as built, so however often a trajectory is split its
-/// evaluation applies ONE motion to the placed point.
+/// evaluation applies ONE motion to the placed point. In `u` a dyadic
+/// split is exact, so a chain of them from either end stores no
+/// rounding at all.
 ///
-/// The span is stored rather than recomputed from two endpoints, so a
-/// restriction never re-forms a difference: the start moves by
-/// `span·s0` and the span scales by `s1 − s0`. At `T = Interval` a split
-/// therefore adds the split parameters' width times the span, plus one
-/// rounding of the moved start — never the endpoints' own widths
-/// re-mixed, which an endpoint form (`from·(1 − s) + to·s`) pays and
-/// cannot contract.
-///
-/// A whole range starts at the literal zero, so [`SweepRange::at`]
-/// reads `span·s` on it: bit for bit at `f64` and `Interval` up to the
-/// sign of a zero angle (which no evaluated point carries), and as the
-/// same form at `Sym`, whose sum folds a literal zero away.
+/// The whole sweep's start `0` and span `1` are held as absent rather
+/// than as values, so [`SweepRange::at`] reads `s` itself on a whole
+/// range: an unrestricted trajectory evaluates in exactly the
+/// unrestricted form, `angle·s` or `vec·s`, at every scalar, and a
+/// caller can tell an exact start from a computed one.
 #[derive(Clone, Copy, Debug)]
 pub struct SweepRange<T: Real> {
-    start: T,
-    span: T,
+    start: Option<T>,
+    span: Option<T>,
 }
 
 impl<T: Real> SweepRange<T> {
-    /// A whole sweep from the placed point through `span`.
-    pub fn from_zero(span: T) -> Self {
+    /// The whole sweep, `u ∈ [0, 1]`.
+    pub fn whole() -> Self {
         SweepRange {
-            start: T::zero(),
-            span,
+            start: None,
+            span: None,
         }
     }
 
-    /// `[0, 1]`: a whole extrusion, in units of its vector.
-    pub fn unit() -> Self {
-        SweepRange::from_zero(T::one())
-    }
-
-    /// The coordinate at s = 0.
-    pub fn start(self) -> T {
+    /// `u` at s = 0, or `None` at the whole sweep's exact start `0`.
+    pub fn start(self) -> Option<T> {
         self.start
     }
 
-    /// The signed span from s = 0 to s = 1.
-    pub fn span(self) -> T {
+    /// The signed span of `u` from s = 0 to s = 1, or `None` for the
+    /// whole sweep's `1`.
+    pub fn span(self) -> Option<T> {
         self.span
     }
 
-    /// The coordinate at normalized parameter `s`: `start + span·s`.
-    ///
-    /// This is [`geom_core::Point3::lerp`]'s form with the difference
-    /// already stored, so the start is named once: exact at `s = 0`,
-    /// one rounding at `s = 1`. At `T = Interval` the result carries
-    /// `start`'s width, `|span|·width(s)` and `|s|·width(span)`, plus
-    /// the roundings of the product and the sum.
+    /// `u` at normalized parameter `s`: `start + span·s`, each absent
+    /// term dropped, so the whole range reads `s` itself.
     pub fn at(self, s: T) -> T {
-        self.start + self.span * s
+        let along = match self.span {
+            None => s,
+            Some(span) => span * s,
+        };
+        match self.start {
+            None => along,
+            Some(start) => start + along,
+        }
     }
 
     /// The sub-range covering `[s0, s1]` of this one: the start moves
     /// to [`SweepRange::at`]`(s0)` and the span scales by `s1 − s0`.
+    /// The difference is formed once, from the split parameters, and
+    /// never from two stored ends.
     pub fn restrict(self, s0: T, s1: T) -> Self {
+        let width = s1 - s0;
         SweepRange {
-            start: self.at(s0),
-            span: self.span * (s1 - s0),
+            start: Some(self.at(s0)),
+            span: Some(match self.span {
+                None => width,
+                Some(span) => span * width,
+            }),
         }
     }
 
     /// The same range with its start moved by `d0` and its end by `d1`,
-    /// both in the sweep's own coordinate; an end given `None` stays
-    /// where it was, bit for bit.
+    /// both in `u`. An end given `None` stays where it was in exact
+    /// arithmetic; the start then keeps its stored value bit for bit,
+    /// while the end is re-read as the moved start plus the moved span,
+    /// so it can differ from before in the last bits.
     pub fn moved(self, d0: Option<T>, d1: Option<T>) -> Self {
+        let span = self.span.unwrap_or_else(T::one);
         SweepRange {
-            start: d0.map_or(self.start, |d| self.start + d),
+            start: match (self.start, d0) {
+                (start, None) => start,
+                (None, Some(d0)) => Some(d0),
+                (Some(start), Some(d0)) => Some(start + d0),
+            },
             span: match (d0, d1) {
                 (None, None) => self.span,
-                (Some(d0), None) => self.span - d0,
-                (None, Some(d1)) => self.span + d1,
-                (Some(d0), Some(d1)) => self.span + (d1 - d0),
+                (Some(d0), None) => Some(span - d0),
+                (None, Some(d1)) => Some(span + d1),
+                (Some(d0), Some(d1)) => Some(span + (d1 - d0)),
             },
         }
     }
@@ -322,25 +332,27 @@ impl<T: Real> MappedCurve<T> {
                 point,
                 place,
                 vec,
-                stations,
+                range,
             } => MappedCurve::ExtrudedPoint {
                 point,
                 place,
                 vec,
-                stations: stations.restrict(s0, s1),
+                range: range.restrict(s0, s1),
             },
             MappedCurve::RevolvedPoint {
                 point,
                 place,
                 axis_origin,
                 axis_dir,
-                angles,
+                angle,
+                range,
             } => MappedCurve::RevolvedPoint {
                 point,
                 place,
                 axis_origin,
                 axis_dir,
-                angles: angles.restrict(s0, s1),
+                angle,
+                range: range.restrict(s0, s1),
             },
         }
     }
@@ -355,17 +367,19 @@ impl<T: Real> MappedCurve<T> {
                 point,
                 place,
                 vec,
-                stations,
-            } => place_point(place, point) + vec * stations.at(s),
+                range,
+            } => place_point(place, point) + vec * range.at(s),
             MappedCurve::RevolvedPoint {
                 point,
                 place,
                 axis_origin,
                 axis_dir,
-                angles,
+                angle,
+                range,
             } => {
                 let p = place_point(place, point);
-                Affine3::rotation_about_axis(axis_origin, axis_dir, angles.at(s)).transform_point(p)
+                Affine3::rotation_about_axis(axis_origin, axis_dir, range.at(s) * angle)
+                    .transform_point(p)
             }
         }
     }
@@ -498,7 +512,7 @@ mod tests {
             point: Point2::new(0.5, 0.25),
             place: Affine3::identity(),
             vec: Vec3::new(0.0, 0.0, 2.0),
-            stations: SweepRange::unit(),
+            range: SweepRange::whole(),
         };
         let p = mc.eval(0.75);
         assert_eq!((p.x, p.y, p.z), (0.5, 0.25, 1.5));
@@ -511,7 +525,8 @@ mod tests {
             place: Affine3::identity(),
             axis_origin: Point3::origin(),
             axis_dir: Vec3::unit_y(),
-            angles: SweepRange::from_zero(PI),
+            angle: PI,
+            range: SweepRange::whole(),
         };
         // s = 0: the placed point itself.
         let p0 = mc.eval(0.0);

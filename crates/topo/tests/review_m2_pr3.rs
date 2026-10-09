@@ -76,7 +76,7 @@ fn triangle_prism<T: Decide + topo::AtRestPolicy>()
             point: s0,
             place: place_bottom,
             vec: w,
-            stations: geom_brep::SweepRange::unit(),
+            range: geom_brep::SweepRange::whole(),
         }),
         carrier: Curve3::Line {
             origin: p0,

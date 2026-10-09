@@ -679,7 +679,8 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
                     place: place_pi,
                     axis_origin: frame.o3,
                     axis_dir: frame.a3,
-                    angles: geom_brep::SweepRange::from_zero(half),
+                    angle: half,
+                    range: geom_brep::SweepRange::whole(),
                 },
             ),
             carrier: geom::Curve3::Circle {

@@ -103,7 +103,8 @@ pub(super) fn revolved_strut_spec<T: Real>(
             place: frame.place,
             axis_origin: frame.o3,
             axis_dir: frame.a3,
-            angles: geom_brep::SweepRange::from_zero(theta),
+            angle: theta,
+            range: geom_brep::SweepRange::whole(),
         }),
         carrier: Curve3::Circle {
             center,

@@ -464,7 +464,8 @@ fn latitude_arc(
             ),
             axis_origin: Point3::new(0.0, 0.0, 0.0),
             axis_dir: Vec3::new(0.0, 1.0, 0.0),
-            angles: geom_brep::SweepRange::from_zero(theta),
+            angle: theta,
+            range: geom_brep::SweepRange::whole(),
         }),
         carrier: Curve3::Circle {
             center: Point3::new(0.0, station.y, 0.0),
