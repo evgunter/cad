@@ -482,7 +482,51 @@ fn certify_errors() -> Vec<CertifyError> {
             .into_iter()
             .map(CertifyError::PlaneNurbs),
     );
+    v.extend(
+        analytic_rung3_refusals()
+            .into_iter()
+            .map(CertifyError::AnalyticRung3),
+    );
     v
+}
+
+fn analytic_rung3_refusals() -> Vec<geom_brep::AnalyticRung3Refusal> {
+    use geom_brep::AnalyticRung3Refusal as A;
+    vec![
+        A::Limb {
+            operand: geom::SurfaceKind::Plane,
+            limb: geom_brep::SsiLimb::HullSup,
+            value: 7.5e-5,
+        },
+        A::Escalated {
+            operand: Some(geom::SurfaceKind::Cylinder),
+            limb: geom_brep::SsiLimb::HullSup,
+            cause: diag(),
+        },
+        A::Escalated {
+            operand: None,
+            limb: geom_brep::SsiLimb::Tube,
+            cause: diag(),
+        },
+        A::NoOffsetBound {
+            operand: geom::SurfaceKind::Cone,
+            why: geom_brep::SectorChannel::Lever.describe(),
+        },
+        A::TubeStraddles {
+            verdict: Refused::Zero(Classified {
+                margin: MarginDiag::value(0.0),
+                band: band(),
+            }),
+            boxes: 12,
+        },
+        A::TubeNotOneArc {
+            rungs: 3,
+            cause: geom_brep::ssi::OneArcRefusal::Short,
+        },
+        A::Unsupported {
+            what: "the analytic rung-3 certificate reads two analytic operands",
+        },
+    ]
 }
 
 fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
@@ -493,7 +537,7 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         PcurveCertifyError::UnsupportedCarrier {
             chart: geom::SurfaceKind::Torus,
             carrier: geom::CurveKind::Nurbs,
-            class: geom_brep::UncoveredClass::SplineCarrier,
+            class: geom_brep::UncoveredClass::NoFittedClass,
         },
         PcurveCertifyError::CarrierGrazesChart {
             chart: geom::SurfaceKind::Torus,
@@ -511,7 +555,10 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         },
         PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" },
         PcurveCertifyError::FittedMateMissing,
-        PcurveCertifyError::ArcNearPole,
+        PcurveCertifyError::SectorRefused {
+            piece: 0,
+            channel: geom_brep::SectorChannel::Azimuth,
+        },
         PcurveCertifyError::IsoUnsupported {
             what: "a rational NURBS surface",
         },
@@ -1211,6 +1258,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     for error in certify_errors() {
         let l = match &error {
             CertifyError::PlaneNurbs(r) => label("EdgeCertification/PlaneNurbs", r),
+            CertifyError::AnalyticRung3(r) => label("EdgeCertification/AnalyticRung3", r),
             other => label("EdgeCertification", other),
         };
         s.push((l, ValidationError::EdgeCertification { edge, error }));
@@ -1557,6 +1605,10 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
     out.extend(gaps::<_, PlaneNurbsRefusalKind>(
         "PlaneNurbsRefusal",
         &plane_nurbs_refusals(),
+    ));
+    out.extend(gaps::<_, geom_brep::edge_nurbs::AnalyticRung3RefusalKind>(
+        "AnalyticRung3Refusal",
+        &analytic_rung3_refusals(),
     ));
     out.extend(gaps::<_, PcurveMintErrorKind>(
         "PcurveMintError",

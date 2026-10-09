@@ -1,7 +1,7 @@
 ---
 id: uncovered-chart-classes-have-no-incidence-test
 kind: issue
-title: Two uncovered chart_pcurve classes have no incidence test, so an off-chart carrier among them is excused as uncovered
+title: An uncovered chart_pcurve class has no incidence test, so an off-chart carrier among them is excused as uncovered
 status: open
 opened: 2026-10-01
 ---
@@ -35,11 +35,15 @@ and are `UnsupportedCarrier` wholesale, so a carrier in them that does
 NOT lie on the chart is still excused by the mint, leaves its face
 uncached, and passes tier 3 clean:
 
-- **`UncoveredClass::SplineCarrier`** (`chart_pcurve`'s top,
-  `carrier_harmonic` answering `None`): a spline carrier on an analytic
-  chart. No closed-form test; it needs the fitted lane's on-locus hull,
-  which needs a mate. A real producer reaches it: a STEP re-import of an
-  exported spiric rim (`spiric_roundtrip`) lands a spline on a torus.
+- ~~**`UncoveredClass::SplineCarrier`**~~ — resolved on
+  `pcert/projected-image` (2026-10-08): the class is deleted. A spline
+  carrier on an analytic chart takes the projected-image route, which
+  first decides incidence (`net_incidence`, against the chart's
+  canonical composite). A net shown off the chart refuses
+  `CarrierOffChart`
+  (`envelope_lemma_fuzz::projected::an_off_chart_spline_refuses_by_incidence`),
+  and one that is not certifies or refuses through its envelope's
+  incidence term.
 - **`UncoveredClass::NoFittedClass`** (`run_fitted_checks` check 1): a
   line, ellipse or spiric offered a `Fitted`/`General` image, on any
   chart — `stated_general_image_mint` reaches it at four scalars with a

@@ -2,7 +2,8 @@
 id: the-dihedral-arm-clause-is-seven-literals-held-by-a-source-census
 kind: issue
 title: The dihedral arm's shared clause is seven literals held together by a source census that false-positives on other arm decisions
-status: open
+status: dispatched
+branch: encl/dihedral-arm-one-clause
 opened: 2026-10-09
 priority: P3
 cost: E
