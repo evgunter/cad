@@ -503,3 +503,53 @@ Position is said one way, by placement, and the world is read only by placements
 **Relied on:** "construction never reads the world"; "no canonical main space"; "just sets the
 coordinates"; "one number"; "none of those choices depend on the world node". **Bent:** only that
 the default mate is written by the document, not the person.
+
+## Round 8: no construction reads a frame
+
+**1. Yes, and it removes what rounds 6 and 7 needed.**
+- **Bodies** build in their own coordinates. An extrude reads a profile (2-D) and one direction in
+  the profile's frame; a revolve reads a profile and a 2-D axis line. No base, no one-frameless
+  rule: every construction is frameless.
+- **Frames** are read off bodies and read only by placements.
+- **A combining operation** reads one base and copies placed against it: each copy's mates read
+  the base or an earlier copy (D10 Booleans' "one fixed operand", made structural). The space
+  check is local to the node, an unrelated body cannot be written as an operand, and a two-space
+  read is a kernel bug.
+- **The loose copy** is read by nothing and only shown (round 6). **The world** is the undeletable
+  frame export copies are placed against, with a default editable mate for a one-part document
+  (round 7).
+- **Computing frame:** a construction in its own coordinates; a combine in its base's.
+
+**2. Ceremony.** Every feature is a placement plus a combine. "Sketch on a face" is one gesture,
+written by the façade as profile, extrude, a copy placed by one `Frame` mate on
+`Offset { FaceFrame(face), spin }`, and a combine: today's clicks. **The sign and the sense are one
+choice, and the sign keeps it.** A `Frame`–`Frame` mate has no sense; coinciding the profile's frame
+with the face frame shows the sketch unmirrored, and the extrude direction alone says into or out
+of the material. An opposed sense would be a second spelling that mirrors the sketch.
+
+**3. A profile's coordinates are its own, arbitrary, and unread until a placement reads a pose of
+its body.** A circle's centre means something only if a mate reads
+the base frame (meaning by placement); a mate on the hole's axis leaves it meaningless, the better intent. **The direction** (Ev's correction)
+is a unit vector `(x, y, n)` in the profile's axes plus its normal, held as scalar slots in the
+node by D10's rule for values in a node's own frame. It is normalised at evaluation, `n = 0`
+refuses, and the sign is `(0, 0, ±1)`: one slot, not two.
+
+**4. Pinning uses the same subgroup algebra (A11 (1), #4325), plus one rule: a copy is pinned when
+its bundle's residual lies in the body's structural symmetry.** That symmetry is declared by the
+construction, never measured: a revolve, or the extrude of one full circle, is symmetric about its
+axis. A hole mated by its axis alone keeps slide, which changes the result, so it is under-pinned.
+Adding end cap ≅ face plane leaves only spin, a symmetry of the tool, so it is pinned. Anything outside a declared symmetry is
+under-pinned and read by nothing, so nothing places by position (likely; #4325 to confirm).
+
+**5. D10.** *Variables:* "the poses (…), read off a body (a face's frame, an axis, a construction's
+base frame), combined or offset, and read only by placements; no construction reads a pose."
+*Spaces:* "A part has no location; raw coordinates are related only by a placement. Every
+construction builds in coordinates of its own. A combining operation reads one base and copies
+placed against it; a copy is read once its bundle pins it up to the body's structural symmetry,
+and is only shown until then. The **world** is one undeletable frame copies are placed against
+for export."
+
+**Relied on:** operands in a different space than the output; no Transform of a placed part; no
+location; placement relates unplaced parts; the world sets coordinates. **Bent:** DM1's face-frame sketch (its frame read becomes a mate
+target), and D10's "a boolean's operands must already be in one space", which becomes a node
+shape rather than a check.
