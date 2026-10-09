@@ -2,11 +2,11 @@
 id: rest-zip-frontier-refusals-reached-by-no-row
 kind: issue
 title: zip: none of the rest zip's fifteen typed sub-frontier refusals is reached by any row, so which are gates and which are dead is unmeasured
-status: parked
+status: closed
 opened: 2026-10-01
 priority: P3
 cost: M
-blocked_on: [intent-stage4-is-built]
+closed: 2026-10-08
 ---
 
 ## Finding
@@ -184,3 +184,7 @@ This row is on declared-contact ground, so it waits on `d10-one-way-to-say-inten
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: RestZipFrontier and its sites (realize_seam, mint_chord, pair_patches, slit_zip) are on stage 4's deletion list. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed (2026-10-08, INTENT stage 4 A (`intent/s4-a-join`))
+
+`boolean/rest.rs` is deleted, and the join builds every union it built (125 of the door's 185 openings across the topo, sweep and editor-core suites; the other 60 were its declines and refusals, which the join now builds sound or refuses with its own answer). `RestZipFrontier` and `BooleanError::RestZipUnsupported` are deleted with it.

@@ -32,7 +32,7 @@ implementation under both.
 |---|---|
 | S1 kernel query seat | `crates/topo/src/query.rs`; exported at `crates/pncad/src/prelude.rs` |
 | S2 `select_where` as a wrapper | `crates/editor-core/src/names/geompred.rs` |
-| S3 flush detector at the body seat | `crates/topo/src/flush.rs`, verifier at `crates/topo/src/boolean/rest.rs` (`carrier_pair_relation`); the name-level wrapper at `crates/editor-core/src/names/flush.rs` |
+| S3 flush detector at the body seat | `crates/topo/src/flush.rs`, verifier at `crates/topo/src/boolean/carrier_pair.rs` (`carrier_pair_relation`); the name-level wrapper at `crates/editor-core/src/names/flush.rs` |
 | S4 band derived at op entry | `crates/sweep/src/blend/build.rs`, `crates/topo/src/shell.rs` |
 | V1 the closed kernel-side declaration | `crates/verbs/src/verb.rs` (`Verb`, `VerbKind`, `Arity`), `run.rs` (the doors, `VerbOut`/`PairOut`/`SplitOut`/`VerbRecord`/`VerbError`), `flow.rs` (`ParamFlow`) |
 | V2 owner-held stable-tag commitments | `crates/editor-core/src/eval/mod.rs` (`verb_content_tag`) |
@@ -134,7 +134,7 @@ doors, the `ContactClass` layering precedent (SELECT-DESIGN §3(e)).
 findings in `FaceKey`s, and `declare`/`declare_all` turn them into the
 `BooleanDeclarations` the op door takes. The anti-twin rule holds by
 identity rather than by care: the detector has no predicate triple of
-its own but calls `carrier_pair_relation` (`topo/src/boolean/rest.rs`)
+its own but calls `carrier_pair_relation` (`topo/src/boolean/carrier_pair.rs`)
 in `declared: false` mode — the same function verify-at-use calls in
 `declared: true` mode — so a pair the detector calls flush cannot be a
 pair the declared rung then contradicts, and detection's decisions land

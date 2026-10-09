@@ -885,10 +885,17 @@ fn dm5_is_over_the_variables_read() {
             declare: Vec::new(),
         },
     );
+    // Admitted, the union cannot name two members read out of one
+    // operation (DM4 keys a member by its operation), and says so
+    // rather than joining one half to itself.
     let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
     assert!(
-        ev.value(union).is_some(),
-        "a union of a split's two halves builds: {:?}",
+        matches!(
+            ev.node_error(union).map(|e| &e.kind),
+            Some(NodeErrorKind::MembersShareAnOperation { operation, members: (0, 1) })
+                if *operation == split
+        ),
+        "{:?}",
         ev.node_error(union)
     );
     assert!(
@@ -931,6 +938,103 @@ fn dm5_is_over_the_variables_read() {
                 step: fixture::ang(1.0),
             },
         },
+    );
+}
+
+/// **Each of a split's two halves is read as itself, and a pair
+/// declared across them is sided by the half that holds each name.**
+/// Both halves are read at the split's one site. Undeclared, the pair
+/// boolean of them refuses the rest contact across the section; under
+/// a declared rest named in either order it is the whole block, where
+/// one projection per node read one half twice. A side naming what
+/// neither half holds — a wall of the block the cut renamed in both —
+/// refuses as a site no operand's table answers. A union of the two
+/// refuses before any of that: it keys each member by the operation it
+/// reads (DM4).
+#[test]
+fn a_pair_declared_across_one_splits_halves_is_sided_by_table() {
+    let (doc, split, _) = split_block("s2b-split-siding");
+    let before = fixture::run(&doc, &editor_core::EvalOptions::default());
+    let target = doc
+        .operation_of(doc.output(split, 0).expect("the upper half"))
+        .and_then(|_| match doc.node(split) {
+            Some(Node::Split { target, .. }) => doc.operation_of(*target),
+            _ => None,
+        })
+        .expect("the split's target");
+    let held = |id| before.value(id).expect("a value").name_table.clone();
+    let (whole, cut) = (held(target), held(split));
+    let wall = whole
+        .iter()
+        .map(|(name, _)| name.clone())
+        .find(|name| name.kind == editor_core::EntityKind::Face && cut.lookup(name).is_none())
+        .expect("a wall the cut renamed");
+    let section = |side| crate::corpus::part_select::section_face(split, side);
+    let half = |h: editor_core::SplitHalf| Operand::output(split, h.port());
+    let pair = |first, second| {
+        editor_core::declare_rest(vec![(
+            editor_core::SitedRef::new(split, first),
+            editor_core::SitedRef::new(split, second),
+        )])
+    };
+    let (above, below) = (
+        section(editor_core::SplitHalf::Above),
+        section(editor_core::SplitHalf::Below),
+    );
+    let boolean = |declare| Node::Boolean {
+        op: editor_core::BooleanOp::Union,
+        a: half(editor_core::SplitHalf::Above),
+        b: half(editor_core::SplitHalf::Below),
+        declare,
+    };
+    let union = |declare| Node::Union {
+        members: vec![
+            half(editor_core::SplitHalf::Below),
+            half(editor_core::SplitHalf::Above),
+        ],
+        declare,
+    };
+    let (doc, undeclared) = insert(doc, boolean(Vec::new()));
+    let (doc, joined) = insert(doc, boolean(pair(below.clone(), above.clone())));
+    let (doc, flipped) = insert(doc, boolean(pair(above.clone(), below.clone())));
+    let (doc, fused) = insert(doc, union(pair(above.clone(), below)));
+    let (doc, stray_boolean) = insert(doc, boolean(pair(above, wall)));
+    let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
+    assert!(
+        matches!(
+            ev.node_error(undeclared).map(|e| &e.kind),
+            Some(NodeErrorKind::UndeclaredCoincidence { .. })
+        ),
+        "{:?}",
+        ev.node_error(undeclared)
+    );
+    for id in [joined, flipped] {
+        assert!(ev.value(id).is_some(), "{:?}", ev.node_error(id));
+        let body = crate::corpus::body_of(&ev, id);
+        let volume = topo::mass_properties(body, Tol::witness())
+            .expect("mass properties")
+            .volume;
+        assert!(
+            (volume - 1.0).abs() < 1e-12,
+            "the pair boolean of the two halves is the whole block: {volume}"
+        );
+    }
+    assert!(
+        matches!(
+            ev.node_error(fused).map(|e| &e.kind),
+            Some(NodeErrorKind::MembersShareAnOperation { operation, members: (0, 1) })
+                if *operation == split
+        ),
+        "{:?}",
+        ev.node_error(fused)
+    );
+    assert!(
+        matches!(
+            ev.node_error(stray_boolean).map(|e| &e.kind),
+            Some(NodeErrorKind::DeclareSiteNotAnOperand { at }) if *at == split
+        ),
+        "{:?}",
+        ev.node_error(stray_boolean)
     );
 }
 

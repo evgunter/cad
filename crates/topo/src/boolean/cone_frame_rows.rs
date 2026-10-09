@@ -387,7 +387,7 @@ fn a_frustum_far_from_its_apex_is_levered_at_its_own_reach() {
     let cone = far_cone();
     let alpha = 0.01_f64.atan();
     let b = band();
-    let on = super::rest::face_witnesses(&body, face).unwrap();
+    let on = super::carrier_pair::face_witnesses(&body, face).unwrap();
     let reading = |a: &geom::Surface<f64>, c: &geom::Surface<f64>| {
         let (on_a, on_b) = if matches!(a, geom::Surface::Plane { .. }) {
             (Vec::new(), on.clone())
