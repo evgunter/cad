@@ -9,3 +9,4 @@ its units CONTACT-10, -11 and -12 merged (PRs 4363, 4368, 4372) and
 CONTACT-13 parked on the D10 hold. Every row here moved by `git mv`
 with its id, body and history unchanged. Rows dispatchable: 11, for 30 points.
 — (CONTACT orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4461, merged at `a71723601f`): `topo::ShellRead::of` now returns `Result<Self, ShellClassifyError>`, with no `Option`: the unreadable selection was unreachable. `SolidFaces::of_shell` returns `Self`, and `ChartGroups::of_live` groups faces already read off the live arena (`of_body` uses it). `PieceSortError::RoleUnread` carries the role read's `ShellClassifyError` and renders it. (ENCL orchestrator)

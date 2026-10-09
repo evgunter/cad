@@ -168,7 +168,7 @@ fn a_carrier_off_the_plane_between_samples_refuses_on_the_plane_limb() {
             panic!("the plane limb refused above: {refused:?}")
         };
         assert_eq!(
-            e.ending_in_file(FileCoincidence::new(2.0 * value)),
+            e.ending(FileCoincidence::new(2.0 * value)),
             Some(in_file_words(2.0 * value)),
             "{e:?}"
         );

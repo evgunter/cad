@@ -6,6 +6,8 @@ status: open
 opened: 2026-10-08
 priority: P0
 refs: [transform-retires-into-a-placement, declared-pairs-retire]
+rides_with: patterns-are-index-variables
+cost: M
 ---
 
 Ev, 2026-10-08: "PlacedUnion sounds like it needs to be fixed". Under
@@ -26,6 +28,8 @@ section's certified disjointness (`topo::Separation`) is the at-rest
 census's job once the copies are a placement's (stage 5 C retires
 `Separation` into the resident).
 
-Lands after stage 3 C/D (a pattern is a placement of several copies,
-FORK-S3M) so the copies it would read exist; the union of a pattern's
-members is DM4's node, whose names are keyed by member.
+Built by stage 3 G (`patterns-are-index-variables`, FORK-PAT row 99),
+which retires `PlacedUnion` into a placement whose reads reach an index
+and a `Node::Union` reading the family, the certificate becoming the
+union's fast path. The union's member keys wait on FORK-DM4
+(`a-union-member-is-keyed-by-its-read`), and so does G.

@@ -80,6 +80,24 @@ then, as units:
 After 13, re-measure and price `a-wall-seam-between-two-fits-has-no-section`
 (P2, H) before dispatching it.
 
+then, as units:
+
+15. **A moved fit's corners** — `a-moved-fitted-faces-corners-have-no-root-on-a-derived-spline-section`
+    (P2, H): seed the plane's root on a derived spline section, or root
+    the fit along a held edge, so a fitted face bounded by planes moves.
+    Lands after 13 (both in `replace_face.rs`). Dual review.
+16. **The tilted read's three gaps** — `tilted-read-accepts-a-zero-touch-on-any-vertex-sharing-pair`
+    (E), `tilted-read-skips-edge-adjacent-pairs-that-cross-away-from-their-edge`
+    (M) and `tilted-read-takes-a-spline-or-spiric-edge-as-its-carrier-ball`
+    (M), all P3 and all in `moved_walls_cross` (`shell.rs`). The skipped
+    edge-adjacent pair is a possible silent crossing, so the unit is
+    M-tier: rule-1 draw byte 178 (mod 3 = 1), sequential.
+
+The wall seam re-measured (its `## Measured`, 2026-10-09): the loft's
+seams refuse at the iso-row guard and at `Approx × Nurbs`, behind a fit
+budget the default ε misses. It needs a designer pair before it is
+priced, after 15.
+
 Units 8 and 10 run in parallel (different files); unit 9's measure
 runs beside them.
 
