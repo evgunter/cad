@@ -52,3 +52,27 @@ One of:
   off its boundary loops, sided through the same door;
 - a role read that does not need one, such as each loop's winding
   against its region face's sense.
+
+## Measured (`join/annular-tube-roles`)
+
+Why the aligned pairs built: the ladder's rung 3 (`stands.rs`
+`face_interior_point`) drew its candidates from vertex points alone.
+The disc's one loop has one vertex, so it offered none. The annulus
+offered one chord, between the two vertices. At `(0, 0)` and `(0, 1)`
+that chord's midpoint lies in the annulus and decides. At `(0, π)` and
+`(1, 4)` it lies in the disc, at radius 0.25, so neither region
+decided. A two-arc wall has two vertices per circle and built at every
+pair on main.
+
+## Built (`join/annular-tube-roles`)
+
+Rung 3 gains a third candidate source after the vertex ones,
+`stands.rs` `across_edges`. From each edge's parameter midpoint it
+steps either way along the in-plane normal, at `L/2ᵏ` for
+`k = 1…12`, where `L` is the midpoint's distance to the edge's two
+ends. The candidates are taken longest step first, and `point_in_face`
+certifies each as before. Any planar face wider than `L/4096` beside
+one of its certified edges now offers a witness. The fix does not
+depend on annuli or on the join; it is the one ladder that the shell
+witness, tier 3's check 10 and the pieces sort also read. Pinned in
+`crates/sweep/tests/an_annular_tube_through_a_plate.rs`.

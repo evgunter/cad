@@ -57,8 +57,6 @@ mod revolve_common;
 
 #[path = "a_plane_across_a_one_face_wall.rs"]
 mod a_plane_across_a_one_face_wall;
-#[path = "an_annular_tube_through_a_plate.rs"]
-mod an_annular_tube_through_a_plate;
 #[path = "a_pole_and_an_apex_join_nothing.rs"]
 mod a_pole_and_an_apex_join_nothing;
 #[path = "a_ring_on_a_cone_face.rs"]
@@ -69,6 +67,8 @@ mod a_ring_on_a_sphere_face;
 mod a_ruling_lying_on_a_wall;
 #[path = "a_swept_cusp_is_legal_at_rest.rs"]
 mod a_swept_cusp_is_legal_at_rest;
+#[path = "an_annular_tube_through_a_plate.rs"]
+mod an_annular_tube_through_a_plate;
 #[path = "at_rest_pcurve_faces.rs"]
 mod at_rest_pcurve_faces;
 #[path = "band_subdivided_side_walls.rs"]

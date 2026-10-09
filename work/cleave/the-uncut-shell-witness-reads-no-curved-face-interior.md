@@ -89,3 +89,11 @@ well flanks only patches of the sphere, every vertex and edge of which
 lies on the slab (`crates/sweep/tests/a_ring_on_a_sphere_face.rs`,
 `a_ring_inside_a_sphere_island_moves_and_stops_at_the_role_read`). A
 through hole stops the same way.
+
+## The planar cousin is closed (JOIN, `join/annular-tube-roles`)
+
+A planar region face whose vertex chords all leave it, or that has one
+vertex, now offers a witness: rung 3 also steps across each edge from
+its parameter midpoint (`stands.rs` `across_edges`). The same move,
+taken in a curved face's chart and evaluated on its surface, is one
+shape the curved fix above could take.

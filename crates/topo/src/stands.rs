@@ -275,7 +275,10 @@ fn face_interior_point<T: Decide>(
         .iter()
         .enumerate()
         .flat_map(|(i, &a)| vertices[i + 1..].iter().map(move |&b| chord_midpoint(a, b)));
-    for q in triples.chain(chords).chain(across_edges(body, face, normal)?) {
+    for q in triples
+        .chain(chords)
+        .chain(across_edges(body, face, normal)?)
+    {
         if certified_in_face(body, face, normal, q, band)? {
             return Ok(Some(q));
         }
