@@ -31,7 +31,7 @@ type Curve = (KnotVector, Vec<f64>, Vec<Vec<f64>>);
 // ---- independent f64 oracles (kernel basis functions only) ----------
 
 fn curve_eval(kv: &KnotVector, w: &[f64], coords: &[Vec<f64>], t: f64) -> Vec<f64> {
-    let span = kv.span_at(t);
+    let span = kv.span_at(t).expect("a numeric parameter");
     let n = basis::basis_funs(span, t);
     let mut den = 0.0;
     let mut num = vec![0.0; coords.len()];
@@ -49,7 +49,9 @@ fn curve_eval(kv: &KnotVector, w: &[f64], coords: &[Vec<f64>], t: f64) -> Vec<f6
 fn surf_eval(s: &Surf, u: f64, v: f64) -> [f64; 3] {
     let (ku, kv, w, coords) = s;
     let nv = kv.control_count();
-    let (su, sv) = (ku.span_at(u), kv.span_at(v));
+    let (Some(su), Some(sv)) = (ku.span_at(u), kv.span_at(v)) else {
+        panic!("a numeric parameter pair");
+    };
     let nu_b = basis::basis_funs(su, u);
     let nv_b = basis::basis_funs(sv, v);
     let mut den = 0.0;
@@ -408,7 +410,7 @@ fn falsification_battery_no_finite_bound_undercuts_truth() {
 
     // (c) out-of-domain excursion on the removable fixture: pcurve u
     // sweeps [−0.05, 1.05]; truth is the kernel's own clamped-span
-    // polynomial extension (find_span clamps identically).
+    // polynomial extension (span_at clamps identically).
     let (s3, _, c3) = iso_u();
     let kl = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let pex = (

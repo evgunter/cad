@@ -28,7 +28,7 @@
 //! - **The span search from its definition** (`knots[i] ≤ t <
 //!   knots[i+1]`, located by exhaustive scan over `first_span
 //!   ..= last_span`) rather than from the retired linear scan, plus the
-//!   three documented totality exits.
+//!   two documented clamps, and no span at NaN.
 //! - **The mutation sequence itself**, reconstructed from
 //!   `to_bezier_spans_extra`'s loop, with the raw-slice entitlement
 //!   (`clamped` still accepts the list) and the `unreachable!` guard's
@@ -101,7 +101,7 @@ fn oracle_pairs(kv: &KnotVector) -> Vec<(f64, usize)> {
 /// The span index **from the definition**: the unique `i` in
 /// `[first_span, last_span]` with `knots[i] ≤ t < knots[i+1]`, found by
 /// exhaustive scan; `None` when `t` is outside `[lo, hi)` or NaN, where
-/// no such `i` exists and the function's totality contract takes over.
+/// no such `i` exists and `span_at`'s clamp (or refusal) takes over.
 fn oracle_span_by_definition(kv: &KnotVector, t: f64) -> Option<usize> {
     let k = kv.knots();
     let mut found = None;
@@ -132,7 +132,10 @@ fn retired_linear_span(knots: &[f64], u: f64) -> usize {
 /// `geom-brep/src/props/quad.rs`'s `raw_span`, reproduced: the other
 /// raw-slice span search live in the tree. Evidence for a census note,
 /// not a gate.
-fn quad_raw_span(knots: &[f64], degree: usize, count: usize, t: f64) -> usize {
+fn quad_raw_span(knots: &[f64], degree: usize, count: usize, t: f64) -> Option<usize> {
+    if t.is_nan() {
+        return None;
+    }
     let last = count.saturating_sub(1).max(degree);
     let mut span = degree;
     let mut i = degree;
@@ -142,7 +145,7 @@ fn quad_raw_span(knots: &[f64], degree: usize, count: usize, t: f64) -> usize {
         }
         i += 1;
     }
-    span.min(last)
+    Some(span.min(last))
 }
 
 // ---------------------------------------------------------------------
@@ -308,8 +311,8 @@ fn enumerated() -> Vec<(String, KnotVector)> {
     // exact under `==`, and every interior value differs from `-0.0`),
     // and it is the sharpest form of the `u == lo` / `u == hi` case the
     // span substitution rests on: the probe `+0.0` compares `==` to the
-    // endpoint but is a different bit pattern, and `find_span`'s guard
-    // is spelled `!(t > knots[p])`.
+    // endpoint but is a different bit pattern, and the search's guard
+    // is spelled `t <= knots[p]`.
     push(
         "signed zero/p3/lo is −0.0".to_string(),
         build(3, -0.0, 1.0, &[(0.5, 2)]),
@@ -554,22 +557,32 @@ fn check_span(name: &str, kv: &KnotVector) {
     let (first, last) = (kv.first_span(), kv.last_span());
 
     for t in probes(kv) {
-        let got = kv.find_span(t);
+        let located = kv.span_at(t).map(|s| s.index());
+        assert_eq!(
+            quad_raw_span(knots, kv.degree(), kv.control_count(), t).is_none(),
+            t.is_nan(),
+            "{name}: quad.rs's raw_span copy refuses at {t} where span_at does not, or the reverse"
+        );
+        let Some(got) = located else {
+            assert!(t.is_nan(), "{name}: span_at({t}) refused a number");
+            continue;
+        };
+        assert!(!t.is_nan(), "{name}: span_at(NaN) located span {got}");
         match oracle_span_by_definition(kv, t) {
             Some(want) => assert_eq!(
                 got, want,
-                "{name}: find_span({t}) = {got}, the definition says {want}"
+                "{name}: span_at({t}) = {got}, the definition says {want}"
             ),
             None => {
-                // Outside `[lo, hi)`, or NaN: the three documented exits.
-                let want = if t.is_nan() || t < lo { first } else { last };
+                // Outside `[lo, hi)`: the two documented clamps.
+                let want = if t < lo { first } else { last };
                 assert!(
-                    t.is_nan() || t < lo || t >= hi,
+                    t < lo || t >= hi,
                     "{name}: {t} is in [lo, hi) yet no span contains it"
                 );
                 assert_eq!(
                     got, want,
-                    "{name}: find_span({t}) = {got}, the totality contract says {want}"
+                    "{name}: span_at({t}) = {got}, the clamping contract says {want}"
                 );
             }
         }
@@ -593,28 +606,27 @@ fn check_span(name: &str, kv: &KnotVector) {
         } else {
             assert_eq!(
                 linear, 0,
-                "{name}: below the domain (or NaN) the retired scan returns its initialiser"
+                "{name}: below the domain the retired scan returns its initialiser"
             );
         }
         // Evidence, not a gate: `quad.rs`'s raw-slice span
-        // search is the same function as `find_span` on a valid clamped
-        // vector, at every probe including the totality exits.
+        // search is the same function as `span_at` on a valid clamped
+        // vector, at every probe including the clamping exits.
         assert_eq!(
             quad_raw_span(knots, kv.degree(), kv.control_count(), t),
-            got,
-            "{name}: quad.rs's raw_span disagrees with find_span at {t} — if this ever \
+            Some(got),
+            "{name}: quad.rs's raw_span disagrees with span_at at {t} — if this ever \
              fires the census note about it is wrong"
         );
-        // `span_at` must never land on an empty span; `find_span`'s
-        // tie-break is the whole reason the raw insertion path can index
-        // `knots[k+1]`.
+        // `span_at` must never land on an empty span; its tie-break is
+        // the whole reason the raw insertion path can index `knots[k+1]`.
         assert!(
             kv.span_is_nonempty(got),
-            "{name}: find_span({t}) = {got} is an EMPTY span"
+            "{name}: span_at({t}) = {got} is an EMPTY span"
         );
         assert!(
             (first..=last).contains(&got),
-            "{name}: find_span({t}) = {got} is outside [{first}, {last}]"
+            "{name}: span_at({t}) = {got} is outside [{first}, {last}]"
         );
     }
 }
@@ -713,7 +725,10 @@ fn simulate_decomposition(name: &str, kv: &KnotVector, extra: &[f64]) {
                 *v > knots[p] && *v < knots[knots.len() - p - 1],
                 "{name}: step {step} would reach insert_once_ring's unreachable! at {v}"
             );
-            let k = cur.find_span(*v);
+            let k = cur
+                .span_at(*v)
+                .expect("an interior knot is a number")
+                .index();
             assert_eq!(
                 k,
                 retired_linear_span(&knots, *v),

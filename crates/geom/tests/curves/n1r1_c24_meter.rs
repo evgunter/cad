@@ -21,7 +21,7 @@ fn n1r1_c24_meter() {
     println!("degree/interior  eval_in_span  deriv_in_span(order1)  ders_in_span().1(retired)");
     for (p, interior) in DEGREES {
         let c = curve(p, interior);
-        let span = c.span_at(0.37);
+        let span = c.span_at(0.37).expect("a numeric parameter");
         // warm
         for _ in 0..10_000 {
             black_box(span.deriv_in_span(black_box(0.37)));
