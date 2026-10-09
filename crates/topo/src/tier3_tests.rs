@@ -2376,6 +2376,81 @@ fn material_arm_error_table() {
     }
 }
 
+/// **The material reads stop with the margin their decision decided,
+/// and check 4 ends each stop as its decision.** Two coincident planes
+/// on one material side meet smoothly, so their pairing margin is the
+/// station's arm itself: an arm in the zero band is the pairing gate's
+/// decided Zero, one in band its undecided margin, and both are that
+/// one decision's refusal — the arm's lever, with the tolerance the
+/// margin gives. The cusp side reads a jet whose relative curvature is
+/// zero: its gate's decided Zero carries the margin tagged, not a mint.
+#[test]
+fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
+    use core::ops::ControlFlow;
+    use geom_brep::StationHook;
+    use geom_core::{MarginDiag, Sign};
+    let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+    let edge = crate::fixtures::raw_prism(3, Tol::witness())
+        .body
+        .edges()
+        .next()
+        .expect("the fixture has edges")
+        .0;
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let station = |arm: f64, kappa_rel: f64| geom_brep::Station {
+        p: Point3::new(0.0, 0.0, 0.0),
+        jet: geom_brep::TangentJet {
+            sin_theta: 0.0,
+            kappa_rel,
+        },
+        arm,
+    };
+    let stations = || crate::validate::MaterialStations::new(&plane, true, &plane, true, band);
+    let finding = |cause| ValidationError::SliverDihedral {
+        edge,
+        check: crate::validate::WedgeCheck::MaterialSide,
+        cause,
+    };
+    let lead = "which side of an edge the material of its two smoothly meeting faces lies on \
+                is undecided. Recourse: move the geometry so that edge is clearly longer and no \
+                face curves tightly there, or, if this length is intended, tighten the tolerance \
+                below";
+    for (label, arm, sign, below) in [
+        ("decided zero", 5e-10, Some(Sign::Zero), "5e-11 m"),
+        ("in band", 5e-9, None, "5e-10 m"),
+    ] {
+        let ControlFlow::Break(cause) = stations().before_decision(&station(arm, 1.0)) else {
+            panic!("{label}: a pairing at arm {arm:e} stops the walk");
+        };
+        assert_eq!(
+            (cause.predicate, cause.margin.rejected_sign()),
+            (Some("material_wedge_side"), sign),
+            "{label}: the pairing stops with its decided margin"
+        );
+        assert_eq!(
+            finding(cause).to_string(),
+            format!("{lead} {below}"),
+            "{label}: check 4 ends the pairing as its decision"
+        );
+    }
+    let ControlFlow::Break(cause) = stations().after_positive(&station(1.0, 0.0)) else {
+        panic!("a zero cusp-side margin stops the walk");
+    };
+    assert_eq!(
+        (
+            cause.predicate,
+            cause.margin.rejected_sign(),
+            cause.margin == MarginDiag::INVALID
+        ),
+        (Some("material_cusp_side"), Some(Sign::Zero), false),
+        "the cusp side stops with its gate's decided Zero, not a hand-minted poison"
+    );
+}
+
 // ---------------------------------------------------------------------
 // Check 7's subject — the per-SOLID volume sign, and what tier 3
 // deliberately does NOT read about a solid's shells.
