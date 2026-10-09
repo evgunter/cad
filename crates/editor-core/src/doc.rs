@@ -1263,10 +1263,9 @@ impl<P> Doc<P> {
     }
 
     /// **The anonymous variables [`Node::written`] would not reproduce**:
-    /// one read more than once — by two slots, as a fresh entry shared
-    /// within one edit, or by a slot and a definition — which a written
-    /// re-insert splits into one per reader, and a count read by a
-    /// definition, which written there reads back as the integer
+    /// one its one reader's formula reads more than once, which a
+    /// written re-insert splits into one per read, and a count read by
+    /// a definition, which written there reads back as the integer
     /// constant.
     /// Rebuilding a document by re-inserting its nodes as written is
     /// the document only where this is empty and no anonymous variable
@@ -1518,7 +1517,10 @@ impl<P> Doc<P> {
     /// of an anonymous one by what it holds ([`Self::written`]) — a
     /// written value in its unit (`5 mm`), a definition expanded — and
     /// a reader of a variable the document does not hold by its full id
-    /// ([`crate::unparse`]).
+    /// ([`crate::unparse`]). An anonymous variable has one reader
+    /// (VR2), so the text set back where it was read re-mints it for
+    /// that reader alone: no share is split, and a shared variable is
+    /// written by its name.
     pub fn unparse<L: crate::expr::LeafSet>(&self, expr: &crate::expr::ExprTree<L>) -> String {
         crate::expr::unparse(&self.written_formula(&expr.to_formula()), &|id| {
             self.var_names.get(&id)

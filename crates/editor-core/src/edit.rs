@@ -103,7 +103,8 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// The edit's fresh table (VR6): the variables it mints for its
         /// formulas to read as [`Formula::fresh`], entry by entry and
         /// before anything else it mints. An entry's definition may
-        /// read the entries before it.
+        /// read the entries before it, and an entry two readers share
+        /// carries a name (VR2).
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         fresh: Vec<FreshEntry>,
     },
@@ -237,7 +238,8 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// The edit's fresh table (VR6): the variables it mints for its
         /// formulas to read as [`Formula::fresh`], entry by entry and
         /// before anything else it mints. An entry's definition may
-        /// read the entries before it.
+        /// read the entries before it, and an entry two readers share
+        /// carries a name (VR2).
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         fresh: Vec<FreshEntry>,
     },
@@ -266,7 +268,8 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// The edit's fresh table (VR6): the variables it mints for its
         /// formulas to read as [`Formula::fresh`], entry by entry and
         /// before anything else it mints. An entry's definition may
-        /// read the entries before it.
+        /// read the entries before it, and an entry two readers share
+        /// carries a name (VR2).
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         fresh: Vec<FreshEntry>,
     },
@@ -284,7 +287,8 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// The edit's fresh table (VR6): the variables it mints for its
         /// formulas to read as [`Formula::fresh`], entry by entry and
         /// before anything else it mints. An entry's definition may
-        /// read the entries before it.
+        /// read the entries before it, and an entry two readers share
+        /// carries a name (VR2).
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         fresh: Vec<FreshEntry>,
     },
@@ -340,7 +344,8 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// The edit's fresh table (VR6): the variables it mints for its
         /// formulas to read as [`Formula::fresh`], entry by entry and
         /// before anything else it mints. An entry's definition may
-        /// read the entries before it.
+        /// read the entries before it, and an entry two readers share
+        /// carries a name (VR2).
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         fresh: Vec<FreshEntry>,
     },
@@ -406,7 +411,8 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// ([`EditError::UnknownVar`]), a name another variable holds
     /// ([`EditError::VarNameTaken`]), the name the variable already has
     /// ([`EditError::VarNameUnchanged`]), and clearing the name of a
-    /// variable nothing reads ([`EditError::AnonymousVarUnread`]).
+    /// variable nothing reads ([`EditError::AnonymousVarUnread`]) or
+    /// more than one reader reads ([`EditError::SharedVarNeedsName`]).
     RenameVar {
         /// The variable.
         var: VarRef,
@@ -420,8 +426,8 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// read it.
     ///
     /// Refuses a variable the document does not hold
-    /// ([`EditError::UnknownVar`]) and an anonymous one, whose lifecycle
-    /// is its readers' ([`EditError::DeleteAnonymousVar`]).
+    /// ([`EditError::UnknownVar`]) and an anonymous one, which goes with
+    /// its reader ([`EditError::DeleteAnonymousVar`]).
     DeleteVar {
         /// The variable.
         var: VarRef,
@@ -558,7 +564,8 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// The edit's fresh table (VR6): the variables it mints for its
         /// formulas to read as [`Formula::fresh`], entry by entry and
         /// before anything else it mints. An entry's definition may
-        /// read the entries before it.
+        /// read the entries before it, and an entry two readers share
+        /// carries a name (VR2).
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         fresh: Vec<FreshEntry>,
     },
@@ -4333,8 +4340,8 @@ pub enum Maintenance {
         var: SpokenVar,
     },
     /// **An anonymous variable this edit removed** (VR7): the edit
-    /// detached the last expression reading it, and a variable with no
-    /// name is one something reads. The mint log keeps its id, so it is
+    /// detached the one expression reading it, and a variable with no
+    /// name goes with its reader. The mint log keeps its id, so it is
     /// never minted again.
     AnonymousVarRemoved {
         /// The variable, spoken from the document the edit entered.
@@ -4473,7 +4480,7 @@ impl core::fmt::Display for Maintenance {
                 write!(
                     f,
                     "the edit left nothing reading {var}, which had no name, so it went with \
-                     its last reader"
+                     its reader"
                 )?;
                 if distribution.is_some() {
                     f.write_str(", and the tolerance it carried went with it")?;

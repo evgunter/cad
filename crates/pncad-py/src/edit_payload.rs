@@ -551,6 +551,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         },
         EditError::VarNameUnchanged { var }
         | EditError::AnonymousVarUnread { var }
+        | EditError::SharedVarNeedsName { var }
         | EditError::DeleteAnonymousVar { var } => EditPayload {
             param: var.name(),
             ..none

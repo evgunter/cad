@@ -3166,7 +3166,7 @@ fn maintenance_display_says_what_the_edit_did() {
             },
             vec![
                 "nothing reading #0:0000000000070000",
-                "went with its last reader",
+                "went with its reader",
             ],
         ),
         (
