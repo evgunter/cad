@@ -145,6 +145,7 @@ pub mod chart_region;
 // the same rustdoc reason as the sector modules below.
 pub(crate) mod chord_join;
 pub mod coherence;
+pub mod coincidence;
 pub mod contact;
 pub mod entity;
 pub mod euler;
@@ -866,6 +867,7 @@ pub use coherence::{
     CoherenceCondition, CoherenceFinding, CoherenceReport, StructureRead, Unexaminable, Unexamined,
     examine_chart_coherence, gap_is_noise,
 };
+pub use coincidence::{Coincidence, DecisionSite, Discharge, Relation, RowCell};
 pub use geom::Curve3;
 pub use geom::Surface;
 pub use geom_brep::{

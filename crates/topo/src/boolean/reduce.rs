@@ -464,8 +464,9 @@ pub(super) fn gate_operand<T: Decide>(
 /// **The operand gate where no at-rest gate ran**: what the finished-body
 /// type promises, read on an operand that carries no verdict (a dual's,
 /// [`crate::AtRestBody::gate_unverdicted`] — the split's door reads the
-/// same), refused as [`BooleanError::ScaffoldingOperand`] or
-/// [`BooleanError::InsideOutOperand`]. It runs before the pipeline reads
+/// same), refused as [`BooleanError::ScaffoldingOperand`],
+/// [`BooleanError::InsideOutOperand`] or [`BooleanError::UnjoinedOperand`].
+/// It runs before the pipeline reads
 /// a several-solid operand as one solid (`ops::one_solid`), since the
 /// orientation read's subjects are the solid and, within it, the shell.
 pub(super) fn gate_unverdicted_operand<T: Decide + crate::props::AtRestPolicy>(
@@ -3409,10 +3410,10 @@ fn wall_crossing<T: Decide + Bounds>(
     // states; a cone face lies on one nappe, and a root definitely off
     // THAT nappe ([`geom_brep::cone_elevation`] asked about it) lies on
     // the other: the carrier is crossed, not here. A face whose corners
-    // do not decide its nappe (one reaching its apex) leaves the
-    // question to its trim; a corner station in the band escalates, as
-    // the trim's own reading would, and a face the sweep holds that does
-    // not resolve is the sweep's desync.
+    // do not decide its nappe (corners on both sides of its apex)
+    // leaves the question to its trim; a corner station in the band
+    // escalates, as the trim's own reading would, and a face the sweep
+    // holds that does not resolve is the sweep's desync.
     let nappe = match *surface {
         geom::Surface::Cone {
             apex,

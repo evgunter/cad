@@ -29,8 +29,9 @@
 //! the closing join killed. Survivors take [`RoleSeg::FromTarget`] of
 //! their upstream name; mints take their role; a join's kept edge, a
 //! survivor or a mint by its key, takes the name of the input edges its
-//! cover lies along (`join_names`), which replaces its row's. Anything that is neither — a key minted without a
-//! record — has no upstream name and surfaces as
+//! cover lies along (`join_names`), which replaces its row's. Anything
+//! that is neither — a key minted without a record — has no upstream
+//! name and surfaces as
 //! [`NamingError::MissingUpstream`], loudly, rather than being guessed
 //! around. The final [`check_total`] closes the other direction.
 //!
