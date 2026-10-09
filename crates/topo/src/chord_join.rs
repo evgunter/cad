@@ -321,7 +321,7 @@ pub enum SplitJoinError {
     ///   one means a lane invariant is broken, never user geometry;
     /// - **deliberate typed frontiers**: configurations the M5 lane
     ///   refuses BY DESIGN with the front door named in `what` (a
-    ///   tangent germ pair inside the boolean zip — a touching
+    ///   tangent germ pair inside the boolean join — a touching
     ///   configuration, the M5 envelope's frontier; a non-cylinder
     ///   planar-side germ partner — the PR 9c arms).
     SectionInvariant {
@@ -852,7 +852,7 @@ impl<T: Real> SectionConic<T> {
 ///
 /// `Straight` and `Tangent` are handed BACK rather than decided here:
 /// the two chord lanes mean different things by them — the split lane
-/// mints a tangent chord along the ruling, the boolean zip refuses a
+/// mints a tangent chord along the ruling, the boolean join refuses a
 /// tangent germ pair as a touching frontier — and that difference is
 /// the whole of what the two lanes do not share.
 pub(crate) enum SectionCase<T: Real> {

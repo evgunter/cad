@@ -79,10 +79,7 @@ fn matching_reads_the_germs_loci() {
                 )
             })
             .count();
-        assert_eq!(
-            declared, 0,
-            "the chord join builds the union, not the zip that takes over its refusal"
-        );
+        assert_eq!(declared, 0, "the chord join builds the union");
     }
     assert_sound("peg ∪ collar", r, want);
 }

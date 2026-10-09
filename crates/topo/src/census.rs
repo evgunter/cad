@@ -3055,8 +3055,8 @@ pub(crate) fn face_reach<T: Decide>(
 /// Where `f`, which every caller read out of `body`, or a record on the
 /// walk from it does not resolve, or a loop walk does not close (D2
 /// row 4): a torn boundary is not one with no claim. The bodies are at
-/// rest (the census, the split's gate), or mid-operation (the REST
-/// lane, the split's crossing insertion), where the links hold by
+/// rest (the census, the split's gate), or mid-operation (the split's
+/// crossing insertion), where the links hold by
 /// [`crate::live::OPERATORS_KEEP_LINKS`].
 pub(crate) fn face_reach_in<T: Decide>(
     body: &Body<T>,

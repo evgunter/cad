@@ -337,7 +337,7 @@ sector's relative transverse curvature signed against the other face's
 outward normal, the declaration bridging an exact zero). The join
 discards each side of a conformal contact whole, on any carrier the
 ladder certifies, and its finish fuses the two solids along the seam
-once, so union volume is exactly additive at full engagement.
+once, so at full engagement union volume is the operands' sum.
 
 A rim with a determinate G1 jet carries `TangentIntersection`. Rim
 routing by material wedge is `docs/MATE-7-TANGENCY-DESIGN.md`: π ⇒

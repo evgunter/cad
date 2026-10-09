@@ -85,11 +85,11 @@ pub(crate) fn build<S: Scalar>(
         );
     }
     println!("   mated-union WITHOUT declarations: {refusal}");
-    // DECLARED, the union BUILDS (M5 S1): the join-stage REST zip
-    // removes the coincident contact patches and fuses the seam —
-    // exact dyadic volume additivity (interiors disjoint).
+    // DECLARED, the union BUILDS through the join, which leaves the
+    // coincident contact patches out and fuses the seam — exact dyadic
+    // volume additivity (interiors disjoint).
     let glued = expect_seamed(
-        "declared mated union (M5 S1 REST zip)",
+        "declared mated union (the join)",
         check(
             crate::booleans::try_union_declared(&a.body, &b.body, tol),
             expected,

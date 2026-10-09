@@ -3616,15 +3616,14 @@ pub(in crate::boolean) mod tests {
         }
     }
 
-    /// **The three definite arms, and the maximal-faces gate's, pass the
+    /// **The two definite arms, and the maximal-faces gate's, pass the
     /// refusal-shape guard and offer a declaration only where their
     /// door takes one**: the curved pierce frontier (the declared-cover
     /// rung reads a declaration of the edge's face against the curved
     /// one) ends in the coincidence's levers without the tolerance; the
     /// pierce curvature, on both refused verdicts, names its lever, with
-    /// the tolerance a zero-band margin gives; the declared rest zip
-    /// names the geometry alone; the undeclared coincidence keeps its
-    /// menu.
+    /// the tolerance a zero-band margin gives; the undeclared
+    /// coincidence keeps its menu.
     #[test]
     fn the_definite_arms_offer_a_declaration_only_where_their_door_takes_one() {
         use crate::boolean::PlaneRelation;

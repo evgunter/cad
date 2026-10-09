@@ -2,7 +2,8 @@
 id: tour-red-on-main-after-the-blend-ends-with-the-join
 kind: issue
 title: demos/tour is red on main after PR 4353: the die and the teapot document's face, edge and vertex pins still read the blend's pre-join counts
-status: open
+status: closed
+closed: 2026-10-09
 priority: P1
 cost: E
 opened: 2026-10-08
@@ -17,3 +18,7 @@ Four rows fail, from two pins:
 - `demos/tour/tests/teapot_document.rs`, `one_request_builds_the_kernels_body`: `census(&kernel)` is `(12, 21, 11)` against `(14, 23, 11)`.
 
 PR 4353 (FUSE step 3 C, "blend surgery ends with the join") is the change that moves them: both are blend results, and the join now runs at the end of the blend. Whether the new counts are right (the join removing valence-2 vertices and their edges, and merging faces at the teapot) is FUSE's call; if they are, re-baseline the pins and say what moved.
+
+## Closed (2026-10-09)
+
+Fixed on main by PR 4374 (`bb49a72bca`, "fuse/tour-pins-follow-the-blend-join"), which re-baselined the die's and the teapot document's pins to the blend's joined counts. Closed by INTENT stage 4 A's fix pass, which merges it.

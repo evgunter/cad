@@ -11,7 +11,8 @@
 //! controls build each site with a pure contact, and each overlap
 //! without its site. The last two rows take each site off the pins'
 //! poses: more overlaps and pure contacts for the reflex site, and the
-//! pure contacts the tangent site must keep building.
+//! pure contacts the tangent site must keep building. The last pins a
+//! line kiss beside the site, which builds with its contact undeclared.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -414,4 +415,66 @@ fn the_tangent_site_keeps_building_pure_contacts() {
         vol(&u) + pv - 0.375,
         0.375,
     );
+}
+
+/// **A line kiss beside the tangent site builds at its closed form and
+/// ships its contact undeclared** (shape 2 of
+/// `work/zip/a-dip-inside-a-rest-contact-is-refused-by-the-result-gate`).
+/// At these poses one of `b`'s cap edges from the reflex corner lies in
+/// `a`'s top, with the cap above it elsewhere: `v∩ = 0`, and `b` kisses
+/// `a` along that edge and at its far vertex. Each union, in both
+/// orders, builds at `vol a + vol b′` and passes tier 2; tier 3′ finds
+/// the kiss's vertex on `a`'s top and its edge along it, and no record
+/// backs either. Today's behaviour, pinned: stage 4 E
+/// (`booleans-glue-on-zero`) glues and records a contact decided Zero,
+/// which turns this row's tier-3′ findings into records.
+#[test]
+fn a_line_kiss_beside_a_tangent_site_ships_its_contact_undeclared() {
+    use topo::{CensusContact, ValidationError};
+    for (profile, sx, sy) in [
+        ("dUp", 0.25, 0.25),
+        ("dUp", 0.5, 0.5),
+        ("dLeft", -0.5, -0.5),
+        ("dLeft", -0.25, 0.25),
+        ("dLeft", -0.1, -0.1),
+        ("dLeft", -1.0, -1.0),
+        ("dDown", -0.5, -0.5),
+        ("dDown", -0.1, -0.1),
+        ("dDown", -1.0, -1.0),
+        ("dRight", 0.25, 0.25),
+    ] {
+        let (p, b, want) = reflex_beside_a_post(profile, sx, sy, -2.0);
+        assert_eq!(
+            p.want[0], 0.0,
+            "{profile} ({sx}, {sy}): the kiss overlaps nothing"
+        );
+        for (order, x, y) in [("a ∪ b′", &p.a, &b), ("b′ ∪ a", &b, &p.a)] {
+            let what = format!("{profile} ({sx}, {sy}) {order}");
+            let d = flush_declarations(x, y, tol());
+            let bb = match topo::union_with(x, y, &d, tol()) {
+                Ok(BooleanResult::Body(bb)) => bb,
+                other => panic!("{what}: the kiss does not build: {other:?}"),
+            };
+            let v = vol(&bb.body);
+            assert!((v - want).abs() < 1e-9, "{what}: volume {v} against {want}");
+            assert_eq!(topo::validate_closed(&bb.body), Ok(()), "{what}: tier 2");
+            let findings = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())
+                .expect_err("tier 3′ finds the kiss undeclared");
+            let kind = |want: fn(&CensusContact) -> bool| {
+                findings
+                    .iter()
+                    .filter(|e| {
+                        matches!(e, ValidationError::UndeclaredContact { contact, .. } if want(contact))
+                    })
+                    .count()
+            };
+            let on_face = kind(|c| matches!(c, CensusContact::VertexOnFace { .. }));
+            let along = kind(|c| matches!(c, CensusContact::EdgeFaceOverlap { .. }));
+            assert!(
+                on_face > 0 && along > 0 && on_face + along == findings.len(),
+                "{what}: the kiss's vertex on a's top and its edge along it, nothing else: \
+                 {findings:?}"
+            );
+        }
+    }
 }

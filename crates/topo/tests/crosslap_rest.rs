@@ -70,8 +70,8 @@ fn glued() -> topo::BooleanBody<f64> {
 
 /// The narrowing pin, unchanged: UNDECLARED, the mate refuses at the
 /// coincidence door (rung (b) — post-PR 5, value equality never
-/// classifies). The M5 S1 lane is reached exclusively through the
-/// declared rung; this door must never widen.
+/// classifies). The join builds the mate only through the declared
+/// rung; this door must never widen.
 #[test]
 fn undeclared_crosslap_refuses_at_the_coincidence_door() {
     let (a, b) = notched_beams();
@@ -113,7 +113,7 @@ fn declared_crosslap_rest_union_builds() {
     );
     assert!(
         !glued.naming.seam_edges.is_empty(),
-        "the zip mints real seam edges"
+        "the join mints real seam edges"
     );
 }
 

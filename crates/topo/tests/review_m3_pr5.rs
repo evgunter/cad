@@ -376,7 +376,7 @@ fn pinned_refusals_deterministic() {
         format!("{e1:?}").contains("UndeclaredCoincidence"),
         "got {e1:?}"
     );
-    // Declared: the M5 S1 REST zip glues the stack — exact volume and
+    // Declared: the join glues the stack — exact volume and
     // area of the (0..2)²×(0..4) brick.
     let r = run(union_with, &a, &b);
     let body = body_of(&r);
