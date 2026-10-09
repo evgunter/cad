@@ -607,7 +607,7 @@ fn a_reunited_splits_section_caps_are_one_construction() {
     );
     let [Ok(a), Ok(b)] = caps.each_ref().map(|c| match c {
         NamedCell::Entity { input, name } => coincide::construction(&doc, *input, name),
-        NamedCell::Tool { .. } => unreachable!(),
+        NamedCell::Tool { .. } | NamedCell::Piece { .. } => unreachable!(),
     }) else {
         panic!("both caps walk")
     };

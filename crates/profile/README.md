@@ -95,7 +95,7 @@ Under `ProfileLift::Guided` the same program is also resolved at the
 lane scalar and replayed through `replay_guided`, which consumes and
 re-verifies the f64 pass's `ReplayStructure` instead of re-deciding it
 (the profile-parameter lift, `crates/editor-core/README.md`). Junction
-checks re-run under every binding, and every declared tangency is
+checks re-run under every binding, and every constructed tangency is
 re-verified by `validate`, never trusted.
 
 `ProfileProgram::check` runs resolve + replay + validate under the
@@ -151,10 +151,12 @@ has a DAG input; evaluation resolves the frame at f64 for structure
 selection (`eval/wire.rs::profile_plane_f64`).
 
 Raw loop data stays kernel vocabulary through the `RawLoop` trait
-(`new`, which takes the canonical form, `polygon`,
-`with_tangent_joints`) and the `test_support::bulge_loop` helper, which
-hands a bulge chain to the lowering; both are omitted from the
-`pncad::profile` façade. `ProfileLoop`'s fields are private, so outside
+(`new`, which takes the canonical form, and `polygon`) and the
+`test_support::bulge_loop` helper, which hands a bulge chain to the
+lowering; both are omitted from the `pncad::profile` façade.
+`ConstructedLoop::fixture` reads a table as the lattice's construction
+with given constructed joints, for the rows that pin a construction the
+geometry contradicts; it exists under `test`/`test-support` only. `ProfileLoop`'s fields are private, so outside
 this crate a loop exists only through the lattice, the `map_scalar`
 materialization door, or those fixture doors. In any build satisfying
 neither `test` nor `test-support` the trait is declared `pub(crate)` and
@@ -163,14 +165,15 @@ home for the door list.
 
 **V5 — The v1-form → program lift is a development tool.**
 `profile::lift` mints a chain- or carrier-vocabulary program from a
-lowered loop (its vertices and stored segments) with declared joints:
+lowered loop (its vertices and stored segments), reading its tangent
+junctions as validation derives them:
 
-- declared junctions become `.tangent()`; every other junction becomes a
+- tangent junctions become `.tangent()`; every other junction becomes a
   sharp `line_to`/`arc_to` (an arc about its stored centre,
   `arc_to(Center)`);
-- the seam is rotated to the first undeclared joint; when there is none,
-  the program is seamed at 0 with the closing target carrying joint 0's
-  declaration (`Start.arrives_tangent()`);
+- the seam is rotated to the first joint that is not tangent; when there
+  is none, the program is seamed at 0 with the closing target carrying
+  joint 0's tangency (`Start.arrives_tangent()`);
 - no director is ever emitted, so no `sin_cos` quantization enters a
   lifted program;
 - fillets are not recovered (un-trimming a corner is inference, not a
@@ -183,10 +186,10 @@ lifts, replays and compares, reporting `Fidelity::BitIdentical` or
 persistence header door.
 
 **V6 — What programs do not change.** The verify layer runs unchanged on
-replayed output under every binding: flags verified-never-trusted
-(`UndeclaredTangency`, `TangencyContradicted`), same-carrier
-continuation is identity and is legal declared or undeclared, fit
-gating. A `ValidatedProfile` is minted on segments by the validate doors
+replayed output under every binding: constructed tangency verified,
+never trusted (`TangencyContradicted`); a value-decided junction
+recorded; same-carrier continuation is a tangent joint, constructed or
+decided; fit gating. A `ValidatedProfile` is minted on segments by the validate doors
 (`validate` and `validate_recording` on a `Profile` or a
 `ConstructedProfile`, and `validate_guided` on a `ConstructedProfile`)
 and by `ValidatedProfile::lift_onto` from an `f64` one;
@@ -311,7 +314,7 @@ verbs in `crates/sweep` are outside this decision.
 
 ## The fillet door never mints a joint the verify layer refuses
 
-A fillet's declared tangency is a claim about the carriers the loop
+A fillet's constructed tangency is a claim about the carriers the loop
 STORES, and a loop stores an arc as its chord and a carrier. Two things
 can happen to that claim between the door's arithmetic and the stored
 form, and both are refused at the door rather than left for validation:
@@ -342,8 +345,8 @@ for the sentence belonging to the escalation's predicate name — the one
 map from the nine `fillet_*` names to the six `FILLET_*_RECOURSE`
 sentences, several names sharing a sentence because they share a user
 situation (D4 ¶1's addendum). It renders the site it was resolving with
-that sentence and no coincidence tail: a fillet the caller asked for has
-no joint they declared, so "declare the coincidence" names a declaration
+that sentence and no coincidence tail: a fillet the caller asked for
+constructs its joints, so "declare the coincidence" names a declaration
 that does not exist. The fillet names are asked first, ahead of the
 stored-form classifications and the junction keys, and are disjoint
 from both. `tests/fillet_recourse_followability.rs` censuses the nine

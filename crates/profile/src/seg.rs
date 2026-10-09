@@ -717,28 +717,26 @@ pub(crate) fn coincident<T: Decide>(
 }
 
 /// How the two carriers of a *joint* — adjacent segments at their
-/// shared vertex — meet there (the #101 declared-tangency discipline's
-/// classification vocabulary).
+/// shared vertex — meet there (D1's profile-tangency classification
+/// vocabulary).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum JointClass {
     /// Distinct carriers in first-order (tangent) contact. Tangent
     /// carriers share exactly one point, and the shared vertex lies on
-    /// both, so the tangency *is* at the joint. Must be declared.
+    /// both, so the tangency *is* at the joint: a tangent joint.
     Tangent,
     /// Distinct carriers meeting transversally (or, defensively, a
     /// definitely-negative clearance, unreachable for carriers sharing
-    /// a vertex): definitely not tangent. A declaration here is
-    /// contradicted.
+    /// a vertex): definitely not tangent. A constructed tangent joint
+    /// here is contradicted.
     Transversal,
     /// One shared carrier (collinear line/line, cocircular arc/arc —
-    /// e.g. the minimal two-arc circle's joints): *continuation*, and
-    /// legal both ways. Undeclared it is an ordinary continuation;
-    /// DECLARED it is a declared tangent joint like any other — every
-    /// zero-turn joint is one (Ev, in-chat, 2026-09-02), because
-    /// identity is a fact about the carriers and tangency a fact about
-    /// the directions, and the directions agree here. Both readers act
-    /// on that: the verify layer's joint pass accepts it and the path
-    /// door's stored-form read accepts it.
+    /// e.g. the minimal two-arc circle's joints): *continuation*, a
+    /// tangent joint like any other — every zero-turn joint is one (Ev,
+    /// in-chat, 2026-09-02), because identity is a fact about the
+    /// carriers and tangency a fact about the directions, and the
+    /// directions agree here. Both readers act on that: the verify
+    /// layer's joint pass and the path door's stored-form read.
     SameCarrier,
 }
 
@@ -782,15 +780,16 @@ fn circles_scale<T: Real>(g1: &ArcGeom<T>, g2: &ArcGeom<T>) -> T {
 /// parallel to its arrival departs along it or REVERSES it (a cusp):
 /// the alignment `cos φ` of the two unit headings, levered by the
 /// arriving leg's arm. The one home of that question: the path door
-/// asks it of a zero-turn junction it is about to refuse or declare,
-/// and validation asks it of every declared tangent joint to record
-/// which are cusps ([`crate::ValidatedLoop::cusp_joints`]).
+/// asks it of a zero-turn junction it is about to refuse or construct,
+/// and validation asks it of every tangent joint between distinct
+/// carriers to record which are cusps
+/// ([`crate::ValidatedLoop::cusp_joints`]).
 ///
 /// `true` iff the alignment is definitely negative. A `Zero` reads as
 /// NOT reversed — the arm itself is degenerate (both components
 /// sub-ε), which the path door refuses as the tangent class and which
 /// a validated loop cannot reach (its legs are definitely non-degenerate
-/// and its declared joints verified tangent, so the margin is ± the
+/// and its tangent joints classified tangent, so the margin is ± the
 /// arm).
 pub(crate) fn junction_reverses<T: Decide>(
     arriving: Vec2<T>,

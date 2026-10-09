@@ -119,11 +119,9 @@ pub enum LiftRefusal {
     /// A same-carrier arc run reaches the SEAM. `arc_continue` has no
     /// closing form (it mints a structural subdivision vertex mid-chain
     /// only), and closing with `arc_to(Start)` on the incoming carrier
-    /// leaves the seam's own zero-turn junction UNDECLARED, which
-    /// refuses `SeamTangent`. (It used to refuse `SameCarrierJunction`
-    /// — retired with the Q1 sixth round, Ev in-chat 2026-09-02:
-    /// carrier identity is not a reason for anything, and the seam's
-    /// declaration is `Start.arrives_tangent()`.)
+    /// leaves the seam's own zero-turn junction unconstructed, which
+    /// refuses `SeamTangent`; the seam's construction is
+    /// `Start.arrives_tangent()`.
     SameCarrierClose {
         /// The joint's vertex index in the SOURCE loop.
         joint: usize,
@@ -494,14 +492,14 @@ fn chain_form(
     repair_same_carrier(program, &origin, tol)
 }
 
-/// Declare the zero-turn joint wherever the DRIVER says an arc leg
-/// arrives at one undeclared (§5-1's class, met by the binder's own
+/// Construct the zero-turn joint wherever the DRIVER says an arc leg
+/// arrives at one unconstructed (§5-1's class, met by the binder's own
 /// refusal rather than by a re-derived predicate).
 ///
 /// A cocircular arc/arc junction has zero turn, so `arc_to` classifies
-/// it `JunctionTangent` — the UNDECLARED zero-turn junction, which is
-/// the one trigger left. The re-spelling is the lattice's own: the
-/// leg becomes `.tangent().tangent_arc_to(p)`, its joint DECLARED and
+/// it `JunctionTangent` — the unconstructed zero-turn junction, which
+/// is the one trigger left. The re-spelling is the lattice's own: the
+/// leg becomes `.tangent().tangent_arc_to(p)`, its joint constructed and
 /// its arc derived from the inherited tangent and the authored target
 /// — which mints the raw run's vertex and a carrier the raw run's own
 /// satisfies, the tangent-chord derivation being one it meets. Whether the derived arc reproduces the raw one is the
@@ -514,7 +512,7 @@ fn repair_same_carrier(
     origin: &[usize],
     tol: Tol,
 ) -> Result<Vec<Step<f64>>, LiftRefusal> {
-    // The declaration is two steps where the leg was one, so the
+    // The construction is two steps where the leg was one, so the
     // source-segment map grows alongside the program.
     let mut origin = origin.to_vec();
     // Each accepted substitution moves the refusal strictly later, so
@@ -542,7 +540,7 @@ fn repair_same_carrier(
                 origin.insert(error.step, src);
                 match replay(&program, tol) {
                     Ok(_) => return Ok(program),
-                    // Progress means past BOTH steps of the declaration.
+                    // Progress means past BOTH steps of the construction.
                     Err(next) if next.step > error.step + 1 => {}
                     Err(_) => return Ok(saved),
                 }
@@ -564,9 +562,9 @@ fn repair_same_carrier(
 /// Is this refusal the "the incoming carrier just continues" fact?
 ///
 /// One arm since the 2026-09-02 ruling: every zero-turn joint is a
-/// declared tangent joint, so the algebra no longer refuses carrier
-/// IDENTITY at all and `JunctionTangent` — the UNDECLARED zero-turn
-/// junction — is the whole of what this asks about.
+/// tangent joint, so the algebra no longer refuses carrier IDENTITY at
+/// all and `JunctionTangent` — the unconstructed zero-turn junction —
+/// is the whole of what this asks about.
 fn is_carrier_continuation(kind: &ReplayErrorKind<f64>) -> bool {
     matches!(
         kind,

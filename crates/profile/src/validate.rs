@@ -160,8 +160,8 @@ use core::fmt;
 
 use geom_core::k_stats::decide;
 use geom_core::{
-    Arc2, Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, MarginDiag, Point2,
-    Real, Sign, Tol, Vec2,
+    Arc2, Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
+    Margin, MarginDiag, Point2, Real, Sign, Tol, Vec2,
 };
 
 /// The recourse of [`ProfileError::ArcBelowSceneResolution`]: the arc's
@@ -565,8 +565,8 @@ pub const FILLET_FIT_RECOURSE: &str =
 /// `segment_straightness`, whose margin is the sagitta
 /// `r(1 − cos(θ/2)) ≈ r·θ²/8`. Below the run's ε the stored arc is
 /// read as a line and the carrier the door computed is simply not in
-/// the validated loop, so the tangency the fillet declares has nothing
-/// to be about.
+/// the validated loop, so the tangency the fillet constructs has
+/// nothing to be about.
 ///
 /// Both levers move the sagitta, and the sentence says which way each
 /// runs — a larger turn, or a larger radius. The radius lever has a
@@ -1195,12 +1195,13 @@ impl fmt::Display for ProfileError {
             } => write!(
                 f,
                 "loop {loop_index} has a constructed tangent joint at vertex {joint}, but \
-                 the loop has only {count} vertices"
+                 the loop has only {count} vertices. {KERNEL_DEFECT_ENDING}"
             ),
             Self::TangentJointOnFullTurn { loop_index } => write!(
                 f,
                 "loop {loop_index} is one full-turn arc with a constructed tangent joint at \
-                 its vertex, which joins the arc to itself rather than two segments"
+                 its vertex, which joins the arc to itself rather than two segments. \
+                 {KERNEL_DEFECT_ENDING}"
             ),
             Self::TangencyContradicted {
                 first,
@@ -1248,7 +1249,7 @@ impl fmt::Display for ProfileError {
                 // The near-tangency site note (#101 point 2, reworked by
                 // the S6 two-tolerance sweep): the recourse levers ride
                 // `{source}` (the shared carrier); this addendum adds
-                // only the site-specific mechanics of the declare lever.
+                // only the site-specific mechanics of the construct lever.
                 //
                 // IT IS KEYED ON A (SITE, NAME) PAIR, and it appends
                 // nothing for every other pair. That default is honest
@@ -1264,10 +1265,10 @@ impl fmt::Display for ProfileError {
                 // The three names below ALSO carry a sentence at
                 // `PathError::Escalated`'s stored-form arm, and the two
                 // deliberately differ: here the segment pair is one the
-                // CALLER authored, so the declare lever is theirs to
+                // CALLER authored, so the construct lever is theirs to
                 // pull and this note says how; there the loop is one the
-                // fillet door is about to store, so declaring is advice
-                // about a declaration the caller never wrote, and the
+                // fillet door is about to store, so constructing is
+                // advice about a tangency the caller never wrote, and the
                 // arm names the stored form's own two levers instead.
                 // `review_recourse_roster_r2_probes` pins this key;
                 // `fillet_recourse_followability` pins the other.
@@ -1283,7 +1284,7 @@ impl fmt::Display for ProfileError {
                 if near_tangency {
                     f.write_str(
                         " — near-tangency: the PATHS .fillet(r) door computes and \
-                         declares an exact tangency (declared tangency is verified)",
+                         constructs an exact tangency (a constructed tangency is verified)",
                     )?;
                 }
                 Ok(())
@@ -1469,9 +1470,10 @@ impl<T: Real> ValidatedLoop<T> {
     /// of the same shape. The rest of the tangent joints continue the
     /// heading (a smooth, G1 joint).
     ///
-    /// Validation decides which, once per tangent joint, with the
-    /// question the path door asks of the same junction
-    /// (`path_junction_side`). A swept wall pair meeting at a cusp
+    /// Validation decides which, once per tangent joint between
+    /// distinct carriers, with the question the path door asks of the
+    /// same junction (`path_junction_side`); one carrier continuing
+    /// never reverses. A swept wall pair meeting at a cusp
     /// joint subtends material wedge 0 (2π on a hole loop).
     pub fn cusp_joints(&self) -> &[usize] {
         &self.cusp_joints
@@ -2131,8 +2133,8 @@ impl<T: Decide> ConstructedProfile<T> {
     /// record, and what this pass verifies
     /// instead is the VALUE channel that hangs off them: the segments
     /// the recorded permutation produces, classified here, must have
-    /// the recorded shapes, and the declared joints must land where
-    /// the record says.
+    /// the recorded shapes, and the tangent joints must land where the
+    /// record says.
     ///
     /// The containment forest is a different case and IS re-run: ray
     /// parity is an ordinary decided predicate, so a lane can honestly
@@ -2385,10 +2387,10 @@ struct JointVerdicts {
 ///   ([`DecidedJoint`]);
 /// - in-band / poisoned ⇒ [`ProfileError::Escalated`] at the pair site.
 ///
-/// Every tangent joint is then asked which way it departs
-/// ([`seg::junction_reverses`], `path_junction_side` — the question the
-/// path door asks of the same junction): the ones that reverse the
-/// heading are the cusps.
+/// Every tangent joint between distinct carriers is then asked which
+/// way it departs ([`seg::junction_reverses`], `path_junction_side` —
+/// the question the path door asks of the same junction): the ones that
+/// reverse the heading are the cusps.
 fn judge_joints<T: Decide>(
     constructed: &[usize],
     segs: &[Seg<T>],
@@ -2442,14 +2444,17 @@ fn judge_joints<T: Decide>(
                 margin: reading.diag,
             });
         }
+        // One carrier continuing never reverses: that would retrace the
+        // carrier, an overlap the simplicity pass has already refused.
         let (arriving, leaving) = (&segs[prev], &segs[joint]);
-        if seg::junction_reverses(
-            arriving.heading_at(arriving.b),
-            leaving.heading_at(leaving.a),
-            arriving.arm(),
-            band,
-        )
-        .map_err(escalated)?
+        if carriers == JointCarriers::Tangent
+            && seg::junction_reverses(
+                arriving.heading_at(arriving.b),
+                leaving.heading_at(leaving.a),
+                arriving.arm(),
+                band,
+            )
+            .map_err(escalated)?
         {
             verdicts.cusps.push(joint);
         }
