@@ -757,19 +757,23 @@ fn a_tubes_wall_opens_into_two_bands_and_its_seam_pieces_are_named() {
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![meridian],
         ids: Vec::new(),
     }));
     let tube = r.insert(Node::Revolve {
-        profile,
-        axis,
+        profile: profile.into(),
+        axis: axis.into(),
         angle: fixture::ang(std::f64::consts::TAU),
     });
     // The outer wall: the meridian's second segment, at r = 1/2.
     let wall_piece = fixture::piece(&r.doc, tube, 0, 1);
     let wall = editor_core::band(tube, wall_piece);
-    let shell = r.insert(Node::shell(tube, fixture::len(0.0625), vec![wall.clone()]));
+    let shell = r.insert(Node::shell(
+        editor_core::Operand::output(tube, 0),
+        fixture::len(0.0625),
+        vec![wall.clone()],
+    ));
     let ev = eval::<f64>(&r.doc);
     let bad = failures(&ev);
     assert!(bad.is_empty(), "the opened tube:\n{}", bad.join("\n"));
