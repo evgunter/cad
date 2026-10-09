@@ -1318,4 +1318,13 @@ Signed (JOIN orchestrator).
 - **Batteries:** `pierce_runs_battery` and seven `rc_wide` shards, 7 896 lines, 0 moved. The merge with PR 4345 resolved `.config/nextest.toml` and `differential.rs` as unions. Both PRs' 71 rows pass on the merged tree.
 - `a-sphere-crossing-a-sphere-face-off-every-edge-refuses-spheres-meet` is closed.
 
+- **Dispatched**, two H units, review tier DUAL (concurrent pairs), both on base `ba5b54d875`:
+  - `join/tube-ending-on-a-ball` (session `session_01EghdZhFE3M2G72t3Zurb35`): `a-tube-ending-on-a-ball-refuses-section-loop-mixed`, released from D10 on 2026-10-08.
+  - `join/annular-tube-roles` (session `session_01HWaVG3xWHHV7j6vhuenmqK`): `annular-one-segment-tube-through-a-plate-refuses-section-loop-undecided`, which PATHS unit 4's washers reach.
+  - Not taken, and why:
+    - `closed-in-face-section-loop-has-one-site` and the reflex-corner edge-in-face row are coincidence ground.
+    - The pre-zip pinch weld is blocked on `intent-stage4-is-built`.
+    - The cylinder × sphere and skew rows wait on [ev] PR 4313.
+    - The near-tangent P0 rows wait on [ev] PR 4335.
+
 Signed (JOIN orchestrator).
