@@ -4039,127 +4039,136 @@ fn moved_walls_cross<T: Decide + geom_core::Bounds>(
     thickness: T,
     band: Band,
 ) -> Result<(), ShellError<T>> {
-    let escalated = |source| ShellError::Escalated { source };
     let walls = moved_walls(cavity, partition);
     for (i, a) in walls.iter().enumerate() {
         for b in &walls[i + 1..] {
             if a.solid != b.solid || boxes_apart(a, b, band) {
                 continue;
             }
-            let cross = a.normal.cross(b.normal);
-            let lever = gate_measured(
-                "shell_moved_walls_extent",
-                (a.hi - a.lo).norm() + (b.hi - b.lo).norm() + (b.lo - a.lo).norm(),
-                band,
-            )
-            .map_err(escalated)?;
-            match decide(
-                "shell_moved_walls_transversal",
-                Margin::of(cross.norm() * lever),
-                band,
-            )
-            .map_err(escalated)?
+            if let Some(overlap) =
+                walls_cross(a, b, band).map_err(|source| ShellError::Escalated { source })?
             {
-                Sign::Positive => {}
-                Sign::Zero | Sign::Negative => continue,
-            }
-            // The point of `L` nearest `a`'s box centre, so every side
-            // and position below is a short difference.
-            let d = cross / cross.norm();
-            let k = a.normal.dot(b.normal);
-            let q = a.lo + (a.hi - a.lo) * T::from_f64(0.5);
-            let r_a = a.normal.dot(a.origin - q);
-            let r_b = b.normal.dot(b.origin - q);
-            let det = T::one() - k.powi(2);
-            let p0 = q + a.normal * ((r_a - k * r_b) / det) + b.normal * ((r_b - k * r_a) / det);
-            let on_a = a.cut(p0, d, band).map_err(escalated)?;
-            let on_b = b.cut(p0, d, band).map_err(escalated)?;
-            let along = |p: geom_core::Point3<T>| (p - p0).dot(d);
-            let common: Vec<(T, T)> = a
-                .edges
-                .iter()
-                .filter(|e| b.edges.iter().any(|f| f.edge == e.edge))
-                .map(|e| {
-                    let (s, t) = (along(e.start.1), along(e.end.1));
-                    (s.min(t), s.max(t))
-                })
-                .collect();
-            let shared: Vec<geom_core::Point3<T>> = a
-                .edges
-                .iter()
-                .filter(|e| b.vertices.contains(&e.start.0))
-                .map(|e| e.start.1)
-                .collect();
-            for &(a_lo, a_hi) in &on_a {
-                for &(b_lo, b_hi) in &on_b {
-                    // The overlap less every moved common edge: what is
-                    // left is where the two walls meet away from it.
-                    let mut rest = vec![(a_lo.max(b_lo), a_hi.min(b_hi))];
-                    for &(e_lo, e_hi) in &common {
-                        let mut kept = Vec::new();
-                        for (lo, hi) in rest {
-                            for piece in [(lo, hi.min(e_lo)), (lo.max(e_hi), hi)] {
-                                if !matches!(
-                                    decide(
-                                        "shell_moved_walls_overlap",
-                                        Margin::of(piece.1 - piece.0),
-                                        band
-                                    ),
-                                    Ok(Sign::Negative)
-                                ) {
-                                    kept.push(piece);
-                                }
-                            }
-                        }
-                        rest = kept;
-                    }
-                    for (lo, hi) in rest {
-                        let overlap = hi - lo;
-                        let crosses =
-                            match decide("shell_moved_walls_overlap", Margin::of(overlap), band)
-                                .map_err(escalated)?
-                            {
-                                Sign::Positive => true,
-                                // A touch is the shared vertex both
-                                // faces hold, or it is a contact.
-                                Sign::Zero => {
-                                    let touch = p0 + d * lo;
-                                    let reads: Vec<_> = shared
-                                        .iter()
-                                        .map(|&v| {
-                                            decide(
-                                                "shell_moved_walls_touch_vertex",
-                                                Margin::of((v - touch).norm()),
-                                                band,
-                                            )
-                                        })
-                                        .collect();
-                                    if reads.iter().any(|r| matches!(r, Ok(Sign::Zero))) {
-                                        false
-                                    } else if let Some(Err(e)) =
-                                        reads.into_iter().find(Result::is_err)
-                                    {
-                                        return Err(escalated(e));
-                                    } else {
-                                        true
-                                    }
-                                }
-                                Sign::Negative => false,
-                            };
-                        if crosses {
-                            return Err(ShellError::OffsetsCross {
-                                face: a.face,
-                                other: b.face,
-                                overlap: overlap.max(T::zero()),
-                                thickness,
-                            });
-                        }
-                    }
-                }
+                return Err(ShellError::OffsetsCross {
+                    face: a.face,
+                    other: b.face,
+                    overlap,
+                    thickness,
+                });
             }
         }
     }
     Ok(())
+}
+
+/// **One pair of [`moved_walls_cross`]**: how far the two moved walls
+/// overlap along the line their planes share, away from every moved
+/// edge they share, or `None` when they clear, are parallel to the
+/// band, or touch only at a shared vertex.
+fn walls_cross<T: Decide>(
+    a: &MovedWall<T>,
+    b: &MovedWall<T>,
+    band: Band,
+) -> Result<Option<T>, Indeterminate> {
+    let cross = a.normal.cross(b.normal);
+    let lever = gate_measured(
+        "shell_moved_walls_extent",
+        (a.hi - a.lo).norm() + (b.hi - b.lo).norm() + (b.lo - a.lo).norm(),
+        band,
+    )?;
+    match decide(
+        "shell_moved_walls_transversal",
+        Margin::of(cross.norm() * lever),
+        band,
+    )? {
+        Sign::Positive => {}
+        Sign::Zero | Sign::Negative => return Ok(None),
+    }
+    // The point of `L` nearest `a`'s box centre, so every side
+    // and position below is a short difference.
+    let d = cross / cross.norm();
+    let k = a.normal.dot(b.normal);
+    let q = a.lo + (a.hi - a.lo) * T::from_f64(0.5);
+    let r_a = a.normal.dot(a.origin - q);
+    let r_b = b.normal.dot(b.origin - q);
+    let det = T::one() - k.powi(2);
+    let p0 = q + a.normal * ((r_a - k * r_b) / det) + b.normal * ((r_b - k * r_a) / det);
+    let on_a = a.cut(p0, d, band)?;
+    let on_b = b.cut(p0, d, band)?;
+    let along = |p: geom_core::Point3<T>| (p - p0).dot(d);
+    let common: Vec<(T, T)> = a
+        .edges
+        .iter()
+        .filter(|e| b.edges.iter().any(|f| f.edge == e.edge))
+        .map(|e| {
+            let (s, t) = (along(e.start.1), along(e.end.1));
+            (s.min(t), s.max(t))
+        })
+        .collect();
+    let shared: Vec<geom_core::Point3<T>> = a
+        .edges
+        .iter()
+        .filter(|e| b.vertices.contains(&e.start.0))
+        .map(|e| e.start.1)
+        .collect();
+    for &(a_lo, a_hi) in &on_a {
+        for &(b_lo, b_hi) in &on_b {
+            // The overlap less every moved common edge: what is
+            // left is where the two walls meet away from it.
+            let mut rest = vec![(a_lo.max(b_lo), a_hi.min(b_hi))];
+            for &(e_lo, e_hi) in &common {
+                let mut kept = Vec::new();
+                for (lo, hi) in rest {
+                    for piece in [(lo, hi.min(e_lo)), (lo.max(e_hi), hi)] {
+                        if !matches!(
+                            decide(
+                                "shell_moved_walls_overlap",
+                                Margin::of(piece.1 - piece.0),
+                                band
+                            ),
+                            Ok(Sign::Negative)
+                        ) {
+                            kept.push(piece);
+                        }
+                    }
+                }
+                rest = kept;
+            }
+            for (lo, hi) in rest {
+                let overlap = hi - lo;
+                let crosses = match decide("shell_moved_walls_overlap", Margin::of(overlap), band)?
+                {
+                    Sign::Positive => true,
+                    // A touch is the shared vertex both
+                    // faces hold, or it is a contact.
+                    Sign::Zero => {
+                        let touch = p0 + d * lo;
+                        let reads: Vec<_> = shared
+                            .iter()
+                            .map(|&v| {
+                                decide(
+                                    "shell_moved_walls_touch_vertex",
+                                    Margin::of((v - touch).norm()),
+                                    band,
+                                )
+                            })
+                            .collect();
+                        if reads.iter().any(|r| matches!(r, Ok(Sign::Zero))) {
+                            false
+                        } else if let Some(Err(e)) = reads.into_iter().find(Result::is_err) {
+                            return Err(e);
+                        } else {
+                            true
+                        }
+                    }
+                    Sign::Negative => false,
+                };
+                if crosses {
+                    return Ok(Some(overlap.max(T::zero())));
+                }
+            }
+        }
+    }
+    Ok(None)
 }
 
 /// One moved planar face as [`moved_walls_cross`] reads it: its plane,
@@ -4831,6 +4840,164 @@ mod tests {
             ellipse.cut(Point3::new(1.0, 0.0, 0.0), y, band).unwrap(),
             &[(-h, h)],
             "the ellipse at x = 1",
+        );
+    }
+
+    /// Two hand-built moved walls in the planes `z = 0` and `y = 0`,
+    /// which share the `x` axis: each polygon is given as its vertices,
+    /// with the edge leaving each, in that plane's own `(x, ·)`
+    /// coordinates.
+    #[allow(clippy::type_complexity)]
+    fn axis_walls(
+        on_z: &[(VertexKey, (f64, f64), EdgeKey)],
+        on_y: &[(VertexKey, (f64, f64), EdgeKey)],
+    ) -> (MovedWall<f64>, MovedWall<f64>) {
+        use geom_core::{Point3, Vec3};
+        let wall = |normal: Vec3<f64>,
+                    ring: &[(VertexKey, (f64, f64), EdgeKey)],
+                    lift: fn(f64, f64) -> Point3<f64>| {
+            let at = |i: usize| (ring[i].0, lift(ring[i].1.0, ring[i].1.1));
+            let edges = (0..ring.len())
+                .map(|i| BoundaryEdge {
+                    edge: ring[i].2,
+                    start: at(i),
+                    end: at((i + 1) % ring.len()),
+                    curve: EdgeArc::Line,
+                })
+                .collect();
+            let points: Vec<Point3<f64>> = (0..ring.len()).map(|i| at(i).1).collect();
+            let fold = |f: fn(f64, f64) -> f64| {
+                points.iter().skip(1).fold(points[0], |p, q| {
+                    Point3::new(f(p.x, q.x), f(p.y, q.y), f(p.z, q.z))
+                })
+            };
+            MovedWall {
+                face: FaceKey::default(),
+                solid: SolidKey::default(),
+                origin: Point3::new(0.0, 0.0, 0.0),
+                normal,
+                edges,
+                vertices: ring.iter().map(|r| r.0).collect(),
+                lo: fold(f64::min),
+                hi: fold(f64::max),
+            }
+        };
+        (
+            wall(Vec3::new(0.0, 0.0, 1.0), on_z, |x, y| {
+                Point3::new(x, y, 0.0)
+            }),
+            wall(Vec3::new(0.0, 1.0, 0.0), on_y, |x, z| {
+                Point3::new(x, 0.0, z)
+            }),
+        )
+    }
+
+    /// **An adjacent pair is read less its common edge.** Two walls
+    /// share the edge `[0, 1]` of the `x` axis. Each also crosses the
+    /// axis away from it, the first over `[2, 3]`, the second over
+    /// `[2.5, 4]`: they cross over `0.5`. Moved off to `[3.5, 4]` the
+    /// second clears, and two walls meeting only along their common
+    /// edge clear too, its two ends being shared vertices.
+    #[test]
+    fn the_tilted_read_takes_an_adjacent_pair_less_its_common_edge() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let v = |n: u64| -> VertexKey { slotmap::KeyData::from_ffi((1u64 << 32) | n).into() };
+        let e = |n: u64| -> EdgeKey { slotmap::KeyData::from_ffi((1u64 << 32) | n).into() };
+        let (p, q) = (v(1), v(2));
+        let common = e(1);
+        let u_shape = [
+            (p, (0.0, 0.0), common),
+            (q, (1.0, 0.0), e(2)),
+            (v(3), (1.0, 1.0), e(3)),
+            (v(4), (2.0, 1.0), e(4)),
+            (v(5), (2.0, -0.5), e(5)),
+            (v(6), (3.0, -0.5), e(6)),
+            (v(7), (3.0, 2.0), e(7)),
+            (v(8), (0.0, 2.0), e(8)),
+        ];
+        let notched = |from: f64| {
+            [
+                (q, (1.0, 0.0), common),
+                (p, (0.0, 0.0), e(12)),
+                (v(13), (0.0, -2.0), e(13)),
+                (v(14), (4.0, -2.0), e(14)),
+                (v(15), (4.0, 0.5), e(15)),
+                (v(16), (from, 0.5), e(16)),
+                (v(17), (from, -1.0), e(17)),
+                (v(18), (1.0, -1.0), e(18)),
+            ]
+        };
+        let (a, b) = axis_walls(&u_shape, &notched(2.5));
+        let got = walls_cross(&a, &b, band).unwrap();
+        assert!(
+            got.is_some_and(|o| (o - 0.5).abs() < 1e-12),
+            "the walls cross over [2.5, 3], away from their edge: got {got:?}"
+        );
+        let (a, b) = axis_walls(&u_shape, &notched(3.5));
+        assert_eq!(
+            walls_cross(&a, &b, band).unwrap(),
+            None,
+            "[2, 3] and [3.5, 4] clear"
+        );
+
+        let below_z = [
+            (p, (0.0, 0.0), common),
+            (q, (1.0, 0.0), e(22)),
+            (v(23), (1.0, -2.0), e(23)),
+            (v(24), (0.0, -2.0), e(24)),
+        ];
+        let below_y = [
+            (q, (1.0, 0.0), common),
+            (p, (0.0, 0.0), e(32)),
+            (v(33), (0.0, -2.0), e(33)),
+            (v(34), (1.0, -2.0), e(34)),
+        ];
+        let (a, b) = axis_walls(&below_z, &below_y);
+        assert_eq!(
+            walls_cross(&a, &b, band).unwrap(),
+            None,
+            "both cuts are the common edge [0, 1], which is taken out"
+        );
+    }
+
+    /// **A touch is accepted at a shared vertex only.** Two walls share
+    /// the vertex `(−1, 0, 0)` and no edge. The first covers `[−1, 0.5]`
+    /// of the `x` axis; the second touches the axis at the shared vertex
+    /// and covers `[0.5, 2]`. The touch at the vertex is the two walls'
+    /// own corner; the touch at `0.5` is a contact, and refuses at
+    /// overlap zero.
+    #[test]
+    fn the_tilted_read_accepts_a_touch_only_at_a_shared_vertex() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let v = |n: u64| -> VertexKey { slotmap::KeyData::from_ffi((1u64 << 32) | n).into() };
+        let e = |n: u64| -> EdgeKey { slotmap::KeyData::from_ffi((1u64 << 32) | n).into() };
+        let corner = v(1);
+        let triangle = [
+            (corner, (-1.0, 0.0), e(1)),
+            (v(2), (0.5, -1.0), e(2)),
+            (v(3), (0.5, 1.0), e(3)),
+        ];
+        let notched = |at: f64| {
+            [
+                (corner, (-1.0, 0.0), e(11)),
+                (v(12), (at, -1.0), e(12)),
+                (v(13), (at, 1.0), e(13)),
+                (v(14), (2.0, 1.0), e(14)),
+                (v(15), (2.0, -2.0), e(15)),
+                (v(16), (-1.5, -2.0), e(16)),
+            ]
+        };
+        let (a, b) = axis_walls(&triangle, &notched(0.5));
+        assert_eq!(
+            walls_cross(&a, &b, band).unwrap(),
+            Some(0.0),
+            "the walls touch at 0.5, away from their shared vertex"
+        );
+        let (a, b) = axis_walls(&triangle, &notched(0.75));
+        assert_eq!(
+            walls_cross(&a, &b, band).unwrap(),
+            None,
+            "the walls meet only at their shared vertex"
         );
     }
 
