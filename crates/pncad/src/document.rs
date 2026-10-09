@@ -550,7 +550,8 @@ pub use editor_core::{
 // from values, and what the door decides about each — the payload of
 // `CheckEvidence::UnprovenCoincidence`. The record's relation and
 // decision site are the kernel's own words (`topo::coincidence`), and
-// the door is a module so its `Recourse` keeps its name.
+// the door is a module so its `Recourse` keeps its name. A cell on a
+// profile piece names it by `select`'s `ProfileEdgeRef`, curated there.
 pub use editor_core::coincide;
 pub use editor_core::{NamedCell, NamedCoincidence, Proof, Residual, Rung};
 /// The shell door's typed refusal, which two `CheckEvidence` arms
