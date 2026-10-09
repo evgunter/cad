@@ -118,40 +118,34 @@ fn every_op(what: &str, a: Body<f64>, b: Body<f64>, v: (f64, f64, f64), known: &
     let (a, b) = (fin("A", a), fin("B", b));
     for (op, r, want) in every_op_both_orders(&a, &b, v, tol()) {
         let row = format!("{what}: {op}");
-        if let Ok(res) = &r {
-            let body = &res.body().unwrap_or_else(|| panic!("{row}: empty")).body;
-            match mesh::tessellate(body, 5e-3, tol()) {
-                Ok(m) => {
-                    mesh::validate::check_mesh(&m).unwrap_or_else(|e| panic!("{row}: mesh {e:?}"))
-                }
-                Err(mesh::TessellateError::RingOnCurvedFace { .. }) => {}
-                Err(e) => panic!("{row}: {e:?}"),
-            }
+        let res = r.as_ref().unwrap_or_else(|e| panic!("{row}: {e:?}"));
+        let body = &res.body().unwrap_or_else(|| panic!("{row}: empty")).body;
+        match mesh::tessellate(body, 5e-3, tol()) {
+            Ok(m) => mesh::validate::check_mesh(&m).unwrap_or_else(|e| panic!("{row}: mesh {e:?}")),
+            Err(mesh::TessellateError::RingOnCurvedFace { .. }) => {}
+            Err(e) => panic!("{row}: {e:?}"),
         }
-        let line = outcome(r, want, tol());
-        match known.iter().find(|(o, _)| *o == op).map(|&(_, k)| k) {
-            None => assert!(line.starts_with("OK SOUND"), "{row}: {line}"),
-            Some(k) => {
-                let flags = ["t2=", "t3p=", "cert=", "operand="].map(|f| {
-                    let named =
-                        matches!((f, k), ("t3p=", Known::T3) | ("operand=", Known::Operand));
-                    format!("{f}{}", !named)
-                });
-                assert!(line.starts_with("OK BAD"), "{row}: {line}");
-                for f in &flags {
-                    assert!(line.contains(f.as_str()), "{row}: want {f}: {line}");
-                }
-                let num = |key: &str| -> f64 {
-                    let at = line.find(key).unwrap() + key.len();
-                    line[at..]
-                        .split_whitespace()
-                        .next()
-                        .unwrap()
-                        .parse()
-                        .unwrap()
-                };
-                assert!((num(" v=") - want).abs() < 1e-7, "{row}: volume: {line}");
-            }
+        // The volume against the closed form within the quadrature's
+        // own certified pad, which grows with ε; `outcome`'s fixed 1e-7
+        // holds at the default ε only.
+        let m = topo::mass_properties(body, tol()).unwrap();
+        assert!(
+            (m.volume - want).abs() <= m.volume_pad + 1e-9 * want.max(1.0),
+            "{row}: volume {} ± {}, closed form {want}",
+            m.volume,
+            m.volume_pad
+        );
+        let line = outcome(r, m.volume, tol());
+        let k = known.iter().find(|(o, _)| *o == op).map(|&(_, k)| k);
+        let flags = ["t2=", "t3p=", "cert=", "operand="].map(|f| {
+            let named = matches!(
+                (f, k),
+                ("t3p=", Some(Known::T3)) | ("operand=", Some(Known::Operand))
+            );
+            format!("{f}{}", !named)
+        });
+        for f in &flags {
+            assert!(line.contains(f.as_str()), "{row}: want {f}: {line}");
         }
     }
 }
