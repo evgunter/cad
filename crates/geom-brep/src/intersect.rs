@@ -2082,11 +2082,13 @@ pub enum PlaneConeSection<T: Real> {
 ///    [`PlaneConeSection::ApexLinePair`], Zero ⇒
 ///    [`PlaneConeSection::ApexTangentLine`], Negative ⇒
 ///    [`PlaneConeSection::ApexPoint`].
-/// 3. `pn_axis_normal` — margin `‖axis×normal‖·arm`, arm the would-be
-///    circle radius `|δ|·tan α` (δ the apex's distance from the plane,
-///    which is the axial height on an axis-normal plane and does not
-///    depend on where the plane's origin sits): Zero ⇒
-///    [`PlaneConeSection::AxisNormalCircle`]; definite ⇒ step 4.
+/// 3. `pn_axis_normal` — margin `‖axis×normal‖·arm`, arm the larger of
+///    the would-be circle's radius `|δ/c|·tan α` (δ the apex's distance
+///    from the plane, `c = axis·normal`) and `extent`, the reach over
+///    which the circle stands in for the section; neither depends on
+///    where the plane's origin sits. Zero ⇒
+///    [`PlaneConeSection::AxisNormalCircle`], built where the axis meets
+///    the plane; definite ⇒ step 4.
 /// 4. `pn_conic_type` — the same margin `D`, metered at `extent`, off
 ///    the apex: Negative ⇒ the plane meets every generator once and the
 ///    section is [`PlaneConeSection::TiltedEllipse`] through the ellipse
@@ -2217,19 +2219,28 @@ pub fn plane_cone_section<T: Decide>(
         }
         Sign::Positive | Sign::Negative => {
             // Apex definitely off the plane: axis-normal circle, else
-            // the conic the tilt makes. The alignment sine is levered at
-            // the circle the plane would cut, its radius read off the
-            // apex's distance from the PLANE: `h` reads where the plane's
-            // origin happens to sit, which on a plane along the axis is
-            // anywhere, and a lever of zero there decides any tilt Zero.
-            let h = (q - apex).dot(a);
-            let rim_r = h.abs() * (sin_a / cos_a);
-            let arm = apex_gap.abs() * (sin_a / cos_a);
+            // the conic the tilt makes. A Zero here stands the circle in
+            // for the plane's true section, so the tilt's sine is levered
+            // at the longest reach over which that stand-in is read: the
+            // circle's own radius, and the extent the conic type is
+            // metered at. Tilting the plane by `s` about the circle's
+            // centre moves it by at most `s` times the reach, so a Zero
+            // at the larger of the two keeps every point the section is
+            // read at within the zero band. Both are read off the plane's
+            // NORMAL, never its stored origin: a plane along the axis
+            // (`s = 1`) reads definite at the extent wherever its origin
+            // sits, however close it passes the apex.
+            //
+            // The circle is built where the axis meets the plane, at
+            // `t = −δ/c` from the apex (`c` is ±1 within the band here).
+            let t = (T::zero() - apex_gap) / c;
+            let rim_r = t.abs() * (sin_a / cos_a);
+            let arm = rim_r.max(extent);
             match decide("pn_axis_normal", Margin::levered(s, arm), band)
                 .map_err(SectionError::Escalated)?
             {
                 Sign::Zero => Ok(PlaneConeSection::AxisNormalCircle(Curve3::Circle {
-                    center: apex + a * h,
+                    center: apex + a * t,
                     axis: a,
                     radius: rim_r,
                     u_ref: cone_u,
