@@ -72,7 +72,7 @@ typed as the operands' ill-conditioning (D10, Booleans).
 - **The role read.** It carries the certified reading's escalation where
   the interval re-derivation's one enclosure of `V/A` lies wholly inside
   a sliver band (`RoleUnread::sliver`, then
-  `ShellClassifyError::Escalated::sliver`).
+  `ValidationError::ShellRoleUndecided::sliver`, beside check 10's refusal).
 - **The gate.** It states every finding's arm (`ops.rs` `finding_arm`).
   A check-10 role refusal with a certified sliver is in band. Where every
   finding is in band, the door refuses

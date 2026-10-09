@@ -25,9 +25,10 @@ it.
 replace the notch prism with its convex piece beyond the notch,
 `prism([(2,0), (4,0), (4,2), (2,1)], 1)`. Then `intersect_with(piece,
 cube)` at ε = 1e-9 builds one shell. `classify_shells` refuses that
-shell `Escalated`: its certified `V/A` is [3.28872e-9, 3.28872e-9],
-wholly in band (`sliver: Some(..)`). The intersection still returns
-`Ok`. At d = 3e-8 the same holds with `V/A` 9.866e-9. At d = −1e-8 the
+shell `Escalated`, and its certified `V/A` is [3.28872e-9, 3.28872e-9],
+wholly in band: the verdict check 10's `ValidationError::ShellRoleUndecided`
+carries as `sliver: Some(..)`, but only in a solid of two or more shells.
+The intersection still returns `Ok`. At d = 3e-8 the same holds with `V/A` 9.866e-9. At d = −1e-8 the
 intersection is empty.
 
 ## The shape to give

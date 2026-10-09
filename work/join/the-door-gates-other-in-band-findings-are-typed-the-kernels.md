@@ -20,7 +20,7 @@ as a kernel defect (`ResultInvalid`). `boolean/ops.rs` `finding_arm`
 states every finding's arm. Only the shell role takes the in-band arm,
 because only its margin is certified: the role read re-derives `V/A` in
 interval arithmetic and says when that enclosure lies wholly in a sliver
-band (`ShellClassifyError::Escalated::sliver`).
+band (`ValidationError::ShellRoleUndecided::sliver`).
 
 The other undecided findings the gate can raise carry a point margin read
 in `f64`: `DegenerateTorusEscalated`, `PlanarFaceEscalated`,

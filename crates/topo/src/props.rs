@@ -4889,6 +4889,11 @@ mod shell_role_refusal_tests {
                 false,
             ),
             ("touching the escalate edge", one(read(4e-9, 1e-8)), false),
+            (
+                "straddling the escalate edge on the void side",
+                one(read(-1.2e-8, -4e-9)),
+                false,
+            ),
             ("across zero", one(read(-2e-9, 4e-9)), false),
             (
                 "two ends, each in band",
