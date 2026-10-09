@@ -318,18 +318,23 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      named Q1 trilean; indeterminates surface as typed
      `CensusEscalated`, never a silent skip.
    - A census finding decides one number per pair of cells (two edges,
-     an edge and a face, a vertex and a face): the minimum distance
-     between the cells themselves, never between the infinite lines or
-     planes they lie on, signed where a face gives a side. Only that
-     number has to be definite; only a Zero is then classified (crossing,
-     overlap, on-face) and backed. Two cells that share a vertex or a
-     point key are at distance zero there by construction, so for them
-     the question is whether they meet anywhere else: their distance
-     grows away from the shared point, and is read at the far end of the
-     shorter cell, its length times the sine of the angle between them
-     (D4 ¶1's d = r·θ, with the cell's own length as the arm). Near the
-     shared point every pair of cells is within the band, whatever the
-     angle; that neighbourhood is not a coincidence.
+     an edge and a face, a vertex and a face, two faces), read between
+     the cells themselves, never between the infinite lines or planes
+     they lie on, and signed where a face gives a side. For cells that
+     share nothing it is their minimum distance. Cells that share a
+     vertex, a point key or an edge meet there by construction, and the
+     question is whether they meet anywhere else: the number is their
+     largest distance over the shorter cell, beyond what they share. For
+     straight cells it falls at the shorter cell's far end, its length
+     times the sine of the angle between them (D4 ¶1's d = r·θ, with
+     the cell's own extent as the arm). Q1's three arms read it: a
+     definite number is a legal configuration, however thin; one in the
+     sliver band refuses; a Zero is a coincidence (the cells are one
+     over their extent), which the op that made the body glues and
+     records (D10), so a census Zero no record backs is that op's
+     defect. Near what two cells share, every pair is within the band
+     whatever its angle. That neighbourhood is not a coincidence, and
+     its extent is not a number the census reads.
    - Certification runs **both directions and never scans-to-bless in
      either**: a census finding with no backing record is never
      silently blessed ((iii) below); a record with no geometric witness
