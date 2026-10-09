@@ -275,10 +275,12 @@ fn face_interior_point<T: Decide>(
         .iter()
         .enumerate()
         .flat_map(|(i, &a)| vertices[i + 1..].iter().map(move |&b| chord_midpoint(a, b)));
-    for q in triples
-        .chain(chords)
-        .chain(across_edges(body, face, normal)?)
-    {
+    for q in triples.chain(chords) {
+        if certified_in_face(body, face, normal, q, band)? {
+            return Ok(Some(q));
+        }
+    }
+    for q in across_edges(body, face, normal)? {
         if certified_in_face(body, face, normal, q, band)? {
             return Ok(Some(q));
         }
@@ -297,8 +299,8 @@ const ACROSS_HALVINGS: i32 = 12;
 /// so these reach a face the vertex candidates miss: a disc bounded by
 /// one closed edge, which has one vertex, or a face whose vertex
 /// chords all leave it. Steps are taken longest first, each depth over
-/// every edge before the next, so the first to certify lies as deep
-/// in the face as any. An edge with no certified carrier offers none.
+/// every edge before the next, so no shorter step is tried while a
+/// longer one is left. An edge with no certified carrier offers none.
 fn across_edges<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
