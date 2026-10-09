@@ -49,7 +49,7 @@ fn frame_on(doc: ProfileDoc, at: RecipeNodeId, face: StableName) -> (ProfileDoc,
     insert(
         doc,
         Node::Datum(editor_core::Datum::FaceFrame {
-            at,
+            at: at.into(),
             face,
             spin: ang(0.0),
         }),
@@ -169,7 +169,7 @@ fn a_declared_strand_a_later_set_declare_clears_is_not_reported() {
         &doc,
         DocEdit::SetMembers {
             node: union,
-            members: vec![a, c],
+            members: vec![a.into(), c.into()],
         },
     )
     .doc;
@@ -215,12 +215,12 @@ fn a_recording_answers_its_edits_ids_and_document_in_order() {
         &doc,
         DocEdit::SetMembers {
             node: union,
-            members: vec![a, c],
+            members: vec![a.into(), c.into()],
         },
     )
     .doc;
     let other = Node::Union {
-        members: vec![a, c],
+        members: vec![a.into(), c.into()],
         declare: Vec::new(),
     };
 
@@ -312,7 +312,7 @@ fn a_refusal_ends_the_action_even_when_the_caller_goes_on() {
     let (doc, c) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
     let delete_b = DocEdit::DeleteNode { id: b };
     let union = Node::Union {
-        members: vec![b, c],
+        members: vec![b.into(), c.into()],
         declare: Vec::new(),
     };
 

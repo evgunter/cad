@@ -589,6 +589,20 @@ def audit_gap_ids():
 #:   next one.)
 BOUND_AS = {
     "CM": "cm",
+    # The coincidence door's row and its verdict (D10) cross as ONE
+    # value, `Coincidence`: its cells as `(node, name)` pairs, the
+    # door's proof as `rung` (`None` unproven) beside `residual`.
+    "NamedCoincidence": "Coincidence",
+    "NamedCell": "Coincidence.cells",
+    "Proof": "Coincidence.rung",
+    "Rung": "Coincidence.rung",
+    "Residual": "Coincidence.residual",
+    # A finding's subject crosses as its three attributes, each `None`
+    # for the arm it is not: `root` and `output_ix`, or `node`.
+    "FindingSubject": "CheckFinding.node",
+    # The door's module: its one question, asked of a node, is
+    # `Evaluation.coincidences`.
+    "coincide": "Evaluation.coincidences",
     # A variable's identity is Python's `Var`, the handle `Doc.var`
     # and `Doc.vars` answer.
     "VarId": "Var",
@@ -2270,6 +2284,15 @@ NOT_BOUND = {
     "OutputFault": SHAPE,
     "OutputPort": SHAPE,
     "PortKind": SHAPE,
+    # An operand's address and what it admits: Python names a refused
+    # operand by the words `EditError.slot`, `.index` and `.expected`
+    # carry, and writes one as a `NodeId` or a `Var` argument.
+    "SlotKind": SHAPE,
+    "OperandSlot": SHAPE,
+    # What the slot door writes: Python hands `DocEdit.set_param` a
+    # formula, a value, a `Var` or a `NodeId`, and the slot's word says
+    # which the kernel lowers it to.
+    "SlotValue": SHAPE,
     "SubgroupFamily": SHAPE,
     # A pose value's subgroup, which the mate solve folds: Python holds
     # no pose value to ask it of.
@@ -2671,6 +2694,11 @@ NOT_BOUND = {
     # spelling of these questions is the document door, already bound:
     # `Evaluation.find_flush_candidates` and `Doc.declare`.
     "flush": SHAPE,
+    # The kernel's coincidence record (`topo::coincidence`): rows keyed
+    # by arena keys, which Python does not name. Its two words cross as
+    # `Coincidence.relation` and `Coincidence.site`, read off the
+    # document's named rows.
+    "coincidence": SHAPE,
     "real": SHAPE,
     # The loops-only resolution door the sketch frame created: a caller
     # with loops in hand and no document — a form previewing what it is
@@ -3529,6 +3557,10 @@ NOT_BOUND = {
 #: reach what that member is about, at that spelling. Not the same shape, not
 #: the same receiver, and nothing about semantics.
 MEMBERS_BOUND_AS = {
+    # --- a one-of subject spelled as its arms' attributes ---------
+    # A finding is about one root output or one node; Python reads the
+    # subject as three attributes, `None` for the arm it is not.
+    "CheckFinding::subject": ("CheckFinding.root", "CheckFinding.output_ix", "CheckFinding.node"),
     # --- a continuous arm spelled per dimension -------------------
     # A continuous free variable or value carries its dimension; Python
     # builds one per dimension, so the arm is the three constructors.
@@ -3583,6 +3615,7 @@ MEMBERS_BOUND_AS = {
     "CheckEvidence::ChartCoherence": "CheckEvidence.variant",
     "CheckEvidence::ChartCoherenceUnexamined": "CheckEvidence.variant",
     "CheckEvidence::ChartCoherenceUnavailable": "CheckEvidence.variant",
+    "CheckEvidence::UnprovenCoincidence": "CheckEvidence.variant",
     "ChecksError::Root": "ChecksError.variant",
     "ChecksError::Band": "ChecksError.variant",
     "ChecksError::EvaluationOfAnotherDocument": "ChecksError.variant",
@@ -3608,6 +3641,7 @@ MEMBERS_BOUND_AS = {
     # selection and `DocEdit.delete_node` is bound.
     "Maintenance::OffsetCleared": "Maintenance.variant",
     "Maintenance::Strand": "Maintenance.variant",
+    "Maintenance::StrandedRead": "Maintenance.variant",
     "Maintenance::StrandedAppearance": "Maintenance.variant",
     "Maintenance::LabelDropped": "Maintenance.variant",
     "Maintenance::AnonymousVarRemoved": "Maintenance.variant",
@@ -3628,7 +3662,10 @@ MEMBERS_BOUND_AS = {
     "EditError::StepIdsRefused": "EditError.variant",
     "EditError::NameStepNeverMinted": "EditError.variant",
     "EditError::TooFewMembers": "EditError.variant",
-    "EditError::DeleteWouldDangle": "EditError.variant",
+    "EditError::OperandUnresolved": "EditError.variant",
+    "EditError::AmbiguousOutput": "EditError.variant",
+    "EditError::DefinesNothing": "EditError.variant",
+    "EditError::PartHalfPort": "EditError.variant",
     "EditError::UnknownSlot": "EditError.variant",
     "EditError::SlotDimensionMismatch": "EditError.variant",
     "EditError::StructuralSlotNeedsStructuralEdit": "EditError.variant",
@@ -3703,7 +3740,6 @@ MEMBERS_BOUND_AS = {
     "EditError::PromoteMemberOffset": "EditError.variant",
     "EditError::FoldOnNonGauge": "EditError.variant",
     "EditError::FoldWouldStartPlacing": "EditError.variant",
-    "EditError::FoldWouldDangle": "EditError.variant",
     "EditError::PlacementRuleMismatch": "EditError.variant",
     "EditError::EmptyPlacementList": "EditError.variant",
     "EditError::ImproperPlacement": "EditError.variant",
@@ -3918,6 +3954,7 @@ MEMBERS_BOUND_AS = {
     "StepImportError::WallColumnStructure": "StepImportError.variant",
     "StepImportError::RecognitionAmbiguous": "StepImportError.variant",
     "StepImportError::Pcurves": "StepImportError.variant",
+    "StepImportError::Join": "StepImportError.variant",
     "StepImportError::Placement": "StepImportError.variant",
     "StepImportError::Instance": "StepImportError.variant",
     "StepImportError::TierInvalid": "StepImportError.variant",
@@ -3977,8 +4014,11 @@ MEMBERS_BOUND_AS = {
     "ValidationError::PlanarBoundaryResidual": "ValidationFinding.variant",
     "ValidationError::PlanarBoundaryEscalated": "ValidationFinding.variant",
     "ValidationError::SliverDihedral": "ValidationFinding.variant",
+    "ValidationError::NoDihedralArm": "ValidationFinding.variant",
     "ValidationError::TransverseNotIntrinsic": "ValidationFinding.variant",
     "ValidationError::ScaffoldAtRest": "ValidationFinding.variant",
+    "ValidationError::JoinableVertexAtRest": "ValidationFinding.variant",
+    "ValidationError::JoinUndecidedAtRest": "ValidationFinding.variant",
     "ValidationError::TangentNotIntrinsic": "ValidationFinding.variant",
     "ValidationError::LaminaWedge": "ValidationFinding.variant",
     "ValidationError::LoopRoleInverted": "ValidationFinding.variant",

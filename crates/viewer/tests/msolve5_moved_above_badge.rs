@@ -49,7 +49,7 @@ fn moved_above(bench: &asm::Bench, tol: Tol) -> (std::path::PathBuf, AssemblyErr
     let pattern = insert_into(
         &mut asm,
         Node::Pattern {
-            input: lifted,
+            input: lifted.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],

@@ -51,7 +51,7 @@ fn block_part(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -112,7 +112,7 @@ fn four_legs(
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
+            input: leg.into(),
             count: Formula::count(4),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -234,10 +234,10 @@ fn a_circular_pattern_copy_rotates_the_solved_member() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
+            input: leg.into(),
             count: Formula::count(4),
             kind: PatternKind::Circular {
-                axis,
+                axis: axis.into(),
                 step: ang(theta),
             },
         },
@@ -311,7 +311,7 @@ fn two_seats(
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
+            input: leg.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -479,7 +479,7 @@ fn mates_never_solve_pattern_parameters() {
         DocEdit::SetParam {
             node: pattern,
             slot: editor_core::SlotId::Spacing,
-            expr: len(1.5),
+            value: len(1.5).into(),
             fresh: Vec::new(),
         },
     );
@@ -510,7 +510,7 @@ fn conflicting_mates_on_one_copy_refuse_contradictory() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
+            input: leg.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -578,7 +578,7 @@ fn the_master_name_spelling_refuses_moved_above() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
+            input: leg.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -648,7 +648,7 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
+            input: leg.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -685,7 +685,7 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
     let (doc2, body_pattern) = insert(
         doc2,
         Node::Pattern {
-            input: extrude,
+            input: extrude.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -736,7 +736,7 @@ fn sibling_copies_declare_and_one_copy_twice_is_a_self_mate() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
+            input: leg.into(),
             count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],

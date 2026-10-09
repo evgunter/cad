@@ -544,12 +544,12 @@ fn own_document_builds_at_dual64_with_f64_value_channel() {
     let disc = LoopProgram::circle(0.0, 0.0, 0.75).unwrap();
     let xy_frame_0 = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: xy_frame_0,
+        frame: xy_frame_0.into(),
         loops: vec![disc],
         ids: Vec::new(),
     }));
     let puck = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: fixture::len(0.5),
         side: ExtrudeSide::Along,
     });
@@ -561,7 +561,10 @@ fn own_document_builds_at_dual64_with_f64_value_channel() {
             fixture::scl(0.25f64.cos()),
         ],
     }));
-    let _split = r.insert(Node::Split { target: puck, tool });
+    let _split = r.insert(Node::Split {
+        target: puck.into(),
+        tool: tool.into(),
+    });
     let doc = r.doc;
 
     let ev_f = eval::<f64>(&doc);

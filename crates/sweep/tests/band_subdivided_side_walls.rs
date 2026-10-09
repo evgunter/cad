@@ -17,9 +17,9 @@
 //!   own key, so no rung merges them; the boolean refuses the body's
 //!   spline edges before its gate is reached.
 //! - **a rim split by hand** (`split_edge` at the station, the shape a
-//!   boolean's cut leaves): the boolean's output stage joins it back,
-//!   and the fillet and the chamfer carve its two collinear links as
-//!   one band across the joint, since both lie on the same two faces.
+//!   boolean's cut leaves) is construction state: the at-rest gate
+//!   refuses the station (tier 3's check 11), so no door takes it, and
+//!   the join takes it back to the as-built body.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -33,7 +33,7 @@ use sweep::{Extrusion, Revolution, RevolveAxis, extrude, loft_body, revolve};
 use topo::{AtRestBody, Body, BooleanError, EdgeKey, FaceKey, union, validate_closed};
 
 use crate::common::oracles;
-use crate::common::stations::{cut_stations, station_vertices};
+use crate::common::stations::{construction_state, cut_stations, joined, station_vertices};
 
 /// `[0,2]²` whose bottom side is authored as `line(1)` and then the
 /// straight continuation to `(2, 0)`: five vertices, four corners, and
@@ -224,43 +224,29 @@ fn extruded_continuation_builds_one_wall_and_unions_as_built() {
     assert!((volume(body, t) - 8.5).abs() < 1e-12, "{}", volume(body, t));
 }
 
-/// **A single-operand result has maximal edges.** The stationed prism
-/// unioned with a cube strictly inside it: no boundary crosses, so the
-/// union is the prism's own material, answered by the single-operand
-/// fallback. The prism carries a station vertex on both cap rims, and
-/// the fallback's output stage joins both: the result is a 2 × 2 × 2
-/// box with 8 vertices and 12 edges. Red when the fallback skips the
-/// join.
+/// **A stationed prism is construction state until it is joined.** It
+/// carries a station vertex on both cap rims, which the at-rest gate
+/// refuses (check 11), so no door takes it; the join takes both back,
+/// leaving a 2 × 2 × 2 box with 8 vertices and 12 edges, which unions
+/// with a cube strictly inside it as itself, answered by the
+/// single-operand fallback with nothing left to join.
 #[test]
-fn a_union_answered_by_one_operand_joins_its_station_vertices() {
+fn a_stationed_prism_is_construction_state_until_joined() {
     let t = Tol::witness();
-    let prism = finished("the stationed prism", stationed_prism(t), t);
-    assert_eq!(
-        topo::joinable_vertices(
-            &prism,
-            geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
-        )
-        .unwrap()
-        .len(),
-        2,
-        "the station on each cap rim"
-    );
-    assert_eq!(station_vertices(&prism).len(), 2, "the reader finds both");
+    let body = stationed_prism(t);
+    let stations = construction_state(&body, t);
+    assert_eq!(stations.len(), 2, "the station on each cap rim");
+    assert_eq!(station_vertices(&body), stations, "the reader finds both");
+    let (body, joins) = joined(body, t);
+    assert_eq!(joins.len(), 2, "both stations joined");
+    assert_eq!(body.vertices().count(), 8);
+    assert_eq!(body.edges().count(), 12);
+    let prism = finished("the joined prism", body, t);
     let cube = cube_at(0.5, 0.5, 0.5, 1.0);
     let r = union(&prism, &cube, t).expect("the cube lies inside the prism");
     let out = r.body().expect("non-empty");
     assert_eq!(out.kind, topo::BooleanResultKind::OperandA);
-    assert_eq!(out.naming.edge_joins.len(), 2, "both stations joined");
-    assert_eq!(
-        topo::joinable_vertices(
-            &out.body,
-            geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
-        )
-        .unwrap(),
-        vec![]
-    );
-    assert_eq!(out.body.vertices().count(), 8);
-    assert_eq!(out.body.edges().count(), 12);
+    assert!(out.naming.edge_joins.is_empty(), "nothing left to join");
     assert_eq!(validate_closed(&out.body), Ok(()), "tier 2");
     assert!((volume(&out.body, t) - 8.0).abs() < 1e-12);
 }
@@ -310,40 +296,24 @@ fn twice_stationed_prism(t: Tol) -> Body<f64> {
 }
 
 /// **A seam joined twice reads through both joins.** The twice
-/// stationed prism unioned with a cube strictly inside it: the
-/// fallback's output stage joins each cap rim's three collinear edges
-/// into one, two joins per rim, the second's `gone` the first's `kept`.
-/// `BooleanNaming::joined_edge` takes every edge any join killed to the
-/// live edge holding it, through both joins. Red when `joined_edge`
-/// stops after one hop.
+/// stationed prism is construction state (four stations, check 11);
+/// the join takes each cap rim's three collinear edges into one, two
+/// joins per rim, the second's `gone` the first's `kept`.
+/// `topo::joined_edge`, the chase every door's naming reads its joins
+/// through, takes every edge any join killed to the live edge holding
+/// it, through both joins. Red when the chase stops after one hop.
 #[test]
 fn a_rim_joined_twice_reads_through_both_joins() {
     let t = Tol::witness();
-    let prism = finished("the twice stationed prism", twice_stationed_prism(t), t);
+    let body = twice_stationed_prism(t);
     assert_eq!(
-        topo::joinable_vertices(
-            &prism,
-            geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
-        )
-        .unwrap()
-        .len(),
+        construction_state(&body, t).len(),
         4,
         "two stations per cap rim"
     );
-    let cube = cube_at(0.5, 0.5, 0.5, 1.0);
-    let r = union(&prism, &cube, t).expect("the cube lies inside the prism");
-    let out = r.body().expect("non-empty");
-    let joins = &out.naming.edge_joins;
+    let (body, joins) = joined(body, t);
     assert_eq!(joins.len(), 4, "every station joined");
-    assert_eq!(
-        topo::joinable_vertices(
-            &out.body,
-            geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
-        )
-        .unwrap(),
-        vec![]
-    );
-    assert_eq!(out.body.edges().count(), 12, "a box");
+    assert_eq!(body.edges().count(), 12, "a box");
     assert!(
         joins
             .iter()
@@ -351,15 +321,20 @@ fn a_rim_joined_twice_reads_through_both_joins() {
             .any(|(i, j)| joins[..i].iter().any(|earlier| earlier.kept == j.gone)),
         "some rim is joined twice through one edge: {joins:?}"
     );
-    for j in joins {
+    for j in &joins {
         for e in [j.gone, j.kept] {
-            let live = out.naming.joined_edge(e);
+            let live = topo::joined_edge(&joins, e);
             assert!(
-                out.body.get_edge(live).is_some(),
+                body.get_edge(live).is_some(),
                 "{e:?} reads to a dead edge {live:?} through {joins:?}"
             );
         }
     }
+    assert_eq!(
+        topo::validate_geometric(&body, t),
+        Ok(()),
+        "the joined body is at rest"
+    );
 }
 
 /// **Revolve, full and partial: the same branch.** The subdivided
@@ -472,16 +447,17 @@ fn lofted_continuation_walls_carry_one_key_per_segment() {
 /// The blend radius the rows below request.
 const R: f64 = 0.25;
 
-/// **Fillet and chamfer: a split rim is ONE band across its joint.**
-/// Every edge of the stationed prism — the twelve cube edges, two of
-/// them split at the station's rim vertices — blends as the plain cube
-/// does, the two halves of each split rim carved as one band face whose
-/// trimlines carry the joint's feet. Its volume is the plain cube's
-/// closed form for both verbs. (The extrusion builds one wall over the
-/// run, so both halves already lie on the same two faces; no merge is
+/// **Fillet and chamfer: a split rim is joined before it blends.** The
+/// stationed prism's two cap rims are split at the station's rim
+/// vertices, which no blend door takes: the at-rest gate refuses both
+/// joints (check 11), so the prism is construction state. Joined, it is
+/// the plain cube, every one of whose twelve edges blends as its own
+/// band, with no joined band, at the plain cube's closed form for both
+/// verbs. (The extrusion builds one wall over the run, so both halves
+/// of each split rim already lie on the same two faces; no merge is
 /// needed first.)
 #[test]
-fn split_rim_blends_as_one_band() {
+fn a_split_rim_is_joined_before_it_blends() {
     let t = Tol::witness();
     // One wall over the run, as built: there is no strut at the
     // continuation and nothing for the merge to do.
@@ -492,55 +468,36 @@ fn split_rim_blends_as_one_band() {
             .groups
             .is_empty()
     );
-    let req: Vec<_> = merged.edges().map(|(k, _)| k).collect();
-    assert_eq!(req.len(), 14, "12 cube edges + the split rims");
-    let joints: Vec<topo::VertexKey> = merged
-        .vertices()
-        .map(|(v, _)| v)
-        .filter(|v| merged.edges_of_vertex(*v).is_some_and(|es| es.len() == 2))
-        .collect();
-    assert_eq!(joints.len(), 2, "the station's two rim vertices");
+    assert_eq!(merged.edges().count(), 14, "12 cube edges + the split rims");
+    assert_eq!(
+        construction_state(&merged, t).len(),
+        2,
+        "the station's two rim vertices"
+    );
+    let (merged, joins) = joined(merged, t);
+    assert_eq!(joins.len(), 2, "each joint joined");
+    let operand = finished("the joined prism", merged, t);
+    let req: Vec<_> = operand.edges().map(|(k, _)| k).collect();
+    assert_eq!(req.len(), 12, "the cube's edges");
 
-    let f = sweep::fillet::fillet_edges(&sweep::test_support::at_rest(&merged, t), &req, R, t)
-        .expect("the merged prism fillets");
+    let f = sweep::fillet::fillet_edges(&operand, &req, R, t).expect("the joined prism fillets");
     assert_eq!(validate_closed(&f.body), Ok(()), "fillet: tier 2");
     assert_eq!(
         topo::validate_geometric(&f.body, t),
         Ok(()),
         "fillet: tier 3"
     );
-    // The plain cube's 26 faces, 48 edges and 24 vertices, plus each
-    // joint's two feet, each splitting one trimline.
     assert_eq!(f.body.faces().count(), 26, "fillet: faces");
-    assert_eq!(f.body.edges().count(), 52, "fillet: edges");
-    assert_eq!(f.body.vertices().count(), 28, "fillet: vertices");
-    assert_eq!(
-        f.blend_faces.len(),
-        12,
-        "one band per chain, as on the cube"
-    );
+    assert_eq!(f.body.edges().count(), 48, "fillet: edges");
+    assert_eq!(f.body.vertices().count(), 24, "fillet: vertices");
+    assert_eq!(f.blend_faces.len(), 12, "one band per edge, as on the cube");
     assert_eq!(f.corner_faces.len(), 8);
     let rec = f.naming.as_ref().expect("birth records");
-    assert_eq!(rec.joined_blends.len(), 2, "the two split rims");
-    for (band, edges) in &rec.joined_blends {
-        assert_eq!(edges.len(), 2, "one band over both halves");
-        assert!(
-            matches!(
-                f.body.get_surface(key_of(&f.body, *band)),
-                Some(geom::Surface::Cylinder { .. })
-            ),
-            "a straight band is one cylinder"
-        );
-    }
-    for v in &joints {
-        assert!(rec.dead.vertices.contains(v), "the joint is retired");
-        assert_eq!(
-            rec.feet.iter().filter(|(_, src, _)| src == v).count(),
-            2,
-            "a joint leaves a foot on each support"
-        );
-    }
-    sweep::test_support::assert_naming_totality(&merged, &f, &req, "merged fillet");
+    assert!(
+        rec.joined_blends.is_empty(),
+        "no joint is left to carve across"
+    );
+    sweep::test_support::assert_naming_totality(&operand, &f, &req, "joined fillet");
     // A filleted cube of side `a` is the shrunk cube swept by the ball.
     let want = oracles::rounded_box_volume(2.0 - 2.0 * R, R);
     let got = volume(&f.body, t);
@@ -559,8 +516,7 @@ fn split_rim_blends_as_one_band() {
         want + 1.0
     );
 
-    let c = sweep::chamfer::chamfer_edges(&sweep::test_support::at_rest(&merged, t), &req, R, t)
-        .expect("the merged prism chamfers");
+    let c = sweep::chamfer::chamfer_edges(&operand, &req, R, t).expect("the joined prism chamfers");
     assert_eq!(validate_closed(&c.body), Ok(()), "chamfer: tier 2");
     assert_eq!(
         topo::validate_geometric(&c.body, t),
@@ -568,8 +524,8 @@ fn split_rim_blends_as_one_band() {
         "chamfer: tier 3"
     );
     assert_eq!(c.body.faces().count(), 26, "chamfer: faces");
-    assert_eq!(c.body.edges().count(), 52, "chamfer: edges");
-    assert_eq!(c.body.vertices().count(), 28, "chamfer: vertices");
+    assert_eq!(c.body.edges().count(), 48, "chamfer: edges");
+    assert_eq!(c.body.vertices().count(), 24, "chamfer: vertices");
     let want = oracles::chamfered_cube_volume(2.0, R);
     let got = volume(&c.body, t);
     assert!(
@@ -578,31 +534,34 @@ fn split_rim_blends_as_one_band() {
     );
 }
 
-/// **A joint and two cut-offs on one band**: only the split rim's two
-/// halves on the top cap. They join through the station vertex as
-/// one band, and each end, where the rim meets an unrequested side
-/// edge, is cut off at the side wall, at the prism closed form over the
-/// rim's whole length `2`.
+/// **A band cut off at both ends**: only the stationed prism's top
+/// rim, joined first — the hand-split rim is construction state (check
+/// 11), and the join takes its two halves back into one edge. Each end
+/// of the band, where the rim meets an unrequested side edge, is cut
+/// off at the side wall, at the prism closed form over the rim's whole
+/// length `2`.
 #[test]
-fn a_joined_band_is_cut_off_at_both_ends() {
+fn a_rim_band_is_cut_off_at_both_ends() {
     let t = Tol::witness();
-    let body = sweep::test_support::finished("body", stationed_prism(t), t);
-    let half = |a: f64, b: f64| {
-        body.edges()
-            .map(|(k, _)| k)
-            .find(|&e| {
-                let he = body.get_edge(e).unwrap().he_plus;
-                let p = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-                let (s, f) = (
-                    p(body.get_half_edge(he).unwrap().start),
-                    p(body.half_edge_end(he).unwrap()),
-                );
-                let on = |q: Point3<f64>, x: f64| (q - Point3::new(x, 0.0, 2.0)).norm() < 1e-12;
-                (on(s, a) && on(f, b)) || (on(s, b) && on(f, a))
-            })
-            .expect("a half of the split top rim")
-    };
-    let req = [half(0.0, 1.0), half(1.0, 2.0)];
+    let body = stationed_prism(t);
+    construction_state(&body, t);
+    let (body, _) = joined(body, t);
+    let body = sweep::test_support::finished("body", body, t);
+    let rim = body
+        .edges()
+        .map(|(k, _)| k)
+        .find(|&e| {
+            let he = body.get_edge(e).unwrap().he_plus;
+            let p = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+            let (s, f) = (
+                p(body.get_half_edge(he).unwrap().start),
+                p(body.half_edge_end(he).unwrap()),
+            );
+            let on = |q: Point3<f64>, x: f64| (q - Point3::new(x, 0.0, 2.0)).norm() < 1e-12;
+            (on(s, 0.0) && on(f, 2.0)) || (on(s, 2.0) && on(f, 0.0))
+        })
+        .expect("the joined top rim");
+    let req = [rim];
     for (verb, section) in [
         ("fillet", (1.0 - core::f64::consts::FRAC_PI_4) * R * R),
         ("chamfer", R * R / 2.0),
@@ -611,18 +570,14 @@ fn a_joined_band_is_cut_off_at_both_ends() {
             "fillet" => sweep::fillet::fillet_edges(&body, &req, R, t),
             _ => sweep::chamfer::chamfer_edges(&body, &req, R, t),
         }
-        .unwrap_or_else(|e| panic!("{verb}: the joined band builds, got {}", e.error));
+        .unwrap_or_else(|e| panic!("{verb}: the band builds, got {}", e.error));
         assert_eq!(
             topo::validate_geometric(&out.body, t),
             Ok(()),
             "{verb}: tier 3"
         );
         let rec = out.naming.as_ref().expect("birth records");
-        assert_eq!(
-            rec.joined_blends.len(),
-            1,
-            "{verb}: one band over both halves"
-        );
+        assert!(rec.joined_blends.is_empty(), "{verb}: one edge, one band");
         sweep::test_support::assert_naming_totality(&body, &out, &req, verb);
         let removed = volume(&body, t) - volume(&out.body, t);
         assert!(

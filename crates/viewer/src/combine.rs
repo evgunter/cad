@@ -450,7 +450,7 @@ fn pattern_op(
 /// hand-written documents alike.
 pub fn pattern_node(input: RecipeNodeId, count: i64, rule: PatternRuleSpec) -> AuthoredNode {
     Node::Pattern {
-        input,
+        input: input.into(),
         count: Formula::count(count),
         kind: rule_kind(rule),
     }
@@ -473,7 +473,7 @@ pub fn pattern_node(input: RecipeNodeId, count: i64, rule: PatternRuleSpec) -> A
 /// the node's own badge.
 pub fn placed_union_node(input: RecipeNodeId, count: i64, rule: PatternRuleSpec) -> AuthoredNode {
     Node::PlacedUnion {
-        input,
+        input: input.into(),
         count: Some(Formula::count(count)),
         kind: rule_kind(rule),
     }
@@ -486,7 +486,10 @@ fn rule_kind(rule: PatternRuleSpec) -> PatternKind<Formula> {
         PatternRuleSpec::Linear { direction, spacing } => {
             PatternKind::Linear { direction, spacing }
         }
-        PatternRuleSpec::Circular { axis, step } => PatternKind::Circular { axis, step },
+        PatternRuleSpec::Circular { axis, step } => PatternKind::Circular {
+            axis: axis.into(),
+            step,
+        },
     }
 }
 
@@ -736,10 +739,9 @@ pub enum DuplicateFault {
     /// projections would select two of the ORIGINAL bodies in place and
     /// the gesture would add nothing to the picture.
     ///
-    /// Reachable only past the body seat's own gate, which classifies
-    /// by node kind and admits a transform of a pattern
-    /// (`work/forms/body-seat-reads-through-the-placer-chain`); this
-    /// door asks the value, which is the evaluator's own question.
+    /// The body seat refuses a read of several bodies by its kind, so
+    /// this is the value's own answer behind it: the door asks the
+    /// value, which is the evaluator's own question.
     NotOneBody {
         /// The node picked, as the landed document held it.
         input: SpokenNode,
@@ -950,83 +952,51 @@ pub const DUPLICATE_COUNT: i64 = 2;
 /// the value it reads is evaluation's question, asked of authored and
 /// hand-written documents alike.
 pub fn part_node(of: RecipeNodeId, select: PartSelectSpec) -> AuthoredNode {
-    Node::Part {
-        of,
-        select: match select {
-            PartSelectSpec::SplitHalf(half) => PartSelect::SplitHalf(half),
-            PartSelectSpec::Instance(index) => PartSelect::Instance(Formula::count(index)),
+    // A split's half is its port (spec Q5: a split named alone is two
+    // outputs, so the read names which).
+    match select {
+        PartSelectSpec::SplitHalf(half) => Node::Part {
+            of: pncad::document::Operand::output(of, half.port()),
+            select: PartSelect::SplitHalf(half),
+        },
+        PartSelectSpec::Instance(index) => Node::Part {
+            of: of.into(),
+            select: PartSelect::Instance(Formula::count(index)),
         },
     }
 }
 
-/// **Whether a node's value is a single body** — the question every
-/// body seat asks, answered off the node vocabulary alone.
+/// **Whether a node, named alone, reads as a single body** — the
+/// question every body seat asks, answered by the edit door's own
+/// rule: the read [`Doc::read_of_node`] takes is one a body seat admits
+/// (`SlotKind::admits`, the door's kind check).
 ///
-/// The rule this tracks is the evaluator's single-body OPERAND door
-/// (`eval::wire::body_operand`): a `Body` payload, or a boolean's
-/// non-empty result. A split's two sides and a pattern's instances are
-/// the cases that matter — each is SEVERAL bodies, so a seat filled
-/// with one refuses at the door rather than after the edit lands. The
-/// recipe's way of saying which of them is meant is [`Node::Part`]
-/// (`crates/editor-core/REFERENCES.md` DM3): a projection of one half
-/// or one
-/// instance, which evaluates to ONE `Body` value and is admitted here
-/// for exactly that reason. "Union the upper half of that split" is
-/// therefore a Part of the split at a boolean seat; the door that
-/// authors one is CHROME's.
+/// A node named alone reads its one output (spec Q5): a split's two
+/// sides, or a revolve's body beside its axis, are several, so the read
+/// refuses and the seat names a port; a pattern's instances are a list of bodies,
+/// and a transform of one is too, read off its operand at minting. A
+/// seat filled with one refuses at the door rather than after the edit
+/// lands. The recipe's way of saying which of several is meant is
+/// [`Node::Part`] (`crates/editor-core/REFERENCES.md` DM3): a
+/// projection of one half or one instance, which defines ONE `Body`
+/// and is admitted here for exactly that reason.
 ///
-/// **Tracks, and is not equal to, in two named directions.** A node
-/// this admits may still refuse downstream — an empty boolean result is
-/// a typed success that is not a body — and `Sweep` is admitted here
-/// while `wire_sweep` refuses every recipe-expressible sweep today: it
-/// is the curved-solid frontier, and a seat that refused it would
-/// answer "that is not a body" to a node that is one in every sense but
-/// the one the kernel has not reached. Its own frontier refusal is the
-/// honest diagnosis, and it arrives by poison propagation. Neither
-/// direction is left to prose: `combine_ops::
-/// the_body_seat_tracks_the_evaluators_operand_door` drives each
-/// admitted kind into the real door and asserts the exception by name.
+/// A node this admits may still refuse downstream — an empty boolean
+/// result is a typed success that is not a body, and `wire_sweep`
+/// refuses every recipe-expressible sweep today (the curved-solid
+/// frontier) — and that refusal is the node's own, arriving by poison
+/// propagation. `combine_ops::the_body_seat_is_the_operand_doors_body_slot`
+/// offers each kind to the real door and asserts the two agree.
 ///
 /// **Not `product`'s "body-denoting"**, which is a WIDER set: the
 /// product gather counts a pattern's instances and a split's sides
 /// among the bodies it collects, because collecting several is what it
 /// does. This answers the narrower question a single-body operand seat
 /// asks.
-pub fn denotes_body<P, S: pncad::document::Slot>(node: &Node<P, S>) -> bool {
-    match node {
-        Node::Extrude { .. }
-        | Node::Revolve { .. }
-        // Both tube kinds denote ONE body, hollow or not: the hollow
-        // one's cavity is a void inside a single solid, not a second
-        // body, so the seat admits them for the same reason it admits
-        // a revolve.
-        | Node::Tube { .. }
-        | Node::HollowTube { .. }
-        | Node::Loft { .. }
-        | Node::Sweep { .. }
-        | Node::Fillet { .. }
-        | Node::Chamfer { .. }
-        // A thin solid is ONE body: the cavity is a void inside it,
-        // exactly as the hollow tube's is.
-        | Node::Shell { .. }
-        | Node::Boolean { .. }
-        // ONE body out, exactly as the pair union it generalizes: the
-        // members are folded, not collected.
-        | Node::Union { .. }
-        | Node::Transform { .. }
-        // ONE body out of a split's or a pattern's value — the
-        // projection is what makes one of several bodies a body.
-        | Node::Part { .. }
-        | Node::PlacedUnion { .. }
-        | Node::InstantiatePart { .. } => true,
-        Node::Datum(_)
-        | Node::Profile(_)
-        | Node::Split { .. }
-        | Node::Pattern { .. }
-        | Node::Mate { .. }
-        // A frame other placements stand on; no body.
-        | Node::Gauge { .. }
-        | Node::Measure { .. }
-        | Node::Assertion { .. } => false,
-    }
+pub fn denotes_body(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
+    doc.read_of_node(node)
+        .and_then(|read| doc.var(read))
+        .is_some_and(|var| {
+            pncad::document::SlotKind::Is(pncad::document::VarKind::Body).admits(var)
+        })
 }

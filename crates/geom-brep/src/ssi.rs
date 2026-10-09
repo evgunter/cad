@@ -130,7 +130,10 @@ pub mod system;
 use geom::{Collocation, Curve3, FitError, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::Bounds;
-use geom_core::{Band, Indeterminate, Margin, NOT_YET_ENDING, Point3, Real, SizedPass};
+use geom_core::{
+    Band, FileCoincidence, Indeterminate, Margin, MarginDiag, NOT_YET_ENDING, Point3, Real,
+    SizedPass,
+};
 
 use crate::certify::CertCheck;
 use crate::recourse::{
@@ -446,8 +449,13 @@ pub enum SsiError {
     CertificateLimb {
         /// Which limb.
         limb: SsiLimb,
-        /// The offending value, in meters.
+        /// The offending value, in meters: the refinement driver's
+        /// round margin ([`RoundMargin::Over`]).
         value: f64,
+        /// What the classifier saw of the miss, for error reporting only
+        /// ([`MarginDiag`]): the import door's words on a definite miss
+        /// ([`crate::recourse::Unsized::residual_in_file`]).
+        margin: MarginDiag,
     },
     /// Limb 3 never ran: the tube ladder is EMPTY. Every rung radius
     /// `SSI_TUBE_RADIUS_MAX·extent / 2^k` sits below the ladder floor
@@ -906,7 +914,7 @@ impl core::fmt::Display for SsiError {
                  (cos φ = {cos_phi:e} over {arc_length:e} m of arc) — the candidate \
                  locus cusps or crosses itself, which is a degenerate operand pair"
             ),
-            Self::CertificateLimb { limb, value } => write!(
+            Self::CertificateLimb { limb, value, .. } => write!(
                 f,
                 "ssi: the fitted carrier failed {} at {value:e} m — the cache is not \
                  within tolerance of the locus it claims",
@@ -1190,7 +1198,7 @@ impl SsiError {
                 crate::certify::recourse(limb.check(), RefusedArm::Undecided(cause), reading)
             }
             Self::CertificateLimb { limb, .. } => {
-                crate::certify::recourse(limb.check(), RefusedArm::SignCertain, reading)
+                crate::certify::recourse(limb.check(), RefusedArm::SignCertain(None), reading)
             }
             // The search's one lever ([`OneArcRefusal::ending`]).
             Self::TubeNotOneArc { cause, .. } => cause.ending(OneArcDoor::Search, reading),
@@ -1198,7 +1206,7 @@ impl SsiError {
                 crate::certify::recourse(SsiLimb::Tube.check(), verdict.arm(), reading)
             }
             Self::SelfCrossingLocus { .. } => {
-                SELF_CROSSING.recourse(RefusedArm::SignCertain, reading)
+                SELF_CROSSING.recourse(RefusedArm::SignCertain(None), reading)
             }
             // Only a certifying door edited to march at another tolerance
             // reaches it.
@@ -1225,12 +1233,12 @@ impl SsiError {
                     (ExhaustLane::R3, ReachBound::Domain) => DOMAIN_SCALE,
                     (ExhaustLane::Chart { .. }, _) => exhaust::CHART_SCALE,
                 };
-                scale.recourse(RefusedArm::SignCertain, reading)
+                scale.recourse(RefusedArm::SignCertain(None), reading)
             }
             // The same decision, and so the same ending, as the edge
             // lane's refusal of the same fact.
             Self::ChartSpeed(r) => {
-                crate::certify::recourse(r.check(), RefusedArm::SignCertain, reading)
+                crate::certify::recourse(r.check(), RefusedArm::SignCertain(None), reading)
             }
             // A step that cannot be taken or that collapses into the
             // band is the operands' scale against the domain the caller
@@ -1241,7 +1249,7 @@ impl SsiError {
             | Self::StepUnusable {
                 fault: StepFault::NotFinite | StepFault::DoesNotMove,
                 ..
-            } => STEP_SCALE.recourse(RefusedArm::SignCertain, reading),
+            } => STEP_SCALE.recourse(RefusedArm::SignCertain(None), reading),
             Self::StepUnusable {
                 fault: StepFault::SpeedUnusable,
                 ..
@@ -1303,7 +1311,7 @@ impl SsiError {
                 | FitError::ParamCountMismatch { .. }
                 | FitError::Structure(_)
                 | FitError::Lsq(_),
-            ) => Unsized::LastResort.recourse(RefusedArm::SignCertain, reading),
+            ) => Unsized::LastResort.recourse(RefusedArm::SignCertain(None), reading),
             Self::TraceUnresolved { .. } => TRACE_UNRESOLVED_RECOURSE.to_owned(),
             Self::BoundaryGraze { side, verdict, .. } => graze_recourse(*side, verdict, reading),
             // The surfaces' tangency along the side: the march's own
@@ -1316,12 +1324,12 @@ impl SsiError {
             // root is there; one that will not settle is the settling's
             // limit.
             Self::EndNotOnLocus { .. } => {
-                Unsized::LastResort.recourse(RefusedArm::SignCertain, reading)
+                Unsized::LastResort.recourse(RefusedArm::SignCertain(None), reading)
             }
             // The march is untrusted: a march that loses its branch is the
             // march's limit, whatever it matched.
             Self::CrossingUnmatched { .. } => {
-                Unsized::LastResort.recourse(RefusedArm::SignCertain, reading)
+                Unsized::LastResort.recourse(RefusedArm::SignCertain(None), reading)
             }
             Self::ShortBranchUncertified {
                 verdict,
@@ -1337,7 +1345,7 @@ impl SsiError {
             // A candidate generator's limit: the march's samples and
             // every midpoint between them, read as they settled.
             Self::MarchShortOfFit { .. } => {
-                Unsized::LastResort.recourse(RefusedArm::SignCertain, reading)
+                Unsized::LastResort.recourse(RefusedArm::SignCertain(None), reading)
             }
             Self::WindowShortOfWall { reach, .. } => format!(
                 "Recourse: name a domain half-extent of at least {reach:e} m, so the plane's \
@@ -1363,10 +1371,12 @@ impl SsiError {
             // (`SettlingUnresolvable`), so a step that still will not
             // settle is the march's own limit.
             Self::StepRefinementFailed { .. } => {
-                Unsized::LastResort.recourse(RefusedArm::SignCertain, reading)
+                Unsized::LastResort.recourse(RefusedArm::SignCertain(None), reading)
             }
             // `r >= floor` is decided exactly, so the extent alone.
-            Self::TubeLadderEmpty { .. } => TUBE_EXTENT.recourse(RefusedArm::SignCertain, reading),
+            Self::TubeLadderEmpty { .. } => {
+                TUBE_EXTENT.recourse(RefusedArm::SignCertain(None), reading)
+            }
             Self::TubeDegenerate(TubeDegeneracy::WallConstantAcrossLocus) => {
                 WALL_COLLAPSED_RECOURSE.to_owned()
             }
@@ -1380,9 +1390,11 @@ impl SsiError {
             // A wall that validated re-wraps every boundary row.
             Self::ChartRow { .. } => defect_ending(reading).to_owned(),
             // Limb 1 with no residual to state: its own decision.
-            Self::FootPointInconclusive { .. } => {
-                crate::certify::recourse(SsiLimb::OnLocus.check(), RefusedArm::SignCertain, reading)
-            }
+            Self::FootPointInconclusive { .. } => crate::certify::recourse(
+                SsiLimb::OnLocus.check(),
+                RefusedArm::SignCertain(None),
+                reading,
+            ),
             Self::UnsupportedCertificate { .. } => NOT_YET_ENDING.to_owned(),
             Self::WrongLane { .. } => WRONG_LANE_RECOURSE.to_owned(),
         }
@@ -2079,8 +2091,8 @@ impl TraceDecision {
     /// `reading`: the one its decided verdicts carry (D4 ¶1 (iv)).
     ///
     /// - The transversality decision ends by [`CertCheck::Transversality`],
-    ///   and its arm gate as the decision it guards, as the edge
-    ///   certifier's does.
+    ///   and its arm gate by [`CertCheck::TransversalityArm`], as a
+    ///   length, as the edge certifier's does.
     /// - The step and the closure angle are the march's own, no size a
     ///   caller intends, so they end in their lever alone, as
     ///   [`SsiError::StepCollapsed`] and [`SsiError::SelfCrossingLocus`] do.
@@ -2098,7 +2110,10 @@ impl TraceDecision {
     pub fn ending(self, cause: &Indeterminate, reading: Reading) -> String {
         let arm = RefusedArm::Undecided(cause);
         match self {
-            Self::TransversalityArm | Self::Transversality => {
+            Self::TransversalityArm => {
+                crate::certify::recourse(CertCheck::TransversalityArm, arm, reading)
+            }
+            Self::Transversality => {
                 crate::certify::recourse(CertCheck::Transversality, arm, reading)
             }
             Self::PairTangency => PAIR_TANGENCY.recourse(arm, reading),
@@ -2107,9 +2122,9 @@ impl TraceDecision {
             {
                 defect_ending(reading).to_owned()
             }
-            Self::StepProgress => STEP_SCALE.recourse(RefusedArm::SignCertain, reading),
-            Self::ClosureTangent => SELF_CROSSING.recourse(RefusedArm::SignCertain, reading),
-            Self::BranchOpenEnd => OPEN_END.recourse(RefusedArm::SignCertain, reading),
+            Self::StepProgress => STEP_SCALE.recourse(RefusedArm::SignCertain(None), reading),
+            Self::ClosureTangent => SELF_CROSSING.recourse(RefusedArm::SignCertain(None), reading),
+            Self::BranchOpenEnd => OPEN_END.recourse(RefusedArm::SignCertain(None), reading),
             Self::ClosureReturn => Unsized::LastResort.recourse(arm, reading),
             // Every arm is reported; a poisoned distance is no input's,
             // since both operands are refused at the door unless finite.
@@ -2186,16 +2201,30 @@ impl OneArcRefusal {
     /// end, and escalating for a walk that resolved nothing.
     #[must_use]
     pub fn ending(self, door: OneArcDoor, reading: Reading) -> String {
+        let (decision, arm) = self.decision(door);
+        decision.recourse(arm, reading)
+    }
+
+    /// The ending this refusal carries at `door`, read at the STEP import
+    /// door ([`SizedDecision::recourse_in_file`]): at rest, with the
+    /// file's ε_in words on a band-decided arm.
+    #[must_use]
+    pub fn ending_in_file(self, door: OneArcDoor, file: FileCoincidence) -> String {
+        let (decision, arm) = self.decision(door);
+        decision.recourse_in_file(arm, file)
+    }
+
+    /// The decision `door` reads this refusal as, and which arm of it.
+    fn decision(&self, door: OneArcDoor) -> (SizedDecision, RefusedArm<'_>) {
         let decision = match door {
             OneArcDoor::Search => TUBE_ONE_ARC,
             OneArcDoor::AtRest => REST_ONE_ARC,
         };
-        match self {
-            Self::Undecided(cause) => decision.recourse(RefusedArm::Undecided(&cause), reading),
-            Self::Count { .. } | Self::Unlinked | Self::Short => {
-                decision.recourse(RefusedArm::SignCertain, reading)
-            }
-        }
+        let arm = match self {
+            Self::Undecided(cause) => RefusedArm::Undecided(cause),
+            Self::Count { .. } | Self::Unlinked | Self::Short => RefusedArm::SignCertain(None),
+        };
+        (decision, arm)
     }
 }
 
@@ -3059,6 +3088,7 @@ mod ending_tests {
             Some(Box::new(SsiError::CertificateLimb {
                 limb: SsiLimb::OnLocus,
                 value: 3e-9,
+                margin: MarginDiag::value(3e-9),
             }))
         };
         for (bounded_by, limb, lever) in [
@@ -3127,10 +3157,11 @@ mod ending_tests {
     /// decision's verdicts end**, and its `Display` is the payload alone,
     /// never the coincidence menu (no SSI door takes a declaration):
     ///
-    /// - the transversality decision, its arm gate and limb 3 — the
-    ///   march's verdict, the tube's verdict and both escalations — all
-    ///   end in the one lever, with the tolerance an in-band margin
-    ///   gives;
+    /// - the transversality decision and limb 3 — the march's verdict,
+    ///   the tube's verdict and both escalations — all end in the one
+    ///   lever, with the tolerance an in-band margin gives;
+    /// - its arm gate ends as a length, the edge certifier's
+    ///   [`CertCheck::TransversalityArm`];
     /// - the pair's tangency escalation ends as its verdict does;
     /// - the step and the closure angle end exactly as their decided
     ///   refusals (`StepCollapsed`, `SelfCrossingLocus`);
@@ -3147,9 +3178,15 @@ mod ending_tests {
             margin: MarginDiag::value(5e-9),
             band: band(),
         });
+        assert_eq!(
+            escalated(TraceDecision::TransversalityArm).ending(Reading::Build),
+            "Recourse: move the geometry so that edge is clearly longer and no face curves tightly \
+             there, or, if this length or the gap its faces open is intended, tighten the \
+             tolerance below 5e-10 m",
+            "the arm gate ends as a length, not the angle it guards"
+        );
         let transversal = [
             escalated(TraceDecision::Transversality),
-            escalated(TraceDecision::TransversalityArm),
             SsiError::TransversalityBand {
                 sin_theta: 5e-9,
                 arm: 1.0,
@@ -3258,7 +3295,11 @@ mod ending_tests {
     #[test]
     fn a_definite_limb_refusal_ends_by_its_limb() {
         for limb in [SsiLimb::OnLocus, SsiLimb::HullSup] {
-            let refusal = SsiError::CertificateLimb { limb, value: 3e-9 };
+            let refusal = SsiError::CertificateLimb {
+                limb,
+                value: 3e-9,
+                margin: MarginDiag::value(3e-9),
+            };
             assert_eq!(
                 refusal.ending(Reading::Build),
                 KERNEL_LIMIT_RECOURSE,
@@ -3352,6 +3393,7 @@ mod ending_tests {
             refusal: Box::new(SsiError::CertificateLimb {
                 limb: SsiLimb::HullSup,
                 value: last,
+                margin: MarginDiag::value(last),
             }),
             earlier: vec![
                 RefusedRound {
@@ -3428,6 +3470,7 @@ mod ending_tests {
             refusal: Box::new(SsiError::CertificateLimb {
                 limb: SsiLimb::HullSup,
                 value: 1.17e-14,
+                margin: MarginDiag::value(1.17e-14),
             }),
             earlier: Vec::new(),
         };
@@ -3471,6 +3514,7 @@ mod ending_tests {
                 refusal: Box::new(SsiError::CertificateLimb {
                     limb: SsiLimb::HullSup,
                     value: 2.4e-9,
+                    margin: MarginDiag::value(2.4e-9),
                 }),
                 earlier: (0..earlier)
                     .map(|_| RefusedRound {
@@ -3856,6 +3900,7 @@ mod ending_tests {
                     refusal: Box::new(SsiError::CertificateLimb {
                         limb: SsiLimb::HullSup,
                         value: 2.4e-9,
+                        margin: MarginDiag::value(2.4e-9),
                     }),
                     earlier: vec![RefusedRound {
                         samples: 346,
@@ -3874,6 +3919,7 @@ mod ending_tests {
                     refusal: Box::new(SsiError::CertificateLimb {
                         limb: SsiLimb::HullSup,
                         value: 2.15e-11,
+                        margin: MarginDiag::value(2.15e-11),
                     }),
                     earlier: vec![RefusedRound {
                         samples: 10_337,
@@ -3960,6 +4006,7 @@ mod ending_tests {
                 SsiError::CertificateLimb {
                     limb: SsiLimb::HullSup,
                     value: 3e-9,
+                    margin: MarginDiag::value(3e-9),
                 },
             ),
             (
@@ -4118,6 +4165,7 @@ mod ending_tests {
                     limb: Some(Box::new(SsiError::CertificateLimb {
                         limb: SsiLimb::OnLocus,
                         value: 3e-9,
+                        margin: MarginDiag::value(3e-9),
                     })),
                     verdict: BandVerdict::Undecided(cause(MarginDiag::value(6e-9))),
                     bounded_by: super::BranchBound::Wall,
@@ -4148,6 +4196,7 @@ mod ending_tests {
                     limb: Box::new(SsiError::CertificateLimb {
                         limb: SsiLimb::OnLocus,
                         value: 3e-9,
+                        margin: MarginDiag::value(3e-9),
                     }),
                 },
             ),

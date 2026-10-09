@@ -61,7 +61,7 @@ fn boxed(
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: p,
+                profile: p.into(),
                 distance: len(h),
                 side: ExtrudeSide::Along,
             }),
@@ -119,7 +119,7 @@ fn r2_measure_free_content_keys() {
         &d3,
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: bp,
+                profile: bp.into(),
                 distance: Formula::named(VarName::from_static("t"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
@@ -132,8 +132,8 @@ fn r2_measure_free_content_keys() {
         &DocEdit::InsertNode {
             node: Box::new(Node::Boolean {
                 op: BooleanOp::Subtract,
-                a,
-                b,
+                a: a.into(),
+                b: b.into(),
                 declare: Vec::new(),
             }),
             fresh: Vec::new(),

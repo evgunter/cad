@@ -739,8 +739,10 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
                 document: DocumentId(1),
                 findings: vec![CheckFinding {
                     check: CheckId::Connectedness,
-                    root: RecipeNodeId::new(0, tagged(3)),
-                    output_ix: 0,
+                    subject: editor_core::FindingSubject::Output {
+                        root: RecipeNodeId::new(0, tagged(3)),
+                        output_ix: 0,
+                    },
                     evidence: CheckEvidence::Connectedness {
                         actual: 2,
                         expected: 1,
@@ -900,7 +902,7 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     let (doc, healthy) = common::inserted(
         &doc,
         Node::Extrude {
-            profile: healthy_profile,
+            profile: healthy_profile.into(),
             distance: common::len(0.008),
             side: ExtrudeSide::Along,
         },
@@ -910,7 +912,7 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     let (doc, broken) = common::inserted(
         &doc,
         Node::Extrude {
-            profile: broken_profile,
+            profile: broken_profile.into(),
             distance: Formula::div(common::len(0.008), common::scl(0.0))
                 .expect("length / scalar is a length"),
             side: ExtrudeSide::Along,
@@ -1540,8 +1542,10 @@ fn the_checks_badge_is_a_control_and_the_rest_are_labels() {
         document: DocumentId(1),
         findings: vec![CheckFinding {
             check: CheckId::Connectedness,
-            root: RecipeNodeId::new(0, tagged(3)),
-            output_ix: 0,
+            subject: editor_core::FindingSubject::Output {
+                root: RecipeNodeId::new(0, tagged(3)),
+                output_ix: 0,
+            },
             evidence: CheckEvidence::Connectedness {
                 actual: 2,
                 expected: 1,
@@ -2234,7 +2238,7 @@ fn two_placements(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId)
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.01),
             side: ExtrudeSide::Along,
         },
@@ -3071,7 +3075,7 @@ fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.008),
             side: ExtrudeSide::Along,
         },

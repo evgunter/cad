@@ -56,7 +56,7 @@ fn block(doc: ProfileDoc, cx: f64) -> (ProfileDoc, [RecipeNodeId; 3]) {
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -237,10 +237,8 @@ fn the_load_door_refuses_a_blank_or_direction_setting_label_and_a_label_on_a_dea
 }
 
 /// The load door speaks a node from the document it judges: a file
-/// whose profile is drawn on the extrude after it refuses with its
-/// nodes' kinds and
-/// labels, read off the parsed document, and an id that document does
-/// not hold reads as a node.
+/// whose profile is drawn on the extrude's body refuses with the
+/// profile's kind and label, read off the parsed document.
 #[test]
 fn the_load_door_speaks_the_nodes_of_the_file_it_refuses() {
     let tol = Tol::witness();
@@ -251,33 +249,23 @@ fn the_load_door_speaks_the_nodes_of_the_file_it_refuses() {
     let text = save(&doc, &[], tol).expect("saves");
     let (header, body) = text.split_once('\n').expect("a header line, then the body");
     let mut v: serde_json::Value = serde_json::from_str(body).expect("the body is JSON");
-    let plane = &mut v["snapshot"]["nodes"][profile.0.to_string()]["Profile"]["plane"];
-    assert!(plane.is_string(), "the profile carries its plane");
-    *plane = serde_json::json!(extrude.0);
+    let frame = &mut v["snapshot"]["nodes"][profile.0.to_string()]["Profile"]["frame"];
+    assert!(frame.is_string(), "the profile carries its frame");
+    *frame = serde_json::json!(doc.output(extrude, 0).expect("the extrude's body").0);
     match load(&format!("{header}\n{v}\n"), tol) {
-        Err(PersistError::Snapshot(SnapshotError::ForwardInput { node, input })) => {
-            assert!(
-                [profile, extrude].contains(&node.id()),
-                "a labelled node is refused"
-            );
-            assert_eq!(node, doc.spoken(node.id()), "the refused node");
-            assert_eq!(input, doc.spoken(input.id()), "its input");
-            let said = if node.id() == extrude {
-                format!(
-                    "Extrude \"base \\\"plate\\\"\" ({})",
-                    tag(extrude.0.digest())
-                )
-            } else {
-                format!("Profile \"outline\" ({})", tag(profile.0.digest()))
+        Err(PersistError::Snapshot(error @ SnapshotError::SlotVarKind { .. })) => {
+            let SnapshotError::SlotVarKind { node, .. } = &error else {
+                unreachable!("matched above")
             };
-            let sentence =
-                PersistError::Snapshot(SnapshotError::ForwardInput { node, input }).to_string();
+            assert_eq!(node, &doc.spoken(profile), "the refused node");
+            let said = format!("Profile \"outline\" ({})", tag(profile.0.digest()));
+            let sentence = PersistError::Snapshot(error.clone()).to_string();
             assert!(
-                sentence.contains(&format!("{said} takes input from")),
+                sentence.contains(&format!("{said}'s frame reads")),
                 "the sentence speaks the node with its label: {sentence}"
             );
         }
-        other => panic!("a forward input refuses ForwardInput, got {other:?}"),
+        other => panic!("a plane reading a body refuses SlotVarKind, got {other:?}"),
     }
 }
 
@@ -364,25 +352,34 @@ fn an_edit_refusal_names_each_node_as_the_document_holds_it() {
     let (doc, [_, profile, extrude]) = block(doc, 0.0);
     let doc = set_label(doc, profile, Some("sketch"));
     let doc = set_label(doc, extrude, Some("base plate"));
-    let (p, e) = (tag(profile.0.digest()), tag(extrude.0.digest()));
+    let e = tag(extrude.0.digest());
 
-    let dangle = refusal(&doc, DocEdit::DeleteNode { id: profile });
-    let EditError::DeleteWouldDangle { id, referenced_by } = &dangle else {
-        panic!("deleting a read node refuses DeleteWouldDangle, got {dangle:?}");
+    let wrong = refusal(
+        &doc,
+        DocEdit::SetParam {
+            node: extrude,
+            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Profile),
+            value: editor_core::SlotValue::Read(extrude.into()),
+            fresh: Vec::new(),
+        },
+    );
+    let EditError::SlotVarKind { node, var, .. } = &wrong else {
+        panic!("an extrude reading its own body refuses SlotVarKind, got {wrong:?}");
     };
-    assert_eq!((id.id(), referenced_by.id()), (profile, extrude));
+    assert_eq!(node.id(), extrude);
+    assert_eq!(Some(var.id()), doc.output(extrude, 0));
     assert!(
-        dangle.to_string().starts_with(&format!(
-            "Profile \"sketch\" ({p}) is still an input to Extrude \"base plate\" ({e})"
-        )),
-        "{dangle}"
+        wrong
+            .to_string()
+            .starts_with(&format!("Extrude \"base plate\" ({e})'s profile reads")),
+        "{wrong}"
     );
 
     let twice = refusal(
         &doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Union {
-                members: vec![extrude, extrude],
+                members: vec![extrude.into(), extrude.into()],
                 declare: Vec::new(),
             }),
             fresh: Vec::new(),
@@ -416,7 +413,7 @@ fn a_set_members_refusal_names_the_labelled_union_it_rewrites() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: vec![left, right],
+            members: vec![left.into(), right.into()],
             declare: Vec::new(),
         },
     );
@@ -427,7 +424,7 @@ fn a_set_members_refusal_names_the_labelled_union_it_rewrites() {
         &doc,
         DocEdit::SetMembers {
             node: union,
-            members: vec![left, left],
+            members: vec![left.into(), left.into()],
         },
     );
     let EditError::DuplicateInput { node, input } = &twice else {
@@ -466,7 +463,7 @@ fn a_strand_names_the_deleted_minting_node_with_the_label_it_had() {
     let (doc, carrier) = insert(
         doc,
         Node::Datum(editor_core::Datum::FaceFrame {
-            at: kept,
+            at: kept.into(),
             face: named.clone(),
             spin: fixture::ang(0.0),
         }),
@@ -747,7 +744,7 @@ fn forward_reference(id: &str) -> (ProfileDoc, editor_core::StableName, RecipeNo
     let (doc, _fillet) = insert(
         doc,
         Node::Fillet {
-            target: a,
+            target: a.into(),
             radius: len(0.1),
             selection: vec![early.clone()],
         },
@@ -1041,7 +1038,7 @@ fn a_checks_report_and_its_refusal_speak_the_labelled_roots() {
         report.findings.iter().any(|finding| matches!(
             finding.evidence,
             CheckEvidence::NotSeparated { other_root, .. }
-                if finding.root == base && other_root == boss
+                if finding.subject == editor_core::FindingSubject::Output { root: base, output_ix: 0 } && other_root == boss
         )),
         "the two overlapping roots are a separation finding: {report}"
     );
@@ -1105,7 +1102,10 @@ fn a_checks_report_spoken_from_another_document_fails_loud() {
     );
     let report = run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect("the checks run");
     assert!(
-        report.findings.iter().any(|finding| finding.root == base),
+        report.findings.iter().any(|finding| matches!(
+            finding.subject,
+            editor_core::FindingSubject::Output { root, .. } if root == base
+        )),
         "a finding names the root the other document also holds: {report}"
     );
     let _ = report.spoken(&other);
@@ -1362,17 +1362,25 @@ fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
 #[test]
 fn an_edit_refusal_respoken_from_a_later_version_says_its_labels_now() {
     let doc = ProfileDoc::empty_derived("node-labels-respoken", Tol::witness());
-    let (doc, [_, profile, extrude]) = block(doc, 0.0);
+    let (doc, [frame, profile, extrude]) = block(doc, 0.0);
     let doc = set_label(doc, profile, Some("sketch"));
     let doc = set_label(doc, extrude, Some("base plate"));
-    let (p, e) = (tag(profile.0.digest()), tag(extrude.0.digest()));
+    let e = tag(extrude.0.digest());
 
-    let dangle = refusal(&doc, DocEdit::DeleteNode { id: profile });
+    let kind = refusal(
+        &doc,
+        DocEdit::SetParam {
+            node: extrude,
+            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Profile),
+            value: editor_core::SlotValue::Read(frame.into()),
+            fresh: Vec::new(),
+        },
+    );
     let twice = refusal(
         &doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Union {
-                members: vec![extrude, extrude],
+                members: vec![extrude.into(), extrude.into()],
                 declare: Vec::new(),
             }),
             fresh: Vec::new(),
@@ -1403,12 +1411,10 @@ fn an_edit_refusal_respoken_from_a_later_version_says_its_labels_now() {
     let later = set_label(doc, profile, Some("pad"));
     let later = set_label(later, extrude, Some("slab"));
 
-    let said = dangle.respoken(&later).to_string();
+    let said = kind.respoken(&later).to_string();
     assert!(
-        said.starts_with(&format!(
-            "Profile \"pad\" ({p}) is still an input to Extrude \"slab\" ({e})"
-        )),
-        "a node arm says both nodes' new labels: {said}"
+        said.starts_with(&format!("Extrude \"slab\" ({e})'s profile reads ")),
+        "a node arm says its node's new label: {said}"
     );
     let EditError::DuplicateInput { node, input } = twice.respoken(&later) else {
         panic!("respoken keeps the arm, got {twice:?}");
@@ -1444,11 +1450,9 @@ fn an_edit_refusal_respoken_from_a_later_version_says_its_labels_now() {
     );
 
     let (deleted, _) = step(later.clone(), DocEdit::DeleteNode { id: extrude });
-    let said = dangle.respoken(&deleted).to_string();
+    let said = kind.respoken(&deleted).to_string();
     assert!(
-        said.starts_with(&format!(
-            "Profile \"pad\" ({p}) is still an input to Extrude \"base plate\" ({e})"
-        )),
+        said.starts_with(&format!("Extrude \"base plate\" ({e})'s profile reads ")),
         "a node deleted since is said as the door said it: {said}"
     );
 

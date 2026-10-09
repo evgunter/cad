@@ -2835,8 +2835,8 @@ mod declared_union {
         let (refusal, offer) = refused_union(&mut session, &tool);
         let plain = Node::Boolean {
             op: BooleanOp::Union,
-            a: block,
-            b: boss,
+            a: block.into(),
+            b: boss.into(),
             declare: Vec::new(),
         };
         let (eval, union) = evaluated_insert(&before, plain, tol);
@@ -2905,7 +2905,7 @@ mod declared_union {
         assert!(matches!(
             doc.node(union),
             Some(Node::Boolean { op: BooleanOp::Union, a, b, declare })
-                if (*a, *b) == (block, boss)
+                if (Some(*a), Some(*b)) == (doc.output(block, 0), doc.output(boss, 0))
                     && declare[..] == [(finding.pair.clone(), BooleanCoincidence::REST)]
         ));
         session.pump();

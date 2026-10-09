@@ -54,8 +54,11 @@ fn volume(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> f64 {
 /// merges their tops into one `Merged({a.capEnd, c.capEnd})` row; `d`
 /// rests on both, undeclared. Contact is judged between members before
 /// the fold (DM4), so in every order the refusal names one member's
-/// top and `d`'s bottom, the first touching pair by node id, and
-/// carries no merged set: no refusal names a row the fold minted.
+/// top and `d`'s bottom and carries no merged set: no refusal names a
+/// row the fold minted. Which of the two touching pairs it names is
+/// the first in the author's list order (#4323: the list is the
+/// author's stated order, and nothing sorts it away), spelled in that
+/// order.
 #[test]
 fn a_contact_against_a_merged_cap_is_refused_between_two_members() {
     let doc = ProfileDoc::empty_derived("r1_merged_refusal", Tol::witness());
@@ -73,15 +76,17 @@ fn a_contact_against_a_merged_cap_is_refused_between_two_members() {
             panic!("{order:?}: expected the pairwise refusal, got {got:?}")
         };
         // The undeclared pairs are `a`'s top on `d`'s bottom and `c`'s
-        // top on it; each pair is spelled lower id first, and the
-        // first of them by id is the one refused.
-        let top = |m: RecipeNodeId| SitedRef::new(m, fname(m, RoleSeg::Cap(CapEnd::End)));
-        let bottom = SitedRef::new(d, fname(d, RoleSeg::Cap(CapEnd::Start)));
-        let by_id = |x: SitedRef, y: SitedRef| if x.at < y.at { (x, y) } else { (y, x) };
-        let want = [by_id(top(a), bottom.clone()), by_id(top(c), bottom.clone())]
-            .into_iter()
-            .min_by_key(|(x, y)| (x.at, y.at))
-            .expect("two candidates");
+        // top on it; the pairs are judged in list order, each spelled
+        // listed-first member first, and the first of them refuses.
+        let side = |m: RecipeNodeId| {
+            let end = if m == d { CapEnd::Start } else { CapEnd::End };
+            SitedRef::new(m, fname(m, RoleSeg::Cap(end)))
+        };
+        let want = (0..3)
+            .flat_map(|i| (i + 1..3).map(move |j| (order[i], order[j])))
+            .find(|&(x, y)| x == d || y == d)
+            .map(|(x, y)| (side(x), side(y)))
+            .expect("d touches a member");
         assert_eq!(finding.pair, want, "{order:?}");
         assert!(
             merged.0.is_empty() && merged.1.is_empty(),
@@ -144,8 +149,8 @@ fn a_pair_boolean_site_at_the_minting_node_refuses_and_an_absent_row_vanishes() 
     let (base, tr) = placed(base, b0, 0.5);
     let boolean = |declare| Node::Boolean {
         op: BooleanOp::Union,
-        a,
-        b: tr,
+        a: a.into(),
+        b: tr.into(),
         declare,
     };
     // Sited at the minting node, which is not an operand.
@@ -217,8 +222,8 @@ fn rung_one_outranks_a_foreign_site_at_the_pair_boolean() {
     )]);
     let boolean = Node::Boolean {
         op: BooleanOp::Union,
-        a,
-        b,
+        a: a.into(),
+        b: b.into(),
         declare: decl.clone(),
     };
     let insert_into = |doc: &ProfileDoc| {
@@ -243,13 +248,15 @@ fn rung_one_outranks_a_foreign_site_at_the_pair_boolean() {
         "the dead name does not outrank the foreign site at the door: {dead:?}"
     );
 
-    // The union: sited at member `x`, which `SetMembers` then drops.
-    let (doc, u) = declared_union(doc, &[a, b, x], vec![decl[0].0.clone()]);
+    // The union: sited at member `x`, naming member `c`'s wall (D10: a
+    // pair names what its node reads); `SetMembers` then drops both,
+    // reporting the name out of reach and never refusing it.
+    let (doc, u) = declared_union(doc, &[a, b, x, c], vec![decl[0].0.clone()]);
     let (stranded, _) = step(
         doc,
         DocEdit::SetMembers {
             node: u,
-            members: vec![a, b],
+            members: vec![a.into(), b.into()],
         },
     );
     let ev = run(&stranded);
@@ -348,7 +355,7 @@ fn flush_findings_of_two_placements_declare_and_fuse_through_a_union() {
     let (bare, union) = insert(
         doc,
         Node::Union {
-            members: vec![m1, m2],
+            members: vec![m1.into(), m2.into()],
             declare: Vec::new(),
         },
     );

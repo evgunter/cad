@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-08
 priority: P0
 cost: H
-blocked_on: [an-assertion-relates-by-equality, interference-at-rest-is-a-finding, value-decided-coincidences-have-no-recording-door, a-mate-on-a-pinned-copy-refuses]
+blocked_on: [an-assertion-relates-by-equality, interference-at-rest-is-a-finding, mates-declare-no-contact, a-mate-on-a-pinned-copy-refuses]
 ---
 
 INTENT stage 5, PR C. Ev approved the design in PR 4320 (fork log row
@@ -40,12 +40,12 @@ It waits on stages 3 and 4 as well as A and B:
   declared attribution that is the rest of today's gate;
 - the resident checks per space, which is stage 3's.
 
-The `blocked_on` names
-`value-decided-coincidences-have-no-recording-door` (stage 4's door) and
-`a-mate-on-a-pinned-copy-refuses` (stage 3's F, the unit that closes
+The `blocked_on` names `mates-declare-no-contact` (stage 4's last unit
+it needs, which records the at-rest contacts at the door; stage 4 spec
+§13) and `a-mate-on-a-pinned-copy-refuses` (stage 3's F, the unit that
+closes
 `mate-offset-verified-against-the-solve-is-a-constraint-falling-back-to-an-assertion`
-and A11 (4)'s declaring mates). Re-point the stage-4 trigger to stage 4's
-last unit it needs.
+and A11 (4)'s declaring mates).
 
 When this unit lands, A5's opening and *Interference.* paragraphs
 become: "**A5 — The at-rest check.** Per space, the census examines
@@ -53,7 +53,7 @@ every pair of copies the boxes cannot prove apart, and decides each one
 apart, in contact, overlapping or undecided. A contact is recorded at the
 coincidence door; unless it is structural, the `unproven-coincidence`
 lint reports it. An overlap is an `AtRest` interference finding,
-localised to the faces bounding it, or loud and unquietable when the
-intersection refuses. An undecided pair is an `AtRest` could-not-look
-finding. Each finding is quiet under D10's rule or loud. Nothing
+localised to the faces bounding it, or loud, unquietable and never
+refusing when the intersection refuses. An undecided pair is an
+`AtRest` could-not-look finding, which refuses at no severity (DS6). Each finding is quiet under D10's rule or loud. Nothing
 refuses: a caller that wants a gate runs `enforce_checks` at `Error`."

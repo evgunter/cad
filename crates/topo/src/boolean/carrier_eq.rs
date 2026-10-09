@@ -359,14 +359,35 @@ pub fn carrier_eq_verdict<T: Decide>(
     extent: &ConsumedExtent<'_, T>,
     band: Band,
 ) -> Result<(CarrierRelation, ContactVerdict), CarrierEqError> {
+    carrier_eq_reading(c1, c2, id, extent, band).map(|(rel, verdict, _)| (rel, verdict))
+}
+
+/// A carrier verdict, its trilean, and the margin the declared rung's
+/// reading decided it on: `None` where no margin decided it (the
+/// same-source rung, or the undeclared posture's per-datum reads).
+pub(crate) type CarrierReading = (
+    CarrierRelation,
+    ContactVerdict,
+    Option<geom_core::MarginDiag>,
+);
+
+/// [`carrier_eq_verdict`] with the declared reading's margin, which a
+/// declared pair's coincidence row records ([`crate::coincidence`]).
+fn carrier_eq_reading<T: Decide>(
+    c1: &CarrierDesc<T>,
+    c2: &CarrierDesc<T>,
+    id: PlaneIdentity<'_>,
+    extent: &ConsumedExtent<'_, T>,
+    band: Band,
+) -> Result<CarrierReading, CarrierEqError> {
     if id.declared {
         declared_verdict(c1, c2, id, extent, band)
     } else {
-        undeclared_ladder(c1, c2, id, extent, band)
+        undeclared_ladder(c1, c2, id, extent, band).map(|(rel, verdict)| (rel, verdict, None))
     }
 }
 
-/// [`carrier_eq_verdict`] at the FACE-PAIR door, whose undeclared
+/// [`carrier_eq_reading`] at the FACE-PAIR door, whose undeclared
 /// coincidence is an offer of the declaration the declared door then
 /// reads over the same extent: the coincidence stands only where the
 /// declared reading would ([`coincident_as_declared`]). The corner
@@ -376,14 +397,14 @@ pub fn carrier_eq_verdict<T: Decide>(
 /// # Errors
 ///
 /// As [`carrier_eq_verdict`].
-pub(super) fn pair_door_verdict<T: Decide>(
+pub(super) fn pair_door_reading<T: Decide>(
     c1: &CarrierDesc<T>,
     c2: &CarrierDesc<T>,
     id: PlaneIdentity<'_>,
     extent: &ConsumedExtent<'_, T>,
     band: Band,
-) -> Result<(CarrierRelation, ContactVerdict), CarrierEqError> {
-    match carrier_eq_verdict(c1, c2, id, extent, band) {
+) -> Result<CarrierReading, CarrierEqError> {
+    match carrier_eq_reading(c1, c2, id, extent, band) {
         Err(CarrierEqError::Undeclared {
             coincidence: coincidence @ CoincidenceMeasure::Zero { .. },
             relation,
@@ -665,7 +686,7 @@ fn declared_verdict<T: Decide>(
     id: PlaneIdentity<'_>,
     extent: &ConsumedExtent<'_, T>,
     band: Band,
-) -> Result<(CarrierRelation, ContactVerdict), CarrierEqError> {
+) -> Result<CarrierReading, CarrierEqError> {
     let same_source = match (c1, c2) {
         (
             CarrierDesc::Plane {
@@ -696,8 +717,9 @@ fn declared_verdict<T: Decide>(
         _ => None,
     };
     match same_source {
-        Some(relation) => Ok((relation, ContactVerdict::Definite)),
-        None => declared_reading(c1, c2, extent, band),
+        Some(relation) => Ok((relation, ContactVerdict::Definite, None)),
+        None => declared_reading_margined(c1, c2, extent, band)
+            .map(|(rel, verdict, margin)| (rel, verdict, Some(margin))),
     }
 }
 
@@ -750,6 +772,18 @@ pub(super) fn declared_reading<T: Decide>(
     extent: &ConsumedExtent<'_, T>,
     band: Band,
 ) -> Result<(CarrierRelation, ContactVerdict), CarrierEqError> {
+    declared_reading_margined(c1, c2, extent, band).map(|(rel, verdict, _)| (rel, verdict))
+}
+
+/// [`declared_reading`] with the margin its upper bound was decided on:
+/// Zero for a [`ContactVerdict::Definite`], in band for a
+/// [`ContactVerdict::Bridged`].
+fn declared_reading_margined<T: Decide>(
+    c1: &CarrierDesc<T>,
+    c2: &CarrierDesc<T>,
+    extent: &ConsumedExtent<'_, T>,
+    band: Band,
+) -> Result<(CarrierRelation, ContactVerdict, geom_core::MarginDiag), CarrierEqError> {
     let witnessed = witnessed(c1, c2, extent);
     let (sigma, relation) = match (*c1, *c2) {
         (CarrierDesc::Plane { normal: n1, .. }, CarrierDesc::Plane { normal: n2, .. }) => {
@@ -830,9 +864,12 @@ pub(super) fn declared_reading<T: Decide>(
     };
     match decide_reported(upper_name, Margin::of(upper), band) {
         Ok(Decided {
-            sign: Sign::Zero, ..
-        }) => Ok((relation, ContactVerdict::Definite)),
-        Err(diag) if !diag.margin.is_invalid() => Ok((relation, ContactVerdict::Bridged)),
+            sign: Sign::Zero,
+            margin,
+        }) => Ok((relation, ContactVerdict::Definite, margin)),
+        Err(diag) if !diag.margin.is_invalid() => {
+            Ok((relation, ContactVerdict::Bridged, diag.margin))
+        }
         // A poisoned reading bridges nothing.
         Err(diag) => Err(CarrierEqError::Unsettled { diag }),
         // A sum of magnitudes reads negative only on broken input.
@@ -1307,7 +1344,7 @@ mod tests {
             }
             other => panic!("the corner sites' ladder: {other:?}"),
         }
-        match pair_door_verdict(&a, &b, PlaneIdentity::NONE, &at(1.0), band()) {
+        match pair_door_reading(&a, &b, PlaneIdentity::NONE, &at(1.0), band()) {
             Err(CarrierEqError::Undeclared {
                 coincidence: CoincidenceMeasure::Undecided(diag),
                 ..
@@ -1840,9 +1877,16 @@ mod tests {
         ] {
             for (x, y) in [(&body, other), (other, &body)] {
                 assert_eq!(
-                    crate::boolean::rest::carrier_pair_relation(x, face, y, face, false, band())
-                        .unwrap()
-                        .unwrap(),
+                    crate::boolean::carrier_pair::carrier_pair_relation(
+                        x,
+                        face,
+                        y,
+                        face,
+                        false,
+                        band()
+                    )
+                    .unwrap()
+                    .unwrap(),
                     rung,
                     "the curved rung, a face against {name}"
                 );

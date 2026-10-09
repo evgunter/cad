@@ -2,10 +2,11 @@
 id: parametric-polygon-loop-certifies-nothing
 kind: issue
 title: A profile loop with a document parameter in a polygon vertex certifies nothing at any box width
-status: open
+status: parked
 opened: 2026-09-13
 priority: P1
 cost: H
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 ## What
@@ -80,3 +81,18 @@ machine, taken to choose test documents and then to bracket the width
 endpoints, a chain's `Toward` director, a `CircleSplit` phase), and
 nothing here says where between ±1e-8 and ±3e-8 the width actually
 falls.
+
+## Parked under the D10 hold (2026-10-09)
+
+The hold (`d10-one-way-to-say-intent-is-unbuilt`; its scope is TOPO's
+log, 2026-10-03) covers any new unit that meaningfully uses
+`Expr`/document parameters and literals or `ParamSource`. This row's
+whole subject is what certification sees when an `Expr::param` reaches a
+polygon vertex, and D10 rewrites both ends of that: stage 1 replaces the
+parameter table with variables and takes floats out of `Expr`, and
+stage 4 (`the-door-s-third-rung-is-the-symbolic-tier`,
+`carriers-compare-in-canonical-form`) rebuilds the symbolic tier the row
+blames. The measurements were taken on the old representation, so the
+first step when the hold fires is to re-take them. Its fix site is
+`drive.rs`, FLUX's ground, not the spline layer; re-home it there if
+the re-measurement still reproduces. (NURBS orchestrator)

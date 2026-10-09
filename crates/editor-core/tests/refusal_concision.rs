@@ -22,7 +22,7 @@ fn cone_block_union_refusal() -> String {
     let mut r = Recorder::new();
     let plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let cone_p = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (0.4, 1.0), (0.0, 1.0)]).unwrap(),
         ],
@@ -30,27 +30,27 @@ fn cone_block_union_refusal() -> String {
     }));
     let axis = r.insert(axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
     let cone = r.insert(Node::Revolve {
-        profile: cone_p,
-        axis,
+        profile: cone_p.into(),
+        axis: axis.into(),
         angle: ang(std::f64::consts::TAU),
     });
     let block_plane = r.insert(frame([0.0, 0.0, -0.25], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let block_p = r.insert(Node::Profile(ProfileProgram {
-        plane: block_plane,
+        frame: block_plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.5, 0.4), (1.5, 0.4), (1.5, 0.6), (0.5, 0.6)]).unwrap(),
         ],
         ids: Vec::new(),
     }));
     let block = r.insert(Node::Extrude {
-        profile: block_p,
+        profile: block_p.into(),
         distance: len(0.5),
         side: ExtrudeSide::Along,
     });
     let union = r.insert(Node::Boolean {
         op: BooleanOp::Union,
-        a: cone,
-        b: block,
+        a: editor_core::Operand::output(cone, 0),
+        b: block.into(),
         declare: Vec::new(),
     });
     let ev = eval::<f64>(&r.doc);
@@ -375,6 +375,20 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                 a_kind: SurfaceKind::Cylinder,
                 b_face: face,
                 b_kind: SurfaceKind::Sphere,
+            },
+        ),
+        (
+            "GermSectionOutsideInventory",
+            BooleanError::GermSectionOutsideInventory {
+                a_face: face,
+                a_kind: SurfaceKind::Plane,
+                b_face: face,
+                b_kind: SurfaceKind::Cone,
+                conic: geom_brep::OutsideConic::Hyperbola,
+                section: geom_brep::SectionError::RoutesToGeneralRung {
+                    pair: "plane×cone",
+                    why: "the plane meets both nappes, so the section is a HYPERBOLA",
+                },
             },
         ),
         (

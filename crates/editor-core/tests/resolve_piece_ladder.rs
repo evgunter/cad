@@ -59,7 +59,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -108,8 +108,8 @@ fn slot() -> Slot {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b: tr,
+            a: a.into(),
+            b: tr.into(),
             declare: Vec::new(),
         },
     );
@@ -128,7 +128,7 @@ fn slide(s: &Slot, axis: Axis3, to: f64) -> ProfileDoc {
         DocEdit::SetParam {
             node: s.tr,
             slot: SlotId::Translation(axis),
-            expr: len(to),
+            value: len(to).into(),
             fresh: Vec::new(),
         },
     )
@@ -265,6 +265,7 @@ fn one_node_eval(
             fragment_groups: Arc::new(groups),
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(editor_core::CarriedDeclarations::default()),
+            coincidences: Arc::new([]),
             parts: 1,
             verdicts: Arc::new(log),
             escalations: Arc::new(vec![]),

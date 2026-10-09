@@ -114,6 +114,8 @@ mod boss_flush_offer;
 mod cascade_delete;
 #[path = "cert3r1_dump.rs"]
 mod cert3r1_dump;
+#[path = "coincidence_door.rs"]
+mod coincidence_door;
 #[path = "declared_pairs_payload.rs"]
 mod declared_pairs_payload;
 #[path = "display_contract.rs"]
@@ -759,6 +761,8 @@ mod intent_literals_c_slots;
 mod intent_literals_d_constants;
 #[path = "intent_s2_a_outputs.rs"]
 mod intent_s2_a_outputs;
+#[path = "intent_s2_b_reads.rs"]
+mod intent_s2_b_reads;
 #[path = "intent_vars_2_table.rs"]
 mod intent_vars_2_table;
 #[path = "intent_vars_3_readers.rs"]

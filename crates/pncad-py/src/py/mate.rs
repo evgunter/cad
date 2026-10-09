@@ -1213,8 +1213,9 @@ impl Maintenance {
     }
 
     /// The node this row is about: the instance whose offset the mate
-    /// door cleared, or the surviving node whose payload carries a
-    /// stranded name. `None` for a `stranded_appearance`, which has
+    /// door cleared, the surviving node whose payload carries a
+    /// stranded name, or the node whose operand reads what a delete
+    /// removed (a `stranded_read`). `None` for a `stranded_appearance`, which has
     /// no carrying node to name.
     ///
     /// The arms answer different questions with one attribute on
@@ -1225,7 +1226,9 @@ impl Maintenance {
     fn node(&self) -> Option<NodeId> {
         match &self.0 {
             d::Maintenance::OffsetCleared { instance, .. } => Some(NodeId(instance.id())),
-            d::Maintenance::Strand { node, .. } => Some(NodeId(node.id())),
+            d::Maintenance::Strand { node, .. } | d::Maintenance::StrandedRead { node, .. } => {
+                Some(NodeId(node.id()))
+            }
             d::Maintenance::LabelDropped { gauge, .. } => Some(NodeId(gauge.id())),
             d::Maintenance::StrandedAppearance { .. }
             | d::Maintenance::AnonymousVarRemoved { .. } => None,
@@ -1247,6 +1250,7 @@ impl Maintenance {
                 super::doc::name_text(py, name.name()).map(Some)
             }
             d::Maintenance::OffsetCleared { .. }
+            | d::Maintenance::StrandedRead { .. }
             | d::Maintenance::LabelDropped { .. }
             | d::Maintenance::AnonymousVarRemoved { .. } => Ok(None),
         }
@@ -1260,6 +1264,7 @@ impl Maintenance {
                 Some(super::place::Placement(offset.authored()))
             }
             d::Maintenance::Strand { .. }
+            | d::Maintenance::StrandedRead { .. }
             | d::Maintenance::StrandedAppearance { .. }
             | d::Maintenance::LabelDropped { .. }
             | d::Maintenance::AnonymousVarRemoved { .. } => None,

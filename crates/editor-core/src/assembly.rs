@@ -1538,7 +1538,8 @@ fn resolve_face<P, T: Decide>(
             let Some(consumer_node) = doc.node(consumer) else {
                 continue;
             };
-            for step in crate::names::lift(consumer, consumer_node, node, &name) {
+            let defined_by = |var| doc.defined_by(var).map(|(at, _)| at);
+            for step in crate::names::lift(consumer, consumer_node, node, &name, &defined_by) {
                 match step {
                     crate::names::Lift::Spelled(carried) if spells(consumer, &carried) => {
                         frontier.push_back((consumer, carried));
@@ -1815,6 +1816,7 @@ fn attribute(
         | ValidationError::PlanarBoundaryResidual { .. }
         | ValidationError::PlanarBoundaryEscalated { .. }
         | ValidationError::SliverDihedral { .. }
+        | ValidationError::NoDihedralArm { .. }
         | ValidationError::TransverseNotIntrinsic { .. }
         | ValidationError::TangentNotIntrinsic { .. }
         // The material-wedge arm's refusal is a finding about an EDGE
@@ -1822,6 +1824,8 @@ fn attribute(
         // that two of its own faces osculate, which no mate names.
         | ValidationError::LaminaWedge { .. }
         | ValidationError::ScaffoldAtRest { .. }
+        | ValidationError::JoinableVertexAtRest { .. }
+        | ValidationError::JoinUndecidedAtRest { .. }
         | ValidationError::LoopRoleInverted { .. }
         | ValidationError::CurvedSenseInverted { .. }
         | ValidationError::NegativeVolume { .. }

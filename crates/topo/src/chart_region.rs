@@ -2380,6 +2380,7 @@ fn pcurve_entry<T: Decide + Bounds>(
         // a Kepler anomaly) — the cone's and torus's twin of the
         // cylinder's tilted-cut sinusoid above.
         Pcurve::FocalSection(_) => Err("FocalSection image is not a straight segment"),
+        Pcurve::Projected(_) => Err("Projected image is not a straight segment"),
     }
 }
 

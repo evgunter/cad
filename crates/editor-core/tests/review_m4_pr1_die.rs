@@ -29,6 +29,10 @@ impl editor_core::ProfilePayload for FakeProfile {
     fn lower<E>(
         authored: &Self,
         _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::VarId, E>,
+        _: &mut dyn FnMut(
+            editor_core::OperandSlot,
+            &editor_core::Operand,
+        ) -> Result<editor_core::VarId, E>,
     ) -> Result<Self, E> {
         Ok(authored.clone())
     }
@@ -136,8 +140,8 @@ fn transform_node(pip: RecipeNodeId, p: &([f64; 3], [f64; 3], f64)) -> Node<Fake
 fn subtract_node(a: RecipeNodeId, b: RecipeNodeId) -> Node<FakeProfile, Formula> {
     Node::Boolean {
         op: editor_core::BooleanOp::Subtract,
-        a,
-        b,
+        a: a.into(),
+        b: b.into(),
         declare: Vec::new(),
     }
 }
@@ -179,7 +183,7 @@ fn author_theirs() -> Authored {
         &mut log,
         TEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: cube_p.unwrap(),
+                profile: cube_p.unwrap().into(),
                 distance: len(2.0 * HALF),
                 side: ExtrudeSide::Along,
             }),
@@ -199,7 +203,7 @@ fn author_theirs() -> Authored {
         &mut log,
         TEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: pip_p.unwrap(),
+                profile: pip_p.unwrap().into(),
                 distance: Formula::named(VarName::from_static("pip_depth"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
@@ -263,7 +267,7 @@ fn author_mine() -> Authored {
         &mut log,
         TEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: pip_p.unwrap(),
+                profile: pip_p.unwrap().into(),
                 distance: Formula::named(VarName::from_static("pip_depth"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
@@ -275,7 +279,7 @@ fn author_mine() -> Authored {
         &mut log,
         TEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: cube_p.unwrap(),
+                profile: cube_p.unwrap().into(),
                 distance: len(2.0 * HALF),
                 side: ExtrudeSide::Along,
             }),
@@ -335,8 +339,12 @@ fn assert_role_isomorphic(theirs: &Authored, mine: &Authored) {
             std::mem::discriminant(mn),
             "variant of {t_id:?}"
         );
-        let mapped: Vec<RecipeNodeId> = tn.inputs().iter().map(|i| map[i]).collect();
-        assert_eq!(mapped, mn.inputs(), "inputs of {t_id:?}→{m_id:?}");
+        let mapped: Vec<RecipeNodeId> = theirs.doc.upstream(t_id).iter().map(|i| map[i]).collect();
+        assert_eq!(
+            mapped,
+            mine.doc.upstream(m_id),
+            "upstream of {t_id:?}→{m_id:?}"
+        );
         assert_eq!(tn.slots(), mn.slots());
         for slot in tn.slots() {
             let tv = eval::<f64>(

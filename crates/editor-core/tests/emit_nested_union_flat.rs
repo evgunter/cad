@@ -274,8 +274,8 @@ fn a_union_over_a_pair_boolean_publishes_flat_sets_in_both_orders() {
         doc.clone(),
         Node::Boolean {
             op: BooleanOp::Union,
-            a: ab[0],
-            b: ab[1],
+            a: ab[0].into(),
+            b: ab[1].into(),
             declare: editor_core::declare_continuation(flush_pairs(
                 &doc,
                 (ab[0], ab[0]),
@@ -356,4 +356,153 @@ fn a_union_over_a_pair_boolean_publishes_flat_sets_in_both_orders() {
         sigs.push(sig.clone());
     }
     assert_eq!(sigs[0], sigs[1], "the two member orders publish one table");
+}
+
+/// Whether `n`, read through every descent wrapper a set is read
+/// through (`merged::peel`: a boolean's `FromA`/`FromB`, a union's
+/// `FromMember`, a one-operand door's `FromTarget`, the shell's
+/// `Inner`), is a bare merged name.
+fn bare_merge_through_every_wrapper(n: &StableName) -> bool {
+    match n.path.as_slice() {
+        [RoleSeg::Merged(_)] => true,
+        [RoleSeg::FromA(inner) | RoleSeg::FromB(inner)]
+        | [RoleSeg::FromTarget(inner) | RoleSeg::Inner(inner)]
+        | [RoleSeg::FromMember { of: inner, .. }] => bare_merge_through_every_wrapper(inner),
+        _ => false,
+    }
+}
+
+/// The edge of `body` whose two ends both sit at `(x, y)` in plan: a
+/// vertical edge of a block.
+fn vertical_edge_at(body: &topo::Body<f64>, x: f64, y: f64) -> topo::EdgeKey {
+    let at: BTreeMap<_, _> = body.vertex_points().collect();
+    let on = |v| {
+        let p: &geom_core::Point3<f64> = &at[&v];
+        (p.x - x).abs() < 1e-9 && (p.y - y).abs() < 1e-9
+    };
+    let found: Vec<_> = body
+        .edges()
+        .filter(|(_, e)| {
+            [e.he_plus, e.he_minus]
+                .iter()
+                .all(|h| on(body.get_half_edge(*h).expect("a live half-edge").start))
+        })
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(found.len(), 1, "one vertical edge at ({x}, {y})");
+    found[0]
+}
+
+/// **A union over a filleted body whose rims are already sets lists
+/// edges, never sets** (N3; `merged::peel` reads a blend's `FromTarget`
+/// as it reads a boolean's wrappers). The inner union of `a` and `b`
+/// joins its four x-running rims into sets; a fillet on the vertical
+/// edge at `a`'s `(0, 0)` corner trims the two y = 0 rims and carries
+/// the two y = 1 rims untouched, as `FromTarget(Merged{a's, b's})`.
+/// The outer union over the fillet and `c`, declared flush with the
+/// carried merged faces, joins each y = 1 rim with `c`'s: one set of
+/// the three blocks' rims, `a`'s and `b`'s each read out through
+/// `FromMember(fillet, FromTarget(…))`.
+///
+/// Red while `FromTarget` is not peeled: those sets list
+/// `FromMember(fillet, FromTarget(Merged{a's, b's}))` and `c`'s, two
+/// constituents.
+#[test]
+fn a_union_over_a_filleted_body_whose_rims_are_sets_publishes_flat_sets() {
+    let (doc, ab) = document(&[A, B], &[0, 1]);
+    let (d1, u1) = declared_union(
+        doc.clone(),
+        &ab,
+        flush_pairs(&doc, (ab[0], ab[0]), (ab[1], ab[1])),
+    );
+    let ev1 = run(&d1);
+    assert!(failure(&ev1, u1).is_none(), "the inner union refused");
+    let corner = vertical_edge_at(crate::corpus::body_of(&ev1, u1), 0.0, 0.0);
+    let corner_name = table(&ev1, u1)
+        .name_of(&editor_core::EntityRef {
+            body: 0,
+            key: editor_core::EntityKey::Edge(corner),
+        })
+        .expect("the corner is named")
+        .clone();
+    let (d1, fillet) = insert(
+        d1,
+        Node::Fillet {
+            target: u1.into(),
+            radius: crate::fixture::len(0.1),
+            selection: vec![corner_name],
+        },
+    );
+    let ((cx, cy, cz), _) = (C, G);
+    let (d1, c) = block(d1, cx, cy, cz.0, cz.1);
+    let ev1 = run(&d1);
+    assert!(failure(&ev1, fillet).is_none(), "the fillet refused");
+    let carried_over = |seg: RoleSeg| -> StableName {
+        let b_face = member_entity(u1, ab[1], fname(ab[1], seg), EntityKind::Face);
+        table(&ev1, fillet)
+            .iter()
+            .map(|(n, _)| n)
+            .find(|n| {
+                matches!(n.path.as_slice(), [RoleSeg::FromTarget(inner)]
+                if matches!(inner.path.as_slice(), [RoleSeg::Merged(set)] if set.contains(&b_face)))
+            })
+            .unwrap_or_else(|| panic!("the fillet carries no merged face holding {b_face:?}"))
+            .clone()
+    };
+    let pairs: Vec<(SitedRef, SitedRef)> = flush_segs(&d1, ab[1])
+        .into_iter()
+        .zip(flush_segs(&d1, c))
+        .map(|(s, t)| {
+            (
+                SitedRef::new(fillet, carried_over(s)),
+                SitedRef::new(c, fname(c, t)),
+            )
+        })
+        .collect();
+    let carried_rims = table(&ev1, fillet)
+        .iter()
+        .filter(|(n, _)| {
+            n.kind == EntityKind::Edge
+                && matches!(n.path.as_slice(), [RoleSeg::FromTarget(inner)]
+                    if matches!(inner.path.as_slice(), [RoleSeg::Merged(_)]))
+        })
+        .count();
+    assert_eq!(carried_rims, 2, "the y = 1 rims are carried as sets");
+    for members in [[fillet, c], [c, fillet]] {
+        let (docx, top) = declared_union(d1.clone(), &members, pairs.clone());
+        let ev = run(&docx);
+        assert!(
+            failure(&ev, top).is_none(),
+            "{members:?}: the outer union refused: {:?}",
+            failure(&ev, top)
+        );
+        let mut three = 0;
+        for (name, _) in table(&ev, top).iter() {
+            for seg in &name.path {
+                let RoleSeg::Merged(set) = seg else { continue };
+                for k in set {
+                    assert!(
+                        !bare_merge_through_every_wrapper(k),
+                        "{members:?}: {name:?} lists a merged name as one constituent: {k:?}"
+                    );
+                }
+                let through_fillet = set
+                    .iter()
+                    .filter(|k| {
+                        matches!(k.path.as_slice(),
+                        [RoleSeg::FromMember { member, of }]
+                            if *member == fillet
+                                && matches!(of.path.as_slice(), [RoleSeg::FromTarget(_)]))
+                    })
+                    .count();
+                if name.kind == EntityKind::Edge && set.len() == 3 && through_fillet == 2 {
+                    three += 1;
+                }
+            }
+        }
+        assert_eq!(
+            three, 2,
+            "{members:?}: each carried rim and `c`'s is one edge set of all three blocks"
+        );
+    }
 }

@@ -33,7 +33,7 @@
 //! zero residual would read definitely negative — and stops at the
 //! no-crossings fallback's section pass, on the coincident pair's
 //! tangency. The peg seated in its socket goes further: its union
-//! builds, through the declared-REST zip.
+//! builds through the join.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -224,13 +224,8 @@ fn wall_declarations(
 /// additive (the parts only touch), one shell of four faces, six edges
 /// and four vertices, and a legal operand.
 ///
-/// At ε up to 2e-7 the chord join builds it (each strut's half beside
-/// a germ's locus edge faces it). From 3e-7 the join's role probe reads
-/// both section loops in band and refuses
-/// `Join(SectionLoopUndecided)`, the curved-face frontier
-/// (`work/join/peg-in-socket-union-refuses-join-desync-at-a-coarse-eps.md`);
-/// the declared-REST zip takes that refusal over and builds the same
-/// census.
+/// The chord join builds it at every ε (each strut's half beside a
+/// germ's locus edge faces it).
 fn peg_in_socket_union_holds(
     s: &AtRestBody<f64>,
     p: &AtRestBody<f64>,
@@ -950,20 +945,21 @@ fn junction_discs(x: &Body<f64>, y: &Body<f64>) -> Vec<FacePairDeclaration> {
 }
 
 /// **The G1 chain declared a `Seam` verifies, and stops at the
-/// crossing layer.** The torus × torus seam passes the witness lane
-/// along the shared meridian circle and the wedge routing, so no
-/// declaration refuses; what stops the union is two pieces the seam
-/// does not supply. A torus × torus seam certifies no global side (the
-/// two tubes diverge past the rim, so each carrier crosses the other's
-/// continuation), so an edge leaving the rim keeps its graze door
-/// (`a-torus-seam-graze-needs-the-rim-root-deflated`); and the rim
-/// semicircle lying on the partner torus is a meridian, which the
-/// circle × torus root door cannot place on the carrier
-/// (`a-torus-meridian-lying-on-a-torus-is-unsettled`). Both orders.
+/// crossing layer, on the graze.** The torus × torus seam passes the
+/// witness lane along the shared meridian circle and the wedge routing,
+/// so no declaration refuses. The rim semicircles lying on the partner
+/// torus are meridians, which the circle × torus door's meridian rung
+/// places on the carrier, so they record. What stops the union, in both
+/// orders, is the first operand's outer equator, an edge leaving the
+/// rim that touches the partner's carrier there with a double root: a
+/// torus × torus seam certifies no global side (the two tubes diverge
+/// past the rim, so each carrier crosses the other's continuation), so
+/// it keeps its graze door
+/// (`a-torus-seam-graze-needs-the-rim-root-deflated`).
 #[test]
 fn the_g1_tube_chain_declared_a_seam_stops_at_the_crossing_layer() {
     let (a, b) = (segment_a(), segment_b());
-    for (x, y) in [(&a, &b), (&b, &a)] {
+    for (x, y, ring) in [(&a, &b, RING), (&b, &a, 1.1)] {
         let mut decls = wall_declarations(x, y, TUBE, topo::BooleanCoincidence::Seam);
         let discs = junction_discs(x, y);
         assert_eq!(discs.len(), 1, "one junction disc pair");
@@ -973,16 +969,19 @@ fn the_g1_tube_chain_declared_a_seam_stops_at_the_crossing_layer() {
         let BooleanError::CurvedPierceUnsupported { operand, edge, .. } = err else {
             panic!("the crossing layer's refusal: {err:?}");
         };
-        let body = if operand == topo::Operand::A { x } else { y };
-        let carrier = body
-            .get_curve_geom(body.get_edge(edge).expect("a live edge").curve)
+        assert_eq!(operand, topo::Operand::A, "the first operand's edge");
+        let carrier = x
+            .get_curve_geom(x.get_edge(edge).expect("a live edge").curve)
             .and_then(|g| g.certified())
             .expect("a certified edge")
             .carrier()
             .clone();
+        let geom::Curve3::Circle { radius, .. } = carrier else {
+            panic!("a circle at the rim: {carrier:?}");
+        };
         assert!(
-            matches!(carrier, geom::Curve3::Circle { .. }),
-            "a circle at the rim: {carrier:?}"
+            (radius - (ring + TUBE)).abs() < 1e-12,
+            "the outer equator of the ring-{ring} tube, not a meridian: radius {radius}"
         );
     }
 }

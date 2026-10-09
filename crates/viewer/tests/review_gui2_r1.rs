@@ -72,7 +72,7 @@ fn two_blocks(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let (doc, a) = inserted(
         &doc,
         Node::Extrude {
-            profile: pa,
+            profile: pa.into(),
             distance: len(0.01),
             side: ExtrudeSide::Along,
         },
@@ -82,7 +82,7 @@ fn two_blocks(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let (doc, b) = inserted(
         &doc,
         Node::Extrude {
-            profile: pb,
+            profile: pb.into(),
             distance: len(0.02),
             side: ExtrudeSide::Along,
         },
@@ -427,7 +427,7 @@ fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
     let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(0.015),
             side: ExtrudeSide::Along,
         },
@@ -436,7 +436,7 @@ fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
     let (doc, pattern) = inserted(
         &doc,
         Node::Pattern {
-            input: extrude,
+            input: extrude.into(),
             count: pncad::document::Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],

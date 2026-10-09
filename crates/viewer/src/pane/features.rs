@@ -743,7 +743,7 @@ mod tests {
         let (doc, solid) = inserted(
             &doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(HEIGHT),
                 side: ExtrudeSide::Along,
             },
@@ -782,7 +782,7 @@ mod tests {
             inserted(
                 doc,
                 Node::Assertion {
-                    measure,
+                    measure: measure.into(),
                     bound,
                     dir,
                 },

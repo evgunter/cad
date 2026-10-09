@@ -90,7 +90,8 @@
 pub use editor_core::{
     Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, Maintenance,
     MaintenanceNet, MetaVersionError, PiecesFault, ProgramRefusal, Recorded, Recording,
-    RegaugeThenMateOutcome, StepId, StepIdFault, Took, apply, apply_replayed, regauge_then_mate,
+    RegaugeThenMateOutcome, SlotValue, StepId, StepIdFault, Took, apply, apply_replayed,
+    regauge_then_mate,
 };
 pub use editor_core::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
@@ -104,12 +105,14 @@ pub use editor_core::cascade_delete_order;
 // carries directly; it is re-exported here so document-layer code can
 // spell the whole node vocabulary through one module. `CountMismatch`
 // rides with `PlacementRuleFault`: it is what that fault and
-// `EditError::PlacementRuleMismatch` carry.
+// `EditError::PlacementRuleMismatch` carry. An operand field is an
+// `Operand` read, written at an `OperandSlot` (a `SlotId::Operand`)
+// that admits a `SlotKind`; `DocEdit::SetParam` writes a `SlotValue`.
 pub use editor_core::{
     Axis3, BooleanOp, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault, ListFault,
-    MeasureNodeFault, MintId, Node, OutputPort, PartSelect, PatternKind, PlacementRuleFault,
-    PortKind, RecipeNodeId, RigidArg, SlotId, TubeWindow, VectorSlot, declare_continuation,
-    declare_rest,
+    MeasureNodeFault, MintId, Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind,
+    PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SlotId, SlotKind, TubeWindow, VectorSlot,
+    declare_continuation, declare_rest,
 };
 
 // How a sentence names a node: the kind noun and tag a person reads, the
@@ -530,7 +533,7 @@ pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update
 // or evaluation); `enforce_checks` is the one refusing path, and the
 // CALLER chooses where to gate on it. Deliberately NOT in the prelude
 // (prelude membership is corpus-measured).
-// `subject_body` resolves a finding's (root, output_ix) attribution
+// `subject_body` resolves a root-output finding's (root, output_ix) attribution
 // back to the flagged body and the declarations its producer minted
 // for it, in the same evaluation.
 // `run_checks_on` is the registry over a `Subject` the caller gathered
@@ -543,9 +546,16 @@ pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update
 // does not reports that as a finding rather than as a clean body.
 pub use editor_core::{
     Advisory, ChartCoherenceLane, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal,
-    ChecksConfig, ChecksError, ChecksReport, Severity, Subject, enforce_checks, run_checks,
-    run_checks_on, subject_body,
+    ChecksConfig, ChecksError, ChecksReport, FindingSubject, Severity, Subject, enforce_checks,
+    run_checks, run_checks_on, subject_body,
 };
+// The coincidence door (D10): the rows an evaluation's nodes decided
+// from values, and what the door decides about each — the payload of
+// `CheckEvidence::UnprovenCoincidence`. The record's relation and
+// decision site are the kernel's own words (`topo::coincidence`), and
+// the door is a module so its `Recourse` keeps its name.
+pub use editor_core::coincide;
+pub use editor_core::{NamedCell, NamedCoincidence, Proof, Residual, Rung};
 /// The shell door's typed refusal, which two `CheckEvidence` arms
 /// carry — by the payload rule this list states at `VerbKind`.
 ///
@@ -564,6 +574,7 @@ pub use editor_core::{
 /// `BandError` and `Indeterminate`, and the shell key and the mass-
 /// properties refusal are one module hop away at `pncad::topo::…`.
 pub use topo::ShellClassifyError;
+pub use topo::coincidence;
 
 // The profile description node type and its document alias, plus the
 // refusal of the door that reads a step's profile edges — matchable

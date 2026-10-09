@@ -14,14 +14,16 @@
 //! | `rims[i].rim` | the chart's annular rim face | [`RoleSeg::Rim`] of `sources[0]`'s name — `RimNaming::sources` preserves designation order, which is what makes "the first designated face" a fact of the record |
 //! | `rims[i].sources[1..]`, where live | a seamed band's other branch faces | [`RoleSeg::Rim`] of each one's own name |
 //! | `rims[i].ring_edges` / `ring_vertices` | the rim's ring | rows of `inner_edges` / `inner_vertices` verbatim, so `Inner` of the boundary edge — no second role |
-//! | `rims[i].holes[j].face` | a promoted hole annulus | [`RoleSeg::HoleRim`], `j` in pairing order |
+//! | `rims[i].holes[j].face` | a promoted hole annulus, or the second band of a chart that wraps between two boundaries | [`RoleSeg::HoleRim`], `j` in pairing order |
+//! | `rims[i].seam_pieces` | the pieces a band's divided seam became | each the divided edge's own name (its `FromTarget`, or its twin's `Inner` on a void) as a piece: its line + `Fragment(Ends)` (`emit_topo::name_edge_pieces`) |
 //! | `dead` | nothing | nothing — a designated face's own name VANISHES |
 //! | `edge_joins` | an edge the closing join made | its input edges' names: the one it covers, or a [`RoleSeg::Merged`] set of each covered edge's name by the rows above |
 //!
 //! Every surviving edge and vertex is a source entity carried through
 //! ([`RoleSeg::FromTarget`]): the rim face keeps its designated face's
 //! outer loop, so those edges are the operand's, and every other
-//! surviving edge or vertex is the outer wall's.
+//! surviving edge or vertex is the outer wall's — save a divided seam's
+//! pieces, which its `seam_pieces` row names as pieces.
 //!
 //! # Covariance
 //!
@@ -166,43 +168,25 @@ pub(crate) fn name_shell<T: geom_core::Real>(
 
     // ---- The joins (`ShellNaming::edge_joins`). ----
     // The shell ends with the join, so an edge it made is named by the
-    // input edges it covers, each read by the rows above: `Inner` of
-    // its source for a cavity twin, the operand's own name for a
-    // survivor. One covered name is the edge's own; several are a
-    // `Merged` set of them. The killed vertex and the absorbed edge are
-    // no longer in the body, so their rows are never consulted.
-    let mut joined: BTreeMap<EntityKey, (RoleSeg, bool)> = BTreeMap::new();
-    for (kept, members) in topo::join_covers(&rec.edge_joins) {
-        if body.get_edge(kept).is_none() {
-            return Err(NamingError::Emission {
-                what: "the shell recorded a join whose kept edge is not in its body",
-            });
-        }
-        let mut names = BTreeSet::new();
-        let mut tied = false;
-        for m in members {
-            let (seg, t) = match minted.get(&EntityKey::Edge(m)) {
-                Some((seg, t)) => (seg.clone(), *t),
-                None => {
-                    let u = up_e(m)?;
-                    (RoleSeg::FromTarget(u.name), u.tied)
+    // input edges it covers (`join_names`), each read by the rows above:
+    // `Inner` of its source for a cavity twin, the operand's own name for
+    // a survivor. The killed vertex and the absorbed edge are no longer
+    // in the body, so their rows are never consulted.
+    let joined = super::join_names::name_joins(node, body, &rec.edge_joins, |m| {
+        Ok(match minted.get(&EntityKey::Edge(m)) {
+            Some((seg, tied)) => super::join_names::Member::Image {
+                seg: seg.clone(),
+                tied: *tied,
+            },
+            None => {
+                let u = up_e(m)?;
+                super::join_names::Member::Image {
+                    seg: RoleSeg::FromTarget(u.name),
+                    tied: u.tied,
                 }
-            };
-            tied |= t;
-            names.insert(name1(EntityKind::Edge, node, seg));
-        }
-        let name = if names.len() == 1 {
-            names.pop_first()
-        } else {
-            Some(super::merged::edge_set(node, names))
-        };
-        let Some([seg]) = name.as_ref().map(|n| n.path.as_slice()) else {
-            return Err(NamingError::Emission {
-                what: "a shell join's name is not one segment",
-            });
-        };
-        joined.insert(EntityKey::Edge(kept), (seg.clone(), tied));
-    }
+            }
+        })
+    })?;
     // The joined names replace whatever the rows gave the kept edge.
     minted.extend(joined);
 
@@ -226,6 +210,27 @@ pub(crate) fn name_shell<T: geom_core::Real>(
         body.vertices()
             .map(|(k, _)| (EntityKind::Vertex, EntityKey::Vertex(k))),
     );
+    // A DIVIDED seam's pieces are named as pieces once their ends are
+    // named, below; the row pass skips them. Each source seam's pieces,
+    // in the record's order, and the name the divided edge carried.
+    let mut divided: BTreeMap<EdgeKey, (RoleSeg, bool, Vec<EdgeKey>)> = BTreeMap::new();
+    for rim in &rec.rims {
+        for &(piece, source) in &rim.seam_pieces {
+            let entry = match divided.entry(source) {
+                std::collections::btree_map::Entry::Occupied(o) => o.into_mut(),
+                std::collections::btree_map::Entry::Vacant(v) => {
+                    let u = up_e(source)?;
+                    let seg = match rim.side {
+                        topo::RimShell::Outer => RoleSeg::FromTarget(u.name),
+                        topo::RimShell::Void => RoleSeg::Inner(u.name),
+                    };
+                    v.insert((seg, u.tied, Vec::new()))
+                }
+            };
+            entry.2.push(piece);
+        }
+    }
+    let pieces: BTreeSet<EdgeKey> = divided.values().flat_map(|d| d.2.iter().copied()).collect();
     // The retired set, as a lookup: a key the construction RETIRED can
     // never be a survivor, whatever its arena says.
     let retired_f: BTreeSet<FaceKey> = rec.dead.faces.iter().copied().collect();
@@ -235,6 +240,9 @@ pub(crate) fn name_shell<T: geom_core::Real>(
     // lists every non-designated source face, result key first.
     let outer: BTreeSet<FaceKey> = rec.outer.iter().map(|&(result, _)| result).collect();
     for (kind, key) in rows {
+        if matches!(key, EntityKey::Edge(e) if pieces.contains(&e)) {
+            continue;
+        }
         let (seg, from_tie) = match minted.get(&key) {
             Some((seg, tied)) => (seg.clone(), *tied),
             None => {
@@ -268,8 +276,23 @@ pub(crate) fn name_shell<T: geom_core::Real>(
             ent(0, key),
         )?;
     }
-    // ONE stage, so one flush — and it must precede the totality
-    // check, which reads the table this drains into.
+    // Two stages: the pieces read their end vertices' names off the
+    // table the first flush fills, and the second must precede the
+    // totality check, which reads the table it drains into.
+    tie.flush(&mut t)?;
+    let mut named_pieces = super::emit_topo::EdgePieces::default();
+    for (seg, tied, edges) in divided.into_values() {
+        super::emit_topo::name_edge_pieces(
+            &mut named_pieces,
+            &t,
+            tied,
+            &name1(EntityKind::Edge, node, seg),
+            (body, 0),
+            &edges,
+            super::emit_topo::Lone::Piece,
+        )?;
+    }
+    named_pieces.mint(&mut t, &mut tie)?;
     tie.flush(&mut t)?;
     check_total(&t, body, 0)?;
     Ok(Arc::new(t))
@@ -343,11 +366,13 @@ mod tests {
     }
 
     /// The D-section (the half disc of radius 0.5 on `x ≥ 0`, extruded
-    /// 0.8 along `z`) with its half-cylinder cut in two along its middle
-    /// ruling, each wall arc split at its `x = r` point: the body, the
-    /// two wall faces, and each split arc's pieces: its two halves, or
-    /// with `quarters` each half split again at its middle.
-    fn split_d_section(quarters: bool) -> (Body<f64>, [FaceKey; 2], Vec<Vec<EdgeKey>>) {
+    /// 0.8 along `z`) with each wall arc split at its `x = r` point, or
+    /// with `quarters` each half split again at its middle, and its
+    /// half-cylinder cut along the ruling at every split: the body, the
+    /// wall faces, and each split arc's pieces. The rulings keep every
+    /// split at three edges, so the body is at rest; opening the wall's
+    /// faces merges them, and the shell's join takes the splits.
+    fn split_d_section(quarters: bool) -> (Body<f64>, Vec<FaceKey>, Vec<Vec<EdgeKey>>) {
         let tol = Tol::witness();
         let (r, h) = (0.5, 0.8);
         let half_disc = profile::test_support::bulge_loop(vec![
@@ -398,51 +423,77 @@ mod tests {
                         .and_then(topo::CurveGeom::certified)
                         .unwrap()
                         .params();
-                    pieces.push(
-                        body.split_edge(half, 0.5 * (t0 + t1), tol)
-                            .unwrap()
-                            .new_edge,
-                    );
+                    let quarter = body.split_edge(half, 0.5 * (t0 + t1), tol).unwrap();
+                    pieces.push(quarter.new_edge);
+                    mids.push(quarter.vertex);
                 }
             }
             halves.push(pieces);
         }
-        let wall = body
-            .faces()
-            .find(|(_, f)| {
-                body.get_surface(f.surface).map(geom::Surface::kind)
-                    == Some(geom::SurfaceKind::Cylinder)
-            })
-            .unwrap()
-            .0;
-        let outer = body.get_face(wall).unwrap().outer;
-        let leaving = |v: VertexKey| {
-            body.half_edges()
-                .find(|(_, h)| h.start == v && h.parent_loop == outer)
+        // A chord across the wall at every cut, between the two arcs'
+        // cuts at one azimuth, so no cut is a vertex between two edges
+        // of one circle and nothing else: the operand is at rest, and the
+        // wall is as many faces as there are chords plus one.
+        let mut wall = vec![
+            body.faces()
+                .find(|(_, f)| {
+                    body.get_surface(f.surface).map(geom::Surface::kind)
+                        == Some(geom::SurfaceKind::Cylinder)
+                })
                 .unwrap()
-                .0
-        };
-        let (he1, he2) = (leaving(mids[0]), leaving(mids[1]));
-        let surface = body.get_face(wall).unwrap().surface;
-        let (p, q) = (point(&body, mids[0]), point(&body, mids[1]));
-        let made = body
-            .mef(
-                topo::MefSite::Chords { he1, he2 },
-                geom_brep::EdgeCurveSpec {
-                    description: geom_brep::EdgeDescriptionSpec::chart(surface),
-                    carrier: geom::Curve3::Line {
-                        origin: p,
-                        dir: (q - p) / (q - p).norm(),
+                .0,
+        ];
+        let surface = body.get_face(wall[0]).unwrap().surface;
+        let (top, bottom): (Vec<VertexKey>, Vec<VertexKey>) =
+            mids.iter().partition(|&&v| point(&body, v).z > 0.5 * h);
+        for &v in &top {
+            let (p, w) = {
+                let p = point(&body, v);
+                let w = *bottom
+                    .iter()
+                    .min_by(|&&a, &&b| {
+                        let d = |u| {
+                            let q = point(&body, u);
+                            (q.x - p.x).hypot(q.y - p.y)
+                        };
+                        d(a).total_cmp(&d(b))
+                    })
+                    .unwrap();
+                (p, w)
+            };
+            let q = point(&body, w);
+            let (he1, he2) = wall
+                .iter()
+                .find_map(|&f| {
+                    let outer = body.get_face(f).unwrap().outer;
+                    let leaving = |u: VertexKey| {
+                        body.half_edges()
+                            .find(|(_, h)| h.start == u && h.parent_loop == outer)
+                            .map(|(k, _)| k)
+                    };
+                    Some((leaving(v)?, leaving(w)?))
+                })
+                .unwrap();
+            let made = body
+                .mef(
+                    topo::MefSite::Chords { he1, he2 },
+                    geom_brep::EdgeCurveSpec {
+                        description: geom_brep::EdgeDescriptionSpec::chart(surface),
+                        carrier: geom::Curve3::Line {
+                            origin: p,
+                            dir: (q - p) / (q - p).norm(),
+                        },
+                        param_start: 0.0,
+                        param_end: (q - p).norm(),
                     },
-                    param_start: 0.0,
-                    param_end: (q - p).norm(),
-                },
-                topo::FaceSurface::Inherit,
-                tol,
-            )
-            .unwrap();
+                    topo::FaceSurface::Inherit,
+                    tol,
+                )
+                .unwrap();
+            wall.push(made.face);
+        }
         topo::mint_pcurves(&mut body, tol).unwrap();
-        (body, [wall, made.face], halves)
+        (body, wall, halves)
     }
 
     /// **An edge the shell's closing join made is named by the input
@@ -527,9 +578,10 @@ mod tests {
     }
 
     /// **Joins that chain are chased whole** (`topo::join_covers`): each
-    /// arc cut at three points leaves four pieces, which the shell joins
-    /// one vertex at a time, a later join taking an edge an earlier one
-    /// kept. Each joined edge is the one flat set of its four pieces.
+    /// arc cut at three points, with a ruling at each, leaves four pieces
+    /// once the opened wall merges, which the shell joins one vertex at a
+    /// time, a later join taking an edge an earlier one kept. Each joined
+    /// edge is the one flat set of its four pieces.
     #[test]
     fn a_rim_cut_at_three_points_joins_to_the_set_of_its_four_pieces() {
         let tol = Tol::witness();

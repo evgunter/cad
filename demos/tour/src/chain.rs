@@ -405,7 +405,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
     let bar_profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![
                 LoopProgram::polygon([(0.0, -h), (LINK_LENGTH, -h), (LINK_LENGTH, h), (0.0, h)])
                     .expect("finite bar corners"),
@@ -417,7 +417,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
     let bar = insert(
         &mut doc,
         Node::Extrude {
-            profile: bar_profile,
+            profile: bar_profile.into(),
             distance: len(LINK_THICKNESS),
             side: ExtrudeSide::Along,
         },
@@ -427,7 +427,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
         let profile = insert(
             doc,
             Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops: vec![LoopProgram::Circle {
                     centre: [len(x), len(0.0)],
                     radius: len(PIN_RADIUS),
@@ -439,7 +439,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
         insert(
             doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(LINK_THICKNESS),
                 side: ExtrudeSide::Along,
             },
@@ -539,7 +539,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
     let assertion = insert(
         &mut doc,
         Node::Assertion {
-            measure,
+            measure: measure.into(),
             bound: len(bound),
             dir: AssertionDir::AtMost,
         },

@@ -100,7 +100,7 @@ fn box_doc() -> (ProfileDoc, RecipeNodeId) {
     fixture::insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -353,7 +353,7 @@ fn box_with_a_failed_and_a_poisoned_node() -> (ProfileDoc, RecipeNodeId, RecipeN
     let (doc, failed) = fixture::insert(
         doc,
         Node::Extrude {
-            profile: square,
+            profile: square.into(),
             distance: len(0.0),
             side: ExtrudeSide::Along,
         },
@@ -362,8 +362,8 @@ fn box_with_a_failed_and_a_poisoned_node() -> (ProfileDoc, RecipeNodeId, RecipeN
         doc,
         Node::Boolean {
             op: editor_core::BooleanOp::Union,
-            a: failed,
-            b: good,
+            a: failed.into(),
+            b: good.into(),
             declare: Vec::new(),
         },
     );

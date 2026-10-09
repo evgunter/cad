@@ -21,6 +21,7 @@ pub mod appearance;
 pub mod assembly;
 pub mod checks;
 pub mod clearance;
+pub mod coincide;
 mod decision;
 pub mod diff;
 pub mod distribution;
@@ -47,6 +48,7 @@ pub mod meta;
 pub mod mint;
 pub mod names;
 pub mod node;
+pub mod operand;
 pub mod param_source;
 pub mod parse;
 pub mod part;
@@ -111,9 +113,10 @@ pub use assembly::{
 };
 pub use checks::{
     Advisory, ChartCoherenceLane, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal,
-    ChecksConfig, ChecksError, ChecksReport, Severity, Subject, enforce_checks, run_checks,
-    run_checks_on, subject_body,
+    ChecksConfig, ChecksError, ChecksReport, FindingSubject, Severity, Subject, enforce_checks,
+    run_checks, run_checks_on, subject_body,
 };
+pub use coincide::{NamedCell, NamedCoincidence, Proof, Residual, Rung};
 pub use diff::{DocDiff, NodeChange};
 pub use distribution::{Distribution, DistributionFault, DistributionField};
 pub use doc::{
@@ -126,8 +129,8 @@ pub use drive::{
 };
 pub use edit::{
     Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, EditError, EditRecord, Maintenance,
-    MaintenanceNet, Recorded, Recording, RegaugeThenMateOutcome, Took, apply, apply_replayed,
-    cascade_delete_order, regauge_then_mate,
+    MaintenanceNet, Recorded, Recording, RegaugeThenMateOutcome, SlotValue, Took, apply,
+    apply_replayed, cascade_delete_order, regauge_then_mate,
 };
 pub use eval::{
     Arity, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
@@ -195,6 +198,7 @@ pub use node::{
     PatternKind, PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SitedFace, SitedRef, SlotId,
     StepArg, StepId, TubeWindow, VectorSlot, declare_continuation, declare_rest,
 };
+pub use operand::{Operand, OperandSlot, SlotKind};
 pub use parse::{ParseError, VarNameFault, VarNameReason, parse_formula};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
 pub use persist::{

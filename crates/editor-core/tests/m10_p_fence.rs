@@ -394,6 +394,16 @@
 //! side, for anchors that are not exact: see
 //! `Mat3::identity_minus_rotation_about`.
 //!
+//! ALL THREE NUMBERS MOVED WHEN THE BLEND BEGAN ENDING WITH THE JOIN
+//! (3881 step 3, PR C; `docs/DESIGN.md`, maximal edges), and only
+//! through the two documents that fillet a rim. A rim band's two host
+//! trimlines lie on one circle and meet at the host foot the band's
+//! slit does not reach; the join kills that foot and makes them one
+//! edge, so the fillet nodes of `die_composed` and `die_composed_tour`
+//! hold one point fewer per band. `lib_g16_corpus_name_digests` agrees the finer
+//! way: those two documents' rows moved and no other did. The
+//! `interval` row was measured on this tree, as the other two were.
+//!
 //! RE-DERIVED AGAIN, INTERVAL ROW ONLY, FOR A FOLD REFORMULATION
 //! (issue 1191). `profile`'s signed swept angle stopped composing a
 //! centred period fold on top of a `[0, τ)` reduction of the same
@@ -781,7 +791,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0xd736_3d97_c842_9686, 0x185b_8bc1_cb63_d70a),
+        (0xf0c5001f8cb398d0, 0x6003617f4561e464),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -807,7 +817,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xdbe4_c34e_c69a_4315, 0x37d3_0061_eb74_c449),
+        (0xd804d6d2a1d882e1, 0x473637e25bef9895),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -831,7 +841,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0xd736_3d97_c842_9686, 0x185b_8bc1_cb63_d70a),
+        (0xf0c5001f8cb398d0, 0x6003617f4561e464),
         "the corpus's Probe evaluation moved"
     );
 }
@@ -909,7 +919,7 @@ fn the_corpus_geometry_is_bit_identical_with_ids_masked() {
     println!("m10-p fence id-free: {got:016x?}");
     assert_eq!(
         got,
-        (0x556a_eaf5_b2dc_3e4a, 0x3361_8bf1_bd5d_d21e),
+        (0x469c_9889_e471_859c, 0x05a8_ea33_bf1d_ddc8),
         "an outcome or a point of the corpus moved — every other row here also \
          moves with ids, and this one does not"
     );

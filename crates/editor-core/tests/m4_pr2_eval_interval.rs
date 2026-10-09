@@ -31,7 +31,7 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
     let (doc, cube) = insert(
         doc,
         Node::Extrude {
-            profile: cube_p,
+            profile: cube_p.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -46,7 +46,7 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
     let (doc, pip) = insert(
         doc,
         Node::Extrude {
-            profile: pip_p,
+            profile: pip_p.into(),
             distance: len(0.125),
             side: ExtrudeSide::Against,
         },
@@ -79,8 +79,8 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: cube,
-            b: placed,
+            a: cube.into(),
+            b: placed.into(),
             declare: decl,
         },
     );

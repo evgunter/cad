@@ -464,8 +464,9 @@ pub(super) fn gate_operand<T: Decide>(
 /// **The operand gate where no at-rest gate ran**: what the finished-body
 /// type promises, read on an operand that carries no verdict (a dual's,
 /// [`crate::AtRestBody::gate_unverdicted`] — the split's door reads the
-/// same), refused as [`BooleanError::ScaffoldingOperand`] or
-/// [`BooleanError::InsideOutOperand`]. It runs before the pipeline reads
+/// same), refused as [`BooleanError::ScaffoldingOperand`],
+/// [`BooleanError::InsideOutOperand`] or [`BooleanError::UnjoinedOperand`].
+/// It runs before the pipeline reads
 /// a several-solid operand as one solid (`ops::one_solid`), since the
 /// orientation read's subjects are the solid and, within it, the shell.
 pub(super) fn gate_unverdicted_operand<T: Decide + crate::props::AtRestPolicy>(
@@ -552,7 +553,7 @@ pub(super) fn face_source<T: Decide>(
 /// would answer backwards. The flip itself lives in
 /// [`crate::face_normal`], which this function is defined in terms of
 /// — one door for the planar consumers (`plane_of`, this sweep, the
-/// pierce lane, the REST lane, and the SHARED [`crate::sector_face`]
+/// pierce lane, and the SHARED [`crate::sector_face`]
 /// walk, which is why the door sits at the crate root rather than
 /// here), one flip, so those consumers stay orientation-blind.
 ///
@@ -569,7 +570,7 @@ pub(super) fn face_source<T: Decide>(
 /// ray's `d·n̂` — are exactly the ones this fixes.
 ///
 /// `None` for a face that is not a plane, and for a `face` that does
-/// not resolve: the key is the caller's ([`super::rest::flush_pair_relation`]
+/// not resolve: the key is the caller's ([`super::carrier_pair::flush_pair_relation`]
 /// passes a public door's).
 ///
 /// # Panics
@@ -613,7 +614,7 @@ pub(super) fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Pla
 /// face and its reverted twin compose to one tag although their
 /// material sides are opposite. The curved rung a curved pair reaches
 /// through [`mod@super::carrier_eq`] (`source_rung`, from
-/// [`super::rest::carrier_pair_verdict`] and `recl`'s declared-`Rest`
+/// [`super::carrier_pair::carrier_pair_verdict`] and `recl`'s declared-`Rest`
 /// sector pairs) therefore reads only the sources' base here and takes
 /// the material side from the descriptions' `outward` bits.
 ///
@@ -2158,8 +2159,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 //   angular window. On a closed carrier the azimuth is
                 //   covered by the operand's own wall faces, so the
                 //   point is a seam site a SIBLING face holds, and the
-                //   sweep reaches that pair on its own visit. This is
-                //   the case the rest lane is built on.
+                //   sweep reaches that pair on its own visit.
                 // - **HEIGHT** — the endpoint is past the window in z.
                 //   Here NO sibling need hold it: the carrier simply
                 //   ends, and a floating peg's rim has no face of the
@@ -2445,14 +2445,14 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         //   its rulings, which answer `Constant`, and no line lies on a
         //   sphere or a torus. For a CIRCLE against a sphere: a circle
         //   lying on it is centred on its axis, answered `LiesOn`. For a
-        //   CIRCLE against a torus: a circle lying on it is either
-        //   coaxial (a rim or latitude circle, answered `LiesOn`) or has
-        //   `F ≡ 0`, whose pole no anchor can put definitely off the
-        //   torus (`Unsettled`). And its interior meets this face
-        //   nowhere: the edge meets the carrier only at its certified
-        //   roots, each root strictly inside the span was placed outside
-        //   the trim, and each root at an end is that end's own
-        //   incidence. So the ends decide, under the same rule as the
+        //   CIRCLE against a torus: a circle lying on it is coaxial (a
+        //   rim or latitude circle) or a meridian, both answered
+        //   `LiesOn`, or a Villarceau circle, whose `F ≡ 0` puts the
+        //   pole on the torus at every anchor (`Unsettled`). And its
+        //   interior meets this face nowhere: the edge meets the carrier
+        //   only at its certified roots, each root strictly inside the
+        //   span was placed outside the trim, and each root at an end is
+        //   that end's own incidence. So the ends decide, under the same rule as the
         //   mixed-sign arm ([`Placement::undeclared_no_interior`]).
         // - **`OffFace`**: every meeting of the span with the carrier, the
         //   ends' among them, lies off this face whether or not the edge
@@ -3219,7 +3219,7 @@ fn parents_distinct_from<T: Decide>(
     .all(|pf| {
         pf.is_some_and(|pf| {
             matches!(
-                super::rest::carrier_pair_relation(x, pf, y, face, false, band),
+                super::carrier_pair::carrier_pair_relation(x, pf, y, face, false, band),
                 Ok(Ok(super::carrier_eq::CarrierRelation::Distinct))
             )
         })
@@ -3409,10 +3409,10 @@ fn wall_crossing<T: Decide + Bounds>(
     // states; a cone face lies on one nappe, and a root definitely off
     // THAT nappe ([`geom_brep::cone_elevation`] asked about it) lies on
     // the other: the carrier is crossed, not here. A face whose corners
-    // do not decide its nappe (one reaching its apex) leaves the
-    // question to its trim; a corner station in the band escalates, as
-    // the trim's own reading would, and a face the sweep holds that does
-    // not resolve is the sweep's desync.
+    // do not decide its nappe (corners on both sides of its apex)
+    // leaves the question to its trim; a corner station in the band
+    // escalates, as the trim's own reading would, and a face the sweep
+    // holds that does not resolve is the sweep's desync.
     let nappe = match *surface {
         geom::Surface::Cone {
             apex,
@@ -3424,7 +3424,7 @@ fn wall_crossing<T: Decide + Bounds>(
             Err(ReplaceFaceError::NappeStraddles { .. }) => None,
             Err(ReplaceFaceError::Escalated { source }) => {
                 return Err(BooleanError::Escalated {
-                    decision: BooleanDecision::Containment,
+                    decision: BooleanDecision::CONTAINMENT_UNNAMED,
                     diag: source,
                 });
             }
@@ -3509,9 +3509,16 @@ fn wall_crossing<T: Decide + Bounds>(
             // still land in the face, so the loop continues.
             Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))) => crossed_elsewhere = true,
             Ok(CurvedPlacement::Trim(Some(at))) => return Ok(SpanVerdict::Pierce { t, p, at }),
-            Err(super::contain::ContainError::Escalated(diag)) => {
+            Err(super::contain::ContainError::Escalated {
+                decision,
+                escalation,
+                diag,
+            }) => {
                 return Err(BooleanError::Escalated {
-                    decision: BooleanDecision::Containment,
+                    decision: BooleanDecision::Containment {
+                        decision,
+                        escalation,
+                    },
                     diag,
                 });
             }
@@ -3988,8 +3995,15 @@ fn vertex_on_curved_face_at<T: Decide + crate::props::AtRestPolicy>(
 /// is carried whole with the face it read.
 pub(super) fn esc(e: ContainError, operand: Operand, face: FaceKey) -> BooleanError {
     match e {
-        ContainError::Escalated(diag) => BooleanError::Escalated {
-            decision: BooleanDecision::Containment,
+        ContainError::Escalated {
+            decision,
+            escalation,
+            diag,
+        } => BooleanError::Escalated {
+            decision: BooleanDecision::Containment {
+                decision,
+                escalation,
+            },
             diag,
         },
         ContainError::Uncrossable(cause) => {
@@ -5010,8 +5024,8 @@ mod declaration_order_rows {
     /// **The lump takes a sector's in-band residue where the door
     /// bridges it**: the two poses of the row below at a tilt the door
     /// reads in band over both faces (standing tilted down by `1.2·ε`,
-    /// sunk at `2·ε`; standing tilted down by `2·ε` builds as well, and
-    /// neither reaches the declared-REST zip). Standing
+    /// sunk at `2·ε`; standing tilted down by `2·ε` builds as well).
+    /// Standing
     /// tilted UP, the union's residue crosses `vol(A) + vol(B)` and the
     /// volume backstop refuses it
     /// (`work/reachhold/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`,

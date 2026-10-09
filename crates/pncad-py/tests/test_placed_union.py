@@ -292,7 +292,7 @@ def die_tool_document():
     ball = doc.insert(Node.revolve(ball_p, axis, Formula.angle_in(2.0 * math.pi, rad)))
 
     # ---- the whole cutting tool, in ONE node ----
-    tool = doc.insert(Node.placed_union_at(ball, pip_placements()))
+    tool = doc.insert(Node.placed_union_at(doc.output(ball, 0), pip_placements()))
     pipped = doc.insert(
         Node.boolean(BooleanOp.Subtract, cube, tool)
     )

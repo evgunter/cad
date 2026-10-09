@@ -49,7 +49,10 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-/// Every `BandTrim` name in every value of an evaluation.
+/// Every `BandTrim` name in every value of an evaluation, a joined
+/// edge's members included: the blend's closing join (`docs/DESIGN.md`,
+/// maximal edges) names two trimlines it made one edge as the set of
+/// their names, each still a `BandTrim`.
 fn band_trims(ev: &Evaluation<f64>) -> usize {
     ev.order
         .iter()
@@ -57,8 +60,15 @@ fn band_trims(ev: &Evaluation<f64>) -> usize {
         .map(|v| {
             v.name_table
                 .iter()
-                .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::BandTrim { .. })))
-                .count()
+                .map(|(n, _)| match n.path.first() {
+                    Some(RoleSeg::BandTrim { .. }) => 1,
+                    Some(RoleSeg::Merged(cs)) => cs
+                        .iter()
+                        .filter(|c| matches!(c.path.first(), Some(RoleSeg::BandTrim { .. })))
+                        .count(),
+                    _ => 0,
+                })
+                .sum::<usize>()
         })
         .sum()
 }
@@ -156,8 +166,8 @@ fn lantern(mouth: (f64, f64), top: (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
     let (doc, revolve) = insert(
         doc,
         Node::Revolve {
-            profile,
-            axis,
+            profile: profile.into(),
+            axis: axis.into(),
             angle: ang(std::f64::consts::TAU),
         },
     );
@@ -171,7 +181,7 @@ fn filleted(mouth: (f64, f64), top: (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Fillet {
-            target: revolve,
+            target: editor_core::Operand::output(revolve, 0),
             radius: len(0.04),
             selection: vec![rim],
         },

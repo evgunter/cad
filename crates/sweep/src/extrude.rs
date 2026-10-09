@@ -107,8 +107,8 @@ use geom_core::{
 };
 use profile::{SegmentKind, ValidatedLoop, ValidatedProfile};
 use topo::{
-    Body, EdgeKey, EulerOpError, FaceKey, FaceSurface, MefSite, MevCreated, MevSite, ShellKey,
-    SolidKey, SurfaceKey,
+    Body, DihedralReading, EdgeKey, EulerOpError, FaceKey, FaceSurface, MefSite, MevCreated,
+    MevSite, ShellKey, SolidKey, SurfaceKey,
 };
 
 use crate::swept;
@@ -407,19 +407,25 @@ pub enum ExtrudeError {
     /// The dihedral classification at a profile-corner join escalated:
     /// a sliver dihedral, certifiable as neither a corner nor a smooth
     /// join (D2's ratified text — a conventional description is not an
-    /// escape hatch from ill-conditioned geometry).
+    /// escape hatch from ill-conditioned geometry). A join whose witness
+    /// read smooth lands here too when a must-carry station escalates:
+    /// its first-order arm or wedge, or its second-order bend
+    /// (its `reading`).
     SliverJoin {
         /// Canonical index of the loop.
         loop_index: usize,
         /// Canonical index of the join vertex.
         vertex_index: usize,
+        /// The reading that escalated.
+        reading: DihedralReading,
         /// The classifier's diagnostic.
         source: Indeterminate,
     },
     /// The dihedral classification at a cap–wall rim edge escalated
-    /// during the rim upgrade pass (module docs, step 6), or the
-    /// must-carry rule's reading did on a rim it read smooth — the
-    /// rim's counterpart of [`ExtrudeError::SliverJoin`].
+    /// during the rim upgrade pass (module docs, step 6), or, on a rim
+    /// whose witness read smooth, a must-carry station's first-order arm
+    /// or wedge or its second-order bend did — the rim's counterpart of
+    /// [`ExtrudeError::SliverJoin`].
     ///
     /// Reachable from admitted inputs: the direction gates admit a tilt
     /// of up to `1/K` against a rim the profile door floors at `K·ε`,
@@ -432,6 +438,8 @@ pub enum ExtrudeError {
         loop_index: usize,
         /// Canonical index of the rim's segment.
         segment_index: usize,
+        /// The reading that escalated.
+        reading: DihedralReading,
         /// The classifier's diagnostic.
         source: Indeterminate,
     },
@@ -526,21 +534,23 @@ impl fmt::Display for ExtrudeError {
             Self::SliverJoin {
                 loop_index,
                 vertex_index,
+                reading,
                 source,
-            } => write!(
-                f,
-                "the wall join at loop {loop_index} vertex {vertex_index} is neither a \
-                 definite corner nor definitely smooth: {source}"
-            ),
+            } => {
+                let join = format!("the wall join at loop {loop_index} vertex {vertex_index}");
+                swept::sliver_text(f, &join, *reading, source)
+            }
             Self::SliverRim {
                 loop_index,
                 segment_index,
+                reading,
                 source,
-            } => write!(
-                f,
-                "the rim where loop {loop_index} segment {segment_index}'s wall meets a cap \
-                 is neither a definite corner nor definitely smooth: {source}"
-            ),
+            } => {
+                let rim = format!(
+                    "the rim where loop {loop_index} segment {segment_index}'s wall meets a cap"
+                );
+                swept::sliver_text(f, &rim, *reading, source)
+            }
             Self::SmoothJoinRefuted { edge } => write!(
                 f,
                 "the join along {edge:?} classified definitely smooth at its witness \
@@ -1246,11 +1256,15 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                 // refuses rather than store a description neither
                 // reading chose.
                 let refused = |refusal| match refusal {
-                    geom_brep::MustCarryRefusal::InBand(source) => ExtrudeError::SliverJoin {
-                        loop_index,
-                        vertex_index: segs[j].chord.canonical_vertex,
-                        source: source.diag(),
-                    },
+                    geom_brep::MustCarryRefusal::InBand(escalation) => {
+                        let (reading, source) = DihedralReading::of_must_carry(escalation);
+                        ExtrudeError::SliverJoin {
+                            loop_index,
+                            vertex_index: segs[j].chord.canonical_vertex,
+                            reading,
+                            source,
+                        }
+                    }
                     geom_brep::MustCarryRefusal::Refuted => {
                         ExtrudeError::SmoothJoinRefuted { edge: strut.edge }
                     }
@@ -1277,11 +1291,13 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                         body.set_edge_curve(strut.edge, spec, tol)?;
                     }
                     geom_brep::MustCarryDescription::Conventional => {
-                        // The surfaces under-determine the locus — a
-                        // zero-side second order, or a pair outside
-                        // the certificate's lane — so the strut
-                        // "keeps the conventional description BY THE
-                        // PREDICATE" — the sentence above.
+                        // No intrinsic tangency is demanded: a station
+                        // read the second order zero-side (the surfaces
+                        // under-determine the locus), or every station
+                        // read it positive on a pair outside the
+                        // certificate's lane, which cannot store one —
+                        // so the strut keeps the conventional
+                        // description.
                         // The conventional form is a chart IMAGE, not
                         // the scaffolding the mint left (D3's
                         // transience fence), so spelling that sentence
@@ -1329,10 +1345,12 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                     }
                 }
             }
-            Err(geom_brep::LeverEscalation { diag: source, .. }) => {
+            Err(escalation) => {
+                let (reading, source) = DihedralReading::of_lever(escalation);
                 return Err(ExtrudeError::SliverJoin {
                     loop_index,
                     vertex_index: segs[j].chord.canonical_vertex,
+                    reading,
                     source,
                 });
             }
@@ -1625,11 +1643,15 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
         // smooth cap–wall pair has no material side.
         Ok(DihedralClass::Smooth) => {
             let refused = |refusal| match refusal {
-                geom_brep::MustCarryRefusal::InBand(source) => ExtrudeError::SliverRim {
-                    loop_index,
-                    segment_index,
-                    source: source.diag(),
-                },
+                geom_brep::MustCarryRefusal::InBand(escalation) => {
+                    let (reading, source) = DihedralReading::of_must_carry(escalation);
+                    ExtrudeError::SliverRim {
+                        loop_index,
+                        segment_index,
+                        reading,
+                        source,
+                    }
+                }
                 geom_brep::MustCarryRefusal::Refuted => ExtrudeError::SmoothJoinRefuted { edge },
             };
             match geom_brep::must_carry_over_edge(&s_cap, &s_wall, &carrier, t0, t1, extent, band)
@@ -1651,11 +1673,15 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
             }
             Ok(())
         }
-        Err(geom_brep::LeverEscalation { diag: source, .. }) => Err(ExtrudeError::SliverRim {
-            loop_index,
-            segment_index,
-            source,
-        }),
+        Err(escalation) => {
+            let (reading, source) = DihedralReading::of_lever(escalation);
+            Err(ExtrudeError::SliverRim {
+                loop_index,
+                segment_index,
+                reading,
+                source,
+            })
+        }
     }
 }
 
@@ -1663,6 +1689,47 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    /// **A smooth strut or cap rim's must-carry escalation says which question
+    /// escalated**: a first-order station is the sliver, neither corner
+    /// nor smooth; a second-order one is a smooth join whose faces'
+    /// bend is too close to call. No fixture reaches a first-order
+    /// station past a witness that read smooth, so the escalations are
+    /// built directly.
+    #[test]
+    fn a_must_carry_escalation_ends_by_the_reading_that_raised_it() {
+        use crate::swept::must_carry_fixtures::{arm, second_order, wedge};
+        for (escalation, bend) in [(arm(), false), (wedge(), false), (second_order(), true)] {
+            let (reading, source) = DihedralReading::of_must_carry(escalation);
+            for text in [
+                ExtrudeError::SliverJoin {
+                    loop_index: 0,
+                    vertex_index: 1,
+                    reading,
+                    source,
+                }
+                .to_string(),
+                ExtrudeError::SliverRim {
+                    loop_index: 0,
+                    segment_index: 1,
+                    reading,
+                    source,
+                }
+                .to_string(),
+            ] {
+                assert_eq!(
+                    text.contains("curve apart there or share their curvature is undecided: "),
+                    bend,
+                    "{escalation:?}: {text}"
+                );
+                assert_eq!(
+                    text.contains("is neither a definite corner nor definitely smooth"),
+                    !bend,
+                    "{escalation:?}: {text}"
+                );
+            }
+        }
+    }
 
     /// S6 (two-tolerance, D4 ¶1 addendum): the extrusion pair —
     /// definitely-degenerate (`DegenerateExtrusion`) and in-band

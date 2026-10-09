@@ -26,10 +26,9 @@ feeds a decision, every walk is bounded.
 | Chart-region overlap (Door 2) | `src/chart_region.rs` (`chart_region_overlap`, `declared_pair_overlap`, `world_carrier`, `cylinder_pair_overlap`, `interior_witness`), `src/chart.rs`, `src/chart_iso.rs`, `src/pcurves.rs` |
 | Chart-boundary description | `src/chart_bound.rs` (`ChartBound`, `ChartLoop`, `ChartEdge`, `assembled`, `metred`, `MetredBound::certifies_outside`, `MetredRect`), `src/pcurves.rs` (`chart_boundary`) |
 | Plane splitting | `src/splitting/` (`classify`, `neighborhood`, `rules`, `insert`, `order`, `join`, `finish`, `section`, `containment`), `src/chord_join.rs`, `src/ring_path.rs`, `src/null.rs` |
-| Booleans | `src/boolean/mod.rs` (reduction, classification, `ContactRecords`, `BooleanDeclarations`), `reduce.rs`, `vtxfac.rs`, `sectors.rs`, `recl.rs`, `tables.rs`, `insert.rs`, `join.rs`, `finish.rs`, `zip.rs`, `ops.rs`, `combine.rs`, `voids.rs`, `boxes.rs`, `contain.rs`, `solid_contain.rs`, `surface_group.rs`, `rim_wedge.rs` |
-| Declared-REST zip (C7 join lane) | `src/boolean/rest.rs` |
+| Booleans | `src/boolean/mod.rs` (reduction, classification, `ContactRecords`, `BooleanDeclarations`), `reduce.rs`, `vtxfac.rs`, `sectors.rs`, `recl.rs`, `tables.rs`, `insert.rs`, `join.rs`, `finish.rs`, `zip.rs`, `ops.rs`, `carrier_pair.rs`, `combine.rs`, `voids.rs`, `boxes.rs`, `contain.rs`, `solid_contain.rs`, `surface_group.rs`, `rim_wedge.rs` |
 | Instances, separation | `src/instance.rs` (disjoint graft), `src/separation.rs` (certified no-touch), `src/transform.rs` (rigid placement) |
-| Shell and offset surgery | `src/shell.rs`, `src/replace_face.rs`, `src/offset_together.rs`, `src/offset_axial.rs`, `src/merge_faces.rs` — decisions in `crates/geom-brep/README.md` (OFFSET-DESIGN). `shell` and `shell_open` take a finished body (`AtRestBody`): their thickness is measured into the solid's material. `replace_face_offset`, `replace_faces_offset`, `offset_planes_together` and `offset_charts_together` take construction state (`Body`), tier 2 in and tier 2 out: their argument is a distance along each chart's stored normal, which no face's sense decides, and `shell` runs them over a clone mid-construction. Their result becomes finished only through `AtRestBody::validate`, where an inside-out result refuses `NegativeVolume` |
+| Shell and offset surgery | `src/shell.rs`, `src/replace_face.rs`, `src/offset_together.rs`, `src/offset_axial.rs`, `src/merge_faces.rs` — decisions in `crates/geom-brep/README.md` (OFFSET-DESIGN). `shell` and `shell_open` take a finished body (`AtRestBody`): their thickness is measured into the solid's material. `replace_face_offset`, `replace_faces_offset`, `offset_planes_together` and `offset_charts_together` take construction state (`Body`), tier 2 in and tier 2 out: their argument is a distance along each chart's stored normal, which no face's sense decides, and `shell` runs them over a clone mid-construction. Their result becomes finished only through `AtRestBody::validate`, where an inside-out result refuses `NegativeVolume`. A move that carries a face through its neighbours inverts the body too, and refuses there on the rings it leaves outside the moved face (`RingOutsideOuter`) |
 | Queries, flush detection, read-back | `src/query.rs` (the EXACT/DECIDED atoms and `rim_of`; `crates/verbs/README.md` S1), `src/flush.rs`, `src/readback.rs`, `src/props.rs` (mass properties, `AtRestPolicy`), `src/ray_walk.rs` |
 
 The census's sweeps and backstop examine only pairs whose padded boxes
@@ -335,10 +334,10 @@ error; no blanket "disable interference checking" exists.
 `recl.rs`) an undeclared tangent pair refuses `CurvedBooleanUnsupported`;
 a verified `Tangent`/`Rest` descends to second order (`sectors.rs`: the
 sector's relative transverse curvature signed against the other face's
-outward normal, the declaration bridging an exact zero). The zip
-(`boolean/rest.rs`) removes conformal patches as interior on any carrier
-the ladder certifies and mints each seam once, so union volume is exactly
-additive at full engagement.
+outward normal, the declaration bridging an exact zero). The join
+discards each side of a conformal contact whole, on any carrier the
+ladder certifies, and its finish fuses the two solids along the seam
+once, so at full engagement union volume is the operands' sum.
 
 A rim with a determinate G1 jet carries `TangentIntersection`. Rim
 routing by material wedge is `docs/MATE-7-TANGENCY-DESIGN.md`: π ⇒
@@ -429,9 +428,14 @@ sense-invariant.
 `ve_face_backed`, and the face-pair arms of `ee_bound_backed` and
 `ef_bound_backed` confine by structural incidence only, so they can back
 an event outside the pair's overlap region. Each migrates to the unified
-strength one at a time, measured. `ef_bound_backed`'s migration waits on
-boundary-crossing cuts: the edge-on-face lane cuts cells only at
-coincident boundary vertices (the D3 reach gap, `census.rs` module docs).
+strength one at a time, measured. The edge-on-face lane cuts an edge
+at every boundary vertex on it and every place a boundary edge crosses
+it, each placed in metres along both (a crossing within the band of an
+arc's end is that end's vertex), and refuses a face whose spiric or
+spline edge it cannot clear, so no cell spans the face's boundary on a
+decided reading. `ef_bound_backed`'s migration is parked with the
+declared-pair machinery D10 retires
+(`work/contacthold/ef-bound-backed-migrates-to-region-confinement.md`).
 
 **`EdgeFacePierce` stays categorical.** A transverse dive is
 interpenetration until a C6 vocabulary exists; the recourse is
@@ -458,7 +462,8 @@ affects only what declines, never what certifies.
 ## Open
 
 - The `EdgeFacePierce` arm (issue 973) waits for the C6 interference era.
-- `ef_bound_backed`'s migration waits on boundary-crossing cuts (1500).
+- `ef_bound_backed`'s migration is parked
+  (`ef-bound-backed-migrates-to-region-confinement`, D10).
 - `interior_witness`'s budget-exhaustion decline is untyped (1478).
 - The declared-cusp wedge-0/2π arm is defined, unbuilt (941).
 - Sphere, cone and torus cross-description declared pairs refuse

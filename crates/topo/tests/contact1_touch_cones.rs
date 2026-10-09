@@ -219,7 +219,7 @@ fn a_block_flush_with_the_arm_top_clears_on_its_shared_edge() {
 /// corner separates the two cones and the bracket's complement there is
 /// not convex, so neither sufficient test certifies the rest: the
 /// analysis refuses typed as unanalysed (filed as
-/// `work/contact/a-touch-at-a-saddle-corner-refuses-unanalysed.md`).
+/// `work/inside/a-touch-at-a-saddle-corner-refuses-unanalysed.md`).
 /// Unmoved from the base, where the vertex pair had no analysis at all.
 #[test]
 fn a_block_on_the_floor_of_the_inner_corner_refuses_unanalysed() {
