@@ -1200,7 +1200,7 @@ mod tests {
     #[test]
     fn domain_grid_points_clearance_and_no_cut_off() {
         let near = f64::from_bits(0.25f64.to_bits() + 1);
-        let edge = 0.75 - 1.0 / 1024.0;
+        let edge = 0.75f64 - 1.0 / 1024.0;
         let kv =
             KnotVector::clamped(vec![0.0, 0.0, 0.0, near, 0.5, edge, 1.0, 1.0, 1.0], 2).unwrap();
         assert!(domain_grid_points(&kv, 4).is_empty());

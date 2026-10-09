@@ -1992,7 +1992,7 @@ mod tests {
     /// further below `20/32` leaves it standing with every other 32nd.
     #[test]
     fn chart_breaks_skip_a_grid_point_up_to_the_clearance_from_either_curves_knot() {
-        let c = 1.0 / 8192.0;
+        let c = 1.0f64 / 8192.0;
         let above = 0.0625 + c;
         let below = 0.375 - c;
         let past = (0.625 - c).next_down();

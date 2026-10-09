@@ -7186,7 +7186,7 @@ mod tests {
                 0.7
             ]
         );
-        let clearance = (hi - lo) / 16.0 * algebra::GRID_CLEARANCE;
+        let clearance: f64 = (hi - lo) / 16.0 * algebra::GRID_CLEARANCE;
         let inside = 0.2875 + clearance;
         let outside = (0.5125 + clearance).next_up();
         assert_eq!(inside, 0.287_646_484_374_999_96);
