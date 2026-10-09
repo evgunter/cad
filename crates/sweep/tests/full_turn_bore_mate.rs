@@ -196,27 +196,16 @@ fn a_shaft_off_the_bores_seam_is_built_by_the_join() {
     unions_both_ways(&c, &p, h, "the join's row");
 }
 
-/// **The zip carries the declaration door's rows** (D10): the union
-/// the join refuses and the declared-REST zip builds records each
-/// declared bore × peg-wall `Rest` once, in declaration order, as
-/// `SameOpposite` at the carrier ladder, its cells the two declared
-/// faces of their operands. In both operand orders.
+/// **The join's union carries the declaration door's rows** (D10): the
+/// mate off the seam records each declared bore × peg-wall `Rest` once,
+/// in declaration order, as `SameOpposite` at the carrier ladder, its
+/// cells the two declared faces of their operands. In both operand
+/// orders.
 #[test]
-fn the_zips_union_records_each_declared_rest_at_the_carrier_ladder() {
+fn the_joins_union_records_each_declared_rest_at_the_carrier_ladder() {
     let (c, (_, y0, h)) = (collar(), SPANS[0]);
     let p = shaft(60.0, y0, h);
     let tol = Tol::witness();
-    let join = topo::test_support::boolean_join_refusal(
-        BooleanOp::Union,
-        &c,
-        &p,
-        &wall_decls(&c, &p),
-        tol,
-    );
-    assert!(
-        matches!(join, Ok(Some(_))),
-        "the premise: the join refuses, so the zip builds it, got {join:?}"
-    );
     let (c, p) = (
         sweep::test_support::finished("the collar", c, tol),
         sweep::test_support::finished("the shaft", p, tol),

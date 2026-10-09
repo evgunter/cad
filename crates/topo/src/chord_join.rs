@@ -3562,8 +3562,8 @@ fn ring_vertices<T: Decide>(
 /// there is read from its harmonic form; the straight chart rows between
 /// images (the walk's junction gaps) are segments. A ring vertex is placed
 /// on the run's branch, which is one branch because the run's window is
-/// decided under a period, or, for a window of exactly one period, on the
-/// branch from its low edge. Each comparison is a named trilean metered in
+/// decided under a period; for a window of exactly one period, a vertex
+/// at the seam's azimuth reads alike on either edge. Each comparison is a named trilean metered in
 /// metres. A run vertex at the ray's azimuth reads as just short of it
 /// (the half-open rule), so the ray crosses the run there once or not at
 /// all, and a run row along the ray is met only by a vertex on it. A ring
@@ -3610,22 +3610,21 @@ fn chart_ring_side<T: Decide>(
         decide(name, margin, band).map_err(|diag| SplitJoinError::Escalated { face: newf, diag })
     };
     // A run whose window is a whole period (a band round a full-turn
-    // face, closed along its seam) is read on the branch from its low
-    // edge, so a vertex at the seam's azimuth reads at `lo`, past which
-    // the ray's degenerate rows put it.
-    let full = match decide_m(
+    // face, closed along its seam) holds the seam's azimuth at both `lo`
+    // and `hi`. A ring vertex there reads alike at either: the half-open
+    // rule reads it just inside `lo` or just past `hi`, and just inside
+    // `lo` the run lies only beside its rows along `lo`, which the ray
+    // meets only from a vertex on them.
+    if decide_m(
         "split_ring_chart_window",
         Margin::levered(tau - (hi - lo), radius),
-    )? {
-        Sign::Positive => false,
-        Sign::Zero => true,
-        Sign::Negative => {
-            return Err(invariant(
-                "ring re-homing on a chart: the run's azimuth window spans more than a full \
-                 period, so a ring vertex has no single branch on it",
-            ));
-        }
-    };
+    )? == Sign::Negative
+    {
+        return Err(invariant(
+            "ring re-homing on a chart: the run's azimuth window spans more than a full period, \
+             so a ring vertex has no single branch on it",
+        ));
+    }
     let mid = (lo + hi) * T::from_f64(0.5);
     let vertices = ring_vertices(body, ring)?;
     // The chart segments of the run: each edge (`Some(image)`), then the
@@ -3636,15 +3635,6 @@ fn chart_ring_side<T: Decide>(
         let w = vertex_point(body, v) - centre;
         let raw = stable_azimuth(w.dot(axis.cross(u_ref)), w.dot(u_ref), band);
         let u_p = raw + (mid - raw).periodic_branch(tau) * tau;
-        let u_p = if full {
-            match decide_r("split_ring_chart_seam", Margin::levered(hi - u_p, radius)) {
-                Ok(Sign::Zero) => u_p - tau,
-                Ok(_) => u_p,
-                Err(diag) => return Ok(Err(diag)),
-            }
-        } else {
-            u_p
-        };
         let v_p = w.dot(axis);
         let mut crossings = 0usize;
         for (i, image) in images.iter().enumerate() {
@@ -3736,6 +3726,9 @@ pub(crate) fn ring_representative<T: Decide>(
     };
     Ok(vertex_point(body, v))
 }
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod chart_ring_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod cone_ring_rows;
