@@ -2,149 +2,177 @@
 
 ## For Ev
 
-**Recommendation (sure):** a union member's names are keyed by the member's
-**read**: the `VarId` of the output variable the member slot holds, the same
-id the document stores in `members`. `FromMember { member: VarId, of }`.
-Nothing else: not the operation, not `(operation, port)`, and no refusal.
-`MembersShareAnOperation` retires, `Union[split.above, split.below]` builds.
+**Recommendation (sure):** a member's names are keyed by the member's
+**read**: the `VarId` of the output variable the slot holds, the id the
+document already stores in `members`. One segment, `From { read: VarId,
+of }`, for every operation that names an entity by the input it came
+through; `FromMember`, `FromA`, `FromB` retire into it. `Union` and
+`Intersect` are lists; `Subtract { from, tool }` is a pair; `Boolean { op,
+a, b }` leaves the document. `MembersShareAnOperation` retires and
+`Union[split.above, split.below]` builds.
 
-**Why the premise is slightly off.** The fork asks what keys a union's
-names. What it is evidence of is wider: the document addresses an input by
-its read (D10: "reading is the only dependency"; `members: Vec<VarId>`), but
-four places still address it by its *operation* — the union's name key, a
-declared pair's site (`SitedRef { at: RecipeNodeId }`), the coincidence
-walk's entry (`coincide::construction(read: RecipeNodeId, …)`), and the
-evaluator's results map, which is why a split's ports have to be "projected"
-per operand at all. Each is one defect: an operation stands in for a read,
-which is the same thing as naming by position, one level up (port 0 of a
-node is the node). The union's key is simply the place it bit first. The
-answer is the same at all four: the read. This report settles the first
-two and names the other two.
+**The premise, widened.** The fork asks what keys a union's names. What it
+is evidence of: the document addresses an input by its read (D10, "reading
+is the only dependency"; `members: Vec<VarId>`), but four places still
+address it by its *operation* — the union's name key, a declared pair's
+site (`SitedRef { at: RecipeNodeId }`), the coincidence walk's entry
+(`coincide::construction(read: RecipeNodeId, …)`), and the evaluator's
+results map, which is why a split's ports are "projected" per operand at
+all. An operation standing in for a read is naming by position one level
+up (port 0 of a node is the node). The answer is the same at all four:
+the read. This report settles the first two and names the other two.
 
-**Ev's words win over the ratified text.** D10 already says it:
-"A recorded coincidence names its cells as the reads they entered the
-deciding operation through and their names there". That sentence is the
-shape `From { read, of }` exactly. DM4's "the key is the edge" (agent text,
-DOCM-3, PR 1803; I could not find Ev's words behind it in a shallow
-checkout) was written when the edge *was* a node; B (PR 4342) made the edge
-a read and moved DM5 with it, and the key did not follow. DM5's
-parenthetical ("the union then refuses … `MembersShareAnOperation`") is
-PR 4455's own description of its stopgap, as its reviewer noted; no
-ratification backs it. Both are what I would change.
+**Ev's words over the ratified text.** D10 already says it: "A recorded
+coincidence names its cells as the reads they entered the deciding
+operation through and their names there" — the shape `From { read, of }`
+exactly. DM4's "the key is the edge" (agent text, DOCM-3, PR 1803; no
+words of Ev's behind it that a shallow checkout reaches) was written when
+the edge *was* a node; B (PR 4342) made the edge a read and moved DM5 with
+it, and the key did not follow. DM5's parenthetical ("the union then
+refuses … `MembersShareAnOperation`") is PR 4455's description of its own
+stopgap, as its reviewer noted. Both change.
 
 ### 1. The key
 
-Three candidates, weighed on what a name must survive (N1, N2, N5) and on
-one way to say each thing:
-
-| | by operation + refuse (DM5-for-unions) | by `(operation, port)` | **by the read (`VarId`)** |
+| what a name must survive | by operation + refuse | by `(operation, port)` | **by the read** |
 |---|---|---|---|
 | member removed / reordered | survives | survives | survives |
-| member re-pointed `split.above → split.below` by `SetMembers` | **key unchanged**: the name says nothing changed, and only the tables' disagreement keeps a frozen selection from re-pointing silently (DM6, N5 forbid this) | key changes, `RecipeEdit` diagnosed | key changes, `RecipeEdit` diagnosed |
-| split's plane edited | survives | survives | survives |
-| an operation gains an output (D10 gave revolve its axis) | keys unchanged but now ambiguous | unchanged | unchanged |
-| what DM5 is over | **not the key**: the mismatch is this whole fork | the key, spelled twice | the key, spelled once |
-| two halves of one split | refused; the pair `Boolean` is the second way to rejoin them | admitted | admitted |
+| member re-pointed `split.above → split.below` (`SetMembers`) | **key unchanged**: only the tables' disagreement keeps a frozen selection from re-pointing silently (DM6, N5) | changes, `RecipeEdit` | changes, `RecipeEdit` |
+| the split's plane edited | survives | survives | survives |
+| an operation gains an output (D10 gave revolve its axis) | ambiguous | unchanged | unchanged |
+| what DM5 is over | **not the key**: that mismatch is this fork | the key, spelled twice | the key, once |
+| two halves of one split | refused; the pair boolean is a second way to rejoin them | admitted | admitted |
 
-The operation-keyed answer keeps a refusal and a workaround alive only
-because a ratified sentence says "member id" — the kind of machinery the
-D10 conversation set out to remove. `(operation, port)` is `Operand::Output`,
-which is *authored* sugar the slot door lowers; a stored name should store
-what the document stores. The read is minted identity like a node id (VR1:
-same mint chain, never reused, never positional), and B's content key
-already feeds the port (PR 4342, fix 2); the name key is the one that
-lagged. It is also what FORK-PAT's `Member { (i, …), of }` keys by: the ids
-of the variables read. **Sure.**
+The operation key keeps a refusal and a workaround alive because a
+sentence says "member id": machinery the D10 conversation set out to
+remove. `(operation, port)` is `Operand::Output`, *authored* sugar the slot
+door lowers; a stored name stores what the document stores. The read is
+minted identity like a node id (VR1: same mint chain, never reused, never
+positional); B's content key already feeds the port (PR 4342, fix 2), so
+the name key is the one that lagged; and FORK-PAT's `Member { (i, …), of }`
+keys by variable ids too. **Sure.**
 
-### 2. One rule for every "came through this input"
+### 2. One node, one rule (Ev: "do we want these as different things?")
 
-A pair `Boolean`'s `FromA`/`FromB` key by *seat*: a second way to say the
-same fact. Under seat keys, swapping a subtract's operands vanishes every
-name; under read keys the tool's surviving faces are still "from the tool".
-DM5 makes the reads of one node distinct, so one segment serves every
-operation: **`From { read: VarId, of: NameRef }`**, replacing `FromA`,
-`FromB` and `FromMember`. A `Seam`'s two sides are then in canonical name
-order in a boolean's table as in a union's (the "a union has no A and B"
-special case goes). **Likely.** Consequence worth saying: a two-member
-`Union` and a `Boolean(Union)` then publish the same names, which shows
-they were two spellings of one node; DM4's "sits beside `Boolean(Union)`,
-which stays for a pair" should go, `Union` being the one union. `FromTarget`
-(a blend's one input) is the same rule with one read; folding it in too is
-uniform, and I would, but nothing hinges on it (**unsure**). `InPart { of }`
-stays: it crosses a document, which a read never does.
+No. `Boolean(Union){a, b}` and `Union[a, b]` are two spellings of one
+node, and the list survives: a two-member list *is* the pair, and under the
+read key its names are the pair's (a `Seam`'s sides in name order, which
+the union already does). The vocabulary becomes three nodes:
+
+- **`Union { members }` and `Intersect { members }`**, the same shape:
+  two or more reads, `SetMembers`, DM4's pairwise judgement before the
+  fold, a fold of the kernel's pair verb in list order, `From { read, of }`
+  names. Intersect is associative and commutative set-wise, so the result
+  is order-free; what the fold keeps is the material in every member, and
+  a result face is a piece of one member's face, or a glue of coincident
+  faces of several, named by its parent and `Borders` as the union's are;
+  a glue keeps the *earliest* member's description, list order being the
+  author's statement, as DM4 says for union. Two members whose boxes are
+  disjoint make the whole intersect the typed empty at the pairwise
+  judgement, naming the pair; an empty fold step is the typed empty too
+  (for union it is a kernel bug, `UNION_STEP_EMPTY`). `A ∩ A` is `A`
+  (DM5, unchanged). **Sure** on the shape; **likely** that nothing in the
+  kernel's intersect lane resists the fold (not traced below the verb).
+- **`Subtract { from, tool }`**: binary, two named seats, two reads DM5
+  keeps distinct. Several tools are **`subtract(a, union[tools])`**, the
+  one way: the tools' mutual contacts have to be judged somewhere, and the
+  union judges them once, pairwise, order-free; a list seat on subtract
+  would be a second union, cutting in sequence and meeting those contacts
+  at the fold with no judgement before it — the bug class DM4 exists to
+  prevent. The façade may spell `a - [t1, t2]` and write the union, shown
+  as what it is. **Likely.**
+- **The one naming rule.** An entity carried from an input into an
+  operation's table is `From { read, of }`: the variable it entered through
+  and its name there. Which of subtract's seats a read sits in is the
+  document's to say, never the name's, so nothing is named by operand
+  order (`work/emit/a-pair-boolean-names-a-declared-covered-pair-by-
+  operand-order` is this class). `FromTarget` (a blend's one input) is the
+  same rule with one read; folding it in is uniform and I would
+  (**unsure**). `InPart { of }` stays: it crosses a document.
 
 ### 3. Composition: a family member, a split half
 
 - A union reading a family whole: `From { read: xs, of: Member { (k), of } }`.
-  The read once, the index once; the key never spells the index, so a
-  family's members are told apart by the inner segment, as DM4 says today.
+  The read once, the index once; the key never spells the index.
 - A union reading `split.above`: `From { read: #above, of: SplitFragment {
   side: Above, parent } }`. The key is an opaque id and spells no half; the
-  half is spelled once, in the inner name, where N2 needs it (the side is
-  the fragment's covariant discriminator). The `(operation, port)` key is
-  the one that would say it twice, and it is rejected above. **Sure.**
-- There is a second-order duplication at the split itself, not the union:
-  a split's ports *are* its sides (`SplitHalf::output_body`), and once each
-  output variable has its own table, `side` on `SplitBody`, `SectionFace`,
-  `SectionEdge`, `SplitFragment` and `CrossingVertex` restates which table
-  the row is in. The final state I would want drops `side` from those
-  segments (a selection "states its body once", D10) and keeps only the
-  intra-table qualifiers (`Keeps`, `Ends`). That is a split-naming change,
-  separable from this fork, and works with the read key either way.
-  **Likely**, offered rather than recommended here.
+  half is spelled once, where N2 needs it (the side is the fragment's
+  covariant discriminator). `(operation, port)` would say it twice. **Sure.**
+- Second-order, at the split itself: its ports *are* its sides
+  (`SplitHalf::output_body`), so once each output variable has its own
+  table, `side` on `SplitBody`, `SectionFace`, `SectionEdge`,
+  `SplitFragment` and `CrossingVertex` restates which table the row is in.
+  The final state I would want drops `side` (a selection "states its body
+  once", D10), keeping the intra-table qualifiers (`Keeps`, `Ends`). A
+  split-naming change, separable, and the read key works either way.
+  **Likely**; offered, not recommended here.
 
 ### 4. What moves, and the special case
 
-Every `FromMember` (and `FromA`/`FromB` under §2) carries a variable id in
-place of a node id, so every name digest over a document holding a union or
-boolean re-baselines: `lib_g16` corpus digests, `perf2 PINNED`, `m4_pr3`
-die table and names digests, `m4_pr4 DIAGNOSIS_DIGEST`, `name_words_corpus
-SAID_DIGEST`, `asm2b SINGLE_SOLID_NAMES_DIGEST`, `seat4`; stored documents
-whose frozen selections or declared pairs name union rows (`golden.cad`,
-`die_tool.pncad`, `die_composed_tour.pncad`, `gallery_ring.pncad`,
-`plate_param.pncad`); the Python tag `members_share_an_operation`. Geometry
-does not move. A spelling that keeps today's bits ("bare node id when the
-operation has one output") is `Operand::Node` sugar inside a stored name:
-two spellings of one key, and adding an output port to an operation would
-re-key every name through it. **Not worth one. Sure.**
+Every `From` segment carries a variable id in place of a node id or a
+seat, so every name digest over a document holding a boolean re-baselines
+(`lib_g16`, `perf2 PINNED`, `m4_pr3` die digests, `m4_pr4
+DIAGNOSIS_DIGEST`, `name_words_corpus SAID_DIGEST`, `asm2b`, `seat4`).
+Stored `Boolean` nodes rewrite: `op: Union` to `Union { members: [a, b] }`
+(`plate_param.pncad` twice, `die_composed_tour.pncad`,
+`pre_b_families.json`), `Subtract` to its seats, `Intersect` to a list;
+the variant feeds the node preimage, so ids re-mint and PR 4342's
+id-feeding pins move again. Geometry does not move. Tests name
+`BooleanOp::Union` in 190 files; demos in `heatsink`, `impeller`,
+`teapot`, `checks`. Python: `Node.boolean(op, a, b)` and `BooleanOp`
+retire; `Node.union(members)` stays; `Node.intersect(members)` and
+`Node.subtract(a, b)` arrive; no `|` spelling exists today, and one added
+later writes `union` (`a | b | c` is one list, not a nest). Viewer: the
+two-pick Boolean tool becomes union and intersect with N picks (DM4's
+"not yet built" door) and subtract with two. A bits-keeping spelling
+("bare node id when the operation has one output") is `Operand::Node`
+sugar inside a stored name: two spellings of one key, and giving an
+operation a second output would re-key every name through it. **Not
+worth one. Sure.**
 
 ### Clauses changed
 
-- REFERENCES **DM4**: "Naming keys by member" → keys by the read; the
-  `FromMember` paragraph; "stays for a pair" (if §2). **DM5**: delete the
-  `MembersShareAnOperation` parenthetical. **NAMES N1**: the `RoleSeg` list
-  (`From` for `FromA`/`FromB`/`FromMember`). **N6**, **D10**: unchanged;
-  they already say the read.
-- Sites: `RoleSeg` and its rewriters (`role.rs`), `emit_union::{member_view,
-  member_name, keyed}`, `name_union`'s `member_of`, `wire_union` (members
-  as reads; the duplicate-operation loop goes), `lift`, `member_site` /
-  `site_operand` (the "sided by table" inference goes), `SitedRef { at:
-  VarId }` for the declaration channel's life until stage 4 F,
-  `coincide::construction` takes the read, `eval/class.rs` and the Python
-  tag, tests `dm5_is_over_the_variables_read` (builds, volume 1.0) and
-  `a_pair_declared_across_one_splits_halves_is_sided_by_table`. Reversible: one field's type.
+- REFERENCES **DM4**: "Naming keys by member" → by the read; "It sits
+  beside `Boolean(Union)`, which stays for a pair" deleted; "an n-ary
+  union" → union and intersect; "nothing else in the vocabulary is a
+  list" → intersect too. **DM5**: `Boolean { a: X, b: X }` → `Subtract {
+  from: X, tool: X }`; the `MembersShareAnOperation` parenthetical deleted.
+  **D10 Repetition**: "`union` and `subtract` read a family as their
+  members" → union and intersect do; a subtract's tool is one body, so
+  cutting a family is `subtract(a, union(holes))`. **NAMES N1**: the
+  `RoleSeg` list (`From` for `FromA`/`FromB`/`FromMember`). **N6**: unchanged.
+- Sites: `RoleSeg` and its rewriters, `emit_union::{member_view,
+  member_name, keyed}`, `name_union`'s `member_of`, `wire_union` (the
+  duplicate-operation loop goes; an op parameter for intersect),
+  `wire_boolean` → subtract only, `lift`, `member_site` / `site_operand`
+  (the "sided by table" inference goes), `SitedRef { at: VarId }` until
+  stage 4 F retires declarations, `coincide::construction` takes the
+  read, `eval/class.rs`, the Python tags and stub, the viewer's combine
+  tool, tests `dm5_is_over_the_variables_read` (builds, volume 1.0) and
+  `a_pair_declared_across_one_splits_halves_is_sided_by_table`.
+  Reversible: a field's type and a variant split.
 
 ## For the orchestrator
 
 - **Provenance.** `git log --all -S'key is the edge'` reaches only the
-  graft merges in this shallow clone; I take DM4's wording as DOCM-3's
-  agent text under self-merge. The DM5 parenthetical is PR 4455's.
-- **Root one level down.** The evaluator keys `Results` by node and
-  projects split ports per operand (`split_ports_projected`, per-operand
-  overlays in `run_op`). A value keyed by the read (port) retires that
-  machinery; PR 4455 says `part-split-half-retires` reshapes it. Worth
-  stating as that unit's target rather than a reshaping.
-- **`coincide::construction(read: RecipeNodeId, …)`** lowers each read to
-  its operation (`operation_of`), so the walk cannot tell a split's halves
-  apart either. Same defect, same fix; file under INTENT if the unit that
-  builds this does not take it.
-- **FORK-PAT composition to check**: inside a per-`k` evaluation, a read of
-  `xs` is "its member at the same value" (D10), and DM3 says the member
-  keeps `Member { (k), of }`; an operation inside the loop then wraps its
-  own output in `Member { (k), … }` again, so `k` is spelled at every level
-  of a per-index chain. Not this fork's; the read key is the same either
-  way. Worth a row before `Member` is built.
-- **§3's split `side` drop** is a separate fork if taken; it moves every
-  split name and touches N2's text.
-- Not checked: whether anything outside editor-core reads
-  `FromMember.member` as a node id (viewer, Python). Grep before building.
+  graft merges here; I take DM4's wording as DOCM-3's agent text under
+  self-merge. The DM5 parenthetical is PR 4455's.
+- **Root one level down.** `Results` is keyed by node and split ports are
+  projected per operand (`split_ports_projected`, the overlays in
+  `run_op`). A value keyed by the read retires that; PR 4455 says
+  `part-split-half-retires` reshapes it. State it as that unit's target.
+- **`coincide::construction`** lowers each read to its operation
+  (`operation_of`), so the walk cannot tell a split's halves apart either.
+  Same defect, same fix; file under INTENT if the building unit skips it.
+- **Not traced:** the kernel's intersect lane under a fold (whether
+  `BooleanNaming` and the flush rows behave for `Intersect` as for
+  `Union` at every step); the reviewer of the building unit should run a
+  three-member intersect with two coincident faces.
+- **FORK-PAT composition to check**: inside a per-`k` evaluation a read
+  of `xs` is "its member at the same value" (D10) and keeps `Member { (k),
+  of }` (DM3); an operation in the loop wraps its output in `Member { (k),
+  … }` again, so `k` is spelled at every level. Not this fork's.
+- **§3's split `side` drop** is a separate fork if taken (every split
+  name moves; N2's text).
+- Not checked: readers of `FromMember.member` as a node id outside
+  editor-core (viewer, Python). Grep before building.
