@@ -127,3 +127,24 @@ roster:
   of `2ρ/3`, so that is the floor. With every other door opened in
   scratch, all 51 of §0.2's bodies still return and are correct.
 
+
+## U-S3, U-S4, U-S0 (2026-10-09, `germ/cone-sector-join`)
+
+D3, D4 and D5 are open below the operand gate. U-S1, U-S2 and U-S6 ride
+PR 4369 (`germ/cone-sector-normals`).
+
+- **D3.** `join::pair_section_frame_at` has a plane × cone arm
+  (`pk_germ_frame`), through `geom_brep::plane_cone_section`. It reads
+  the ellipse's or circle's frame, and the generator pair as straight.
+  The apex's touching outcomes are a desync. A hyperbola or parabola
+  refuses `BooleanError::GermSectionOutsideInventory`, carrying the
+  table's `SectionError`. It is levered at the cone face's reach from
+  the reading point (`FrameExtent::Reach`).
+- **D4, D5.** `bool_connect` dispatches `(Plane, Cone)` as `PlaneWall`
+  and `(Cone, Plane)` as `WallPlane`, and `bool_planar_chord_spec`
+  admits the cone.
+- **U-S0.** `topo::join_admitting_cones` (`sweep-testing`) runs the
+  production pipeline with `Cone` on the gate's roster and stops after
+  the join. Measured through it, B4, C1 and T1 join in every op and
+  member order, each chord the closed-form section on both sides. Every
+  pose then meets D6, the interior-loop guard.

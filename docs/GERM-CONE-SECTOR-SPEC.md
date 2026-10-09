@@ -221,17 +221,19 @@ ellipse per Ev's 2026-10-01 ruling):
 | parabola, hyperbola (`Err`, by decision R1) | **a typed refusal naming the conic**, not a desync |
 
 **The extent** `plane_cone_section` meters its aperture and conic-type
-margins at should be the frame's own `FrameExtent`, read the way the
-cylinder arm reads it. The probe used `|at − apex|`. Q4 asks which.
+margins at is the frame's own `FrameExtent::Reach`: the cone face's
+farthest distance from the reading point (`face_reach_from`), the
+measure the cone's split lane levers the same section at
+(`chord_join::section_reach`). A pair handed without its faces is
+levered at `|at − apex|`, the probe's reading (Q4).
 
 **The by-decision refusal.** Measured, the commonest pose of all — an
 axis-aligned brick across a cone wall (B1) — cuts hyperbolas and stops
 here. So does any plane parallel to the axis. This is
 `crates/geom-brep/README.md` C1/C5's ruling (the hyperbola and parabola
 are out of the conic inventory), not a missing arm. The refusal must say
-so: `BooleanError` carrying the `SectionError` that names the conic,
-not `JoinDesync`. Q3 asks whether that is a new variant or an existing
-one.
+so: `BooleanError::GermSectionOutsideInventory`, carrying the
+`SectionError` that names the conic, not `JoinDesync` (Q3).
 
 **Cone × cylinder** (R3, R4, B3) stays `NoArm`. Its frame is
 `cone-pairs-in-general-pose-have-no-section-arm`, whose spec it is.
@@ -417,8 +419,9 @@ reconcile the two specs.
 
 ### U-S4 — plane-cone-join-lane
 
-Verdict-level rows run the join's two halves directly (or whole poses
-through U-S0):
+The rows run whole poses through U-S0's door,
+`topo::join_admitting_cones` (`sweep-testing`), which stops the
+production pipeline after the join (`sweep/tests/cone_join_lane.rs`):
 
 1. **B4's slab:** both sides' chords are the circle `y = 0.3` and
    `y = 0.6` arcs, on the cone's aux copy.
@@ -430,10 +433,12 @@ through U-S0):
    `SectionInvariant`. The mutant "`PlaneWall` for `(Cone, Plane)`"
    (the sides swapped) must turn a row red. That is the swap the arms'
    symmetry hides.
-5. **Through U-S0, the whole poses of §0.2,** each against its closed
-   form or the grid integral, at tier 3 and by `point_in_solid`. They
-   stay refused at D6 until U4, and the rows say so. Below the gate, the
-   join's output is pinned by the split faces' geometry.
+5. **Through U-S0, the whole poses,** joined in every op and member
+   order, their chords against the closed-form section. No body is built
+   below the join, so the volume, tier-3 and `point_in_solid` checks of
+   §0.2 wait for U4's door. Every pose's interior-loop verdict is D6's
+   refusal, and the rows say so. Below the gate, the join's output is
+   pinned by the chords it mints.
 
 ### U-S5 — cone-ring-volume (off U7's path)
 
@@ -467,15 +472,22 @@ through U-S0):
   or is a cut through the apex a permanent typed refusal, like
   `CrossingAtConeApex`? That is a design choice about which poses the
   kernel answers, so it is Ev's.
-- **Q3 The conic refusal's type.** The hyperbola and parabola refuse by
-  decision. Which variant names them: a new `BooleanError` arm carrying
-  the `SectionError`, or `CurvedBooleanUnsupported` with the conic in
-  the payload? Not a fork: the orchestrator picks, by what the
-  recourse text should say.
+- **Q3 The conic refusal's type.** A new arm,
+  `BooleanError::GermSectionOutsideInventory`, carrying the
+  `SectionError`. `CurvedBooleanUnsupported` says "not supported yet",
+  and its recourse names other kinds of face; the conic is refused by
+  decision, and its recourse is to cut the cone all the way round.
 - **Q4 The frame's extent** for `plane_cone_section`'s aperture and
-  conic-type margins: the frame's `FrameExtent` (recommended, the
-  cylinder's reading), or `|at − apex|` (what the probe used). The
-  implementer measures both against the near-parabola band row.
+  conic-type margins: the face's reach (`FrameExtent::Reach`).
+  Measured against the near-parabola row (C3's plane turned by `θ`, so
+  `D = −sin θ`): both readings escalate exactly for
+  `θ ∈ (ε/L, Kε/L)`, at `L = 1.820` (the frustum face's reach from the
+  reading point) and `L = 1.677` (`|at − apex|`): the levered margin
+  is `L·sin θ`. Each reading escalates the row's in-band turn and
+  serves the ellipse past the band. The face's reach is the longer lever
+  here, so it is the more conservative, and it is the measure the wall
+  side's chord already levers at. `|at − apex|` is kept for a pair
+  handed without its faces.
 - **Q5 U-S5's place.** The ring on a cone face is built and then refused
   at the result door. That is safe, so U-S5 is off U7's path.
   Recommendation: queue it after U7, and give U7's rows an explicit

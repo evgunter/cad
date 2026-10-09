@@ -817,8 +817,30 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
     recut: bool,
     tol: Tol,
 ) -> Result<Joined<T>, BooleanError> {
+    through_the_join_on(
+        op,
+        a,
+        b,
+        decls,
+        (strategy, super::reduce::boolean_arm_exists),
+        recut,
+        tol,
+    )
+}
+
+/// [`through_the_join`] with the operand gate's face-kind roster named
+/// beside the sweep strategy ([`super::boolean_reduce_on`]).
+pub(super) fn through_the_join_on<T: Decide + Bounds + crate::props::AtRestPolicy>(
+    op: BooleanOp,
+    a: &Body<T>,
+    b: &Body<T>,
+    decls: &BooleanDeclarations,
+    (strategy, roster): (SweepStrategy, fn(&geom::Surface<T>) -> bool),
+    recut: bool,
+    tol: Tol,
+) -> Result<Joined<T>, BooleanError> {
     let band = Band::linear(tol)?;
-    let mut red = super::boolean_reduce_declared_strategy(op, a, b, decls, strategy, tol)?;
+    let mut red = super::boolean_reduce_on(op, a, b, decls, strategy, roster, tol)?;
 
     if red.null_pairs.is_empty() {
         if !red.null_edges.is_empty() {
