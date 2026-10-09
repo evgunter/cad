@@ -2,12 +2,11 @@
 id: decided-coincidence-carries-a-synthetic-invalid-margin
 kind: issue
 title: A coincidence decided Zero on every datum is reported with a synthetic MarginDiag::Invalid margin, as if a measurement had failed
-status: parked
+status: open
 opened: 2026-09-25
 priority: P3
 cost: M
 design: true
-blocked_on: [intent-stage4-is-built]
 ---
 
 ## What
@@ -53,3 +52,12 @@ TANG (`carrier_eq.rs`); `plane_eq.rs` is the planar twin.
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: the synthetic margins sit on the undeclared-coincidence refusal and ContactContradicted (plane_eq, carrier_eq), which become findings or retire at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
+
+E deletes the row's first reach. Rung 4 now glues, so `PlaneEqError::Undeclared` and `BooleanError::UndeclaredCoincidence` are gone, and a decided Zero carries its margin through `CoincidenceMeasure::Zero` (`crates/topo/src/boolean/carrier_eq.rs:137`). The shape survives in two places:
+
+- A pair decided one carrier at an arm the glue door did not glue escalates through `unglued_coincidence` (`crates/topo/src/boolean/mod.rs:1007`). It dresses the decided margin as an `Indeterminate`, and falls back to `MarginDiag::INVALID` where none was read (`recl.rs:151`, `vtxfac.rs:789`).
+- The contradiction arms still mint `INVALID` (`contact_verify.rs:166` and its siblings; `vtxfac.rs:550`).
+
+The payload question stands. It overlaps CLEAVE's `topo-mints-indeterminates-outside-the-funnel` step 3.

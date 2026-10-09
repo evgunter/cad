@@ -2,13 +2,12 @@
 id: maximal-faces-curved-arm-cannot-tell-a-licensed-curved-skip
 kind: issue
 title: The maximal-faces gate's curved arm cannot tell a declared continuation's recorded curved skip from an unlicensed cosurface adjacency
-status: parked
+status: open
 opened: 2026-10-01
 priority: P2
 cost: M
 design: true
 refs: [3657, a-union-glues-same-sense-cosurface-walls-without-merging-them]
-blocked_on: [intent-stage4-is-built]
 ---
 
 Found by the unit that built the continuation ruling
@@ -63,3 +62,7 @@ different keys.
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: the licence is the union's declared continuation (merge_skipped); under stage 4 cosurface legitimacy is structural (canonical forms). (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
+
+E builds option 3's premise only in part. The merge now reads curved pairs by their margins, declared or not (`crates/topo/src/merge_faces.rs:2255`, `faces_continue`, through `carriers_continue` at `:2344`), and `DeclaredCarrierUnsupported` is deleted. The rounded stack's union still ships its four fillet pairs as recorded skips (`crates/sweep/tests/reach_continuation.rs:291`, four `merge_skipped`; the skip reason is now the curved run's own, `PeriodClosure` in `curved_mergedoor.rs`). The gate's curved arm (`crates/topo/src/boolean/reduce.rs:582`) still accepts every different-key curved adjacency. A twin of the planar arm would still refuse that body, so the conflict stands. The licence is no longer a declaration, so options 1 and 3 (re-key, or merge the curved run) are the live ones.

@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-05
 priority: P0
 cost: M
-blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -58,3 +57,7 @@ with tier 2, the certificate and a legal operand. They fail tier 3′
 on one `UndeclaredContact { EdgeFaceOverlap }`. The triangle's apex
 edge `x = 0, y = 0.5` lies in the partner's face plane `y = 0.5`
 (witness `(0.0, 0.5, 1.0)`).
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
+
+E does not reach this. The coincidence is an EDGE lying in the partner's face plane, not a face pair, and E's glue door records face pairs only (`crates/topo/src/boolean/glue.rs:40`). The `UndeclaredContact { VertexOnFace / EdgeFaceOverlap }` findings come from the census (`crates/topo/src/census.rs:1388` and its siblings), which E leaves as it was. `StaleContactDeclaration` is FUSE's `a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms` (stage 4 F). Not re-measured on E. `join1_delta_arc_battery` already answered `decl=false` and `decl=true` alike, so a declaration was never the lever.

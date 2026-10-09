@@ -2,7 +2,7 @@
 id: reachhold
 kind: program
 title: REACHHOLD — REACH's parked rows: the D10 hold, the census at the door, and the spline rungs that wait on a producer
-status: blocked
+status: ready
 opened: 2026-10-08
 area: kernel
 prefix: reachhold/
