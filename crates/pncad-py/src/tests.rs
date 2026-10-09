@@ -3640,6 +3640,8 @@ fn a_blend_escalation_reads_as_prose_for_every_decision() {
         BlendDecision::ConvexitySign,
         BlendDecision::RingClearance,
         BlendDecision::SupportCoaxiality,
+        BlendDecision::ContactArm,
+        BlendDecision::ContactWedge,
         BlendDecision::ContactSecondOrder,
         BlendDecision::CornerIndependence,
         BlendDecision::CapTransverse,

@@ -682,8 +682,14 @@ fn sliver_dihedral_join_is_a_typed_error() {
         ExtrudeError::SliverJoin {
             loop_index,
             vertex_index,
+            reading,
             source,
         } => {
+            assert_eq!(
+                reading,
+                topo::DihedralReading::Lever(geom_brep::LeverRung::Reading),
+                "a sliver corner is the first-order wedge's escalation"
+            );
             assert_eq!(loop_index, 0);
             assert_eq!(source.predicate, Some("dihedral_wedge"));
             // The shallow corner sits at input vertex 1 = (1, 0); the
