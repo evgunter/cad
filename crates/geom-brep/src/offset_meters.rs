@@ -354,13 +354,28 @@ impl MeterError {
     /// `reading` ([`Meter::recourse`]).
     #[must_use]
     pub fn ending(&self, reading: Reading) -> String {
-        let arm = match self {
+        self.meter().recourse(self.arm(), reading)
+    }
+
+    /// [`MeterError::ending`] for a caller whose user sets the metered
+    /// size under another name: the same decision and the same arm,
+    /// with `lever` in place of the decision's own.
+    #[must_use]
+    pub fn ending_with_lever(&self, lever: &'static str, reading: Reading) -> String {
+        SizedDecision {
+            lever,
+            ..self.meter().decision()
+        }
+        .recourse(self.arm(), reading)
+    }
+
+    fn arm(&self) -> RefusedArm<'_> {
+        match self {
             Self::NormalFloor { verdict, .. } | Self::CurvatureHeadroom { verdict, .. } => {
                 verdict.arm()
             }
             Self::Escalated { source, .. } => RefusedArm::Undecided(source),
-        };
-        self.meter().recourse(arm, reading)
+        }
     }
 
     /// The payload and the ending read at `reading`.

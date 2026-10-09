@@ -862,8 +862,6 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
 fn every_offset_fit_refusal_ends_exactly_once() {
     let rows = offset_fit_routes();
     assert!(!rows.is_empty(), "the offset-fit roster is empty");
-    let routed = meter_escalations();
-    let verdicts = meter_verdicts();
     let mut pinned = 0;
     for (name, kind) in rows {
         let text = as_the_viewer_shows_it(kind);
@@ -876,10 +874,17 @@ fn every_offset_fit_refusal_ends_exactly_once() {
             !text.contains(geom_core::COINCIDENCE_RECOURSE),
             "{name}: {text}"
         );
-        let arm = name
-            .strip_prefix("Shell/Face/Fit/")
-            .or_else(|| name.strip_prefix("Transform/ApproxRecertify/"))
-            .expect("every offset-fit row is on one of the two routes");
+        // The shell user sets the curvature meter's size as a wall
+        // thickness, the transform's as an offset distance.
+        let (arm, curvature) = match name.strip_prefix("Shell/Face/Fit/") {
+            Some(arm) => (arm, WALL),
+            None => (
+                name.strip_prefix("Transform/ApproxRecertify/")
+                    .expect("every offset-fit row is on one of the two routes"),
+                DISTANCE,
+            ),
+        };
+        let (routed, verdicts) = (meter_escalations(curvature), meter_verdicts(curvature));
         let ending = routed
             .iter()
             .find(|(route, _, _)| arm == format!("Meter/Escalated/{route}"))
@@ -897,6 +902,12 @@ fn every_offset_fit_refusal_ends_exactly_once() {
         if arm.starts_with("Meter/") {
             assert!(!text.contains("lower"), "{name}: {text}");
         }
+        if curvature == WALL {
+            assert!(
+                !text.contains("offset distance") && !text.contains("other side"),
+                "{name}: a shell user sets a wall, not a distance or a side: {text}"
+            );
+        }
         if arm.starts_with("Fit/") || arm.starts_with("Structure/") {
             assert!(
                 text.ends_with(geom_core::KERNEL_DEFECT_ENDING),
@@ -907,7 +918,7 @@ fn every_offset_fit_refusal_ends_exactly_once() {
     // Both routes raise `Meter`, so every pinned ending has two rows.
     assert_eq!(
         pinned,
-        2 * (routed.len() + verdicts.len()),
+        2 * (meter_escalations(DISTANCE).len() + meter_verdicts(DISTANCE).len()),
         "a pinned meter row went missing"
     );
 }
@@ -1977,6 +1988,7 @@ fn every_certify_refusal_ends_in_its_routed_sentence() {
 const SPLIT: &str = "Recourse: split the face clear of any pole, cusp or pinch";
 const DISTANCE: &str =
     "Recourse: use an offset distance of smaller magnitude, or offset to the other side";
+const WALL: &str = "Recourse: use a thinner wall";
 
 /// One `Meter/Escalated` sample per ending its meter's decision gives an
 /// undecided margin (D4 ¶1), with that whole ending: each meter's lever
@@ -1985,8 +1997,9 @@ const DISTANCE: &str =
 /// passes; and on a poisoned margin the lever and what it may mean.
 ///
 /// The band is fixed rather than the run's witness band, so the quoted
-/// `m/K` is the same at every eps row.
-fn meter_escalations() -> Vec<(&'static str, geom_brep::OffsetFitError, String)> {
+/// `m/K` is the same at every eps row. `curvature` is the curvature
+/// meter's lever on the route read ([`DISTANCE`] or [`WALL`]).
+fn meter_escalations(curvature: &str) -> Vec<(&'static str, geom_brep::OffsetFitError, String)> {
     use geom_brep::offset_meters::{Meter, MeterError};
     use geom_core::{Band, Indeterminate, MarginDiag};
     let band = Band::new(1.0e-9, 1.0e-8).expect("a fixed, ordered band");
@@ -2010,12 +2023,12 @@ fn meter_escalations() -> Vec<(&'static str, geom_brep::OffsetFitError, String)>
         (
             "curvature",
             escalated(Meter::CurvatureHeadroom, in_band),
-            tighten(DISTANCE, "clearance"),
+            tighten(curvature, "clearance"),
         ),
         (
             "curvature-enclosure",
             escalated(Meter::CurvatureHeadroom, wide),
-            DISTANCE.to_owned(),
+            curvature.to_owned(),
         ),
         (
             "floor",
@@ -2031,7 +2044,7 @@ fn meter_escalations() -> Vec<(&'static str, geom_brep::OffsetFitError, String)>
             "invalid",
             escalated(Meter::CurvatureHeadroom, MarginDiag::INVALID),
             format!(
-                "{DISTANCE}; an unreadable or collapsed margin may indicate a kernel bug worth \
+                "{curvature}; an unreadable or collapsed margin may indicate a kernel bug worth \
                  reporting"
             ),
         ),
@@ -2043,8 +2056,8 @@ fn meter_escalations() -> Vec<(&'static str, geom_brep::OffsetFitError, String)>
 /// band is band-decided and names the tolerance below `m/K`; a floor of
 /// exactly zero, which no tolerance resolves, names the lever and says a
 /// face with no degeneracy is worth reporting; a sign-certain fold names
-/// the lever alone.
-fn meter_verdicts() -> [(&'static str, String); 4] {
+/// the lever alone. `curvature` is as [`meter_escalations`] takes it.
+fn meter_verdicts(curvature: &str) -> [(&'static str, String); 4] {
     [
         (
             "Meter/NormalFloor",
@@ -2056,11 +2069,11 @@ fn meter_verdicts() -> [(&'static str, String); 4] {
             "Meter/NormalFloor#2",
             format!("{SPLIT}; if it has none, this may indicate a kernel bug worth reporting"),
         ),
-        ("Meter/CurvatureHeadroom", DISTANCE.to_owned()),
+        ("Meter/CurvatureHeadroom", curvature.to_owned()),
         (
             "Meter/CurvatureHeadroom#2",
             format!(
-                "{DISTANCE}, or, if this clearance is intended, tighten the tolerance below \
+                "{curvature}, or, if this clearance is intended, tighten the tolerance below \
                  5e-11 m"
             ),
         ),
@@ -2149,7 +2162,7 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
         );
     }
     roster.extend(
-        meter_escalations()
+        meter_escalations(DISTANCE)
             .into_iter()
             .map(|(route, source, _)| (format!("Meter/Escalated/{route}"), source)),
     );

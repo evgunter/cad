@@ -744,7 +744,9 @@ struct AsShelled<'a, T: Real>(&'a ReplaceFaceError<T>);
 impl<T: Real> core::fmt::Display for AsShelled<'_, T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         use ReplaceFaceError as R;
-        use geom_brep::OffsetError as O;
+        use geom_brep::offset_meters::{Meter, MeterError as M};
+        use geom_brep::recourse::{Reading, Refused};
+        use geom_brep::{OffsetError as O, OffsetFitError as F};
         let asked = match self.0 {
             R::StaleFace { .. } => Some("a face that is not in the body"),
             R::EmptyGroup => Some("no face"),
@@ -793,6 +795,61 @@ impl<T: Real> core::fmt::Display for AsShelled<'_, T> {
                 "a wall this thick grows the toroidal face's tube radius to {realized_minor:?} \
                  m, as large as its ring radius, so the face would cross itself. Recourse: use \
                  a thinner wall"
+            ),
+            R::Fit {
+                error: F::Meter(error),
+                ..
+            } if error.meter() == Meter::CurvatureHeadroom => {
+                let ending = error.ending_with_lever("use a thinner wall", Reading::Build);
+                match error {
+                    M::CurvatureHeadroom {
+                        reach,
+                        verdict: Refused::Negative { .. },
+                        ..
+                    } => write!(
+                        f,
+                        "a wall this thick passes the face's radius of curvature on the wall's \
+                         side ({reach} m), so the face's offset folds over itself. {ending}"
+                    ),
+                    M::CurvatureHeadroom {
+                        reach,
+                        verdict: Refused::Zero(_),
+                        ..
+                    } => write!(
+                        f,
+                        "a wall this thick is within tolerance of the face's radius of curvature \
+                         on the wall's side ({reach} m), so the face's offset may fold. {ending}"
+                    ),
+                    escalated => write!(
+                        f,
+                        "the offset surface cannot be fitted: {escalated}. {ending}"
+                    ),
+                }
+            }
+            R::Fit {
+                error:
+                    F::BoundNotFinite {
+                        d,
+                        tolerance,
+                        best: None,
+                        ..
+                    },
+                ..
+            } => write!(
+                f,
+                "no refinement of the offset surface's fit could bound its error for a wall {} m \
+                 thick, so it cannot be certified to {tolerance} m. Recourse: use a thicker wall",
+                d.abs()
+            ),
+            R::Fit {
+                error: F::InvalidRequest { d, tolerance },
+                ..
+            } => write!(
+                f,
+                "the offset surface cannot be fitted for a wall {} m thick and a tolerance of \
+                 {tolerance} m. Recourse: supply a finite, positive wall thickness and a finite, \
+                 positive tolerance",
+                d.abs()
             ),
             R::Pcurve { .. } => write!(
                 f,
