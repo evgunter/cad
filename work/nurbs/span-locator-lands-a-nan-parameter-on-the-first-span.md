@@ -4,6 +4,9 @@ kind: issue
 title: KnotVector::span_at/span_range land a NaN parameter on the first span by documented tie-break, so every window reader that does not check first reads the first span's hull as certified
 status: open
 opened: 2026-10-01
+priority: P3
+cost: H
+design: true
 ---
 
 
@@ -51,3 +54,11 @@ leans on ("locating is where span validity originates, `span_at` is
 total"), and every caller would gain a refusal arm. The per-reader doors
 already landed or filed are the local fixes. This row is the decision
 whether to make them unnecessary.
+
+## Priced (2026-10-09)
+
+P3: latent unsoundness (the known instances are closed or filed, so no
+live wrong answer is reachable through this row). Cost H with `design`
+set: whether the locator refuses NaN, and in what shape, is a fork with
+several viable answers that every span reader inherits, so it is
+weighed by a designer pair before a lane builds it. (NURBS orchestrator)
