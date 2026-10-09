@@ -2871,12 +2871,23 @@ fn audit_record(what: &str, source: &Body<f64>, chart: &[FaceKey], shelled: &top
     let (live, _) = sorted_dedup(&body.faces().map(|(k, _)| k).collect::<Vec<_>>());
     assert_eq!(named, live, "{what}: the face channels do not partition");
 
-    // ---- edges and vertices: survivor XOR inner twin.
+    // ---- edges and vertices: survivor XOR inner twin, or for an edge
+    // a divided seam's minted piece, which is neither.
     let twin_edges: Vec<topo::EdgeKey> = record.inner_edges.iter().map(|&(r, _)| r).collect();
+    let pieces: Vec<topo::EdgeKey> = record
+        .rims
+        .iter()
+        .flat_map(|rim| rim.seam_pieces.iter().map(|&(piece, _)| piece))
+        .collect();
     for (edge, _) in body.edges() {
+        let (twin, survivor) = (twin_edges.contains(&edge), source.get_edge(edge).is_some());
         assert!(
-            twin_edges.contains(&edge) != source.get_edge(edge).is_some(),
-            "{what}: {edge:?} is not exactly one of a twin and a survivor"
+            if twin || survivor {
+                twin != survivor
+            } else {
+                pieces.contains(&edge)
+            },
+            "{what}: {edge:?} is not exactly one of a twin, a survivor and a seam piece"
         );
     }
     let twin_vertices: Vec<topo::VertexKey> =
@@ -3024,6 +3035,74 @@ fn audit_record(what: &str, source: &Body<f64>, chart: &[FaceKey], shelled: &top
                     "{what}: {pair:?} reads neither as a twin row nor as the chart's own"
                 );
             }
+            // A band between two boundaries: the band at the second is
+            // the one hole row, ring-free, its ring absorbed and its rows
+            // on its own outer loop; the seam is divided into one piece
+            // per band. A pole's band has neither.
+            assert_eq!(
+                (rim.holes.len(), rim.seam_pieces.len()),
+                if rim.seam_pieces.is_empty() {
+                    (0, 0)
+                } else {
+                    (1, 2)
+                },
+                "{what}: a band between two boundaries has one second band and two seam pieces"
+            );
+            for hole in &rim.holes {
+                let data = body.get_face(hole.face).expect("the second band resolves");
+                assert!(
+                    data.rings.is_empty(),
+                    "{what}: the second band carries no ring"
+                );
+                assert!(
+                    record.dead.loops.contains(&hole.ring),
+                    "{what}: the second band's ring is absorbed"
+                );
+                let (own_e, own_v) = (
+                    loop_edges(body, data.outer),
+                    loop_vertices(body, data.outer),
+                );
+                for pair in &hole.ring_edges {
+                    assert!(
+                        own_e.contains(&pair.0) && bounding_e.contains(&pair.1),
+                        "{what}: {pair:?} bounds no second band, or names no chart boundary"
+                    );
+                    assert!(
+                        match rim.side {
+                            RimShell::Outer => record.inner_edges.contains(pair),
+                            RimShell::Void => pair.0 == pair.1,
+                        },
+                        "{what}: {pair:?} reads neither as a twin row nor as the chart's own"
+                    );
+                }
+                for pair in &hole.ring_vertices {
+                    assert!(
+                        own_v.contains(&pair.0) && bounding_v.contains(&pair.1),
+                        "{what}: {pair:?} is no second band corner, or names no chart corner"
+                    );
+                }
+                let [(first, divided), (second, again)] = rim.seam_pieces[..] else {
+                    unreachable!("two pieces, asserted above")
+                };
+                assert_eq!(divided, again, "{what}: both pieces are of one seam");
+                assert_eq!(
+                    bounding_e.iter().filter(|&&e| e == divided).count(),
+                    2,
+                    "{what}: the divided edge is a seam the chart walks twice"
+                );
+                assert_eq!(
+                    Some(first),
+                    match rim.side {
+                        RimShell::Outer => Some(divided),
+                        RimShell::Void => record.twin_edge(divided),
+                    },
+                    "{what}: the first piece keeps the divided edge's key"
+                );
+                assert!(
+                    band_e.contains(&first) && own_e.contains(&second),
+                    "{what}: each piece is the seam of its own band"
+                );
+            }
             continue;
         }
         assert!(
@@ -3167,6 +3246,25 @@ fn audit_cases() -> Vec<(&'static str, Body<f64>, Vec<FaceKey>, f64)> {
     let cup_reversed: Vec<FaceKey> = cup_chart.iter().rev().copied().collect();
     let tube_body = tube(0.30, 0.50, 0.40);
     let tube_chart = plane_chart_at_y(&tube_body, 0.40);
+    let cylinder_of = |body: &Body<f64>, radius: f64| -> Vec<FaceKey> {
+        body.faces()
+            .filter(|(_, f)| {
+                matches!(body.get_surface(f.surface),
+                    Some(geom::Surface::Cylinder { radius: r, .. }) if (*r - radius).abs() < 1e-12)
+            })
+            .map(|(k, _)| k)
+            .collect()
+    };
+    let tube_outer = tube(0.30, 0.50, 0.40);
+    let tube_wall = cylinder_of(&tube_outer, 0.50);
+    let hollow_tube = topo::shell(
+        &finished("the tube", tube(0.30, 0.50, 0.40), Tol::witness()),
+        0.08,
+        Tol::witness(),
+    )
+    .expect("the tube shells sealed")
+    .body;
+    let void_wall = cylinder_of(&hollow_tube, 0.42);
     let slab = holed_box(1.0, 0.4, 0.6);
     let slab_chart: Vec<FaceKey> = slab
         .faces()
@@ -3222,13 +3320,16 @@ fn audit_cases() -> Vec<(&'static str, Body<f64>, Vec<FaceKey>, f64)> {
             void_cap,
             0.05,
         ),
+        ("the tube's outer wall", tube_outer, tube_wall, 0.05),
+        ("the hollow tube's void wall", hollow_tube, void_wall, 0.02),
     ]
 }
 
-/// **The audit, over every arm and both cap shapes.** One row, seven
-/// operands: the sealed box, the box cup, the two-ended box, the
-/// revolved cup in each designation order, the revolve's annular cap,
-/// and an extruded holed square.
+/// **The audit, over every arm and both cap shapes.** One row: the
+/// sealed box, the box cup, the two-ended box, the revolved cup in each
+/// designation order, the revolve's annular cap, an extruded holed
+/// square, the pole-touching caps on either shell, and the tube's band
+/// walls on either shell.
 #[test]
 fn the_record_reads_against_the_body_on_every_arm() {
     let tol = Tol::witness();

@@ -315,8 +315,12 @@
 //!   re-anchored on the ring corner that stands for its boundary end
 //!   ([`seamed_band`]), so every face and seam of the operand's chart
 //!   survives under its key and no face carries a ring. Built through a
-//!   POLE today (a cap of two branches); a band that wraps between two
-//!   boundaries refuses [`ShellError::OpenFaceRimNotExpressible`].
+//!   POLE (a cap of two branches), and between two boundaries (one face
+//!   walking one seam, the band a full revolve mints): that chart's rim
+//!   is TWO bands, one at each boundary, the second a face of its own
+//!   recorded as the rim's [`HoleRim`] row ([`band_between_boundaries`]).
+//!   A band of several branches between two boundaries refuses
+//!   [`ShellError::OpenFaceRimNotExpressible`].
 //! - **A window that does not wrap** is a ring, exactly as on a plane.
 //!   What its readers cannot yet read is theirs and refuses where they
 //!   read it: a ringed sphere or cone face at tier 3's check 7
@@ -979,18 +983,34 @@ pub struct RimNaming {
     /// (twin rows verbatim from [`ShellNaming::inner_vertices`] with
     /// `side` `Outer`, equal columns with `side` `Void`).
     pub ring_vertices: Vec<(VertexKey, VertexKey)>,
-    /// A designated face with a hole yields one extra rim region per
-    /// hole; pairing order.
+    /// One extra rim region per further boundary of the designated
+    /// chart: per hole of a designated face, in pairing order; and on a
+    /// chart that wraps its period between two boundaries, the band at
+    /// the second one.
     pub holes: Vec<HoleRim>,
+    /// Seam piece (result) ← the source seam of the designated chart it
+    /// is a piece of, where the rim surgery DIVIDED a seam, every piece
+    /// listed in seam order — the first keeping the divided edge's key.
+    /// A chart that wraps between two boundaries divides its seam into
+    /// one piece per band; with `side` `Outer` the divided edge is the
+    /// source seam itself, with `side` `Void` its cavity twin (a row of
+    /// [`ShellNaming::inner_edges`]). Empty on every other rim: a pole's
+    /// seams are cut short, each kept whole under its key.
+    pub seam_pieces: Vec<(EdgeKey, EdgeKey)>,
 }
 
-/// The extra rim region a designated face's HOLE became: the annulus
-/// between that hole's boundary and its cavity twin, promoted to its
-/// own face (`mfkrh`) before the glue and handed the designated face's
-/// own hole after it.
+/// The extra rim region at one more boundary of a designated chart:
+/// the region between that boundary and its cavity twin, one row per
+/// region whatever its face count.
+///
+/// At a designated face's HOLE it is an annulus, promoted to its own
+/// face (`mfkrh`) before the glue and handed the designated face's own
+/// hole after it. On a chart that wraps its period between two
+/// boundaries it is the band at the second boundary, which the band's
+/// surgery parts off the designated face; it carries no ring.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HoleRim {
-    /// The promoted rim face (result).
+    /// The rim face (result): the promoted face, or the second band.
     pub face: FaceKey,
     /// The loop the promoted face carries as its RING (a RESULT loop
     /// key): the designated face's own hole, as the surgery left it.
@@ -1003,23 +1023,29 @@ pub struct HoleRim {
     /// reduction. Reading it
     /// as a source key is right on one operand and wrong on the other,
     /// which is why the edge-level rows below exist.
+    ///
+    /// **On a second band this key is RETIRED** (it is in `dead.loops`),
+    /// as [`RimNaming::ring`] is on a seamed band: it is the ring the
+    /// cavity counterpart's second boundary became, which the band's
+    /// outer loop absorbs. The rows below still hold.
     pub ring: LoopKey,
-    /// Twin edge (result) ← the source boundary edge of the hole it is
-    /// the twin of; the promoted face's CAVITY-side boundary (its
-    /// outer loop) in cycle order. Every row appears verbatim in
-    /// [`ShellNaming::inner_edges`], so this is the hole's anchor in a
-    /// key space the document layer can name.
+    /// Ring edge (result) ← the source boundary edge of the designated
+    /// chart it stands for; the region's CAVITY-side boundary (the
+    /// promoted face's outer loop, the second band's cavity twin) in
+    /// cycle order, with [`RimNaming::ring_edges`]' two readings: each
+    /// row verbatim from [`ShellNaming::inner_edges`] with `side`
+    /// `Outer`, equal columns with `side` `Void`. This is the region's
+    /// anchor in a key space the document layer can name.
     pub ring_edges: Vec<(EdgeKey, EdgeKey)>,
-    /// Twin vertex (result) ← the source boundary vertex of the hole;
-    /// same loop, same order. Every row appears verbatim in
-    /// [`ShellNaming::inner_vertices`].
+    /// Ring vertex (result) ← the source boundary vertex it stands for;
+    /// same loop, same order, same two readings.
     pub ring_vertices: Vec<(VertexKey, VertexKey)>,
 }
 
 /// The result keys the construction retired, in every arena the
 /// record names. Scaffolding a rim's surgery mints and kills within
-/// itself (a seamed band's struts and its pole's copy) was never in a
-/// row and is not listed. Nor are the closing join's kills: each join's
+/// itself (a seamed band's struts, its pole's copy, a divided seam's cut
+/// points and middle piece) was never in a row and is not listed. Nor are the closing join's kills: each join's
 /// `vertex` and `gone` edge are its row in [`ShellNaming::edge_joins`],
 /// read there.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -1655,6 +1681,7 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             Some(canonicalize_chart(
                 &mut out,
                 &group,
+                wraps,
                 band,
                 &mut naming.dead,
             )?)
@@ -1665,6 +1692,7 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             Some(canonicalize_chart(
                 &mut out,
                 &sources,
+                wraps,
                 band,
                 &mut naming.dead,
             )?)
@@ -1685,18 +1713,25 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         };
         if wraps {
             let seams = interior_edges(&out, &host_faces);
-            let rim = seamed_band(
-                &mut out,
-                &host_faces,
+            let site = BandSite {
+                host_faces: &host_faces,
                 guest,
-                &seams,
-                &twins,
-                &rows,
+                seams: &seams,
+                twins: &twins,
+                rows: &rows,
                 designated,
-                band,
-                tol,
-                &mut naming.dead,
-            )?;
+            };
+            // A guest that kept its seam through the reduction is a band
+            // itself, so the chart wraps between two boundaries rather
+            // than through a pole.
+            let (rim, holes) = if duplicate_in_loop(&out, guest).is_some() {
+                let (rim, second) =
+                    band_between_boundaries(&mut out, &site, band, tol, &mut naming.dead)?;
+                (rim, vec![second])
+            } else {
+                let rim = seamed_band(&mut out, &site, band, tol, &mut naming.dead)?;
+                (rim, Vec::new())
+            };
             naming.rims.push(RimNaming {
                 sources: group,
                 side,
@@ -1704,7 +1739,8 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
                 ring: rim.ring,
                 ring_edges: rim.ring_edges,
                 ring_vertices: rim.ring_vertices,
-                holes: Vec::new(),
+                holes,
+                seam_pieces: rim.seam_pieces,
             });
             continue;
         }
@@ -1927,6 +1963,7 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             ring_edges,
             ring_vertices,
             holes,
+            seam_pieces: Vec::new(),
         });
     }
 
@@ -2082,7 +2119,10 @@ fn undesignated(face: FaceKey) -> ! {
 ///    vertex (`kev`);
 /// 3. a SLIT — a duplicate still anchored at both ends, joining a hole
 ///    to the outer cycle — splits the loop in two (`kemr`), the
-///    inner side becoming the ring it always was.
+///    inner side becoming the ring it always was. On a chart that
+///    `wraps` its period, a slit neither of whose sides encloses the
+///    other is a band's seam, not a slit, and is left for the band's
+///    surgery ([`band_between_boundaries`]).
 ///
 /// Returns the surviving face. A chart this cannot reduce refuses
 /// typed rather than gluing onto a shape it does not have.
@@ -2093,6 +2133,7 @@ fn undesignated(face: FaceKey) -> ! {
 fn canonicalize_chart<T: Decide>(
     body: &mut Body<T>,
     faces: &[FaceKey],
+    wraps: bool,
     band: Band,
     dead: &mut ShellRetired,
 ) -> Result<FaceKey, ShellError<T>> {
@@ -2186,6 +2227,10 @@ fn canonicalize_chart<T: Decide>(
             true
         } else if encloses(&chart, &p2, &p1, band).map_err(escalated)? {
             false
+        } else if wraps {
+            // Neither side is a hole: on a chart that wraps its period
+            // the slit is a band's seam, and the band's surgery cuts it.
+            return Ok(anchor);
         } else {
             return Err(not_expressible(
                 "the chart's slit loop splits into two sides neither of which encloses the \
@@ -2307,13 +2352,27 @@ fn interior_edges<T: Real>(body: &Body<T>, faces: &[FaceKey]) -> Vec<EdgeKey> {
         .collect()
 }
 
-/// What [`seamed_band`] built: the rim face that carries the record's
-/// identity, and the ring the glue made before the seams absorbed it.
+/// What the rim surgery of a chart that wraps its period is handed:
+/// the surviving side's faces, unreduced, and the seams they meet along;
+/// the dying side reduced to one face; and how the record reads them.
+struct BandSite<'a, T: Real> {
+    host_faces: &'a [FaceKey],
+    guest: FaceKey,
+    seams: &'a [EdgeKey],
+    twins: &'a TwinIndex,
+    rows: &'a RingSource<'a, T>,
+    designated: FaceKey,
+}
+
+/// What a band's surgery built: the rim face that carries the record's
+/// identity, the ring the glue made before the seams absorbed it, and
+/// the seam's pieces where the surgery divided one.
 struct SeamedRim {
     face: FaceKey,
     ring: LoopKey,
     ring_edges: Vec<(EdgeKey, EdgeKey)>,
     ring_vertices: Vec<(VertexKey, VertexKey)>,
+    seam_pieces: Vec<(EdgeKey, EdgeKey)>,
 }
 
 /// **The rim of a chart that wraps its period through a pole**, built
@@ -2342,19 +2401,21 @@ struct SeamedRim {
 /// is absorbed into the first face's outer loop and is listed in
 /// `dead`; the scaffolding the surgery mints and kills is in no row and
 /// is not.
-#[allow(clippy::too_many_arguments)]
 fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
-    host_faces: &[FaceKey],
-    guest: FaceKey,
-    seams: &[EdgeKey],
-    twins: &TwinIndex,
-    rows: &RingSource<'_, T>,
-    designated: FaceKey,
+    site: &BandSite<'_, T>,
     band: Band,
     tol: Tol,
     dead: &mut ShellRetired,
 ) -> Result<SeamedRim, ShellError<T>> {
+    let &BandSite {
+        host_faces,
+        guest,
+        seams,
+        twins,
+        rows,
+        designated,
+    } = site;
     let not_expressible = |what: &'static str| ShellError::OpenFaceRimNotExpressible {
         face: designated,
         what,
@@ -2553,7 +2614,274 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
         ring: fused.ring,
         ring_edges,
         ring_vertices,
+        seam_pieces: Vec::new(),
     })
+}
+
+/// **The rim of a chart that wraps its period between two boundaries**,
+/// built as TWO seamed bands: one between each boundary and its cavity
+/// twin, as a planar annular cap's two rim regions are one period over.
+///
+/// `site.host_faces` is one face walking one seam twice, from one
+/// boundary to the other — the band a full revolve mints — and the
+/// guest, the dying side, is that band's counterpart lying across the
+/// middle of it, its own seam left in place by the reduction (on a band
+/// there is no hole for the slit to split off).
+///
+/// The surgery is the pole's ([`seamed_band`]) applied at each end of
+/// the seam. The glue (`kfmrh`) makes the guest's boundary a ring of the
+/// host and `kemr` kills the guest's seam, leaving one ring per cavity
+/// boundary. The host's seam is cut twice between the ring corners
+/// (`split_edge`), so each outer piece has an inner end nothing else
+/// reaches; a strut along the seam's carrier joins each inner end to its
+/// ring corner (`mekr`), the middle piece is killed (`kemr`) and the side
+/// it parts off promoted to its own face (`mfkrh`), and each strut is
+/// collapsed (`kev`), re-anchoring its piece on the ring corner. What is
+/// left is the host face bounded by the seam's start boundary, the seam
+/// cut short and its cavity twin; and a new face, on the host's surface,
+/// bounded likewise at the seam's end. Both ring loops are absorbed and
+/// listed in `dead`, as are the guest's seam and the guest; the cut's
+/// scaffolding is in no row and is not. The seam's two pieces, the end's
+/// a mint, are the rim's [`RimNaming::seam_pieces`].
+///
+/// **The record.** The host keeps the rim row; the second band takes ONE
+/// [`HoleRim`] row. A hole row is the rim region at one more boundary of
+/// the designated chart, and how many faces the operand spent on that
+/// region is a fact about its construction, not about the rim — so a
+/// region is one row whatever its face count, exactly as
+/// [`RimNaming::rim`] names one face for a seamed band of several
+/// branches. A band of more than one branch is refused here today; when
+/// it is built, its second band's row names its first branch's piece,
+/// as the rim row does, and its ring rows still run the whole boundary.
+fn band_between_boundaries<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    site: &BandSite<'_, T>,
+    band: Band,
+    tol: Tol,
+    dead: &mut ShellRetired,
+) -> Result<(SeamedRim, HoleRim), ShellError<T>> {
+    let &BandSite {
+        host_faces,
+        guest,
+        seams,
+        twins,
+        rows,
+        designated,
+    } = site;
+    let not_expressible = |what: &'static str| ShellError::OpenFaceRimNotExpressible {
+        face: designated,
+        what,
+    };
+    let rim_error = |error: EulerOpError| ShellError::Rim {
+        face: designated,
+        error: error.from_driver(),
+    };
+    let (&[host], &[seam]) = (host_faces, seams) else {
+        return Err(not_expressible(
+            "the designated chart wraps its period between two boundaries, but it is not one \
+             face walking one seam, the band a full revolve mints",
+        ));
+    };
+    let at = |body: &Body<T>, he: HeKey| proven(&body.half_edges, he, EntityId::HalfEdge).start;
+    let point = |body: &Body<T>, v: VertexKey| crate::chord_join::vertex_point(body, v);
+    let host_surface = proven(&body.faces, host, EntityId::Face).surface;
+    let guest_surface = proven(&body.faces, guest, EntityId::Face).surface;
+    // The seam runs forward on its carrier from one boundary to the other.
+    let seam_plus = proven(&body.edges, seam, EntityId::Edge).he_plus;
+    let (b_start, b_end) = (at(body, seam_plus), body.proven_half_edge_end(seam_plus));
+    // The source seam the pieces are recorded against: on an outer
+    // designation the host is the designated chart and its seam is that;
+    // on a void's the host is the cavity twin, and its seam twins it.
+    let source_seam = match rows {
+        RingSource::Twins(_) => seam,
+        RingSource::Operand(_) => twins
+            .edges
+            .get(seam)
+            .copied()
+            .unwrap_or_else(|| ungrafted(EntityId::Edge(seam))),
+    };
+    // The guest's corner standing for each boundary end: its twin on an
+    // outer designation, its source on a void's.
+    let guest_outer = proven(&body.faces, guest, EntityId::Face).outer;
+    let corresponding = |body: &Body<T>, v: VertexKey| -> Option<VertexKey> {
+        cycle_of(body, guest_outer)
+            .into_iter()
+            .map(|he| at(body, he))
+            .find(|&g| twins.vertices.get(g) == Some(&v) || twins.vertices.get(v) == Some(&g))
+    };
+    let (Some(g_start), Some(g_end), Some((_, g1, g2))) = (
+        corresponding(body, b_start),
+        corresponding(body, b_end),
+        duplicate_in_loop(body, guest),
+    ) else {
+        return Err(not_expressible(
+            "a seam of the designated chart has no corner of the cavity counterpart to end on",
+        ));
+    };
+    let guest_seam = (at(body, g1), at(body, g2));
+    if b_start == b_end || (guest_seam != (g_start, g_end) && guest_seam != (g_end, g_start)) {
+        return Err(not_expressible(
+            "the cavity counterpart's seam does not join the corners that stand for the \
+             designated seam's two boundary ends",
+        ));
+    }
+    let (p_start, p_end) = (point(body, g_start), point(body, g_end));
+    // Each corner lies on the seam strictly between its boundaries, the
+    // start's corner nearer the start: each band is then the designated
+    // face's own, and not a stretch of its surface past a boundary.
+    let (s_start, s_end) = {
+        let data = proven(&body.edges, seam, EntityId::Edge);
+        let Some(curve) = body.edge_curve_linked(seam, data).certified() else {
+            unreachable!("{seam:?} is a seam of a finished wall, which has no null edge")
+        };
+        let (t0, t1) = curve.params();
+        let mid = (t0 + t1) / T::from_f64(2.0);
+        let (Some(s_start), Some(s_end)) = (
+            curve.carrier().param_near(p_start, mid),
+            curve.carrier().param_near(p_end, mid),
+        ) else {
+            return Err(not_expressible(
+                "the cavity counterpart's corners do not project onto the designated chart's \
+                 seam",
+            ));
+        };
+        let scale = (point(body, b_end) - point(body, b_start)).norm() / (t1 - t0);
+        for gap in [s_start - t0, s_end - s_start, t1 - s_end] {
+            let sign = decide("shell_band_corners_ordered", Margin::of(gap * scale), band)
+                .map_err(|source| ShellError::Escalated { source })?;
+            if sign != Sign::Positive {
+                return Err(not_expressible(
+                    "the cavity counterpart's corners do not lie on the designated chart's seam \
+                     in order between its two boundaries, so the rim is not two bands of the \
+                     designated face",
+                ));
+            }
+        }
+        (s_start, s_end)
+    };
+
+    // The glue, as the pole's, re-describing the guest's seam once.
+    let mut carried: Vec<_> = Vec::new();
+    for (edge, spec) in loop_rekeyed(body, guest_outer, guest_surface, host_surface) {
+        if carried.iter().all(|&(e, _)| e != edge) {
+            carried.push((edge, spec.description));
+        }
+    }
+    let fused = body
+        .kfmrh_describing(host, guest, &carried, tol)
+        .map_err(rim_error)?;
+    dead.faces.push(fused.killed_face);
+    dead.surfaces.extend(fused.killed_surface);
+    dead.shells.extend(fused.killed_shell);
+    // The guest's seam dies, its two sides each a ring: the end's side is
+    // the new one, so the glue's loop stays the start's.
+    let (after_g1, _) = split_cycle(body, fused.ring, g1, g2);
+    let (first, second) = if after_g1.iter().any(|&he| at(body, he) == g_end) {
+        (g1, g2)
+    } else {
+        (g2, g1)
+    };
+    let parted = body.kemr(first, second).map_err(rim_error)?;
+    dead.edges.push(parted.killed_edge);
+    let (start_ring, end_ring) = (fused.ring, parted.ring);
+    let (ring_edges, ring_vertices) = ring_rows(body, start_ring, rows);
+    let (end_edges, end_vertices) = ring_rows(body, end_ring, rows);
+
+    // The cut: the seam keeps its start piece, then the middle, then the
+    // end piece, at the thirds between the two corners.
+    let third = (s_end - s_start) / T::from_f64(3.0);
+    let lower = body
+        .split_edge(seam, s_start + third, tol)
+        .map_err(rim_error)?;
+    let middle = lower.new_edge;
+    let upper = body
+        .split_edge(middle, s_end - third, tol)
+        .map_err(rim_error)?;
+    let (top, m_a, m_b) = (upper.new_edge, lower.vertex, upper.vertex);
+    let plus = |body: &Body<T>, e: EdgeKey| proven(&body.edges, e, EntityId::Edge).he_plus;
+    let leaving = |body: &Body<T>, ring: LoopKey, v: VertexKey| {
+        cycle_of(body, ring)
+            .into_iter()
+            .find(|&he| at(body, he) == v)
+            .unwrap_or_else(|| unreachable!("{v:?} is a corner of the ring it was read off"))
+    };
+    // Both struts stand at the corners the seam's forward pass leaves its
+    // cut points from, so the middle's forward half parts the end's band
+    // off.
+    let strut_a = body
+        .mekr(
+            crate::euler_ring::MekrSite::Cycles {
+                target: plus(body, middle),
+                ring: leaving(body, start_ring, g_start),
+            },
+            along(
+                body,
+                seam,
+                point(body, m_a),
+                p_start,
+                host_surface,
+                band,
+                designated,
+            )?,
+            tol,
+        )
+        .map_err(rim_error)?;
+    dead.loops.push(strut_a.killed_ring);
+    let strut_b = body
+        .mekr(
+            crate::euler_ring::MekrSite::Cycles {
+                target: plus(body, top),
+                ring: leaving(body, end_ring, g_end),
+            },
+            along(
+                body,
+                top,
+                point(body, m_b),
+                p_end,
+                host_surface,
+                band,
+                designated,
+            )?,
+            tol,
+        )
+        .map_err(rim_error)?;
+    dead.loops.push(strut_b.killed_ring);
+    let middle_minus = proven(&body.edges, middle, EntityId::Edge).he_minus;
+    let parted = body
+        .kemr(plus(body, middle), middle_minus)
+        .map_err(rim_error)?;
+    // `mfkrh` reads its ring as a hole and negates the host's bit, but
+    // the parted side is wound as the host's own region was, so the new
+    // face takes the host's bit (check 6 reads it against the winding).
+    let made = body
+        .mfkrh(parted.ring, crate::euler::FaceSurface::Inherit)
+        .map_err(rim_error)?;
+    let host_sense = proven(&body.faces, host, EntityId::Face).sense;
+    body.set_face_sense(made.face, host_sense)
+        .map_err(rim_error)?;
+    // Each strut's `he_minus` runs from its ring corner to its cut point,
+    // which the collapse merges away.
+    let moved = re_anchored(body, seam, m_a, p_start, designated)?;
+    body.kev_describing(strut_a.he_minus, &[(seam, moved)], tol)
+        .map_err(rim_error)?;
+    let moved = re_anchored(body, top, m_b, p_end, designated)?;
+    body.kev_describing(strut_b.he_minus, &[(top, moved)], tol)
+        .map_err(rim_error)?;
+    Ok((
+        SeamedRim {
+            face: host,
+            ring: start_ring,
+            ring_edges,
+            ring_vertices,
+            seam_pieces: vec![(seam, source_seam), (top, source_seam)],
+        },
+        HoleRim {
+            face: made.face,
+            ring: end_ring,
+            ring_edges: end_edges,
+            ring_vertices: end_vertices,
+        },
+    ))
 }
 
 /// A scaffold edge's spec: the stretch of `edge`'s own carrier from
