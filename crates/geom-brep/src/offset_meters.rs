@@ -1070,6 +1070,14 @@ mod tests {
         ];
         for (error, want) in rows {
             for reading in [Reading::Build, Reading::AtRest] {
+                // A poisoned margin's note names the file at rest.
+                let want = match reading {
+                    Reading::Build => want.clone(),
+                    Reading::AtRest => want.replace(
+                        geom_core::UNREADABLE_MARGIN_NOTE,
+                        geom_core::UNREADABLE_STORED_MARGIN_NOTE,
+                    ),
+                };
                 assert_eq!(error.ending(reading), want, "{error:?} at {reading:?}");
                 let text = error.render(reading);
                 assert_eq!(text, format!("{error}. {want}"), "{reading:?}");

@@ -24,6 +24,7 @@ pub mod k_stats;
 pub mod linalg;
 pub mod predicate;
 pub mod readable;
+pub mod reading;
 pub mod real;
 pub mod running;
 pub mod spline;
@@ -47,9 +48,11 @@ pub use predicate::{
     KERNEL_LIMIT_RECOURSE, KERNEL_OR_FILE_DEFECT_ENDING, Margin, MarginDiag, MarginKind,
     MissReading, MissSource, MissingRecourse, NO_DECLARATION_RECOURSE, NOT_YET_ENDING,
     RANGE_RECOURSE, Recourse, SPLIT_PLANE_RECOURSE, Sign, SizedPass, SizedWords, SupSpeed,
-    UNNAMED_DECISION, UNREADABLE_MARGIN_NOTE, UndecidedRefusal, UnderTail, lever_recourse, noted,
+    UNNAMED_DECISION, UNREADABLE_MARGIN_NOTE, UNREADABLE_STORED_MARGIN_NOTE, UndecidedRefusal,
+    UnderTail, lever_recourse, noted,
 };
 pub use readable::Readable;
+pub use reading::Reading;
 pub use real::{
     Bounds, CertifiedBounds, CertifiedEnclosure, Real, Witness, is_finite_length,
     is_underflowed_length, is_zero_length,

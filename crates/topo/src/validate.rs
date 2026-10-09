@@ -384,8 +384,7 @@ use std::borrow::Cow;
 
 use geom::{NetState, Surface};
 use geom_brep::recourse::{
-    Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite, UNREADABLE_MARGIN_NOTE,
-    Unsized,
+    Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized,
 };
 use geom_brep::{
     CertCheck, CertifyError, DihedralClass, MaterialPairing, MaterialWedge, classify_dihedral,
@@ -2487,41 +2486,6 @@ fn own_close(margin: &geom_core::MarginDiag, lever: &'static str) -> &'static st
     if margin.is_invalid() { DEFECT } else { lever }
 }
 
-/// The ending of an undecided margin whose refusal does not carry which
-/// of its site's decisions it is: no lever, since none is known to reach
-/// it, and for a poisoned margin what that may mean.
-fn unnamed(margin: &geom_core::MarginDiag) -> Cow<'static, str> {
-    geom_core::noted(
-        NOT_YET_ENDING,
-        margin.is_invalid().then_some(UNREADABLE_MARGIN_NOTE),
-    )
-    .into()
-}
-
-/// `unnamed`'s words, held to `geom_brep::recourse::not_yet`'s — the one
-/// home props' own checks compose that ending from.
-#[cfg(test)]
-#[test]
-#[allow(clippy::unwrap_used)]
-fn the_not_yet_ending_is_one_spelling() {
-    let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
-    for margin in [
-        geom_core::MarginDiag::value(5e-9),
-        geom_core::MarginDiag::INVALID,
-    ] {
-        let cause = geom_core::Indeterminate {
-            margin,
-            band,
-            predicate: None,
-            terminal_sliver: false,
-        };
-        assert_eq!(
-            unnamed(&margin),
-            geom_brep::recourse::not_yet(RefusedArm::Undecided(&cause))
-        );
-    }
-}
-
 /// A flat face's corner on its plane: a residual (it passes only at zero)
 /// of a stored vertex against the plane the kernel caches from those same
 /// corners, an exact construction.
@@ -3081,7 +3045,12 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
             "the face wraps all the way round its surface, which the kernel cannot yet map",
             NOT_YET_ENDING,
         ),
-        M::Escalated { cause, .. } => return (CLOSE, unnamed(&cause.margin)),
+        M::Escalated { cause, .. } => {
+            return (
+                CLOSE,
+                geom_brep::recourse::not_yet(RefusedArm::Undecided(cause), Reading::AtRest).into(),
+            );
+        }
         // Never produced at rest: only the face description raises it.
         M::JointWithoutRoom { .. } => (CLOSE, NOT_YET_ENDING),
         M::Band(b) => (classify_band(b), TOLERANCE),
@@ -10954,8 +10923,8 @@ mod tests {
             read(S::Escalated { face, diag }).1,
             "Recourse: move the point clearly inside or outside the face"
         );
-        // A poisoned margin adds the unreadable-margin note, on the carried
-        // path as on the top-level one.
+        // A poisoned margin adds the unreadable-margin note at rest, which
+        // names the file, on the carried path as on the top-level one.
         let poisoned = Indeterminate {
             margin: MarginDiag::INVALID,
             ..diag
@@ -10975,7 +10944,7 @@ mod tests {
             assert!(
                 read(carried.clone())
                     .1
-                    .ends_with(geom_core::UNREADABLE_MARGIN_NOTE),
+                    .ends_with(geom_core::UNREADABLE_STORED_MARGIN_NOTE),
                 "{carried:?}"
             );
         }
@@ -11353,7 +11322,10 @@ mod tests {
                         cause: diag(MarginDiag::INVALID),
                     },
                 },
-                format!("There is no way through yet; {UNREADABLE_MARGIN_NOTE}"),
+                format!(
+                    "There is no way through yet; {}",
+                    geom_core::UNREADABLE_STORED_MARGIN_NOTE
+                ),
             ),
             (
                 "pcurve fitted certificate, in band",
@@ -15597,8 +15569,8 @@ mod offset_fit_door_rows {
             (
                 says(escalated(Meter::NormalFloor, MarginDiag::INVALID)),
                 format!(
-                    "{LEAD}: {close}. {SPLIT}; an unreadable or collapsed margin may indicate a \
-                     kernel bug worth reporting"
+                    "{LEAD}: {close}. {SPLIT}; an unreadable margin may indicate a kernel or \
+                     file defect worth reporting"
                 ),
             ),
             (
