@@ -353,7 +353,9 @@ the table.
   stations are decided (a SUM answers `Opening` for a face with corners
   on both nappes), the answer is agreed across the chart's faces, and
   both offset doors, the per-chart door's apex-window gate and
-  `ConeOffset::displacement` turn by it. A face whose corners reach its
+  `ConeOffset::displacement` turn by it. A corner at the apex is on
+  both nappes and decides neither, so a face that reaches its apex lies
+  on its other corners' nappe. A face with corners on both sides of its
   apex, and a chart whose faces do not share a nappe, refuse
   `NappeStraddles` rather than being minted with one member's sign.
 

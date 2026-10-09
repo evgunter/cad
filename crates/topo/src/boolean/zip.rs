@@ -467,6 +467,7 @@ pub(super) fn split_cones<T: Decide + crate::props::AtRestPolicy>(
         )?;
         let base = pairs.len();
         for (j, (&o, &r)) in ob.iter().zip(&rs).enumerate() {
+            one_vertex_sense(body, (a_face, b_face), (o, r), tol)?;
             pairs.push((o, r));
             next.push(base + (j + 1) % ob.len());
         }
@@ -860,6 +861,60 @@ fn align<T: Decide>(
         }
     }
     Ok(rs)
+}
+
+/// **A one-vertex seam edge's sense**, which [`align`]'s vertex test
+/// cannot read: a whole section conic through one site starts and ends
+/// at that site, so a co-wound ring half there leaves the right vertex
+/// and arrives at the right one too. The paired halves must run against
+/// each other along their carriers there, read off their tangents at the
+/// site (`bool_zip_one_vertex_sense`); a half that runs with the outer
+/// one is [`BooleanError::SeamOrientation`]. A half between two vertices
+/// is [`align`]'s and passes.
+fn one_vertex_sense<T: Decide>(
+    body: &Body<T>,
+    (a_face, b_face): (FaceKey, FaceKey),
+    (outer, ring): (HalfEdgeKey, HalfEdgeKey),
+    tol: Tol,
+) -> Result<(), BooleanError> {
+    let corr = |what| BooleanError::ZipCorrespondence { what };
+    let end = body
+        .half_edge_end(outer)
+        .ok_or_else(|| corr("seam half-edge has no end"))?;
+    if start_of(body, outer)? != end {
+        return Ok(());
+    }
+    // The tangent a half leaves its start along: its carrier's at the
+    // start parameter, reversed on the minus half.
+    let leaving = |he: HalfEdgeKey| -> Result<geom_core::Vec3<T>, BooleanError> {
+        let edge = body
+            .get_half_edge(he)
+            .ok_or_else(|| corr("seam half-edge no longer resolves"))?
+            .edge;
+        let data = body
+            .get_edge(edge)
+            .ok_or_else(|| corr("seam edge no longer resolves"))?;
+        let curve = body
+            .edge_curve_linked(edge, data)
+            .certified()
+            .ok_or_else(|| corr("a one-vertex seam edge has no certified curve"))?;
+        let (t0, t1) = curve.params();
+        Ok(if data.he_plus == he {
+            curve.carrier().deriv(t0)
+        } else {
+            -curve.carrier().deriv(t1)
+        })
+    };
+    let band = geom_core::Band::linear(tol).map_err(|_| corr("the zip's band does not read"))?;
+    let margin = geom_core::Margin::of(leaving(outer)?.dot(leaving(ring)?));
+    match crate::validate::decide("bool_zip_one_vertex_sense", margin, band) {
+        Ok(geom_core::Sign::Negative) => Ok(()),
+        Ok(_) => Err(BooleanError::SeamOrientation { a_face, b_face }),
+        Err(diag) => Err(BooleanError::Escalated {
+            decision: super::BooleanDecision::SelfCheck(super::SelfCheck::SeamSense),
+            diag,
+        }),
+    }
 }
 
 /// The vertex a half-edge starts at.

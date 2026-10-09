@@ -2555,7 +2555,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("mod.rs", "decision_words", "Coincide::EdgeOnPlane", 1),
     ("mod.rs", "decision_words", "Coincide::Sectors", 1),
     ("mod.rs", "decision_words", "Coincide::VertexOnFace", 1),
-    ("mod.rs", "of_lever", "BooleanDecision::of_lever", 1),
+    ("mod.rs", "of_lever_rung", "BooleanDecision::of_lever", 1),
     (
         "mod.rs",
         "of_pierced_normal",
@@ -2603,10 +2603,11 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("ops.rs", "apply_cut_ins", "BooleanDecision::Sphere", 2),
     ("ops.rs", "apply_cut_ins", "SphereQuestion::CutIn", 2),
+    ("ops.rs", "sphere_pair_cut", "BooleanDecision::Sphere", 1),
+    ("ops.rs", "sphere_pair_cut", "SphereQuestion::CutIn", 1),
     ("ops.rs", "recut_lean", "BooleanDecision::Sphere", 1),
     ("ops.rs", "recut_lean", "SphereQuestion::RecutAlign", 1),
     ("ops.rs", "seam_refusal", "BooleanDecision::SeamJet", 1),
-    ("ops.rs", "seam_refusal", "BooleanDecision::of_lever", 1),
     ("ops.rs", "seam_refusal", "LeverArm::Seam", 1),
     ("ops.rs", "sphere_extent_scan", "BooleanDecision::Sphere", 1),
     (
@@ -2800,6 +2801,13 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("vtxfac.rs", "germ_order", "Coincide::Sectors", 1),
     ("vtxfac.rs", "pierce_germ_dir", "Coincide::Sectors", 1),
+    (
+        "zip.rs",
+        "one_vertex_sense",
+        "BooleanDecision::SelfCheck",
+        1,
+    ),
+    ("zip.rs", "one_vertex_sense", "SelfCheck::SeamSense", 1),
 ];
 
 // ------------------------------------------------------------------

@@ -2,10 +2,11 @@
 id: completed-null-faces-are-carried-unremapped-across-later-cuts
 kind: issue
 title: bool_connect carries each completed null face across later cut_pair kills unremapped (unverified)
-status: open
+status: dispatched
 opened: 2026-10-05
 priority: P3
 cost: E
+branch: join/three-small-join-rows
 ---
 
 ## What (unverified)
