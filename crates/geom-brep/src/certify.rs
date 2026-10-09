@@ -5250,7 +5250,9 @@ mod tests {
                 .iter()
                 .map(|(cause, miss)| (RefusedArm::Undecided(cause), *miss))
                 .collect();
-            arms.push((RefusedArm::SignCertain(None), true));
+            // A sign-certain arm with no reading compares nothing with
+            // ε_in: it ends at rest.
+            arms.push((RefusedArm::SignCertain(None), false));
             arms.push((RefusedArm::SignCertain(Some(MarginDiag::value(5e-9))), true));
             for m in [5e-10, 0.0, -5e-10] {
                 let zero = Classified {
