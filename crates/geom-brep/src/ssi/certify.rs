@@ -311,9 +311,14 @@ fn refined<T: Real>(curve: &NurbsCurve3<T>) -> NurbsCurve3<T> {
     if kv.control_count() >= SSI_CERT_SPANS + kv.degree() {
         return curve.clone();
     }
-    // Parameters already present as knots are skipped (refinement would
-    // raise multiplicity, which is not what this is for).
-    let add = domain_grid_points(kv, SSI_CERT_SPANS, GridSkip::BitEqual);
+    // A grid point on or within the sliver clearance of a knot is
+    // skipped: on it, refinement would raise multiplicity; beside it, it
+    // would open a hairline span.
+    let add = domain_grid_points(
+        kv,
+        SSI_CERT_SPANS,
+        GridSkip::WithinUlps(SLIVER_CLEARANCE_ULPS),
+    );
     curve.refine_knots(&add).unwrap_or_else(|_| curve.clone())
 }
 
@@ -1917,18 +1922,58 @@ mod tests {
         geom::NurbsCurve3::new(kv, control, vec![1.0; n]).unwrap()
     }
 
-    /// `refined` inserts the DOMAIN's 32nds, skipping a grid point only
-    /// where a knot sits on it bit for bit: `0.5` is skipped, while a
-    /// knot one ulp above `2/32` does NOT suppress `2/32`.
+    /// `refined` inserts the DOMAIN's 32nds, skipping a grid point
+    /// within the sliver clearance of a knot: `0.5` is skipped, and so
+    /// is `2/32` beside a knot one ulp above it, while a knot `1e-9`
+    /// above `12/32` is clear of `12/32`.
     #[test]
-    fn refined_inserts_the_domain_grid_skipping_bit_equal_knots() {
+    fn refined_inserts_the_domain_grid_skipping_knots_within_the_clearance() {
         let near = f64::from_bits(0.0625f64.to_bits() + 1);
-        let fine = super::refined(&carrier(&[near, 0.5]));
-        let mut want = vec![0.0, 0.0, 0.0, near];
-        want.extend((1..32).map(|k| f64::from(k) / 32.0));
+        let clear = 0.375 + 1e-9;
+        let fine = super::refined(&carrier(&[near, clear, 0.5]));
+        let mut want = vec![0.0, 0.0, 0.0, near, clear];
+        want.extend((1..32).filter(|&k| k != 2).map(|k| f64::from(k) / 32.0));
         want.extend([1.0, 1.0, 1.0]);
         want.sort_by(f64::total_cmp);
         assert_eq!(fine.knots().knots(), want);
+    }
+
+    /// A knot one ulp off a `refined` grid point costs the box chain
+    /// nothing: on a degree-1 carrier bent at `k`, every box over
+    /// `[0, k]` takes the first leg's direction as its axis, whether
+    /// the bend sits on `2/32` or one ulp above it. A grid point
+    /// inserted beside the bend opens a one-ulp span whose tangent is
+    /// the inserted point's rounding over that ulp.
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn a_knot_an_ulp_off_the_refine_grid_keeps_every_box_axis() {
+        use geom_core::spline::KnotVector;
+        use geom_core::{Bounds, Point3};
+        let leg = [0.9, 0.1, 0.3];
+        let norm = leg.iter().map(|x| x * x).sum::<f64>().sqrt();
+        for k in [0.0625, f64::from_bits(0.0625f64.to_bits() + 1)] {
+            let kv = KnotVector::clamped(vec![0.0, 0.0, k, 1.0, 1.0], 1).unwrap();
+            let control = vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(leg[0], leg[1], leg[2]),
+                Point3::new(1.0, 1.0, 1.0),
+            ];
+            let curve = geom::NurbsCurve3::new(kv, control, vec![1.0; 3]).unwrap();
+            let chain = super::box_chain(&curve);
+            let first_leg: Vec<_> = chain.iter().filter(|(b, _)| b.x.hi() <= leg[0]).collect();
+            assert!(
+                first_leg.len() >= 2,
+                "bend at {k:e}: {} boxes",
+                first_leg.len()
+            );
+            for (b, axis) in first_leg {
+                let off = (axis.x - leg[0] / norm)
+                    .abs()
+                    .max((axis.y - leg[1] / norm).abs())
+                    .max((axis.z - leg[2] / norm).abs());
+                assert!(off < 1e-12, "bend at {k:e}: box {b:?} axis {axis:?}");
+            }
+        }
     }
 
     /// `chart_breaks` skips a grid point beside a knot of either curve:

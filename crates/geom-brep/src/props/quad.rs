@@ -2629,7 +2629,11 @@ fn refine_dir(
         return None;
     }
     let other = if along_u { nv } else { net.len() / nv };
-    let add = algebra::domain_grid_points(kv, QUAD2_REFINE_SPANS, GridSkip::BitEqual);
+    let add = algebra::domain_grid_points(
+        kv,
+        QUAD2_REFINE_SPANS,
+        GridSkip::WithinUlps(SLIVER_CLEARANCE_ULPS),
+    );
     let plans = algebra::refine_plan_homogeneous(kv, &add).ok()?;
     // Ascending-index fold over the plan chain, then over the lines of
     // this direction (D9).
@@ -6955,27 +6959,100 @@ mod tests {
         encloses(b.area, g_int, "Q12 area");
     }
 
-    /// `refine_dir`'s grid is the DOMAIN's sixteenths, skipped only
-    /// where a knot sits on the grid point bit for bit: `0.5` is
-    /// skipped, while a knot one ulp above `1/16` does NOT suppress
-    /// `1/16`, and both land in the refined vector. The expected
-    /// vector is written out by hand.
+    /// `refine_dir`'s grid is the DOMAIN's sixteenths, skipped within
+    /// the sliver clearance of a knot: `0.5` is skipped, and so is
+    /// `1/16` beside a knot one ulp above it — the knot stands and no
+    /// hairline span opens. A knot `1e-9` above `3/8` is clear of it,
+    /// so both land. The expected vector is written out by hand.
     #[test]
-    fn refine_dir_inserts_the_domain_grid_skipping_bit_equal_knots() {
+    fn refine_dir_inserts_the_domain_grid_skipping_knots_within_the_clearance() {
         let near = f64::from_bits(0.0625f64.to_bits() + 1);
-        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, near, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let clear = 0.375 + 1e-9;
+        let kv =
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, near, clear, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
         #[allow(clippy::cast_precision_loss)]
         let net: Vec<RVec3> = (0..kv.control_count()).map(|i| [pt(i as f64); 3]).collect();
         let (rkv, rnet, count) = refine_dir(&kv, &net, 1, true).unwrap();
         assert_eq!(
             rkv.knots(),
             [
-                0.0, 0.0, 0.0, 0.0625, near, 0.125, 0.1875, 0.25, 0.3125, 0.375, 0.4375, 0.5,
+                0.0, 0.0, 0.0, near, 0.125, 0.1875, 0.25, 0.3125, 0.375, clear, 0.4375, 0.5,
                 0.5625, 0.625, 0.6875, 0.75, 0.8125, 0.875, 0.9375, 1.0, 1.0, 1.0
             ]
         );
         assert_eq!(count, 19);
         assert_eq!(rnet.len(), 19);
+    }
+
+    /// The rational lane's round-0 enclosure of the quarter cylinder
+    /// `x² + y² = 1`, `0 ≤ z ≤ 2`, with its `u` arc split at `k` (the
+    /// Bézier arc with one knot inserted, so the locus and the truth
+    /// `flux = area = π` do not depend on `k`).
+    fn quarter_cylinder_split_at(k: f64) -> FaceCutBounds {
+        let kv_u = KnotVector::clamped(vec![0.0, 0.0, 0.0, k, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv_v = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let bezier = [[1.0, 0.0, 1.0], [w, w, w], [0.0, 1.0, 1.0]];
+        let lerp = |a: [f64; 3], b: [f64; 3]| -> [f64; 3] {
+            core::array::from_fn(|i| (1.0 - k).mul_add(a[i], k * b[i]))
+        };
+        let hom = [
+            bezier[0],
+            lerp(bezier[0], bezier[1]),
+            lerp(bezier[1], bezier[2]),
+            bezier[2],
+        ];
+        let mut net = Vec::new();
+        let mut weights = Vec::new();
+        for [x, y, h] in hom {
+            for z in [0.0, 2.0] {
+                net.push([pt(x / h), pt(y / h), pt(z)]);
+                weights.push(h);
+            }
+        }
+        let out = nurbs_patch_face_rounds::<f64>(
+            &kv_u,
+            &kv_v,
+            &net,
+            &weights,
+            (0.0, 1.0, 0.0, 1.0),
+            2.0f64.mul_add(2.0, core::f64::consts::PI),
+            0.0,
+            Tol::witness().get().eps,
+            Band::linear(Tol::witness()).unwrap(),
+            RoundWindow::at(0),
+        )
+        .unwrap_or_else(|e| panic!("the quarter cylinder split at {k}: {e:?}"));
+        bounds_of(&out)
+    }
+
+    /// A stated knot one ulp off a `refine_dir` grid point costs the
+    /// enclosure nothing: split one ulp above `1/16`, the quarter
+    /// cylinder's round-0 width stays within `2×` of the split ON
+    /// `1/16` (where the grid point is the knot). Were the grid point
+    /// inserted beside the knot, the hairline span between them would
+    /// divide every derivative hull the round reads.
+    #[test]
+    fn a_knot_an_ulp_off_the_refine_grid_costs_the_enclosure_nothing() {
+        let on = quarter_cylinder_split_at(0.0625);
+        let near = quarter_cylinder_split_at(f64::from_bits(0.0625f64.to_bits() + 1));
+        let truth = core::f64::consts::PI;
+        for (b, at) in [(on, "on 1/16"), (near, "1 ulp above 1/16")] {
+            encloses(b.flux, truth, &format!("flux split {at}"));
+            encloses(b.area, truth, &format!("area split {at}"));
+        }
+        assert!(
+            near.flux.width() <= 2.0 * on.flux.width(),
+            "flux: {:e} one ulp off the grid vs {:e} on it",
+            near.flux.width(),
+            on.flux.width()
+        );
+        assert!(
+            near.area.width() <= 2.0 * on.area.width(),
+            "area: {:e} one ulp off the grid vs {:e} on it",
+            near.area.width(),
+            on.area.width()
+        );
     }
 
     /// `refine_dir` has no "already fine enough" cut-off: a vector

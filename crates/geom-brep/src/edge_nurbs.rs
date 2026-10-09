@@ -77,7 +77,7 @@ use core::num::NonZeroUsize;
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::predicate::KERNEL_OR_FILE_DEFECT_ENDING;
-use geom_core::spline::algebra::{GridSkip, domain_grid_points};
+use geom_core::spline::algebra::{GridSkip, SLIVER_CLEARANCE_ULPS, domain_grid_points};
 use geom_core::spline::{KnotVector, KnotVectorIssue, SplineError};
 use geom_core::{
     Band, Bounds, Decide, Decided, FileCoincidence, Indeterminate, MarginDiag, Point2, Point3,
@@ -1173,7 +1173,11 @@ fn localized<T: Real>(wall: &NurbsSurface<T>) -> NurbsSurface<T> {
         if kv.control_count() >= PXN_WALL_SPANS + kv.degree() {
             return Vec::new();
         }
-        domain_grid_points(kv, PXN_WALL_SPANS, GridSkip::BitEqual)
+        domain_grid_points(
+            kv,
+            PXN_WALL_SPANS,
+            GridSkip::WithinUlps(SLIVER_CLEARANCE_ULPS),
+        )
     }
     let add_u = breaks(wall.knots_u());
     let add_v = breaks(wall.knots_v());
@@ -1482,20 +1486,22 @@ mod tests {
     }
 
     /// `localized` inserts each direction's DOMAIN sixteenths, skipping
-    /// a grid point only where a knot sits on it bit for bit (`0.5`;
-    /// a knot one ulp above `1/16` does NOT suppress `1/16`), and
-    /// leaves a direction with `PXN_WALL_SPANS + degree` control points
-    /// alone while one with a control point fewer takes the grid.
+    /// a grid point within the sliver clearance of a knot (`0.5`, and
+    /// `1/16` beside a knot one ulp above it; a knot `1e-9` above `3/8`
+    /// is clear of `3/8`), and leaves a direction with
+    /// `PXN_WALL_SPANS + degree` control points alone while one with a
+    /// control point fewer takes the grid.
     #[test]
     fn localized_inserts_the_domain_grid_per_direction_with_its_cut_off() {
         let near = f64::from_bits(0.0625f64.to_bits() + 1);
+        let clear = 0.375 + 1e-9;
         let at = deg2(&odd64(15));
         assert_eq!(at.control_count(), PXN_WALL_SPANS + 2);
-        let out = localized(&wall(deg2(&[near, 0.5]), at.clone()));
+        let out = localized(&wall(deg2(&[near, clear, 0.5]), at.clone()));
         assert_eq!(
             out.knots_u().knots(),
             [
-                0.0, 0.0, 0.0, 0.0625, near, 0.125, 0.1875, 0.25, 0.3125, 0.375, 0.4375, 0.5,
+                0.0, 0.0, 0.0, near, 0.125, 0.1875, 0.25, 0.3125, 0.375, clear, 0.4375, 0.5,
                 0.5625, 0.625, 0.6875, 0.75, 0.8125, 0.875, 0.9375, 1.0, 1.0, 1.0
             ]
         );
@@ -1504,6 +1510,36 @@ mod tests {
         assert_eq!(below.control_count(), 17);
         let out = localized(&wall(deg2(&[0.5]), below));
         assert_eq!(out.knots_v().control_count(), 17 + 15);
+    }
+
+    /// The localized wall's `u` chart-speed bound over `[0, 1/8] × [0, 1]`
+    /// for a degree-1 ruled wall bent at `k`: `x` runs `0 → 0.9` over
+    /// `[0, k]` (speed `≈ 14.4`) and `0.9 → 1` after, `y = v`.
+    fn bent_wall_speed(k: f64) -> f64 {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, k, 1.0, 1.0], 1).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control = [0.0, 0.9, 1.0]
+            .into_iter()
+            .flat_map(|x| [Point3::new(x, 0.0, 0.0), Point3::new(x, 1.0, 0.0)])
+            .collect();
+        let wall = NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap();
+        let fine = localized(&wall);
+        crate::ssi::enclose::NurbsBoxes::new(&fine).speed_sup(0.0, 0.125, 0.0, 1.0, true)
+    }
+
+    /// A bend one ulp off a `localized` grid point costs the chart speed
+    /// nothing: the bent wall's `u` speed bound reads the bend's slope
+    /// `0.9·16` whether the bend sits on `1/16` or one ulp above it. A
+    /// grid point inserted beside the bend opens a one-ulp cell whose
+    /// derivative is the inserted point's rounding over that ulp, which
+    /// reads `16`.
+    #[test]
+    fn a_knot_an_ulp_off_the_wall_grid_costs_the_chart_speed_nothing() {
+        let on = bent_wall_speed(0.0625);
+        let near = bent_wall_speed(f64::from_bits(0.0625f64.to_bits() + 1));
+        let slope = 0.9 * 16.0;
+        assert!((slope - on).abs() < 1e-12, "on 1/16: {on:e}");
+        assert!((slope - near).abs() < 1e-12, "1 ulp above 1/16: {near:e}");
     }
 
     /// An exact rational: `n / d`, `d > 0`, for the oracle below.
