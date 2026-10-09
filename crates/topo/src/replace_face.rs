@@ -143,8 +143,9 @@
 //! section's own verdict ([`ReplaceFaceError::EdgeSection`]), and an
 //! edge still scaffolded that the move tilts against a distinct
 //! neighbour refuses by name ([`ReplaceFaceError::DeclaredEdgeTilted`]).
-//! `Approx × anything` has no arm, so a fitted face's
-//! intrinsically-described boundary is exactly where this door stops.
+//! A fitted face routes as its fit: its edge with a held plane is
+//! derived as their section, and its edge with anything else, or a seam
+//! it shares with another fitted face, refuses by name.
 //!
 //! # The apex window
 //!
