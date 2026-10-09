@@ -2,10 +2,11 @@
 id: a-same-operand-f7-refusal-is-rendered-as-a-declarable-undeclared-contact
 kind: issue
 title: The document layer renders a same-operand F7 refusal (two coplanar faces of one operand) as an undeclared contact between two members, offering a declaration no vocabulary can express
-status: open
+status: parked
 opened: 2026-09-28
 priority: P2
 cost: E
+blocked_on: [booleans-glue-on-zero]
 ---
 
 
@@ -19,3 +20,7 @@ declaration step covers a same-operand face pair
 maximal-faced, and its recourse is to merge that body's faces first.
 Once #3350's merge fix lands, a kernel boolean no longer produces such
 an operand, but hand-built and imported bodies still can.
+
+## Parked on the D10 hold (2026-10-08)
+
+The declare menu it renders (`editor-core` `eval/wire.rs` `union_refusal`, `refusal_menu`) is deleted when booleans glue on Zero. (CONTACT close-out triage; `work/contact/log.md`.)

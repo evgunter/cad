@@ -130,7 +130,9 @@ pub mod system;
 use geom::{Collocation, Curve3, FitError, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::Bounds;
-use geom_core::{Band, Indeterminate, Margin, NOT_YET_ENDING, Point3, Real, SizedPass};
+use geom_core::{
+    Band, FileCoincidence, Indeterminate, Margin, NOT_YET_ENDING, Point3, Real, SizedPass,
+};
 
 use crate::certify::CertCheck;
 use crate::recourse::{
@@ -2189,16 +2191,30 @@ impl OneArcRefusal {
     /// end, and escalating for a walk that resolved nothing.
     #[must_use]
     pub fn ending(self, door: OneArcDoor, reading: Reading) -> String {
+        let (decision, arm) = self.decision(door);
+        decision.recourse(arm, reading)
+    }
+
+    /// The ending this refusal carries at `door`, read at the STEP import
+    /// door ([`SizedDecision::recourse_in_file`]): at rest, with the
+    /// file's ε_in words on a band-decided arm.
+    #[must_use]
+    pub fn ending_in_file(self, door: OneArcDoor, file: FileCoincidence) -> String {
+        let (decision, arm) = self.decision(door);
+        decision.recourse_in_file(arm, file)
+    }
+
+    /// The decision `door` reads this refusal as, and which arm of it.
+    fn decision(&self, door: OneArcDoor) -> (SizedDecision, RefusedArm<'_>) {
         let decision = match door {
             OneArcDoor::Search => TUBE_ONE_ARC,
             OneArcDoor::AtRest => REST_ONE_ARC,
         };
-        match self {
-            Self::Undecided(cause) => decision.recourse(RefusedArm::Undecided(&cause), reading),
-            Self::Count { .. } | Self::Unlinked | Self::Short => {
-                decision.recourse(RefusedArm::SignCertain, reading)
-            }
-        }
+        let arm = match self {
+            Self::Undecided(cause) => RefusedArm::Undecided(cause),
+            Self::Count { .. } | Self::Unlinked | Self::Short => RefusedArm::SignCertain,
+        };
+        (decision, arm)
     }
 }
 

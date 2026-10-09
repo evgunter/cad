@@ -478,6 +478,24 @@ fn conic_plane_meet<T: Decide>(
     plane_normal: geom_core::Vec3<T>,
     band: Band,
 ) -> ConicPlaneMeet<T> {
+    let candidates = match conic_plane_candidates(conic, plane_origin, plane_normal, band) {
+        Ok(candidates) => candidates,
+        Err(meet) => return meet,
+    };
+    let (s_u, s_v) = (conic.major, conic.minor);
+    span_roots(candidates, t0, t1, s_u, s_v, band)
+}
+
+/// **The carrier half of [`conic_plane_meet`]**: where the whole conic
+/// meets the plane, as carrier parameters (one for a graze, two for a
+/// crossing), before any span is read. `Err` carries the answer that
+/// needs no span — parallel, a miss, or the fault a rung escalated.
+pub(crate) fn conic_plane_candidates<T: Decide>(
+    conic: geom_brep::Conic<T>,
+    plane_origin: geom_core::Point3<T>,
+    plane_normal: geom_core::Vec3<T>,
+    band: Band,
+) -> Result<[Option<T>; 2], ConicPlaneMeet<T>> {
     let geom_brep::Conic {
         center,
         axis,
@@ -505,21 +523,23 @@ fn conic_plane_meet<T: Decide>(
     // two apart. Without the gate the in-plane case reaches the graze
     // arm with a 0/0 phase. The in-band twin escalates (F6).
     match decide("split_conic_plane_parallel", Margin::of(r), band) {
-        Ok(Sign::Zero) => return ConicPlaneMeet::Parallel { offset: d0 },
+        Ok(Sign::Zero) => return Err(ConicPlaneMeet::Parallel { offset: d0 }),
         Ok(Sign::Positive | Sign::Negative) => {}
         Err(diag) => {
-            return ConicPlaneMeet::Roots(Err(ConicRootFault::PlaneParallel(diag)));
+            return Err(ConicPlaneMeet::Roots(Err(ConicRootFault::PlaneParallel(
+                diag,
+            ))));
         }
     }
     // 1. Does the sinusoid reach zero at all — and how many roots?
     let both_roots = match decide("split_conic_belly_graze", Margin::of(r - d0.abs()), band) {
-        Ok(Sign::Negative) => return ConicPlaneMeet::Miss,
+        Ok(Sign::Negative) => return Err(ConicPlaneMeet::Miss),
         Ok(Sign::Positive) => true,
         // Graze: the double root, processed once (processing both
         // would split twice at coincident parameters and escalate on
         // the second interiority check — same refusal, worse site).
         Ok(Sign::Zero) => false,
-        Err(diag) => return ConicPlaneMeet::Roots(Err(ConicRootFault::BellyGraze(diag))),
+        Err(diag) => return Err(ConicPlaneMeet::Roots(Err(ConicRootFault::BellyGraze(diag)))),
     };
     // The sinusoid's phase, branch-stabilized (M5 S13): `atan2`'s cut
     // sits on the negative-`a` axis, and an interval `b` that touches
@@ -549,7 +569,7 @@ fn conic_plane_meet<T: Decide>(
             .acos();
         [Some(phi + delta), Some(phi - delta)]
     } else {
-        let graze_side = |diag| ConicPlaneMeet::Roots(Err(ConicRootFault::BellyGraze(diag)));
+        let graze_side = |diag| Err(ConicPlaneMeet::Roots(Err(ConicRootFault::BellyGraze(diag))));
         match decide("split_conic_graze_side", Margin::of(d0), band) {
             Ok(Sign::Negative) => [Some(phi), None],
             Ok(Sign::Positive) => [Some(phi + T::pi()), None],
@@ -564,6 +584,19 @@ fn conic_plane_meet<T: Decide>(
             Err(diag) => return graze_side(diag),
         }
     };
+    Ok(candidates)
+}
+
+/// The span half of [`conic_plane_meet`]: the candidates interior to
+/// `[t0, t1]`, ascending.
+fn span_roots<T: Decide>(
+    candidates: [Option<T>; 2],
+    t0: T,
+    t1: T,
+    s_u: T,
+    s_v: T,
+    band: Band,
+) -> ConicPlaneMeet<T> {
     let tau = T::tau();
     // The conservative meter (radians → meters): the smaller semi-axis
     // MAGNITUDE (the stored semi-axes carry no order, `geom_brep::Conic`;

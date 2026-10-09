@@ -109,8 +109,9 @@ fn assert_two_bands(doc: &ProfileDoc, fillet: RecipeNodeId, what: &str) {
     );
     assert_eq!(
         n(|s| matches!(s, RoleSeg::BandFoot(_))),
-        4,
-        "{what}: a foot per rim vertex"
+        2,
+        "{what}: a host foot per band, the one its slit ends at (the other is joined away, \
+         `docs/DESIGN.md`, maximal edges)"
     );
     assert_eq!(
         n(|s| matches!(s, RoleSeg::BandSlit { .. })),
