@@ -19,7 +19,7 @@ use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::finished;
 use sweep::{Revolution, RevolveAxis, revolve};
-use topo::{Body, ShellError};
+use topo::Body;
 
 /// The wall thickness every row here uses.
 const T: f64 = 1.0 / 128.0;
@@ -202,10 +202,7 @@ fn the_drum_still_hollows_on_the_new_branch() {
     );
 }
 
-/// **The door's own boundary, measured rather than presumed.**
-///
-/// One row is a refusal that stands; the other has been RETIRED, and
-/// the retirement is asserted here rather than deleted:
+/// **Two walls inside the axial door**, each once read as outside it:
 ///
 /// - a **torus** wall is INSIDE the axial kinds. It is a surface of
 ///   revolution about the body's own axis and its meridian is a circle
@@ -216,13 +213,14 @@ fn the_drum_still_hollows_on_the_new_branch() {
 ///   does not call the table, and a full revolve's rim is a LATITUDE
 ///   circle whose position the corner solves give. `torax_axial`
 ///   carries the closed forms;
-/// - a **tangent** junction has no transversal corner to solve, and the
-///   conditioning meter says so in the geometry's own terms. This is
-///   the tangent bullet's differential, and it now refuses at a door
-///   NAMED for what is wrong with it rather than at the mapped-carrier
-///   lane it used to reach first.
+/// - a **tangent** junction has no transversal corner, and needs none:
+///   the cavity's sphere and cylinder are tangent again, and the moved
+///   corner is their tangent circle, the foot the corner solve takes
+///   where the pair is too ill-conditioned to resolve. The tangent bullet
+///   hollows to its closed form, a cylinder and a hemisphere less the
+///   same at `(r − t, h − t)`.
 #[test]
-fn the_axial_door_names_its_own_boundary() {
+fn a_torus_belly_and_a_tangent_bullet_hollow_through_the_axial_door() {
     let tol = Tol::witness();
     let (r, h) = (3.0 / 64.0, 8.0 / 64.0);
 
@@ -267,17 +265,11 @@ fn the_axial_door_names_its_own_boundary() {
         .with_tangent_joints(vec![2]),
         Revolution::Full,
     );
-    let e = topo::shell(&finished("the operand", dome.clone(), tol), T, tol)
-        .expect_err("a tangent junction has no transversal corner");
-    let ShellError::Face { error, .. } = e else {
-        panic!("not the offset door's refusal: {e}");
-    };
-    let topo::ReplaceFaceError::TogetherAxialCorner { what, surfaces, .. } = *error else {
-        panic!("the tangent bullet must refuse at the corner it is about: {error}");
-    };
-    println!("[axial] the tangent bullet: {surfaces} surfaces — {what}");
+    let solid = |rad: f64, base: f64| PI * rad * rad * (h - base) + 2.0 * PI * rad.powi(3) / 3.0;
+    let want = solid(r, 0.0) - solid(r - T, T);
+    let got = wall("the tangent bullet", &dome);
     assert!(
-        what.contains("tangent"),
-        "the refusal must say what is wrong, got {what}"
+        (got - want).abs() <= 1e-15,
+        "the tangent bullet's closed form is {want}, got {got}"
     );
 }

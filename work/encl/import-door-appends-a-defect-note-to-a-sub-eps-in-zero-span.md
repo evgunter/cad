@@ -32,3 +32,19 @@ Which words the door owes a band-decided arm that has no value and an `at_zero` 
 - or `at_zero` notes split by what they claim.
 
 Decide it with D4 ¶1 (i)'s one-recourse-per-decision rule in view. Pin the answer with an Interval-lane row in `certify.rs`'s `the_import_door_reads_at_rest_with_its_eps_in_words`, which today asserts that wording (its `reaches_zero` arm).
+
+## Also on the dihedral arm (review of PR 4366)
+
+- **An exact zero contradicts its own note.** For an exact-zero arm
+  the import door (`MarginDiag::sized_recourse_in_file`) prefixes
+  "below ε_in … the file does not state it" even where the zero is
+  sound geometry the file states exactly: a cone apex, which
+  `geom_brep::DIHEDRAL_ARM`'s zero note then names ("a face curving to
+  a point as a cone does, leaves no angle to measure"). The two
+  sentences disagree about whether the file stated the size.
+- **No budget applies at this door.** The import door's renderings of
+  the arm (`CertCheck::TransversalityArm`, `CertifyError::ArmCollapsed`)
+  run 80–101 words, as the review measured them, and no row holds the
+  door's text to the 75-word refusal budget
+  (`test_utils::refusal::BUDGET`) the way editor-core's
+  `refusal_concision_at_rest` holds the at-rest badges.

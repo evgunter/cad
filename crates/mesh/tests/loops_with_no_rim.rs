@@ -304,7 +304,6 @@ fn assert_refuses_single_column(name: &str, body: &Body<f64>, kind: SurfaceKind,
 /// doors and any caller that meshes without validating reach this.
 #[test]
 fn a_rim_free_loop_on_a_chart_with_no_pole_refuses_single_column() {
-    let tol = Tol::witness();
     for (name, body, kind) in [
         (
             "torus bounded by one meridian circle",
@@ -317,10 +316,7 @@ fn a_rim_free_loop_on_a_chart_with_no_pole_refuses_single_column() {
             SurfaceKind::Cylinder,
         ),
     ] {
-        assert!(
-            topo::validate_geometric(&body, tol).is_err(),
-            "{name} is not tier-3 valid"
-        );
+        assert!(not_valid_but_for_joins(&body), "{name} is not tier-3 valid");
         assert_refuses_single_column(name, &body, kind, 0.05);
     }
 }
@@ -334,15 +330,11 @@ fn a_rim_free_loop_on_a_chart_with_no_pole_refuses_single_column() {
 /// said "no rim and no pole" would not close.
 #[test]
 fn a_rim_free_loop_that_turns_at_a_pole_along_its_own_edge_refuses_single_column() {
-    let tol = Tol::witness();
     for (name, body, kind) in [
         ("one-seam sphere", one_seam_sphere(), SurfaceKind::Sphere),
         ("one-seam cone", one_seam_cone(), SurfaceKind::Cone),
     ] {
-        assert!(
-            topo::validate_geometric(&body, tol).is_err(),
-            "{name} is not tier-3 valid"
-        );
+        assert!(not_valid_but_for_joins(&body), "{name} is not tier-3 valid");
         assert_refuses_single_column(name, &body, kind, 0.05);
     }
 }
@@ -378,7 +370,7 @@ fn two_coincident_edges_still_walk_to_zero_width_and_this_is_what_answers() {
     let tol = Tol::witness();
     let body = sphere_slit_on_two_coincident_edges();
     assert!(
-        topo::validate_geometric(&body, tol).is_err(),
+        not_valid_but_for_joins(&body),
         "a slit bounded by two coincident edges is not tier-3 valid"
     );
     assert_eq!(
@@ -411,8 +403,27 @@ fn two_coincident_edges_still_walk_to_zero_width_and_this_is_what_answers() {
     assert!(said.starts_with("refused: PinchWedge"), "{said}");
 }
 
+/// Whether `body` fails tier 3 on something other than check 11: a
+/// hand-built body holding a joinable vertex is construction state, so
+/// that verdict alone says nothing about what these rows refuse — and
+/// neither does check 11's undecided verdict, which asks the same
+/// question at a vertex whose reading lands in the band.
+fn not_valid_but_for_joins(body: &Body<f64>) -> bool {
+    topo::validate_geometric(body, Tol::witness()).is_err_and(|errors| {
+        errors.iter().any(|e| {
+            !matches!(
+                e,
+                topo::ValidationError::JoinableVertexAtRest { .. }
+                    | topo::ValidationError::JoinUndecidedAtRest { .. }
+            )
+        })
+    })
+}
+
 /// **The member another door owns.** The sphere cut along a whole great
-/// circle through both poles is tier-3 VALID and its two faces are
+/// circle through both poles is tier-3 VALID but for its two arcs, which
+/// the join would take into one closed edge (check 11; the half-arcs are
+/// what this row meshes), and its two faces are
 /// hemispheres — a legitimate decomposition this lane cannot walk,
 /// because each bounding arc carries a pole in its interior where the
 /// azimuth it holds constant jumps by π. Props' branch door says exactly
@@ -424,8 +435,11 @@ fn a_hemisphere_pair_is_refused_at_the_branch_door_not_by_the_walk() {
     let body = sphere_on_one_great_circle();
     assert_eq!(
         topo::validate_geometric(&body, Tol::witness()),
-        Ok(()),
-        "a sphere cut along a great circle is tier-3 valid"
+        Err(body
+            .vertices()
+            .map(|(vertex, _)| topo::ValidationError::JoinableVertexAtRest { vertex })
+            .collect()),
+        "a sphere cut along a great circle is tier-3 valid but for its two joinable vertices"
     );
     assert_eq!(
         doors(&body, SurfaceKind::Sphere),
