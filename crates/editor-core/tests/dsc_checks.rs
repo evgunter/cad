@@ -389,7 +389,7 @@ fn in_band_void_shell_escalates_with_its_valued_ending() {
     let failed = ev.node_error(root).expect("the root's refusal");
     let editor_core::NodeErrorKind::Boolean(
         error @ topo::BooleanError::Escalated {
-            decision: topo::BooleanDecision::ShellRole,
+            decision: topo::BooleanDecision::ShellRole { others: 0, .. },
             diag,
         },
     ) = &failed.kind

@@ -324,8 +324,17 @@ pub enum BooleanDecision {
     /// it stands for (`chk_shell_volume_sign`), either definite sign a
     /// role. Raised only where the shell's certified reading lies wholly
     /// in band: a shell in band of having no volume, which definite cuts
-    /// can compose, so the operands are ill-conditioned at this ε.
-    ShellRole,
+    /// can compose, so the operands are ill-conditioned at this ε. It
+    /// names the shell whose reading binds the offer, and how many more
+    /// lie in band, each decided by the same tolerance.
+    ShellRole {
+        /// The binding shell's solid, in the refused result.
+        solid: crate::entity::SolidKey,
+        /// The binding shell.
+        shell: crate::entity::ShellKey,
+        /// How many more of the result's shells lie in band.
+        others: usize,
+    },
     /// A question the curved-extent scan asks of a sphere face, which
     /// takes no declarations.
     Sphere(SphereQuestion),
@@ -1538,7 +1547,7 @@ impl BooleanDecision {
                 "whether the two faces touching along a seam edge curve apart there or share \
                  their curvature"
             }
-            Self::ShellRole => "whether a shell of the result bounds material or a cavity",
+            Self::ShellRole { .. } => "whether a shell of the result bounds material or a cavity",
             Self::Sphere(question) => question.subject(),
             Self::SelfCheck(check) => check.subject(),
         }
@@ -1728,7 +1737,7 @@ impl BooleanDecision {
             Self::BisectorSide => Ending::Lever(CORNER_EDGES),
             Self::SeamWedge => Ending::Sized(SEAM_WEDGE),
             Self::SeamJet => Ending::Sized(SEAM_JET),
-            Self::ShellRole => Ending::Sized(RESULT_SHELL),
+            Self::ShellRole { .. } => Ending::Sized(RESULT_SHELL),
             Self::Sphere(question) => question.ending(),
             // A broken invariant, as the check's definite refusal says.
             Self::SelfCheck(_) => Ending::Unsized(Unsized::Defect),
@@ -1740,8 +1749,19 @@ impl BooleanDecision {
     /// one ending the verdict gives.
     #[must_use]
     pub(crate) fn render(self, diag: &Indeterminate) -> String {
-        diag.undecided(self.subject(), self.ending(diag).recourse(diag))
-            .to_string()
+        let ending = self.ending(diag).recourse(diag);
+        let ending = match self {
+            Self::ShellRole { others: 0, .. } => ending,
+            Self::ShellRole { others: 1, .. } => format!(
+                "1 more shell of the result lies in band, decided by the same tolerance. {ending}"
+            ),
+            Self::ShellRole { others, .. } => format!(
+                "{others} more shells of the result lie in band, decided by the same \
+                 tolerance. {ending}"
+            ),
+            _ => ending,
+        };
+        diag.undecided(self.subject(), ending).to_string()
     }
 }
 
@@ -1975,7 +1995,11 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::BisectorSide => vec![BooleanDecision::BisectorSide],
                 BooleanDecisionKind::SeamWedge => vec![BooleanDecision::SeamWedge],
                 BooleanDecisionKind::SeamJet => vec![BooleanDecision::SeamJet],
-                BooleanDecisionKind::ShellRole => vec![BooleanDecision::ShellRole],
+                BooleanDecisionKind::ShellRole => vec![BooleanDecision::ShellRole {
+                    solid: crate::entity::SolidKey::default(),
+                    shell: crate::entity::ShellKey::default(),
+                    others: 0,
+                }],
                 BooleanDecisionKind::Sphere => SphereQuestion::iter()
                     .map(BooleanDecision::Sphere)
                     .collect(),
@@ -2337,7 +2361,7 @@ pub(in crate::boolean) mod tests {
                     SizedPass::NonNegative,
                 ),
             ),
-            BooleanDecision::ShellRole => (
+            BooleanDecision::ShellRole { .. } => (
                 "whether a shell of the result bounds material or a cavity",
                 Ending::Sized(
                     "Recourse: move the parts so they leave no piece or cavity thinner than \

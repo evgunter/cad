@@ -153,11 +153,17 @@ fn clip(poly: &Poly, (n, d): Plane) -> Poly {
     out
 }
 
+/// The polytope's volume, its divergence sum taken about one of its own
+/// vertices: about the world origin, a sliver's volume drowns in its
+/// faces' rounding.
 fn volume(poly: &Poly) -> f64 {
+    let Some(&o) = poly.first().and_then(|f| f.first()) else {
+        return 0.0;
+    };
     poly.iter()
         .map(|f| {
             (1..f.len() - 1)
-                .map(|i| dot(f[0], cross(f[i], f[i + 1])))
+                .map(|i| dot(sub(f[0], o), cross(sub(f[i], o), sub(f[i + 1], o))))
                 .sum::<f64>()
         })
         .sum::<f64>()
@@ -558,10 +564,13 @@ fn run_all(
                 }
                 // The finished-body gate's in-band typing: a sliver shell.
                 Err(BooleanError::Escalated {
-                    decision: BooleanDecision::ShellRole,
+                    decision: BooleanDecision::ShellRole { others, .. },
                     diag,
                 }) => {
-                    after.push(format!("  ESCALATED {line} | ShellRole {:e}", diag.margin));
+                    after.push(format!(
+                        "  ESCALATED {line} | ShellRole {:e} (+{others} in band)",
+                        diag.margin
+                    ));
                     if op == "I" {
                         after.extend(lumps.iter().cloned());
                     }

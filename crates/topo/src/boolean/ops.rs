@@ -3682,8 +3682,9 @@ pub(super) fn declared_surface_pairs<T: Real>(
 /// finished ([`AtRestPolicy::gate_at_rest_kept`]: tier 3, whose first
 /// act is tiers 1 and 2), so the verdict rides the result and is taken
 /// on the bits the caller receives. Where the scalar runs no at-rest
-/// gate, [`structural_gate`] runs in its place. Its findings are typed
-/// by [`finished_body_refusal`].
+/// gate, [`structural_gate`] runs in its place. The at-rest gate's
+/// findings are typed by [`finished_body_refusal`]; the structural
+/// gate's are structure alone, the kernel's.
 ///
 /// # Errors
 ///
@@ -3720,40 +3721,66 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
 /// a result holds no in-band pair or shell, and one that does is the
 /// operands' ill-conditioning, which definite cuts can compose. So where
 /// every finding is born of a margin certified in band, the refusal is
-/// [`BooleanError::Escalated`] on the first one's decision and margin,
-/// whose recourse is a smaller tolerance or moved parts. Any other
-/// finding is the kernel's own defect, and the refusal is
-/// [`BooleanError::ResultInvalid`] carrying every finding. Each
-/// finding's arm is [`finding_arm`]'s.
+/// [`BooleanError::Escalated`] on the shell whose certified enclosure
+/// binds the offer (nearest zero: a tolerance deciding it decides every
+/// other), naming how many more lie in band; its recourse is a smaller
+/// tolerance or moved parts. Any other finding is the kernel's own
+/// defect, and the refusal is [`BooleanError::ResultInvalid`] carrying
+/// every finding. Each finding's arm is [`finding_arm`]'s.
 fn finished_body_refusal(errors: Vec<ValidationError>) -> BooleanError {
-    let in_band: Option<Vec<(BooleanDecision, Indeterminate)>> =
-        errors.iter().map(finding_arm).collect();
-    match in_band.as_deref() {
-        Some(&[(decision, diag), ..]) => BooleanError::Escalated { decision, diag },
-        _ => BooleanError::ResultInvalid { errors },
+    let in_band: Option<Vec<InBandShell>> = errors.iter().map(finding_arm).collect();
+    let binding = in_band.as_deref().and_then(|shells| {
+        shells
+            .iter()
+            .copied()
+            .reduce(|a, b| {
+                if a.2.margin.binds_before(b.2.margin) {
+                    a
+                } else {
+                    b
+                }
+            })
+            .map(|shell| (shell, shells.len() - 1))
+    });
+    match binding {
+        Some(((solid, shell, diag), others)) => BooleanError::Escalated {
+            decision: BooleanDecision::ShellRole {
+                solid,
+                shell,
+                others,
+            },
+            diag,
+        },
+        None => BooleanError::ResultInvalid { errors },
     }
 }
 
+/// A shell of the result certified in band: its solid, its key and its
+/// certified enclosure.
+type InBandShell = (crate::entity::SolidKey, ShellKey, Indeterminate);
+
 /// **Which of Q1's arms one finding of the finished-body gate is**: the
-/// decision and margin of a finding certified in band, or `None` for the
-/// kernel's. Every finding states its arm here.
-fn finding_arm(finding: &ValidationError) -> Option<(BooleanDecision, Indeterminate)> {
+/// shell and certified margin of a finding certified in band, or `None`
+/// for the kernel's. Every finding states its arm here.
+fn finding_arm(finding: &ValidationError) -> Option<InBandShell> {
     use crate::props::ShellClassifyError;
     use ValidationError as V;
     match finding {
         // In band: a shell whose volume over its area, re-derived in
         // interval arithmetic, lies wholly inside one sliver band.
         V::ShellRoleUndecided {
+            solid,
             error:
                 ShellClassifyError::Escalated {
+                    shell,
                     sliver: Some(certified),
                     ..
                 },
-            ..
-        } => Some((BooleanDecision::ShellRole, **certified)),
+        } => Some((*solid, *shell, *certified.reading())),
         // Undecided, and not certified in band: a role read whose
-        // enclosure the arithmetic left wider than the band, poisoned,
-        // zero or straddling.
+        // enclosure the arithmetic left wider than the band, poisoned, or
+        // whose ends the walk decided zero or straddling
+        // (`work/join/a-threshold-straddling-in-band-shell-is-typed-the-kernels.md`).
         V::ShellRoleUndecided { .. } => None,
         // Undecided at a point margin the gate has not shown conditioned
         // (`work/join/the-door-gates-other-in-band-findings-are-typed-the-kernels.md`).
@@ -3863,14 +3890,14 @@ fn finding_arm(finding: &ValidationError) -> Option<(BooleanDecision, Indetermin
 /// construction that stopped half-way, and a joinable vertex one the
 /// join did not finish.
 pub(super) fn structural_gate<T: Decide>(body: &Body<T>, band: Band) -> Result<(), BooleanError> {
-    validate(body).map_err(finished_body_refusal)?;
-    validate_closed(body).map_err(finished_body_refusal)?;
+    validate(body).map_err(|errors| BooleanError::ResultInvalid { errors })?;
+    validate_closed(body).map_err(|errors| BooleanError::ResultInvalid { errors })?;
     let mut errors = scaffolds_at_rest(body);
     errors.extend(crate::validate::joinable_at_rest_errors(body, band));
     if errors.is_empty() {
         Ok(())
     } else {
-        Err(finished_body_refusal(errors))
+        Err(BooleanError::ResultInvalid { errors })
     }
 }
 
@@ -5639,16 +5666,18 @@ mod tests {
         );
     }
 
-    /// **The gate's findings take their arm** (D10, Booleans): a shell
-    /// certified a sliver alone is the operands' ill-conditioning,
-    /// refused `Escalated` on its certified enclosure; the same shell
-    /// beside a definite finding, or an escalation the arithmetic may
-    /// have made, is the kernel's.
+    /// **The gate's findings take their arm** (D10, Booleans): shells
+    /// certified slivers alone are the operands' ill-conditioning,
+    /// refused `Escalated` on the one whose enclosure binds the offer
+    /// (nearest zero, on either side, in either order) and naming how many
+    /// more lie in band; the same shell beside a definite finding, or an
+    /// escalation the arithmetic may have made, is the kernel's.
     #[test]
     fn the_gate_types_only_certified_in_band_findings_escalated() {
         use crate::ShellClassifyError as S;
         use crate::ValidationError as V;
         use crate::entity::{ShellKey, SolidKey};
+        use crate::props::CertifiedSliver;
         use geom_core::{Band, Indeterminate, MarginDiag};
         let band = Band::new(1e-9, 1e-8).unwrap();
         let read = |margin, terminal_sliver| Indeterminate {
@@ -5658,11 +5687,17 @@ mod tests {
             terminal_sliver,
         };
         let walk = read(MarginDiag::value(3.05e-9), false);
-        let certified = read(MarginDiag::enclosure(3.28e-9, 3.29e-9), true);
-        let role = |sliver: Option<Indeterminate>| V::ShellRoleUndecided {
+        let sliver = |lo, hi| {
+            CertifiedSliver::of(read(MarginDiag::enclosure(lo, hi), true)).expect("in band")
+        };
+        let (thin, thick) = (sliver(-3.29e-9, -3.28e-9), sliver(6.57e-9, 6.58e-9));
+        let shells: Vec<ShellKey> = (1..=3)
+            .map(|n: u64| slotmap::KeyData::from_ffi((1 << 32) | n).into())
+            .collect();
+        let role = |shell: ShellKey, sliver: Option<CertifiedSliver>| V::ShellRoleUndecided {
             solid: SolidKey::default(),
             error: S::Escalated {
-                shell: ShellKey::default(),
+                shell,
                 source: walk,
                 sliver: sliver.map(Box::new),
             },
@@ -5670,22 +5705,37 @@ mod tests {
         let definite = V::NegativeVolume {
             solid: SolidKey::default(),
         };
-        assert!(
-            matches!(
-                super::finished_body_refusal(vec![role(Some(certified)), role(Some(certified))]),
-                BooleanError::Escalated {
-                    decision: BooleanDecision::ShellRole,
-                    diag,
-                } if diag == certified
-            ),
-            "certified slivers alone"
-        );
         for (what, errors) in [
-            ("an uncertified escalation", vec![role(None)]),
-            ("beside one", vec![role(Some(certified)), role(None)]),
+            (
+                "thin first",
+                vec![role(shells[0], Some(thin)), role(shells[1], Some(thick))],
+            ),
+            (
+                "thick first",
+                vec![role(shells[1], Some(thick)), role(shells[0], Some(thin))],
+            ),
+        ] {
+            let refusal = super::finished_body_refusal(errors);
+            assert!(
+                matches!(
+                    &refusal,
+                    BooleanError::Escalated {
+                        decision: BooleanDecision::ShellRole { shell, others: 1, .. },
+                        diag,
+                    } if *shell == shells[0] && diag == thin.reading()
+                ),
+                "{what}: the thinner shell binds, the other counted: {refusal:?}"
+            );
+        }
+        for (what, errors) in [
+            ("an uncertified escalation", vec![role(shells[0], None)]),
+            (
+                "beside one",
+                vec![role(shells[0], Some(thin)), role(shells[2], None)],
+            ),
             (
                 "beside a definite finding",
-                vec![role(Some(certified)), definite],
+                vec![role(shells[0], Some(thin)), definite],
             ),
             ("nothing", Vec::new()),
         ] {

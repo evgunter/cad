@@ -588,6 +588,7 @@ pub mod test_support {
     fn decision_key(d: crate::BooleanDecision) -> String {
         match d {
             crate::BooleanDecision::Coincidence(which, _) => format!("Coincidence({which:?})"),
+            crate::BooleanDecision::ShellRole { .. } => "ShellRole".to_owned(),
             other => format!("{other:?}"),
         }
     }
@@ -894,10 +895,10 @@ pub use pcurves::{
     PcurveMintError, SiteRowRefusal, chart_boundary, mint_pcurves, mint_pcurves_of, pcurve_of,
 };
 pub use props::{
-    AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, QuadLane, ShellClassification,
-    ShellClassifyError, ShellClassifyPayload, ShellDoor, ShellRole, SignCertificate,
-    TargetUnreached, VolumeEnclosure, VolumeReading, classify_shells, classify_shells_of,
-    classify_shells_structural, mass_properties, mass_properties_structural,
+    AtRestOutcome, AtRestPolicy, CertifiedSliver, MassProperties, MassPropsError, QuadLane,
+    ShellClassification, ShellClassifyError, ShellClassifyPayload, ShellDoor, ShellRole,
+    SignCertificate, TargetUnreached, VolumeEnclosure, VolumeReading, classify_shells,
+    classify_shells_of, classify_shells_structural, mass_properties, mass_properties_structural,
 };
 pub use provenance::{Provenance, SplitLineageCycle};
 // The query VOCABULARY rides at the root like every other type;

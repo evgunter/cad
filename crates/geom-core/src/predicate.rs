@@ -1412,6 +1412,29 @@ impl MarginDiag {
         }
     }
 
+    /// **Whether this reading binds a shared offer before `other`**: a
+    /// tolerance that decides it lies no higher than one deciding
+    /// `other`, its end nearer zero being no farther out. An unreadable
+    /// reading binds first, offering none. A refusal standing for
+    /// several in-band readings quotes the one that binds, so the
+    /// tolerance it offers decides every one; the choice is the
+    /// refusal's words, taken here beside the offer it shapes.
+    #[must_use]
+    pub fn binds_before(self, other: Self) -> bool {
+        self.nearest_zero() <= other.nearest_zero()
+    }
+
+    /// The magnitude of the reading's end nearest zero: zero for an
+    /// enclosure holding it, `−∞` for an unreadable one.
+    fn nearest_zero(self) -> f64 {
+        match self.0 {
+            Reading::Value(m, _) => m.abs(),
+            Reading::Enclosure { lo, hi, .. } if lo <= 0.0 && 0.0 <= hi => 0.0,
+            Reading::Enclosure { lo, hi, .. } => lo.abs().min(hi.abs()),
+            Reading::Invalid => f64::NEG_INFINITY,
+        }
+    }
+
     /// Where this reading stands against `band`, as the classifier
     /// would place it — for composing error text only.
     fn placement(self, band: Band) -> Placement {
@@ -2673,6 +2696,29 @@ mod tests {
     /// sliver band, on either side, is terminal; touching a threshold or
     /// straddling zero is curable; a point margin and a poisoned one are
     /// never terminal.
+    /// The reading nearer zero binds a shared offer, whichever side it
+    /// lies on and whatever its kind; an unreadable one binds first.
+    #[test]
+    fn the_reading_nearer_zero_binds_a_shared_offer() {
+        let v = MarginDiag::value;
+        let e = MarginDiag::enclosure;
+        let rows = [
+            ("two points", v(3e-9), v(6e-9)),
+            ("across the sign", v(-3e-9), v(6e-9)),
+            (
+                "enclosures by their nearer end",
+                e(-4e-9, -3e-9),
+                e(3.5e-9, 9e-9),
+            ),
+            ("an enclosure against a point", e(2e-9, 9e-9), v(2.5e-9)),
+            ("an unreadable reading", MarginDiag::INVALID, v(1e-12)),
+        ];
+        for (what, near, far) in rows {
+            assert!(near.binds_before(far), "{what}: the nearer binds");
+            assert!(!far.binds_before(near), "{what}: the farther does not");
+        }
+    }
+
     #[test]
     fn the_classifier_records_whether_an_escalation_is_a_terminal_sliver() {
         use crate::Interval;

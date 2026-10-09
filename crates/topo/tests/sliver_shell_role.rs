@@ -129,7 +129,7 @@ fn a_near_tangent_wedge_in_band_refuses_on_an_enclosure_inside_the_band() {
     }
     let refusal = notch307_meet(3, 1e-11, tol).map(|_| ());
     let Err(BooleanError::Escalated {
-        decision: BooleanDecision::ShellRole,
+        decision: BooleanDecision::ShellRole { others: 0, .. },
         diag,
     }) = &refusal
     else {

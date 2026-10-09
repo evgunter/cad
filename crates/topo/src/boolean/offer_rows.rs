@@ -458,6 +458,12 @@ cases! {
     // The same lump as a cavity: a box less each operand, unioned.
     sliver_cavity_of_a_union: "ShellRole", -sliver_lump().thickness(), Public, Valued =>
         sliver_lump().cavity();
+    // Two such cavities, of `V/A` −3.29e-9 and −6.58e-9: in either order
+    // the thinner binds, and the tolerance it offers decides both.
+    two_sliver_cavities_of_a_union: "ShellRole", -sliver_lump().thickness(), Public, Valued =>
+        sliver_lump().two_cavities(false);
+    two_sliver_cavities_of_a_union_reversed: "ShellRole", -sliver_lump().thickness(), Public,
+        Valued => sliver_lump().two_cavities(true);
     sphere_barely_leaning: "Sphere(RecutAlign)", D, Door::Site(
         "a re-cut sphere's lean is read on a crossing-free escape, where an axis near the escape \
          normal carries a seam across the escape plane that the crossing layer meets first: no \
@@ -498,6 +504,7 @@ fn unit3(a: V3) -> V3 {
 
 /// Two unit directions square to `m` and to each other.
 fn basis3(m: V3) -> (V3, V3) {
+    let m = unit3(m);
     let seed = if m[2].abs() < 0.9 {
         [0.0, 0.0, 1.0]
     } else {
@@ -621,19 +628,27 @@ impl SliverLump {
 
     /// The two operands, finished.
     fn operands(&self) -> (crate::AtRestBody<f64>, crate::AtRestBody<f64>) {
+        self.operands_at(1.0, 0.0)
+    }
+
+    /// The two operands scaled `k` about the origin and moved `dx` along
+    /// `x`, finished: the lump's `V/A` scales by `k`.
+    fn operands_at(&self, k: f64, dx: f64) -> (crate::AtRestBody<f64>, crate::AtRestBody<f64>) {
         let Self { v, u, w, m } = *self;
         let tol = Tol::witness();
+        let notch = NOTCH.map(|(x, y)| (k * x + dx, k * y));
         let prism = finished(
             "the notch prism",
-            crate::test_support_fixtures::prism::<f64>(&NOTCH, 1.0, tol).body,
+            crate::test_support_fixtures::prism::<f64>(&notch, k, tol).body,
             tol,
         );
+        let v = add3(scale3(v, k), [dx, 0.0, 0.0]);
         let corner = move |x: f64, y: f64, z: f64| {
             let p = add3(
                 v,
                 add3(
-                    scale3(u, -2.0 + 4.0 * x),
-                    add3(scale3(w, -2.0 + 4.0 * y), scale3(m, 4.0 * z)),
+                    scale3(u, k * (-2.0 + 4.0 * x)),
+                    add3(scale3(w, k * (-2.0 + 4.0 * y)), scale3(m, k * 4.0 * z)),
                 ),
             );
             Point3::new(p[0], p[1], p[2])
@@ -644,6 +659,45 @@ impl SliverLump {
             tol,
         );
         (prism, cube)
+    }
+
+    /// Two of the lump's cavities in one result, the second at twice the
+    /// scale 20 along `x` (so twice the `V/A`): a box less both prisms,
+    /// unioned with a larger box less both cubes, in the given order.
+    fn two_cavities(&self, boxed_cubes_first: bool) -> Result<(), BooleanError> {
+        let tol = Tol::witness();
+        let (prism, cube) = self.operands();
+        let (wide_prism, wide_cube) = self.operands_at(2.0, 20.0);
+        let around = |r: f64| {
+            finished(
+                "a box",
+                crate::test_support_fixtures::brick::<f64>(
+                    (-r, 24.0 + r),
+                    (-r, 4.0 + r),
+                    (-r, 4.0 + r),
+                    tol,
+                ),
+                tol,
+            )
+        };
+        let less = |from: crate::AtRestBody<f64>, tools: [&crate::AtRestBody<f64>; 2]| {
+            tools.iter().fold(from, |acc, tool| {
+                let r =
+                    crate::subtract(&acc, tool, tol).expect("a box less a tool inside it builds");
+                r.body()
+                    .expect("a box less a tool inside it is not empty")
+                    .body
+                    .clone()
+            })
+        };
+        let prisms = less(around(6.0), [&prism, &wide_prism]);
+        let cubes = less(around(7.0), [&cube, &wide_cube]);
+        let (a, b) = if boxed_cubes_first {
+            (&cubes, &prisms)
+        } else {
+            (&prisms, &cubes)
+        };
+        crate::union(a, b, tol).map(|_| ())
     }
 
     fn intersect(&self) -> Result<(), BooleanError> {
@@ -2835,7 +2889,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "recut_lean", "BooleanDecision::Sphere", 1),
     ("ops.rs", "recut_lean", "SphereQuestion::RecutAlign", 1),
     ("ops.rs", "seam_refusal", "BooleanDecision::SeamJet", 1),
-    ("ops.rs", "finding_arm", "BooleanDecision::ShellRole", 1),
+    (
+        "ops.rs",
+        "finished_body_refusal",
+        "BooleanDecision::ShellRole",
+        1,
+    ),
     ("ops.rs", "seam_refusal", "LeverArm::Seam", 1),
     ("ops.rs", "sphere_extent_scan", "BooleanDecision::Sphere", 1),
     (

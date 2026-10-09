@@ -839,19 +839,38 @@ pub(crate) const SHELL_ROLE_NAMES: RoleNames = RoleNames::one("chk_shell_volume_
 pub(crate) const SHELL_ROLE_ENCLOSURE_NAMES: RoleNames =
     RoleNames::one("chk_shell_volume_sign_enclosure");
 
+/// **A shell certified in band of having no volume**: the interval
+/// re-derivation's escalation, where its one enclosure of `V/A` lies
+/// wholly inside one sliver band ([`Indeterminate::terminal_sliver`],
+/// the classifier's own verdict), so the shell is a sliver at this
+/// tolerance whatever its rounding. Minted only where that holds, so
+/// a holder never re-checks it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CertifiedSliver(Indeterminate);
+
+impl CertifiedSliver {
+    /// `certified` as a sliver, where its enclosure lies wholly in band.
+    pub(crate) fn of(certified: Indeterminate) -> Option<Self> {
+        certified.terminal_sliver.then_some(Self(certified))
+    }
+
+    /// The certified escalation: its enclosure, band and name.
+    #[must_use]
+    pub fn reading(&self) -> &Indeterminate {
+        &self.0
+    }
+}
+
 /// A role read that decided no role: the two ends' decisions (one and
-/// the same for an exact volume), and the certified reading's escalation
-/// where that reading lies wholly inside one sliver band.
+/// the same for an exact volume), and whether the certified reading
+/// found the shell a sliver.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct RoleUnread {
     lo: Result<Decided, Indeterminate>,
     hi: Result<Decided, Indeterminate>,
-    /// The interval re-derivation's escalation, where its one enclosure
-    /// of `V/A` lies wholly inside one sliver band
-    /// ([`Indeterminate::terminal_sliver`]): the shell is in band of
-    /// having no volume, whatever its rounding. `None` where no certified
-    /// reading was taken, or it was not wholly in band.
-    sliver: Option<Indeterminate>,
+    /// `None` where no certified reading was taken, or it was not wholly
+    /// in band.
+    sliver: Option<CertifiedSliver>,
 }
 
 impl RoleUnread {
@@ -869,7 +888,7 @@ impl RoleUnread {
     /// one: both ends one enclosure) says of the sliver band.
     fn certified_by(self, certified: &Self) -> Self {
         let sliver = match (certified.lo, certified.hi) {
-            (Err(lo), Err(hi)) if lo == hi && hi.terminal_sliver => Some(hi),
+            (Err(lo), Err(hi)) if lo == hi => CertifiedSliver::of(hi),
             _ => None,
         };
         Self { sliver, ..self }
@@ -1014,6 +1033,8 @@ pub(crate) fn certify_role<T: Decide>(
                     (RoleRead::Unread(cert), RoleRead::Unread(unread)) => {
                         unread.certified_by(&cert)
                     }
+                    // The walk's decision is not certified, so the certified
+                    // read is the refusal, sliver verdict and all.
                     (RoleRead::Unread(cert), RoleRead::Decided(_)) => cert.certified_by(&cert),
                 };
                 if recentred {
@@ -2815,7 +2836,7 @@ pub enum ShellClassifyError {
         /// band of having no volume (Q1's in-band arm). `None` leaves open
         /// whether the arithmetic or the geometry put the margin where it
         /// is.
-        sliver: Option<Box<Indeterminate>>,
+        sliver: Option<Box<CertifiedSliver>>,
     },
     /// An end of the shell's volume bracket (the whole volume, for a
     /// closed-form shell) classified as zero at this tolerance, and no
@@ -3225,23 +3246,19 @@ fn role_at_target<T: Decide>(
 
 /// The refusal of a shell whose bracket `[lo, hi]` classified to neither
 /// side (`lo` not outer, `hi` not void), read from the decided signs:
-/// an escalated end is the refusal (the high end's first), ends decided
-/// to opposite sides straddle zero, and otherwise an end is zero (the
-/// low end's first), carried with its reporting margin. A certified
-/// reading wholly in band makes the refusal an escalation whatever the
-/// ends decided, carrying an end's escalation where one has it and the
-/// certified one where neither does.
+/// an escalated end is the refusal (the high end's first), carrying the
+/// certified sliver where there is one; ends decided to opposite sides
+/// straddle zero; and otherwise an end is zero (the low end's first),
+/// carried with its reporting margin.
 fn shell_role_refusal(shell: ShellKey, unread: RoleUnread, band: Band) -> ShellClassifyError {
     let RoleUnread { lo, hi, sliver } = unread;
-    match (lo, hi, sliver) {
-        (_, Err(source), _) | (Err(source), _, _) | (Ok(_), Ok(_), Some(source)) => {
-            ShellClassifyError::Escalated {
-                shell,
-                source,
-                sliver: sliver.map(Box::new),
-            }
-        }
-        (Ok(lo), Ok(hi), None) => match (lo.sign, hi.sign) {
+    match (lo, hi) {
+        (_, Err(source)) | (Err(source), _) => ShellClassifyError::Escalated {
+            shell,
+            source,
+            sliver: sliver.map(Box::new),
+        },
+        (Ok(lo), Ok(hi)) => match (lo.sign, hi.sign) {
             (Sign::Negative, Sign::Positive) => ShellClassifyError::Straddles { shell },
             _ => {
                 let zero = if lo.sign == Sign::Zero { lo } else { hi };
@@ -4757,63 +4774,34 @@ mod shell_role_refusal_tests {
                 zero(-5e-10),
             ),
         ];
-        for (name, lo, hi, want) in rows {
-            let unread = RoleUnread {
-                lo,
-                hi,
-                sliver: None,
-            };
-            assert_eq!(shell_role_refusal(shell, unread, band), want, "{name}");
-        }
-        // A certified reading wholly in band makes every bracket an
-        // escalation: an end's own where one escalated, else the
-        // certified one.
-        let certified = Indeterminate {
+        // A certified sliver rides an escalated end's refusal and nothing
+        // else: ends the walk decided keep their own refusal.
+        let certified = CertifiedSliver::of(Indeterminate {
             margin: MarginDiag::enclosure(3e-9, 4e-9),
             terminal_sliver: true,
             ..diag(v(0.0))
-        };
-        let sliver_rows = [
-            (
-                "both ends in band",
-                esc(v(3e-9)),
-                esc(v(3e-9)),
-                diag(v(3e-9)),
-            ),
-            (
-                "low end zero, high in band",
-                ok(Sign::Zero, 5e-10),
-                esc(v(3e-9)),
-                diag(v(3e-9)),
-            ),
-            (
-                "both ends zero",
-                ok(Sign::Zero, 9e-10),
-                ok(Sign::Zero, 9e-10),
-                certified,
-            ),
-            (
-                "decided straddle",
-                ok(Sign::Negative, -1.0),
-                ok(Sign::Positive, 1.0),
-                certified,
-            ),
-        ];
-        for (name, lo, hi, source) in sliver_rows {
-            let unread = RoleUnread {
-                lo,
-                hi,
-                sliver: Some(certified),
-            };
-            assert_eq!(
-                shell_role_refusal(shell, unread, band),
-                ShellClassifyError::Escalated {
-                    shell,
-                    source,
-                    sliver: Some(Box::new(certified)),
-                },
-                "certified in band, {name}"
-            );
+        })
+        .expect("an enclosure wholly in band");
+        for (name, lo, hi, want) in rows {
+            for sliver in [None, Some(certified)] {
+                let want = match &want {
+                    ShellClassifyError::Escalated { shell, source, .. } => {
+                        ShellClassifyError::Escalated {
+                            shell: *shell,
+                            source: *source,
+                            sliver: sliver.map(Box::new),
+                        }
+                    }
+                    other => other.clone(),
+                };
+                let unread = RoleUnread { lo, hi, sliver };
+                assert_eq!(
+                    shell_role_refusal(shell, unread, band),
+                    want,
+                    "{name}, sliver {:?}",
+                    sliver.is_some()
+                );
+            }
         }
     }
 
