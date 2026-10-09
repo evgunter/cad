@@ -70,3 +70,20 @@ arrival side wind the island (`chord_join::path_island_winding`). It
 asks nothing of the section plane, so a run reaching both sides of it no
 longer refuses. On a sphere, `RingIslandUnread` is now reached only by a
 run edge that is not a circle.
+
+## 2026-10-09 — two parallel walls a dozen bands apart tie the pair order (JOIN)
+
+Found by the steep-ellipse travel row
+(`crates/sweep/tests/band_apart_partners_on_a_steep_ellipse.rs`):
+a block whose top face has a notch and a finger `12ε` wide across a
+`k = 10` cylinder section (24ε in the committed row). The notch's two
+walls are parallel planes `12ε` apart, and each carries one section arc
+of chord 0.4767. The two chords differ by `1.65ε`, so `find_match` (`nearer`,
+`bool_join_nearest`) escalates choosing which of the two pairs joins
+first, in every op and both orders, at ε 1e-9, 1e-6 and 1e-12 alike
+(margin −1.652e-9 at 1e-9; the pose is sized in bands). Neither pair is
+the other's alternative: they are on different faces, so the order
+between them is not a partner choice. This is the same class as the
+scale-dependent door above, reached at a fixed scale: any two parallel
+features a few bands apart carry sections whose chords differ by a
+small fraction of their separation.

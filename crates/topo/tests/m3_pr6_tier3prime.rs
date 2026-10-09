@@ -221,9 +221,8 @@ fn edge_rest_promoted_d4_pin() {
 /// "interior-rest flush contact") and consumes every rest record into
 /// structure: the consumed class, census agrees, 3′ ≡ tier 3.
 /// Corner-flush (contact-square edges collinear with the slab's own
-/// rim) was the documented boundary-on-boundary ∪ refusal (M3
-/// envelope class (iii)) until M5 S1's declared-REST union zip: the
-/// declared ∪ now BUILDS through the same consumed class, and the
+/// rim, the boundary-on-boundary class (iii)): the declared ∪ BUILDS
+/// through the same consumed class, and the
 /// undeclared door refuses unchanged (the ladder is law). ∖ returns
 /// operand A at tier 3, as before — pure REST subtracts never reach
 /// a join door.
@@ -246,8 +245,7 @@ fn flush_rests_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPol
         matches!(err, BooleanError::UndeclaredCoincidence { .. }),
         "undeclared corner-flush ∪ must refuse at the coincidence door, got {err:?}"
     );
-    // Declared: the M5 S1 REST lane zips the corner-flush mate — the
-    // former Join(_) pin flipped to a certified pass (the same
+    // Declared: the join builds the corner-flush mate (the same
     // frontier as the crosslap; `crosslap_rest.rs` holds the headline
     // pins, `m5_s1_rest_zip.rs` the exact-volume row for this shape).
     let glued = run_body(union_with as BoolOp<T>, &slab, &corner);

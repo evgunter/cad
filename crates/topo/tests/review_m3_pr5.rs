@@ -303,10 +303,7 @@ fn flush_pillar_rest_union_honest() {
 
 /// Corner-flush rest: the pillar's bottom rests flush at A's top-face
 /// corner, its bottom edges partly collinear with A's top edges. The
-/// PR 5.5 re-adjudication pinned this a typed boundary-on-boundary
-/// refusal (`UnpairedLooseEnds { count: 4 }`); its own honesty form
-/// ("if it ever succeeds it must be exact") is now the pin: M5 S1's
-/// declared-REST zip glues the mate with the exact volume.
+/// declared union glues the mate with the exact volume.
 #[test]
 fn corner_flush_pillar_union_honest() {
     let a = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
@@ -323,7 +320,7 @@ fn corner_flush_pillar_union_honest() {
             assert_eq!(m.volume, 8.25, "corner-flush union volume");
         }
         Ok(BooleanResult::Empty) => panic!("cannot be empty"),
-        Err(e) => panic!("M5 S1 glues the declared corner-flush rest: {e:?}"),
+        Err(e) => panic!("the declared corner-flush rest glues: {e:?}"),
     }
 }
 
@@ -355,11 +352,9 @@ fn interior_column_union_works() {
     assert_props(&body.body, 15.03125, 39.0);
 }
 
-/// The full-overlap stack, both doors (this pin's third life):
-/// PR 5.5 pinned the boundary-on-boundary DECLARED refusal
-/// (`UnpairedLooseEnds`); M5 S1's declared-REST zip flipped it to an
-/// exact success — the union is one brick, contact faces gone. The
-/// still-refusing door is the UNDECLARED one (the coincidence
+/// The full-overlap stack, both doors: declared, the union is one
+/// brick, contact faces gone. The refusing door is the UNDECLARED
+/// one (the coincidence
 /// ladder), pinned deterministic and operand-preserving, exactly as
 /// the refusal contract demands.
 #[test]
@@ -381,7 +376,7 @@ fn pinned_refusals_deterministic() {
         format!("{e1:?}").contains("UndeclaredCoincidence"),
         "got {e1:?}"
     );
-    // Declared: the M5 S1 REST zip glues the stack — exact volume and
+    // Declared: the join glues the stack — exact volume and
     // area of the (0..2)²×(0..4) brick.
     let r = run(union_with, &a, &b);
     let body = body_of(&r);

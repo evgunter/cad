@@ -202,17 +202,20 @@ fn p1_wall1_passes_the_gate_and_the_crossing_layer_and_stops_at_the_join() {
     // seam crosses the other tube's carrier only outside that face's
     // window, so neither pair is an event; the op reaches the join,
     // whose germ pair of the stem's weld cap against the arch's wall
-    // has no join arm, and the declared-REST door refuses the mate as a
-    // zip frontier. The far-cap claims below are geometry and stand on
-    // their own.
+    // reads its frame off the arch's rim lying in the cap and has no
+    // join arm: it refuses on the arch's wall. The far-cap claims below
+    // are geometry and stand on their own.
+    let BooleanError::CurvedBooleanUnsupported {
+        operand: topo::Operand::B,
+        face,
+        kind: SurfaceKind::Torus,
+    } = err
+    else {
+        panic!("wall 1 stops at the join's plane × torus arm: {err:?}");
+    };
     assert!(
-        matches!(
-            err,
-            BooleanError::RestZipUnsupported {
-                what: topo::RestZipFrontier::SegmentsBetweenIsolatedPierces
-            }
-        ),
-        "wall 1 stops at the declared-REST door: {err:?}"
+        torus_faces(&a).contains(&face),
+        "the arch's face is its tube wall: {face:?}"
     );
     let frame = arch_frame();
     let far_cap = plane_faces(&a)

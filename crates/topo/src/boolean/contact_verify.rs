@@ -146,14 +146,14 @@ fn rest_pair_verdict<T: Decide>(
     band: Band,
 ) -> Result<ContactVerdict, ContactRefusal> {
     let outcome =
-        super::rest::carrier_pair_verdict(a, fa, b, fb, true, band).map_err(|unread| {
+        super::carrier_pair::carrier_pair_verdict(a, fa, b, fb, true, band).map_err(|unread| {
             ContactRefusal::NotCertifiable {
                 what: match unread {
-                    super::rest::PairUnread::OutsideInventory => {
+                    super::carrier_pair::PairUnread::OutsideInventory => {
                         "a declared face's surface kind is outside the Rest ladder's inventory \
                      (plane, sphere, cylinder, torus)"
                     }
-                    super::rest::PairUnread::Extent(_) => {
+                    super::carrier_pair::PairUnread::Extent(_) => {
                         "a declared face's consumed extent cannot be read (its box has no claim to \
                      make, or its boundary cannot be walked)"
                     }

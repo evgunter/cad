@@ -1,10 +1,10 @@
-//! M5 S1, recipe layer: the declared-REST union zip driven by recipe
-//! intent (the declared pairs on `Boolean{declare}`) — persistence round-trip of
-//! a glued body and the naming-key stability row.
+//! Recipe layer: a declared REST union driven by recipe intent (the
+//! declared pairs on `Boolean{declare}`) — persistence round-trip of a
+//! glued body and the naming-key stability row.
 //!
 //! The document: two stacked plates (full-face REST contact at z = 1)
 //! whose recipe DECLARES the contact caps and the four flush wall
-//! pairs, then unions them. The kernel's M5 S1 lane zips the mate; the
+//! pairs, then unions them. The kernel's join glues the mate; the
 //! recipe layer must carry it like any seamed boolean:
 //!
 //! - the evaluation is green with the exact dyadic volume (8);
@@ -38,7 +38,7 @@ fn block(doc: ProfileDoc, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -86,8 +86,8 @@ fn rest_doc() -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: pairs,
         },
     );

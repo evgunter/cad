@@ -81,6 +81,10 @@ pub enum NodeErrorClass {
     CurvedSolidFrontier,
     /// [`NodeErrorKind::MissingInput`].
     MissingInput,
+    /// [`NodeErrorKind::UnresolvedRead`].
+    UnresolvedRead,
+    /// [`NodeErrorKind::UnresolvedSite`].
+    UnresolvedSite,
     /// [`NodeErrorKind::ToleranceConflict`].
     ToleranceConflict,
     /// [`NodeErrorKind::ParamBox`].
@@ -99,6 +103,8 @@ pub enum NodeErrorClass {
     UnfinishedOperand,
     /// [`NodeErrorKind::EmptyHalf`].
     EmptyHalf,
+    /// [`NodeErrorKind::MembersShareAnOperation`].
+    MembersShareAnOperation,
     /// [`NodeErrorKind::InstanceOutOfRange`].
     InstanceOutOfRange,
     /// [`NodeErrorKind::DegenerateDirection`].
@@ -323,6 +329,8 @@ impl NodeErrorKind {
             Self::Loft(_) => C::Loft,
             Self::CurvedSolidFrontier { .. } => C::CurvedSolidFrontier,
             Self::MissingInput { .. } => C::MissingInput,
+            Self::UnresolvedRead { .. } => C::UnresolvedRead,
+            Self::UnresolvedSite { .. } => C::UnresolvedSite,
             Self::ToleranceConflict { .. } => C::ToleranceConflict,
             Self::ParamBox { .. } => C::ParamBox,
             Self::Seed { .. } => C::Seed,
@@ -332,6 +340,7 @@ impl NodeErrorKind {
             Self::ProductOperand { .. } => C::ProductOperand,
             Self::UnfinishedOperand { .. } => C::UnfinishedOperand,
             Self::EmptyHalf { .. } => C::EmptyHalf,
+            Self::MembersShareAnOperation { .. } => C::MembersShareAnOperation,
             Self::InstanceOutOfRange { .. } => C::InstanceOutOfRange,
             Self::DegenerateDirection { .. } => C::DegenerateDirection,
             Self::NonFiniteDirection { .. } => C::NonFiniteDirection,
@@ -547,6 +556,8 @@ mod tests {
         Loft,
         CurvedSolidFrontier,
         MissingInput,
+        UnresolvedRead,
+        UnresolvedSite,
         ToleranceConflict,
         ParamBox,
         Seed,
@@ -556,6 +567,7 @@ mod tests {
         ProductOperand,
         UnfinishedOperand,
         EmptyHalf,
+        MembersShareAnOperation,
         InstanceOutOfRange,
         DegenerateDirection,
         NonFiniteDirection,
@@ -782,6 +794,11 @@ mod tests {
                 what: "a sweep along a curved path",
             },
             C::MissingInput => K::MissingInput { input: n(3) },
+            C::UnresolvedRead => K::UnresolvedRead {
+                slot: crate::OperandSlot::Target,
+                var: crate::VarId::new(3, 3),
+            },
+            C::UnresolvedSite => K::UnresolvedSite { at: n(3) },
             C::ToleranceConflict => K::ToleranceConflict {
                 document_eps: 1.0e-7,
                 process_eps: 1.0e-9,
@@ -819,6 +836,10 @@ mod tests {
             C::EmptyHalf => K::EmptyHalf {
                 input: n(3),
                 half: crate::SplitHalf::Above,
+            },
+            C::MembersShareAnOperation => K::MembersShareAnOperation {
+                operation: n(3),
+                members: (0, 1),
             },
             C::InstanceOutOfRange => K::InstanceOutOfRange {
                 input: n(3),

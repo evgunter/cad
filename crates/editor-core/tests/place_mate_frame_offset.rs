@@ -148,7 +148,7 @@ fn a_face_side_with_an_in_plane_offset_follows_the_face_through_a_part_edit() {
         DocEdit::SetParam {
             node: base_body,
             slot: SlotId::Distance,
-            expr: len(2.0),
+            value: len(2.0).into(),
             fresh: Vec::new(),
         },
     );
@@ -582,7 +582,7 @@ fn a_slot_edit_at_a_frame_step_is_admitted_as_the_insert_is() {
         &DocEdit::SetParam {
             node: m,
             slot: axis(editor_core::Axis3::X),
-            expr: scl(0.0),
+            value: scl(0.0).into(),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -605,7 +605,7 @@ fn a_slot_edit_at_a_frame_step_is_admitted_as_the_insert_is() {
         DocEdit::SetParam {
             node: m,
             slot: axis(editor_core::Axis3::Z),
-            expr: scl(0.0),
+            value: scl(0.0).into(),
             fresh: Vec::new(),
         },
     );

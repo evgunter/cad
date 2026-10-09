@@ -36,7 +36,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -56,8 +56,8 @@ fn corpus() -> ProfileDoc {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: decl_u,
         },
     );
@@ -70,8 +70,8 @@ fn corpus() -> ProfileDoc {
     // It used to carry one, with a comment claiming "the slot's top
     // cap lies IN c's top plane" — arithmetically false by 0.5 m. The
     // declaration survived a milestone because nothing verified it:
-    // the boolean's only verify-at-use site was the REST lane, which
-    // is Union-only, and this op is a Subtract. The op-door pass
+    // the boolean's only verify-at-use site was Union-only, and this
+    // op is a Subtract. The op-door pass
     // (`boolean::verify_declared_contacts`) now checks every declared
     // pair, which is what surfaced this. Coverage is not lost: `decl_u`
     // above still exercises the declared-boolean naming path with a
@@ -82,8 +82,8 @@ fn corpus() -> ProfileDoc {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: c,
-            b: slot,
+            a: c.into(),
+            b: slot.into(),
             declare: Vec::new(),
         },
     );
@@ -98,8 +98,8 @@ fn corpus() -> ProfileDoc {
     let (doc, _split) = insert(
         doc,
         Node::Split {
-            target: d,
-            tool: plane,
+            target: d.into(),
+            tool: plane.into(),
         },
     );
     let (doc, e) = block(doc, (10.0, 14.0), (0.0, 4.0), 0.0, 4.0);
@@ -122,7 +122,7 @@ fn corpus() -> ProfileDoc {
     let (doc, u) = insert(
         doc,
         Node::Extrude {
-            profile: u,
+            profile: u.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -131,8 +131,8 @@ fn corpus() -> ProfileDoc {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: e,
-            b: u,
+            a: e.into(),
+            b: u.into(),
             declare: Vec::new(),
         },
     );
@@ -146,14 +146,14 @@ fn corpus() -> ProfileDoc {
     let (doc, halves) = insert(
         doc,
         Node::Split {
-            target: cut,
-            tool: between,
+            target: cut.into(),
+            tool: between.into(),
         },
     );
     let (doc, _above) = insert(
         doc,
         Node::Part {
-            of: halves,
+            of: editor_core::Operand::output(halves, SplitHalf::Above.port()),
             select: PartSelect::SplitHalf(SplitHalf::Above),
         },
     );

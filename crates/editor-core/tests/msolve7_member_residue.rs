@@ -163,7 +163,7 @@ fn slab(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(h),
             side: ExtrudeSide::Along,
         },
@@ -256,7 +256,7 @@ fn scene(label: &str, params: &[(&'static str, FreeVar)], rule: Option<Rule>, co
             let (doc, pattern) = insert(
                 doc,
                 Node::Pattern {
-                    input: top,
+                    input: top.into(),
                     count,
                     kind: kind(axis),
                 },
@@ -298,7 +298,7 @@ fn linear_x_by_s(_axis: RecipeNodeId) -> PatternKind<Formula> {
 
 fn circular_by_th(axis: RecipeNodeId) -> PatternKind<Formula> {
     PatternKind::Circular {
-        axis,
+        axis: axis.into(),
         step: Formula::named(VarName::from_static("th"), Dimension::Angle),
     }
 }

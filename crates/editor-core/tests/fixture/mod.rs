@@ -486,6 +486,27 @@ pub fn insert(doc: ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId)
     (doc, minted.unwrap())
 }
 
+/// **The refusal inserting `node` into `doc` meets**, for a row about
+/// what the insert door refuses.
+///
+/// # Panics
+///
+/// If the insert is accepted.
+pub fn insert_refused(doc: &ProfileDoc, node: AuthoredNode) -> editor_core::EditError {
+    match editor_core::apply(
+        doc,
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    ) {
+        Ok(_) => panic!("the insert door accepted a node this row expects it to refuse"),
+        Err(refusal) => refusal,
+    }
+}
+
 /// `name` as the node `to` would mint it where `from` did: the same
 /// role path at another minting node. Two inserts that differ only in
 /// what a row varies are two nodes under two ids (N1), and a row that
@@ -515,7 +536,7 @@ pub fn union_over(
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: inserted.clone(),
+            members: inserted.clone().into_iter().map(Into::into).collect(),
             declare,
         },
     );
@@ -526,7 +547,7 @@ pub fn union_over(
         doc,
         DocEdit::SetMembers {
             node: union,
-            members: members.to_vec(),
+            members: members.iter().copied().map(Into::into).collect(),
         },
     );
     (doc, union)
@@ -616,7 +637,7 @@ pub fn insert_mate_with_stranded_head(
     let (doc, scratch) = insert(
         doc,
         Node::Pattern {
-            input: anchor,
+            input: anchor.into(),
             count: Formula::count(2),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -741,7 +762,7 @@ pub fn wall_row(id: &str, loops: Vec<LoopProgram<Formula>>) -> Swept {
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops,
             ids: Vec::new(),
         }),
@@ -749,7 +770,7 @@ pub fn wall_row(id: &str, loops: Vec<LoopProgram<Formula>>) -> Swept {
     let (doc, ext) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -812,7 +833,7 @@ pub fn desc(plane: RecipeNodeId, loops: Vec<Vec<(f64, f64)>>) -> ProfileProgram<
         .map(|pts| LoopProgram::polygon(pts).expect("finite corners"))
         .collect();
     ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops,
         ids: Vec::new(),
     }
@@ -855,7 +876,7 @@ pub fn on_frame_keeping(
 /// of revolution.
 pub fn axis_in_plane(plane: RecipeNodeId, origin: (f64, f64), dir: (f64, f64)) -> AuthoredNode {
     Node::Datum(Datum::AxisInPlane {
-        plane,
+        frame: plane.into(),
         origin: [len(origin.0), len(origin.1)],
         direction: [scl(dir.0), scl(dir.1)],
     })
@@ -1037,7 +1058,7 @@ pub fn die() -> Die {
         vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]],
     );
     let cube = r.insert(Node::Extrude {
-        profile: cube_profile,
+        profile: cube_profile.into(),
         distance: len(2.0),
         side: ExtrudeSide::Along,
     });
@@ -1049,7 +1070,7 @@ pub fn die() -> Die {
     for (o, u, v, pips) in faces() {
         let prof = r.profile(o, u, v, vec![square(0.0, 0.0, 0.125)]);
         let ext = r.insert(Node::Extrude {
-            profile: prof,
+            profile: prof.into(),
             distance: Formula::named(VarName::from_static("pip_depth"), Dimension::Length),
             side: ExtrudeSide::Against,
         });
@@ -1107,8 +1128,8 @@ pub fn die() -> Die {
             )]);
             let sub = r.insert(Node::Boolean {
                 op: editor_core::BooleanOp::Subtract,
-                a: acc,
-                b: tr,
+                a: acc.into(),
+                b: tr.into(),
                 declare: decl,
             });
             acc = sub;
@@ -1201,7 +1222,7 @@ pub fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
     let (doc, target) = insert(
         doc,
         Node::Extrude {
-            profile: block_profile,
+            profile: block_profile.into(),
             distance: len(4.0),
             side: ExtrudeSide::Along,
         },
@@ -1225,7 +1246,7 @@ pub fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
     let (doc, cutter) = insert(
         doc,
         Node::Extrude {
-            profile: u_profile,
+            profile: u_profile.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -1234,8 +1255,8 @@ pub fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Boolean {
             op: editor_core::BooleanOp::Subtract,
-            a: target,
-            b: cutter,
+            a: target.into(),
+            b: cutter.into(),
             declare: Vec::new(),
         },
     )
@@ -1422,11 +1443,13 @@ pub fn pieces(doc: &editor_core::ProfileDoc, profile: RecipeNodeId) -> ProfilePi
 /// inputs.
 pub fn swept(doc: &ProfileDoc, node: RecipeNodeId) -> RecipeNodeId {
     match doc.node(node) {
-        Some(Node::Extrude { profile, .. } | Node::Revolve { profile, .. }) => *profile,
+        Some(Node::Extrude { profile, .. } | Node::Revolve { profile, .. }) => doc
+            .operation_of(*profile)
+            .expect("the profile read is live"),
         Some(Node::Profile(_)) => node,
-        Some(other) => match other.inputs().first() {
+        Some(_) => match doc.upstream(node).first() {
             Some(&input) => swept(doc, input),
-            None => panic!("node {} sweeps no profile: {other:?}", node.0),
+            None => panic!("node {} sweeps no profile", node.0),
         },
         None => panic!("node {} is not live", node.0),
     }
@@ -1832,7 +1855,7 @@ pub fn two_blocks_and_their_union(label: &str) -> (ProfileDoc, RecipeNodeId) {
         insert(
             doc,
             Node::Extrude {
-                profile: p,
+                profile: p.into(),
                 distance: len(1.0),
                 side: ExtrudeSide::Along,
             },
@@ -1845,8 +1868,8 @@ pub fn two_blocks_and_their_union(label: &str) -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Boolean {
             op: editor_core::BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     )

@@ -63,7 +63,7 @@ fn patterned_blocks(tol: Tol, count: i64) -> (Doc<ProfileProgram>, RecipeNodeId,
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.01),
             side: ExtrudeSide::Along,
         },
@@ -72,7 +72,7 @@ fn patterned_blocks(tol: Tol, count: i64) -> (Doc<ProfileProgram>, RecipeNodeId,
     let (doc, pattern) = common::inserted(
         &doc,
         Node::Pattern {
-            input: extrude,
+            input: extrude.into(),
             count: Formula::count(count),
             kind: PatternKind::Linear {
                 direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
@@ -925,7 +925,7 @@ fn two_boxes(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         common::inserted(
             &doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: common::len(0.01),
                 side: ExtrudeSide::Along,
             },

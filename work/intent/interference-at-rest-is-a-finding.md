@@ -49,3 +49,14 @@ The contact half of the rule (stage 5 C's) needs stage 4 to record a
 face-on-face planar contact as the face pair: the census records planar
 contact at vertex and edge level, and no `Vertex` selection exists, so
 without that lift a planar contact could never be quieted.
+
+Ev, 2026-10-08, on a pattern's outputs: "we should have a map higher
+order function to allow declaring over all the outputs of the
+pattern." A `map` over a pattern's `Bodies` covers member against
+another copy: one assertion written once, one per member, each reading
+the one bound variable, as many as the pattern's `Count`. Overlap
+between members (neighbours in a ring) needs a map over pairs of
+members, adjacent or all. D10's Assertions paragraph states it; the
+maps are `a-map-over-a-patterns-bodies-asserts-once-per-member`. This
+unit's quieting rule is per finding, so a mapped assertion quiets
+exactly as the one it expands to would.

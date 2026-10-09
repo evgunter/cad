@@ -46,12 +46,16 @@ pub mod hull;
 pub mod knots;
 pub mod locate;
 pub mod net;
+pub mod range;
 
 pub use algebra::{CurvePlan, KnotAlgebraError, RemovalStep};
 pub use compose::{
     BernsteinSpans, CanonicalSurface, ComposeError, CompositeForm, CurveCertData, ImplicitSurface,
 };
 pub use hull::{CoeffWindow, RationalCoeffs, RationalWindow, SplineCoeffs};
-pub use knots::{KnotVector, KnotVectorIssue, Span, SplineError, derivative_knot_slice};
-pub use locate::{SpanLocate, SpanSet};
+pub use knots::{
+    KnotMirrorError, KnotVector, KnotVectorIssue, Span, SplineError, derivative_knot_slice,
+};
+pub use locate::{SpanLocate, SpanSet, poison_from};
 pub use net::TensorNet;
+pub use range::{Param, ParamRange, last_at_or_below};

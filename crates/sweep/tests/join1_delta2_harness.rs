@@ -329,7 +329,7 @@ fn d2_arc_battery() {
 }
 
 /// Brick against brick: corners, edges and faces shared, caps resting
-/// (the declared-REST zip's ground) and overlapping, undeclared and
+/// and overlapping, undeclared and
 /// flush-declared, every op in both orders.
 #[test]
 #[ignore = "differential battery; run with --ignored"]

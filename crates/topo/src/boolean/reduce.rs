@@ -553,7 +553,7 @@ pub(super) fn face_source<T: Decide>(
 /// would answer backwards. The flip itself lives in
 /// [`crate::face_normal`], which this function is defined in terms of
 /// — one door for the planar consumers (`plane_of`, this sweep, the
-/// pierce lane, the REST lane, and the SHARED [`crate::sector_face`]
+/// pierce lane, and the SHARED [`crate::sector_face`]
 /// walk, which is why the door sits at the crate root rather than
 /// here), one flip, so those consumers stay orientation-blind.
 ///
@@ -570,7 +570,7 @@ pub(super) fn face_source<T: Decide>(
 /// ray's `d·n̂` — are exactly the ones this fixes.
 ///
 /// `None` for a face that is not a plane, and for a `face` that does
-/// not resolve: the key is the caller's ([`super::rest::flush_pair_relation`]
+/// not resolve: the key is the caller's ([`super::carrier_pair::flush_pair_relation`]
 /// passes a public door's).
 ///
 /// # Panics
@@ -614,7 +614,7 @@ pub(super) fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Pla
 /// face and its reverted twin compose to one tag although their
 /// material sides are opposite. The curved rung a curved pair reaches
 /// through [`mod@super::carrier_eq`] (`source_rung`, from
-/// [`super::rest::carrier_pair_verdict`] and `recl`'s declared-`Rest`
+/// [`super::carrier_pair::carrier_pair_verdict`] and `recl`'s declared-`Rest`
 /// sector pairs) therefore reads only the sources' base here and takes
 /// the material side from the descriptions' `outward` bits.
 ///
@@ -2159,8 +2159,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 //   angular window. On a closed carrier the azimuth is
                 //   covered by the operand's own wall faces, so the
                 //   point is a seam site a SIBLING face holds, and the
-                //   sweep reaches that pair on its own visit. This is
-                //   the case the rest lane is built on.
+                //   sweep reaches that pair on its own visit.
                 // - **HEIGHT** — the endpoint is past the window in z.
                 //   Here NO sibling need hold it: the carrier simply
                 //   ends, and a floating peg's rim has no face of the
@@ -3220,7 +3219,7 @@ fn parents_distinct_from<T: Decide>(
     .all(|pf| {
         pf.is_some_and(|pf| {
             matches!(
-                super::rest::carrier_pair_relation(x, pf, y, face, false, band),
+                super::carrier_pair::carrier_pair_relation(x, pf, y, face, false, band),
                 Ok(Ok(super::carrier_eq::CarrierRelation::Distinct))
             )
         })
@@ -5025,8 +5024,8 @@ mod declaration_order_rows {
     /// **The lump takes a sector's in-band residue where the door
     /// bridges it**: the two poses of the row below at a tilt the door
     /// reads in band over both faces (standing tilted down by `1.2·ε`,
-    /// sunk at `2·ε`; standing tilted down by `2·ε` builds as well, and
-    /// neither reaches the declared-REST zip). Standing
+    /// sunk at `2·ε`; standing tilted down by `2·ε` builds as well).
+    /// Standing
     /// tilted UP, the union's residue crosses `vol(A) + vol(B)` and the
     /// volume backstop refuses it
     /// (`work/reachhold/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`,

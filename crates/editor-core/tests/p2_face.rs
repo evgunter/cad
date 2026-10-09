@@ -317,7 +317,7 @@ fn a_face_side_on_a_pattern_copy_crosses_split_and_inline_unmoved() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
+            input: leg.into(),
             count: editor_core::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -481,7 +481,7 @@ fn a_face_side_on_a_pattern_copy_reads_the_masters_face_at_the_copy() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
+            input: leg.into(),
             count: editor_core::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -602,7 +602,7 @@ fn renamed(base: &ProfileDoc, body: RecipeNodeId, height: f64) -> (ProfileDoc, R
     insert(
         base,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(height),
             side,
         },

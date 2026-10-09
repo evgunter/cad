@@ -362,8 +362,7 @@ fn probe_records_partialeq_bites_on_mutation() {
 /// The fixture is the `m4_pr3_names_interval` corpus's shape (block top
 /// z = 1, slot top z = 1.5) declared as `Rest`. When this probe was
 /// written the subtract SUCCEEDED — the lie never met a verifier,
-/// because the only verify-at-use site was the REST lane, which is
-/// Union-only — while the carrier ladder, asked directly, contradicted
+/// because the only verify-at-use site was Union-only — while the carrier ladder, asked directly, contradicted
 /// it at `bool_plane_offset`. Red-then-green: the assertion below read
 /// `out.is_ok()` then; the op-door pass now refuses the same
 /// declaration before any classification runs, and the corpus that

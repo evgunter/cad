@@ -209,12 +209,12 @@ fn insert_xy_frame(r: &mut Recorder) -> RecipeNodeId {
 fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId {
     let plane = insert_xy_frame(r);
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],
         ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(depth),
         side: ExtrudeSide::Along,
     })
@@ -1150,7 +1150,7 @@ fn the_unsupported_carrier_arm_refuses_naming_the_class() {
         ))));
     }
     let loft = r.insert(Node::Loft {
-        profiles,
+        profiles: profiles.into_iter().map(Into::into).collect(),
         v_degree: Formula::count(2),
     });
     let doc = r.doc;

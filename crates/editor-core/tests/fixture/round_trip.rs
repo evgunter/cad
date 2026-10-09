@@ -105,16 +105,25 @@ pub fn identity(doc: &ProfileDoc) -> (NodeMap, StepMap) {
 }
 
 /// **Each variable of `a` matched to its image in `b`**: a named one
-/// by its name, and one a matched definition reads — anonymous ones
+/// by its name, an operation's output by its port on the node's image
+/// under `map`, and one a matched definition reads — anonymous ones
 /// among them — by its place among that definition's reads, followed
-/// to a fixed point. The two documents mint their own ids; a name or a
-/// definition is what a reader reads.
-fn var_images(a: &ProfileDoc, b: &ProfileDoc) -> BTreeMap<MintId, MintId> {
+/// to a fixed point. The two documents mint their own ids; a name, a
+/// port or a definition is what a reader reads.
+fn var_images(a: &ProfileDoc, b: &ProfileDoc, map: &NodeMap) -> BTreeMap<MintId, MintId> {
     let mut images: BTreeMap<MintId, MintId> = a
         .var_names()
         .iter()
         .filter_map(|(id, name)| Some((id.0, b.var_named(name.as_str())?.0)))
         .collect();
+    for (&from, &to) in map {
+        for port in 0..=u8::MAX {
+            let (Some(x), Some(y)) = (a.output(from, port), b.output(to, port)) else {
+                break;
+            };
+            images.entry(x.0).or_insert(y.0);
+        }
+    }
     let reads = |d: &ProfileDoc, id: MintId| {
         let mut out = Vec::new();
         if let Some(expr) = d
@@ -267,7 +276,7 @@ pub fn same_up_to_ids(
     }
     let ids: BTreeMap<MintId, MintId> = map.iter().map(|(k, v)| (k.0, v.0)).collect();
     let step_ids: BTreeMap<MintId, MintId> = steps.iter().map(|(k, v)| (k.0, v.0)).collect();
-    let var_ids = var_images(a, b);
+    let var_ids = var_images(a, b, map);
     let mut covered = BTreeSet::new();
     for id in live(a) {
         let Some(&to) = map.get(&id) else {

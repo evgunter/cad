@@ -46,7 +46,7 @@ fn cube_doc_node(doc: ProfileDoc, dx: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -241,7 +241,7 @@ fn unusable_nodes_surface_typed_errors() {
     let (doc, bad) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(0.0), // degenerate: the extrude fails,
             side: ExtrudeSide::Along,
         },
@@ -250,8 +250,8 @@ fn unusable_nodes_surface_typed_errors() {
         doc,
         Node::Boolean {
             op: editor_core::BooleanOp::Union,
-            a: bad,
-            b: good,
+            a: bad.into(),
+            b: good.into(),
             declare: Vec::new(),
         },
     );
@@ -419,7 +419,7 @@ fn node_pick_door_is_prepaired_and_typed() {
     let (doc, bad) = insert(
         doc,
         Node::Extrude {
-            profile: lone_profile,
+            profile: lone_profile.into(),
             distance: len(0.0), // degenerate: fails,
             side: ExtrudeSide::Along,
         },

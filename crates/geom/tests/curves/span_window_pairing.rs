@@ -249,8 +249,14 @@ fn every_window_a_curve_mints_evaluates_that_curve() {
         let (lo, hi) = kv.domain();
         for t in [lo, hi, f64::NAN, lo - 1.0, hi + 1.0, 0.5 * (lo + hi)] {
             let w = c.span_at(t);
+            assert_eq!(
+                w.is_none(),
+                t.is_nan(),
+                "the window refuses exactly NaN, at {t}"
+            );
+            let Some(w) = w else { continue };
             assert!(core::ptr::eq(w.curve(), &c));
-            assert_eq!(w.index(), kv.find_span(t));
+            assert_eq!(Some(w.index()), kv.span_at(t).map(|s| s.index()));
             checked += 1;
         }
     }

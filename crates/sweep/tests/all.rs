@@ -55,6 +55,8 @@ mod common;
 mod mate2_common;
 mod revolve_common;
 
+#[path = "a_move_through_a_neighbour_inverts_the_body.rs"]
+mod a_move_through_a_neighbour_inverts_the_body;
 #[path = "a_plane_across_a_one_face_wall.rs"]
 mod a_plane_across_a_one_face_wall;
 #[path = "a_pole_and_an_apex_join_nothing.rs"]
@@ -69,8 +71,12 @@ mod a_ruling_lying_on_a_wall;
 mod a_swept_cusp_is_legal_at_rest;
 #[path = "a_tube_ending_on_a_ball.rs"]
 mod a_tube_ending_on_a_ball;
+#[path = "an_annular_tube_through_a_plate.rs"]
+mod an_annular_tube_through_a_plate;
 #[path = "at_rest_pcurve_faces.rs"]
 mod at_rest_pcurve_faces;
+#[path = "band_apart_partners_on_a_steep_ellipse.rs"]
+mod band_apart_partners_on_a_steep_ellipse;
 #[path = "band_subdivided_side_walls.rs"]
 mod band_subdivided_side_walls;
 #[path = "bool1_fix_pass.rs"]

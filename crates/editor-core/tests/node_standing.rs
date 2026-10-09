@@ -75,7 +75,7 @@ impl Standings {
         let (doc, failed) = insert(
             doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(1.0),
                 side: ExtrudeSide::Along,
             },
@@ -90,7 +90,7 @@ impl Standings {
             DocEdit::SetParam {
                 node: failed,
                 slot: SlotId::Distance,
-                expr: len(0.0),
+                value: len(0.0).into(),
                 fresh: Vec::new(),
             },
         );
@@ -351,7 +351,7 @@ fn the_checks_root_refusal_names_the_node_the_repair_is_at() {
     let (doc, failed) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(0.0),
             side: ExtrudeSide::Along,
         },
@@ -553,8 +553,10 @@ const READERS: [(&str, usize, &str); 11] = [
     ),
     (
         "crates/editor-core/src/eval/wire.rs",
-        2,
-        "the op wiring holds the result map as it is written, and reads it through `usable_in`",
+        7,
+        "the op wiring holds the result map as it is written, and reads it through `usable_in`; \
+         a read of a split's port copies the standing entries and writes the half it projects \
+         (`split_ports_projected`), every read still through `value_of`",
     ),
     ("crates/editor-core/src/lib.rs", 1, "re-exports the type"),
     (

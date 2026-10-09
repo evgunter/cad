@@ -142,23 +142,26 @@ fn accepted_against_torus(
 /// stem face's own chart, both ends are definitely off the carrier, so
 /// the arc meets that face nowhere). Both pairs now answer, and the op
 /// stops at the join, where the germ pair of the stem's weld cap
-/// (plane) against the arch's wall (torus) has no join arm; the
-/// declared-REST door re-examines the mate and refuses it as a zip
-/// frontier: a typed refusal downstream, and no body to measure.
+/// (plane) against the arch's wall (torus) reads its frame off the
+/// arch's rim, which lies in the cap, and has no join arm: the join
+/// refuses on the arch's wall, a typed refusal and no body to measure.
 #[test]
 fn the_lily_stem_glue_is_past_the_circle_torus_pairs() {
     let (s, a) = (stem(), arch());
     let (decls, _) = weld_declarations(&s, &a);
     let err = topo::union_with(&s, &a, &decls, Tol::witness())
-        .expect_err("the stem glue still refuses, past the join");
+        .expect_err("the stem glue still refuses, in the join");
+    let BooleanError::CurvedBooleanUnsupported {
+        operand: topo::Operand::B,
+        face,
+        kind: geom::SurfaceKind::Torus,
+    } = err
+    else {
+        panic!("the lily's next door is the plane × torus join arm: {err:?}");
+    };
     assert!(
-        matches!(
-            err,
-            BooleanError::RestZipUnsupported {
-                what: topo::RestZipFrontier::SegmentsBetweenIsolatedPierces
-            }
-        ),
-        "the lily's next door is the declared-REST zip: {err:?}"
+        torus_faces(&a).contains(&face),
+        "the arch's face is its tube wall"
     );
 }
 
@@ -541,8 +544,7 @@ fn a_coaxial_seam_on_the_torus_is_placed_by_its_arc() {
 /// plane, and the edge's plane is that face's own plane, which cuts it
 /// in no curve. So the join itself refuses on the torus, the kind with
 /// no arm, in both member orders; it does not cut the cap by its own
-/// plane. Read before the declared-REST door, which takes either
-/// refusal over (`boolean_join_refusal`).
+/// plane. Read as the join's own refusal (`boolean_join_refusal`).
 #[test]
 fn a_planar_face_holding_the_arch_rim_is_no_edge_plane_holder() {
     let (s, a) = (stem(), arch());

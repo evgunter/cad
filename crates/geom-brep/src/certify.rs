@@ -56,8 +56,8 @@ use geom::Curve3;
 use geom::Surface;
 use geom_core::spline::SpanLocate;
 use geom_core::{
-    Band, BandError, Decide, Decided, FileCoincidence, Indeterminate, InfSpeed, Margin, MarginDiag,
-    Point3, Real, Sign,
+    Band, BandError, Decide, Decided, Indeterminate, InfSpeed, Margin, MarginDiag, Point3, Real,
+    Sign,
 };
 
 use crate::description::{
@@ -70,7 +70,7 @@ use crate::implicit::implicit_residual;
 use crate::keys::SurfaceKey;
 use crate::pcurve_cache::{Pcurve, PcurveCertifyError, chart_pcurve};
 use crate::recourse::{
-    AtZero, Classified, Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
+    AtZero, Classified, ReadAt, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
     Unsized,
 };
 
@@ -384,7 +384,9 @@ pub enum CertifyError {
     /// metre scale to be measured by. The floor is a conservative lower
     /// bound on the carrier's speed: it reaches zero or below where the
     /// spline stalls or turns back on itself, and where the bound itself
-    /// falls short; a knot domain stored reversed reads below zero too.
+    /// falls short. The knot domain is never the cause: a
+    /// [`geom_core::spline::KnotVector`] is strictly forward by
+    /// construction, so this verdict is always the floor's.
     SpanMeterCollapsed {
         /// The metered length's verdict, with its reporting margin.
         verdict: Refused,
@@ -709,7 +711,7 @@ impl CertifyError {
         })
     }
 
-    /// The ending this refusal's decision gives it, read at `reading`
+    /// The ending this refusal's decision gives it, read at `at`
     /// ([`recourse`] over [`CertifyError::decision`]), or `None` for a
     /// refusal that is no decision's refused arm. The exception is the
     /// lanes' one-arc proof (`TubeNotOneArc`): it has no `decision()`, and
@@ -719,44 +721,20 @@ impl CertifyError {
     /// decides its ending (D4 ¶1 (i)), so the door that reports it
     /// appends this, or renders both through [`CertifyError::render`].
     #[must_use]
-    pub fn ending(&self, reading: Reading) -> Option<String> {
+    pub fn ending(&self, at: impl Into<ReadAt>) -> Option<String> {
+        let at = at.into();
         match self {
-            Self::PlaneNurbs(refusal) => return refusal.ending(reading),
-            Self::AnalyticRung3(refusal) => return refusal.ending(reading),
-            _ => {}
+            Self::PlaneNurbs(refusal) => refusal.ending(at),
+            Self::AnalyticRung3(refusal) => refusal.ending(at),
+            _ => self.decision().map(|(check, arm)| recourse(check, arm, at)),
         }
-        self.decision()
-            .map(|(check, arm)| recourse(check, arm, reading))
-    }
-
-    /// The ending this refusal's decision gives it at the import door
-    /// ([`recourse_in_file`] over [`CertifyError::decision`]): at rest,
-    /// with the file's ε_in words. `None`, and the lanes' one-arc proof
-    /// ([`crate::ssi::OneArcRefusal::ending_in_file`]), as
-    /// [`CertifyError::ending`].
-    #[must_use]
-    pub fn ending_in_file(&self, file: FileCoincidence) -> Option<String> {
-        match self {
-            Self::PlaneNurbs(refusal) => return refusal.ending_in_file(file),
-            Self::AnalyticRung3(refusal) => return refusal.ending_in_file(file),
-            _ => {}
-        }
-        self.decision()
-            .map(|(check, arm)| recourse_in_file(check, arm, file))
     }
 
     /// The payload and, where its decision gives one, the ending read at
-    /// `reading` ([`CertifyError::ending`]).
+    /// `at` ([`CertifyError::ending`]).
     #[must_use]
-    pub fn render(&self, reading: Reading) -> String {
-        self.with_ending(self.ending(reading))
-    }
-
-    /// The payload and the ending read at the import door
-    /// ([`CertifyError::ending_in_file`]).
-    #[must_use]
-    pub fn render_in_file(&self, file: FileCoincidence) -> String {
-        self.with_ending(self.ending_in_file(file))
+    pub fn render(&self, at: impl Into<ReadAt>) -> String {
+        self.with_ending(self.ending(at))
     }
 
     fn with_ending(&self, ending: Option<String>) -> String {
@@ -918,9 +896,9 @@ impl CertCheck {
     }
 }
 
-/// The one ending a refusal of `check` carries on `arm`, read at
-/// `reading` (D4 ¶1 (i)): computed from the decision and its verdict,
-/// never from a predicate name.
+/// The one ending a refusal of `check` carries on `arm`, read at `at`
+/// (D4 ¶1 (i)): computed from the decision and its verdict, never from a
+/// predicate name.
 ///
 /// - A decision on a size (it passes on a nonzero sign) ends as
 ///   [`SizedDecision::recourse`] gives: its lever on every arm, the
@@ -935,29 +913,20 @@ impl CertCheck {
 ///   rest, end in the last resort; a definite arm at rest ends in the
 ///   file's defect ending, since no loosening repairs a stored
 ///   contradiction.
+/// - At the STEP import door ([`ReadAt::File`]) certification reads as at
+///   rest, and the file's declared coincidence distance picks the words:
+///   a sized decision's as [`SizedDecision::recourse`] gives, and a
+///   residual's miss within ε_in but beyond ε names setting ε to ε_in as
+///   a stopgap ([`Unsized::residual_in_file`]).
 #[must_use]
-pub fn recourse(check: CertCheck, arm: RefusedArm<'_>, reading: Reading) -> String {
-    match check.ending() {
-        Ending::Sized(sized) => sized.recourse(arm, reading),
-        Ending::Unsized(no_size) | Ending::Residual(no_size) => no_size.recourse(arm, reading),
-        Ending::Undefined(recourse) => geom_core::lever_recourse(recourse, None),
-    }
-}
-
-/// The one ending a refusal of `check` carries on `arm` at the STEP
-/// import door (D4 ¶1): certification at adoption reads as at rest, and
-/// the file's declared coincidence distance picks the words. A
-/// band-decided arm of a sized decision whose size the margin's nearer
-/// end puts at or below ε_in offers no tolerance alone to keep it
-/// ([`SizedDecision::recourse_in_file`]); a residual's miss within ε_in
-/// but beyond ε names setting ε to ε_in as a stopgap
-/// ([`Unsized::residual_in_file`]). [`recourse`] takes no ε_in.
-#[must_use]
-pub fn recourse_in_file(check: CertCheck, arm: RefusedArm<'_>, file: FileCoincidence) -> String {
-    match check.ending() {
-        Ending::Sized(sized) => sized.recourse_in_file(arm, file),
-        Ending::Residual(residual) => residual.residual_in_file(arm, file),
-        Ending::Unsized(_) | Ending::Undefined(_) => recourse(check, arm, Reading::AtRest),
+pub fn recourse(check: CertCheck, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
+    let at = at.into();
+    let reading = at.reading();
+    match (check.ending(), at) {
+        (Ending::Sized(sized), at) => sized.recourse(arm, at),
+        (Ending::Residual(residual), ReadAt::File(file)) => residual.residual_in_file(arm, file),
+        (Ending::Unsized(no_size) | Ending::Residual(no_size), _) => no_size.recourse(arm, reading),
+        (Ending::Undefined(recourse), _) => geom_core::lever_recourse(recourse, None),
     }
 }
 
@@ -2480,6 +2449,12 @@ fn run_checks<T: Decide>(
         // a collapsed meter is `SpanMeterCollapsed` and an undecided one
         // escalates under `ParamSpanMeter`, while a backwards or zero
         // span is `IntervalNotForward` below.
+        //
+        // The domain needs no orientation check of its own: `KnotVector`
+        // mints only `d0 < d1` (non-decreasing knots, end runs of exactly
+        // `degree + 1`), and `d1 - d0` of two distinct finite `f64`s in
+        // that order is positive, so the sign this gate refuses is the
+        // meter's alone.
         Curve3::Nurbs(n) => {
             let meter = n.speed_lower_bound();
             let (d0, d1) = n.domain();
@@ -3223,13 +3198,15 @@ mod wiring_rows {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use geom_core::MarginDiag;
     use geom_core::Tol;
     use geom_core::spline::KnotVector;
     use geom_core::{
         Affine3, Arc2, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE, KERNEL_OR_FILE_DEFECT_ENDING,
         Point2, Vec3,
     };
+    use geom_core::{FileCoincidence, MarginDiag};
+
+    use crate::recourse::Reading;
 
     use crate::mapped::{MappedCurve, SketchSegment};
 
@@ -5288,7 +5265,7 @@ mod tests {
                     }
                     _ => None,
                 };
-                let narrow_door = recourse_in_file(check, arm, narrow);
+                let narrow_door = recourse(check, arm, narrow);
                 match (check.ending(), reaches_zero) {
                     (Ending::Sized(sized), Some(far))
                         if !(sized.passes.passes_zero() && matches!(arm, RefusedArm::Zero(_))) =>
@@ -5314,7 +5291,7 @@ mod tests {
                         "{check:?} {arm:?}: an ε_in below every margin picks no other words"
                     ),
                 }
-                let door = recourse_in_file(check, arm, wide);
+                let door = recourse(check, arm, wide);
                 assert_ne!(door, KERNEL_DEFECT_ENDING, "{check:?} {arm:?}");
                 assert_eq!(
                     door.matches("Recourse:").count() + door.matches("There is no way").count(),
@@ -5371,7 +5348,7 @@ mod tests {
         let stopgap = "Recourse: re-export the file more precisely, or, as a stopgap, set the \
                        tolerance to ε_in = 1e-6 m";
         let exact = exceeded(CertCheck::EndpointStart, 5e-7)
-            .ending_in_file(file)
+            .ending(file)
             .unwrap();
         assert_eq!(
             exact,
@@ -5382,7 +5359,7 @@ mod tests {
             )
         );
         let fit = exceeded(CertCheck::Surface2Residual, 5e-7)
-            .ending_in_file(file)
+            .ending(file)
             .unwrap();
         assert_eq!(
             fit,
@@ -5399,7 +5376,7 @@ mod tests {
             sample: 0,
             margin: MarginDiag::enclosure(5e-7, 2e-6),
         }
-        .ending_in_file(file)
+        .ending(file)
         .unwrap();
         assert!(
             across.contains("and may lie within the file's declared")
@@ -5410,7 +5387,7 @@ mod tests {
         for check in [CertCheck::EndpointStart, CertCheck::Surface2Residual] {
             let past = exceeded(check, 2e-6);
             assert_eq!(
-                past.ending_in_file(file),
+                past.ending(file),
                 past.ending(Reading::AtRest),
                 "{check:?}: a miss past ε_in is the file's own defect"
             );
@@ -5446,11 +5423,11 @@ mod tests {
             });
             let plane =
                 CertifyError::PlaneNurbs(PlaneNurbsRefusal::TubeNotOneArc { rungs: 3, cause });
-            let door = analytic.ending_in_file(file);
+            let door = analytic.ending(file);
             assert!(door.is_some(), "{cause:?}: the door gives no ending");
-            assert_eq!(door, plane.ending_in_file(file), "{cause:?}");
+            assert_eq!(door, plane.ending(file), "{cause:?}");
             assert_eq!(
-                analytic.render_in_file(file),
+                analytic.render(file),
                 format!("{analytic}. {}", door.unwrap()),
                 "{cause:?}"
             );
@@ -5459,7 +5436,7 @@ mod tests {
 
     /// **The collapsed-arm gates' definite refusals read the import door
     /// like every sized decision's** (D4 ¶1): a collapsed transversality
-    /// arm and a collapsed span meter end through [`recourse_in_file`], so
+    /// arm and a collapsed span meter end through [`recourse`] at the door, so
     /// a zero within the file's ε_in is a size the file does not state,
     /// not the at-rest offer to tighten alone.
     #[test]
@@ -5480,10 +5457,10 @@ mod tests {
                 CertCheck::ParamSpanMeter,
             ),
         ] {
-            let door = refusal.ending_in_file(file).unwrap();
+            let door = refusal.ending(file).unwrap();
             assert_eq!(
                 door,
-                recourse_in_file(check, verdict.arm(), file),
+                recourse(check, verdict.arm(), file),
                 "{check:?}: the door's ending is the decision's"
             );
             assert!(

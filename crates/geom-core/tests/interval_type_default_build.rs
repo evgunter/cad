@@ -88,14 +88,30 @@ fn the_bit_identity_channel_reads_intervals_in_a_default_build() {
 #[test]
 fn interval_locates_a_span_range_in_a_default_build() {
     let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 2.0, 2.0], 2).unwrap();
-    let straddling = Interval::from_bounds(0.5, 1.5).locate_spans(&knots);
+    let indices = |x: Interval| {
+        x.locate_spans(&knots)
+            .map(|set| (set.first.index(), set.last.index()))
+    };
     assert_eq!(
-        (straddling.first.index(), straddling.last.index()),
-        (2, 3),
+        indices(Interval::from_bounds(0.5, 1.5)),
+        Some((2, 3)),
         "[0.5, 1.5] straddles the knot at 1.0"
     );
-    let inside = Interval::from_f64(0.5).locate_spans(&knots);
-    assert_eq!((inside.first.index(), inside.last.index()), (2, 2));
+    assert_eq!(indices(Interval::from_f64(0.5)), Some((2, 2)));
+    // The locator reads the bracket, not the certificate: a `Trv`
+    // enclosure is sound, so it still locates; its decoration is for
+    // the reader that certifies.
+    let trv = Interval::from_bounds(-1.0, 4.0).sqrt();
+    assert!(!trv.is_certified(), "the fixture is a Trv enclosure");
+    assert_eq!(indices(trv), Some((2, 3)), "a Trv [0, 2] stopped locating");
+    // Poison has no bracket, so it locates nothing.
+    assert_eq!(
+        indices(Interval::from_f64(f64::NAN)),
+        None,
+        "NaI located a span"
+    );
+    let empty = Interval::from_bounds(-2.0, -1.0).sqrt();
+    assert_eq!(indices(empty), None, "an empty enclosure located a span");
 }
 
 /// `DualInterval` — the dual-over-interval alias Q1 ratifies — names a

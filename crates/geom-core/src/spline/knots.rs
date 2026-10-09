@@ -3,6 +3,8 @@
 //! deterministic f64 lane. Raw `f64` comparisons are legal throughout
 //! this file (structure selection, never a topology decision).
 
+use super::range::{Param, ParamRange, last_at_or_below};
+use crate::exact::two_sum;
 use crate::readable::Readable;
 use core::num::NonZeroUsize;
 
@@ -190,6 +192,102 @@ impl core::fmt::Display for KnotVectorIssue {
     }
 }
 
+/// Why [`KnotVector::mirror_symmetric`] refuses: the vector is not its
+/// own reflection about its domain, or the reflection cannot be
+/// computed.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum KnotMirrorError {
+    /// The reflection `lo + hi` overflows to an infinity, so the domain
+    /// names no reflection and the test is not defined on it.
+    ///
+    /// Without the guard the arithmetic would not go WRONG: an
+    /// overflowing head carries a NaN residual, a NaN compares equal to
+    /// nothing, and the scan would refuse at index 0 with an
+    /// [`Self::AsymmetricPair`] naming the clamp pair — a true verdict
+    /// with a misleading reason, since that pair is the one pair the
+    /// scan is guaranteed to hold. The guard names the DOMAIN's defect
+    /// instead of an innocent pair. It also refuses a vector that IS
+    /// its own reflection in ℝ but whose `lo + hi` overflows: the test
+    /// that would admit it cannot be run.
+    ///
+    /// The same NaN residual settles the per-pair case the guard does
+    /// not cover. A pair whose own head overflows while `lo + hi` stays
+    /// finite is necessarily asymmetric — its real sum exceeds the
+    /// finite `lo + hi` — and its NaN residual refuses it, which is the
+    /// right answer for the right reason.
+    ReflectionNotFinite {
+        /// The domain's start.
+        lo: f64,
+        /// The domain's end.
+        hi: f64,
+    },
+    /// Knots `index` and `mirror_index` do not sum to `lo + hi`, so the
+    /// vector is not its own reflection.
+    AsymmetricPair {
+        /// The lower index of the offending pair.
+        index: usize,
+        /// Its partner, `m − index`, where `m` is the last knot index.
+        mirror_index: usize,
+        /// The knot at `index`.
+        knot: f64,
+        /// The knot at `mirror_index`.
+        mirror_knot: f64,
+        /// The domain's start.
+        lo: f64,
+        /// The domain's end.
+        hi: f64,
+    },
+}
+
+impl core::fmt::Display for KnotMirrorError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            KnotMirrorError::ReflectionNotFinite { lo, hi } => write!(
+                f,
+                "knot mirror: the domain [{}, {}] has no finite reflection sum, so whether \
+                 the vector is its own reflection cannot be decided. Recourse: re-express \
+                 the vector on a domain whose ends sum finitely and ask on that",
+                Readable(*lo),
+                Readable(*hi)
+            ),
+            KnotMirrorError::AsymmetricPair {
+                index,
+                mirror_index,
+                knot,
+                mirror_knot: _,
+                lo,
+                hi,
+            } if index == mirror_index => write!(
+                f,
+                "knot mirror: the middle knot {index} ({}) is not the midpoint of [{}, {}]. \
+                 Recourse: supply the midpoint there",
+                Readable(*knot),
+                Readable(*lo),
+                Readable(*hi)
+            ),
+            KnotMirrorError::AsymmetricPair {
+                index,
+                mirror_index,
+                knot,
+                mirror_knot,
+                lo,
+                hi,
+            } => write!(
+                f,
+                "knot mirror: knots {index} and {mirror_index} ({}, {}) do not sum to {} \
+                 exactly. Recourse: supply partners whose sum is exactly that; dyadic \
+                 fractions of the domain mirror exactly, while decimal pairs such as \
+                 0.1 and 0.9 round apart",
+                Readable(*knot),
+                Readable(*mirror_knot),
+                Readable(lo + hi)
+            ),
+        }
+    }
+}
+
+impl core::error::Error for KnotMirrorError {}
+
 /// A validated **clamped** knot vector with its degree — the structural
 /// half of every B-spline/NURBS entity (knots and degree are `f64`/
 /// `usize` structure per C6; generic scalar types never appear here).
@@ -250,12 +348,12 @@ pub struct KnotVector {
 /// [`Span`] carries, and — the second precedent — the one
 /// [`super::hull::SplineCoeffs`] carries for a coefficient array.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct InteriorKnot(f64);
+pub(crate) struct InteriorKnot(Param);
 
 impl InteriorKnot {
     /// The knot value.
     pub(crate) fn value(self) -> f64 {
-        self.0
+        self.0.get()
     }
 }
 
@@ -269,7 +367,7 @@ impl InteriorKnot {
 ///
 /// **Branded to its knot vector by the borrow.** The fields are
 /// private and the only constructors are [`KnotVector::span`]
-/// (checked) and [`KnotVector::span_at`] (total), so an index invalid
+/// (checked) and [`KnotVector::span_of`] (total over a [`Param`]), so an index invalid
 /// for the vector it names is not a representable state — and neither
 /// is a span held beside a *different* vector: every door that
 /// consumes a `Span` reads its knots through the span
@@ -333,7 +431,7 @@ impl InteriorKnot {
 /// use geom_core::spline::{KnotVector, basis};
 /// let span = {
 ///     let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
-///     kv.span_at(0.5)
+///     kv.span_at(0.5).unwrap()
 /// };
 /// let _ = basis::basis_funs(span, 0.5f64);
 /// ```
@@ -344,7 +442,7 @@ impl InteriorKnot {
 /// ```
 /// use geom_core::spline::{KnotVector, basis};
 /// let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
-/// let span = { kv.span_at(0.5) };
+/// let span = { kv.span_at(0.5).unwrap() };
 /// let _ = basis::basis_funs(span, 0.5f64);
 /// ```
 ///
@@ -355,7 +453,7 @@ impl InteriorKnot {
 /// ```compile_fail,E0506
 /// use geom_core::spline::{KnotVector, basis};
 /// let mut kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
-/// let span = kv.span_at(0.5);
+/// let span = kv.span_at(0.5).unwrap();
 /// kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
 /// let _ = basis::basis_funs(span, 0.5f64);
 /// ```
@@ -366,10 +464,10 @@ impl InteriorKnot {
 /// ```
 /// use geom_core::spline::{KnotVector, basis};
 /// let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
-/// let span = kv.span_at(0.5);
+/// let span = kv.span_at(0.5).unwrap();
 /// let refined = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
 /// let _ = basis::basis_funs(span, 0.5f64);
-/// let _ = basis::basis_funs(refined.span_at(0.5), 0.5f64);
+/// let _ = basis::basis_funs(refined.span_at(0.5).unwrap(), 0.5f64);
 /// ```
 ///
 /// **What these rows do and do not check.** Stable rustdoc checks only
@@ -574,7 +672,9 @@ impl KnotVector {
         self.knots.len() - self.degree - 1
     }
 
-    /// The parameter domain `[knots[p], knots[len − 1 − p]]`.
+    /// The parameter domain `[knots[p], knots[len − 1 − p]]`, strictly
+    /// forward: the end runs are exactly `p + 1` long and the knots
+    /// non-decreasing, so `knots[p] < knots[p + 1] ≤ knots[len − 1 − p]`.
     pub fn domain(&self) -> (f64, f64) {
         // Indexing justified: len ≥ 2(p+1) (construction invariant).
         (
@@ -645,6 +745,85 @@ impl KnotVector {
         Self::clamped(knots, p)
     }
 
+    /// Refuses unless this vector is its own reflection about its
+    /// domain: `k_i + k_{m−i} = lo + hi` in ℝ for every `i`, with `m`
+    /// the last knot index. Reflecting a knot vector (`k ↦ lo + hi − k`
+    /// with the order reversed) carries each basis function to its
+    /// mirror partner, so on a vector that passes, a net read backwards
+    /// over the SAME knots is the original reparameterized by
+    /// `t ↦ lo + hi − t`.
+    ///
+    /// # What the symmetric vectors actually are
+    ///
+    /// "Symmetric" means symmetric AFTER decimal-to-binary rounding,
+    /// which is narrower than it reads: an interior pair a user types
+    /// as mirrored — thirds, `0.1/0.9`, `0.2/0.8`, `0.3/0.7`,
+    /// `0.45/0.55` — has a real sum that misses `lo + hi` by one 2Sum
+    /// residual (±5.55e−17, or half that for `0.1/0.9`) and REFUSES,
+    /// while `0.4/0.6` and every dyadic pair accept.
+    ///
+    /// # Why the test is exact, and why the clamp runs never trip it
+    ///
+    /// The condition is an identity between REAL numbers, and
+    /// `fl(k_i + k_{m−i}) == fl(lo + hi)` does not decide it: on
+    /// `lo = 0`, `hi = 1` the pair `(½, ½ + 2⁻⁵³)` rounds to `1.0` and
+    /// would pass while reflecting an ulp away from its partner. So the
+    /// two sums are compared AS EXACT SUMS — each held as a rounded
+    /// head plus its exact residual ([`two_sum`]) and both components
+    /// compared under IEEE equality, which is equality of the real sums
+    /// and nothing weaker. (IEEE equality, not bit equality: `-0.0`
+    /// equals `0.0`, so a vector carrying a `-0.0` where its partner
+    /// carries `0.0` is accepted as the symmetric vector it really is.)
+    /// Every step is one correctly-rounded binary64 operation, so the
+    /// verdict is a function of the knots' bits alone: the same answer
+    /// on every target and at every optimization level. The one case
+    /// the arithmetic cannot decide is a `lo + hi` that overflows, and
+    /// that is refused rather than answered.
+    ///
+    /// Knots are finite by construction; a NaN or infinite knot would
+    /// in any case give a residual that compares equal to nothing, so
+    /// the test would refuse it rather than admit it.
+    ///
+    /// The clamped ends never trip it. [`Self::domain`] reads `lo` and
+    /// `hi` off `knots[p]` and `knots[m − p]`, and the end runs are
+    /// equal under `==` (the comparison [`Self::clamped`] ran), so for
+    /// every `i ≤ p` the pair `(k_i, k_{m−i})` equals `(lo, hi)` in
+    /// value and the test compares a value against itself. Only the
+    /// interior can refuse.
+    ///
+    /// # Errors
+    ///
+    /// [`KnotMirrorError::ReflectionNotFinite`] when `lo + hi`
+    /// overflows; otherwise [`KnotMirrorError::AsymmetricPair`] naming
+    /// the first pair, from the outside in, whose exact sum misses.
+    ///
+    /// [`two_sum`]: crate::exact::two_sum
+    pub fn mirror_symmetric(&self) -> Result<(), KnotMirrorError> {
+        let (lo, hi) = self.domain();
+        let reflection = two_sum(lo, hi);
+        if !reflection.0.is_finite() {
+            return Err(KnotMirrorError::ReflectionNotFinite { lo, hi });
+        }
+        let k = &self.knots;
+        let m = k.len() - 1;
+        for index in 0..=m / 2 {
+            let mirror_index = m - index;
+            // Indexing justified: index ≤ m/2 ≤ m and mirror_index ≤ m.
+            let (knot, mirror_knot) = (k[index], k[mirror_index]);
+            if two_sum(knot, mirror_knot) != reflection {
+                return Err(KnotMirrorError::AsymmetricPair {
+                    index,
+                    mirror_index,
+                    knot,
+                    mirror_knot,
+                    lo,
+                    hi,
+                });
+            }
+        }
+        Ok(())
+    }
+
     /// The index of the first (nonempty) span: `degree`.
     pub fn first_span(&self) -> usize {
         self.degree
@@ -655,56 +834,33 @@ impl KnotVector {
         self.knots.len() - self.degree - 2
     }
 
-    /// Locates the span containing `t`: the index `i` with
-    /// `knots[i] ≤ t < knots[i+1]` (half-open), the **last** span
-    /// closed — the fixed tie-break: at an interior knot value the
-    /// returned span is the one *starting* there (the last copy's
-    /// span, which is nonempty by the multiplicity invariant).
-    ///
-    /// Total on all of `f64`: `t` below the domain returns the first
-    /// span, `t` at/above the domain end returns the last span (each
-    /// then evaluates the span's polynomial extension — the documented
-    /// garbage-out contract of `eval_in_span`), and **NaN returns the
-    /// first span deterministically** (poison then propagates through
-    /// the evaluation's arithmetic as a value, never a decision).
-    pub fn find_span(&self, t: f64) -> usize {
-        self.span_at(t).index()
+    /// The whole domain as a [`ParamRange`], the range a window is
+    /// clamped to.
+    pub fn domain_range(&self) -> ParamRange {
+        let (lo, hi) = self.domain();
+        // `clamped` refuses a non-finite knot and a collapsed domain.
+        ParamRange::new(lo, hi).unwrap_or_else(|| unreachable!("a clamped domain is ordered"))
     }
 
-    /// The located span as an **offset above [`KnotVector::first_span`]**
-    /// — which, since `first_span() == degree`, is exactly the first
-    /// control point of the span's window. Searching in this coordinate
-    /// is what lets [`KnotVector::span_at`] build a [`Span`] with no
-    /// `index − degree` subtraction to underflow and no validity check
-    /// to discharge: the search starts at 0 and never leaves
-    /// the span count, `len − 2·degree − 2`.
-    ///
-    /// Semantics are [`KnotVector::find_span`]'s, unchanged: same
-    /// comparisons in the same order against the same knots — it is
-    /// [`span_offset_in`], the module's only span search.
-    fn span_offset(&self, t: f64) -> usize {
-        span_offset_in(&self.knots, self.degree, t)
-    }
-
-    /// The inclusive span range overlapped by `[lo, hi]`, each end
-    /// located by [`KnotVector::span_at`]'s tie-break. `lo ≤ hi` is
-    /// the caller's contract ([`crate::Bounds`] brackets satisfy it);
-    /// NaN ends land on the first span per `span_at`.
+    /// The inclusive span range overlapped by `range`, each end located
+    /// by [`KnotVector::span_at`]'s tie-break. Total: a [`ParamRange`]
+    /// has no NaN end, and it is ordered, so `first ≤ last`.
     ///
     /// Both ends are [`Span`]s: locating is where span validity
-    /// originates, `span_at` is total, and each end borrows this
-    /// vector, so there is nothing for a caller to re-check and no
-    /// second vector for either end to be paired against. Iterate the
-    /// interior with `first.index() + 1 ..= last.index()` and
-    /// [`KnotVector::span`], which refuses the empty spans in between.
-    pub fn span_range(&self, lo: f64, hi: f64) -> (Span<'_>, Span<'_>) {
-        (self.span_at(lo), self.span_at(hi))
+    /// originates, and each end borrows this vector, so there is
+    /// nothing for a caller to re-check and no second vector for either
+    /// end to be paired against. Iterate the interior with
+    /// `first.index() + 1 ..= last.index()` and [`KnotVector::span`],
+    /// which refuses the empty spans in between.
+    pub fn span_range(&self, range: ParamRange) -> (Span<'_>, Span<'_>) {
+        let (start, end) = range.ends();
+        (self.span_of(start), self.span_of(end))
     }
 
     /// Whether `span` is a **nonempty** span (`knots[span] <
     /// knots[span+1]`). Interior knot multiplicities create empty
     /// spans; their basis denominators are zero, so evaluation treats
-    /// them as invalid (poison). [`KnotVector::find_span`] never
+    /// them as invalid (poison). [`KnotVector::span_at`] never
     /// returns one — every parameter `t`, including a repeated knot
     /// value `u` itself, is assigned to the nonempty span *starting*
     /// at it — so multi-span hull iteration skips empty spans without
@@ -715,8 +871,9 @@ impl KnotVector {
 
     /// The validated [`Span`] at `index`, or `None` when the index is
     /// out of range or names an **empty** span (interior knot
-    /// multiplicity). This and [`KnotVector::span_at`] are the only
-    /// ways to obtain a `Span`.
+    /// multiplicity). This and the locators ([`KnotVector::span_of`],
+    /// and [`KnotVector::span_at`] and [`KnotVector::span_range`] over
+    /// it) are the only ways to obtain a `Span`.
     pub fn span(&self, index: usize) -> Option<Span<'_>> {
         if index < self.first_span() || index > self.last_span() || !self.span_is_nonempty(index) {
             return None;
@@ -733,23 +890,39 @@ impl KnotVector {
         })
     }
 
-    /// [`KnotVector::find_span`] as a validated [`Span`] — total on all
-    /// of `f64` for exactly the reasons `find_span` is (see its docs:
-    /// out-of-domain clamps to an end span, NaN lands on the first).
-    pub fn span_at(&self, t: f64) -> Span<'_> {
-        // The search runs in window coordinates, so its result *is* the
-        // window's first control point: there is no subtraction to
-        // check and no `Option` to discharge. Nonemptiness comes from
-        // the same three exits `find_span` documents — the clamped ends
-        // are nonempty by the end-multiplicity invariant, and the
-        // search maintains `knots[i] ≤ t < knots[i + 1]` strictly.
-        let first_control = self.span_offset(t);
+    /// Locates the span containing `t`: the index `i` with
+    /// `knots[i] ≤ t < knots[i+1]` (half-open), the **last** span
+    /// closed — the fixed tie-break: at an interior knot value the
+    /// returned span is the one *starting* there (the last copy's
+    /// span, which is nonempty by the multiplicity invariant).
+    ///
+    /// `None` exactly when `t` is NaN: a NaN names no place in the
+    /// domain, so it has no span, and poison never chooses structure.
+    /// Every number has one: `t` below the domain returns the first
+    /// span and `t` at or above the domain end the last (each then
+    /// evaluates the span's polynomial extension — the documented
+    /// garbage-out contract of `eval_in_span`).
+    pub fn span_at(&self, t: f64) -> Option<Span<'_>> {
+        Param::new(t).map(|t| self.span_of(t))
+    }
+
+    /// [`KnotVector::span_at`] for a value that is a number by type:
+    /// total, with the same clamping and tie-break.
+    pub fn span_of(&self, t: Param) -> Span<'_> {
+        self.span_from_offset(search_offset_in(&self.knots, self.degree, t))
+    }
+
+    /// The [`Span`] at a search result. The search runs in window
+    /// coordinates, so its result *is* the window's first control
+    /// point: there is no subtraction to check. Nonemptiness comes from
+    /// the search's exits — the clamped ends are nonempty by the
+    /// end-multiplicity invariant, and the search maintains
+    /// `knots[i] ≤ t < knots[i + 1]` strictly.
+    fn span_from_offset(&self, first_control: usize) -> Span<'_> {
         let index = first_control + self.degree;
-        // In-range is structural above; nonemptiness is still an
-        // argument, and it is the one the basis denominators rest on.
-        // Keep it a postcondition with teeth: an empty span here would
-        // otherwise divide by a zero knot difference and poison
-        // silently, where the `span()` route returned `None`.
+        // Nonemptiness is the argument the basis denominators rest on:
+        // an empty span here would divide by a zero knot difference and
+        // poison silently, where the `span()` route returned `None`.
         debug_assert!(
             self.span_is_nonempty(index),
             "span_at located an empty span {index}"
@@ -832,7 +1005,8 @@ impl KnotVector {
     pub(crate) fn interior_knot_runs(
         &self,
     ) -> impl DoubleEndedIterator<Item = (InteriorKnot, usize)> + Clone + '_ {
-        runs_in(self.interior()).map(|(v, m)| (InteriorKnot(v), m))
+        // A clamped vector's knots are finite, so each is a `Param`.
+        runs_in(self.interior()).filter_map(|(v, m)| Some((InteriorKnot(Param::new(v)?), m)))
     }
 
     /// `u` as an [`InteriorKnot`] of this vector — strictly inside
@@ -842,7 +1016,8 @@ impl KnotVector {
     /// because `u > lo` is false for it.
     pub(crate) fn interior_knot(&self, u: f64) -> Option<InteriorKnot> {
         let (lo, hi) = self.domain();
-        (u > lo && u < hi).then_some(InteriorKnot(u))
+        let u = Param::new(u)?;
+        (u.get() > lo && u.get() < hi).then_some(InteriorKnot(u))
     }
 
     /// Every knot run, **including the two clamps**, as
@@ -924,7 +1099,7 @@ impl KnotVector {
 /// interior-multiplicity check — the last of which runs *before* a
 /// `KnotVector` exists, so it cannot go through either method, exactly
 /// as the pre-`KnotVector` span search cannot go through
-/// [`KnotVector::find_span`] and goes through [`span_offset_in`]
+/// [`KnotVector::span_of`] and goes through [`search_offset_in`]
 /// instead.
 ///
 /// Runs are cut on **exact `f64` equality**: knots are structure, and
@@ -947,94 +1122,54 @@ fn runs_in(sorted: &[f64]) -> impl DoubleEndedIterator<Item = (f64, usize)> + Cl
 }
 
 /// The span **offset above `degree`** located for `t` in a clamped knot
-/// list — the one span search for **clamped** vectors, shared by
-/// [`KnotVector::span_at`] and by the knot-algebra paths that hold a
+/// list — the span search for **clamped** vectors, shared by
+/// [`KnotVector::span_of`] and by the knot-algebra paths that hold a
 /// raw list mid-mutation and so have no [`KnotVector`] to ask.
 ///
-/// It is not the tree's only span search, and the other one is not a
-/// duplicate: `geom-brep`'s `props::quad::raw_span` locates spans in
-/// knot lists a `KnotVector` **cannot represent** — a derivative
-/// direction whose interior multiplicity exceeds its own degree, which
-/// [`KnotVector::clamped`] refuses. The preconditions below do not hold
-/// there, and the answers genuinely differ: this search maintains a
-/// bracket that may name an empty span, where `raw_span` skips empty
-/// spans by construction and clamps into a coefficient-count-derived
-/// range. Two searches, two domains, one of them outside this type.
+/// It is [`last_at_or_below`] over the span starts
+/// `knots[degree ..= degree + last]`, clamped to the first span below
+/// the domain. At or above the domain end it lands on the last span
+/// because the slice stops at that span's start; at an interior knot it
+/// lands on the run's last copy, the nonempty span starting there.
+/// `geom-brep`'s `props::quad::raw_span` is the same search with its
+/// own clamping, over knot lists a `KnotVector` cannot represent (a
+/// derivative direction whose interior multiplicity exceeds its own
+/// degree): it clamps into a coefficient-count range and steps back
+/// off a trailing empty span.
 ///
 /// **Preconditions, and what a violation costs.** Taking a slice rather
 /// than `&self` moves two facts from *guaranteed by the type* to
-/// *required of the caller*, and they are the facts the indexing rests
-/// on: `knots.len() ≥ 2·degree + 2` (a shorter slice underflows
-/// `last`), and `knots` non-decreasing (otherwise the search's
-/// maintained bracket is meaningless and the answer is arbitrary — in
-/// range, but wrong). Both are strictly weaker than [`KnotVector`]'s
-/// construction invariant, so a `KnotVector`'s own knots always satisfy
-/// them; the raw knot-algebra paths satisfy them because they start
-/// from a `KnotVector`'s knots and only insert interior values.
-///
-/// **A violation of the first one panics**, and it is worth naming what
-/// kind: `knots.len() - 2·degree - 2` is `usize` arithmetic, so a short
-/// slice underflows — a debug panic, and in release (the workspace sets
-/// no `overflow-checks`) it wraps to a huge span count and the very
-/// next index runs off the end. That is neither poison nor a typed
-/// refusal, which is the concrete price of holding by convention what
-/// the type was holding by construction. It is why the two doors below
-/// are crate-internal rather than a matter of documentation. This is
-/// not a public door — [`find_span_in`] is `pub(crate)` and
-/// `span_offset_in` is private — so the obligation cannot escape the
-/// crate. Widening either to `pub` is what would change that, and would
-/// want the borrow [`Span`] carries.
-///
-/// Total on all of `f64` with [`KnotVector::find_span`]'s three
-/// documented behaviours — below-domain and NaN give the first span, at
-/// or above the domain end gives the last — because it *is* that
-/// function's body.
-// The `!(t > …)` guard is deliberate: the negated form routes NaN to
-// the first span, where `t <= …` would be false for NaN and fall
-// through into the binary search with a broken invariant.
-#[allow(clippy::neg_cmp_op_on_partial_ord)]
-fn span_offset_in(knots: &[f64], degree: usize, t: f64) -> usize {
+/// *required of the caller*: `knots.len() ≥ 2·degree + 2` (a shorter
+/// slice underflows `last`), and `knots` non-decreasing (otherwise the
+/// answer is in range but arbitrary). Both are strictly weaker than
+/// [`KnotVector`]'s construction invariant, so a `KnotVector`'s own
+/// knots always satisfy them; the raw knot-algebra paths satisfy them
+/// because they start from a `KnotVector`'s knots and only insert
+/// interior values. A short slice underflows `usize` arithmetic — a
+/// debug panic, a wrapped index in release — which is why the doors
+/// over a raw slice ([`find_span_in`]) stay crate-internal. NaN is not
+/// a precondition: `t` is a [`Param`].
+fn search_offset_in(knots: &[f64], degree: usize, t: Param) -> usize {
     // `last` is the span count, len − 2·degree − 2: non-negative by
     // the construction invariant len ≥ 2(degree + 1).
     let (p, last) = (degree, knots.len() - 2 * degree - 2);
-    // NaN and below-domain both fail this test → first span.
-    if !(t > knots[p]) {
-        return 0;
-    }
-    // Indexing justified: p + last + 1 = len − degree − 1 < len.
-    if t >= knots[p + last + 1] {
-        return last;
-    }
-    // Binary search over span offsets [lo, hi] maintaining
-    // knots[p + lo] ≤ t < knots[p + hi + 1]; both bounds were just
-    // established. Terminates: the window shrinks every step.
-    let (mut lo, mut hi) = (0, last);
-    while lo < hi {
-        let mid = lo + (hi - lo).div_ceil(2);
-        // Indexing justified: 0 ≤ lo < mid ≤ hi ≤ last.
-        if t < knots[p + mid] {
-            hi = mid - 1;
-        } else {
-            lo = mid;
-        }
-    }
-    lo
+    // Indexing justified: p + last = len − degree − 2 < len.
+    last_at_or_below(&knots[p..=p + last], t).unwrap_or(0)
 }
 
-/// [`KnotVector::find_span`] against a raw clamped knot list: the span
-/// index rather than the offset, same tie-break (at an interior knot
-/// value, the span *starting* there), same totality.
+/// [`KnotVector::span_at`] against a raw clamped knot list, at a value
+/// proven strictly interior to its domain: the span index rather than
+/// the offset, same tie-break (at an interior knot value, the span
+/// *starting* there).
 ///
 /// **This is not "the last index `i` with `knots[i] ≤ t`".** The two
 /// coincide on `t ∈ [knots[degree], knots[len − degree − 1])` and
 /// nowhere else: at or above the domain end this returns the last span
-/// while that scan walks on into the trailing clamp, and below the
-/// domain — or at NaN — this returns the first span while that scan
-/// returns whatever it was initialised with. Substituting this for such
-/// a scan is sound only under that half-open precondition, which is the
-/// substituting frame's to state.
-pub(crate) fn find_span_in(knots: &[f64], degree: usize, t: f64) -> usize {
-    span_offset_in(knots, degree, t) + degree
+/// while that scan walks on into the trailing clamp. Substituting this
+/// for such a scan is sound only under that half-open precondition,
+/// which is the substituting frame's to state.
+pub(crate) fn find_span_in(knots: &[f64], degree: usize, u: InteriorKnot) -> usize {
+    search_offset_in(knots, degree, u.0) + degree
 }
 
 /// [`KnotVector::derivative_knot_slice`] on a raw knot slice — the
@@ -1068,6 +1203,30 @@ mod tests {
 
     fn kv(knots: &[f64], p: usize) -> KnotVector {
         KnotVector::clamped(knots.to_vec(), p).unwrap()
+    }
+
+    /// A domain stored reversed or collapsed is not mintable, so a
+    /// consumer metering `d1 - d0` (certify's span meter) sees a positive
+    /// width. The reversal here is in the END runs, which an interior
+    /// order check alone would not reach; `on_domain`'s reversed request
+    /// is `on_domain_refusals_are_typed`'s row.
+    #[test]
+    fn a_reversed_or_collapsed_domain_is_not_mintable() {
+        let bad = |knots: &[f64]| KnotVector::clamped(knots.to_vec(), 1).unwrap_err();
+        assert_eq!(
+            bad(&[1.0, 1.0, 0.0, 0.0]),
+            SplineError::KnotVectorInvalid {
+                reason: KnotVectorIssue::Decreasing { index: 2 }
+            },
+            "reversed end runs"
+        );
+        assert_eq!(
+            bad(&[0.5, 0.5, 0.5, 0.5]),
+            SplineError::KnotVectorInvalid {
+                reason: KnotVectorIssue::StartNotClamped
+            },
+            "collapsed domain"
+        );
     }
 
     #[test]
@@ -1269,30 +1428,37 @@ mod tests {
     }
 
     #[test]
-    fn find_span_half_open_with_closed_last_span() {
+    fn span_at_half_open_with_closed_last_span_and_no_span_at_nan() {
         // Spans: [0,1) → 2, [1,2) → 4 (interior double knot at 1), [2,3] → 5.
         let k = kv(&[0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 3.0, 3.0, 3.0], 2);
+        let at = |t: f64| k.span_at(t).map(Span::index);
         assert_eq!(k.first_span(), 2);
         assert_eq!(k.last_span(), 5);
-        assert_eq!(k.find_span(0.0), 2);
-        assert_eq!(k.find_span(0.999), 2);
+        assert_eq!(at(0.0), Some(2));
+        assert_eq!(at(0.999), Some(2));
         // At the interior knot: the span STARTING there (last copy).
-        assert_eq!(k.find_span(1.0), 4);
-        assert_eq!(k.find_span(1.5), 4);
-        assert_eq!(k.find_span(2.0), 5);
-        // Last span closed; above-domain and below-domain totalize.
-        assert_eq!(k.find_span(3.0), 5);
-        assert_eq!(k.find_span(7.5), 5);
-        assert_eq!(k.find_span(-1.0), 2);
-        // NaN routes to the first span, deterministically.
-        assert_eq!(k.find_span(f64::NAN), 2);
+        assert_eq!(at(1.0), Some(4));
+        assert_eq!(at(1.5), Some(4));
+        assert_eq!(at(2.0), Some(5));
+        // Last span closed; every number out of the domain clamps.
+        assert_eq!(at(3.0), Some(5));
+        assert_eq!(at(7.5), Some(5));
+        assert_eq!(at(-1.0), Some(2));
+        assert_eq!(at(f64::INFINITY), Some(5));
+        assert_eq!(at(f64::NEG_INFINITY), Some(2));
+        // NaN names no place in the domain, so it has no span.
+        assert_eq!(at(f64::NAN), None, "a NaN parameter located a span");
         // Range form — validated ends, compared as the indices they name.
         let range = |lo, hi| {
-            let (a, b): (Span<'_>, Span<'_>) = k.span_range(lo, hi);
+            let r = ParamRange::new(lo, hi).expect("an ordered pair");
+            let (a, b): (Span<'_>, Span<'_>) = k.span_range(r);
             (a.index(), b.index())
         };
         assert_eq!(range(0.5, 2.5), (2, 5));
         assert_eq!(range(1.25, 1.75), (4, 4));
+        assert_eq!(range(-4.0, 9.0), (2, 5), "out-of-domain ends clamp");
+        let d = k.domain_range();
+        assert_eq!((d.start(), d.end()), (0.0, 3.0));
     }
 
     #[test]
@@ -1309,15 +1475,16 @@ mod tests {
     /// **The span search against a definitional oracle**, at every exit
     /// its contract names.
     ///
-    /// [`find_span_in`] and [`KnotVector::find_span`] are one
-    /// expression: both reduce to `span_offset_in(knots, degree, t) +
+    /// [`find_span_in`] and [`KnotVector::span_at`] are one
+    /// search: both reduce to `search_offset_in(knots, degree, t) +
     /// degree`, so no probe can separate them and an assertion that
     /// they agree is satisfied by construction. What CAN go red is the
     /// search itself, so that is what this row drives — a linear scan
     /// written from the documented contract, independent of the binary
     /// search it checks:
     ///
-    /// - below the domain, and at NaN, the **first** span;
+    /// - at NaN, **no** span;
+    /// - below the domain, the **first** span;
     /// - at or above the domain end, the **last** span;
     /// - inside, the unique `i` with `knots[i] ≤ t < knots[i+1]`, ties
     ///   broken toward the span *starting* at a repeated knot.
@@ -1335,16 +1502,17 @@ mod tests {
     #[test]
     fn the_span_search_matches_its_definitional_oracle_at_every_exit() {
         // The contract, written as a linear scan. `first`/`last` are
-        // the span indices, not offsets. The negated comparison is the
-        // NaN route, exactly as in `span_offset_in`.
-        #[allow(clippy::neg_cmp_op_on_partial_ord)]
-        fn oracle(knots: &[f64], degree: usize, t: f64) -> usize {
+        // the span indices, not offsets.
+        fn oracle(knots: &[f64], degree: usize, t: f64) -> Option<usize> {
             let (first, last) = (degree, knots.len() - degree - 2);
-            if !(t > knots[first]) {
-                return first;
+            if t.is_nan() {
+                return None;
+            }
+            if t <= knots[first] {
+                return Some(first);
             }
             if t >= knots[last + 1] {
-                return last;
+                return Some(last);
             }
             let mut got = first;
             for i in first..=last {
@@ -1352,7 +1520,7 @@ mod tests {
                     got = i;
                 }
             }
-            got
+            Some(got)
         }
         // "The last index `i` with `knots[i] ≤ t`" — the scan the
         // `find_span_in` docs say this is NOT.
@@ -1393,17 +1561,24 @@ mod tests {
                 } else {
                     "strictly inside a span"
                 });
-                let got = find_span_in(&knots, p, t);
+                let located = k.span_at(t).map(Span::index);
                 assert_eq!(
-                    got,
+                    located,
                     oracle(&knots, p, t),
                     "p{p} at {t}: the search left its documented contract"
                 );
+                let Some(got) = located else { continue };
                 // Equal BY CONSTRUCTION today — both doors are one
-                // expression. Kept as one line so a future edit that
-                // gives them separate bodies reds here; it is not this
-                // row's evidence, which is the oracle above.
-                assert_eq!(got, k.find_span(t), "p{p} at {t}: the two doors diverged");
+                // search. Kept as one line so a future edit that gives
+                // them separate bodies reds here; it is not this row's
+                // evidence, which is the oracle above.
+                if let Some(u) = k.interior_knot(t) {
+                    assert_eq!(
+                        got,
+                        find_span_in(&knots, p, u),
+                        "p{p} at {t}: the two doors diverged"
+                    );
+                }
                 // The documented divergence, where it applies.
                 if t >= hi {
                     let naive = last_index_at_or_below(&knots, t)
@@ -1458,6 +1633,142 @@ mod tests {
             assert!(
                 RECOURSE_WORDS.iter().any(|w| msg.contains(w)),
                 "no recourse in: {msg}"
+            );
+        }
+    }
+
+    /// The test decides the REAL identity, not the rounded one. This
+    /// vector's interior pair sums to `1 + 2⁻⁵³`, which rounds to
+    /// exactly `lo + hi` — a comparison of rounded sums would admit it.
+    #[test]
+    fn a_pair_whose_rounded_sum_hits_the_midline_still_refuses() {
+        let half_up = f64::from_bits(0.5f64.to_bits() + 1);
+        assert_eq!(
+            0.5 + half_up,
+            0.0 + 1.0,
+            "the rounded sums agree, so only an exact test can tell these apart"
+        );
+        assert_ne!(half_up, 0.5, "the partner really is an ulp off the midline");
+        let e = kv(&[0.0, 0.0, 0.0, 0.5, half_up, 1.0, 1.0, 1.0], 2)
+            .mirror_symmetric()
+            .unwrap_err();
+        assert_eq!(
+            e,
+            KnotMirrorError::AsymmetricPair {
+                index: 3,
+                mirror_index: 4,
+                knot: 0.5,
+                mirror_knot: half_up,
+                lo: 0.0,
+                hi: 1.0,
+            },
+            "an exact-sum test refuses what a rounded-sum test would admit"
+        );
+        assert!(
+            e.to_string().contains("do not sum to 1 exactly."),
+            "the message states the reflection it wanted, evaluated: {e}"
+        );
+    }
+
+    /// A self-paired middle knot is compared against itself, and its
+    /// refusal reads as a midpoint claim rather than as a pair that does
+    /// not sum to itself. The midpoint is accepted.
+    #[test]
+    fn a_self_paired_knot_refuses_as_a_midpoint() {
+        assert_eq!(
+            kv(&[0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).mirror_symmetric(),
+            Ok(()),
+            "the middle knot is the midpoint"
+        );
+        let e = kv(&[0.0, 0.0, 0.0, 0.25, 1.0, 1.0, 1.0], 2)
+            .mirror_symmetric()
+            .unwrap_err();
+        assert_eq!(
+            e,
+            KnotMirrorError::AsymmetricPair {
+                index: 3,
+                mirror_index: 3,
+                knot: 0.25,
+                mirror_knot: 0.25,
+                lo: 0.0,
+                hi: 1.0,
+            }
+        );
+        assert!(
+            e.to_string().starts_with(
+                "knot mirror: the middle knot 3 (0.25) is not the midpoint of [0, 1]."
+            ),
+            "{e}"
+        );
+    }
+
+    /// A domain whose reflection overflows is refused rather than
+    /// answered. Without the guard the scan would not pass vacuously —
+    /// the overflowing head's residual is a NaN and compares equal to
+    /// nothing — it would refuse at index 0 and blame the clamp pair;
+    /// the guard names the domain's defect instead.
+    #[test]
+    fn a_domain_with_no_finite_reflection_refuses() {
+        let (lo, hi): (f64, f64) = (1e308, 1.5e308);
+        assert!(!(lo + hi).is_finite(), "the fixture's reflection overflows");
+        assert!(
+            two_sum(lo, hi).1.is_nan(),
+            "so the residual is a NaN, and an unguarded scan would refuse at index 0"
+        );
+        let e = kv(&[lo, lo, lo, hi, hi, hi], 2)
+            .mirror_symmetric()
+            .unwrap_err();
+        assert_eq!(
+            e,
+            KnotMirrorError::ReflectionNotFinite { lo, hi },
+            "the test refuses a reflection it cannot compute"
+        );
+        assert!(
+            e.to_string().starts_with(
+                "knot mirror: the domain [1e308, 1.5e308] has no finite reflection sum"
+            ),
+            "the refusal names a domain at the ceiling of the range readably: {e}"
+        );
+        // And it refuses a vector that IS its own reflection in ℝ, for
+        // the same reason: the test that would admit it cannot be run.
+        assert_eq!(
+            kv(&[lo, lo, lo, 1.25e308, hi, hi, hi], 2).mirror_symmetric(),
+            Err(KnotMirrorError::ReflectionNotFinite { lo, hi }),
+            "a genuinely symmetric vector whose lo + hi overflows is refused too"
+        );
+    }
+
+    /// Every [`KnotMirrorError`] rendering names exactly one labelled
+    /// repair, like the module's other refusals.
+    #[test]
+    fn every_knot_mirror_error_arm_names_a_recourse() {
+        let pair = |index, mirror_index| KnotMirrorError::AsymmetricPair {
+            index,
+            mirror_index,
+            knot: 0.25,
+            mirror_knot: 0.5,
+            lo: 0.0,
+            hi: 1.0,
+        };
+        let arms = [
+            KnotMirrorError::ReflectionNotFinite {
+                lo: 1e308,
+                hi: 1.5e308,
+            },
+            pair(3, 3),
+            pair(3, 4),
+        ];
+        for arm in &arms {
+            let text = arm.to_string();
+            assert_eq!(
+                test_utils::refusal::recourse_markers(&text),
+                1,
+                "not exactly one labelled repair: {text}"
+            );
+            let lower = text.to_lowercase();
+            assert!(
+                ["supply", "re-express"].iter().any(|w| lower.contains(w)),
+                "no recourse in: {text}"
             );
         }
     }

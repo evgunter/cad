@@ -326,7 +326,7 @@ fn overlapping_roots_still_draw_and_land_a_finding() {
         roots.push(common::insert_into(
             &mut doc,
             pncad::document::Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: common::len(1.0),
                 side: ExtrudeSide::Along,
             },

@@ -162,8 +162,7 @@ use pncad::sweep::{
     revolve, revolved_caps, sweep_body, tube_along_arc,
 };
 use pncad::topo::{
-    AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, Operand, RestZipFrontier,
-    TransformError,
+    AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, Operand, TransformError,
 };
 
 use crate::booleans::{check, expect_seamed, finished, try_union_declared};
@@ -2270,8 +2269,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     );
 
     // 1. The stem is ONE stem. Its two arcs meet on a shared disk —
-    //    an exact coincident planar contact, the crosslap mate — so
-    //    the glue is the M5 S1 declared REST zip if it reaches it.
+    //    an exact coincident planar contact, the crosslap mate, which
+    //    the join builds once declared.
     //
     //    The torus is on the operand gate's KIND roster, and the
     //    crossing layer has a circle × torus root lane: the stem's inner
@@ -2279,19 +2278,24 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    other tube's carrier only outside that face's window, which
     //    the roots certify. So the glue reaches the join, whose germ
     //    pair of the stem's weld cap against the arch's wall (plane ×
-    //    torus, the arch's rim lying in the cap) has no join arm; the
-    //    declared-REST door re-examines the mate and refuses it as a
-    //    zip frontier: its segments run between isolated pierces.
+    //    torus, the arch's rim lying in the cap) reads its frame off
+    //    that rim and has no join arm: the join refuses on the arch's
+    //    wall.
     wall(
         1,
         "glue the two stem arcs into one stem (declared coincident-planar mate)",
         crate::booleans::try_union_declared(stem, arch, tol),
         |e| {
             matches!(
-                e,
-                BooleanError::RestZipUnsupported {
-                    what: RestZipFrontier::SegmentsBetweenIsolatedPierces
-                }
+                *e,
+                BooleanError::CurvedBooleanUnsupported {
+                    operand: Operand::B,
+                    face,
+                    kind: SurfaceKind::Torus,
+                } if matches!(
+                    arch.get_face(face).and_then(|f| arch.get_surface(f.surface)),
+                    Some(pncad::geom::Surface::Torus { .. })
+                )
             )
         },
         "make the stem a single body — and close #968, whose whole content this is",
@@ -4262,18 +4266,25 @@ mod verbs_gate_r1_probes {
         // circle × torus root lane certifies each seam's crossing of the
         // other tube's carrier as lying outside that face's window, so
         // the glue reaches the join, whose germ pair of the stem's weld
-        // cap against the arch's wall (plane × torus) has no join arm,
-        // and the declared-REST door refuses the mate as a zip
-        // frontier. Unconditional: an `if let` here would go quiet
-        // exactly when the refusal's shape changes.
+        // cap against the arch's wall (plane × torus) reads its frame
+        // off the arch's rim lying in the cap and has no join arm: it
+        // refuses on the arch's wall. Unconditional: an `if let` here
+        // would go quiet exactly when the refusal's shape changes.
+        let BooleanError::CurvedBooleanUnsupported {
+            operand: Operand::B,
+            face,
+            kind: SurfaceKind::Torus,
+        } = glued
+        else {
+            panic!("wall 1 stops at the join's plane × torus arm: {glued:?}");
+        };
         assert!(
             matches!(
-                glued,
-                BooleanError::RestZipUnsupported {
-                    what: RestZipFrontier::SegmentsBetweenIsolatedPierces
-                }
+                arch.get_face(face)
+                    .and_then(|f| arch.get_surface(f.surface)),
+                Some(Surface::Torus { .. })
             ),
-            "wall 1 stops at the declared-REST door: {glued:?}"
+            "the arch's face is its tube wall: {glued:?}"
         );
         // **The weld itself has no torus contact to declare**, measured
         // off the two loci: the stem tube's end circle has radius

@@ -66,7 +66,7 @@ fn box_part(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(h),
             side: ExtrudeSide::Along,
         },
@@ -113,7 +113,7 @@ fn slotted_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let (doc, b) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -122,8 +122,8 @@ fn slotted_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: body,
-            b,
+            a: body.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -174,7 +174,7 @@ fn patterned(s: Scene) -> Scene {
     let (doc, pattern) = insert(
         s.doc,
         Node::Pattern {
-            input: s.xf,
+            input: s.xf.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -347,7 +347,7 @@ fn a_mate_read_at_a_part_root_over_the_pattern_holds() {
     let (doc, part) = insert(
         s.doc,
         Node::Part {
-            of: s.pattern,
+            of: s.pattern.into(),
             select: PartSelect::Instance(Formula::count(0)),
         },
     );
@@ -473,7 +473,7 @@ fn an_operand_under_an_empty_boolean_root_refuses_vanished_naming_the_boolean() 
     let (doc, far) = insert(
         doc,
         Node::Extrude {
-            profile: far_profile,
+            profile: far_profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -482,8 +482,8 @@ fn an_operand_under_an_empty_boolean_root_refuses_vanished_naming_the_boolean() 
         doc,
         Node::Boolean {
             op: BooleanOp::Intersect,
-            a: s.xf,
-            b: far,
+            a: s.xf.into(),
+            b: far.into(),
             declare: Vec::new(),
         },
     );
@@ -536,7 +536,7 @@ fn a_poisoned_operand_never_reaches_the_gate() {
     let (doc, _) = insert(
         doc,
         Node::Pattern {
-            input: xf,
+            input: xf.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],

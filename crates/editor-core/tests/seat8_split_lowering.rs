@@ -164,7 +164,7 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 ///
 /// RE-BLESSED, `part_select` ONLY, where JOIN-1's locus matching met
 /// main's shared copy points: each moved it alone — the split halves'
-/// union builds in the chord join rather than the REST zip (JOIN-1), and
+/// union builds in the chord join (JOIN-1), and
 /// an op's copies of one vertex share its point, so the arena order the
 /// digest hashes moved (main) — and the merged tree is neither value.
 ///
@@ -194,9 +194,9 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x1dcb_d2be_97b6_5546u64),
-        ("part_select", 0xcb0a_e229_f99e_729f),
-        ("kitchen_sink", 0x4baa_5973_ef17_d5a2),
+        ("cut_cylinder", 0x5d0713f286ea8bd4u64),
+        ("part_select", 0x9860839ff73afcc3),
+        ("kitchen_sink", 0xc2abf71ebbda8055),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -249,7 +249,7 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
         vec![square(0.5, 0.5, 0.5)],
     );
     let cube = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -257,7 +257,10 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
         origin: [len(0.0), len(0.0), len(z)],
         normal: [scl(0.0), scl(0.0), scl(1.0)],
     }));
-    let split = r.insert(Node::Split { target: cube, tool });
+    let split = r.insert(Node::Split {
+        target: cube.into(),
+        tool: tool.into(),
+    });
     (r, split)
 }
 
@@ -310,7 +313,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0x9654_9034_d09e_5f11,
+        got, 0x4da244313ad3855f,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }
@@ -335,11 +338,11 @@ fn error_of(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> &NodeErrorKi
 fn the_projection_reads_the_two_sided_value_by_role() {
     let (mut r, split) = cube_split_at(5.0);
     let above = r.insert(Node::Part {
-        of: split,
+        of: editor_core::Operand::output(split, SplitHalf::Above.port()),
         select: PartSelect::SplitHalf(SplitHalf::Above),
     });
     let below = r.insert(Node::Part {
-        of: split,
+        of: editor_core::Operand::output(split, SplitHalf::Below.port()),
         select: PartSelect::SplitHalf(SplitHalf::Below),
     });
     let ev = eval::<f64>(&r.doc);

@@ -322,10 +322,9 @@ impl Seats {
             return;
         }
         let plain = usize::from(self.held[0].is_some());
-        let held = doc.node(node);
         let other = 1 - plain;
-        let seat = if admits(held, self.roles[other].wants())
-            && !admits(held, self.roles[plain].wants())
+        let seat = if admits(doc, node, self.roles[other].wants())
+            && !admits(doc, node, self.roles[plain].wants())
         {
             other
         } else {
