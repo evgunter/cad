@@ -1077,7 +1077,7 @@ mod tests {
         use crate::entity::{FaceKey, LoopBoundary};
         use crate::props::{
             FaceRun, QuadLane, corner_of, decide_faces_serially, face_flux, face_loops, rederive,
-            rederive_about, reporting_hook, resolve_face, shell_polygons, vertex_rings,
+            reporting_hook, resolve_face, shell_polygons, vertex_rings,
         };
 
         /// `m · 2^e`, exactly.
@@ -1284,27 +1284,26 @@ mod tests {
             .unwrap()
         }
 
-        /// **All or nothing.** A brick with a disc planted in its top has
-        /// planes bounded by lines and planes bounded by a circle: none of
-        /// its faces takes the polygon route, and its re-derivation is the
-        /// fan route's, bit for bit. The brick alone takes it.
+        /// **All or nothing.** The notch307 prism with a disc planted in
+        /// its top has planes bounded by lines and planes bounded by a
+        /// circle, so no face takes the polygon route: its re-derivation
+        /// is each face's own closed form about the corner, summed in walk
+        /// order, bit for bit. The prism's slanted edges end off their
+        /// vertex points, so a line-bounded plane read as its polygon
+        /// would not match. The prism alone takes the polygon route.
         #[test]
         fn a_shell_with_a_curved_edge_keeps_the_fan_route_bit_for_bit() {
             let tol = Tol::witness();
             let band = Band::linear(tol).unwrap();
             let lane = QuadLane::<f64>::certified();
-            let p = crate::test_support::prism_z::<f64>(
-                &[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)],
-                0.0,
-                1.0,
-                tol,
-            );
+            let notch = [(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (2.0, 1.0), (0.0, 2.0)];
+            let p = crate::test_support::prism::<f64>(&notch, 1.0, tol);
             let mut body = p.body;
             assert!(
                 shell_polygons(&body, lane, &runs(&body, band, tol))
                     .unwrap()
                     .is_some(),
-                "the brick alone is read as its polygons"
+                "the prism alone is read as its polygons"
             );
             let outer = body.get_face(p.top_face).unwrap().outer;
             let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
@@ -1313,8 +1312,8 @@ mod tests {
             crate::test_support::plant_disc_face(
                 &mut body,
                 first,
-                Point3::new(2.0, 2.0, 1.0),
-                1.0,
+                Point3::new(1.0, 0.6, 1.0),
+                0.4,
                 tol,
             );
             let runs = runs(&body, band, tol);
@@ -1323,16 +1322,39 @@ mod tests {
                 "a disc in the top keeps every face off the polygon route"
             );
             let centre = corner_of(&body, lane, &runs).unwrap();
+            let (mut flux, mut area) = (Interval::zero(), Interval::zero());
+            let mut polygon = Interval::zero();
+            for run in &runs {
+                let (face, surface) = resolve_face(&body, run.face);
+                let loops = face_loops(&body, face).unwrap();
+                let (c, _) =
+                    super::super::closed_form(surface, &loops, face.sense, band, centre, None)
+                        .unwrap();
+                flux = flux + c.flux;
+                area = area + c.area;
+                polygon = polygon
+                    + match vertex_rings(&body, face, surface, &loops, lane).unwrap() {
+                        Some(rings) => {
+                            super::super::polygon_face_about(&rings, centre)
+                                .unwrap()
+                                .flux
+                        }
+                        None => c.flux,
+                    };
+            }
             let bits = |x: Interval| (x.is_certified(), x.lo().to_bits(), x.hi().to_bits());
+            assert_ne!(
+                bits(polygon),
+                bits(flux),
+                "the premise: its line-bounded planes read differently as polygons"
+            );
+            let volume = flux / Interval::from_f64(3.0);
             for tight in [false, true] {
                 let got = rederive(&body, band, tol, lane, &runs, tight).unwrap();
-                let fan = rederive_about(&body, band, tol, lane, &runs, Some(centre), tight)
-                    .unwrap()
-                    .unwrap();
                 assert_eq!(
                     (bits(got.volume), bits(got.area), got.recentred),
-                    (bits(fan.volume), bits(fan.area), fan.recentred),
-                    "tight {tight}: the re-derivation is the fan route's"
+                    (bits(volume), bits(area), true),
+                    "tight {tight}: the re-derivation is every face's closed form"
                 );
             }
         }

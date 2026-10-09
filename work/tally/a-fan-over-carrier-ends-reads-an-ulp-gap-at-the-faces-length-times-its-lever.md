@@ -1,7 +1,7 @@
 ---
 id: a-fan-over-carrier-ends-reads-an-ulp-gap-at-the-faces-length-times-its-lever
 kind: issue
-title: The role read fans a planar face with a curved edge, and measures a quadrature face, over its edges' carrier ends, so an ulp gap between consecutive ends reads at the face's length times its lever
+title: In any walk with a face that is not a line-bounded plane, the role read fans every face, line-bounded planes included, over its edges' carrier ends, so a gap between consecutive ends reads at the face's length times its lever
 status: open
 opened: 2026-10-09
 priority: P2
@@ -42,16 +42,21 @@ carries.
 
 ## What PR 4386 changed, and what it left
 
-PR 4386 reads a walk as the polyhedron of its vertex points when **every**
-face is a plane bounded by lines (`props::shell_polygons`). Those loops
-close exactly. Any other walk stays on the fan route unchanged, and a
-row pins that bit for bit
+PR 4386 reads a walk as the polyhedron of its vertex points only when
+**every** face is a plane bounded by lines (`props::shell_polygons`).
+Those loops close exactly. The route is all or nothing, so in any walk
+with one other face, **every** face fans over its carrier ends, the
+line-bounded planes included. That walk's re-derivation is unchanged
+from main. A row checks it bit for bit against each face's own closed
+form summed in walk order, on a fixture whose slanted edges end off
+their vertex points
 (`quad_lane::tests::polygon_tests::a_shell_with_a_curved_edge_keeps_the_fan_route_bit_for_bit`).
-So, for every walk with one face that is not a line-bounded plane, the
-class is exactly as it was on main. The fan sites are:
+So, for a mixed walk, the class is exactly as it was on main. The fan
+sites are:
 
-- `quad_lane::planar_face_about`: a plane with an arc, ellipse or spline
-  edge;
+- `quad_lane::planar_face_about`: every plane in a mixed walk, both
+  the planes bounded by lines and the planes with an arc, ellipse or
+  spline edge;
 - `quad_lane::closed_form`'s `about_centre`, through `loops_vector_area`:
   a quadrature face whose lane refused about the centre;
 - `quad_lane::cut_face_rounds`: the cylinder's position term
@@ -66,14 +71,6 @@ contribution between them. It has to cover every face of a walk at once,
 because a line edge read as its vertices on one side and as its
 carrier's ends on the other opens a gap of the same order.
 
-## Also measured: the width of a long face in a general orientation
-
-On the polygon route a face's width is the cross product's rounding,
-about `|p − a|·|q − a|·2⁻⁵²` per fan triangle, times the lever. On the
-probe's poses every long face lies in a coordinate plane or close to it,
-and all 74 runs that straddled decide. On a 2 m face in a general
-orientation the width is about `L³·2⁻⁵²`, about 2e-15 m³ at `L = 2 m`,
-which is past the volume of a wedge thinner than about 1e-7 m. The
-`mapped_cube` fixture cannot build such a wedge at ε = 1e-12
-(`newell_plane_residual` escalates at w = 1e-7), so this is a bound with
-no witness.
+The polygon route's own width on a long face in a general orientation
+is a separate question, with no gap involved:
+`work/tally/the-polygon-routes-width-on-a-long-face-in-a-general-orientation-is-l-cubed-ulps`.

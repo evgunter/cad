@@ -1279,8 +1279,9 @@ struct Rederived {
 /// first point (`quad_lane::planar_face_about`,
 /// `quad_lane::polygon_face_about`), and where a loop's points stand off
 /// their plane two bodies storing one boundary from different first
-/// points re-derive values that differ by up to `Σ δ·Σ|T|` over those
-/// faces, `|T|` the unsigned areas of a face's fan triangles — within the
+/// points re-derive values that differ by up to
+/// `Σ_f δ_f·(Σ|T^a| + Σ|T^b|)` over those faces, `|T^a|` and `|T^b|` the
+/// unsigned areas of face `f`'s fan triangles from either first point — within the
 /// band's metering of a sign, not of a bound read at the exact band. On
 /// the polygon route ([`shell_polygons`]) that is the whole difference; on
 /// the fan route the loops' gaps at their carrier ends add their own
