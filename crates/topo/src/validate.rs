@@ -5495,12 +5495,18 @@ pub(crate) enum MaterialArmOutcome {
     },
 }
 
-/// Check 4's material reads at each station of the edge-level
+/// **The material arm's per-station reads**, taken inside the
 /// second-order walk ([`geom_brep::second_order_walk`]): the faces'
-/// material pairing before the station's second-order decision, and
+/// material pairing before each station's second-order decision, and
 /// the wedge end after a `Positive` one. A read that escalates stops
 /// the walk with its cause, which the caller reports.
-struct MaterialStations<'s, T: Real> {
+///
+/// The one home of those reads: check 4 walks an edge's
+/// [`geom_brep::interior_stations`] with it and reports a stop as
+/// `SliverDihedral`; `boolean::rim_wedge` walks a closed rim's every
+/// uniform phase with it and returns a stop through `?`. Both fold the
+/// flags through [`MaterialStations::outcome`].
+pub(crate) struct MaterialStations<'s, T: Real> {
     s_plus: &'s Surface<T>,
     sense_plus: bool,
     s_minus: &'s Surface<T>,
@@ -5510,6 +5516,41 @@ struct MaterialStations<'s, T: Real> {
     aligned: bool,
     side: Option<MaterialWedge>,
     side_mixed: bool,
+}
+
+impl<'s, T: Real> MaterialStations<'s, T> {
+    /// No station read yet: both pairings still possible, no end seen.
+    pub(crate) fn new(
+        s_plus: &'s Surface<T>,
+        sense_plus: bool,
+        s_minus: &'s Surface<T>,
+        sense_minus: bool,
+        band: Band,
+    ) -> Self {
+        Self {
+            s_plus,
+            sense_plus,
+            s_minus,
+            sense_minus,
+            band,
+            opposed: true,
+            aligned: true,
+            side: None,
+            side_mixed: false,
+        }
+    }
+
+    /// The stations' flags folded by [`material_arm_outcome`], given
+    /// whether the walk found the contact jet-determinate.
+    pub(crate) fn outcome(&self, jet_determinate: bool) -> MaterialArmOutcome {
+        material_arm_outcome(
+            self.aligned,
+            self.opposed,
+            jet_determinate,
+            self.side,
+            self.side_mixed,
+        )
+    }
 }
 
 impl<T: Decide> geom_brep::StationHook<T> for MaterialStations<'_, T> {
@@ -5566,20 +5607,10 @@ impl<T: Decide> geom_brep::StationHook<T> for MaterialStations<'_, T> {
     }
 }
 
-/// The material arm's fold: the flags one edge's sample loop
-/// accumulates, resolved into the ONE outcome that edge earns.
-///
-/// **Two callers accumulate those flags on two different sample
-/// schedules, deliberately.** This pass walks an EDGE — an open arc
-/// whose endpoints are vertices other rules already classify — so it
-/// samples the interior, `1..CERT_SAMPLES-1`. `boolean::rim_wedge`
-/// walks a cross-operand RIM, a closed circle with no endpoint to
-/// exclude, so every station is interior to it and it takes all
-/// `CERT_SAMPLES` at uniform phase. The fold itself is schedule-blind —
-/// it reads flags, not samples — which is what lets one function serve
-/// both; the divergence is in what "interior" means for an arc versus a
-/// circle, and it is named at both ends so neither can drift into
-/// looking like the other's bug.
+/// The material arm's fold: the flags [`MaterialStations`]
+/// accumulates over one contact's stations, resolved into the ONE
+/// outcome that contact earns. Schedule-blind: it reads flags, not
+/// samples.
 ///
 /// Total and pure, which is the point. Two of its input states —
 /// a pairing that split (`aligned == opposed`) and a wedge end that
@@ -6487,11 +6518,10 @@ pub(crate) fn tier3_local_checks_marked<
         let chord = p_start.distance(p_end);
         let (t0, t1) = curve.params();
         let extent = geom_brep::edge_extent(curve.carrier(), t0, t1, chord);
-        // The interior schedule samples, evaluated once (D9: the same
-        // parameters certification used) and shared by checks 4 and 5.
-        let samples: Vec<_> = geom_brep::interior_stations(curve.carrier(), t0, t1)
-            .map(|(p, _)| p)
-            .collect();
+        // The interior schedule's stations, evaluated once (D9: the same
+        // parameters certification used) and shared by checks 4 and 5
+        // and check 4's second-order walk.
+        let samples: Vec<_> = geom_brep::interior_stations(curve.carrier(), t0, t1).collect();
         // Check 4: dihedral — plus the prefer-intrinsic enforcement
         // (D2; ratified 2026-07-19): reusing the SAME per-sample
         // classifications (never classifying twice), an edge whose
@@ -6525,7 +6555,7 @@ pub(crate) fn tier3_local_checks_marked<
         let mut all_transverse = true;
         let mut all_smooth = true;
         if !nurbs_adjacent {
-            for &p in &samples {
+            for &(p, _) in &samples {
                 match classify_dihedral(s_plus, s_minus, p, extent, band) {
                     Ok(DihedralClass::Transverse) => all_smooth = false,
                     Ok(DihedralClass::Smooth) => all_transverse = false,
@@ -6627,34 +6657,16 @@ pub(crate) fn tier3_local_checks_marked<
                 Some(face) => face.sense,
                 None => continue, // unreachable on tier-1 input
             };
-            let mut stations = MaterialStations {
-                s_plus,
-                sense_plus,
-                s_minus,
-                sense_minus,
-                band,
-                opposed: true,
-                aligned: true,
-                side: None,
-                side_mixed: false,
-            };
+            let mut stations =
+                MaterialStations::new(s_plus, sense_plus, s_minus, sense_minus, band);
             let walk = geom_brep::second_order_walk(
                 s_plus,
                 s_minus,
-                curve.carrier(),
-                t0,
-                t1,
+                samples.iter().copied(),
                 extent,
                 band,
                 &mut stations,
             );
-            let MaterialStations {
-                opposed,
-                aligned,
-                side,
-                side_mixed,
-                ..
-            } = stations;
             let (jet_determinate, escalation) = match walk {
                 geom_brep::SecondOrderWalk::Determinate => (true, None),
                 // One zero-side station denies the WHOLE edge its
@@ -6681,13 +6693,7 @@ pub(crate) fn tier3_local_checks_marked<
                 });
             }
             if !jet_escalated {
-                arm = Some(material_arm_outcome(
-                    aligned,
-                    opposed,
-                    jet_determinate,
-                    side,
-                    side_mixed,
-                ));
+                arm = Some(stations.outcome(jet_determinate));
             }
             if jet_escalated {
                 ContactMark::Unmarked
@@ -6731,7 +6737,7 @@ pub(crate) fn tier3_local_checks_marked<
             else {
                 continue;
             };
-            for &p in &samples {
+            for &(p, _) in &samples {
                 let residual = (p - origin).dot(normal);
                 match decide("planar_boundary_residual", Margin::of(residual), band) {
                     Ok(Sign::Zero) => continue,

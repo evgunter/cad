@@ -1917,32 +1917,58 @@ fn the_second_order_band_has_three_outcomes_and_they_are_three_answers() {
     );
 }
 
-/// **Check 4 spells no second-order reading of its own.** The validator
-/// reads its stations through `geom_brep::interior_stations` and the
-/// second-order margin through `geom_brep::second_order_walk`, once each,
-/// so the rows that pin the walk speak for tier 3: a loop or a
-/// `"tangent_second_order"` decide inlined back into the validator reds
-/// here.
+/// **Check 4 and the shared-rim routing spell no second-order reading
+/// of their own.** Both read the second-order margin through
+/// `geom_brep::second_order_walk` once, with the material reads in
+/// `validate::MaterialStations`; the validator takes its stations from
+/// `geom_brep::interior_stations`. So the rows that pin the walk and
+/// the hook speak for both: a loop, a `"tangent_second_order"` decide
+/// or a material read inlined back into either file reds here.
 #[test]
-fn check_4_routes_its_second_order_reading_through_the_one_walk() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/validate.rs");
-    let source = test_utils::source::code_and_literals(&std::fs::read_to_string(path).unwrap());
-    for (call, count) in [("second_order_walk(", 1), ("interior_stations(", 1)] {
-        assert_eq!(
-            source.matches(call).count(),
-            count,
-            "the validator calls `{call}` once"
-        );
-    }
-    for spelling in [
+fn check_4_and_the_rim_route_their_second_order_reading_through_the_one_walk() {
+    let read = |file: &str| {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(file);
+        test_utils::source::code_and_literals(&std::fs::read_to_string(path).unwrap())
+    };
+    let walk_spellings = [
         "\"tangent_second_order\"",
         "tangent_second_order(",
         "tangent_jet(",
-    ] {
-        assert!(
-            !source.contains(spelling),
-            "the validator spells `{spelling}` beside the walk"
-        );
+    ];
+    let material_spellings = [
+        "\"material_cusp_side\"",
+        "\"material_wedge_side\"",
+        "classify_material_pairing(",
+        "material_kappa_rel(",
+        "folded_lever_arm(",
+    ];
+    let cases: [(&str, &[(&str, usize)], &[&str]); 2] = [
+        (
+            "src/validate.rs",
+            &[("second_order_walk(", 1), ("interior_stations(", 1)],
+            &walk_spellings,
+        ),
+        (
+            "src/boolean/rim_wedge.rs",
+            &[("second_order_walk(", 1), ("MaterialStations::new(", 1)],
+            &[walk_spellings.as_slice(), material_spellings.as_slice()].concat(),
+        ),
+    ];
+    for (file, calls, spellings) in cases {
+        let source = read(file);
+        for &(call, count) in calls {
+            assert_eq!(
+                source.matches(call).count(),
+                count,
+                "`{file}` calls `{call}` {count} time(s)"
+            );
+        }
+        for spelling in spellings {
+            assert!(
+                !source.contains(spelling),
+                "`{file}` spells `{spelling}` beside the walk"
+            );
+        }
     }
 }
 

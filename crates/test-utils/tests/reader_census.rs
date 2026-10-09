@@ -426,7 +426,7 @@ const LEDGER: &[Entry] = &[
     },
     Entry {
         path: "crates/topo/src/tier3_tests.rs",
-        disposition: Shared, // check 4's one-walk guard over validate.rs, code view
+        disposition: Shared, // the one-walk guard over validate.rs and rim_wedge.rs, code view
     },
     Entry {
         path: "crates/topo/src/validate.rs",

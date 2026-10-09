@@ -30,10 +30,10 @@
 //! over per-sample `classify_material_pairing` and `tangent_jet`
 //! readings, and both are functions of two SURFACES, two face senses,
 //! a point and a direction — no topology at all. So the classification
-//! ports to a cross-operand rim by supplying the rim curve in place of
-//! the edge, and the fold is imported rather than restated: one table,
-//! two callers, and a new wedge row cannot reach one and miss the
-//! other.
+//! ports to a cross-operand rim by supplying the rim's stations in place
+//! of the edge's, and the per-station reads, the walk and the fold are
+//! all imported rather than restated: one table, two callers, and a new
+//! wedge row cannot reach one and miss the other.
 //!
 //! What does NOT port is the rim's own identification. A body's edge
 //! IS its two faces' shared locus; two operands share nothing, so the
@@ -42,7 +42,7 @@
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Vec3};
 
-use crate::validate::{MaterialArmOutcome, material_arm_outcome};
+use crate::validate::{MaterialArmOutcome, MaterialStations};
 use crate::{Body, FaceKey};
 use geom_brep::MaterialWedge;
 
@@ -939,16 +939,18 @@ fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> 
 /// The samples are the certification schedule's
 /// (`geom_brep::CERT_SAMPLES`), taken at uniform phase around the CLOSED
 /// rim starting at its own `u_ref`. **That schedule differs from tier
-/// 3's on purpose and the divergence is named at both ends**: an edge is
-/// an open arc whose endpoints are vertices already classified by other
-/// rules, so the validator samples its interior (`1..CERT_SAMPLES-1`); a
-/// rim is a closed circle with no endpoint to exclude, so every sample
-/// is interior to it and the phase-zero sample is an ordinary point of
-/// the contact, not a boundary site. Sampling `1..n-1` here would drop
-/// two of nine readings for a reason that does not apply. Every sample
-/// must agree either way — a rim whose own samples disagree escalates
-/// rather than being decided by majority, which is the fold's rule and
-/// is imported, not restated.
+/// 3's on purpose**: an edge is an open arc whose endpoints are vertices
+/// already classified by other rules, so the validator samples its
+/// interior (`geom_brep::interior_stations`); a rim is a closed circle
+/// with no endpoint to exclude, so every sample is interior to it and
+/// the phase-zero sample is an ordinary point of the contact, not a
+/// boundary site. Sampling `1..n-1` here would drop two of nine
+/// readings for a reason that does not apply. The schedule is the only
+/// difference: the material arm is tier 3's own per-station reads
+/// (`validate::MaterialStations`) walked through the one
+/// `geom_brep::second_order_walk`, and every sample must agree — a rim
+/// whose own samples disagree escalates rather than being decided by
+/// majority, which is the fold's rule.
 ///
 /// `extent` is the lever arm the angular margins are metered at — the
 /// contact's own reach, so a misalignment is priced as the
@@ -1035,69 +1037,24 @@ pub(crate) fn classify_shared_rim<T: Decide>(
         });
     }
 
-    // ---- The material arm, now validly posed. ----
-    let mut aligned = true;
-    let mut opposed = true;
-    let mut jet_determinate = true;
-    let mut side: Option<MaterialWedge> = None;
-    let mut side_mixed = false;
-    for i in 0..n {
-        let (p, dir) = station(i);
-        let arm = geom_brep::folded_lever_arm(s_plus, s_minus, p, extent);
-        match geom_brep::classify_material_pairing(
-            s_plus,
-            sense_plus,
-            s_minus,
-            sense_minus,
-            p,
-            arm,
-            band,
-        )? {
-            geom_brep::MaterialPairing::Aligned => opposed = false,
-            geom_brep::MaterialPairing::Opposed => aligned = false,
+    // ---- The material arm, now validly posed: check 4's own reads,
+    // walked over the rim's stations. ----
+    let mut stations = MaterialStations::new(s_plus, sense_plus, s_minus, sense_minus, band);
+    let jet_determinate = match geom_brep::second_order_walk(
+        s_plus,
+        s_minus,
+        (0..n).map(station),
+        extent,
+        band,
+        &mut stations,
+    ) {
+        geom_brep::SecondOrderWalk::Determinate => true,
+        geom_brep::SecondOrderWalk::UnderDetermined => false,
+        geom_brep::SecondOrderWalk::InBand(cause) | geom_brep::SecondOrderWalk::Stopped(cause) => {
+            return Err(cause);
         }
-        // The must-carry rule's one spelling: this wedge and the
-        // constructors that mint the descriptions it judges read the
-        // same sagitta under the same predicate name. `arm` above is
-        // the same `folded_lever_arm` the helper folds, recomputed for
-        // the pairing gate that runs first — pure, so identical bits,
-        // and keeping the pairing's escalation ahead of this one.
-        let so = geom_brep::tangent_second_order(s_plus, s_minus, p, dir, extent, band);
-        let jet = so.jet;
-        match so.verdict?.sign {
-            geom_core::Sign::Positive => {}
-            geom_core::Sign::Zero | geom_core::Sign::Negative => {
-                jet_determinate = false;
-                break;
-            }
-        }
-        let signed = geom_brep::material_kappa_rel(jet.kappa_rel, sense_plus);
-        let this = match crate::validate::decide(
-            "material_cusp_side",
-            Margin::sagitta(signed, arm),
-            band,
-        )? {
-            geom_core::Sign::Positive => MaterialWedge::Cusp,
-            geom_core::Sign::Negative => MaterialWedge::Slit,
-            // The same quantity classified definitely nonzero one
-            // decision above, so this cannot honestly land here.
-            // Announced anyway — a state that cannot occur is reported,
-            // never swallowed.
-            geom_core::Sign::Zero => {
-                return Err(Indeterminate {
-                    margin: geom_core::MarginDiag::INVALID,
-                    band,
-                    predicate: Some("material_cusp_side"),
-                    terminal_sliver: false,
-                });
-            }
-        };
-        match side {
-            Some(seen) if seen != this => side_mixed = true,
-            _ => side = Some(this),
-        }
-    }
-    match material_arm_outcome(aligned, opposed, jet_determinate, side, side_mixed) {
+    };
+    match stations.outcome(jet_determinate) {
         MaterialArmOutcome::Wedge(MaterialWedge::Seam) => Ok(RimRouting::Seam),
         // `Transverse` is unreachable from the fold BY CONSTRUCTION —
         // the validator sets it directly off the first-order screen and
@@ -1475,33 +1432,6 @@ mod r2_probes {
             up.expect("the routing answers"),
             down.expect("the routing answers"),
             "a stored sign cannot change a first-order verdict"
-        );
-    }
-
-    /// **The sample schedule is NOT the one the imported fold's other
-    /// caller uses.** `validate.rs` takes `1..CERT_SAMPLES-1` (seven
-    /// INTERIOR schedule parameters); this module takes
-    /// `0..CERT_SAMPLES` (nine uniform phases, the first of which is
-    /// the `u_ref` point).
-    ///
-    /// The divergence is REAL and is kept — an edge is an open arc
-    /// whose endpoints other rules already classify, a rim is a closed
-    /// circle with no endpoint to exclude — so this row stands as
-    /// written and now has the reason recorded at both sites. What the
-    /// fix pass changed is the doc comment it caught: `classify_shared_rim`
-    /// no longer claims to sample interior points only, because phase
-    /// zero is an ordinary point of a closed rim rather than a boundary
-    /// site.
-    #[test]
-    fn r2_the_two_callers_of_the_fold_sample_differently() {
-        let n = geom_brep::CERT_SAMPLES;
-        let mine: Vec<u32> = (0..n).collect();
-        let theirs: Vec<u32> = (1..(n - 1)).collect();
-        println!("[r2] rim_wedge samples {mine:?}; validate check-4 samples {theirs:?}");
-        assert_ne!(mine.len(), theirs.len());
-        assert_eq!(
-            mine[0], 0,
-            "the first rim sample sits at theta = 0, the u_ref point"
         );
     }
 }

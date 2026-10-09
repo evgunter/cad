@@ -453,10 +453,11 @@ fn pair_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point3<T>) -> T 
 /// `DescriptionNotAdjacent`. Every smooth-join arm in the sweep verbs,
 /// the boolean rebuild's smooth seams and the split's section boundary
 /// route here through [`must_carry_over_edge`], which is where the
-/// gate and the verdict policy live; it and the tier-3 validator's
-/// check 4 (`topo::validate`) read the edge's stations through the one
-/// [`second_order_walk`]. `Intersection`-tangency certification and the
-/// boolean rim wedge fold this reading into walks of their own. One
+/// gate and the verdict policy live; it, the tier-3 validator's check 4
+/// (`topo::validate`) and the boolean's shared-rim routing
+/// (`topo::boolean::rim_wedge`) read their stations through the one
+/// [`second_order_walk`]. `Intersection`-tangency certification folds
+/// this reading into a walk of its own. One
 /// hand-rolled sibling remains, issue 1439's work:
 /// `topo::boolean::contact_verify`'s, which meters
 /// `Margin::sagitta(|κ_rel| − drift, arm)` under its own predicate
@@ -514,13 +515,13 @@ pub fn interior_stations<T: Decide>(
     (1..crate::CERT_SAMPLES - 1).map(move |i| carrier.ders1(crate::sample_param(t0, t1, i)))
 }
 
-/// One station of [`second_order_walk`]: the carrier point, and the
+/// One station of [`second_order_walk`]: the contact point, and the
 /// two quantities its second-order margin is read from.
 /// Kernel-internal, as [`second_order_walk`] is.
 #[doc(hidden)]
 #[derive(Clone, Copy, Debug)]
 pub struct Station<T: Real> {
-    /// The carrier point at the schedule parameter.
+    /// The contact point the caller's schedule placed.
     pub p: Point3<T>,
     /// The pair's jet at `p` along the carrier tangent
     /// ([`crate::tangent_jet`]).
@@ -567,36 +568,35 @@ pub enum SecondOrderWalk<B> {
     Stopped(B),
 }
 
-/// **The edge-level second-order walk** — [`tangent_second_order`]'s
-/// reading at every [`interior_stations`] station, in order, where the
-/// first station not `Positive` decides.
+/// **The second-order walk** — [`tangent_second_order`]'s reading at
+/// each of `stations` (a point on the contact and the tangent there),
+/// in order, where the first station not `Positive` decides.
 ///
-/// The one home of the stations and of the walk's decision, which the
-/// must-carry rule ([`must_carry_over_edge`]) and tier 3's check 4
-/// (`topo::validate`) both ask: the constructor that stores a
-/// description and the validator that demands it read one walk, so the
-/// demanded set and the stored set are one set. A caller with reads of
-/// its own at each station — tier 3's material pairing and cusp side —
-/// takes them through `hook`, not a second loop.
+/// The one home of the walk's decision, which the must-carry rule
+/// ([`must_carry_over_edge`]), tier 3's check 4 (`topo::validate`) and
+/// the boolean's shared-rim routing (`topo::boolean::rim_wedge`) all
+/// ask: the constructor that stores a description and the validators
+/// that demand it read one walk, so the demanded set and the stored set
+/// are one set. The caller owns the schedule — an edge passes
+/// [`interior_stations`], a closed rim its every uniform phase — and a
+/// caller with reads of its own at each station (the material pairing
+/// and cusp side) takes them through `hook`, not a second loop.
 ///
-/// The walk assumes the caller has established the edge as smooth
+/// The walk assumes the caller has established the contact as smooth
 /// first-order at every station; it does not gate.
 ///
-/// Kernel-internal: public only for `topo`'s tier 3, and hidden from
-/// the docs of the crates that re-export this one.
+/// Kernel-internal: public only for `topo`, and hidden from the docs of
+/// the crates that re-export this one.
 #[doc(hidden)]
-#[allow(clippy::too_many_arguments)]
 pub fn second_order_walk<T: Decide, H: StationHook<T>>(
     s1: &Surface<T>,
     s2: &Surface<T>,
-    carrier: &geom::Curve3<T>,
-    t0: T,
-    t1: T,
+    stations: impl IntoIterator<Item = (Point3<T>, geom_core::Vec3<T>)>,
     extent: T,
     band: Band,
     hook: &mut H,
 ) -> SecondOrderWalk<H::Break> {
-    for (p, tau) in interior_stations(carrier, t0, t1) {
+    for (p, tau) in stations {
         let station = Station {
             p,
             jet: crate::tangent::tangent_jet(s1, s2, p, tau),
@@ -765,7 +765,14 @@ pub fn must_carry_over_edge<T: Decide>(
     if transverse {
         return MustCarryVerdict::Transverse;
     }
-    match second_order_walk(s1, s2, carrier, t0, t1, extent, band, &mut ()) {
+    match second_order_walk(
+        s1,
+        s2,
+        interior_stations(carrier, t0, t1),
+        extent,
+        band,
+        &mut (),
+    ) {
         SecondOrderWalk::Determinate
             if crate::tangent::tangent_certificate_lane(carrier, s1, s2) =>
         {
@@ -1437,9 +1444,7 @@ mod tests {
         second_order_walk(
             &cylinder(1.0),
             &cylinder(r2),
-            &axis,
-            f(0.0),
-            f(1.0),
+            interior_stations(&axis, f(0.0), f(1.0)),
             f(1.0),
             band(),
             script,
