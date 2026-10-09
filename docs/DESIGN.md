@@ -1321,13 +1321,17 @@ kind mismatch at the door, and a kernel bug anywhere else. A
 part relative to others: two placements of a part are two copies; a
 copy is pinned when its mates and values together leave nothing free,
 and a body's symmetry pins nothing (a value it makes unobservable is
-reported, never refused); a constraint that fixes nothing still free
-refuses as an overconstraint, decided by subgroup algebra (A11 (1))
-without measuring. A value is charted on the two bodies' own
+reported, never refused). Its mates and values are on equal footing,
+and a constraint any of whose equations the others already fix refuses
+as an overconstraint, pinned or not, decided by subgroup algebra
+(A11 (1)) without measuring; where two copies meet beyond what their
+mates fix is a contact like any other, recorded and linted, and its
+recourse is an assertion. A value is charted on the two bodies' own
 coordinates as the placement carries them, so zero is always a valid
 value, and a placement is the only reader of a body's own coordinates,
 reading them only through the freedoms its mates leave. A mate places and never
-checks. The **world** is one undeletable node that copies may be
+checks. A placed copy's frame is not a variable: it is the construction
+its bundle states, which the coincidence door replays like any other. The **world** is one undeletable node that copies may be
 related to like a part; it defines no pose variable, so only a
 placement's mates and export read it, and construction never does. An operation computes in a frame that is
 a function of what it reads and of nothing else, chosen so its
