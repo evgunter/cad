@@ -67,3 +67,17 @@ refused the same lines earlier, `Euler(SelfLoopEdge)`.
 - Its review r2 (`r2_pinch_probes cyl`, on
   `join/pierce-pinch-families-review-r2`): 76 cube ∖ prism lines, e.g.
   `Ltop cyl fib33 psi=0.9 off cp S`.
+
+## The cone wall too (ENCL, the cone join lane's main-red fix, 2026-10-09)
+
+Unreachable on main: the operand gate still refuses a cone. With
+`Cone` put on `boolean_arm_exists` and `revert_arm_exists` locally as
+an experiment (never committed), T1 of
+`crates/sweep/tests/cone_join_lane.rs` (the π/6 cone of
+`a_ring_on_a_cone_face.rs` against its `wedge(0.6)`) refuses ∪ in both
+orders and cone ∖ box with `ResultInvalid { VolumeUncomputable {
+RingOnCurvedFace } }` at every ε. That pose's lune is a ring on the cone
+wall. Its ∩ and box ∖ cone build `SOUND` (volume 0.057152625 and
+215.942847375, against a slice quadrature to 1e-14). The roster flip
+(VERBS-CONE U7) brings this refusal to the public door, so the cone's
+arm of the fix shape is owed by then.
