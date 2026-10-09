@@ -697,7 +697,7 @@ fn profile_of(doc: ProfileDoc, steps: LoopProgram<Formula>) -> (ProfileDoc, Reci
     insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![steps],
             ids: Vec::new(),
         }),
