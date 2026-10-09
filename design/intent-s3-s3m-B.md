@@ -445,3 +445,34 @@ kind's symmetry, a pose of the copy with a pose of what it joins, both read off 
 of what the mates leave free, charted by frames read off geometry, to a scalar variable. A constraint that fixes
 nothing the rest leave free, modulo the shape's stated symmetry, refuses, and so does a mate that would take a
 coordinate a value sets. A copy with anything free outside that symmetry is loose and has no pose."
+
+**Round 8 addendum — Ev on #4324: "it does need to be set explicitly, but 0 … is always a valid value".**
+- **`Uncharted` dies, and there is one chart.** It comes from the frames the mate's two sides project from.
+  - A face frame's reference is read off geometry when the user gives one (an edge, an axis, a second face).
+  - Otherwise it comes from the body's own construction coordinates (S3P round 8), as DM1's zero spin already does,
+    as a function of the recipe.
+  - So every residual coordinate always has a zero.
+  - **This is not raw coordinates compared.** The two bodies' construction coordinates meet only inside the
+    placement that relates them, which is Ev's "via a placement". They only ever supply a value's zero, never a
+    coincidence verdict, a space, or a reading of the world.
+  - A user who cares about the zero reads the reference off geometry. One who does not gets a deterministic zero,
+    and "doesn't have to think about it".
+- **Every freedom a mate leaves is set by a value, including a spin within a stated symmetry.** For placement, stated
+  symmetry stops exempting anything. Ev's cylinder joined to something asymmetric is why.
+  - The rule becomes: a constraint that fixes nothing the rest leave free refuses (#4325). There is no "modulo".
+  - A copy is pinned exactly when its mates and values cover its whole residual. Otherwise it is loose and has no
+    pose.
+- **The default zero is an omission, not a variable.** The GUI and façade write `0` for each coordinate a new mate
+  frees and the user does not set. It is the constant Ev allows "structurally representing an omission". An edit
+  that sets it mints a variable.
+  - A later mate that takes a coordinate holding an omission-zero removes that value in the same edit. The edit is
+    recorded and shown.
+  - A later mate that takes a coordinate held by a variable refuses, naming it. That is round 8's condition, now
+    exact.
+- **Revised D10 sentence:**
+  - "…a value sets one coordinate of what the mates leave free, in the chart of the frames the mates read (their
+    references read off geometry, or else off each body's construction coordinates, related only through this
+    placement), to a scalar variable, or to `0` where none was given.
+  - A constraint that fixes nothing the rest leave free refuses, and so does a mate that would take a coordinate a
+    variable sets.
+  - A copy whose constraints leave anything free is loose and has no pose."
