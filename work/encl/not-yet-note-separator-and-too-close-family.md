@@ -2,7 +2,8 @@
 id: not-yet-note-separator-and-too-close-family
 kind: issue
 title: recourse::not_yet joins the unreadable note with ': ' and over-claims the table; the too-close-to-call sentence family parallels Indeterminate::undecided
-status: open
+status: dispatched
+branch: encl/not-yet-note-and-undecided-family
 opened: 2026-10-09
 priority: P3
 ---
