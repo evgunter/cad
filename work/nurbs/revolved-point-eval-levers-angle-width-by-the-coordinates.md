@@ -1,7 +1,7 @@
 ---
 id: revolved-point-eval-levers-angle-width-by-the-coordinates
 kind: issue
-title: RevolvedPoint::eval's anchored rotation carries an angle's interval width to the point times the coordinates' magnitude, so interior restrictions still grow at a far placement; the radius-levered spellings cost f64 agreement on origin-axis geometry
+title: RevolvedPoint::eval's anchored rotation carries an angle's interval width to the point times the coordinates' magnitude, so restrictions with an inexact start still grow at a far placement; the radius-levered spellings cost f64 agreement on origin-axis geometry
 status: open
 opened: 2026-10-09
 refs: [mapped-curve-restrict-composes-placements-per-split]
@@ -10,51 +10,56 @@ cost: M
 ---
 
 Found by `nurbs/restrict-in-the-parameter`, which moved
-`MappedCurve::restrict` onto a `SweepRange` (a start and a stored span):
-the placement is kept as built and the range is narrowed. That removed
-the per-split stored rotation. Splits from the start of the range
-(`(0, ½)`, `(0, a)`) no longer grow at all, and every other chain
-measured is within 2× of the composed placement, most well under it
-(pinned by `crates/geom-brep/tests/revolved_point_anchor.rs`
-`splits_from_the_start_do_not_grow_the_stored_width`,
-`interior_and_alternating_splits_stay_under_the_composed_cost` and
-`restriction_is_never_much_wider_than_a_composed_placement`). What still
-grows is one mechanism, and this row is about it.
+`MappedCurve::restrict` onto a `SweepRange`: a sub-range of the whole
+sweep's normalized parameter, stored as a start and a span, with the
+sweep's angle stored once beside it and applied at evaluation. The
+placement is kept as built, so the per-split stored rotation is gone. A
+dyadic split is exact in the normalized parameter, so chains anchored
+at either end (`(0, ½)`, `(½, 1)`, `(0, a)`) store no rounding at all,
+and every chain measured is at or under the composed placement except
+two: `(0.3, 0.7)` far at 1.06× and its quotient form at 1.03×. These are
+pinned by `crates/geom-brep/tests/revolved_point_anchor.rs`
+`restricted_widths_stay_under_their_ceilings`,
+`end_anchored_chains_stay_flat` and
+`restriction_is_no_wider_than_composing_into_the_placement`. What
+still grows is one mechanism, and this row is about it.
 
 **The mechanism.** A split whose start moves by an inexact amount
-rounds the range's start once, at the angle's own ulp (`start +
+rounds the range's start once, at the start's own ulp (`start +
 span·s0`). `MappedCurve::eval` (`crates/geom-brep/src/mapped.rs`) turns
 the point through `Affine3::rotation_about_axis(q, n, θ).transform_point(p)`,
 that is `R·p + (I − R)·q`. At `T = Interval` an angle width `w` therefore
 reaches the point as about `w·(|p| + |q|)`, the coordinates' magnitude,
 not as `w·|p − q|`, the radius about the axis. Far from the origin that
-lever turns one ulp of the angle per split into ~3e-12 per split.
-
-A second mechanism that the PR's first heads had is gone: storing the
-range as two endpoints and evaluating `from·(1 − s) + to·s` multiplied
-the parameter's own width by `|from| + |to|` and never contracted, which
-reached 2.8e-10 on `(0.3, 0.7)` far and 1.1e-7 on alternating `a ±
-1e-13` far. The start-and-span form adds only `|span|·width(s0)` and one
-rounding per split.
+lever turns one ulp of the start per split into ~2e-12 per split, about
+what the composed placement paid per split for its stored rotation.
 
 Measured (Interval; widest of `eval` at `s = 0, ½, 1`; a 1 m-radius rim
 on a `+z` axis, nested `restrict` 64 times; N = 1 / N = 64):
 
-| placement | split | composed placement (main) | start + span, anchored eval (PR) |
+| placement | split | composed placement (main) | normalized range, anchored eval |
 |---|---|---|---|
-| near origin | (0.3, 0.7) | 3.9e-14 / 5.5e-13 | 3.2e-14 / 2.4e-13 |
-| near origin | (½, 1) | 1.8e-14 / 3.0e-13 | 1.0e-14 / 4.4e-13 |
-| (1000, −700, 300) | (0.3, 0.7) | 2.2e-11 / 1.1e-10 | 1.8e-11 / 1.2e-10 |
-| (1000, −700, 300) | (½, 1) | 1.0e-11 / 1.2e-10 | 6.1e-12 / 2.2e-10 |
+| near origin | (0.3, 0.7) | 3.9e-14 / 5.5e-13 | 2.2e-14 / 2.3e-13 |
+| near origin | (½, 1) | 1.8e-14 / 3.0e-13 | 1.0e-14 / 1.1e-13 |
+| (1000, −700, 300) | (0.3, 0.7) | 2.2e-11 / 1.1e-10 | 1.2e-11 / 1.1e-10 |
+| (1000, −700, 300) | (a, 1) | 2.6e-11 / 2.0e-10 | 1.8e-11 / 1.9e-10 |
+| (1000, −700, 300) | (½, 1) | 1.0e-11 / 1.2e-10 | 6.1e-12 / 5.4e-11 |
 | (1000, −700, 300) | (0, ½) | 7.5e-12 / 6.7e-11 | 6.3e-12 / 1.0e-12 |
 
-A flat floor, measured by composing the chain at `f64` and evaluating
-once at an ulp-wide enclosure of the result, is ~1e-11 far and ~2e-14
-near at every N. The gap is the per-split rounding times the lever.
+`(½, 1)` is flat to N = 52 (7.3e-12 far). Past that, `1 − 2⁻ᴺ` is no
+longer an `f64` and the start rounds; by then the range is `2π·2⁻⁵³`
+of turn.
 
-The radius-levered spelling `p − (I − R)(p − q)` (measured on the PR's
-endpoint-form head) held the far `(0.3, 0.7)` chain at 4.5e-13 and far
-`(0, ½)` at 2.3e-13, the coordinates' last ulp.
+The same lever governs `crates/topo/src/offset_axial.rs` `reauthor`'s
+reading of a turned start corner. It reads the corner back through the
+composed placement `(R(φ)·place)⁻¹`, main's spelling. On a placement
+tilted and shifted a thousand metres out (the module's
+`a_turned_start_on_a_tilted_far_placement_*` rows), that reading is
+1.1e-6 to 2.8e-6 wide at `Interval` from exact inputs. Turning the
+corner back on its offset from the axis, `place⁻¹(p − (I − R(−φ))(p −
+q))`, held it at 1.3e-10 to 3.7e-10. At `f64`, though, that spelling
+lands 2.5–3× farther from the corner (1.0e-12 against 3.4e-13 at 1e3;
+7.3e-11 against 2.9e-11 at 1e5), so the composite stays.
 
 **Why the respell is not simply taken.** Two spellings carry the angle
 on the offset `p − q`:

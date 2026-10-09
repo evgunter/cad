@@ -2595,10 +2595,10 @@ fn surface_residual<T: Real>(surface: &Surface<T>, p: Point3<T>, frame: &Frame<T
 /// containing the axis and turns the corner on it out of its old
 /// sketch plane, so each end's out-of-plane coordinate — a length — is
 /// decided: an end still in its plane keeps its azimuth, and an end
-/// turned out of it moves its end of the sweep range by the turn, the
-/// placement staying as built. A start turned onto
-/// its own azimuth and still out of the plane — a sketch plane that
-/// does not contain the axis — refuses typed. Refuses also an arc
+/// turned out of it moves its end of the sweep range by the turn over
+/// the angle, the placement staying as built. A start turned onto its
+/// own azimuth and still out of the plane — a sketch plane that does
+/// not contain the axis — refuses typed. Refuses also an arc
 /// whose moved carrier is no circle to subtend at.
 fn reauthor<T: Decide>(
     mapped: geom_brep::MappedCurve<T>,
