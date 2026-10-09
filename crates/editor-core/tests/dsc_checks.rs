@@ -419,8 +419,8 @@ fn in_band_void_shell_escalates_with_its_valued_ending() {
     );
     assert!(
         rendered.ends_with(&format!(
-            "Recourse: move the parts so they leave no piece or cavity thinner than the \
-             tolerance, or, if this thickness is intended, tighten the tolerance below {below:e} m"
+            "Recourse: move the parts so the pieces and cavities they leave are clearly thick, \
+             or, if this thickness is intended, tighten the tolerance below {below:e} m"
         )),
         "{rendered}"
     );

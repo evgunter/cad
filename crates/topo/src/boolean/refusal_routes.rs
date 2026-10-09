@@ -328,9 +328,12 @@ pub enum BooleanDecision {
     /// names the shell whose reading binds the offer, and how many more
     /// lie in band, each decided by the same tolerance.
     ShellRole {
-        /// The binding shell's solid, in the refused result.
+        /// The binding shell's solid, in the refused result. The result is
+        /// never returned, so this and `shell` are diagnostic only: they
+        /// tell refusals apart, and locate nothing a caller holds
+        /// (`work/join/the-shell-role-refusal-locates-no-piece.md`).
         solid: crate::entity::SolidKey,
-        /// The binding shell.
+        /// The binding shell, diagnostic only as `solid` is.
         shell: crate::entity::ShellKey,
         /// How many more of the result's shells lie in band.
         others: usize,
@@ -841,7 +844,7 @@ const SEAM_WEDGE: SizedDecision = SizedDecision {
 /// ([`BooleanDecision::ShellRole`]): the margin is `V/A`, the shell's
 /// mean thickness, a length, and either definite sign is a role.
 const RESULT_SHELL: SizedDecision = SizedDecision {
-    lever: "move the parts so they leave no piece or cavity thinner than the tolerance",
+    lever: "move the parts so the pieces and cavities they leave are clearly thick",
     size: "thickness",
     passes: SizedPass::NonZero,
     stored: StoredDefinite::Lever,
@@ -2364,8 +2367,8 @@ pub(in crate::boolean) mod tests {
             BooleanDecision::ShellRole { .. } => (
                 "whether a shell of the result bounds material or a cavity",
                 Ending::Sized(
-                    "Recourse: move the parts so they leave no piece or cavity thinner than \
-                     the tolerance",
+                    "Recourse: move the parts so the pieces and cavities they leave are clearly \
+                     thick",
                     SizedPass::NonZero,
                 ),
             ),

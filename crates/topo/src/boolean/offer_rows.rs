@@ -2123,6 +2123,26 @@ fn quoted_margin(text: &str) -> Option<f64> {
     Some(if lo.abs() < hi.abs() { lo } else { hi })
 }
 
+/// **An enclosure quotes its end nearer zero**, on either side: the
+/// offer below it is the one that decides the whole enclosure. The
+/// fixtures' enclosures are an ulp wide, so these are wide on purpose.
+#[test]
+fn a_quoted_enclosure_is_its_end_nearer_zero() {
+    let quote = |enclosure: &str| {
+        quoted_margin(&format!(
+            "whether a shell of the result bounds material or a cavity is undecided: \
+             enclosure {enclosure} cannot be classified against the ambiguity band (1e-9, 1e-8)"
+        ))
+    };
+    assert_eq!(quote("[3e-9, 6e-9]"), Some(3e-9), "the outer side");
+    assert_eq!(quote("[-6e-9, -3e-9]"), Some(-3e-9), "the void side");
+    assert_eq!(
+        quoted_margin("margin 5.5e-9 lies inside the ambiguity band (1e-9, 1e-8)"),
+        Some(5.5e-9),
+        "a point margin"
+    );
+}
+
 /// Whether `got` is `want` to the precision a fixed pose's margin is
 /// computed to.
 fn near(got: f64, want: f64) -> bool {

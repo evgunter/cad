@@ -4731,7 +4731,6 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
             predicate: Some("chk_shell_volume_sign"),
             terminal_sliver: false,
         },
-        sliver: None,
     };
     let render = |source| {
         CheckFinding {
@@ -4902,7 +4901,6 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
                     source: ShellClassifyError::Escalated {
                         shell,
                         source: diag(),
-                        sliver: None,
                     },
                 },
             ),
@@ -4936,7 +4934,6 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
                             margin: MarginDiag::INVALID,
                             ..diag()
                         },
-                        sliver: None,
                     },
                 },
             ),

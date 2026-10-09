@@ -1440,18 +1440,8 @@ impl MarginDiag {
     /// refusal's words, taken here beside the offer it shapes.
     #[must_use]
     pub fn binds_before(self, other: Self) -> bool {
-        self.nearest_zero() <= other.nearest_zero()
-    }
-
-    /// The magnitude of the reading's end nearest zero: zero for an
-    /// enclosure holding it, `−∞` for an unreadable one.
-    fn nearest_zero(self) -> f64 {
-        match self.0 {
-            Reading::Value(m, _) => m.abs(),
-            Reading::Enclosure { lo, hi, .. } if lo <= 0.0 && 0.0 <= hi => 0.0,
-            Reading::Enclosure { lo, hi, .. } => lo.abs().min(hi.abs()),
-            Reading::Invalid => f64::NEG_INFINITY,
-        }
+        let near = |m: Self| m.magnitudes().map_or(f64::NEG_INFINITY, |(near, _)| near);
+        near(self) <= near(other)
     }
 
     /// Where this reading stands against `band`, as the classifier

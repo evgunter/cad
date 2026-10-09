@@ -3734,30 +3734,37 @@ fn finished_body_refusal(errors: Vec<ValidationError>) -> BooleanError {
             .iter()
             .copied()
             .reduce(|a, b| {
-                if a.2.margin.binds_before(b.2.margin) {
+                if a.certified.margin.binds_before(b.certified.margin) {
                     a
                 } else {
                     b
                 }
             })
-            .map(|shell| (shell, shells.len() - 1))
+            .map(|binding| (binding, shells.len() - 1))
     });
     match binding {
-        Some(((solid, shell, diag), others)) => BooleanError::Escalated {
+        Some((binding, others)) => BooleanError::Escalated {
             decision: BooleanDecision::ShellRole {
-                solid,
-                shell,
+                solid: binding.solid,
+                shell: binding.shell,
                 others,
             },
-            diag,
+            diag: binding.certified,
         },
         None => BooleanError::ResultInvalid { errors },
     }
 }
 
-/// A shell of the result certified in band: its solid, its key and its
-/// certified enclosure.
-type InBandShell = (crate::entity::SolidKey, ShellKey, Indeterminate);
+/// A shell of the result certified in band.
+#[derive(Clone, Copy)]
+struct InBandShell {
+    /// Its solid.
+    solid: crate::entity::SolidKey,
+    /// The shell.
+    shell: ShellKey,
+    /// Its certified enclosure of `V/A`, wholly in one sliver band.
+    certified: Indeterminate,
+}
 
 /// **Which of Q1's arms one finding of the finished-body gate is**: the
 /// shell and certified margin of a finding certified in band, or `None`
@@ -3768,19 +3775,25 @@ fn finding_arm(finding: &ValidationError) -> Option<InBandShell> {
     match finding {
         // In band: a shell whose volume over its area, re-derived in
         // interval arithmetic, lies wholly inside one sliver band.
+        // The certificate decides, whatever words the walk's ends gave the
+        // refusal: a walk that read zero is refuted by it.
         V::ShellRoleUndecided {
             solid,
             error:
-                ShellClassifyError::Escalated {
-                    shell,
-                    sliver: Some(certified),
-                    ..
-                },
-        } => Some((*solid, *shell, *certified.reading())),
+                ShellClassifyError::Escalated { shell, .. }
+                | ShellClassifyError::ZeroVolume { shell, .. }
+                | ShellClassifyError::Straddles { shell }
+                | ShellClassifyError::Props { shell, .. },
+            sliver: Some(certified),
+        } => Some(InBandShell {
+            solid: *solid,
+            shell: *shell,
+            certified: *certified.reading(),
+        }),
         // Undecided, and not certified in band: a role read whose
-        // enclosure the arithmetic left wider than the band, poisoned, or
-        // whose ends the walk decided zero or straddling
-        // (`work/join/a-threshold-straddling-in-band-shell-is-typed-the-kernels.md`).
+        // enclosure the arithmetic left wider than the band or straddling
+        // its edge (`work/join/a-threshold-straddling-in-band-shell-is-typed-the-kernels.md`),
+        // or poisoned; or a band that does not form.
         V::ShellRoleUndecided { .. } => None,
         // Undecided at a point margin the gate has not shown conditioned
         // (`work/join/the-door-gates-other-in-band-findings-are-typed-the-kernels.md`).
@@ -5699,8 +5712,20 @@ mod tests {
             error: S::Escalated {
                 shell,
                 source: walk,
-                sliver: sliver.map(Box::new),
             },
+            sliver: sliver.map(Box::new),
+        };
+        // A walk that read zero, refuted by the certificate.
+        let zero_read = |shell: ShellKey, sliver: Option<CertifiedSliver>| V::ShellRoleUndecided {
+            solid: SolidKey::default(),
+            error: S::ZeroVolume {
+                shell,
+                verdict: geom_brep::recourse::Classified {
+                    margin: MarginDiag::value(8.7e-10),
+                    band,
+                },
+            },
+            sliver: sliver.map(Box::new),
         };
         let definite = V::NegativeVolume {
             solid: SolidKey::default(),
@@ -5713,6 +5738,13 @@ mod tests {
             (
                 "thick first",
                 vec![role(shells[1], Some(thick)), role(shells[0], Some(thin))],
+            ),
+            (
+                "the thin one's walk read zero",
+                vec![
+                    role(shells[1], Some(thick)),
+                    zero_read(shells[0], Some(thin)),
+                ],
             ),
         ] {
             let refusal = super::finished_body_refusal(errors);
@@ -5729,6 +5761,7 @@ mod tests {
         }
         for (what, errors) in [
             ("an uncertified escalation", vec![role(shells[0], None)]),
+            ("an uncertified zero", vec![zero_read(shells[0], None)]),
             (
                 "beside one",
                 vec![role(shells[0], Some(thin)), role(shells[2], None)],
