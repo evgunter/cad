@@ -1726,3 +1726,41 @@ fn the_hull_lane_reads_an_uncertified_control_as_escalating() {
         "{got:?}"
     );
 }
+
+#[test]
+fn confirm_probe_where_the_decoration_drops() {
+    use geom_core::{Bounds, Interval};
+    let b = band();
+    let (torus, c) = parallel(Chart::Torus, 0.0);
+    let image = project(&c, None, &torus, b).unwrap();
+    let FramedCarrier::Net(net) = &image.carrier else { unreachable!() };
+    let mut control = net.control().to_vec();
+    control[1].x = f64::NAN;
+    let lifted: Vec<_> = control.iter().map(|p| Interval::from_certified(p.x)).collect();
+    eprintln!("CONFIRM lifted ctl1.x = {:?} certified={}", lifted[1], lifted[1].is_certified());
+    let iv = NurbsCurve3::new(net.knots().clone(), control.iter().map(|p| Point3::new(Interval::from_certified(p.x), Interval::from_certified(p.y), Interval::from_certified(p.z))).collect(), net.weights().to_vec()).unwrap();
+    let kn = image.breaks.knots();
+    let pc = super::super::projected::piece_controls(&iv, kn[1], kn[2]);
+    for (i, (v, w)) in pc.iter().enumerate() {
+        eprintln!("CONFIRM piece0 ctl{i}: x={:?} cert={} w={:?}", v.x, v.x.is_certified(), w);
+    }
+    let m = pc[0].0.x.min(pc[1].0.x);
+    eprintln!("CONFIRM min(ctl0.x, ctl1.x) = {:?} cert={} lo={}", m, m.is_certified(), m.lo());
+}
+
+#[test]
+fn confirm_probe_hull_piece0() {
+    let b = band();
+    let lane = crate::FittedLane::<f64>::certified();
+    let (torus, c) = parallel(Chart::Torus, 0.0);
+    let mut image = project(&c, None, &torus, b).unwrap();
+    let FramedCarrier::Net(net) = &image.carrier else { unreachable!() };
+    let mut control = net.control().to_vec();
+    control[1].x = f64::NAN;
+    let corrupt = NurbsCurve3::new(net.knots().clone(), control, net.weights().to_vec()).unwrap();
+    image.carrier = FramedCarrier::Net(Arc::new(corrupt.clone()));
+    let twin = super::super::orthonormal_chart(&torus);
+    let hull = lane.projected_hull(&image, &corrupt, &twin).unwrap();
+    eprintln!("CONFIRM pieces={} breaks={:?} piece0={:?} piece1={:?}", hull.pieces.len(), image.breaks.knots(), hull.pieces[0], hull.pieces.get(1));
+    eprintln!("CONFIRM net knots={:?}", corrupt.knots().knots());
+}

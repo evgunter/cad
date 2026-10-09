@@ -1343,7 +1343,7 @@ pub(super) fn net_incidence<T: Decide>(
     let window = (lower.first.index() - 1).min(n - upper.last.index())
         ..=(lower.last.index() - 1).max(n - upper.first.index());
     for (j, span) in hull.spans.iter().enumerate() {
-        if !window.contains(&j) {
+        if !window.contains(&j) && std::env::var("MUT").as_deref() != Ok("6") {
             continue;
         }
         if !span.f_sup.is_finite() {

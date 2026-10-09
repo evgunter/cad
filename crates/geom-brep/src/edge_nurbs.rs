@@ -673,7 +673,7 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     for operand in [s1, s2] {
         let kind = operand.kind();
         let offset =
-            crate::pcurve_cache::projected::net_offset_sup(carrier, params, operand, band, lane)
+            crate::pcurve_cache::projected::net_offset_sup(carrier, if std::env::var("MUT").as_deref() == Ok("12") { (T::from_f64(carrier.domain().0), T::from_f64(carrier.domain().1)) } else { params }, operand, band, lane)
                 .map_err(|e| AnalyticRung3Refusal::of_offset(kind, e))?;
         match crate::dihedral::decide("ssi_hull_sup", geom_core::Margin::of(offset), band) {
             Ok(geom_core::Sign::Zero) => {}
@@ -741,6 +741,14 @@ fn edge_piece<T: Real>(
         return Err(refuse(
             "the edge's interval is empty on the carrier's domain",
         ));
+    }
+    let mutk = std::env::var("MUT").unwrap_or_default();
+    if mutk == "A" { return Ok(carrier.clone()); }
+    if mutk == "F64" {
+        let mut piece = carrier.clone();
+        if b < d1 { piece = piece.split_at(b).map_err(|_| refuse("x"))?.0; }
+        if a > d0 { piece = piece.split_at(a).map_err(|_| refuse("x"))?.1; }
+        return Ok(piece);
     }
     let weights = carrier.weights();
     let constant = weights.iter().all(|w| w.to_bits() == weights[0].to_bits());

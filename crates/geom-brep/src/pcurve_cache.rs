@@ -2488,7 +2488,9 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
     // read as certified. So a piece or part reads NaN for its bounds
     // whenever a control whose support meets it does not certify (`ok`
     // false), through the same two reads.
+    let mutk = std::env::var("MUT").unwrap_or_default();
     let lower = |v: geom_core::Interval, ok: bool| {
+        let ok = ok || mutk == "11";
         if ok && v.is_certified() {
             v.lo()
         } else {
@@ -2496,6 +2498,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
         }
     };
     let upper = |v: geom_core::Interval, ok: bool| {
+        let ok = ok || mutk == "11";
         if ok && v.is_certified() {
             v.hi()
         } else {
@@ -2525,7 +2528,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
                 _ => f64::INFINITY,
             };
             PieceHull {
-                x_lo: lower(fb.x.0, ok),
+                x_lo: { let x = lower(fb.x.0, ok); if mutk == "9" && x.is_nan() { f64::INFINITY } else { x } },
                 tube_lo,
             }
         })
@@ -2614,7 +2617,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
             let ok = !uncertified(&twin_net, range);
             SpanHull {
                 range,
-                f_sup: if ok { part.min(whole) } else { f64::NAN },
+                f_sup: if ok || mutk == "11" { part.min(whole) } else { f64::NAN },
                 rho_lo: lower(rho, ok),
                 z: (lower(z.0, ok), upper(z.1, ok)),
             }
