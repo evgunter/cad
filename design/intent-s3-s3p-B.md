@@ -575,3 +575,36 @@ geometry reads of one relation, not a slot. A's "the sign is shape" would add a 
     centre ≅ point leaves rotation about the point, its symmetry, so it is pinned.
   - Cost: `Point` and edge-line mate kinds (the spec's Q5), and a sketch's position on a face is
     said by mates to the face's geometry, the intent its coordinates only implied.
+
+## Round 10: every freedom set explicitly
+
+**1. Confirmed: "pinned within stated symmetry" retires.** Every freedom a mate leaves is set by a
+value (a `Length` or `Angle` variable, 0 by default).
+- **Where zero is.** Zero is where the two sides' own references coincide: for a slide, the
+  carriers' distinguished points; for a spin, their reference directions. Each reference is a
+  function of its body's own construction coordinates, carried by that body's geometry.
+- **Is that allowed?** Yes. A placement relating two bodies' own coordinates through an authored
+  mate and value is the channel Ev allows ("via a placement"). No raw number is compared with
+  another outside one.
+- **What "0 is always valid" needs:** every reference must come from the construction's own axes,
+  not from `orthonormal_basis` in computing axes. Otherwise a spin's zero jumps by a quarter turn
+  when a face tilts across that function's branch threshold. So round 3's
+  `a-minted-reference-direction-follows-the-computing-axes` becomes a prerequisite. A cap or wall
+  takes the profile's x axis, a cylinder's seam the profile's x, and a revolve the profile's axes.
+
+**2. Ev's cylinder with a flag at its far end.** The cylinder is placed with `cap ≅ face`
+(opposed), `axis ≅ hole axis`, and `spin = θ`. At `θ = 0` the cylinder profile's x lies along
+the target's reference; `θ = turn/4` turns the flag a quarter. The value says what it means. The
+stated symmetry keeps one non-semantic role: a display or lint may mark `θ` "unobservable" when
+the placed body's declared symmetry contains it (a bare cylinder). That is reported, never
+refused, and it does not stand in for the value.
+
+**3. `Uncharted`: no conflict, as an interim.** Every freedom is charted by the two sides' own
+references. `Uncharted` is the honest refusal for a reference still minted from computing axes,
+and it retires when the fix in 1 lands. After that, no chart can be missing.
+
+**4. D10 sentence:** "A placement pins a copy by mates and values: each freedom its mates leave is
+set by a `Length` or `Angle` variable, charted by the two sides' own references and zero by
+default, so a copy is pinned exactly when its mates and values cover every freedom. A body's
+symmetry never stands in for a value; a value the symmetry makes unobservable is reported, not
+refused."
