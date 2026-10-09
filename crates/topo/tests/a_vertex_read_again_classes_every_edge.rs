@@ -14,7 +14,9 @@
 //! apex of a pyramid over an L; a saddle, bare and under an arch; a
 //! crown with a thin fin folded at a short edge, bare and buried; a
 //! crown flat but for one corner dented beside a short edge, bare and
-//! buried; and
+//! buried; a pyramid lying on the plate's top, its link along it, beside
+//! pyramids standing, over it, hanging, and sharing its ray along the
+//! top, and with a void in it on that ray; and
 //! near-flat quadrilateral voids, dented 1e-3 and ten zero bands (1e-8
 //! at the default ε) either way, buried with an island and under the
 //! plate's top. Every scene builds in every op and classes every edge
@@ -25,8 +27,8 @@
 use crate::common;
 
 use common::meeting::{
-    MEET, PLATE, Pose, apex_pyramid, at, bearing, corners, fin, mix, near_flat, nest, nest_polygon,
-    posed_box, posed_crown, poses,
+    MEET, PLATE, Pose, along_lying_ray, apex_pyramid, at, bearing, corners, fin, lying, mix,
+    near_flat, nest, nest_polygon, posed_box, posed_crown, poses,
 };
 use geom_core::{Band, Tol, Vec3};
 use std::collections::BTreeMap;
@@ -556,6 +558,34 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
             bearing(250.0, 0.5, -0.5),
             bearing(290.0, 0.5, -0.5),
         ]);
+        // A pyramid lying on the top, its ray along it at 60°, and the
+        // pyramids beside that ray.
+        let lying_b = built("a lying pyramid", union(&plate_b, &p(lying(0.0)), t()));
+        let lying_g = u(plate.clone(), c(lying(0.0)));
+        let along: Vec<_> = along_lying_ray()
+            .into_iter()
+            .map(|(label, base)| (label, pyr(base)))
+            .collect();
+        // A void in the lying pyramid with an edge on its ray: two
+        // partners along the top, one inside the other.
+        let lvoid = mix(
+            lying(0.0),
+            [[0.0, 0.0, 1.0], [0.2, 0.2, 0.6], [0.25, 0.15, 0.6]],
+            0.7,
+        );
+        let hollow_lying_b = built(
+            "a lying pyramid, a void on its ray",
+            union(
+                &plate_b,
+                &built(
+                    "a void on its ray",
+                    subtract(&p(lying(0.0)), &p(lvoid), t()),
+                ),
+                t(),
+            ),
+        );
+        let hollow_lying = u(plate.clone(), dd(c(lying(0.0)), c(lvoid)));
+        let in_lvoid = pyr(nest(lvoid, 0.7));
         let mut scenes = vec![
             ("the arches", pick(&cone), (&arches_b, &arches)),
             ("one standing pyramid", pick(&cone), (&one_b, &one)),
@@ -728,7 +758,38 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
                 pick(&along_unread),
                 (&arch_saddle_b, &arch_saddle),
             ),
+            (
+                "standing beside a lying pyramid",
+                pick(&cone),
+                (&lying_b, &lying_g),
+            ),
+            ("over a lying pyramid", pick(&over), (&lying_b, &lying_g)),
+            (
+                "hanging below a lying pyramid",
+                pick(&hang),
+                (&lying_b, &lying_g),
+            ),
+            (
+                "over a lying pyramid, a void on its ray",
+                pick(&over),
+                (&hollow_lying_b, &hollow_lying),
+            ),
+            (
+                "in a void on a lying pyramid's ray",
+                pick(&in_lvoid),
+                (&hollow_lying_b, &hollow_lying),
+            ),
+            (
+                "hanging below a lying pyramid, a void on its ray",
+                pick(&hang),
+                (&hollow_lying_b, &hollow_lying),
+            ),
         ];
+        scenes.extend(
+            along
+                .iter()
+                .map(|(label, x)| (*label, pick(x), (&lying_b, &lying_g))),
+        );
         // The fin, bare and as a void buried in the block, each against
         // pyramids standing and hanging at three bearings. A pyramid
         // hanging at 10° refuses `CrossingInsertion` in every op, as on

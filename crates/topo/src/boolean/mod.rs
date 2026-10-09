@@ -2408,9 +2408,11 @@ pub enum BooleanError {
     /// first read cannot be taken with the second: it pierces two faces
     /// of the other solid, or pierces one and coincides with a vertex of
     /// it while crossing the face, or while that vertex's link does not
-    /// lie strictly on one side of the face; or, in pairs alone, a
-    /// partner's cone reads nothing beside another partner's
-    /// (`vtxfac::pair_classes`). That other solid holds its
+    /// lie on one side of the face, meeting it along rays at most; or
+    /// where that link runs along the face, beside a sector of its own in
+    /// the face's plane or a sector pair the two read on one plane; or,
+    /// in pairs alone, a partner's cone reads nothing beside another
+    /// partner's (`vtxfac::pair_classes`). That other solid holds its
     /// own contact at the vertex's point: two of its faces meet there in
     /// their interiors, or a vertex of it rests on one of its faces. A
     /// vertex-on-face pass hangs struts at a vertex that crosses the
@@ -4684,6 +4686,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                     Touch {
                         classes: out.classes,
                         datum: out.datum,
+                        flush: out.flush,
                         face: c.face,
                         pairs: Vec::new(),
                     },
@@ -4712,6 +4715,9 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     for &c in &contacts.vv {
         let a_sectors = sectors::build_sectors(&a, Operand::A, c.a, band)?;
         let b_sectors = sectors::build_sectors(&b, Operand::B, c.b, band)?;
+        // A touching vertex's refusal where its partner runs along the
+        // face, should the pair read a coincident sector pair.
+        let mut along = None;
         for (operand, vertex, own, other, partner) in [
             (Operand::A, c.a, &a_sectors, &b_sectors, c.b),
             (Operand::B, c.b, &b_sectors, &a_sectors, c.a),
@@ -4725,20 +4731,32 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             };
             match touches.get_mut(&(operand, vertex)) {
                 Some(touch) => {
-                    let side = vtxfac::partner_side(other, touch.datum, band).ok_or(
-                        BooleanError::VertexReadTwice {
-                            operand,
-                            vertex,
-                            reads: [SectorRead::Pierce(touch.face), SectorRead::Pair(partner)],
-                        },
-                    )?;
-                    pair.side = Some(side);
+                    let face = touch.face;
+                    let refusal = move || BooleanError::VertexReadTwice {
+                        operand,
+                        vertex,
+                        reads: [SectorRead::Pierce(face), SectorRead::Pair(partner)],
+                    };
+                    let read = vtxfac::partner_side(other, touch.datum, touch.flush, band)?
+                        .ok_or_else(&refusal)?;
+                    if read.along {
+                        along.get_or_insert(refusal());
+                    }
+                    pair.side = Some(read.side);
                     touch.pairs.push(pair);
                 }
                 None => paired.entry((operand, vertex)).or_default().push(pair),
             }
         }
         let mut records = sectors::pair_search(&a_sectors, &b_sectors, band)?;
+        // A partner along the face meets the face along an edge of its
+        // own, which the layering reads as no coincidence: a sector pair
+        // on one plane refuses before any declaration is read for it.
+        if let Some(refusal) = along
+            && records.iter().any(sectors::PairRecord::coplanar)
+        {
+            return Err(refusal);
+        }
         // The codes as first read, which the germ loci are derived from.
         let mut raw = records.clone();
         recl::recl_sectors(
@@ -4967,6 +4985,8 @@ struct Touch<T: Real> {
     classes: Vec<(HalfEdgeKey, SideCode)>,
     /// The pierced face's datum they were read against.
     datum: vtxfac::PierceDatum<T>,
+    /// Whether a sector of its pierce lies in the face's plane.
+    flush: bool,
     /// The pierced face.
     face: FaceKey,
     /// Each pair's partner side and rows, in pair order.

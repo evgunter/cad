@@ -838,6 +838,11 @@ pub(super) struct PairRecord {
 }
 
 impl PairRecord {
+    /// Whether every code reads on: the pair lies in one plane.
+    pub(super) fn coplanar(&self) -> bool {
+        self.sa == (SideCode::On, SideCode::On) && self.sb == (SideCode::On, SideCode::On)
+    }
+
     /// Whether this record reaches null-edge insertion: the one test
     /// [`super::insert::plan_null_pairs`] filters its survivors by,
     /// and the reduction reads to tell a vertex pair that crosses from
