@@ -7,7 +7,7 @@ opened: 2026-10-08
 priority: P0
 cost: H
 design: true
-blocked_on: [carriers-compare-in-canonical-form, a-placement-is-the-bundle-of-mates, a-mate-reads-face-variables]
+blocked_on: [carriers-compare-in-canonical-form, a-mate-relates-two-poses, a-mate-reads-face-variables]
 ---
 
 INTENT stage 4, PR H. Spec: `docs/INTENT-STAGE4-SPEC.md` §9. Design open: FORK-S4-5 (a mate-placed face proven through its frame vs a mate rung), reconciled with the stage 3 spec.
@@ -23,3 +23,5 @@ the document, as #4322's door does for any coincidence. So H is "the
 mate fold runs at `Sym`" (`SolveScalar` for `Sym`, the fold's `atan2`
 an opaque symbol per #4322). Measure first whether rung 3 proves
 `turn/4` identities through the fold.
+
+After the stage 3 re-spec (2026-10-09), H waits on stage 3 C (`a-mate-relates-two-poses`), not on the placement unit B. The bundle exists after B, but its mates read poses off geometry only after C. Replaying B's offset frames at `Sym` would be written twice.

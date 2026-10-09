@@ -4,6 +4,9 @@ kind: issue
 title: A pattern's or placed union's Explicit placement list holds raw f64 frames, not variables
 status: open
 opened: 2026-10-07
+rides_with: patterns-are-index-variables
+priority: P0
+cost: E
 ---
 
 `PatternKind::Explicit(Vec<placement::Frame>)` (`crates/editor-core/src/node.rs`,
@@ -27,3 +30,5 @@ pip's position, name it, or share it between two placements. Whether
 the frames become slots of variables (stage 3's `Frame` kind, D10) or
 stay a fixed payload is the program's call; this row records that the
 literal sweep's fence stops here.
+
+Built by stage 3 G (`patterns-are-index-variables`, FORK-PAT row 99). The explicit frames do not become `Frame` variables: no pose is free or written from nothing (FORK-S3P, row 95). Each frame becomes one placement of the master, a `Plane` mate against the face plus the frame's in-plane offsets and spin as values, computed once from the stored frame at migration. The count is six frames in `die_tool.pncad`, not twenty-one.

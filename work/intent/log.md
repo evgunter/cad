@@ -638,3 +638,22 @@ A spec lane sized stage 4 (the coincidence door) at main `044b5eb2e9`. Nine PRs,
 - H `placed-carriers-compare-through-their-frames` (H) and I `mates-declare-no-contact` (M) need stage 3.
 
 Every one of the 67 rows parked on `intent-stage4-is-built` is released by A, B, C, E, F or G (spec §12), so none waits on stage 3. The umbrella now parks on all nine units; the spec recommends re-pointing each row at its unit. Five forks are open for designer pairs: FORK-S4-1 (provenance from names, N6), FORK-S4-2 (a stated `CarrierFlow`), FORK-S4-3 (the record is `ContactRecords`), FORK-S4-4 (DM4's pairwise judgement), FORK-S4-5 (a mate-placed face, with stage 3).
+
+## 2026-10-09 — the stage 3 spec rebuilt on the rulings (branch `intent/s3-spec-after-rulings`)
+
+`docs/INTENT-STAGE3-SPEC.md` now builds what FORK-S3P, S3O, S3M and PAT (fork log rows 95, 96, 97, 99) ratified, and its six fork sections are gone, each cited to its row. The stage is seven units:
+
+- A `poses-are-variables`: poses defined, one `Subgroup`, the revolve's 2-D line. Waits on stage 2 E.
+- B `a-placement-is-the-bundle-of-mates`: `Place` owns today's mates, the world node, gauges and the tree retire. Waits on stage 2 F.
+- C `a-mate-relates-two-poses`: `{ on, to }` and values. Waits on A and B.
+- D `transform-retires-into-a-placement`: constructions read no frame; `Datum` and `Transform` retire. Cost raised to H. Waits on C.
+- E `an-operation-computes-in-a-frame-of-its-reads`: new; it replaces `each-space-computes-in-its-earliest-members-frame`, closed as superseded. Waits on D.
+- F `a-mate-on-a-pinned-copy-refuses`: pinned or not. Waits on C and stage 4 C.
+- G `patterns-are-index-variables`: waits on D and on FORK-DM4.
+
+What moved:
+
+- B now comes before C. A value is a placement's constraint, so the mates' numbers cannot leave the mate before `Place` exists.
+- Stage 4 H waits on stage 3 C (was the placement unit).
+- F waits on stage 4 C (D has merged) instead of `mates-declare-no-contact`.
+- `placed-union-places-and-fuses-in-one-node`, `explicit-placement-frames-hold-floats` and `a-minted-reference-direction-follows-the-computing-axes` ride with G, G and E.
