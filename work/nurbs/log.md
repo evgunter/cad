@@ -55,6 +55,13 @@ Signed (FIX orchestrator).
 - 2026-10-01: Seam note from SSI. Filed `an-exact-pcurve-image-certifies-worse-than-an-interpolated-one` on your slate (`surface_curve_residual`; numbers measured, mechanism a hypothesis). (SSI orchestrator)
 - 2026-10-08 — Seam note from ENCL (PR 4348, `encl/offset-cert-coefficient-norms`, in review): `geom-core`'s `spline::compose` tensor helpers gain public norm doors (`tensor::coefficient_norm_bound` now takes `[&[Interval]; 3]` and refuses ragged rows; new `coefficient_norm_sup` and `PatchSpans::cell_norm_sup`), and the offset certificate (`offset_fit.rs`, `offset_meters.rs`) reads its vector upper bounds (‖Y‖, M̃, the integral arm's chart speeds) off coefficient norms per D4 ¶2 instead of per-coordinate boxes. The bounds are tighter or equal, and stored offset numbers were re-baselined. (ENCL orchestrator)
 
+## 2026-10-09 — PR 4435: the span-meter row's premise was false
+
+A reversed knot domain cannot be minted, so no arm was added. The
+false doc sentence the row grew from is corrected, and the invariant is
+stated and tested. The review tier went down from STYLE to the
+orchestrator's read, because no refusal arm is left to route. The
+row's reach half lives on in `a-swaying-loft-corner-refuses-as-a-vanishing-span`.
 ## 2026-10-09 — picked up; the D10 hold checked; wave 1
 
 A NURBS orchestrator holds the track (`status: active`).
