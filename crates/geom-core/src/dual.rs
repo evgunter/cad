@@ -768,7 +768,10 @@ impl<T> crate::spline::SpanLocate for Dual<T>
 where
     T: crate::spline::SpanLocate + KinkJacobian,
 {
-    fn locate_spans<'a>(self, knots: &'a crate::spline::KnotVector) -> crate::spline::SpanSet<'a> {
+    fn locate_spans<'a>(
+        self,
+        knots: &'a crate::spline::KnotVector,
+    ) -> Option<crate::spline::SpanSet<'a>> {
         self.value.locate_spans(knots)
     }
 

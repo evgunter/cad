@@ -1390,3 +1390,6 @@ coincidence is now a margined verdict (no declarations), checked by the
 - 2026-10-09 — Dispatched P3 `refusal-endings-are-hand-written-twice-per-door` (`encl/one-ending-per-door`).
 - 2026-10-09 — PR 4450 (sweep must-carry escalation) merged at `59cdb05871`; row closed. Its stale `swept::must_carry_reading` reference was fixed in the close-out. Seam notes are posted on band, fuse, carve, carvetail and strut.
 - 2026-10-09 — Dispatched P3 E `piece-sort-offers-to-loosen-the-tolerance-on-a-poisoned-role` (`encl/piece-sort-poisoned-role`). No open PR touches `pieces.rs`.
+- 2026-10-09 — PR 4457 (one ending per door) and PR 4461 (piece-sort poisoned role) were both reviewed: merge, with small fix passes out. Filed `sized-poisoned-ending-ignores-the-reading-and-the-file` (P3 M) from 4461's N1.
+- 2026-10-09 — PR 4457 (one ending per door) merged at `dcff36e784`; row closed. Seam notes are posted on exch, topo, restfront, ssiedge and iso: the `*_in_file` names are gone.
+- 2026-10-09 — Dispatched P3 `sized-poisoned-ending-ignores-the-reading-and-the-file` (`encl/poisoned-sized-ending`). It folds in `too-close-to-call-remainder`'s (c): the poison→note rule gets one home.

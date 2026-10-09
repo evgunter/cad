@@ -2499,7 +2499,7 @@ mod tests {
             panic!("fixture is a NURBS");
         };
         for t in knot_and_span_params(&c) {
-            let span = n.span_at(t);
+            let span = n.span_at(t).expect("a numeric parameter");
             let (p, d) = span.ders1_in_span(t);
             let q = span.eval_in_span(t);
             let e = span.deriv_in_span(t);
@@ -2600,7 +2600,7 @@ mod tests {
             panic!("fixture is a NURBS");
         };
         for t in knot_and_span_params(&c) {
-            let span = n.span_at(t);
+            let span = n.span_at(t).expect("a numeric parameter");
             let (p, d) = span.ders1_in_span(t);
             let (q, e, _) = span.ders_in_span(t);
             for (name, a, b) in [
