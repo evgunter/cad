@@ -4400,7 +4400,7 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                 "FittedBoundaryUnsupported",
                 R::FittedBoundaryUnsupported {
                     edge,
-                    what: "a seam shared with another fitted face",
+                    what: "a row of this fit shared with another fitted face",
                 },
             ),
             (
