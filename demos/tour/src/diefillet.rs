@@ -669,7 +669,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         composed.edges().count(),
         composed.vertices().count(),
     );
-    assert_eq!((cf, ce, cv), (26 + 21 * 3, 48 + 21 * 7, 24 + 21 * 5));
+    // Each pip fillet adds three faces, seven edges and five vertices,
+    // and blend surgery's closing join merges one edge pair per fillet
+    // (one vertex and one edge each).
+    assert_eq!((cf, ce, cv), (26 + 21 * 3, 48 + 21 * 6, 24 + 21 * 4));
 
     vec![
         Stop {
