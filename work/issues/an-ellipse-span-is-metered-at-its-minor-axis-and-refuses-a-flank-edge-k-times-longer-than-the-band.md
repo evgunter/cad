@@ -11,7 +11,10 @@ refs: [a-steep-ellipse-travel-margin-ties-band-apart-sites-and-falls-back-to-the
 
 
 Found by JOIN's steep-ellipse travel row
-(`crates/sweep/tests/a_steep_ellipse_orders_band_apart_sites_along_its_arc.rs`).
+(`crates/sweep/tests/band_apart_partners_on_a_steep_ellipse.rs`), on
+PR 4396's first head. Since that PR's fix pass, the `k = 60` pose
+escalates at the join's travel clearance before it reaches the
+certifier, so no committed row reaches this check now.
 No program claims `crates/geom-brep/src/certify.rs`, hence `issues/`.
 
 ## What

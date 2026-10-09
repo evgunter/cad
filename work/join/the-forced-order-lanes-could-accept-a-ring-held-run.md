@@ -73,3 +73,33 @@ both forced-order lanes (`ring_order`, and the across-edge match in
   volumes.
 
 No run, anywhere, read `RingHeld` or `Separates` at either forced lane.
+
+## 2026-10-09 — the sphere and cone ring lane, searched (fix pass)
+
+The review of PR 4396 found the closure justified as *unreached*, not
+impossible. It also found the sphere and cone `QuadricRing` lane
+unsearched. A probe at that lane (`RoleLane::resolve`, then
+`ring_order`) logged `capture_rank` for the chosen arc and for the other
+one. The search ran every op in both orders: 110 poses, 660 runs.
+
+- **Ball** (the unit ball, poles turned onto `z`):
+  - two- and three-pronged combs through the face round the top,
+    blind and through, turned 0°, 25° and 60°, tilted 0° and 15°
+    (36 poses);
+  - slabs at three heights and three tilts (9);
+  - a box and a square tube, upright and turned 30° (4);
+  - coaxial rods and tubes (6). All 36 runs refused
+    `GermFrameUnsupported`.
+- **Cone**: the same families (55 poses). Every run, 330 of them,
+  refused `CurvedPairUnsupported` before the join, so no public
+  boolean reaches the cone's ring lane today.
+
+There were 192 `QuadricRing` reads and 302 ring-lane reads in all
+(110 planar or wall). Every one was `Clean`, and so was the arc the
+winding rejected. No `RingHeld` or `Separates` was read.
+
+The ball `A ∩ B` comb runs (72) built bodies that fail tier 3′ on
+`CensusUndecidable` between their lumps' sphere caps. They do so
+identically without the fix pass, so they are not the join's. The
+evidence is added to
+`work/orbit/census-backstop-clears-a-curved-pair-only-along-world-axes.md`.

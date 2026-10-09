@@ -74,11 +74,11 @@ run edge that is not a circle.
 ## 2026-10-09 — two parallel walls a dozen bands apart tie the pair order (JOIN)
 
 Found by the steep-ellipse travel row
-(`crates/sweep/tests/a_steep_ellipse_orders_band_apart_sites_along_its_arc.rs`):
+(`crates/sweep/tests/band_apart_partners_on_a_steep_ellipse.rs`):
 a block whose top face has a notch and a finger `12ε` wide across a
-`k = 10` cylinder section. The notch's two walls are parallel planes
-`12ε` apart, and each carries one section arc of chord 0.4767. The two
-chords differ by `1.65ε`, so `find_match` (`nearer`,
+`k = 10` cylinder section (24ε in the committed row). The notch's two
+walls are parallel planes `12ε` apart, and each carries one section arc
+of chord 0.4767. The two chords differ by `1.65ε`, so `find_match` (`nearer`,
 `bool_join_nearest`) escalates choosing which of the two pairs joins
 first, in every op and both orders, at ε 1e-9, 1e-6 and 1e-12 alike
 (margin −1.652e-9 at 1e-9; the pose is sized in bands). Neither pair is

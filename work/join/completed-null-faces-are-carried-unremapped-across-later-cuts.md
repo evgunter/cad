@@ -43,8 +43,14 @@ sides are the slivers its own polygon's chords walled off at its two
 ends, and a completed face is bounded by another polygon's two copies,
 which kemr left once that polygon's last null edge was cut. The joiner
 records each face it completes (`completed`), and a `debug_assert!` at
-the kef refuses one on either side. So any debug run that reaches the
-case goes red there, before the key is read at quiescence.
+the kef refuses one on either side. The workspace keeps `debug_assert`s
+in release too (`Cargo.toml`'s `[profile.release]`
+`debug-assertions = true`), so any run that reaches the case, debug or
+release, goes red there, before the key is read at quiescence.
+
+The reason is argued, not proven. The review of PR 4396 notes it does
+not cover a ring re-homed into a sliver before that sliver completes.
+The assertion is what holds the line.
 
 ## Measured
 
@@ -58,6 +64,12 @@ logged nothing in:
   each);
 - the 323-pose search in the sibling row
   `the-forced-order-lanes-could-accept-a-ring-held-run`.
+
+With the assertion itself live, the fix pass's release runs passed
+too: the sweep suite at ε 1e-9 and 1e-6 (2 474 tests) and 1e-12 (one
+failure, the filed `work/tint/tipped-rod-join-escalates-at-1e-12.md`),
+the same batteries, and the sibling row's 110-pose sphere and cone
+search.
 
 The split sweep shares the joiner and resolves its completed faces at
 once, so only the boolean carries a completed key to quiescence. No
