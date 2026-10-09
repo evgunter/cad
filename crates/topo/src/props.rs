@@ -1018,8 +1018,10 @@ fn rederived<T: Decide>(
 ///
 /// The value enclosed is the divergence sum about `c` over the stored
 /// geometry: each closed-form face's flux about `c` from its surface and
-/// loops lifted exactly and moved by `−c` (a plane by its loops fanned
-/// from one of their points: `quad_lane::planar_face_about`), and each
+/// loops lifted exactly and moved by `−c` (a plane bounded by lines as
+/// the polygons of its vertex points, [`vertex_rings`]; any other plane
+/// by its loops fanned from one of their points:
+/// `quad_lane::planar_face_about`), and each
 /// quadrature face measured again about `c`, at the round the walk
 /// reached (`quad_lane::cut_face_rounds`: a cylinder's position term
 /// taken as `(origin − c)·A⃗`, a patch's control net carried by `−c`).
@@ -1136,8 +1138,14 @@ fn rederive_about<T: Decide>(
             }
             (None, _) => {
                 let at = centre.unwrap_or(Point3::origin());
-                let (c, moved) = (lane.closed_form)(surface, &loops, face.sense, band, at, None)
-                    .map_err(refused)?;
+                let (c, moved) = match vertex_rings(body, face, surface, &loops, lane)? {
+                    Some(rings) => (
+                        quad_lane::polygon_face_about(&rings, at).map_err(refused)?,
+                        true,
+                    ),
+                    None => (lane.closed_form)(surface, &loops, face.sense, band, at, None)
+                        .map_err(refused)?,
+                };
                 recentred &= moved;
                 (c.flux, c.area)
             }
@@ -1150,6 +1158,49 @@ fn rederive_about<T: Decide>(
         area,
         recentred,
     }))
+}
+
+/// A planar face bounded by lines, as its loops' vertex points in
+/// traversal order, lifted through `lane` ([`quad_lane::polygon_face_about`]);
+/// `None` for any other face. The vertex points close every loop and meet
+/// the neighbouring faces' exactly, which the lines' own ends need not:
+/// each line's ends are rounded off its carrier separately, and a fan from
+/// a far anchor reads a gap of an ulp between consecutive ends at the
+/// length of the face times the anchor's distance, past the volume of a
+/// sliver. The polyhedron they bound stands off the stored geometry by
+/// the vertices' in-band distance from their faces' planes.
+fn vertex_rings<T: Decide>(
+    body: &Body<T>,
+    face: &crate::entity::Face,
+    surface: &Surface<T>,
+    loops: &[Vec<LoopEdge<T>>],
+    lane: QuadLane<T>,
+) -> Result<Option<Vec<Vec<Point3<Interval>>>>, MassPropsError> {
+    let lines = loops
+        .iter()
+        .flatten()
+        .all(|e| matches!(e.carrier, geom::Curve3::Line { .. }));
+    if !matches!(surface, Surface::Plane { .. }) || !lines {
+        return Ok(None);
+    }
+    let lift = |p: Point3<T>| Point3::new((lane.lift)(p.x), (lane.lift)(p.y), (lane.lift)(p.z));
+    core::iter::once(&face.outer)
+        .chain(&face.rings)
+        .map(|&lk| {
+            loop_edges(body, lk)?
+                .1
+                .into_iter()
+                .map(|he| {
+                    body.half_edge_start_point(he)
+                        .map(lift)
+                        .ok_or(MassPropsError::Corrupt {
+                            what: "a loop's half-edge has no start point",
+                        })
+                })
+                .collect()
+        })
+        .collect::<Result<_, _>>()
+        .map(Some)
 }
 
 /// A walk's runs re-derived in interval arithmetic ([`rederive`]).

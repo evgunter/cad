@@ -4,6 +4,7 @@ use geom_brep::props::quad::{
 };
 use geom_brep::props::{FaceContribution, LoopEdge, PropsError, loop_vector_area};
 use geom_core::Tol;
+use geom_core::exact::two_sum;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
 // The compound `Decide + Bounds` bound below is a RATIFIED seam
@@ -391,6 +392,59 @@ fn planar_face_about(
         flux: (anchor - centre).dot(va),
         area: va.norm(),
     })
+}
+
+/// A planar face bounded by lines, as the polygons of its vertex points
+/// (`rings`, in traversal order): its flux about `centre` and its area,
+/// at the interval scalar, `(anchor − centre)·A⃗` with `A⃗` the rings
+/// fanned from `anchor`, the first point of the first ring.
+///
+/// Neighbouring faces' rings meet at the same points, so summed over a
+/// shell of such faces they bound a closed polyhedron, and the sum is
+/// its volume however long its edges are against the gaps between its
+/// edges' carrier ends. Every difference of two points is an enclosure
+/// of the real difference ([`difference`]), so the width is the face's
+/// own size times `A⃗`'s, whatever its distance from the world origin.
+pub(super) fn polygon_face_about(
+    rings: &[Vec<Point3<Interval>>],
+    centre: Point3<Interval>,
+) -> Result<FaceContribution<Interval>, PropsError> {
+    let Some(&anchor) = rings.first().and_then(|ring| ring.first()) else {
+        return Err(PropsError::DegenerateFace);
+    };
+    let mut va = geom_core::Vec3::zero();
+    for ring in rings {
+        for (i, &p) in ring.iter().enumerate() {
+            let q = ring[(i + 1) % ring.len()];
+            va = va + difference(p, anchor).cross(difference(q, anchor)) * Interval::point(0.5);
+        }
+    }
+    Ok(FaceContribution {
+        flux: difference(anchor, centre).dot(va),
+        area: va.norm(),
+    })
+}
+
+/// An enclosure of `p − q` in ℝ. Where both coordinates are finite
+/// points, `two_sum` makes the difference exact as a head and a residual,
+/// and their outward sum is as wide as the difference is long, not as
+/// either point is far from the world origin. Elsewhere it is the
+/// interval difference, which a non-finite coordinate poisons.
+fn difference(p: Point3<Interval>, q: Point3<Interval>) -> geom_core::Vec3<Interval> {
+    let at = |a: Interval, b: Interval| match (finite_point(a), finite_point(b)) {
+        (Some(a), Some(b)) => {
+            let (head, residual) = two_sum(a, -b);
+            Interval::point(head) + Interval::point(residual)
+        }
+        _ => a - b,
+    };
+    geom_core::Vec3::new(at(p.x, q.x), at(p.y, q.y), at(p.z, q.z))
+}
+
+/// The `f64` a certified point enclosure holds, where it is finite.
+fn finite_point(x: Interval) -> Option<f64> {
+    let v = x.lo();
+    (x.is_certified() && v == x.hi() && v.is_finite()).then_some(v)
 }
 
 /// The certified flux/area enclosures of one curved-cut face
@@ -1025,6 +1079,185 @@ mod tests {
             assert!(!c.ca.is_certified(), "the violated coefficient survived");
             for (tag, r) in [("c0", c.c0), ("cb", c.cb), ("cl", c.cl)] {
                 assert!(r.is_certified(), "{tag} refused a certified coefficient");
+            }
+        }
+    }
+
+    /// The polygon re-derivation of a planar shell, against its exact
+    /// value: every face's flux enclosure about the shell's least corner
+    /// holds the exact flux of its vertex polygons, fanned from their
+    /// first point, in dyadic arithmetic over the stored `f64`s.
+    #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+    mod polygon_tests {
+        use geom_core::{Bounds, Interval, Point3, Real, Tol};
+        use num_bigint::BigInt;
+
+        use crate::body::Body;
+        use crate::props::{QuadLane, face_loops, resolve_face, vertex_rings};
+
+        /// `m · 2^e`, exactly.
+        #[derive(Clone, Debug)]
+        struct Dyadic {
+            m: BigInt,
+            e: i64,
+        }
+
+        impl Dyadic {
+            fn of(x: f64) -> Self {
+                assert!(x.is_finite(), "a finite coordinate");
+                let bits = x.to_bits();
+                let sign = if bits >> 63 == 1 { -1 } else { 1 };
+                let exp = ((bits >> 52) & 0x7ff) as i64;
+                let frac = bits & ((1 << 52) - 1);
+                let (mant, e) = if exp == 0 {
+                    (frac, -1074)
+                } else {
+                    (frac | (1 << 52), exp - 1075)
+                };
+                Self {
+                    m: BigInt::from(mant) * sign,
+                    e,
+                }
+            }
+            fn add(&self, o: &Self) -> Self {
+                let e = self.e.min(o.e);
+                let shift = |d: &Self| d.m.clone() << (d.e - e) as usize;
+                Self {
+                    m: shift(self) + shift(o),
+                    e,
+                }
+            }
+            fn neg(&self) -> Self {
+                Self {
+                    m: -self.m.clone(),
+                    e: self.e,
+                }
+            }
+            fn mul(&self, o: &Self) -> Self {
+                Self {
+                    m: &self.m * &o.m,
+                    e: self.e + o.e,
+                }
+            }
+            /// `self ≤ o`.
+            fn le(&self, o: &Self) -> bool {
+                o.add(&self.neg()).m >= BigInt::from(0)
+            }
+        }
+
+        type D3 = [Dyadic; 3];
+
+        fn d3(p: Point3<f64>) -> D3 {
+            [Dyadic::of(p.x), Dyadic::of(p.y), Dyadic::of(p.z)]
+        }
+        fn sub(a: &D3, b: &D3) -> D3 {
+            [0, 1, 2].map(|i| a[i].add(&b[i].neg()))
+        }
+        fn cross(a: &D3, b: &D3) -> D3 {
+            let c = |i: usize, j: usize| a[i].mul(&b[j]).add(&a[j].mul(&b[i]).neg());
+            [c(1, 2), c(2, 0), c(0, 1)]
+        }
+        fn dot(a: &D3, b: &D3) -> Dyadic {
+            a[0].mul(&b[0]).add(&a[1].mul(&b[1])).add(&a[2].mul(&b[2]))
+        }
+
+        /// Twice the exact flux of `rings` about `c`, fanned from the
+        /// first point.
+        fn exact_flux2(rings: &[Vec<Point3<f64>>], c: &D3) -> Dyadic {
+            let a = d3(rings[0][0]);
+            let mut va = [0.0, 0.0, 0.0].map(Dyadic::of);
+            for ring in rings {
+                for (i, &p) in ring.iter().enumerate() {
+                    let q = ring[(i + 1) % ring.len()];
+                    let k = cross(&sub(&d3(p), &a), &sub(&d3(q), &a));
+                    va = [0, 1, 2].map(|j| va[j].add(&k[j]));
+                }
+            }
+            dot(&sub(&a, c), &va)
+        }
+
+        /// Every face of `body`'s shells, as `(interval flux, exact
+        /// doubled flux)` about the body's least vertex corner, summed.
+        fn sums(body: &Body<f64>) -> (Interval, Dyadic) {
+            let lane = QuadLane::<f64>::certified();
+            let points: Vec<_> = body.vertex_points().map(|(_, p)| p).collect();
+            let corner = points.iter().fold(points[0], |c, p| {
+                Point3::new(c.x.min(p.x), c.y.min(p.y), c.z.min(p.z))
+            });
+            let centre = Point3::new(
+                Interval::from_f64(corner.x),
+                Interval::from_f64(corner.y),
+                Interval::from_f64(corner.z),
+            );
+            let mut flux = Interval::zero();
+            let mut exact = Dyadic::of(0.0);
+            for (key, _) in body.faces() {
+                let (face, surface) = resolve_face(body, key);
+                let loops = face_loops(body, face).unwrap();
+                let rings = vertex_rings(body, face, surface, &loops, lane)
+                    .unwrap()
+                    .expect("a planar face bounded by lines");
+                let f = super::super::polygon_face_about(&rings, centre).unwrap();
+                flux = flux + f.flux;
+                let rings: Vec<Vec<Point3<f64>>> = rings
+                    .iter()
+                    .map(|r| {
+                        r.iter()
+                            .map(|p| Point3::new(p.x.lo(), p.y.lo(), p.z.lo()))
+                            .collect()
+                    })
+                    .collect();
+                exact = exact.add(&exact_flux2(&rings, &d3(corner)));
+            }
+            (flux, exact)
+        }
+
+        /// A `2 m × w × w` box along a generic direction from `(2, 1, 1)`.
+        fn sliver_box(w: f64, tol: Tol) -> Body<f64> {
+            let long = [1.788_854_382, 0.894_427_191, 0.031_25];
+            let side = [-0.447_213_595, 0.894_427_191, 0.0];
+            let up = [-0.0156, -0.03125, 0.9993];
+            crate::test_support::mapped_cube::<f64>(
+                move |x, y, z| {
+                    let at = |i: usize| {
+                        [2.0, 1.0, 1.0][i] + long[i] * x + side[i] * w * y + up[i] * w * z
+                    };
+                    Point3::new(at(0), at(1), at(2))
+                },
+                tol,
+            )
+        }
+
+        #[test]
+        fn a_planar_shells_polygon_enclosure_holds_its_exact_flux() {
+            let tol = Tol::witness();
+            let notch = [(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (2.0, 1.0), (0.0, 2.0)];
+            let shells: [(&str, Body<f64>); 4] = [
+                (
+                    "a unit brick 5 km out",
+                    crate::test_support::brick((5e3, 5e3 + 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+                ),
+                (
+                    "the notch307 prism",
+                    crate::test_support::prism::<f64>(&notch, 1.0, tol).body,
+                ),
+                ("a 2 m sliver box 1e-4 wide", sliver_box(1e-4, tol)),
+                (
+                    "a 2 m sliver box 1e-4 wide, inside out",
+                    sliver_box(1e-4, tol).revert(),
+                ),
+            ];
+            for (name, body) in &shells {
+                let (flux, exact) = sums(body);
+                let two = Dyadic::of(2.0);
+                let lo = Dyadic::of(flux.lo()).mul(&two);
+                let hi = Dyadic::of(flux.hi()).mul(&two);
+                assert!(
+                    flux.is_certified() && lo.le(&exact) && exact.le(&hi),
+                    "{name}: the enclosure [{:e}, {:e}] holds the exact flux {exact:?}",
+                    flux.lo(),
+                    flux.hi()
+                );
             }
         }
     }
