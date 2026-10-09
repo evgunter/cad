@@ -79,10 +79,12 @@ Rung 3 gains a third candidate source after the vertex ones,
   the face, so its midpoint is inside the face however thin the face
   is. `point_in_face` certifies each candidate as before.
 
-A planar face offers no such witness where, from every edge, the
-nearest boundary along the inward line is a spline or a spiric
-(neither yields meetings), or where the face is narrower than the
-band. The fix does not depend on annuli or on the join: it is the one
+A planar face offers no such witness where, for example, from every
+edge the nearest boundary along the inward line is a spline or a
+spiric (neither yields meetings), or the face is narrower than the
+band. A spurious meeting near `m` (an unbounded line carrier, a
+conic's far side) does not cost the witness: every meeting proposes a
+candidate, so the first exit's midpoint is still among them. The fix does not depend on annuli or on the join: it is the one
 ladder the shell witness, tier 3's check 10 and the pieces sort also
 read. Pinned in `crates/topo/src/stands.rs` `rung_three_rows` and
 `crates/sweep/tests/an_annular_tube_through_a_plate.rs`.

@@ -309,10 +309,11 @@ fn witnessed_curve<T: Decide>(
 /// candidate is `m + (s/2)·w`. The nearest meeting is no farther than
 /// the line's first exit from the face, so its candidate is inside the
 /// face however thin the face is; the others are hints the certifier
-/// may refuse. Spiric and spline carriers yield no meetings, so a face
-/// whose nearest boundary along every such line is one of them offers
-/// none; so does an edge with no certified carrier, or with no
-/// direction at its midpoint.
+/// may refuse. A meeting not finite (a parallel line) or not decided
+/// beyond the band proposes nothing. Spiric and spline carriers yield
+/// no meetings, so a face whose nearest boundary along every such line
+/// is one of them offers none; so does an edge with no certified
+/// carrier, or with no direction at its midpoint.
 fn across_edges<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -348,7 +349,9 @@ fn across_edges<T: Decide>(
     for &(m, w) in &feet {
         for c in &carriers {
             for s in line_meetings(c, normal, m, w) {
-                if crate::validate::definitely_positive("stands_across_meeting", s, band) {
+                if geom_core::is_finite_length(s)
+                    && crate::validate::definitely_positive("stands_across_meeting", s, band)
+                {
                     out.push(m + w * (s * half));
                 }
             }
@@ -359,9 +362,10 @@ fn across_edges<T: Decide>(
 
 /// The parameters `s` at which the line `m + s·w` (unit `w`, in the
 /// plane normal to `normal`) meets carrier `c`, where `c` is a line or
-/// a conic in that plane: the line's one meeting, both roots of a
-/// conic's quadratic (one double root where the line misses it, read at
-/// its nearest approach). Empty for a spiric or a spline.
+/// a conic in that plane: the line's one meeting (not finite where the
+/// two lines are parallel), both roots of a conic's quadratic (one
+/// double root where the line misses it, read at its nearest
+/// approach). Empty for a spiric or a spline.
 fn line_meetings<T: Decide>(
     c: &geom::Curve3<T>,
     normal: Vec3<T>,

@@ -134,6 +134,16 @@ fn every_op(what: &str, tube: Body<f64>, area: f64, z: (f64, f64), known: Known<
                 if known.untriangulated.contains(&op) => {}
             m => bad.push(format!("{row}: the mesh {:?}", m.map(|_| "meshed"))),
         }
+        // The closed form within the quadrature's own certified pad,
+        // which grows with ε; `outcome` reads the volume too, but a
+        // tier-3′-known run is `BAD` whatever its volume.
+        let m = topo::mass_properties(body, tol()).unwrap();
+        if (m.volume - want).abs() > m.volume_pad + 1e-9 * want.max(1.0) {
+            bad.push(format!(
+                "{row}: volume {} ± {}, closed form {want}",
+                m.volume, m.volume_pad
+            ));
+        }
         let line = outcome(r, want, tol());
         let want_line = if known.t3.contains(&op) {
             "OK BAD t2=true t3p=false cert=true operand=true"

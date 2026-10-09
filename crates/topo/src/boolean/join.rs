@@ -3283,8 +3283,8 @@ fn resolve_roles_geometric<T: Decide + crate::props::AtRestPolicy>(
 /// (`work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior`),
 /// or a planar face on each of whose edges the inward line from the
 /// midpoint meets no line or conic carrier beyond the band
-/// (`crate::stands`, rung 3): one whose nearest boundary there is a
-/// spline or a spiric, or one narrower than the band.
+/// (`crate::stands`, rung 3): for example one whose nearest boundary
+/// there is a spline or a spiric, or one narrower than the band.
 /// No in-band reading is named as the cause: it is about one point. A
 /// witness refused near a face the door cannot read is, as it is for a
 /// shell ([`super::shell_witness`]).
