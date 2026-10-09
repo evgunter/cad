@@ -1,14 +1,13 @@
-//! M5 S1 acceptance — the declared-REST union zip fixtures beyond the
-//! crosslap (`crosslap_rest.rs` holds the headline pins):
+//! Declared REST unions beyond the crosslap (`crosslap_rest.rs` holds
+//! the headline pins), built by the join:
 //!
 //! - stacked plates (full-face REST contact): single pair and the
 //!   three-plate chain (two declared contacts, sequential ops);
 //! - corner-flush REST (the tier-3′ fixture's shape) — chords +
 //!   pierce-ring consumption in the pierced face;
 //! - the contradiction row: a false REST declaration refuses
-//!   `DeclarationContradicted` at the lane, never a silent no-op;
-//! - the annular (ringed-patch) contact UNIONS exactly additively
-//!   (M9-3's ring-capable zip retired the old sub-frontier refusal);
+//!   `DeclarationContradicted`, never a silent no-op;
+//! - the annular (ringed-patch) contact UNIONS exactly additively;
 //! - ∖/∩ disposition rows on the PINNED REST fixtures (crosslap,
 //!   corner-flush): classification resolves them structurally
 //!   (operand A / typed Empty) without reaching a join door (the
@@ -17,9 +16,9 @@
 //! - undeclared doors unchanged (the ladder is law);
 //! - re-run bit-identity for the stacked union.
 //!
-//! Every volume assertion is EXACT dyadic f64 equality — the lane
-//! discards nothing (interiors are disjoint), so vol(A∪B) must equal
-//! vol(A)+vol(B) to the bit.
+//! Every volume assertion is EXACT dyadic f64 equality — the
+//! interiors are disjoint, so vol(A∪B) must equal vol(A)+vol(B) to the
+//! bit.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

@@ -194,7 +194,6 @@ fn probe_peg_offset_one_ulp_characterized() {
                     err,
                     BooleanError::Escalated { .. }
                         | BooleanError::ContactContradicted { .. }
-                        | BooleanError::RestZipUnsupported { .. }
                         | BooleanError::CurvedPierceUnsupported { .. }
                 ),
                 "typed only: {err:?}"
@@ -316,8 +315,7 @@ fn probe_partial_engagement_never_silent() {
             assert!(
                 matches!(
                     err,
-                    BooleanError::RestZipUnsupported { .. }
-                        | BooleanError::Join(_)
+                    BooleanError::Join(_)
                         | BooleanError::CurvedPierceUnsupported { .. }
                         | BooleanError::CurvedBooleanUnsupported { .. }
                 ),
@@ -424,9 +422,7 @@ fn probe_ring_count_mismatch_never_silent() {
             assert!(
                 matches!(
                     err,
-                    BooleanError::RestZipUnsupported { .. }
-                        | BooleanError::Join(_)
-                        | BooleanError::ZipCorrespondence { .. }
+                    BooleanError::Join(_) | BooleanError::ZipCorrespondence { .. }
                 ),
                 "typed only: {err:?}"
             );
