@@ -1917,6 +1917,35 @@ fn the_second_order_band_has_three_outcomes_and_they_are_three_answers() {
     );
 }
 
+/// **Check 4 spells no second-order reading of its own.** The validator
+/// reads its stations through `geom_brep::interior_stations` and the
+/// second-order margin through `geom_brep::second_order_walk`, once each,
+/// so the rows that pin the walk speak for tier 3: a loop or a
+/// `"tangent_second_order"` decide inlined back into the validator reds
+/// here.
+#[test]
+fn check_4_routes_its_second_order_reading_through_the_one_walk() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/validate.rs");
+    let source = test_utils::source::code_and_literals(&std::fs::read_to_string(path).unwrap());
+    for (call, count) in [("second_order_walk(", 1), ("interior_stations(", 1)] {
+        assert_eq!(
+            source.matches(call).count(),
+            count,
+            "the validator calls `{call}` once"
+        );
+    }
+    for spelling in [
+        "\"tangent_second_order\"",
+        "tangent_second_order(",
+        "tangent_jet(",
+    ] {
+        assert!(
+            !source.contains(spelling),
+            "the validator spells `{spelling}` beside the walk"
+        );
+    }
+}
+
 /// **Row: the must-carry rule and tier 3 read one second-order walk.**
 /// The family above, asked of both callers of
 /// `geom_brep::second_order_walk` at once: the rule a constructor asks

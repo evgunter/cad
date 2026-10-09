@@ -5498,26 +5498,24 @@ pub(crate) enum MaterialArmOutcome {
 /// Check 4's material reads at each station of the edge-level
 /// second-order walk ([`geom_brep::second_order_walk`]): the faces'
 /// material pairing before the station's second-order decision, and
-/// the wedge end after a `Positive` one. A read that escalates pushes
-/// its `SliverDihedral` and stops the walk.
-struct MaterialStations<'s, 'e, T: Real> {
+/// the wedge end after a `Positive` one. A read that escalates stops
+/// the walk with its cause, which the caller reports.
+struct MaterialStations<'s, T: Real> {
     s_plus: &'s Surface<T>,
     sense_plus: bool,
     s_minus: &'s Surface<T>,
     sense_minus: bool,
-    edge: EdgeKey,
     band: Band,
-    errors: &'e mut Vec<ValidationError>,
     opposed: bool,
     aligned: bool,
     side: Option<MaterialWedge>,
     side_mixed: bool,
 }
 
-impl<T: Decide> geom_brep::StationHook<T> for MaterialStations<'_, '_, T> {
-    type Break = ();
+impl<T: Decide> geom_brep::StationHook<T> for MaterialStations<'_, T> {
+    type Break = Indeterminate;
 
-    fn before_decision(&mut self, station: &geom_brep::Station<T>) -> ControlFlow<()> {
+    fn before_decision(&mut self, station: &geom_brep::Station<T>) -> ControlFlow<Indeterminate> {
         match classify_material_pairing(
             self.s_plus,
             self.sense_plus,
@@ -5529,16 +5527,19 @@ impl<T: Decide> geom_brep::StationHook<T> for MaterialStations<'_, '_, T> {
         ) {
             Ok(MaterialPairing::Aligned) => self.opposed = false,
             Ok(MaterialPairing::Opposed) => self.aligned = false,
-            Err(cause) => return self.escalate(cause),
+            Err(cause) => return ControlFlow::Break(cause),
         }
         ControlFlow::Continue(())
     }
 
-    /// Which end, decided only where it is asked: the magnitude just
-    /// classified definitely positive, so this reads the SIGN of the
-    /// same quantity in the material frame and cannot honestly land on
-    /// Zero.
-    fn after_positive(&mut self, station: &geom_brep::Station<T>) -> ControlFlow<()> {
+    /// Which end, decided only where it is asked: the SIGN, in the
+    /// material frame, of the quantity whose magnitude just classified
+    /// definitely positive — so neither `Zero` nor an escalation is
+    /// reachable through a margin the run can read. Both are announced
+    /// anyway, as an escalation: a state that cannot occur is reported,
+    /// never swallowed, and a validator's "I cannot say" is an error in
+    /// its vector, not a panic.
+    fn after_positive(&mut self, station: &geom_brep::Station<T>) -> ControlFlow<Indeterminate> {
         let signed = geom_brep::material_kappa_rel(station.jet.kappa_rel, self.sense_plus);
         let this = match decide(
             "material_cusp_side",
@@ -5547,39 +5548,21 @@ impl<T: Decide> geom_brep::StationHook<T> for MaterialStations<'_, '_, T> {
         ) {
             Ok(Sign::Positive) => MaterialWedge::Cusp,
             Ok(Sign::Negative) => MaterialWedge::Slit,
-            // Neither outcome is reachable through a margin the run can
-            // read: this is the SAME quantity whose magnitude classified
-            // definitely positive one decision above. Announced anyway —
-            // a state that cannot occur is reported, never swallowed —
-            // and as an escalation rather than a panic, because a
-            // validator's answer to "I cannot say" is an error in its
-            // vector.
             Ok(Sign::Zero) => {
-                return self.escalate(Indeterminate {
+                return ControlFlow::Break(Indeterminate {
                     margin: geom_core::MarginDiag::INVALID,
                     band: self.band,
                     predicate: Some("material_cusp_side"),
                     terminal_sliver: false,
                 });
             }
-            Err(cause) => return self.escalate(cause),
+            Err(cause) => return ControlFlow::Break(cause),
         };
         match self.side {
             Some(seen) if seen != this => self.side_mixed = true,
             _ => self.side = Some(this),
         }
         ControlFlow::Continue(())
-    }
-}
-
-impl<T: Real> MaterialStations<'_, '_, T> {
-    fn escalate(&mut self, cause: Indeterminate) -> ControlFlow<()> {
-        self.errors.push(ValidationError::SliverDihedral {
-            edge: self.edge,
-            check: WedgeCheck::MaterialSide,
-            cause,
-        });
-        ControlFlow::Break(())
     }
 }
 
@@ -6506,8 +6489,8 @@ pub(crate) fn tier3_local_checks_marked<
         let extent = geom_brep::edge_extent(curve.carrier(), t0, t1, chord);
         // The interior schedule samples, evaluated once (D9: the same
         // parameters certification used) and shared by checks 4 and 5.
-        let samples: Vec<_> = (1..(geom_brep::CERT_SAMPLES - 1))
-            .map(|i| curve.carrier().eval(curve.sample_param(i)))
+        let samples: Vec<_> = geom_brep::interior_stations(curve.carrier(), t0, t1)
+            .map(|(p, _)| p)
             .collect();
         // Check 4: dihedral — plus the prefer-intrinsic enforcement
         // (D2; ratified 2026-07-19): reusing the SAME per-sample
@@ -6649,15 +6632,12 @@ pub(crate) fn tier3_local_checks_marked<
                 sense_plus,
                 s_minus,
                 sense_minus,
-                edge: edge_key,
                 band,
-                errors: &mut errors,
                 opposed: true,
                 aligned: true,
                 side: None,
                 side_mixed: false,
             };
-            let (t0, t1) = curve.params();
             let walk = geom_brep::second_order_walk(
                 s_plus,
                 s_minus,
@@ -6675,32 +6655,31 @@ pub(crate) fn tier3_local_checks_marked<
                 side_mixed,
                 ..
             } = stations;
-            let (jet_determinate, jet_escalated) = match walk {
-                geom_brep::SecondOrderWalk::Determinate => (true, false),
-                // ONE zero-side sample ends the edge's determinacy
-                // — and on the opposed arm that is the lamina
-                // refusal for the WHOLE edge, on the strength of a
-                // single sample. Deliberate, and conservative in
-                // the direction the ε rule cares about: a wedge end
-                // is legal where the surfaces determine the locus
-                // ALONG the edge, so one place they do not is
-                // enough to deny it (the same rule
-                // the mark already follows — any zero-side sample
-                // marks `SmoothUnderdetermined`). ε-tightening
-                // makes zero-side verdicts RARER, so it can only
-                // remove this refusal, never introduce one.
-                geom_brep::SecondOrderWalk::UnderDetermined => (false, false),
+            let (jet_determinate, escalation) = match walk {
+                geom_brep::SecondOrderWalk::Determinate => (true, None),
+                // One zero-side station denies the WHOLE edge its
+                // determinacy — on the opposed arm, the lamina refusal:
+                // a wedge end is legal only where the surfaces determine
+                // the locus along the edge, the rule the mark follows
+                // too (`SmoothUnderdetermined`). ε-tightening makes
+                // zero-side verdicts rarer, so it can only remove this
+                // refusal, never introduce one.
+                geom_brep::SecondOrderWalk::UnderDetermined => (false, None),
                 geom_brep::SecondOrderWalk::InBand(cause) => {
-                    errors.push(ValidationError::SliverDihedral {
-                        edge: edge_key,
-                        check: WedgeCheck::SecondOrder,
-                        cause,
-                    });
-                    (true, true)
+                    (true, Some((WedgeCheck::SecondOrder, cause)))
                 }
-                // The hook pushed its own escalation.
-                geom_brep::SecondOrderWalk::Stopped(()) => (true, true),
+                geom_brep::SecondOrderWalk::Stopped(cause) => {
+                    (true, Some((WedgeCheck::MaterialSide, cause)))
+                }
             };
+            let jet_escalated = escalation.is_some();
+            if let Some((check, cause)) = escalation {
+                errors.push(ValidationError::SliverDihedral {
+                    edge: edge_key,
+                    check,
+                    cause,
+                });
+            }
             if !jet_escalated {
                 arm = Some(material_arm_outcome(
                     aligned,
