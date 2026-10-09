@@ -5,7 +5,7 @@ title: Turn.sense is a bare T: the nonzero divisor turned_past and off_conic_sla
 status: open
 opened: 2026-10-09
 priority: P3
-cost: S
+cost: E
 ---
 
 
