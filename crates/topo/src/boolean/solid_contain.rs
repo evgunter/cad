@@ -4618,7 +4618,7 @@ fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: 
 ///    a `q̂` small
 ///    enough that the root `≈ q̂²/c1` falls inside the band, but large
 ///    enough to clear rung 2, reaches it too — a legitimate root refused
-///    on its size (`work/contact/torus-split-lead-escalates-a-
+///    on its size (`work/inside/torus-split-lead-escalates-a-
 ///    legitimately-small-resolvent-root.md`).
 /// 4. **`bool_ray_torus_split` Zero** — one of the two quadratic factors
 ///    has a zero discriminant, i.e. a double root, which contradicts the
@@ -5507,7 +5507,7 @@ fn at_infinity_side<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<SolidContainment, PointInSolidError> {
     use crate::props::ShellRole;
     // Measured in closed form, so an obliquely trimmed face refuses here
-    // (`work/contact/at-infinity-probe-measures-in-closed-form-only`);
+    // (`work/restread/at-infinity-probe-measures-in-closed-form-only`);
     // the sign is certified through the scalar's own lane
     // ([`crate::props::Round::certify`]), so a volume below its own
     // rounding reads no side rather than a wrong one.

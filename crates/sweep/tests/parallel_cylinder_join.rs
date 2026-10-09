@@ -211,7 +211,7 @@ fn an_island_and_a_turned_pose_join_along_their_rulings() {
 /// **The row's rods build in every op and order.** Their walls join
 /// along the rulings like the poses above. The classification's probe
 /// measures the drum's cut wall, trimmed by an ellipse, in closed form
-/// only (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`),
+/// only (`work/restread/at-infinity-probe-measures-in-closed-form-only.md`),
 /// so a probe ray that meets nothing cannot side its point; that ray is
 /// set aside, and the query refuses `Containment(VolumeUncertified)` only
 /// where no ray settles, which none of these poses reaches. Each build

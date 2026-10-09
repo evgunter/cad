@@ -591,20 +591,11 @@ fn probes_about(rng: &mut Rng, cone: &[Sector]) -> Vec<[f64; 3]> {
     out
 }
 
-/// One cone's reading against the oracle; returns the wrong classes'
-/// descriptions, and counts what was not decided.
-fn check_cone(
-    what: &str,
-    cone: &[Sector],
-    probes: &[[f64; 3]],
-    band: Band,
-    rng: &mut Rng,
-    counts: &mut Counts,
-    wedge_known_wrong: bool,
-) -> Vec<String> {
-    // A face whose bounds stand off its own plane beyond the zero band
-    // is no face at this ε: a sector a few nanoradians wide has its
-    // normal drawn in floating point to about 1e-16 over its width.
+/// The exact reading of `cone`, where it is one at `band`: a face
+/// whose bounds stand off its own plane beyond the zero band is no face
+/// at this ε, since a sector a few nanoradians wide has its normal
+/// drawn in floating point to about 1e-16 over its width.
+fn cone_oracle(cone: &[Sector], band: Band) -> Option<Oracle> {
     let planar = cone.iter().all(|s| {
         let n = qv(s.normal);
         [s.start_far, s.end_far].iter().all(|&far| {
@@ -613,51 +604,71 @@ fn check_cone(
             off.sub(&zero).sign() <= 0 && off.add(&zero).sign() >= 0
         })
     });
-    let Some(oracle) = planar.then(|| Oracle::new(cone)).flatten() else {
+    planar.then(|| Oracle::new(cone)).flatten()
+}
+
+/// A probe edge to the far point `far`, as the one sector of the vertex
+/// read whose edge it ends.
+fn probe_sector(far: [f64; 3]) -> BoolSector<f64> {
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let d = Vec3::new(far[0], far[1], far[2]);
+    BoolSector {
+        he: HalfEdgeKey::from(slotmap::KeyData::from_ffi((1 << 32) | 5000)),
+        start: Vec3::new(0.0, 0.0, 1.0),
+        end: d.normalize(),
+        start_reach: Reach::Bisector(1.0),
+        end_reach: Reach::Chord {
+            base: o,
+            far: o + d,
+        },
+        face: FaceKey::from(slotmap::KeyData::from_ffi((1 << 32) | 99_999)),
+        normal: OutwardNormal::from_chart(Vec3::new(1.0, 0.0, 0.0), true),
+        arm: 1.0,
+    }
+}
+
+/// One cone's reading against the oracle; returns the wrong classes'
+/// descriptions, and counts what was not decided.
+fn check_cone(
+    what: &str,
+    cone: &[Sector],
+    probes: &[[f64; 3]],
+    band: Band,
+    rng: &mut Rng,
+    counts: &mut [Counts; 2],
+    wedge_known_wrong: bool,
+) -> Vec<String> {
+    let Some(oracle) = cone_oracle(cone, band) else {
         return Vec::new();
     };
     let sectors = bool_sectors(cone);
-    let o = Point3::new(0.0, 0.0, 0.0);
     let mut wrong = Vec::new();
     for (k, &far) in probes.iter().enumerate() {
-        let d = Vec3::new(far[0], far[1], far[2]);
-        let reach = Reach::Chord {
-            base: o,
-            far: o + d,
-        };
-        let probe = BoolSector {
-            he: HalfEdgeKey::from(slotmap::KeyData::from_ffi((1 << 32) | 5000)),
-            start: Vec3::new(0.0, 0.0, 1.0),
-            end: d.normalize(),
-            start_reach: Reach::Bisector(1.0),
-            end_reach: reach,
-            face: FaceKey::from(slotmap::KeyData::from_ffi((1 << 32) | 99_999)),
-            normal: OutwardNormal::from_chart(Vec3::new(1.0, 0.0, 0.0), true),
-            arm: 1.0,
-        };
+        let probe = probe_sector(far);
+        let (d, reach) = (Vec3::new(far[0], far[1], far[2]), probe.end_reach);
         let readings = [
-            (
-                "cone_side",
-                cone_side(d.normalize(), reach, &sectors, band)
-                    .ok()
-                    .flatten(),
-            ),
+            ("cone_side", cone_side(d.normalize(), reach, &sectors, band)),
             (
                 "wedge_classes",
                 wedge_classes(std::slice::from_ref(&probe), &sectors, band)
-                    .ok()
-                    .flatten()
-                    .map(|r| r.rows[0].1),
+                    .map(|r| r.map(|r| r.rows[0].1)),
             ),
         ];
         let truth = oracle.class(far, rng);
         let flip = least_flip(cone, far);
         let in_band = truth == SideCode::On || flip <= band.zero();
-        for (reader, got) in readings {
+        for ((reader, got), counts) in readings.into_iter().zip(counts.iter_mut()) {
             counts.read += 1;
-            let Some(got) = got else {
-                counts.undecided += 1;
-                continue;
+            let got = match got {
+                Ok(Some(got)) => got,
+                Ok(None) => {
+                    counts.unread += 1;
+                    continue;
+                }
+                Err(_) => {
+                    counts.refused += 1;
+                    continue;
+                }
             };
             let defect = match got {
                 SideCode::On => (!in_band).then_some("On out of band"),
@@ -679,13 +690,197 @@ fn check_cone(
     wrong
 }
 
-/// What a run read, what it left undecided, and the `wedge_classes`
-/// readings of the long-probe family the CLEAVE item knows wrong.
+/// Whether two wedges share a ray off the vertex: the line their
+/// planes meet in lies, one way or the other, within both, closed; two
+/// wedges on one plane are read as sharing one.
+fn shares_ray(f: &Wedge, g: &Wedge) -> bool {
+    let (cf, cg) = (cross(&f.start, &f.end), cross(&g.start, &g.end));
+    let l = cross(&cf, &cg);
+    if l.iter().all(|x| x.sign() == 0) {
+        return true;
+    }
+    let within = |w: &Wedge, c: &V, x: &V| {
+        dot(&cross(&w.start, x), c).sign() >= 0 && dot(&cross(x, &w.end), c).sign() >= 0
+    };
+    let back = vscale(&l, &Q::int(-1));
+    [&l, &back]
+        .iter()
+        .any(|x| within(f, &cf, x) && within(g, &cg, x))
+}
+
+/// A small convex cone in the void of the cone `oracle` reads, a second
+/// partner of the same solid: its boundary meets the cone's only at the
+/// vertex, one of its corners lies in the void, and a bound of the cone
+/// lies outside it, all read exactly; `None` where the draw fails that.
+fn partner_in_void(
+    rng: &mut Rng,
+    cone: &[Sector],
+    oracle: &Oracle,
+) -> Option<(Vec<Sector>, Oracle)> {
+    let q = norm3([
+        rng.range(-1.0, 1.0),
+        rng.range(-1.0, 1.0),
+        rng.range(-1.0, 1.0),
+    ]);
+    let r = [0.3, 0.05, 1e-3][rng.below(3)];
+    let e1 = norm3(cross3(
+        q,
+        if q[0].abs() < 0.9 {
+            [1.0, 0.0, 0.0]
+        } else {
+            [0.0, 1.0, 0.0]
+        },
+    ));
+    let e2 = cross3(q, e1);
+    let ring: Ring = (0..3)
+        .map(|k| {
+            let t = std::f64::consts::TAU * f64::from(k) / 3.0 + rng.range(-0.3, 0.3);
+            let (sn, cs) = t.sin_cos();
+            let d = [0, 1, 2].map(|i| q[i] + r * (cs * e1[i] + sn * e2[i]));
+            (norm3(d), rng.range(0.5, 2.0))
+        })
+        .collect();
+    let mut partner = sectors_from_ring(&ring, false);
+    for s in &mut partner {
+        s.face += 100;
+    }
+    let own = Oracle::new(&partner)?;
+    let apart = oracle.class(partner[0].start_far, rng) == SideCode::Out
+        && own.class(cone[0].start_far, rng) == SideCode::Out
+        && !oracle
+            .wedges
+            .iter()
+            .any(|f| own.wedges.iter().any(|g| shares_ray(f, g)));
+    apart.then_some((partner, own))
+}
+
+/// **A vertex in pairs alone is read against both partners together,
+/// or refuses**: `cone` and a small convex cone in its void
+/// ([`partner_in_void`]), two partners of one solid at the vertex, read
+/// by [`pair_classes`] for each probe edge against the exact reading of
+/// their union. Where a partner reads nothing beside the other it must
+/// refuse; elsewhere, a row is wrong as in [`check_cone`], and a probe
+/// with no row is wrong. A layering that leaves the probe undecided and
+/// keeps each pair's rows is counted, and its wrong rows with it, not
+/// asserted
+/// (`work/tang/pair-classes-keeps-per-pair-rows-where-its-layering-is-undecided.md`);
+/// so is a wrong row of the long-probe family, whose `wedge_classes`
+/// reading of the cone is known wrong (module docs).
+fn check_pair(
+    what: &str,
+    cone: &[Sector],
+    band: Band,
+    rng: &mut Rng,
+    counts: &mut PairCounts,
+    wedge_known_wrong: bool,
+) -> Vec<String> {
+    let Some(oracle) = cone_oracle(cone, band) else {
+        return Vec::new();
+    };
+    let Some((partner, _)) = partner_in_void(rng, cone, &oracle) else {
+        return Vec::new();
+    };
+    let both: Vec<Sector> = cone.iter().chain(&partner).cloned().collect();
+    let Some(union) = Oracle::new(&both) else {
+        return Vec::new();
+    };
+    counts.placed += 1;
+    let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
+    let vertex = VertexKey::from(key(7000));
+    let others = [bool_sectors(cone), bool_sectors(&partner)];
+    let mut probes = probes_about(rng, cone);
+    probes.extend(probes_about(rng, &partner));
+    let mut wrong = Vec::new();
+    for (k, &far) in probes.iter().enumerate() {
+        let probe = probe_sector(far);
+        let mut pairs = Vec::new();
+        for (m, other) in others.iter().enumerate() {
+            match wedge_classes(std::slice::from_ref(&probe), other, band) {
+                Ok(read) => pairs.push(crate::boolean::vtxfac::PairRead {
+                    partner: VertexKey::from(key(7001 + m as u64)),
+                    side: None,
+                    read,
+                    sectors: other.clone(),
+                }),
+                Err(_) => break,
+            }
+        }
+        if pairs.len() < 2 {
+            counts.refused += 1;
+            continue;
+        }
+        let unread = pairs.iter().any(|p| p.read.is_none());
+        let rows = match crate::boolean::vtxfac::pair_classes(Operand::A, vertex, &pairs, band) {
+            Err(BooleanError::VertexReadTwice { .. }) if unread => {
+                counts.unread += 1;
+                continue;
+            }
+            Err(_) => {
+                counts.refused += 1;
+                continue;
+            }
+            Ok(rows) if unread => {
+                wrong.push(format!(
+                    "{what}, pair probe {k} {far:?}: rows {rows:?} kept beside a partner that \
+                     reads nothing"
+                ));
+                continue;
+            }
+            Ok(rows) => rows,
+        };
+        let truth = union.class(far, rng);
+        let flip = least_flip(cone, far).min(least_flip(&partner, far));
+        let in_band = truth == SideCode::On || flip <= band.zero();
+        let kept = rows.len() > 1;
+        counts.rows += rows.len();
+        counts.kept += usize::from(kept);
+        if rows.is_empty() {
+            wrong.push(format!("{what}, pair probe {k} {far:?}: no row"));
+        }
+        for &(_, got) in &rows {
+            let defect = match got {
+                SideCode::On => (!in_band).then_some("On out of band"),
+                _ if got != truth => Some("the oracle contradicts it"),
+                _ => in_band.then_some("decided in band"),
+            };
+            match defect {
+                Some(_) if kept => counts.kept_wrong += 1,
+                Some(_) if wedge_known_wrong => counts.known_wrong += 1,
+                Some(defect) => wrong.push(format!(
+                    "{what}, pair probe {k} {far:?}: pair_classes reads {got:?}, exactly \
+                     {truth:?}, flipped by a {flip:.3e} m deviation: {defect}"
+                )),
+                None => {}
+            }
+        }
+    }
+    wrong
+}
+
+/// What the pair oracle read at one ε: partners placed, rows read,
+/// probes refused beside a partner that reads nothing, other refusals,
+/// and probes whose layering kept each pair's rows, with their wrong
+/// rows.
+#[derive(Default)]
+struct PairCounts {
+    placed: usize,
+    rows: usize,
+    unread: usize,
+    refused: usize,
+    kept: usize,
+    kept_wrong: usize,
+    known_wrong: usize,
+}
+
+/// What one reader read at one ε, what it read nothing of or refused,
+/// and, for `wedge_classes`, its readings of the long-probe family the
+/// CLEAVE item knows wrong.
 #[derive(Default)]
 struct Counts {
     known_wrong: usize,
     read: usize,
-    undecided: usize,
+    unread: usize,
+    refused: usize,
 }
 
 /// **No decided class the polygon-cone reader gives contradicts the
@@ -698,7 +893,7 @@ fn the_polygon_cone_reader_never_contradicts_the_exact_oracle() {
     let mut rng = test_utils::fuzz::start("sectors_cone_fuzz");
     let cones = test_utils::fuzz::scaled(90);
     let mut wrong = Vec::new();
-    let mut counts = Counts::default();
+    let mut pair_passes = Vec::new();
     let session = Tol::witness().get().eps;
     let mut eps_set = vec![1e-9, 1e-6, 1e-12];
     if !eps_set.contains(&session) {
@@ -706,6 +901,9 @@ fn the_polygon_cone_reader_never_contradicts_the_exact_oracle() {
     }
     for eps in eps_set {
         let band = Band::linear_at(Tol::witness(), eps).unwrap();
+        let mut counts = [Counts::default(), Counts::default()];
+        let mut read_cones = Vec::new();
+        let before = wrong.len();
         for c in 0..cones {
             let hollow = rng.below(2) == 0;
             let long = c % 5 == 2;
@@ -745,22 +943,274 @@ fn the_polygon_cone_reader_never_contradicts_the_exact_oracle() {
                 &mut counts,
                 long,
             ));
+            read_cones.push((what, cone, long));
         }
+        let [cs, wc] = &counts;
+        println!(
+            "[fuzz] sectors_cone_fuzz at ε {eps:e}: {} wrong; cone_side read {}, {} read \
+             nothing, {} refused; wedge_classes read {}, {} read nothing, {} refused, {} of \
+             the long-probe family known wrong (CLEAVE's \
+             wedge-classes-reads-a-corner-flat-at-its-short-bounds-as-convex)",
+            wrong.len() - before,
+            cs.read,
+            cs.unread,
+            cs.refused,
+            wc.read,
+            wc.unread,
+            wc.refused,
+            wc.known_wrong
+        );
+        pair_passes.push((eps, band, read_cones));
     }
-    println!(
-        "[fuzz] sectors_cone_fuzz: {} readings, {} undecided, {} wrong, {} wedge_classes \
-         readings of the long-probe family known wrong (CLEAVE's \
-         wedge-classes-reads-a-corner-flat-at-its-short-bounds-as-convex)",
-        counts.read,
-        counts.undecided,
-        wrong.len(),
-        counts.known_wrong
-    );
+    // The pair oracle draws after every cone is read, so a seed reads
+    // the same cones with it as without it.
+    for (eps, band, read_cones) in pair_passes {
+        let mut counts = PairCounts::default();
+        let before = wrong.len();
+        for (what, cone, long) in &read_cones {
+            wrong.extend(check_pair(what, cone, band, &mut rng, &mut counts, *long));
+        }
+        println!(
+            "[fuzz] sectors_cone_fuzz pairs at ε {eps:e}: {} wrong; {} partners placed, {} rows, \
+             {} probes refused beside a partner that reads nothing, {} refused otherwise, {} \
+             kept per pair ({} of their rows wrong; \
+             pair-classes-keeps-per-pair-rows-where-its-layering-is-undecided), {} rows of the \
+             long-probe family known wrong",
+            wrong.len() - before,
+            counts.placed,
+            counts.rows,
+            counts.unread,
+            counts.refused,
+            counts.kept,
+            counts.kept_wrong,
+            counts.known_wrong
+        );
+    }
     assert!(
         wrong.is_empty(),
         "{} readings contradict the exact oracle or decide in band; {}:\n{}",
         wrong.len(),
         test_utils::fuzz::replay(),
         wrong.join("\n")
+    );
+}
+
+/// Whether the arc from `d` to `p` meets the closed sector `u → v` on
+/// the plane of normal `n`, exactly, every vector an exact rational
+/// direction: where both ends lie on the plane, the arc and the sector
+/// overlap in it; where one does, that end lies in the sector; where
+/// they lie on opposite sides, the point the arc crosses at does.
+fn arc_meets_sector(d: &V, p: &V, u: &V, v: &V, n: &V) -> bool {
+    let within = |x: &V| dot(&cross(u, x), n).sign() >= 0 && dot(&cross(x, v), n).sign() >= 0;
+    let (hd, hp) = (dot(d, n), dot(p, n));
+    let abs = |q: &Q| {
+        if q.sign() < 0 {
+            q.mul(&Q::int(-1))
+        } else {
+            q.clone()
+        }
+    };
+    match (hd.sign(), hp.sign()) {
+        (a, b) if a != 0 && a == b => false,
+        (0, 0) => {
+            let s = dot(&cross(d, p), n).sign();
+            let in_arc = |x: &V| {
+                if s == 0 {
+                    return false;
+                }
+                let a = dot(&cross(d, x), n).sign();
+                let b = dot(&cross(x, p), n).sign();
+                (a == 0 || a == s) && (b == 0 || b == s)
+            };
+            within(d) || within(p) || in_arc(u) || in_arc(v)
+        }
+        (0, _) => within(d),
+        (_, 0) => within(p),
+        _ => within(&vadd(&vscale(d, &abs(&hp)), &vscale(p, &abs(&hd)))),
+    }
+}
+
+/// **No arc and sector [`apart`] parts meet, exactly or within the
+/// band** (PR 4358's review): sectors from 1e-9 rad wide to a hair
+/// under 180°, arcs aimed at multiples of the band off each bound line
+/// and its opposite, a hair off the plane or nearly square to it, each
+/// point at a reach from 1 µm to 1 km, at ε 1e-6, 1e-9 and 1e-12. Each
+/// pair it parts is moved, every point by just under the escalation
+/// band at its own reach, toward each of its worst ways, and read
+/// exactly ([`arc_meets_sector`]): none may meet.
+#[test]
+fn apart_never_parts_an_arc_and_a_sector_that_meet_within_the_band() {
+    let mut rng = test_utils::fuzz::start("sectors_apart_fuzz");
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let reaches = [1e-6, 1e-4, 1e-2, 1.0, 1e2, 1e3];
+    let factors = [
+        0.0, 0.3, 0.55, 0.7, 0.8, 0.9, 0.95, 0.999, 1.0, 1.001, 1.01, 1.1, 2.0, 2.1, 10.0, 1e3, 1e6,
+    ];
+    let mut wrong = Vec::new();
+    let (mut tried, mut decided, mut checks) = (0usize, 0usize, 0usize);
+    for eps in [1e-6, 1e-9, 1e-12] {
+        let band = Band::linear_at(Tol::witness(), eps).unwrap();
+        // The escalation threshold: a decided reading's margin is at least
+        // this, so no move of each point by less flips it.
+        let zero = band.escalate();
+        for _ in 0..test_utils::fuzz::scaled(1_000) {
+            let n = norm3([
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            ]);
+            let e1 = norm3(cross3(
+                n,
+                if n[0].abs() < 0.9 {
+                    [1.0, 0.0, 0.0]
+                } else {
+                    [0.0, 1.0, 0.0]
+                },
+            ));
+            let e2 = cross3(n, e1);
+            let pick = |rng: &mut Rng| reaches[rng.below(reaches.len())];
+            let (lu, lv, ld, lp) = (
+                pick(&mut rng),
+                pick(&mut rng),
+                pick(&mut rng),
+                pick(&mut rng),
+            );
+            let alpha = rng.range(0.0, std::f64::consts::TAU);
+            let width = match rng.below(3) {
+                0 => rng.range(1e-9, 1e-5),
+                1 => rng.range(0.01, 3.1),
+                _ => std::f64::consts::PI - rng.range(1e-9, 1e-3),
+            };
+            let beta = alpha + width;
+            // A corner the boolean builds: convex under every move within
+            // the band (the probe's own `within` reads a convex sector).
+            if width.sin() / (1.0 / lu + 1.0 / lv) <= 1.01 * zero {
+                continue;
+            }
+            let dir = |th: f64, ph: f64| {
+                let (s, c) = th.sin_cos();
+                let (sp, cp) = ph.sin_cos();
+                norm3([0, 1, 2].map(|i| cp * (c * e1[i] + s * e2[i]) + sp * n[i]))
+            };
+            let u = dir(alpha, 0.0);
+            let v = dir(beta, 0.0);
+            let anchors = [
+                alpha,
+                beta,
+                alpha + std::f64::consts::PI,
+                beta + std::f64::consts::PI,
+            ];
+            let anchor = rng.below(4);
+            let anchor_l = [lu, lv, lu, lv][anchor];
+            let aim = |rng: &mut Rng, l: f64| {
+                let th = if rng.below(6) == 0 {
+                    rng.range(0.0, std::f64::consts::TAU)
+                } else {
+                    let f = factors[rng.below(factors.len())];
+                    let sgn = if rng.below(2) == 0 { 1.0 } else { -1.0 };
+                    let lever = 1.0 / (1.0 / l + 1.0 / anchor_l);
+                    anchors[anchor] + sgn * f * zero / lever
+                };
+                let ph = match rng.below(5) {
+                    0 => 0.0,
+                    1 => rng.range(-1.0, 1.0) * zero / l * factors[rng.below(factors.len())],
+                    2 => {
+                        (std::f64::consts::FRAC_PI_2 - rng.range(0.0, 1e-6))
+                            * if rng.below(2) == 0 { 1.0 } else { -1.0 }
+                    }
+                    _ => rng.range(-1.5, 1.5),
+                };
+                dir(th, ph)
+            };
+            let d = aim(&mut rng, ld);
+            let p = aim(&mut rng, lp);
+            let dp = d[0] * p[0] + d[1] * p[1] + d[2] * p[2];
+            if dp < -1.0 + 1e-9 {
+                continue;
+            }
+            tried += 1;
+            let v3 = |a: [f64; 3]| Vec3::new(a[0], a[1], a[2]);
+            let key = |k: u64| slotmap::KeyData::from_ffi((1 << 32) | k);
+            let sector = BoolSector {
+                he: HalfEdgeKey::from(key(1)),
+                start: v3(u),
+                end: v3(v),
+                start_reach: Reach::Chord {
+                    base: o,
+                    far: o + v3(u) * lu,
+                },
+                end_reach: Reach::Chord {
+                    base: o,
+                    far: o + v3(v) * lv,
+                },
+                face: FaceKey::from(key(11)),
+                normal: OutwardNormal::from_chart(v3(n), true),
+                arm: lu.min(lv),
+            };
+            let arc = GreatArc {
+                dir: v3(d),
+                reach: Reach::Chord {
+                    base: o,
+                    far: o + v3(d) * ld,
+                },
+                p: v3(p),
+                p_arm: lp,
+            };
+            if !apart(&sector, arc, band) {
+                continue;
+            }
+            decided += 1;
+            // Each point moved by just under the band, at its own reach:
+            // a direction turned by `δ/L` toward each of its worst ways.
+            let qn = qv(n);
+            let moved = |x: [f64; 3], l: f64, ways: &[[f64; 3]]| -> Vec<V> {
+                let t = 0.999 * zero / l;
+                let mut out = vec![qv(x)];
+                for w in ways {
+                    for s in [1.0, -1.0] {
+                        out.push(vadd(&qv(x), &vscale(&qv(*w), &Q::of(s * t))));
+                    }
+                }
+                out
+            };
+            let side = |x: [f64; 3]| norm3(cross3(n, x));
+            let (dw, pw) = (side(d), side(p));
+            let ds = moved(d, ld, &[dw, n]);
+            let ps = moved(p, lp, &[pw, n]);
+            let us = moved(u, lu, &[side(u)]);
+            let vs = moved(v, lv, &[side(v)]);
+            'all: for dd in &ds {
+                for pp in &ps {
+                    for uu in &us {
+                        for vv in &vs {
+                            checks += 1;
+                            if arc_meets_sector(dd, pp, uu, vv, &qn) {
+                                wrong.push(format!(
+                                    "ε {eps:e}: apart, yet they meet within the band: n {n:?} \
+                                     u {u:?} @{lu} v {v:?} @{lv} d {d:?} @{ld} p {p:?} @{lp}; {}",
+                                    test_utils::fuzz::replay()
+                                ));
+                                break 'all;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    println!(
+        "[fuzz] sectors_apart_fuzz: {tried} tried, {decided} parted, {checks} exact checks, {} wrong",
+        wrong.len()
+    );
+    assert!(
+        decided > 100,
+        "the sweep parts too few to read anything: {decided}; {}",
+        test_utils::fuzz::replay()
+    );
+    assert!(
+        wrong.is_empty(),
+        "{} wrong:\n{}",
+        wrong.len(),
+        wrong[..wrong.len().min(20)].join("\n")
     );
 }
