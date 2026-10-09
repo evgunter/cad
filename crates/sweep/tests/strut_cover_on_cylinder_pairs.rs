@@ -5,8 +5,8 @@
 //! the joint, is extruded: its two walls are cylinders tangent along a
 //! ruling, and the edge between them is described
 //! `TangentIntersection`: the small arc is authored as the big one's
-//! tangent continuation, a constructed tangency, and no flag or
-//! declaration states it. Two such plates are stacked with
+//! tangent continuation (`.tangent()`), a constructed tangency, as the
+//! rounded stack's fillets are. Two such plates are stacked with
 //! every flush finding declared, as the rounded stack of
 //! `reach_continuation` is. The union needs the strut cover on the
 //! cylinder pair: the lower plate's tangent ruling ends on the upper
