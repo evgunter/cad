@@ -2670,7 +2670,7 @@ mod tests {
             ..
         }) = spec.description
         {
-            angles.to = over;
+            *angles = geom_brep::SweepRange::from_zero(over);
         }
         body.set_edge_curve(circ.edge, spec, tol)
             .expect("an overlap inside the build's band certifies");

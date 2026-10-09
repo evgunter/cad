@@ -33,7 +33,7 @@ fn oblique<T: Real>(angle: T, mk: impl Fn(f64) -> T) -> MappedCurve<T> {
 /// property is that `restrict(s0, s1).eval(0)` agrees with
 /// `eval(s0)` — the restriction round trip.
 #[test]
-fn r2_e2e_stored_placement_round_trip_f64() {
+fn r2_e2e_restriction_round_trip_f64() {
     for &theta in &[0.0f64, 1.0e-12, 1.0e-7, 1.0e-3, 0.4, TAU] {
         let c = oblique(theta, |x| x);
         for &s0 in &[0.0f64, 0.125, 0.5] {

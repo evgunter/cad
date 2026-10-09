@@ -188,9 +188,9 @@ pub enum MappedCurve<T: Real> {
         place: Affine3<T>,
         /// The extrusion vector (meters), the unit of `stations`.
         vec: Vec3<T>,
-        /// The multiples of `vec` the trajectory sits at for s = 0 and
-        /// s = 1: `[0, 1]` for a whole strut, a sub-range of it after
-        /// [`MappedCurve::restrict`].
+        /// The multiples of `vec` the trajectory covers from s = 0 to
+        /// s = 1: [`SweepRange::unit`] for a whole strut, a sub-range of
+        /// it after [`MappedCurve::restrict`].
         stations: SweepRange<T>,
     },
     /// A sketch point's trajectory under a rotation family — revolve
@@ -207,37 +207,45 @@ pub enum MappedCurve<T: Real> {
         /// `Affine3::rotation_about_axis`'s documented posture).
         axis_dir: Vec3<T>,
         /// The signed angles (radians, right-hand rule about
-        /// `axis_dir`) of the s = 0 and s = 1 samples, measured from
-        /// the placed point: `[0, angle]` for a whole revolve, a
-        /// sub-range of it after [`MappedCurve::restrict`].
+        /// `axis_dir`, measured from the placed point) the trajectory
+        /// covers from s = 0 to s = 1: [`SweepRange::from_zero`] of the
+        /// revolve angle for a whole revolve, a sub-range of it after
+        /// [`MappedCurve::restrict`].
         angles: SweepRange<T>,
     },
 }
 
 /// The sub-range of a sweep coordinate a trajectory covers — a
 /// revolve's angle, an extrusion's multiple of its vector — as the
-/// coordinate's values at s = 0 (`from`) and s = 1 (`to`).
+/// coordinate at s = 0 and the signed span from there to s = 1.
 ///
 /// Restriction lives here, in the parameter, and never in the
 /// placement: [`MappedCurve::restrict`] narrows the range and leaves
 /// the placement as built, so however often a trajectory is split its
-/// evaluation applies ONE motion to the placed point. A placement that
-/// absorbed each split's motion would carry one more composition's
-/// rounding — at `T = Interval`, one more enclosure — per split.
+/// evaluation applies ONE motion to the placed point.
+///
+/// The span is stored rather than recomputed from two endpoints, so a
+/// restriction never re-forms a difference: the start moves by
+/// `span·s0` and the span scales by `s1 − s0`. At `T = Interval` a split
+/// therefore adds the split parameters' width times the span, plus one
+/// rounding of the moved start — never the endpoints' own widths
+/// re-mixed, which an endpoint form (`from·(1 − s) + to·s`) pays and
+/// cannot contract.
+///
+/// A whole range starts at `−0`, the additive identity of IEEE
+/// addition, so [`SweepRange::at`] reads `span·s` bit for bit on it.
 #[derive(Clone, Copy, Debug)]
 pub struct SweepRange<T: Real> {
-    /// The coordinate at s = 0.
-    pub from: T,
-    /// The coordinate at s = 1.
-    pub to: T,
+    start: T,
+    span: T,
 }
 
 impl<T: Real> SweepRange<T> {
-    /// `[0, to]`: a whole sweep from the placed point.
-    pub fn from_zero(to: T) -> Self {
+    /// A whole sweep from the placed point through `span`.
+    pub fn from_zero(span: T) -> Self {
         SweepRange {
-            from: T::zero(),
-            to,
+            start: -T::zero(),
+            span,
         }
     }
 
@@ -246,20 +254,48 @@ impl<T: Real> SweepRange<T> {
         SweepRange::from_zero(T::one())
     }
 
-    /// The coordinate at normalized parameter `s`, as the convex
-    /// combination `from·(1 − s) + to·s`: exact at both ends, and at
-    /// `T = Interval` no wider than the wider end plus the rounding of
-    /// the combination (`from + (to − from)·s` would count `from`'s
-    /// width twice). `[0, to]` reads `to·s` bit for bit.
-    pub fn at(self, s: T) -> T {
-        self.from * (T::one() - s) + self.to * s
+    /// The coordinate at s = 0.
+    pub fn start(self) -> T {
+        self.start
     }
 
-    /// The sub-range covering `[s0, s1]` of this one.
+    /// The signed span from s = 0 to s = 1.
+    pub fn span(self) -> T {
+        self.span
+    }
+
+    /// The coordinate at normalized parameter `s`: `span·s + start`.
+    ///
+    /// This is [`geom_core::Point3::lerp`]'s form with the difference
+    /// already stored, so the start is named once: exact at `s = 0`,
+    /// one rounding at `s = 1`. At `T = Interval` the result carries
+    /// `start`'s width, `|span|·width(s)` and `|s|·width(span)`, plus
+    /// the roundings of the product and the sum.
+    pub fn at(self, s: T) -> T {
+        self.span * s + self.start
+    }
+
+    /// The sub-range covering `[s0, s1]` of this one: the start moves
+    /// to [`SweepRange::at`]`(s0)` and the span scales by `s1 − s0`.
     pub fn restrict(self, s0: T, s1: T) -> Self {
         SweepRange {
-            from: self.at(s0),
-            to: self.at(s1),
+            start: self.at(s0),
+            span: self.span * (s1 - s0),
+        }
+    }
+
+    /// The same range with its start moved by `d0` and its end by `d1`,
+    /// both in the sweep's own coordinate; an end given `None` stays
+    /// where it was, bit for bit.
+    pub fn moved(self, d0: Option<T>, d1: Option<T>) -> Self {
+        SweepRange {
+            start: d0.map_or(self.start, |d| self.start + d),
+            span: match (d0, d1) {
+                (None, None) => self.span,
+                (Some(d0), None) => self.span - d0,
+                (None, Some(d1)) => self.span + d1,
+                (Some(d0), Some(d1)) => self.span + (d1 - d0),
+            },
         }
     }
 }

@@ -104,9 +104,9 @@ mod interval_lane {
     /// The restriction round trip: nested restricts, then compare
     /// the sub-curve's samples against the direct evaluation — the two
     /// enclosures must overlap (they describe one point), and the
-    /// stored path must not balloon.
+    /// restricted one may be no more than twice as wide.
     #[test]
-    fn r1_interval_stored_round_trip() {
+    fn r1_interval_restriction_round_trip() {
         let c = rig(1.0e-9, TAU);
         let r1 = c.restrict(iv(0.3), iv(0.7));
         let r2 = r1.restrict(iv(0.5), iv(1.0));
@@ -132,6 +132,11 @@ mod interval_lane {
             println!(
                 "s={s}: via width {wv:e}, direct width {wd:e}, ratio {}",
                 wv / wd
+            );
+            assert!(
+                wv <= 2.0 * wd,
+                "s={s}: the twice-restricted sample is {wv:e} wide against the direct \
+                 evaluation's {wd:e}"
             );
         }
     }
