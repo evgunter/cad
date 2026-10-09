@@ -917,7 +917,20 @@ and `germ-takes-the-span-bounded-face-reach-alone` (parked on D10's
 declared path); the sweep's siblings went to SHELF, CLEAVE (two) and
 REACH.
 - 2026-10-08: filed `split-cyl-ellipse-quarter-bound-overshoots-the-tilt-at-the-band-edge` (P3), the two ellipse-bounded split_cyl servings against the truth that PR 4292's fix pass 2 measured (shared with main).
+
+## 2026-10-08 — a line three solids touch along (TANG implementer)
+
+`three-solids-touching-along-one-line-refuse-their-union` closes on PR
+4346. An operand holding a contact line (coincident edges on one ray)
+meets another solid's edge along it pair by pair under the edge-edge
+rule, and a pierce face welded once already joins the next pierce at
+the corner that holds it. Every order of three and four prisms on one
+line builds, in topo and through editor-core. Filed here
+`an-edge-crossing-two-wedges-about-a-contact-line-refuses`; the naming
+siblings went to WIRE and EMIT.
+
 - 2026-10-08: closed `a-torus-meridian-lying-on-a-torus-is-unsettled` (PR 4343): the circle × torus door's meridian rung (`bool_circle_torus_meridian`); the lily's chain now stops at the graze in both orders. Filed `roots/an-oblique-cone-section-reads-a-zero-floor` (P2) and `hone/a-villarceau-circle-lying-on-a-torus-is-unsettled` (P3) from the F ≡ 0 sweep.
 - 2026-10-08: closed `a-turned-hemisphere-keeps-the-crossing-layers-door`. It already built on main, by PR 4123's sphere azimuth reach (bisected). Rows pin six turns and two spun poses, and the near-aligned window. Filed `a-covered-line-ending-just-off-the-face-keeps-the-door` (P3, parked on D10): the covered line rung's door within about `2e-4` of aligned.
 - 2026-10-08: closed `pair-classes-falls-back-to-per-pair-rows-beside-a-partner-that-reads-none`. `cone_side` reads an arc lying apart from a face's sector in its plane (`sectors::apart`), so the saddle's probe 34 reads and the exact fuzz's `None` falls from 244 to 0 per seed at ε 1e-9 (0 wrong); `pair_classes` refuses `VertexReadTwice` beside a partner that still reads nothing. No suite cell reached that fallback on main; the germ oracle's two new saddle scenes did, 60 rows wrong, now 0. Filed `pair-classes-keeps-per-pair-rows-where-its-layering-is-undecided` (P2), the layering's remaining fallbacks.
 - 2026-10-08: closed `a-rim-offset-half-the-zero-band-builds-in-one-member-order-only`. Both orders already build on main, since PR 3759 (PR 3812's envelope restatement; bisected). The old envelope read the rim offset twice, so half a band sat on its flip. Rows pin both orders at eleven offsets and three ε. Filed `pcurve-envelope-terms-sum-the-cos-and-sin-coefficients-of-a-deviation` on PCERT; evidence added to REACHHOLD's tight-volume-bound row and CLEAVE's in-span lever row.
+- 2026-10-09: `the-strut-cover-on-cylinder-pairs` measured and parked on `intent-stage4-is-built` (PR 4400). The cylinder × cylinder row has a witness: stacked arc-joint plates, every flush finding declared, refuse `CurvedPierceUnsupported` on main and build at their closed form with the row (three stacks, both orders, three ε; ∖/∩ then stop at the fallback extent). It does not land, because the strut column is read only beside a declared one-carrier pair, and the D10 hold keeps the declared path from widening. Main's outcome is pinned and the witness is kept as `#[ignore]`d rows. The capsule's sphere × cylinder probes stop at later doors (the join's `CurvedBooleanUnsupported`, the interior-loop guard, an escalated sector coincidence) and are pinned.

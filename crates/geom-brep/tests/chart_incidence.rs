@@ -15,7 +15,7 @@
 
 use crate::shared::tol::{band, eps};
 use geom::{Curve3, Surface};
-use geom_brep::{Grazer, Pcurve, PcurveCertifyError, UncoveredClass, chart_pcurve};
+use geom_brep::{Grazer, Pcurve, PcurveCertifyError, chart_pcurve};
 use geom_core::{Point3, Tol, Vec3};
 
 /// The right circular cone of half-angle `alpha` about `+z` with its
@@ -250,14 +250,9 @@ fn a_near_pole_small_circle_tilted_inside_the_axial_band_is_on_the_sphere() {
         assert!(h * s > 10.0 * e, "rho = {rho:e}: centre offset {:e}", h * s);
         let got = chart_pcurve(&carrier, &sphere, band());
         assert!(
-            matches!(
-                got,
-                Err(PcurveCertifyError::UnsupportedCarrier {
-                    class: UncoveredClass::SphereGeneralCircle,
-                    ..
-                })
-            ),
-            "rho = {rho:e}: an on-sphere circle is an uncovered general circle: {got:?}"
+            matches!(got, Ok(Pcurve::Projected(_))),
+            "rho = {rho:e}: an on-sphere circle is a general circle with a projected image: \
+             {got:?}"
         );
     }
 }
@@ -265,7 +260,7 @@ fn a_near_pole_small_circle_tilted_inside_the_axial_band_is_on_the_sphere() {
 /// **An in-band move is never read off the cone or the sphere** (the
 /// one-sided incidence test). A cone section moved along the cone's
 /// axis by half the band's zero half derives its image; a sphere's
-/// general circle moved by as much is the general circle the fitted
+/// general circle moved by as much is the general circle the projected
 /// route images, never a carrier off the chart.
 #[test]
 fn an_in_band_move_is_never_read_off_the_cone_or_the_sphere() {
@@ -299,13 +294,7 @@ fn an_in_band_move_is_never_read_off_the_cone_or_the_sphere() {
     };
     let got = chart_pcurve(&circle, &sphere, band());
     assert!(
-        matches!(
-            got,
-            Err(PcurveCertifyError::UnsupportedCarrier {
-                class: UncoveredClass::SphereGeneralCircle,
-                ..
-            })
-        ),
+        matches!(got, Ok(Pcurve::Projected(_))),
         "a general circle moved ε/2 off the sphere: {got:?}"
     );
 }

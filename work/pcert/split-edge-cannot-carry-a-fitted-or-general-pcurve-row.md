@@ -101,3 +101,19 @@ assertion on the stale full-period row. `split_cache` now carries:
 and no route derives a child's afresh; `split_cache` still leaves them
 as found.
 
+
+## Narrowed by the projected image (branch `pcert/projected-image`, 2026-10-08)
+
+No analytic chart stores a fitted-grade row any more. A sphere general
+circle and a spline carrier on an analytic chart store
+`Pcurve::Projected`. That image is a function of the carrier's
+parameter, so `split_cache` carries it like the closed-form rows: the
+same net, pieces and branch centres, re-certified over each child's
+sub-interval through `restate` (`certify_projected`, with the fitted
+door passed in as a value). The fresh-derivation arm for the sphere
+general circle is deleted. `crates/topo/tests/m6_2_fitted_at_rest.rs`,
+`a_split_restricts_the_projected_row_to_each_child`, pins it.
+
+**Still open:** `Fitted` and `General` rows on a spline chart certify
+over their own knot domains, and `split_cache` still leaves them as
+found.

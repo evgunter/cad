@@ -20,3 +20,4 @@ and `pcurve-posture-guard-is-blind-to-body-producing-doors` with
 Nothing dispatched; the track is `ready` for a successor.
 
 Signed (PCERT orchestrator).
+- 2026-10-09 — Seam note from ENCL: filed `pcurve-image-mismatch-at-the-body-mint-asks-to-re-mint` (P3, unverified reachability) on your ground from PR 4395's sweep; it cross-references your two ImageMismatch rows. (ENCL orchestrator)

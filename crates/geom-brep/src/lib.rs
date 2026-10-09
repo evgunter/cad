@@ -90,14 +90,14 @@ pub use description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
 };
 pub use dihedral::{
-    DIHEDRAL_ARM, DihedralClass, MaterialPairing, MaterialWedge, MustCarryDescription,
-    MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, SecondOrder, classify_dihedral,
-    classify_material_pairing, classify_material_pairing_as, folded_lever_arm, material_kappa_rel,
-    must_carry_over_edge, tangent_second_order,
+    DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DihedralClass, MaterialPairing, MaterialWedge,
+    MustCarryDescription, MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, SecondOrder,
+    classify_dihedral, classify_material_pairing, classify_material_pairing_as, folded_lever_arm,
+    material_kappa_rel, must_carry_over_edge, tangent_second_order,
 };
 pub use edge_nurbs::{
-    CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal, PlaneNurbsLimbs,
-    PlaneNurbsRefusal, plane_nurbs_limbs,
+    AnalyticRung3Refusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal,
+    PlaneNurbsLimbs, PlaneNurbsRefusal, analytic_rung3, is_analytic, plane_nurbs_limbs,
 };
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, OutwardNormal, ReferenceNormal, WallBend,
@@ -120,12 +120,13 @@ pub use implicit::{
     min_radius_of_curvature, min_radius_of_curvature_toward, rounding_charge,
 };
 pub use intersect::{
-    CoaxialEvidence, ConeCylinderSection, CylinderSphereSection, EqualCylinderSection, PairRoute,
-    ParallelAxes, PlaneConeSection, PlaneCylinderSection, PlaneSphereSection, PlaneTorusSection,
-    RadiusEvidence, Rung, SectionError, SectionRadius, SphereSphereSection, cone_cylinder_section,
-    cylinder_axes_coplanar, cylinder_axes_parallel, cylinder_cylinder_section,
-    cylinder_sphere_section, parallel_axes_at, plane_cone_section, plane_cylinder_section,
-    plane_sphere_section, plane_torus_section, route, route_pose, sphere_sphere_section,
+    CoaxialEvidence, ConeCylinderSection, CylinderSphereSection, EqualCylinderSection,
+    OutsideConic, PairRoute, ParallelAxes, PlaneConeSection, PlaneCylinderSection,
+    PlaneSphereSection, PlaneTorusSection, RadiusEvidence, Rung, SectionError, SectionRadius,
+    SphereSphereSection, cone_cylinder_section, cylinder_axes_coplanar, cylinder_axes_parallel,
+    cylinder_cylinder_section, cylinder_sphere_section, parallel_axes_at, plane_cone_section,
+    plane_cylinder_section, plane_sphere_section, plane_torus_section, route, route_pose,
+    sphere_sphere_section,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey};
 pub use locus::{TangentLocus, TangentLocusError, tangent_locus};
@@ -147,10 +148,11 @@ pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };
 pub use pcurve_cache::{
-    BranchMiss, ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm, FocalImage, Grazer,
-    IsoFamily, IsoFamilyRefusal, MAX_BRANCH_PERIODS, NoChartSup, Pcurve, PcurveCache,
-    PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, SpiricImage, UncoveredClass,
-    chart_iso_family, chart_pcurve, chart_stretch_inf, chart_stretch_sup, chart_stretch_sup_v,
+    BranchMiss, ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm, FocalImage,
+    FramedCarrier, Grazer, IsoFamily, IsoFamilyRefusal, MAX_BRANCH_PERIODS, NoChartSup, Pcurve,
+    PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, ProjectedChart,
+    ProjectedImage, SectorChannel, SpiricImage, UncoveredClass, chart_iso_family, chart_pcurve,
+    chart_pcurve_over, chart_stretch_inf, chart_stretch_sup, chart_stretch_sup_v,
     whole_period_count, whole_periods,
 };
 pub use props::{

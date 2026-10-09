@@ -594,6 +594,9 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
                 breaks,
             },
             Pcurve::Fitted(_) | Pcurve::General(_) => panic!("an analytic chart carries no fit"),
+            // A whole-period shift is a translation of the chart, which
+            // the projected image's deck map absorbs.
+            projected @ Pcurve::Projected(_) => projected.shift_branch(1.0, TAU),
             // The fixture's charts are a cylinder's and a plane's, so
             // no spiric image is stored on them; the azimuth shift is
             // still the one field, were one to arrive.
