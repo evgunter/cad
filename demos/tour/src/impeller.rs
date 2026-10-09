@@ -199,7 +199,7 @@ fn build_doc(tol: Tol) -> Recipe {
     let hub_p = insert(
         &mut doc,
         Box::new(Node::Profile(ProfileProgram {
-            plane: hub_plane,
+            frame: hub_plane.into(),
             loops: vec![hub_polygon()],
             ids: Vec::new(),
         })),
@@ -207,7 +207,7 @@ fn build_doc(tol: Tol) -> Recipe {
     let hub_e = insert(
         &mut doc,
         Box::new(Node::Extrude {
-            profile: hub_p,
+            profile: hub_p.into(),
             distance: len(HUB_H),
             side: ExtrudeSide::Along,
         }),
@@ -217,7 +217,7 @@ fn build_doc(tol: Tol) -> Recipe {
     let blade_p = insert(
         &mut doc,
         Box::new(Node::Profile(ProfileProgram {
-            plane: blade_plane,
+            frame: blade_plane.into(),
             loops: vec![blade_polygon()],
             ids: Vec::new(),
         })),
@@ -225,7 +225,7 @@ fn build_doc(tol: Tol) -> Recipe {
     let blade_e = insert(
         &mut doc,
         Box::new(Node::Extrude {
-            profile: blade_p,
+            profile: blade_p.into(),
             distance: len(BLADE_H),
             side: ExtrudeSide::Along,
         }),
@@ -250,7 +250,7 @@ fn build_doc(tol: Tol) -> Recipe {
                 blade_e,
                 pe("blades"),
                 PatternKind::Circular {
-                    axis,
+                    axis: axis.into(),
                     step: pe("360 deg / scalar(blades)"),
                 },
             )
@@ -261,8 +261,8 @@ fn build_doc(tol: Tol) -> Recipe {
         &mut doc,
         Box::new(Node::Boolean {
             op: BooleanOp::Union,
-            a: hub_e,
-            b: group,
+            a: hub_e.into(),
+            b: group.into(),
             declare: Vec::new(),
         }),
     );

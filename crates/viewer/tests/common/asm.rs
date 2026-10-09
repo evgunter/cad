@@ -80,7 +80,7 @@ fn box_part(label: &str, width: f64, depth: f64, height: f64, tol: Tol) -> Profi
     insert_into(
         &mut doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(height),
             side: ExtrudeSide::Along,
         },

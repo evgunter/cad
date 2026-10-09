@@ -87,7 +87,7 @@ fn parts(doc: &ProfileDoc) -> Vec<(RecipeNodeId, RecipeNodeId, PartSelect)> {
     doc.ids()
         .iter()
         .filter_map(|&id| match doc.node(id) {
-            Some(Node::Part { of, select }) => Some((id, *of, select.clone())),
+            Some(Node::Part { of, select }) => Some((id, doc.operation_of(*of)?, select.clone())),
             _ => None,
         })
         .collect()

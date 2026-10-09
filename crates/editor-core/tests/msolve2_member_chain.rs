@@ -61,7 +61,7 @@ fn part_doc(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(h),
             side: ExtrudeSide::Along,
         },
@@ -179,7 +179,7 @@ fn control_seat(label: &str) -> Affine3<f64> {
 /// A linear pattern node over `input`.
 fn linear(input: RecipeNodeId, dir: [f64; 3], spacing: f64, count: i64) -> AuthoredNode {
     Node::Pattern {
-        input,
+        input: input.into(),
         count: Formula::count(count),
         kind: PatternKind::Linear {
             direction: dir.map(scl),
@@ -192,7 +192,7 @@ fn linear(input: RecipeNodeId, dir: [f64; 3], spacing: f64, count: i64) -> Autho
 /// projection a nested pattern is built through.
 fn part_of(of: RecipeNodeId, i: i64) -> AuthoredNode {
     Node::Part {
-        of,
+        of: of.into(),
         select: PartSelect::Instance(Formula::count(i)),
     }
 }
@@ -222,10 +222,10 @@ fn circular(
     insert(
         doc,
         Node::Pattern {
-            input,
+            input: input.into(),
             count: Formula::count(count),
             kind: PatternKind::Circular {
-                axis,
+                axis: axis.into(),
                 step: ang(step_angle),
             },
         },
@@ -294,10 +294,10 @@ fn a1_a_nested_copy_seats_at_the_composed_pose() {
     let (doc, outer) = insert(
         doc,
         Node::Pattern {
-            input: part,
+            input: part.into(),
             count: Formula::count(2),
             kind: PatternKind::Circular {
-                axis,
+                axis: axis.into(),
                 step: ang(std::f64::consts::FRAC_PI_2),
             },
         },
@@ -1277,7 +1277,7 @@ fn a4c_the_part_index_is_evaluated_at_the_documents_bindings() {
     let (doc, part) = insert(
         doc,
         Node::Part {
-            of: pattern,
+            of: pattern.into(),
             select: PartSelect::Instance(Formula::named(k.clone(), Dimension::Count)),
         },
     );
@@ -1383,7 +1383,7 @@ fn a3e_a_part_naming_a_split_half_stops_the_walk() {
     let (doc, part) = insert(
         doc,
         Node::Part {
-            of: pattern,
+            of: editor_core::Operand::output(pattern, SplitHalf::Above.port()),
             select: PartSelect::SplitHalf(SplitHalf::Above),
         },
     );

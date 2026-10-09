@@ -1395,7 +1395,7 @@ fn r1_a_cut_root_on_no_gauge_refuses_where_the_cut_anchors_on_a_gauge() {
     let (asserted, assertion) = insert(
         measured.clone(),
         Node::Assertion {
-            measure,
+            measure: measure.into(),
             bound: fixture::len(1.0),
             dir: editor_core::AssertionDir::AtLeast,
         },
@@ -1403,7 +1403,7 @@ fn r1_a_cut_root_on_no_gauge_refuses_where_the_cut_anchors_on_a_gauge() {
     let (framed, frame) = insert(
         doc.clone(),
         Node::Datum(editor_core::Datum::FaceFrame {
-            at: base,
+            at: base.into(),
             face: p.base_cap(base),
             spin: fixture::ang(0.0),
         }),

@@ -54,7 +54,7 @@ fn patterned_on_a_count_param() -> (ProfileDoc, VarName, RecipeNodeId) {
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -73,7 +73,7 @@ fn patterned_on_a_count_param() -> (ProfileDoc, VarName, RecipeNodeId) {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: extrude,
+            input: extrude.into(),
             count: Formula::named(name.clone(), Dimension::Count),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -175,7 +175,7 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
     let (doc, _) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },

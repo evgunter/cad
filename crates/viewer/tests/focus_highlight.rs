@@ -302,9 +302,7 @@ fn die(tol: Tol) -> Die {
     type DieDoc = pncad::document::Doc<pncad::document::ProfileProgram>;
     let doc = die_document(tol);
     let input_of = |doc: &DieDoc, id| {
-        doc.node(id)
-            .expect("an ordered node exists")
-            .inputs()
+        doc.upstream(id)
             .first()
             .copied()
             .expect("the die's chain is unbroken")

@@ -366,6 +366,9 @@ pub(crate) struct ProfileEdit {
     /// The committed program the loops were loaded from, as written
     /// ([`sketch::written_program`]).
     base: ProfileProgram<Formula>,
+    /// The frame node the profile's plane reads, `None` for a plane
+    /// read a delete stranded.
+    frame: Option<RecipeNodeId>,
     /// The loops as the editor holds them, in description order.
     loops: Vec<Vec<Step<f64>>>,
     /// Per held loop, per held step: the committed step it was loaded
@@ -395,6 +398,7 @@ impl ProfileEdit {
     /// of it), every step loaded as itself.
     fn load(
         node: RecipeNodeId,
+        frame: Option<RecipeNodeId>,
         program: ProfileProgram<Formula>,
         loops: Vec<Vec<Step<f64>>>,
     ) -> Self {
@@ -420,6 +424,7 @@ impl ProfileEdit {
             .collect();
         Self {
             node,
+            frame,
             base: program,
             loops,
             loaded_as,
@@ -428,10 +433,10 @@ impl ProfileEdit {
         }
     }
 
-    /// The frame the profile is drawn on — a reference the edit door
-    /// does not rewrite.
-    pub(crate) fn plane(&self) -> RecipeNodeId {
-        self.base.plane
+    /// The frame the profile is drawn on — a read the edit door does
+    /// not rewrite — or `None` where a delete stranded it.
+    pub(crate) fn plane(&self) -> Option<RecipeNodeId> {
+        self.frame
     }
 
     /// The committed program the loops were loaded from — what
@@ -549,7 +554,7 @@ impl ProfileEdit {
     /// rather than assumed: [`sketch::held_loops`]'s refusal.
     pub(crate) fn revert(&mut self, doc: &Doc<ProfileProgram>) -> Result<(), HeldRefusal> {
         let loops = sketch::held_loops(doc, self.node)?;
-        *self = Self::load(self.node, self.base.clone(), loops);
+        *self = Self::load(self.node, self.frame, self.base.clone(), loops);
         Ok(())
     }
 }
@@ -870,7 +875,13 @@ impl Drafts {
             let Some(base) = current else {
                 unreachable!("`held_loops` loaded node {} as a profile", node)
             };
-            self.profile_edit = Some(ProfileEdit::load(node, base, loops));
+            let frame = match doc.node(node) {
+                Some(Node::Profile(program)) => {
+                    doc.defined_by(program.frame).map(|(frame, _)| frame)
+                }
+                _ => None,
+            };
+            self.profile_edit = Some(ProfileEdit::load(node, frame, base, loops));
         }
         let Some(held) = self.profile_edit.as_mut() else {
             unreachable!("the edit draft was kept or loaded just above")
@@ -909,7 +920,7 @@ impl Drafts {
                 loops: self.profile_loops(),
             }),
             edit: self.profile_edit.as_ref().map(|edit| DoorLoops {
-                plane: Some(ProfilePlane::Existing(edit.plane())),
+                plane: edit.plane().map(ProfilePlane::Existing),
                 loops: edit.shapes(),
             }),
         }
@@ -1157,10 +1168,10 @@ mod tests {
     use crate::forms::{DatumKindChoice, ShapeKind};
     use crate::props::Notation;
     use crate::seats::Seat;
+    use crate::session::NodeKindWanted;
     use crate::session::SessionOp;
     use crate::session::author::datum_node;
     use crate::session::{DatumSpec, FaceSelection, ProfilePlane};
-    use crate::session::{NodeKindWanted, admits};
     use crate::sketch;
     use crate::test_support::{inserted, try_edited, try_inserted, xy_frame};
 
@@ -1445,12 +1456,16 @@ mod tests {
                 | NodeKindWanted::Frame => {}
             }
             assert!(
+                // These seats are classified by the node's kind alone
+                // ([`crate::session::refuse::seat_kind`]), so the node's
+                // shape answers, its operands read as given.
                 authorable.iter().any(|node| {
                     let mut doc = Doc::empty_derived("seat", Tol::witness());
-                    admits(
-                        Some(&editor_core::test_support::stored(&mut doc, node)),
-                        wanted,
-                    )
+                    let stored =
+                        editor_core::test_support::stored_reading(&mut doc, node, |id, _| {
+                            editor_core::VarId(id.0)
+                        });
+                    crate::session::refuse::seat_kind(&stored) == Some(wanted)
                 }),
                 "the {} seat wants {} and no add-datum choice authors one",
                 seat.name(),
@@ -1493,7 +1508,7 @@ mod tests {
         let (doc, profile) = inserted(
             &doc,
             Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops: loops.clone(),
                 ids: Vec::new(),
             }),
@@ -1652,7 +1667,7 @@ mod tests {
             .profile_programs(Notation::DEFAULT)
             .expect("the default path lowers");
         let node = Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops,
             ids: Vec::new(),
         });
@@ -1769,7 +1784,7 @@ mod tests {
             .expect("finite"),
         ];
         let node = Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops,
             ids: Vec::new(),
         });

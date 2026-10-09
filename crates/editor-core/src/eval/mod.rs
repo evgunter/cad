@@ -26,7 +26,7 @@ mod memo;
 pub(crate) mod parts;
 
 pub use parts::PartFault;
-mod schedule;
+pub(crate) mod schedule;
 pub(crate) mod slots;
 mod wire;
 pub(crate) use wire::decision_words;
@@ -948,9 +948,10 @@ pub(crate) type Seated = Box<(RecipeNodeId, NodeErrorKind)>;
 ///   through it; a document holding one is admitted by `apply`.
 /// - [`NodeErrorKind::MissingInput`] naming a transform's input that
 ///   is no live node, at that transform — likewise the transform's own
-///   refusal. Unreachable through `apply`, which refuses the delete
-///   that would leave it (`DeleteWouldDangle`), and through `load`,
-///   whose validator holds liveness; refused typed anyway.
+///   refusal. A delete strands the transform's read rather than
+///   leaving it, and the transform's own evaluation refuses that
+///   (`UnresolvedRead`) before this walk reaches it; refused typed
+///   anyway.
 /// - [`NodeErrorKind::MissingInput`] naming `id` itself when it is no
 ///   live node, seated at `id`: the walk has no other node to name.
 pub(crate) fn node_value_kind<P>(doc: &Doc<P>, id: RecipeNodeId) -> Result<&'static str, Seated> {
@@ -968,8 +969,17 @@ pub(crate) fn node_value_kind<P>(doc: &Doc<P>, id: RecipeNodeId) -> Result<&'sta
         let Node::Transform { input, .. } = node else {
             break node;
         };
+        let Some(source) = doc.operation_of(*input) else {
+            return Err(Box::new((
+                at,
+                NodeErrorKind::UnresolvedRead {
+                    slot: crate::OperandSlot::Input,
+                    var: *input,
+                },
+            )));
+        };
         placer = Some(at);
-        at = *input;
+        at = source;
     };
     // The family, and whether a placer takes it.
     let (found, placeable) = match source {
@@ -1432,6 +1442,30 @@ pub enum NodeErrorKind {
     MissingInput {
         /// The dangling id.
         input: RecipeNodeId,
+    },
+    /// **An operand reads a variable no live operation defines** (D10:
+    /// deleting an operation leaves its readers unresolved, typed, never
+    /// re-pointed). The delete reported it
+    /// ([`crate::Maintenance::StrandedRead`]); the repair is an edit
+    /// naming a new read for the slot.
+    UnresolvedRead {
+        /// The operand.
+        slot: crate::OperandSlot,
+        /// The read.
+        var: crate::VarId,
+    },
+    /// **A measure's sited reference is read at a node no longer live**:
+    /// a measure's site is a node it reads names at
+    /// ([`crate::Node::measure_sites`]), not yet a read of a variable,
+    /// so the delete that removed it leaves the measure the read's
+    /// refusal in the site's own address ([`UnresolvedRead`]'s sibling,
+    /// one arm once a site is a read). The delete reported the names it
+    /// stranded; the repair is an edit naming a live site.
+    ///
+    /// [`UnresolvedRead`]: NodeErrorKind::UnresolvedRead
+    UnresolvedSite {
+        /// The site, by id: it is not live.
+        at: RecipeNodeId,
     },
     /// The document's recorded ε disagrees with the process's
     /// committed ambient ε (M4 PR 6 spec D4: one process = one ε —
@@ -2419,6 +2453,17 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::MissingInput { input } => {
                 write!(f, "{} names no live node", by.node_as(*input, "input"))
             }
+            Self::UnresolvedRead { slot, var } => write!(
+                f,
+                "its {slot} reads {var}, which no live operation defines: the operation it \
+                 read was deleted"
+            ),
+            Self::UnresolvedSite { at } => write!(
+                f,
+                "it measures at {}, which is no longer live: the node it read names at was \
+                 deleted",
+                by.node_as(*at, "site")
+            ),
             Self::ToleranceConflict {
                 document_eps,
                 process_eps,
@@ -4082,7 +4127,7 @@ fn unplaced_below<P: crate::ProfilePayload, T: Decide>(
             usable_in(nodes, id, || NodeStanding::NotEvaluated { node: id })
                 .map(|value| value.carried.unplaced.clone())
                 .unwrap_or_default();
-        for input in node.inputs() {
+        for input in doc.upstream_of(node) {
             for row in out.get(&input).into_iter().flatten() {
                 if !rows.contains(row) {
                     rows.push(row.clone());
@@ -4094,6 +4139,18 @@ fn unplaced_below<P: crate::ProfilePayload, T: Decide>(
         }
     }
     out
+}
+
+/// **The operation an operand reads** — the node whose output `var`
+/// is — or the reader's refusal: a read no live operation defines is
+/// unresolved (D10), typed at `slot`.
+pub(crate) fn read_at<P>(
+    doc: &Doc<P>,
+    slot: crate::OperandSlot,
+    var: crate::VarId,
+) -> Result<RecipeNodeId, NodeErrorKind> {
+    doc.operation_of(var)
+        .ok_or(NodeErrorKind::UnresolvedRead { slot, var })
 }
 
 /// The all-nodes ToleranceConflict refusal (spec D4 door).
@@ -4312,17 +4369,33 @@ where
     // Poison propagation (spec D2, GQ2): first blocking input in the
     // node's deterministic input order; `through` always names a
     // FAILED node (propagated through poisoned intermediaries).
-    let mut upstream_keys: Vec<ContentKey> = Vec::new();
-    let mut upstream_naming: Vec<(RecipeNodeId, NamingKey)> = Vec::new();
-    for input in node.inputs() {
+    // A read no live operation defines is the reader's own refusal
+    // (D10): a deleted operation leaves its readers unresolved.
+    if let Some((slot, var)) = node
+        .operand_rows()
+        .into_iter()
+        .find(|(_, var)| doc.operation_of(*var).is_none())
+    {
+        return fail(bracket, NodeErrorKind::UnresolvedRead { slot, var });
+    }
+    // A measure's site no live node is, likewise: `Doc::upstream` sets
+    // it aside, so it is refused here rather than met as an input.
+    if let Some(at) = node
+        .measure_sites()
+        .into_iter()
+        .find(|site| doc.node(*site).is_none())
+    {
+        return fail(bracket, NodeErrorKind::UnresolvedSite { at });
+    }
+    let mut keys: BTreeMap<RecipeNodeId, (ContentKey, NamingKey)> = BTreeMap::new();
+    for input in doc.upstream_of(node) {
         // Every input the document has precedes this node in the
         // order and so has its result: an absent one is not in it.
         match usable_in(results, input, || NodeStanding::NotInDocument {
             node: input,
         }) {
             Ok(v) => {
-                upstream_keys.push(v.content_key);
-                upstream_naming.push((input, v.naming_key));
+                keys.insert(input, (v.content_key, v.naming_key));
             }
             Err(NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. }) => {
                 return fail(bracket, NodeErrorKind::MissingInput { input });
@@ -4337,6 +4410,44 @@ where
             }
         }
     }
+    // What the keys read of upstream: one entry per READ, in field
+    // order, as the operation it reads and the port (D10; DR-59's
+    // class: two outputs of one operation are two inputs, and a key
+    // that saw only the operation would serve one half's body for the
+    // other), then the sites a measure reads at. Every operation here
+    // has its result (above).
+    let reads: Vec<(RecipeNodeId, Option<u8>)> = node
+        .operand_rows()
+        .into_iter()
+        .filter_map(|(_, var)| doc.defined_by(var).map(|(at, port)| (at, Some(port))))
+        .chain(
+            node.measure_sites()
+                .into_iter()
+                .filter(|site| keys.contains_key(site))
+                .map(|site| (site, None)),
+        )
+        .collect();
+    let key_of = |at: &RecipeNodeId| {
+        *keys
+            .get(at)
+            .unwrap_or_else(|| unreachable!("every operation a node reads is in its upstream"))
+    };
+    let upstream_keys: Vec<UpstreamRead<ContentKey>> = reads
+        .iter()
+        .map(|(at, port)| UpstreamRead {
+            at: *at,
+            port: *port,
+            key: key_of(at).0,
+        })
+        .collect();
+    let upstream_naming: Vec<UpstreamRead<NamingKey>> = reads
+        .iter()
+        .map(|(at, port)| UpstreamRead {
+            at: *at,
+            port: *port,
+            key: key_of(at).1,
+        })
+        .collect();
 
     // Slot evaluation — the (node, slot) context door (PR 1's banked
     // NonFiniteResult obligation lands here). TWICE, through the one
@@ -4401,7 +4512,9 @@ where
             // (`wire::mint_frame_placement`). The frame is a DAG input
             // of this node, so its value is in hand and a failed
             // frame poisoned this node before the read.
-            let placement = match wire::profile_plane_f64(results, id, program.plane) {
+            let placement = match read_at(doc, crate::OperandSlot::Frame, program.frame)
+                .and_then(|plane| wire::profile_plane_f64(results, id, plane))
+            {
                 Ok(placement) => placement,
                 Err(kind) => return fail(bracket, kind),
             };
@@ -4753,11 +4866,14 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            /// v9: an extrude writes its side — a channel every
-            /// existing extrude writes into. (v8: a mate frame writes
-            /// its arm word before its payload, and a mate writes the
-            /// parts its face frames resolve against.)
-            VERSION = 9,
+            /// v10: each read feeds the port it reads beside its
+            /// operation's key (D10), one entry per read rather than
+            /// one per operation — a channel every existing node with
+            /// an operand writes into. (v9: an extrude writes its side.
+            /// v8: a mate frame writes its arm word before its payload,
+            /// and a mate writes the parts its face frames resolve
+            /// against.)
+            VERSION = 10,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
@@ -5237,7 +5353,7 @@ fn content_key<T>(
     payload_values: Option<&[T]>,
     resolved_program: Option<&[Vec<profile::Step<f64>>]>,
     lane_program: Option<&[Vec<profile::Step<T>>]>,
-    upstream_keys: &[ContentKey],
+    upstream_keys: &[UpstreamRead<ContentKey>],
     witness: Option<&crate::witness::WitnessDatum>,
     solve_answer: SolveAnswer<T>,
     tol: Tol,
@@ -5767,15 +5883,13 @@ where
         // tag for both kinds — the two share this payload exactly as
         // they share the slots it governs.
         Node::Tube {
-            spine: _,
-            u_ref: _,
+            frame: _,
             major_radius: _,
             window,
             minor_radius: _,
         }
         | Node::HollowTube {
-            spine: _,
-            u_ref: _,
+            frame: _,
             major_radius: _,
             window,
             minor_radius: _,
@@ -5837,7 +5951,7 @@ where
                 v: _,
             }
             | Datum::AxisInPlane {
-                plane: _,
+                frame: _,
                 origin: _,
                 direction: _,
             },
@@ -5912,10 +6026,12 @@ where
         }
     }
     // Upstream identity, by CONTENT (never by id — ids are stable
-    // labels, content keys are the Merkle links).
+    // labels, content keys are the Merkle links): each read as its
+    // operation's key and the port it reads.
     h.write_u64(upstream_keys.len() as u64);
-    for k in upstream_keys {
-        h.write_key(*k);
+    for read in upstream_keys {
+        h.write_key(read.key);
+        feed_port(&mut h, read.port);
     }
     // The recorded witness datum. Its presence is a word of its own so
     // `None` cannot alias a `Some` with empty bytes; a cleared witness
@@ -5932,19 +6048,41 @@ where
     h.finish()
 }
 
+/// **One read a node's keys feed** (D10): the operation `at` defining
+/// the variable read, the port read (`None` for a measure's site, which
+/// is a node read at rather than an output), and that operation's key.
+#[derive(Clone, Copy)]
+struct UpstreamRead<K> {
+    at: RecipeNodeId,
+    port: Option<u8>,
+    key: K,
+}
+
+/// A read's port, as the keys feed it: its presence, then the port.
+fn feed_port(h: &mut KeyHasher, port: Option<u8>) {
+    match port {
+        None => h.write_tag(tag::presence::ABSENT),
+        Some(port) => {
+            h.write_tag(tag::presence::PRESENT);
+            h.write_u64(u64::from(port));
+        }
+    }
+}
+
 /// The recursive naming key (issue #95 disposition 2; see
-/// [`NamingKey`]): the node's own content key plus every input's
-/// (id, naming key) pair, in input order — ids INCLUDED, which is
-/// exactly what the content key omits by design (D8).
-fn naming_key(content: ContentKey, upstream: &[(RecipeNodeId, NamingKey)]) -> NamingKey {
+/// [`NamingKey`]): the node's own content key plus every read's
+/// (operation id, port, naming key), in read order — ids INCLUDED,
+/// which is exactly what the content key omits by design (D8).
+fn naming_key(content: ContentKey, upstream: &[UpstreamRead<NamingKey>]) -> NamingKey {
     let mut h = KeyHasher::new();
     h.write_tag(tag::naming::DOMAIN);
     h.write_key(content);
     h.write_u64(upstream.len() as u64);
-    for (id, nk) in upstream {
-        h.write_id(id.0);
-        h.write_u64(nk.0 as u64);
-        h.write_u64((nk.0 >> 64) as u64);
+    for read in upstream {
+        h.write_id(read.at.0);
+        feed_port(&mut h, read.port);
+        h.write_u64(read.key.0 as u64);
+        h.write_u64((read.key.0 >> 64) as u64);
     }
     NamingKey(h.finish().0)
 }

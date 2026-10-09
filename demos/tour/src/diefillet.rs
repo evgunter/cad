@@ -225,7 +225,7 @@ fn cube_node(doc: &mut Doc<ProfileProgram>, tol: Tol) -> RecipeNodeId {
     let cube_p = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: cube_plane,
+            frame: cube_plane.into(),
             loops: vec![LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap()],
             ids: Vec::new(),
         }),
@@ -234,7 +234,7 @@ fn cube_node(doc: &mut Doc<ProfileProgram>, tol: Tol) -> RecipeNodeId {
     insert(
         doc,
         Node::Extrude {
-            profile: cube_p,
+            profile: cube_p.into(),
             distance: len(L),
             side: ExtrudeSide::Along,
         },
@@ -263,7 +263,7 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
     let axis = insert(
         doc,
         Node::Datum(Datum::AxisInPlane {
-            plane: ball_plane,
+            frame: ball_plane.into(),
             origin: [len(0.0), len(0.0)],
             direction: [scl(0.0), scl(1.0)],
         }),
@@ -272,7 +272,7 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
     let ball_p = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: ball_plane,
+            frame: ball_plane.into(),
             loops: vec![half_disc()],
             ids: Vec::new(),
         }),
@@ -281,8 +281,8 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
     let ball = insert(
         doc,
         Node::Revolve {
-            profile: ball_p,
-            axis,
+            profile: ball_p.into(),
+            axis: axis.into(),
             // A full turn, in the degrees this document is written in.
             angle: ang(360.0),
         },
@@ -311,7 +311,7 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
             insert(
                 doc,
                 Node::transform(
-                    ball,
+                    pncad::document::Operand::output(ball, 0),
                     pncad::document::Step::Rigid {
                         translation: p.centre.map(len),
                         axis: p.axis.map(scl),
@@ -325,7 +325,7 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
     let tool = insert(
         doc,
         Node::Union {
-            members,
+            members: members.into_iter().map(Into::into).collect(),
             declare: Vec::new(),
         },
         tol,
@@ -334,8 +334,8 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: cube,
-            b: tool,
+            a: cube.into(),
+            b: tool.into(),
             declare: Vec::new(),
         },
         tol,

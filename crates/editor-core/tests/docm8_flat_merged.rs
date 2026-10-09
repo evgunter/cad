@@ -239,7 +239,7 @@ fn recorded_block(rec: &mut Recorder, (x0, x1): (f64, f64)) -> RecipeNodeId {
         vec![vec![(x0, 0.0), (x1, 0.0), (x1, 1.0), (x0, 1.0)]],
     );
     rec.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     })
@@ -292,8 +292,8 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
     );
     let inner = rec.insert(Node::Boolean {
         op: BooleanOp::Union,
-        a,
-        b,
+        a: a.into(),
+        b: b.into(),
         declare: decl_ab,
     });
     let c = recorded_block(&mut rec, (1.2, 2.2));
@@ -320,8 +320,8 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
     );
     let outer = rec.insert(Node::Boolean {
         op: BooleanOp::Union,
-        a: inner,
-        b: c,
+        a: inner.into(),
+        b: c.into(),
         declare: decl_ic,
     });
     let ev = run(&rec.doc);
@@ -470,8 +470,8 @@ fn a_consumed_inner_merged_face_offers_the_outer_flat_row() {
     );
     let inner = rec.insert(Node::Boolean {
         op: BooleanOp::Union,
-        a,
-        b,
+        a: a.into(),
+        b: b.into(),
         declare: decl_ab,
     });
     let c = recorded_block(&mut rec, (1.2, 2.2));
@@ -497,8 +497,8 @@ fn a_consumed_inner_merged_face_offers_the_outer_flat_row() {
     );
     let outer = rec.insert(Node::Boolean {
         op: BooleanOp::Union,
-        a: inner,
-        b: c,
+        a: inner.into(),
+        b: c.into(),
         declare: decl_ic,
     });
     let ev = run(&rec.doc);
@@ -560,8 +560,8 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: decl_ab,
         },
     );
@@ -572,8 +572,8 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: far,
-            b: inner,
+            a: far.into(),
+            b: inner.into(),
             declare: Vec::new(),
         },
     );
@@ -604,8 +604,8 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: mid,
-            b: c,
+            a: mid.into(),
+            b: c.into(),
             declare: decl_mc,
         },
     );
