@@ -2,11 +2,12 @@
 id: shell-open-band-wrapping-between-two-boundaries
 kind: issue
 title: shell_open refuses a designated chart that wraps its period between two boundaries (a tube's outer wall); only a pole-touching wrap opens
-status: open
+status: dispatched
 opened: 2026-10-06
 priority: P2
 cost: M
 refs: [shell-open-refuses-a-curved-designated-face]
+branch: shell/band-between-boundaries
 ---
 
 
