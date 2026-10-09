@@ -7,13 +7,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::docm7_union_declare::{block, failure, run};
-use crate::fixture::{ang, fname, insert, len, on_frame, scl, table};
+use crate::fixture::{ang, fname, insert, len, len2, on_frame, scl, table};
 
 use editor_core::{
     Advisory, BooleanCoincidence, BooleanOp, CapEnd, CheckEvidence, CheckId, ChecksConfig, Datum,
-    EntityKey, EntityKind, Entry, Evaluation, FindingSubject, NamedCell, NamedCoincidence, Node,
-    PartSelect, ProfileDoc, Proof, RecipeNodeId, RoleSeg, Rung, Severity, SitedRef, SplitHalf,
-    StableName, ValuePayload, coincide,
+    EntityKey, EntityKind, Entry, Evaluation, FindingSubject, Formula, LoopProgram, NamedCell,
+    NamedCoincidence, Node, PartSelect, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
+    ProgramTarget, Proof, RecipeNodeId, RoleSeg, Rung, Severity, SitedRef, SplitHalf, StableName,
+    ValuePayload, coincide, spoken_by,
 };
 use geom_core::{MarginDiag, Point3, Tol};
 use topo::{DecisionSite, Relation};
@@ -685,4 +686,104 @@ fn the_fallbacks_carry_the_declared_rows() {
         );
         assert_eq!(unproven(&doc, &ev).len(), n, "{op:?}: two extrudes' faces");
     }
+}
+
+/// A one-loop profile program on a fresh xy frame.
+fn profile_of(doc: ProfileDoc, steps: LoopProgram<Formula>) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, plane) = insert(
+        doc,
+        crate::fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+    );
+    insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![steps],
+            ids: Vec::new(),
+        }),
+    )
+}
+
+/// **A profile junction no constructor made is a row on its profile**
+/// (§11 row 21, at the document). A line meets an arc at a turn
+/// `φ = √ε` the lattice reads as a corner (`sin φ · arm`, far past the
+/// band) and validation's carrier clearance (`r(1 − cos φ) ≈ ε/2`)
+/// reads Zero: the profile builds, its node holds one
+/// `Tangent { aligned: true }` row decided at `ProfileJunction` over
+/// the line's piece and the arc's, and the check reports it unproven,
+/// the two pieces being two constructions. A circle, whose joints its
+/// form constructs, holds none.
+///
+/// Red if the junction refuses, or its row is not carried onto the
+/// profile's value (no row), or a constructed joint is recorded (the
+/// circle has one).
+#[test]
+fn a_profile_junction_decided_tangent_is_one_unproven_row_on_its_profile() {
+    let phi = Tol::witness().eps().sqrt();
+    let c = [1.0 - phi.sin(), phi.cos()];
+    let doc = ProfileDoc::empty_derived("g_profile_junction", Tol::witness());
+    let (doc, p) = profile_of(
+        doc,
+        LoopProgram::Chain(vec![
+            ProgramStep::At(len2([0.0, 0.0])),
+            ProgramStep::LineTo(ProgramTarget::Point(len2([1.0, 0.0]))),
+            ProgramStep::ArcTo(ProgramArcData::Center {
+                c: len2(c),
+                winding: profile::ArcSweep::Ccw,
+                target: ProgramTarget::Point(len2([c[0], c[1] + 1.0])),
+            }),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ]),
+    );
+    let (doc, circle) = profile_of(
+        doc,
+        LoopProgram::Circle {
+            centre: len2([0.0, 0.0]),
+            radius: len(1.0),
+        },
+    );
+    let ev = run(&doc);
+    let got = rows(&ev, p);
+    assert_eq!(got.len(), 1, "one decided junction: {got:?}");
+    assert_eq!(
+        (got[0].relation, got[0].site),
+        (
+            Relation::Tangent { aligned: true },
+            DecisionSite::ProfileJunction
+        )
+    );
+    match &got[0].cells {
+        [
+            NamedCell::Piece {
+                profile: a,
+                piece: line,
+            },
+            NamedCell::Piece {
+                profile: b,
+                piece: arc,
+            },
+        ] => {
+            assert_eq!((*a, *b), (p, p), "both cells are the profile's own pieces");
+            assert_ne!(line, arc, "the arriving and leaving pieces are two");
+        }
+        cells => panic!("a junction's cells are two pieces: {cells:?}"),
+    }
+    assert!(
+        rows(&ev, circle).is_empty(),
+        "a circle's joints are constructed"
+    );
+    let findings = unproven(&doc, &ev);
+    assert_eq!(findings.len(), 1, "{findings:?}");
+    assert_eq!(findings[0].subject, FindingSubject::Node(p));
+    let CheckEvidence::UnprovenCoincidence { row, .. } = &findings[0].evidence else {
+        panic!("{:?}", findings[0].evidence)
+    };
+    assert_eq!(**row, got[0]);
+    let said = spoken_by(&findings[0], &doc);
+    assert!(
+        said.contains("continues tangent into")
+            && said.contains("a profile junction no constructor made")
+            && said.contains("the two cells are two constructions"),
+        "{said}"
+    );
 }

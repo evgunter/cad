@@ -34,12 +34,15 @@ is the document that trips nothing, so a finding here means the check
 fired on the geometry and not on every document it is handed.
 """
 
+import math
 import unittest
 
 import pncad
 from pncad import (
     Advisory,
+    ArcSweep,
     BooleanOp,
+    Center,
     CheckId,
     CheckKind,
     CheckRefusal,
@@ -50,7 +53,9 @@ from pncad import (
     DocRef,
     Formula,
     Node,
+    Open,
     Severity,
+    Start,
     enforce_checks,
     evaluate,
     m,
@@ -500,3 +505,33 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAProfileJunctionDecidedTangent(unittest.TestCase):
+    """D1's profile tangency: a junction no constructor made, which
+    validation decides tangent from its carriers, builds and is one
+    coincidence on the profile's own node, its cells the profile's two
+    pieces. A line meets an arc at a turn of `sqrt(eps)` at the default
+    eps: a corner to the lattice, Zero to the carrier clearance."""
+
+    def test_the_junction_is_one_row_on_its_profile(self):
+        phi = math.sqrt(1e-9)
+        cx, cy = 1.0 - math.sin(phi), math.cos(phi)
+        loop = (
+            Open.at((0 * m, 0 * m))
+            .line_to((1 * m, 0 * m))
+            .arc_to(Center((cx * m, cy * m), ArcSweep.Ccw, (cx * m, (cy + 1.0) * m)))
+            .line_to(Start)
+        )
+        doc = Doc()
+        node = doc.insert(Node.profile(loop, plane=doc.sketch_frame()))
+        ev = evaluate(doc)
+        self.assertTrue(ev.succeeded(node))
+        rows = ev.coincidences(node)
+        self.assertEqual(len(rows), 1)
+        (row,) = rows
+        self.assertEqual((row.relation, row.site), ("tangent", "profile_junction"))
+        self.assertIsNone(row.rung)
+        self.assertEqual([at for at, _ in row.cells], [node, node])
+        (_, line), (_, arc) = row.cells
+        self.assertNotEqual(line, arc)

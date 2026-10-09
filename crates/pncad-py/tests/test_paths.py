@@ -104,24 +104,18 @@ class TestTheLatticeWalks(unittest.TestCase):
         self.assertEqual(loop.vertex_count, 3)
 
     def test_the_cusp_verb_authors_the_reverse_tangent_joint(self):
-        """Evaluating clean is the assertion that the DECLARATION
-        crossed, not merely that a loop lowered.
-
-        The Rust twin (`declared_tangency.rs`) carries an explicit red
-        half — the same loop with the declaration stripped refuses
-        `UndeclaredTangency` — and this test rides that rather than
-        repeating it. What licenses the inference here is that the
-        same figure with `turn(180 * deg)` where `cusp()` stands
-        refuses `junction_cusp` at the call: the geometry is identical
-        and only the declaration differs, so a `cusp()` that failed to
-        declare would land on that refusal instead of evaluating.
+        """Evaluating clean, with nothing decided from values, is the
+        assertion that the CONSTRUCTION crossed, not merely that a loop
+        lowered: the same table no constructor built is decided tangent
+        and recorded (the Rust twin, `tangent_joints.rs`). The same
+        figure with `turn(180 * deg)` where `cusp()` stands refuses
+        `junction_cusp` at the call: the geometry is identical and only
+        the construction differs.
         """
         # The lune between two internally tangent circles, cut on the
         # y axis — the wedge-0/2π figure. `cusp()` is `tangent()`'s
         # mirror: it departs along the NEGATED incoming ray, so the
-        # kiss is exact by construction and DECLARED, which is what
-        # the profile gate wants and what no authored value can
-        # supply.
+        # kiss is exact by construction.
         lune = (
             Open.at((0 * m, 4 * m))
             .angle(-90 * deg)
@@ -134,7 +128,9 @@ class TestTheLatticeWalks(unittest.TestCase):
         self.assertEqual(lune.vertex_count, 3)
         doc = Doc()
         node = doc.insert(Node.profile(lune, plane=doc.sketch_frame()))
-        self.assertTrue(evaluate(doc).succeeded(node))
+        ev = evaluate(doc)
+        self.assertTrue(ev.succeeded(node))
+        self.assertEqual(ev.coincidences(node), [])
 
     def test_the_three_arc_binding_modes(self):
         # One leg verb, three spec MODES: the mode is the binding, and
