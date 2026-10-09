@@ -1326,8 +1326,9 @@ from reads, as dependency is: no node holds a template, and there is
 no pattern operation. A variable defined by reading `k` is, to a
 reader that reaches the same `k`, its member at the same value, and to
 every other reader the whole family: `xs[i, j]` reads one member, and
-`union` and `subtract` read a family as their members. Lockstep is one
-index read twice. An index enters a placement as a value, a slide or a
+`union` and `intersect` read a family as their members; a subtract's
+tool is one body, so cutting by a family is `subtract(a, union(holes))`.
+Lockstep is one index read twice. An index enters a placement as a value, a slide or a
 spin that is a `Length` or `Angle` expression over it, or through a
 mate whose target is a member of another family
 (`bolt.axis ≡ holes[k].axis`); no pose is constructed from an index, so
