@@ -4,8 +4,9 @@ kind: issue
 title: The census's cross-solid backstop answers CensusUndecidable for curved solids within reach of each other, so 26 multi-solid shell results fail the empty-contact tier 3' they should pass
 status: open
 opened: 2026-10-03
-priority: P2
+priority: P1
 refs: [3870]
+cost: H
 ---
 
 
@@ -156,3 +157,7 @@ meet at an edge or a cap and come out as two solids. Sampled:
 `ARC half lower d=(0.5, 0.0) zb=(2.0, 4.0) decl=false U` is two
 solids, and every error is "a curved face of one is within reach of
 the other".
+
+## CONTACT close-out triage (2026-10-08)
+
+Priced P1, H: arm 1 refuses `CurvedWithinReach` (`census.rs`), which blocks SHELL adopting the tier-3-prime bar and REACHHOLD's census door. `census-backstop-separates-curved-pairs-only-along-world-axes` is a sub-step: do them together.

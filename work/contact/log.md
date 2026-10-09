@@ -692,6 +692,19 @@ Signed: (CONTACT orchestrator)
 Signed: (CONTACT orchestrator)
 - 2026-09-29 — Seam note from ENCL: PR 3398 (merged `3aac59af62`) moves `topo::validate`'s remaining 'lower the tolerance' endings onto their decisions (D4 ¶1). `geom_brep::recourse` gains `Unsized` and `defect_ending`, moved out of certify. `census.rs` `WitnessTooClose` drops ', or lower the tolerance'. Filed: `contain-escalation-carries-no-decision` (includes `ContainError::RayExhausted`'s own Display). (ENCL orchestrator)
 
+## 2026-09-29 — CONTACT-7 and CONTACT-9 on main's fix; a design fork for the declared-only P0
+
+- GERM registered the copysign site on main. Main is merged into
+  `contact/land-7` (#3383) and `contact/land-9` (#3415), and both are
+  back on hosted CI.
+- CONTACT-7's dual-review row is renumbered **DR-17**, because GERM's
+  #3375 took DR-16. The found-a-MAJOR count is 7 of the twelve Ev
+  asked for.
+- `declared-only-meetings-clear-at-the-census-gate-unread` (P0) opens
+  with a design fork: what a declared record licenses, what a curved
+  declared rest owes, and how face-pair-backed events are read. One
+  Opus designer and one Fable designer are weighing it, reading
+  CONTACT-7's census from `contact/land-7`.
 ## 2026-09-29 — CONTACT-9 lands
 
 - A single full review of `9f414db16` asked for changes. There were no
@@ -708,12 +721,204 @@ Signed: (CONTACT orchestrator)
   `contact/land-9`.
 
 Signed: (CONTACT orchestrator)
+
+## 2026-09-29 — CONTACT-7 and CONTACT-9 merged
+
+- **CONTACT-7** merged as #3383 (`a0cdf009c`). Hosted CI was green on
+  `5a089db23`.
+- **CONTACT-9** merged as #3415 (`7edef71e8`). Hosted CI was green on
+  `886362756`. Where it overlaps CONTACT-7 (the test-module list, the
+  audit doc, the log), the merge was clean.
+- The lanes' clones and targets are removed.
+
+Signed: (CONTACT orchestrator)
+
+## 2026-09-29 — CONTACT-10 and CONTACT-11 dispatched
+
+- **CONTACT-10** carries two rows that edit the same refusals in
+  `boolean/contain.rs`:
+  - `contact-near-boundary-endings-say-lower-the-tolerance`. ENCL's
+    #3398 already did its `census.rs` half; the grazed-parity ending
+    remains.
+  - `contain-escalation-carries-no-decision`, which ENCL filed into
+    this program.
+
+  Priced P3, M. Review: single style. It touches RESTFRONT's
+  `validate.rs`, and the lane leaves a seam note there.
+- **CONTACT-11** carries `torus-chart-box-check-passes-an-l-shaped-face`,
+  which VERBS-CONE filed here. The torus trim may serve an L-shaped
+  face its box, a wrong answer that no one has measured. The lane makes
+  it fail first. The fix shares the cone's area check. Priced P1, M.
+  Review: single full.
+- The two touch disjoint files, so they run in parallel with the
+  declared-only designers.
+
+Signed: (CONTACT orchestrator)
+
+## 2026-09-29 — The declared-only fork goes to Ev (#3422)
+
+- The two designers agreed on the final state in their first reports:
+  - a declaration licenses a coincidence, never a side;
+  - every meeting is read, and only a Rest clears;
+  - one list of meetings, holding each with its backing.
+
+  The one choice left is the curved half. **C1** reads a curved face
+  through its reach box and keeps the M9-2 boss; **C2** refuses and
+  retires it. Both designers lean C1. Reconciliation: none.
+- Each built a wrong clear on main: an I-profile through a slab
+  (planar, with saddle stars reading `Unanalysed`), and a log dipping
+  0.2 m into a wall (curved; arm 1 skips the face a v-on-f record
+  names). Both are in the row.
+- One designer measured the nineteen ratified planar seats: read
+  strictly, they are all Rest.
+- The blinding byte is on `analysis/design-fork/contact-2026-09-29`.
+  One designer ran `ls` on the shared scratchpad once and disclosed
+  it. It read no file there. The other report was written to the
+  scratchpad as `dfork/decl-A-first.txt`, so it may have seen that
+  file name. The name reveals no content, and its report is
+  independent in substance: its own witness, its own measurement.
+- The row stays P0. The repair unit waits on Ev's answer. It is priced
+  H: the ledger, the box reading in `Star`, and the three wrong-clear
+  rows.
+
+Signed: (CONTACT orchestrator)
 - 2026-09-29 — Seam note from ORIGIN: `window-site-scan-reads-items-by-line` moved onto this slate (id unchanged) — the window-site guard in `boolean/wall_section_rows.rs` reads items line by line. ORIGIN's PR 3424 made `source_walk::CodeOnly::fns` recurse into nested items and gave each item its own text (`FnItem::own_body`), which is the reader the row's fix wants. (ORIGIN orchestrator)
+
+## 2026-09-29 — CONTACT-11 review: the chart-box area check is unsound for small notches, on main for the cone
+
+- **The single full review of `59eeeebb2` returned REQUEST-CHANGES,
+  with three MAJORs, all executed.**
+  - The area margin `defect/v_span·(R+r)` grows with the square of a
+    notch's size, while the notch's clearance grows only linearly. A
+    notch 1e-5 m on a side, thousands of ε from every boundary, reads
+    Zero ("the face is its box"), so its centre reads `In`.
+  - That makes small U notches worse than base; base's variation check
+    refused them.
+  - The cone's `bool_cone_chart_box`, which the unit mirrored, has
+    the same flaw **on main today**: a 1e-5 m corner notch on a frustum
+    reads `In` at ε 1e-9.
+  - Reachable doors: the face-containment door, and, argued, STEP
+    import. STEP import adopts torus, cone and sphere faces with
+    arbitrary loops into the public `point_in_solid`. No boolean
+    reaches it: 54 cutter poses all refuse earlier.
+- **The fix pass** replaces the area test with a linear, metric
+  one-decision test: every boundary segment's level must be on its box
+  side, and the lever must bound the metric separation from above. The
+  torus and the cone share it. It also adds rows at small notch sizes,
+  checks walk continuity between consecutive images, pins the closure
+  check, and names STEP in the PR body.
+- **The lesson for later briefs.** The spec told the lane to "share
+  the cone's check". The cone's check was itself unsound, with the same
+  lever class this track keeps finding. A precedent is not evidence:
+  a brief that points at one says so, and asks the review to attack
+  both.
+
+Signed: (CONTACT orchestrator)
+
+## 2026-09-29 — Ev: finish the two P0s, then close CONTACT; CONTACT-12 dispatched
+
+- **Ev asked for this in chat:** finish both P0s, then close the program,
+  moving every remaining row to two or three successor programs.
+- **CONTACT-12** carries `overlap-lane-boundary-crossing-cuts` (P0, H).
+  - The overlap lane cuts at boundary crossings, decided metrically.
+  - `ef_bound_backed` re-attempts region confinement under Ev's
+    measured-migration ruling of 2026-09-01.
+  - Every cell of an overlap is read.
+  - Review: dual.
+- **The declared-only P0** starts when Ev answers #3422.
+- A container restart stopped both lanes' fix passes. Their clones
+  survived with uncommitted work, and both lanes are resumed.
+
+Signed: (CONTACT orchestrator)
+
+## 2026-09-29 — Ev ruled on #3422; CONTACT-13 dispatched
+
+- **Ev's ruling:** "for 1, nice find! sounds good". Decision 2 takes C1,
+  the reach-box reading for curved star faces. Ev asked for a row for
+  the tighter curved-cone reading, filed as
+  `the-touch-analysis-reads-curved-cones-tighter-than-the-reach-box`
+  (P3, H).
+- Fork-log row 13 records the decision and the A/B mapping. The row
+  was renumbered at merge: ORIGIN took 11 and 12.
+- **CONTACT-13** carries the declared-only P0. It builds the meeting
+  ledger, makes only a Rest clear, and adds the C1 box reading. Review:
+  dual. It runs in parallel with CONTACT-12 on the same file, confined
+  to arm 1's skip, arm 2 and the star. CONTACT-12 lands first.
+
+Signed: (CONTACT orchestrator)
 - 2026-09-29 — Seam note from ORIGIN: filed `census-touch-guard-needles-miss-a-point-free-call` on this slate and added evidence to `window-site-scan-reads-items-by-line`, both from PR 3425's sweep of `(`-terminated source needles. (ORIGIN orchestrator)
 - 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+
+## 2026-09-29 — Dispatch paused (Ev, usage limit)
+
+- **Ev's instruction:** start no new agents until Ev resumes dispatch.
+  Lanes already running finish: CONTACT-10 and CONTACT-11 (fix passes),
+  CONTACT-12 and CONTACT-13 (implementation).
+- **Owed on resume:**
+  - CONTACT-10: a delta read or re-review.
+  - CONTACT-11: a delta review of the linear box test.
+  - CONTACT-12: dual review.
+  - CONTACT-13: dual review.
+  - Then landing, and CONTACT's close-out into successor programs.
+
+Signed: (CONTACT orchestrator)
+
+- 2026-09-29 — **CONTACT-11 fix pass handed back** (dispatch paused, so
+  it is only recorded). Head `ec5efce13` on `contact/11-torus-chart-l`.
+  - **The check:** one linear metric side-on-box decision,
+    `chart_polygon_box`, shared by the torus and the cone. Its levers
+    bound the separation from above.
+  - **Walk continuity:** each edge's entry is decided against the
+    previous edge's exit.
+  - **Removed:** `chart_box_defect`, which had no callers left (seam
+    notes in `work/reach/` and `work/tang/`).
+  - **Rows red at `59eeeebb2`:** small L, U and thin notches over four
+    tori, two frusta and three ε; torus 28/16/32 cells, cone
+    23/15/25. All green at head.
+  - **Mutants:** normalisation, closure, continuity, a forced Zero and
+    a squared margin are all killed.
+  - **Filed:** the STEP door, as `work/exch/step-import-l-shaped-curved-face-has-no-containment-row`.
+  - **Battery:** green on `989be02c1`.
+  - **Owed on resume:** a delta review of the linear test, then
+    landing. When it lands, correct the carried row's stale "fix as the
+    cone took it" section.
+
+- 2026-09-29 — **All lanes stopped on Ev's word** (usage limit). Their
+  clones stay on disk for resume:
+  - **CONTACT-10:** `/home/user/contact-10` at `b4d1bcab6`. The fix pass
+    is committed and clippy is clean. The battery on it was not yet run.
+  - **CONTACT-12:** `/home/user/contact-12` at `a6724f53b`. The rows
+    are committed, with one uncommitted file. The lane was mid-way
+    through building and running topo with the new rows.
+  - **CONTACT-13:** `/home/user/contact-13` at `a1461506a`, with one
+    uncommitted file. The red rows are confirmed: all four wrong-clear
+    rows return `Ok(())` at `e43584e37`, and the controls pass. Arm 1
+    and arm 2 were not yet started.
+  - On resume, restart each lane from its clone.
 - 2026-09-29 — Seam note from TOPO: PR 3493 (branch `topo/route-refusal-subjects`) routes the Boolean's escalated and contradicted refusals by closed decision types (D4 ¶1 (i), PR 3352). `contact_verify::fit_steer` takes the `Contradiction` the rung set instead of reading `diag.predicate`, with unchanged behaviour. In `solid_contain.rs`, the quartic count check returns `TorusRoots::CountDisagrees` instead of an `INVALID` escalation; the ray cast maps it back to `PointInSolidError::Escalated` under `bool_ray_torus_count` (behaviour unchanged there), and the Boolean's root lanes refuse on it as `ClassificationInvariant`. `QuarticRows` loses its `count` name. Evidence added to `contain-escalation-carries-no-decision`. (TOPO implementer)
 - 2026-09-29 — Seam note from TOPO: PR 3467 (`topo/sense-reads-same-chart`, not yet merged) implements Ev's D1 ruling (PR 3480): `FaceSurface::New { surface, sense }` and `Shared { key, sense }` state the new face's bit; on the parent's chart `mef` derives the parent's bit and `mfkrh` its negation, and a contradicting stated bit is refused (`EulerOpError::SenseContradictsChart`); `set_face_surface` takes the same spec and `set_face_surface_and_sense` is gone; `Body::mvfs` and `Body::mfkrh_plug` take the seed's provisional bit. Paths: `topo/src/census.rs`. In your files every `New`/`Shared` spec, `mvfs` and `mfkrh_plug` call states the bit it carried before; no expected value moved. (TOPO implementer)
 - 2026-09-30 — Seam note from TOPO: PR 3493's fix pass ends the Boolean's `BooleanDecision::Containment` on its lever alone, as `validate::classify_contain` does, since the escalation does not carry which rung refused and the rungs' pass sets differ by caller. What carrying the rung needs is added to `contain-escalation-carries-no-decision`. (TOPO implementer)
+
+- 2026-09-30 — **Owed by CONTACT-10 on resume: TOPO's PR 3493 overlaps it**
+  (merged on main, with notes on
+  `contain-escalation-carries-no-decision`).
+  - **What 3493 added:** a closed `boolean::BooleanDecision::Containment`
+    for the Boolean's face-containment escalations
+    (`boolean::refusal_routes`).
+  - **What its fix pass found:** `bool_curved_contain_carrier` is a
+    residual at `reduce::wall_crossing` (it passes only at Zero), and
+    `bool_curved_contain_period` refuses a negative margin. So
+    `Containment` ends on its lever alone at every wrap site.
+  - **Where that contradicts CONTACT-10:** the stopped fix pass
+    (`b4d1bcab6`) gives `ContainDecision::Carrier` a two-sided valued
+    tighten.
+  - **On resume:** merge main first. Take 3493's residual finding for
+    Carrier (lever alone, or the pass set that holds only at Zero).
+    Reconcile `ContainDecision` with `BooleanDecision::Containment`,
+    so the boolean path carries the walk's decision rather than a
+    second spelling. Re-check the filed
+    `boolean-door-drops-the-containment-decision` against what 3493
+    already did.
 - 2026-09-30 — Seam note from TOPO: PR 3506 (branch `topo/torus-and-merge-one-story`, not yet merged) edits `boolean/contact_verify.rs` (the Rest ladder's match drops `CarrierEqError::Escalated`'s new `rung`). Filed on this slate: `work/contact/carrier-escalation-drops-its-plane-rung-at-the-contact-doors.md` and `work/contact/degenerate-torus-operand-meets-the-declare-menu-and-a-false-solid-is-fine.md`, and evidence appended to `work/contact/contain-escalation-carries-no-decision.md`. (TOPO, PR 3506 fix pass)
 - 2026-09-30 — Seam note from TOPO: PR 3513 (branch `topo/every-escalation-names-its-decision`) gives `solid_contain::line_wall_roots` a typed rung (`WallRootFault { rung: WallRung, diag }`); `cast_ray` reads `.diag` as before. `geom_brep::enters_material`, `enters_material_order2` and `classify_dihedral` now return `LeverEscalation { rung: LeverRung, diag }` (the arm gate or the reading) instead of a bare `Indeterminate`; `census` reads `.diag` unchanged. (TOPO implementer)
 
@@ -776,3 +981,111 @@ Pinned at `sweep/tests/reach_wall_chord_rows.rs`,
 `a_vertex_on_a_curved_face_is_confirmed_by_its_trim`. One existing row
 moved: the drum less a cube touching its wall at a corner now passes
 tier 3′. CONTACT's owner: please ack, or say what you want changed.
+
+## 2026-10-08 — Resumed under the D10 hold (Ev)
+
+Ev resumed dispatch. While CONTACT was paused, Ev ratified D10 (PR
+3990, 2026-10-03), which places a hold on new work on its ground: the
+node vocabulary, placement, declared pairs and declared contact, the
+undeclared refusals, and `Measure`/`Assertion`. A started unit may
+finish, and a held row parks on the INTENT stage that releases it.
+
+How CONTACT's units stand:
+- **CONTACT-10** (containment endings): not held ground. It resumes,
+  first reconciling with TOPO's merged PR 3493, as recorded on
+  2026-09-30.
+- **CONTACT-11** (the torus and cone chart box): not held. Its fix
+  pass is done, so a delta review comes next, then landing.
+- **CONTACT-12** (the overlap lane's crossing cuts): started, so it
+  finishes, re-scoped to the cuts and the read of every cell. The
+  `ef_bound_backed` migration is declared-pair machinery, so it is
+  dropped and parked on `intent-stage4-is-built`.
+- **CONTACT-13** (the meeting ledger): parked on
+  `intent-stage4-is-built`, with its row and Ev's curved-cone row. The
+  hold permits finishing it, but only the red rows were built, and
+  what was left to write was a rule for what a declaration licenses,
+  which stage 4 deletes.
+  - The cost: the two built wrong clears stay live until stage 4.
+    Both need a user's contact declaration, the feature D10 retires.
+  - The alternative was finishing it as an H-cost dual-review unit
+    whose code stage 4 removes.
+  - The committed rows are the acceptance carried to stage 4.
+
+**Close-out (Ev, 2026-09-29).** After these units land, CONTACT
+closes. Its open rows, about 55, many of them filed by other programs
+during the pause, go to successor programs cut on the priority seam.
+Held rows go to a hold program that opens `blocked`, as REACH's
+REACHHOLD did. A reader lane classifies each open row against the
+hold first.
+
+Signed: (CONTACT orchestrator)
+
+## 2026-10-08 — Close-out triage applied
+
+A read-only lane triaged the 41 open rows that no unit carries.
+
+**Held (14).** Each is parked on the finer INTENT stage-4 unit that
+releases it:
+- `coincidences-are-recorded-at-one-door`: 5 rows.
+- `booleans-glue-on-zero`: 7 rows.
+- `declared-pairs-retire`: 2 rows.
+
+The held half of `census-arena-walks-read-a-torn-record-as-absent` was
+split off as `census-declared-sites-read-a-torn-record-as-absent`.
+
+Two consequences for stage 4:
+- `contact-verify-on-surface-residual-subtracts-its-sag` becomes the
+  tangency glue gate, so that unit must carry the fix.
+- The successors' lever rows refuse today. Once booleans glue on Zero,
+  the same misread Zero glues, so they should land before that.
+
+**Re-priced:**
+- `two-copies-of-a-pierce-…`: P0 to P1. PR 4139 retired its weld;
+  re-measure it.
+- `the-census-edge-edge-collinear-lane-…`: P0 to P2. It is a false
+  refusal, not a wrong answer.
+- `census-cross-solid-curved-pairs-…`: P2 to P1, priced H.
+- Six unpriced rows are now priced.
+
+**Closed:**
+- Two duplicates: `census-edge-overlap-decides-…` and
+  `a-notched-full-turn-wall-…`.
+- `contact-refusal-prose-outgrows-the-viewer`: its arm was deleted by
+  PR 3865.
+
+`a-cube-sunk-flush-…` is to be re-measured; it is probably fixed by
+PR 3655.
+
+**Moved:** `window-site-scan-reads-items-by-line` went back to ORIGIN,
+whose `source_walk` is the fix.
+
+**The successor cut** (made at landing):
+
+| Successor | What it carries | Load |
+|---|---|---|
+| RESTREAD | The census's geometric reading. Its spine: cross-solid curved pairs (H), then the edge-edge pair lane, the saddle, the self-touch star and AllOn | about 28 |
+| A vertex/sector program | The seam dihedral, then the lever family: vertex-pair, coplanar lump, bound parallelism, germ within. It also takes the F7 gate's curved keys, the merge's period closure and `merge_skipped` | about 18 |
+| INSIDE | Point-in-solid, containment and the chart trims: torus oblique (P1 H), at-infinity (P1), the full-turn wall, the ringed wall, the torus split lead, then the P3/P4 tail | about 22 |
+| CONTACTHOLD | The 15 held rows; it opens `blocked` | — |
+
+The name CENSUS is taken: it is an existing P3 program. The boolean
+half measured 41 points, over the 30-point budget, so it splits on its
+two file families.
+
+Rows on other programs' ground stay with the successors, because every
+live owner is already over budget: FUSE 47, EMIT 62, GERM 53. Each
+successor's `keep_out` names the shared ground.
+
+Signed: (CONTACT orchestrator)
+
+## 2026-10-08 — CONTACT-11 lands
+
+- **The review:** REQUEST-CHANGES from a single full review, then
+  APPROVE-WITH-FIXES from the delta review. The linear `SupSpeed` side
+  test replaces both the torus's variation check and the cone's area
+  check, which was quadratic. That fixes a wrong `In` in a small notch
+  of a cone face, live on main.
+- **The 1e-12 red row** is main's own: the tipped rod, filed on TINT.
+- Landing as `contact/land-11`.
+
+Signed: (CONTACT orchestrator)
