@@ -80,7 +80,8 @@ The review of PR 4396 found the closure justified as *unreached*, not
 impossible. It also found the sphere and cone `QuadricRing` lane
 unsearched. A probe at that lane (`RoleLane::resolve`, then
 `ring_order`) logged `capture_rank` for the chosen arc and for the other
-one. The search ran every op in both orders: 110 poses, 660 runs.
+one. The search ran every op in both orders: 110 poses, 660 runs
+through the public booleans, and 330 more through the cone door.
 
 - **Ball** (the unit ball, poles turned onto `z`):
   - two- and three-pronged combs through the face round the top,
@@ -90,13 +91,23 @@ one. The search ran every op in both orders: 110 poses, 660 runs.
   - a box and a square tube, upright and turned 30° (4);
   - coaxial rods and tubes (6). All 36 runs refused
     `GermFrameUnsupported`.
-- **Cone**: the same families (55 poses). Every run, 330 of them,
-  refused `CurvedPairUnsupported` before the join, so no public
-  boolean reaches the cone's ring lane today.
+- **Cone**: the same families (55 poses). Through the public booleans
+  every run, 330 of them, refused `CurvedPairUnsupported`. Through
+  GERM's cone join door, `topo::join_admitting_cones`, every op in both
+  orders:
+  - 60 runs joined: the slabs (54) and one coaxial rod (6);
+  - the rest refused `GermSectionOutsideInventory` (240),
+    `GermFrameUnsupported` (24) or `CurvedPierceUnsupported` (6);
+  - none reached the `QuadricRing` lane on the cone.
 
-There were 192 `QuadricRing` reads and 302 ring-lane reads in all
-(110 planar or wall). Every one was `Clean`, and so was the arc the
-winding rejected. No `RingHeld` or `Separates` was read.
+On the head merged with main at `dd34e4f57` there were:
+- 224 `QuadricRing` reads, all on the ball;
+- 324 ring-lane reads through the ball runs;
+- 106 ring-lane reads through the cone door.
+
+Every one was `Clean`, and so was the arc the winding rejected. No
+`RingHeld` or `Separates` was read. (Before that merge the ball gave
+192 and 302.)
 
 The ball `A ∩ B` comb runs (72) built bodies that fail tier 3′ on
 `CensusUndecidable` between their lumps' sphere caps. They do so
