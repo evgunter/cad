@@ -16,3 +16,7 @@ order refuses `Boolean(Containment(RayExhausted))`. That is a refusal,
 not a wrong answer. Measure where the rays go and whether the flush
 walls exhaust the ray schedule, and decide whether a flush containment
 is decidable here.
+
+## CONTACT close-out triage (2026-10-08)
+
+Probably fixed by CLEAVE's PR 3655 (the shell-witness ladder), which landed after this row was filed. Run it once, and close it if it builds.
