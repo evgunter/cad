@@ -9,21 +9,16 @@
 //! an offset body at an OBLIQUE junction, and the reason is arithmetic
 //! rather than a posture:
 //!
-//! A corner where planes `n₁, n₂, n₃` meet is visited once per chart,
-//! and each visit transports it rigidly by that chart's own `d·nᵢ`, so
-//! it accumulates `Σ dᵢ·nᵢ`. The corner an offset body needs is the
-//! point satisfying `nᵢ·x = nᵢ·oᵢ + dᵢ` for every `i` at once. Those
-//! agree exactly when the normals are mutually perpendicular — which is
-//! why a box has always been right and is bit-identical here — and
-//! diverge otherwise: on a regular hexagonal prism at `t = 0.02` the
-//! accumulation lands 11.5 mm from the true corner and leaves 30 mm of
-//! wall where 20 mm was asked for.
-//!
-//! `ReanchorOffCarrier` is the gate that has been PREVENTING that body,
-//! and it stays load-bearing for everything this door does not cover.
-//! What this door does instead is solve the corner ONCE, against every
-//! moved plane meeting it, and re-derive each edge as the intersection
-//! of its TWO MOVED planes.
+//! The corner an offset body needs where planes `n₁, n₂, n₃` meet is
+//! the point satisfying `nᵢ·x = nᵢ·oᵢ + dᵢ` for every `i` at once. A
+//! rigid transport of it by each chart's own `d·nᵢ` accumulates
+//! `Σ dᵢ·nᵢ`, which agrees exactly when the normals are mutually
+//! perpendicular and diverges otherwise: on a regular hexagonal prism
+//! at `t = 0.02` it lands 11.5 mm from the true corner. The per-chart
+//! door solves such a corner one chart at a time, as a root against the
+//! surfaces meeting it; this door solves it ONCE, against every moved
+//! plane meeting it, and re-derives each edge as the intersection of
+//! its TWO MOVED planes.
 //!
 //! # Scope, stated as a gate rather than as a hope
 //!

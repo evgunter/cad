@@ -96,8 +96,8 @@ pub use dihedral::{
     must_carry_over_edge, tangent_second_order,
 };
 pub use edge_nurbs::{
-    CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal, PlaneNurbsLimbs,
-    PlaneNurbsRefusal, plane_nurbs_limbs,
+    AnalyticRung3Refusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal,
+    PlaneNurbsLimbs, PlaneNurbsRefusal, analytic_rung3, is_analytic, plane_nurbs_limbs,
 };
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, OutwardNormal, ReferenceNormal, WallBend,
@@ -147,10 +147,11 @@ pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };
 pub use pcurve_cache::{
-    BranchMiss, ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm, FocalImage, Grazer,
-    IsoFamily, IsoFamilyRefusal, MAX_BRANCH_PERIODS, NoChartSup, Pcurve, PcurveCache,
-    PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, SpiricImage, UncoveredClass,
-    chart_iso_family, chart_pcurve, chart_stretch_inf, chart_stretch_sup, chart_stretch_sup_v,
+    BranchMiss, ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm, FocalImage,
+    FramedCarrier, Grazer, IsoFamily, IsoFamilyRefusal, MAX_BRANCH_PERIODS, NoChartSup, Pcurve,
+    PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, ProjectedChart,
+    ProjectedImage, SectorChannel, SpiricImage, UncoveredClass, chart_iso_family, chart_pcurve,
+    chart_pcurve_over, chart_stretch_inf, chart_stretch_sup, chart_stretch_sup_v,
     whole_period_count, whole_periods,
 };
 pub use props::{
