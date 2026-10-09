@@ -1,63 +1,34 @@
 ---
 id: a-placement-is-the-bundle-of-mates
 kind: issue
-title: D10 stage 3 PR C: Place { body, mates } defines a copy and the world is a frame; PlaceInWorld, gauges, offsets, the spanning tree, roots and declaring-by-gauge retire
+title: D10 stage 3 PR B: Place { shapes, constraints } owns today's mates, the world is a node, an instance is a placement, spaces are kinds; gauges, offsets, PlaceInWorld, the spanning tree and roots retire
 status: parked
 opened: 2026-10-08
 priority: P0
 cost: H
-blocked_on: [a-mate-relates-two-poses]
+blocked_on: [a-mate-reads-face-variables, an-unattributed-contact-at-rest-is-a-finding]
 refs: [intent-stage3-is-built, mate-offset-verified-against-the-solve-is-a-constraint-falling-back-to-an-assertion]
 ---
 
-INTENT stage 3, PR C. Spec: `docs/INTENT-STAGE3-SPEC.md` §4.
+INTENT stage 3, PR B. Spec: `docs/INTENT-STAGE3-SPEC.md` §3. Built on FORK-S3M (fork log row 97, PR 4326) and FORK-S3O (row 96, PR 4325).
 
-`Place { body, mates }` defines a copy, and its mates are its bundle (FORK-S3-2). The world is one frame among many that cannot be deleted; the product is every copy whose space reaches it. Retired here:
+`Place { shapes, constraints }` reads a list of shapes of one space, as a union reads its operands, and defines one copy of each. Its constraints are addressed by (placement, minted id), never by position. In B a constraint is today's mate payload, numbers included, moved under the placement unchanged. That is a migration interim, not a final state: C (`a-mate-relates-two-poses`) ends it by re-typing each constraint into poses and values. That is why B comes before C: a value is a placement's constraint, so it cannot exist before `Place` does.
 
-- `PlaceInWorld`, `Node::Gauge`, `InstantiatePart.gauge`/`offset`;
+The world is one undeletable node that defines no variable. Only a placement's constraints and export read it. An instance of a part is a placement, with one output per world placement of the part, keyed by that placement, and no `frame` port. Spaces are kinds decided from the recipe, and a read across two spaces refuses `SpaceMismatch`. Until D, every construction reading no body and every absolute datum is of the document's one kind (a named interim), so today's combines of datum-built bodies still evaluate. D lands "a body's kind is its root". A copy whose bundle pins less than its body needs is a loose copy, not a refusal. A mate beyond its bundle's pin refuses `Overconstrained`; nothing verifies and mints it. F generalises the rule to "pinned or not".
+
+Retired here:
+
+- `PlaceInWorld` (if stage 2 C landed it), `Node::Gauge`, `InstantiatePart.gauge`/`offset`;
 - `SetOffset`/`SetGauge`/`Promote`/`Fold`/`regauge_then_mate`;
 - `check_offsets` and `OffsetDisagrees`/`OffsetUnchecked`;
 - the spanning tree, roots and `MateRole`.
 
-The refactor doors are rewritten over placements. Instances gain no `frame` port (FORK-S3M). A mate beyond its bundle's pin refuses from this unit on (FORK-S3O, row 96); today's declaring mates become assertions or are dropped and named, with no interim that verifies them.
+The refactor doors are rewritten over placements.
 
-The one-time migration check: every corpus copy's pose and the product digests are bit-equal. The unit closes `a-declaring-mates-alignment-is-never-read`, `gauge-of-recomputes-the-clusters-per-placement-lookup`, `a-placer-row-states-what-a-poisoned-row-cannot`, `placement-step-slots-are-spelled-three-ways` and `a-mate-frame-is-written-in-the-reading-instances-coordinates`, plus the placement half of `a-boxed-rotation-refuses-not-rigid-at-every-placer`. FORK-S3-2 and FORK-S3-5 go to designer pairs, then `[ev]`, before dispatch.
+Migration check: every corpus copy's pose and the product digests are bit-equal. A gauge root becomes one mate to the world over a temporary `FrameBase::World`. Tree mates go to the child's bundle. Declaring mates become assertions where a stage 2 D measure states them, and are otherwise dropped and named.
 
-FORK-S3-2 and S3-5 were weighed with S3-3 as FORK-S3M (fork log row 97,
-PR 4326), and this unit builds on that answer. `Place` owns its
-constraints, mates and values on equal footing, each addressed by
-(placement, an id minted with it), never by its position in the list
-and never a node. A value sets one freedom the mates leave, a slide or
-a spin, to a `Length` or `Angle` variable, charted on the two bodies'
-own coordinates (the copy's origin from the target's; the angle between
-their references), zero always valid; a constraint fixing nothing still
-free refuses, and so does a mate taking a freedom a value sets. Pinning
-within a stated symmetry is gone: a round pin's spin is a value too,
-which the façade writes as a free `0` variable. The `Offset` mate target
-carrying in-plane numbers retires; a standoff stays a construction on
-the target. Which
-copy is defined is which `Place` reads it, so there is no tree, root or
-declaring role. `Place` defines no `Frame` port (FORK-S3O, row 96): a
-copy's poses are read as `Carried { copy, pose }`, keyed by the
-placement. Nothing moves a body: `Transform` and `PlacedFrom` retire,
-each use becoming a `Place`. No construction reads a frame (FORK-S3P
-round 8), so a feature at several positions is one body placed several
-times: the die's pips are copies of one ball placed against the die's
-faces, then subtracted. A pattern is a `Place` whose reads reach an index, its values
-expressions in it (FORK-PAT). The world is one frame among many that cannot be deleted, read by
-placements and export alone; the product is every copy whose space
-reaches it (Ev: one relation for the whole product is a style, placing
-one body against the world and the rest against it, not a rule). An
-instance defines no `frame` port. `Place { shapes, constraints }`
-reads a list of shapes of one space, as `union` reads its operands (a
-list of reads, not a list literal), and the instance keeps FORK-1's one
-output per world placement of the part, keyed by that placement's node
-id and a family under the part's own index where that placement is one
-(FORK-S3M round 9, both designers); a re-pin that adds a world copy
-mints a port no `Place` reads yet, and the maintenance report names it.
-Stage 2 C ships
-one whole-world `body` port in the meantime
-(`an-instance-defines-one-body-per-part-placement`). A10's rewrite
-lands with this unit.
+Closes `a-declaring-mates-alignment-is-never-read`, `gauge-of-recomputes-the-clusters-per-placement-lookup`, `a-placer-row-states-what-a-poisoned-row-cannot` and the offset half of `mate-offset-verified-against-the-solve-is-a-constraint-falling-back-to-an-assertion`.
+
+Waits on stage 2 F (`a-mate-reads-face-variables`: mate sides read `Face` variables). It also waits on stage 4 J (`an-unattributed-contact-at-rest-is-a-finding`). B drops declaring mates, so their contacts are unattributed, and A5's hard error would refuse those products; J turns that error into a finding first.
 
 **A host construction never reads a part's world** (from the second review of INTENT stage 2 C, PR #4359, NOTE-F). In stage 2 an instance's one `body` output is its part's whole product, every copy at its pose (`eval/parts.rs`), so a host boolean reading an instance depends on the part's placement poses: the pose is read "by the gather" only in the letter. Stage 2 C refuses the visible edges of this (`Uncarried::Posed` and `SplitError::RemainderReadUncarried` where split or inline would carry such a read across the seam), but the read itself stands. This unit's instance ports must close it: no port a host construction reads carries a part's world placements.
