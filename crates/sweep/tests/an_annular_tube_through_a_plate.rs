@@ -96,13 +96,24 @@ fn plate() -> Body<f64> {
     brick((-3.0, 3.0), (-3.0, 3.0), (0.0, 1.0), tol())
 }
 
+/// What a row's result is held to besides its closed form.
+#[derive(Clone, Copy, Default)]
+struct Known<'a> {
+    /// The runs whose result fails tier 3′ and nothing else: it is two
+    /// solids, one in the other's bore, which the census's cross-solid
+    /// backstop cannot separate
+    /// (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
+    t3: &'a [&'a str],
+    /// The runs whose result the mesher refuses `Triangulation`: a
+    /// thin annulus whose two circles' vertices are opposed
+    /// (`work/tess/a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta.md`).
+    untriangulated: &'a [&'a str],
+}
+
 /// Every op in both orders between `tube` (profile area `area`, over
-/// `z`) and the plate, each at its closed form and meshed, and `SOUND`
-/// but for a run `t3` names, whose result fails tier 3′ and nothing
-/// else: it is two solids, one in the other's bore, which the census's
-/// cross-solid backstop cannot separate
-/// (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
-fn every_op(what: &str, tube: Body<f64>, area: f64, z: (f64, f64), t3: &[&str]) {
+/// `z`) and the plate, each `SOUND` at its closed form and meshed, but
+/// for the runs `known` names.
+fn every_op(what: &str, tube: Body<f64>, area: f64, z: (f64, f64), known: Known<'_>) {
     let (va, vb, vab) = (
         area * (z.1 - z.0),
         36.0,
@@ -115,20 +126,16 @@ fn every_op(what: &str, tube: Body<f64>, area: f64, z: (f64, f64), t3: &[&str]) 
         let row = format!("{what}: {op}");
         let res = r.as_ref().unwrap_or_else(|e| panic!("{row}: {e:?}"));
         let body = &res.body().unwrap_or_else(|| panic!("{row}: empty")).body;
-        let mesh = mesh::tessellate(body, 5e-3, tol()).unwrap_or_else(|e| panic!("{row}: {e:?}"));
-        mesh::validate::check_mesh(&mesh).unwrap_or_else(|e| panic!("{row}: mesh {e:?}"));
-        // The closed form within the quadrature's own certified pad,
-        // which grows with ε; `outcome`'s fixed 1e-7 holds at the
-        // default ε only, so it reads the measured volume.
-        let m = topo::mass_properties(body, tol()).unwrap();
-        assert!(
-            (m.volume - want).abs() <= m.volume_pad + 1e-9 * want.max(1.0),
-            "{row}: volume {} ± {}, closed form {want}",
-            m.volume,
-            m.volume_pad
-        );
-        let line = outcome(r, m.volume, tol());
-        let want_line = if t3.contains(&op) {
+        match mesh::tessellate(body, 5e-3, tol()) {
+            Ok(m) if !known.untriangulated.contains(&op) => {
+                mesh::validate::check_mesh(&m).unwrap_or_else(|e| panic!("{row}: mesh {e:?}"));
+            }
+            Err(mesh::TessellateError::Triangulation { .. })
+                if known.untriangulated.contains(&op) => {}
+            m => bad.push(format!("{row}: the mesh {:?}", m.map(|_| "meshed"))),
+        }
+        let line = outcome(r, want, tol());
+        let want_line = if known.t3.contains(&op) {
             "OK BAD t2=true t3p=false cert=true operand=true"
         } else {
             "OK SOUND t2=true t3p=true cert=true operand=true"
@@ -140,9 +147,27 @@ fn every_op(what: &str, tube: Body<f64>, area: f64, z: (f64, f64), t3: &[&str]) 
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
 
+/// The tubes over `z`, each two rings about the origin, nested and
+/// united (a profile holds no island in a hole), run by [`every_op`].
+fn nested(what: &str, annuli: &[[Ring; 2]], z: (f64, f64), known: Known<'_>) {
+    let fin = |w, b| topo::test_support::finished(w, b, tol());
+    let mut all = tube((0.0, 0.0), &annuli[0], z);
+    for a in &annuli[1..] {
+        let r = topo::union(
+            &fin("the tubes", all),
+            &fin("a tube", tube((0.0, 0.0), a, z)),
+            tol(),
+        )
+        .unwrap();
+        all = r.body().expect("the tubes unite").body.clone().into_body();
+    }
+    let area = annuli.iter().map(|a| area(a)).sum();
+    every_op(what, all, area, z, known);
+}
+
 /// `rings` about `c` as a tube over `z`, run by [`every_op`].
-fn every_op_on(what: &str, c: (f64, f64), rings: &[Ring], z: (f64, f64), t3: &[&str]) {
-    every_op(what, tube(c, rings, z), area(rings), z, t3);
+fn every_op_on(what: &str, c: (f64, f64), rings: &[Ring], z: (f64, f64), known: Known<'_>) {
+    every_op(what, tube(c, rings, z), area(rings), z, known);
 }
 
 /// The witness tube: `r ∈ [0.5, 1]`, its walls' vertices at `ao` and
@@ -153,7 +178,7 @@ fn witness(ao: f64, ai: f64) {
         (0.0, 0.0),
         &[ring(1.0, ao), ring(0.5, ai)],
         (0.5, 2.5),
-        &[],
+        Known::default(),
     );
 }
 
@@ -179,35 +204,55 @@ fn the_annulus_builds_at_random_azimuth_pairs() {
     }
 }
 
-/// **Two nested annuli**, `r ∈ [0.75, 1]` and `[0.25, 0.5]`, one
-/// tube's union with the other (a profile holds no island in a hole),
-/// every pair of neighbouring vertices opposed: four one-site loops in
-/// the plate's top face, whose regions are the inner disc and three
+/// **Two nested annuli**, `r ∈ [0.75, 1]` and `[0.25, 0.5]`, every
+/// pair of neighbouring vertices opposed: four one-site loops in the
+/// plate's top face, whose regions are the inner disc and three
 /// annuli. Where the plate is not in the result, the two rings are two
-/// solids ([`every_op`]).
+/// solids.
 #[test]
 fn two_nested_annuli_build() {
-    let (outer, inner) = (
-        [ring(1.0, 0.0), ring(0.75, PI)],
-        [ring(0.5, 0.0), ring(0.25, PI)],
+    let known = Known {
+        t3: &["A ∩ B", "B ∩ A", "A ∖ B"],
+        ..Known::default()
+    };
+    nested(
+        "two annuli",
+        &[
+            [ring(1.0, 0.0), ring(0.75, PI)],
+            [ring(0.5, 0.0), ring(0.25, PI)],
+        ],
+        (0.5, 2.5),
+        known,
     );
-    let z = (0.5, 2.5);
-    let fin = |w, b| topo::test_support::finished(w, b, tol());
-    let both = topo::union(
-        &fin("the outer tube", tube((0.0, 0.0), &outer, z)),
-        &fin("the inner tube", tube((0.0, 0.0), &inner, z)),
-        tol(),
-    )
-    .unwrap();
-    let both = both
-        .body()
-        .expect("two tubes unite")
-        .body
-        .clone()
-        .into_body();
-    let apart = ["A ∩ B", "B ∩ A", "A ∖ B"];
-    every_op("two annuli", both, area(&outer) + area(&inner), z, &apart);
 }
+
+/// **Thin nested rings, thin gaps**: three annuli of width `w`, `w`
+/// apart, every pair of neighbouring vertices opposed, so every
+/// section loop's region faces are thin annuli whose vertex chords all
+/// leave them. Each is witnessed by an inward line from an edge's
+/// midpoint, whatever `w`.
+#[test]
+fn thin_nested_rings_build() {
+    for w in [1e-3, 9e-4, 1e-4] {
+        let r = |i: f64| 1.0 - i * w;
+        let annuli: Vec<[Ring; 2]> = (0..3)
+            .map(|k| {
+                [
+                    ring(r(2.0 * k as f64), 0.0),
+                    ring(r(2.0 * k as f64 + 1.0), PI),
+                ]
+            })
+            .collect();
+        let known = Known {
+            t3: &["A ∩ B", "B ∩ A", "A ∖ B"],
+            untriangulated: &ALL_OPS,
+        };
+        nested(&format!("thin rings w = {w}"), &annuli, (0.5, 2.5), known);
+    }
+}
+
+/// The six runs' names, as `every_op_both_orders` gives them.
+const ALL_OPS: [&str; 6] = ["A ∪ B", "B ∪ A", "A ∩ B", "B ∩ A", "A ∖ B", "B ∖ A"];
 
 /// **The annulus off the plate's centre**, its vertices opposed.
 #[test]
@@ -217,7 +262,7 @@ fn an_off_centre_annulus_builds() {
         (1.2, -0.7),
         &[ring(1.0, 2.0), ring(0.5, 2.0 + PI)],
         (0.5, 2.5),
-        &[],
+        Known::default(),
     );
 }
 
@@ -231,7 +276,10 @@ fn an_annulus_through_the_plate_builds() {
         (0.0, 0.0),
         &[ring(1.0, 0.0), ring(0.5, PI)],
         (-0.5, 1.5),
-        &["B ∖ A"],
+        Known {
+            t3: &["B ∖ A"],
+            ..Known::default()
+        },
     );
 }
 
@@ -245,6 +293,46 @@ fn two_arc_circles_agree_with_one_segment_ones() {
         ("outer two-arc", [two(1.0, 0.0), ring(0.5, PI)]),
         ("inner two-arc", [ring(1.0, 0.0), two(0.5, PI)]),
     ] {
-        every_op_on(what, (0.0, 0.0), &rings, (0.5, 2.5), &[]);
+        every_op_on(what, (0.0, 0.0), &rings, (0.5, 2.5), Known::default());
+    }
+}
+
+/// **The uncut-shell witness reads a one-vertex disc**: a one-segment
+/// plug of radius 0.5 flush in a bore through the plate, both vertices
+/// at azimuth 0, the flush pairs declared. The plug is an uncut shell
+/// every vertex and edge of which lies on the bore's wall, so only a
+/// point inside a cap decides its side, and a cap is a disc of one
+/// vertex. `∩` is empty and `∖` is either operand, in both orders, at
+/// three heights. (`∪` is not this witness's: it stops in the seam
+/// zip.)
+#[test]
+fn a_plug_flush_in_a_bore_is_sided_by_its_caps() {
+    let fin = |w, b| topo::test_support::finished(w, b, tol());
+    let bore = fin("the bore", tube((0.0, 0.0), &[ring(0.5, 0.0)], (-0.5, 1.5)));
+    let bored = topo::subtract(&fin("the plate", plate()), &bore, tol()).unwrap();
+    let bored = fin(
+        "the bored plate",
+        bored
+            .body()
+            .expect("a bored plate")
+            .body
+            .clone()
+            .into_body(),
+    );
+    let vb = 36.0 - PI * 0.25;
+    for z in [(0.0, 1.0), (0.25, 0.75), (0.0, 0.5)] {
+        let plug = fin("the plug", tube((0.0, 0.0), &[ring(0.5, 0.0)], z));
+        let vp = PI * 0.25 * (z.1 - z.0);
+        for (order, x, y, vx) in [
+            ("plug, plate", &plug, &bored, vp),
+            ("plate, plug", &bored, &plug, vb),
+        ] {
+            let d = topo::test_support::flush_declarations(x, y, tol());
+            let row = format!("the plug over z ∈ {z:?}, {order}");
+            let meet = outcome(topo::intersect_with(x, y, &d, tol()), 0.0, tol());
+            assert_eq!(meet, "EMPTY ok", "{row}: ∩");
+            let less = outcome(topo::subtract_with(x, y, &d, tol()), vx, tol());
+            assert!(less.starts_with("OK SOUND"), "{row}: ∖ {less}");
+        }
     }
 }

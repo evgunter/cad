@@ -260,11 +260,13 @@ pub enum SplitJoinError {
     /// Neither section loop of a null face reads which side of the other
     /// solid it lies on: every witness the role probe holds for either
     /// loop's regions lies on the other solid's boundary or within its
-    /// band of it. A crossing's two flanks cannot both read that way
-    /// unless their faces are curved and the witness can only sit on
-    /// their boundaries — the frontier of
-    /// `work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior`
-    /// — or the two solids' faces lie within the band of each other (a
+    /// band of it. A crossing's two flanks can both read that way only
+    /// where no face of either offers a point of its interior: a
+    /// curved face, the frontier of
+    /// `work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior`,
+    /// or a planar one none of whose interior candidates certifies
+    /// (`crate::stands`, rung 3) — or where the two solids' faces lie
+    /// within the band of each other (a
     /// settled in-band coincidence,
     /// `topo/tests/door_backstop_settled_residue.rs`). No kernel defect.
     SectionLoopUndecided {
@@ -470,8 +472,8 @@ impl SplitJoinError {
             Self::SectionLoopUndecided { .. } => write!(
                 f,
                 "which of a section's two loops bounds the result cannot be read: every \
-                 point it is read at lies on a curved face's boundary or too near the \
-                 other part. {}",
+                 point it is read at lies on a face's boundary or too near the other \
+                 part. {}",
                 geom_core::NOT_YET_ENDING
             ),
             Self::SectionLoopMixed { face } => write!(

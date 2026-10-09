@@ -42,9 +42,9 @@ Section-loop role resolution (`boolean/join.rs`
 over each loop's region faces. A curved region face is passed over
 there too. A loop whose regions are all curved, with every vertex and
 edge midpoint on the other boundary, reads undecided, and the other
-loop decides. If neither loop decides, the join refuses with
-`JoinDesync` ("neither section loop's regions hold a decisive
-witness"). No row reaches that refusal.
+loop decides. If neither loop decides, the join refuses
+`Join(SectionLoopUndecided)` (`join.rs` `loop_roles`). The rows above
+under "Evidence" reach that refusal.
 
 ## Under the `On` verdict (FUSE, branch `fuse/on-verdict`)
 
@@ -93,7 +93,14 @@ through hole stops the same way.
 ## The planar cousin is closed (JOIN, `join/annular-tube-roles`)
 
 A planar region face whose vertex chords all leave it, or that has one
-vertex, now offers a witness: rung 3 also steps across each edge from
-its parameter midpoint (`stands.rs` `across_edges`). The same move,
-taken in a curved face's chart and evaluated on its surface, is one
-shape the curved fix above could take.
+vertex, now offers a witness: rung 3 also runs a line inward from each
+edge's midpoint and proposes its midpoint to the first carrier it
+meets (`stands.rs` `across_edges`). The same move, taken in a curved
+face's chart and evaluated on its surface, is one shape the curved fix
+above could take.
+
+The declared plug flush in a bore reached this row's shell refusal
+for planar faces: on main it refused `CoincidentShell` (`Unpaired` on
+a one-vertex cap, or `Mixed`), and it now decides
+(`crates/sweep/tests/an_annular_tube_through_a_plate.rs`
+`a_plug_flush_in_a_bore_is_sided_by_its_caps`).

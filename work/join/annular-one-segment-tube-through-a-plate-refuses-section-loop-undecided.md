@@ -68,12 +68,21 @@ pair on main.
 ## Built (`join/annular-tube-roles`)
 
 Rung 3 gains a third candidate source after the vertex ones,
-`stands.rs` `across_edges`. From each edge's parameter midpoint it
-steps either way along the in-plane normal, at `L/2ᵏ` for
-`k = 1…12`, where `L` is the midpoint's distance to the edge's two
-ends. The candidates are taken longest step first, and `point_in_face`
-certifies each as before. Any planar face wider than `L/4096` beside
-one of its certified edges now offers a witness. The fix does not
-depend on annuli or on the join; it is the one ladder that the shell
-witness, tier 3's check 10 and the pieces sort also read. Pinned in
+`stands.rs` `across_edges`.
+- From each edge's parameter midpoint `m` it runs one line inward:
+  along `normal × t`, `t` the edge's direction as the face's half-edge
+  walks it, since a face's interior lies to the left of its
+  half-edges about its outward normal.
+- Each meeting `m + s·w` of that line with a line or conic carrier of
+  the face's loops, `s` decided positive, proposes `m + (s/2)·w`.
+- The nearest meeting is no farther than the line's first exit from
+  the face, so its midpoint is inside the face however thin the face
+  is. `point_in_face` certifies each candidate as before.
+
+A planar face offers no such witness where, from every edge, the
+nearest boundary along the inward line is a spline or a spiric
+(neither yields meetings), or where the face is narrower than the
+band. The fix does not depend on annuli or on the join: it is the one
+ladder the shell witness, tier 3's check 10 and the pieces sort also
+read. Pinned in `crates/topo/src/stands.rs` `rung_three_rows` and
 `crates/sweep/tests/an_annular_tube_through_a_plate.rs`.
