@@ -243,7 +243,10 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         separating::PAIR_GAP => {
             "how far apart two faces lie along a direction that turns with them"
         }
-        "bool_pierce_normal_on_chart" => BooleanDecision::PierceOnFace.subject(),
+        "bool_pierce_normal_on_chart" | "bool_pierce_normal_on_cone" => {
+            BooleanDecision::PierceOnFace.subject()
+        }
+        "bool_cone_off_axis" => "whether a point of a cone face stands clear of the cone's apex",
         // `geom`'s torus convention, which the pierce point's normal
         // reads before it differentiates the torus.
         "torus_tube_positive" => TorusConvention::Tube.subject(),
@@ -1954,6 +1957,22 @@ pub enum BooleanError {
         /// The band the apex distance was classified against.
         band: Band,
     },
+    /// A vertex the boolean classifies sits within the band of the APEX
+    /// of a cone face of `operand`: the cone's own apex vertex as the
+    /// corner of one of its sectors, or another operand's vertex landing
+    /// on the cone there. The face has no tangent plane at its apex, so
+    /// there is no normal to read a material side by, and the sector and
+    /// pierce lanes refuse rather than read one. The definite half: an
+    /// in-band distance off the axis refuses the same way, with no
+    /// tolerance named.
+    NormalAtConeApex {
+        /// The operand the cone face belongs to.
+        operand: Operand,
+        /// The cone face.
+        face: FaceKey,
+        /// The band the distance off the axis was classified against.
+        band: Band,
+    },
     /// The operand gate (F5) refused a spiric or spline (`Nurbs`)
     /// carrier in an INPUT operand: no crossing lane reads either kind,
     /// and the join and section lanes behind the sweep have no row for
@@ -2924,6 +2943,8 @@ pub enum BooleanErrorKind {
     CurvedPierceUnsupported,
     /// [`BooleanError::CrossingAtConeApex`].
     CrossingAtConeApex,
+    /// [`BooleanError::NormalAtConeApex`].
+    NormalAtConeApex,
     /// [`BooleanError::CurvedEdgeUnsupported`].
     CurvedEdgeUnsupported,
     /// [`BooleanError::CrossingCarrierUnsupported`].
@@ -3139,6 +3160,11 @@ impl BooleanError {
             NormalAtError::OffSurface => Self::ClassificationInvariant {
                 what: "pierce point definitely off the pierced face's surface",
             },
+            NormalAtError::AtConeApex { band } => Self::NormalAtConeApex {
+                operand,
+                face,
+                band,
+            },
         }
     }
 
@@ -3157,6 +3183,7 @@ impl BooleanError {
             }
             Self::CurvedPierceUnsupported { .. } => BooleanErrorKind::CurvedPierceUnsupported,
             Self::CrossingAtConeApex { .. } => BooleanErrorKind::CrossingAtConeApex,
+            Self::NormalAtConeApex { .. } => BooleanErrorKind::NormalAtConeApex,
             Self::CurvedEdgeUnsupported { .. } => BooleanErrorKind::CurvedEdgeUnsupported,
             Self::CrossingCarrierUnsupported { .. } => BooleanErrorKind::CrossingCarrierUnsupported,
             Self::PointSplitCarrierUnsupported { .. } => {
@@ -3330,6 +3357,13 @@ impl core::fmt::Display for BooleanError {
                 "an edge of the {} operand meets a cone face of the other operand at \
                  the cone's tip, where the face has no direction to cross it by. \
                  Recourse: move the parts so the edge clearly passes the tip",
+                operand_word(*operand),
+            ),
+            Self::NormalAtConeApex { operand, .. } => write!(
+                f,
+                "a corner of one part sits at the tip of a cone face of the {} operand, \
+                 where the face has no direction to read the other part's side by. \
+                 Recourse: move the parts so nothing meets the cone's tip",
                 operand_word(*operand),
             ),
             Self::CurvedSectorSideUnsupported { verdict } => write!(
@@ -6377,6 +6411,11 @@ mod tests {
                 edge,
                 band,
             },
+            BooleanError::NormalAtConeApex {
+                operand: Operand::A,
+                face,
+                band,
+            },
             BooleanError::CurvedEdgeUnsupported {
                 operand: Operand::B,
                 edge,
@@ -6637,6 +6676,7 @@ mod tests {
                 BooleanErrorKind::CurvedSectorSideUnsupported => "CurvedSectorSideUnsupported",
                 BooleanErrorKind::CurvedPierceUnsupported => "CurvedPierceUnsupported",
                 BooleanErrorKind::CrossingAtConeApex => "CrossingAtConeApex",
+                BooleanErrorKind::NormalAtConeApex => "NormalAtConeApex",
                 BooleanErrorKind::CurvedEdgeUnsupported => "CurvedEdgeUnsupported",
                 BooleanErrorKind::CrossingCarrierUnsupported => "CrossingCarrierUnsupported",
                 BooleanErrorKind::PointSplitCarrierUnsupported => "PointSplitCarrierUnsupported",

@@ -168,11 +168,13 @@ for a cone. `geom_brep` documents that as a bound **at `p` only**
 (`implicit.rs` :374): the normal curvature `cos α·(d·φ̂)²/ρ` grows
 toward the apex, along the generator. A bound leaving `p` toward the
 axis meets a tighter bend than `ρ(p)` reports. **The cone's lever is
-`ρ(p) − reach`** (the smallest `ρ` within the bound's reach; `/cos α`
-may tighten it), decided positive. Where it is not, the bound reaches the
-axis and the side refuses typed, as an in-band side does today. This is
-the second-order reading that the transverse lane does need. It is a
-lever, not a new trilean.
+`max(ρ(p) − reach, 2ρ(p)/3)`**: the smallest `ρ` within the bound's
+reach, or within the stretch the charge reads where that is shorter.
+The charge reads no further than `slope·lever/2 ≤ ρ/3` at a lever of
+`2ρ/3`. Measured, the literal `ρ − reach`, decided positive, refused
+T1 in every op (six of §0.2's bodies) with no soundness gain: across
+2·10⁵ random poses the `ρ(p)` reading never decided a wrong side. It
+is a lever, not a new trilean.
 
 **Certified pieces:** the elevation margin, the apex margin, the lever's
 positivity. **Refusals:** off the face (an invariant: the sweep put the
@@ -260,13 +262,17 @@ cylinder's is.
 
 R6's thin brick past the full cone's apex got through D1–D5 and refused
 `Join(Escalated { chord_arc_leave_germ, MarginDiag::Invalid })` at
-`chord_join::arc_leaving` (:1218). The margin is `NaN`. **Unmeasured:
-which input is poison.** The candidates are a germ direction minted from
-a near-apex sector normal, or the conic's tangent at a near-apex site.
-It is typed and no body came back, but the refusal names a band question
-with an invalid margin. The arm (U-S6 below) measures the input first,
-then makes the near-apex case refuse at its source: the apex refusal of
-§1.1 or §1.2, if one of those normals is the poison.
+`chord_join::arc_leaving` (:1218). The margin is `NaN`. **Measured: the
+poison is the section, not a normal.** The brick's side plane `x = −0.03`
+runs along the axis, so it cuts a hyperbola. But
+`geom_brep::plane_cone_section` levered its `pn_axis_normal` sine at
+`|h|·tan α`, where `h` is the axial height of the plane's *stored
+origin*. That origin sat level with the apex, so the lever was 0 and the
+section came back as a radius-0 `AxisNormalCircle`. That circle's zero
+tangent gave `0/0` in `arc_leaving`, against a finite germ direction.
+The lever now reads the apex's distance off the plane (`|δ|·tan α`,
+equal to `|h|·tan α` on an axis-normal plane). R6 now refuses with the
+hyperbola's typed refusal (R1).
 
 ### 1.7 D6 and D7: not this spec's arms
 
@@ -440,9 +446,10 @@ through U-S0):
 
 ### U-S6 — near-apex-join-poison
 
-- **Measure first:** which input to `arc_leaving` is `NaN` on R6.
-- **Red first:** R6 refuses with the apex refusal, never an `Invalid`
-  margin.
+- **Measure first:** which input to `arc_leaving` is `NaN` on R6. It
+  is the section conic (§1.6).
+- **Red first:** a plane along the axis is a hyperbola wherever its
+  stored origin sits; R6 refuses typed, never with an `Invalid` margin.
 
 ## 4. Open questions (⚑ = design fork)
 

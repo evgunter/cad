@@ -4878,6 +4878,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "non_finite_sector_chord",
             "non_manifold_result",
             "non_maximal_faces",
+            "normal_at_cone_apex",
             "nurbs_extent_unsupported",
             "pairing_mismatch",
             "pcurves",

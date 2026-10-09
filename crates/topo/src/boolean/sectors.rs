@@ -171,7 +171,7 @@ pub(super) fn build_sectors<T: Decide>(
     vertex: VertexKey,
     band: Band,
 ) -> Result<Vec<BoolSector<T>>, BooleanError> {
-    let corners = orbit_corners(body, operand, vertex);
+    let corners = orbit_corners(body, operand, vertex, band);
     // A lone orbit half-edge's corner runs from its chord round to it.
     let alone = corners.len() == 1;
     let mut sectors = Vec::with_capacity(corners.len() + 2);
@@ -255,6 +255,7 @@ pub(super) fn orbit_corners<T: Decide>(
     body: &Body<T>,
     operand: Operand,
     vertex: VertexKey,
+    band: Band,
 ) -> impl ExactSizeIterator<Item = Result<OrbitCorner<T>, BooleanError>> + '_ {
     let orbit = body.vertex_orbit_linked(vertex);
     if orbit.is_empty() {
@@ -322,7 +323,7 @@ pub(super) fn orbit_corners<T: Decide>(
         let he = orbit[i];
         let (end, end_reach) = chord(he); // this entry's own chord = CCW-last
         let (start, start_reach) = chord(orbit[(i + 1) % n]); // next chord = CCW-first
-        let (face, normal) = sector_face(body, operand, vertex, he)?;
+        let (face, normal) = sector_face(body, operand, vertex, he, band)?;
         Ok(OrbitCorner {
             he,
             start,
@@ -340,11 +341,18 @@ pub(super) fn orbit_corners<T: Decide>(
 /// The walk and the normals are [`crate::sector_face`] — ONE
 /// implementation, called from here and from the splitting lane's
 /// sector walk. What stays here is this lane's
-/// adaptation of it, and only that: the boolean error type, whose
-/// every arm carries the [`Operand`] the shared walk has no notion of.
-/// All four wired arms — `Plane`, `Cylinder`, `Sphere`, `Torus` —
-/// are live on this side; kinds without one refuse typed (C12.1, per
-/// arm).
+/// adaptation of it: the boolean error type, whose every arm carries
+/// the [`Operand`] the shared walk has no notion of, and the cone's
+/// apex. All five wired arms — `Plane`, `Cylinder`, `Sphere`, `Torus`,
+/// `Cone` — are live on this side; kinds without one refuse typed
+/// (C12.1, per arm).
+///
+/// **A sector based at a cone's apex refuses**
+/// ([`BooleanError::NormalAtConeApex`]). The walk mints the cone's
+/// normal from its implicit gradient, which is `0/0` on the axis, and
+/// the apex is the axis point ON the cone: a vertex there has no
+/// tangent plane, and the poison would otherwise reach the first
+/// decision that reads it under that decision's name.
 ///
 /// The normal arrives as an [`OutwardNormal`] with the face's `sense`
 /// folded in (S10), minted at the shared chokepoint — which makes that
@@ -361,6 +369,7 @@ pub(super) fn sector_face<T: Decide>(
     operand: Operand,
     vertex: VertexKey,
     he: HalfEdgeKey,
+    band: Band,
 ) -> Result<(FaceKey, OutwardNormal<T>), BooleanError> {
     let resolved = crate::sector_face::resolve(body, vertex, he).map_err(|e| match e {
         SectorFaceError::Unsupported { face, kind } => BooleanError::CurvedBooleanUnsupported {
@@ -378,14 +387,21 @@ pub(super) fn sector_face<T: Decide>(
         | SectorCarrier::Cylinder
         | SectorCarrier::Sphere
         | SectorCarrier::Torus => {}
-        // The boolean's sector algebra has no cone arm: a cone-carried
-        // sector refuses here, typed, as the split lane's does not.
         SectorCarrier::Cone => {
-            return Err(BooleanError::CurvedBooleanUnsupported {
-                operand,
-                face: resolved.face,
-                kind: geom::SurfaceKind::Cone,
-            });
+            let geom::Surface::Cone { apex, axis, .. } = *body.face_surface_linked(
+                resolved.face,
+                proven(&body.faces, resolved.face, EntityId::Face),
+            ) else {
+                unreachable!("the shared walk's cone arm read a face that carries no cone")
+            };
+            let p = body.resolve_vertex_point(vertex, Proven);
+            crate::face_normal::cone_axis_clearance(apex, axis, p, band).map_err(|_| {
+                BooleanError::NormalAtConeApex {
+                    operand,
+                    face: resolved.face,
+                    band,
+                }
+            })?;
         }
     }
     Ok((resolved.face, resolved.normal))
@@ -564,6 +580,50 @@ pub(super) fn side_code<T: Decide>(
             decision: BooleanDecision::PierceCurvature,
             diag,
         }),
+    }
+}
+
+/// **The lever a pierced face's side verdicts charge** ([`side_code`]'s
+/// `lever`): the smallest radius of curvature the face has where the
+/// charge reads it, within a bound's reach of the pierce point.
+///
+/// [`geom_brep::min_radius_of_curvature`] bounds every bend of a plane,
+/// sphere, cylinder or torus wherever a bound goes, and is the lever
+/// for every reach. A cone's is `ρ` at the pierce point only: its
+/// normal curvature `cos α·(d·φ̂)²/ρ` grows toward the axis, so a bound
+/// reaching `l` toward it can meet a bend as tight as `ρ − l`.
+///
+/// The charge reads the bound no further than `l* = slope·lever/2`
+/// (capped at the reach), and the slope is a sine, so a lever of `2ρ/3`
+/// is never read past `ρ/3`, where the bend is no tighter than `2ρ/3`.
+/// The cone's lever is therefore `max(ρ − reach, 2ρ/3)`: the bend
+/// nearest the axis within the bound's reach, or within the stretch the
+/// charge reads where that is shorter. It is positive wherever the
+/// pierce normal is, since that door certified `ρ` definitely positive.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum PierceLever<T: geom_core::Real> {
+    /// A bound on every bend the face makes.
+    Everywhere(T),
+    /// A cone's `ρ` at the pierce point.
+    ConeAt(T),
+}
+
+impl<T: Decide> PierceLever<T> {
+    /// The pierced `surface`'s lever at `p`.
+    pub(super) fn of(surface: &geom::Surface<T>, p: Point3<T>) -> Self {
+        let at_p = geom_brep::min_radius_of_curvature(surface, p);
+        match surface {
+            geom::Surface::Cone { .. } => Self::ConeAt(at_p),
+            _ => Self::Everywhere(at_p),
+        }
+    }
+
+    /// The lever for a bound reaching `reach` from the pierce point.
+    pub(super) fn within(self, reach: T) -> T {
+        match self {
+            Self::Everywhere(lever) => lever,
+            Self::ConeAt(rho) => (rho - reach).max(rho * T::from_f64(2.0 / 3.0)),
+        }
     }
 }
 
@@ -5188,6 +5248,182 @@ mod tests {
             Err(BooleanError::CurvedBooleanUnsupported { .. }) => {}
             other => panic!("sphere tangency is outside the DEV-1 lane: {other:?}"),
         }
+    }
+
+    /// **A cone sector's normal is the cone face's outward normal at
+    /// its corner**, at every rim corner of a frustum wall and for both
+    /// senses: the chart normal `ŵ cos α − ẑ sin α` there, negated where
+    /// the face is reversed, as a subtracted cone's is.
+    #[test]
+    fn a_cone_sector_off_the_apex_is_the_faces_outward_normal() {
+        let alpha = 0.5_f64;
+        let (mut body, face) = super::super::boxes::tests::cone_wall(alpha, 0.0, 1.0, 0.5, 1.0);
+        let vertices: Vec<VertexKey> = body.vertices.keys().collect();
+        for sense in [true, false] {
+            body.set_face_sense(face, sense).unwrap();
+            let mut read = 0;
+            for &v in &vertices {
+                let p = body.resolve_vertex_point(v, Proven);
+                let w = Vec3::new(p.x, p.y, 0.0).normalize();
+                let chart = w * alpha.cos() - Vec3::new(0.0, 0.0, alpha.sin());
+                let want = OutwardNormal::from_chart(chart, sense).vec();
+                for he in body.vertex_orbit_linked(v) {
+                    match sector_face(&body, Operand::B, v, he, band()) {
+                        Ok((f, n)) if f == face => {
+                            read += 1;
+                            assert!(
+                                (n.vec() - want).norm() < 1e-12,
+                                "sense {sense} at {p:?}: {:?}, want {want:?}",
+                                n.vec()
+                            );
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            assert_eq!(read, 4, "sense {sense}: the wall's four corners");
+        }
+    }
+
+    /// **A sector based at a cone's apex refuses, named.** A prism's side
+    /// face is carried by a cone whose apex is one of the face's corners:
+    /// the sector there refuses with the apex refusal, naming the operand
+    /// and the face, where the walk's gradient is `0/0`; the face's next
+    /// corner, off the axis, reads its normal. Without the check the
+    /// poisoned normal reaches the corner rung, which escalated it as
+    /// `Corner(Straight)` on a plane through a full cone's apex.
+    #[test]
+    fn a_cone_sector_at_the_apex_refuses_naming_the_face() {
+        let p = crate::fixtures::raw_prism(3, Tol::witness());
+        let face = p.face_side[0];
+        let mut body = p.body;
+        let he = body
+            .get_loop(body.get_face(face).unwrap().outer)
+            .and_then(|l| match l.boundary {
+                crate::entity::LoopBoundary::Cycle { first } => Some(first),
+                crate::entity::LoopBoundary::Empty { .. } => None,
+            })
+            .unwrap();
+        // The sector CW-after `mate(he)` is this face's corner at `he`'s
+        // start; `next` is the corner after it.
+        let corner = |body: &Body<f64>, he: HalfEdgeKey| {
+            let orbit_he = body.mate(he).unwrap();
+            (body.get_half_edge(orbit_he).unwrap().start, orbit_he)
+        };
+        let (apex_vertex, apex_he) = corner(&body, he);
+        let next = body.get_half_edge(he).unwrap().next;
+        let (off_vertex, off_he) = corner(&body, next);
+        let apex = body.resolve_vertex_point(apex_vertex, Proven);
+        let off = body.resolve_vertex_point(off_vertex, Proven);
+        // An axis square to the edge between the two corners, so the
+        // second stands the edge's length off it.
+        let edge = off - apex;
+        let axis = edge.cross(Vec3::new(1.0, 1.0, 1.0)).normalize();
+        assert!(
+            edge.cross(axis).norm() > 0.1,
+            "the second corner stands off the axis"
+        );
+        body.set_face_surface(
+            face,
+            crate::FaceSurface::New {
+                surface: geom::Surface::Cone {
+                    apex,
+                    axis,
+                    half_angle: 0.5,
+                    u_ref: edge.normalize(),
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+        let b = band();
+        assert!(
+            matches!(
+                sector_face(&body, Operand::A, apex_vertex, apex_he, b),
+                Err(BooleanError::NormalAtConeApex { operand: Operand::A, face: f, band })
+                    if f == face && band == b
+            ),
+            "the apex corner: {:?}",
+            sector_face(&body, Operand::A, apex_vertex, apex_he, b)
+        );
+        let (f, n) = sector_face(&body, Operand::A, off_vertex, off_he, b)
+            .expect("a corner off the axis reads its normal");
+        assert!(f == face && n.vec().norm().is_finite(), "{n:?}");
+    }
+
+    /// **A cone's lever is the bend nearest the axis the charge can
+    /// read.** A bound leaving a pierce at `ρ = 0.1` along the generator
+    /// toward the apex, reaching 0.08, at a slope whose charge clears
+    /// the band read at `ρ` and does not read at the lever, `2ρ/3`
+    /// (`ρ − reach` is shorter, and the charge reads no further than
+    /// `ρ/3`): the side refuses, where read at `ρ` it certifies.
+    /// Measured, the reading at `ρ` never decides a wrong side on a cone
+    /// (over 2·10⁵ poses the ray's true separation never fell below the
+    /// charge's claim), so this row holds the lever against loosening,
+    /// not a wrong answer. A short bound takes `ρ − reach`, and a
+    /// sphere's lever is its own at every reach.
+    #[test]
+    fn a_cone_lever_is_the_bend_nearest_the_axis_within_reach() {
+        let b = band();
+        let alpha = 0.5_f64;
+        let cone = geom::Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: alpha,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let (rho, reach) = (0.1, 0.08);
+        let p = Point3::new(rho, 0.0, rho / alpha.tan());
+        let chart = Vec3::new(alpha.cos(), 0.0, -alpha.sin());
+        let normal = OutwardNormal::from_chart(chart, true);
+        let toward_apex = -(p - Point3::origin()).normalize();
+        // The charge at slope `s` is `s²·lever/4`: 1.2 escalations at
+        // `ρ`, 0.8 of one at `2ρ/3`.
+        let s = (4.8 * b.escalate() / rho).sqrt();
+        let dir = toward_apex * (1.0 - s * s).sqrt() + chart * s;
+        let bound = Reach::Chord {
+            base: p,
+            far: p + dir * reach,
+        };
+        let lever = PierceLever::of(&cone, p);
+        let within = lever.within(reach);
+        assert!(
+            (within - 2.0 * rho / 3.0).abs() < 1e-15,
+            "the lever a long bound reads: {within}"
+        );
+        assert!(
+            (lever.within(0.01) - (rho - 0.01)).abs() < 1e-15,
+            "the lever a short bound reads: {}",
+            lever.within(0.01)
+        );
+        assert!(
+            matches!(
+                side_code(dir, bound, normal, within, b),
+                Err(BooleanError::CurvedSectorSideUnsupported { .. }
+                    | BooleanError::Escalated {
+                        decision: BooleanDecision::PierceCurvature,
+                        ..
+                    })
+            ),
+            "read at the lever the side refuses: {:?}",
+            side_code(dir, bound, normal, within, b)
+        );
+        assert_eq!(
+            side_code(dir, bound, normal, rho, b).unwrap(),
+            SideCode::Out,
+            "read at ρ the same side certifies"
+        );
+        let sphere = geom::Surface::Sphere {
+            center: Point3::origin(),
+            radius: 2.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        assert_eq!(
+            PierceLever::of(&sphere, p).within(1e9),
+            2.0,
+            "a sphere's lever does not depend on the reach"
+        );
     }
 }
 

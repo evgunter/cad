@@ -21,8 +21,9 @@
 //! row below reads.
 //!
 //! **Two curved readings, and they differ.** [`face_outward_normal_at`]
-//! is a GATE: it certifies `p` onto the chart (`‖∇F‖ − 1` in band) and
-//! folds the RAW gradient it has just certified unit-magnitude. The
+//! is a GATE: it certifies `p` onto the chart (`‖∇F‖ − 1` in band, a
+//! cone's elevation on its face's nappe) and folds the RAW gradient it
+//! has just certified unit-magnitude. The
 //! by-value curved fold is [`geom_brep::implicit_outward_normal`],
 //! which normalizes and gates nothing — its callers (the contact
 //! verifier, the dihedral's material pairing, a blend battery's
@@ -135,6 +136,13 @@ pub(crate) enum NormalAtError {
     /// point ON the face, so this is the caller's invariant, not a
     /// remainder.
     OffSurface,
+    /// `p` is on a cone face but within the band of its axis, at the
+    /// apex, where the face has no tangent plane: definite or in band,
+    /// there is no normal to answer with.
+    AtConeApex {
+        /// The band the distance off the axis was classified against.
+        band: Band,
+    },
 }
 
 /// Which decision [`face_outward_normal_at`] escalated on.
@@ -185,11 +193,10 @@ fn ring_half(
 /// normal IS that chart normal, pointing away from the axis/centre
 /// (the convention `boolean::rest::face_carrier` states).
 ///
-/// **The gate is on the kind and on the point, in that order.** The
-/// gradient is honest poison where the surface itself is singular — a
-/// cone apex, which lies ON the cone — and `Nurbs`/`Approx` have no
-/// implicit form at all, so those kinds get `Ok(None)` and the caller
-/// mints its own typed refusal naming the kind. A ring torus is
+/// **The gate is on the kind and on the point, in that order.**
+/// `Nurbs`/`Approx` have no implicit form at all, so those kinds get
+/// `Ok(None)` and the caller mints its own typed refusal naming the
+/// kind. A ring torus is
 /// singular only on its axis, which no point of the tube reaches
 /// (`ρ ≥ R − r > 0`), so it has an arm; a torus outside the ring
 /// convention is refused as a shape ([`NormalAtError::DegenerateTorus`]),
@@ -209,13 +216,25 @@ fn ring_half(
 /// radial component is the zero vector and `w / radius` is `0`, whose
 /// norm is a perfectly ordinary `0` — so the margin `0 − 1` classifies
 /// definitely negative and the guard fires on a value it can read.
-/// A cone apex, where the form really is `0/0`, never reaches this
-/// margin at all: the kind has no arm here.
+///
+/// **The cone does not take that certificate.** Its implicit form is
+/// the elevation, a distance, so `‖∇F‖ = 1` at every point off its
+/// axis, on the surface or not, and `‖∇F‖ − 1` would certify any point
+/// at all. The cone arm certifies `p` by the elevation itself
+/// ([`geom_brep::cone_elevation`], metres, unlevered) on the face's own
+/// nappe, so a point on the mirror nappe reads off the surface; and it
+/// refuses at the apex, the one point ON the cone where the form really
+/// is `0/0`, by the distance off the axis ([`cone_axis_clearance`]). A
+/// point definitely off the surface is [`NormalAtError::OffSurface`]
+/// before the apex is asked, and the apex refusal before an in-band
+/// elevation escalates. The gradient it folds is unit-magnitude off the
+/// axis by construction.
 ///
 /// # Errors
 ///
 /// [`NormalAtError`] — an in-band margin, a torus outside the ring
-/// convention, or a point definitely off the surface. A face key that
+/// convention, a point definitely off the surface, or a cone's apex. A
+/// face key that
 /// no longer resolves is `Ok(None)`.
 ///
 /// # Panics
@@ -272,12 +291,80 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
                 }),
             }
         }
-        // Cone, Nurbs, Approx: no arm here. A cone's gradient is `0/0`
-        // on its whole axis, the apex ON the surface included; the
-        // NURBS/Approx pair has no implicit form to differentiate. The
-        // caller names the kind in its own refusal rather than this
-        // door guessing which refusal it wants.
-        _ => Ok(None),
+        geom::Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => {
+            let nappe = face_nappe_or_double(body, face, band)?;
+            let elevation = geom_brep::cone_elevation(*apex, *axis, *half_angle, nappe, p);
+            let on = decide("bool_pierce_normal_on_cone", Margin::of(elevation), band);
+            if let Ok(Sign::Positive | Sign::Negative) = on {
+                return Err(NormalAtError::OffSurface);
+            }
+            cone_axis_clearance(*apex, *axis, p, band)?;
+            match on {
+                Ok(_) => Ok(Some(OutwardNormal::from_chart(
+                    geom_brep::implicit_gradient(surface, p),
+                    f.sense,
+                ))),
+                Err(diag) => Err(NormalAtError::Escalated {
+                    decision: NormalDecision::OnSurface,
+                    diag,
+                }),
+            }
+        }
+        // Nurbs, Approx: no arm here. The pair has no implicit form to
+        // differentiate. The caller names the kind in its own refusal
+        // rather than this door guessing which refusal it wants.
+        geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => Ok(None),
+    }
+}
+
+/// The nappe a cone face's points are certified on: the face's own
+/// ([`crate::offset_nappe::face_nappe`]) where its corners decide it,
+/// and the double cone where they reach the apex, as a full cone's do.
+/// There a point on the mirror nappe reads on the carrier, and the
+/// face's trim is what places it elsewhere, as the crossing layer's
+/// far-nappe reading leaves it.
+fn face_nappe_or_double<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    band: Band,
+) -> Result<Option<geom_brep::Nappe>, NormalAtError> {
+    use crate::replace_face::ReplaceFaceError;
+    match crate::offset_nappe::face_nappe(body, face, band) {
+        Ok(nappe) => Ok(Some(nappe)),
+        Err(ReplaceFaceError::NappeStraddles { .. }) => Ok(None),
+        Err(ReplaceFaceError::Escalated { source }) => Err(NormalAtError::Escalated {
+            decision: NormalDecision::OnSurface,
+            diag: source,
+        }),
+        Err(other) => unreachable!(
+            "the nappe of a cone face this door resolved answered a refusal it does not give: \
+             {other:?}"
+        ),
+    }
+}
+
+/// **Whether `p` stands definitely off a cone's axis**, the one place
+/// the boolean decides it has a normal at a point of a cone face. The
+/// implicit gradient is `0/0` on the axis, and the apex is the axis
+/// point ON the surface, so a point within the band of the axis has no
+/// tangent plane to read: `Zero` and in band refuse alike
+/// ([`NormalAtError::AtConeApex`]).
+pub(crate) fn cone_axis_clearance<T: Decide>(
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    p: Point3<T>,
+    band: Band,
+) -> Result<(), NormalAtError> {
+    let q = p - apex;
+    let radial = q - axis * q.dot(axis);
+    match decide("bool_cone_off_axis", Margin::norm3(radial), band) {
+        Ok(Sign::Positive) => Ok(()),
+        Ok(Sign::Zero | Sign::Negative) | Err(_) => Err(NormalAtError::AtConeApex { band }),
     }
 }
 
@@ -395,18 +482,13 @@ mod tests {
     /// is the caller's broken invariant rather than a remainder.
     #[test]
     fn the_gate_separates_a_missing_arm_from_a_point_off_the_chart() {
-        let (body, face) = face_on(geom::Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            half_angle: 0.5,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        });
+        let (body, face) = crate::fixtures::approx_faced_body::<f64>();
         assert!(
             matches!(
                 face_outward_normal_at(&body, face, Point3::new(1.0, 0.0, 2.0), band()),
                 Ok(None)
             ),
-            "a cone has no arm here"
+            "an `Approx` face has no arm here"
         );
         let (body, face) = face_on(geom::Surface::Cylinder {
             origin: Point3::origin(),
@@ -424,6 +506,135 @@ mod tests {
             face_outward_normal_at(&body, face, Point3::new(0.0, 0.0, 1.0), band()),
             Err(NormalAtError::OffSurface)
         ));
+    }
+
+    /// The frustum wall `z ∈ [0.5, 1]` of the half-angle-`ALPHA` cone
+    /// about `z`, apex at the origin, carried by that cone's
+    /// `axis_sign` copy: `+1` puts the face on the opening nappe, `−1`
+    /// on the mirror nappe of the same double cone.
+    const ALPHA: f64 = 0.5;
+
+    fn frustum_wall(axis_sign: f64) -> (crate::body::Body<f64>, crate::entity::FaceKey) {
+        let (mut body, face) = crate::boolean::boxes::tests::cone_wall(ALPHA, 0.0, 1.0, 0.5, 1.0);
+        let cone = geom::Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::new(0.0, 0.0, axis_sign),
+            half_angle: ALPHA,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        body.lifting_rechart_refusals_for_tests(|body| {
+            body.set_face_surfaces_describing(
+                vec![crate::Rechart::new(cone, face, true)],
+                &[],
+                Tol::witness(),
+            )
+        })
+        .unwrap();
+        (body, face)
+    }
+
+    /// The wall point at azimuth `u` and height `z`, and the cone's
+    /// chart normal there, `ŵ cos α − ẑ sin α`, which both carriers'
+    /// charts agree on.
+    fn on_wall(u: f64, z: f64) -> (Point3<f64>, Vec3<f64>) {
+        let w = Vec3::new(u.cos(), u.sin(), 0.0);
+        let rho = z * ALPHA.tan();
+        (
+            Point3::new(rho * u.cos(), rho * u.sin(), z),
+            w * ALPHA.cos() - Vec3::new(0.0, 0.0, ALPHA.sin()),
+        )
+    }
+
+    /// **A cone face's normal is the implicit gradient, folded once.**
+    /// On both nappes' carriers of one wall, and for both senses, the
+    /// door's normal is the chart normal `ŵ cos α ∓ â sin α` (the sign
+    /// the point's nappe gives), negated on a reversed face.
+    #[test]
+    fn on_a_cone_wall_the_normal_is_the_chart_normal_on_either_nappe() {
+        for axis_sign in [1.0, -1.0] {
+            let (mut body, face) = frustum_wall(axis_sign);
+            for (u, z) in [(0.2, 0.6), (0.9, 0.95)] {
+                let (p, chart) = on_wall(u, z);
+                for sense in [true, false] {
+                    body.set_face_sense(face, sense).unwrap();
+                    let got = face_outward_normal_at(&body, face, p, band())
+                        .unwrap()
+                        .unwrap()
+                        .vec();
+                    let want = if sense { chart } else { -chart };
+                    assert!(
+                        (got - want).norm() < 1e-14,
+                        "axis {axis_sign}, sense {sense}, at ({u}, {z}): {got:?}, want {want:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// **The cone's certificate is its elevation, on the face's own
+    /// nappe, and the apex is refused.** Each row names the reading that
+    /// would make it false:
+    ///
+    /// - a point definitely off the wall reads `OffSurface`. Certifying
+    ///   by `‖∇F‖ − 1`, the cylinder's certificate, reads it on: the
+    ///   cone's `F` is a distance, so that margin is zero at every point
+    ///   off the axis;
+    /// - a point on the double cone's OTHER nappe reads `OffSurface`. The
+    ///   double cone's elevation reads it on;
+    /// - the apex, and a point within the band of it along the wall,
+    ///   refuse at the apex, never with a poisoned normal;
+    /// - a point in the band off the wall escalates `OnSurface`.
+    #[test]
+    fn a_cone_point_is_certified_on_its_nappe_and_refused_at_the_apex() {
+        let b = band();
+        let mid = 0.5 * (b.zero() + b.escalate());
+        let (body, face) = frustum_wall(1.0);
+        let (p, chart) = on_wall(0.4, 0.7);
+        for off in [10.0 * b.escalate(), -10.0 * b.escalate(), 0.1] {
+            assert!(
+                matches!(
+                    face_outward_normal_at(&body, face, p + chart * off, b),
+                    Err(NormalAtError::OffSurface)
+                ),
+                "{off} off the wall"
+            );
+        }
+        let (mirror, _) = on_wall(0.4, -0.7);
+        assert!(
+            matches!(
+                face_outward_normal_at(&body, face, mirror, b),
+                Err(NormalAtError::OffSurface)
+            ),
+            "a point on the mirror nappe"
+        );
+        let (generator, _) = on_wall(0.4, 1.0);
+        let along = (generator - Point3::origin()).normalize();
+        for (label, q) in [
+            ("the apex", Point3::origin()),
+            (
+                "half a zero up the wall",
+                Point3::origin() + along * (0.5 * b.zero()),
+            ),
+            ("in band up the wall", Point3::origin() + along * mid),
+        ] {
+            assert!(
+                matches!(
+                    face_outward_normal_at(&body, face, q, b),
+                    Err(NormalAtError::AtConeApex { band }) if band == b
+                ),
+                "{label}"
+            );
+        }
+        assert!(
+            matches!(
+                face_outward_normal_at(&body, face, p + chart * mid, b),
+                Err(NormalAtError::Escalated {
+                    decision: super::NormalDecision::OnSurface,
+                    ..
+                })
+            ),
+            "in band off the wall"
+        );
     }
 
     /// **The anti-re-fork row for the planar sense flip.** The plane
