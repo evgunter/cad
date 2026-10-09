@@ -755,6 +755,47 @@ mod tests {
         }
     }
 
+    /// **A poisoned sized arm keeps its lever, and its note names the
+    /// file wherever a file may reach the margin** (D4 ¶1 (i), D7): at a
+    /// build the kernel made the geometry, so the note names the kernel;
+    /// at rest and at the import door a damaged file reaches an unreadable
+    /// margin as surely, as the defect ending says there.
+    #[test]
+    fn a_poisoned_sized_arm_keeps_its_lever_and_names_the_file_at_rest() {
+        let decision = SizedDecision {
+            lever: "L",
+            size: "thickness",
+            passes: SizedPass::Positive,
+            stored: StoredDefinite::Lever,
+            at_zero: Some(AtZero::same("N")),
+        };
+        let cause = Indeterminate {
+            margin: MarginDiag::INVALID,
+            band: band(),
+            predicate: None,
+            terminal_sliver: false,
+        };
+        let zero = RefusedArm::Zero(Classified {
+            margin: MarginDiag::INVALID,
+            band: band(),
+        });
+        let stored = "Recourse: L; an unreadable or collapsed margin may indicate a kernel bug \
+                      or a damaged file worth reporting";
+        for arm in [RefusedArm::Undecided(&cause), zero] {
+            assert_eq!(
+                decision.recourse(arm, Reading::Build),
+                format!("Recourse: L; {UNREADABLE_MARGIN_NOTE}"),
+                "at a build on {arm:?}"
+            );
+            for at in [
+                ReadAt::Run(Reading::AtRest),
+                ReadAt::File(FileCoincidence::new(1e-6)),
+            ] {
+                assert_eq!(decision.recourse(arm, at), stored, "at {at:?} on {arm:?}");
+            }
+        }
+    }
+
     /// **No tolerance answers a poisoned margin** (D4 ¶1 (i)): on an arm
     /// whose margin could not be read, every table's ending at every door
     /// names no tolerance to loosen or tighten, and a decision with no
