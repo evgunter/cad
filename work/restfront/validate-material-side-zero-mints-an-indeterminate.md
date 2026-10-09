@@ -2,7 +2,7 @@
 id: validate-material-side-zero-mints-an-indeterminate
 kind: issue
 title: validate's material-side check mints an Indeterminate by hand after a definite Zero
-status: open
+status: review
 opened: 2026-10-01
 ---
 
@@ -30,3 +30,7 @@ the same hook (`validate::MaterialStations::after_positive`), so this
 one repair covers both callers.
 Found by the `linalg/decided-not-minted` sweep of `MarginDiag::INVALID`
 literals.
+
+## Review
+
+The repair is in ENCL's `material-pairing-gate-definite-zero-ends-as-unreadable` (branch `encl/material-pairing-zero`). `MaterialStations::after_positive` now reads the cusp side through `decide_nonzero`, so a definite Zero carries its tagged margin and the `Cusp`/`Slit` match has two arms.
