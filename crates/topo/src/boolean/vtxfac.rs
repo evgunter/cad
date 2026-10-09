@@ -262,17 +262,22 @@ pub(super) fn touch_classes<T: geom_core::Real>(
 }
 
 /// **The classes of a vertex's edges against the other solid, where
-/// the vertex is in pairs alone**, touching no face.
+/// the vertex is in pairs alone**, touching no face; refuses
+/// [`BooleanError::VertexReadTwice`], naming the partner and one
+/// beside it, where a partner's cone reads nothing beside another's:
+/// against the vertex's edges, or against the other's in reading which
+/// cone holds which. One pair alone keeps its rows, none where its
+/// partner reads nothing.
 ///
 /// Several partners read [`layered`]: the cones that no other holds
 /// are outermost, and the material beyond them is outside the solid
 /// where they are met and inside it where they are joined. Which side
 /// of a link a partner calls its cone does not matter here: just beyond
 /// an outermost cone lies outside every cone, since no other holds its
-/// link. Where a partner reads nothing, an edge is left undecided, or
-/// the outermost disagree, each pair's rows stand as read, as for one
-/// pair: a silent path, filed as
-/// `work/tang/pair-classes-falls-back-to-per-pair-rows-beside-a-partner-that-reads-none.md`.
+/// link. Where an edge is left undecided, or the outermost disagree,
+/// each pair's rows stand as read, as for one pair: a silent path,
+/// filed as
+/// `work/tang/pair-classes-keeps-per-pair-rows-where-its-layering-is-undecided.md`.
 /// A partner reads nothing (`sectors::wedge_classes`' `None`) where its
 /// sectors lie on fewer than two faces; where they lie on two with no
 /// bisector to read the wedge by; or where its corner is read as a
@@ -280,6 +285,8 @@ pub(super) fn touch_classes<T: geom_core::Real>(
 /// decided, with none escalating (`sectors::cone_side`'s `None`). A
 /// nesting read in band refuses.
 pub(super) fn pair_classes<T: Decide>(
+    operand: Operand,
+    vertex: VertexKey,
     pairs: &[PairRead<T>],
     band: Band,
 ) -> Result<Vec<(HalfEdgeKey, SideCode)>, BooleanError> {
@@ -290,37 +297,50 @@ pub(super) fn pair_classes<T: Decide>(
             .flat_map(|r| r.rows.iter().copied())
             .collect()
     };
-    Ok(match pairs {
-        [_] => alone(),
-        _ => layered_alone(pairs, band)?.unwrap_or_else(alone),
-    })
+    let refuse = |unread: usize, beside: usize| BooleanError::VertexReadTwice {
+        operand,
+        vertex,
+        reads: [
+            SectorRead::Pair(pairs[unread].partner),
+            SectorRead::Pair(pairs[beside].partner),
+        ],
+    };
+    if let [_] = pairs {
+        return Ok(alone());
+    }
+    if let Some(unread) = pairs.iter().position(|p| p.read.is_none()) {
+        return Err(refuse(unread, usize::from(unread == 0)));
+    }
+    // Every partner reads, so this keeps one read per pair.
+    let reads: Vec<_> = pairs.iter().filter_map(|p| p.read.as_ref()).collect();
+    Ok(layered_alone(pairs, &reads, band, refuse)?.unwrap_or_else(alone))
 }
 
-/// [`pair_classes`]' layering, or `None` where it cannot decide.
+/// [`pair_classes`]' layering of partners that each read (`reads`, one
+/// per pair), or `None` where it cannot decide; `refuse(j, i)` where
+/// partner `j`'s cone reads nothing against partner `i`'s edges.
 fn layered_alone<T: Decide>(
     pairs: &[PairRead<T>],
+    reads: &[&super::sectors::WedgeRead],
     band: Band,
+    refuse: impl Fn(usize, usize) -> BooleanError,
 ) -> Result<Option<Vec<(HalfEdgeKey, SideCode)>>, BooleanError> {
     // Partner `i`'s cone lies inside `j`'s where `j` holds every edge
     // of `i` (strictly: cones whose boundaries meet only at the point).
-    let inside = |i: usize, j: usize| -> Result<Option<bool>, BooleanError> {
-        let read = super::sectors::wedge_classes(&pairs[i].sectors, &pairs[j].sectors, band)?;
-        Ok(read.map(|r| !r.rows.is_empty() && r.rows.iter().all(|&(_, c)| held(c, r.met))))
+    let inside = |i: usize, j: usize| -> Result<bool, BooleanError> {
+        let read = super::sectors::wedge_classes(&pairs[i].sectors, &pairs[j].sectors, band)?
+            .ok_or_else(|| refuse(j, i))?;
+        Ok(!read.rows.is_empty() && read.rows.iter().all(|&(_, c)| held(c, read.met)))
     };
     let mut base = None;
-    for i in 0..pairs.len() {
+    for (i, read) in reads.iter().enumerate() {
         let mut outermost = true;
         for j in (0..pairs.len()).filter(|&j| j != i) {
-            match inside(i, j)? {
-                None => return Ok(None),
-                Some(true) => outermost = false,
-                Some(false) => {}
+            if inside(i, j)? {
+                outermost = false;
             }
         }
         if outermost {
-            let Some(read) = pairs[i].read.as_ref() else {
-                return Ok(None);
-            };
             let here = if read.met {
                 SideCode::Out
             } else {
@@ -335,10 +355,10 @@ fn layered_alone<T: Decide>(
             base = Some(here);
         }
     }
-    let (Some(base), Some(first)) = (base, pairs[0].read.as_ref()) else {
+    let Some(base) = base else {
         return Ok(None);
     };
-    Ok(first
+    Ok(reads[0]
         .rows
         .iter()
         .map(|&(he, _)| Some((he, layered(base, he, pairs.iter())?)))
@@ -1455,7 +1475,10 @@ mod tests {
     /// void in the arch, the cavity's void, an island in it, arches
     /// apart, and arches sharing a ray; no scene reaches the last two,
     /// which stand for the touch's two refusals beside a partner. One
-    /// pair alone keeps its rows.
+    /// pair alone keeps its rows; pairs alone refuse beside a partner
+    /// that reads nothing, against the vertex's edges or the other
+    /// partner's (here a partner of no sectors, so on fewer than two
+    /// faces).
     #[test]
     fn a_vertex_read_again_layers_its_partners() {
         use super::super::sectors::WedgeRead;
@@ -1565,19 +1588,60 @@ mod tests {
             assert_eq!(touch_classes(&touch, &pairs), want, "{what}");
         }
         let band = Band::linear(Tol::witness()).unwrap();
+        let own = VertexKey::from(key(6));
+        let (pw, px) = (SectorRead::Pair(w), SectorRead::Pair(x));
         for (what, pairs, want) in [
             (
                 "one arch",
                 vec![read(w, None, true, &three)],
-                three.to_vec(),
+                Ok(three.to_vec()),
             ),
             (
                 "one void's apex",
                 vec![read(w, None, false, &three)],
-                three.to_vec(),
+                Ok(three.to_vec()),
+            ),
+            (
+                "one partner that reads nothing",
+                vec![unread(w, None)],
+                Ok(Vec::new()),
+            ),
+            (
+                "an arch beside a partner that reads nothing",
+                vec![read(w, None, true, &three), unread(x, None)],
+                Err([px, pw]),
+            ),
+            (
+                "a partner that reads nothing beside an arch",
+                vec![unread(x, None), read(w, None, true, &three)],
+                Err([px, pw]),
+            ),
+            (
+                "two arches, each on fewer than two faces",
+                vec![read(w, None, true, &three), read(x, None, true, &three)],
+                Err([px, pw]),
             ),
         ] {
-            assert_eq!(pair_classes(&pairs, band).unwrap(), want, "{what}");
+            let got = pair_classes(Operand::B, own, &pairs, band);
+            if let Err(e) = &got {
+                assert!(
+                    e.to_string()
+                        .contains("two corners of the other solid meet at one point"),
+                    "{what}: the refusal names its cause: {e}"
+                );
+            }
+            match (got, want) {
+                (Ok(got), Ok(want)) => assert_eq!(got, want, "{what}"),
+                (
+                    Err(BooleanError::VertexReadTwice {
+                        operand: Operand::B,
+                        vertex,
+                        reads,
+                    }),
+                    Err(want),
+                ) if vertex == own => assert_eq!(reads, want, "{what}"),
+                (got, want) => panic!("{what}: got {got:?}, want {want:?}"),
+            }
         }
     }
 

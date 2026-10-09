@@ -111,6 +111,9 @@ pub struct SplitResult<T: Real> {
     /// wiring facts the naming layer consumes — never reconstructed
     /// by post-hoc inspection.
     pub naming: SplitNaming,
+    /// The coincidences the split decided from values (its pinches), in
+    /// the operand's keys ([`crate::coincidence`]).
+    pub coincidences: Vec<crate::Coincidence>,
 }
 
 /// Mint-time naming facts of one split (M4 PR 3). Keys live in the
@@ -586,6 +589,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         above: SplitPart::Body(above),
         below: SplitPart::Body(below),
         naming,
+        coincidences: red.coincidences,
     })
 }
 
@@ -872,7 +876,7 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                             geom_brep::MustCarryEscalation::FirstOrder(escalation),
                         ) => SplitFinishError::DescribeEscalated {
                             edge,
-                            diag: escalation.diag,
+                            diag: escalation.diag(),
                         },
                         geom_brep::MustCarryRefusal::InBand(
                             geom_brep::MustCarryEscalation::SecondOrder(diag),
@@ -929,8 +933,11 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                         body.set_edge_curve(edge, spec, tol)?;
                     }
                 }
-                Err(geom_brep::LeverEscalation { diag, .. }) => {
-                    return Err(SplitFinishError::DescribeEscalated { edge, diag });
+                Err(escalation) => {
+                    return Err(SplitFinishError::DescribeEscalated {
+                        edge,
+                        diag: escalation.diag(),
+                    });
                 }
             }
         }
@@ -1005,11 +1012,13 @@ fn whole_body_side<T: Decide>(
             above: SplitPart::Body(body),
             below: SplitPart::Empty,
             naming: SplitNaming::default(),
+            coincidences: Vec::new(),
         }),
         Some(_) => Ok(SplitResult {
             above: SplitPart::Empty,
             below: SplitPart::Body(body),
             naming: SplitNaming::default(),
+            coincidences: Vec::new(),
         }),
         // Every vertex and every curved edge ON: a zero-volume
         // operand, which no closed solid is; the operand is never

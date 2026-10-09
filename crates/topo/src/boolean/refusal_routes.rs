@@ -42,6 +42,9 @@ use geom_brep::recourse::{
 };
 use geom_core::{Indeterminate, UNREADABLE_MARGIN_NOTE};
 
+use crate::boolean::ContainDecision;
+use crate::splitting::Escalation;
+
 use crate::contact::{BooleanCoincidence, ContactClass};
 
 pub use super::plane_eq::PlaneRung;
@@ -220,8 +223,16 @@ pub enum BooleanDecision {
     /// A half of a pierced torus's ring convention.
     Torus(TorusConvention),
     /// Whether a point lies inside a face, on its boundary, or outside
-    /// it (`ContainError::Escalated`), from any rung of the walk.
-    Containment,
+    /// it (`ContainError::Escalated`): the walk's own decision where the
+    /// refusal carries it, and how its reading stood. `None` is a rung
+    /// the escalation does not name (the solid door's, the sphere
+    /// region's, a cone face's nappe read).
+    Containment {
+        /// The walk's decision, where the escalation carries one.
+        decision: Option<ContainDecision>,
+        /// How its refused reading stood.
+        escalation: Escalation,
+    },
     /// Where a crossing lands along its edge.
     Crossing(CrossingDecision),
     /// Whether two vertices coincide: a vertex of one solid with one of
@@ -1023,6 +1034,11 @@ pub enum SelfCheck {
     /// undecided answer is a contact the census could not confirm
     /// either.
     CarriedLineage,
+    /// Which way a one-vertex seam edge runs against its partner
+    /// (`bool_zip_one_vertex_sense`, `zip::one_vertex_sense`): the two
+    /// halves leave one point along one conic, so a tangent too short
+    /// to read is a degenerate seam.
+    SeamSense,
 }
 
 impl SelfCheck {
@@ -1037,6 +1053,7 @@ impl SelfCheck {
             Self::RingWinding => "which way a ring run of the section winds",
             Self::CarrierLadder => "whether a face of each solid lies on one surface",
             Self::CarriedLineage => "where a carried contact lands on the pieces of a split edge",
+            Self::SeamSense => "which way a seam that closes at one vertex runs",
         }
     }
 }
@@ -1102,8 +1119,8 @@ impl LeverArm {
                 "whether a corner's edges are long enough to read which way a face curves there"
             }
             Self::Seam => {
-                "whether a seam edge is long enough, for how its faces curve, to measure the \
-                 angle between them"
+                "whether a seam edge is long enough, for how its faces curve, to measure their \
+                 angle"
             }
         }
     }
@@ -1326,6 +1343,13 @@ enum Ending {
     Frontier(&'static str),
     /// A decision with no size the user chose.
     Unsized(Unsized),
+    /// A containment walk's decision, and how its reading stood: it ends
+    /// in the decision's own lever (`ContainDecision::lever_ending`). The
+    /// Boolean asks the walk of many points, and a smaller tolerance moves
+    /// the others' readings into the band as it decides this one, so no
+    /// margin the refusal carries binds the operation, and no tolerance is
+    /// offered: the walk's one table still gives the lever.
+    Placement(ContainDecision, Escalation),
 }
 
 impl Ending {
@@ -1338,6 +1362,7 @@ impl Ending {
             Self::Lever(lever, passes) => passes.recourse(lever, diag),
             Self::Frontier(what) => format!("{what}. {}", geom_core::NOT_YET_ENDING),
             Self::Unsized(decision) => decision.recourse(arm, Reading::Build),
+            Self::Placement(decision, escalation) => decision.lever_ending(escalation, diag),
         }
     }
 }
@@ -1488,6 +1513,12 @@ impl BooleanDecision {
         }
     }
 
+    /// A containment escalation that names no rung of the walk.
+    pub(crate) const CONTAINMENT_UNNAMED: Self = Self::Containment {
+        decision: None,
+        escalation: Escalation::Margin,
+    };
+
     /// What the decision decides, as a clause with no colon or dash of
     /// its own.
     #[must_use]
@@ -1501,7 +1532,7 @@ impl BooleanDecision {
                 "whether a point lies on a curved face, so the face's normal can be read there"
             }
             Self::Torus(half) => half.subject(),
-            Self::Containment => {
+            Self::Containment { .. } => {
                 "whether a point lies inside a face, on its boundary, or outside it"
             }
             Self::Crossing(decision) => decision.subject(),
@@ -1620,16 +1651,20 @@ impl BooleanDecision {
             // invariant.
             Self::PierceOnFace | Self::SplitPointOnCircle => Ending::Unsized(Unsized::Defect),
             Self::Torus(half) => Ending::Sized(half.sized()),
-            // The escalation does not carry which rung of the walk
-            // refused, and the rungs pass on different sets (the carrier
-            // rung is a residual where the caller placed the point on
-            // the surface; the period rung refuses a negative margin),
-            // so no one margin gives a tolerance to tighten below.
-            Self::Containment => Ending::Lever(
-                "move the parts so they meet clearly inside or clearly outside that face's \
-                 boundary",
-                LeverPass::ByRung,
-            ),
+            // The walk's decision ends as it gives itself, the one table
+            // every containment refusal reads (`contain::placement_ending`).
+            Self::Containment {
+                decision: Some(decision),
+                escalation,
+            } => Ending::Placement(decision, escalation),
+            // The escalation does not carry which rung refused, and the
+            // rungs pass on different sets (the carrier rung is a residual
+            // where the caller placed the point on the surface; the period
+            // rung refuses a negative margin), so no one margin gives a
+            // tolerance to tighten below.
+            Self::Containment { decision: None, .. } => {
+                Ending::Lever(crate::boolean::placement_lever(None), LeverPass::ByRung)
+            }
             Self::Crossing(decision) => Ending::Sized(decision.sized()),
             // Both definite verdicts pass (the vertices meet, or lie
             // apart); a negative distance is not a verdict.
@@ -1945,7 +1980,12 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::Torus => TorusConvention::iter()
                     .map(BooleanDecision::Torus)
                     .collect(),
-                BooleanDecisionKind::Containment => vec![BooleanDecision::Containment],
+                BooleanDecisionKind::Containment => crate::boolean::CONTAINMENT_RAISED
+                    .map(|(decision, escalation)| BooleanDecision::Containment {
+                        decision,
+                        escalation,
+                    })
+                    .to_vec(),
                 BooleanDecisionKind::Crossing => CrossingDecision::iter()
                     .map(BooleanDecision::Crossing)
                     .collect(),
@@ -2025,6 +2065,9 @@ pub(in crate::boolean) mod tests {
         Frontier(&'static str),
         /// The defect ending.
         Defect,
+        /// The containment walk's decision's own lever, which its rows in
+        /// `boolean::contain` pin independently, and no tolerance.
+        Placement(ContainDecision, Escalation),
     }
 
     /// Each coincidence's subject, as a literal.
@@ -2243,11 +2286,11 @@ pub(in crate::boolean) mod tests {
                 Ending::Sized(LONGER, SizedPass::Positive),
             ),
             BooleanDecision::LeverArm(LeverArm::Seam) => (
-                "whether a seam edge is long enough, for how its faces curve, to measure the \
-                 angle between them",
+                "whether a seam edge is long enough, for how its faces curve, to measure their \
+                 angle",
                 Ending::Sized(
-                    "Recourse: move the geometry so that edge is clearly longer, and its faces \
-                     curve less tightly there",
+                    "Recourse: move the geometry so that edge is clearly longer and no face curves \
+                     tightly there",
                     SizedPass::Positive,
                 ),
             ),
@@ -2407,6 +2450,10 @@ pub(in crate::boolean) mod tests {
                 "where a carried contact lands on the pieces of a split edge",
                 Ending::Defect,
             ),
+            BooleanDecision::SelfCheck(SelfCheck::SeamSense) => (
+                "which way a seam that closes at one vertex runs",
+                Ending::Defect,
+            ),
             BooleanDecision::PierceCurvature => (
                 "whether an edge leaves a curved face steeply enough against its bend to read \
                  which side it goes",
@@ -2447,11 +2494,17 @@ pub(in crate::boolean) mod tests {
                 "whether a torus's tube radius is smaller than its ring radius",
                 Ending::Sized(RING_LEVER, SizedPass::Positive),
             ),
-            BooleanDecision::Containment => (
+            BooleanDecision::Containment {
+                decision: Some(decision),
+                escalation,
+            } => (
+                "whether a point lies inside a face, on its boundary, or outside it",
+                Ending::Placement(decision, escalation),
+            ),
+            BooleanDecision::Containment { decision: None, .. } => (
                 "whether a point lies inside a face, on its boundary, or outside it",
                 Ending::Lever(
-                    "Recourse: move the parts so they meet clearly inside or clearly outside \
-                     that face's boundary",
+                    "Recourse: move the point clearly inside or outside the face",
                     LeverPass::ByRung,
                 ),
             ),
@@ -2638,6 +2691,21 @@ pub(in crate::boolean) mod tests {
                         Some(KERNEL_DEFECT_ENDING),
                         "{label}: its subject, then the defect ending: {text}"
                     ),
+                    Ending::Placement(d, escalation) => {
+                        assert!(
+                            matches!(
+                                decision.ending(&diag),
+                                super::Ending::Placement(pd, pe) if pd == d && pe == escalation
+                            ),
+                            "{label}: the walk's decision, carried"
+                        );
+                        assert_eq!(
+                            tail,
+                            Some(d.lever_ending(escalation, &diag).as_str()),
+                            "{label}: {text}"
+                        );
+                        assert!(!text.contains("tighten"), "{label}: {text}");
+                    }
                 }
             }
         }
@@ -2839,20 +2907,32 @@ pub(in crate::boolean) mod tests {
         );
         let r = 1.0 + (b.zero() + b.escalate()) / 2.0;
         let p = Point3::new(r * 1.2_f64.cos(), r * 1.2_f64.sin(), 0.5);
-        let diag = match crate::boolean::contain::curved_face_placement(&body, wall, p, b) {
-            Err(crate::boolean::ContainError::Escalated(diag)) => diag,
-            other => panic!("an in-band point off the wall escalates: {other:?}"),
+        let refusal = crate::boolean::contain::curved_face_placement(&body, wall, p, b);
+        let Err(crate::boolean::ContainError::Escalated {
+            decision,
+            escalation,
+            diag,
+        }) = refusal
+        else {
+            panic!("an in-band point off the wall escalates: {refusal:?}");
         };
         assert_eq!(diag.predicate, Some("bool_curved_contain_carrier"));
+        assert_eq!(
+            decision,
+            Some(crate::boolean::ContainDecision::Carrier),
+            "the carrier rung names itself"
+        );
         let text = BooleanError::Escalated {
-            decision: BooleanDecision::Containment,
+            decision: BooleanDecision::Containment {
+                decision,
+                escalation,
+            },
             diag,
         }
         .to_string();
         assert!(
             text.ends_with(
-                "Recourse: move the parts so they meet clearly inside or clearly outside that \
-                 face's boundary"
+                "Recourse: move the point exactly onto the face's surface or clearly off it"
             ) && !text.contains("tolerance below"),
             "{text}"
         );

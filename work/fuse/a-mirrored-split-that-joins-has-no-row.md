@@ -4,6 +4,8 @@ kind: issue
 title: No split row takes the mirrored lane and joins, so the emitter's side check on a join record is unrowed
 status: open
 opened: 2026-10-08
+priority: P3
+cost: M
 ---
 
 

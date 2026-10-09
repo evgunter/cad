@@ -862,8 +862,6 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
 fn every_offset_fit_refusal_ends_exactly_once() {
     let rows = offset_fit_routes();
     assert!(!rows.is_empty(), "the offset-fit roster is empty");
-    let routed = meter_escalations();
-    let verdicts = meter_verdicts();
     let mut pinned = 0;
     for (name, kind) in rows {
         let text = as_the_viewer_shows_it(kind);
@@ -876,10 +874,18 @@ fn every_offset_fit_refusal_ends_exactly_once() {
             !text.contains(geom_core::COINCIDENCE_RECOURSE),
             "{name}: {text}"
         );
-        let arm = name
-            .strip_prefix("Shell/Face/Fit/")
-            .or_else(|| name.strip_prefix("Transform/ApproxRecertify/"))
-            .expect("every offset-fit row is on one of the two routes");
+        // The shell user sets the curvature meter's size as a wall
+        // thickness, the transform's as an offset distance.
+        let (arm, curvature) = match name.strip_prefix("Shell/Face/Fit/") {
+            Some(arm) => (arm, WALL),
+            None => (
+                name.strip_prefix("Transform/ApproxRecertify/")
+                    .expect("every offset-fit row is on one of the two routes"),
+                DISTANCE,
+            ),
+        };
+        let (routed, verdicts) = (meter_escalations(curvature), meter_verdicts(curvature));
+        let wall = (curvature == WALL).then(wall_endings);
         let ending = routed
             .iter()
             .find(|(route, _, _)| arm == format!("Meter/Escalated/{route}"))
@@ -887,6 +893,7 @@ fn every_offset_fit_refusal_ends_exactly_once() {
             .or_else(|| {
                 verdicts
                     .iter()
+                    .chain(wall.iter().flatten())
                     .find(|(row, _)| arm == *row)
                     .map(|(_, ending)| ending)
             });
@@ -896,6 +903,12 @@ fn every_offset_fit_refusal_ends_exactly_once() {
         }
         if arm.starts_with("Meter/") {
             assert!(!text.contains("lower"), "{name}: {text}");
+        }
+        if curvature == WALL {
+            assert!(
+                !text.contains("offset distance") && !text.contains("other side"),
+                "{name}: a shell user sets a wall, not a distance or a side: {text}"
+            );
         }
         if arm.starts_with("Fit/") || arm.starts_with("Structure/") {
             assert!(
@@ -907,7 +920,8 @@ fn every_offset_fit_refusal_ends_exactly_once() {
     // Both routes raise `Meter`, so every pinned ending has two rows.
     assert_eq!(
         pinned,
-        2 * (routed.len() + verdicts.len()),
+        2 * (meter_escalations(DISTANCE).len() + meter_verdicts(DISTANCE).len())
+            + wall_endings().len(),
         "a pinned meter row went missing"
     );
 }
@@ -1881,9 +1895,19 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
         (
             "lever arm",
             escalated(CertCheck::TransversalityArm, in_band),
-            "Recourse: move the geometry so that edge is clearly longer, and its faces curve less \
-             tightly there, or, if this length or the gap its faces open is intended, tighten \
-             the tolerance below 5e-10 m",
+            "Recourse: move the geometry so that edge is clearly longer and no face curves tightly \
+             there, or, if this length or the gap its faces open is intended, tighten the \
+             tolerance below 5e-10 m",
+        ),
+        (
+            "lever arm, enclosure",
+            escalated(
+                CertCheck::TransversalityArm,
+                MarginDiag::enclosure(2.0e-9, 5.0e-9),
+            ),
+            "Recourse: move the geometry so that edge is clearly longer and no face curves tightly \
+             there, or, if this length or the gap its faces open is intended, tighten the \
+             tolerance below 2e-10 m",
         ),
         (
             "no lever arm",
@@ -1894,8 +1918,8 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
                     band,
                 }),
             },
-            "Recourse: move the geometry so that edge is clearly longer, and its faces curve less \
-             tightly there; a face curving to a point there, as a cone at its apex, leaves no \
+            "Recourse: move the geometry so that edge is clearly longer and no face curves tightly \
+             there; an edge of no length, or a face curving to a point as a cone does, leaves no \
              angle to measure",
         ),
         (
@@ -1977,6 +2001,7 @@ fn every_certify_refusal_ends_in_its_routed_sentence() {
 const SPLIT: &str = "Recourse: split the face clear of any pole, cusp or pinch";
 const DISTANCE: &str =
     "Recourse: use an offset distance of smaller magnitude, or offset to the other side";
+const WALL: &str = "Recourse: use a thinner wall";
 
 /// One `Meter/Escalated` sample per ending its meter's decision gives an
 /// undecided margin (D4 ¶1), with that whole ending: each meter's lever
@@ -1985,8 +2010,9 @@ const DISTANCE: &str =
 /// passes; and on a poisoned margin the lever and what it may mean.
 ///
 /// The band is fixed rather than the run's witness band, so the quoted
-/// `m/K` is the same at every eps row.
-fn meter_escalations() -> Vec<(&'static str, geom_brep::OffsetFitError, String)> {
+/// `m/K` is the same at every eps row. `curvature` is the curvature
+/// meter's lever on the route read ([`DISTANCE`] or [`WALL`]).
+fn meter_escalations(curvature: &str) -> Vec<(&'static str, geom_brep::OffsetFitError, String)> {
     use geom_brep::offset_meters::{Meter, MeterError};
     use geom_core::{Band, Indeterminate, MarginDiag};
     let band = Band::new(1.0e-9, 1.0e-8).expect("a fixed, ordered band");
@@ -2010,12 +2036,12 @@ fn meter_escalations() -> Vec<(&'static str, geom_brep::OffsetFitError, String)>
         (
             "curvature",
             escalated(Meter::CurvatureHeadroom, in_band),
-            tighten(DISTANCE, "clearance"),
+            tighten(curvature, "clearance"),
         ),
         (
             "curvature-enclosure",
             escalated(Meter::CurvatureHeadroom, wide),
-            DISTANCE.to_owned(),
+            curvature.to_owned(),
         ),
         (
             "floor",
@@ -2031,7 +2057,7 @@ fn meter_escalations() -> Vec<(&'static str, geom_brep::OffsetFitError, String)>
             "invalid",
             escalated(Meter::CurvatureHeadroom, MarginDiag::INVALID),
             format!(
-                "{DISTANCE}; an unreadable or collapsed margin may indicate a kernel bug worth \
+                "{curvature}; an unreadable or collapsed margin may indicate a kernel bug worth \
                  reporting"
             ),
         ),
@@ -2043,8 +2069,8 @@ fn meter_escalations() -> Vec<(&'static str, geom_brep::OffsetFitError, String)>
 /// band is band-decided and names the tolerance below `m/K`; a floor of
 /// exactly zero, which no tolerance resolves, names the lever and says a
 /// face with no degeneracy is worth reporting; a sign-certain fold names
-/// the lever alone.
-fn meter_verdicts() -> [(&'static str, String); 4] {
+/// the lever alone. `curvature` is as [`meter_escalations`] takes it.
+fn meter_verdicts(curvature: &str) -> [(&'static str, String); 4] {
     [
         (
             "Meter/NormalFloor",
@@ -2056,14 +2082,28 @@ fn meter_verdicts() -> [(&'static str, String); 4] {
             "Meter/NormalFloor#2",
             format!("{SPLIT}; if it has none, this may indicate a kernel bug worth reporting"),
         ),
-        ("Meter/CurvatureHeadroom", DISTANCE.to_owned()),
+        ("Meter/CurvatureHeadroom", curvature.to_owned()),
         (
             "Meter/CurvatureHeadroom#2",
             format!(
-                "{DISTANCE}, or, if this clearance is intended, tighten the tolerance below \
+                "{curvature}, or, if this clearance is intended, tighten the tolerance below \
                  5e-11 m"
             ),
         ),
+    ]
+}
+
+/// The endings the shell route alone gives the fit's other arms about
+/// the move's length, by row: the unbounded fit's `best: None` sample
+/// names a thicker wall, and an invalid request is the op's own defect
+/// (its thickness gate and its tolerance witness never make one).
+fn wall_endings() -> [(&'static str, String); 2] {
+    [
+        (
+            "BoundNotFinite#2",
+            "Recourse: use a thicker wall".to_owned(),
+        ),
+        ("InvalidRequest", geom_core::KERNEL_DEFECT_ENDING.to_owned()),
     ]
 }
 
@@ -2149,9 +2189,11 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
         );
     }
     roster.extend(
-        meter_escalations()
+        // The sources alone: a source does not depend on the lever,
+        // which only the endings read, per route, in the test.
+        meter_escalations(DISTANCE)
             .into_iter()
-            .map(|(route, source, _)| (format!("Meter/Escalated/{route}"), source)),
+            .map(|(route, source, _ending)| (format!("Meter/Escalated/{route}"), source)),
     );
     let face = FaceKey::default();
     let mut rows = Vec::new();
@@ -4646,8 +4688,10 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
     let render = |source| {
         CheckFinding {
             check: CheckId::Connectedness,
-            root: RecipeNodeId::new(0, tagged(4)),
-            output_ix: 0,
+            subject: editor_core::FindingSubject::Output {
+                root: RecipeNodeId::new(0, tagged(4)),
+                output_ix: 0,
+            },
             evidence: CheckEvidence::Escalated { source },
         }
         .to_string()
@@ -4770,8 +4814,10 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
     let shell = ShellKey::default();
     let finding = |check, evidence| CheckFinding {
         check,
-        root: RecipeNodeId::new(0, tagged(4)),
-        output_ix: 0,
+        subject: editor_core::FindingSubject::Output {
+            root: RecipeNodeId::new(0, tagged(4)),
+            output_ix: 0,
+        },
         evidence,
     };
     let coherence = |condition| CoherenceFinding {
@@ -4949,13 +4995,6 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
                 r#loop: topo::LoopKey::default(),
             }),
         ),
-        (
-            "Loop(Escalated)",
-            PointInSolidError::Loop(topo::PointInLoopError::Escalated {
-                r#loop: topo::LoopKey::default(),
-                diag: diag(),
-            }),
-        ),
         ("ZeroVolumeBody", PointInSolidError::ZeroVolumeBody),
         ("CorruptFace", PointInSolidError::CorruptFace { face }),
         (
@@ -5000,6 +5039,37 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             },
         ),
     ];
+    // The loop walk's escalation, in every form a site of it raises.
+    let with = |margin| geom_core::Indeterminate { margin, ..diag() };
+    let poisoned = with(geom_core::MarginDiag::INVALID);
+    let over_wound = with(geom_core::MarginDiag::value(-3.0e-10));
+    let (margin, straddle) = (topo::Escalation::Margin, topo::Escalation::Straddle);
+    let walk = [
+        (topo::LoopDecision::Boundary, margin, diag(), "Value"),
+        (topo::LoopDecision::Boundary, margin, poisoned, "Invalid"),
+        (topo::LoopDecision::Boundary, straddle, poisoned, "Straddle"),
+        (topo::LoopDecision::Ray, margin, diag(), "Value"),
+        (topo::LoopDecision::Ray, margin, poisoned, "Invalid"),
+        (topo::LoopDecision::ArcSpan, margin, over_wound, "OverWound"),
+        (topo::LoopDecision::ArcSpan, straddle, poisoned, "Straddle"),
+        (topo::LoopDecision::Plane, margin, diag(), "Value"),
+        (topo::LoopDecision::Plane, margin, poisoned, "Invalid"),
+    ]
+    .map(|(decision, escalation, diag, kind)| {
+        (
+            format!("Loop(Escalated/{decision:?}/{kind})"),
+            PointInSolidError::Loop(topo::PointInLoopError::Escalated {
+                r#loop: topo::LoopKey::default(),
+                decision,
+                escalation,
+                diag,
+            }),
+        )
+    });
+    let separation_reasons = separation_reasons
+        .into_iter()
+        .map(|(n, e)| (n.to_owned(), e))
+        .chain(walk);
     for (n, e) in separation_reasons {
         let source = BooleanError::Containment(e);
         rows.push((

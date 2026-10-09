@@ -55,6 +55,8 @@ mod common;
 mod mate2_common;
 mod revolve_common;
 
+#[path = "a_plane_across_a_one_face_wall.rs"]
+mod a_plane_across_a_one_face_wall;
 #[path = "a_pole_and_an_apex_join_nothing.rs"]
 mod a_pole_and_an_apex_join_nothing;
 #[path = "a_ring_on_a_cone_face.rs"]
@@ -215,6 +217,8 @@ mod torax_interval;
 mod transform_nurbs_walls;
 #[path = "trim_3_chart_bound_bodies.rs"]
 mod trim_3_chart_bound_bodies;
+#[path = "unjoined_operand_at_a_dual.rs"]
+mod unjoined_operand_at_a_dual;
 #[path = "verbs_offc_consumer.rs"]
 mod verbs_offc_consumer;
 #[path = "verbs_offd.rs"]
@@ -296,6 +300,8 @@ mod cert8_r1_probes;
 mod closed_chain_junctions;
 #[path = "conic_edge_curved_face.rs"]
 mod conic_edge_curved_face;
+#[path = "contact11_torus_chart_l.rs"]
+mod contact11_torus_chart_l;
 #[path = "contact_edge_must_carry.rs"]
 mod contact_edge_must_carry;
 #[path = "contained_flush_cylinder.rs"]

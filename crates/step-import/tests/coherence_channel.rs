@@ -224,14 +224,15 @@ fn the_channel_reports_the_kernel_door_verbatim() {
 /// sequence: the closure reading first, the continuation second. It
 /// reds on any reordering, on either side, that moves the two
 /// conditions past each other.
+///
+/// The split arc is cut here by hand: the import ends with the join
+/// (`docs/DESIGN.md`, maximal edges), so `halfcap.step`'s ordinary
+/// vertex no longer ships, and a body holding it is construction state
+/// — which the door, a pure function of the body, reads all the same.
 #[test]
 fn the_half_cap_findings_arrive_in_the_doors_order() {
     let tol = Tol::witness();
-    let text = halfcap_fixture("halfcap.step");
-    let Ok(StepImport::Solid { coherence, .. }) = import_step(&text, &examining(), tol) else {
-        panic!("halfcap must import as a solid at eps {:e}", tol.eps());
-    };
-    let report = coherence.expect("the examination was asked for");
+    let report = topo::examine_chart_coherence(&split_half_cap(tol), tol);
     let sequence: Vec<&str> = report
         .findings
         .iter()
@@ -247,6 +248,48 @@ fn the_half_cap_findings_arrive_in_the_doors_order() {
         "the half-cap's finding sequence moved: {:?}",
         report.findings
     );
+}
+
+/// `halfcap_nosplit`'s solid with its pole-crossing meridian arc split
+/// at an ordinary point halfway from the arc's start to the pole: the
+/// split twin as the file states it, before the import's join.
+fn split_half_cap(tol: Tol) -> Body<f64> {
+    let Ok(StepImport::Solid { mut body, .. }) = import_step(
+        &halfcap_fixture("halfcap_nosplit.step"),
+        &ImportOptions::default(),
+        tol,
+    ) else {
+        panic!(
+            "halfcap_nosplit must import as a solid at eps {:e}",
+            tol.eps()
+        );
+    };
+    let (centre, axis) = body
+        .faces()
+        .find_map(|(_, f)| match body.get_surface(f.surface) {
+            Some(geom::Surface::Sphere { center, axis, .. }) => Some((*center, *axis)),
+            _ => None,
+        })
+        .expect("a sphere face");
+    let (arc, at) = body
+        .edges()
+        .find_map(|(e, d)| {
+            let c = body.get_curve_geom(d.curve)?.certified()?;
+            let geom::Curve3::Circle { radius, .. } = c.carrier() else {
+                return None;
+            };
+            let (t0, t1) = c.params();
+            [1.0, -1.0].into_iter().find_map(|sign| {
+                let pole = centre + axis * (sign * radius);
+                let t = c.carrier().param_near(pole, 0.5 * (t0 + t1))?;
+                let on = (c.carrier().eval(t) - pole).norm() < 1e-12 && t0 < t && t < t1;
+                on.then_some((e, 0.5 * (t0 + t)))
+            })
+        })
+        .expect("the meridian arc through the pole");
+    body.split_edge(arc, at, tol)
+        .expect("an ordinary point splits");
+    body
 }
 
 // ---------------------------------------------------------------
@@ -393,27 +436,60 @@ fn the_import_corpora_are_quiet_and_the_only_lane_boundary_is_the_trimmed_face()
 /// is a different answer at each of the matrix's three ε.
 ///
 /// **The COUNT is pinned, not just the emptiness.** Three of the four
-/// files split that arc with an ordinary vertex, so the same half-turn
-/// is read twice — once as `MeridianClosure` against the endpoint,
-/// once as `MeridianContinuation` against the neighbouring edge — and
-/// `halfcap_nosplit`, whose arc is one edge, has no column junction
-/// and reports once. Those are the 2 / 1 / 2 / 2 the measurement
-/// table states, and a row asserting only non-emptiness would let one
-/// of the two readings disappear.
+/// files split that arc with an ordinary vertex, so where that vertex
+/// ships the same half-turn is read twice — once as `MeridianClosure`
+/// against the endpoint, once as `MeridianContinuation` against the
+/// neighbouring edge — and where the arc is one edge there is no column
+/// junction and it reports once, at the arc's own endpoint.
+///
+/// The import ends with the join (`docs/DESIGN.md`, maximal edges), so
+/// which of the two a split file ships is the join's reading of its
+/// vertex at this band: `halfcap.step`'s is ordinary and is joined at
+/// every band, so it ships the no-split twin's one arc; the near-pole
+/// twins' (Ev, PR 4251) reads at the pole at 1e-6 and ships as stated,
+/// lands in the sliver band at the default ε and refuses, and is a
+/// regular point at 1e-12 and is joined.
 #[test]
 fn the_half_cap_witness_reaches_the_channel_band_shaped() {
     let tol = Tol::witness();
     let eps = tol.eps();
-    // (fixture, the meridian-closure gap the file states in metres,
-    // how many findings that one gap is read as when it is over band)
-    for (name, metres, count) in [
-        ("halfcap.step", 1.697_409_754_832_974_3e-2, 2),
-        ("halfcap_nosplit.step", 2.757_006_929_353_305_5e-2, 1),
-        ("halfcap_eps6.step", 3.141_592_653_523_188_5e-8, 2),
-        ("halfcap_eps7.step", 3.141_592_657_347_735e-9, 2),
+    // The one arc's closure gap, in metres, wherever the arc ships whole.
+    let whole = (2.757_006_929_353_305_5e-2, 1);
+    let default_band = (0.99e-9..=1.01e-9).contains(&eps);
+    let coarse = (0.99e-6..=1.01e-6).contains(&eps);
+    // (fixture, the meridian-closure gap the shipped body states in
+    // metres and how many findings it is read as when over band, or
+    // `None` where the import refuses at this band)
+    for (name, read) in [
+        ("halfcap.step", Some(whole)),
+        ("halfcap_nosplit.step", Some(whole)),
+        (
+            "halfcap_eps6.step",
+            (!default_band).then_some(if coarse {
+                (3.141_592_653_523_188_5e-8, 2)
+            } else {
+                whole
+            }),
+        ),
+        (
+            "halfcap_eps7.step",
+            (!default_band).then_some(if coarse {
+                (3.141_592_657_347_735e-9, 2)
+            } else {
+                whole
+            }),
+        ),
     ] {
         let text = halfcap_fixture(name);
-        let Ok(StepImport::Solid { coherence, .. }) = import_step(&text, &examining(), tol) else {
+        let imported = import_step(&text, &examining(), tol);
+        let Some((metres, count)) = read else {
+            assert!(
+                matches!(imported, Err(StepImportError::Join { .. })),
+                "{name}: the join refuses in the sliver band: {imported:?}"
+            );
+            continue;
+        };
+        let Ok(StepImport::Solid { coherence, .. }) = imported else {
             panic!("{name} must import as a solid at eps {eps:e}");
         };
         let report = coherence.expect("the examination was asked for");

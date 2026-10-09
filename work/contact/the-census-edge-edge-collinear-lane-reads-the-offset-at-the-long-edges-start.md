@@ -4,7 +4,7 @@ kind: issue
 title: The census's collinear edge-edge lane reads two edges' line offset at the second edge's start, so its overlap verdict depends on arena order: a body whose edges part by 21 bands reads an undeclared overlap
 status: open
 opened: 2026-10-04
-priority: P0
+priority: P2
 cost: M
 refs: [boolean-bound-parallelism-verdicts-are-levered-at-a-short-or-unit-arm, two-copies-of-a-pierce-carry-edges-that-run-within-the-band]
 ---
@@ -89,3 +89,7 @@ lane: 8 at ε = 1e-9 (d = 1e-7 and 1e-8), 12 at d = 3e-8, 8 at ε = 1e-12, 2 at
 edge's line, so the segments are apart. Witness: `notch307 nt e0 a3 d1e-8 pc U`,
 `EdgeKey(13v1)`×`EdgeKey(25v5)`, margin 3.22e-9, segments 2.32e-8 apart. The
 shape to give above covers them.
+
+## CONTACT close-out triage (2026-10-08)
+
+P0 to P2: a false refusal on a 1e-7 rad near-tangent pose, not a wrong answer. It absorbs the closed duplicate `census-edge-overlap-decides-parallel-and-line-gap-one-at-a-time`: one summed-margin fix (parallelism and line gap decided together) closes both.
