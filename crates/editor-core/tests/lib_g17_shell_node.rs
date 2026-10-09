@@ -760,7 +760,8 @@ fn a_tubes_wall_opens_into_two_bands_and_its_seam_pieces_are_named() {
         angle: fixture::ang(std::f64::consts::TAU),
     });
     // The outer wall: the meridian's second segment, at r = 1/2.
-    let wall = editor_core::band(tube, fixture::piece(&r.doc, tube, 0, 1));
+    let wall_piece = fixture::piece(&r.doc, tube, 0, 1);
+    let wall = editor_core::band(tube, wall_piece);
     let shell = r.insert(Node::shell(tube, fixture::len(0.0625), vec![wall.clone()]));
     let ev = eval::<f64>(&r.doc);
     let bad = failures(&ev);
@@ -797,11 +798,25 @@ fn a_tubes_wall_opens_into_two_bands_and_its_seam_pieces_are_named() {
                 && matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))))
         })
         .collect();
+    eprintln!("PIECES {pieces:#?}");
     assert_eq!(pieces.len(), 2, "the divided seam's two pieces: {pieces:?}");
-    assert_eq!(
-        pieces[0].0.path[0], pieces[1].0.path[0],
-        "both are pieces of one edge's line"
-    );
+    // The line both hang off is the wall's own seam: the revolve's seam
+    // edge swept from the wall's meridian piece, carried through.
+    let wall_seam = StableName {
+        kind: EntityKind::Edge,
+        node: tube,
+        path: vec![RoleSeg::Meridian(
+            editor_core::MeridianEnd::Seam,
+            wall_piece.into(),
+        )],
+    };
+    for (name, _) in &pieces {
+        assert_eq!(
+            name.path[0],
+            RoleSeg::FromTarget(wall_seam.clone().into()),
+            "each is a piece of the wall's own seam: {name:?}"
+        );
+    }
     for (name, _) in &pieces {
         assert!(
             matches!(table.lookup(name), Some(editor_core::Entry::Unique(_))),
