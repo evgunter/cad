@@ -727,8 +727,8 @@ fn role_np(role: PieceRole) -> String {
 
 /// A profile piece of `feature`'s profile: its role, and the step that
 /// drew it as the profile pane numbers it — with the profile, unless
-/// `feature` is that profile or reads it alone — or, on a kernel-built section,
-/// which circle. A leg is its step's only piece, so the step alone says
+/// `feature` is that profile or reads it alone — or, on a kernel-built
+/// section, which circle. A leg is its step's only piece, so the step alone says
 /// it (`loop 0 step 2`); a fillet's pieces say which (`the arc of loop
 /// 0 step 2`).
 pub(crate) fn piece(e: &ProfileEdgeRef, feature: RecipeNodeId, by: Speaker<'_>) -> String {

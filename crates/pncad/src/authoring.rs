@@ -139,7 +139,7 @@ pub fn v3<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
 ///   straight legs bounds nothing with fewer corners.
 ///
 /// The emitted loop is the authored table verbatim — every point in
-/// order, every segment a line, no declared joints — and a
+/// order, every segment a line, no constructed joints — and a
 /// [`ConstructedLoop`], since the lattice built it. The lattice changes
 /// what is CHECKED, not what is minted.
 ///

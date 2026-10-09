@@ -3,7 +3,8 @@
 //! intended tangency is exact by construction, and every authored
 //! point lies on the final path, authored once** — the ratified design
 //! of `docs/PATHS-DESIGN.md` §§1–7, lowered to the existing v1 form
-//! ([`ProfileLoop`]: segments + declared tangency flags).
+//! ([`ProfileLoop`]: vertices and segments), carried with the joints it
+//! constructed tangent as a [`ConstructedLoop`].
 //!
 //! # The binding lattice
 //!
