@@ -3,11 +3,9 @@
 //! the notch, the two touching only along the apex line, so the apex is
 //! two vertices at one point. A prism rests on the block's top with its
 //! corner on the apex and its two edges from there reaching the block's
-//! filleted top corners, at the arcs' tangent joints: the fillet's
-//! tangency makes the join refuse, which hands the union to the REST
-//! lane. In the prism's corner the wedge pair's strut hangs at the tip
-//! of the notch pair's, so a seam segment's end is the notch strut's
-//! copy, which the lane's strut undo kills.
+//! filleted top corners, at the arcs' tangent joints. In the prism's
+//! corner the wedge pair's strut hangs at the tip of the notch pair's,
+//! and the fillets' tangency puts a germ on each joint's edge.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -15,10 +13,7 @@ use geom_core::{Point2, Tol};
 use profile::RawLoop;
 use profile::test_support::bulge_loop;
 use sweep::test_support::{extruded, sketch_at};
-use topo::{
-    AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, CarriedVv, ContactClass,
-    RestZipFrontier,
-};
+use topo::{AtRestBody, Body, BooleanBody, BooleanResult, CarriedVv, ContactClass};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -106,19 +101,17 @@ fn resting() -> AtRestBody<f64> {
     )
 }
 
-/// **A pinch apex meeting one vertex refuses as the REST lane's
-/// frontier, in either order.** The join refuses both orders and hands
-/// the union to the lane, which reads the segments through its strut
-/// undo. The two apex vertices each correspond to the prism's corner,
-/// which the lane's one-to-one seam does not read: it refuses
-/// `PinchApex` before any chord is minted
-/// (`work/zip/the-rest-lane-zips-no-pinch-apex.md`), whichever operand
-/// holds the pinch.
+/// **A pinch apex meeting one vertex builds, in either order.** The
+/// join connects both orders and the union is the two stacked solids'
+/// volumes added: the interiors are disjoint, the prism resting on the
+/// pinch's top. It passes tiers 2, 3 and 3′.
 #[test]
-fn a_pinch_apex_meeting_one_vertex_refuses_as_the_frontier_in_either_order() {
+fn a_pinch_apex_meeting_one_vertex_builds_in_either_order() {
     let (pinch, rows) = pinch();
     let pinch = pinch.body;
     let top = resting();
+    let vol = |b: &Body<f64>| topo::mass_properties(b, tol()).unwrap().volume;
+    let want = vol(&pinch) + vol(&top);
     for pinch_first in [true, false] {
         let (a, b) = if pinch_first {
             (&pinch, &top)
@@ -134,18 +127,31 @@ fn a_pinch_apex_meeting_one_vertex_refuses_as_the_frontier_in_either_order() {
         let join =
             topo::test_support::boolean_join_refusal(topo::BooleanOp::Union, a, b, &decls, tol());
         assert!(
-            matches!(join, Ok(Some(BooleanError::Join(_)))),
-            "pinch first: {pinch_first}: the join refuses, which opens the lane: {join:?}"
+            matches!(join, Ok(None)),
+            "pinch first: {pinch_first}: the join connects: {join:?}"
         );
-        let got = topo::union_with(a, b, &decls, tol());
+        let Ok(BooleanResult::Body(bb)) = topo::union_with(a, b, &decls, tol()) else {
+            panic!("pinch first: {pinch_first}: the union builds");
+        };
+        let got = vol(&bb.body);
         assert!(
-            matches!(
-                got,
-                Err(BooleanError::RestZipUnsupported {
-                    what: RestZipFrontier::PinchApex
-                })
-            ),
-            "pinch first: {pinch_first}: the lane refuses the pinch apex: {got:?}"
+            (got - want).abs() <= 1e-12 * want,
+            "pinch first: {pinch_first}: volume {got} against {want}"
+        );
+        assert_eq!(
+            topo::validate_closed(&bb.body),
+            Ok(()),
+            "pinch first: {pinch_first}: tier 2"
+        );
+        assert_eq!(
+            topo::validate_geometric(&bb.body, tol()),
+            Ok(()),
+            "pinch first: {pinch_first}: tier 3"
+        );
+        assert_eq!(
+            topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()),
+            Ok(()),
+            "pinch first: {pinch_first}: tier 3′"
         );
     }
 }

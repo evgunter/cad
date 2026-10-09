@@ -267,8 +267,7 @@ fn declared_records(bb: &BooleanBody<f64>) -> usize {
 /// both solids; the chord join builds the union itself (JOIN-1), and
 /// the bore wall it discards takes its surface with it, so no declared
 /// pair has both keys live when the door runs. Scenes A and B, whose
-/// rims cut the wall mid-height, still go through the declared-REST
-/// zip and carry the record (row 2).
+/// rims cut the wall mid-height, carry the record (row 2).
 #[test]
 fn proud_peg_declared_walls_union_builds_through_the_join() {
     let (c, p, d) = scene_c();
