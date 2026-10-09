@@ -1621,11 +1621,12 @@ fn frame_extent<T: Decide>(
 /// **The rulings lane's chords are rulings**: each wall's split lane,
 /// run against the pair's radical plane, minted the straight chord.
 ///
-/// A wall the plane only touches has a tangent chord
-/// (`TangentIntersection`): the walls touch along one ruling, undeclared
-/// contact that no arm here takes, refused `CurvedBooleanUnsupported`
-/// naming that wall. Any other curve is a conic, a plane the frame read
-/// parallel to both axes and a wall's table did not, which is a desync.
+/// A wall the plane only touches has a tangent chord, a line on the
+/// ruling whatever description the must-carry rule gave it: the walls
+/// touch along one ruling, undeclared contact that no arm here takes,
+/// refused `CurvedBooleanUnsupported` naming that wall. Any other curve
+/// is a conic, a plane the frame read parallel to both axes and a
+/// wall's table did not, which is a desync.
 ///
 /// No pose reaches either refusal through a public door: walls that
 /// touch along a ruling, or an axis pair the table reads apart from the
@@ -1635,9 +1636,9 @@ fn rulings_are_straight<T: geom_core::Real>(
     sides: [(&SegmentCurve<T>, Operand, FaceKey); 2],
 ) -> Result<(), BooleanError> {
     for (curve, operand, face) in sides {
-        match curve.spec().map(|spec| &spec.description) {
+        match curve.spec().map(|spec| &spec.carrier) {
             None => {}
-            Some(geom_brep::EdgeDescriptionSpec::TangentIntersection { .. }) => {
+            Some(geom::Curve3::Line { .. }) => {
                 return Err(BooleanError::CurvedBooleanUnsupported {
                     operand,
                     face,
@@ -5256,19 +5257,19 @@ mod radical_plane_rows {
             origin: Point3::new(0.0, 0.0, 0.0),
             dir: Vec3::new(0.0, 0.0, 1.0),
         };
-        let spec = |tangent: bool| {
-            let (s1, s2) = Default::default();
-            let witness = Point3::new(0.0, 0.0, 0.5);
-            geom_brep::EdgeCurveSpec {
-                description: if tangent {
-                    geom_brep::EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
-                } else {
-                    geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, witness }
-                },
-                carrier: line.clone(),
-                param_start: 0.0,
-                param_end: 1.0,
-            }
+        let circle = geom::Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let (s1, s2) = Default::default();
+        let witness = Point3::new(0.0, 0.0, 0.5);
+        let spec = |description, carrier: &geom::Curve3<f64>| geom_brep::EdgeCurveSpec {
+            description,
+            carrier: carrier.clone(),
+            param_start: 0.0,
+            param_end: 1.0,
         };
         let curve = |spec| SegmentCurve::of((he(1), he(2)), spec);
         let straight = curve(None);
@@ -5276,10 +5277,28 @@ mod radical_plane_rows {
             rulings_are_straight([(a, Operand::A, fa), (b, Operand::B, fb)])
         };
         assert!(ask(&straight, &straight).is_ok(), "two rulings pass");
-        let touching = curve(Some(spec(true)));
+        // The tangent chord is the ruling under either description the
+        // must-carry rule can give it.
+        let intrinsic = curve(Some(spec(
+            geom_brep::EdgeDescriptionSpec::TangentIntersection { s1, s2, witness },
+            &line,
+        )));
+        let conventional = curve(Some(spec(geom_brep::EdgeDescriptionSpec::chart(s2), &line)));
         for (label, got, operand, wall) in [
-            ("A touches", ask(&touching, &straight), Operand::A, fa),
-            ("B touches", ask(&straight, &touching), Operand::B, fb),
+            ("A touches", ask(&intrinsic, &straight), Operand::A, fa),
+            ("B touches", ask(&straight, &intrinsic), Operand::B, fb),
+            (
+                "A touches, conventional",
+                ask(&conventional, &straight),
+                Operand::A,
+                fa,
+            ),
+            (
+                "B touches, conventional",
+                ask(&straight, &conventional),
+                Operand::B,
+                fb,
+            ),
         ] {
             assert!(
                 matches!(
@@ -5293,7 +5312,10 @@ mod radical_plane_rows {
                 "{label}: {got:?}"
             );
         }
-        let conic = curve(Some(spec(false)));
+        let conic = curve(Some(spec(
+            geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, witness },
+            &circle,
+        )));
         assert!(
             matches!(
                 ask(&straight, &conic),

@@ -226,26 +226,9 @@ fn a_split_through_the_hole_or_across_a_declared_cusp_still_cuts() {
 /// that decides by surface kind.
 #[test]
 fn a_split_tangent_to_a_rounded_shoulder_cuts_at_a_seam() {
-    let bulge = (std::f64::consts::PI / 8.0).tan();
-    let shoulder = bulge_loop(vec![
-        (Point2::new(-1.0, 0.0), 0.0),
-        (Point2::new(2.0, 0.0), 0.0),
-        (Point2::new(2.0, 2.0), 0.0),
-        (Point2::new(0.0, 2.0), 0.0),
-        (Point2::new(0.0, 1.0), bulge),
-    ]);
-    let body = extruded(vec![shoulder], 0.0, 1.0).body;
-    let body = sweep::test_support::finished("the body", body, tol());
+    let body = shoulder(1.0);
     let on_the_ruling = |p: &Point3<f64>| p.x.abs() < 1e-9 && (p.y - 1.0).abs() < 1e-9;
-    // Normal `+y` refuses earlier, at the reduction
-    // (`ConsecutiveOnSectors`), for a reason of its own:
-    // `work/hone/split-shoulder-refuses-one-orientation-at-the-reduction.md`.
-    let plane = topo::test_support::split_plane(
-        Point3::new(0.0, 1.0, 0.0),
-        Vec3::new(0.0, -1.0, 0.0),
-        geom_core::Tol::witness(),
-    );
-    let halves = topo::split(&body, &plane, tol())
+    let halves = topo::split(&body, &shoulder_cut(), tol())
         .unwrap_or_else(|e| panic!("a seam at the cut must cut, got {e:?}"));
     let mut seams = 0;
     for (side, part) in [("above", &halves.above), ("below", &halves.below)] {
@@ -291,6 +274,132 @@ fn a_split_tangent_to_a_rounded_shoulder_cuts_at_a_seam() {
         }
     }
     assert_eq!(seams, 1, "the one seam the cut mints");
+}
+
+/// The rounded shoulder of [`a_split_tangent_to_a_rounded_shoulder_cuts_at_a_seam`],
+/// extruded `h` along `+z`: the unit quarter arc from `(0,1)` down to
+/// `(-1,0)` below the 2 × 2 block, `2 + π/4` of section below `y = 1`
+/// and `2` above.
+fn shoulder(h: f64) -> topo::AtRestBody<f64> {
+    let bulge = (std::f64::consts::PI / 8.0).tan();
+    let outline = bulge_loop(vec![
+        (Point2::new(-1.0, 0.0), 0.0),
+        (Point2::new(2.0, 0.0), 0.0),
+        (Point2::new(2.0, 2.0), 0.0),
+        (Point2::new(0.0, 2.0), 0.0),
+        (Point2::new(0.0, 1.0), bulge),
+    ]);
+    finished("the shoulder", extruded(vec![outline], 0.0, h).body, tol())
+}
+
+/// `y = 1`, tangent to the shoulder's wall along its vertex ruling,
+/// normal `−y`. Normal `+y` refuses earlier, at the reduction
+/// (`ConsecutiveOnSectors`), for a reason of its own:
+/// `work/hone/split-shoulder-refuses-one-orientation-at-the-reduction.md`.
+fn shoulder_cut() -> topo::SplitPlane<f64> {
+    topo::test_support::split_plane(Point3::new(0.0, 1.0, 0.0), Vec3::new(0.0, -1.0, 0.0), tol())
+}
+
+/// **The tangent ruling stores what the must-carry rule demands, at
+/// every depth.** The shoulder's seam is a ruling of the unit cylinder
+/// against its tangent plane, `κ_rel = 1`, so over a depth `h < 1` the
+/// rule meters the sagitta `h²/2` against the run's band `(ε, K·ε)`:
+///
+/// - `h²/2 ≤ ε` — under-determined: the surfaces do not determine the
+///   locus over so short a ruling, so the seam is an image in the
+///   section's chart, and both pieces are tier-3 valid with their
+///   closed-form volumes;
+/// - in band — the rule's own typed refusal, naming the sagitta;
+/// - beyond `K·ε` — jet-determinate: the intrinsic tangency.
+///
+/// Each row's depth is a multiple of `√(2ε)`, so the rows hold at every
+/// tolerance row the suite runs at.
+#[test]
+fn a_split_tangent_to_a_thin_shoulder_describes_its_ruling_by_the_rule() {
+    let eps = tol().eps();
+    let k = tol().k();
+    let unit = (2.0 * eps).sqrt();
+    let in_band = |c: f64| c * c > 1.0 && c * c < k;
+    for c in [0.25, 0.5, 0.8, 1.5, 2.5, 4.0, 8.0] {
+        let h = c * unit;
+        let label = format!("h = {c}·√(2ε) = {h:e}");
+        let result = topo::split(&shoulder(h), &shoulder_cut(), tol());
+        if in_band(c) {
+            match result {
+                Err(topo::SplitError::Join(topo::SplitJoinError::TangentChordBendEscalated {
+                    diag,
+                    ..
+                })) => assert_eq!(
+                    diag.predicate,
+                    Some("tangent_second_order"),
+                    "{label}: the rule's sagitta decides"
+                ),
+                other => panic!("{label}: an in-band sagitta refuses by the rule, got {other:?}"),
+            }
+            continue;
+        }
+        let halves = result.unwrap_or_else(|e| panic!("{label}: the shoulder cuts, got {e:?}"));
+        let want = [("above", 2.0 + std::f64::consts::FRAC_PI_4), ("below", 2.0)];
+        let mut seams = 0;
+        for ((side, area), part) in want.into_iter().zip([&halves.above, &halves.below]) {
+            let piece = part
+                .body()
+                .unwrap_or_else(|| panic!("{label}: material {side}"));
+            assert_eq!(
+                topo::validate_geometric(piece, tol()),
+                Ok(()),
+                "{label}: {side} is tier-3 valid"
+            );
+            let volume = topo::mass_properties(piece, tol()).unwrap().volume;
+            assert!(
+                (volume - area * h).abs() <= 1e-9 * area * h,
+                "{label}: {side} holds {volume:e}, want {:e}",
+                area * h
+            );
+            let point = |v| *piece.get_point(piece.get_vertex(v).unwrap().point).unwrap();
+            let surface_of = |he| {
+                let face = piece.face_of_half_edge(he).unwrap();
+                piece.get_face(face).unwrap().surface
+            };
+            let on_the_ruling = |p: Point3<f64>| p.x.abs() <= eps && (p.y - 1.0).abs() <= eps;
+            // The seam: the ruling's edge between the wall and the cut.
+            for (_, e) in piece.edges() {
+                let start = piece.get_half_edge(e.he_plus).unwrap().start;
+                let end = piece.half_edge_end(e.he_plus).unwrap();
+                let pair = [surface_of(e.he_plus), surface_of(e.he_minus)];
+                let kinds = pair.map(|s| piece.get_surface(s).unwrap().kind());
+                if !(on_the_ruling(point(start)) && on_the_ruling(point(end)))
+                    || !kinds.contains(&geom::SurfaceKind::Cylinder)
+                {
+                    continue;
+                }
+                let section = pair[kinds
+                    .iter()
+                    .position(|k| *k == geom::SurfaceKind::Plane)
+                    .unwrap()];
+                let description = piece
+                    .get_curve_geom(e.curve)
+                    .and_then(|g| g.certified())
+                    .expect("the seam is described")
+                    .description();
+                match description {
+                    geom_brep::EdgeDescription::TangentIntersection { .. } => {
+                        assert!(c * c >= k, "{label}: {side} stores the intrinsic tangency");
+                    }
+                    geom_brep::EdgeDescription::Chart(chart) => {
+                        assert!(c * c <= 1.0, "{label}: {side} stores {chart:?}");
+                        assert_eq!(
+                            chart.surface, section,
+                            "{label}: {side}'s image is the section's"
+                        );
+                    }
+                    other => panic!("{label}: {side}'s seam stores {other:?}"),
+                }
+                seams += 1;
+            }
+        }
+        assert_eq!(seams, 1, "{label}: the one seam the cut mints");
+    }
 }
 
 // ---------------------------------------------------------------------
