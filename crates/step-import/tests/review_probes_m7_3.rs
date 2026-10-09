@@ -91,17 +91,19 @@ fn probe_refit_seam_refuses_typed() {
             let step_import::StepImportError::Adoption { attempts, file, .. } = &e else {
                 panic!("the plant must be caught at ADOPTION, not downstream: {msg}");
             };
-            let measured = attempts.iter().find_map(|a| match a.refusal {
+            // The limb attempt's measured bound, and that same attempt's
+            // text as the import door renders it.
+            let limb = attempts.iter().find_map(|a| match a.refusal {
                 topo::EulerOpError::Certification {
                     error:
                         geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
                             value,
                             ..
                         }),
-                } => Some(value),
+                } => Some((value, a.refusal.render_in_file(*file))),
                 _ => None,
             });
-            let Some(measured) = measured else {
+            let Some((measured, rendered)) = limb else {
                 panic!("the refusal must carry the lane's measured bound: {attempts:?}");
             };
             assert!(
@@ -118,11 +120,15 @@ fn probe_refit_seam_refuses_typed() {
                 file.eps_in()
             );
             assert!(
-                msg.contains(
+                rendered.ends_with(
                     "the declared carrier is not on both surfaces. There is no way through: this \
                      is a kernel defect or a damaged file; report it"
                 ),
-                "a miss past ε_in ends at rest at the import door: {msg}"
+                "a miss past ε_in ends at rest at the import door: {rendered}"
+            );
+            assert!(
+                msg.contains(&rendered),
+                "the door's message carries the limb attempt's own text: {msg}"
             );
         }
         Ok(StepImport::Solid { body, .. }) => {

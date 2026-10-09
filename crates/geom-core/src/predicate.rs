@@ -1217,9 +1217,9 @@ pub struct SizedWords<'a> {
 }
 
 /// **The file's declared coincidence distance ε_in** (D4 ¶1, D7), as the
-/// import door reads a certification refusal at it. The door holds ε_in, its own number; a comparison against a
-/// reporting margin is the margin's own
-/// ([`MarginDiag::sized_recourse_in_file`],
+/// import door reads a certification refusal at it. The door holds ε_in,
+/// its own number; a comparison against a reporting margin is the
+/// margin's own ([`MarginDiag::sized_recourse_in_file`],
 /// [`FileCoincidence::miss_recourse_in_file`]), and only a sentence
 /// leaves.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1246,8 +1246,8 @@ impl FileCoincidence {
     /// more precisely. Beyond ε is the classifier's placement: a definite
     /// miss lies past the band, and a banded one wholly past its zero
     /// threshold. Within ε_in is the reading's farther end; where only its
-    /// nearer end lies within ε_in, the miss "may lie" within it. Otherwise `otherwise`, the ending the
-    /// refusal carries at rest.
+    /// nearer end lies within ε_in, the miss "may lie" within it.
+    /// Otherwise `otherwise`, the ending the refusal carries at rest.
     ///
     /// Where the miss is the file's data alone ([`MissSource::File`]), the
     /// sentence says the file's data claims agreement only to its own
@@ -2570,9 +2570,9 @@ mod tests {
     /// **A miss within ε_in but beyond ε names the stopgap** (D4 ¶1):
     /// a banded miss past the zero threshold, or a definite one, where its
     /// reading lies within ε_in, or "may lie" within it where only its
-    /// nearer end does. A miss the kernel's fit
-    /// may have made keeps the kernel-bug note and claims nothing of the
-    /// file's data. Anything else keeps its at-rest ending.
+    /// nearer end does. A miss the kernel's fit may have made keeps the
+    /// kernel-bug note and claims nothing of the file's data. Anything
+    /// else keeps its at-rest ending.
     #[test]
     fn a_miss_within_eps_in_names_setting_eps_to_eps_in() {
         let band = band_1e9();

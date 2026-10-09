@@ -128,8 +128,8 @@ fn lift(c: &NurbsCurve3<f64>) -> NurbsCurve3<Interval> {
 /// them. The planar face stores no pcurve row, so no row's incidence
 /// term reads that distance: the edge certificate's limb 2 against the
 /// plane does, and refuses it with the measurement, at `f64` and at
-/// `Interval`, which the import door reads. The same carrier without its bulge certifies. (Ported
-/// from PR 4304's review, both reviewers' plane-limb probes.)
+/// `Interval`, which the import door reads. The same carrier without its
+/// bulge certifies.
 #[test]
 fn a_carrier_off_the_plane_between_samples_refuses_on_the_plane_limb() {
     let h = 2e-3;
