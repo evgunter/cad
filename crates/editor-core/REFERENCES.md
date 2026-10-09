@@ -333,7 +333,9 @@ validator's own `SnapshotError` arm at load.
 Distinctness is over the variables read, and only those (D10: a read is
 of a variable): two outputs of one operation are two variables, so a
 union of a split's two halves, or a revolve's body patterned about its own
-axis port, is admitted. Two distinct nodes that
+axis port, is admitted. (The union then refuses the two halves at
+evaluation, `MembersShareAnOperation`: DM4 keys a member's names by the
+operation it reads. A pair boolean of them builds.) Two distinct nodes that
 evaluate to one body — two `Part`s selecting one half of a split, or
 `Part(Instance(0))` beside its master — meet DM5, and the boolean answers
 them as it answers any operands whose shells coincide by structure or by
