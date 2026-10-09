@@ -127,7 +127,7 @@ use crate::certify::{CERT_SAMPLES, sample_param};
 use crate::dihedral::{decide_positive, decide_reported};
 
 use super::enclose::{
-    Box3, NurbsBoxes, chart_transverse_margin, graph_margin, zero_free_lower_bound,
+    Box3, NurbsBoxes, UvWindow, chart_transverse_margin, graph_margin, zero_free_lower_bound,
 };
 use super::exhaust::UvRect;
 use super::one_arc::{Shortfall, dominant_axis, one_arc, one_arc_r3};
@@ -994,8 +994,11 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
                 super::TubeDegeneracy::PcurveTangentUnusable,
             ));
         }
-        let Some(margin) = chart_transverse_margin(&boxes, n, (u0, u1, v0, v1), (tx, ty, tn))?
-        else {
+        // A window that names no region has no stretch to read.
+        let Some(rect) = UvWindow::new(u0, u1, v0, v1) else {
+            return Ok(None);
+        };
+        let Some(margin) = chart_transverse_margin(&boxes, n, rect, (tx, ty, tn))? else {
             return Ok(None);
         };
         if margin < worst {
@@ -1766,8 +1769,8 @@ mod tests {
         /// its domain carries real endpoints (`sqrt([−1, 0.01]) + 0.1` is
         /// about `[0.1, 0.2]` at `Trv`), the span window's hull refuses it as NaI,
         /// and NaI's NaN endpoints must not become a chart window — a NaN
-        /// window end lands on the first span in `span_range`, and the
-        /// derivative boxes of an arbitrary cell would then certify.
+        /// end mints no `ParamRange`, where a window landed on the first
+        /// span would certify the derivative boxes of an arbitrary cell.
         #[test]
         fn a_violated_pcurve_coordinate_cannot_certify() {
             let bad = Interval::from_bounds(-1.0, 0.01).sqrt() + iv(0.1);

@@ -42,7 +42,7 @@
 //! coefficients, where the combination is the plain convex one and no
 //! `λ` is needed.
 
-use super::knots::{InteriorKnot, KnotVector, SplineError};
+use super::knots::{InteriorKnot, KnotVector, SplineError, find_span_in};
 use crate::interval::Interval;
 use crate::interval::certification::Certification;
 use crate::readable::Readable;
@@ -448,8 +448,6 @@ fn check_weights(kv: &KnotVector, weights: &[f64]) -> Result<(), KnotAlgebraErro
 ///
 /// [`KnotAlgebraError`] on structure mismatch, out-of-domain `u`, or
 /// multiplicity overflow. `times == 0` is a no-op (empty chain).
-// NaN-catching negated comparisons — see `check_weights`' note.
-#[allow(clippy::neg_cmp_op_on_partial_ord)]
 pub fn insert_knot_plan(
     kv: &KnotVector,
     weights: &[f64],
@@ -457,10 +455,9 @@ pub fn insert_knot_plan(
     times: usize,
 ) -> Result<Vec<CurvePlan>, KnotAlgebraError> {
     check_weights(kv, weights)?;
-    let (lo, hi) = kv.domain();
-    if !u.is_finite() || !(u > lo) || !(u < hi) {
+    let Some(knot) = kv.interior_knot(u) else {
         return Err(KnotAlgebraError::ParameterOutsideDomain { u });
-    }
+    };
     let have = kv.multiplicity_of(u).map_or(0, |(s, _)| s);
     if have + times > kv.degree() {
         return Err(KnotAlgebraError::MultiplicityOverflow {
@@ -473,7 +470,7 @@ pub fn insert_knot_plan(
     let mut cur_kv = kv.clone();
     let mut cur_w = weights.to_vec();
     for _ in 0..times {
-        let plan = insert_once(&cur_kv, &cur_w, u);
+        let plan = insert_once(&cur_kv, &cur_w, knot);
         cur_kv = plan.knots.clone();
         cur_w = plan.weights.clone();
         plans.push(plan);
@@ -483,7 +480,9 @@ pub fn insert_knot_plan(
 
 /// One insertion pass — preconditions established by the callers
 /// (`u` strictly interior, multiplicity budget available, weights
-/// validated).
+/// validated). `u` was minted against the chain's first vector; an
+/// insertion leaves both clamp runs alone, so it is interior to every
+/// vector of the chain.
 ///
 /// **The Boehm structure is shared with [`super::compose`]'s
 /// `insert_once_ring`, and the two are now a FILED duplication rather
@@ -501,10 +500,11 @@ pub fn insert_knot_plan(
 /// step, where a plan chain rebuilds one per insertion. Filed on PROPS'
 /// `f64-refinement-inside-an-enclosure-has-five-more-sites`; not done
 /// here.
-fn insert_once(kv: &KnotVector, weights: &[f64], u: f64) -> CurvePlan {
+fn insert_once(kv: &KnotVector, weights: &[f64], knot: InteriorKnot) -> CurvePlan {
     let p = kv.degree();
     let knots = kv.knots();
-    let k = kv.find_span(u);
+    let k = find_span_in(knots, p, knot);
+    let u = knot.value();
     let s = kv.multiplicity_of(u).map_or(0, |(s, _)| s);
     let n_old = kv.control_count();
     let n_new = n_old + 1;
@@ -1138,7 +1138,7 @@ mod tests {
     /// plan machinery is dimension-agnostic, so scalar control points
     /// are a complete test bed.
     fn eval1(kv: &KnotVector, w: &[f64], x: &[f64], t: f64) -> f64 {
-        let span = kv.span_at(t);
+        let span = kv.span_at(t).expect("a numeric parameter");
         let n = basis_funs(span, t);
         let (mut num, mut den) = (0.0, 0.0);
         for (j, nj) in n.iter().enumerate() {

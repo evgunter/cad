@@ -768,7 +768,13 @@ fn edge_piece<T: Real>(
     let mut knots = vec![a; p + 1];
     let mut control: Vec<Point3<T>> = Vec::new();
     for (i, w) in breaks.windows(2).enumerate() {
-        let segment = crate::pcurve_cache::projected::piece_controls(carrier, w[0], w[1]);
+        // The breaks ascend strictly, so each stretch is a range.
+        let Some(stretch) = geom_core::spline::ParamRange::new(w[0], w[1]) else {
+            return Err(refuse(
+                "the carrier's piece over the edge's interval is malformed",
+            ));
+        };
+        let segment = crate::pcurve_cache::projected::piece_controls(carrier, stretch);
         // Neighbouring segments share their joining control; each
         // segment's own encloses it, and the earlier one is kept.
         let skip = usize::from(i > 0);
