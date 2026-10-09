@@ -2,8 +2,9 @@
 id: must-carry-in-band-verdict-does-not-say-which-decision-escalated
 kind: issue
 title: geom-brep: MustCarryVerdict::InBand carries a station's escalation without saying whether the wedge or the second-order question escalated
-status: dispatched
+status: review
 branch: encl/sweep-must-carry-escalation
+pr: 4450
 opened: 2026-10-01
 priority: P3
 ---
@@ -63,3 +64,12 @@ second-order reading is still owed its `AnySign` ending; `sweep::extrude`
 (strut, cap rim) and `sweep::revolve::upgrade` fold both into their
 sliver errors.
 
+## Since (ENCL, PR 4450): the sweep callers map it exhaustively
+
+`sweep::blend` maps the escalation to its own decision
+(`BlendDecision::of_contact`): `ContactArm` / `ContactWedge` by rung, each
+on its own lever with no tolerance, and `ContactSecondOrder` with its
+`SizedPass::AnySign` ending. `sweep::extrude` (strut, cap rim) and
+`sweep::revolve::upgrade` carry `reading: topo::DihedralReading` on their
+sliver errors (`swept::must_carry_reading`) and word the second-order bend
+apart from the first-order sliver (`swept::sliver_text`).
