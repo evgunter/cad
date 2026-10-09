@@ -643,15 +643,22 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     let band = Band::linear(tol)?;
-    let (red, connected, interior_loops) =
-        match through_the_join(op, a, b, decls, strategy, recut, tol)? {
-            Joined::Answered(result) => return Ok(*result),
-            Joined::Connected {
-                red,
-                connected,
-                interior_loops,
-            } => (*red, *connected, interior_loops),
-        };
+    let (red, connected, interior_loops) = match through_the_join(
+        op,
+        a,
+        b,
+        decls,
+        (strategy, super::reduce::boolean_arm_exists),
+        recut,
+        tol,
+    )? {
+        Joined::Answered(result) => return Ok(*result),
+        Joined::Connected {
+            red,
+            connected,
+            interior_loops,
+        } => (*red, *connected, interior_loops),
+    };
     let contacts = red.contacts.clone();
     let reduction_contacts = red.contacts.clone();
     let covered = red.covered.clone();
@@ -808,29 +815,10 @@ pub(super) enum Joined<T: Real> {
 /// # Errors
 ///
 /// The reduction's, the no-crossings path's and the join's refusals.
+///
+/// The sweep strategy travels with the operand gate's face-kind roster
+/// ([`super::boolean_reduce_declared_strategy`]).
 pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
-    op: BooleanOp,
-    a: &Body<T>,
-    b: &Body<T>,
-    decls: &BooleanDeclarations,
-    strategy: SweepStrategy,
-    recut: bool,
-    tol: Tol,
-) -> Result<Joined<T>, BooleanError> {
-    through_the_join_on(
-        op,
-        a,
-        b,
-        decls,
-        (strategy, super::reduce::boolean_arm_exists),
-        recut,
-        tol,
-    )
-}
-
-/// [`through_the_join`] with the operand gate's face-kind roster named
-/// beside the sweep strategy ([`super::boolean_reduce_on`]).
-pub(super) fn through_the_join_on<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
@@ -840,7 +828,7 @@ pub(super) fn through_the_join_on<T: Decide + Bounds + crate::props::AtRestPolic
     tol: Tol,
 ) -> Result<Joined<T>, BooleanError> {
     let band = Band::linear(tol)?;
-    let mut red = super::boolean_reduce_on(op, a, b, decls, strategy, roster, tol)?;
+    let mut red = super::boolean_reduce_declared_strategy(op, a, b, decls, strategy, roster, tol)?;
 
     if red.null_pairs.is_empty() {
         if !red.null_edges.is_empty() {
@@ -1542,8 +1530,15 @@ pub(crate) fn section_report<T: Decide + Bounds + crate::props::AtRestPolicy>(
 ) -> Result<Vec<PairVerdict>, BooleanError> {
     let band = Band::linear(tol)?;
     let decls = BooleanDeclarations::default();
-    let red =
-        super::boolean_reduce_declared_strategy(op, a, b, &decls, SweepStrategy::Realized, tol)?;
+    let red = super::boolean_reduce_declared_strategy(
+        op,
+        a,
+        b,
+        &decls,
+        SweepStrategy::Realized,
+        super::reduce::boolean_arm_exists,
+        tol,
+    )?;
     let events = event_pairs(&red);
     section_pairs(
         a,
@@ -6370,7 +6365,10 @@ mod tests {
                 &a,
                 &b,
                 &decls,
-                SweepStrategy::Realized,
+                (
+                    SweepStrategy::Realized,
+                    crate::boolean::reduce::boolean_arm_exists,
+                ),
                 true,
                 tol,
             )

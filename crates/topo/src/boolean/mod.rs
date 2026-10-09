@@ -4049,6 +4049,7 @@ pub fn boolean_reduce_declared<T: Decide + Bounds + crate::props::AtRestPolicy>(
         b_operand,
         decls,
         SweepStrategy::Realized,
+        reduce::boolean_arm_exists,
         tol,
     )
 }
@@ -4219,7 +4220,7 @@ pub fn join_admitting_cones(
         reduce::boolean_arm_exists(s) || matches!(s, geom::Surface::Cone { .. })
     }
     Ok(
-        match ops::through_the_join_on(
+        match ops::through_the_join(
             op,
             a_operand,
             b_operand,
@@ -4334,7 +4335,7 @@ pub(crate) fn through_the_join(
             a,
             b,
             &BooleanDeclarations::none(),
-            SweepStrategy::Realized,
+            (SweepStrategy::Realized, reduce::boolean_arm_exists),
             true,
             tol,
         )? {
@@ -4380,7 +4381,15 @@ pub(crate) fn join_refusal(
     tol: Tol,
 ) -> Result<Option<BooleanError>, BooleanError> {
     let band = Band::linear(tol)?;
-    let mut red = boolean_reduce_declared_strategy(op, a, b, decls, SweepStrategy::Realized, tol)?;
+    let mut red = boolean_reduce_declared_strategy(
+        op,
+        a,
+        b,
+        decls,
+        SweepStrategy::Realized,
+        reduce::boolean_arm_exists,
+        tol,
+    )?;
     if red.null_pairs.is_empty() {
         return Ok(None);
     }
@@ -4418,30 +4427,11 @@ pub type SegmentSites = (usize, Vec<[Point3<f64>; 2]>);
 /// the idealized/realized door (PERF-PLAN §4.4): production always
 /// runs `Realized`; the differential suite runs both and pins
 /// bit-equality. Reached via [`boolean_op_with`] for full ops.
-pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props::AtRestPolicy>(
-    op: BooleanOp,
-    a_operand: &Body<T>,
-    b_operand: &Body<T>,
-    decls: &BooleanDeclarations,
-    strategy: SweepStrategy,
-    tol: Tol,
-) -> Result<BooleanReduction<T>, BooleanError> {
-    boolean_reduce_on(
-        op,
-        a_operand,
-        b_operand,
-        decls,
-        strategy,
-        reduce::boolean_arm_exists,
-        tol,
-    )
-}
-
-/// [`boolean_reduce_declared_strategy`] with the operand gate's
-/// face-kind `roster` named: production reads
+///
+/// `roster` is the operand gate's face-kind roster: production reads
 /// [`reduce::boolean_arm_exists`], and a test door admits a kind whose
 /// arms are landing below the gate (`join_admitting_cones`).
-pub(crate) fn boolean_reduce_on<T: Decide + Bounds + crate::props::AtRestPolicy>(
+pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a_operand: &Body<T>,
     b_operand: &Body<T>,
