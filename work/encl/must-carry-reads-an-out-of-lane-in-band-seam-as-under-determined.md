@@ -2,7 +2,8 @@
 id: must-carry-reads-an-out-of-lane-in-band-seam-as-under-determined
 kind: issue
 title: must_carry_over_edge answers UnderDetermined for an out-of-lane smooth join whose sagitta is in band, which tier 3 refuses SliverDihedral
-status: open
+status: dispatched
+branch: encl/must-carry-out-of-lane-in-band
 opened: 2026-10-02
 priority: P3
 ---

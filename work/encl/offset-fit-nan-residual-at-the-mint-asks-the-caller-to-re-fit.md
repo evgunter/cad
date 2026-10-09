@@ -2,7 +2,8 @@
 id: offset-fit-nan-residual-at-the-mint-asks-the-caller-to-re-fit
 kind: issue
 title: offset fit: a NaN sampled residual inside the fit loop reads as a stored surface to re-fit, which the minting op's user never stored
-status: review
+status: closed
+closed: 2026-10-09
 branch: encl/offset-fit-mint-nan-limb
 pr: 4395
 opened: 2026-10-09
@@ -38,3 +39,11 @@ hull bound over the tolerance there continues the loop instead.
 A NaN residual on a face the door's meters accepted is the kernel's,
 so the mint's arm likely wants the defect ending, told apart from the
 at-rest limb by its route rather than by the same variant.
+
+## Closed
+
+2026-10-09. PR 4395 merged at `67c756d147` after a review and a fix pass; hosted CI was green.
+- `OffsetFitError::MintLimb` is raised only at the mint (`nan_residual_at`, and `mint`'s own certification of the fresh fit) and ends in `KERNEL_DEFECT_ENDING`. Only `OnLocus` reaches it; `HullSup` is the same measure on the same fit.
+- The at-rest `Limb` keeps `LIMB_REFIT_RECOURSE`.
+- No arm prints "NaN m".
+- The PCTAIL row `pcurve-image-mismatch-at-the-body-mint-asks-to-re-mint` was filed alongside.
