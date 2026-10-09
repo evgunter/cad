@@ -33,7 +33,7 @@
 //! zero residual would read definitely negative — and stops at the
 //! no-crossings fallback's section pass, on the coincident pair's
 //! tangency. The peg seated in its socket goes further: its union
-//! builds, through the declared-REST zip.
+//! builds through the join.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -224,13 +224,8 @@ fn wall_declarations(
 /// additive (the parts only touch), one shell of four faces, six edges
 /// and four vertices, and a legal operand.
 ///
-/// At ε up to 2e-7 the chord join builds it (each strut's half beside
-/// a germ's locus edge faces it). From 3e-7 the join's role probe reads
-/// both section loops in band and refuses
-/// `Join(SectionLoopUndecided)`, the curved-face frontier
-/// (`work/join/peg-in-socket-union-refuses-join-desync-at-a-coarse-eps.md`);
-/// the declared-REST zip takes that refusal over and builds the same
-/// census.
+/// The chord join builds it at every ε (each strut's half beside a
+/// germ's locus edge faces it).
 fn peg_in_socket_union_holds(
     s: &AtRestBody<f64>,
     p: &AtRestBody<f64>,

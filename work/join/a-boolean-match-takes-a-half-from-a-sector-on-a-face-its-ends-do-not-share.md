@@ -2,8 +2,9 @@
 id: a-boolean-match-takes-a-half-from-a-sector-on-a-face-its-ends-do-not-share
 kind: issue
 title: A boolean match takes a germ half from a sector on another face than the one its two ends share, and the join refuses on the wrong face
-status: open
+status: closed
 opened: 2026-10-06
+closed: 2026-10-08
 priority: P2
 cost: M
 refs: [which-fragment-of-a-divided-face-holds-a-segment-is-spelled-three-ways]
@@ -51,4 +52,8 @@ the two ends share a face, the halves the join reads are that face's.
 Then decide what is left (halves on two faces whose ends share none)
 at the plan, typed with its own words, and say which of today's
 refusals were this.
+
+## Closed (2026-10-08, INTENT stage 4 A, `intent/s4-a-join`)
+
+The two-face plans were germs only tangent to a bound of their sector (a straight edge passing a fillet's tangent point), minted in that sector while `sectors::germ_loci` reads them in the face across the bound, the face the segment lies in. `boolean::insert::across_tangent` now mints such a germ in the sector across the bound, keeping its crossing codes, and the run logic decides strut or fan from there. Measured with a probe in `JoinPlan::of` over the topo and sweep suites (5111 rows, main `b7eec503` merged): **no plan has its halves on two faces**, where this row counted 82. The poses named above all build in the join (`join2_r1_probes`, `join2_r2_probes`, `reach_continuation`, `rest_nested_strut`), so nothing is left for a typed two-face refusal to name.
 

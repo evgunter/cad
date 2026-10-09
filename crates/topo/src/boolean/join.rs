@@ -122,17 +122,17 @@
 //!
 //! # The fixpoint sweep and lockstep discipline
 //!
-//! All pair records register up front, and [`section_segments`]
+//! All pair records register up front, and [`matched_records`]
 //! matches them: it repeatedly takes the nearest valid match in
 //! deterministic scan order until quiescent (each match consumes its
 //! germs, so the next round ranks only the germs still free). The criterion
 //! reads only record data — loci, senses, site points, section
 //! frames — none of which the surgery changes, so the segments are
-//! decided before any chord is minted, and the declared-REST zip
-//! ([`super::rest`]) reads the same list. A record left whole whose two
+//! decided before any chord is minted. A record left whole whose two
 //! germs are one closed conic through a wrap edge is one more segment
-//! ([`wrap_site_segments`]), which only the join reads
-//! ([`join_segments`]). The sweep then joins them in that order. Joins, retirements, and completions must occur in
+//! ([`wrap_site_segments`]), read with the matched ones
+//! ([`join_segments`]). The sweep then joins them in that order. Joins,
+//! retirements, and completions must occur in
 //! BOTH solids together; any divergence is the typed
 //! [`BooleanError::JoinDesync`] refusal, never a silent mis-join.
 //! There is no geometric sort and no section-area certification here:
@@ -502,10 +502,9 @@ impl<T: geom_core::Real> OpenRecord<T> {
 }
 
 /// One section segment as the join's matching decides it: "which
-/// segments exist and what each one is". The matched segments
-/// ([`section_segments`]) are read by the join's surgery and the
-/// declared-REST zip ([`super::rest`]) alike; the join's surgery also
-/// reads the one-site segments ([`join_segments`]).
+/// segments exist and what each one is". The join's surgery
+/// ([`bool_connect`]) reads the matched segments ([`matched_records`])
+/// and the one-site segments ([`join_segments`]).
 #[derive(Clone, Copy, Debug)]
 pub(super) struct SectionSegment<T: geom_core::Real> {
     /// The two ends, `(pair record, germ slot)`, entry end first. The
@@ -568,21 +567,8 @@ fn open_records<T: Decide>(red: &BooleanReduction<T>) -> Result<Vec<OpenRecord<T
         .collect()
 }
 
-/// **The section segments** (module docs): [`find_match`] to
-/// quiescence over the pair records, each match consuming its two germ
-/// slots in both solids. Germ slots no match consumed are the join's
-/// loose ends, so every germ is consumed exactly when there are as many
-/// segments as records. Reads the records and the annotated clones'
-/// site points; the surgery changes neither.
-pub(super) fn section_segments<T: Decide>(
-    red: &BooleanReduction<T>,
-    band: Band,
-) -> Result<Vec<SectionSegment<T>>, BooleanError> {
-    Ok(matched_records(red, band)?.0)
-}
-
 /// **Every segment the join builds**: the matched ones
-/// ([`section_segments`]), then each one-site loop on a wrap edge
+/// ([`matched_records`]), then each one-site loop on a wrap edge
 /// ([`wrap_site_segments`]).
 pub(super) fn join_segments<T: Decide>(
     red: &BooleanReduction<T>,
@@ -593,7 +579,13 @@ pub(super) fn join_segments<T: Decide>(
     Ok(segments)
 }
 
-/// [`section_segments`] with the records as the matching left them.
+/// **The section segments** (module docs): [`find_match`] to
+/// quiescence over the pair records, each match consuming its two germ
+/// slots in both solids, with the records as the matching left them.
+/// Germ slots no match consumed are the join's loose ends, so every
+/// germ is consumed exactly when there are as many segments as records.
+/// Reads the records and the annotated clones' site points; the surgery
+/// changes neither.
 #[allow(clippy::type_complexity)] // (segments, records)
 fn matched_records<T: Decide>(
     red: &BooleanReduction<T>,
@@ -646,7 +638,7 @@ fn one_site<T: Decide>(
 /// conic back to it ([`crate::chord_join`]'s self-loop chord): its two
 /// ends are the record's two slots.
 ///
-/// Read from the records [`section_segments`]' quiescence left. A
+/// Read from the records [`matched_records`]' quiescence left. A
 /// [`one_site`] record whose germs lie inside a face on both operands is
 /// taken where its site is a wrap edge of one operand's face and a
 /// pierce of the other's planar face
@@ -1796,7 +1788,7 @@ fn germ_section_frame<T: Decide>(
     // `surf` resolved both faces above, and nothing writes between, so
     // `face_witnesses` reads each.
     let witnesses = |body: &Body<T>, f: FaceKey| {
-        super::rest::face_witnesses(body, f).unwrap_or_else(|| {
+        super::carrier_pair::face_witnesses(body, f).unwrap_or_else(|| {
             unreachable!(
                 "{}, which `surf` resolved, does not resolve",
                 crate::entity::EntityId::Face(f)
@@ -2309,8 +2301,8 @@ pub(super) fn pair_section_frame_at<T: Decide>(
         // **Cylinder×cylinder.** Two walls with PARALLEL axes meet in
         // rulings — lines — whatever their radii, so `None` here is
         // proven by the axes alone and needs neither radius evidence
-        // nor a constructed section: the declared tangent-ruling pair
-        // the zip lane rests on is exactly this case. The non-parallel
+        // nor a constructed section: a tangent-ruling pair at rest is
+        // exactly this case. The non-parallel
         // half is never straight, and it splits again on coplanarity
         // (below): skew keeps the general rung's `NoArm`, intersecting
         // axes take their own named door.
@@ -3947,7 +3939,7 @@ mod frame_dispatch_tests {
             .and_then(|f| body.get_surface(f.surface))
             .cloned()
             .unwrap();
-        let on = super::super::rest::face_witnesses(body, face).unwrap();
+        let on = super::super::carrier_pair::face_witnesses(body, face).unwrap();
         [
             ("plane, wall", &plane, &wall),
             ("wall, plane", &wall, &plane),
@@ -4063,7 +4055,7 @@ mod frame_dispatch_tests {
     fn a_rims_bulge_levers_the_germ_frames_tilt() {
         let (body, face, _) =
             crate::test_support_fixtures::oblique_rim_wall(core::f64::consts::FRAC_PI_4);
-        let base = super::super::rest::face_witnesses(&body, face).unwrap()[0];
+        let base = super::super::carrier_pair::face_witnesses(&body, face).unwrap()[0];
         for frac in [0.12, 0.5, 0.99] {
             let k = frac * Tol::witness().k();
             for (label, got) in wall_frames(&body, face, base, k, 2.0) {
@@ -4166,7 +4158,7 @@ mod frame_dispatch_tests {
         let kk = Tol::witness().k();
         for (phi, delta, h) in [(1.2, 0.02, 0.5), (core::f64::consts::FRAC_PI_4, 0.05, 1.2)] {
             let (body, face, samples) = arc_wall(phi, delta, h);
-            let on = super::super::rest::face_witnesses(&body, face).unwrap();
+            let on = super::super::carrier_pair::face_witnesses(&body, face).unwrap();
             let n = on.len() as f64;
             let at = on.iter().fold(Point3::new(0.0, 0.0, 0.0), |m, p| {
                 m + (*p - Point3::new(0.0, 0.0, 0.0)) / n
@@ -4311,7 +4303,7 @@ mod frame_dispatch_tests {
             );
             // The germ frame, read at the corners' centre.
             for (label, got) in plane_frames(&body, face, through, normal) {
-                let on = super::super::rest::face_witnesses(&body, face).unwrap();
+                let on = super::super::carrier_pair::face_witnesses(&body, face).unwrap();
                 let (at, _) = super::frame_reading(&plane, &wall, Vec::new(), on).unwrap();
                 let main = main_at(at);
                 let served = match got {
@@ -4925,8 +4917,8 @@ mod frame_dispatch_tests {
             "plane×sphere names its circle frame"
         );
         // Two walls with parallel axes meet in RULINGS, so the straight
-        // answer is proven by the axes alone — the declared
-        // tangent-ruling germ pair the zip lane rests on.
+        // answer is proven by the axes alone — a tangent-ruling germ
+        // pair at rest.
         assert!(
             matches!(
                 pair_section_frame(

@@ -44,7 +44,7 @@ fn base_coeffs(n: usize) -> Vec<f64> {
 /// The scalar spline's value at `t`, indexed off the window base — the
 /// sampling side of the pairing.
 fn eval(k: &KnotVector, coeffs: &[f64], t: f64) -> f64 {
-    let span = k.span_at(t);
+    let span = k.span_at(t).expect("a numeric parameter");
     let first = span.first_control();
     let mut acc = 0.0;
     for (j, nj) in basis_funs::<f64>(span, t).iter().enumerate() {
@@ -336,7 +336,7 @@ fn every_window_answers_what_the_domain_door_hulls_over_it() {
                 continue;
             };
             let mid = 0.5 * (k.knots()[index] + k.knots()[index + 1]);
-            assert_eq!(pair.span_at(mid), win, "{name}: span_at({mid})");
+            assert_eq!(pair.span_at(mid), Some(win), "{name}: span_at({mid})");
         }
     }
     assert!(windows > 0, "the spread produced no windows");

@@ -33,7 +33,7 @@
 //! re-derivation under the K-REPORT runbook rather than a free import.
 //! `twopeg` is deliberately out on exactly that ground — its ops are
 //! already sampled through `bossplate` (transverse curved union) and
-//! `crosslap` (the declared-REST zip).
+//! `crosslap` (a declared REST union).
 //!
 //! One process per ε (`Tolerance` is a OnceLock):
 //!

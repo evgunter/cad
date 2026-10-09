@@ -59,12 +59,8 @@ fn assert_sound(what: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f
 /// both of its ends. The union is the collar with the peg's proud part:
 /// additive.
 ///
-/// The declared-REST zip takes over a declared union the join refuses,
-/// and builds this one too, so the volume alone cannot tell the lanes
-/// apart; the merge door's record can. The zip keeps the bore wall for
-/// the door, which records the declared cylinder pair it has no arm
-/// for; the join discards the bore wall with its surface, so the door
-/// is handed no pair. The row asserts the join's answer.
+/// The join discards the bore wall with its surface, so the merge door
+/// is handed no declared cylinder pair, and records none.
 #[test]
 fn matching_reads_the_germs_loci() {
     let c = finished("the collar", collar_at(0.0), tol());
@@ -83,10 +79,7 @@ fn matching_reads_the_germs_loci() {
                 )
             })
             .count();
-        assert_eq!(
-            declared, 0,
-            "the chord join builds the union, not the zip that takes over its refusal"
-        );
+        assert_eq!(declared, 0, "the chord join builds the union");
     }
     assert_sound("peg ∪ collar", r, want);
 }

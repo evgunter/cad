@@ -247,7 +247,7 @@
 use core::fmt;
 
 use geom::Surface;
-use geom_brep::recourse::Reading;
+use geom_brep::recourse::{ReadAt, Reading};
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec};
 
 use crate::policy_lane::ByPolicy;
@@ -1354,34 +1354,21 @@ pub enum EulerOpError {
 }
 
 impl EulerOpError {
-    /// This refusal's text, a certification refusal's ending read at
-    /// `reading` ([`CertifyError::ending`]): the door that reports the
-    /// refusal decides where it is read. `Display` reads it at
-    /// [`Reading::Build`], the operation that built the edge.
+    /// This refusal's text, a certification refusal's ending read at `at`
+    /// ([`CertifyError::render`]): the door that reports the refusal
+    /// decides where it is read, the STEP import door at rest with the
+    /// file's ε_in words. Every other arm ignores `at`. `Display`
+    /// reads it at [`Reading::Build`], the operation that built the edge.
     #[must_use]
-    pub fn render(&self, reading: Reading) -> String {
-        self.render_with(|error| error.render(reading))
-    }
-
-    /// This refusal's text at the STEP import door: a certification
-    /// refusal's ending read at rest with the file's ε_in words
-    /// ([`CertifyError::render_in_file`]), every other refusal as
-    /// [`EulerOpError::render`] gives it.
-    #[must_use]
-    pub fn render_in_file(&self, file: geom_core::FileCoincidence) -> String {
-        self.render_with(|error| error.render_in_file(file))
-    }
-
-    /// This refusal's text, a certification refusal's rendered by
-    /// `certification`. No other arm reads where it is read.
-    fn render_with(&self, certification: impl Fn(&CertifyError) -> String) -> String {
+    pub fn render(&self, at: impl Into<ReadAt>) -> String {
+        let at = at.into();
         match self {
             Self::Certification { error } => {
-                format!("geometry attachment gate: {}", certification(error))
+                format!("geometry attachment gate: {}", error.render(at))
             }
             Self::RebasedCarrier { edge, error } => format!(
                 "re-based edge {edge:?} would keep a carrier its endpoint left: {}",
-                certification(error)
+                error.render(at)
             ),
             Self::NurbsLaneUnsupported { edge, scalar } => format!(
                 "{} lies between a plane and a spline face, and its certificate is derived \
@@ -1439,7 +1426,7 @@ impl EulerOpError {
                 "{}: edge {edge:?}'s re-description does not certify on the charts the move \
                  gives it: {}",
                 door.name(),
-                certification(error)
+                error.render(at)
             ),
             Self::RechartOffBoundary { door, face, on } => format!(
                 "{}: face {face:?}'s boundary does not lie on the plane it moves onto ({on} is \

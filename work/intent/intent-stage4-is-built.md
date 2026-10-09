@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-08
 priority: P0
 cost: H
-blocked_on: [the-join-builds-what-the-rest-zip-builds, coincidences-are-recorded-at-one-door, carriers-compare-in-canonical-form, booleans-glue-on-zero, declared-pairs-retire, tangent-joints-are-derived, placed-carriers-compare-through-their-frames, mates-declare-no-contact]
+blocked_on: [the-join-builds-what-the-rest-zip-builds, coincidences-are-recorded-at-one-door, carriers-compare-in-canonical-form, booleans-glue-on-zero, declared-pairs-retire, tangent-joints-are-derived, placed-carriers-compare-through-their-frames, mates-declare-no-contact, an-unattributed-contact-at-rest-is-a-finding]
 ---
 
 
