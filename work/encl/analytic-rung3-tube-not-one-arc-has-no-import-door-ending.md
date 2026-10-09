@@ -2,8 +2,9 @@
 id: analytic-rung3-tube-not-one-arc-has-no-import-door-ending
 kind: issue
 title: geom-brep: an AnalyticRung3 TubeNotOneArc refusal gets no ending at the import door
-status: dispatched
+status: review
 branch: encl/rung3-tube-door-ending
+pr: 4432
 opened: 2026-10-09
 priority: P3
 cost: E
