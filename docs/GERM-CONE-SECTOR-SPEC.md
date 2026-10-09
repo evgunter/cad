@@ -217,19 +217,27 @@ ellipse per Ev's 2026-10-01 ruling):
 | `TiltedEllipse`, `AxisNormalCircle` | `Some((center, axis))`, the conic's own |
 | `ApexLinePair` | `Ok(None)`, proved straight (two generators) |
 | `ApexTangentLine`, `ApexPoint` | `FrameError::Desync`: a touching configuration the reduction should not have paired, exactly as the sphere arm's `TangentPoint` |
-| `Err(Escalated)` | `FrameError::Escalated` |
+| `Err(Escalated)`, or the ellipse constructor's `Escalated` or `CircularAxes` | `FrameError::Escalated`: the classifier read a definite tilt, but the carrier cannot tell the curve from a circle |
 | parabola, hyperbola (`Err`, by decision R1) | **a typed refusal naming the conic**, not a desync |
 
 **The extent** `plane_cone_section` meters its aperture and conic-type
 margins at is the frame's own `FrameExtent::Reach`: the cone face's
 farthest distance from the reading point (`face_reach_from`), the
 measure the cone's split lane levers the same section at
-(`chord_join::section_reach`). A pair handed without its faces is
-levered at `|at − apex|`, the probe's reading (Q4).
+(`chord_join::section_reach`). It is the only extent the arm takes; any
+other is a desync (Q4).
 
 **The by-decision refusal.** Measured, the commonest pose of all — an
-axis-aligned brick across a cone wall (B1) — cuts hyperbolas and stops
-here. So does any plane parallel to the axis. This is
+axis-aligned brick across a cone wall (B1, the brick
+`[0.6, 2] × [0.3, 0.8] × [−0.2, 0.2]`) — cuts hyperbolas and stops
+here, in every op and member order. So does any plane parallel to the
+axis (C2). A brick one of whose edges grazes the wall stops earlier, at
+the sweep's tangency refusal: `[0.6, 2] × [0.2, 0.8] × [−0.2, 0.2]`,
+whose edge along `z` at `(0.6, 0.2)` touches the wall's circle of
+radius `0.6` at `z = 0`, refuses
+`CurvedPierceUnsupported { edge: EdgeKey(5v1) }` in every op, and
+moving that face to `y = 0.25` or `x = 0.7` brings back the conic
+refusal. This is
 `crates/geom-brep/README.md` C1/C5's ruling (the hyperbola and parabola
 are out of the conic inventory), not a missing arm. The refusal must say
 so: `BooleanError::GermSectionOutsideInventory`, carrying the
@@ -419,6 +427,12 @@ reconcile the two specs.
    the sphere arm's `TangentPoint` is.
 5. **The near-parabola band:** a plane within the band of a generator's
    direction escalates. It is never snapped to an ellipse.
+6. **The lever:** a frustum far from its apex escalates a near-parabola
+   whose margin is in the band at the face's reach and clear of it at
+   `|at − apex|` or at ten times the reach (Q4).
+7. **The near-circular tilt:** a tilt the classifier reads as definite
+   but the carrier cannot tell from a circle escalates
+   `ellipse_axes_distinct`, on the cone and on the cylinder arm alike.
 
 ### U-S4 — plane-cone-join-lane
 
@@ -431,13 +445,17 @@ production pipeline after the join (`sweep/tests/cone_join_lane.rs`):
 2. **C1's tilted plane:** the planar side's arc is the ellipse arc the
    matched germs name, in both member orders.
 3. **T1's ring:** the cone face's island winds by the segment's curve
-   (the ring lane's first boolean row).
+   (the ring lane's first boolean row): the island's only loop winds
+   counter-clockwise about the cone's outward normal, the ring its
+   remainder holds clockwise, and each of the box's two faces, in closed
+   form, carries its ellipse on both sides.
 4. **Red on main:** D4's `CurvedBooleanUnsupported` and D5's
    `SectionInvariant`. The mutant "`PlaneWall` for `(Cone, Plane)`"
    (the sides swapped) must turn a row red. That is the swap the arms'
    symmetry hides.
 5. **Through U-S0, the whole poses,** joined in every op and member
-   order, their chords against the closed-form section. No body is built
+   order, their chords against the closed-form section; C2, B1 and C3
+   refuse at the frame with the conic named. No body is built
    below the join, so the volume, tier-3 and `point_in_solid` checks of
    §0.2 wait for U4's door. Every pose's interior-loop verdict is D6's
    refusal, and the rows say so. Below the gate, the join's output is
@@ -481,16 +499,26 @@ production pipeline after the join (`sweep/tests/cone_join_lane.rs`):
   and its recourse names other kinds of face; the conic is refused by
   decision, and its recourse is to cut the cone all the way round.
 - **Q4 The frame's extent** for `plane_cone_section`'s aperture and
-  conic-type margins: the face's reach (`FrameExtent::Reach`).
-  Measured against the near-parabola row (C3's plane turned by `θ`, so
-  `D = −sin θ`): both readings escalate exactly for
-  `θ ∈ (ε/L, Kε/L)`, at `L = 1.820` (the frustum face's reach from the
-  reading point) and `L = 1.677` (`|at − apex|`): the levered margin
-  is `L·sin θ`. Each reading escalates the row's in-band turn and
-  serves the ellipse past the band. The face's reach is the longer lever
-  here, so it is the more conservative, and it is the measure the wall
-  side's chord already levers at. `|at − apex|` is kept for a pair
-  handed without its faces.
+  conic-type margins: the face's reach (`FrameExtent::Reach`), and
+  nothing else. The levered margin is `L·sin θ` (C3's plane turned by
+  `θ`, so `D = −sin θ`), so the frame escalates exactly for
+  `θ ∈ (ε/L, Kε/L)`. A longer lever moves a reading toward the definite
+  side: a shorter arm never decides positive where the full reach would
+  not (`UnitVec3::levered`). So the longer lever is the less
+  conservative one for a definite verdict, and what makes a lever sound
+  is that it bounds the consumed region, not that it is long. The
+  face's reach does: every point of the face, and so of the section the
+  join consumes on it, lies within it of the reading point, so a
+  definite verdict at that lever holds over the whole face. It
+  overstates by at most about 2× (the reading point is the centre of
+  the face's boundary vertices, and the farthest point is within the
+  face's diameter of it, about twice the radius the best hinge would
+  read), which K = 10 absorbs, and it is the measure the wall side's
+  chord already levers at. `|at − apex|` is not a bound: a frustum far
+  from its apex overstates by its distance from the apex (100 m to a
+  face 1 m long in `a_frustum_far_from_its_apex_is_levered_at_its_own_reach`),
+  deciding margins the face cannot. It is not kept as a fallback; a
+  plane×cone frame handed any other extent is a desync.
 - **Q5 U-S5's place.** The ring on a cone face is built and then refused
   at the result door. That is safe, so U-S5 is off U7's path.
   Recommendation: queue it after U7, and give U7's rows an explicit
