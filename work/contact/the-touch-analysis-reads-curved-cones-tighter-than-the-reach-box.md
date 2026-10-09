@@ -2,10 +2,11 @@
 id: the-touch-analysis-reads-curved-cones-tighter-than-the-reach-box
 kind: issue
 title: The census touch analysis reads a curved star face only through its reach box; reading curved cones would be tighter (fewer false refusals of true curved rests), and stays owed after the box reading lands
-status: open
+status: parked
 opened: 2026-09-29
 priority: P3
 cost: H
+blocked_on: [intent-stage4-is-built]
 ---
 
 

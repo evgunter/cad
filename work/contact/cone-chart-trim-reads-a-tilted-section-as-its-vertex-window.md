@@ -4,6 +4,8 @@ kind: issue
 title: cone_chart_trim folds the slant window over boundary vertices with no edge-class check, so a cone face bounded by a tilted planar section would be misread; no door builds one today
 status: open
 opened: 2026-09-26
+priority: P3
+cost: M
 ---
 
 

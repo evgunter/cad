@@ -4,6 +4,8 @@ kind: issue
 title: point-in-solid's at-infinity probe measures in closed form only, so an obliquely trimmed wall refuses VolumeUncertified
 status: open
 opened: 2026-10-01
+priority: P1
+cost: M
 ---
 
 
