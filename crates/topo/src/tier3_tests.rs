@@ -1926,36 +1926,9 @@ fn the_second_order_band_has_three_outcomes_and_they_are_three_answers() {
 /// or a material read inlined back into either file reds here.
 #[test]
 fn check_4_and_the_rim_route_their_second_order_reading_through_the_one_walk() {
-    let read = |file: &str| {
+    let scan = |file: &str, calls: &[(&str, usize)], spellings: &[&str]| {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(file);
-        test_utils::source::code_and_literals(&std::fs::read_to_string(path).unwrap())
-    };
-    let walk_spellings = [
-        "\"tangent_second_order\"",
-        "tangent_second_order(",
-        "tangent_jet(",
-    ];
-    let material_spellings = [
-        "\"material_cusp_side\"",
-        "\"material_wedge_side\"",
-        "classify_material_pairing(",
-        "material_kappa_rel(",
-        "folded_lever_arm(",
-    ];
-    let cases: [(&str, &[(&str, usize)], &[&str]); 2] = [
-        (
-            "src/validate.rs",
-            &[("second_order_walk(", 1), ("interior_stations(", 1)],
-            &walk_spellings,
-        ),
-        (
-            "src/boolean/rim_wedge.rs",
-            &[("second_order_walk(", 1), ("MaterialStations::new(", 1)],
-            &[walk_spellings.as_slice(), material_spellings.as_slice()].concat(),
-        ),
-    ];
-    for (file, calls, spellings) in cases {
-        let source = read(file);
+        let source = test_utils::source::code_and_literals(&std::fs::read_to_string(path).unwrap());
         for &(call, count) in calls {
             assert_eq!(
                 source.matches(call).count(),
@@ -1969,7 +1942,29 @@ fn check_4_and_the_rim_route_their_second_order_reading_through_the_one_walk() {
                 "`{file}` spells `{spelling}` beside the walk"
             );
         }
-    }
+    };
+    let walk = [
+        "\"tangent_second_order\"",
+        "tangent_second_order(",
+        "tangent_jet(",
+    ];
+    let material = [
+        "\"material_cusp_side\"",
+        "\"material_wedge_side\"",
+        "classify_material_pairing(",
+        "material_kappa_rel(",
+        "folded_lever_arm(",
+    ];
+    scan(
+        "src/validate.rs",
+        &[("second_order_walk(", 1), ("interior_stations(", 1)],
+        &walk,
+    );
+    scan(
+        "src/boolean/rim_wedge.rs",
+        &[("second_order_walk(", 1), ("MaterialStations::new(", 1)],
+        &[walk.as_slice(), material.as_slice()].concat(),
+    );
 }
 
 /// **Row: the must-carry rule and tier 3 read one second-order walk.**
