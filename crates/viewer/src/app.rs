@@ -4188,6 +4188,7 @@ mod properties_pane_tests {
             .expect("the field is open")
             .text = "gap".to_owned();
         pane.quiet();
+        let prior = pane.app.session.committed_doc().clone();
         pane.click("Name");
         let doc = pane.app.session.committed_doc();
         assert_eq!(doc.var_name(origin).map(|name| name.as_str()), Some("gap"));
@@ -4199,9 +4200,10 @@ mod properties_pane_tests {
         assert_eq!(pane.app.session.history().len(), steps + 1, "one step");
         assert!(pane.app.drafts.name_draft.is_none(), "the field closes");
         assert!(pane.app.session.perform(SessionOp::Undo).refusal.is_none());
-        let doc = pane.app.session.committed_doc();
-        assert!(doc.var_name(origin).is_none(), "undo takes the name back");
-        assert_ne!(doc.slot(extrude(), SlotId::Distance), Some(origin));
+        assert!(
+            pane.app.session.committed_doc().bit_eq(&prior),
+            "undo takes the name and the share back whole"
+        );
     }
 
     /// **A name the door refuses leaves the field open with its text**:

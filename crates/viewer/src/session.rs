@@ -1963,6 +1963,10 @@ impl DocSession {
             let spoken = self.committed_doc().spoken_var(var);
             return OpOutcome::refused(Refusal::NotOffered(spoken));
         }
+        if name.is_some() && self.committed_doc().var_name(var).is_some() {
+            let spoken = self.committed_doc().spoken_var(var);
+            return OpOutcome::refused(Refusal::OfferIsNamed(spoken));
+        }
         let read = props::slot_read_edit(node, slot, var);
         let outcome = match name {
             None => self.commit_written(read),

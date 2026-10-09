@@ -1005,7 +1005,7 @@ impl Lowering {
             if let Some(index) = self
                 .fresh
                 .iter()
-                .position(|(var, _)| !readers.contains_key(var))
+                .position(|(var, _)| readers.get(var).copied().unwrap_or(0) == 0)
             {
                 return Err(EditError::FreshUnread {
                     index: u16::try_from(index).unwrap_or(u16::MAX),

@@ -393,6 +393,34 @@ fn an_unnamed_offer_is_accepted_under_a_name_in_one_step() {
     assert_eq!(session.history().len(), before + 1, "one step");
 }
 
+/// **Accepting a named offer renames nothing** (VR2: a name is given to
+/// share an unnamed variable): a name carried for `w`, which has one,
+/// refuses `OfferIsNamed`, and `w` keeps its name and the slot its read.
+#[test]
+fn a_named_offer_takes_no_second_name() {
+    let (mut session, a, _b, w, _k) = two_extrudes();
+    typed(&mut session, a, 0.012);
+    let minted = reads(&session, a);
+    let refused = session.perform(SessionOp::SetSlotVariable {
+        node: a,
+        slot: SlotId::Distance,
+        var: w,
+        name: Some(VarName::from_static("width")),
+    });
+    assert!(
+        matches!(&refused.refusal, Some(Refusal::OfferIsNamed(var)) if var.id() == w),
+        "{:?}",
+        refused.refusal
+    );
+    let doc = session.committed_doc();
+    assert_eq!(
+        doc.var_name(w).map(VarName::as_str),
+        Some("w"),
+        "w keeps its name"
+    );
+    assert_eq!(reads(&session, a), minted, "and the slot its read");
+}
+
 /// **Two slots that share a variable are made two by the text door,
 /// not by a typed value** (VR2: a shared variable is named, and a slot
 /// reading a named variable is driven by it): a value typed at either

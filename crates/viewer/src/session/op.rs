@@ -136,7 +136,9 @@ pub enum SessionOp {
     /// has one reader (VR2), so accepting one names it: `name` is
     /// written first, by a `RenameVar`, and the two edits are one
     /// action and one undo step. A variable not on offer at that slot
-    /// is refused (`Refusal::NotOffered`).
+    /// is refused (`Refusal::NotOffered`), and a name for one that
+    /// already has a name (`Refusal::OfferIsNamed`): accepting renames
+    /// nothing.
     SetSlotVariable {
         /// The node.
         node: RecipeNodeId,

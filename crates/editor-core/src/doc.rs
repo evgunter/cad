@@ -1215,22 +1215,20 @@ impl<P> Doc<P> {
     }
 
     /// **How many readers each variable has** (VR2): each slot holding
-    /// it, each operand reading it, and each formula reading it — a
-    /// definition, or a measure's expression — however often that one
-    /// formula reads it.
+    /// it — a measure's value leaves and an assertion's bound among
+    /// them (VR4) — each operand reading it, and each definition reading
+    /// it, however often that one definition reads it. The one census
+    /// of readers: the VR7 sweep ([`Self::unread_anonymous_vars`]) and
+    /// the share check ([`Self::shared_unnamed_vars`]) both ask it.
     pub fn reader_counts(&self) -> BTreeMap<VarId, usize>
     where
         P: crate::ProfilePayload,
     {
         let mut readers: BTreeMap<VarId, usize> = BTreeMap::new();
         for node in self.nodes.values() {
-            let mut held: Vec<VarId> = node.exprs().into_iter().copied().collect();
-            if matches!(node, Node::Measure { .. }) {
-                held.sort_unstable();
-                held.dedup();
-            }
-            held.extend(node.operand_rows().into_iter().map(|(_, var)| var));
-            for var in held {
+            let slots = node.exprs().into_iter().copied();
+            let operands = node.operand_rows().into_iter().map(|(_, var)| var);
+            for var in slots.chain(operands) {
                 *readers.entry(var).or_default() += 1;
             }
         }
@@ -1311,45 +1309,44 @@ impl<P> Doc<P> {
     }
 
     /// **The anonymous variables nothing live reads** (VR7), in the
-    /// order a cascading removal reports them: a variable is live when
-    /// it is named, when a node reads it, or when the definition of a
-    /// live variable reads it. An output is not among them: it lives
-    /// exactly as long as its node. Each round takes, in declaration order,
-    /// the anonymous variables read by no node and by no definition of
-    /// a variable still standing — so a defined variable comes before
-    /// the variables only its definition read.
+    /// order a cascading removal reports them: an unnamed variable with
+    /// no reader ([`Self::reader_counts`]) goes, and so, round by round,
+    /// does one whose only readers were definitions of variables that
+    /// went. An output is not among them: it lives exactly as long as
+    /// its node. Each round is in declaration order, so a defined
+    /// variable comes before the variables only its definition read.
     pub(crate) fn unread_anonymous_vars(&self) -> Vec<VarId>
     where
         P: crate::ProfilePayload,
     {
-        let mut node_read = BTreeSet::new();
-        for node in self.nodes.values() {
-            node_read.extend(node.exprs().into_iter().copied());
-        }
+        let counts = self.reader_counts();
         let edges = self.definition_edges();
         let unheld = |at: usize| {
             let id = edges.ids[at];
             !self.var_names.contains_key(&id)
-                && !node_read.contains(&id)
                 && self
                     .vars
                     .get(&id)
                     .is_some_and(|var| var.def().output().is_none())
         };
-        // How many standing definitions read each variable: a round
-        // removes its variables' reads, and a variable whose count
-        // falls to none joins the next round.
-        let mut holders: Vec<usize> = edges.definers.iter().map(Vec::len).collect();
+        // Each variable's readers still standing: a round removes its
+        // variables' definitions, and a variable whose count falls to
+        // none joins the next round.
+        let mut readers: Vec<usize> = edges
+            .ids
+            .iter()
+            .map(|id| counts.get(id).copied().unwrap_or(0))
+            .collect();
         let mut round: Vec<usize> = (0..edges.ids.len())
-            .filter(|&at| holders[at] == 0 && unheld(at))
+            .filter(|&at| readers[at] == 0 && unheld(at))
             .collect();
         let mut removed = Vec::new();
         while !round.is_empty() {
             let mut next = Vec::new();
             for &at in &round {
                 for &read in &edges.reads[at] {
-                    holders[read] -= 1;
-                    if holders[read] == 0 && unheld(read) {
+                    readers[read] -= 1;
+                    if readers[read] == 0 && unheld(read) {
                         next.push(read);
                     }
                 }

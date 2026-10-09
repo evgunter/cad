@@ -353,3 +353,65 @@ fn a_shared_variable_survives_its_text() {
     );
     assert_eq!(doc.slot(point, x()), Some(v), "the share holds");
 }
+
+/// **A measure's value leaves are slots** (VR4), so two leaves of one
+/// measure are two readers (VR2): a measure reading one unnamed variable
+/// at two leaves refuses, where a definition reading it twice is one
+/// reader. Breaks if the count folds a measure's leaves into one.
+#[test]
+fn two_value_leaves_of_one_measure_are_two_readers() {
+    let doc = ProfileDoc::empty(DocumentId::derive("fork7-measure"), Tol::witness());
+    let entry = || editor_core::MeasureExpr::value(Formula::fresh(0, Dimension::Length));
+    let twice = editor_core::MeasureExpr::add(entry(), entry()).expect("lengths add");
+    let edit = |fresh: FreshEntry| DocEdit::InsertNode {
+        node: Box::new(Node::measure(twice.clone(), Vec::new()).expect("a measure")),
+        fresh: vec![fresh],
+    };
+    match try_step(
+        &doc,
+        edit(FreeVar::continuous(Dimension::Length, 0.5).into()),
+    ) {
+        Err(EditError::SharedVarNeedsName { var }) => assert_eq!(var.name(), None),
+        other => panic!("two leaves reading one unnamed variable refuse, got {other:?}"),
+    }
+    let named = edit(FreshEntry::named(
+        n("m"),
+        FreeVar::continuous(Dimension::Length, 0.5),
+    ));
+    try_step(&doc, named).expect("a named variable two leaves read lands");
+}
+
+/// **A log's replay passes the same door**: a saved log whose rename is
+/// cut out gives the second point an unnamed variable's second read, so
+/// the load refuses `EditReplay` with `SharedVarNeedsName`, and the
+/// sentence's recourse is the file's (regenerate it), not the edit
+/// door's (name it). Breaks if replay skips the check, or forwards the
+/// edit door's recourse to a load that made no edit.
+#[test]
+fn a_replayed_share_refuses_with_the_files_recourse() {
+    let (doc, _, v) = typed_point("fork7-replay");
+    let rename = DocEdit::RenameVar {
+        var: v.into(),
+        name: Some(n("v")),
+    };
+    let second = point_reading([read(v), len(0.0), len(0.0)]);
+    let text = save(&doc, &[rename, second], Tol::witness()).expect("the log saves");
+    load(&text, Tol::witness()).expect("the undoctored log loads");
+    let corrupt = crate::wire::doctored(&text, |wire| {
+        let edits = wire["edits"].as_array_mut().expect("the log");
+        assert!(edits[0].get("RenameVar").is_some(), "aimed at the rename");
+        edits.remove(0);
+    });
+    let err = load(&corrupt, Tol::witness()).expect_err("the doctored log refuses");
+    let PersistError::EditReplay { index, error } = &err else {
+        panic!("not EditReplay: {err:?}")
+    };
+    assert_eq!(*index, 0);
+    assert!(
+        matches!(**error, EditError::SharedVarNeedsName { ref var } if var.id() == v),
+        "{error:?}"
+    );
+    let said = err.to_string();
+    assert!(said.contains("regenerate the file"), "{said}");
+    assert!(!said.contains("name it"), "{said}");
+}
