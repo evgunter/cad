@@ -19,7 +19,8 @@
 use core::f64::consts::{FRAC_PI_2, PI, SQRT_2};
 
 use geom_core::{Affine3, Bounds, Interval, Point2, Point3, Real, Tol, Vec3};
-use sweep::test_support::{ball_poled_z, ball_poled_z_at, brick, finished};
+use profile::test_support::bulge_loop;
+use sweep::test_support::{ball_poled_z, ball_poled_z_at, brick, extruded, finished, sketch_at};
 use sweep::{ExtrudeSide, Extrusion, extrude};
 use topo::{AtRestBody, BooleanError, BooleanResult, MassPropsError, ValidationError};
 
@@ -351,4 +352,53 @@ fn the_witness_brackets_its_closed_forms_at_the_certified_scalar() {
             v.hi()
         );
     }
+}
+
+/// The planes in the ball's joined clone, its union with `tube` in both
+/// member orders: the aux planes the join minted into it, since the ball
+/// has none of its own.
+fn ball_planes(tube: &AtRestBody<f64>) -> [usize; 2] {
+    let tol = Tol::witness();
+    let planes = |b: &topo::Body<f64>| {
+        b.surfaces()
+            .filter(|(_, s)| matches!(s, geom::Surface::Plane { .. }))
+            .count()
+    };
+    let join = |a: &AtRestBody<f64>, b: &AtRestBody<f64>| {
+        topo::test_support::boolean_through_the_join(topo::BooleanOp::Union, a, b, tol)
+            .unwrap()
+            .expect("the union joins")
+    };
+    let ball = ball();
+    [planes(&join(tube, &ball).1), planes(&join(&ball, tube).0)]
+}
+
+/// **One aux plane per edge, and only where no arm reads the pair.**
+///
+/// - The witness turned 0.4: its rim is two arc edges, split into
+///   pieces at the ball's seam meridians. The edge-plane lane mints one
+///   plane into the ball per edge, keyed by the edge's split root, so
+///   two, not one per piece.
+/// - A pipe whose inner rim lies on the ball: the rim is an edge of its
+///   top annulus, a plane, so the plane × sphere arm reads the pair and
+///   mints one partner copy per pipe face it cuts the ball by (the
+///   annulus and the base). The edge-plane lane, taken ahead of that
+///   arm, would mint a plane per rim edge instead.
+#[test]
+fn the_edge_plane_lane_mints_one_plane_per_edge_and_only_where_no_arm_reads() {
+    let (witness, _, _) = Pose::new(1.0, 2.0, 0.0, 0.4).tube();
+    assert_eq!(ball_planes(&witness), [2, 2], "the witness turned 0.4");
+    let tol = Tol::witness();
+    let v = |x: f64, b: f64| (Point2::new(x, 0.0), b);
+    let pipe = extruded(
+        sketch_at(0.0),
+        vec![
+            bulge_loop(vec![v(1.6, 1.0), v(-1.6, 1.0)]),
+            bulge_loop(vec![v(1.0, -1.0), v(-1.0, -1.0)]),
+        ],
+        1.0,
+        tol,
+    );
+    let pipe = finished("the pipe", pipe, tol);
+    assert_eq!(ball_planes(&pipe), [2, 2], "the pipe on the ball");
 }

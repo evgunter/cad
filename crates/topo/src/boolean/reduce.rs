@@ -488,9 +488,8 @@ pub(super) fn gate_unverdicted_operand<T: Decide + crate::props::AtRestPolicy>(
 /// either kind and would answer one as a kernel invariant or read it
 /// wrong:
 ///
-/// - the join's germ frame along an edge of both solids
-///   (`join::germ_section_frame`: `JoinDesync`; along an edge of one
-///   solid it reads the face pair's frame instead);
+/// - the join's germ frame along an edge of either solid
+///   (`join::germ_section_frame`: `JoinDesync`);
 /// - the join's ring run and the chord joiner's run edges
 ///   (`join::ring_run_ccw`, `chord_join`'s run-edge reading:
 ///   `SectionInvariant`);

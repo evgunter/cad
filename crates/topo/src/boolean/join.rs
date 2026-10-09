@@ -1774,9 +1774,10 @@ fn along_edge_conic<T: Decide>(
 /// STRAIGHT — a plane×plane pair, and the degenerate plane×cylinder
 /// outcomes whose loci ARE lines (ParallelLines/TangentLine).
 ///
-/// A germ along a line or conic edge of either solid lies on that edge,
-/// and its frame is the edge's own ([`along_edge_conic`]); every other
-/// germ reads its face pair's.
+/// A germ along an edge of either solid lies on that edge, and its
+/// frame is the edge's own ([`along_edge_conic`]), or a desync where
+/// the edge is neither a line nor a conic; a germ inside a face on both
+/// solids reads its face pair's.
 ///
 /// **`None` is a claim, not a default.** The caller reads it as "take
 /// the straight-chord facing test", so a pair whose section arm is not
@@ -1797,26 +1798,19 @@ fn germ_section_frame<T: Decide>(
     let desync = |what| BooleanError::JoinDesync { what };
     // A germ along an edge lies on that edge, whatever the two faces it
     // was recorded against, which may share one carrier, or meet in no
-    // conic. An edge of both solids that is neither a line nor a conic
-    // is one the operand gates refuse; an edge of one solid that is
-    // neither reads the face pair below.
+    // conic. An edge that is neither a line nor a conic is one the
+    // operand gates refuse: reading the face pair's frame for it instead
+    // would hand a coplanar pair's straight-chord test a curved edge.
     if let Some(along) = along_edge_conic(red, germ)? {
-        match along.carrier {
-            geom::Curve3::Line { .. } => return Ok(None),
+        return match along.carrier {
+            geom::Curve3::Line { .. } => Ok(None),
             geom::Curve3::Circle { center, axis, .. }
-            | geom::Curve3::Ellipse { center, axis, .. } => return Ok(Some((center, axis))),
-            _ if matches!(
-                (germ.a_locus, germ.b_locus),
-                (super::Locus::OnEdge(_), super::Locus::OnEdge(_))
-            ) =>
-            {
-                return Err(desync(
-                    "an OnEdge germ's edge is neither a line nor a conic (the operand gates \
-                     refuse the kinds)",
-                ));
-            }
-            _ => {}
-        }
+            | geom::Curve3::Ellipse { center, axis, .. } => Ok(Some((center, axis))),
+            _ => Err(desync(
+                "an OnEdge germ's edge is neither a line nor a conic (the operand gates refuse \
+                 the kinds)",
+            )),
+        };
     }
     let surf = |body: &Body<T>, f: FaceKey| -> Result<geom::Surface<T>, BooleanError> {
         body.get_face(f)

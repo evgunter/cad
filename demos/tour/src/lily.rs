@@ -162,7 +162,8 @@ use pncad::sweep::{
     revolve, revolved_caps, sweep_body, tube_along_arc,
 };
 use pncad::topo::{
-    AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, Operand, TransformError,
+    AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, Operand, RestZipFrontier,
+    TransformError,
 };
 
 use crate::booleans::{check, expect_seamed, finished, try_union_declared};
@@ -2278,15 +2279,21 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    other tube's carrier only outside that face's window, which
     //    the roots certify. So the glue reaches the join, whose germ
     //    pair of the stem's weld cap against the arch's wall (plane ×
-    //    torus, the arch's rim lying in the cap) reads its frame off
-    //    that rim and has no join arm; the declared mate's door refuses
-    //    it after that. The pin is "past the germ frame", not that
-    //    door's own refusal, which the declared-contact work replaces.
+    //    torus, the arch's rim lying in the cap) has no join arm; the
+    //    declared-REST door re-examines the mate and refuses it as a
+    //    zip frontier: its segments run between isolated pierces.
     wall(
         1,
         "glue the two stem arcs into one stem (declared coincident-planar mate)",
         crate::booleans::try_union_declared(stem, arch, tol),
-        |e| !matches!(e, BooleanError::GermFrameUnsupported { .. }),
+        |e| {
+            matches!(
+                e,
+                BooleanError::RestZipUnsupported {
+                    what: RestZipFrontier::SegmentsBetweenIsolatedPierces
+                }
+            )
+        },
         "make the stem a single body — and close #968, whose whole content this is",
     );
 
@@ -4248,27 +4255,26 @@ mod verbs_gate_r1_probes {
             &operand("lily_lantern"),
         );
 
-        let glued = crate::booleans::try_union_declared(stem, arch, tol);
-        println!("lily wall 1: {:?}", glued.as_ref().err());
+        let glued = crate::booleans::try_union_declared(stem, arch, tol)
+            .expect_err("the stem's two arcs still cannot be glued");
+        println!("lily wall 1: {glued:?}");
         // **Wall 1 is past the gate and the crossing layer.** The
         // circle × torus root lane certifies each seam's crossing of the
         // other tube's carrier as lying outside that face's window, so
         // the glue reaches the join, whose germ pair of the stem's weld
-        // cap against the arch's wall (plane × torus) reads its frame off
-        // the arch's rim lying in the cap and has no join arm. What
-        // follows is the declared mate's door: a typed refusal, or a
-        // body that holds tier 3.
-        match &glued {
-            Err(e) => assert!(
-                !matches!(e, BooleanError::GermFrameUnsupported { .. }),
-                "wall 1 is past the germ frame: {e:?}"
+        // cap against the arch's wall (plane × torus) has no join arm,
+        // and the declared-REST door refuses the mate as a zip
+        // frontier. Unconditional: an `if let` here would go quiet
+        // exactly when the refusal's shape changes.
+        assert!(
+            matches!(
+                glued,
+                BooleanError::RestZipUnsupported {
+                    what: RestZipFrontier::SegmentsBetweenIsolatedPierces
+                }
             ),
-            Ok(r) => {
-                let bb = r.body().expect("the glue is one body");
-                pncad::topo::validate_geometric(&bb.body, tol)
-                    .unwrap_or_else(|e| panic!("the glued stem holds tier 3: {e:?}"));
-            }
-        }
+            "wall 1 stops at the declared-REST door: {glued:?}"
+        );
         // **The weld itself has no torus contact to declare**, measured
         // off the two loci: the stem tube's end circle has radius
         // `STEM_R` = 0.060 and the arch's start disc radius `ARCH_R` =
