@@ -15,7 +15,7 @@ refs: [the-half-angle-ladder-certifies-in-band-configurations, circle-torus-mete
 Found by GERM's circle × torus measurement lane (2026-10-08, branch
 `germ/circle-torus-outside-band`), which asked whether the door on main
 certifies any answer that is wrong OUTSIDE the band. It does, at
-`ε = 1e-12`, by root placement only. A later escape of DR-16 (PR 3375).
+`ε = 1e-12`, by root placement only. A later escape of DR-54 (PR 3805).
 
 ## What
 
@@ -34,8 +34,11 @@ placed up to 1.85e-9 m along the carrier from the true root, which is
 it. The `RootSlack` meter (`circle_roots.rs:277`) exists for exactly
 this case ("or the span and trim decisions the caller makes on the root
 are made on the wrong point"). The ellipse × torus and cone doors pass
-it. This door has passed `None` since the ladder's own `root_slack`
-was removed in `0f74dfdb7e`.
+it. This door has certified the subdivision's roots unmetered since
+`31116eeaee` (PR 3805's first fix pass), which made the subdivision
+answer in the ladder's place and kept only the ladder's escalations:
+the ladder's own `root_slack` was still decided but no longer read,
+and `0f74dfdb7e` later removed it as dead code.
 
 Every wrong answer is from the `f64` lane, on the general arm, at
 `ε = 1e-12`. No pose on the parallel arm was wrong (the arm is read as
