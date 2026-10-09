@@ -4,6 +4,7 @@ kind: issue
 title: cone and torus operand lanes
 status: dispatched
 branch: germ/cone-roster-flip
+pr: 4418
 opened: 2026-08-21
 refs: [1604, VERBS-C5ARMS]
 priority: P0
