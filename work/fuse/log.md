@@ -708,3 +708,13 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - **P3, guards and latent soundness:** corner on a circle's interior unseen; join re-mint refusing as a kernel defect (design); mirrored split that joins; split join killing a child; wrap-edge arm; chart singularity read by distance alone (design).
   - **P4:** the joined finisher minting twice.
 - 2026-10-09 — `fused-into-names-vertices-not-live-in-the-result` is dispatched to the step-3 lane on `fuse/fused-into-is-live`. It re-measures on main first, since the join is a new vertex remover, then fixes at the remover.
+- 2026-10-09 — The `fused-into-is-live` lane measures on main, then gets its ruling.
+  - **Corpus:** the rebuilt lattice probe (1000 bricks × 3 declared ops) gives 387 of 2721 bodies with a dead `fused_into` value.
+  - **Removers of the 768 dead values:**
+    - the join, 336;
+    - merge pruning, 420;
+    - the merge's `delete_lone_ring`, 12;
+    - nothing else.
+  - **Why the old type fails:** every dead survivor's point now lies inside a live edge or face, so a `VertexKey` value can never be total over live keys.
+  - **Ruled (orchestrator), as the step-4 rule applied (a name reads over live cells):** `fused_into` returns a typed live cell (`Vertex` | `InEdge` | `InFace`). The join and merge kill records are chased to it, and the corpus is pinned as a row.
+  - **What stays the same:** consumers' naming output does not move. A border inside a cell still settles to None. Naming it is filed as a separate design row.
