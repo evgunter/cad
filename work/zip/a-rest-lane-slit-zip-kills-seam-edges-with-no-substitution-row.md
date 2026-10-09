@@ -2,11 +2,11 @@
 id: a-rest-lane-slit-zip-kills-seam-edges-with-no-substitution-row
 kind: issue
 title: The REST lane's slit zip kills R-interior run edges and vertices with no substitution row, and its new edge rows have no test
-status: parked
+status: closed
 opened: 2026-10-03
 priority: P3
 cost: E
-blocked_on: [intent-stage4-is-built]
+closed: 2026-10-08
 ---
 
 ## The finding
@@ -69,3 +69,7 @@ This row is on declared-contact ground, so it waits on `d10-one-way-to-say-inten
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: slit_zip and glue_pair in rest.rs are on stage 4's deletion list (the three-arms item). (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed (2026-10-08, INTENT stage 4 A (`intent/s4-a-join`))
+
+`boolean/rest.rs` is deleted, and the join builds every union it built (125 of the door's 185 openings across the topo, sweep and editor-core suites; the other 60 were its declines and refusals, which the join now builds sound or refuses with its own answer). `slit_zip` and `glue_pair` went with it, so no seam edge is killed without a substitution row by them.

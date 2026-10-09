@@ -2,11 +2,11 @@
 id: the-rest-lanes-glue-reads-its-correspondence-unfused
 kind: issue
 title: The REST lane's glue loop reads its vertex correspondence without the earlier glues' fusions
-status: parked
+status: closed
 opened: 2026-10-05
 priority: P3
 cost: M
-blocked_on: [intent-stage4-is-built]
+closed: 2026-10-08
 ---
 
 ## What
@@ -51,3 +51,7 @@ This row is on declared-contact ground, so it waits on `d10-one-way-to-say-inten
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: the vmap re-read sits in try_rest_union's glue loop in rest.rs, deleted at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed (2026-10-08, INTENT stage 4 A (`intent/s4-a-join`))
+
+`boolean/rest.rs` is deleted, and the join builds every union it built (125 of the door's 185 openings across the topo, sweep and editor-core suites; the other 60 were its declines and refusals, which the join now builds sound or refuses with its own answer). The glue loop and its correspondence went with it.

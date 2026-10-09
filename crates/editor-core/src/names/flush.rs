@@ -85,7 +85,7 @@
 //! wall in its bore is reported exactly as two flush plates' faces
 //! are. The class is read off the orientation the verifier decided:
 //! [`PlaneRelation::SameOpposite`] is a `Rest` contact (opposed
-//! material sides — the REST lane's zip), and
+//! material sides), and
 //! [`PlaneRelation::SameOriented`] a continuation
 //! ([`BooleanCoincidence::Continuation`]: two stacked parts' outer
 //! walls, which the union merges). Both are exactly the pairs the

@@ -416,6 +416,11 @@ fn in_band_refusal(result: Result<Filleted<f64>, BlendRefusal>, what: &str) -> B
                 shown.contains(FILLET3_CONTACT_RECOURSE),
                 "{what}: the refusal names the radius as the lever.\n  got: {shown}"
             );
+            assert!(
+                shown.contains("if this separation is intended, tighten the tolerance below "),
+                "{what}: either definite sign of the separation builds, so the tolerance \
+                 that decides it is offered.\n  got: {shown}"
+            );
             error
         }
     }

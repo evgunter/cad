@@ -1432,8 +1432,7 @@ pub enum NodeErrorKind {
     /// M6), pinned in `sweep/tests/m5_pr10_frontier.rs`'s flipped
     /// rows' successor and `editor-core`'s node suites.
     ///
-    /// A named sub-frontier, never a laundered catch-all (the
-    /// `RestZipUnsupported` precedent).
+    /// A named sub-frontier, never a laundered catch-all.
     CurvedSolidFrontier {
         /// The precise missing door.
         what: &'static str,
