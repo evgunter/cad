@@ -288,6 +288,39 @@ declarations live (until stage 4 F). The fourth, `Results` keyed by read,
 together with per-output tables and the `side` drop, is
 `part-split-half-retires`'s target.
 
+### Round 3
+
+1. **The `side` drop: ratify the principle now, build it later.** My
+   objection was only to building it in the same unit, not to ratifying
+   it. The other designer's packaging meets that objection: this `[ev]` PR
+   ratifies "a name is scoped by the variable that holds its body", and a
+   second unit, after the read key, builds per-variable tables together
+   with `Results` keyed by read and the `side` drop. I agree with their
+   reason. The per-node table is already wrong on D10's own terms
+   (`Place` over `[X, copy(X)]`), so ratifying only half the decision
+   would put one decision in two places. This supersedes round 2, item 1.
+   *Likely.*
+2. **The family rule: I agree with the other designer.** `xs[i]` is a
+   definition with its own `VarId`, and the key is that id, with no walk
+   to the output it reaches.
+   - Keying by the definition's own id breaks no name N5 must keep.
+   - Redefining `first = xs[0]` as `xs[1]` keeps the key and strands the
+     inner names, which is correct, since it is a different body.
+   - Rewriting `Union[xs]` as `Union[xs[0], …]` is a re-point by
+     `SetMembers`, so DM6 and DM7 already have it strand and report. It is
+     not a survival case.
+   - The walk I proposed bought name equality across that rewrite, which
+     nothing needs. It cost an extension of DM5 to "the output reached",
+     so that `Union[xs, xs[0]]` would not collide. Under the other
+     designer's rule, those are two variables, admitted, built as `A ∪ A`
+     on that member.
+   - The index appears both in the definition and in the inner
+     `Member { (k, 0) }`. This is the coincidence DM4 already accepts,
+     like a member that is also its own minter. It is not a repetition,
+     because a redefinition separates the two.
+   - This withdraws my section 3's "keys by the family variable `xs`".
+   *Likely.*
+
 ## For the orchestrator
 
 - Assumed: a `Body` variable is always a `VarDef::Output` (D10: "the
