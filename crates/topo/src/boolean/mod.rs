@@ -4366,6 +4366,33 @@ pub fn join_admitting_cones(
     )
 }
 
+/// **The whole op behind the front door**: the production pipeline
+/// ([`ops::boolean_op_recut`]), finished, gated and backstopped, as
+/// [`join_admitting_cones`] runs it to the join. Undeclared and
+/// realized; skips the front door's ∖/∩ revert roster; `sweep-testing`
+/// only.
+///
+/// # Errors
+///
+/// The pipeline's refusals.
+#[cfg(feature = "sweep-testing")]
+pub fn boolean_admitting_cones(
+    op: BooleanOp,
+    a: &crate::AtRestBody<f64>,
+    b: &crate::AtRestBody<f64>,
+    tol: Tol,
+) -> Result<BooleanResult<f64>, BooleanError> {
+    ops::boolean_op_recut(
+        op,
+        a,
+        b,
+        &BooleanDeclarations::none(),
+        SweepStrategy::Realized,
+        true,
+        tol,
+    )
+}
+
 /// [`join_admitting_cones`]' product.
 #[cfg(feature = "sweep-testing")]
 #[derive(Debug)]
