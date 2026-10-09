@@ -357,9 +357,7 @@ fn edge_clear_of_ball<T: Decide + Bounds>(
         geom::Curve3::Line { .. } => {
             let a = boxes::edge_end_point(y, edge, e.he_plus, "he_plus");
             let b = boxes::edge_end_point(y, edge, e.he_minus, "he_minus");
-            let (d, w) = (b - a, at - a);
-            let s = (w.dot(d) / d.norm_squared()).max(T::zero()).min(T::one());
-            (w - d * s).norm()
+            crate::sector_shape::point_segment_distance(a, b, at)
         }
         geom::Curve3::Circle {
             center,
