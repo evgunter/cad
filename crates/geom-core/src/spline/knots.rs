@@ -574,7 +574,9 @@ impl KnotVector {
         self.knots.len() - self.degree - 1
     }
 
-    /// The parameter domain `[knots[p], knots[len − 1 − p]]`.
+    /// The parameter domain `[knots[p], knots[len − 1 − p]]`, strictly
+    /// forward: the end runs are exactly `p + 1` long and the knots
+    /// non-decreasing, so `knots[p] < knots[p + 1] ≤ knots[len − 1 − p]`.
     pub fn domain(&self) -> (f64, f64) {
         // Indexing justified: len ≥ 2(p+1) (construction invariant).
         (
@@ -1068,6 +1070,30 @@ mod tests {
 
     fn kv(knots: &[f64], p: usize) -> KnotVector {
         KnotVector::clamped(knots.to_vec(), p).unwrap()
+    }
+
+    /// A domain stored reversed or collapsed is not mintable, so a
+    /// consumer metering `d1 - d0` (certify's span meter) sees a positive
+    /// width. The reversal here is in the END runs, which an interior
+    /// order check alone would not reach; `on_domain`'s reversed request
+    /// is `on_domain_refusals_are_typed`'s row.
+    #[test]
+    fn a_reversed_or_collapsed_domain_is_not_mintable() {
+        let bad = |knots: &[f64]| KnotVector::clamped(knots.to_vec(), 1).unwrap_err();
+        assert_eq!(
+            bad(&[1.0, 1.0, 0.0, 0.0]),
+            SplineError::KnotVectorInvalid {
+                reason: KnotVectorIssue::Decreasing { index: 2 }
+            },
+            "reversed end runs"
+        );
+        assert_eq!(
+            bad(&[0.5, 0.5, 0.5, 0.5]),
+            SplineError::KnotVectorInvalid {
+                reason: KnotVectorIssue::StartNotClamped
+            },
+            "collapsed domain"
+        );
     }
 
     #[test]
