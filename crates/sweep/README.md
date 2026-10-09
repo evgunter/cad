@@ -274,7 +274,8 @@ stored kinds (plane, cylinder, line, circle, ellipse).
   L): Zero builds
   the first, definite the second, the sliver band refuses. A Zero
   verdict is a coincidence decided from values, so the verdict records
-  it (`BatteryVerdict::coincidences`, D10). No ball rests at a turn,
+  it (`BatteryVerdict::coincidences`, D10), and `Blended::coincidences`
+  carries the rows to the document's coincidence door. No ball rests at a turn,
   so the mitre is G0 between the bands; it never competes with the
   patch, because the request count decides.
 

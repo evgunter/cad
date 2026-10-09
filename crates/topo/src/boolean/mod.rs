@@ -1189,6 +1189,12 @@ pub(crate) struct VerifiedDeclarations {
     /// that read. Only a union consumes it.
     pub(crate) through_a_face:
         Option<Result<(crate::contact::DeclaredContact, Operand), BooleanError>>,
+    /// The one-carrier pairs a margin decided, one row each in
+    /// declaration order: a declaration's verification is a value
+    /// decision, so its glue is recorded like any other
+    /// ([`crate::coincidence`]). A pair the same-source rung settled is
+    /// structure and has none.
+    pub(crate) coincidences: Vec<crate::Coincidence>,
 }
 
 impl<T: Decide> DeclaredPairs<T> {
@@ -1742,6 +1748,9 @@ pub struct BooleanReduction<T: Real> {
     /// Each point where the insertion hung runs at a turned run's copy
     /// ([`HungPoint`]).
     pub(crate) hung: Vec<HungPoint>,
+    /// The coincidences the declaration door decided from values, in
+    /// operand keys ([`crate::coincidence`]).
+    pub coincidences: Vec<crate::Coincidence>,
 }
 
 /// A cross-operand face pair the coincidence ladder settled one
@@ -4658,6 +4667,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         edge_splits,
         edge_classes,
         hung,
+        coincidences: declared.verified.coincidences.clone(),
     })
 }
 
@@ -4917,8 +4927,15 @@ fn verify_declared_contacts<T: Decide>(
                 verified.tangent.insert((fa, fb));
             }
             BooleanCoincidence::Contact(ContactClass::Rest) | BooleanCoincidence::Continuation => {
-                if verify_one_carrier_declaration(a, fa, b, fb, class, band)? {
-                    verified.one_carrier.insert((fa, fb));
+                match verify_one_carrier_declaration(a, fa, b, fb, class, band)? {
+                    OneCarrier::Unread => {}
+                    OneCarrier::Structural => {
+                        verified.one_carrier.insert((fa, fb));
+                    }
+                    OneCarrier::Decided(row) => {
+                        verified.one_carrier.insert((fa, fb));
+                        verified.coincidences.push(row);
+                    }
                 }
             }
             BooleanCoincidence::Seam => {
@@ -4974,14 +4991,28 @@ pub(super) fn sense_contradiction(
     }
 }
 
+/// **What the declaration door made of one `Rest` or continuation
+/// pair** that it did not refuse.
+enum OneCarrier {
+    /// A carrier kind the ladder cannot describe: no certificate.
+    Unread,
+    /// One carrier with the class's sense, settled by structure before
+    /// any margin was read: a certificate and no row (stage 4 spec §14
+    /// Q1).
+    Structural,
+    /// One carrier with the class's sense, decided by a margin: a
+    /// certificate and the row recording the decision.
+    Decided(crate::Coincidence),
+}
+
 /// The `Rest` and continuation half of [`verify_declared_contacts`]:
 /// the carrier ladder in its declared posture — a definitely-different
 /// carrier contradicts, an in-band residue is bridged (C4), a sliver
 /// escalates — and then the sense bit the class demands.
 ///
-/// `Ok(true)` when the ladder called the two faces ONE carrier with
-/// that sense — the certificate the crossing layer's carrier-identity
-/// rung reads, recorded once here instead of re-derived per event.
+/// One carrier with the class's sense, either way it was settled, is
+/// the certificate the crossing layer's carrier-identity rung reads,
+/// recorded once here instead of re-derived per event.
 fn verify_one_carrier_declaration<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -4989,29 +5020,49 @@ fn verify_one_carrier_declaration<T: Decide>(
     fb: FaceKey,
     class: BooleanCoincidence,
     band: Band,
-) -> Result<bool, BooleanError> {
-    let outcome = match rest::carrier_pair_relation(a, fa, b, fb, true, band) {
+) -> Result<OneCarrier, BooleanError> {
+    let outcome = match rest::carrier_pair_reading(a, fa, b, fb, true, band) {
         Ok(outcome) => outcome,
         Err(rest::PairUnread::Extent(face)) => return Err(unreadable_extent(face)),
         // A carrier kind the ladder cannot describe: `validate_
         // declarations` has already had its say about which kinds this
         // op accepts, so there is nothing left to add here — and
         // nothing for the identity rung to read.
-        Err(rest::PairUnread::OutsideInventory) => return Ok(false),
+        Err(rest::PairUnread::OutsideInventory) => return Ok(OneCarrier::Unread),
     };
     let aligned = class == BooleanCoincidence::Continuation;
+    let one = |relation, margin: Option<MarginDiag>| match margin {
+        None => OneCarrier::Structural,
+        Some(margin) => OneCarrier::Decided(crate::Coincidence {
+            cells: [
+                crate::RowCell::face(Operand::A, fa),
+                crate::RowCell::face(Operand::B, fb),
+            ],
+            relation,
+            site: declared_site(a, fa, b, fb),
+            margin,
+            discharge: crate::Discharge::Numeric,
+        }),
+    };
     match outcome {
-        Ok(carrier_eq::CarrierRelation::SameOriented) if aligned => Ok(true),
-        Ok(carrier_eq::CarrierRelation::SameOpposite) if !aligned => Ok(true),
-        Ok(
+        Ok((carrier_eq::CarrierRelation::SameOriented, _, margin)) if aligned => {
+            Ok(one(crate::Relation::SameOriented, margin))
+        }
+        Ok((carrier_eq::CarrierRelation::SameOpposite, _, margin)) if !aligned => {
+            Ok(one(crate::Relation::SameOpposite, margin))
+        }
+        Ok((
             carrier_eq::CarrierRelation::SameOriented | carrier_eq::CarrierRelation::SameOpposite,
-        ) => Err(sense_contradiction(fa, fb, class, band)),
+            ..,
+        )) => Err(sense_contradiction(fa, fb, class, band)),
         // The declared posture contradicts a definite difference, it
         // never answers `Distinct`: the same kernel-defect answer the
         // REST lane gives (`rest.rs`).
-        Ok(carrier_eq::CarrierRelation::Distinct) => Err(BooleanError::ClassificationInvariant {
-            what: "declaration door: declared rung returned Distinct instead of contradicting",
-        }),
+        Ok((carrier_eq::CarrierRelation::Distinct, ..)) => {
+            Err(BooleanError::ClassificationInvariant {
+                what: "declaration door: declared rung returned Distinct instead of contradicting",
+            })
+        }
         Err(carrier_eq::CarrierEqError::Contradicted { fact, diag }) => Err(match class {
             BooleanCoincidence::Continuation => BooleanError::ContinuationContradicted {
                 a: fa,
@@ -5053,6 +5104,27 @@ fn verify_one_carrier_declaration<T: Decide>(
             [(Operand::A, fa), (Operand::B, fb)],
             relation,
         )),
+    }
+}
+
+/// Which ladder decided a declared one-carrier pair: the plane ladder
+/// where both faces are planes, the carrier ladder otherwise.
+fn declared_site<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+) -> crate::DecisionSite {
+    let plane = |body: &Body<T>, f| {
+        matches!(
+            rest::face_carrier(body, f),
+            Some(carrier_eq::CarrierDesc::Plane { .. })
+        )
+    };
+    if plane(a, fa) && plane(b, fb) {
+        crate::DecisionSite::PlaneLadder
+    } else {
+        crate::DecisionSite::CarrierLadder
     }
 }
 
