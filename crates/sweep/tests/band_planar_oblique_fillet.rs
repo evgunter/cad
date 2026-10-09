@@ -176,7 +176,7 @@ fn a_near_perpendicular_end_escalates_or_decides_the_circle() {
 /// section over the slot's width. A brick wholly apart refuses at the
 /// containment door, whose rays from the far brick meet nothing and
 /// whose volume fallback is closed-form only — the boolean's open row
-/// (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`),
+/// (`work/restread/at-infinity-probe-measures-in-closed-form-only.md`),
 /// pinned here so it retires with it.
 #[test]
 fn the_ellipse_edges_pass_the_tessellator_and_the_boolean() {

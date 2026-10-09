@@ -270,9 +270,12 @@ const HOLDERS: &[&str] = &[
 const ROSTER: &[(&str, usize, usize, &str)] = &[
     (
         "crates/geom-brep/src/offset_fit.rs",
-        7,
-        7,
-        "every read is in `cell_bound`, which refuses to `f64::INFINITY`",
+        10,
+        9,
+        "nine reads are in `cell_terms`, which refuses to `None` by name. The \
+         remainder is `e_low_witness`, the `e_low` that `cell_bound` hands \
+         `cell_terms`: its only production call is there, after both \
+         `e_floors` intervals have asked `is_certified()`",
     ),
     (
         "crates/geom-brep/src/offset_meters.rs",
@@ -292,6 +295,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          contributes `0` for a non-finite one, so a refused point still yields a \
          finite centre and the widened hulls report the trouble",
     ),
+    ("crates/geom-brep/src/pcurve_cache.rs", 2, 2, ""),
     (
         "crates/geom-brep/src/props/quad.rs",
         12,

@@ -712,3 +712,24 @@ coincidence is now a margined verdict (no declarations), checked by the
   - P1 is kept.
 - **Record:** fork-log row 89 is completed (renumbered from 85 at merge, because main took rows 85–88).
 - **Implementer:** session_01Ht23dQzhB1yisWXxau9tZF, on branch `pcert/projected-image` from 981fd34e. It is an H unit, with at most two PRs, and gets a dual review. It first establishes where the tube lives at rest.
+
+## 2026-10-09 — PR 4304 merged (111782d6): the projected image on every analytic chart; dual review, three follow-up reviews, DR-116
+
+- **Dual review** at `fdc8ea9b` (byte 13, odd: R1 = B, R2 = A). R1 NOT-MERGEABLE-AS-IS, R2 APPROVE-WITH-FIXES. Both found the same MAJOR, so the tally stays 0.
+  - **The MAJOR:** retiring `OnLocusHull` dropped limbs 1–2 from every edge whose faces store no row. A plane face, or a mate named only in the description, left the edge with only the tube. Red probes on plane × cylinder.
+  - **Class finding:** *the edge certificate must not rely on rows existing.* `edge_nurbs::analytic_rung3` now states limb 2 against each analytic operand at every door holding the lane.
+- **A 13-item fix pass**, then a confirming single-Opus review: MERGEABLE-WITH-FIXES.
+  - Limb 2 read the whole net, so an edge refused on geometry past its ends. The derivation's incidence gate and the piece-granular `met` did too. Class: *whole-net reads where the edge's interval is owed.*
+  - An unratified no-lane sentence had entered C2 in the fix pass. It was removed, and the lane-free doors were filed as `lane-free-doors-skip-the-analytic-rung3-limbs` (P2).
+- **Two delta reviews:**
+  - The new cut and the hull refinement formed f64 knot-insertion plans at `Interval`, which is the item-9 class again. Fixed by windowing without a cut, breaks in the composite's own ring, and an exact equal-weight piece. The rational tube reads its whole net (P3). The tube chain's own f64 refinement is pre-existing and filed P2.
+  - The implementer had reported "a real hole" in min/max over brackets. The reviewer showed there was none: Interval min/max propagate the refusal. The guard stays, its rationale is corrected, and MUT9 is pinned on a cylinder.
+- **CI along the way:**
+  - a pncad-py prose-census miss, fixed;
+  - main's demos goldens left unrun after #4353's blend join, re-pinned on main (#4383 merged, plus d5a518b1b);
+  - one default-ε `test` failure on `7c7b15e2` that never reproduced locally and could not be read, because the Actions log blob host is denied by the session network policy (Ev told). It was green on the next head.
+  - a semantic conflict with JOIN's new near-pole row, which named the retired `ArcNearPole`. Its δ = 1e-7 cut now builds, with every volume holding.
+- **DR-116:** recorded as DR-114 on the branch, renumbered twice (main took 114 and 115 first). Fair pairs that found any MAJOR: 54.
+- **Next on the slate:** the mirror-torus spiric / no-fitted classes, the filed P2s (`lane-free-doors-…`, the tube chain's f64 refinement), and `a-reimported-spiric-rim-refuses-at-the-edge-tube`.
+- 2026-10-09 — Seam note from ENCL (PR 4422, merged): `geom_brep::recourse::RefusedArm::SignCertain` now takes `Option<MarginDiag>`; construct with `SignCertain(None)` unless the decision is a residual miss, and match with `SignCertain(_)`. `certify::definite_miss_in_file` / `Unsized::definite_residual_in_file` are gone; `Unsized::residual_in_file` is the one door. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4427, `encl/limb-refusal-margin`, merged at `e3646226c0`): `SsiError::CertificateLimb`, `PlaneNurbsRefusal::Limb` and `AnalyticRung3Refusal::Limb` now carry `margin: MarginDiag` beside `value`, minted by `decide_reported`; the decision bit is identical to `decide`. Match them with `..`. The margin is for error text only: never branch on it (Bounds clause 2). `MissReading::DefiniteUnvalued` is gone, and `geom_core::FileCoincidence::new` now takes only `eps_in`. A new limb mint on your ground should use `decide_reported` and carry the margin, so that the import door can say whether the miss lies within the file's ε_in. Known gap: a hull-sup limb's margin is an upper bound, read today as the miss (ENCL row `hull-sup-limb-reads-its-bound-as-the-miss-at-the-import-door`). (ENCL orchestrator)

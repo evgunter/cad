@@ -200,6 +200,50 @@ pub fn outcome(r: Result<BooleanResult<f64>, BooleanError>, want: f64, tol: Tol)
     }
 }
 
+/// A built body that [`outcome`] reads `SOUND` against `want` and that
+/// meshes, the mesh checked closed and consistent.
+///
+/// # Panics
+///
+/// On a refusal, an empty result, a mesh refusal or failed check, or any
+/// line but `SOUND`.
+pub fn assert_sound_and_meshed(
+    label: &str,
+    r: Result<BooleanResult<f64>, BooleanError>,
+    want: f64,
+    tol: Tol,
+) {
+    let Ok(Some(bb)) = r.as_ref().map(BooleanResult::body) else {
+        panic!("{label}: wanted a body, got {r:?}");
+    };
+    let mesh = mesh::tessellate(&bb.body, 5e-3, tol)
+        .unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}"));
+    mesh::validate::check_mesh(&mesh).unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}"));
+    let line = outcome(r, want, tol);
+    assert!(line.starts_with("OK SOUND"), "{label}: {line}");
+}
+
+/// **Every op in both operand orders** between `a` (volume `va`) and
+/// `b` (`vb`), which overlap in `vab`: ∪, ∩ and ∖ run `a`-first then
+/// `b`-first, each with its closed-form volume, named `"A ∪ B"`,
+/// `"B ∪ A"`, `"A ∩ B"`, `"B ∩ A"`, `"A ∖ B"` and `"B ∖ A"`.
+#[allow(clippy::type_complexity)] // (op, result, closed form) per run
+pub fn every_op_both_orders(
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
+    (va, vb, vab): (f64, f64, f64),
+    tol: Tol,
+) -> Vec<(&'static str, Result<BooleanResult<f64>, BooleanError>, f64)> {
+    vec![
+        ("A ∪ B", topo::union(a, b, tol), va + vb - vab),
+        ("B ∪ A", topo::union(b, a, tol), va + vb - vab),
+        ("A ∩ B", topo::intersect(a, b, tol), vab),
+        ("B ∩ A", topo::intersect(b, a, tol), vab),
+        ("A ∖ B", topo::subtract(a, b, tol), va - vab),
+        ("B ∖ A", topo::subtract(b, a, tol), vb - vab),
+    ]
+}
+
 /// The reflex corner's `a` profile: the 315° corner at the origin, all
 /// of `[−2, 2]²` but the wedge `0 ≤ y ≤ x`.
 pub const REFLEX_A: [(f64, f64); 6] = [

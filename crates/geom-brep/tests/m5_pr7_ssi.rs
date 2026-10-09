@@ -422,7 +422,7 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
     let n = carrier.control().len() / 2;
     let bad = displaced(&carrier, n, definitely_positive());
     match certify_against(&bad) {
-        Err(SsiError::CertificateLimb { limb, value }) => {
+        Err(SsiError::CertificateLimb { limb, value, .. }) => {
             assert_eq!(limb, SsiLimb::OnLocus, "LIMB-1: value = {value}");
         }
         other => panic!("LIMB-1: expected limb 1 to refuse, got {other:?}"),
@@ -448,6 +448,7 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
             Err(SsiError::CertificateLimb {
                 limb: SsiLimb::HullSup,
                 value,
+                ..
             }) => {
                 found = Some((d, value));
                 break;
@@ -1130,6 +1131,7 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
         SsiError::CertificateLimb {
             limb: SsiLimb::HullSup,
             value,
+            ..
         } => assert!(value > eps(), "CORRUPT-PCURVE: {value:e}"),
         other => panic!("CORRUPT-PCURVE: expected limb 2 alone, got {other}"),
     }
@@ -4825,7 +4827,7 @@ fn rounds_at_the_wall(
         "{at}: refused at the round that would overrun it: {samples} samples"
     );
     let last = match **refusal {
-        SsiError::CertificateLimb { limb, value } => (limb, RoundMargin::Over(value)),
+        SsiError::CertificateLimb { limb, value, .. } => (limb, RoundMargin::Over(value)),
         SsiError::CertificateEscalated { limb, cause } => (limb, RoundMargin::InBand(cause.margin)),
         ref other => panic!("{at}: a limb's refusal stands: {other:?}"),
     };

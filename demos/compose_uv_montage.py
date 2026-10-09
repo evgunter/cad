@@ -71,6 +71,7 @@ LEGEND = [
     ("#a01c3c", False, "general — a curve-in-UV with no construction provenance"),
     ("#1d7a5f", False, "spiric — the exact plane×torus section’s chart image"),
     ("#8a6d0b", False, "focalsection — the exact cone-section or Villarceau chart image"),
+    ("#1f6f8b", False, "projected — the chart's inverse of a spline or general circle"),
 ]
 
 

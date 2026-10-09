@@ -134,7 +134,7 @@
 //! carries its verdicts and samples and leaves the escalation out. The
 //! tangency certificate (`geom_brep::certify`) does; `topo`'s contact
 //! ladder does not yet
-//! (`work/contact/contact-verify-logs-a-second-order-escalation-its-outcome-overruled.md`).
+//! (`work/contacthold/contact-verify-logs-a-second-order-escalation-its-outcome-overruled.md`).
 //!
 //! A predicate's own indeterminacy is produced here too. A predicate
 //! whose question is only validly posed under a condition on the margin
@@ -516,9 +516,10 @@ pub fn decide<T: Decide>(
 
 /// [`decide`], keeping the reporting margin the classifier decided on
 /// ([`Decided`]): for a decision whose refusal quotes it — a sized
-/// decision's tolerance offer (D4 ¶1 (i)). Classification and
-/// recording are [`decide`]'s; the margin is for error reporting only
-/// ([`MarginDiag`]).
+/// decision's tolerance offer (D4 ¶1 (i)), and a residual's definite
+/// miss, which the import door reads against the file's ε_in.
+/// Classification and recording are [`decide`]'s; the margin is for
+/// error reporting only ([`MarginDiag`]).
 ///
 /// # Errors
 ///

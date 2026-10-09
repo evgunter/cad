@@ -254,6 +254,10 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "graft_disjoint_all",
         "returns `graft_disjoint_all_keyed`'s solids — same body, same assertion",
     ),
+    (
+        "split_edge",
+        "calls `split_edge_minting` with the carrier's own point — same body, same assertion",
+    ),
     // ---- Pipelines composed of asserting operators. ----
     (
         "merge_coplanar_faces",
@@ -273,6 +277,12 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "stages `kev_describing` kills on a clone, each asserting the tier-1 postcondition \
          (the planar arm's re-description writes a curve and no topology), re-mints the \
          clone's pcurves, then adopts the clone",
+    ),
+    (
+        "join_edges_within",
+        "a pipeline of `kev_describing` kills over the vertices the caller's scope holds, \
+         each asserting the tier-1 postcondition (the planar arm's re-description writes a \
+         curve and no topology), then a scoped re-mint, which writes rows and no topology",
     ),
     (
         "merge_coplanar_faces_declared",

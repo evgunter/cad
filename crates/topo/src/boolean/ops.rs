@@ -189,7 +189,7 @@ pub enum BooleanResultKind {
 /// the tier-3′ pass over them, empty or not. The door does not run
 /// that census: a curved solid within reach of another solid is
 /// beyond its cross-solid lane, which would refuse valid disjoint
-/// unions (`work/contact/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
+/// unions (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
 #[derive(Debug)]
 pub struct BooleanBody<T: Real> {
     /// The result body: one solid per piece of material
@@ -207,6 +207,9 @@ pub struct BooleanBody<T: Real> {
     /// wiring facts the naming layer consumes — recorded as the
     /// pipeline runs, never reconstructed by post-hoc inspection.
     pub naming: BooleanNaming,
+    /// The coincidences the op decided from values, in decision order
+    /// and operand keys ([`crate::coincidence`]).
+    pub coincidences: Vec<crate::Coincidence>,
 }
 
 /// How one operand's keys relate to the result body's keys.
@@ -344,13 +347,7 @@ impl BooleanNaming {
     /// every later join.
     #[must_use]
     pub fn joined_edge(&self, edge: EdgeKey) -> EdgeKey {
-        let mut at = edge;
-        for j in &self.edge_joins {
-            if j.gone == at {
-                at = j.kept;
-            }
-        }
-        at
+        super::edge_join::joined_edge(&self.edge_joins, edge)
     }
 
     /// Each vertex the output stage's joins removed → the live edge
@@ -620,7 +617,18 @@ fn boolean_door<T: Decide + Bounds + crate::props::AtRestPolicy>(
         super::reduce::gate_unverdicted_operand(body, operand, band, tol)?;
     }
     let (a, b) = (one_solid(a)?, one_solid(b)?);
-    boolean_op_recut(op, &a, &b, decls, strategy, true, tol)
+    boolean_op_recut(
+        op,
+        &a,
+        &b,
+        decls,
+        JoinSweep {
+            strategy,
+            roster: super::reduce::boolean_arm_exists,
+        },
+        true,
+        tol,
+    )
 }
 
 /// `body` as the pipeline reads an operand: as is when it holds at most
@@ -639,18 +647,18 @@ fn one_solid<T: Decide>(body: &Body<T>) -> Result<std::borrow::Cow<'_, Body<T>>,
 /// no-crossings sphere RE-CUT (M5 S13) may still run: the re-entry
 /// pass sets `recut = false`, so a re-cut that surfaces no crossings
 /// is a loud invariant failure rather than a loop.
-fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
+pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
-    strategy: SweepStrategy,
+    sweep: JoinSweep<T>,
     recut: bool,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     let band = Band::linear(tol)?;
     let (red, connected, interior_loops) =
-        match through_the_join(op, a, b, decls, strategy, recut, tol)? {
+        match through_the_join(op, a, b, decls, sweep, recut, tol)? {
             Joined::Answered(result) => return Ok(*result),
             Joined::Connected {
                 red,
@@ -660,6 +668,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         };
     let contacts = red.contacts.clone();
     let reduction_contacts = red.contacts.clone();
+    let coincidences = red.coincidences.clone();
     let covered = red.covered.clone();
     let edge_classes = red.edge_classes.clone();
     let null_copies = super::null_copy_rows(&red.null_edges);
@@ -740,8 +749,8 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         .map_err(|source| BooleanError::Pcurves { source })?;
     body.sweep_and_close();
     let body = gate(finished, band, tol)?;
-    T::gate_volume_backstop(op, a, b, &body, band, tol)?;
     interior_loops?;
+    T::gate_volume_backstop(op, a, b, &body, band, tol)?;
     let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&fin.graft);
     let naming = BooleanNaming {
         a_keys: OperandKeys::Direct,
@@ -769,6 +778,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         kind: BooleanResultKind::Seamed,
         contacts,
         naming,
+        coincidences,
     }))
 }
 
@@ -792,8 +802,8 @@ pub(super) enum Joined<T: Real> {
     Answered(Box<BooleanResult<T>>),
     /// The join, done: the reduction with both operands as it leaves
     /// them, every null edge killed, what it completed (never empty),
-    /// and the interior-loop verdict, which the pipeline raises only
-    /// where a body is about to be returned.
+    /// and the interior-loop verdict, which the pipeline raises on the
+    /// built body, before the volume backstop.
     Connected {
         /// The reduction, its operands joined.
         red: Box<BooleanReduction<T>>,
@@ -802,6 +812,17 @@ pub(super) enum Joined<T: Real> {
         /// [`interior_loop_verdict`]'s answer, not yet raised.
         interior_loops: Result<(), BooleanError>,
     },
+}
+
+/// How [`through_the_join`]'s reduction sweeps: its strategy, and the
+/// operand gate's face-kind roster
+/// ([`super::boolean_reduce_declared_strategy`]).
+#[derive(Clone, Copy)]
+pub(super) struct JoinSweep<T: geom_core::Real> {
+    /// The sweep strategy.
+    pub(super) strategy: SweepStrategy,
+    /// The face kinds the operand gate admits.
+    pub(super) roster: fn(&geom::Surface<T>) -> bool,
 }
 
 /// **The pipeline through its join**: the reduction, then the
@@ -814,17 +835,20 @@ pub(super) enum Joined<T: Real> {
 /// # Errors
 ///
 /// The reduction's, the no-crossings path's and the join's refusals.
+///
+/// The reduction sweeps as `sweep` says ([`JoinSweep`]).
 pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
-    strategy: SweepStrategy,
+    sweep: JoinSweep<T>,
     recut: bool,
     tol: Tol,
 ) -> Result<Joined<T>, BooleanError> {
+    let JoinSweep { strategy, roster } = sweep;
     let band = Band::linear(tol)?;
-    let mut red = super::boolean_reduce_declared_strategy(op, a, b, decls, strategy, tol)?;
+    let mut red = super::boolean_reduce_declared_strategy(op, a, b, decls, strategy, roster, tol)?;
 
     if red.null_pairs.is_empty() {
         if !red.null_edges.is_empty() {
@@ -846,15 +870,18 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         //   whole-shell answer is sound — proceed.
         // - **escape** (a sphere definitely leaves the other solid
         //   through a plane face — the S12 finding's
-        //   poking-but-not-crossing shape): the operand is RE-CUT —
-        //   a closed group is rigidly re-charted about the escape
-        //   normal (a rotation about its own center: the same point
-        //   set, seams now transverse to the escape planes), a
-        //   trimmed group's face is cut along its chart's meridian
-        //   through the circle ([`SphereCutIn`]), and the pipeline
-        //   re-enters once; the ordinary crossing layer then finds the
-        //   section circles and the (Plane, Sphere) germ arm joins
-        //   them exactly.
+        //   poking-but-not-crossing shape — or two sphere faces cross
+        //   in a circle no edge reaches): the operand is RE-CUT —
+        //   a closed group whose escapes share one axis is rigidly
+        //   re-charted onto it (a rotation about its own center: the
+        //   same point set, seams now transverse to the section
+        //   circles), any other escaping face is cut along its chart's
+        //   meridian through each circle ([`SphereCutIn`]), and the
+        //   pipeline re-enters once; the ordinary crossing layer then
+        //   finds the section circles and the (Plane, Sphere) or
+        //   (Sphere, Sphere) germ arm joins them exactly. Both spheres
+        //   of a crossing pair are re-cut, so the circle lands as
+        //   chords on both and neither keeps it as a ring.
         // - **uncertifiable** (NURBS re-gate, a trimmed group's circle
         //   the section certificate does not place inside one face,
         //   sphere faces meeting other than across a verified `Rest`,
@@ -874,7 +901,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
             // entity's key (`splitting::finish`'s `carve`), so those
             // names still hold on `a2` and `b2`.
             apply_cut_ins(&mut a2, &mut b2, &recuts.cut_in, band, tol)?;
-            return boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)
+            return boolean_op_recut(op, &a2, &b2, decls, sweep, false, tol)
                 .map(|result| Joined::Answered(Box::new(result)));
         }
         // The curved kinds the extent scan leaves: every torus,
@@ -892,9 +919,9 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // verbatim. The clones are taken only when the door can open
     // (declared union), so undeclared and non-union ops pay nothing.
     // Decided on the reduction, while its contacts still name the
-    // operands' own faces; RAISED only where a body is about to be
-    // returned, so every refusal the pipeline meets first stands
-    // verbatim ([`interior_loop_verdict`]).
+    // operands' own faces; raised on the built body, after the
+    // structural gate and before the volume backstop
+    // ([`interior_loop_verdict`]).
     let interior_loops = interior_loop_verdict(op, a, b, &red, decls, band);
     let rest_door = op == BooleanOp::Union && !decls.coincident_faces.is_empty();
     let saved = rest_door.then(|| (red.a.clone(), red.b.clone()));
@@ -918,11 +945,16 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
             Some((sa, sb)) => {
                 red.a = sa;
                 red.b = sb;
-                return match super::rest::try_rest_union(red, a, b, decls, band, tol)? {
-                    Some(result) => {
-                        interior_loops?;
-                        Ok(Joined::Answered(Box::new(result)))
-                    }
+                return match super::rest::try_rest_union(
+                    red,
+                    a,
+                    b,
+                    decls,
+                    interior_loops,
+                    band,
+                    tol,
+                )? {
+                    Some(result) => Ok(Joined::Answered(Box::new(result))),
                     // Not the REST frontier: the original join
                     // refusal stands, verbatim.
                     None => Err(err),
@@ -957,9 +989,13 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// `face` is the pair's A face when that face is curved, else its B
 /// face.
 ///
-/// Decided on the unmutated reduction and raised only where a body
-/// would be returned (the call site), so every refusal the pipeline
-/// meets first stands verbatim.
+/// Decided on the unmutated reduction and raised on the built body,
+/// so every refusal the join and the build meet first stands verbatim.
+/// It is raised after `gate`, whose tiers hold for a correct surgery
+/// whatever the classification, and before the volume backstop, which
+/// checks the classification this verdict has already declined to
+/// certify: on a refused pair the verdict is the cause, and the
+/// backstop's refusal on the same body would name a symptom.
 fn interior_loop_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &Body<T>,
@@ -1176,9 +1212,11 @@ fn has_lone_vertex<T: Real>(body: &Body<T>, face: FaceKey) -> bool {
 }
 
 /// Places a witness point in one face: `contfp` on a plane, the chart
-/// trim on a curved face. A point the trim puts definitely OFF the
-/// carrier is no verdict — the witness was built on the carrier, so
-/// that answer contradicts its construction rather than placing it.
+/// trim on a curved face. A point definitely OFF the carrier is no
+/// verdict — the witness was built on the carrier, so that answer
+/// contradicts its construction rather than placing it. The trim reads
+/// the carrier itself; `contfp` places a point's projection, so the
+/// plane's carrier is decided here first.
 pub(crate) fn place_witness<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -1187,6 +1225,15 @@ pub(crate) fn place_witness<T: Decide>(
     band: Band,
 ) -> Option<FaceContainment> {
     match *surface {
+        geom::Surface::Plane { origin, normal, .. }
+            if decide(
+                "bool_section_witness_on_plane",
+                Margin::of((p - origin).dot(normal)),
+                band,
+            ) != Ok(Sign::Zero) =>
+        {
+            None
+        }
         geom::Surface::Plane { normal, .. } => match contfp(body, face, normal, p, band) {
             Ok(at) => Some(at),
             Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
@@ -1430,9 +1477,9 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// does.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Exempt<'r> {
-    /// Every in-scope pair is classified: the test-support twins'
-    /// spelling, which no production path takes.
-    #[cfg(any(test, feature = "test-support"))]
+    /// Every in-scope pair is classified: the test-support and
+    /// sweep-testing doors' spelling, which no production path takes.
+    #[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
     Nothing,
     /// The crossings path: a DECLARED pair, whose contact is the
     /// verified carrier the declared rungs walk along its edges.
@@ -1455,7 +1502,7 @@ impl Exempt<'_> {
     /// Does this exemption answer the pair `(A face, B face)`?
     pub(crate) fn answers(self, fa: FaceKey, fb: FaceKey) -> bool {
         match self {
-            #[cfg(any(test, feature = "test-support"))]
+            #[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
             Self::Nothing => false,
             Self::Declared(decls) => declares_pair(decls, fa, fb),
             Self::Rest(pairs) => pairs.contains(&(fa, fb)),
@@ -1517,8 +1564,15 @@ pub(crate) fn section_report<T: Decide + Bounds + crate::props::AtRestPolicy>(
 ) -> Result<Vec<PairVerdict>, BooleanError> {
     let band = Band::linear(tol)?;
     let decls = BooleanDeclarations::default();
-    let red =
-        super::boolean_reduce_declared_strategy(op, a, b, &decls, SweepStrategy::Realized, tol)?;
+    let red = super::boolean_reduce_declared_strategy(
+        op,
+        a,
+        b,
+        &decls,
+        SweepStrategy::Realized,
+        super::reduce::boolean_arm_exists,
+        tol,
+    )?;
     let events = event_pairs(&red);
     section_pairs(
         a,
@@ -1527,6 +1581,31 @@ pub(crate) fn section_report<T: Decide + Bounds + crate::props::AtRestPolicy>(
         SectionPath::Crossings,
         Exempt::Nothing,
         |fa, fb| events.contains(&(fa, fb)),
+        false,
+    )
+}
+
+/// **The section pass's per-pair report on the no-crossings path**:
+/// every pair the pass examines, with no event anywhere, whatever the
+/// crossing layer would find. The pass itself stops at the first
+/// refusal; this reads every pair.
+///
+/// # Errors
+///
+/// [`section_pairs`]'.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn no_crossings_section_report(
+    a: &Body<f64>,
+    b: &Body<f64>,
+    tol: Tol,
+) -> Result<Vec<PairVerdict>, BooleanError> {
+    section_pairs(
+        a,
+        b,
+        Band::linear(tol)?,
+        SectionPath::Fallback,
+        Exempt::Nothing,
+        |_, _| false,
         false,
     )
 }
@@ -1595,9 +1674,20 @@ fn ball_against_plane<T: Decide>(
 /// took), so every copy the vertex's null edges reach, transitively (a
 /// strut nested in another's segment hangs at its tip), is read with it.
 fn event_pairs<T: Real>(red: &BooleanReduction<T>) -> BTreeSet<(FaceKey, FaceKey)> {
-    let a_faces = faces_by_vertex(&red.a);
-    let b_faces = faces_by_vertex(&red.b);
-    let desc = Descendants::default().with_copies(Descendants::null_copies(&red.null_edges));
+    contact_face_pairs(&red.a, &red.b, &red.contacts, &red.null_edges)
+}
+
+/// [`event_pairs`] over its parts: the split operands, the sweep's
+/// contacts, and the classification's null edges (none before it runs).
+pub(crate) fn contact_face_pairs<T: Real>(
+    a: &Body<T>,
+    b: &Body<T>,
+    contacts: &ContactRecords,
+    null_edges: &[super::BoolNullEdgeRecord<T>],
+) -> BTreeSet<(FaceKey, FaceKey)> {
+    let a_faces = faces_by_vertex(a);
+    let b_faces = faces_by_vertex(b);
+    let desc = Descendants::default().with_copies(Descendants::null_copies(null_edges));
     let around = |operand: Operand, v: VertexKey| {
         let m = match operand {
             Operand::A => &a_faces,
@@ -1613,17 +1703,17 @@ fn event_pairs<T: Real>(red: &BooleanReduction<T>) -> BTreeSet<(FaceKey, FaceKey
         faces
     };
     let mut out = BTreeSet::new();
-    for c in &red.contacts.a_on_b {
+    for c in &contacts.a_on_b {
         for fa in around(Operand::A, c.vertex) {
             out.insert((fa, c.face));
         }
     }
-    for c in &red.contacts.b_on_a {
+    for c in &contacts.b_on_a {
         for fb in around(Operand::B, c.vertex) {
             out.insert((c.face, fb));
         }
     }
-    for c in &red.contacts.vv {
+    for c in &contacts.vv {
         for fa in around(Operand::A, c.a) {
             for fb in around(Operand::B, c.b) {
                 out.insert((fa, fb));
@@ -2512,17 +2602,21 @@ fn seam_reading<T: Decide>(
     band: Band,
 ) -> Result<geom_brep::DihedralClass, (DihedralReading, Indeterminate)> {
     geom_brep::classify_dihedral(surf1, surf2, witness, extent, band)
-        .map_err(|escalation| (DihedralReading::Lever(escalation.rung), escalation.diag))
+        .map_err(|escalation| (DihedralReading::Lever(escalation.rung()), escalation.diag()))
 }
 
 /// The boolean's refusal for an undecided seam reading: the seam's
-/// first-order arm or wedge, by rung, or its second-order bend.
+/// first-order arm or wedge, by rung, or its second-order bend. The
+/// boolean's decision reads the rung and the margin alone, so no
+/// [`geom_brep::LeverEscalation`] is rebuilt from the two: the arm's
+/// verdict is the gate's to mint.
 pub(super) fn seam_refusal(reading: DihedralReading, diag: Indeterminate) -> BooleanError {
     match reading {
-        DihedralReading::Lever(rung) => BooleanError::of_lever(
+        DihedralReading::Lever(rung) => BooleanError::of_lever_rung(
             super::LeverArm::Seam,
             super::DeclarationRead::Moot,
-            geom_brep::LeverEscalation { rung, diag },
+            rung,
+            diag,
         ),
         DihedralReading::Bend => BooleanError::Escalated {
             decision: BooleanDecision::SeamJet,
@@ -2579,7 +2673,7 @@ fn must_carry_reading<T: Decide>(
         MustCarryVerdict::JetDeterminate => Ok(true),
         MustCarryVerdict::UnderDetermined | MustCarryVerdict::Transverse => Ok(false),
         MustCarryVerdict::InBand(MustCarryEscalation::FirstOrder(escalation)) => {
-            Err((DihedralReading::Lever(escalation.rung), escalation.diag))
+            Err((DihedralReading::Lever(escalation.rung()), escalation.diag()))
         }
         MustCarryVerdict::InBand(MustCarryEscalation::SecondOrder(diag)) => {
             Err((DihedralReading::Bend, diag))
@@ -3612,7 +3706,7 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     ));
     let kept = kept.map_err(|errors| BooleanError::ResultInvalid { errors })?;
     if kept.outcome() == crate::AtRestOutcome::NotRunAtThisScalar {
-        structural_gate(&kept)?;
+        structural_gate(&kept, band)?;
     }
     Ok(kept)
 }
@@ -3620,14 +3714,18 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
 /// The result gate where no at-rest gate ran (a dual's policy answers
 /// [`crate::AtRestOutcome::NotRunAtThisScalar`]): tiers 1 and 2, then
 /// tier 3's transience fence
-/// ([`ValidationError::ScaffoldAtRest`](crate::ValidationError::ScaffoldAtRest)),
+/// ([`ValidationError::ScaffoldAtRest`](crate::ValidationError::ScaffoldAtRest))
+/// and its check 11 in `band`
+/// ([`ValidationError::JoinableVertexAtRest`](crate::ValidationError::JoinableVertexAtRest)),
 /// which read no certification arithmetic and so answer at every
 /// scalar. An edge of the result still described as a scaffold is a
-/// construction that stopped half-way.
-pub(super) fn structural_gate<T: Real>(body: &Body<T>) -> Result<(), BooleanError> {
+/// construction that stopped half-way, and a joinable vertex one the
+/// join did not finish.
+pub(super) fn structural_gate<T: Decide>(body: &Body<T>, band: Band) -> Result<(), BooleanError> {
     validate(body).map_err(|errors| BooleanError::ResultInvalid { errors })?;
     validate_closed(body).map_err(|errors| BooleanError::ResultInvalid { errors })?;
-    let errors = scaffolds_at_rest(body);
+    let mut errors = scaffolds_at_rest(body);
+    errors.extend(crate::validate::joinable_at_rest_errors(body, band));
     if errors.is_empty() {
         Ok(())
     } else {
@@ -3645,8 +3743,10 @@ struct Recuts<T: Real> {
     cut_in: Vec<SphereCutIn<T>>,
 }
 
-/// A sphere face of a TRIMMED group that a plane face's carrier cuts in
-/// a circle certified inside both faces with no event (the section
+/// A sphere face that a plane face's carrier (the face's group
+/// TRIMMED) or a sphere face's carrier (the group trimmed, or crossed
+/// along non-parallel axes) cuts in a circle
+/// certified inside both faces with no event (the section
 /// certificate's R-loop). The face is cut along the meridian of its own
 /// sphere's chart through the circle's centre (through a point of the
 /// circle, `u_ref`'s, where the centre's direction is a pole of the
@@ -3666,13 +3766,14 @@ struct SphereCutIn<T: Real> {
     center: Point3<T>,
     /// Its radius.
     radius: T,
-    /// The section circle's center, on the plane.
+    /// The section circle's center.
     foot: Point3<T>,
     /// The section circle's radius.
     rho: T,
-    /// The plane's normal (the section circle's axis).
+    /// The section circle's axis.
     normal: Vec3<T>,
-    /// The plane's reference direction, which places `q`.
+    /// A unit direction across the circle, which places a point of it
+    /// where `foot` lies on the chart's polar axis.
     u_ref: Vec3<T>,
 }
 
@@ -3691,8 +3792,18 @@ struct SphereRecut<T: Real> {
     radius: T,
     /// The stored polar axis (rotation source direction).
     axis: Vec3<T>,
-    /// The escape plane's normal (rotation target direction).
+    /// The escape plane's normal, or the escape circle's axis (rotation
+    /// target direction).
     align: Vec3<T>,
+    /// The stored seam direction (`u_ref`), which `seam` turns to.
+    u_ref: Vec3<T>,
+    /// Where the group escapes through a sphere: the seam direction the
+    /// re-chart turns `u_ref` to about `align`. A's group takes the first
+    /// of `align`'s orthonormal pair and B's the second, so two balls
+    /// re-charted along one centre line keep their seams in planes a
+    /// quarter turn apart, and neither seam meets the circle where the
+    /// other does.
+    seam: Option<Vec3<T>>,
 }
 
 /// The sphere extent scan's reading of a refused [`contfp`] on `face`, a
@@ -3727,7 +3838,9 @@ fn extent_scan_refusal(e: ContainError, sphere_is: Operand, face: FaceKey) -> Bo
 ///   pairs it can meet are enumerable exactly, and an escape through a
 ///   plane face is repairable by a re-chart. Two spheres whose carriers
 ///   cross or touch, and a sphere touching a plane's carrier, are asked
-///   whether their FACES meet ([`sphere_faces_apart`]).
+///   whether their FACES meet ([`sphere_faces_apart`]); a crossing
+///   circle inside both faces is an escape of each sphere through the
+///   other, and both are re-cut.
 /// - **Torus, cylinder and cone**: no closed-group extent exists, so
 ///   their pairs are certified per pair by the section certificate
 ///   ([`section_extent_pass`]), which runs after this scan. A sphere's
@@ -3780,12 +3893,13 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
         let charts = crate::chart_groups::ChartGroups::of_body(x);
         let mut seen: Vec<SurfaceKey> = Vec::new();
         for (face, fd) in x.faces() {
+            let x_surface = x.face_surface_linked(face, fd);
             let &geom::Surface::Sphere {
                 center,
                 radius,
                 axis,
-                ..
-            } = x.face_surface_linked(face, fd)
+                u_ref,
+            } = x_surface
             else {
                 continue;
             };
@@ -3808,6 +3922,9 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
             let group = closed_sphere_group(x, face, &charts);
             let ball_box = boxes::centred_box(center, radius, pad);
             let mut escape_normals: Vec<Vec3<T>> = Vec::new();
+            // A closed group's sphere escapes, one cut each, for where
+            // one re-chart cannot serve them all.
+            let mut sphere_escapes: Vec<SphereCutIn<T>> = Vec::new();
             for (y_row, (yf, _)) in y_rows.iter().zip(y.faces()) {
                 if y_row.face != yf {
                     return Err(BooleanError::ClassificationInvariant {
@@ -4010,7 +4127,12 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 // certified out of one face of each pair
                                 // leaves the two boundaries disjoint. A
                                 // circle certified inside both faces is
-                                // spheres that meet off every edge; any
+                                // an escape off every edge, of each
+                                // sphere through the other: a closed
+                                // group's is re-charted along the centre
+                                // line, a trimmed group's face is cut in
+                                // ([`sphere_pair_cut`]), and the other
+                                // pass serves the other sphere; any
                                 // other refusal of the certificate is
                                 // its own reason, raised as the pass
                                 // raises it. A touch (a decided zero)
@@ -4034,14 +4156,21 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                         }
                                         continue;
                                     }
-                                    Some(verdict @ Refused::Negative { .. }) => match faces() {
+                                    Some(Refused::Negative { .. }) => match faces() {
                                         None => {}
-                                        Some((_, SectionRefusal::Loop)) => {
-                                            return Err(BooleanError::SpheresMeet {
-                                                operand: x_is,
-                                                face,
-                                                verdict,
-                                            });
+                                        Some((holder, SectionRefusal::Loop)) => {
+                                            let cut = sphere_pair_cut(
+                                                (x_is, holder),
+                                                x_surface,
+                                                &y_row.surface,
+                                                band,
+                                            )?;
+                                            if group.is_some() {
+                                                escape_normals.push(cut.normal);
+                                                sphere_escapes.push(cut);
+                                            } else {
+                                                cut_ins.push(cut);
+                                            }
                                         }
                                         Some((_, refusal)) => {
                                             return Err(BooleanError::FallbackExtentUnsupported {
@@ -4107,19 +4236,14 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
             if let (Some((&align, rest)), Some(representative)) =
                 (escape_normals.split_first(), group)
             {
-                // ONE alignment per group (M5 S13 fix pass, review
-                // MAJOR): the re-chart makes every section polar only
-                // when ALL of this group's escape planes share a
-                // normal direction. A group poking two NON-PARALLEL
-                // faces would re-chart for the first and leave the
-                // second cap's join to a tilted-section refusal that
-                // the re-entered crossing layer may never reach — the
-                // reviewer's witness answered 16 + cap_top, tier-3
-                // valid, silently short one cap. Refused typed here
-                // instead (metered at the group's own radius);
-                // antiparallel normals are the SAME direction (the
-                // finding row's top+bottom pair) and pass. Multi-chart
-                // re-cutting stays banked as an extension.
+                // ONE alignment per group: the re-chart makes every
+                // section polar only when ALL of this group's escapes
+                // share an axis (antiparallel is the same axis). A group
+                // re-charted for one axis would leave another cap's join
+                // to a tilted-section refusal the re-entered crossing
+                // layer may never reach, and the result could come out
+                // valid and short a cap.
+                let mut parallel = true;
                 for &n in rest {
                     match decide(
                         "bool_sphere_escape_parallel",
@@ -4129,19 +4253,42 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     .map_err(esc(SphereQuestion::EscapeParallel))?
                     {
                         Sign::Zero => {}
-                        Sign::Positive | Sign::Negative => {
-                            return Err(BooleanError::FallbackExtentUnsupported {
-                                operand: x_is,
-                                face,
-                                what: "one sphere group escapes through NON-PARALLEL \
-                                       plane faces — a single re-chart cannot make \
-                                       every section polar, and multi-chart \
-                                       re-cutting is not built; refused whole rather \
-                                       than metering one cap and dropping the other",
-                            });
-                        }
+                        Sign::Positive | Sign::Negative => parallel = false,
                     }
                 }
+                if !parallel {
+                    // Escapes through spheres alone are cut in, one cut
+                    // per circle, on the group's own chart. A plane's
+                    // escape is served only by the re-chart, whose graft
+                    // renames the faces a cut would name.
+                    if sphere_escapes.len() == escape_normals.len() {
+                        cut_ins.append(&mut sphere_escapes);
+                        continue;
+                    }
+                    return Err(BooleanError::FallbackExtentUnsupported {
+                        operand: x_is,
+                        face,
+                        what: if sphere_escapes.is_empty() {
+                            "one sphere group escapes through NON-PARALLEL \
+                             plane faces — a single re-chart cannot make \
+                             every section polar, and multi-chart \
+                             re-cutting is not built; refused whole rather \
+                             than metering one cap and dropping the other"
+                        } else {
+                            "one sphere group escapes through a plane face and crosses \
+                             a sphere face off every edge along NON-PARALLEL axes — the \
+                             re-chart the plane asks for would rename the face the \
+                             sphere's cut names"
+                        },
+                    });
+                }
+                let seam = (!sphere_escapes.is_empty()).then(|| {
+                    let (first, second) = align.orthonormal_basis();
+                    match x_is {
+                        Operand::A => first,
+                        Operand::B => second,
+                    }
+                });
                 out.push(SphereRecut {
                     operand: x_is,
                     representative,
@@ -4149,6 +4296,8 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     radius,
                     axis,
                     align,
+                    u_ref,
+                    seam,
                 });
             }
         }
@@ -4157,6 +4306,51 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
         rechart: out,
         cut_in: cut_ins,
     })
+}
+
+/// **The cut a sphere pair's crossing asks of `holder`**, the face of
+/// `operand`'s sphere `x` that holds the circle `x` crosses the sphere
+/// `y` in. The circle is the pair's radical-plane section, read from
+/// its owner ([`geom_brep::sphere_sphere_section`]): its centre on the
+/// centre line, its axis the unit centre line from `x` toward `y`, and
+/// a unit `u_ref` across it. A closed group's escape aligns its
+/// re-chart on that axis; a trimmed group's face takes the cut.
+fn sphere_pair_cut<T: Decide>(
+    (operand, holder): (Operand, FaceKey),
+    x: &geom::Surface<T>,
+    y: &geom::Surface<T>,
+    band: Band,
+) -> Result<SphereCutIn<T>, BooleanError> {
+    let corrupt = |what| BooleanError::ClassificationInvariant { what };
+    let &geom::Surface::Sphere { center, radius, .. } = x else {
+        return Err(corrupt(
+            "extent scan: a sphere pair's cut on a face not on a sphere",
+        ));
+    };
+    match geom_brep::sphere_sphere_section(x, y, band) {
+        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle {
+            center: foot,
+            axis: normal,
+            radius: rho,
+            u_ref,
+        })) => Ok(SphereCutIn {
+            operand,
+            face: holder,
+            center,
+            radius,
+            foot,
+            rho,
+            normal,
+            u_ref,
+        }),
+        Err(geom_brep::SectionError::Escalated(diag)) => Err(BooleanError::Escalated {
+            decision: BooleanDecision::Sphere(SphereQuestion::CutIn),
+            diag,
+        }),
+        Ok(_) | Err(_) => Err(corrupt(
+            "extent scan: spheres the scan decided cross have no section circle",
+        )),
+    }
 }
 
 /// **What a section circle wholly inside a plane face asks of the sphere
@@ -4331,6 +4525,34 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 col(Vec3::new(T::zero(), one, T::zero())),
                 col(Vec3::new(T::zero(), T::zero(), one)),
             );
+            // The spin about `align` that turns the rotated seam to
+            // `seam`, the same algebraic form on the seam directions; the
+            // sign that keeps the turn at most a quarter is either of the
+            // seam's two half-planes.
+            let linear = match r.seam {
+                None => linear,
+                Some(seam) => {
+                    let a = linear * r.u_ref;
+                    let flip = matches!(
+                        decide("bool_sphere_recut_seam", Margin::of(a.dot(seam)), band),
+                        Ok(Sign::Negative)
+                    );
+                    let b = if flip { -seam } else { seam };
+                    let k = a.cross(b);
+                    let c = a.dot(b);
+                    let kx = |v: Vec3<T>| k.cross(v);
+                    let col = |e: Vec3<T>| {
+                        let kv = kx(e);
+                        e + kv + kx(kv) / (one + c)
+                    };
+                    let spin = geom_core::Mat3::from_cols(
+                        col(Vec3::new(one, T::zero(), T::zero())),
+                        col(Vec3::new(T::zero(), one, T::zero())),
+                        col(Vec3::new(T::zero(), T::zero(), one)),
+                    );
+                    spin * linear
+                }
+            };
             let q = r.center - Point3::origin();
             let map = geom_core::Affine3::from_parts(linear, q - linear * q);
             let turned = crate::transform::transform_rigid(&ball, &map, tol)
@@ -4441,7 +4663,9 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         }
         let k = k / k.norm();
         let h = k.cross(axis);
-        let latitude = |p: Point3<T>| axis.dot(p - cut.center) / r;
+        // A point of the half-meridian by its coordinates across and
+        // along the axis, `r·(cos φ, sin φ)`.
+        let latitude = |p: Point3<T>| (h.dot(p - cut.center), axis.dot(p - cut.center));
         // The circle's two crossings, both on the half-plane `h`.
         let across = cut.normal.cross(k);
         if sign(
@@ -4534,14 +4758,22 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         let refuse = |what| refuse_at(face, what);
         let fd = proven(&body.faces, face, EntityId::Face);
         let mut circle = crossings.map(latitude);
-        let above = |x: T, y: T| sign("bool_sphere_cut_order", Margin::levered(x - y, r));
+        // `x` lies above `y` by `r·sin(φx − φy)`, a length linear in the
+        // arc between them (both lie on the closed half-meridian, so the
+        // angle between them is short of π).
+        let above = |x: (T, T), y: (T, T)| {
+            sign(
+                "bool_sphere_cut_order",
+                Margin::of((x.1 * y.0 - x.0 * y.1) / r),
+            )
+        };
         if above(circle[0], circle[1])? == Sign::Positive {
             circle.swap(0, 1);
         }
         let [s1, s2] = circle;
         // The face's boundary hits on the half-meridian.
         struct Hit<T> {
-            s: T,
+            s: (T, T),
             vertex: Option<VertexKey>,
             /// The arc, the root's parameter, whether the parameter
             /// rises along the arc's edge, and the arc's radius.
@@ -4972,6 +5204,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 kind,
                 contacts,
                 naming,
+                coincidences: red.coincidences.clone(),
             }))
         }
     }
@@ -5048,6 +5281,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         kind,
         contacts,
         naming,
+        coincidences: red.coincidences.clone(),
     }))
 }
 
@@ -5301,6 +5535,46 @@ mod tests {
         let described =
             crate::test_support_fixtures::brick::<Dual64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
         let kept = gate(described, band, tol).expect("the described box passes");
+        assert_eq!(kept.outcome(), crate::AtRestOutcome::NotRunAtThisScalar);
+    }
+
+    /// **At a dual the result gate asks check 11 too.** No boolean
+    /// output reaches this arm: the output stage ends with the join,
+    /// which takes every vertex the same predicate reads, and nothing
+    /// between the join and the gate makes a vertex (`sort_into_pieces`
+    /// only sorts faces into solids). So the arm is the output's
+    /// postcondition, witnessed here on the described box with one edge
+    /// split by hand: the gate refuses it with exactly the split vertex,
+    /// and the box passes once joined.
+    #[test]
+    fn at_a_dual_the_result_gate_refuses_a_joinable_vertex() {
+        use geom_core::{Dual64, Real};
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body =
+            crate::test_support_fixtures::brick::<Dual64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let (edge, curve) = body.edges().next().map(|(k, d)| (k, d.curve)).unwrap();
+        let (t0, t1) = body
+            .get_curve_geom(curve)
+            .and_then(crate::CurveGeom::certified)
+            .unwrap()
+            .params();
+        let split = body
+            .split_edge(edge, (t0 + t1) * Dual64::from_f64(0.5), tol)
+            .unwrap()
+            .vertex;
+        let Err(BooleanError::ResultInvalid { errors }) = gate(body.clone(), band, tol) else {
+            panic!("a split vertex is no output's");
+        };
+        assert_eq!(
+            errors,
+            vec![crate::ValidationError::JoinableVertexAtRest { vertex: split }]
+        );
+        let joins = body
+            .join_edges(band, tol)
+            .expect("the split edge joins back");
+        assert_eq!(joins.len(), 1, "the split vertex, joined");
+        let kept = gate(body, band, tol).expect("the joined box passes");
         assert_eq!(kept.outcome(), crate::AtRestOutcome::NotRunAtThisScalar);
     }
 
@@ -6339,7 +6613,10 @@ mod tests {
                 &a,
                 &b,
                 &decls,
-                SweepStrategy::Realized,
+                super::JoinSweep {
+                    strategy: SweepStrategy::Realized,
+                    roster: crate::boolean::reduce::boolean_arm_exists,
+                },
                 true,
                 tol,
             )
@@ -6638,11 +6915,8 @@ mod tests {
                 matches!(
                     verdict,
                     geom_brep::MustCarryVerdict::InBand(
-                        geom_brep::MustCarryEscalation::FirstOrder(geom_brep::LeverEscalation {
-                            rung: geom_brep::LeverRung::Reading,
-                            ..
-                        })
-                    )
+                        geom_brep::MustCarryEscalation::FirstOrder(escalation)
+                    ) if escalation.rung() == geom_brep::LeverRung::Reading
                 ),
                 "an in-band wedge anywhere escalates, got {verdict:?}"
             );
