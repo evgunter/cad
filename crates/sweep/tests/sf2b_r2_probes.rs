@@ -141,25 +141,15 @@ fn r2_both_cone_nappes_hollow_to_their_closed_forms() {
 }
 
 /// **The per-chart door on both cone nappes at the wall thickness.**
-/// Both doors read one nappe now (`topo::group_nappe`), so the question
-/// this row asked — which way the single-chart verb actually went — has
-/// one answer to pin AT THIS `|d|`: nowhere. The cone's offset moves
-/// its rim off every unmoved neighbour by the action's own axial
-/// component `|d|·sin α`, and at `|d| = t` that is four million times ε,
-/// so the caps refuse first on both nappes and both signs.
-///
-/// **The gap this asserts is blind to the turn** (R2's `r2p1` measures
-/// exactly how blind: the two signs' gaps differ in the last bits, far
-/// under any tolerance a row could state), so nothing here is evidence
-/// about the nappe. It is evidence about the GATE — #1199's
-/// measurement, re-taken — and the turn is pinned where it is
-/// observable, in `shell6_nappe_home`: below `ε/sin α` this same door
-/// builds, and the cone it stores is the turned mint bit for bit.
+/// Both doors read one nappe (`topo::group_nappe`), and at `|d| = t`
+/// the per-chart door builds on both nappes and both signs: each rim is
+/// the moved cone's section with its unmoved cap, and each corner the
+/// root of the cap along the band seam meeting it, so the caps no
+/// longer stand in front of the cone chart.
 #[test]
 fn r2_per_chart_door_on_a_mirror_nappe_cone() {
     let tol = Tol::witness();
     let h = 8.0 / 64.0;
-    let alpha = (2.0f64 / 64.0 / h).atan();
     for (what, r0, r1) in [
         ("narrowing upward", 4.0 / 64.0, 2.0 / 64.0),
         ("widening upward", 2.0 / 64.0, 4.0 / 64.0),
@@ -169,32 +159,10 @@ fn r2_per_chart_door_on_a_mirror_nappe_cone() {
         for signed in [-T, T] {
             let mut work = body.clone();
             let got = topo::replace_faces_offset(&mut work, &faces, signed, tol);
-            match (&got, crate::common::cone_nappe::rim_refusal_gap(&got)) {
-                (Ok(_), _) => panic!(
-                    "[r2] per-chart {what} d={signed}: BUILT — the caps' gate stopped standing \
-                     in front of the cone chart, which is the measurement this row carries"
-                ),
-                // The rim's re-chart reached first: the same refusal,
-                // carrying no gap to measure.
-                (_, Some(None)) => {
-                    println!("[r2] per-chart {what} d={signed}: REFUSED at the rim's re-chart");
-                }
-                (_, Some(Some(gap))) => {
-                    println!("[r2] per-chart {what} d={signed}: REFUSED off-carrier by {gap}");
-                    assert!(
-                        (gap - T * alpha.sin()).abs() <= 1e-15,
-                        "{what} d={signed}: the gap is the action's axial component |d|·sin α \
-                         ({gap} vs {})",
-                        T * alpha.sin()
-                    );
-                    assert!(
-                        gap > band().zero(),
-                        "{what} d={signed}: and it is the ε comparison that refuses, so the \
-                         gap must stand above the band's zero ({gap} vs {})",
-                        band().zero()
-                    );
-                }
-                (Err(e), None) => panic!("[r2] per-chart {what} d={signed}: REFUSED {e}"),
+            // The caps no longer stand in front of the cone chart: each
+            // rim is the moved cone's section with its cap.
+            if let Err(e) = got {
+                panic!("[r2] per-chart {what} d={signed}: REFUSED {e}");
             }
         }
     }

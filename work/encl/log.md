@@ -1359,3 +1359,8 @@ coincidence is now a margined verdict (no declarations), checked by the
 - 2026-10-09 — PR 4366 (lever one-shape) is merged at `5e0ed71933`: full review, fix pass, then the delta re-review APPROVED it; CI green. Row closed. Follow-ups filed as `the-dihedral-arm-clause-is-seven-literals-held-by-a-source-census` (P3, E).
 - 2026-10-09 — PR 4386's soundness review came back APPROVE-WITH-FIXES. The `two_sum` helper is dead and re-reds the endpoint census. More important: mixing the polygon route with carrier-route neighbours mints a new seam with a c-dependent flux error, so I ordered an all-or-nothing route per shell. The soundness row must also assert against the known volume.
 - 2026-10-09 — PR 4377 (shell-wall wording) is merged at `3eb9fe628a`; I merged main myself to clear a row-header conflict. Row closed.
+- 2026-10-09 — PR 4377 merged; sync 4392. Dispatched two P3 E rows: `offset-fit-nan-residual-at-the-mint-asks-the-caller-to-re-fit` (`encl/offset-fit-mint-nan-limb`) and `the-dihedral-arm-clause-is-seven-literals-held-by-a-source-census` (`encl/dihedral-arm-one-clause`).
+- 2026-10-09 — PR 4386 (sliver-shell volume) merged at `e923120c15`; row closed. The review caught a new seam (polygon faces beside carrier-route faces) and a vacuous mixed-walk pin; both fixed before merge (all-or-nothing per walk, independent reference).
+- 2026-10-09 — PR 4401 (dihedral arm one clause) merged at `c3be784594`; row closed.
+- 2026-10-09 — PR 4401 merged; sync 4408. Dispatched P3 `must-carry-reads-an-out-of-lane-in-band-seam-as-under-determined` on `encl/must-carry-out-of-lane-in-band`, taking the non-design repair: the rule escalates `InBand` out of lane.
+- 2026-10-09 — PR 4395 (MintLimb) merged at `67c756d147`; row closed.

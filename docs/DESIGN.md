@@ -317,6 +317,24 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      typed `CensusUnsupported`, never samples. Every comparison is a
      named Q1 trilean; indeterminates surface as typed
      `CensusEscalated`, never a silent skip.
+   - A census finding decides one number per pair of cells (two edges,
+     an edge and a face, a vertex and a face, two faces), read between
+     the cells themselves, never between the infinite lines or planes
+     they lie on, and signed where a face gives a side. For cells that
+     share nothing it is their minimum distance. Cells that share a
+     vertex, a point key or an edge meet there by construction, and the
+     question is whether they meet anywhere else: the number is their
+     largest distance over the shorter cell, beyond what they share. For
+     straight cells it falls at the shorter cell's far end, its length
+     times the sine of the angle between them (D4 ¶1's d = r·θ, with
+     the cell's own extent as the arm). Q1's three arms read it: a
+     definite number is a legal configuration, however thin; one in the
+     sliver band refuses; a Zero is a coincidence (the cells are one
+     over their extent), which the op that made the body glues and
+     records (D10), so a census Zero no record backs is that op's
+     defect. Near what two cells share, every pair is within the band
+     whatever its angle. That neighbourhood is not a coincidence, and
+     its extent is not a number the census reads.
    - Certification runs **both directions and never scans-to-bless in
      either**: a census finding with no backing record is never
      silently blessed ((iii) below); a record with no geometric witness
@@ -591,7 +609,7 @@ and (b) the SSI generic-`T` lift are discharged and keep no entry):
   its class's route lands, covers the mirror-torus spiric and
   no-fitted classes, on their PCERT row.
 - **(d) cyl×sphere germ chords** — a fitted carrier's chart image
-  exists as `Pcurve::Fitted` and certifies at rest, and a chord takes
+  exists as `Pcurve::Projected` and certifies at rest, and a chord takes
   its arc from the germs it joins, reading no window; what is missing
   is the C5 table's cyl×sphere arm for the chord's carrier
   (`chord_join::section_case` has no curved×curved arm) and a frame for
@@ -1311,7 +1329,9 @@ relation, so a chain of blocks each built on its neighbour's floor
 closes into a loop, and a brick laid across two of them sits on both,
 with nothing more said. A computed value never re-enters the
 evaluation as a constant; a numerical routine's output enters as one
-opaque symbol per call.
+opaque symbol per call. The symbolic tier decides only this: whether a
+Zero is structural. A margin in the sliver band is not decided by it,
+since the band is indeterminate under exact arithmetic too (Q1).
 Coaxiality is one `Axis` read twice, directly or as projections of
 one construction; tangency is constructed (a
 sketch may read another surface's trace in its plane and continue
@@ -1339,7 +1359,11 @@ against it, never written by hand.
 otherwise it refuses. It glues what its verdicts decide Zero where an
 arm exists for the carrier pair (D1's frontier), keeping one fixed
 operand's description for a merged face, and refuses what falls in the
-sliver band.
+sliver band. Its result holds no in-band pair or shell: the door's
+finished-body gate decides this on the result alone and refuses it as
+the operands' ill-conditioning (`Escalated`, recourse: tighten ε or move
+the geometry), never silently; a definite finding there is a kernel
+defect (`ResultInvalid`).
 
 **Assertions.** `Assert { measure, relation, bound }` (`≤`, `≥`, `=`,
 the bound a variable) checks and never places. At rest the census
@@ -1704,6 +1728,17 @@ Cross-milestone commitments; each binds at the layer named.
   — not a correctness parameter: soundness rests on
   escalate-never-guess, D4 ¶2 certification and interval replay, for
   any K > 1. K = 10, per-run configuration like ε (`Tolerance.k`).
+  K's noise headroom presumes every margin's f64 error is a few ulp at
+  the model's extent: a formula whose error is amplified by a vanishing
+  quantity (a division by sin θ, |n|², a near-zero determinant) is a
+  defect, re-posed or certified, never covered by K. Interval replay
+  does not rescue it: its enclosure lands in the band, which is
+  terminal.
+  Closeness within ε is not an identity. No decision is inferred
+  from two others; cells are one only by topology (a Zero glued them)
+  or by structure (D10), and both are transitive. A body is valid when
+  every question its topology poses decides definite, or Zero and
+  recorded.
 - At `T = Interval` an indeterminate predicate aborts the operation:
   predicates return `Result<Sign, Indeterminate>` (the trichotomy is
   the primitive; bool predicates are projections) and construction code

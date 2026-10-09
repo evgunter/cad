@@ -953,7 +953,7 @@
 //! `ssi_on_locus` and `ssi_on_locus_foot` (a marched intersection
 //! point's residual and the foot of its projection),
 //! `plane_nurbs_on_locus` (a chart-image foot) and
-//! `offset_reanchor_on_carrier` (an offset carrier re-anchored through a
+//! `offset_corner_on_surface` (an offset corner found by a root
 //! solve) — EXACTLY the four S-CERT's frontier item already names, at
 //! either filter width. A quantity found by iteration has no expression
 //! in the parameters, so no normal form reaches it and its residual
