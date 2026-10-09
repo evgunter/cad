@@ -29,7 +29,12 @@
 //! below: a ball centred a hair off a tilted axis, at scales to 1 km,
 //! against the extreme generators' distances.
 
-#![allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::float_cmp
+)]
 
 // Gated to the code it tests, as every fuzzer is: the classifier, the
 // residuals the witnesses are checked against, and the band and
