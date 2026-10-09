@@ -227,14 +227,17 @@ fn a_declared_report_is_a_set_and_the_whole_set_builds() {
         .expect("the flush wall pair is a finding");
 
     let partial = union_with(&a, &b, &declare(wall), Tol::witness())
-        .expect_err("the cap pair is still undeclared");
-    assert!(
-        matches!(partial, topo::BooleanError::UndeclaredCoincidence { .. }),
-        "declaring one finding of a report declares one finding: {partial:?}"
-    );
-
+        .expect("the undeclared cap pair glues on its decided zero");
     let whole = union_with(&a, &b, &declare_all(&found), Tol::witness())
         .expect("the fully declared union builds");
+    let (BooleanResult::Body(p), BooleanResult::Body(w)) = (&partial, &whole) else {
+        panic!("a union of two solids is not empty");
+    };
+    assert_eq!(
+        format!("{:?}", p.body),
+        format!("{:?}", w.body),
+        "a declaration names what the margins decide: one body either way"
+    );
     let BooleanResult::Body(bb) = whole else {
         panic!("a union of two solids is not empty");
     };

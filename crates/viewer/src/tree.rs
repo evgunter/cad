@@ -1212,8 +1212,6 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // no row of this tree is.
         NodeErrorKind::Part { .. }
         | NodeErrorKind::DeclareResolve { .. }
-        | NodeErrorKind::UndeclaredCoincidence { .. }
-        | NodeErrorKind::UndeclarableContact { .. }
         | NodeErrorKind::BlendSelectionResolve { .. }
         | NodeErrorKind::BlendSelectionKind { .. }
         | NodeErrorKind::ShellOpenResolve { .. }
@@ -1223,6 +1221,9 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::MeasureRefResolve { .. }
         | NodeErrorKind::MeasureRefUnreadable { .. }
         | NodeErrorKind::Naming(_) => None,
+        // The member names the step that refused, not the node to
+        // repair: the refusal is the union's.
+        NodeErrorKind::UnionFoldStep { .. } => None,
         // Name no node beside the failing one.
         NodeErrorKind::Expr { .. }
         | NodeErrorKind::Profile(_)
@@ -1258,7 +1259,6 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::PlacementsUncertified { .. }
         | NodeErrorKind::PlacementRule(_)
         | NodeErrorKind::UnschedulableCycle
-        | NodeErrorKind::ParamSourceAttach(_)
         | NodeErrorKind::DeclareUnsupportedPair { .. }
         | NodeErrorKind::BlendSelectionEmpty { .. }
         | NodeErrorKind::Shell(_)

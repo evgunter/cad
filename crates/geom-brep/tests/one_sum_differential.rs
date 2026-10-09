@@ -341,7 +341,6 @@ fn one_sum_differential() {
             let got = cylinder_cylinder_section(
                 &c1,
                 &c2,
-                RadiusEvidence::Declared,
                 &Reach::Ball(ball),
                 b,
             );

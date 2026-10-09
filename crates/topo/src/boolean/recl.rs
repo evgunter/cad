@@ -68,20 +68,15 @@ fn carrier_of<T: Decide>(
     })
 }
 
-/// The geometrically-ON sector pair's carrier identity check, with the
-/// M4 PR 5 evidence: the two faces' recipe sources (N6) plus the
-/// consuming op's declared face pairs (F5). The sources are the
-/// ORIENTED ones ([`super::reduce::face_oriented_source`]): the plane
-/// rung 1 decides Same± from `orient`, and the descriptions it decides
-/// about are material sides, so the face senses must be composed in or
-/// a same-surface opposite-sense pair reads SameOriented. A curved pair's
-/// rung reads the carriers' `outward` bits instead (that function's
-/// docs).
+/// The geometrically-ON sector pair's carrier identity check. A pair
+/// the operation glued (a verified `Rest` or continuation declaration,
+/// or a pair the glue door decided one carrier and declared) reads as
+/// the declaration door read it at rest, over both faces; any other
+/// pair at the corner's arm, where a coincidence decided Zero is one
+/// the door did not glue and refuses ([`super::unglued_coincidence`]).
 ///
-/// C8: a CURVED sector pair descends the ladder only under a declared
-/// `Rest` pair — an undeclared on-carrier curved pair keeps the typed
-/// frontier refusal (the recourse is a declared contact, vocabulary
-/// CONTACT-DESIGN C4).
+/// C8: a CURVED sector pair descends the ladder only as a glued pair —
+/// an unglued on-carrier curved pair keeps the typed frontier refusal.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn require_same<T: Decide>(
     body1: &Body<T>,
@@ -133,17 +128,11 @@ pub(super) fn require_same<T: Decide>(
             });
         }
     }
-    let (g1, g2) = (
-        super::reduce::face_oriented_source(body1, s1.face),
-        super::reduce::face_oriented_source(body2, s2.face),
-    );
     let id = super::PlaneIdentity {
-        s1: g1.as_ref(),
-        s2: g2.as_ref(),
         declared: declared_one_carrier,
     };
-    // A declared pair reads as the door read it at rest, over both
-    // faces; an undeclared one at the corner's arm.
+    // A glued pair reads as the door read it at rest, over both faces;
+    // any other at the corner's arm.
     let extent = if declared_one_carrier {
         declared.consumed(o1, s1.face, o2, s2.face)?
     } else {
@@ -152,26 +141,32 @@ pub(super) fn require_same<T: Decide>(
             arm,
         ))
     };
-    match super::carrier_eq::carrier_eq(&c1, &c2, id, &extent, band) {
-        Ok(PlaneRelation::Distinct) => Err(BooleanError::ClassificationInvariant {
+    let pair = (o1, s1.face, o2, s2.face);
+    match super::carrier_eq::carrier_eq_reading(&c1, &c2, id, &extent, band) {
+        Ok((PlaneRelation::Distinct, ..)) => Err(BooleanError::ClassificationInvariant {
             what: "geometrically-ON sector pair with definitely-distinct carriers",
         }),
-        Ok(rel) => Ok(rel),
+        Ok((rel, ..)) if declared_one_carrier => Ok(rel),
+        Ok((rel, _, margin)) => Err(super::unglued_coincidence(
+            margin.unwrap_or(geom_core::MarginDiag::INVALID),
+            declared.carriers_read(pair, rel),
+            band,
+        )),
         Err(PlaneEqError::Escalated { rung, diag }) => Err(BooleanError::plane_identity(
             rung,
             declared.on_pair_door(
-                (o1, s1.face, o2, s2.face),
+                pair,
                 super::plane_eq::senses(s1.normal.vec(), s2.normal.vec(), arm, band),
             ),
             diag,
         )),
-        Err(PlaneEqError::Undeclared {
+        Err(PlaneEqError::Undecided {
             coincidence,
             relation,
-        }) => Err(super::undeclared_coincidence(
+        }) => Err(super::undecided_coincidence(
             coincidence,
             [(o1, s1.face), (o2, s2.face)],
-            relation,
+            declared.carriers_read(pair, relation),
         )),
         Err(PlaneEqError::Contradicted { fact, .. }) => {
             Err(BooleanError::DeclarationContradicted { fact })

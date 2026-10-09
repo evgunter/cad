@@ -9,35 +9,6 @@
 # exists exactly once and a second debug-only mechanism is a row here
 # rather than a second gate with a second reader.
 #
-#   * `crates/topo/src/source.rs` — the bit channel. Its calls may only
-#     appear inside `cfg(debug_assertions)` items, or inside a
-#     `debug_assert!` (which is itself compiled out of release). THIS
-#     GATE IS THAT FILE'S ONLY CONTROL — `bit-identity-consumer.sh`
-#     excludes it wholesale — so what it can and cannot see is the whole
-#     guarantee. The row pins the channel call (`bit_identity::`,
-#     `eq_bits`) AND the debug-only witnesses built on it —
-#     `surface_bits_witness`, `data_bits_witness`, their helpers
-#     `nurbs_surface_bits_witness` and `joined`, and `bits_witness` —
-#     whose own gated `fn`
-#     heads name the channel nowhere. A ROW HOLDS THE
-#     ATTRIBUTES ON THE STATEMENTS THAT NAME ITS SPELLINGS AND NO
-#     OTHERS, so a mechanism's every spelling belongs on its row.
-#   * `crates/topo/src/boolean/plane_eq.rs`,
-#     `crates/topo/src/merge_faces.rs` and `crates/topo/src/body.rs`
-#     (`surface_bits_witness` at the stamp door) — the witnesses'
-#     CALLERS, a row
-#     each, because A SUBJECT IS A FILE and the row above pins the
-#     attributes on the DEFINITIONS only. Each caller stands under a
-#     STATEMENT-POSITION attribute over an `if let`, and names the
-#     witnesses its own file calls: `data_bits_witness` at the
-#     same-source plane assertion, beside `plane_data`, the gated walk
-#     of the plane description it folds; and `surface_bits_witness`
-#     where the face merge compares two same-source surfaces. Dropping
-#     either attribute compiles
-#     and passes every test HERE — the workspace's `[profile.release]`
-#     keeps debug assertions on — and the first build that refuses it
-#     is a consumer's, because the witnesses do not exist without
-#     `debug_assertions`.
 #   * `crates/editor-core/src/product.rs` — the gather counter: the
 #     `GATHERS` cell, the increment in `product_recorded`, and
 #     `gathers_on_this_thread`. A fourth site without the attribute, or
@@ -122,7 +93,7 @@
 # EVERY SUBJECT MUST EXIST, and every row is proved present before any
 # row is scanned, so a subject that moved cannot hide behind the ones
 # that stayed. The inherited form checked for none of it: on a missing
-# `crates/topo/src/source.rs` both counts were the empty string,
+# subject file both counts were the empty string,
 # `[ "" -gt 0 ]` raised "integer expression expected", `&&` read that as
 # false, and the gate exited 0 — GREEN exactly when its subject had
 # moved out from under it. `gate_require_file` turns that case into a
@@ -247,10 +218,6 @@ set -euo pipefail
 # to a file with no row — reds with the row named rather than lowering
 # the total in silence.
 SUBJECTS=(
-  'crates/topo/src/source.rs bit_identity::|eq_bits|surface_bits_witness|data_bits_witness|nurbs_surface_bits_witness|joined|bits_witness 15 the bit channel'
-  'crates/topo/src/boolean/plane_eq.rs data_bits_witness|plane_data 4 the same-source plane witness on the bit channel'
-  'crates/topo/src/merge_faces.rs surface_bits_witness 1 the same-source surface witness on the bit channel'
-  'crates/topo/src/body.rs surface_bits_witness 1 the stamp door witness on the bit channel'
   'crates/editor-core/src/product.rs GATHERS|gathers_on_this_thread 4 the debug-only gather counter'
   'crates/mesh/src/curved.rs identified_ids|overused_identified_edge|overused_identified_edge_in 5 the identified-vertex census the sphere/torus emit pass re-derives'
   'crates/mesh/src/tessellate.rs unpaired_chord_segment 2 the chord-segment pairing census'

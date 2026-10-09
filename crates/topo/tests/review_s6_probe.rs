@@ -12,7 +12,7 @@ use common::{brick, finished, prism_z};
 use geom_core::COINCIDENCE_RECOURSE;
 use geom_core::Tol;
 use topo::{
-    BooleanError, BooleanOp, ContactRecords, ValidationError, boolean_reduce,
+    BooleanOp, ContactRecords, ValidationError, boolean_reduce,
     validate_pseudomanifold,
 };
 
@@ -42,33 +42,11 @@ fn assert_unified(msg: &str, recourse: &str) {
     assert!(!msg.contains("Indeterminate {"), "Debug leakage: {msg}");
 }
 
-/// Pair 2 e2e: two bricks whose faces coincide exactly (flush stack,
-/// independent recipe sources, NO declaration) and an in-band gap —
-/// both must refuse with ONE unified message carrying the recourse
-/// exactly once.
+/// Pair 2 e2e: an in-band gap must refuse with ONE unified message
+/// carrying the recourse exactly once. (Two bricks whose faces
+/// coincide exactly glue on their decided zero: `flush_rows`.)
 #[test]
 fn probe_boolean_coincidence_pair_e2e() {
-    // Exactly-on: b sits flush on a (shared plane z = 1), undeclared.
-    let a = finished(
-        "operand A",
-        brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness()),
-        Tol::witness(),
-    );
-    let b = finished(
-        "operand B",
-        brick::<f64>((0.5, 1.5), (0.5, 1.5), (1.0, 2.0), Tol::witness()),
-        Tol::witness(),
-    );
-    let err = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness())
-        .expect_err("undeclared flush contact must refuse");
-    let msg = err.to_string();
-    eprintln!("[probe] boolean exactly-on:\n  {msg}\n");
-    assert!(
-        matches!(err, BooleanError::UndeclaredCoincidence { .. }),
-        "{err:?}"
-    );
-    assert_unified(&msg, COINCIDENCE_RECOURSE);
-
     // In-band: corner gap of 3 eps (inside the sliver band).
     let eps = geom_core::Tol::witness().get().eps;
     let g = 1.0 + 3.0 * eps;

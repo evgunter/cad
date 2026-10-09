@@ -27,7 +27,7 @@ use common::{brick, finished, flush_declarations};
 use geom_core::Decide;
 use geom_core::Tol;
 use topo::validate::{validate_closed, validate_geometric};
-use topo::{BooleanError, BooleanResult, BooleanResultKind, mass_properties, union, union_with};
+use topo::{BooleanResult, BooleanResultKind, mass_properties, union, union_with};
 
 const TOP_VOL: f64 = 4.0 * 3.0 * 0.25; // 3.0
 const PER_LEG_GAIN: f64 = 0.5 * 0.5 * 1.125 - 0.5 * 0.5 * 0.125; // 0.25
@@ -123,15 +123,25 @@ fn corner_aligned_table_four_legs_builds() {
     );
 }
 
-/// The narrowing pin (ladder rung (b), post-retirement): the SAME
-/// single-leg union WITHOUT declarations refuses loudly — equal bits
-/// without shared source or declared intent never glue.
+/// Declared and undeclared are one body (D10): the SAME single-leg
+/// union WITHOUT declarations glues its flush contacts on their decided
+/// zero and returns the declared union's body, bit for bit.
 #[test]
-fn undeclared_corner_leg_refuses_loudly() {
-    match union(&top::<f64>(), &leg(4.0, 3.0), Tol::witness()) {
-        Err(BooleanError::UndeclaredCoincidence { .. }) => {}
-        other => panic!("undeclared flush union must refuse UndeclaredCoincidence, got {other:?}"),
-    }
+fn undeclared_corner_leg_is_the_declared_leg() {
+    let (a, b) = (top::<f64>(), leg(4.0, 3.0));
+    let body = |r: BooleanResult<f64>| match r {
+        BooleanResult::Body(bb) => format!("{:?}", bb.body),
+        BooleanResult::Empty => panic!("nonempty overlap cannot be Empty"),
+    };
+    let declared = union_with(
+        &a,
+        &b,
+        &flush_declarations(&a, &b, Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("declared corner-aligned leg union refused");
+    let undeclared = union(&a, &b, Tol::witness()).expect("the undeclared leg glues on Zero");
+    assert_eq!(body(undeclared), body(declared));
 }
 
 /// Interval lane: conservatism acceptable, wrongness never.

@@ -7061,7 +7061,7 @@ mod turn_miss {
         let band = Band::linear(tol).unwrap();
         let mut body = Body::<f64>::new();
         let frame = CylFrame::canonical(1.0);
-        let face = cyl_wall_sheet(&mut body, frame, None, (0.2, 1.4), (0.0, 1.0), tol);
+        let face = cyl_wall_sheet(&mut body, frame, (0.2, 1.4), (0.0, 1.0), tol);
         let outer = body.get_face(face).unwrap().outer;
         let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
             panic!("the wall is bounded by a cycle")

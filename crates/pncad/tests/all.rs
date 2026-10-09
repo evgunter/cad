@@ -1503,11 +1503,8 @@ fn a_boolean_result_validates_at_tier_3_prime() {
 
     // The post is strictly interior in x and y and pokes out of the
     // base's top, so the two bodies genuinely interpenetrate and NO
-    // pair of faces is coincident. That matters: the kernel never
-    // infers coincidence from values, so two boxes merely TOUCHING on
-    // a shared plane refuse with `UndeclaredCoincidence` until the
-    // author declares the contact. (Declared-contact unions are the
-    // corpus's own subject; this test wants the plain seamed path.)
+    // pair of faces is coincident: this test wants the plain seamed
+    // path, not a glued contact.
     let base = slab((0.0, 3.0), (0.0, 2.0), (0.0, 1.0)); // 6.0
     let post = slab((0.5, 1.5), (0.5, 1.5), (0.5, 2.0)); // 1.5, of which 0.5 is inside
 

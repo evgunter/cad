@@ -190,7 +190,6 @@ pub mod offset_derive;
 pub mod offset_nappe;
 pub(crate) mod offset_restate;
 pub mod offset_together;
-pub mod param_source;
 pub mod pcurves;
 pub mod pieces;
 pub(crate) mod policy_lane;
@@ -235,7 +234,6 @@ pub mod separation;
 #[cfg(test)]
 pub(crate) mod seqgen;
 pub mod shell;
-pub mod source;
 pub mod split;
 pub mod splitting;
 pub(crate) mod stands;
@@ -802,13 +800,13 @@ pub mod validate;
 
 pub use body::Body;
 pub use boolean::{
-    BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanDeclarations, BooleanError,
+    BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanDeclarations, BooleanError, Verdicts,
     BooleanErrorKind, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind,
     CarriedContacts, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation, Cell,
     Coincide, CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent, ContactRecords,
     ContainDecision, ContainError, Contradiction, CurveContact, DeclarationRead, DiscardRow,
     EdgeJoin, EdgePieceClass, EeContact, FaceContainment, FacePairDeclaration, Fusions, HeldEdge,
-    JoinReading, JoinRefusal, JoinUndecided, LeverArm, NeighbourOffset, NullEdgePairRecord,
+    JoinReading, JoinRefusal, JoinUndecided, LeverArm, NullEdgePairRecord,
     Operand, OperandKeys, PairFace, PairRefusalSite, PairSite, PairUnread, PatchContact,
     PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung,
     PointInSolidError, SectorRead, SectorRung, SelfCheck, Settling, ShellOrientation, SideCode,
@@ -902,7 +900,6 @@ pub use provenance::{Provenance, SplitLineageCycle};
 // the query DOORS (materializers, predicates) keep their module
 // identity, like `readback`'s.
 pub use face_boxes::{FaceBox, FaceBoxes};
-pub use param_source::{ParamAttachError, ParamSource, SurfaceField, field_source_evidence};
 pub use pieces::PieceSortError;
 pub use query::{
     CurveKind, CurveKindSet, DATUM_UNIT_NORM, DatumValue, RimBreak, RimError, SEL_DATUM_DISTANCE,
@@ -915,10 +912,6 @@ pub use replace_face::{
 pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};
 pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
-};
-pub use source::{
-    AxisAttachError, AxisPlacement, AxisRecord, AxisSource, GeomOrigin, GeomSource, Or,
-    SourceAttachError, SourceExpr,
 };
 pub use split::SplitEdgeCreated;
 pub use splitting::{

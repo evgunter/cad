@@ -689,10 +689,7 @@ impl<T: Real> ProfileLoop<T> {
     ///   [`ProfileError::TangencyContradicted`] otherwise.
     /// - Conversely, a joint whose carriers *are* definitely tangent
     ///   **must** be declared: undeclared exact tangency is refused as
-    ///   [`ProfileError::UndeclaredTangency`] (relying on tangency that
-    ///   numerically happens-to-hold is the pattern the boolean door's
-    ///   UndeclaredCoincidence retired; lifted here to the profile
-    ///   door).
+    ///   [`ProfileError::UndeclaredTangency`].
     /// - **Carrier identity is not a reason for anything** (Ev,
     ///   in-chat, 2026-09-02): a zero-turn joint is a tangent joint
     ///   whatever the carriers do, so a declaration on a collinear

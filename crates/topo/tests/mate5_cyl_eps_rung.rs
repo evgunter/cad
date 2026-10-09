@@ -39,7 +39,7 @@ fn band() -> Band {
 /// The A-side sheet of the seat: an arc wall in the canonical frame,
 /// world azimuth `[t0, t1]`, world height `[z0, z1]`.
 fn sheet_a(t0: f64, t1: f64, z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
-    wall_sheet(CylFrame::canonical(1.0), 7001, t0, t1, z0, z1)
+    wall_sheet(CylFrame::canonical(1.0), t0, t1, z0, z1)
 }
 
 /// The B-side sheet: the SAME world region authored in `frame_b`. The
@@ -49,7 +49,6 @@ fn sheet_a(t0: f64, t1: f64, z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
 fn sheet_b(t0: f64, t1: f64, z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
     wall_sheet(
         CylFrame::opposed(0.7),
-        7002,
         0.7 - t1,
         0.7 - t0,
         0.25 - z1,
@@ -62,21 +61,13 @@ fn sheet_b(t0: f64, t1: f64, z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
 /// which is what the rows calling this are about. The window is
 /// `sheet_b(0.5, 1.3, 0.3, 0.7)`'s, written through the same chart
 /// transfer so there is one spelling of it in this file.
-///
-/// **`src` stays per-call.** Nothing in the tree asserts that two
-/// sheets carry distinct `GeomSource`s — that is
-/// `work/tint/topo-cylinder-sheet-geomsources-are-asserted-by-nothing`
-/// — so collapsing two ids here would quietly erase the thing that row
-/// exists to measure. The bodies these callers built before this
-/// helper are the bodies they build now, bit for bit.
-fn sheet_b_at_radius(r: f64, src: u64) -> (Body<f64>, FaceKey) {
+fn sheet_b_at_radius(r: f64) -> (Body<f64>, FaceKey) {
     let (t0, t1, z0, z1) = (0.5, 1.3, 0.3, 0.7);
     wall_sheet(
         CylFrame {
             radius: r,
             ..CylFrame::opposed(0.7)
         },
-        src,
         0.7 - t1,
         0.7 - t0,
         0.25 - z1,
@@ -249,10 +240,10 @@ fn one_axis_tilt_two_levers_two_answers() {
     let eps = Tol::witness().eps();
     let tilt = 40.0 * Tol::witness().k() * eps;
     let tilted = |r: f64, u0: f64, u1: f64, z0: f64, z1: f64| {
-        wall_sheet(CylFrame::tilted(r, tilt), 7003, u0, u1, z0, z1)
+        wall_sheet(CylFrame::tilted(r, tilt), u0, u1, z0, z1)
     };
     let small = |u0: f64, u1: f64, z0: f64, z1: f64| {
-        wall_sheet(CylFrame::canonical(1e-3), 7005, u0, u1, z0, z1)
+        wall_sheet(CylFrame::canonical(1e-3), u0, u1, z0, z1)
     };
     // The PEG: radius 1 mm, wall 1 mm — hyp ≈ 1.4 mm, so the tilt's
     // displacement anywhere on the pair is ≤ ~6e-10 m, inside the
@@ -294,12 +285,12 @@ fn one_axis_tilt_two_levers_two_answers() {
 fn radius_disagreement_is_three_outcome_honest() {
     let eps = Tol::witness().eps();
     let (a, fa) = sheet_a(0.2, 1.6, 0.0, 1.0);
-    let (b_far, fb_far) = sheet_b_at_radius(1.0 + 1e-3, 7004);
+    let (b_far, fb_far) = sheet_b_at_radius(1.0 + 1e-3);
     match declared_pair_overlap(&a, fa, &b_far, fb_far, ContactVerdict::Definite, band()) {
         Err(ChartRegionError::CarrierTilt) => {}
         other => panic!("a definite radius disagreement refuses typed: {other:?}"),
     }
-    let (b_sliver, fb_sliver) = sheet_b_at_radius(1.0 + 3.0 * eps, 7004);
+    let (b_sliver, fb_sliver) = sheet_b_at_radius(1.0 + 3.0 * eps);
     match declared_pair_overlap(
         &a,
         fa,
@@ -375,7 +366,7 @@ fn a_bridged_verdict_tightens_the_premise_budget() {
     // The edge case: |Δr| = 0.7·ε — Zero at the run band, in-band at
     // the halved budget.
     let (a, fa) = sheet_a(0.2, 1.6, 0.0, 1.0);
-    let (b, fb) = sheet_b_at_radius(1.0 + 0.7 * eps, 7006);
+    let (b, fb) = sheet_b_at_radius(1.0 + 0.7 * eps);
     assert_eq!(
         declared_pair_overlap(&a, fa, &b, fb, ContactVerdict::Definite, band()).unwrap(),
         ChartOverlap::PositiveArea,
@@ -534,7 +525,6 @@ mod interval_lane {
         let fa = cyl_wall_sheet(
             &mut a,
             CylFrame::canonical(1.0),
-            Some(7201),
             (0.0, 0.4),
             (0.0, 1.0),
             Tol::witness(),
@@ -543,7 +533,6 @@ mod interval_lane {
         let fb = cyl_wall_sheet(
             &mut b,
             CylFrame::canonical(1.0),
-            Some(7202),
             (pi, pi + 0.4),
             (0.2, 0.8),
             Tol::witness(),

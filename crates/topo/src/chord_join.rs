@@ -4312,7 +4312,6 @@ mod tests {
         let face = crate::test_support_fixtures::cyl_wall_sheet(
             &mut body,
             crate::test_support_fixtures::CylFrame::canonical(r),
-            None,
             (0.0, w / r),
             (0.0, e),
             Tol::witness(),
@@ -4364,7 +4363,6 @@ mod tests {
         let face = crate::test_support_fixtures::cyl_wall_sheet(
             &mut body,
             crate::test_support_fixtures::CylFrame::canonical(r),
-            None,
             (0.0, w / r),
             (0.0, e),
             Tol::witness(),
@@ -5323,7 +5321,6 @@ mod torn_hop_rows {
         let face = crate::test_support_fixtures::cyl_wall_sheet(
             &mut body,
             crate::test_support_fixtures::CylFrame::canonical(1.0),
-            None,
             (0.2, 1.4),
             (0.0, 1.0),
             Tol::witness(),

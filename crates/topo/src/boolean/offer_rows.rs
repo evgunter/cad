@@ -654,7 +654,6 @@ fn line_run(profile: [(f64, f64); 4]) -> Result<(), BooleanError> {
     let wall = cyl_wall_sheet(
         &mut y,
         CylFrame::canonical(1.0),
-        None,
         (-0.5, 0.5),
         (0.0, 1.0),
         tol,
@@ -691,7 +690,6 @@ fn arc_against_a_wall(r: f64, class: Option<ContactClass>) -> Result<(), Boolean
     let xw = cyl_wall_sheet(
         &mut x,
         CylFrame::canonical(r),
-        None,
         (0.5, 1.0),
         (0.25, 0.5),
         tol,
@@ -702,7 +700,6 @@ fn arc_against_a_wall(r: f64, class: Option<ContactClass>) -> Result<(), Boolean
     let yw = cyl_wall_sheet(
         &mut y,
         CylFrame::canonical(1.0),
-        None,
         (0.0, 3.0),
         (0.0, 1.0),
         tol,
@@ -1059,7 +1056,7 @@ fn coaxial_frame(cyl: f64, sph: f64) -> Result<(), BooleanError> {
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let face = crate::entity::FaceKey::default();
-    cs_pair_frame(&c, &s, geom_brep::CoaxialEvidence::Declared, band())
+    cs_pair_frame(&c, &s, band())
         .map(|_| ())
         .map_err(|e| frame_refusal(e, (face, &c), (face, &s)))
 }
@@ -1099,7 +1096,6 @@ fn transverse_frame(reach: f64) -> Result<(), BooleanError> {
     pair_section_frame(
         &c,
         &s,
-        geom_brep::RadiusEvidence::None,
         Point3::new(0.0, 0.0, 0.0),
         None,
         band(),
@@ -1263,7 +1259,6 @@ fn vertex_near_a_sheet_corner() -> Result<(), BooleanError> {
     let face = cyl_wall_sheet(
         &mut y,
         CylFrame::canonical(1.0),
-        None,
         (0.0, 1.0),
         (0.0, 1.0),
         tol,
@@ -1271,7 +1266,6 @@ fn vertex_near_a_sheet_corner() -> Result<(), BooleanError> {
     cyl_wall_sheet(
         &mut y,
         CylFrame::canonical(1.0),
-        None,
         (3.0 + D, 4.0),
         (0.5, 1.0),
         tol,
@@ -2052,7 +2046,7 @@ fn design_band() -> Band {
 /// margin: an exhaustive match, so a new kind is a compile error here
 /// until it is placed.
 fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
-    use geom_brep::recourse::Refused;
+    use geom_brep::recourse::{Classified, Refused};
     let zero = || Classified {
         margin: diag.margin,
         band: diag.band,
@@ -2071,17 +2065,11 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
             .into_iter()
             .map(|decision| BooleanError::Escalated { decision, diag })
             .collect(),
-        BooleanErrorKind::CoplanarNeighbours => [
-            super::NeighbourOffset::Zero(zero()),
-            super::NeighbourOffset::Undecided(diag),
-        ]
-        .into_iter()
-        .map(|offset| BooleanError::CoplanarNeighbours {
+        BooleanErrorKind::CoplanarNeighbours => vec![BooleanError::CoplanarNeighbours {
             operand,
             faces: [face, face],
-            offset,
-        })
-        .collect(),
+            offset: diag,
+        }],
         BooleanErrorKind::SpheresMeet => refused()
             .into_iter()
             .map(|verdict| BooleanError::SpheresMeet {
@@ -2117,12 +2105,9 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
                 })
             })
             .collect(),
-        // Its margin is exactly zero or unreadable, and its recourse
-        // names no value (the filed NOTE-1 residue).
-        BooleanErrorKind::UndeclaredCoincidence
         // Quote no margin: a frontier, a declaration refused, a kernel
         // invariant, or a range fault.
-        | BooleanErrorKind::Band
+        BooleanErrorKind::Band
         | BooleanErrorKind::CurvedBooleanUnsupported
         | BooleanErrorKind::CurvedPierceUnsupported
         | BooleanErrorKind::CrossingAtConeApex

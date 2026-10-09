@@ -1946,10 +1946,9 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
     );
     doc = next;
     // A SECOND independently minted body, stood clear of the first,
-    // for the n-ary union candidate. Standing clear is the load-bearing
-    // part: two members that MEET refuse the undeclared contact rather
-    // than answering this row's question. They need not be
-    // independently minted — a union keys its names on the member EDGE,
+    // for the n-ary union candidate, so the union's members share no
+    // contact and the row asks only the seat's question. They need not
+    // be independently minted — a union keys its names on the member EDGE,
     // so a body and a placement of it are two members and name fine
     // (`docm3_union::two_placements_of_one_prototype_are_two_members`);
     // two extrudes are simply the clearest thing to stand apart.
@@ -2070,9 +2069,8 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
         ),
         // The n-ary union at its minimal size. Its two members are
         // `body` and the SECOND extrude rather than `other` because
-        // those two stand CLEAR of each other, and a union whose
-        // members meet refuses the undeclared contact before the seat's
-        // question is reached. `other` is a placement of `body`, which
+        // those two stand CLEAR of each other, so the candidate asks
+        // only the seat's question. `other` is a placement of `body`, which
         // a union names perfectly well — the member edge tells the two
         // apart even though a transform passes names through — but it
         // sits where `body` is.
@@ -3320,62 +3318,13 @@ fn a_duplicate_is_not_measured_off_a_picture_older_than_the_document() {
     );
 }
 
-// ---------------------------------------------------------------
-// AUTH-9: the contact the boolean door refuses, past the panel.
-// ---------------------------------------------------------------
-
-/// **A boolean poisoned by an upstream contact refusal commits, and
-/// offers nothing**: the finding it would carry is sited at the
-/// UPSTREAM union's operands, so declaring it here would declare
-/// nothing about this node. The upstream union is written straight into
-/// the document, the one way a refusing union reaches it. Red if the
-/// door lifts the ancestor's refusal into an offer.
+/// **A union across two flush contacts lands as one action.** The
+/// block has a channel cut across its top, so its top is TWO faces, and
+/// a boss bridging the channel rests on both. The union declares
+/// nothing and commits one step. Red if it refuses, or lands anything
+/// but the channelled block plus the boss.
 #[test]
-fn a_boolean_poisoned_by_an_upstream_contact_commits_and_offers_nothing() {
-    let tol = Tol::witness();
-    let (doc, block, boss) = common::boss_on_block("poisoned-union", tol);
-    let (doc, upstream) = common::inserted(
-        &doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: block.into(),
-            b: boss.into(),
-            declare: Vec::new(),
-        },
-        tol,
-    );
-    let mut session = DocSession::inline(doc, tol);
-    let union = session_insert(
-        &mut session,
-        SessionOp::AddBoolean {
-            op: BooleanOp::Union,
-            a: upstream,
-            b: boss,
-            declare: Vec::new(),
-        },
-    );
-    session.pump();
-    let rows = tree::rows(
-        session.committed_doc(),
-        session.evaluation(),
-        &viewer::parts::PartFiles::default(),
-    );
-    assert!(
-        matches!(common::status_of(&rows, union), RowStatus::Poisoned { through, .. } if through == upstream),
-        "the premise: the new union is poisoned through the upstream one"
-    );
-}
-
-/// **Two flush contacts are offered one refusal at a time, and land
-/// together.** The block has a channel cut across its top, so its top
-/// is TWO faces, and a boss bridging the channel rests on both. The
-/// first refusal offers one pair; accepting it is refused again with
-/// that pair kept and the second added, and nothing is committed until
-/// both are declared. Red if the second offer drops the first pair, or
-/// if accepting both lands anything but one union declaring both that
-/// is the channelled block plus the boss.
-#[test]
-fn a_second_contact_is_offered_with_the_first_and_both_land_as_one_action() {
+fn a_union_across_two_flush_contacts_lands_as_one_action() {
     const CHANNEL: [f64; 3] = [0.01, 0.04, 0.01];
     const CHANNEL_DROP: f64 = 0.005;
     const BOSS: [f64; 3] = [0.03, 0.01, 0.004];
@@ -3428,49 +3377,18 @@ fn a_second_contact_is_offered_with_the_first_and_both_land_as_one_action() {
     let (_, boss) = common::box_in(&mut session, frame, BOSS);
     session.pump();
 
-    let before = session.committed_doc().clone();
     let steps = session.history().len();
-    let offer_of = |refusal: Option<Refusal>| {
-        let refusal = refusal.expect("the union refuses");
-        viewer::frame::declare_offer(Some(&refusal))
-            .unwrap_or_else(|| panic!("an offer from the refusal: {refusal}"))
-    };
-    let first = offer_of(
-        session
-            .perform(SessionOp::AddBoolean {
-                op: BooleanOp::Union,
-                a: channelled,
-                b: boss,
-                declare: Vec::new(),
-            })
-            .refusal,
-    );
-    assert_eq!(first.findings().len(), 1, "{:?}", first.findings());
-    let second = offer_of(session.perform(first.accept()).refusal);
-    assert!(
-        session.committed_doc().bit_eq(&before),
-        "a refused acceptance commits nothing"
-    );
-    let [kept, added] = second.findings() else {
-        panic!("the first pair and the second: {:?}", second.findings());
-    };
-    assert_eq!(
-        kept,
-        &first.findings()[0],
-        "the first pair is still declared"
-    );
-    assert_ne!(kept.pair, added.pair, "and the second is another pair");
-
-    let outcome = session.perform(second.accept());
+    let outcome = session.perform(SessionOp::AddBoolean {
+        op: BooleanOp::Union,
+        a: channelled,
+        b: boss,
+        declare: Vec::new(),
+    });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let [union] = outcome.minted[..] else {
         panic!("one union: {:?}", outcome.minted);
     };
     assert_eq!(session.history().len(), steps + 1, "one action, one step");
-    assert!(matches!(
-        session.committed_doc().node(union),
-        Some(Node::Boolean { declare, .. }) if declare.len() == 2
-    ));
     let [width, depth, height] = common::BOSS_BLOCK;
     let cut = CHANNEL[0] * depth * (height - CHANNEL_DROP);
     let want = width * depth * height - cut + BOSS[0] * BOSS[1] * BOSS[2];

@@ -1084,9 +1084,8 @@ pub enum ProfileError {
     /// Adjacent segments meet tangentially at their shared vertex —
     /// the joint's distinct carriers are in definite first-order
     /// contact — but the joint is not declared tangent. Tangency that
-    /// numerically happens-to-hold is refused (the boolean door's
-    /// UndeclaredCoincidence, lifted to the profile door): declare the
-    /// intent or move the geometry.
+    /// numerically happens-to-hold is refused: declare the intent or
+    /// move the geometry.
     UndeclaredTangency {
         /// The segment arriving at the joint.
         first: SegmentRef,

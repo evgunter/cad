@@ -7697,7 +7697,6 @@ mod tests {
             body,
             CylFrame::opposed(d),
             CylKey::Bare,
-            Some(7102),
             (u0, u1),
             (v0, v1),
             Tol::witness(),
@@ -7707,7 +7706,7 @@ mod tests {
     }
 
     /// One arena, two wall sheets on DIVERGENT descriptions of one
-    /// cylinder, opposed senses, distinct sources — the seat, at the
+    /// cylinder, opposed senses — the seat, at the
     /// census's own door.
     fn cross_description_pair(
         th0: f64,
@@ -7716,7 +7715,7 @@ mod tests {
         z1: f64,
     ) -> (Body<f64>, FaceKey, FaceKey) {
         let mut body = Body::<f64>::new();
-        let (w1, cyl_a) = unit_cyl_sheet(
+        let (w1, _) = unit_cyl_sheet(
             &mut body,
             None,
             (0.2, 1.6),
@@ -7724,8 +7723,6 @@ mod tests {
             true,
             Tol::witness(),
         );
-        body.set_surface_source(cyl_a, crate::GeomSource::minted(7101, 0))
-            .unwrap();
         let w2 = cyl_sheet_b(&mut body, th0, th1, z0, z1, false);
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         (body, w1, w2)
@@ -11066,7 +11063,6 @@ mod torn_reach_rows {
         let face = crate::test_support_fixtures::cyl_wall_sheet(
             &mut body,
             crate::test_support_fixtures::CylFrame::canonical(1.0),
-            None,
             (0.2, 1.4),
             (0.0, 1.0),
             Tol::witness(),

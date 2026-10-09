@@ -57,16 +57,10 @@
 //!   operation whose faces never meet, unless the narrow phase behind
 //!   the overlap (`boolean::separating`, reaches along directions that
 //!   turn with the operands) parts the pair.
-//! - `boolean::reduce`'s undeclared-continuation scan
-//!   (`refuse_undeclared_continuations`, its boxes built by the
-//!   driver in `boolean/mod.rs` and passed in) mostly PRUNES: a face pair
-//!   or an edge pair whose boxes clear is never asked, and whether two
-//!   faces meet is decided point-on-edge through `Decide`, so a bigger
-//!   box costs exact work there. Its one box-decided answer is the
-//!   fallback for an edge whose carrier has no point parameter
-//!   (ellipse, spline), which reads a long enough overlap as a shared
-//!   curve. There a bigger box can refuse, as an undeclared
-//!   continuation, a pair that only touches.
+//! - the glue door (`boolean::glue`) only PRUNES: a face pair whose
+//!   boxes clear is never asked, and whether two faces lie on one
+//!   carrier is decided by the carrier ladder through `Decide`, so a
+//!   bigger box costs exact work there and decides nothing.
 //! - `separation` GRANTS on non-overlap — `Ok(())` IS the
 //!   disjointness certificate — so a bigger box refuses a placement
 //!   pair that is genuinely separated.

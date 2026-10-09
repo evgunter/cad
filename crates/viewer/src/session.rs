@@ -73,7 +73,7 @@ use crate::blend::BlendKindChoice;
 use crate::combine::{self, DuplicateFault, PatternOutputChoice};
 use crate::display::{DisplayFault, DisplayState, DisplayView};
 use crate::docio::{self, DirResolver, NoFile};
-use crate::evalseam::{EvalRequest, EvalService, InlineEvaluator, evaluate_beside};
+use crate::evalseam::{EvalRequest, EvalService, InlineEvaluator};
 use crate::g1;
 use crate::generation::Generation;
 use crate::history::History;
@@ -97,8 +97,7 @@ pub use op::{
 };
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
-    DeclareOffer, FaceFrameFault, NO_FACE_PICKED, NodeKindWanted, Refusal, RefusedBoolean, Step,
-    VersionOffer, admits, face_frame_seat, face_frame_seat_drawn,
+    FaceFrameFault, NO_FACE_PICKED, NodeKindWanted, Refusal, Step, VersionOffer, admits, face_frame_seat, face_frame_seat_drawn,
 };
 pub use select::{EdgeSelection, FaceSelection, Hovered, Selection, Standing};
 
@@ -2825,26 +2824,10 @@ impl DocSession {
                 declare: pairs,
             })
         });
-        let (staged, node) = match staged {
+        let (staged, _) = match staged {
             Ok(staged) => staged,
             Err(refusal) => return OpOutcome::refused(refusal),
         };
-        // Judged before it is recorded: the one recourse to a contact
-        // refusal is a declaration in the same action, which cannot be
-        // added to a committed node.
-        let resolver = self.run_resolver();
-        let memo = self.memo_under(&resolver);
-        let judged = evaluate_beside(&staged.doc, memo.as_deref(), &resolver, self.tol);
-        if let Some(refused) = RefusedBoolean::read(
-            &staged.doc,
-            &judged,
-            node,
-            (op, [a, b]),
-            declare,
-            self.generation,
-        ) {
-            return OpOutcome::refused(Refusal::Contact(Box::new(refused)));
-        }
         self.record_run(staged)
     }
 

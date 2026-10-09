@@ -220,11 +220,6 @@ fn snapshot_rows_and_next_keys(body: &Body<f64>) -> (Vec<String>, Vec<String>) {
         half_edge_provenance,
         edge_provenance,
         vertex_provenance,
-        point_origins,
-        curve_origins,
-        surface_origins,
-        surface_field_sources,
-        surface_axis_sources,
         #[cfg(debug_assertions)]
             surgery: _,
     } = body;
@@ -255,19 +250,6 @@ fn snapshot_rows_and_next_keys(body: &Body<f64>) -> (Vec<String>, Vec<String>) {
     );
     walk(&mut lines, "edge-provenance", edge_provenance.iter());
     walk(&mut lines, "vertex-provenance", vertex_provenance.iter());
-    walk(&mut lines, "point-origin", point_origins.iter());
-    walk(&mut lines, "curve-origin", curve_origins.iter());
-    walk(&mut lines, "surface-origin", surface_origins.iter());
-    walk(
-        &mut lines,
-        "surface-field-sources",
-        surface_field_sources.iter(),
-    );
-    walk(
-        &mut lines,
-        "surface-axis-source",
-        surface_axis_sources.iter(),
-    );
     (lines, next_keys)
 }
 
@@ -1739,7 +1721,6 @@ mod tests {
             crate::test_support_fixtures::cyl_wall_sheet(
                 &mut sheet,
                 crate::test_support_fixtures::CylFrame::canonical(1.0),
-                None,
                 (0.0, 1.0),
                 (0.0, 1.0),
                 Tol::witness(),
@@ -1753,7 +1734,7 @@ mod tests {
         };
         let before = deep_snapshot(&s.body);
         type Insert<'a> = Box<dyn Fn(&mut Body<f64>) + 'a>;
-        let rows: [(&str, Insert); 8] = [
+        let rows: [(&str, Insert); 3] = [
             (
                 "pcurves",
                 Box::new(|b| {
@@ -1777,42 +1758,6 @@ mod tests {
                         below_loop: s.lone_loop,
                     };
                     b.null_faces.insert(k, pair);
-                }),
-            ),
-            (
-                "point_origins",
-                Box::new(|b| {
-                    let k = fresh(|k| b.point_origins.contains_key(k));
-                    b.point_origins.insert(k, crate::GeomOrigin::Imported);
-                }),
-            ),
-            (
-                "curve_origins",
-                Box::new(|b| {
-                    let k = fresh(|k| b.curve_origins.contains_key(k));
-                    b.curve_origins.insert(k, crate::GeomOrigin::Imported);
-                }),
-            ),
-            (
-                "surface_origins",
-                Box::new(|b| {
-                    let k = fresh(|k| b.surface_origins.contains_key(k));
-                    b.surface_origins.insert(k, crate::GeomOrigin::Imported);
-                }),
-            ),
-            (
-                "surface_field_sources",
-                Box::new(|b| {
-                    let k = fresh(|k| b.surface_field_sources.contains_key(k));
-                    b.surface_field_sources
-                        .insert(k, crate::param_source::FieldSources::default());
-                }),
-            ),
-            (
-                "surface_axis_sources",
-                Box::new(|b| {
-                    let k = fresh(|k| b.surface_axis_sources.contains_key(k));
-                    b.surface_axis_sources.insert(k, crate::AxisRecord::Cleared);
                 }),
             ),
         ];

@@ -423,12 +423,8 @@ fn reflex_edge_crossing_builds_sound() {
         (BooleanOp::Intersect, 0.2),
         (BooleanOp::Subtract, 2.8),
     ] {
-        let err = boolean_reduce(op, &a, &b, Tol::witness()).unwrap_err();
-        assert!(
-            matches!(err, BooleanError::UndeclaredCoincidence { .. }),
-            "op {op:?}: undeclared caps, got {err:?}"
-        );
         assert_sound(op, &a, &b, &decls, volume);
+        assert_sound(op, &a, &b, &topo::BooleanDeclarations::none(), volume);
     }
 }
 
@@ -479,8 +475,7 @@ fn notch_fill_dense_ties() {
             }
             Err(
                 e @ (BooleanError::ClassificationInvariant { .. }
-                | BooleanError::Escalated { .. }
-                | BooleanError::UndeclaredCoincidence { .. }),
+                | BooleanError::Escalated { .. }),
             ) => {
                 eprintln!("op {op:?}: refused: {e}");
             }
@@ -491,14 +486,13 @@ fn notch_fill_dense_ties() {
 
 /// plane_eq door: bit-DIFFERENT NaN normals must never compare Same
 /// (the PR 1 NaN lesson at the new seam) — and must not silently pass
-/// as Distinct either. Post-retirement (M4 PR 5): an axis-plane
-/// revert pair decides SameOpposite through the SAME-SOURCE rung
-/// (reverted orient), and WITHOUT sources the same values refuse
-/// Undeclared — value equality never glues (rung (b)).
+/// as Distinct either. An axis-plane revert pair (one normal the other's
+/// negation, a signed zero apart) decides SameOpposite on its margins,
+/// declared or not.
 #[test]
 fn plane_eq_nan_and_negzero() {
     use geom_core::{Band, Point3, Vec3};
-    use topo::{GeomSource, PlaneIdentity, PlaneRelation, oriented_plane_eq};
+    use topo::{PlaneIdentity, PlaneRelation, oriented_plane_eq};
     let band = Band::linear(Tol::witness()).unwrap();
     let mk = |n: Vec3<f64>, o: Point3<f64>| topo::boolean::plane_eq::PlaneDesc {
         origin: o,
@@ -510,34 +504,14 @@ fn plane_eq_nan_and_negzero() {
     let p2 = mk(Vec3::new(0.0, 0.0, nan2), Point3::new(0.0, 0.0, 0.0));
     let r = oriented_plane_eq(&p1, &p2, PlaneIdentity::NONE, &metre_ball(1.0), band);
     assert!(r.is_err(), "bit-different NaN planes decided {r:?}");
-    // Same-source revert pair (the post-retirement declared rung):
-    // orient split decides SameOpposite with zero numerics.
     let q1 = mk(Vec3::new(0.0, 0.0, 1.0), Point3::new(0.0, 0.0, 5.0));
     let q2 = mk(Vec3::new(-0.0, -0.0, -1.0), Point3::new(0.0, 0.0, 5.0));
-    let src = GeomSource::minted(1, 0);
-    let src_rev = src.reverted();
-    assert_eq!(
-        oriented_plane_eq(
-            &q1,
-            &q2,
-            PlaneIdentity {
-                s1: Some(&src),
-                s2: Some(&src_rev),
-                declared: false
-            },
-            &metre_ball(1.0),
-            band
-        )
-        .unwrap(),
-        PlaneRelation::SameOpposite
-    );
-    // The SAME values without sources: Undeclared, typed — the M4
-    // PR 5 narrowing (equal bits without shared source stay unglued).
-    let r = oriented_plane_eq(&q1, &q2, PlaneIdentity::NONE, &metre_ball(1.0), band);
-    assert!(
-        matches!(r, Err(topo::PlaneEqError::Undeclared { .. })),
-        "unsourced value-equal planes must refuse Undeclared, got {r:?}"
-    );
+    for id in [PlaneIdentity::NONE, PlaneIdentity::DECLARED] {
+        assert_eq!(
+            oriented_plane_eq(&q1, &q2, id, &metre_ball(1.0), band).unwrap(),
+            PlaneRelation::SameOpposite
+        );
+    }
 }
 
 // ---- Interval lane spot checks on the review fixtures. ----

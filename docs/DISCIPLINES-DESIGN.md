@@ -105,22 +105,23 @@ where its geometry lives (the C4 tables in `topo`, the joint
 classifier in `profile`), exactly as `ContactClass` is defined lowest
 and re-exported upward today.
 
-## DS2 — The identification criterion: which disciplines admit no knob
+## DS2 — Identification: a decided margin glues, under every setting
 
-**A discipline is irreducibly mandatory iff its declaration licenses
-an identification** — a quotient that merges independently-authored
-entities into one (a single carrier from two descriptions, the
-declared-REST zip, a blessed conformal patch), so that the *built
-solid itself* depends on whether the bless happens. Value evidence
-cannot substitute for the declaration there even when definite, as a
-matter of principle rather than posture: bit-equality at nominal is
-a fact about a **point** in parameter space; identity is a claim
-about the **family** (equal under every assignment the M10
-distribution explores). Only intent can assert the family-level
-claim, and gluing on the point-fact makes topology a function of a
-coincidence nobody stated. Carrier equality and declared contact are
-identification-grade; they carry no switch today and none under this
-design.
+**No discipline glues on a declaration that a decided margin would
+not** (D10, Booleans; Ev, 2026-10-03, part 3). An identification — a
+quotient that merges independently-authored entities into one (a
+single carrier from two descriptions, a rest contact joined, a
+conformal patch) — happens wherever the kernel's margin decides Zero,
+declared or not, so the built solid is the same under every lint
+setting. A Zero verdict is a decided verdict. What a declaration
+added beyond the point-fact was a claim about the **family** (equal
+under every assignment the M10 distribution explores); that claim is
+now the `unproven-coincidence` lint's, which reads each recorded
+coincidence and reports the ones nothing in the document proves. The
+identification grade is retired: carrier equality and contact carry
+no switch because nothing about them is gated, not because a
+declaration is mandatory. A declaration still bridges a margin in
+band, which the undeclared ladder refuses as a sliver.
 
 **Classification-grade disciplines are everything else**: the
 stratum verdict tunes edge descriptions, legality, and messages, but
@@ -170,9 +171,6 @@ dial (`ValidatedLoop::blend_arcs` — the structural
 fillet-identification API — and loft joint carriage), so PATHS
 constructors keep authoring them at every position.
 
-The criterion is checkable, not a judgment call: name the merge the
-declaration licenses, or the discipline is classification-grade.
-
 ## DS3 — The severity invariant: what makes any knob legal
 
 A registry entry may carry a configuration knob iff it can hold this
@@ -205,8 +203,8 @@ Consequences, each load-bearing:
   DS-Q1's document-demanded strictness rides with it.
 
 This invariant is the sharp boundary of the design: anything that
-can hold it is knob-eligible; the identification disciplines (DS2)
-cannot, and are not. The knob mechanics themselves are trivial (a
+can hold it is knob-eligible. An identification gates nothing (DS2):
+a decided margin glues, so no knob reaches it. The knob mechanics themselves are trivial (a
 level enum consulted at the finding sink — one macro's worth); the
 design content is the invariant, not the mechanism.
 
@@ -260,19 +258,15 @@ the diagonal {pᵢ = pⱼ}. Rungs:
   them equal (both read `width/2`): intended, nothing to declare;
 - **declared-same** — unify into one variable (the repair that makes
   the coincidence structural);
-- **declared-distinct** — an explicit disavowal: "equal by
-  coincidence, keep independent." New vocabulary — the geometric
-  disciplines have no anti-declaration, but here both menu arms
-  record intent, which is what makes `require` livable;
-- **refusing** — DAG-disjoint expressions, definitely-equal values,
-  no declaration either way: the finding.
+- **refusing** — DAG-disjoint expressions, definitely-equal values:
+  the finding.
 
 For literal operands the equality test is exact — no ε anywhere; for
 derived values it is the ordinary Q1 definite-equality trilean.
 Scope: **named parameters only**, not raw coordinate literals —
 base-rate control is what keeps the finding a signal. The consumer
 that makes the declaration meaningful is M10: same variable = the
-pair comoves under the distribution; declared-distinct = independent
+pair comoves under the distribution; two variables = independent
 marginals. The lint is the completeness condition for a tolerance
 stackup being well-posed over the definitely-equal pairs — and it
 catches the one classic parametric defect no geometric check can
@@ -280,8 +274,8 @@ see: the copy-pasted dimension that was meant to be shared, where
 both models are bit-identical at nominal and differ only in
 parameter space. At the dial's `auto-record` position the recorded
 object is the acknowledged observation (the pair, not a chosen arm —
-the machine cannot pick unify-vs-distinct; upgrading to either arm
-is the user's review).
+the machine cannot pick whether to unify; unifying is the user's
+review).
 
 The frame-coincidence variant (a vertical line authored as two
 points rather than direction + origin + length) is recorded as a
@@ -395,9 +389,8 @@ is meant to close, not the final state. An overlap about ε thick, which
 refuses as a sliver, is not on that frontier: the representation cannot
 tell it from contact or a gap, nor verify a bound written on it, so it
 is undecidable at that ε rather than a defect.
-A waiver is the check-side analogue of the parameter lint's
-declared-distinct arm: it records intent *about a finding* rather
-than making a geometric claim, so there is nothing to verify — only
+A waiver records intent *about a finding* rather than making a
+geometric claim, so there is nothing to verify — only
 to match, and to stale. The certified/heuristic label (certified:
 the finding is a theorem — connectedness, moldability's hull bounds;
 heuristic: a judgment that can be wrong in both directions — the
@@ -433,8 +426,7 @@ and honest blame in messages. Collapsing those two rungs is a cheap
 simplification if the review door proves unwanted; the
 constructor-authored rung is structural and stays either way.
 
-**The recording dial**, per classification-grade discipline
-(identification-grade disciplines have no dial at any position, DS2):
+**The recording dial**, per classification-grade discipline:
 
 - **require** — undeclared definite coincidence refuses; the
   strictest position and the ratified default posture.
@@ -462,9 +454,9 @@ the composition's semantics deserve stating in three separate layers
   representable, so a sub-ε pair honestly classifies coincident.
   That is forced by precision, not a snap, and a verdict alone glues
   nothing;
-- **identification** — merging entities takes a structural or
-  declared rung (or the dial's auto-record) at every K; no verdict
-  reaches topology without one;
+- **identification** — merging entities takes a margin decided Zero
+  at every K (D10), recorded for the `unproven-coincidence` lint; an
+  in-band margin glues only under a declaration;
 - **the data** — nothing is ever rewritten: no vertex moves, no
   per-entity tolerance grows; a declaration bridges the sub-ε
   residue semantically while both stored descriptions keep their
@@ -580,16 +572,15 @@ Consequences, binding on the implementing unit when it comes:
 
 | Grade | Kind | Placement criterion | Knob | Residents (built / named) |
 |---|---|---|---|---|
-| 1 | identification discipline | declaration licenses a quotient (DS2) | none, ever | carrier equality, declared contact (built) |
 | 2 | classification discipline | same solid whenever it builds (DS3) | ignore / auto-record / require | profile tangency (built, `require`); right angles (reserved) |
 | 3 | recipe-layer discipline | parameter-space stratum; kernel never sees it | ignore / auto-record / require | parameter coincidence (named) |
 | 4 | advisory check | pure analysis, findings only | off/warn/error; error requires a waiver door (DS6) | connectedness (built, Warn); sliver, moldability, machinability (I1, parked) |
 
-One pattern (DS1), two derivable placement criteria (DS2, DS3), one
+One pattern (DS1), one derivable placement criterion (DS3), one
 shared sink, one provenance ladder (DS7). A proposed new rule is
-placed by answering two questions — *does its declaration license an
-identification? can it hold the severity invariant?* — neither of
-which is a matter of taste.
+placed by answering one question — *can it hold the severity
+invariant?* — which is not a matter of taste. (Identification, DS2,
+places nothing: a decided margin glues under every setting.)
 
 ## Open questions
 

@@ -255,15 +255,13 @@ pub const BOSS_HEIGHT: f64 = 0.004;
 
 /// **A block and a boss drawn on its top cap**, answering the document,
 /// the block and the boss — FLUSH with each other at that cap by
-/// construction, which is the whole point of the scene: their union
-/// refuses until the contact is declared.
+/// construction, which is the whole point of the scene.
 ///
 /// The boss's frame is read off the block's top cap
 /// (`Datum::FaceFrame`, zero spin), the node the add-datum form mints
 /// from a face pick. `tests/creation_ops.rs`'s boss row authors the same
 /// scene through the op vocabulary, because the gesture is what that
-/// row is about; this is the scene alone. Its union's volume is
-/// [`boss_on_block_union_volume`].
+/// row is about; this is the scene alone.
 pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let [width, height, depth] = BOSS_BLOCK;
     let (doc, plane) = inserted(&Doc::empty_derived(label, tol), xy_frame(), tol);
@@ -313,13 +311,6 @@ pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeI
         tol,
     );
     (doc, block, boss)
-}
-
-/// The closed-form volume of [`boss_on_block`]'s union: the block's
-/// box and the boss's cylinder, which meet only at the cap.
-pub fn boss_on_block_union_volume() -> f64 {
-    let [width, height, depth] = BOSS_BLOCK;
-    width * height * depth + core::f64::consts::PI * BOSS_RADIUS * BOSS_RADIUS * BOSS_HEIGHT
 }
 
 /// **`doc` with `node` inserted, evaluated from scratch** — what the

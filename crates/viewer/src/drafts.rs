@@ -29,9 +29,7 @@ use crate::forms::{DatumKindChoice, PartSelectChoice, PatternKindChoice, ShapeKi
 use crate::history::HistoryId;
 use crate::props::Notation;
 use crate::seats::SeatError;
-use crate::session::{
-    DatumSpec, DeclareOffer, FaceSelection, ProfilePlane, ProfileShape, SessionOp,
-};
+use crate::session::{DatumSpec, FaceSelection, ProfilePlane, ProfileShape, SessionOp};
 use crate::sketch::{self, HeldRefusal};
 
 /// Transient text a panel is mid-edit on.
@@ -212,10 +210,6 @@ pub(crate) struct Drafts {
     pub(crate) revolve_angle: f64,
     /// The boolean tool's operation choice.
     pub(crate) boolean_op: BooleanOp,
-    /// The offer an undeclared-contact refusal made
-    /// ([`crate::frame::declare_offer`]); shown in the boolean tool
-    /// while it stands ([`DeclareOffer::is_for`]).
-    pub(crate) declare_offer: Option<DeclareOffer>,
     /// The transform tool's translation, metres.
     pub(crate) transform_translation: [f64; 3],
     /// Its rotation axis (unitless).
@@ -691,7 +685,6 @@ impl Default for Drafts {
             extrude_distance: 0.01,
             revolve_angle: core::f64::consts::TAU,
             boolean_op: BooleanOp::Union,
-            declare_offer: None,
             transform_translation: [0.0; 3],
             transform_axis: [0.0, 0.0, 1.0],
             transform_angle: 0.0,

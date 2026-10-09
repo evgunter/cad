@@ -228,14 +228,18 @@ pub(crate) const fn relation_words(relation: topo::Relation) -> &'static str {
         topo::Relation::SameOpposite => "rests on one carrier against",
         topo::Relation::OnCarrier => "lies on",
         topo::Relation::EqualAngles => "makes an equal angle at its turn with",
+        topo::Relation::Tangent { aligned: false } => "touches tangentially",
+        topo::Relation::Tangent { aligned: true } => "continues tangentially with",
     }
 }
 
 /// A decision site in words.
 pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
     match site {
-        topo::DecisionSite::PlaneLadder => "a declared pair of planes read as one",
-        topo::DecisionSite::CarrierLadder => "a declared pair of carriers read as one",
+        topo::DecisionSite::PlaneLadder => "a pair of planes its margins read as one",
+        topo::DecisionSite::CarrierLadder => "a pair of carriers its margins read as one",
+        topo::DecisionSite::TangentWitness => "a tangency verified along its locus",
+        topo::DecisionSite::CoaxialSphere => "a sphere's centre read on a cylinder's axis",
         topo::DecisionSite::SplitOn => "a split's on-plane verdict where its pieces touch",
         topo::DecisionSite::BatteryTurn => "a blend's isosceles turn",
     }

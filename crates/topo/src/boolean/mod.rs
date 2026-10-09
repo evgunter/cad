@@ -97,6 +97,7 @@ mod ellipse_torus;
 pub(crate) use contain::ContainErrorKind;
 mod finish;
 mod fragments;
+mod glue;
 pub(crate) mod insert;
 mod join;
 mod ops;
@@ -116,7 +117,7 @@ pub(crate) mod refusal_routes;
 pub(crate) use refusal_routes::PlaneDoor;
 pub use refusal_routes::{
     BooleanDecision, Coincide, Contradiction, CrossingDecision, DeclarationRead, LeverArm,
-    NeighbourOffset, PlaneRung, SectionRadius, SectorRung, SelfCheck, Settling, SphereQuestion,
+    PlaneRung, SectionRadius, SectorRung, SelfCheck, Settling, SphereQuestion,
     TorusConvention, WallRung,
 };
 mod rim_wedge;
@@ -134,7 +135,7 @@ pub(crate) mod vtxfac;
 pub(crate) mod zip;
 
 use geom_core::{
-    Band, BandError, Bounds, COINCIDENCE_RECOURSE, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
+    Band, BandError, Bounds, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
     Margin, MarginDiag, Point3, Real, Sign, Tol,
 };
 
@@ -841,6 +842,25 @@ pub struct BooleanDeclarations {
     pub carried_a: CarriedContacts,
     /// Contacts carried within operand B.
     pub carried_b: CarriedContacts,
+    /// Whether the operation decides its own coincidences or is given
+    /// them ([`Verdicts`]).
+    pub verdicts: Verdicts,
+}
+
+/// **Where a boolean's coincidence verdicts come from.** An operation
+/// decides every cross-operand coincidence it meets by its margin and
+/// glues on Zero ([`Verdicts::Decided`]), except a step of an n-ary
+/// union's fold, whose verdicts are the union's pairwise judgement's
+/// (DM4), handed in as its declared pairs ([`Verdicts::Given`]): a fold
+/// step decides no carrier pair again.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Verdicts {
+    /// The operation decides its coincidences.
+    #[default]
+    Decided,
+    /// The declared pairs are the operation's verdicts, and it decides
+    /// none of its own.
+    Given,
 }
 
 impl BooleanDeclarations {
@@ -965,38 +985,56 @@ pub(crate) fn unsettled_rest(class: BooleanCoincidence, diag: Indeterminate) -> 
     BooleanError::coincidence(Coincide::DeclaredReach, DeclarationRead::Spent(class), diag)
 }
 
-/// The Boolean's refusal of an undeclared coincidence between `pair`:
-/// the coincidence itself where the measure read
-/// ([`readable_coincidence`]).
-pub(crate) fn undeclared_coincidence(
+/// The Boolean's refusal of a coincidence between `pair` that did not
+/// decide: in band, a sliver ([`Coincide::Carriers`], with what the
+/// door read of the pair's declaration as `read`); poisoned,
+/// [`BooleanError::PoisonedCarrierDatum`] ([`readable_coincidence`]).
+pub(crate) fn undecided_coincidence(
     coincidence: CoincidenceMeasure,
     pair: [(Operand, FaceKey); 2],
-    relation: PlaneRelation,
+    read: DeclarationRead,
 ) -> BooleanError {
     match readable_coincidence(coincidence, pair) {
-        Ok(read) => BooleanError::UndeclaredCoincidence {
-            diag: read.reported(),
-            pair,
-            relation,
-        },
+        Ok(diag) => BooleanError::coincidence(Coincide::Carriers, read, diag),
         Err(poisoned) => poisoned,
     }
 }
 
-/// A coincidence measure between `pair` as the Boolean reads it: the
-/// measure, where it read zero or undecided, and
+/// A coincidence decided Zero at a corner site between a pair the
+/// operation's glue door did not glue: the faces read one carrier at
+/// the corner's arm and not over their own extent, a near-coincidence
+/// no glue was decided for ([`Coincide::Carriers`]).
+pub(crate) fn unglued_coincidence(
+    margin: MarginDiag,
+    read: DeclarationRead,
+    band: Band,
+) -> BooleanError {
+    BooleanError::coincidence(
+        Coincide::Carriers,
+        read,
+        Indeterminate {
+            margin,
+            band,
+            predicate: Some("carrier_unglued_coincidence"),
+            terminal_sliver: false,
+        },
+    )
+}
+
+/// An undecided coincidence measure between `pair` as the Boolean
+/// reads it: its diagnostics where it read in band, and
 /// [`BooleanError::PoisonedCarrierDatum`] where a datum it compares is
 /// not finite. Every door of the Boolean that reads a
 /// [`CoincidenceMeasure`] takes poison through here.
 pub(crate) fn readable_coincidence(
     coincidence: CoincidenceMeasure,
     pair: [(Operand, FaceKey); 2],
-) -> Result<CoincidenceMeasure, BooleanError> {
+) -> Result<Indeterminate, BooleanError> {
     match coincidence {
         CoincidenceMeasure::Unreadable(diag) => {
             Err(BooleanError::PoisonedCarrierDatum { pair, diag })
         }
-        read @ (CoincidenceMeasure::Zero { .. } | CoincidenceMeasure::Undecided(_)) => Ok(read),
+        CoincidenceMeasure::Undecided(diag) => Ok(diag),
     }
 }
 
@@ -2127,19 +2165,18 @@ pub enum BooleanError {
         /// The shared edge whose two faces coincide.
         edge: EdgeKey,
     },
-    /// F7: two neighbouring faces of one operand lie on one plane with
-    /// no shared source, at a decided zero offset or one in band. The
-    /// maximal-faces gate compares faces of ONE operand, which no
-    /// face-pair declaration names, so the refusal ends in the gate's
-    /// own lever ([`refusal_routes::NEIGHBOUR_OFFSET`]) and offers no
-    /// declaration.
+    /// F7: two neighbouring faces of one operand lie on one plane or
+    /// nearly, at an offset in band. The maximal-faces gate compares
+    /// faces of ONE operand, which no face-pair declaration names, so
+    /// the refusal ends in the gate's own lever
+    /// ([`refusal_routes::NEIGHBOUR_OFFSET`]) and offers no declaration.
     CoplanarNeighbours {
         /// The operand both faces belong to.
         operand: Operand,
         /// The two faces.
         faces: [FaceKey; 2],
-        /// The offset the plane ladder's offset rung refused.
-        offset: NeighbourOffset,
+        /// The offset the plane ladder's offset rung could not decide.
+        offset: Indeterminate,
     },
     /// A vertex sector's bounding chord has **no finite length**: its
     /// components overflow the norm (past ~1e154), or one of them is
@@ -2173,28 +2210,6 @@ pub enum BooleanError {
         decision: BooleanDecision,
         /// The predicate's escalation diagnostics.
         diag: Indeterminate,
-    },
-    /// Two entities are geometrically coincident-or-near without a
-    /// shared recipe source or declared intent backing the coincidence
-    /// (F6/N6): near-coincidence NEVER silently becomes contact.
-    ///
-    /// Since LIB-PYG5 (register R3, SELECT-DESIGN §3d) the refusal
-    /// keeps what the raise site held: the face PAIR whose coincidence
-    /// lacked intent, each face tagged with its operand, plus the
-    /// orientation the ladder decided before refusing — so a document
-    /// layer can name the candidate declaration in the refusal itself
-    /// instead of re-running any decide on the error path. Two faces
-    /// of ONE operand are [`BooleanError::CoplanarNeighbours`] instead.
-    UndeclaredCoincidence {
-        /// The escalation site's diagnostics.
-        diag: Indeterminate,
-        /// The coincident face pair, a face of each operand, each with
-        /// the operand it lives in.
-        pair: [(Operand, FaceKey); 2],
-        /// The decided orientation ([`PlaneRelation::SameOriented`]
-        /// or [`PlaneRelation::SameOpposite`], never `Distinct`) —
-        /// the relation a declaration of this pair would assert.
-        relation: PlaneRelation,
     },
     /// A surface datum two faces are compared on is not finite (NaN or
     /// ±∞): poisoned input, which no declaration and no move of the
@@ -2720,28 +2735,21 @@ pub enum BooleanError {
     /// - **Unequal radii.** The locus is a space quartic — canal
     ///   territory, the general rung — and has no conic frame at all.
     ///
-    /// Which of the two holds is a RADIUS-equality question, and
-    /// radius equality is structural or declared and never inferred
-    /// from values (`geom_brep::RadiusEvidence`, the coincidence
-    /// ladder). The germ site reads the answer off the lowered
-    /// parameter-identity channel (`crate::param_source`) and this
-    /// refusal carries it as `evidence`: `Declared` names the
+    /// Which of the two holds is a RADIUS-equality question, decided by
+    /// its margin (`geom_brep::cylinder_cylinder_section`), and this
+    /// refusal carries the answer as `equal_radii`: equal names the
     /// equal-radius pinch as a PROVEN configuration — the closed form
-    /// was constructed and verified against the geometry on the way —
-    /// while `None` leaves the question open and refuses on the axis
-    /// relation alone. Neither reads the radii. Recourse: a chord lane
-    /// that can walk a self-intersecting section, or geometry whose
-    /// germ pairs are wired.
+    /// was constructed on the way — while unequal names the quartic.
+    /// Recourse: a chord lane that can walk a self-intersecting section,
+    /// or geometry whose germ pairs are wired.
     GermFrameCylinderPinch {
         /// The A-side germ face.
         a_face: FaceKey,
         /// The B-side germ face.
         b_face: FaceKey,
-        /// The radius-equality evidence the germ site read off the
-        /// lowered parameter-identity channel
-        /// (`crate::param_source`) — which of the two shapes named in
-        /// the message the locus actually has.
-        evidence: geom_brep::RadiusEvidence,
+        /// Whether the two radii decided equal — which of the two shapes
+        /// named in the message the locus actually has.
+        equal_radii: bool,
     },
     /// An underlying Euler operation refused.
     Euler(EulerOpError),
@@ -3018,8 +3026,6 @@ pub enum BooleanErrorKind {
     UnderflowedSectorChord,
     /// [`BooleanError::Escalated`].
     Escalated,
-    /// [`BooleanError::UndeclaredCoincidence`].
-    UndeclaredCoincidence,
     /// [`BooleanError::PoisonedCarrierDatum`].
     PoisonedCarrierDatum,
     /// [`BooleanError::DeclarationContradicted`].
@@ -3263,7 +3269,6 @@ impl BooleanError {
             Self::NonFiniteSectorChord { .. } => BooleanErrorKind::NonFiniteSectorChord,
             Self::UnderflowedSectorChord { .. } => BooleanErrorKind::UnderflowedSectorChord,
             Self::Escalated { .. } => BooleanErrorKind::Escalated,
-            Self::UndeclaredCoincidence { .. } => BooleanErrorKind::UndeclaredCoincidence,
             Self::PoisonedCarrierDatum { .. } => BooleanErrorKind::PoisonedCarrierDatum,
             Self::DeclarationContradicted { .. } => BooleanErrorKind::DeclarationContradicted,
             Self::ContactContradicted { .. } => BooleanErrorKind::ContactContradicted,
@@ -3670,18 +3675,9 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "two neighbouring faces of the {} operand lie on one plane, or nearly ({}). {}",
                 operand_word(*operand),
-                offset.reported().payload(),
-                offset.ending()
+                offset.payload(),
+                refusal_routes::neighbour_ending(offset)
             ),
-            Self::UndeclaredCoincidence { diag, .. } => {
-                write!(
-                    f,
-                    "a face of the first operand and a face of the second coincide, or nearly \
-                     ({}), and the Boolean never assumes that touching faces are the same face. \
-                     Recourse: {COINCIDENCE_RECOURSE}",
-                    diag.payload()
-                )
-            }
             Self::PoisonedCarrierDatum { .. } => write!(
                 f,
                 "a surface datum two faces of the operands are compared on is not finite, so \
@@ -4100,6 +4096,7 @@ pub fn boolean_reduce_declared<T: Decide + Bounds + crate::props::AtRestPolicy>(
     for (operand, body) in [(Operand::A, a_operand), (Operand::B, b_operand)] {
         reduce::gate_unverdicted_operand(body, operand, band, tol)?;
     }
+    let decls = &*glue::decided_declarations(a_operand, b_operand, decls, band)?;
     boolean_reduce_declared_strategy(
         op,
         a_operand,
@@ -4586,6 +4583,9 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let band = Band::linear(tol)?;
     validate_declarations(a_operand, b_operand, decls)?;
     let mut verified = verify_declared_contacts(a_operand, b_operand, decls, band)?;
+    verified
+        .coincidences
+        .extend(glue::coaxial_rows(a_operand, b_operand, decls, band)?);
     if let (BooleanOp::Union, Some(through)) = (op, verified.through_a_face.take()) {
         let (declaration, interior) = through?;
         return Err(BooleanError::TangentSlitArmUnbuilt {
@@ -4597,19 +4597,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     reduce::gate_operand_pairs(a_operand, b_operand, &declared, band, roster)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
-    // The scan is `Decide`-only; its boxes are built here, at the
-    // driver the 2026-07-29 amendment ratified to read brackets.
-    let pad = boxes::sweep_pad(band);
-    let mut coincident = reduce::refuse_undeclared_continuations(
-        a_operand,
-        b_operand,
-        &declared,
-        band,
-        pad,
-        |body, face| boxes::face_box(body, face, pad, band),
-        |body, edge| boxes::edge_box(body, edge, pad),
-    )?;
-    coincident.extend(declared.settled());
+    let mut coincident: Vec<SettledPair> = declared.settled().collect();
     coincident.sort_by_key(|p| (p.a, p.b));
     coincident.dedup();
 
@@ -5146,8 +5134,11 @@ fn verify_declared_contacts<T: Decide>(
     {
         match class {
             BooleanCoincidence::Contact(ContactClass::Tangent) => {
-                let (_, through) =
+                let (_, through, margin) =
                     verify_tangency_declaration(a, fa, b, fb, Tangency::Contact, band)?;
+                verified
+                    .coincidences
+                    .push(tangent_row(fa, fb, Tangency::Contact, margin));
                 if verified.through_a_face.is_none() {
                     let declaration = crate::contact::DeclaredContact {
                         a: fa,
@@ -5163,9 +5154,6 @@ fn verify_declared_contacts<T: Decide>(
             BooleanCoincidence::Contact(ContactClass::Rest) | BooleanCoincidence::Continuation => {
                 match verify_one_carrier_declaration(a, fa, b, fb, class, band)? {
                     OneCarrier::Unread => {}
-                    OneCarrier::Structural => {
-                        verified.one_carrier.insert((fa, fb));
-                    }
                     OneCarrier::Decided(row) => {
                         verified.one_carrier.insert((fa, fb));
                         verified.coincidences.push(row);
@@ -5173,7 +5161,11 @@ fn verify_declared_contacts<T: Decide>(
                 }
             }
             BooleanCoincidence::Seam => {
-                let (kinds, _) = verify_tangency_declaration(a, fa, b, fb, Tangency::Seam, band)?;
+                let (kinds, _, margin) =
+                    verify_tangency_declaration(a, fa, b, fb, Tangency::Seam, band)?;
+                verified
+                    .coincidences
+                    .push(tangent_row(fa, fb, Tangency::Seam, margin));
                 verified.seam.insert((fa, fb), kinds);
             }
         }
@@ -5230,13 +5222,31 @@ pub(super) fn sense_contradiction(
 enum OneCarrier {
     /// A carrier kind the ladder cannot describe: no certificate.
     Unread,
-    /// One carrier with the class's sense, settled by structure before
-    /// any margin was read: a certificate and no row (stage 4 spec §14
-    /// Q1).
-    Structural,
     /// One carrier with the class's sense, decided by a margin: a
     /// certificate and the row recording the decision.
     Decided(crate::Coincidence),
+}
+
+/// The row a verified `Tangent` or seam pair records: the tangency the
+/// witness lane decided along its locus, on the margin that decided it.
+fn tangent_row(
+    fa: FaceKey,
+    fb: FaceKey,
+    claim: Tangency,
+    margin: MarginDiag,
+) -> crate::Coincidence {
+    crate::Coincidence {
+        cells: [
+            crate::RowCell::face(Operand::A, fa),
+            crate::RowCell::face(Operand::B, fb),
+        ],
+        relation: crate::Relation::Tangent {
+            aligned: claim == Tangency::Seam,
+        },
+        site: crate::DecisionSite::TangentWitness,
+        margin,
+        discharge: crate::Discharge::Numeric,
+    }
 }
 
 /// The `Rest` and continuation half of [`verify_declared_contacts`]:
@@ -5265,9 +5275,11 @@ fn verify_one_carrier_declaration<T: Decide>(
         Err(carrier_pair::PairUnread::OutsideInventory) => return Ok(OneCarrier::Unread),
     };
     let aligned = class == BooleanCoincidence::Continuation;
-    let one = |relation, margin: Option<MarginDiag>| match margin {
-        None => OneCarrier::Structural,
-        Some(margin) => OneCarrier::Decided(crate::Coincidence {
+    let one = |relation, margin: Option<MarginDiag>| {
+        let margin = margin.ok_or(BooleanError::ClassificationInvariant {
+            what: "declaration door: a declared reading of one carrier carries no margin",
+        })?;
+        Ok(OneCarrier::Decided(crate::Coincidence {
             cells: [
                 crate::RowCell::face(Operand::A, fa),
                 crate::RowCell::face(Operand::B, fb),
@@ -5276,14 +5288,14 @@ fn verify_one_carrier_declaration<T: Decide>(
             site: declared_site(a, fa, b, fb),
             margin,
             discharge: crate::Discharge::Numeric,
-        }),
+        }))
     };
     match outcome {
         Ok((carrier_eq::CarrierRelation::SameOriented, _, margin)) if aligned => {
-            Ok(one(crate::Relation::SameOriented, margin))
+            one(crate::Relation::SameOriented, margin)
         }
         Ok((carrier_eq::CarrierRelation::SameOpposite, _, margin)) if !aligned => {
-            Ok(one(crate::Relation::SameOpposite, margin))
+            one(crate::Relation::SameOpposite, margin)
         }
         Ok((
             carrier_eq::CarrierRelation::SameOriented | carrier_eq::CarrierRelation::SameOpposite,
@@ -5329,14 +5341,13 @@ fn verify_one_carrier_declaration<T: Decide>(
         }
         Err(carrier_eq::CarrierEqError::Unsettled { diag }) => Err(unsettled_rest(class, diag)),
         // Unreachable with `declared: true`; refuse loudly anyway.
-        Err(carrier_eq::CarrierEqError::Undeclared {
-            coincidence,
-            relation,
-        }) => Err(undeclared_coincidence(
-            coincidence,
-            [(Operand::A, fa), (Operand::B, fb)],
-            relation,
-        )),
+        Err(carrier_eq::CarrierEqError::Undecided { coincidence, .. }) => {
+            Err(undecided_coincidence(
+                coincidence,
+                [(Operand::A, fa), (Operand::B, fb)],
+                DeclarationRead::Spent(class),
+            ))
+        }
     }
 }
 
@@ -5529,9 +5540,9 @@ fn verify_tangency_declaration<T: Decide>(
         // No description to compare: the witness lane below answers
         // for the kinds it holds.
         Ok(Ok(CarrierRelation::Distinct)) | Err(carrier_pair::PairUnread::OutsideInventory) => {}
-        // One carrier, structurally: no `decide` ran, so the label
-        // names the finding (the `contact_rest_senses_opposed`
-        // precedent), and the fact says it in words.
+        // One carrier: the label names the finding (the
+        // `contact_rest_senses_opposed` precedent), and the fact says it
+        // in words.
         Ok(Ok(CarrierRelation::SameOriented | CarrierRelation::SameOpposite)) => {
             return Err(claim.contradicted_by(
                 fa,
@@ -5541,15 +5552,16 @@ fn verify_tangency_declaration<T: Decide>(
                 None,
             ));
         }
-        // One carrier, geometrically: the diag keeps the predicate that
-        // measured it and its value, and the fact names the finding.
-        Ok(Err(carrier_eq::CarrierEqError::Undeclared { coincidence, .. })) => {
-            let read = readable_coincidence(coincidence, [(Operand::A, fa), (Operand::B, fb)])?;
+        // Near one carrier, in band: the diag keeps the predicate that
+        // measured it and its value, and the fact names the finding. A
+        // poisoned datum refuses as itself.
+        Ok(Err(carrier_eq::CarrierEqError::Undecided { coincidence, .. })) => {
+            let diag = readable_coincidence(coincidence, [(Operand::A, fa), (Operand::B, fb)])?;
             return Err(claim.contradicted_by(
                 fa,
                 fb,
                 Some(Contradiction::OneCarrier),
-                read.reported(),
+                diag,
                 None,
             ));
         }
@@ -5592,11 +5604,11 @@ fn verify_tangency_declaration<T: Decide>(
         .map_err(unreadable_extent)?
         .reach;
     let mut overlap = None;
-    let (carrier, t0, t1, rim) = match geom_brep::tangent_locus(&sa, &sb, reach, band) {
-        Ok(geom_brep::TangentLocus::Line { origin, dir }) => {
+    let (carrier, t0, t1, rim, margin) = match geom_brep::tangent_locus(&sa, &sb, reach, band) {
+        Ok(geom_brep::TangentLocus::Line { origin, dir, gap }) => {
             let ((t0, t1), both) = witness_span(a, fa, b, fb, origin, dir)?;
             overlap = Some(both);
-            (geom::Curve3::Line { origin, dir }, t0, t1, None)
+            (geom::Curve3::Line { origin, dir }, t0, t1, None, gap)
         }
         Err(geom_brep::TangentLocusError::Escalated(diag)) => {
             return Err(BooleanError::coincidence(
@@ -5612,7 +5624,7 @@ fn verify_tangency_declaration<T: Decide>(
             // An UNDECIDABLE rim identity escalates typed rather than
             // reading as "no rim here": only the second means the
             // geometry was examined and cleared.
-            let rim = rim_wedge::shared_rim(a, fa, b, fb, band)
+            let (rim, margin) = rim_wedge::shared_rim(a, fa, b, fb, band)
                 .map_err(|diag| BooleanError::coincidence(Coincide::Rim, spent, diag))?
                 .ok_or_else(|| claim.unsupported())?;
             if claim == Tangency::Contact {
@@ -5631,6 +5643,7 @@ fn verify_tangency_declaration<T: Decide>(
                 T::zero(),
                 T::from_f64(core::f64::consts::TAU),
                 Some(rim),
+                margin,
             )
         }
     };
@@ -5712,15 +5725,18 @@ fn verify_tangency_declaration<T: Decide>(
         ),
         _ => Ok(None),
     };
-    Ok((kinds, through))
+    Ok((kinds, through, margin))
 }
 
 /// What [`verify_tangency_declaration`] certified: the two carriers'
-/// kinds (A's first), and for a `Tangent` along a line the operand
-/// whose plane face the locus runs through, or that read's refusal.
+/// kinds (A's first); for a `Tangent` along a line the operand whose
+/// plane face the locus runs through, or that read's refusal; and the
+/// margin that decided the tangency (the locus's gap, or the shared
+/// rim's).
 type TangencyVerified = (
     (geom::SurfaceKind, geom::SurfaceKind),
     Result<Option<Operand>, BooleanError>,
+    MarginDiag,
 );
 
 /// The refusal a `Tangent` claim along a shared rim earns: the ratified
@@ -6036,6 +6052,7 @@ fn validate_declarations<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use geom_core::COINCIDENCE_RECOURSE;
 
     /// **A tangency along a curve gives cover only where it is a global
     /// side** ([`tangency_certifies_side`], shared by the strut and
@@ -6465,10 +6482,10 @@ mod tests {
     }
 
     /// S6 (two-tolerance, D4 ¶1 addendum): the boolean coincidence
-    /// pair — `UndeclaredCoincidence` (exactly-on OR in-band, per the
-    /// plane-identity rung 4) and `Escalated` (in-band elsewhere) —
-    /// offers the declaration exactly once per message; the escalated
-    /// arm only on a margin a declaration reads.
+    /// refusals — the plane-identity escalation and the undecided
+    /// carrier pair rung 4 leaves to a site — offer the declaration
+    /// exactly once per message, and only on a margin a declaration
+    /// reads.
     #[test]
     fn coincidence_pair_carries_the_shared_recourse_once() {
         let diag = |margin| Indeterminate {
@@ -6499,47 +6516,42 @@ mod tests {
                 "{msg}"
             );
         }
-        // The undeclared arm, in every shape rung 4 produces: a
-        // decided zero with its decided margin, an in-band margin, and
-        // a poisoned one — one message, one recourse, and the margin
-        // the measure read as the payload. Payload for the R3 fields: a
-        // null-key pair (the message renders neither keys nor relation
-        // — the typed payload is the document layer's to name).
+        // The undecided arm, in both shapes rung 4 leaves to a site:
+        // an in-band margin and a poisoned one — one message, one
+        // recourse where the margin reads, and the margin the measure
+        // read as the payload.
         let pair = [
             (Operand::A, FaceKey::default()),
             (Operand::B, FaceKey::default()),
         ];
-        let band = Band::new(1e-9, 1e-8).unwrap();
-        for (coincidence, says) in [
-            (
-                carrier_eq::CoincidenceMeasure::Zero {
-                    predicate: "bool_plane_offset",
-                    decided: geom_brep::recourse::Classified {
-                        margin: MarginDiag::value(2.5e-10),
-                        band,
-                    },
-                },
-                "lies within the zero band",
-            ),
-            (
-                carrier_eq::CoincidenceMeasure::Undecided(diag(MarginDiag::value(5e-9))),
-                "lies inside the ambiguity band",
-            ),
-            (
-                carrier_eq::CoincidenceMeasure::Undecided(diag(MarginDiag::INVALID)),
-                "margin is invalid",
-            ),
-        ] {
-            let msg = BooleanError::UndeclaredCoincidence {
-                diag: coincidence.reported(),
-                pair,
-                relation: PlaneRelation::SameOpposite,
-            }
-            .to_string();
-            assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 1, "{msg}");
-            assert!(msg.contains(says), "{coincidence:?}: {msg}");
-            assert!(!msg.contains("exactly zero"), "{coincidence:?}: {msg}");
-        }
+        let read =
+            DeclaredPairs::<f64>::without_struts(&BooleanDeclarations::none(), Default::default())
+                .carriers_read(
+                    (
+                        Operand::A,
+                        FaceKey::default(),
+                        Operand::B,
+                        FaceKey::default(),
+                    ),
+                    CarrierRelation::SameOpposite,
+                );
+        let msg = undecided_coincidence(
+            carrier_eq::CoincidenceMeasure::Undecided(diag(MarginDiag::value(5e-9))),
+            pair,
+            read,
+        )
+        .to_string();
+        assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 1, "{msg}");
+        assert!(!msg.contains("exactly zero"), "{msg}");
+        let poisoned = undecided_coincidence(
+            carrier_eq::CoincidenceMeasure::Unreadable(diag(MarginDiag::INVALID)),
+            pair,
+            read,
+        );
+        assert!(
+            matches!(poisoned, BooleanError::PoisonedCarrierDatum { .. }),
+            "{poisoned:?}"
+        );
     }
 
     /// The non-finite chord arm gives the cause and a recourse that can
@@ -6731,7 +6743,7 @@ mod tests {
             BooleanError::CoplanarNeighbours {
                 operand: Operand::A,
                 faces: [face, face],
-                offset: NeighbourOffset::Undecided(diag),
+                offset: diag,
             },
             BooleanError::plane_identity(
                 PlaneRung::Parallel,
@@ -6745,11 +6757,6 @@ mod tests {
                 ),
                 diag,
             ),
-            BooleanError::UndeclaredCoincidence {
-                diag,
-                pair: [(Operand::A, face), (Operand::B, face)],
-                relation: PlaneRelation::SameOpposite,
-            },
             BooleanError::DeclarationContradicted {
                 fact: Contradiction::PlanesApart,
             },
@@ -6860,7 +6867,7 @@ mod tests {
             BooleanError::GermFrameCylinderPinch {
                 a_face: face,
                 b_face: face,
-                evidence: geom_brep::RadiusEvidence::None,
+                equal_radii: false,
             },
             BooleanError::Pcurves {
                 source: crate::pcurves::PcurveMintError::Unminted { face },
@@ -6965,7 +6972,6 @@ mod tests {
                 BooleanErrorKind::NonFiniteSectorChord => "NonFiniteSectorChord",
                 BooleanErrorKind::UnderflowedSectorChord => "UnderflowedSectorChord",
                 BooleanErrorKind::Escalated => "Escalated",
-                BooleanErrorKind::UndeclaredCoincidence => "UndeclaredCoincidence",
                 BooleanErrorKind::PoisonedCarrierDatum => "PoisonedCarrierDatum",
                 BooleanErrorKind::DeclarationContradicted => "DeclarationContradicted",
                 BooleanErrorKind::ContactContradicted => "ContactContradicted",

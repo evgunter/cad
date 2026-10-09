@@ -51,23 +51,19 @@
 //!   deferred are read again on the fragments both directions left,
 //!   in deferral order ([`sweep_and_settle`] runs all three).
 //!
-//! The module also hosts the three **pre-sweep gates**, which refuse an
+//! The module also hosts the two **pre-sweep gates**, which refuse an
 //! operand pair before any edge is split: the operand gate
 //! ([`gate_operand_pairs`]: each operand passes tier 2, and a kind
-//! with no wired arm may not enter an undeclared pair), the
-//! maximal-faces gate ([`gate_maximal_faces`]:
-//! no operand carries two coplanar neighbours), and the
-//! undeclared-continuation scan ([`refuse_undeclared_continuations`]:
-//! no aligned one-carrier pair meets without a declaration).
+//! with no wired arm may not enter an undeclared pair), and the
+//! maximal-faces gate ([`gate_maximal_faces`]: no operand carries two
+//! coplanar neighbours).
 
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Sign};
 
 use super::boxes;
-use super::carrier_eq::CoincidenceMeasure;
 use super::circle_roots::CircleRoots;
 use super::contain::{ContainError, CurvedPlacement, FaceContainment, contfp};
 use super::plane_eq::PlaneDesc;
-use super::refusal_routes::NeighbourOffset;
 use super::separating::Item;
 use super::{BooleanDecision, Coincide, CrossingDecision, DeclarationRead};
 use super::{BooleanError, ContactRecords, Operand, VfContact, VvContact};
@@ -494,9 +490,7 @@ pub(super) fn gate_unverdicted_operand<T: Decide + crate::props::AtRestPolicy>(
 ///   (`join::ring_run_ccw`, `chord_join`'s run-edge reading:
 ///   `SectionInvariant`);
 /// - the sector walk at an ON vertex (`sectors::build_sectors`), which
-///   takes a spline's chord as its departure direction;
-/// - the continuation scan ([`refuse_undeclared_continuations`]), which
-///   cannot bound a face a spline edge bounds (`ClassificationInvariant`).
+///   takes a spline's chord as its departure direction.
 ///
 /// Retiring it is `work/orbit/delete-the-boolean-operand-edge-gate.md`.
 fn gate_operand_edges<T: Decide>(body: &Body<T>, operand: Operand) -> Result<(), BooleanError> {
@@ -530,16 +524,6 @@ pub(super) fn certified<T: geom_core::Real>(
         .ok_or(BooleanError::ClassificationInvariant {
             what: "an operand edge past the tier-1/2 gate has no certified carrier",
         })
-}
-
-/// The recipe source of a face's surface description, if the recipe
-/// layer stamped one (N6; the plane-identity evidence at every
-/// classification comparison).
-pub(super) fn face_source<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-) -> Option<&crate::source::GeomSource> {
-    body.surface_source(body.get_face(face)?.surface)
 }
 
 /// The face's plane description (post-gate: always a `Plane`), with
@@ -589,56 +573,11 @@ pub(super) fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Pla
     }
 }
 
-/// **The face's recipe source with its `sense` composed into
-/// `orient`** ([`crate::GeomSource::reverted`] when `sense` is false) —
-/// the identity the coincidence ladders are handed, which is NOT the
-/// surface's source ([`face_source`]).
-///
-/// **On a plane face the composed tag is the material side.**
-/// [`super::oriented_plane_eq`]'s rung 1 answers Same±-orientation
-/// syntactically, from the two sources' `orient` tags, and asserts
-/// (debug) that same-source descriptions agree bitwise. The
-/// descriptions it is handed are [`face_plane`]'s — the faces' OUTWARD
-/// normals — so two faces sharing one surface key and one recipe
-/// source but differing in `sense` carry descriptions that are exact
-/// negations of each other. N6's `orient` tag means "this description
-/// is the source expression's orientation-reversal", which is what a
-/// `sense: false` plane face's outward normal is, so composing the
-/// sense in keeps rung 1 exact with zero numerics; left uncomposed, the
-/// rung would call that pair `SameOriented` and the bit assertion would
-/// fire.
-///
-/// **On a curved face it is not.** A curved description cannot be
-/// reversed, so `Body::revert` records a curved face's reversal on its
-/// `sense` AND on its source's `orient`, and the composition cancels: a
-/// face and its reverted twin compose to one tag although their
-/// material sides are opposite. The curved rung a curved pair reaches
-/// through [`mod@super::carrier_eq`] (`source_rung`, from
-/// [`super::carrier_pair::carrier_pair_verdict`] and `recl`'s declared-`Rest`
-/// sector pairs) therefore reads only the sources' base here and takes
-/// the material side from the descriptions' `outward` bits.
-///
-/// Returned owned: the flip mints a value rather than borrowing the
-/// stored one (the stored source describes the SURFACE and must not be
-/// rewritten by a face-level question).
-pub(super) fn face_oriented_source<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-) -> Option<crate::source::GeomSource> {
-    let source = face_source(body, face)?;
-    Some(if body.get_face(face)?.sense {
-        source.clone()
-    } else {
-        source.reverted()
-    })
-}
-
 /// F7: the maximal-faces precondition through the coincidence ladder —
-/// same surface key (structural) or Same±-oriented planes (declared,
-/// [`super::oriented_plane_eq`]) across any edge ⇒
-/// [`BooleanError::NonMaximalFaces`]. Numeric coplanarity NEVER
-/// triggers the refusal; a near-coplanar dihedral surfaces as the
-/// predicate's own typed escalation instead. The ladder is levered at
+/// same surface key, or Same±-oriented planes its margins decide one
+/// ([`super::oriented_plane_eq`]), across any edge ⇒
+/// [`BooleanError::NonMaximalFaces`]; a near-coplanar dihedral surfaces
+/// as the predicate's own typed escalation instead. The ladder is levered at
 /// the shared edge's extent ([`crate::readback::edge_extent`]). It runs
 /// on an operand [`gate_operand`] passed, so every edge it reads holds
 /// a certified carrier.
@@ -685,29 +624,13 @@ pub(super) fn gate_maximal_faces<T: Decide>(
                  ({absence:?}): the operand gate refuses a null edge as scaffolding"
             )
         });
-        // Same-operand comparison: sources apply (a shared recipe
-        // source IS declared coplanarity — the pair should have been
-        // merged by the producing op); cross-operand declared pairs
-        // never do.
-        let (o1, o2) = (
-            face_oriented_source(body, f1),
-            face_oriented_source(body, f2),
-        );
-        let id = super::PlaneIdentity {
-            s1: o1.as_ref(),
-            s2: o2.as_ref(),
-            declared: false,
-        };
-        let coplanar = |offset| BooleanError::CoplanarNeighbours {
-            operand,
-            faces: [f1, f2],
-            offset,
-        };
         let extent = super::carrier_eq::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(
             geom_core::Point3::origin(),
             arm,
         ));
-        match super::oriented_plane_eq(&p1, &p2, id, &extent, band) {
+        // One plane, decided by its margin: a pair the producing op
+        // should have merged (the merge glues what this decides).
+        match super::oriented_plane_eq(&p1, &p2, super::PlaneIdentity::NONE, &extent, band) {
             Ok(super::PlaneRelation::Distinct) => {}
             Ok(_) => {
                 return Err(BooleanError::NonMaximalFaces {
@@ -715,14 +638,13 @@ pub(super) fn gate_maximal_faces<T: Decide>(
                     edge: edge_key,
                 });
             }
-            Err(super::PlaneEqError::Undeclared { coincidence, .. }) => {
+            Err(super::PlaneEqError::Undecided { coincidence, .. }) => {
                 let pair = [(operand, f1), (operand, f2)];
-                return Err(coplanar(
-                    match super::readable_coincidence(coincidence, pair)? {
-                        CoincidenceMeasure::Zero { decided, .. } => NeighbourOffset::Zero(decided),
-                        undecided => NeighbourOffset::Undecided(undecided.reported()),
-                    },
-                ));
+                return Err(BooleanError::CoplanarNeighbours {
+                    operand,
+                    faces: [f1, f2],
+                    offset: super::readable_coincidence(coincidence, pair)?,
+                });
             }
             Err(super::PlaneEqError::Escalated { rung, diag }) => {
                 return Err(BooleanError::plane_identity(
@@ -747,265 +669,6 @@ pub(super) fn gate_maximal_faces<T: Decide>(
         }
     }
     Ok(())
-}
-
-/// **An undeclared continuation refuses at the reduction, on every
-/// carrier kind** (C4's continuation clause).
-///
-/// A cross-operand face pair on one carrier with ALIGNED senses is one
-/// surface carried on, whether it abuts or overlaps; this scan finds
-/// the pairs that meet along their boundary. An overlapping pair whose
-/// boundaries share no stretch of curve passes it, and the sweep's
-/// coincident-sector classification refuses it there, with the same
-/// error (`vtxfac`'s coplanar sector reaching the carrier ladder).
-/// Without a declaration the op has no licence to treat the two as one
-/// carrier, and no licence to merge them, so its output would carry two
-/// cosurface faces side by side, which the next boolean refuses as an
-/// operand. So the pair refuses here, before the sweep, naming the pair
-/// and the relation a declaration would assert — the same
-/// [`BooleanError::UndeclaredCoincidence`] an undeclared opposed pair
-/// gets.
-///
-/// The carrier question is the detector posture of the verify ladder
-/// ([`super::carrier_pair_relation`]); a pair it calls one carrier by
-/// shared recipe source is structurally licensed, and an in-band
-/// escalation is left to the stages that already own it. **"Meets along
-/// its boundary" is decided point-on-edge** ([`edges_share_a_curve`]):
-/// a boundary edge of each face must share a stretch of curve, not a
-/// point, read off the edges' carriers through `Decide`. Boxes only
-/// PRUNE here — a B face whose box clears an A face's is never asked,
-/// and an edge pair whose boxes clear is never sampled — except on the
-/// one fallback `edges_share_a_curve` documents for a carrier with no
-/// point parameter, where box overlap stands in for the decision and
-/// can only over-report a meeting, so only ever refuses.
-///
-/// **The boxes are handed in, not built here.** Box construction reads
-/// coordinate brackets, which is the `Bounds` seam the 2026-07-29
-/// driver amendment ratified for the reduction's DRIVER
-/// (`boolean_reduce_declared_strategy`, geom-core `real.rs`'s Bounds
-/// scope rule); this scan is `Decide`-only, so the bracket read stays
-/// at that door and nothing here can compare a bracket. `face_box` and
-/// `edge_box` are that door's padded boxes (`boxes::face_box`,
-/// `boxes::edge_box` at `pad`).
-///
-/// **What it returns is the settled pairs it read**: every undeclared
-/// pair the ladder called one carrier, which with `declared: false` is
-/// rung 1 alone (shared recipe source, N6), in the scan's order. The
-/// declared pairs it skips are settled by the declaration door instead
-/// ([`super::DeclaredPairs::settled`]).
-///
-/// # Errors
-///
-/// [`BooleanError::UndeclaredCoincidence`] naming the first undeclared
-/// continuation in arena order (A's faces, then B's within each);
-/// [`BooleanError::ClassificationInvariant`] for a torn arena.
-pub(super) fn refuse_undeclared_continuations<T: Decide>(
-    a: &Body<T>,
-    b: &Body<T>,
-    declared: &super::DeclaredPairs<T>,
-    band: Band,
-    pad: f64,
-    face_box: impl Fn(&Body<T>, FaceKey) -> Result<bvh::Aabb, BooleanError>,
-    edge_box: impl Fn(&Body<T>, EdgeKey) -> bvh::Aabb,
-) -> Result<Vec<super::SettledPair>, BooleanError> {
-    let mut settled = Vec::new();
-    let a_faces: Vec<(FaceKey, bvh::Aabb)> = a
-        .faces()
-        .map(|(k, _)| Ok((k, face_box(a, k)?)))
-        .collect::<Result<_, BooleanError>>()?;
-    let b_keys: Vec<FaceKey> = b.faces().map(|(k, _)| k).collect();
-    let b_boxes: Vec<bvh::Aabb> = b_keys
-        .iter()
-        .map(|&k| face_box(b, k))
-        .collect::<Result<_, BooleanError>>()?;
-    // The C10 tree over B's faces, as the sweep builds it: candidates
-    // arrive in ascending arena order, so "first in arena order" is the
-    // brute-force scan's first.
-    let tree = bvh::Bvh::build(&b_boxes);
-    let mut edge_boxes: Option<[FaceEdges; 2]> = None;
-    for &(fa, box_a) in &a_faces {
-        for i in tree.overlapping(&box_a) {
-            let fb = *b_keys.get(i).ok_or(BooleanError::ClassificationInvariant {
-                what: "continuation scan: the face tree returned an index past its input",
-            })?;
-            if declared.class_of(Operand::A, fa, Operand::B, fb).is_some() {
-                continue;
-            }
-            let relation = match super::carrier_pair_relation(a, fa, b, fb, false, band) {
-                Ok(relation) => relation,
-                Err(super::PairUnread::OutsideInventory) => continue,
-                // The operands passed the gates, whose face boxes read;
-                // a face with no extent to compare it over is named.
-                Err(super::PairUnread::Extent(_)) => {
-                    return Err(BooleanError::ClassificationInvariant {
-                        what: "continuation scan: an operand face's consumed extent cannot be read",
-                    });
-                }
-            };
-            let (coincidence, relation) = match relation {
-                Ok(
-                    relation @ (super::CarrierRelation::SameOriented
-                    | super::CarrierRelation::SameOpposite),
-                ) => {
-                    settled.push(super::SettledPair {
-                        a: fa,
-                        b: fb,
-                        relation,
-                    });
-                    continue;
-                }
-                Err(super::CarrierEqError::Undeclared {
-                    coincidence,
-                    relation: relation @ super::CarrierRelation::SameOriented,
-                }) => (coincidence, relation),
-                _ => continue,
-            };
-            if edge_boxes.is_none() {
-                edge_boxes = Some([face_edges(a, &edge_box), face_edges(b, &edge_box)]);
-            }
-            let [ea, eb] = edge_boxes
-                .as_ref()
-                .ok_or(BooleanError::ClassificationInvariant {
-                    what: "continuation scan: edge boxes not built",
-                })?;
-            let mut meets = false;
-            'pairs: for &(ex, bx) in ea.get(&fa).map_or(&[][..], Vec::as_slice) {
-                for &(ey, by) in eb.get(&fb).map_or(&[][..], Vec::as_slice) {
-                    if bx.overlaps(&by) && edges_share_a_curve(a, ex, b, ey, &bx, &by, pad, band) {
-                        meets = true;
-                        break 'pairs;
-                    }
-                }
-            }
-            if meets {
-                return Err(super::undeclared_coincidence(
-                    coincidence,
-                    [(Operand::A, fa), (Operand::B, fb)],
-                    relation,
-                ));
-            }
-        }
-    }
-    Ok(settled)
-}
-
-/// Each face's boundary edges with their padded boxes.
-type FaceEdges = std::collections::BTreeMap<FaceKey, Vec<(EdgeKey, bvh::Aabb)>>;
-
-/// Every face's boundary edges, each with the box the driver hands in.
-fn face_edges<T: Decide>(
-    body: &Body<T>,
-    edge_box: &impl Fn(&Body<T>, EdgeKey) -> bvh::Aabb,
-) -> FaceEdges {
-    let mut out = FaceEdges::new();
-    for (key, edge) in body.edges() {
-        let bx = edge_box(body, key);
-        let f1 = body.face_of_half_edge(edge.he_plus);
-        let f2 = body
-            .face_of_half_edge(edge.he_minus)
-            .filter(|&f| Some(f) != f1);
-        for f in [f1, f2].into_iter().flatten() {
-            out.entry(f).or_default().push((key, bx));
-        }
-    }
-    out
-}
-
-/// **Do two edges share a CURVE, not merely a point?** Two faces meet
-/// along their boundary exactly when some edge of each overlaps the
-/// other's along a stretch, and the ends of that stretch are ends of
-/// the two edges. So the edges share a curve iff two definitely
-/// distinct points among both edges' ends and midpoints lie on BOTH
-/// edges. A point is on an edge when its distance to the edge's
-/// carrier, at the carrier parameter nearest it clamped into the
-/// edge's span, decides zero; an in-band distance counts as on, which
-/// can only over-report a meeting and so only ever refuses.
-///
-/// A carrier with no point parameter (ellipse, spline) falls back to
-/// the boxes: they must overlap on every axis and run past
-/// [`POINT_TOUCH_RUN`] pads on some axis. This is the scan's one
-/// box-decided answer, and it errs only toward "meets", so toward a
-/// refusal.
-/// How many pads two edge boxes must overlap by, on some axis, before
-/// the box fallback of [`edges_share_a_curve`] reads them as sharing a
-/// curve. Each box is its edge's extent padded by `pad` on every side,
-/// so two edges that meet at ONE point and leave it in opposite
-/// directions along an axis overlap there by the two pads, `2·pad`, at
-/// most. Four pads is that bound doubled, so that point touches stay
-/// clear of it. Edges that leave a shared point on the same side of an
-/// axis (a V) can still overlap past it. That over-reports a meeting,
-/// and so refuses rather than admits.
-const POINT_TOUCH_RUN: f64 = 4.0;
-
-#[allow(clippy::too_many_arguments)]
-fn edges_share_a_curve<T: Decide>(
-    x: &Body<T>,
-    ex: EdgeKey,
-    y: &Body<T>,
-    ey: EdgeKey,
-    bx: &bvh::Aabb,
-    by: &bvh::Aabb,
-    pad: f64,
-    band: Band,
-) -> bool {
-    // Both edges are ones the scan read out of their operands.
-    let sampled = |body: &Body<T>, key: EdgeKey| {
-        let edge = crate::live::proven(&body.edges, key, EntityId::Edge);
-        let curve = body.edge_curve_linked(key, edge).certified()?;
-        let (t0, t1) = curve.params();
-        let mid = (t0 + t1) * T::from_f64(0.5);
-        let carrier = curve.carrier().clone();
-        carrier.param_near(carrier.eval(mid), mid)?;
-        let end = |he, field| {
-            let v = crate::live::linked(
-                &body.half_edges,
-                he,
-                EntityId::HalfEdge,
-                EntityId::Edge(key),
-                field,
-            )
-            .start;
-            body.linked_vertex_point(v, EntityId::HalfEdge(he), "start")
-        };
-        let points = [
-            end(edge.he_plus, "he_plus"),
-            end(edge.he_minus, "he_minus"),
-            carrier.eval(mid),
-        ];
-        Some((carrier, t0, t1, mid, points))
-    };
-    let (Some(cx), Some(cy)) = (sampled(x, ex), sampled(y, ey)) else {
-        let run = |lo_x: f64, hi_x: f64, lo_y: f64, hi_y: f64| hi_x.min(hi_y) - lo_x.max(lo_y);
-        let runs = [
-            run(bx.min_x, bx.max_x, by.min_x, by.max_x),
-            run(bx.min_y, bx.max_y, by.min_y, by.max_y),
-            run(bx.min_z, bx.max_z, by.min_z, by.max_z),
-        ];
-        return runs.iter().all(|&r| r >= 0.0) && runs.iter().any(|&r| r > POINT_TOUCH_RUN * pad);
-    };
-    let zero = |m: T| {
-        !matches!(
-            decide("bool_continuation_boundary", Margin::of(m), band),
-            Ok(Sign::Positive | Sign::Negative)
-        )
-    };
-    let on = |(carrier, t0, t1, mid, _): &(geom::Curve3<T>, T, T, T, [Point3<T>; 3]),
-              p: Point3<T>| {
-        carrier.param_near(p, *mid).is_some_and(|t| {
-            let foot = carrier.eval(t.max(*t0).min(*t1));
-            zero((foot - p).norm())
-        })
-    };
-    let shared: Vec<Point3<T>> =
-        cx.4.iter()
-            .chain(&cy.4)
-            .copied()
-            .filter(|&p| on(&cx, p) && on(&cy, p))
-            .collect();
-    shared
-        .iter()
-        .enumerate()
-        .any(|(i, &p)| shared[i + 1..].iter().any(|&q| !zero((q - p).norm())))
 }
 
 /// One sweep direction: every edge (fragment) of `x` against the faces
@@ -4359,7 +4022,6 @@ mod declaration_order_rows {
         let wall = cyl_wall_sheet(
             &mut y,
             CylFrame::canonical(1.0),
-            None,
             (-0.5, 0.5),
             (0.0, 1.0),
             tol,
@@ -4419,7 +4081,6 @@ mod declaration_order_rows {
         let wall = cyl_wall_sheet(
             &mut y,
             CylFrame::canonical(1.0),
-            None,
             (-0.5, 0.5),
             (0.0, 1.0),
             tol,
@@ -4430,6 +4091,7 @@ mod declaration_order_rows {
                 .unwrap_or_default(),
             carried_a: Default::default(),
             carried_b: Default::default(),
+            verdicts: Default::default(),
         };
         let declared = DeclaredPairs::<f64>::without_struts(&decls, Default::default());
         let mut acc = ContactAcc::default();
@@ -4577,14 +4239,13 @@ mod declaration_order_rows {
         let tol = Tol::witness();
         let b = Band::linear(tol).expect("the witness band");
         let mut x: crate::body::Body<f64> = crate::body::Body::new();
-        let xw = cyl_wall_sheet(&mut x, frame, None, angles, (0.25, 0.5), tol);
+        let xw = cyl_wall_sheet(&mut x, frame, angles, (0.25, 0.5), tol);
         let sense = x.get_face(xw).expect("the sheet's wall").sense;
         x.set_face_sense(xw, !sense).expect("a live face");
         let mut y: crate::body::Body<f64> = crate::body::Body::new();
         let yw = cyl_wall_sheet(
             &mut y,
             CylFrame::canonical(1.0),
-            None,
             (0.0, 3.0),
             (0.0, 1.0),
             tol,
@@ -4595,6 +4256,7 @@ mod declaration_order_rows {
                 .unwrap_or_default(),
             carried_a: Default::default(),
             carried_b: Default::default(),
+            verdicts: Default::default(),
         };
         let one = if one_carrier {
             [(xw, yw)].into_iter().collect()
@@ -5379,7 +5041,6 @@ mod edge_span_tests {
                 radius: 0.3,
                 u_ref: Vec3::unit_x(),
             },
-            None,
             (
                 core::f64::consts::FRAC_PI_2,
                 3.0 * core::f64::consts::FRAC_PI_2,
@@ -5464,7 +5125,6 @@ mod lying_on_rows {
         let face = cyl_wall_sheet(
             &mut y,
             CylFrame::canonical(1.0),
-            None,
             (0.0, u1),
             (0.0, 1.0),
             Tol::witness(),
@@ -5662,7 +5322,6 @@ mod lying_on_rows {
         let wide_face = cyl_wall_sheet(
             &mut wide,
             CylFrame::canonical(2.0),
-            None,
             (0.0, FRAC_PI_2),
             (0.0, 1.0),
             Tol::witness(),

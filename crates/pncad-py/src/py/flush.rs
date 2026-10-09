@@ -7,10 +7,7 @@
 //! `DocEdit.set_declare` put inspected findings on a boolean or union
 //! as its declared pairs. The no-fusion boundary is kept
 //! across the language boundary: no door here both detects and
-//! declares. The same value also rides the boolean's
-//! refusal MENU: an `EvaluationError` with `kind ==
-//! "undeclared_coincidence"` carries one as its `finding` attribute
-//! — the recourse is in the error.
+//! declares.
 //!
 //! The pair's names cross as the SAME opaque texts every other door
 //! speaks (`doc::name_text`) — the ordinal-28 contract: a name is an

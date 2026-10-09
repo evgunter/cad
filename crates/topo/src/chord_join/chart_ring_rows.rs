@@ -24,7 +24,6 @@ fn split_rim_island() -> (Body<f64>, FaceKey, geom::Surface<f64>, FaceKey) {
     let face = cyl_wall_sheet(
         &mut body,
         CylFrame::canonical(1.0),
-        None,
         (0.2, 1.4),
         (0.0, 1.0),
         tol(),
@@ -126,7 +125,6 @@ fn a_full_period_run_reads_the_seam_alike_on_either_edge() {
     let face = cyl_wall_sheet(
         &mut body,
         CylFrame::canonical(1.0),
-        None,
         (0.0, tau),
         (0.0, 1.0),
         tol(),

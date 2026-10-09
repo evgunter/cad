@@ -646,6 +646,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     let band = Band::linear(tol)?;
+    let decls = &*super::glue::decided_declarations(a, b, decls, band)?;
     let (red, connected, interior_loops) =
         match through_the_join(op, a, b, decls, sweep, recut, tol)? {
             Joined::Answered(result) => return Ok(*result),
@@ -5268,7 +5269,6 @@ mod tests {
         let wall = cyl_wall_sheet(
             &mut sheet,
             CylFrame::canonical(1.0),
-            None,
             (0.2, 1.4),
             (0.0, 1.0),
             tol,

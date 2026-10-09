@@ -18,7 +18,6 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey};
 use crate::geometry::SurfaceKey;
 use crate::merge_faces::MergeCoplanarOutcome;
-use crate::source::GeomSource;
 use crate::test_support_fixtures::{describe_as_intersections, prism_z};
 use crate::validate::{ValidationError, validate_geometric};
 
@@ -119,28 +118,22 @@ fn a_declared_merge_on_distinct_keys_returns_no_strand() {
     );
 }
 
-/// The undeclared door reaches distinct keys through a shared surface
-/// source, and returns no strand there either.
+/// The undeclared door glues distinct keys whose margins decide one
+/// plane, and returns no strand there either.
 #[test]
-fn a_same_source_merge_on_distinct_keys_returns_no_strand() {
+fn an_undeclared_merge_on_distinct_keys_returns_no_strand() {
     let tol = Tol::witness();
     let (mut body, kept, absorbed) = split_wall_prism(tol);
     let (ks, ka) = (surface_of(&body, kept), surface_of(&body, absorbed));
-    // One recipe surface evaluates to one description (N6): the
-    // absorbed key takes the survivor's description bit for bit — the
-    // same plane, so every certificate naming it still holds — and
-    // both keys carry one source.
+    // The absorbed key takes the survivor's description bit for bit —
+    // the same plane, so every certificate naming it still holds.
     let plane = body.get_surface(ks).expect("live").clone();
     *body.surfaces.get_mut(ka).expect("live") = plane;
-    body.set_surface_source(ks, GeomSource::minted(1, 0))
-        .expect("live");
-    body.set_surface_source(ka, GeomSource::minted(1, 0))
-        .expect("live");
     assert_eq!(intersections_naming(&body, ka).len(), 3);
 
     let outcome = body
         .merge_coplanar_faces(tol)
-        .expect("the same-source coplanar pair merges");
+        .expect("the coplanar pair merges");
 
     assert_one_group(&outcome, kept, absorbed);
     assert_eq!(intersections_naming(&body, ka), Vec::<EdgeKey>::new());

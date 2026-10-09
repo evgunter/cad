@@ -1737,14 +1737,18 @@ pub enum NodeErrorKind {
     /// emission bug, a kernel-emission gap, or an in-band N2
     /// discriminator escalation — carried unaltered.
     Naming(NamingError),
-    /// The lowered parameter-identity attach refused (VERB-SEAT-DESIGN
-    /// P2): the kernel's per-field door would not take a token on a
-    /// key or a field the attach pass just read off the same body. A
-    /// broken invariant of `param_source::attach_blend` — its doc says
-    /// why neither refusal can fire — surfaced typed rather than
-    /// discarded, so that a channel fed nothing is never mistaken for
-    /// a channel that refused.
-    ParamSourceAttach(topo::ParamAttachError),
+    /// **A step of a union's fold refused** (DM4): the step folding
+    /// `member` into the accumulation of the members listed before it,
+    /// with the step's own refusal. The pairwise judgement decides every
+    /// pair of members before the fold in every member order; a refusal
+    /// only a fold step raises names the step, so it is never read as a
+    /// pair's.
+    UnionFoldStep {
+        /// The member the refusing step folds in.
+        member: RecipeNodeId,
+        /// The step's refusal.
+        refusal: Box<NodeErrorKind>,
+    },
     /// A declared pair failed to resolve through the operands' name
     /// tables (F5) — the N5 typed error: a declaration naming a
     /// vanished/ambiguous/deleted name refuses loudly; no silent drop,
@@ -1800,69 +1804,6 @@ pub enum NodeErrorKind {
         /// side pick, made before resolution, so a tied name has a
         /// side here without having a single entity.
         cross_operand: bool,
-    },
-    /// The boolean refused an UNDECLARED contact (F6) and the raise
-    /// site identified the face pair — the refusal-menu payload
-    /// (SELECT-DESIGN §3d, register R3, LIB-PYG5). `finding` is the
-    /// SAME value shape the detector answers with: the pair's keys
-    /// resolved to StableNames through the OPERANDS' name tables, the
-    /// relation the coincidence ladder decided before refusing.
-    /// Nothing is re-detected on the error path — the payload is what
-    /// the raise site held. So the recourse is IN the error, and the
-    /// menu has exactly two arms (the #256 ruling applied to contact,
-    /// no absorb arm): declare this finding
-    /// ([`crate::names::declare`] / [`crate::DocEdit::SetDeclare`] on
-    /// the boolean), or move the geometry.
-    ///
-    /// Raised INSTEAD of wrapping the kernel's
-    /// `BooleanError::UndeclaredCoincidence` under
-    /// [`NodeErrorKind::Boolean`]; if either key fails to resolve to
-    /// a name (an emitter-coverage invariant break, not an authoring
-    /// state), the plain `Boolean` wrapping is preserved — the
-    /// boolean's refusal is never masked by its own menu.
-    UndeclaredCoincidence {
-        /// The candidate declaration, in the detector's value shape.
-        finding: Box<crate::names::FlushFinding>,
-        /// **Each side's MERGED constituent set**, when the refusing
-        /// operand row is a face a union's fold merged: the flat set
-        /// (N3) as the member entities it retired, in the union's own
-        /// member order (D9). `finding`'s side for that half is this
-        /// list's FIRST entry, and any other entry declares the SAME
-        /// contact — a declaration resolves to the merged row through
-        /// the fold's look-through — so the choice is deterministic
-        /// rather than meaningful.
-        ///
-        /// Empty on both halves for every other refusal: a pair
-        /// boolean's operands are nodes, so their rows are their own,
-        /// and a union's contact against an unmerged member face is
-        /// that member's.
-        merged: Box<(Vec<crate::node::SitedRef>, Vec<crate::node::SitedRef>)>,
-        /// The refusing predicate's diagnostics, unaltered.
-        diag: Indeterminate,
-    },
-    /// **A union's undeclared contact against a row its own FOLD
-    /// minted** — a fragment of a member's face, the union's body,
-    /// anything the member-keying rule does not collapse to a member's
-    /// entity or to a merge of them.
-    ///
-    /// Such a row does not exist before the union, so no `SitedRef`
-    /// names it (DM4: a declaration names what is live before its
-    /// consumer) and the two-armed menu
-    /// [`NodeErrorKind::UndeclaredCoincidence`] carries has no declare
-    /// arm here. The refusal says so in the type rather than degrading
-    /// to an emission bug, which would blame this crate for a
-    /// document a user wrote.
-    ///
-    /// No evaluation raises it: a union's contacts are judged pairwise
-    /// between member views before the fold, whose rows are all member
-    /// entities, and a fold step's contact refusal is an emission bug
-    /// (DM4: the fold mints no contact verdict).
-    UndeclarableContact {
-        /// The fold-minted row, in the union's PUBLISHED name space —
-        /// the space its other refusals name.
-        row: Box<crate::names::StableName>,
-        /// The refusing predicate's diagnostics, unaltered.
-        diag: Indeterminate,
     },
     /// A blend node's selection name failed to resolve through the
     /// TARGET's name table (M6-5) — the same N5 typed trio as
@@ -2209,122 +2150,6 @@ pub enum NodeErrorKind {
     },
 }
 
-/// The undeclared-contact refusal as a document-layer finding
-/// ([`crate::finding`]): the refusing op is the subject, the story
-/// states the relation and forwards the ladder's own diagnostic, and
-/// the recourse is the two-armed menu (SELECT-DESIGN §3d, the #256
-/// ruling applied to contact: declare the finding or move the
-/// geometry — no absorb arm).
-///
-/// The subject is SENTENCE-shaped ("the Boolean refused an undeclared
-/// coincidence") rather than a bare attribution: the phrase is pinned
-/// across the bindings and predates the sink, so this impl preserves
-/// it verbatim rather than bending the pin to the subject style.
-struct UndeclaredCoincidenceFinding<'a> {
-    /// The candidate declaration, in the detector's value shape.
-    finding: &'a crate::names::FlushFinding,
-    /// Each side's merged constituent set, empty where the side is a
-    /// row of one node.
-    merged: &'a (Vec<crate::node::SitedRef>, Vec<crate::node::SitedRef>),
-    /// The refusing predicate's diagnostics.
-    diag: &'a Indeterminate,
-}
-
-impl crate::finding::Finding for UndeclaredCoincidenceFinding<'_> {
-    fn subject(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str("the Boolean refused an undeclared coincidence")
-    }
-
-    fn story(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        // The MARGIN-PAYLOAD view of the diagnostic (name + numbers),
-        // not its full `Display`: the funnel's generic three-arm menu
-        // ends that rendering, and a contact refusal deliberately has
-        // no "lower the tolerance" arm (`topo::CONTACT_RECOURSE`'s doc
-        // comment) — the one menu here is this finding's recourse.
-        write!(
-            f,
-            "two operand faces are {}, with no shared source or declared intent{} ({})",
-            match self.finding.evidence.relation {
-                topo::PlaneRelation::SameOpposite => "coincident and opposed (a resting contact)",
-                topo::PlaneRelation::SameOriented => {
-                    "coincident and co-oriented (a continuation of one surface)"
-                }
-                // `topo::flush::finding` refuses to mint one; rendered
-                // honestly anyway.
-                topo::PlaneRelation::Distinct => "reported coincident",
-            },
-            // A merged side is the one place a caller reading the
-            // pair alone would be misled: the face the contact is
-            // against is a MERGE of member faces, and the pair names
-            // one constituent of it. Which constituent is immaterial
-            // — each declares the same contact — so the prose says
-            // that rather than leaving the pick unexplained.
-            MergedSides(self.merged),
-            self.diag.payload()
-        )
-    }
-
-    fn recourse(&self) -> &str {
-        "Recourse: add the candidate pair this refusal carries to the node's declared pairs \
-         (declare), or move the geometry"
-    }
-}
-
-/// The merged-side clause of an undeclared contact's story: silent
-/// when neither side is a merged row, and otherwise counting the
-/// constituents the fold retired into it (their names ride the
-/// payload, so the sentence stays one length however many there are).
-struct MergedSides<'a>(&'a (Vec<crate::node::SitedRef>, Vec<crate::node::SitedRef>));
-
-impl core::fmt::Display for MergedSides<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        for (side, set) in [("first", &self.0.0), ("second", &self.0.1)] {
-            if set.is_empty() {
-                continue;
-            }
-            write!(
-                f,
-                "; the {side} face merges {} member faces, and any of them declares the same \
-                 contact",
-                set.len()
-            )?;
-        }
-        Ok(())
-    }
-}
-
-/// The finding shape of [`NodeErrorKind::UndeclarableContact`]: the
-/// same refusal, minus the declare arm, because the row it names has
-/// no site to declare it at.
-struct UndeclarableContactFinding<'a> {
-    /// The fold-minted row, in the union's published space.
-    row: &'a crate::names::StableName,
-    /// The refusing predicate's diagnostics.
-    diag: &'a Indeterminate,
-    /// Who says the row's minting node.
-    by: crate::spoken::Speaker<'a>,
-}
-
-impl crate::finding::Finding for UndeclarableContactFinding<'_> {
-    fn subject(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str("the union refused a contact on a face its own fold made")
-    }
-
-    fn story(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "a member's face rests on {}, which no member carries ({})",
-            self.by.name(self.row),
-            self.diag.payload()
-        )
-    }
-
-    fn recourse(&self) -> &str {
-        "no declaration can name that face. Recourse: move the geometry, or union in two \
-         nodes so the face belongs to a member"
-    }
-}
-
 // LIB-DOORS F6 (reopened on review): the human-readable rendering the
 // bindings' exception messages consume. Each arm names the failing op
 // and then FORWARDS its payload's own `Display` — the kernel refusal
@@ -2335,16 +2160,13 @@ impl crate::finding::Finding for UndeclarableContactFinding<'_> {
 // vocabulary for a refusal that already has one.
 //
 // Owning a recourse the payload cannot spell buys an arm PROSE, never
-// the right to drop the payload: `UndeclaredCoincidence` states its
-// two-armed menu (F6) AND renders its diagnostic.
+// the right to drop the payload.
 //
 // Every payload-holding arm forwards its payload's own `Display` —
 // `EvalError`, `resolve::ResolveError`, `WitnessBifurcation` and
 // `PlacementRuleFault` (D54's four) all carry one, and
 // `PlacementRuleFault`'s is that fault set's ONE prose vocabulary (the
-// edit door's rule arms forward the same impl). `UndeclaredCoincidence`
-// composes through the document layer's finding sink
-// ([`crate::finding`]): subject, story, its two-armed recourse.
+// edit door's rule arms forward the same impl).
 //
 // The one exception is a CARRIED refusal: another node's refusal, with
 // its own recourse, held as a `NodeRefusal` (`PartFault::PartRootFailed`
@@ -2696,9 +2518,11 @@ impl crate::spoken::Say for NodeErrorKind {
             // kernel refusal riding the variant — it has no other route
             // to a human, so it is carried through rather than dropped.
             Self::Naming(e) => write!(f, "name emission failed: {}", Said(e, by)),
-            Self::ParamSourceAttach(e) => write!(
+            Self::UnionFoldStep { member, refusal } => write!(
                 f,
-                "the parameter-identity attach refused on a carrier the blend just minted: {e}"
+                "the union's fold refused at the step that folds in {}: {}",
+                by.node(*member),
+                Said(refusal.as_ref(), by)
             ),
             Self::DeclareResolve { error, reference } => resolve_failed(
                 f,
@@ -2726,21 +2550,6 @@ impl crate::spoken::Say for NodeErrorKind {
             // replacement for it: the ladder's own account of what it
             // measured rides the story, exactly as `Escalated` carries
             // the same type.
-            Self::UndeclaredCoincidence {
-                finding,
-                merged,
-                diag,
-            } => crate::finding::compose(
-                f,
-                &UndeclaredCoincidenceFinding {
-                    finding,
-                    merged,
-                    diag,
-                },
-            ),
-            Self::UndeclarableContact { row, diag } => {
-                crate::finding::compose(f, &UndeclarableContactFinding { row, diag, by })
-            }
             Self::BlendSelectionResolve {
                 verb,
                 error,

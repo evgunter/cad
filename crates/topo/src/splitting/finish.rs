@@ -1246,7 +1246,6 @@ pub(crate) fn carve<T: Decide>(
         .collect();
     for k in orphan_points {
         body.points.remove(k);
-        body.point_origins.remove(k);
     }
     let mut live_curves: SecondaryMap<crate::geometry::CurveKey, ()> = SecondaryMap::new();
     for (_, e) in body.edges() {
@@ -1259,7 +1258,6 @@ pub(crate) fn carve<T: Decide>(
         .collect();
     for k in orphan_curves {
         body.curves.remove(k);
-        body.curve_origins.remove(k);
     }
     let mut live_surfaces: SecondaryMap<crate::geometry::SurfaceKey, ()> = SecondaryMap::new();
     for (_, face) in body.faces() {
@@ -1281,9 +1279,6 @@ pub(crate) fn carve<T: Decide>(
         .collect();
     for k in orphan_surfaces {
         body.surfaces.remove(k);
-        // A raw removal has to reach the side tables (pinned from the
-        // split door in `sweep`'s `seat6_germ_channel`).
-        body.drop_surface_rows(k);
     }
     Ok(body)
 }

@@ -186,7 +186,7 @@ fn pair(
     c2: &Surface<f64>,
     ball: ExtentBall<f64>,
 ) -> Result<EqualCylinderSection<f64>, SectionError> {
-    cylinder_cylinder_section(c1, c2, RadiusEvidence::Declared, &Reach::Ball(ball), band())
+    cylinder_cylinder_section(c1, c2, &Reach::Ball(ball), band())
 }
 
 /// **Cylinder × cylinder, and the witness, in either order.** At

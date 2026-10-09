@@ -351,7 +351,7 @@ fn crossing_pair(r: f64, gamma: f64) -> (Surface<f64>, Surface<f64>) {
 #[test]
 fn equal_cylinders_split_into_two_ellipses() {
     let (c1, c2) = crossing_pair(1.5, 0.6);
-    let s = cylinder_cylinder_section(&c1, &c2, RadiusEvidence::Declared, &metre_on(&c1), band())
+    let s = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1), band())
         .unwrap();
     let EqualCylinderSection::TwoEllipses { e1, e2 } = s else {
         panic!("expected two ellipses, got {s:?}");
@@ -390,7 +390,7 @@ fn radius_equality_is_never_inferred_from_values() {
     // Bitwise-equal radii WITHOUT ladder evidence: routes to rung 3 —
     // the never-infer rule, pinned.
     let (c1, c2) = crossing_pair(1.5, 0.6);
-    let err = cylinder_cylinder_section(&c1, &c2, RadiusEvidence::None, &metre_on(&c1), band())
+    let err = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1), band())
         .unwrap_err();
     let SectionError::RoutesToGeneralRung { why, .. } = err else {
         panic!("expected the rung-3 routing refusal, got {err:?}");
@@ -420,7 +420,7 @@ fn declared_radius_equality_is_verified() {
         radius: 1.75,
         u_ref: Vec3::unit_y(),
     };
-    let err = cylinder_cylinder_section(&c1, &c2, RadiusEvidence::Declared, &metre_on(&c1), band())
+    let err = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1), band())
         .unwrap_err();
     assert!(
         matches!(err, SectionError::RadiusDeclarationContradicted),
@@ -434,7 +434,7 @@ fn declared_radius_equality_is_verified() {
         radius: 1.5 + 3.0 * eps(),
         u_ref: Vec3::unit_y(),
     };
-    let err = cylinder_cylinder_section(&c1, &c2, RadiusEvidence::Declared, &metre_on(&c1), band())
+    let err = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1), band())
         .unwrap_err();
     assert!(matches!(err, SectionError::Escalated(_)), "{err:?}");
 }
@@ -445,7 +445,7 @@ fn skew_axes_route_to_rung_3() {
     if let Surface::Cylinder { origin, .. } = &mut c2 {
         *origin = Point3::new(0.0, 0.5, 0.0); // definitely off-plane
     }
-    let err = cylinder_cylinder_section(&c1, &c2, RadiusEvidence::Declared, &metre_on(&c1), band())
+    let err = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1), band())
         .unwrap_err();
     let SectionError::RoutesToGeneralRung { why, .. } = err else {
         panic!("expected the rung-3 routing refusal, got {err:?}");
@@ -457,7 +457,7 @@ fn skew_axes_route_to_rung_3() {
     if let Surface::Cylinder { origin, .. } = &mut c2 {
         *origin = Point3::new(0.0, 3.0 * eps(), 0.0);
     }
-    let err = cylinder_cylinder_section(&c1, &c2, RadiusEvidence::Declared, &metre_on(&c1), band())
+    let err = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1), band())
         .unwrap_err();
     assert!(matches!(err, SectionError::Escalated(_)), "{err:?}");
 }
@@ -475,7 +475,6 @@ fn parallel_equal_cylinders_trio() {
     let s = cylinder_cylinder_section(
         &c1,
         &mk(1.0),
-        RadiusEvidence::Declared,
         &metre_on(&c1),
         band(),
     )
@@ -494,7 +493,6 @@ fn parallel_equal_cylinders_trio() {
     let s = cylinder_cylinder_section(
         &c1,
         &mk(2.0),
-        RadiusEvidence::Declared,
         &metre_on(&c1),
         band(),
     )
@@ -504,7 +502,6 @@ fn parallel_equal_cylinders_trio() {
     let s = cylinder_cylinder_section(
         &c1,
         &mk(3.0),
-        RadiusEvidence::Declared,
         &metre_on(&c1),
         band(),
     )
@@ -514,7 +511,6 @@ fn parallel_equal_cylinders_trio() {
     let err = cylinder_cylinder_section(
         &c1,
         &mk(2.0 + 3.0 * eps()),
-        RadiusEvidence::Declared,
         &metre_on(&c1),
         band(),
     )
@@ -526,7 +522,6 @@ fn parallel_equal_cylinders_trio() {
     let err = cylinder_cylinder_section(
         &c1,
         &mk(0.0),
-        RadiusEvidence::Declared,
         &metre_on(&c1),
         band(),
     )
@@ -946,7 +941,7 @@ fn declared_coaxial_crossing_is_two_circles() {
             posed(&coaxial_pair(1.0, 1.5, 0.0).1),
         ),
     ] {
-        let s = cylinder_sphere_section(&cyl, &sph, CoaxialEvidence::Declared, band()).unwrap();
+        let s = cylinder_sphere_section(&cyl, &sph, band()).unwrap();
         let CylinderSphereSection::TwoCircles {
             center,
             axis,
@@ -996,7 +991,7 @@ fn declared_coaxial_tangency_is_classification_data_at_both_doors() {
             posed(&coaxial_pair(1.0, 1.0, 0.0).1),
         ),
     ] {
-        let s = cylinder_sphere_section(&cyl, &sph, CoaxialEvidence::Declared, band()).unwrap();
+        let s = cylinder_sphere_section(&cyl, &sph, band()).unwrap();
         let CylinderSphereSection::TangentCircle {
             center,
             axis,
@@ -1059,7 +1054,7 @@ fn declared_coaxial_short_sphere_is_empty() {
             posed(&coaxial_pair(1.0, 0.5, 0.0).1),
         ),
     ] {
-        let s = cylinder_sphere_section(&cyl, &sph, CoaxialEvidence::Declared, band()).unwrap();
+        let s = cylinder_sphere_section(&cyl, &sph, band()).unwrap();
         assert!(matches!(s, CylinderSphereSection::Empty), "{label}: {s:?}");
     }
 }
@@ -1081,7 +1076,7 @@ fn coaxiality_is_never_inferred_from_the_measured_distance() {
             posed(&coaxial_pair(1.0, 1.5, 0.0).1),
         ),
     ] {
-        let err = cylinder_sphere_section(&cyl, &sph, CoaxialEvidence::None, band()).unwrap_err();
+        let err = cylinder_sphere_section(&cyl, &sph, band()).unwrap_err();
         let SectionError::RoutesToGeneralRung { why, pair } = err else {
             panic!("{label}: expected the rung-3 routing refusal, got {err:?}");
         };
@@ -1113,7 +1108,7 @@ fn declared_coaxiality_is_verified() {
         ("direct", cyl.clone(), off(0.25)),
         ("re-posed twin", posed(&cyl), posed(&off(0.25))),
     ] {
-        let err = cylinder_sphere_section(&c, &s, CoaxialEvidence::Declared, band()).unwrap_err();
+        let err = cylinder_sphere_section(&c, &s, band()).unwrap_err();
         assert!(
             matches!(err, SectionError::CoaxialDeclarationContradicted),
             "{label}: {err:?}"
@@ -1123,7 +1118,7 @@ fn declared_coaxiality_is_verified() {
         ("direct", cyl.clone(), off(3.0 * eps())),
         ("re-posed twin", posed(&cyl), posed(&off(3.0 * eps()))),
     ] {
-        let err = cylinder_sphere_section(&c, &s, CoaxialEvidence::Declared, band()).unwrap_err();
+        let err = cylinder_sphere_section(&c, &s, band()).unwrap_err();
         // The PREDICATE is pinned, not merely the variant: an
         // escalation from any other row of the arm would satisfy
         // `Escalated(_)` while saying nothing about the declaration
@@ -1161,7 +1156,7 @@ fn the_degeneracy_guard_covers_the_full_convention() {
             ("re-posed twin", posed(&cyl), posed(&sph)),
         ] {
             let err =
-                cylinder_sphere_section(&c, &s, CoaxialEvidence::Declared, band()).unwrap_err();
+                cylinder_sphere_section(&c, &s, band()).unwrap_err();
             let SectionError::DegenerateOperand { what } = err else {
                 panic!("{row} / {label}: expected the degeneracy refusal, got {err:?}");
             };
@@ -1186,7 +1181,7 @@ fn the_reach_trilean_escalates_in_band() {
             posed(&coaxial_pair(1.0, 1.0 + 3.0 * eps(), 0.0).1),
         ),
     ] {
-        let err = cylinder_sphere_section(&c, &s, CoaxialEvidence::Declared, band()).unwrap_err();
+        let err = cylinder_sphere_section(&c, &s, band()).unwrap_err();
         // The PREDICATE, not just the variant: this row exists to pin
         // the REACH trilean's in-band arm, and the two degeneracy rows
         // and the declaration row above it all escalate through the
@@ -1203,12 +1198,12 @@ fn the_reach_trilean_escalates_in_band() {
 #[test]
 fn the_cylinder_sphere_arm_names_its_lane() {
     let (cyl, sph) = coaxial_pair(1.0, 1.5, 0.0);
-    let err = cylinder_sphere_section(&sph, &cyl, CoaxialEvidence::Declared, band()).unwrap_err();
+    let err = cylinder_sphere_section(&sph, &cyl, band()).unwrap_err();
     let SectionError::WrongLane { expected } = err else {
         panic!("expected the lane refusal, got {err:?}");
     };
     assert!(expected.contains("cylinder first"), "{expected}");
-    let err = cylinder_sphere_section(&cyl, &cyl, CoaxialEvidence::Declared, band()).unwrap_err();
+    let err = cylinder_sphere_section(&cyl, &cyl, band()).unwrap_err();
     let SectionError::WrongLane { expected } = err else {
         panic!("expected the lane refusal, got {err:?}");
     };
@@ -1302,7 +1297,7 @@ mod interval {
         };
         let (c1, c2) = (mk(1.0), mk(-1.0));
         let s =
-            cylinder_cylinder_section(&c1, &c2, RadiusEvidence::Declared, &metre_on(&c1), band())
+            cylinder_cylinder_section(&c1, &c2, &metre_on(&c1), band())
                 .unwrap();
         let EqualCylinderSection::TwoEllipses { e1, e2 } = s else {
             panic!("expected two ellipses, got {s:?}");
@@ -1384,7 +1379,7 @@ mod interval {
             axis: iv(Vec3::unit_z()),
             u_ref: iv(Vec3::unit_x()),
         };
-        let s = cylinder_sphere_section(&cyl, &sph, CoaxialEvidence::Declared, band()).unwrap();
+        let s = cylinder_sphere_section(&cyl, &sph, band()).unwrap();
         let CylinderSphereSection::TwoCircles {
             center,
             axis,
@@ -1482,7 +1477,7 @@ mod interval {
             axis: iv(Vec3::unit_z()),
             u_ref: iv(Vec3::unit_x()),
         };
-        let s = cylinder_sphere_section(&cyl, &sph, CoaxialEvidence::Declared, band()).unwrap();
+        let s = cylinder_sphere_section(&cyl, &sph, band()).unwrap();
         let CylinderSphereSection::TwoCircles { station, .. } = s else {
             panic!("a near-tangent pose (delta {delta:e}) is still two circles, got {s:?}");
         };
@@ -1640,7 +1635,7 @@ mod interval {
             axis: iv(Vec3::unit_z()),
             u_ref: iv(Vec3::unit_x()),
         };
-        let err = cylinder_sphere_section(&cyl, &sph, CoaxialEvidence::None, band()).unwrap_err();
+        let err = cylinder_sphere_section(&cyl, &sph, band()).unwrap_err();
         assert!(
             matches!(err, SectionError::RoutesToGeneralRung { .. }),
             "{err:?}"
@@ -1669,7 +1664,7 @@ fn cc_axes_parallel_in_band_escalates() {
         radius: 1.0,
         u_ref: Vec3::unit_x(),
     };
-    let err = cylinder_cylinder_section(&c1, &c2, RadiusEvidence::Declared, &metre_on(&c1), band())
+    let err = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1), band())
         .unwrap_err();
     let SectionError::Escalated(diag) = err else {
         panic!("expected escalation, got {err:?}");
@@ -1690,7 +1685,6 @@ fn cc_coaxial_in_band_escalates() {
     let err = cylinder_cylinder_section(
         &mk(0.0),
         &mk(3.0 * eps()),
-        RadiusEvidence::Declared,
         &metre_on(&mk(0.0)),
         band(),
     )

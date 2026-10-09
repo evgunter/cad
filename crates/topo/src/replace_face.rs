@@ -2153,8 +2153,7 @@ fn plan_edge<T: Decide>(
                 // every other variant is answered inside it and
                 // never returned.
                 other @ (geom_brep::SectionError::WrongLane { .. }
-                | geom_brep::SectionError::RadiusDeclarationContradicted
-                | geom_brep::SectionError::CoaxialDeclarationContradicted
+                | geom_brep::SectionError::UnequalRadii
                 | geom_brep::SectionError::DegenerateOperand { .. }
                 | geom_brep::SectionError::BeyondOperandExtent { .. }
                 | geom_brep::SectionError::CoincidentSurfaces
@@ -2375,8 +2374,7 @@ fn derive_edge<T: Decide>(
         // As at `neighbour_section`: every other variant is answered
         // inside `route_pose` and never returned.
         other @ (geom_brep::SectionError::WrongLane { .. }
-        | geom_brep::SectionError::RadiusDeclarationContradicted
-        | geom_brep::SectionError::CoaxialDeclarationContradicted
+        | geom_brep::SectionError::UnequalRadii
         | geom_brep::SectionError::DegenerateOperand { .. }
         | geom_brep::SectionError::BeyondOperandExtent { .. }
         | geom_brep::SectionError::CoincidentSurfaces

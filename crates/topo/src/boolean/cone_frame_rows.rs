@@ -18,7 +18,7 @@ use super::join::{
     pair_section_frame_at,
 };
 use crate::entity::FaceKey;
-use geom_brep::{OutsideConic, RadiusEvidence, SectionError};
+use geom_brep::{OutsideConic, SectionError};
 use geom_core::{Band, Point3, Tol, Vec3};
 
 type Frame = Result<Option<(Point3<f64>, Vec3<f64>)>, FrameError>;
@@ -74,7 +74,6 @@ fn frame(p: &geom::Surface<f64>, cone: &geom::Surface<f64>, at: Point3<f64>) -> 
         pair_section_frame_at(
             a,
             b,
-            RadiusEvidence::None,
             at,
             FrameExtent::Reach(wall_reach()),
             band(),
@@ -314,7 +313,6 @@ fn a_near_parabola_escalates_and_is_never_snapped_to_an_ellipse() {
         pair_section_frame_at(
             p,
             &cone,
-            RadiusEvidence::None,
             at,
             FrameExtent::Reach(lever),
             b,
@@ -420,7 +418,7 @@ fn a_frustum_far_from_its_apex_is_levered_at_its_own_reach() {
         let p = turned(margin);
         for (label, a, c) in [("plane, cone", &p, &cone), ("cone, plane", &cone, &p)] {
             let (at, extent) = reading(a, c);
-            let got = pair_section_frame_at(a, c, RadiusEvidence::None, at, extent, b);
+            let got = pair_section_frame_at(a, c, at, extent, b);
             let verdict = match &got {
                 Ok(Some(_)) => "served",
                 Err(FrameError::Escalated(d)) => d.predicate.unwrap_or("unnamed"),
@@ -476,7 +474,6 @@ fn a_near_circular_tilt_escalates_the_circle_question_not_a_desync() {
         let got = pair_section_frame(
             a,
             c,
-            RadiusEvidence::None,
             Point3::new(1.0, 0.5, 0.0),
             None,
             b,
@@ -509,7 +506,7 @@ fn a_frame_handed_another_pairs_extent_is_a_desync() {
             round: 1.0,
         },
     ] {
-        let got = pair_section_frame_at(&p, &cone, RadiusEvidence::None, on_wall(), extent, b);
+        let got = pair_section_frame_at(&p, &cone, on_wall(), extent, b);
         assert!(
             matches!(got, Err(FrameError::Desync(_))),
             "plane×cone under {extent:?}: got {}",
@@ -532,7 +529,6 @@ fn a_frame_handed_another_pairs_extent_is_a_desync() {
         let got = pair_section_frame_at(
             a,
             c,
-            RadiusEvidence::None,
             Point3::new(1.0, 0.3, 0.0),
             FrameExtent::Reach(1.0),
             b,
@@ -571,7 +567,6 @@ fn declared_equal_walls_meeting_at_a_sliver_escalate_the_circle_question() {
         let got = pair_section_frame(
             x,
             y,
-            RadiusEvidence::Declared,
             Point3::new(0.0, 0.0, 0.0),
             None,
             b,
