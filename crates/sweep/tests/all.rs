@@ -71,6 +71,8 @@ mod a_ruling_lying_on_a_wall;
 mod a_swept_cusp_is_legal_at_rest;
 #[path = "at_rest_pcurve_faces.rs"]
 mod at_rest_pcurve_faces;
+#[path = "band_apart_partners_on_a_steep_ellipse.rs"]
+mod band_apart_partners_on_a_steep_ellipse;
 #[path = "band_subdivided_side_walls.rs"]
 mod band_subdivided_side_walls;
 #[path = "bool1_fix_pass.rs"]
