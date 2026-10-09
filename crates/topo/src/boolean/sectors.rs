@@ -598,7 +598,7 @@ fn at_departure<T: Decide>(
         Margin::of(departure.abs()),
         band,
     ) {
-        Err(diag) => escalation.with_diag(diag),
+        Err(diag) => escalation.quoting_reading(diag),
         // Unreachable: the departure is no longer than an arm that did
         // not read positive.
         Ok(()) => escalation,

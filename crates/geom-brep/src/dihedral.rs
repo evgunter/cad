@@ -117,6 +117,21 @@ pub const DIHEDRAL_ARM: SizedDecision = SizedDecision {
     )),
 };
 
+/// The clause [`DIHEDRAL_ARM`] decides, of an edge: every door that asks
+/// it, or answers that the arm is not there, composes its sentence
+/// around this one spelling, so the decision is told in one shape
+/// (D4 ¶1 (iv)).
+pub const DIHEDRAL_ARM_CLAUSE: &str = crate::dihedral_arm_clause!();
+
+/// [`DIHEDRAL_ARM_CLAUSE`] as a literal, for `concat!`.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! dihedral_arm_clause {
+    () => {
+        "long enough, for how its faces curve, to measure their angle"
+    };
+}
+
 /// A definite dihedral classification (the indeterminate outcome is the
 /// typed [`Indeterminate`] error — the sliver escalation, D4 ¶3).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

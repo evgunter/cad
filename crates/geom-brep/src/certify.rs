@@ -563,8 +563,8 @@ impl core::fmt::Display for CertifyError {
             ),
             Self::ArmCollapsed { sample, .. } => write!(
                 f,
-                "at sample {sample} the edge is not long enough, for how its faces curve, to \
-                 measure their angle"
+                "at sample {sample} the edge is not {}",
+                crate::DIHEDRAL_ARM_CLAUSE
             ),
             Self::WindingExceeded => write!(
                 f,

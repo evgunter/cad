@@ -1118,10 +1118,7 @@ impl LeverArm {
             Self::SectorCurving => {
                 "whether a corner's edges are long enough to read which way a face curves there"
             }
-            Self::Seam => {
-                "whether a seam edge is long enough, for how its faces curve, to measure their \
-                 angle"
-            }
+            Self::Seam => concat!("whether a seam edge is ", geom_brep::dihedral_arm_clause!()),
         }
     }
 

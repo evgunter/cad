@@ -92,7 +92,9 @@ pub struct LeverEscalation {
     /// Only [`LeverEscalation::arm`] mints it, from the gate's own
     /// escalation, so it is `Some` on the arm's rung alone; it is kept,
     /// never recomputed, when the escalation re-quotes the reading the
-    /// arm meters ([`LeverEscalation::with_diag`]).
+    /// arm meters ([`LeverEscalation::with_diag`]), and a door outside
+    /// this crate cannot re-quote it at all
+    /// ([`LeverEscalation::quoting_reading`]).
     refused: Option<Sign>,
 }
 
@@ -119,8 +121,21 @@ impl LeverEscalation {
     /// for the margin its refusal offers: the rung and the gate's
     /// verdict are kept.
     #[must_use]
-    pub fn with_diag(self, diag: Indeterminate) -> Self {
+    pub(crate) fn with_diag(self, diag: Indeterminate) -> Self {
         Self { diag, ..self }
+    }
+
+    /// The same escalation quoting `diag`, the reading an undecided arm
+    /// meters, for the margin its refusal offers: the rung is kept. An
+    /// arm the gate decided not there is a verdict on the gate's own
+    /// margin, so it is returned unchanged.
+    #[must_use]
+    pub fn quoting_reading(self, diag: Indeterminate) -> Self {
+        if self.refused.is_some() {
+            self
+        } else {
+            self.with_diag(diag)
+        }
     }
 
     /// The rung that could not decide.
@@ -514,6 +529,36 @@ mod tests {
         assert_eq!(
             (err.rung, err.diag.predicate),
             (LeverRung::Arm, Some("enters_material_arm"))
+        );
+    }
+
+    /// A door outside the crate re-quotes an undecided arm at the
+    /// reading it meters, but never an arm the gate decided not there:
+    /// that verdict stands on the gate's own margin.
+    #[test]
+    fn a_collapsed_arm_is_never_re_quoted() {
+        let n_out = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+        let collapsed = enters_material(n_out.vec(), n_out, 0.0, band()).unwrap_err();
+        let verdict = collapsed.collapsed_arm();
+        assert!(verdict.is_some(), "a zero arm is a verdict: {collapsed:?}");
+        let reading = Indeterminate {
+            margin: geom_core::MarginDiag::value(5e-10),
+            band: band(),
+            predicate: Some("enters_material_rise"),
+            terminal_sliver: false,
+        };
+        let kept = collapsed.quoting_reading(reading);
+        assert_eq!(kept, collapsed, "a collapsed arm keeps its own quote");
+        let undecided = LeverEscalation::arm(Indeterminate {
+            predicate: Some("enters_material_arm"),
+            ..reading
+        });
+        assert_eq!(undecided.collapsed_arm(), None, "{undecided:?}");
+        let requoted = undecided.quoting_reading(reading);
+        assert_eq!(
+            (requoted.rung(), requoted.diag()),
+            (LeverRung::Arm, reading),
+            "an undecided arm quotes the reading it meters"
         );
     }
 

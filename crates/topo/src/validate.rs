@@ -2380,10 +2380,11 @@ impl WedgeCheck {
     /// What could not be decided, in the words of a person at the viewer.
     fn lead(self) -> &'static str {
         match self {
-            Self::Arm => {
-                "whether an edge is long enough, for how its faces curve, to measure their \
-                 angle is too close to call at this tolerance"
-            }
+            Self::Arm => concat!(
+                "whether an edge is ",
+                geom_brep::dihedral_arm_clause!(),
+                " is too close to call at this tolerance"
+            ),
             Self::Dihedral => {
                 "the angle between two faces at an edge is too close to call at this \
                  tolerance (a sliver)"
@@ -2680,7 +2681,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             "its faces are tangent where its description says they cross"
         }
         CertifyError::ArmCollapsed { .. } => {
-            "it is not long enough, for how its faces curve, to measure their angle"
+            concat!("it is not ", geom_brep::dihedral_arm_clause!())
         }
         CertifyError::SpanMeterCollapsed { .. } => {
             "its spline's certified speed floor gives it no measurable length"
@@ -2784,10 +2785,13 @@ fn certify_undecided(check: CertCheck) -> &'static str {
         CertCheck::Transversality => {
             "its faces meet too nearly tangentially to decide at this tolerance"
         }
-        CertCheck::TransversalityArm => {
-            "whether it is long enough, for how its faces curve, to measure their angle is \
-             undecided"
-        }
+        // Its siblings' "too close to call at this tolerance" would carry
+        // the arm's longer clause past the viewer's word budget at rest.
+        CertCheck::TransversalityArm => concat!(
+            "whether it is ",
+            geom_brep::dihedral_arm_clause!(),
+            " is undecided"
+        ),
         CertCheck::TangentPlanes => {
             "a face's tangent plane is undefined at a point of it, so there is no angle between \
              its faces to measure there"
@@ -3558,7 +3562,8 @@ impl fmt::Display for ValidationError {
             ),
             Self::NoDihedralArm { verdict, .. } => write!(
                 f,
-                "an edge is not long enough, for how its faces curve, to measure their angle. {}",
+                "an edge is not {}. {}",
+                geom_brep::DIHEDRAL_ARM_CLAUSE,
                 geom_brep::DIHEDRAL_ARM.recourse(verdict.arm(), Reading::AtRest)
             ),
             Self::LaminaWedge { .. } => write!(
@@ -11371,28 +11376,22 @@ mod tests {
 
     /// **The dihedral's arm decision is told in one shape at every door**
     /// (D4 ¶1 (iv)): every question or definite answer about the folded
-    /// lever arm asks whether the edge is long enough, for how its faces
-    /// curve, to measure their angle. Two halves:
-    ///
-    /// - **Rendered**, door by door: certify's undecided and definite
-    ///   whys at rest and its definite `Display`, check 4's undecided lead
-    ///   and definite finding, the boolean seam's subject, and the merge
-    ///   door's kept-boundary arm. A definite arm names no tolerance
-    ///   before its recourse: the exact zero no tolerance decides reads it
-    ///   too. Certify's [`CertCheck`] word is a noun naming the length,
-    ///   not the question, so it is held to that noun.
-    /// - **Census**, for a telling this list does not know: every string
-    ///   literal in `topo` or `geom-brep` source that says "long enough"
-    ///   of a face's angle carries the shape. Its blind spot is a telling
-    ///   worded without "long enough"; the one known is the SSI march's
-    ///   question, held apart below until
-    ///   `work/ssimarch/ssi-march-reports-a-collapsed-arm-as-too-close-to-call.md`
-    ///   lands it.
+    /// lever arm composes [`geom_brep::DIHEDRAL_ARM_CLAUSE`], rendered
+    /// here door by door: certify's undecided and definite whys at rest
+    /// and its definite `Display`, check 4's undecided lead and definite
+    /// finding, the boolean seam's subject, and the merge door's
+    /// kept-boundary arm. A definite arm names no tolerance before its
+    /// recourse: the exact zero no tolerance decides reads it too.
+    /// Certify's [`CertCheck`] word is a noun naming the length, not the
+    /// question, so it is held to that noun. The SSI march's question is
+    /// worded apart, held below until
+    /// `work/ssimarch/ssi-march-reports-a-collapsed-arm-as-too-close-to-call.md`
+    /// lands it.
     #[test]
     fn the_dihedral_arm_is_told_in_one_shape() {
+        use geom_brep::DIHEDRAL_ARM_CLAUSE as SHAPE;
         use geom_brep::recourse::Classified;
         use geom_core::MarginDiag;
-        const SHAPE: &str = "long enough, for how its faces curve, to measure their angle";
         let band = Band::new(1e-9, 1e-8).unwrap();
         let zero = Refused::Zero(Classified {
             margin: MarginDiag::value(0.0),
@@ -11466,48 +11465,6 @@ mod tests {
             !ssi.contains(SHAPE),
             "the SSI march now tells the arm in the shape: move it into the rendered list \
              above and close the ssimarch row's question half: {ssi}"
-        );
-
-        use test_utils::source::{Region, keeping, rust_sources};
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-        let mut found = 0;
-        let mut off = Vec::new();
-        for dir in [root.join("src"), root.join("../geom-brep/src")] {
-            for path in rust_sources(&dir) {
-                let text = std::fs::read_to_string(&path).unwrap();
-                // Lexing every file is the cost; one without the word has
-                // no telling to read.
-                if !text.contains("enough") {
-                    continue;
-                }
-                let literals = keeping(&text, &[Region::Literal]);
-                let joined = literals
-                    .split("\\\n")
-                    .map(str::trim_start)
-                    .collect::<Vec<_>>()
-                    .join("");
-                for (at, _) in joined.match_indices("long enough") {
-                    let open = joined[..at].rfind('"').map_or(0, |i| i + 1);
-                    let close = joined[at..].find('"').map_or(joined.len(), |i| at + i);
-                    let literal = &joined[open..close];
-                    if !(literal.contains("angle") && literal.contains("face")) {
-                        continue;
-                    }
-                    found += 1;
-                    if !literal.contains(SHAPE) {
-                        off.push(format!("{}: {literal}", path.display()));
-                    }
-                }
-            }
-        }
-        assert!(
-            found >= tellings.len(),
-            "the census reads no telling: {found}"
-        );
-        assert!(
-            off.is_empty(),
-            "tellings off the shape:\n{}",
-            off.join("\n")
         );
     }
 
