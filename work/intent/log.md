@@ -657,3 +657,4 @@ What moved:
 - Stage 4 H waits on stage 3 C (was the placement unit).
 - F waits on stage 4 C (D has merged) instead of `mates-declare-no-contact`.
 - `placed-union-places-and-fuses-in-one-node`, `explicit-placement-frames-hold-floats` and `a-minted-reference-direction-follows-the-computing-axes` ride with G, G and E.
+- Orchestrator's rulings on the same day: stage 4 I's A5 hard-error retirement is cut into stage 4 J (`an-unattributed-contact-at-rest-is-a-finding`, after stage 4 B and C), and stage 3 B waits on it. A mate's `to` may read the world through the pose reads any target offers. D10 Variables' "a face's frame" parenthetical is re-worded to "a face's plane", carried by FORK-S3P round 10.

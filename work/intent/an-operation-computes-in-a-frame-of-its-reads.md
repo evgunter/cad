@@ -18,4 +18,4 @@ The frame is no part of meaning: the body up to the rigid map, its names and eve
 
 `SolvedPoses::world_of` is read by export alone, and a grep gate holds it; the viewer draws a space from display state no logic reads. Product digests move into computing-frame coordinates and STEP bytes by rounding, each checked against the world's map.
 
-Waits on D: before it, a construction computes in the world coordinates its absolute datum names.
+Waits on D (`transform-retires-into-a-placement`): before it, a construction computes in the world coordinates its absolute datum names.

@@ -22,4 +22,4 @@ The migration restates each corpus bundle that overconstrains as one mate plus v
 
 Closes `mate-offset-verified-against-the-solve-is-a-constraint-falling-back-to-an-assertion` (with A11 (4)), `a-box-over-a-solved-clocking-widens-thirty-thousandfold` and `an-identically-zero-margin-escalates-at-a-fine-eps`. Re-reads `a-far-meeting-point-fails-membership-by-its-own-rounding` and `a-box-independent-mate-fault-bisects-the-whole-leaf-budget`.
 
-Waits on C, whose table F reads by pose kind. It also waits on stage 4 C (`carriers-compare-in-canonical-form`). That rung, with stage 4 D's (`the-door-s-third-rung-is-the-symbolic-tier`, merged), proves the contacts F's refusals leave behind.
+Waits on C (`a-mate-relates-two-poses`), whose table F reads by pose kind. It also waits on stage 4 C (`carriers-compare-in-canonical-form`). That rung, with stage 4 D's (`the-door-s-third-rung-is-the-symbolic-tier`, merged), proves the contacts F's refusals leave behind.

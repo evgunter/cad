@@ -6,13 +6,13 @@ status: parked
 opened: 2026-10-08
 priority: P0
 cost: H
-blocked_on: [a-mate-reads-face-variables]
+blocked_on: [a-mate-reads-face-variables, an-unattributed-contact-at-rest-is-a-finding]
 refs: [intent-stage3-is-built, mate-offset-verified-against-the-solve-is-a-constraint-falling-back-to-an-assertion]
 ---
 
 INTENT stage 3, PR B. Spec: `docs/INTENT-STAGE3-SPEC.md` §3. Built on FORK-S3M (fork log row 97, PR 4326) and FORK-S3O (row 96, PR 4325).
 
-`Place { shapes, constraints }` reads a list of shapes of one space, as a union reads its operands, and defines one copy of each. Its constraints are addressed by (placement, minted id), never by position. In B a constraint is today's mate payload, moved under the placement unchanged; C re-types it into poses and values. That is why B comes before C: a value is a placement's constraint, so it cannot exist before `Place` does.
+`Place { shapes, constraints }` reads a list of shapes of one space, as a union reads its operands, and defines one copy of each. Its constraints are addressed by (placement, minted id), never by position. In B a constraint is today's mate payload, numbers included, moved under the placement unchanged. That is a migration interim, not a final state: C (`a-mate-relates-two-poses`) ends it by re-typing each constraint into poses and values. That is why B comes before C: a value is a placement's constraint, so it cannot exist before `Place` does.
 
 The world is one undeletable node that defines no variable. Only a placement's constraints and export read it. An instance of a part is a placement, with one output per world placement of the part, keyed by that placement, and no `frame` port. Spaces are kinds decided from the recipe, and a read across two spaces refuses `SpaceMismatch`. A copy whose bundle pins less than its body needs is a loose copy, not a refusal. A mate beyond its bundle's pin refuses `Overconstrained`; nothing verifies and mints it. F generalises the rule to "pinned or not".
 
@@ -29,4 +29,4 @@ Migration check: every corpus copy's pose and the product digests are bit-equal.
 
 Closes `a-declaring-mates-alignment-is-never-read`, `gauge-of-recomputes-the-clusters-per-placement-lookup`, `a-placer-row-states-what-a-poisoned-row-cannot` and the offset half of `mate-offset-verified-against-the-solve-is-a-constraint-falling-back-to-an-assertion`.
 
-Waits on stage 2 F (mate sides read `Face` variables). B drops declaring mates, so their contacts are unattributed, and A5's hard error refuses those products until it is retired. The spec's §12 boundary names that dependency on stage 4.
+Waits on stage 2 F (`a-mate-reads-face-variables`: mate sides read `Face` variables). It also waits on stage 4 J (`an-unattributed-contact-at-rest-is-a-finding`). B drops declaring mates, so their contacts are unattributed, and A5's hard error would refuse those products; J turns that error into a finding first.

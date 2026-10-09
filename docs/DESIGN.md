@@ -1243,7 +1243,7 @@ intent.
 variable whose type suits the slot. The types are the scalars (`Length`,
 `Angle`, `Scalar`, `Count`), the discrete kinds (a side, a half, a
 sense) and the poses (`Point`, `Direction`, `Axis`, `Plane`, `Frame`),
-which are only defined: read off a body's geometry (a face's frame, a
+which are only defined: read off a body's geometry (a face's plane, a
 carrier's axis or centre), by coordinates over scalar variables in a
 frame the definition reads, by a construction over other poses, as a
 pose of a copy, or as an output of an operation, so no pose is free,

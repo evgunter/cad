@@ -22,4 +22,6 @@ The migration restates each mate over geometry plus values, each value computed 
 
 Closes `a-clocking-rider-is-levered-unreduced`, `a-face-frame-cannot-turn-its-roll`, `a-face-base-puts-its-reference-on-local-y`, `mate-primitive-unit-variants-load-from-a-null-payload`, `a-mate-frame-axis-is-decided-against-a-length-band`, `a-mate-frame-is-written-in-the-reading-instances-coordinates` and `placement-step-slots-are-spelled-three-ways`. It subsumes MSOLVE-15 (#3681).
 
-Waits on A (poses) and B (the placement that owns values).
+C ends B's migration interim, in which a placement's constraints are today's mate payload with its numbers.
+
+Waits on A (`poses-are-variables`) and B (`a-placement-is-the-bundle-of-mates`, the placement that owns values).

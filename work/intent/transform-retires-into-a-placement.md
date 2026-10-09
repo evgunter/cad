@@ -23,6 +23,6 @@ Every construction is built in coordinates of its own and placed against what it
 
 Nothing moves a body. `Node::Transform` and `PortKind::PlacedFrom` retire, and each use becomes a `Place`. A copy's names pass through as `Transform`'s did. `Step::Literal` retires, and A6's admission runs on evaluated pose values.
 
-An absolute pose read by a non-root operation (a `Split` tool) is restated over the operand's geometry, or the migration names it and refuses to regenerate (spec Q8). The façade's "sketch on a face" writes profile, construction, placement and combine as one gesture. The tour's `chain`, `diefillet` and `teapot`, the viewer's transform gesture and Python's datum builders and `.transform` follow.
+An absolute pose read by a non-root operation (a `Split` tool) is restated over the operand's geometry, or the migration names it and refuses to regenerate (spec Q8). The `diefillet` pips' union is written against today's `Node::Union` and moves with FORK-DM4's units. The façade's "sketch on a face" writes profile, construction, placement and combine as one gesture. The tour's `chain`, `diefillet` and `teapot`, the viewer's transform gesture and Python's datum builders and `.transform` follow.
 
-Closes the placement half of `a-boxed-rotation-refuses-not-rigid-at-every-placer`. Waits on C, because a construction placed against a face needs a mate reading its plane and values for the freedoms it leaves.
+Closes the placement half of `a-boxed-rotation-refuses-not-rigid-at-every-placer`. Waits on C (`a-mate-relates-two-poses`), because a construction placed against a face needs a mate reading its plane and values for the freedoms it leaves.

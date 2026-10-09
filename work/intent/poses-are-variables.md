@@ -24,4 +24,4 @@ Pose definitions are bound mid-evaluation by `eval_pose`, which replaces `wire_d
 
 Absolute datums survive A as the operations that define the poses constructions read. D retires them, once constructions read no frame and a placement can say where a body is.
 
-Waits on stage 2 E (a face's plane reads a `Face` variable). Independent of B.
+Waits on stage 2 E (`select-defines-face-and-edge-variables`: a face's plane reads a `Face` variable). Independent of B.

@@ -63,7 +63,7 @@ Today's state of what this stage touches:
 The dependency graph:
 
 - **A** waits on stage 2 E (a pose read off a face reads a `Face` variable).
-- **B** waits on stage 2 F (a mate's sides read `Face` variables) and on stage 4's unit that turns A5's hard error into a finding (§12, boundary).
+- **B** waits on stage 2 F (a mate's sides read `Face` variables) and on stage 4 J (`an-unattributed-contact-at-rest-is-a-finding`), which turns A5's hard error into a finding (§12, boundary).
 - **C** waits on A and B.
 - **D** waits on C.
 - **E** waits on D.
@@ -84,7 +84,7 @@ Why this order:
 Each intermediate state is a whole representation:
 
 - After A, a pose is a defined variable, and every pose a reader reads is one. Absolute datums are still the operations that define the poses constructions read; D retires them with those readers.
-- After B, a placement owns its mates and the world is a node. A mate is still today's payload, an alignment with offset frames, and may name the world as a base.
+- After B, a placement owns its mates and the world is a node. A mate is still today's payload, an alignment with offset frames and its numbers, and may name the world as a base: a migration interim that C ends.
 - After C, a mate equates two poses and values set freedoms. Constructions still read absolute datums, and `Transform` still stands.
 - After D, frames enter only at placement, and only a placement defines a copy.
 - After E, every operation computes in a frame of its reads.
@@ -188,7 +188,7 @@ The largest unit. Its size is in the gauge sites, which are compile-driven, and 
 
 **Kernel**
 
-- **`Node::Place { shapes, constraints }`** per §1. In B a constraint is today's mate payload (`Alignment`: two `MateFrame`s, a `MatePrimitive`, an `AxisSense`) addressed by its minted id; C re-types it.
+- **`Node::Place { shapes, constraints }`** per §1. In B a constraint is today's mate payload (`Alignment`: two `MateFrame`s, a `MatePrimitive`, an `AxisSense`), numbers included, addressed by its minted id. That is a migration interim, not a final state, and C ends it.
   - A constraint reads the copy's side through the shapes it copies and, on the other, a pose outside the copy: another placement's copy, a body of the space the copy joins, or the world.
   - The door refuses a constraint with no side on the copy (`MateFault::NotOnTheCopy`) and one that reads its own copy (acyclicity over `Doc::upstream`).
   - **`FrameBase::World`** joins `FrameBase` for B's migration, so a gauge root's world pose is one mate to the world. C deletes `FrameBase`.
@@ -361,12 +361,12 @@ The unit's design is FORK-PAT's (row 99), and `work/intent/patterns-are-index-va
 - **Names.** `RoleSeg::Instance { i, of }` becomes `Member { (i, j, …), of }`, keyed by the index variables' ids and the integers.
 - **A pattern is a placement** whose values are expressions in the index: `spin = scalar(k)·turn/N` under an `Axis` mate is a ring, `slide = scalar(k)·pitch` a row. Copies of one body are built once and mapped.
 - **Mirror.** `Mirror { body, plane }`, a construction defining a new `Body` in its source's root, the plane read off the source alone (MIRROR-DESIGN P1–P4, P6).
-- **`PlacedUnion` retires** into a placement of the copies and a `Node::Union` reading the family (REFERENCES DM4 as it stands). Its `Separation` certificate becomes the union's fast path when its bodies are rigid images of one body. This closes `placed-union-places-and-fuses-in-one-node`.
+- **`PlacedUnion` retires** into a placement of the copies and a `Node::Union` reading the family. It is written against today's node (REFERENCES DM4 as it stands) and moves with FORK-DM4's units. Its `Separation` certificate becomes the union's fast path when its bodies are rigid images of one body. This closes `placed-union-places-and-fuses-in-one-node`.
 - **Explicit frames.** `PatternKind::Explicit(frames)` becomes one placement per frame, a `Plane` mate against the face with the frame's in-plane offsets and spin as values, computed from the stored frame once at migration. This closes `explicit-placement-frames-hold-floats` (`die_tool.pncad` holds six `Explicit` frames, not the row's "twenty-one").
 - **Retired:** `PatternKind`, `Node::Pattern`, `Node::PlacedUnion`, `PartSelect::Instance`, the placement-rule slot table, `placement_rule_fault`, `CountMismatch`, P5's placement-major layout, and the boxed `Pattern` angle half of `topo/a-boxed-rotation-refuses-not-rigid-at-every-placer`.
 - **Façade.** `linear_pattern`, `circular_pattern`, `grid`, `bolt_circle` and `mirror` write the program; a display-only recogniser reads it back for the GUI's forms.
 
-**Waits on FORK-DM4.** G's union reads a family as one member (DM4 as ratified on #4341). FORK-DM4 is deciding how a union keys its members' names, whether `union` and `intersect` are n-ary, and whether `Boolean` leaves the document. G names union members by those keys, so it is dispatched after that ruling and follows it. Nothing in A–F reads a union.
+**Waits on FORK-DM4.** G's union reads a family as one member (DM4 as ratified on #4341). FORK-DM4 is deciding how a union keys its members' names, whether `union` and `intersect` are n-ary, and whether `Boolean` leaves the document. G names union members by those keys, so it is dispatched after that ruling and follows it. The one other union this stage writes is D's migration of the tour's `diefillet` pips. It is written against today's `Node::Union` and moves with FORK-DM4's units.
 
 ## 9. What moves and what retires
 
@@ -385,7 +385,7 @@ The unit's design is FORK-PAT's (row 99), and `work/intent/patterns-are-index-va
 - **REFERENCES DM1** (A, D): the derived frame carrying a face name retires; a face reads as a plane (FORK-S3P), and a sketch on a face is a placement. DM1a and DM1b's typed refusal of a non-planar carrier stay with `Plane { face }`.
 - **REFERENCES DM3** (D, G): "names pass through unchanged, as `Transform`'s do" is re-worded to a copy's.
 - **REFERENCES §0**: "`AxisInPlane` … the one datum with a DAG input" is deleted (A).
-- **D10 itself**: no sentence changes. §13 lists one parenthetical that disagrees with its own paragraph.
+- **D10 itself**: one parenthetical, "a face's frame" → "a face's plane" (§13).
 
 | | A | B | C | D | E | F | G |
 |---|---|---|---|---|---|---|---|
@@ -429,7 +429,7 @@ Loud census rows: `pncad-py` `tags.rs` / `surface_census` / `prose_census`, `dis
 - **The migrations that cannot restate.** C and D restate absolute coordinates over geometry where a face or carrier pins the same coset, and otherwise drop and name a mate (C) or refuse to regenerate (D, Q11). Measure the corpus's count before C dispatches.
 - **Pose definitions bound mid-evaluation** (A). A face's plane exists only after the body it reads. If stage 2 D's machinery is narrower than this needs, A widens it, and the content key hashes a pose definition's upstream keys, not its id.
 - **Constraints reading copies** (B). `Carried` is new: a pose a copy carries is a function of that copy's solved pose, so a bundle's fold reads poses that depend on other bundles. The order is the bundles' read order over `Doc::upstream`, acyclic by the door: A placed against B and B against A is a read cycle and refuses, which replaces A11 (4)'s "no cycle is ever solved".
-- **The contacts declaring mates declared** (B). B drops declaring mates, so their contacts are unattributed. Before stage 4 retires A5's hard error, that refuses the document's product; §12's boundary orders B after that retirement.
+- **The contacts declaring mates declared** (B). B drops declaring mates, so their contacts are unattributed. Stage 4 J makes them findings before B lands (§12). They are loud until rungs 2 and 3 prove them or an assertion quiets them.
 - **E moves goldens on purpose.** Every assembly digest, the STEP bytes and the gallery frames move. The check is test 13's map, not bit equality.
 - **Migration reproducing the tree** (B). Today's tree is "the first member pair per instance pair in `Member` key order". The migration orients mates by that exact rule, or test 7 fails where two orders differ.
 - **Load.** Seven units (H, H, H, H, M, M, H: 30 points by the work README's weights) are filed `parked` behind stage 2 and so count nothing until it closes. At stage 2's close the orchestrator splits stage 3 into its own program or confirms it fits.
@@ -454,7 +454,7 @@ FORK-PAT (row 99, PR 4341) added unit G.
 4. **Where the door reads the held fold** (F). **Recommendation:** fold the bundle at the door from its definitions. It is a handful of table rows, and it keeps "the doors decide edits" free of a stored solve.
 5. **The viewer and the world.** **Recommendation:** the viewer reads no `world_of`. It draws every space from display state of its own that no logic reads, the rule G3's free-move probe already follows, and E's grep gate admits no display door.
 6. **`Transform`'s Python spelling.** **Recommendation:** none. `body.transform(by)` goes with the node; the façade's `place` with values is the one spelling (Ev on #4220: one semantics in Python and Rust).
-7. **What a mate reads on the world.** The world defines no pose variable, and a placement with no mates cannot chart a rotation. **Recommendation:** a mate's `to` may read the world node through a projection of its frame (the frame, its xy-plane, z-axis or origin). The read is part of the mate, never a variable, so nothing else can read it.
+7. **What a mate reads on the world** (orchestrator's ruling, 2026-10-09). The world defines no pose variable, and a placement with no mates cannot chart a rotation. Ev: "the world is one frame among many that cannot be deleted" (#4326). A mate's `to` may read the world node through the same pose reads any target offers: its frame, a plane, an axis or its origin. The read is part of the mate and never a variable, so D10's "defines no pose variable" holds and nothing else can read it.
 8. **An absolute pose with no geometry to restate it over** (D's migration). **Recommendation:** refuse to regenerate and name the node, after measuring how many corpus documents reach it; a corpus count above a handful comes back to the orchestrator before D dispatches.
 
 ### Boundaries with the neighbouring stages
@@ -466,7 +466,7 @@ FORK-PAT (row 99, PR 4341) added unit G.
 - **Stage 4.**
   - **H waits on this stage's C** (`placed-carriers-compare-through-their-frames`). A placed copy's frame is the construction its bundle states (FORK-S3O), and H replays that fold at `Sym`. The bundle exists after B, but its mates' poses are read off geometry only after C, so H waits on C rather than replaying today's offset frames and then rewriting the replay. This moves H from "after B" to "after C".
   - **F waits on stage 4's C** (D has merged). F turns redundant mates into contacts the census records, and the rungs C and D are what prove those contacts structural rather than report them as unproven.
-  - **B waits on A5's hard error retiring.** B drops declaring mates, so a contact one declared is unattributed, and A5 refuses that document's product. Stage 4 I retires A5's hard error but waits on H, which waits on this stage. The cut is to retire A5's hard error into an `unproven-coincidence` finding in its own stage 4 unit after stage 4 B, with C and D so most contacts prove, and to have B wait on it. Mate-placed contacts are then loud, non-refusing findings until H. Stage 4's spec owns that cut; until it is made, B is parked on `mates-declare-no-contact` and the cycle is named in `work/intent/log.md`.
+  - **B waits on stage 4 J** (`an-unattributed-contact-at-rest-is-a-finding`). B drops declaring mates, so a contact one declared is unattributed, and A5's hard error would refuse that document's product. Stage 4 I retired that error but waits on H, which waits on this stage, so the orchestrator cut it out of I (2026-10-09) into J, after stage 4 B and C (D has merged). Contacts no mate attributes are then non-refusing `unproven-coincidence` findings, as D10 says ("recorded and linted, and its recourse is an assertion"), and most prove at rungs 2 and 3.
   - Stage 4's canonical forms compare poses "modulo the kind's own symmetry", the same `Subgroup` A shares.
 - **Stage 5.**
   - Its unit C (`the-at-rest-census-is-a-check`) checks per space and names F as its stage-3 trigger, which stands.
@@ -501,7 +501,7 @@ Also in scope, outside the umbrella:
 
 ## 13. Inconsistencies found
 
-- **D10's Variables paragraph** says poses are "read off a body's geometry (a face's frame, a carrier's axis or centre)". The same paragraph's FORK-S3P round 10 sentence says "A face reads as a plane; no reader takes a carrier's reference direction", and a face's frame is only a frame by its carrier's reference direction. This spec builds the second sentence. Removing the parenthetical's "a face's frame" changes ratified text, so it goes to Ev.
+- **D10's Variables paragraph** said poses are "read off a body's geometry (a face's frame, …)". That parenthetical came from FORK-S3P's final draft (`de87a9fd39`). The same paragraph's round 10 sentence, "A face reads as a plane; no reader takes a carrier's reference direction" (`7147b6046d`), is Ev-ratified (row 95, #4324). This PR re-words the parenthetical to "a face's plane": a re-wording carried by that approved change.
 - **`work/intent/a-mate-on-a-pinned-copy-refuses`**'s FORK-S3O section says a pin is "in practice … one `Frame` mate between two constructed frames (`FaceFrame` plus `Offset`, …)" and that the migration rewrites each bundle as one constructed `Frame` mate. FORK-S3M, merged after it and cited by Ev's approval of FORK-S3O, puts mates and values on equal footing and retires the `Offset` target; D10 says so. This spec builds D10, and the row's body is re-worded to match.
 - **ASSEMBLY A11 (4)** says "an inconsistent loop dies at its closing mate's verification (`MateFault::Contradictory`)". No code verifies a declaring mate; `Contradictory` arises only inside one pair's fold or from a rider. B and F delete the clause.
 - **`mate/coset.rs`'s module doc and A11 (1)** call the fold "exact coset intersection". Every branch is a decided predicate over measured values (`k_stats::decide`). F's rule decides by codimension alone, and A11 (1)'s rewrite (§9) says "subgroup algebra".
