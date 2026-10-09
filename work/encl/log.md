@@ -1393,3 +1393,4 @@ coincidence is now a margined verdict (no declarations), checked by the
 - 2026-10-09 — PR 4457 (one ending per door) and PR 4461 (piece-sort poisoned role) were both reviewed: merge, with small fix passes out. Filed `sized-poisoned-ending-ignores-the-reading-and-the-file` (P3 M) from 4461's N1.
 - 2026-10-09 — PR 4457 (one ending per door) merged at `dcff36e784`; row closed. Seam notes are posted on exch, topo, restfront, ssiedge and iso: the `*_in_file` names are gone.
 - 2026-10-09 — Dispatched P3 `sized-poisoned-ending-ignores-the-reading-and-the-file` (`encl/poisoned-sized-ending`). It folds in `too-close-to-call-remainder`'s (c): the poison→note rule gets one home.
+- 2026-10-09 — PR 4461 (piece-sort poisoned role) merged at `a71723601f`; row closed. Seam notes are posted on restfront, cleave, hone and inside.
