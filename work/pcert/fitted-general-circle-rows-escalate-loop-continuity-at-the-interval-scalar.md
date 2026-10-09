@@ -2,10 +2,13 @@
 id: fitted-general-circle-rows-escalate-loop-continuity-at-the-interval-scalar
 kind: issue
 title: A sphere face's fitted general-circle rows escalate at the Interval scalar at eps 1e-12 (pcurve_loop_continuity, since its retirement pcurve_map_residual), so a tilted sphere pair builds in f64 and refuses there
-status: open
+status: closed
 opened: 2026-10-02
 priority: P2
 cost: M
+closed: 2026-10-08
+branch: pcert/projected-image
+pr: 4304
 ---
 
 
@@ -61,3 +64,13 @@ owes is now the fitted image's residual at its end sample: the image
 evaluated at an end parameter is the fit's, not the carrier's exact end
 point, and its enclosure is about 3× the escalate band at 1e-12.
 `crates/sweep/tests/tilted_sphere_pair.rs` pins the new predicate.
+
+## Closed (branch `pcert/projected-image`, 2026-10-08)
+
+Moot. The tilted arcs' rows are projected images of the exact circle,
+not a fit, and their envelope encloses rounding only. At the `Interval`
+scalar the pair builds under ∪, ∩ and ∖ at ε 1e-6, 1e-9 and 1e-12.
+`crates/sweep/tests/tilted_sphere_pair.rs`,
+`a_tilted_sphere_pair_builds_at_the_interval_scalar`, flipped: its
+1e-12 escalation pin is gone, and every band is held to the three
+validation tiers and the lens volume bracket.

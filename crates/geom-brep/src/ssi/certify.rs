@@ -120,13 +120,13 @@ use geom_core::spline::algebra::{
 };
 use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface, tensor};
 use geom_core::{
-    Band, Bounds, CertifiedEnclosure, Decide, Indeterminate, Interval, Margin, Point3, Real, Sign,
-    Vec3,
+    Band, Bounds, CertifiedEnclosure, Decide, Decided, Indeterminate, Interval, Margin, Point3,
+    Real, Sign, Vec3,
 };
 
 use crate::certify::CertCheck;
 use crate::certify::{CERT_SAMPLES, sample_param};
-use crate::dihedral::{decide, decide_positive};
+use crate::dihedral::{decide_positive, decide_reported};
 
 use super::enclose::{
     Box3, NurbsBoxes, chart_transverse_margin, graph_margin, zero_free_lower_bound,
@@ -456,7 +456,7 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         // `max`, not a `>` branch: the running worst is a scalar-typed
         // quantity now, and generic evaluation code does not compare.
         worst = worst.max(r);
-        let decided = decide("ssi_on_locus", Margin::of(r), band);
+        let decided = decide_reported("ssi_on_locus", Margin::of(r), band);
         if locatable(&decided) {
             at.push(RefusedSpan { lo: t, hi: t });
             if let Ok(hull) = hull() {
@@ -466,11 +466,14 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         match decided {
             // Zero is the affirmative: the residual is zero to
             // tolerance (the `dihedral_wedge` convention).
-            Ok(Sign::Zero) => {}
-            Ok(Sign::Positive | Sign::Negative) => {
+            Ok(Decided {
+                sign: Sign::Zero, ..
+            }) => {}
+            Ok(Decided { margin, .. }) => {
                 return Err(SsiError::CertificateLimb {
                     limb: SsiLimb::OnLocus,
                     value: r.hi(),
+                    margin,
                 });
             }
             Err(cause) => {
@@ -488,15 +491,18 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     // bound is — and it is lifted here so the limb is banded at the
     // caller's scalar like every other residual (field docs).
     let sup = T::from_f64(hull.sup);
-    let decided = decide("ssi_hull_sup", Margin::of(sup), band);
+    let decided = decide_reported("ssi_hull_sup", Margin::of(sup), band);
     if locatable(&decided) {
         hull.uncleared(band, at);
     }
     match decided {
-        Ok(Sign::Zero) => Ok((worst, sup)),
-        Ok(Sign::Positive | Sign::Negative) => Err(SsiError::CertificateLimb {
+        Ok(Decided {
+            sign: Sign::Zero, ..
+        }) => Ok((worst, sup)),
+        Ok(Decided { margin, .. }) => Err(SsiError::CertificateLimb {
             limb: SsiLimb::HullSup,
             value: sup.hi(),
+            margin,
         }),
         Err(cause) => Err(SsiError::CertificateEscalated {
             limb: SsiLimb::HullSup,
@@ -590,7 +596,7 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
                 last_distance: e.last_distance,
             })?;
         worst = worst.max(proj.distance);
-        let decided = decide("ssi_on_locus_foot", Margin::of(proj.distance), band);
+        let decided = decide_reported("ssi_on_locus_foot", Margin::of(proj.distance), band);
         if locatable(&decided) {
             at.push(RefusedSpan { lo: t, hi: t });
             if let Ok(hull) = hull() {
@@ -598,11 +604,14 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
             }
         }
         match decided {
-            Ok(Sign::Zero) => {}
-            Ok(Sign::Positive | Sign::Negative) => {
+            Ok(Decided {
+                sign: Sign::Zero, ..
+            }) => {}
+            Ok(Decided { margin, .. }) => {
                 return Err(SsiError::CertificateLimb {
                     limb: SsiLimb::OnLocus,
                     value: proj.distance.hi(),
+                    margin,
                 });
             }
             Err(cause) => {
@@ -621,12 +630,17 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
             (proj.orthogonality_v, jet.dv.norm()),
         ] {
             let margin = Margin::levered_inv(res, speed);
-            match decide("ssi_foot_orthogonality", margin, band) {
-                Ok(Sign::Zero) => {}
-                Ok(Sign::Positive | Sign::Negative) => {
+            match decide_reported("ssi_foot_orthogonality", margin, band) {
+                Ok(Decided {
+                    sign: Sign::Zero, ..
+                }) => {}
+                Ok(Decided {
+                    margin: reading, ..
+                }) => {
                     return Err(SsiError::CertificateLimb {
                         limb: SsiLimb::OnLocus,
                         value: margin.value().hi(),
+                        margin: reading,
                     });
                 }
                 Err(cause) => {
@@ -647,15 +661,18 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     // own bracket (`certified_coords`), so a widened control net widens the
     // composite and the bound stays honest.
     let sup = T::from_f64(sup);
-    let decided = decide("ssi_hull_sup_chart", Margin::of(sup), band);
+    let decided = decide_reported("ssi_hull_sup_chart", Margin::of(sup), band);
     if locatable(&decided) {
         hull.uncleared(band, at);
     }
     match decided {
-        Ok(Sign::Zero) => Ok((worst, sup)),
-        Ok(Sign::Positive | Sign::Negative) => Err(SsiError::CertificateLimb {
+        Ok(Decided {
+            sign: Sign::Zero, ..
+        }) => Ok((worst, sup)),
+        Ok(Decided { margin, .. }) => Err(SsiError::CertificateLimb {
             limb: SsiLimb::HullSup,
             value: sup.hi(),
+            margin,
         }),
         Err(cause) => Err(SsiError::CertificateEscalated {
             limb: SsiLimb::HullSup,
@@ -668,10 +685,9 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
 /// definite one, or one undecided on a margin that is a number. A
 /// margin that is no number is no residual a denser carrier answers, so
 /// that refusal stands at once.
-fn locatable(decided: &Result<Sign, geom_core::Indeterminate>) -> bool {
+fn locatable(decided: &Result<Decided, geom_core::Indeterminate>) -> bool {
     match decided {
-        Ok(Sign::Zero) => false,
-        Ok(Sign::Positive | Sign::Negative) => true,
+        Ok(Decided { sign, .. }) => *sign != Sign::Zero,
         Err(cause) => !cause.margin.is_invalid(),
     }
 }
