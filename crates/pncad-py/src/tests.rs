@@ -4837,7 +4837,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unsupported_geometry",
             "unsupported_run_out",
         ],
-        delegates: &[],
+        delegates: &["join_refusal_tag"],
     },
     TagEntry {
         function: "boolean_error_tag",
@@ -5338,6 +5338,15 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "wrong_kind",
         ],
         delegates: &["node_standing_tag", "readback_error_tag"],
+    },
+    TagEntry {
+        function: "join_refusal_tag",
+        values: &[],
+        delegates: &[
+            "boolean_error_tag",
+            "boolean_error_tag",
+            "boolean_error_tag",
+        ],
     },
     TagEntry {
         function: "label_fault_tag",
@@ -6009,6 +6018,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "lift",
             "no_solid",
             "not_valid",
+            "offsets_cross",
             "open_face_chart_partial",
             "open_face_repeated",
             "open_face_rim_not_expressible",
@@ -6022,7 +6032,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "thickness",
             "wall_clearance",
         ],
-        delegates: &[],
+        delegates: &["join_refusal_tag"],
     },
     TagEntry {
         function: "skin_error_tag",
@@ -6172,7 +6182,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "split_op_error_tag",
         values: &["finish", "join", "pcurves", "pieces", "reduce"],
-        delegates: &[],
+        delegates: &["join_refusal_tag"],
     },
     TagEntry {
         function: "stale_declaration_tag",
@@ -6390,6 +6400,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "multiply_owned",
             "negative_volume",
             "next_prev_mismatch",
+            "no_dihedral_arm",
             "null_edge_at_rest",
             "null_face_at_rest",
             "null_scaffold_shared",
@@ -6760,6 +6771,37 @@ fn ring_pair_words_are_the_outer_contact_words() {
             "{outer:?} and {pair:?}"
         );
     }
+}
+
+/// **The edge join's refusal is spelled alike at every door** that ends
+/// with the join: the split's, the shell's and the blend's
+/// (`join_refusal_tag`) read the boolean's own words for the same arm
+/// (`boolean_error_tag`, which `join_refusal_tag` delegates to), pinned
+/// here as the words themselves.
+#[test]
+fn the_edge_joins_refusal_is_spelled_alike_at_every_door() {
+    use crate::tags::join_refusal_tag;
+    use pncad::geom_core::{Band, Indeterminate, MarginDiag};
+    use pncad::topo::{BooleanErrorKind, JoinReading, JoinRefusal, JoinUndecided};
+    let undecided = JoinRefusal::Undecided(JoinUndecided {
+        vertex: VertexKey::default(),
+        reading: JoinReading::Regularity(Indeterminate {
+            margin: MarginDiag::value(3.0e-10),
+            band: Band::linear(Tol::witness()).expect("the witness band"),
+            predicate: Some("join_regular_point"),
+            terminal_sliver: false,
+        }),
+    });
+    let carrier = JoinRefusal::CarrierUnsupported {
+        carrier: pncad::geom::CurveKind::Nurbs,
+        closed: false,
+    };
+    let kernel = JoinRefusal::Kernel {
+        kind: BooleanErrorKind::Euler,
+    };
+    assert_eq!(join_refusal_tag(&undecided), "join_undecided");
+    assert_eq!(join_refusal_tag(&carrier), "join_carrier_unsupported");
+    assert_eq!(join_refusal_tag(&kernel), "euler");
 }
 
 #[test]

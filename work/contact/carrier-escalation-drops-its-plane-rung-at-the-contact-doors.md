@@ -2,8 +2,11 @@
 id: carrier-escalation-drops-its-plane-rung-at-the-contact-doors
 kind: issue
 title: contact: the Rest verify and the flush detector drop CarrierEqError::Escalated's plane rung, so an orientation refusal reads as a coincidence
-status: open
+status: parked
 opened: 2026-09-30
+blocked_on: [declared-pairs-retire]
+priority: P3
+cost: E
 ---
 
 
@@ -40,3 +43,7 @@ Carry the rung (or the routed decision) through `ContactRefusal` and
 `FlushRefusal`, and end the orientation rung from
 `boolean::plane_eq::PLANE_ORIENTATION` at the reading each door is
 (`Reading::AtRest` at the census).
+
+## Parked on the D10 hold (2026-10-08)
+
+Both doors (the Rest verify in `contact_verify.rs`, the flush offer in `flush.rs`) retire with declared pairs. (CONTACT close-out triage; `work/contact/log.md`.)

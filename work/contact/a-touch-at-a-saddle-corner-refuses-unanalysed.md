@@ -29,3 +29,12 @@ The exact fix is interior-disjointness of two spherical polygons, or a
 convex decomposition of the saddle cone (the pieces cut by the planes
 of the faces at its reflex edges) with the pairwise separating-plane
 test, which is exact for convex pieces. Difficulty M.
+
+**A reader to build on** (TANG, `tang/non-convex-partner-cones`):
+`crates/topo/src/boolean/sectors.rs` `cone_side` reads a direction's
+side of any polygon cone at a vertex — a dart's apex, a saddle — by
+the parity of the face sectors a great arc to a reference inside one
+face crosses, each decision a point deviation
+(`a_saddle_corner_reads_as_its_polygon_cone`). It classes directions,
+not cones against cones; interior-disjointness of two cones still needs
+the crossing test between their links.

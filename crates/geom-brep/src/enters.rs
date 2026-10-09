@@ -89,14 +89,22 @@ pub struct LeverEscalation {
     pub rung: LeverRung,
     /// Its diagnostics.
     pub diag: Indeterminate,
+    /// The sign the arm gate decided and refused, where it decided one:
+    /// the arm is not there, a verdict rather than an undecided margin.
+    /// Only [`LeverEscalation::arm`] mints it, from the gate's own
+    /// escalation, so it is `Some` on the arm's rung alone; it is kept,
+    /// never recomputed, when the escalation re-quotes the reading the
+    /// arm meters ([`LeverEscalation::with_diag`]).
+    refused: Option<Sign>,
 }
 
 impl LeverEscalation {
-    /// The arm gate's escalation.
-    pub(crate) fn arm(diag: Indeterminate) -> Self {
+    /// The arm gate's escalation, carrying the gate's verdict.
+    pub(crate) fn arm(gate: Indeterminate) -> Self {
         Self {
             rung: LeverRung::Arm,
-            diag,
+            diag: gate,
+            refused: gate.margin.rejected_sign(),
         }
     }
 
@@ -105,7 +113,38 @@ impl LeverEscalation {
         Self {
             rung: LeverRung::Reading,
             diag,
+            refused: None,
         }
+    }
+
+    /// The same escalation quoting `diag`, the reading the arm meters,
+    /// for the margin its refusal offers: the rung and the gate's
+    /// verdict are kept.
+    #[must_use]
+    pub fn with_diag(self, diag: Indeterminate) -> Self {
+        Self { diag, ..self }
+    }
+
+    /// Whether the arm gate decided the arm not there.
+    #[must_use]
+    pub fn is_collapsed(&self) -> bool {
+        self.collapsed_arm().is_some()
+    }
+
+    /// The arm's verdict where the gate decided it not there, quoting the
+    /// escalation's margin: a decision of its own, not an undecided
+    /// margin. `None` for an arm the gate could not decide, and for the
+    /// reading's rung, which no verdict is minted on.
+    #[must_use]
+    pub fn collapsed_arm(&self) -> Option<crate::recourse::Refused> {
+        let sign = self.refused?;
+        crate::recourse::Refused::of(
+            geom_core::Decided {
+                sign,
+                margin: self.diag.margin,
+            },
+            self.diag.band,
+        )
     }
 }
 
