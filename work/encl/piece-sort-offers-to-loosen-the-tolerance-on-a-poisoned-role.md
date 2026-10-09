@@ -2,8 +2,10 @@
 id: piece-sort-offers-to-loosen-the-tolerance-on-a-poisoned-role
 kind: issue
 title: topo: PieceSortError::RoleUnread drops the role read's refusal and ends in "loosen the tolerance", a poisoned volume included
-status: dispatched
+status: closed
+closed: 2026-10-09
 branch: encl/piece-sort-poisoned-role
+pr: 4461
 opened: 2026-10-09
 priority: P3
 cost: E
@@ -21,3 +23,11 @@ That includes a role read whose volume margin is poisoned (`MarginDiag::INVALID`
 ## Repair shape
 
 Keep the role read's refusal on `RoleUnread`, or at least keep whether its margin was poisoned (`RefusedArm::unreadable`'s test, the one fact the margin may route on). Then end a poisoned read in the defect ending: the body may have been read from a file, so `KERNEL_OR_FILE_DEFECT_ENDING`. Also decide what an unreadable selection (`None`) ends in. Pin both texts.
+
+## Closed
+
+2026-10-09. PR 4461 merged at `a71723601f` after a review (verdict: merge) and a small fix pass; hosted CI was green.
+- **Ruling:** `PieceSortError::RoleUnread { shell, source: ShellClassifyError }` carries the role read's own refusal rather than a separate defect ending at the sort. It is one decision with one message, the same ending check 10 gives that shell.
+  - **Poisoned role:** now ends on the shell-role table's lever plus the unreadable note, with no tolerance. That table's reading-blind poisoned ending is the row `sized-poisoned-ending-ignores-the-reading-and-the-file`.
+  - **In-band role:** now offers to tighten instead of loosen.
+- **Removed:** the unreachable unreadable-selection path. `ShellRead::of` → `Result<Self, ShellClassifyError>`, `SolidFaces::of_shell` → `Self`, and `ChartGroups::of_live` is the one grouping over faces already read from the live arena. `SolidFaces::of`'s equally unreachable `CorruptFace` stays: removing it would reach into `body.rs`.
