@@ -1078,6 +1078,16 @@ successor's `keep_out` names the shared ground.
 
 Signed: (CONTACT orchestrator)
 
+## 2026-10-08 — CONTACT-10 lands
+
+- The single style review and the delta review both returned
+  APPROVE-WITH-FIXES, with no MAJOR. The unit was re-applied on top of
+  main's rework and reconciled with TOPO's PR 3493: Carrier is
+  lever-only, and the Boolean carries the walk's decision.
+- The one 1e-12 red row, `parallel_cylinder_join::a_tipped_rod…`, is
+  main's. CONTACT-11's lane confirmed it on `d00100e82`, and it is
+  filed as `work/tint/tipped-rod-join-escalates-at-1e-12`.
+- Landing as `contact/land-10`.
 ## 2026-10-08 — CONTACT-11 lands
 
 - **The review:** REQUEST-CHANGES from a single full review, then
@@ -1087,5 +1097,15 @@ Signed: (CONTACT orchestrator)
   of a cone face, live on main.
 - **The 1e-12 red row** is main's own: the tipped rod, filed on TINT.
 - Landing as `contact/land-11`.
+
+Signed: (CONTACT orchestrator)
+
+## 2026-10-09 — CONTACT-12 lands
+
+- The dual review (DR-111) found one MAJOR, the steep-ellipse root,
+  raised by both reviewers. It has no tally candidate. Fair pairs that
+  found a MAJOR now number 51.
+- The fix pass took the whole union of the two reviews.
+- Landing as `contact/land-12`.
 
 Signed: (CONTACT orchestrator)

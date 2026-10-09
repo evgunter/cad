@@ -1713,15 +1713,22 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // one rim.
     //
     // Each band's own census delta is asserted here, one rim at a
-    // time, so the one-request total below is three of THIS delta and
-    // not a mix that happens to sum to it.
-    for (what, answer, census) in per_rim_answers(tol) {
+    // time, so the one-request total below is the sum of THESE deltas
+    // and not a mix that happens to reach it. A band adds a face, two
+    // trimline feet and their edges; on a whole planar disc the foot the
+    // slit does not reach has valence two, so the blend's closing join
+    // takes it (+1, +2, +1). On a half-wall every foot sits on a seam
+    // meridian and stays (+2, +3, +1).
+    for ((what, answer, census), want) in
+        per_rim_answers(tol)
+            .into_iter()
+            .zip([(9, 16, 9), (10, 17, 9), (9, 16, 9)])
+    {
         println!("   {what}: {answer}");
         assert_eq!(
             census,
-            Some((10, 17, 9)),
-            "{what}, rolled alone, is one band over its two half-arcs: the sharp 8/14/8 \
-             plus (+2, +3, +1)"
+            Some(want),
+            "{what}, rolled alone, is one band over its two half-arcs on the sharp 8/14/8"
         );
     }
     // THREE rims, THREE DIFFERENT coaxial arms. The lid is
@@ -1741,9 +1748,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             rolled.edges().count(),
             rolled.faces().count(),
         ),
-        (14, 23, 11),
-        "three bands, each over a rim's two half-arcs and each the same census delta: \
-         +2 vertices, +3 edges, +1 face"
+        (12, 21, 11),
+        "three bands, each over a rim's two half-arcs, each the delta it adds alone"
     );
     let bands = band_faces(&ev, r.lid);
     assert_eq!(bands.len(), 3, "three rims, three bands");
@@ -2399,8 +2405,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              by Archimedes' zone and the stack, both met to 1e-12. THREE rims roll \
              in ONE request, each asked for WHOLE — both its half-arcs, BandRim and \
              BandRimPi, minted by `band_rim` and `band_rim_pi` — and each band \
-             carves over both arcs: 14/23/11 rolled, every band the same \
-             (+2, +3, +1). The flange's rim and the \
+             carves over both arcs: 12/21/11 rolled, the sum of the lone bands' \
+             deltas — (+2, +3, +1) each, less one vertex and one edge where the \
+             blend's closing join makes a trimline on a WHOLE disc (the base under \
+             the flange, the top under the knob) one closed circle; the dome's foot \
+             runs between two half-walled supports and keeps both. The flange's rim and the \
              dome's foot are the two ends of ONE meridian segment, so both bands slit \
              and cross THAT segment's meridians, and their names tell the two apart \
              by the band that made each. Their supports are three \
