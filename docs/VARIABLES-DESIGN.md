@@ -35,11 +35,15 @@ at load). Distributions live only on free variables; a defined
 variable's uncertainty is the pushforward of its inputs'. Later stages
 add kinds (`Point` … `Frame`, the discrete kinds, `Face`, `Edge`,
 `Body`) and the `Output { node, port }` definition as arms of the same
-enums.
+enums. A `Count` may be defined as an index, `index(N)` or
+`index(N) within j`, ranging over `0..N`, and `Count` arithmetic is
+exact and includes `mod`. Every kind has a family, keyed by index
+tuples, which no free variable holds: only a definition or output whose
+reads reach an index defines one (D10, Repetition).
 
-**VR4 — A slot holds a `VarId`.** Every slot — a feature's depth, a
-pattern's count or index, a profile step's argument, a placement step,
-an assertion's bound — holds one variable id and nothing else. A slot
+**VR4 — A slot holds a `VarId`.** Every slot — a feature's depth, an
+index's count, a member read's index, a profile step's argument, a
+placement step, an assertion's bound — holds one variable id and nothing else. A slot
 showing `w * 2` holds an anonymous defined variable; a slot showing
 `5 mm` an anonymous free one. Formulas have one home: definitions. The
 exception is a `Measure`'s arithmetic over measured primitives, which

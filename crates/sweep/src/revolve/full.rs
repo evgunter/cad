@@ -632,9 +632,10 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             k_prev,
             k_next,
             band,
-            |source| RevolveError::SliverJoin {
+            |reading, source| RevolveError::SliverJoin {
                 loop_index: 0,
                 vertex_index,
+                reading,
                 source,
             },
             tol,
@@ -718,9 +719,10 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             k_prev,
             k_next,
             band,
-            |source| RevolveError::SliverJoin {
+            |reading, source| RevolveError::SliverJoin {
                 loop_index: 0,
                 vertex_index,
+                reading,
                 source,
             },
             tol,
