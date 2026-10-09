@@ -562,10 +562,8 @@ Extruding `P` along `d` by depth `h` gives the same body as extruding along `−
 not congruent to `(a, b, c)`, but that is a different line of extrusion, not the same line with
 the other sign. The one way: the shape holds the line (a direction normalised to `c > 0`) and the
 depth, and the mate alone says which side the material goes. On a plane mate that is its sense:
-opposed for a boss outward, aligned for a cut inward. One redundancy remains, and it is not a
-slot: either of the tool's caps can be the mated face, and (start cap, opposed) and (end cap,
-opposed) place it the same way. That is two geometry reads of one relation, as two faces of one
-plane already are. A's "the sign is shape" would add a third spelling.
+opposed for a boss outward, aligned for a cut inward. Left: either tool cap may be the mated face, two
+geometry reads of one relation, not a slot. A's "the sign is shape" would add a third spelling.
 
 **2. Neither ruled-out thing is needed, though dropping them has a cost.**
 - **(a)** No default world mate. A one-part document exports only copies the person placed against
@@ -575,6 +573,5 @@ plane already are. A's "the sign is shape" would add a third spelling.
     then an axis (a circle's or a revolve's) or an edge line and a vertex point ≅ target geometry.
   - A hole: cap plane plus axis leaves spin, its declared symmetry, so it is pinned. A sphere:
     centre ≅ point leaves rotation about the point, its symmetry, so it is pinned.
-  - The cost: `Point` and edge-line reads join the mate kinds (the spec's Q5), and "sketch on a
-    face" no longer drops the sketch's coordinates onto the face frame. A sketch's position on the
-    face is said by mates to the face's geometry, which is the intent the coordinates only implied.
+  - Cost: `Point` and edge-line mate kinds (the spec's Q5), and a sketch's position on a face is
+    said by mates to the face's geometry, the intent its coordinates only implied.
