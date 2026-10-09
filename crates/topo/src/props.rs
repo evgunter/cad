@@ -1018,16 +1018,19 @@ fn rederived<T: Decide>(
 ///
 /// The value enclosed is the divergence sum about `c` over the stored
 /// geometry: each closed-form face's flux about `c` from its surface and
-/// loops lifted exactly and moved by `−c` (a plane bounded by lines as
-/// the polygons of its vertex points, [`vertex_rings`]; any other plane
-/// by its loops fanned from one of their points:
-/// `quad_lane::planar_face_about`), and each
+/// loops lifted exactly and moved by `−c` (a plane by its loops fanned
+/// from one of their points: `quad_lane::planar_face_about`), and each
 /// quadrature face measured again about `c`, at the round the walk
 /// reached (`quad_lane::cut_face_rounds`: a cylinder's position term
 /// taken as `(origin − c)·A⃗`, a patch's control net carried by `−c`).
-/// A plane's fan reads no carrier origin, so the planar faces sum to the
-/// volume of the closed surface their loops bound, whatever in-band
-/// distance the stored vertices stand off their planes. Taken about a
+/// A walk every face of which is a plane bounded by lines is read instead
+/// as the closed polyhedron of its vertex points ([`shell_polygons`]),
+/// whose faces sum to its volume, whatever in-band distance the vertices
+/// stand off their planes. Elsewhere a loop closes only to the rounding
+/// of its carriers' ends, and a fan reads that gap at the face's length
+/// times its lever
+/// (`work/tally/a-fan-over-carrier-ends-reads-an-ulp-gap-at-the-faces-length-times-its-lever`).
+/// Taken about a
 /// point of the body, no face's width is scaled by the body's distance
 /// from the world origin. A quadrature face whose lane refuses about `c`
 /// keeps the enclosure it was measured with less `c · A⃗`, at the
@@ -1057,6 +1060,9 @@ fn rederive<T: Decide>(
         );
     }
     let centre = corner_of(body, lane, runs)?;
+    if let Some(polygons) = shell_polygons(body, lane, runs)? {
+        return rederive_polygons(&polygons, centre, runs);
+    }
     match rederive_about(body, band, tol, lane, runs, Some(centre), tight)? {
         Some(rederived) => Ok(rederived),
         None => rederive_about(body, band, tol, lane, runs, None, tight)?.ok_or(
@@ -1138,14 +1144,8 @@ fn rederive_about<T: Decide>(
             }
             (None, _) => {
                 let at = centre.unwrap_or(Point3::origin());
-                let (c, moved) = match vertex_rings(body, face, surface, &loops, lane)? {
-                    Some(rings) => (
-                        quad_lane::polygon_face_about(&rings, at).map_err(refused)?,
-                        true,
-                    ),
-                    None => (lane.closed_form)(surface, &loops, face.sense, band, at, None)
-                        .map_err(refused)?,
-                };
+                let (c, moved) = (lane.closed_form)(surface, &loops, face.sense, band, at, None)
+                    .map_err(refused)?;
                 recentred &= moved;
                 (c.flux, c.area)
             }
@@ -1160,22 +1160,75 @@ fn rederive_about<T: Decide>(
     }))
 }
 
+/// A face's loops as their vertex points, in traversal order, the outer
+/// loop first ([`vertex_rings`]).
+type Rings = Vec<Vec<Point3<Interval>>>;
+
+/// **A shell read as the polyhedron of its vertex points**: every
+/// run's face as its loops' vertex points in traversal order, lifted
+/// through `lane` ([`vertex_rings`]), or `None` where any face is not a
+/// plane bounded by lines. All or nothing: a line edge read as its
+/// vertices on one side and as its carrier's ends on the other would
+/// open a gap between the two readings.
+///
+/// The polyhedron stands off the stored solid by its vertices' distance
+/// from their faces' planes: with `δ_f` the largest over face `f`'s
+/// vertices and `|T_{f,i}|` the unsigned areas of its fan triangles,
+/// `|V_polygons − V_stored| ≤ Σ_f δ_f · Σ_i |T_{f,i}|`, plus the slivers
+/// between each edge's chord and its carrier, of order `δ²` per unit
+/// length. `Σ_i |T_{f,i}|` is the face's area where the face is convex,
+/// and more where it is not or holds a ring.
+fn shell_polygons<T: Decide>(
+    body: &Body<T>,
+    lane: QuadLane<T>,
+    runs: &[FaceRun<T>],
+) -> Result<Option<Vec<Rings>>, MassPropsError> {
+    let mut polygons = Vec::with_capacity(runs.len());
+    for run in runs {
+        let (face, surface) = resolve_face(body, run.face);
+        let loops = face_loops(body, face)?;
+        match vertex_rings(body, face, surface, &loops, lane)? {
+            Some(rings) => polygons.push(rings),
+            None => return Ok(None),
+        }
+    }
+    Ok(Some(polygons))
+}
+
+/// [`rederive`] over [`shell_polygons`]: each face's flux about `centre`
+/// ([`quad_lane::polygon_face_about`]), recentred.
+fn rederive_polygons<T: Decide>(
+    polygons: &[Rings],
+    centre: Point3<Interval>,
+    runs: &[FaceRun<T>],
+) -> Result<Rederived, MassPropsError> {
+    let (mut flux, mut area) = (Interval::zero(), Interval::zero());
+    for (rings, run) in polygons.iter().zip(runs) {
+        let c = quad_lane::polygon_face_about(rings, centre).map_err(|source| {
+            MassPropsError::Face {
+                face: run.face,
+                source,
+            }
+        })?;
+        flux = flux + c.flux;
+        area = area + c.area;
+    }
+    Ok(Rederived {
+        volume: flux / Interval::from_f64(3.0),
+        area,
+        recentred: true,
+    })
+}
+
 /// A planar face bounded by lines, as its loops' vertex points in
-/// traversal order, lifted through `lane` ([`quad_lane::polygon_face_about`]);
-/// `None` for any other face. The vertex points close every loop and meet
-/// the neighbouring faces' exactly, which the lines' own ends need not:
-/// each line's ends are rounded off its carrier separately, and a fan from
-/// a far anchor reads a gap of an ulp between consecutive ends at the
-/// length of the face times the anchor's distance, past the volume of a
-/// sliver. The polyhedron they bound stands off the stored geometry by
-/// the vertices' in-band distance from their faces' planes.
+/// traversal order, lifted through `lane`; `None` for any other face.
 fn vertex_rings<T: Decide>(
     body: &Body<T>,
     face: &crate::entity::Face,
     surface: &Surface<T>,
     loops: &[Vec<LoopEdge<T>>],
     lane: QuadLane<T>,
-) -> Result<Option<Vec<Vec<Point3<Interval>>>>, MassPropsError> {
+) -> Result<Option<Rings>, MassPropsError> {
     let lines = loops
         .iter()
         .flatten()
@@ -1223,11 +1276,15 @@ struct Rederived {
 /// `min`, so a point interval), and the same point for the same geometry
 /// whatever order its faces are stored in. The centre is order-free; the
 /// value about it is not quite: a plane's flux is read from its loop's
-/// first point (`quad_lane::planar_face_about`), and where a loop's
-/// points stand off their plane two bodies storing one boundary from
-/// different first points re-derive values that differ by up to
-/// `Σ δ·|A⃗|` over those faces — within the band's metering of a sign,
-/// not of a bound read at the exact band.
+/// first point (`quad_lane::planar_face_about`,
+/// `quad_lane::polygon_face_about`), and where a loop's points stand off
+/// their plane two bodies storing one boundary from different first
+/// points re-derive values that differ by up to `Σ δ·Σ|T|` over those
+/// faces, `|T|` the unsigned areas of a face's fan triangles — within the
+/// band's metering of a sign, not of a bound read at the exact band. On
+/// the polygon route ([`shell_polygons`]) that is the whole difference; on
+/// the fan route the loops' gaps at their carrier ends add their own
+/// (`work/tally/a-fan-over-carrier-ends-reads-an-ulp-gap-at-the-faces-length-times-its-lever`).
 fn corner_of<T: Decide>(
     body: &Body<T>,
     lane: QuadLane<T>,

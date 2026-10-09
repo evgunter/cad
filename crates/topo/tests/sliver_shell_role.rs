@@ -4,10 +4,9 @@
 //! corner's edges (`crates/sweep/examples/near_tangent_census_probe.rs`,
 //! pose `nt e0 a<k> d<d>`): the ∩ keeps a wedge 2 m long and `2·d` m
 //! thick at its far end as its own shell. At ε = 1e-12 the wedge is tens
-//! of bands thick at `d ≥ 1e-10`, and its certified role is read off a
-//! polyhedron of its vertex points whose enclosure is the wedge's own
-//! width. At `d = 1e-11` it is in band, and the enclosure sits inside the
-//! band rather than straddling zero.
+//! of bands thick at `d ≥ 1e-10`, and its certified role is read off the
+//! polyhedron of its vertex points. At `d = 1e-11` it is in band, and the
+//! enclosure sits inside the band.
 //!
 //! Wider ε stands these rows down: the wedge is a band or less thick, and
 //! the in-band twin is the pose measured at ε = 1e-12.
@@ -92,9 +91,7 @@ fn stood_down_above(widest: f64, tol: Tol) -> bool {
 }
 
 /// **The witness**: at `d = 1e-9` and `1e-10` the wedge is certified a
-/// lump of its own. Summed as fans of its edges' carrier ends, its
-/// enclosure straddled zero by 5e-9 to 5e-7 in V/A and the ∩ refused
-/// `ShellRoleUndecided`.
+/// lump of its own, and the ∩ builds.
 #[test]
 fn a_near_tangent_wedge_tens_of_bands_thick_reads_outer() {
     let tol = Tol::witness();
@@ -122,8 +119,7 @@ fn a_near_tangent_wedge_tens_of_bands_thick_reads_outer() {
 
 /// **The in-band twin**: at `d = 1e-11` (pose `a3`) the wedge is less
 /// than a band thick, and the ∩ refuses its role on an enclosure wholly
-/// inside the sliver band — not on one straddling zero by 1e-6, which it
-/// read as fans of its carrier ends.
+/// inside the sliver band, not on one straddling zero.
 #[test]
 fn a_near_tangent_wedge_in_band_refuses_on_an_enclosure_inside_the_band() {
     let tol = Tol::witness();

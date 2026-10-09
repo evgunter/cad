@@ -4,7 +4,6 @@ use geom_brep::props::quad::{
 };
 use geom_brep::props::{FaceContribution, LoopEdge, PropsError, loop_vector_area};
 use geom_core::Tol;
-use geom_core::exact::two_sum;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
 // The compound `Decide + Bounds` bound below is a RATIFIED seam
@@ -362,9 +361,12 @@ fn translated_curve(curve: &Curve3<Interval>, by: Point3<Interval>) -> Option<Cu
 /// It is the exact flux, about `centre`, of each loop fanned from
 /// `anchor` (a point `x` of the fan has `(x − anchor)` in its tangent
 /// plane, so `x·n` integrates to `anchor·A⃗`). The fans of neighbouring
-/// faces meet on their shared edges, so summed over a closed body they
-/// bound a closed surface, and the sum is that surface's volume wherever
-/// the loops' points stand off their stored planes. A flux taken off the
+/// faces meet on their shared edges, but a loop closes only to the
+/// rounding of its carriers' ends, and a fan from a far anchor reads that
+/// gap at the face's length times its lever
+/// (`work/tally/a-fan-over-carrier-ends-reads-an-ulp-gap-at-the-faces-length-times-its-lever`);
+/// a shell of line-bounded planes is read off its vertex polygons
+/// instead ([`polygon_face_about`]), which close exactly. A flux taken off the
 /// stored plane instead (`((origin − centre)·n)(n·A⃗)/(n·n)`) is not a
 /// closed surface's: a glued face whose points stand `δ` off its carrier
 /// misses `δ` times its area, which crossed the oracle on the door's
@@ -399,12 +401,11 @@ fn planar_face_about(
 /// at the interval scalar, `(anchor − centre)·A⃗` with `A⃗` the rings
 /// fanned from `anchor`, the first point of the first ring.
 ///
-/// Neighbouring faces' rings meet at the same points, so summed over a
-/// shell of such faces they bound a closed polyhedron, and the sum is
-/// its volume however long its edges are against the gaps between its
-/// edges' carrier ends. Every difference of two points is an enclosure
-/// of the real difference ([`difference`]), so the width is the face's
-/// own size times `A⃗`'s, whatever its distance from the world origin.
+/// Over a shell every face of which is read this way, neighbouring
+/// faces' rings meet at the same points, so the sum is the volume of the
+/// closed polyhedron of the vertex points. A vertex point is a point
+/// interval, so each difference below is one rounding wide, at the
+/// difference's own magnitude.
 pub(super) fn polygon_face_about(
     rings: &[Vec<Point3<Interval>>],
     centre: Point3<Interval>,
@@ -416,35 +417,13 @@ pub(super) fn polygon_face_about(
     for ring in rings {
         for (i, &p) in ring.iter().enumerate() {
             let q = ring[(i + 1) % ring.len()];
-            va = va + difference(p, anchor).cross(difference(q, anchor)) * Interval::point(0.5);
+            va = va + (p - anchor).cross(q - anchor) * Interval::point(0.5);
         }
     }
     Ok(FaceContribution {
-        flux: difference(anchor, centre).dot(va),
+        flux: (anchor - centre).dot(va),
         area: va.norm(),
     })
-}
-
-/// An enclosure of `p − q` in ℝ. Where both coordinates are finite
-/// points, `two_sum` makes the difference exact as a head and a residual,
-/// and their outward sum is as wide as the difference is long, not as
-/// either point is far from the world origin. Elsewhere it is the
-/// interval difference, which a non-finite coordinate poisons.
-fn difference(p: Point3<Interval>, q: Point3<Interval>) -> geom_core::Vec3<Interval> {
-    let at = |a: Interval, b: Interval| match (finite_point(a), finite_point(b)) {
-        (Some(a), Some(b)) => {
-            let (head, residual) = two_sum(a, -b);
-            Interval::point(head) + Interval::point(residual)
-        }
-        _ => a - b,
-    };
-    geom_core::Vec3::new(at(p.x, q.x), at(p.y, q.y), at(p.z, q.z))
-}
-
-/// The `f64` a certified point enclosure holds, where it is finite.
-fn finite_point(x: Interval) -> Option<f64> {
-    let v = x.lo();
-    (x.is_certified() && v == x.hi() && v.is_finite()).then_some(v)
 }
 
 /// The certified flux/area enclosures of one curved-cut face
@@ -1083,17 +1062,23 @@ mod tests {
         }
     }
 
-    /// The polygon re-derivation of a planar shell, against its exact
-    /// value: every face's flux enclosure about the shell's least corner
-    /// holds the exact flux of its vertex polygons, fanned from their
-    /// first point, in dyadic arithmetic over the stored `f64`s.
+    /// The polygon route of the role read's re-derivation
+    /// (`props::shell_polygons`), against exact values: the dyadic sum of
+    /// a shell's vertex polygons against its known volume, the interval
+    /// sum against that dyadic sum, and a shell with a curved edge kept on
+    /// the fan route bit for bit.
     #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
     mod polygon_tests {
-        use geom_core::{Bounds, Interval, Point3, Real, Tol};
+        use geom_brep::props::quad::RoundWindow;
+        use geom_core::{Band, Bounds, Interval, Point3, Real, Tol};
         use num_bigint::BigInt;
 
         use crate::body::Body;
-        use crate::props::{QuadLane, face_loops, resolve_face, vertex_rings};
+        use crate::entity::{FaceKey, LoopBoundary};
+        use crate::props::{
+            FaceRun, QuadLane, corner_of, decide_faces_serially, face_flux, face_loops, rederive,
+            rederive_about, reporting_hook, resolve_face, shell_polygons, vertex_rings,
+        };
 
         /// `m · 2^e`, exactly.
         #[derive(Clone, Debug)]
@@ -1176,8 +1161,9 @@ mod tests {
             dot(&sub(&a, c), &va)
         }
 
-        /// Every face of `body`'s shells, as `(interval flux, exact
-        /// doubled flux)` about the body's least vertex corner, summed.
+        /// `body`'s faces as `(interval flux, exact doubled flux)` about
+        /// its least vertex corner, summed, every face read as its vertex
+        /// polygons.
         fn sums(body: &Body<f64>) -> (Interval, Dyadic) {
             let lane = QuadLane::<f64>::certified();
             let points: Vec<_> = body.vertex_points().map(|(_, p)| p).collect();
@@ -1228,27 +1214,54 @@ mod tests {
             )
         }
 
+        /// The exact doubled flux of a shell's vertex polygons is six
+        /// times its volume where that is known (a wrong ring order, a
+        /// dropped ring or a carrier end read for a vertex breaks it),
+        /// and the interval sum holds it.
         #[test]
-        fn a_planar_shells_polygon_enclosure_holds_its_exact_flux() {
+        fn a_planar_shells_polygon_enclosure_holds_its_exact_volume() {
             let tol = Tol::witness();
             let notch = [(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (2.0, 1.0), (0.0, 2.0)];
-            let shells: [(&str, Body<f64>); 4] = [
+            let tiny = f64::from_bits((1023 - 60) << 52);
+            let shells: [(&str, Body<f64>, Option<Dyadic>); 6] = [
                 (
                     "a unit brick 5 km out",
                     crate::test_support::brick((5e3, 5e3 + 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+                    Some(Dyadic::of(1.0)),
+                ),
+                (
+                    "a brick from −2⁻⁶⁰, whose differences round",
+                    crate::test_support::brick((-tiny, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+                    Some(Dyadic::of(1.0).add(&Dyadic::of(tiny))),
                 ),
                 (
                     "the notch307 prism",
                     crate::test_support::prism::<f64>(&notch, 1.0, tol).body,
+                    Some(Dyadic::of(6.0)),
                 ),
-                ("a 2 m sliver box 1e-4 wide", sliver_box(1e-4, tol)),
+                (
+                    "a 3 × 2 × 2 block with a unit square hole",
+                    crate::test_support::holed_block::<f64>(3.0, &[1.5], tol),
+                    Some(Dyadic::of(10.0)),
+                ),
+                ("a 2 m sliver box 1e-4 wide", sliver_box(1e-4, tol), None),
                 (
                     "a 2 m sliver box 1e-4 wide, inside out",
                     sliver_box(1e-4, tol).revert(),
+                    None,
                 ),
             ];
-            for (name, body) in &shells {
+            let holed = shells[3].1.faces().any(|(_, f)| !f.rings.is_empty());
+            assert!(holed, "the holed block has a face with an inner ring");
+            for (name, body, volume) in &shells {
                 let (flux, exact) = sums(body);
+                if let Some(volume) = volume {
+                    let six = volume.mul(&Dyadic::of(6.0));
+                    assert!(
+                        exact.le(&six) && six.le(&exact),
+                        "{name}: the vertex polygons' doubled flux {exact:?} is six times the volume"
+                    );
+                }
                 let two = Dyadic::of(2.0);
                 let lo = Dyadic::of(flux.lo()).mul(&two);
                 let hi = Dyadic::of(flux.hi()).mul(&two);
@@ -1257,6 +1270,69 @@ mod tests {
                     "{name}: the enclosure [{:e}, {:e}] holds the exact flux {exact:?}",
                     flux.lo(),
                     flux.hi()
+                );
+            }
+        }
+
+        /// A brick's walk runs, measured as the role read measures them.
+        fn runs(body: &Body<f64>, band: Band, tol: Tol) -> Vec<FaceRun<f64>> {
+            let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+            let hook = reporting_hook(Some(QuadLane::<f64>::certified()));
+            decide_faces_serially(&faces, |&f| {
+                face_flux(body, f, band, &hook, tol, RoundWindow::SCHEDULE)
+            })
+            .unwrap()
+        }
+
+        /// **All or nothing.** A brick with a disc planted in its top has
+        /// planes bounded by lines and planes bounded by a circle: none of
+        /// its faces takes the polygon route, and its re-derivation is the
+        /// fan route's, bit for bit. The brick alone takes it.
+        #[test]
+        fn a_shell_with_a_curved_edge_keeps_the_fan_route_bit_for_bit() {
+            let tol = Tol::witness();
+            let band = Band::linear(tol).unwrap();
+            let lane = QuadLane::<f64>::certified();
+            let p = crate::test_support::prism_z::<f64>(
+                &[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)],
+                0.0,
+                1.0,
+                tol,
+            );
+            let mut body = p.body;
+            assert!(
+                shell_polygons(&body, lane, &runs(&body, band, tol))
+                    .unwrap()
+                    .is_some(),
+                "the brick alone is read as its polygons"
+            );
+            let outer = body.get_face(p.top_face).unwrap().outer;
+            let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+                panic!("the top's outer loop is a cycle");
+            };
+            crate::test_support::plant_disc_face(
+                &mut body,
+                first,
+                Point3::new(2.0, 2.0, 1.0),
+                1.0,
+                tol,
+            );
+            let runs = runs(&body, band, tol);
+            assert!(
+                shell_polygons(&body, lane, &runs).unwrap().is_none(),
+                "a disc in the top keeps every face off the polygon route"
+            );
+            let centre = corner_of(&body, lane, &runs).unwrap();
+            let bits = |x: Interval| (x.is_certified(), x.lo().to_bits(), x.hi().to_bits());
+            for tight in [false, true] {
+                let got = rederive(&body, band, tol, lane, &runs, tight).unwrap();
+                let fan = rederive_about(&body, band, tol, lane, &runs, Some(centre), tight)
+                    .unwrap()
+                    .unwrap();
+                assert_eq!(
+                    (bits(got.volume), bits(got.area), got.recentred),
+                    (bits(fan.volume), bits(fan.area), fan.recentred),
+                    "tight {tight}: the re-derivation is the fan route's"
                 );
             }
         }
