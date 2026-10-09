@@ -71,8 +71,8 @@ fn corpus() -> ProfileDoc {
     // It used to carry one, with a comment claiming "the slot's top
     // cap lies IN c's top plane" — arithmetically false by 0.5 m. The
     // declaration survived a milestone because nothing verified it:
-    // the boolean's only verify-at-use site was the REST lane, which
-    // is Union-only, and this op is a Subtract. The op-door pass
+    // the boolean's only verify-at-use site was Union-only, and this
+    // op is a Subtract. The op-door pass
     // (`boolean::verify_declared_contacts`) now checks every declared
     // pair, which is what surfaced this. Coverage is not lost: `decl_u`
     // above still exercises the declared-boolean naming path with a

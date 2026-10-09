@@ -143,11 +143,8 @@ fn reflex_corner_struts_past_a_half_turn_build_sound() {
     }
 }
 
-/// **A flush-declared reflex union never ships the overlap twice.** At
-/// these shears the corner's join refuses, and the declared-REST zip
-/// reads the join's own segments, so it refuses with it. It used to
-/// zip a body of volume `vol a + vol b`, which every gate passed. Each
-/// pose either refuses or builds at the closed form, sound.
+/// **A flush-declared reflex union never ships the overlap twice.**
+/// Each pose either refuses or builds at the closed form, sound.
 #[test]
 fn flush_declared_reflex_unions_never_ship_the_overlap_twice() {
     for (sx, sy) in [(-0.5, 0.25), (-0.75, 0.1), (-0.3, 0.25), (-0.25, 0.1)] {

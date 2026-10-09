@@ -1,7 +1,8 @@
 //! The lowering every profile sweep shares: the swept-traversal record
 //! and the builder that fills it, the carrier class of one swept
 //! segment, the sketch-level quantities derived from it (apex, span,
-//! turn-signed axis), the arc material-side rule, the edge spec a
+//! turn-signed axis), the arc material-side rule, a sliver join's
+//! sentence, the edge spec a
 //! placed segment mints, the cap-plane point list, the cosurface
 //! decision, and the two crate-wide accessors (the classification
 //! funnel, a face's surface key).
@@ -53,7 +54,8 @@ use geom_core::{
 };
 use profile::SegmentKind;
 use topo::{
-    Body, EdgeKey, EulerOpError, FaceKey, FaceSurface, HalfEdgeKey, MefSite, MevSite, SurfaceKey,
+    Body, DihedralReading, EdgeKey, EulerOpError, FaceKey, FaceSurface, HalfEdgeKey, MefSite,
+    MevSite, SurfaceKey,
 };
 
 /// The classification funnel of this shared lowering, and of `extrude`
@@ -128,6 +130,34 @@ pub(crate) fn decide_reported<T: Decide>(
 /// function and not a rule each verb spells for itself.
 pub(crate) fn centre_on_material_side(canonical_turn: Sign) -> bool {
     !turn_negates(canonical_turn)
+}
+
+/// A sliver join's or rim's sentence, `what` naming the edge: a
+/// first-order reading could call it neither a corner nor smooth; a
+/// second-order one leaves undecided whether its smooth faces bend apart,
+/// in the coincidence levers its payload's own sentence ends in.
+pub(crate) fn sliver_text(
+    f: &mut core::fmt::Formatter<'_>,
+    what: &str,
+    reading: DihedralReading,
+    source: &Indeterminate,
+) -> core::fmt::Result {
+    match reading {
+        DihedralReading::Lever(_) => write!(
+            f,
+            "{what} is neither a definite corner nor definitely smooth: {source}"
+        ),
+        DihedralReading::Bend => write!(
+            f,
+            "{}",
+            source.undecided(
+                format_args!(
+                    "whether the faces at {what} curve apart there or share their curvature"
+                ),
+                source.ending(geom_core::COINCIDENCE_RECOURSE),
+            )
+        ),
+    }
 }
 
 /// A carrier class in SWEPT traversal order: the validated
@@ -1333,6 +1363,26 @@ mod tests {
     use geom_core::sym::{session_counts, with_session};
     use geom_core::{Bounds, Interval, ParamSymbol, Sym, SymBudget};
 
+    /// **A must-carry escalation keeps which question escalated**: the
+    /// first-order arm and wedge by rung, the second-order sagitta as the
+    /// bend, each with its own diagnostics.
+    #[test]
+    fn the_must_carry_reading_keeps_which_question_escalated() {
+        use geom_brep::LeverRung;
+        use must_carry_fixtures::{arm, second_order, wedge};
+        for (escalation, want) in [
+            (arm(), DihedralReading::Lever(LeverRung::Arm)),
+            (wedge(), DihedralReading::Lever(LeverRung::Reading)),
+            (second_order(), DihedralReading::Bend),
+        ] {
+            assert_eq!(
+                DihedralReading::of_must_carry(escalation),
+                (want, escalation.diag()),
+                "{escalation:?}"
+            );
+        }
+    }
+
     /// A run starts at every join that is not [`Join::Run`]; a loop of
     /// cuts is one run per segment.
     #[test]
@@ -1735,6 +1785,91 @@ mod tests {
                 "Sym<Interval> over [{lo}, {hi}], {name}: every sample's cosine and sine \
                  must be a theorem: {rows:?} ({counts:?})"
             );
+        }
+    }
+}
+
+/// One must-carry escalation per reading, for the rows that pin how each
+/// caller ends them: no fixture a verb builds reaches a first-order
+/// station past a witness that read smooth.
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+pub(crate) mod must_carry_fixtures {
+    use geom::{Curve3, Surface};
+    use geom_brep::{MustCarryEscalation, MustCarryVerdict, must_carry_over_edge};
+    use geom_core::{Band, Indeterminate, MarginDiag, Point3, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).expect("the run's band forms")
+    }
+
+    /// The band's geometric mean: strictly inside `(ε, K·ε)` at every ε.
+    pub(crate) fn in_band() -> f64 {
+        (band().zero() * band().escalate()).sqrt()
+    }
+
+    fn in_band_at(
+        s1: &Surface<f64>,
+        s2: &Surface<f64>,
+        line: &Curve3<f64>,
+        extent: f64,
+    ) -> MustCarryEscalation {
+        match must_carry_over_edge(s1, s2, line, 0.0, extent, extent, band()) {
+            MustCarryVerdict::InBand(escalation) => escalation,
+            other => panic!("the fixture must read in band, not {other:?}"),
+        }
+    }
+
+    /// The first-order arm: a cylinder resting on a plane, over an
+    /// extent in band.
+    pub(crate) fn arm() -> MustCarryEscalation {
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 1.0, 0.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let cylinder = Surface::Cylinder {
+            origin: Point3::new(0.0, 0.25, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 0.25,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        in_band_at(&plane, &cylinder, &z_axis(), in_band())
+    }
+
+    /// The first-order wedge: two planes through the z axis at a sliver
+    /// angle whose wedge over the extent is in band.
+    pub(crate) fn wedge() -> MustCarryEscalation {
+        let extent = 0.25;
+        let sin_theta = in_band() / extent;
+        let cos_theta = (1.0 - sin_theta * sin_theta).sqrt();
+        let flat = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 1.0, 0.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let tilted = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(-sin_theta, cos_theta, 0.0),
+            u_ref: Vec3::new(cos_theta, sin_theta, 0.0),
+        };
+        in_band_at(&flat, &tilted, &z_axis(), extent)
+    }
+
+    /// The second-order sagitta, in band.
+    pub(crate) fn second_order() -> MustCarryEscalation {
+        MustCarryEscalation::SecondOrder(Indeterminate {
+            margin: MarginDiag::value(in_band()),
+            band: band(),
+            predicate: Some("tangent_second_order"),
+            terminal_sliver: false,
+        })
+    }
+
+    fn z_axis() -> Curve3<f64> {
+        Curve3::Line {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            dir: Vec3::new(0.0, 0.0, 1.0),
         }
     }
 }
