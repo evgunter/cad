@@ -220,9 +220,10 @@ pub(crate) enum Walk {
     /// read of an output deleted since is legal — its reader is
     /// stranded, refused at evaluation. Snapshot only.
     OperandRead,
-    /// [`first_unread_anonymous_var`] over the variable table: a
-    /// variable with no name is read by something (VR7). Snapshot only.
-    AnonymousVar,
+    /// [`first_unnamed_reader_fault`] over the variable table: a
+    /// variable with no name has exactly one reader (VR2, VR9).
+    /// Snapshot only.
+    UnnamedReader,
     /// [`first_program_fault`] over the profile programs' replay: a
     /// REPLAY PROBE under the document's params whose LATTICE
     /// violations refuse (the corrupt-file class — no authoring surface
@@ -264,7 +265,7 @@ impl Walk {
         Walk::OperandRead,
         Walk::Program,
         Walk::Snapshot,
-        Walk::AnonymousVar,
+        Walk::UnnamedReader,
     ];
 
     /// **This walk over one document**, or `None` when it finds
@@ -319,11 +320,9 @@ impl Walk {
             Walk::OperandRead => {
                 first_operand_read_fault(snapshot).map(super::PersistError::Snapshot)
             }
-            Walk::AnonymousVar => first_unread_anonymous_var(snapshot).map(|var| {
-                super::PersistError::Snapshot(SnapshotError::AnonymousVarUnread {
-                    var: snapshot.spoken_var(var),
-                })
-            }),
+            Walk::UnnamedReader => {
+                first_unnamed_reader_fault(snapshot).map(super::PersistError::Snapshot)
+            }
             Walk::Program => first_program_fault(snapshot, tol).map(|(node, fault)| {
                 super::PersistError::ProfileProgram {
                     node: snapshot.spoken(node),
@@ -364,8 +363,8 @@ impl Walk {
 ///   a structurally invalid shape, and the param-table answer names the
 ///   parameter while the structural one does not.
 ///
-/// [`Walk::AnonymousVar`] comes last: whether a variable is read is a
-/// question about the readers, so it is asked once every reader is
+/// [`Walk::UnnamedReader`] comes last: how many readers a variable has
+/// is a question about the readers, so it is asked once every reader is
 /// known to be well-formed — a slot a structurally broken node no
 /// longer addresses leaves its variable unread, and the structural
 /// fault is the answer
@@ -761,9 +760,18 @@ fn first_payload_read_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, VarR
 }
 
 /// The first variable, in declaration order, that has no name and that
-/// nothing reads ([`Walk::AnonymousVar`]).
-fn first_unread_anonymous_var(snapshot: &ProfileDoc) -> Option<VarId> {
-    snapshot.unread_anonymous_vars().first().copied()
+/// nothing reads, then the first with no name and more than one reader
+/// ([`Walk::UnnamedReader`]).
+fn first_unnamed_reader_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
+    if let Some(&var) = snapshot.unread_anonymous_vars().first() {
+        return Some(SnapshotError::AnonymousVarUnread {
+            var: snapshot.spoken_var(var),
+        });
+    }
+    let var = *snapshot.shared_unnamed_vars().first()?;
+    Some(SnapshotError::SharedVarNeedsName {
+        var: snapshot.spoken_var(var),
+    })
 }
 
 /// The first non-finite float in ε, the document params, the profile
@@ -1294,9 +1302,15 @@ pub enum SnapshotError {
         referenced: crate::expr::Dimension,
     },
     /// A variable with no name that nothing reads (VR7: an anonymous
-    /// variable is read by something; the edit that detaches its last
-    /// reader removes it).
+    /// variable goes with its reader).
     AnonymousVarUnread {
+        /// The variable.
+        var: SpokenVar,
+    },
+    /// A variable with no name that more than one reader reads (VR2:
+    /// an unnamed variable has exactly one reader). A file written
+    /// before the doors refused a share holds one.
+    SharedVarNeedsName {
         /// The variable.
         var: SpokenVar,
     },
@@ -1572,6 +1586,12 @@ impl core::fmt::Display for SnapshotError {
                 f,
                 "{var} has no name and nothing reads it, and a variable with no name is one \
                  something reads"
+            ),
+            Self::SharedVarNeedsName { var } => write!(
+                f,
+                "{var} has no name and more than one reader, and a variable with no name has \
+                 exactly one. {}",
+                crate::sentence::Recourse(super::REGENERATE_RECOURSE)
             ),
             Self::DefinitionReadsUnmintedVar { var, read } => write!(
                 f,
@@ -2137,7 +2157,7 @@ mod tests {
             SlotRead,
             PayloadRead,
             OperandRead,
-            AnonymousVar,
+            UnnamedReader,
             Program,
             Snapshot,
         ];
@@ -2159,7 +2179,7 @@ mod tests {
             | Walk::SlotRead
             | Walk::PayloadRead
             | Walk::OperandRead
-            | Walk::AnonymousVar
+            | Walk::UnnamedReader
             | Walk::Snapshot => true,
         }
     }
@@ -2190,6 +2210,7 @@ mod tests {
             SlotVarKind,
             PayloadVarKind,
             AnonymousVarUnread,
+            SharedVarNeedsName,
             DefinitionReadsUnmintedVar,
             DefinitionVarKind,
             DefinitionCycle,
@@ -2240,7 +2261,8 @@ mod tests {
             SnapshotError::OperandUnminted { .. } | SnapshotError::PartHalfPort { .. } => {
                 Walk::OperandRead
             }
-            SnapshotError::AnonymousVarUnread { .. } => Walk::AnonymousVar,
+            SnapshotError::AnonymousVarUnread { .. }
+            | SnapshotError::SharedVarNeedsName { .. } => Walk::UnnamedReader,
             SnapshotError::DefinitionReadsUnmintedVar { .. }
             | SnapshotError::DefinitionVarKind { .. } => Walk::DefinitionRead,
             SnapshotError::DefinitionCycle { .. } | SnapshotError::DefinitionTooLarge { .. } => {
@@ -2388,6 +2410,9 @@ mod tests {
                 referenced: Dimension::Length,
             },
             SnapshotError::AnonymousVarUnread {
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
+            },
+            SnapshotError::SharedVarNeedsName {
                 var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
             },
             SnapshotError::DefinitionReadsUnmintedVar {

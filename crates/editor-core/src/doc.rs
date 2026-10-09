@@ -1214,6 +1214,54 @@ impl<P> Doc<P> {
         !self.var_names.contains_key(&var) && self.free(var).is_some()
     }
 
+    /// **How many readers each variable has** (VR2): each slot holding
+    /// it, each operand reading it, and each formula reading it — a
+    /// definition, or a measure's expression — however often that one
+    /// formula reads it.
+    pub fn reader_counts(&self) -> BTreeMap<VarId, usize>
+    where
+        P: crate::ProfilePayload,
+    {
+        let mut readers: BTreeMap<VarId, usize> = BTreeMap::new();
+        for node in self.nodes.values() {
+            let mut held: Vec<VarId> = node.exprs().into_iter().copied().collect();
+            if matches!(node, Node::Measure { .. }) {
+                held.sort_unstable();
+                held.dedup();
+            }
+            held.extend(node.operand_rows().into_iter().map(|(_, var)| var));
+            for var in held {
+                *readers.entry(var).or_default() += 1;
+            }
+        }
+        for var in self.vars.keys() {
+            for read in self.definition_reads(*var).into_iter().collect::<BTreeSet<_>>() {
+                *readers.entry(read).or_default() += 1;
+            }
+        }
+        readers
+    }
+
+    /// **The unnamed variables more than one reader reads**, in id
+    /// order: what no door admits (VR2, VR7) and the load door refuses
+    /// (VR9). An output is not among them: it is read by its readers
+    /// and named by its operation and port.
+    pub fn shared_unnamed_vars(&self) -> Vec<VarId>
+    where
+        P: crate::ProfilePayload,
+    {
+        let readers = self.reader_counts();
+        self.vars
+            .iter()
+            .filter(|(id, var)| {
+                !self.var_names.contains_key(id)
+                    && var.def().output().is_none()
+                    && readers.get(id).is_some_and(|&n| n > 1)
+            })
+            .map(|(&id, _)| id)
+            .collect()
+    }
+
     /// **The anonymous variables [`Node::written`] would not reproduce**:
     /// one read more than once — by two slots, as a fresh entry shared
     /// within one edit, or by a slot and a definition — which a written

@@ -298,6 +298,44 @@ impl VarDecl {
     }
 }
 
+/// **An entry of an edit's fresh table** (VR6): a variable the edit
+/// mints for its formulas to read as [`crate::Formula::fresh`], and the
+/// name it is minted under, if any. An entry two readers share is named
+/// (VR2): an unnamed variable has exactly one reader.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct FreshEntry {
+    /// The name, unique within the document; none for an entry one
+    /// reader reads.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<crate::VarName>,
+    /// The definition.
+    #[serde(flatten)]
+    pub decl: VarDecl,
+}
+
+impl FreshEntry {
+    /// An entry minted under `name`.
+    #[must_use]
+    pub fn named(name: crate::VarName, decl: impl Into<VarDecl>) -> Self {
+        Self {
+            name: Some(name),
+            decl: decl.into(),
+        }
+    }
+}
+
+impl From<VarDecl> for FreshEntry {
+    fn from(decl: VarDecl) -> Self {
+        Self { name: None, decl }
+    }
+}
+
+impl From<FreeVar> for FreshEntry {
+    fn from(free: FreeVar) -> Self {
+        VarDecl::Free(free).into()
+    }
+}
+
 impl From<FreeVar> for VarDecl {
     fn from(free: FreeVar) -> Self {
         Self::Free(free)

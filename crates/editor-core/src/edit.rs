@@ -29,7 +29,7 @@ use crate::node::{
 use crate::placement::{FrameFault, FrameSite};
 use crate::roots::RootFault;
 use crate::spoken::{SpokenName, SpokenNode, SpokenVar};
-use crate::var::{Var, VarDecl, VarDef, VarId, VarKind, VarRef, WrittenDef};
+use crate::var::{FreshEntry, Var, VarDecl, VarDef, VarId, VarKind, VarRef, WrittenDef};
 use crate::witness::{BranchCertification, WitnessDatum};
 use geom_core::Tol;
 
@@ -105,7 +105,7 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// before anything else it mints. An entry's definition may
         /// read the entries before it.
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        fresh: Vec<VarDecl>,
+        fresh: Vec<FreshEntry>,
     },
     /// Delete a node. Refused while any live node holds it as an
     /// INPUT (typed, spec D3/D6); the id is never reused afterwards.
@@ -239,7 +239,7 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// before anything else it mints. An entry's definition may
         /// read the entries before it.
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        fresh: Vec<VarDecl>,
+        fresh: Vec<FreshEntry>,
     },
     /// **The slot door**: replace a CONTINUOUS slot's value
     /// (Length/Angle/Scalar slots; spec D3's continuous parameters) or
@@ -268,7 +268,7 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// before anything else it mints. An entry's definition may
         /// read the entries before it.
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        fresh: Vec<VarDecl>,
+        fresh: Vec<FreshEntry>,
     },
     /// Replace a STRUCTURAL (Count-typed) slot's expression — a
     /// DISTINCT arm from [`DocEdit::SetParam`] so the structural/
@@ -286,7 +286,7 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// before anything else it mints. An entry's definition may
         /// read the entries before it.
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        fresh: Vec<VarDecl>,
+        fresh: Vec<FreshEntry>,
     },
     /// Set which side of its sketch plane an extrude goes toward — the
     /// one structural choice on a [`Node::Extrude`] that is not an
@@ -342,7 +342,7 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// before anything else it mints. An entry's definition may
         /// read the entries before it.
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        fresh: Vec<VarDecl>,
+        fresh: Vec<FreshEntry>,
     },
     /// Write a NEW VALUE into a free variable, keeping its definition:
     /// its kind, its notation and its optional distribution ride
@@ -560,7 +560,7 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// before anything else it mints. An entry's definition may
         /// read the entries before it.
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        fresh: Vec<VarDecl>,
+        fresh: Vec<FreshEntry>,
     },
     /// Set the gauge a node sits on (A11 (2)): an instance's gauge or
     /// a gauge's parent, `None` for the world. The gauge must be live
@@ -874,12 +874,12 @@ impl Lowering {
         }
     }
 
-    /// Mints the edit's fresh table into `new`: each entry an anonymous
-    /// variable, its definition lowered in the document's names and
-    /// the entries before it.
-    fn start<P>(new: &mut Doc<P>, fresh: &[VarDecl]) -> Result<Self, EditError> {
+    /// Mints the edit's fresh table into `new`: each entry a variable
+    /// under the entry's name, or none, its definition lowered in the
+    /// document's names and the entries before it.
+    fn start<P>(new: &mut Doc<P>, fresh: &[FreshEntry]) -> Result<Self, EditError> {
         let mut minted = Self::none();
-        for decl in fresh {
+        for FreshEntry { name, decl } in fresh {
             let def = match decl {
                 VarDecl::Free(free) => WrittenDef::Free(free.clone()),
                 VarDecl::Defined(formula) => {
@@ -894,7 +894,18 @@ impl Lowering {
             minted
                 .defined
                 .set(minted.defined.get() | matches!(def, WrittenDef::Defined(_)));
+            if let Some(name) = name
+                && let Some(holder) = new.var_named(name.as_str())
+            {
+                return Err(EditError::VarNameTaken {
+                    name: name.clone(),
+                    holder: new.spoken_var(holder),
+                });
+            }
             let var = mint_anonymous(new, def)?;
+            if let Some(name) = name {
+                new.var_names.insert(var, name.clone());
+            }
             minted.fresh.push((var, dim));
         }
         Ok(minted)
@@ -983,8 +994,12 @@ impl Lowering {
     /// answer is the variables the fresh table minted, entry by entry.
     fn finish<P: crate::ProfilePayload>(self, new: &Doc<P>) -> Result<Vec<VarId>, EditError> {
         if !self.fresh.is_empty() {
-            let unread = new.unread_anonymous_vars();
-            if let Some(index) = self.fresh.iter().position(|(var, _)| unread.contains(var)) {
+            let readers = new.reader_counts();
+            if let Some(index) = self
+                .fresh
+                .iter()
+                .position(|(var, _)| !readers.contains_key(var))
+            {
                 return Err(EditError::FreshUnread {
                     index: u16::try_from(index).unwrap_or(u16::MAX),
                 });
@@ -1614,8 +1629,8 @@ impl core::fmt::Display for DefinitionVarKindSentence<'_> {
 /// [`EditError::ContinuousVarCannotBeCount`],
 /// [`EditError::VarKindFixed`], [`EditError::UnknownVar`],
 /// [`EditError::VarNameTaken`], [`EditError::VarNameUnchanged`],
-/// [`EditError::AnonymousVarUnread`] and
-/// [`EditError::DeleteAnonymousVar`] — and those have no address: the
+/// [`EditError::AnonymousVarUnread`], [`EditError::SharedVarNeedsName`]
+/// and [`EditError::DeleteAnonymousVar`] — and those have no address: the
 /// variable IS the subject, so each is named by its FACT alone.
 /// ([`EditError::UnknownVar`]'s `door` says which edit was refused —
 /// which edit, not where a read sits.)
@@ -2018,9 +2033,17 @@ pub enum EditError {
         /// The variable.
         var: SpokenVar,
     },
+    /// An edit would leave a variable with no name and more than one
+    /// reader: it gave an unnamed variable a second reader, or cleared
+    /// the name of one two readers share (VR2, VR7). An unnamed variable
+    /// has exactly one reader, a slot or a definition; sharing one is
+    /// naming it.
+    SharedVarNeedsName {
+        /// The variable to name.
+        var: SpokenVar,
+    },
     /// A [`DocEdit::DeleteVar`] named an anonymous variable, whose
-    /// lifecycle is its readers': it goes when the last of them stops
-    /// reading it (VR7).
+    /// lifecycle is its reader's: it goes with it (VR7).
     DeleteAnonymousVar {
         /// The variable.
         var: SpokenVar,
@@ -2961,6 +2984,7 @@ impl EditError {
                 holder: var,
             }
             | Self::AnonymousVarUnread { var }
+            | Self::SharedVarNeedsName { var }
             | Self::DeleteAnonymousVar { var }
             | Self::VarKindFixed {
                 var,
@@ -3592,11 +3616,22 @@ impl EditError {
                     format_args!("read it from a slot before clearing its name, or delete it"),
                 )
             }
+            Self::SharedVarNeedsName { var } => {
+                write!(
+                    f,
+                    "this edit leaves {var} with no name and more than one reader, and a \
+                     variable with no name has exactly one"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("name it, and its readers share it by that name"),
+                )
+            }
             Self::DeleteAnonymousVar { var } => {
                 write!(
                     f,
-                    "{var} has no name, and a variable with no name goes when the last \
-                     expression reading it stops reading it"
+                    "{var} has no name, and a variable with no name goes with the one \
+                     expression reading it"
                 )?;
                 tail.recourse(
                     f,
@@ -5971,14 +6006,24 @@ fn door<P: Clone + crate::ProfilePayload, T>(
     // word and reports nothing.
     let mut reported: Vec<Maintenance> = Vec::new();
     let wrote = write(&mut new, &mut reported)?;
-    // VR7, on EVERY arm: an anonymous variable is read by something, so
-    // the edit that detached its last reader removes it. The mint log
-    // keeps its id.
+    // VR7, on EVERY arm: an anonymous variable goes with its reader, so
+    // the edit that detached it removes it. The mint log keeps its id.
     for var in new.unread_anonymous_vars() {
         new.vars.remove(&var);
         reported.push(Maintenance::AnonymousVarRemoved {
             var: doc.spoken_var(var),
             distribution: doc.free(var).and_then(FreeVar::distribution).copied(),
+        });
+    }
+    // VR2, on EVERY arm: an anonymous variable has one reader, so the
+    // edit that gave it a second, or cleared the name two share, refuses
+    // until it is named.
+    if let Some(&var) = new.shared_unnamed_vars().first() {
+        // Spoken as the document before the edit held it: a cleared
+        // name is the one to give back.
+        let held = if doc.var(var).is_some() { doc } else { &new };
+        return Err(EditError::SharedVarNeedsName {
+            var: held.spoken_var(var),
         });
     }
     // The D-2 backstop, on EVERY arm: the maintenance rules make the
@@ -6061,7 +6106,7 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
     new: &mut Doc<P>,
     reported: &mut Vec<Maintenance>,
     authored: &Node<P::Authored, Formula>,
-    fresh: &[VarDecl],
+    fresh: &[FreshEntry],
     tol: Tol,
     reach: Option<&dyn MateReach>,
 ) -> Result<(RecipeNodeId, Vec<VarId>, Vec<VarId>), EditError> {
@@ -7544,7 +7589,7 @@ fn set_slot<P: Clone + crate::ProfilePayload>(
     id: RecipeNodeId,
     slot: SlotId,
     formula: &Formula,
-    fresh: &[VarDecl],
+    fresh: &[FreshEntry],
 ) -> Result<Vec<VarId>, EditError> {
     let Some(node) = new.nodes.get(&id) else {
         return Err(EditError::UnknownNode {
