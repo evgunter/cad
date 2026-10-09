@@ -398,6 +398,7 @@ fn class(e: &BlendError) -> &'static str {
         BlendError::BodyNotIntact { .. } => "BodyNotIntact(row 1)",
         BlendError::ScaffoldingOperand { .. } => "ScaffoldingOperand(row 1)",
         BlendError::InsideOutOperand { .. } => "InsideOutOperand(row 1)",
+        BlendError::UnjoinedOperand { .. } => "UnjoinedOperand(row 1)",
         BlendError::SurgeryInvariant { .. } => "SurgeryInvariant(row 4)",
         BlendError::RingClearance { .. } => "RingClearance",
         BlendError::Certify { .. } => "Certify",

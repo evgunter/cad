@@ -3438,6 +3438,7 @@ fn import_report_row_tags_are_stable() {
             NormalizationKind::SeamlessPeriodicBand,
             "seamless_periodic_band",
         ),
+        (NormalizationKind::JoinedEdges, "joined_edges"),
     ] {
         assert_eq!(normalization_kind_tag(&kind), word);
     }
@@ -4832,6 +4833,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "spine_unsupported",
             "surgery_invariant",
             "tangential_edge",
+            "unjoined_operand",
             "unsupported_chain",
             "unsupported_corner",
             "unsupported_geometry",
@@ -4900,6 +4902,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "torn_component",
             "undeclared_coincidence",
             "underflowed_sector_chord",
+            "unjoined_operand",
             "unrepresentable_result",
             "unsupported_declaration_class",
             "vertex_read_twice",
@@ -5647,6 +5650,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "degenerate_apex_cone",
             "edge_free_sphere",
+            "joined_edges",
             "seamless_periodic_band",
             "surface_promotion",
         ],
@@ -6227,6 +6231,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "declaration_unresolved",
             "instance",
             "invalid_eps_override",
+            "join",
             "malformed_real",
             "malformed_record",
             "missing_uncertainty",
@@ -6390,6 +6395,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "half_edge_multiply_claimed",
             "half_edge_unclaimed",
             "instance_interference",
+            "join_undecided_at_rest",
+            "joinable_vertex_at_rest",
             "lamina_wedge",
             "leaked_null_face_record",
             "leaked_provenance",
@@ -6597,7 +6604,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("inside_out_operand", 2),
     ("instance", 2),
     ("io", 2),
-    ("join", 2),
+    // Three: the join every finisher ends with refused, at a door that
+    // tags it by its stage (the boolean's, the split's, the import's).
+    ("join", 3),
     // One rule (A4's frame rule) refused in both directions across the
     // seam: a split's kept mate and an inline's host mate.
     ("mate_frame_crosses", 2),
@@ -6657,6 +6666,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // (`boolean_error_tag`'s doc): ONE coincidence, the same word.
     ("undeclared_coincidence", 2),
     ("underflowed_direction", 2),
+    // One fact for the boolean and the blends: the operand gate
+    // (`topo::Unfinished::Unjoined`) found a vertex tier 3's check 11
+    // refuses.
+    ("unjoined_operand", 2),
     ("unknown_node", 5),
     ("unknown_param", 3),
     ("unminted", 2),
