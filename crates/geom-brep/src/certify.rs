@@ -70,8 +70,8 @@ use crate::implicit::implicit_residual;
 use crate::keys::SurfaceKey;
 use crate::pcurve_cache::{Pcurve, PcurveCertifyError, chart_pcurve};
 use crate::recourse::{
-    AtZero, Classified, ReadAt, Reading, Refused, RefusedArm, SizedDecision, SizedPass,
-    StoredDefinite, Unsized,
+    AtZero, Classified, ReadAt, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
+    Unsized,
 };
 
 /// The fixed certification sample count (module docs): 9 uniform
@@ -921,10 +921,7 @@ impl CertCheck {
 #[must_use]
 pub fn recourse(check: CertCheck, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
     let at = at.into();
-    let reading = match at {
-        ReadAt::Run(reading) => reading,
-        ReadAt::File(_) => Reading::AtRest,
-    };
+    let reading = at.reading();
     match (check.ending(), at) {
         (Ending::Sized(sized), at) => sized.recourse(arm, at),
         (Ending::Residual(residual), ReadAt::File(file)) => residual.residual_in_file(arm, file),
@@ -3208,6 +3205,8 @@ mod tests {
         Point2, Vec3,
     };
     use geom_core::{FileCoincidence, MarginDiag};
+
+    use crate::recourse::Reading;
 
     use crate::mapped::{MappedCurve, SketchSegment};
 

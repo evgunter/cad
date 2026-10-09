@@ -1357,7 +1357,7 @@ impl EulerOpError {
     /// This refusal's text, a certification refusal's ending read at `at`
     /// ([`CertifyError::render`]): the door that reports the refusal
     /// decides where it is read, the STEP import door at rest with the
-    /// file's ε_in words. No other arm reads where it is read. `Display`
+    /// file's ε_in words. Every other arm ignores `at`. `Display`
     /// reads it at [`Reading::Build`], the operation that built the edge.
     #[must_use]
     pub fn render(&self, at: impl Into<ReadAt>) -> String {
