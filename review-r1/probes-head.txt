@@ -1,0 +1,284 @@
+
+running 6 tests
+R1 holder/cone rim on cylinder A∪B => ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(3v1), kind: Cone, other_face: F 
+R1 holder/cone rim on cylinder B∪A => ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(3v1), kind: Cone, other_face: F 
+R1 holder/cone rim on cylinder A∩B => ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, o 
+R1 holder/cone rim on cylinder B∩A => ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(3v1), kind: Cone, o 
+R1 holder/cone rim on cylinder A∖B => ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, ot 
+R1 holder/cone rim on cylinder B∖A => ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(3v1), kind: Cone, ot 
+R1 holder/tube rim on cone A∪B => ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(3v1), kind: Cone, other_face: F 
+R1 holder/tube rim on cone B∪A => ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(3v1), kind: Cone, other_face: F 
+R1 holder/tube rim on cone A∩B => ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(3v1), kind: Cone, o 
+R1 holder/tube rim on cone B∩A => ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, o 
+R1 holder/tube rim on cone A∖B => ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(3v1), kind: Cone, ot 
+R1 holder/tube rim on cone B∖A => ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, ot 
+R1 frustum narrowing A∪B => ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(3v1), kind: Cone, other_face: F 
+R1 frustum narrowing B∪A => ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(3v1), kind: Cone, other_face: F 
+R1 frustum narrowing A∩B => ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, o 
+R1 frustum narrowing B∩A => ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(3v1), kind: Cone, o 
+R1 frustum narrowing A∖B => ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, ot 
+R1 frustum narrowing B∖A => ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(3v1), kind: Cone, ot 
+R1 frustum widening A∪B => ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(3v1), kind: Cone, other_face: F 
+R1 frustum widening B∪A => ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(3v1), kind: Cone, other_face: F 
+R1 frustum widening A∩B => ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, o 
+R1 frustum widening B∩A => ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(3v1), kind: Cone, o 
+R1 holder/frustum rim on cone A∪B => ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(3v1), kind: Cone, other_face: F 
+R1 holder/frustum rim on cone B∪A => ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(3v1), kind: Cone, other_face: F 
+R1 holder/frustum rim on cone A∩B => ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, o 
+R1 holder/frustum rim on cone B∩A => ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, o 
+R1 holder/frustum rim on cone A∖B => ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, ot 
+R1 holder/frustum rim on cone B∖A => ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, ot 
+R1 frustum widening A∖B => ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, ot 
+R1 frustum widening B∖A => ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(3v1), kind: Cone, ot 
+R1 cone to an apex A∪B => ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(1v1), kind: Cone, other_face: F 
+R1 cone to an apex B∪A => ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(1v1), kind: Cone, other_face: F 
+R1 cone to an apex A∩B => ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(1v1), kind: Cone, o 
+R1 cone to an apex B∩A => ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(1v1), kind: Cone, o 
+R1 cone to an apex A∖B => ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(1v1), kind: Cone, ot 
+R1 cone to an apex B∖A => ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(1v1), kind: Cone, ot 
+R1 holder/coaxial tubes overlapping A∪B => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 holder/coaxial tubes overlapping B∪A => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 holder/coaxial tubes overlapping A∩B => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 holder/coaxial tubes overlapping B∩A => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 holder/coaxial tubes overlapping A∖B => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 holder/coaxial tubes overlapping B∖A => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 rim near the equator, widening A∪B => ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(3v1), kind: Cone, other_face: F 
+R1 rim near the equator, widening B∪A => ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(3v1), kind: Cone, other_face: F 
+R1 rim near the equator, widening A∩B => ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, o 
+R1 rim near the equator, widening B∩A => ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(3v1), kind: Cone, o 
+R1 rim near the equator, widening A∖B => ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, ot 
+R1 rim near the equator, widening B∖A => ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(3v1), kind: Cone, ot 
+R1 cone steeper than the sphere (inside it) A∪B => ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(1v1), kind: Cone, other_face: F 
+R1 cone steeper than the sphere (inside it) B∪A => ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(1v1), kind: Cone, other_face: F 
+R1 cone steeper than the sphere (inside it) A∩B => ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(1v1), kind: Cone, o 
+R1 cone steeper than the sphere (inside it) B∩A => ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(1v1), kind: Cone, o 
+R1 cone steeper than the sphere (inside it) A∖B => ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(1v1), kind: Cone, ot 
+R1 cone steeper than the sphere (inside it) B∖A => ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(1v1), kind: Cone, ot 
+R1 holder/tube on a torus (outer 45°) A∪B => ERR GermFrameUnsupported { a_face: FaceKey(4v1), a_kind: Plane, b_face: FaceKey(3v1), b_kind: Torus } 
+R1 holder/tube on a torus (outer 45°) B∪A => ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Torus, b_face: FaceKey(4v1), b_kind: Plane } 
+R1 holder/tube on a torus (outer 45°) A∩B => ERR GermFrameUnsupported { a_face: FaceKey(4v1), a_kind: Plane, b_face: FaceKey(3v1), b_kind: Torus } 
+R1 holder/tube on a torus (outer 45°) B∩A => ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Torus, b_face: FaceKey(4v1), b_kind: Plane } 
+R1 holder/tube on a torus (outer 45°) A∖B => ERR GermFrameUnsupported { a_face: FaceKey(4v1), a_kind: Plane, b_face: FaceKey(3v1), b_kind: Torus } 
+R1 holder/tube on a torus (outer 45°) B∖A => ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Torus, b_face: FaceKey(4v1), b_kind: Plane } 
+test tube_on_ball_review_r1_probes::tube_on_ball_r1_family_holders ... ok
+R1 frustum downward A∪B => ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(3v1), kind: Cone, other_face: F 
+R1 frustum downward B∪A => ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(3v1), kind: Cone, other_face: F 
+R1 frustum downward A∩B => ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, o 
+R1 frustum downward B∩A => ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(3v1), kind: Cone, o 
+R1 frustum downward A∖B => ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, ot 
+R1 frustum downward B∖A => ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(3v1), kind: Cone, ot 
+test tube_on_ball_review_r1_probes::tube_on_ball_r1_family_cones ... ok
+R1 line/tangent face A∪B => ERR CurvedPierceUnsupported { operand: B, face: FaceKey(3v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat 
+R1 line/tangent face B∪A => ERR CurvedPierceUnsupported { operand: A, face: FaceKey(3v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat 
+R1 line/tangent face A∩B => ERR CurvedPierceUnsupported { operand: B, face: FaceKey(3v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat 
+R1 line/tangent face B∩A => ERR CurvedPierceUnsupported { operand: A, face: FaceKey(3v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat 
+R1 line/tangent face A∖B => ERR CurvedPierceUnsupported { operand: B, face: FaceKey(3v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat 
+R1 line/tangent face B∖A => ERR CurvedPierceUnsupported { operand: A, face: FaceKey(3v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat 
+R1 line/crossing faces A∪B => OK SOUND t2=true t3p=true cert=true operand=true v=7.426990817 want=7.426990817 mesh=refused UnsupportedCurvedShape { face: FaceKey(3v1), source: NotIsoRectangl
+R1 line/crossing faces B∪A => OK SOUND t2=true t3p=true cert=true operand=true v=7.426990817 want=7.426990817 mesh=refused UnsupportedCurvedShape { face: FaceKey(1v3), source: NotIsoRectangl
+R1 line/crossing faces A∩B => OK BAD t2=true t3p=false cert=true operand=true v=1.285398163 want=1.285398163 mesh=ok
+R1 line/crossing faces B∩A => OK BAD t2=true t3p=false cert=true operand=true v=1.285398163 want=1.285398163 mesh=ok
+R1 line/crossing faces A∖B => OK SOUND t2=true t3p=true cert=true operand=true v=3.426990817 want=3.426990817 mesh=refused UnsupportedCurvedShape { face: FaceKey(3v1), source: NotIsoRectangl
+R1 line/crossing faces B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=2.714601837 want=2.714601837 mesh=ok
+test tube_on_ball_review_r1_probes::tube_on_ball_r1_family_line_edges ... ok
+R1 plane/x≥0 A∪B => OK SOUND t2=true t3p=true cert=true operand=true v=11.863101144 want=11.863101144 mesh=ok
+R1 plane/x≥0 B∪A => OK SOUND t2=true t3p=true cert=true operand=true v=11.863101144 want=11.863101144 mesh=ok
+R1 plane/x≥0 A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=0.343928081 want=0.343928081 mesh=ok
+R1 plane/x≥0 B∩A => OK SOUND t2=true t3p=true cert=true operand=true v=0.343928081 want=0.343928081 mesh=ok
+R1 plane/x≥0 A∖B => OK SOUND t2=true t3p=true cert=true operand=true v=5.939257226 want=5.939257226 mesh=ok
+R1 plane/x≥0 B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=5.579915837 want=5.579915837 mesh=ok
+R1 plane/x≥0.3 A∪B => OK SOUND t2=true t3p=true cert=true operand=true v=10.170652293 want=10.170652293 mesh=refused UnsupportedCurvedShape { face: FaceKey(8v1), source: NotIsoRectangl
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=0e0 A∪B => OK SOUND t2=true t3p=true cert=true operand=true v=17.443016981 want=17.443016981 mesh=ok
+R1 plane/x≥0.3 B∪A => OK SOUND t2=true t3p=true cert=true operand=true v=10.170652293 want=10.170652293 mesh=refused UnsupportedCurvedShape { face: FaceKey(6v5), source: NotIsoRectangl
+R1 plane/x≥0.3 A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=0.179695673 want=0.179695673 mesh=refused UnsupportedCurvedShape { face: FaceKey(6v5), source: NotIsoRectangl
+R1 plane/x≥0.3 B∩A => OK SOUND t2=true t3p=true cert=true operand=true v=0.179695673 want=0.179695673 mesh=refused UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangl
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=0e0 B∪A => OK SOUND t2=true t3p=true cert=true operand=true v=17.443016981 want=17.443016981 mesh=ok
+R1 plane/x≥0.3 A∖B => OK SOUND t2=true t3p=true cert=true operand=true v=6.103489634 want=6.103489634 mesh=refused UnsupportedCurvedShape { face: FaceKey(7v5), source: NotIsoRectangl
+R1 plane/x≥0.3 B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=3.887466986 want=3.887466986 mesh=refused UnsupportedCurvedShape { face: FaceKey(6v5), source: NotIsoRectangl
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=0e0 A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=0.687856162 want=0.687856162 mesh=ok
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=0e0 B∩A => OK SOUND t2=true t3p=true cert=true operand=true v=0.687856162 want=0.687856162 mesh=ok
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=0e0 A∖B => OK SOUND t2=true t3p=true cert=true operand=true v=5.595329146 want=5.595329146 mesh=ok
+R1 plane/x≥-0.4 A∪B => OK SOUND t2=true t3p=true cert=true operand=true v=14.097524931 want=14.097524931 mesh=refused UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangl
+R1 plane/x≥-0.4 B∪A => OK SOUND t2=true t3p=true cert=true operand=true v=14.097524931 want=14.097524931 mesh=refused UnsupportedCurvedShape { face: FaceKey(1v3), source: NotIsoRectangl
+R1 plane/x≥-0.4 A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=0.555757773 want=0.555757773 mesh=refused UnsupportedCurvedShape { face: FaceKey(4v3), source: NotIsoRectangl
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=0e0 B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=11.159831674 want=11.159831674 mesh=ok
+R1 plane/x≥-0.4 B∩A => OK SOUND t2=true t3p=true cert=true operand=true v=0.555757773 want=0.555757773 mesh=refused UnsupportedCurvedShape { face: FaceKey(5v1), source: NotIsoRectangl
+R1 plane/x≥-0.4 A∖B => OK SOUND t2=true t3p=true cert=true operand=true v=5.727427534 want=5.727427534 mesh=refused UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangl
+R1 plane/x≥-0.4 B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=7.814339624 want=7.814339624 mesh=refused UnsupportedCurvedShape { face: FaceKey(1v3), source: NotIsoRectangl
+R1 tube a=1.3 len=2 tilt=0.000 turn=0 d=0e0 A∪B => OK SOUND t2=true t3p=true cert=true operand=true v=19.860009585 want=19.860009585 mesh=ok
+R1 tube a=1.3 len=2 tilt=0.000 turn=0 d=0e0 B∪A => OK SOUND t2=true t3p=true cert=true operand=true v=19.860009585 want=19.860009585 mesh=ok
+R1 tube a=1.3 len=2 tilt=0.000 turn=0 d=0e0 A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=2.606261419 want=2.606261419 mesh=ok
+R1 tube a=1.3 len=2 tilt=0.000 turn=0 d=0e0 B∩A => OK SOUND t2=true t3p=true cert=true operand=true v=2.606261419 want=2.606261419 mesh=ok
+R1 tube a=1.3 len=2 tilt=0.000 turn=0 d=0e0 A∖B => OK SOUND t2=true t3p=true cert=true operand=true v=8.012321750 want=8.012321750 mesh=ok
+R1 tube a=1.3 len=2 tilt=0.000 turn=0 d=0e0 B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=9.241426416 want=9.241426416 mesh=ok
+R1 plane/x≥0, tube turned 0.4 A∪B => OK SOUND t2=true t3p=true cert=true operand=true v=11.863101144 want=11.863101144 mesh=ok
+R1 plane/x≥0, tube turned 0.4 B∪A => OK SOUND t2=true t3p=true cert=true operand=true v=11.863101144 want=11.863101144 mesh=ok
+R1 plane/x≥0, tube turned 0.4 A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=0.343928081 want=0.343928081 mesh=ok
+R1 plane/x≥0, tube turned 0.4 B∩A => OK SOUND t2=true t3p=true cert=true operand=true v=0.343928081 want=0.343928081 mesh=ok
+R1 plane/x≥0, tube turned 0.4 A∖B => OK SOUND t2=true t3p=true cert=true operand=true v=5.939257226 want=5.939257226 mesh=ok
+R1 tube a=1.4 len=2 tilt=0.000 turn=0 d=0e0 A∪B => OK SOUND t2=true t3p=true cert=true operand=true v=19.487146601 want=19.487146601 mesh=ok
+R1 plane/x≥0, tube turned 0.4 B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=5.579915837 want=5.579915837 mesh=ok
+test tube_on_ball_review_r1_probes::tube_on_ball_r1_family_plane ... ok
+R1 tube a=1.4 len=2 tilt=0.000 turn=0 d=0e0 B∪A => OK SOUND t2=true t3p=true cert=true operand=true v=19.487146601 want=19.487146601 mesh=ok
+R1 tube a=1.4 len=2 tilt=0.000 turn=0 d=0e0 A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=4.675584437 want=4.675584437 mesh=ok
+R1 tube a=1.4 len=2 tilt=0.000 turn=0 d=0e0 B∩A => OK SOUND t2=true t3p=true cert=true operand=true v=4.675584437 want=4.675584437 mesh=ok
+R1 tube a=1.4 len=2 tilt=0.000 turn=0 d=0e0 A∖B => OK SOUND t2=true t3p=true cert=true operand=true v=7.639458766 want=7.639458766 mesh=ok
+R1 tube a=1.4 len=2 tilt=0.000 turn=0 d=0e0 B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=7.172103399 want=7.172103399 mesh=ok
+R1 two/down first union => OK SOUND t2=true t3p=true cert=true operand=true v=17.443016981 want=17.443016981
+R1 tube a=1.41 len=2 tilt=0.000 turn=0 d=0e0 A∪B => OK SOUND t2=true t3p=true cert=true operand=true v=19.099499818 want=19.099499818 mesh=ok
+R1 tube a=1.41 len=2 tilt=0.000 turn=0 d=0e0 B∪A => OK SOUND t2=true t3p=true cert=true operand=true v=19.099499818 want=19.099499818 mesh=ok
+R1 tube a=1.41 len=2 tilt=0.000 turn=0 d=0e0 A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=5.239788726 want=5.239788726 mesh=ok
+R1 tube a=1.41 len=2 tilt=0.000 turn=0 d=0e0 B∩A => OK SOUND t2=true t3p=true cert=true operand=true v=5.239788726 want=5.239788726 mesh=ok
+R1 tube a=1.41 len=2 tilt=0.000 turn=0 d=0e0 A∖B => OK SOUND t2=true t3p=true cert=true operand=true v=7.251811983 want=7.251811983 mesh=ok
+R1 tube a=1.41 len=2 tilt=0.000 turn=0 d=0e0 B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=6.607899109 want=6.607899109 mesh=ok
+R1 tube a=1.414 len=2 tilt=0.000 turn=0 d=0e0 A∪B => OK SOUND t2=true t3p=true cert=true operand=true v=18.640822091 want=18.640822091 mesh=ok
+R1 tube a=1.414 len=2 tilt=0.000 turn=0 d=0e0 B∪A => OK SOUND t2=true t3p=true cert=true operand=true v=18.640822091 want=18.640822091 mesh=ok
+R1 tube a=1.414 len=2 tilt=0.000 turn=0 d=0e0 A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=5.769441315 want=5.769441315 mesh=ok
+R1 tube a=1.414 len=2 tilt=0.000 turn=0 d=0e0 B∩A => OK SOUND t2=true t3p=true cert=true operand=true v=5.769441315 want=5.769441315 mesh=ok
+R1 tube a=1.414 len=2 tilt=0.000 turn=0 d=0e0 A∖B => OK SOUND t2=true t3p=true cert=true operand=true v=6.793134255 want=6.793134255 mesh=ok
+R1 tube a=1.414 len=2 tilt=0.000 turn=0 d=0e0 B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=6.078246520 want=6.078246520 mesh=ok
+R1 two/down (ball∪up) vs other A∪B => OK SOUND t2=true t3p=true cert=true operand=true v=23.038346126 want=23.038346126 mesh=refused Triangulation { face: FaceKey(3v1) }
+R1 two/down (ball∪up) vs other B∪A => OK SOUND t2=true t3p=true cert=true operand=true v=23.038346126 want=23.038346126 mesh=ok
+R1 tube a=1 len=2 tilt=3.142 turn=0 d=0e0 A∪B => OK SOUND t2=true t3p=true cert=true operand=true v=17.443016981 want=17.443016981 mesh=ok
+R1 tube a=1 len=2 tilt=3.142 turn=0 d=0e0 B∪A => OK SOUND t2=true t3p=true cert=true operand=true v=17.443016981 want=17.443016981 mesh=ok
+R1 two/down (ball∪up) vs other A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=0.687856162 want=0.687856162 mesh=ok
+R1 tube a=1 len=2 tilt=3.142 turn=0 d=0e0 A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=0.687856162 want=0.687856162 mesh=ok
+R1 tube a=1 len=2 tilt=3.142 turn=0 d=0e0 B∩A => OK SOUND t2=true t3p=true cert=true operand=true v=0.687856162 want=0.687856162 mesh=ok
+R1 tube a=1 len=2 tilt=3.142 turn=0 d=0e0 A∖B => OK SOUND t2=true t3p=true cert=true operand=true v=5.595329146 want=5.595329146 mesh=ok
+R1 two/down (ball∪up) vs other B∩A => OK SOUND t2=true t3p=true cert=true operand=true v=0.687856162 want=0.687856162 mesh=ok
+R1 tube a=1 len=2 tilt=3.142 turn=0 d=0e0 B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=11.159831674 want=11.159831674 mesh=ok
+R1 two/down (ball∪up) vs other A∖B => OK SOUND t2=true t3p=true cert=true operand=true v=16.755160819 want=16.755160819 mesh=refused Triangulation { face: FaceKey(3v1) }
+R1 two/down (ball∪up) vs other B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=5.595329146 want=5.595329146 mesh=ok
+R1 tube a=1.3 len=2 tilt=3.142 turn=0 d=0e0 A∪B => OK SOUND t2=true t3p=true cert=true operand=true v=19.860009585 want=19.860009585 mesh=ok
+R1 tube a=1.3 len=2 tilt=3.142 turn=0 d=0e0 B∪A => OK SOUND t2=true t3p=true cert=true operand=true v=19.860009585 want=19.860009585 mesh=ok
+R1 tube a=1.3 len=2 tilt=3.142 turn=0 d=0e0 A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=2.606261419 want=2.606261419 mesh=ok
+R1 tube a=1.3 len=2 tilt=3.142 turn=0 d=0e0 B∩A => OK SOUND t2=true t3p=true cert=true operand=true v=2.606261419 want=2.606261419 mesh=ok
+R1 tube a=1.3 len=2 tilt=3.142 turn=0 d=0e0 A∖B => OK SOUND t2=true t3p=true cert=true operand=true v=8.012321750 want=8.012321750 mesh=ok
+R1 tube a=1.3 len=2 tilt=3.142 turn=0 d=0e0 B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=9.241426416 want=9.241426416 mesh=ok
+R1 tube a=0.7 len=2 tilt=2.642 turn=0.3 d=0e0 A∪B => OK SOUND t2=true t3p=true cert=true operand=true v=14.780417065 want=14.780417065 mesh=refused UnsupportedCurvedShape { face: FaceKey(5v3), source: NotIsoRectangl
+R1 tube a=0.7 len=2 tilt=2.642 turn=0.3 d=0e0 B∪A => OK SOUND t2=true t3p=true cert=true operand=true v=14.780417065 want=14.780417065 mesh=refused UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangl
+R1 tube a=0.7 len=2 tilt=2.642 turn=0.3 d=0e0 A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=0.146031571 want=0.146031571 mesh=refused UnsupportedCurvedShape { face: FaceKey(4v3), source: NotIsoRectangl
+R1 tube a=0.7 len=2 tilt=2.642 turn=0.3 d=0e0 B∩A => OK SOUND t2=true t3p=true cert=true operand=true v=0.146031571 want=0.146031571 mesh=refused UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangl
+R1 tube a=0.7 len=2 tilt=2.642 turn=0.3 d=0e0 A∖B => OK SOUND t2=true t3p=true cert=true operand=true v=2.932729230 want=2.932729230 mesh=refused UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangl
+R1 tube a=0.7 len=2 tilt=2.642 turn=0.3 d=0e0 B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=11.701656264 want=11.701656264 mesh=refused UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangl
+R1 two/down (ball∖up) vs other A∪B => OK SOUND t2=true t3p=true cert=true operand=true v=16.755160819 want=16.755160819 mesh=refused Triangulation { face: FaceKey(3v1) }
+R1 tube a=1 len=2 tilt=3.142 turn=0.4 d=0e0 A∪B => OK SOUND t2=true t3p=true cert=true operand=true v=17.443016981 want=17.443016981 mesh=ok
+R1 two/down (ball∖up) vs other B∪A => OK SOUND t2=true t3p=true cert=true operand=true v=16.755160819 want=16.755160819 mesh=ok
+R1 tube a=1 len=2 tilt=3.142 turn=0.4 d=0e0 B∪A => OK SOUND t2=true t3p=true cert=true operand=true v=17.443016981 want=17.443016981 mesh=ok
+R1 tube a=1 len=2 tilt=3.142 turn=0.4 d=0e0 A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=0.687856162 want=0.687856162 mesh=ok
+R1 two/down (ball∖up) vs other A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=0.687856162 want=0.687856162 mesh=ok
+R1 tube a=1 len=2 tilt=3.142 turn=0.4 d=0e0 B∩A => OK SOUND t2=true t3p=true cert=true operand=true v=0.687856162 want=0.687856162 mesh=ok
+R1 tube a=1 len=2 tilt=3.142 turn=0.4 d=0e0 A∖B => OK SOUND t2=true t3p=true cert=true operand=true v=5.595329146 want=5.595329146 mesh=ok
+R1 tube a=1 len=2 tilt=3.142 turn=0.4 d=0e0 B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=11.159831674 want=11.159831674 mesh=ok
+R1 two/down (ball∖up) vs other B∩A => OK SOUND t2=true t3p=true cert=true operand=true v=0.687856162 want=0.687856162 mesh=ok
+R1 two/down (ball∖up) vs other A∖B => OK SOUND t2=true t3p=true cert=true operand=true v=10.471975512 want=10.471975512 mesh=refused Triangulation { face: FaceKey(3v1) }
+R1 two/down (ball∖up) vs other B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=5.595329146 want=5.595329146 mesh=ok
+R1 tube a=1 len=0.2 tilt=0.000 turn=0 d=0e0 A∪B => OK SOUND t2=true t3p=true cert=true operand=true v=11.981729122 want=11.981729122 mesh=ok
+R1 tube a=1 len=0.2 tilt=0.000 turn=0 d=0e0 B∪A => OK SOUND t2=true t3p=true cert=true operand=true v=11.981729122 want=11.981729122 mesh=ok
+R1 tube a=1 len=0.2 tilt=0.000 turn=0 d=0e0 A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=0.494277244 want=0.494277244 mesh=ok
+R1 tube a=1 len=0.2 tilt=0.000 turn=0 d=0e0 B∩A => OK SOUND t2=true t3p=true cert=true operand=true v=0.494277244 want=0.494277244 mesh=ok
+R1 two/down turned first union => OK SOUND t2=true t3p=true cert=true operand=true v=17.443016981 want=17.443016981
+R1 tube a=1 len=0.2 tilt=0.000 turn=0 d=0e0 A∖B => OK SOUND t2=true t3p=true cert=true operand=true v=0.134041287 want=0.134041287 mesh=ok
+R1 tube a=1 len=0.2 tilt=0.000 turn=0 d=0e0 B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=11.353410591 want=11.353410591 mesh=ok
+R1 tube a=1.3 len=0.1 tilt=0.000 turn=0 d=0e0 A∪B => OK SOUND t2=true t3p=true cert=true operand=true v=11.866226680 want=11.866226680 mesh=ok
+R1 tube a=1.3 len=0.1 tilt=0.000 turn=0 d=0e0 B∪A => OK SOUND t2=true t3p=true cert=true operand=true v=11.866226680 want=11.866226680 mesh=ok
+R1 tube a=1.3 len=0.1 tilt=0.000 turn=0 d=0e0 A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=0.512390313 want=0.512390313 mesh=ok
+R1 tube a=1.3 len=0.1 tilt=0.000 turn=0 d=0e0 B∩A => OK SOUND t2=true t3p=true cert=true operand=true v=0.512390313 want=0.512390313 mesh=ok
+R1 tube a=1.3 len=0.1 tilt=0.000 turn=0 d=0e0 A∖B => OK SOUND t2=true t3p=true cert=true operand=true v=0.018538845 want=0.018538845 mesh=ok
+R1 tube a=1.3 len=0.1 tilt=0.000 turn=0 d=0e0 B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=11.335297522 want=11.335297522 mesh=ok
+R1 tube a=1 len=0.2 tilt=3.142 turn=0 d=0e0 A∪B => OK SOUND t2=true t3p=true cert=true operand=true v=11.981729122 want=11.981729122 mesh=ok
+R1 two/down turned (ball∪up) vs other A∪B => OK SOUND t2=true t3p=true cert=true operand=true v=23.038346126 want=23.038346126 mesh=ok
+R1 tube a=1 len=0.2 tilt=3.142 turn=0 d=0e0 B∪A => OK SOUND t2=true t3p=true cert=true operand=true v=11.981729122 want=11.981729122 mesh=ok
+R1 tube a=1 len=0.2 tilt=3.142 turn=0 d=0e0 A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=0.494277244 want=0.494277244 mesh=ok
+R1 tube a=1 len=0.2 tilt=3.142 turn=0 d=0e0 B∩A => OK SOUND t2=true t3p=true cert=true operand=true v=0.494277244 want=0.494277244 mesh=ok
+R1 two/down turned (ball∪up) vs other B∪A => OK SOUND t2=true t3p=true cert=true operand=true v=23.038346126 want=23.038346126 mesh=ok
+R1 two/down turned (ball∪up) vs other A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=0.687856162 want=0.687856162 mesh=ok
+R1 tube a=1 len=0.2 tilt=3.142 turn=0 d=0e0 A∖B => OK SOUND t2=true t3p=true cert=true operand=true v=0.134041287 want=0.134041287 mesh=ok
+R1 two/down turned (ball∪up) vs other B∩A => OK SOUND t2=true t3p=true cert=true operand=true v=0.687856162 want=0.687856162 mesh=ok
+R1 two/down turned (ball∪up) vs other A∖B => OK SOUND t2=true t3p=true cert=true operand=true v=16.755160819 want=16.755160819 mesh=ok
+R1 tube a=1 len=0.2 tilt=3.142 turn=0 d=0e0 B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=11.353410591 want=11.353410591 mesh=ok
+R1 two/down turned (ball∪up) vs other B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=5.595329146 want=5.595329146 mesh=ok
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-12 A∪B => OK SOUND t2=true t3p=true cert=true operand=true v=17.443016981 want=17.443016981 mesh=ok
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-12 B∪A => OK SOUND t2=true t3p=true cert=true operand=true v=17.443016981 want=17.443016981 mesh=ok
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-12 A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=0.687856162 want=0.687856162 mesh=ok
+R1 two/down turned (ball∖up) vs other A∪B => OK SOUND t2=true t3p=true cert=true operand=true v=16.755160819 want=16.755160819 mesh=ok
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-12 B∩A => OK SOUND t2=true t3p=true cert=true operand=true v=0.687856162 want=0.687856162 mesh=ok
+R1 two/down turned (ball∖up) vs other B∪A => OK SOUND t2=true t3p=true cert=true operand=true v=16.755160819 want=16.755160819 mesh=ok
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-12 A∖B => OK SOUND t2=true t3p=true cert=true operand=true v=5.595329146 want=5.595329146 mesh=ok
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-12 B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=11.159831674 want=11.159831674 mesh=ok
+R1 two/down turned (ball∖up) vs other A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=0.687856162 want=0.687856162 mesh=ok
+R1 two/down turned (ball∖up) vs other B∩A => OK SOUND t2=true t3p=true cert=true operand=true v=0.687856162 want=0.687856162 mesh=ok
+R1 two/down turned (ball∖up) vs other A∖B => OK SOUND t2=true t3p=true cert=true operand=true v=10.471975512 want=10.471975512 mesh=ok
+R1 two/down turned (ball∖up) vs other B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=5.595329146 want=5.595329146 mesh=ok
+R1 two/askew first union => OK SOUND t2=true t3p=true cert=true operand=true v=17.443016981 want=17.443016981
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-12 A∪B => OK SOUND t2=true t3p=true cert=true operand=true v=17.443016981 want=17.443016981 mesh=ok
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-12 B∪A => OK SOUND t2=true t3p=true cert=true operand=true v=17.443016981 want=17.443016981 mesh=ok
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-12 A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=0.687856162 want=0.687856162 mesh=ok
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-12 B∩A => OK SOUND t2=true t3p=true cert=true operand=true v=0.687856162 want=0.687856162 mesh=ok
+R1 two/askew (ball∪up) vs other A∪B => ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(3 
+R1 two/askew (ball∪up) vs other B∪A => ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(7 
+R1 two/askew (ball∪up) vs other A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=0.036267293 want=0.036267293 mesh=refused UnsupportedCurvedShape { face: FaceKey(7v5), source: NotIsoRectangl
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-12 A∖B => OK SOUND t2=true t3p=true cert=true operand=true v=5.595329146 want=5.595329146 mesh=ok
+R1 two/askew (ball∪up) vs other B∩A => OK SOUND t2=true t3p=true cert=true operand=true v=0.036267293 want=0.036267293 mesh=refused UnsupportedCurvedShape { face: FaceKey(6v5), source: NotIsoRectangl
+R1 two/askew (ball∪up) vs other A∖B => ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(3 
+R1 two/askew (ball∪up) vs other B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=1.534529034 want=1.534529034 mesh=refused UnsupportedCurvedShape { face: FaceKey(5v3), source: NotIsoRectangl
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-12 B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=11.159831674 want=11.159831674 mesh=ok
+R1 two/askew (ball∖up) vs other A∪B => ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(3 
+R1 two/askew (ball∖up) vs other B∪A => ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(2 
+R1 two/askew (ball∖up) vs other A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=0.036267293 want=0.036267293 mesh=refused UnsupportedCurvedShape { face: FaceKey(5v7), source: NotIsoRectangl
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-10 A∪B => OK SOUND t2=true t3p=true cert=true operand=true v=17.443016981 want=17.443016981 mesh=ok
+R1 two/askew (ball∖up) vs other B∩A => OK SOUND t2=true t3p=true cert=true operand=true v=0.036267293 want=0.036267293 mesh=refused UnsupportedCurvedShape { face: FaceKey(4v3), source: NotIsoRectangl
+R1 two/askew (ball∖up) vs other A∖B => ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(3 
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-10 B∪A => OK SOUND t2=true t3p=true cert=true operand=true v=17.443016981 want=17.443016981 mesh=ok
+R1 two/askew (ball∖up) vs other B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=1.534529034 want=1.534529034 mesh=refused UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangl
+test tube_on_ball_review_r1_probes::tube_on_ball_r1_family_two_tubes ... ok
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-10 A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=0.687856161 want=0.687856161 mesh=ok
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-10 B∩A => OK SOUND t2=true t3p=true cert=true operand=true v=0.687856161 want=0.687856161 mesh=ok
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-10 A∖B => OK SOUND t2=true t3p=true cert=true operand=true v=5.595329146 want=5.595329146 mesh=ok
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-10 B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=11.159831674 want=11.159831674 mesh=ok
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-10 A∪B => OK SOUND t2=true t3p=true cert=true operand=true v=17.443016980 want=17.443016980 mesh=ok
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-10 B∪A => OK SOUND t2=true t3p=true cert=true operand=true v=17.443016980 want=17.443016980 mesh=ok
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-10 A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=0.687856162 want=0.687856162 mesh=ok
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-10 B∩A => OK SOUND t2=true t3p=true cert=true operand=true v=0.687856162 want=0.687856162 mesh=ok
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-10 A∖B => OK SOUND t2=true t3p=true cert=true operand=true v=5.595329145 want=5.595329145 mesh=ok
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-10 B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=11.159831673 want=11.159831673 mesh=ok
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-9 A∪B => ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: Face { face: FaceKey(2v3), source: 
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-9 B∪A => ERR Escalated { decision: Containment { decision: Some(Loop(Boundary)), escalation: Margin }, diag: Indeterminate  
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-9 A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=0.687856158 want=0.687856158 mesh=ok
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-9 B∩A => ERR Escalated { decision: Containment { decision: Some(Loop(Boundary)), escalation: Margin }, diag: Indeterminate  
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-9 A∖B => OK SOUND t2=true t3p=true cert=true operand=true v=5.595329149 want=5.595329149 mesh=ok
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-9 B∖A => ERR Escalated { decision: Containment { decision: Some(Loop(Boundary)), escalation: Margin }, diag: Indeterminate  
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-9 A∪B => ERR Escalated { decision: Crossing(OnEdge), diag: Indeterminate { margin: MarginDiag(Value(1.0000001942626733e-9,  
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-9 B∪A => ERR Escalated { decision: Containment { decision: Some(Loop(Boundary)), escalation: Margin }, diag: Indeterminate  
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-9 A∩B => ERR Escalated { decision: Crossing(OnEdge), diag: Indeterminate { margin: MarginDiag(Value(1.0000001942626733e-9,  
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-9 B∩A => ERR Escalated { decision: Containment { decision: Some(Loop(Boundary)), escalation: Margin }, diag: Indeterminate  
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-9 A∖B => ERR Escalated { decision: Crossing(OnEdge), diag: Indeterminate { margin: MarginDiag(Value(1.0000001942626733e-9,  
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-9 B∖A => ERR Escalated { decision: Containment { decision: Some(Loop(Boundary)), escalation: Margin }, diag: Indeterminate  
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-8 A∪B => ERR Escalated { decision: Coincidence(VertexOnCurvedFace, Moot), diag: Indeterminate { margin: MarginDiag(Value(7. 
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-8 B∪A => ERR Escalated { decision: Containment { decision: Some(Loop(Boundary)), escalation: Margin }, diag: Indeterminate  
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-8 A∩B => ERR Escalated { decision: Coincidence(VertexOnCurvedFace, Moot), diag: Indeterminate { margin: MarginDiag(Value(7. 
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-8 B∩A => ERR Escalated { decision: Containment { decision: Some(Loop(Boundary)), escalation: Margin }, diag: Indeterminate  
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-8 A∖B => ERR Escalated { decision: Coincidence(VertexOnCurvedFace, Moot), diag: Indeterminate { margin: MarginDiag(Value(7. 
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-8 B∖A => ERR Escalated { decision: Containment { decision: Some(Loop(Boundary)), escalation: Margin }, diag: Indeterminate  
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-8 A∪B => ERR Escalated { decision: Coincidence(VertexOnCurvedFace, Moot), diag: Indeterminate { margin: MarginDiag(Value(-7 
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-8 B∪A => ERR Escalated { decision: Containment { decision: Some(Loop(Boundary)), escalation: Margin }, diag: Indeterminate  
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-8 A∩B => ERR Escalated { decision: Coincidence(VertexOnCurvedFace, Moot), diag: Indeterminate { margin: MarginDiag(Value(-7 
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-8 B∩A => ERR Escalated { decision: Containment { decision: Some(Loop(Boundary)), escalation: Margin }, diag: Indeterminate  
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-8 A∖B => ERR Escalated { decision: Coincidence(VertexOnCurvedFace, Moot), diag: Indeterminate { margin: MarginDiag(Value(-7 
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-8 B∖A => ERR Escalated { decision: Containment { decision: Some(Loop(Boundary)), escalation: Margin }, diag: Indeterminate  
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-6 A∪B => OK SOUND t2=true t3p=true cert=true operand=true v=17.443020122 want=17.443020122 mesh=ok
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-6 B∪A => OK SOUND t2=true t3p=true cert=true operand=true v=17.443020122 want=17.443020122 mesh=ok
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-6 A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=0.687853020 want=0.687853020 mesh=ok
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-6 B∩A => OK SOUND t2=true t3p=true cert=true operand=true v=0.687853020 want=0.687853020 mesh=ok
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-6 A∖B => OK SOUND t2=true t3p=true cert=true operand=true v=5.595332287 want=5.595332287 mesh=ok
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-6 B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=11.159834815 want=11.159834815 mesh=ok
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-6 A∪B => ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Cylinder, b_face: FaceKey(2v1), b_kind: Sphere } 
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-6 B∪A => ERR GermFrameUnsupported { a_face: FaceKey(1v1), a_kind: Sphere, b_face: FaceKey(4v1), b_kind: Cylinder } 
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-6 A∩B => ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Cylinder, b_face: FaceKey(2v1), b_kind: Sphere } 
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-6 B∩A => ERR GermFrameUnsupported { a_face: FaceKey(1v1), a_kind: Sphere, b_face: FaceKey(4v1), b_kind: Cylinder } 
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-6 A∖B => ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Cylinder, b_face: FaceKey(2v1), b_kind: Sphere } 
+R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-6 B∖A => ERR GermFrameUnsupported { a_face: FaceKey(1v1), a_kind: Sphere, b_face: FaceKey(4v1), b_kind: Cylinder } 
+test tube_on_ball_review_r1_probes::tube_on_ball_r1_family_tubes ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 2575 filtered out; finished in 1.42s
+
