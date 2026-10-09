@@ -321,6 +321,61 @@ together with per-output tables and the `side` drop, is
    - This withdraws my section 3's "keys by the family variable `xs`".
    *Likely.*
 
+### Round 4 (Ev: "it seems weird to have special cases like this")
+
+The plain rule: **a name is keyed by the read it came through.**
+
+- **(i) `xs[i]` is a definition with its own `VarId`, keyed by it (the
+  PR's item 4).** Three cases depart from the plain rule:
+  - A `Body` variable defined by something other than an operation. D10
+    says shapes are defined "only" by operations.
+  - Two spellings of one member read that name differently. Inside a
+    per-`k` reader, `xs` is "its member at the same value" (D10) and keys
+    by `xs`; an explicit `xs[k]` keys by its own id.
+  - `Union[xs, xs[0]]` is admitted as `A ∪ A`, while `Union[X, X]` is
+    refused. One body read twice escapes DM5 only because one read went
+    through a definition.
+- **(ii) A definition keyed by walking to the family plus the index (my
+  first draft).** It removes the second and third cases but adds a fourth:
+  the key is not the variable the slot holds (the walk). The first case
+  stays.
+- **(iii) `xs[i]` is not a variable. It is an operand spelling: a read of
+  the family variable `xs` at `Count` expressions**, the same read a
+  per-`k` reader makes implicitly. The key is `xs`, and the index is
+  spelled once, in the member's own `Member { (k, i), of }` name.
+  - `Union[xs]` and `Union[xs[0], …, xs[N−1]]` name alike, because they
+    read the same things.
+  - DM5 is over what is read, a variable or one member of one, so
+    `Union[xs, xs[0]]` is a duplicate read and is refused at the door.
+  - The one case beyond the door: `xs[i]` and `xs[j]` whose indices land
+    on one member at the current values. That is refused typed at
+    evaluation, in the same class as an index out of range, which DM3
+    already refuses there.
+  - What it gives up: a member cannot be a named alias. Two readers
+    share `xs` and a named `Count`, not a named member.
+
+**Recommend (iii), likely.** It has the fewest departures: none from the
+naming rule, and one evaluation-time duplicate check of a kind DM3 already
+has. It also removes (i)'s shape-by-definition, which may be what feels
+special. The changed text is DM3's "a definition reading the family",
+which becomes "a read of the family at one `Count` expression per index".
+
+**Item 3, "what is `copy`".** Confirmed, under D10 as ratified, including
+#4326:
+- `X'` is a copy of `X` defined by a placement whose mates target poses of
+  `X`. Once pinned, it "takes its targets' root", so `X'` is in `X`'s
+  space.
+- `Place [X, X']` therefore reads "a list of shapes of one space" and
+  defines a copy of each.
+- Copies keep the rows of what they copy (N1, pass-through), so both
+  outputs carry `X`'s table exactly.
+- The node is not built yet: no list-reading `Place` exists in
+  `node.rs`, and `Transform` still stands. So the case is real in the
+  ratified design and future in the code.
+- Today's nearest case, an instance whose part places one body twice in
+  its world, is kept apart by stage 2's per-copy qualifier, which is
+  that same per-port qualifier in another spelling.
+
 ## For the orchestrator
 
 - Assumed: a `Body` variable is always a `VarDef::Output` (D10: "the
