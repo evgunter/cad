@@ -15,7 +15,7 @@
 
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom_core::spline::{KnotVector, SplineError};
-use geom_core::{Dual64, Point2, Point3, Vec3};
+use geom_core::{Dual64, Interval, Point2, Point3, Real, Vec3};
 
 const SQRT2_2: f64 = core::f64::consts::FRAC_1_SQRT_2;
 
@@ -459,7 +459,7 @@ fn dual_kink_convention_at_knot_follows_the_tie_break() {
     let ctrl: Vec<Point3<Dual64>> = ctrl64.iter().map(|p| p.map(Dual64::constant)).collect();
     let nd = NurbsCurve3::new(kv, ctrl, vec![1.0; 5]).unwrap();
     let t = 0.5;
-    let span_right = n64.span_at(t); // the span starting at 0.5
+    let span_right = n64.span_at(t).expect("a numeric parameter"); // the span starting at 0.5
     // The [0, 0.5) span (mult-2 knot between).
     let span_left = n64
         .span(span_right.index() - 2)
@@ -490,4 +490,39 @@ fn dual_kink_convention_at_knot_follows_the_tie_break() {
         1e-12,
         "kink deriv = right-span deriv",
     );
+}
+
+/// A poison parameter has no span, so the evaluators answer poison in
+/// every channel rather than evaluating the first span. At `Dual` the
+/// derivative channel is the sharp half: a bare `from_f64(NaN)` is a
+/// dual CONSTANT, whose derivative is a certified-looking zero.
+#[test]
+fn a_poison_parameter_evaluates_to_poison_in_every_channel() {
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+    let ctrl64 = vec![
+        Point3::new(0.0, 0.0, 0.0),
+        Point3::new(1.0, 2.0, 0.0),
+        Point3::new(2.0, 0.0, 0.0),
+        Point3::new(3.0, 2.0, 1.0),
+    ];
+    let ctrl: Vec<Point3<Dual64>> = ctrl64.iter().map(|p| p.map(Dual64::constant)).collect();
+    let nd = NurbsCurve3::new(kv.clone(), ctrl, vec![1.0; 4]).unwrap();
+    let t = Dual64::variable(f64::NAN);
+    let all_nan = |p: [Dual64; 3]| p.iter().all(|c| c.value.is_nan() && c.deriv.is_nan());
+    let p = nd.eval(t);
+    assert!(all_nan([p.x, p.y, p.z]), "eval at NaN: {p:?}");
+    let d = nd.deriv(t);
+    assert!(all_nan([d.x, d.y, d.z]), "deriv at NaN: {d:?}");
+    let (q, q1, q2) = nd.ders(t);
+    for (name, v) in [("point", [q.x, q.y, q.z]), ("d1", [q1.x, q1.y, q1.z]), ("d2", [q2.x, q2.y, q2.z])] {
+        assert!(all_nan(v), "ders at NaN, {name}: {v:?}");
+    }
+    let ci = NurbsCurve3::new(
+        kv,
+        ctrl64.iter().map(|p| p.map(Interval::from_f64)).collect(),
+        vec![1.0; 4],
+    )
+    .unwrap();
+    let pi = ci.eval(Interval::from_f64(f64::NAN));
+    assert!(pi.x.is_poison() && pi.y.is_poison() && pi.z.is_poison(), "eval at NaI: {pi:?}");
 }

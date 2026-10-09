@@ -98,7 +98,7 @@
 //!     vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 1.0, 0.0), Point3::new(2.0, 0.0, 0.0)],
 //!     vec![1.0, 1.0, 1.0],
 //! ).unwrap();
-//! let own = short.span_at(0.5);
+//! let own = short.span_at(0.5).unwrap();
 //! let p = own.eval_in_span(0.5f64);
 //! assert!(p.x.is_finite());
 //! ```
@@ -116,7 +116,7 @@
 //!         vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 1.0, 0.0), Point3::new(2.0, 0.0, 0.0)],
 //!         vec![1.0, 1.0, 1.0],
 //!     ).unwrap();
-//!     c.span_at(0.5)
+//!     c.span_at(0.5).unwrap()
 //! };
 //! let _ = win.eval_in_span(0.5f64);
 //! ```
@@ -133,7 +133,7 @@
 //!     vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 1.0, 0.0), Point3::new(2.0, 0.0, 0.0)],
 //!     vec![1.0, 1.0, 1.0],
 //! ).unwrap();
-//! let win = { c.span_at(0.5) };
+//! let win = { c.span_at(0.5).unwrap() };
 //! let _ = win.eval_in_span(0.5f64);
 //! ```
 //!
@@ -714,12 +714,11 @@ macro_rules! nurbs_curve {
                 Some(self.window_of(self.knots.span(index)?))
             }
 
-            /// The window containing `t` — total on all of `f64` for
-            /// exactly the reasons [`KnotVector::span_at`] is
-            /// (out-of-domain clamps to an end span, NaN lands on the
-            /// first).
-            pub fn span_at(&self, t: f64) -> $Window<'_, T> {
-                self.window_of(self.knots.span_at(t))
+            /// The window containing `t`, or `None` at NaN, exactly as
+            /// [`KnotVector::span_at`] locates it (out-of-domain clamps
+            /// to an end span).
+            pub fn span_at(&self, t: f64) -> Option<$Window<'_, T>> {
+                Some(self.window_of(self.knots.span_at(t)?))
             }
 
             /// The one primitive constructor, behind [`Self::span`] and
@@ -1439,8 +1438,11 @@ macro_rules! nurbs_curve {
             /// four doors below differ only in the per-span door they
             /// hand in and the per-channel hull of its answer.
             ///
+            /// A poison `t` locates no span, and the walk answers
+            /// `poison`: the door's own answer for a poison parameter.
+            ///
             /// Empty spans (interior multiplicity) are skipped:
-            /// `find_span` assigns every parameter — a repeated knot
+            /// `span_at` assigns every parameter — a repeated knot
             /// value included — to the nonempty span starting at it,
             /// which this loop's range always covers, so nothing is
             /// discarded (containment preserved); an empty span itself
@@ -1452,8 +1454,11 @@ macro_rules! nurbs_curve {
                 t: T,
                 door: impl Fn($Window<'_, T>, T) -> R,
                 hull: impl Fn(R, R) -> R,
+                poison: impl FnOnce() -> R,
             ) -> R {
-                let spans = t.locate_spans(&self.knots);
+                let Some(spans) = t.locate_spans(&self.knots) else {
+                    return poison();
+                };
                 // `spans.first` arrives already validated — the locator
                 // is where span validity originates, so there is
                 // nothing to re-check and no `expect` here.
@@ -1463,6 +1468,25 @@ macro_rules! nurbs_curve {
                     acc = hull(acc, door(self.window_of(span), t));
                 }
                 acc
+            }
+
+            /// The point the poison parameter `t` evaluates to: `t`
+            /// times NaN in every coordinate, which is poison in every
+            /// channel `t` carries (a bare `from_f64(NaN)` would hand a
+            /// dual scalar a certified zero derivative).
+            fn poison_point(t: T) -> $Point<T> {
+                $Point::new($({
+                    let _ = stringify!($c);
+                    t * T::from_f64(f64::NAN)
+                }),+)
+            }
+
+            /// The vector the poison parameter `t` evaluates to.
+            fn poison_vector(t: T) -> $Vector<T> {
+                $Vector::new($({
+                    let _ = stringify!($c);
+                    t * T::from_f64(f64::NAN)
+                }),+)
             }
 
             /// The per-channel enclosure hull of two point answers.
@@ -1478,7 +1502,12 @@ macro_rules! nurbs_curve {
             /// The point at `t` — the located-span walk over the
             /// window's `eval_in_span`.
             pub fn eval(&self, t: T) -> $Point<T> {
-                self.located_walk(t, |w, t| w.eval_in_span(t), Self::hull_point)
+                self.located_walk(
+                    t,
+                    |w, t| w.eval_in_span(t),
+                    Self::hull_point,
+                    || Self::poison_point(t),
+                )
             }
 
             /// The first derivative at `t` — the located-span walk over
@@ -1486,7 +1515,12 @@ macro_rules! nurbs_curve {
             /// at knots is the seam's — the derivative of the program
             /// as evaluated.
             pub fn deriv(&self, t: T) -> $Vector<T> {
-                self.located_walk(t, |w, t| w.deriv_in_span(t), Self::hull_vector)
+                self.located_walk(
+                    t,
+                    |w, t| w.deriv_in_span(t),
+                    Self::hull_vector,
+                    || Self::poison_vector(t),
+                )
             }
 
             /// Point and first derivative at `t` from ONE span
@@ -1526,6 +1560,7 @@ macro_rules! nurbs_curve {
                     t,
                     |w, t| w.ders1_in_span(t),
                     |(p, d1), (q, q1)| (Self::hull_point(p, q), Self::hull_vector(d1, q1)),
+                    || (Self::poison_point(t), Self::poison_vector(t)),
                 )
             }
 
@@ -1544,6 +1579,13 @@ macro_rules! nurbs_curve {
                             Self::hull_point(p, q),
                             Self::hull_vector(d1, q1),
                             Self::hull_vector(d2, q2),
+                        )
+                    },
+                    || {
+                        (
+                            Self::poison_point(t),
+                            Self::poison_vector(t),
+                            Self::poison_vector(t),
                         )
                     },
                 )
