@@ -1666,10 +1666,9 @@ mod tests {
 
     /// **Every certification refusal ends at both doors or at neither,
     /// and alike but for the file's ε_in** (D4 ¶1: one recourse per
-    /// decision, wherever it is read): a variant whose at-rest ending is
-    /// special-cased must have its import-door twin, and that twin reads
-    /// the same decision. The door's ending departs from the at-rest one
-    /// only through its ε_in sentences, which name ε_in. The roster is
+    /// decision, wherever it is read): both doors read the same decision,
+    /// and the door's ending departs from the at-rest one only through its
+    /// ε_in sentences, which name ε_in. The roster is
     /// [`super::certify_errors`], which `nested_coverage_gaps` holds to
     /// every `CertifyError`, `PlaneNurbsRefusal` and `AnalyticRung3Refusal`
     /// variant. Red where one door gives an ending the other drops, or
@@ -1679,13 +1678,11 @@ mod tests {
         let file = FileCoincidence::new(1e-6);
         let split: Vec<String> = super::certify_errors()
             .iter()
-            .filter(
-                |e| match (e.ending(Reading::AtRest), e.ending_in_file(file)) {
-                    (None, None) => false,
-                    (Some(rest), Some(door)) => rest != door && !door.contains("ε_in"),
-                    _ => true,
-                },
-            )
+            .filter(|e| match (e.ending(Reading::AtRest), e.ending(file)) {
+                (None, None) => false,
+                (Some(rest), Some(door)) => rest != door && !door.contains("ε_in"),
+                _ => true,
+            })
             .map(|e| format!("{e:?}"))
             .collect();
         assert!(

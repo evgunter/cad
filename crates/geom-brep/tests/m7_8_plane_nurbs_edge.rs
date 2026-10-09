@@ -350,7 +350,7 @@ fn the_door_refuses_a_displaced_carrier_with_the_measured_bound() {
             // within, not that it may.
             let eps_in = 2.0 * value;
             assert_eq!(
-                e.ending_in_file(FileCoincidence::new(eps_in)),
+                e.ending(FileCoincidence::new(eps_in)),
                 Some(format!(
                     "This miss lies beyond the tolerance and within the file's declared \
                      coincidence distance ε_in = {eps_in:e} m, and may be the kernel's own \
