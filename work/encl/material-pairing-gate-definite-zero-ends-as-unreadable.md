@@ -2,7 +2,8 @@
 id: material-pairing-gate-definite-zero-ends-as-unreadable
 kind: issue
 title: geom-brep/topo: the material-pairing gate's decided Zero reaches tier 3 as SliverDihedral{MaterialSide} with a flat defect ending that reads no margin
-status: open
+status: dispatched
+branch: encl/material-pairing-zero
 opened: 2026-10-09
 priority: P3
 cost: M
