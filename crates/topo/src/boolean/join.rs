@@ -202,7 +202,7 @@ enum GermLane<T: geom_core::Real> {
     /// ruling in it.
     Rulings((Point3<T>, UnitVec3<T>)),
     /// A segment along a conic edge of the solid `on` only, lying inside
-    /// the other's face: `on`'s chord copies its edge, and the other's
+    /// the other's curved face: `on`'s chord copies its edge, and the other's
     /// is its face cut by the edge's plane, which meets that face's
     /// carrier in the edge's conic. `curve` is the edge's.
     EdgePlane {
@@ -969,14 +969,19 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             }
         };
         // A segment along a conic edge of one solid, inside the other's
-        // face, has a section whatever the pair's kinds: the edge's
-        // plane. It is the lane of a pair no other arm takes.
+        // curved face, has a section whatever the pair's kinds: the
+        // edge's plane. It is the lane of a pair no other arm takes. A
+        // planar face holding the edge lies in that plane, which cuts
+        // it in no curve.
         let edge_lane = || -> Result<GermLane<T>, BooleanError> {
-            let (on, body, edge) = match (germ.a_locus, germ.b_locus) {
-                (super::Locus::OnEdge(e), super::Locus::InFace(_)) => (Operand::A, &red.a, e),
-                (super::Locus::InFace(_), super::Locus::OnEdge(e)) => (Operand::B, &red.b, e),
+            let (on, body, edge, holder) = match (germ.a_locus, germ.b_locus) {
+                (super::Locus::OnEdge(e), super::Locus::InFace(_)) => (Operand::A, &red.a, e, &gb),
+                (super::Locus::InFace(_), super::Locus::OnEdge(e)) => (Operand::B, &red.b, e, &ga),
                 _ => return Err(no_arm()),
             };
+            if matches!(holder, Sf::Plane { .. }) {
+                return Err(no_arm());
+            }
             let key = body
                 .get_edge(edge)
                 .ok_or(desync("an OnEdge germ's edge no longer resolves"))?

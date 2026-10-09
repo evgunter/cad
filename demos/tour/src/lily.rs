@@ -162,7 +162,8 @@ use pncad::sweep::{
     revolve, revolved_caps, sweep_body, tube_along_arc,
 };
 use pncad::topo::{
-    AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, Operand, TransformError,
+    AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, Operand, RestZipFrontier,
+    TransformError,
 };
 
 use crate::booleans::{check, expect_seamed, finished, try_union_declared};
@@ -2276,33 +2277,22 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    crossing layer has a circle × torus root lane: the stem's inner
     //    equator seam and the arch's outer equator seam each cross the
     //    other tube's carrier only outside that face's window, which
-    //    the roots certify. So the glue reaches the join and stops at
-    //    the germ pair of the stem's weld cap against the arch's wall —
-    //    a plane × torus pair with no section frame arm.
+    //    the roots certify. So the glue reaches the join, whose germ
+    //    pair of the stem's weld cap against the arch's wall (plane ×
+    //    torus, the arch's rim lying in the cap) has no join arm; the
+    //    declared-REST door re-examines the mate and refuses it as a
+    //    zip frontier: its segments run between isolated pierces.
     wall(
         1,
         "glue the two stem arcs into one stem (declared coincident-planar mate)",
         crate::booleans::try_union_declared(stem, arch, tol),
-        // The pair is named, not just its kinds: the stem's face is a
-        // plane (its weld cap) and the arch's a torus (its tube wall).
-        |e| match *e {
-            BooleanError::GermFrameUnsupported {
-                a_face,
-                a_kind: SurfaceKind::Plane,
-                b_face,
-                b_kind: SurfaceKind::Torus,
-            } => {
-                matches!(
-                    stem.get_face(a_face)
-                        .and_then(|f| stem.get_surface(f.surface)),
-                    Some(pncad::geom::Surface::Plane { .. })
-                ) && matches!(
-                    arch.get_face(b_face)
-                        .and_then(|f| arch.get_surface(f.surface)),
-                    Some(pncad::geom::Surface::Torus { .. })
-                )
-            }
-            _ => false,
+        |e| {
+            matches!(
+                e,
+                BooleanError::RestZipUnsupported {
+                    what: RestZipFrontier::SegmentsBetweenIsolatedPierces
+                }
+            )
         },
         "make the stem a single body — and close #968, whose whole content this is",
     );
@@ -4272,36 +4262,18 @@ mod verbs_gate_r1_probes {
         // circle × torus root lane certifies each seam's crossing of the
         // other tube's carrier as lying outside that face's window, so
         // the glue reaches the join, whose germ pair of the stem's weld
-        // cap against the arch's wall (plane × torus) has no section
-        // frame arm. Unconditional: an `if let` here would go quiet
+        // cap against the arch's wall (plane × torus) has no join arm,
+        // and the declared-REST door refuses the mate as a zip
+        // frontier. Unconditional: an `if let` here would go quiet
         // exactly when the refusal's shape changes.
-        let BooleanError::GermFrameUnsupported {
-            a_face,
-            a_kind: SurfaceKind::Plane,
-            b_face,
-            b_kind: SurfaceKind::Torus,
-        } = glued
-        else {
-            panic!("wall 1 stops at the join's plane × torus germ frame: {glued:?}");
-        };
-        // The stem's weld cap: its plane passes through the fork, the
-        // stem's end at 22° on its 5 m ring about (−5, 0, 0).
-        let fork =
-            pncad::geom_core::Point3::new(-5.0 + 5.0 * deg(22.0).cos(), 0.0, 5.0 * deg(22.0).sin());
         assert!(
             matches!(
-                stem.get_face(a_face).and_then(|f| stem.get_surface(f.surface)),
-                Some(&Surface::Plane { origin, .. }) if (origin - fork).norm() < 1e-9
+                glued,
+                BooleanError::RestZipUnsupported {
+                    what: RestZipFrontier::SegmentsBetweenIsolatedPierces
+                }
             ),
-            "the stem's face is its weld cap at the fork: {glued:?}"
-        );
-        assert!(
-            matches!(
-                arch.get_face(b_face)
-                    .and_then(|f| arch.get_surface(f.surface)),
-                Some(Surface::Torus { .. })
-            ),
-            "the arch's face is its tube wall: {glued:?}"
+            "wall 1 stops at the declared-REST door: {glued:?}"
         );
         // **The weld itself has no torus contact to declare**, measured
         // off the two loci: the stem tube's end circle has radius
