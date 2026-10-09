@@ -1147,6 +1147,21 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         ValidationError::PlanarBoundaryResidual { face, edge },
         ValidationError::TransverseNotIntrinsic { edge },
         ValidationError::ScaffoldAtRest { edge },
+        ValidationError::JoinableVertexAtRest { vertex },
+        ValidationError::JoinUndecidedAtRest {
+            undecided: crate::boolean::JoinUndecided {
+                vertex,
+                reading: crate::boolean::JoinReading::Regularity(diag()),
+            },
+        },
+        ValidationError::JoinUndecidedAtRest {
+            undecided: crate::boolean::JoinUndecided {
+                vertex,
+                reading: crate::boolean::JoinReading::ChartClass(
+                    geom_brep::IsoFamilyRefusal::Undecided(diag()),
+                ),
+            },
+        },
         ValidationError::TangentNotIntrinsic { edge },
         ValidationError::LaminaWedge { edge },
         ValidationError::NoDihedralArm {

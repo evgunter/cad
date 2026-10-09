@@ -197,6 +197,12 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     "WedgeCheck": ("argued", "non-carriage with its falsifier, beside the declaration "
                    "in crates/topo/src/validate.rs; the carry is "
                    "work/lib/wedge-check-is-a-rung-under-sliver-dihedral.md"),
+    # Why the coincidence door's walk reached no construction (D10): carried
+    # where `Residual` is, through `document::coincide` (the module is
+    # re-exported whole), and said in Python by the residual's sentence.
+    "Unwalked": ("argued", "the coincidence door's vocabulary is `document::coincide`'s, "
+                           "re-exported whole; Python's `Coincidence.residual` says the "
+                           "arm, crates/pncad-py/src/py/value.rs (`Coincidence`)"),
 }
 
 # The same table for the CROSS-LIST set — a payload that IS curated, on no list

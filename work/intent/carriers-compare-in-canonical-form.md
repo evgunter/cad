@@ -67,3 +67,10 @@ records and the door). **Until stage 3, a solved pose is one opaque
 symbol per solve.** H (`placed-carriers-compare-through-their-frames`)
 becomes a measurement after stage 3 (does a mate-placed contact
 discharge as a theorem?) and a build only if it does not.
+
+**The discharge kind.** B's `topo::Coincidence` carries
+`discharge: Discharge`, which has only `Numeric` (orchestrator ruling on
+S4-B, 2026-10-08). This unit adds `Theorem(kind)` (the symbolic tier's
+`SymbolicZero`, `SignGated`, `Registered`) and threads it from
+`Decided` when it replays at `Sym`; `geom_core::Decided` carries no
+discharge today (`Sym::sign_within` computes `how` and drops it).

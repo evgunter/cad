@@ -4,6 +4,8 @@ kind: issue
 title: Tier 3′ does not see a vertex resting on a curved edge's interior: unrecorded, a corner on a circle off its vertex reads clean
 status: open
 opened: 2026-10-07
+priority: P3
+cost: M
 ---
 
 ## The finding

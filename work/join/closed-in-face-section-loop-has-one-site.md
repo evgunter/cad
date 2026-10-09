@@ -82,3 +82,32 @@ sites per section circle) builds it.
 ## Released from the D10 hold (2026-10-08)
 
 Nothing D10 changes gates this row, so it is open: undeclared fixture (germ_coplanar_conic.rs); the missing self-loop arm is the join's topology, which D10 keeps (only the REST-lane half retires at stage 4). (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## The original witness is transverse (branch `join/wrap-edge-section-loop`, 2026-10-08)
+
+At `872b33cc` the "strutted tube" of `germ_coplanar_conic.rs` revolves
+to ONE outer wall face: its profile vertex at `(1, 0)` leaves no circle
+edge at `ρ = 1`, `y = 0`. Both one-site loops of the fixture are
+therefore transverse wrap-edge crossings (the outer wall's seam at
+`(1, 0, 0)`, the inner wall's at `(0.5, 0, 0)`), and the boolean's
+wrap-edge arm (`a-plane-across-a-one-face-wall-meets-its-wrap-edge-once`)
+builds all three ops to their closed forms. The fixture is renamed
+"the box top across both tube walls" and the refusal row
+`a_closed_section_loop_with_one_site_refuses_typed` is deleted.
+
+The class this row names, a conic lying in the partner's face, is
+reached instead by the PR 4345 review's `F4d` fixture. It is pinned as
+`crates/sweep/tests/a_plane_across_a_one_face_wall.rs`
+`a_circle_edge_in_the_partners_face_refuses`:
+- the fixture is a bored tube whose outer wall turns from a cylinder to
+  a sphere at the circle `y = 0`, inside the box face `y = 0`;
+- every op in both orders refuses `SingleSiteSectionLoop { count: 1 }`:
+  the in-face circle refuses, and the inner wall's transverse crossing
+  builds.
+
+The arm takes a one-site record only where the site is a wrap edge of
+one operand's face and a pierce of the other's planar face. The
+in-face circle edge sits at its own site, so it keeps the refusal. The declared-REST lane, reached only when the
+join refuses, reads `section_segments` alone and does not see the arm's
+segments: a declared op whose join refuses for another reason with a
+one-site loop on it falls back to that join refusal, as before.
