@@ -2,11 +2,10 @@
 //!
 //! - every authored point lies on the final path (targets are
 //!   vertices bit-for-bit; anchors lie on their trimmed side);
-//! - the verify layer's two tangency refusals
-//!   (`UndeclaredTangency`/`TangencyContradicted`) are unreachable
-//!   from the typed surface: tangency enters only by construction
-//!   (declared flags are never claims about independently-typed
-//!   numbers), and the sign-domain doors that could fake a
+//! - the verify layer's tangency refusal (`TangencyContradicted`) is
+//!   unreachable from the typed surface: tangency enters only by
+//!   construction (constructed joints are never claims about
+//!   independently-typed numbers), and the sign-domain doors that could fake a
 //!   construction (negative leg length, non-positive fillet radius)
 //!   refuse typed at authoring. Other verify doors (simplicity,
 //!   degeneracy) still judge the SHAPE — the lattice guarantees the
@@ -2093,11 +2092,11 @@ fn curved_zero_turn_still_refuses() {
 /// The continuation row is CARRIER-BLIND, as the §2c axiom requires:
 /// it reads the tangent bit and nothing about the leg that produced
 /// it. Off an ARC that spelling authors a line tangent to the arc and
-/// declares nothing — a tangency between distinct carriers, which the
-/// DATA gate refuses. The declared spelling of the same geometry
-/// (`.tangent().line(len)`) passes, which is the whole difference.
+/// constructs the joint — a tangency between distinct carriers the
+/// gate verifies — exactly as the `.tangent().line(len)` spelling of
+/// the same geometry does.
 #[test]
-fn continuation_off_an_arc_is_undeclared_tangency_at_the_data_gate() {
+fn continuation_off_an_arc_is_a_constructed_tangency() {
     let semicircle = || {
         Open.at(Point2::new(-1.0, 0.0))
             .arc_to(

@@ -313,17 +313,13 @@ fn a_target_behind_the_departure_is_a_nonpositive_leg() {
 /// **Carrier-blind, as the §2c axiom requires**: the row reads the
 /// tangent and nothing about the leg that produced it, so off an
 /// ARC-carrier point the same spelling authors a line TANGENT to that
-/// arc and declares nothing. Legal to write here; refused at the DATA
-/// gate, where an undeclared tangency between distinct carriers is
-/// exactly what is caught. Declaring it is `.tangent()`'s job, and the
-/// declared spelling is a different verb.
+/// arc, and constructs that joint as it constructs a collinear one.
 ///
 /// The fixture makes the end tangent nameable: a quarter arc left off
 /// `+x` ends heading `+y`, so a target straight above the arc's end IS
-/// on the departing ray and the check passes — which is the point. The
-/// refusal that follows is the data gate's, not the algebra's.
+/// on the departing ray and the check passes — which is the point.
 #[test]
-fn a_continuation_off_an_arc_is_undeclared_tangency_at_the_data_gate() {
+fn a_continuation_off_an_arc_is_a_constructed_tangency() {
     use profile::{ArcSide, Sweep};
     use std::f64::consts::FRAC_PI_2;
     let t = Tol::witness();

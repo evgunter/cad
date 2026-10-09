@@ -1122,20 +1122,18 @@ transition_table! {
             /// than on two a round trip through the angle put a bit apart.
             /// (The ray is what is exact; the vertices it lands are ordinary
             /// sums and round like ordinary sums.) Binding bits
-            /// only: there is NO junction here (no authored direction exists to
-            /// classify, so nothing reaches the §4 item 1 check) and NOTHING is
-            /// declared. The minted vertex is a structural subdivision of the
-            /// carrier the binding bits already determine — a straight run said
-            /// on more vertices than it has corners, which is the loft
-            /// vertex-budget shape.
+            /// only: there is NO junction here to classify (no authored
+            /// direction exists, so nothing reaches the §4 item 1 check), and
+            /// the joint the leg mints is constructed tangent. The minted
+            /// vertex is a structural subdivision of the carrier the binding
+            /// bits already determine — a straight run said on more vertices
+            /// than it has corners, which is the loft vertex-budget shape.
             ///
             /// The row is carrier-blind, as the §2c axiom requires: it reads
             /// the tangent and nothing about the leg that produced it. Off an
             /// ARC-carrier point the same spelling therefore authors a line
-            /// tangent to that arc and declares nothing, which is a tangency
-            /// between DISTINCT carriers — legal to write here, refused at the
-            /// data gate ([`crate::ProfileError::UndeclaredTangency`]); declare
-            /// it with `.tangent()` instead.
+            /// tangent to that arc, a tangency between DISTINCT carriers the
+            /// row constructs exactly as it constructs a collinear one.
             ///
             /// `len` is gated definitely positive exactly as the directed row's
             /// is ([`PathError::NonpositiveLeg`]).
@@ -1225,10 +1223,8 @@ transition_table! {
             /// departure gets.
             ///
             /// Carrier-blind, as the §2c axiom requires — off an ARC-carrier
-            /// point this authors a line tangent to that arc and declares
-            /// nothing, legal to write and refused at the data gate
-            /// ([`crate::ProfileError::UndeclaredTangency`]), exactly as the
-            /// length form is.
+            /// point this authors a line tangent to that arc and constructs
+            /// the joint, exactly as the length form does.
             on [T: Decide] PartialPath<T, HasPos<WithIncoming>, NoAng>;
             fn continue_to [<Tgt: super::ContinueTarget<T>>(
                 self,

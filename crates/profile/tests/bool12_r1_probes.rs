@@ -169,15 +169,15 @@ fn r1_the_d_shape_rotations_cannot_swap_verbs() {
 /// consult the following carrier, so the first half is DELIBERATE: the
 /// lattice cannot see that the entry's first side is an arc, the
 /// declared-straight close therefore lands, and the DATA gate — the
-/// layer that owns materialized carriers — is what refuses it. This row
-/// pins that division of labour, then runs the recourse and requires it
-/// to close and validate.
+/// layer that owns materialized carriers — is what reads it. This row
+/// runs the recourse and requires it to close and validate with the
+/// seam constructed.
 ///
 /// Fixture: a quarter-circle fan. Entry (0,0); first side the CCW
 /// quarter arc about (0,1) to (1,1) — departing EAST; then west to
 /// (-1,1), south to (-1,0), and the closing line east into (0,0).
 #[test]
-fn r1_a_straight_arrival_into_an_arc_first_side_is_an_undeclared_tangency_at_the_gate() {
+fn r1_a_straight_arrival_into_an_arc_first_side_closes_constructed_and_validates() {
     let t = Tol::witness();
     let fan = |declared: bool| {
         let p = Open
