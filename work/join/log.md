@@ -1302,3 +1302,20 @@ Signed (JOIN orchestrator).
 - **[ev] PR 4335:** Ev asked whether the census needs more than a definite minimum distance per pair. Answered: the minimum says whether two cells meet; a shared corner also needs the extent of the in-band set, which stands in for the dimension of where they meet. A clause reword is offered, not pushed.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-09: the sphere-pair unit landed (DR-114)
+
+- **PR 4344 merged** (`5f42bf7bd9`): two spheres that cross in a circle no edge reaches now build.
+  - A closed ball is re-charted along the centre line, the two seams a quarter turn apart, so the radical-plane join mints the circle once.
+  - Trimmed groups and non-parallel multi-cuts take a meridian cut-in, with `merge_skipped` recorded.
+  - `SpheresMeet` is now only the decided-zero touch.
+- **Dual review DR-114.** Two APPROVE-WITH-FIXES (1/4/6 and 0/6/4). BILATERAL 13, tally 0. R1's MAJOR (the cut-in's bodies do not tessellate) is bilateral with R2's MINOR. Nearest miss: R2's sliver that is not a legal operand (filed on CLEAVE). Fair pairs that found any MAJOR: 52.
+- **Route.** The orchestrator ruled on the reviews: (ii) with (i)'s pins.
+  - The quarter turn costs nothing on any class, but does not cure the `Interval` witness. The re-charted ball's seam meridians hold the partner's centre.
+  - Pinned as typed refusals: the `Interval` witness (`Escalated`), the r 50 inside-tangency union (`VolumeUncomputable`), a trimmed ball cut 1e-7 from its pole (`ArcNearPole`), and the two-axis plane escape (`FallbackExtentUnsupported`).
+  - Main refused every class with `SpheresMeet`.
+  - The cut-in classes do not mesh. That is TESS's P0, with evidence on its row.
+- **Batteries:** `pierce_runs_battery` and seven `rc_wide` shards, 7 896 lines, 0 moved. The merge with PR 4345 resolved `.config/nextest.toml` and `differential.rs` as unions. Both PRs' 71 rows pass on the merged tree.
+- `a-sphere-crossing-a-sphere-face-off-every-edge-refuses-spheres-meet` is closed.
+
+Signed (JOIN orchestrator).
