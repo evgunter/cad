@@ -3,6 +3,7 @@ id: VERBS-CONE
 kind: issue
 title: cone and torus operand lanes
 status: dispatched
+branch: germ/cone-roster-flip
 opened: 2026-08-21
 refs: [1604, VERBS-C5ARMS]
 priority: P0
@@ -110,3 +111,13 @@ offset taken through `square_to` at every arm (the dual pair's bilateral
 MAJOR, DR-117). The witness is checked against the plane's carrier, and
 the search samples down into the band. Still owed before U7: the cone
 sector units U-S1..U-S4 (`docs/GERM-CONE-SECTOR-SPEC.md`).
+
+**2026-10-09, U7 (the roster flip).** `Cone` is on `boolean_arm_exists`
+and `revert_arm_exists`. Measured on the flip, every op of the spec's
+fixtures builds its closed form (P9, P6, P4, P2a, P10, P5, P7, the
+3π/2 cone's gap brick, P8, and the cone sector spec's C1) or refuses
+typed: P3 naming the hyperbola, P1 and P2 at the cone × cylinder frame,
+and the held configurations (a tangent plane, a cone sector on the cone
+face) at the crossing layer. No body is wrong. P3 against the mutant
+"U1's guard reverted" returns valid wrong bodies, and its row is red
+there.

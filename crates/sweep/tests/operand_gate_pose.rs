@@ -1,8 +1,8 @@
 //! **Whether a pair may meet is a fact about the pair, not its pose.**
 //!
-//! Each fixture below is two operands with an unarmed face (a cone
-//! wall, which no op has an arm for; an `Approx` cap, which none
-//! admits) clear of a planar operand, turned TOGETHER through a set of
+//! Each fixture below is two operands with a curved face (a cone wall;
+//! an `Approx` cap, which no op admits) clear of a planar operand,
+//! turned TOGETHER through a set of
 //! rigid poses and scales. Every pose gets the same verdict: every op,
 //! in both orders, builds, and weighs what the disjoint operands'
 //! closed forms say — the cone frustum's `π∫(r_out² − r_in²) dy`, the
@@ -11,8 +11,9 @@
 //! verdict read off world-axis box overlap alone flips with the pose.
 //!
 //! The twin that must NOT clear: the same cone with the bar through
-//! its wall refuses at every pose, under every op, at the up-front
-//! gate. A pair cleared that touches would be a wrong body.
+//! its wall refuses at every pose, under every op, naming the
+//! hyperbola the bar's axis-parallel faces cut. A pair cleared that
+//! touches would be a wrong body.
 //!
 //! The ball rows hold the extent scan's section circle to its own
 //! extent: a brick beside a ball whose face carriers cut the sphere in
@@ -26,7 +27,7 @@ use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::brick;
 use sweep::{Revolution, RevolveAxis, revolve};
-use topo::{AtRestBody, Body, BooleanError, BooleanResult, PairRefusalSite};
+use topo::{AtRestBody, Body, BooleanError, BooleanResult};
 
 use crate::common::approx::box_with_approx_cap;
 
@@ -223,35 +224,22 @@ fn a_bar_through_the_cone_wall_refuses_at_every_pose() {
                 posed("the frustum", &cone, &map, tol),
                 posed("the bar", &bar, &map, tol),
             );
-            for (op, out, site) in [
-                ("∪", topo::union(&a, &b, tol), PairRefusalSite::OperandGate),
-                (
-                    "∩",
-                    topo::intersect(&a, &b, tol),
-                    PairRefusalSite::RevertRoster,
-                ),
-                (
-                    "a ∖ b",
-                    topo::subtract(&a, &b, tol),
-                    PairRefusalSite::RevertRoster,
-                ),
-                (
-                    "b ∖ a",
-                    topo::subtract(&b, &a, tol),
-                    PairRefusalSite::RevertRoster,
-                ),
+            for (op, out) in [
+                ("∪", topo::union(&a, &b, tol)),
+                ("∩", topo::intersect(&a, &b, tol)),
+                ("a ∖ b", topo::subtract(&a, &b, tol)),
+                ("b ∖ a", topo::subtract(&b, &a, tol)),
             ] {
                 assert!(
                     matches!(
                         out,
-                        Err(BooleanError::CurvedPairUnsupported {
-                            site: got,
-                            kind: geom::SurfaceKind::Cone,
+                        Err(BooleanError::GermSectionOutsideInventory {
+                            conic: geom_brep::OutsideConic::Hyperbola,
                             ..
-                        }) if got == site
+                        })
                     ),
-                    "{label}, {op}: the bar meets the cone wall, so the pair refuses up front \
-                     at {site:?}: {:?}",
+                    "{label}, {op}: the bar's faces parallel to the axis cut the cone wall \
+                     in hyperbolas, refused by decision: {:?}",
                     out.map(|r| r.body().is_some())
                 );
             }

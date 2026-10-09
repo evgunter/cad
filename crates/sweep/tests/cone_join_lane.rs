@@ -1,14 +1,11 @@
-//! **The plane × cone join lane**, run on whole poses below the operand
-//! gate: the germ-pair dispatch's plane × cone arms and the planar side's
-//! chord, behind the plane × cone germ frame.
+//! **The plane × cone join lane**, run on whole poses: the germ-pair
+//! dispatch's plane × cone arms and the planar side's chord, behind the
+//! plane × cone germ frame.
 //!
-//! The boolean still refuses a cone operand at its pair gate
-//! (`reach_cone_root_lane.rs` pins that), so these rows reach the join
-//! through `topo::join_admitting_cones` (`sweep-testing`), which runs
-//! the production pipeline with the cone on the gate's roster and stops
-//! after the join. The interior-loop guard decides every cone pair
-//! `Intractable` until its section certificate has cone rows, so each
-//! pose's verdict there is the guard's refusal, and the rows say so. The
+//! These rows reach the join through `topo::join_admitting_cones`
+//! (`sweep-testing`), which runs the production pipeline and stops after
+//! the join. The section certificate's cone rows clear every pose's
+//! sections, so the interior-loop guard passes, and the rows say so. The
 //! join's output is pinned by the chords it minted in both operands:
 //! every new conic edge is the closed-form section, carried by the
 //! cutting plane and by the cone (the operand's own face on its side,
@@ -30,7 +27,7 @@ use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop};
 use sweep::test_support::{brick, finished};
 use sweep::{Revolution, revolve};
-use topo::{AtRestBody, Body, BooleanError, BooleanOp, ConeJoin, PairRefusalSite};
+use topo::{AtRestBody, Body, BooleanError, BooleanOp, ConeJoin};
 
 /// The widening frustum: radius `0.5 → 1` over `y ∈ [0, 1]`, so apex
 /// `(0, −1, 0)`, axis `+y`, `tan α = 1/2`.
@@ -91,8 +88,8 @@ const OPS: [(BooleanOp, bool); 6] = [
 ];
 
 /// The pose joined under `op`: the cone's operand and the other's as the
-/// join leaves them, after holding the interior-loop guard's verdict to
-/// its cone refusal.
+/// join leaves them, after holding the interior-loop guard to its
+/// clearance.
 fn joined(
     label: &str,
     cone: &Body<f64>,
@@ -112,16 +109,8 @@ fn joined(
         .unwrap_or_else(|e| panic!("{label}: the join refused {e:?}"))
         .unwrap_or_else(|| panic!("{label}: answered without a join"));
     assert!(
-        matches!(
-            interior_loops,
-            Err(BooleanError::CurvedPairUnsupported {
-                site: PairRefusalSite::InteriorLoopGuard,
-                kind: geom::SurfaceKind::Cone,
-                ..
-            })
-        ),
-        "{label}: the interior-loop guard refuses the cone pair until its certificate \
-         has cone rows, got {interior_loops:?}"
+        interior_loops.is_ok(),
+        "{label}: the certificate's cone rows clear every section, got {interior_loops:?}"
     );
     if cone_first { (a, b) } else { (b, a) }
 }

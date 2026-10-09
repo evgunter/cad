@@ -491,9 +491,14 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   no arm refuses typed `CurvedBooleanUnsupported` /
   `CurvedPairUnsupported` naming the pair, never falling through to a
   containment verdict a curved boundary can defeat. The wired germ join
-  arms are plane×cylinder and plane×sphere (`boolean::join`'s dispatch);
-  sphere×sphere and the coaxial (sphere centre on the cylinder axis) cylinder×sphere have section
-  frames but no join arm; cone and torus operands refuse. The curved
+  arms are a plane against a plane, cylinder, sphere or cone, and two
+  spheres or two parallel cylinders along their radical plane
+  (`boolean::join`'s dispatch); a plane cuts a cone in a parabola or a
+  hyperbola only outside the conic inventory, and that pair refuses
+  naming the conic. Cone and torus operands answer where their face
+  pairs are certified with no event on them; every other curved pair
+  with an event on it refuses typed at its section frame or at the
+  join. The curved
   extent test refuses typed `NurbsExtentUnsupported` on NURBS faces — a
   certified extent needs a foot point plus a bound on the patch's
   reach past it, a derivation not yet written (C12.1).
@@ -596,7 +601,8 @@ and (b) the SSI generic-`T` lift are discharged and keep no entry):
   is the C5 table's cyl×sphere arm for the chord's carrier
   (`chord_join::section_case` has no curved×curved arm) and a frame for
   the germs' rotational-sense test (`boolean::join::pair_section_frame`).
-  Sphere×sphere seams, cone and torus operands refuse alongside it.
+  Every cone pair but plane × cone, and every torus pair, refuses at the
+  join alongside it.
 - **(e) the NURBS extent test** — `NurbsExtentUnsupported`, above.
 - **(f) the canal-surface general blend** — an approximating surface
   for fillet chains whose rolling-ball spine is neither a line nor a

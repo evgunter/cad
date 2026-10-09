@@ -181,12 +181,13 @@ impl ContactAcc {
 /// carrier-identity rung, the certified line×torus quartic, the chart
 /// containment, and the sector and pierce normals) and `Nurbs` (the
 /// plane×NURBS arm, routed structurally so PR 7b's flag flip alone
-/// makes it live). Pair-level refusals fire at the sites that
-/// EXERCISE an arm (the sweep's crossing lanes, the join's section
-/// table), citing the C5 routing. `Cone` has a crossing lane (the
-/// certified line × cone quadratic and the conic × quadric door's cone
-/// arm) and no sector arm (`sectors::sector_face`), so no op can finish
-/// on one: it is the kind [`gate_operand_pairs`] tests boxes for.
+/// makes it live) and `Cone` (the certified line × cone quadratic and
+/// circle × cone roots, the apex-closed containment, the section
+/// certificate's cone rows, the sector and pierce normals, and the
+/// plane × cone germ frame and join). Pair-level refusals fire at the
+/// sites that EXERCISE an arm (the sweep's crossing lanes, the join's
+/// section table), citing the C5 routing: a cone against a conic the
+/// inventory excludes, or a partner with no frame, refuses there.
 ///
 /// **`Approx` is absent by DECISION, not by gap.** Its fit is a
 /// `Nurbs`, which is on the roster, so admitting it on the fitted
@@ -203,6 +204,7 @@ pub(super) fn boolean_arm_exists<T: Decide>(surface: &geom::Surface<T>) -> bool 
             | geom::Surface::Cylinder { .. }
             | geom::Surface::Sphere { .. }
             | geom::Surface::Torus { .. }
+            | geom::Surface::Cone { .. }
             | geom::Surface::Nurbs(_)
     )
 }
@@ -224,6 +226,7 @@ pub(super) fn revert_arm_exists<T: Decide>(surface: &geom::Surface<T>) -> bool {
             | geom::Surface::Cylinder { .. }
             | geom::Surface::Sphere { .. }
             | geom::Surface::Torus { .. }
+            | geom::Surface::Cone { .. }
     )
 }
 
@@ -383,10 +386,9 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
 /// by the validator's own verdict, with supported edge carriers. Then
 /// two rules, with different scopes on purpose:
 ///
-/// - **Faces**: a kind off the face-kind `roster` — [`boolean_arm_exists`]
-///   in production; the `sweep-testing` door that reaches the cone's
-///   crossing lane adds `Cone` ([`super::sweep_split_admitting_cones`]) —
-///   disqualifies the operation only through a PAIR it could enter
+/// - **Faces**: a kind off the face-kind `roster` — [`boolean_arm_exists`],
+///   or [`revert_arm_exists`] at the ∖/∩ front door — disqualifies the
+///   operation only through a PAIR it could enter
 ///   ([`first_unsupported_pair`]) and that the caller's declarations
 ///   do not cover. A torus wall whose box clears the other operand
 ///   does not gate anything, and neither does one whose contact with

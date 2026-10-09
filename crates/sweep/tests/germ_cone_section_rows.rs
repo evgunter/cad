@@ -2,17 +2,16 @@
 //! level: the preview cone of `docs/GERM-VERBS-CONE-SPEC.md` §0 against
 //! its fixtures, and a seamed frustum against a tilted slab.
 //!
-//! The operand gate keeps every cone pair off the operations until the
-//! roster flips (and past it the sector algebra has no cone arm), so the
-//! rows read the certificate directly: on the crossings path with the
-//! events of the cone's root lane (`topo::section_report_admitting_cones`,
-//! behind `sweep-testing`), and on the no-crossings path
+//! The rows read the certificate directly: on the crossings path with
+//! the events of the cone's root lane
+//! (`topo::section_report_admitting_cones`, behind `sweep-testing`), and
+//! on the no-crossings path
 //! (`topo::test_support::no_crossings_section_report`), each pair with
 //! the cone face, its components cleared or refused with no event
 //! anywhere. A W1 or W2 clearance holds whatever the crossing layer
 //! finds; W3 and the no-event decision are what the pass answers when it
-//! finds nothing. No op returns a body with a cone operand yet, so there
-//! is no body to measure.
+//! finds nothing. The bodies the ops return on these fixtures are
+//! measured in `cone_operand_rows.rs`.
 //!
 //! The preview cone is the triangle `(0,0) (1,0) (0,1)` revolved fully
 //! about `y`, merged to one cone face: apex `(0, 1, 0)`, lateral face

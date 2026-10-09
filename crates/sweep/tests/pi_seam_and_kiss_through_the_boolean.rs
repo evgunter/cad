@@ -1070,17 +1070,24 @@ fn a_cap_abutting_on_the_rim_refuses_at_a_graze_or_as_an_undeclared_continuation
     }
     let cone = frustum_on_the_cap();
     let cap_c = planes_at_z(&cone, H);
+    // The frustum's base circle is the tube's rim: a parallel lying ON
+    // the cone and on the tube's wall at once, which the circle × cone
+    // lane reads as its coaxial Zero, the door. An abutment is a
+    // contact, so it stays a refusal; the refused edge is that circle.
     for class in [None, Some(BooleanCoincidence::REST)] {
-        for e in union_both_orders(&tube, &cone, &cap_t, &cap_c, class) {
+        let [ab, ba] = union_both_orders(&tube, &cone, &cap_t, &cap_c, class);
+        for (order, e, (a, b)) in [(0, ab, (&tube, &cone)), (1, ba, (&cone, &tube))] {
+            let BooleanError::CurvedPierceUnsupported { edge, operand, .. } = e else {
+                panic!("frustum, discs {class:?}, order {order}: the crossing layer: {e:?}");
+            };
+            let owner = match operand {
+                topo::Operand::A => a,
+                topo::Operand::B => b,
+            };
             assert!(
-                matches!(
-                    e,
-                    BooleanError::CurvedPairUnsupported {
-                        kind: SurfaceKind::Cone,
-                        ..
-                    }
-                ),
-                "frustum, discs {class:?}: the operand gate's refusal: {e:?}"
+                matches!(carrier_of(owner, edge), geom::Curve3::Circle { .. }),
+                "frustum, discs {class:?}, order {order}: the rim circle: {:?}",
+                carrier_of(owner, edge)
             );
         }
     }

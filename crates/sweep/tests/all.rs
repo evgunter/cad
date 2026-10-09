@@ -103,6 +103,8 @@ mod bool6r1_probes_interval;
 mod carved_sphere_operand;
 #[path = "cone_join_lane.rs"]
 mod cone_join_lane;
+#[path = "cone_operand_rows.rs"]
+mod cone_operand_rows;
 #[path = "cylinder_sphere_frame.rs"]
 mod cylinder_sphere_frame;
 #[path = "four_crossings_on_one_section_circle.rs"]
