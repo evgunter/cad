@@ -725,7 +725,10 @@ fn simulate_decomposition(name: &str, kv: &KnotVector, extra: &[f64]) {
                 *v > knots[p] && *v < knots[knots.len() - p - 1],
                 "{name}: step {step} would reach insert_once_ring's unreachable! at {v}"
             );
-            let k = cur.span_at(*v).expect("an interior knot is a number").index();
+            let k = cur
+                .span_at(*v)
+                .expect("an interior knot is a number")
+                .index();
             assert_eq!(
                 k,
                 retired_linear_span(&knots, *v),

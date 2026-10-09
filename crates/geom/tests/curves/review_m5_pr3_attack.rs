@@ -561,10 +561,18 @@ fn f7_span_at_fuzz_locates_every_number() {
             f64::MIN_POSITIVE,
         ] {
             let Some(s) = kv.span_at(t).map(|s| s.index()) else {
-                assert!(t.is_nan(), "span_at refused the number {t} — {}", fuzz::replay());
+                assert!(
+                    t.is_nan(),
+                    "span_at refused the number {t} — {}",
+                    fuzz::replay()
+                );
                 continue;
             };
-            assert!(!t.is_nan(), "span_at(NaN) located span {s} — {}", fuzz::replay());
+            assert!(
+                !t.is_nan(),
+                "span_at(NaN) located span {s} — {}",
+                fuzz::replay()
+            );
             assert!(s >= kv.first_span() && s <= kv.last_span());
             assert!(
                 kv.span_is_nonempty(s),

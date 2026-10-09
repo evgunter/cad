@@ -328,7 +328,10 @@ fn a_projected_net_image_boxes_a_nai_end_as_poison() {
         u_ref: Vec3::new(lift(1.0), lift(0.0), lift(0.0)),
     };
     let image = chart_pcurve(&carrier, &plane, band()).unwrap();
-    assert!(matches!(image, Pcurve::Projected(_)), "the fixture is a projected net: {image:?}");
+    assert!(
+        matches!(image, Pcurve::Projected(_)),
+        "the fixture is a projected net: {image:?}"
+    );
     let certified = |b: geom_brep::ChartWindow<Interval>| {
         [b.u_min, b.u_max, b.v_min, b.v_max]
             .iter()
@@ -342,7 +345,9 @@ fn a_projected_net_image_boxes_a_nai_end_as_poison() {
         ("NaI end", image.chart_box(lift(0.0), nai)),
     ] {
         assert!(
-            [b.u_min, b.u_max, b.v_min, b.v_max].iter().all(|x| x.is_poison()),
+            [b.u_min, b.u_max, b.v_min, b.v_max]
+                .iter()
+                .all(|x| x.is_poison()),
             "{name}: {b:?}"
         );
     }

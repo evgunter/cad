@@ -530,7 +530,12 @@ impl ChartSpeeds {
 /// box over a window is minted here, before anything clamps it to the
 /// domain, because a clamp turns an inverted window past a domain end
 /// into an ordered point.
-pub(crate) fn ordered_window(u0: f64, u1: f64, v0: f64, v1: f64) -> Option<(ParamRange, ParamRange)> {
+pub(crate) fn ordered_window(
+    u0: f64,
+    u1: f64,
+    v0: f64,
+    v1: f64,
+) -> Option<(ParamRange, ParamRange)> {
     Some((ParamRange::new(u0, u1)?, ParamRange::new(v0, v1)?))
 }
 
@@ -1532,8 +1537,14 @@ mod tests {
     fn an_inverted_window_past_the_domain_is_not_a_window() {
         let s = multiplicity_2_patch();
         let b = NurbsBoxes::new(&s);
-        assert!(ordered_window(1.5, 1.2, 0.0, 1.0).is_none(), "inverted past hi");
-        assert!(ordered_window(-0.2, -0.5, 0.0, 1.0).is_none(), "inverted past lo");
+        assert!(
+            ordered_window(1.5, 1.2, 0.0, 1.0).is_none(),
+            "inverted past hi"
+        );
+        assert!(
+            ordered_window(-0.2, -0.5, 0.0, 1.0).is_none(),
+            "inverted past lo"
+        );
         let (u, v) = ordered_window(1.2, 1.5, 0.0, 1.0).expect("ordered");
         let x = b.rect_box(u, v);
         assert!(

@@ -87,7 +87,10 @@ mod tests {
     fn only_a_certified_enclosure_mints_a_certified_range() {
         let r = ParamRange::certified(Interval::from_bounds(0.25, 0.75)).expect("certifies");
         assert_eq!((r.lo(), r.hi()), (0.25, 0.75));
-        assert!(ParamRange::certified(Interval::from_f64(f64::NAN)).is_none(), "NaI");
+        assert!(
+            ParamRange::certified(Interval::from_f64(f64::NAN)).is_none(),
+            "NaI"
+        );
         let empty = Interval::from_bounds(-2.0, -1.0).sqrt();
         assert!(ParamRange::certified(empty).is_none(), "empty");
         // `sqrt([-1, 4]) = [0, 2]` is a bracket that does not certify.
@@ -104,7 +107,11 @@ mod tests {
             (r.lo(), r.hi())
         };
         assert_eq!(clamp(-1.0, 1.0), (0.0, 1.0));
-        assert_eq!(clamp(4.0, 5.0), (3.0, 3.0), "past the upper end: that end's point");
+        assert_eq!(
+            clamp(4.0, 5.0),
+            (3.0, 3.0),
+            "past the upper end: that end's point"
+        );
         assert_eq!(clamp(-5.0, -4.0), (0.0, 0.0), "past the lower end");
         assert_eq!(clamp(f64::NEG_INFINITY, f64::INFINITY), (0.0, 3.0));
     }

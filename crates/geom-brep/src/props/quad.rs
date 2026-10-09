@@ -1285,7 +1285,12 @@ fn raw_eval(knots: &[f64], degree: usize, coeffs: &[Interval], t: f64) -> Interv
 /// Hull of a [`Dir::Raw`] spline over `range`: the local control
 /// blocks of every touched span (the same convexity fact
 /// [`range_hull`] uses).
-fn raw_range_hull(knots: &[f64], degree: usize, coeffs: &[Interval], range: ParamRange) -> Interval {
+fn raw_range_hull(
+    knots: &[f64],
+    degree: usize,
+    coeffs: &[Interval],
+    range: ParamRange,
+) -> Interval {
     if coeffs.len() < degree + 1 {
         return Interval::refused();
     }
@@ -1659,7 +1664,11 @@ fn certified_box(bu: Interval, bv: Interval) -> Option<(Collapse<'static>, Colla
 
 /// The hull a refused window answers, per component.
 fn refused_vec() -> RVec3 {
-    [Interval::refused(), Interval::refused(), Interval::refused()]
+    [
+        Interval::refused(),
+        Interval::refused(),
+        Interval::refused(),
+    ]
 }
 
 /// The zero-or-collapse read of an optional (derivative) grid.
@@ -7291,16 +7300,27 @@ mod tests {
         let coeffs: Vec<Interval> = (0..5).map(|i| pt(f64::from(i))).collect();
         let first = ParamRange::certified(Interval::from_bounds(0.25, 0.5)).unwrap();
         let h = range_hull(&kv, &coeffs, first);
-        assert_eq!((h.lo(), h.hi()), (0.0, 2.0), "CONTROL: the first span's hull");
+        assert_eq!(
+            (h.lo(), h.hi()),
+            (0.0, 2.0),
+            "CONTROL: the first span's hull"
+        );
         let whole = ParamRange::certified(Interval::from_bounds(0.0, 3.0)).unwrap();
         let h = range_hull(&kv, &coeffs, whole);
-        assert_eq!((h.lo(), h.hi()), (0.0, 4.0), "CONTROL: the whole domain's hull");
+        assert_eq!(
+            (h.lo(), h.hi()),
+            (0.0, 4.0),
+            "CONTROL: the whole domain's hull"
+        );
         let good = Interval::from_bounds(0.0, 3.0);
         for (name, bad) in [
             ("refused", Interval::refused()),
             ("Trv", Interval::from_bounds(-1.0, 4.0).sqrt()),
         ] {
-            assert!(ParamRange::certified(bad).is_none(), "{name}: minted a window");
+            assert!(
+                ParamRange::certified(bad).is_none(),
+                "{name}: minted a window"
+            );
             assert!(certified_box(bad, good).is_none(), "{name} u: minted a box");
             assert!(certified_box(good, bad).is_none(), "{name} v: minted a box");
         }
@@ -7319,18 +7339,34 @@ mod tests {
         let knots = kv.knots().to_vec();
         let dirs = [
             ("Kv", Dir::Kv(kv)),
-            ("Raw", Dir::Raw { knots: knots.clone(), degree: 2 }),
+            (
+                "Raw",
+                Dir::Raw {
+                    knots: knots.clone(),
+                    degree: 2,
+                },
+            ),
             ("Const", Dir::Const { knots }),
         ];
         let t = pt(0.5);
         for (name, dir) in &dirs {
             let at = |op| PatchGrid::collapse_1d(dir, &coeffs, op);
-            assert!(at(Collapse::At(0.5)).is_certified(), "CONTROL {name}: a point certifies");
+            assert!(
+                at(Collapse::At(0.5)).is_certified(),
+                "CONTROL {name}: a point certifies"
+            );
             for bad in [f64::NAN, f64::INFINITY] {
-                assert!(!at(Collapse::At(bad)).is_certified(), "{name}: At({bad}) certified");
+                assert!(
+                    !at(Collapse::At(bad)).is_certified(),
+                    "{name}: At({bad}) certified"
+                );
             }
             assert!(
-                !at(Collapse::AtSpan { mid: f64::NAN, t: &t }).is_certified(),
+                !at(Collapse::AtSpan {
+                    mid: f64::NAN,
+                    t: &t
+                })
+                .is_certified(),
                 "{name}: AtSpan at a NaN mid certified"
             );
         }

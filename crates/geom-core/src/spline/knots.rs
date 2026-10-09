@@ -735,7 +735,8 @@ impl KnotVector {
     /// evaluates the span's polynomial extension — the documented
     /// garbage-out contract of `eval_in_span`).
     pub fn span_at(&self, t: f64) -> Option<Span<'_>> {
-        self.span_offset(t).map(|first_control| self.span_from_offset(first_control))
+        self.span_offset(t)
+            .map(|first_control| self.span_from_offset(first_control))
     }
 
     /// [`KnotVector::span_at`] for a value whose type already rules NaN
@@ -1420,7 +1421,11 @@ mod tests {
                 // them separate bodies reds here; it is not this row's
                 // evidence, which is the oracle above.
                 if let Some(u) = k.interior_knot(t) {
-                    assert_eq!(got, find_span_in(&knots, p, u), "p{p} at {t}: the two doors diverged");
+                    assert_eq!(
+                        got,
+                        find_span_in(&knots, p, u),
+                        "p{p} at {t}: the two doors diverged"
+                    );
                 }
                 // The documented divergence, where it applies.
                 if t >= hi {

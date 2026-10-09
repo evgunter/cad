@@ -105,7 +105,11 @@ fn interval_locates_a_span_range_in_a_default_build() {
     assert!(!trv.is_certified(), "the fixture is a Trv enclosure");
     assert_eq!(indices(trv), Some((2, 3)), "a Trv [0, 2] stopped locating");
     // Poison has no bracket, so it locates nothing.
-    assert_eq!(indices(Interval::from_f64(f64::NAN)), None, "NaI located a span");
+    assert_eq!(
+        indices(Interval::from_f64(f64::NAN)),
+        None,
+        "NaI located a span"
+    );
     let empty = Interval::from_bounds(-2.0, -1.0).sqrt();
     assert_eq!(indices(empty), None, "an empty enclosure located a span");
 }

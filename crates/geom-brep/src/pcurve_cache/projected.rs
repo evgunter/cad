@@ -1573,7 +1573,9 @@ pub(super) fn projected_envelope<T: Decide>(
         )
     };
     let Some((lo, hi)) = image.overlapped(t0, t1) else {
-        return Err(refuse("an end of the interval is poison and meets no piece"));
+        return Err(refuse(
+            "an end of the interval is poison and meets no piece",
+        ));
     };
     let met: Vec<usize> = (lo..=hi).collect();
     // ---- Incidence, raw fidelity and the radial floor. ----

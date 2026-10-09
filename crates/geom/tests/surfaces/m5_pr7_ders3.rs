@@ -214,6 +214,9 @@ fn window_at_locates_every_number_and_evaluation_stays_finite_in_domain() {
     }
     // In the domain the answer is genuinely finite — the totality above
     // is not being bought with universal poison.
-    let j = s.window_at(0.3, 0.6).expect("numeric parameters").ders3_in_span(0.3, 0.6);
+    let j = s
+        .window_at(0.3, 0.6)
+        .expect("numeric parameters")
+        .ders3_in_span(0.3, 0.6);
     assert!(j.jet.point.x.is_finite() && j.duuu.z.is_finite());
 }

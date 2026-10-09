@@ -514,7 +514,11 @@ fn a_poison_parameter_evaluates_to_poison_in_every_channel() {
     let d = nd.deriv(t);
     assert!(all_nan([d.x, d.y, d.z]), "deriv at NaN: {d:?}");
     let (q, q1, q2) = nd.ders(t);
-    for (name, v) in [("point", [q.x, q.y, q.z]), ("d1", [q1.x, q1.y, q1.z]), ("d2", [q2.x, q2.y, q2.z])] {
+    for (name, v) in [
+        ("point", [q.x, q.y, q.z]),
+        ("d1", [q1.x, q1.y, q1.z]),
+        ("d2", [q2.x, q2.y, q2.z]),
+    ] {
         assert!(all_nan(v), "ders at NaN, {name}: {v:?}");
     }
     let ci = NurbsCurve3::new(
@@ -524,5 +528,8 @@ fn a_poison_parameter_evaluates_to_poison_in_every_channel() {
     )
     .unwrap();
     let pi = ci.eval(Interval::from_f64(f64::NAN));
-    assert!(pi.x.is_poison() && pi.y.is_poison() && pi.z.is_poison(), "eval at NaI: {pi:?}");
+    assert!(
+        pi.x.is_poison() && pi.y.is_poison() && pi.z.is_poison(),
+        "eval at NaI: {pi:?}"
+    );
 }
