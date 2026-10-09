@@ -10,11 +10,11 @@
 
 use pncad::authoring::{p2, validated};
 use pncad::geom::Surface;
-use pncad::geom_core::{Point2, Tol, Vec2};
+use pncad::geom_core::{Point2, Point3, Tol, Vec2};
 use pncad::prelude::{ArcSweep, BlendError, Center, ConstructedLoop, Open, SketchPlane, Start};
 use pncad::prelude::{fillet_edges, mass_properties, subtract, validate_geometric};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
-use pncad::topo::{AtRestBody, Body, EdgeKey};
+use pncad::topo::{AtRestBody, Body, EdgeKey, SolidContainment};
 
 #[path = "common/rim_select.rs"]
 mod rim_select;
@@ -291,23 +291,40 @@ fn p3_the_boundary_refusal_names_the_split_exactly_when_it_is_splittable() {
     }
 }
 
-/// **P4 — the mixed (ladder + annulus) arm's unreachability, measured
-/// independently.** The PR claims the only public construction of a
-/// plane face carrying both a pip ring and a revolution-wall cycle is a
-/// boolean of a ball against a revolve, and that the operand gate
-/// refuses it first. This probe drives exactly that on the vase's top
-/// annulus and records the refusal kind — so the fence's premise is
-/// pinned rather than asserted.
+/// **P4 — the mixed (ladder + annulus) support is publicly
+/// reachable.** A ball subtracted into the vase's top annulus mints a
+/// plane face carrying both a pip ring and a revolution-wall cycle.
+/// It used to refuse at the operand gate on the vase's cone faces; with
+/// the cone on the boolean's roster it builds, and the body is the
+/// closed form: the vase less the half ball below its top. The blend
+/// gate's mixed arm (`shared_support_gate`) is already rowed on the
+/// dome-topped boss (`ring_clearance_forms`).
 #[test]
-fn p4_no_public_door_builds_a_mixed_ladder_and_annulus_support() {
+fn p4_a_ball_subtracted_into_a_revolves_cap_builds_its_closed_form() {
     let vase = AtRestBody::validate(vase(), tol()).expect("the vase is a finished body");
-    let out = subtract(&vase, &ball(0.45, 1.8, 0.08), tol());
-    match out {
-        Ok(_) => panic!(
-            "a ball subtracted into a revolve's cap BUILT — the mixed ladder+annulus \
-             support is reachable and the gate's mixed arm needs a row"
-        ),
-        Err(e) => println!("   [blend2-r1] ball into a revolve cap refuses: {e:?}"),
+    let out = subtract(&vase, &ball(0.45, 1.8, 0.08), tol())
+        .expect("a ball subtracted into the vase's top annulus builds");
+    let body = &out.body().expect("material remains").body;
+    validate_geometric(body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
+    let got = mass_properties(body, tol())
+        .expect("mass properties")
+        .volume;
+    // The vase by Pappus over its meridian, less the half ball.
+    let want = 1.4135 * core::f64::consts::PI - 2.0 / 3.0 * core::f64::consts::PI * 0.08f64.powi(3);
+    assert!(
+        (got - want).abs() <= 1e-9,
+        "the vase less the half ball: {got} against {want}"
+    );
+    let band = pncad::prelude::Band::linear(tol()).expect("the band");
+    for (q, want) in [
+        (Point3::new(0.45, 1.76, 0.0), SolidContainment::Out), // the dimple
+        (Point3::new(0.45, 1.6, 0.0), SolidContainment::In),   // under it
+        (Point3::new(0.6, 1.75, 0.0), SolidContainment::In),   // beside it
+        (Point3::new(0.1, 1.0, 0.0), SolidContainment::Out),   // the bore
+    ] {
+        let got = pncad::topo::point_in_solid(body, q, band, tol())
+            .unwrap_or_else(|e| panic!("point_in_solid at {q:?} refused {e:?}"));
+        assert_eq!(got, want, "at {q:?}");
     }
 }
 

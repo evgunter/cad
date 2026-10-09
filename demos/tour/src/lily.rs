@@ -2313,61 +2313,36 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    both stored carriers. There is no transverse curve here to
     //    have a closed form for.
     //
-    //    What refuses FIRST is the OPERAND GATE, on KINDS: `op: None`
-    //    is `gate_operand_pairs` (boolean/reduce.rs), which asks
-    //    whether a boolean arm exists for the pair and lets boxes
-    //    decide only whether the pair can matter. It reads kinds,
-    //    never loci — so it cannot see the coincidence.
-    //
-    //    **What BINDS is further down, and it is not this pair's
-    //    business at all.** The whole sequence is measured by
-    //    `review_probes::the_declared_weld_refuses_exactly_as_the_
-    //    undeclared_one_does` and its sibling. Widen the gate and the
-    //    next refusal used to be `NonMaximalFaces` on this very body,
-    //    from its pole-split caps. A gate exemption was tried for
-    //    this and WITHDRAWN; the fix landed at the source instead — a
-    //    full revolve sweeps a planar cap whole, so the lantern
-    //    arrives maximal-faced. After F7 comes the curved
-    //    PIERCE arm, and only after that could a
-    //    germ-pair question arise.
-    //
-    //    So wall 2's binding blocker is #1031, not #968's shape. The
-    //    gate-admission reading was this unit's SPEC, and measuring it
-    //    is what refuted it: declaring the weld changes nothing today,
-    //    because the declared contact is the PLANAR pair the throat
-    //    disk and the arch's cap already form, and a cone x torus Rest
-    //    declaration would be Contradicted, correctly. #1059 is the
-    //    derivation; the measurement is VERBS-LILYWELD PR-2's. The
-    //    face the gate names on the arch is that same end cap, paired
-    //    with the lantern's neck CONE — a pair no declaration speaks
-    //    for, coverage being per pair and never per face.
+    //    What refuses is the crossing layer, on the weld circle
+    //    itself: the lantern's neck rim lies on the arch's torus wall
+    //    as its terminal meridian circle, and a circle ON a torus is a
+    //    coincidence the circle × torus lane does not decide. This is
+    //    the chain VERBS-LILYWELD PR-2 measured — gate, then F7, then
+    //    the curved PIERCE arm — reached now that the cone is on the
+    //    operand roster and the full revolve sweeps its caps whole.
+    //    Declaring the weld changes nothing: the declared contact is
+    //    the PLANAR pair the throat disk and the arch's cap already
+    //    form, and a cone × torus Rest declaration would be
+    //    Contradicted, correctly (#1059 is the derivation).
     wall(
         2,
         "weld the lantern onto the arch (cone x the arch's end cap, \
          meeting on one shared circle)",
         pncad::topo::union(lant, arch, tol),
         |e| {
-            // The pair is (Cone, Plane): the lantern's neck cone
-            // against the arch's END CAP, whose rim IS the shared
-            // circle — a genuine coincidence rather than a box
-            // artifact. It was (Cone, Torus) while the arch's tube
-            // wall was boxed as its whole ring; the wall is now boxed
-            // by the chart window its own boundary states, so the
-            // first overlapping pair in arena order is the cap.
+            // The lantern's edge refused is the weld circle, lying on
+            // the arch's torus wall
+            // (`review_probes::declaring_the_covered_weld_pair_leaves_the_weld_circle_refusing`).
             matches!(
                 e,
-                BooleanError::CurvedPairUnsupported {
-                    op: None,
+                BooleanError::CurvedPierceUnsupported {
                     operand: Operand::A,
-                    kind: SurfaceKind::Cone,
-                    other_kind: SurfaceKind::Plane,
                     ..
                 }
             )
         },
-        "join flower to stem — #1031's pole half is NECESSARY BUT NOT \
-         SUFFICIENT: the measured chain runs gate -> F7 -> the curved \
-         pierce arm, and only the first two are anyone's current unit",
+        "join flower to stem — the weld circle lying on the arch's torus \
+         wall is a coincidence the crossing layer refuses",
     );
 
     // 3. The lily's leaves DO leave their own plane now — each blade
@@ -3020,33 +2995,23 @@ mod review_probes {
     }
 
     /// **The declared weld's door sequence, measured** — VERBS-LILYWELD
-    /// PR-2's opening measurement, kept as the record it is.
+    /// PR-2's opening measurement, carried past the cone's admission to
+    /// the boolean.
     ///
-    /// PR-1 authored the flower/arch junction circle-coincident and
-    /// left wall 2 pinned on the operand gate. The obvious next
-    /// question is what a DECLARED union would do, and the answer
-    /// today is: exactly what the undeclared one does. The scene's
-    /// own `flush_declarations` DOES find the contact — the lantern's
-    /// throat disk against the arch's end cap, an
-    /// exact coincident planar Rest pair — and the union still
-    /// refuses with the identical payload, because `gate_operand_pairs`
-    /// runs on KINDS before any declaration is consulted.
-    ///
-    /// **What the row pins is narrower than its old name claimed.**
-    /// The pair the gate names is the lantern's neck CONE against that
-    /// same end cap, and no declaration speaks for THAT pair —
-    /// coverage is per pair, never per face. So this row cannot show
-    /// a declaration being ignored; what it shows is that the gate
-    /// refuses on an UNCOVERED pair whether or not the covered one is
-    /// declared, and the differential between the two calls is empty
-    /// for that reason. The row is named for what it pins.
-    ///
-    /// That is the pin: **declaring the weld changes nothing today**,
-    /// and the differential between the declared and undeclared calls
-    /// is empty. When the operand gate learns declared cone×torus,
-    /// this row is what will show the two calls separating.
+    /// The scene's own `flush_declarations` finds the contact — the
+    /// lantern's throat disk against the arch's end cap, an exact
+    /// coincident planar Rest pair — and the declared union refuses
+    /// with the undeclared one's payload. Past the operand gate (the
+    /// cone is on its roster) and F7, both stop at the crossing layer
+    /// on the WELD CIRCLE itself: the lantern's neck rim, which lies on
+    /// the arch's torus wall as its terminal meridian circle. A circle
+    /// lying on a torus is a coincidence no declaration covers
+    /// (coverage is per pair, and a cone × torus Rest declaration would
+    /// be Contradicted), so the differential between the two calls is
+    /// empty, and this row is what shows them separating when a
+    /// coincidence door learns the circle.
     #[test]
-    fn declaring_the_covered_weld_pair_leaves_the_uncovered_cone_pair_refusing() {
+    fn declaring_the_covered_weld_pair_leaves_the_weld_circle_refusing() {
         let tol = Tol::witness();
         let ps = pieces();
         let (lant, arch) = (body(&ps, "lily_lantern"), body(&ps, "lily_arch"));
@@ -3073,21 +3038,34 @@ mod review_probes {
         assert_eq!(
             format!("{declared:?}"),
             format!("{undeclared:?}"),
-            "the operand gate reads kinds before declarations, so these must be \
-             the SAME refusal until the gate learns the declared pair"
+            "the declaration covers the planar pair, not the weld circle, so these \
+             must be the SAME refusal"
         );
+        let BooleanError::CurvedPierceUnsupported {
+            operand: Operand::A,
+            face,
+            edge,
+            ..
+        } = declared
+        else {
+            panic!("the weld stops at the curved pierce: {declared:?}");
+        };
+        let carrier = lant
+            .get_edge(edge)
+            .and_then(|e| lant.get_curve_geom(e.curve))
+            .and_then(|g| g.certified())
+            .map(|c| c.carrier().clone());
+        let kind = arch
+            .get_face(face)
+            .and_then(|f| arch.get_surface(f.surface))
+            .map(|s| s.kind());
         assert!(
             matches!(
-                declared,
-                BooleanError::CurvedPairUnsupported {
-                    op: None,
-                    operand: Operand::A,
-                    kind: SurfaceKind::Cone,
-                    other_kind: SurfaceKind::Plane,
-                    ..
-                }
-            ),
-            "{declared:?}"
+                carrier,
+                Some(pncad::geom::Curve3::Circle { radius, .. }) if (radius - ARCH_R).abs() < 1e-12
+            ) && kind == Some(SurfaceKind::Torus),
+            "the refused edge is the weld circle, on the arch's torus wall: \
+             {carrier:?} on {kind:?}"
         );
     }
 
@@ -4361,17 +4339,13 @@ mod verbs_gate_r1_probes {
         assert!(
             matches!(
                 welded,
-                BooleanError::CurvedPairUnsupported {
-                    op: None,
+                BooleanError::CurvedPierceUnsupported {
                     operand: Operand::A,
-                    kind: SurfaceKind::Cone,
-                    other_kind: SurfaceKind::Plane,
                     ..
                 }
             ),
-            "wall 2 must name a lantern CONE against the arch's END CAP — the pair \
-             the gate has no arm for, and the cone's rim IS that cap's rim: \
-             {welded:?}"
+            "wall 2 must stop at the crossing layer on the lantern's weld circle, \
+             which lies on the arch's torus wall: {welded:?}"
         );
     }
 
