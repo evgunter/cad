@@ -2,11 +2,12 @@
 id: a-fitted-wall-has-no-section-with-a-moved-cap
 kind: issue
 title: C5 routes no Approx x Plane section, so every lofted shell refuses at its first moved wall: may a fitted chart's section be its fitted spline's, with the fit certificate as an error bound?
-status: open
+status: closed
 opened: 2026-10-08
 priority: P2
 cost: H
 refs: [shell-of-a-lofted-body-meets-the-oblique-corner-on-a-slanted-spline-seam]
+pr: 4404
 ---
 
 Filed by the unit 9 designer pair. Once a moved cap's corner is solved
@@ -86,3 +87,20 @@ seams have no transverse section
 Hence P2: this lands after unit 9 (both touch `replace_face.rs`'s
 fitted-boundary arm), and a re-fit re-derives the face's edges — the edge
 half of ENCL's parked `a-rigid-map-can-still-refuse-…`.
+
+## Closed
+
+PR 4404 built items 1–6. The expected outcome above was a prediction,
+and it did not hold; measured instead:
+
+- the twisted loft refuses at its wall's fit at the default ε
+  (`BudgetExhausted`, 4.12e-9), and at 1e-6 at its seam's iso-row guard
+  (`FittedBoundaryUnsupported`, "a row of this fit shared with a spline
+  face");
+- the vase refuses at its cap's rim limb 2 before any wall moves, and a
+  lone wall at its fit (`PatchBound(Crease)`);
+- a moved fitted face's corners have no root
+  (`a-moved-fitted-faces-corners-have-no-root-on-a-derived-spline-section`),
+  so the positive row is a moved plane against a held fit, certified at
+  tier 3's structural phase; its volume waits on
+  `a-fitted-face-trimmed-by-a-section-has-no-volume-rule`.
