@@ -26,9 +26,10 @@
 //!    ([`geom_brep::EdgeCurve::mid_point`]), a point ON the edge
 //!    whatever its kind;
 //! 3. one point of each planar face's relative interior: the first
-//!    candidate — a consecutive vertex triple's centroid, then the
-//!    midpoint of two of the face's vertices — that
-//!    [`point_in_face`] certifies strictly inside the face.
+//!    candidate — a consecutive vertex triple's centroid, the
+//!    midpoint of two of the face's vertices, then a point a step
+//!    across an edge from its midpoint — that [`point_in_face`]
+//!    certifies strictly inside the face.
 //!
 //! The probe is the caller's ([`ladder`]): it reads one witness against
 //! whatever the question is about, and answers a side, [`Witness::On`]
@@ -256,7 +257,8 @@ pub(crate) fn ladder<T: Decide, S, E: From<LadderRefusal>>(
 /// The first candidate strictly inside planar `face` (module docs,
 /// rung 3): each consecutive vertex triple's centroid, then the
 /// midpoint of each pair of the face's vertices, over its outer loop
-/// and every ring. `None` when no candidate certifies.
+/// and every ring, then the points across its edges ([`across_edges`]).
+/// `None` when no candidate certifies.
 fn face_interior_point<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -273,12 +275,57 @@ fn face_interior_point<T: Decide>(
         .iter()
         .enumerate()
         .flat_map(|(i, &a)| vertices[i + 1..].iter().map(move |&b| chord_midpoint(a, b)));
-    for q in triples.chain(chords) {
+    for q in triples.chain(chords).chain(across_edges(body, face, normal)?) {
         if certified_in_face(body, face, normal, q, band)? {
             return Ok(Some(q));
         }
     }
     Ok(None)
+}
+
+/// How many times [`across_edges`] halves its step.
+const ACROSS_HALVINGS: i32 = 12;
+
+/// Face-interior candidates that need no vertex: from each edge's
+/// parameter midpoint `m`, a step of `d` either way along the in-plane
+/// normal `normal × m′`, for `d = L/2ᵏ`, `k = 1…`[`ACROSS_HALVINGS`],
+/// where `L` is the sum of `m`'s distances to the edge's two ends. A
+/// step short enough lands inside the face on one side of every edge,
+/// so these reach a face the vertex candidates miss: a disc bounded by
+/// one closed edge, which has one vertex, or a face whose vertex
+/// chords all leave it. Steps are taken longest first, each depth over
+/// every edge before the next, so the first to certify lies as deep
+/// in the face as any. An edge with no certified carrier offers none.
+fn across_edges<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    normal: Vec3<T>,
+) -> Result<Vec<Point3<T>>, LadderRefusal> {
+    let desync = |what| LadderRefusal::Desync { face, what };
+    let mut feet: Vec<(Point3<T>, Vec3<T>, T)> = Vec::new();
+    for he in face_loops(body, face)?.into_iter().flatten() {
+        let curve = body
+            .get_half_edge(he)
+            .and_then(|h| body.get_edge(h.edge))
+            .and_then(|e| body.get_curve_geom(e.curve))
+            .ok_or(desync("witnessed edge has no curve"))?;
+        let Some(curve) = curve.certified() else {
+            continue;
+        };
+        let (t0, t1) = curve.params();
+        let (m, tangent) = curve.carrier().ders1(geom::mid_param(t0, t1));
+        let reach = (m - curve.carrier().eval(t0)).norm() + (m - curve.carrier().eval(t1)).norm();
+        feet.push((m, normal.cross(tangent).normalize(), reach));
+    }
+    let mut out = Vec::new();
+    for k in 1..=ACROSS_HALVINGS {
+        let scale = T::from_f64(0.5f64.powi(k));
+        for &(m, across, reach) in &feet {
+            let step = across * (reach * scale);
+            out.extend([m + step, m - step]);
+        }
+    }
+    Ok(out)
 }
 
 /// Each walkable loop of `face` — its outer loop, then every ring — as
