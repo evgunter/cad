@@ -101,7 +101,7 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
     let (doc, _) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -126,7 +126,7 @@ fn boolean_part(label: &str) -> ProfileDoc {
     let (doc, plate) = insert(
         doc,
         Node::Extrude {
-            profile: plate_p,
+            profile: plate_p.into(),
             distance: len(0.8),
             side: ExtrudeSide::Along,
         },
@@ -141,7 +141,7 @@ fn boolean_part(label: &str) -> ProfileDoc {
     let (doc, boss) = insert(
         doc,
         Node::Extrude {
-            profile: boss_p,
+            profile: boss_p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -150,8 +150,8 @@ fn boolean_part(label: &str) -> ProfileDoc {
         doc,
         Node::Boolean {
             op: editor_core::BooleanOp::Union,
-            a: plate,
-            b: boss,
+            a: plate.into(),
+            b: boss.into(),
             declare: Vec::new(),
         },
     );
@@ -172,7 +172,7 @@ fn two_solid_part(label: &str) -> ProfileDoc {
     let (doc, _) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -1124,7 +1124,7 @@ fn a_depth_three_chain_keeps_every_level_and_its_document() {
     let (p3, p3_root) = insert(
         p3,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: editor_core::Formula::div(len(1.0), scl(0.0)).unwrap(),
             side: ExtrudeSide::Along,
         },
@@ -1258,7 +1258,7 @@ fn poisoned_part(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (part, extrude) = insert(
         part,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: editor_core::Formula::div(len(1.0), scl(0.0)).unwrap(),
             side: ExtrudeSide::Along,
         },

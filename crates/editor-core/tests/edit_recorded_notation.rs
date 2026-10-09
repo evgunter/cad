@@ -151,7 +151,7 @@ fn edits_of(program: LoopProgram<Formula>) -> [DocEdit<ProfileProgram>; 2] {
         },
         DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                plane: plane(),
+                frame: plane().into(),
                 loops: vec![program],
                 ids: Vec::new(),
             })),
@@ -348,12 +348,12 @@ fn two_notations_of_one_leg_are_one_program_and_one_geometry() {
         "the two recordings really do say different things about their notation"
     );
     let a = ProfileProgram {
-        plane: plane(),
+        frame: plane().into(),
         loops: vec![millimetres.clone()],
         ids: Vec::new(),
     };
     let b = ProfileProgram {
-        plane: plane(),
+        frame: plane().into(),
         loops: vec![metres.clone()],
         ids: Vec::new(),
     };

@@ -80,7 +80,7 @@ fn prism(doc: ProfileDoc, pts: Vec<(f64, f64)>, z0: f64, dz: f64) -> (ProfileDoc
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -122,8 +122,8 @@ fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -140,7 +140,13 @@ fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 fn split_over_a_tied_operand_names_and_keeps_the_tie() {
     let (doc, _, sub) = u_cutter_tie(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
     let (doc, tool) = plane(doc, [0.0, 0.0, 3.5], [0.0, 0.0, 1.0]);
-    let (doc, split) = insert(doc, Node::Split { target: sub, tool });
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: sub.into(),
+            tool: tool.into(),
+        },
+    );
     let ev = run(&doc);
     let up = table(&ev, sub);
     assert!(!ties(up).is_empty(), "fixture lost its operand tie");
@@ -181,8 +187,8 @@ fn boolean_over_a_tied_operand_names_and_keeps_the_tie() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: sub,
-            b: c,
+            a: sub.into(),
+            b: c.into(),
             declare: Vec::new(),
         },
     );
@@ -218,8 +224,8 @@ fn a_tie_with_one_surviving_candidate_narrows_back_to_unique() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: sub,
-            b: c,
+            a: sub.into(),
+            b: c.into(),
             declare: Vec::new(),
         },
     );
@@ -265,7 +271,13 @@ fn tied_and_end_qualified_name_tables_are_identical_across_evaluations() {
         || {
             let (doc, _, sub) = u_cutter_tie(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
             let (doc, tool) = plane(doc, [0.0, 0.0, 3.5], [0.0, 0.0, 1.0]);
-            let (doc, split) = insert(doc, Node::Split { target: sub, tool });
+            let (doc, split) = insert(
+                doc,
+                Node::Split {
+                    target: sub.into(),
+                    tool: tool.into(),
+                },
+            );
             (doc, split)
         },
     ];
@@ -302,7 +314,13 @@ fn l_split(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     // x + y = 2.5: two DISJOINT chords per cap — one across the
     // horizontal leg, one across the vertical leg.
     let (doc, tool) = plane(doc, [2.5, 0.0, 0.0], [1.0, 1.0, 0.0]);
-    let (doc, split) = insert(doc, Node::Split { target: ext, tool });
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: ext.into(),
+            tool: tool.into(),
+        },
+    );
     (doc, ext, split)
 }
 

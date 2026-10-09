@@ -60,7 +60,7 @@ fn p1_shrunk_supports_wrap_exactly_the_targets_face_names() {
     let (doc, cube) = fixture::insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -118,7 +118,7 @@ fn p2_surgery_supports_wrap_names_the_target_table_carries() {
         let mut found = None;
         for id in doc.doc.ids() {
             if let Some(Node::Fillet { target, .. }) = doc.doc.node(id) {
-                found = Some((id, *target));
+                found = Some((id, doc.doc.operation_of(*target).expect("a live target")));
             }
         }
         found.expect("the composed die has a fillet node")
@@ -162,7 +162,7 @@ fn p3_totality_holds_for_a_triangular_prism() {
     let (doc, prism) = fixture::insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },

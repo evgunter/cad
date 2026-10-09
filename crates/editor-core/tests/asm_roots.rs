@@ -46,7 +46,7 @@ fn block(doc: ProfileDoc, cx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -79,7 +79,7 @@ fn row1a_no_consumer_insert_appends() {
     let (doc, e0) = insert(
         doc,
         Node::Extrude {
-            profile: p0,
+            profile: p0.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -112,8 +112,8 @@ fn row1b_consuming_insert_replaces_at_earliest_position() {
     let (doc, u) = insert(
         doc,
         Node::Boolean {
-            a: b,
-            b: c,
+            a: b.into(),
+            b: c.into(),
             op: editor_core::BooleanOp::Union,
             declare: Vec::new(),
         },
@@ -139,8 +139,8 @@ fn row1c_root_delete_rereoots_orphans_in_document_order() {
     let (doc, u) = insert(
         doc,
         Node::Boolean {
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             op: editor_core::BooleanOp::Union,
             declare: Vec::new(),
         },
@@ -187,8 +187,8 @@ fn row1e_undo_restores_the_prior_root_list() {
         DocEdit::SetRoots { roots: vec![b, a] },
         DocEdit::InsertNode {
             node: Box::new(Node::Boolean {
-                a,
-                b,
+                a: a.into(),
+                b: b.into(),
                 op: editor_core::BooleanOp::Union,
                 declare: Vec::new(),
             }),
@@ -360,7 +360,7 @@ fn row3b_pattern_root_gathers_n_solids_with_provenance() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: extrude,
+            input: extrude.into(),
             count: editor_core::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -424,8 +424,8 @@ fn row3c_split_root_gathers_both_pieces() {
     let (doc, split) = insert(
         doc,
         Node::Split {
-            target: extrude,
-            tool: plane,
+            target: extrude.into(),
+            tool: plane.into(),
         },
     );
     assert_eq!(doc.roots(), &[split][..], "the split consumed both inputs");
@@ -507,7 +507,7 @@ fn row5b_root_neutral_edits_keep_the_product_order_stable() {
         DocEdit::SetParam {
             node: a,
             slot: editor_core::SlotId::Distance,
-            expr: len(2.0),
+            value: len(2.0).into(),
             fresh: Vec::new(),
         },
     );
@@ -611,7 +611,7 @@ fn row6c_replay_rebuilds_the_root_list() {
         insert(
             &mut doc,
             Box::new(Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(1.0),
                 side: ExtrudeSide::Along,
             }),

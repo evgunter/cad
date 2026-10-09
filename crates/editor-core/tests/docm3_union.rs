@@ -45,7 +45,7 @@ fn cube(doc: ProfileDoc, x0: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -153,8 +153,8 @@ fn the_fold_and_the_pairwise_chain_are_the_same_body() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: boxes[0],
-            b: boxes[1],
+            a: boxes[0].into(),
+            b: boxes[1].into(),
             declare: Vec::new(),
         },
     );
@@ -162,8 +162,8 @@ fn the_fold_and_the_pairwise_chain_are_the_same_body() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: ab,
-            b: boxes[2],
+            a: ab.into(),
+            b: boxes[2].into(),
             declare: Vec::new(),
         },
     );
@@ -221,8 +221,9 @@ fn the_fold_and_the_pairwise_chain_are_the_same_body() {
 // ---------------------------------------------------------------------
 
 /// **A node's inputs are pairwise distinct**, refused at the INSERT
-/// door for every shape that can repeat one: the pair boolean, the
-/// n-ary union's list, and the split.
+/// door for every shape that can repeat one: the pair boolean and the
+/// n-ary union's list. (A split's target and tool read different
+/// kinds, so one read in both is refused by kind first.)
 #[test]
 fn insert_refuses_a_node_that_takes_one_input_twice() {
     let (doc, boxes, _) = three_boxes([0, 1, 2]);
@@ -230,15 +231,14 @@ fn insert_refuses_a_node_that_takes_one_input_twice() {
     let shapes: Vec<AuthoredNode> = vec![
         Node::Boolean {
             op: BooleanOp::Union,
-            a: x,
-            b: x,
+            a: x.into(),
+            b: x.into(),
             declare: Vec::new(),
         },
         Node::Union {
-            members: vec![x, x],
+            members: vec![x.into(), x.into()],
             declare: Vec::new(),
         },
-        Node::Split { target: x, tool: x },
     ];
     for node in shapes {
         let err = doc
@@ -267,7 +267,7 @@ fn set_members_refuses_a_duplicate_member() {
         .apply(
             &DocEdit::SetMembers {
                 node: u,
-                members: vec![boxes[0], boxes[1], boxes[0]],
+                members: vec![boxes[0].into(), boxes[1].into(), boxes[0].into()],
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -305,9 +305,12 @@ fn a_snapshot_carrying_a_refused_node_does_not_load() {
         editor_core::persist::load(&tampered, tol)
     };
     // A repeated member in the union's list.
+    let read = |node| doc.output(node, 0).expect("a box defines its body").0;
     let err = corrupt(format!(
         "\"{}\",\"{}\",\"{}\"",
-        boxes[0].0, boxes[1].0, boxes[0].0
+        read(boxes[0]),
+        read(boxes[1]),
+        read(boxes[0])
     ))
     .expect_err("a duplicate member must refuse");
     let said = format!("{err}");
@@ -329,7 +332,8 @@ fn a_snapshot_carrying_a_refused_node_does_not_load() {
         "{said}"
     );
     // And a list left under two.
-    let err = corrupt(format!("\"{}\"", boxes[0].0)).expect_err("a one-member union must refuse");
+    let err =
+        corrupt(format!("\"{}\"", read(boxes[0]))).expect_err("a one-member union must refuse");
     let said = format!("{err}");
     assert!(said.contains("two or more"), "{said}");
 }
@@ -346,8 +350,8 @@ fn set_members_refuses_a_node_with_no_list_input() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: boxes[0],
-            b: boxes[1],
+            a: boxes[0].into(),
+            b: boxes[1].into(),
             declare: Vec::new(),
         },
     );
@@ -355,7 +359,7 @@ fn set_members_refuses_a_node_with_no_list_input() {
         .apply(
             &DocEdit::SetMembers {
                 node: pair,
-                members: vec![boxes[0], boxes[2]],
+                members: vec![boxes[0].into(), boxes[2].into()],
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -376,7 +380,7 @@ fn set_members_refuses_a_member_that_is_not_live() {
         .apply(
             &DocEdit::SetMembers {
                 node: u,
-                members: vec![boxes[0], ghost],
+                members: vec![boxes[0].into(), ghost.into()],
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -397,8 +401,8 @@ fn set_members_refuses_a_cycle() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: u,
-            b: boxes[0],
+            a: u.into(),
+            b: boxes[0].into(),
             declare: Vec::new(),
         },
     );
@@ -406,7 +410,7 @@ fn set_members_refuses_a_cycle() {
         .apply(
             &DocEdit::SetMembers {
                 node: u,
-                members: vec![boxes[1], downstream],
+                members: vec![boxes[1].into(), downstream.into()],
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -423,7 +427,7 @@ fn set_members_refuses_fewer_than_two() {
         .apply(
             &DocEdit::SetMembers {
                 node: u,
-                members: vec![boxes[0]],
+                members: vec![boxes[0].into()],
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -456,7 +460,7 @@ fn a_union_and_a_set_members_replay_bit_identically() {
         .collect();
     edits.push(DocEdit::SetMembers {
         node: u,
-        members: vec![boxes[2], boxes[0]],
+        members: vec![boxes[2].into(), boxes[0].into()],
     });
     edits.push(DocEdit::DeleteNode { id: boxes[1] });
     let mut replayed = empty.clone();
@@ -478,7 +482,16 @@ fn a_union_and_a_set_members_replay_bit_identically() {
     let Some(Node::Union { members, .. }) = loaded.doc.node(u) else {
         panic!("the union survived as something else")
     };
-    assert_eq!(members, &vec![boxes[2], boxes[0]]);
+    let members: Vec<RecipeNodeId> = members
+        .iter()
+        .map(|&m| {
+            loaded
+                .doc
+                .operation_of(m)
+                .expect("a member reads a live output")
+        })
+        .collect();
+    assert_eq!(members, vec![boxes[2], boxes[0]]);
 }
 
 /// Dropping a member leaves every OTHER member's names untouched —
@@ -496,7 +509,7 @@ fn dropping_a_member_leaves_the_others_names_alone() {
         .apply(
             &DocEdit::SetMembers {
                 node: u,
-                members: vec![boxes[1], boxes[2]],
+                members: vec![boxes[1].into(), boxes[2].into()],
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -561,7 +574,7 @@ fn two_placements_of_one_prototype_are_two_members() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: vec![left, right],
+            members: vec![left.into(), right.into()],
             declare: Vec::new(),
         },
     );
@@ -637,7 +650,10 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
     let Some(Node::Union { members, .. }) = doc.node(union) else {
         panic!("the union is a union")
     };
-    let members = members.clone();
+    let members: Vec<RecipeNodeId> = members
+        .iter()
+        .map(|&m| doc.operation_of(m).expect("a member reads a live output"))
+        .collect();
     assert_eq!(members.len(), 21, "the die has 21 pips");
     let blends: Vec<RecipeNodeId> = doc
         .ids()
@@ -670,7 +686,7 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
             .apply(
                 &DocEdit::SetMembers {
                     node: union,
-                    members: kept,
+                    members: kept.into_iter().map(Into::into).collect(),
                 },
                 tol,
                 &editor_core::RefusingReach,
@@ -728,7 +744,7 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
             .doc;
         let (edited, rim) = insert(
             edited,
-            Node::fillet(rim_target, rim_radius.clone(), kept_rims.clone()),
+            Node::fillet(rim_target.clone(), rim_radius.clone(), kept_rims.clone()),
         );
         let after = evaluate::<f64>(
             &edited,
@@ -790,7 +806,10 @@ fn the_dies_union_is_the_chain_it_replaced() {
     let Some(Node::Union { members, .. }) = doc.node(union) else {
         panic!("the union is a union")
     };
-    let members = members.clone();
+    let members: Vec<RecipeNodeId> = members
+        .iter()
+        .map(|&m| doc.operation_of(m).expect("a member reads a live output"))
+        .collect();
     // The chain this replaced, re-authored over the same members.
     let (doc, chain) = members.iter().skip(1).fold(
         (doc, members[0]),
@@ -799,8 +818,8 @@ fn the_dies_union_is_the_chain_it_replaced() {
                 doc,
                 Node::Boolean {
                     op: BooleanOp::Union,
-                    a: acc,
-                    b: *pip,
+                    a: acc.into(),
+                    b: (*pip).into(),
                     declare: Vec::new(),
                 },
             )
@@ -937,7 +956,7 @@ fn boxed(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(h),
             side: ExtrudeSide::Along,
         },
@@ -982,7 +1001,7 @@ fn a_refusal_at_a_later_fold_step_names_member_space_entities() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: vec![a, b, d],
+            members: vec![a.into(), b.into(), d.into()],
             declare: Vec::new(),
         },
     );
@@ -990,8 +1009,8 @@ fn a_refusal_at_a_later_fold_step_names_member_space_entities() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b: d,
+            a: a.into(),
+            b: d.into(),
             declare: Vec::new(),
         },
     );
@@ -1064,7 +1083,7 @@ fn loft_doc() -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>) {
     let (doc, loft) = insert(
         doc,
         Node::Loft {
-            profiles: profiles[..3].to_vec(),
+            profiles: profiles[..3].iter().copied().map(Into::into).collect(),
             v_degree: editor_core::Formula::count(2),
         },
     );
@@ -1087,7 +1106,7 @@ fn a_one_section_loft_is_refused_at_the_insert_door() {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(Node::Loft {
-                    profiles: vec![profiles[0]],
+                    profiles: vec![profiles[0].into()],
                     v_degree: editor_core::Formula::count(1),
                 }),
                 fresh: Vec::new(),
@@ -1154,7 +1173,7 @@ fn set_members_refuses_an_unknown_node() {
         .apply(
             &DocEdit::SetMembers {
                 node: RecipeNodeId::new(0, 9999),
-                members: vec![boxes[0], boxes[1]],
+                members: vec![boxes[0].into(), boxes[1].into()],
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -1191,11 +1210,19 @@ fn list_input_and_set_list_input_agree_on_every_node_kind() {
             let Some(node) = doc.node(id) else { continue };
             seen.insert(crate::corpus::node_kind(node));
             let has_list = node.list_input().is_some();
-            let members = node.list_input().map(<[RecipeNodeId]>::to_vec);
+            let members = node.list_input().map(|list| {
+                list.iter()
+                    .map(|&m| doc.operation_of(m).expect("a member reads a live output"))
+                    .collect::<Vec<RecipeNodeId>>()
+            });
             let outcome = doc.apply(
                 &DocEdit::SetMembers {
                     node: id,
-                    members: members.unwrap_or_else(|| doc.ids()[..2].to_vec()),
+                    members: members
+                        .unwrap_or_else(|| doc.ids()[..2].to_vec())
+                        .into_iter()
+                        .map(Into::into)
+                        .collect(),
                 },
                 tol,
                 &editor_core::RefusingReach,
@@ -1241,14 +1268,14 @@ fn set_members_keeps_root_order_and_appends_orphans_last() {
     let (doc, first) = insert(
         doc,
         Node::Union {
-            members: vec![a, b],
+            members: vec![a.into(), b.into()],
             declare: Vec::new(),
         },
     );
     let (doc, second) = insert(
         doc,
         Node::Union {
-            members: vec![c, d],
+            members: vec![c.into(), d.into()],
             declare: Vec::new(),
         },
     );
@@ -1262,7 +1289,7 @@ fn set_members_keeps_root_order_and_appends_orphans_last() {
         .apply(
             &DocEdit::SetMembers {
                 node: second,
-                members: vec![c, a],
+                members: vec![c.into(), a.into()],
             },
             tol,
             &editor_core::RefusingReach,

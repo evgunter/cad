@@ -59,7 +59,7 @@ fn both_roles() -> ProfileDoc {
     let (doc, block) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -67,7 +67,7 @@ fn both_roles() -> ProfileDoc {
     let (doc, _fillet) = insert(
         doc,
         Node::Fillet {
-            target: block,
+            target: block.into(),
             radius: len(0.05),
             selection: vec![
                 trim_name(block, RimSupport::Host),

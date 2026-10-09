@@ -1267,13 +1267,16 @@ fn placed_under_two_roots<P>(doc: &Doc<P>) -> Option<ProductError> {
         let mut at = root;
         let mut select: Option<&PartSelect> = None;
         loop {
-            let (next, narrowed) = match doc.node(at).and_then(crate::names::verbatim_edge) {
+            let (read, narrowed) = match doc.node(at).and_then(crate::names::verbatim_edge) {
                 Some(VerbatimEdge::Whole { input }) => (input, select),
                 Some(VerbatimEdge::Selected { of, select: s }) => (of, Some(s)),
                 // The split's intact entities are a subset only its
                 // geometry decides, so the recipe cannot say two
                 // chains through it carry one name.
                 Some(VerbatimEdge::Intact) | None => break,
+            };
+            let Some(next) = doc.operation_of(read) else {
+                break;
             };
             if let Some(&(first, earlier)) = seen
                 .get(&next)
@@ -1323,7 +1326,10 @@ fn placed_twice<P>(
     let mut at = placed;
     loop {
         match doc.node(at) {
-            Some(crate::node::Node::Transform { input, .. }) => at = *input,
+            Some(crate::node::Node::Transform { input, .. }) => match doc.defined_by(*input) {
+                Some((source, _)) => at = source,
+                None => return PlacedTwice::Body,
+            },
             Some(crate::node::Node::InstantiatePart { .. }) => return PlacedTwice::Instance,
             _ => return PlacedTwice::Body,
         }

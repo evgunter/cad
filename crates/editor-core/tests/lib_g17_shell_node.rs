@@ -277,7 +277,7 @@ fn a_rebuild_moves_the_forms_and_keeps_the_names() {
         &DocEdit::SetParam {
             node: shell,
             slot: SlotId::ShellThickness,
-            expr: fixture::len(cup::T_BUMPED),
+            value: fixture::len(cup::T_BUMPED).into(),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -335,7 +335,7 @@ fn the_vessel_opens_its_mouth_into_one_rim() {
     assert_eq!(topo::validate_closed(body), Ok(()), "closed");
     // Outer: base, foot ×2, belly ×2; the rim; cavity: the same five.
     assert_eq!(body.faces().count(), 11, "5 outer + 1 rim + 5 cavity");
-    let pot = d.doc.node(shell).map(|n| n.inputs()[0]).expect("the pot");
+    let pot = d.doc.upstream(shell)[0];
     let table = &ev.value(shell).expect("evaluated").name_table;
     let rim = shelled(
         shell,
@@ -562,7 +562,7 @@ fn the_shell_door_keeps_designation_order_and_drops_repeats() {
     assert_eq!(node.slots(), vec![SlotId::ShellThickness]);
     assert_eq!(
         SlotId::ShellThickness.dimension(),
-        editor_core::Dimension::Length
+        Some(editor_core::Dimension::Length)
     );
     assert_eq!(SlotId::ShellThickness.label(), "shell thickness");
     assert!(!SlotId::ShellThickness.is_structural());
@@ -703,7 +703,14 @@ fn a_sealed_shell_over_a_revolved_ball_is_the_difference_of_two_balls() {
         .find(|&id| matches!(d.doc.node(id), Some(Node::Revolve { .. })))
         .expect("the pip ball");
     let t = 0.01;
-    let (doc, sealed) = fixture::insert(d.doc, Node::shell(ball, fixture::len(t), Vec::new()));
+    let (doc, sealed) = fixture::insert(
+        d.doc,
+        Node::shell(
+            editor_core::Operand::output(ball, 0),
+            fixture::len(t),
+            Vec::new(),
+        ),
+    );
     let ev = eval::<f64>(&doc);
     let bad = failures(&ev);
     assert!(bad.is_empty(), "shelled ball:\n{}", bad.join("\n"));

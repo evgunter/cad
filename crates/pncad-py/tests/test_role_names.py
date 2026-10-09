@@ -306,7 +306,7 @@ class TestTheDoorAnswersTheKernelsOwnText(unittest.TestCase):
         scene, node = ring(doc)
         # The top annulus opened: the other three bands survive the
         # hollowing, and each wears its own name under the shell.
-        hollow = doc.insert(Node.shell(node, Formula.length_in(T, m), [band(node, scene.piece(0, 2))]))
+        hollow = doc.insert(Node.shell(doc.output(node, 0), Formula.length_in(T, m), [band(node, scene.piece(0, 2))]))
         ev = evaluate(doc)
         survivors = ev.select(
             hollow,
@@ -340,7 +340,7 @@ class TestASelectionAuthoredBeforeAnyEvaluation(unittest.TestCase):
         scene, node = ring(doc)
         # Authored against the recipe alone — nothing is evaluated
         # until the assertion below.
-        hollow = doc.insert(Node.shell(node, Formula.length_in(T, m), [band(node, scene.piece(0, 2))]))
+        hollow = doc.insert(Node.shell(doc.output(node, 0), Formula.length_in(T, m), [band(node, scene.piece(0, 2))]))
         ev = evaluate(doc)
         body = ev.value(hollow).body()
         body.validate()
@@ -368,7 +368,7 @@ class TestASelectionAuthoredBeforeAnyEvaluation(unittest.TestCase):
         scene, node = ring(doc)
         rolled = doc.insert(
             Node.fillet(
-                node,
+                doc.output(node, 0),
                 Formula.length_in(ROLL, m),
                 [band_rim(node, scene.piece(0, 2)), band_rim(node, scene.piece(0, 3))],
             )

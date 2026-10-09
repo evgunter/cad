@@ -85,7 +85,7 @@ pub fn document() -> CorpusDoc {
         ]],
     )));
     let cube = r.insert(Node::Extrude {
-        profile: box_p,
+        profile: box_p.into(),
         distance: Formula::named(VarName::from_static(H), Dimension::Length),
         side: ExtrudeSide::Along,
     });
@@ -95,13 +95,16 @@ pub fn document() -> CorpusDoc {
         origin: [len(0.0), len(0.0), len(CUT_Z)],
         normal: [scl(0.0), scl(0.0), scl(1.0)],
     }));
-    let split = r.insert(Node::Split { target: cube, tool });
+    let split = r.insert(Node::Split {
+        target: cube.into(),
+        tool: tool.into(),
+    });
     let above = r.insert(Node::Part {
-        of: split,
+        of: editor_core::Operand::output(split, SplitHalf::Above.port()),
         select: PartSelect::SplitHalf(SplitHalf::Above),
     });
     let below = r.insert(Node::Part {
-        of: split,
+        of: editor_core::Operand::output(split, SplitHalf::Below.port()),
         select: PartSelect::SplitHalf(SplitHalf::Below),
     });
     // The two halves rest on each other across the section — a
@@ -113,14 +116,14 @@ pub fn document() -> CorpusDoc {
     )]);
     let whole = r.insert(Node::Boolean {
         op: BooleanOp::Union,
-        a: above,
-        b: below,
+        a: above.into(),
+        b: below.into(),
         declare: rest,
     });
 
     // ---- three boxes along x, and the middle one lifted ----
     let pattern = r.insert(Node::Pattern {
-        input: cube,
+        input: cube.into(),
         count: Formula::count(COUNT),
         kind: PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -128,7 +131,7 @@ pub fn document() -> CorpusDoc {
         },
     });
     let middle = r.insert(Node::Part {
-        of: pattern,
+        of: pattern.into(),
         select: PartSelect::Instance(Formula::count(1)),
     });
     let lifted = r.insert(Node::transform(
@@ -154,7 +157,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: tool,
             slot: SlotId::Origin(editor_core::Axis3::Z),
-            expr: len(0.25),
+            value: len(0.25).into(),
             fresh: Vec::new(),
         },
         bump_root: tool,
