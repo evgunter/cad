@@ -1,0 +1,552 @@
+R1 close g=0.0000001 (0,0): A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=3.534291735 want=3.534291735 mesh=ok
+R1 close g=0.0000001 (0,0): A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=1.178097245 want=1.178097245 mesh=ok
+R1 close g=0.0000001 (0,0): A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=39.534291735 want=39.534291735 mesh=ok
+R1 close g=0.0000001 (0,0): B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=34.821902755 want=34.821902755 mesh=ok
+R1 close g=0.0000001 (0,0): B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=1.178097245 want=1.178097245 mesh=ok
+R1 close g=0.0000001 (0,0): B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=39.534291735 want=39.534291735 mesh=ok
+R1 close g=0.0000001 (0,3.141592653589793): A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.0000001 (0,3.141592653589793): A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.0000001 (0,3.141592653589793): A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.0000001 (0,3.141592653589793): B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.0000001 (0,3.141592653589793): B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.0000001 (0,3.141592653589793): B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.0000001 (2,5): A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.0000001 (2,5): A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.0000001 (2,5): A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.0000001 (2,5): B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.0000001 (2,5): B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.0000001 (2,5): B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.0000001 (3.141592653589793,0): A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.0000001 (3.141592653589793,0): A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.0000001 (3.141592653589793,0): A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.0000001 (3.141592653589793,0): B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.0000001 (3.141592653589793,0): B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.0000001 (3.141592653589793,0): B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.0000001 (3.141592653589793,3.141592653589793): A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=3.534291735 want=3.534291735 tess=ERR Triangulation { face: FaceKey(1v1) }
+R1 close g=0.0000001 (3.141592653589793,3.141592653589793): A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=1.178097245 want=1.178097245 tess=ERR Triangulation { face: FaceKey(3v1) }
+R1 close g=0.0000001 (3.141592653589793,3.141592653589793): A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=39.534291735 want=39.534291735 tess=ERR Triangulation { face: FaceKey(1v1) }
+R1 close g=0.0000001 (3.141592653589793,3.141592653589793): B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=34.821902755 want=34.821902755 tess=ERR Triangulation { face: FaceKey(11v5) }
+R1 close g=0.0000001 (3.141592653589793,3.141592653589793): B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=1.178097245 want=1.178097245 tess=ERR Triangulation { face: FaceKey(8v1) }
+R1 close g=0.0000001 (3.141592653589793,3.141592653589793): B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=39.534291735 want=39.534291735 tess=ERR Triangulation { face: FaceKey(12v3) }
+R1 close g=0.00001 (0,0): A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=3.534291735 want=3.534291735 mesh=ok
+R1 close g=0.00001 (0,0): A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=1.178097245 want=1.178097245 mesh=ok
+R1 close g=0.00001 (0,0): A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=39.534291735 want=39.534291735 mesh=ok
+R1 close g=0.00001 (0,0): B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=34.821902755 want=34.821902755 mesh=ok
+R1 close g=0.00001 (0,0): B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=1.178097245 want=1.178097245 mesh=ok
+R1 close g=0.00001 (0,0): B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=39.534291735 want=39.534291735 mesh=ok
+R1 close g=0.00001 (0,3.141592653589793): A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.00001 (0,3.141592653589793): A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.00001 (0,3.141592653589793): A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.00001 (0,3.141592653589793): B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.00001 (0,3.141592653589793): B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.00001 (0,3.141592653589793): B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.00001 (2,5): A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.00001 (2,5): A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.00001 (2,5): A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.00001 (2,5): B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.00001 (2,5): B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.00001 (2,5): B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.00001 (3.141592653589793,0): A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.00001 (3.141592653589793,0): A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.00001 (3.141592653589793,0): A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.00001 (3.141592653589793,0): B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.00001 (3.141592653589793,0): B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.00001 (3.141592653589793,0): B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.00001 (3.141592653589793,3.141592653589793): A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=3.534291735 want=3.534291735 tess=ERR Triangulation { face: FaceKey(1v1) }
+R1 close g=0.00001 (3.141592653589793,3.141592653589793): A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=1.178097245 want=1.178097245 tess=ERR Triangulation { face: FaceKey(3v1) }
+R1 close g=0.00001 (3.141592653589793,3.141592653589793): A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=39.534291735 want=39.534291735 tess=ERR Triangulation { face: FaceKey(1v1) }
+R1 close g=0.00001 (3.141592653589793,3.141592653589793): B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=34.821902755 want=34.821902755 tess=ERR Triangulation { face: FaceKey(11v5) }
+R1 close g=0.00001 (3.141592653589793,3.141592653589793): B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=1.178097245 want=1.178097245 tess=ERR Triangulation { face: FaceKey(8v1) }
+R1 close g=0.00001 (3.141592653589793,3.141592653589793): B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=39.534291735 want=39.534291735 tess=ERR Triangulation { face: FaceKey(12v3) }
+R1 close g=0.001 (0,0): A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=3.534291735 want=3.534291735 mesh=ok
+R1 close g=0.001 (0,0): A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=1.178097245 want=1.178097245 mesh=ok
+R1 close g=0.001 (0,0): A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=39.534291735 want=39.534291735 mesh=ok
+R1 close g=0.001 (0,0): B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=34.821902755 want=34.821902755 mesh=ok
+R1 close g=0.001 (0,0): B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=1.178097245 want=1.178097245 mesh=ok
+R1 close g=0.001 (0,0): B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=39.534291735 want=39.534291735 mesh=ok
+R1 close g=0.001 (0,3.141592653589793): A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.001 (0,3.141592653589793): A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.001 (0,3.141592653589793): A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.001 (0,3.141592653589793): B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.001 (0,3.141592653589793): B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.001 (0,3.141592653589793): B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.001 (2,5): A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.001 (2,5): A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.001 (2,5): A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.001 (2,5): B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.001 (2,5): B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.001 (2,5): B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.001 (3.141592653589793,0): A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.001 (3.141592653589793,0): A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.001 (3.141592653589793,0): A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.001 (3.141592653589793,0): B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.001 (3.141592653589793,0): B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.001 (3.141592653589793,0): B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.001 (3.141592653589793,3.141592653589793): A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=3.534291735 want=3.534291735 tess=ERR Triangulation { face: FaceKey(1v1) }
+R1 close g=0.001 (3.141592653589793,3.141592653589793): A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=1.178097245 want=1.178097245 tess=ERR Triangulation { face: FaceKey(3v1) }
+R1 close g=0.001 (3.141592653589793,3.141592653589793): A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=39.534291735 want=39.534291735 tess=ERR Triangulation { face: FaceKey(1v1) }
+R1 close g=0.001 (3.141592653589793,3.141592653589793): B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=34.821902755 want=34.821902755 tess=ERR Triangulation { face: FaceKey(11v5) }
+R1 close g=0.001 (3.141592653589793,3.141592653589793): B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=1.178097245 want=1.178097245 tess=ERR Triangulation { face: FaceKey(8v1) }
+R1 close g=0.001 (3.141592653589793,3.141592653589793): B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=39.534291735 want=39.534291735 tess=ERR Triangulation { face: FaceKey(12v3) }
+R1 close g=0.01 (0,0): A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=3.534291735 want=3.534291735 mesh=ok
+R1 close g=0.01 (0,0): A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=1.178097245 want=1.178097245 mesh=ok
+R1 close g=0.01 (0,0): A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=39.534291735 want=39.534291735 mesh=ok
+R1 close g=0.01 (0,0): B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=34.821902755 want=34.821902755 mesh=ok
+R1 close g=0.01 (0,0): B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=1.178097245 want=1.178097245 mesh=ok
+R1 close g=0.01 (0,0): B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=39.534291735 want=39.534291735 mesh=ok
+R1 close g=0.01 (0,3.141592653589793): A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.01 (0,3.141592653589793): A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.01 (0,3.141592653589793): A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.01 (0,3.141592653589793): B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.01 (0,3.141592653589793): B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.01 (0,3.141592653589793): B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.01 (2,5): A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.01 (2,5): A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.01 (2,5): A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.01 (2,5): B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.01 (2,5): B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.01 (2,5): B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.01 (3.141592653589793,0): A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.01 (3.141592653589793,0): A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.01 (3.141592653589793,0): A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.01 (3.141592653589793,0): B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.01 (3.141592653589793,0): B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.01 (3.141592653589793,0): B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 close g=0.01 (3.141592653589793,3.141592653589793): A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=3.534291735 want=3.534291735 mesh=ok
+R1 close g=0.01 (3.141592653589793,3.141592653589793): A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=1.178097245 want=1.178097245 mesh=ok
+R1 close g=0.01 (3.141592653589793,3.141592653589793): A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=39.534291735 want=39.534291735 mesh=ok
+R1 close g=0.01 (3.141592653589793,3.141592653589793): B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=34.821902755 want=34.821902755 mesh=ok
+R1 close g=0.01 (3.141592653589793,3.141592653589793): B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=1.178097245 want=1.178097245 mesh=ok
+R1 close g=0.01 (3.141592653589793,3.141592653589793): B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=39.534291735 want=39.534291735 mesh=ok
+R1 identical annulus: A ∖ B => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 identical annulus: A ∩ B => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 identical annulus: A ∪ B => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 identical annulus: B ∖ A => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 identical annulus: B ∩ A => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 identical annulus: B ∪ A => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 identical cylinder: A ∖ B => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 identical cylinder: A ∩ B => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 identical cylinder: A ∪ B => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 identical cylinder: B ∖ A => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 identical cylinder: B ∩ A => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 identical cylinder: B ∪ A => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 identical thin annulus: A ∖ B => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 identical thin annulus: A ∩ B => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 identical thin annulus: A ∪ B => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 identical thin annulus: B ∖ A => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 identical thin annulus: B ∩ A => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 identical thin annulus: B ∪ A => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 mixed circle outer, circle hole and square hole sunk: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=4.018273972 want=4.018273972 mesh=ok
+R1 mixed circle outer, circle hole and square hole sunk: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=1.339424657 want=1.339424657 mesh=ok
+R1 mixed circle outer, circle hole and square hole sunk: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=40.018273972 want=40.018273972 mesh=ok
+R1 mixed circle outer, circle hole and square hole sunk: B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=34.660575343 want=34.660575343 mesh=ok
+R1 mixed circle outer, circle hole and square hole sunk: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=1.339424657 want=1.339424657 mesh=ok
+R1 mixed circle outer, circle hole and square hole sunk: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=40.018273972 want=40.018273972 mesh=ok
+R1 mixed circle outer, circle hole and square hole through: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=2.678849315 want=2.678849315 mesh=ok
+R1 mixed circle outer, circle hole and square hole through: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=2.678849315 want=2.678849315 mesh=ok
+R1 mixed circle outer, circle hole and square hole through: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=38.678849315 want=38.678849315 mesh=ok
+R1 mixed circle outer, circle hole and square hole through: B ∖ A => OK BAD t2=true t3p=false cert=true operand=true v=33.321150685 want=33.321150685 mesh=ok
+R1 mixed circle outer, circle hole and square hole through: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=2.678849315 want=2.678849315 mesh=ok
+R1 mixed circle outer, circle hole and square hole through: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=38.678849315 want=38.678849315 mesh=ok
+R1 mixed circle outer, square hole sunk: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=3.962388980 want=3.962388980 mesh=ok
+R1 mixed circle outer, square hole sunk: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=1.320796327 want=1.320796327 mesh=ok
+R1 mixed circle outer, square hole sunk: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=39.962388980 want=39.962388980 mesh=ok
+R1 mixed circle outer, square hole sunk: B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=34.679203673 want=34.679203673 mesh=ok
+R1 mixed circle outer, square hole sunk: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=1.320796327 want=1.320796327 mesh=ok
+R1 mixed circle outer, square hole sunk: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=39.962388980 want=39.962388980 mesh=ok
+R1 mixed circle outer, square hole through: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=2.641592654 want=2.641592654 mesh=ok
+R1 mixed circle outer, square hole through: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=2.641592654 want=2.641592654 mesh=ok
+R1 mixed circle outer, square hole through: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=38.641592654 want=38.641592654 mesh=ok
+R1 mixed circle outer, square hole through: B ∖ A => OK BAD t2=true t3p=false cert=true operand=true v=33.358407346 want=33.358407346 mesh=ok
+R1 mixed circle outer, square hole through: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=2.641592654 want=2.641592654 mesh=ok
+R1 mixed circle outer, square hole through: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=38.641592654 want=38.641592654 mesh=ok
+R1 mixed circle outer, triangle hole sunk: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=4.010908403 want=4.010908403 mesh=ok
+R1 mixed circle outer, triangle hole sunk: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=1.336969468 want=1.336969468 mesh=ok
+R1 mixed circle outer, triangle hole sunk: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=40.010908403 want=40.010908403 mesh=ok
+R1 mixed circle outer, triangle hole sunk: B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=34.663030532 want=34.663030532 mesh=ok
+R1 mixed circle outer, triangle hole sunk: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=1.336969468 want=1.336969468 mesh=ok
+R1 mixed circle outer, triangle hole sunk: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=40.010908403 want=40.010908403 mesh=ok
+R1 mixed circle outer, triangle hole through: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=2.673938936 want=2.673938936 mesh=ok
+R1 mixed circle outer, triangle hole through: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=2.673938936 want=2.673938936 mesh=ok
+R1 mixed circle outer, triangle hole through: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=38.673938936 want=38.673938936 mesh=ok
+R1 mixed circle outer, triangle hole through: B ∖ A => OK BAD t2=true t3p=false cert=true operand=true v=33.326061064 want=33.326061064 mesh=ok
+R1 mixed circle outer, triangle hole through: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=2.673938936 want=2.673938936 mesh=ok
+R1 mixed circle outer, triangle hole through: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=38.673938936 want=38.673938936 mesh=ok
+R1 mixed hex outer, circle hole opposed sunk: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=2.719017072 want=2.719017072 mesh=ok
+R1 mixed hex outer, circle hole opposed sunk: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.906339024 want=0.906339024 mesh=ok
+R1 mixed hex outer, circle hole opposed sunk: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=38.719017072 want=38.719017072 mesh=ok
+R1 mixed hex outer, circle hole opposed sunk: B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=35.093660976 want=35.093660976 mesh=ok
+R1 mixed hex outer, circle hole opposed sunk: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=0.906339024 want=0.906339024 mesh=ok
+R1 mixed hex outer, circle hole opposed sunk: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=38.719017072 want=38.719017072 mesh=ok
+R1 mixed hex outer, circle hole opposed through: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=1.812678048 want=1.812678048 mesh=ok
+R1 mixed hex outer, circle hole opposed through: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=1.812678048 want=1.812678048 mesh=ok
+R1 mixed hex outer, circle hole opposed through: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=37.812678048 want=37.812678048 mesh=ok
+R1 mixed hex outer, circle hole opposed through: B ∖ A => OK BAD t2=true t3p=false cert=true operand=true v=34.187321952 want=34.187321952 mesh=ok
+R1 mixed hex outer, circle hole opposed through: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=1.812678048 want=1.812678048 mesh=ok
+R1 mixed hex outer, circle hole opposed through: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=37.812678048 want=37.812678048 mesh=ok
+R1 mixed hex outer, near-inscribed circle hole sunk: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.363029927 want=0.363029927 mesh=ok
+R1 mixed hex outer, near-inscribed circle hole sunk: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.121009976 want=0.121009976 mesh=ok
+R1 mixed hex outer, near-inscribed circle hole sunk: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=36.363029927 want=36.363029927 mesh=ok
+R1 mixed hex outer, near-inscribed circle hole sunk: B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=35.878990024 want=35.878990024 mesh=ok
+R1 mixed hex outer, near-inscribed circle hole sunk: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=0.121009976 want=0.121009976 mesh=ok
+R1 mixed hex outer, near-inscribed circle hole sunk: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=36.363029927 want=36.363029927 mesh=ok
+R1 mixed hex outer, near-inscribed circle hole through: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.242019951 want=0.242019951 mesh=ok
+R1 mixed hex outer, near-inscribed circle hole through: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.242019951 want=0.242019951 mesh=ok
+R1 mixed hex outer, near-inscribed circle hole through: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=36.242019951 want=36.242019951 mesh=ok
+R1 mixed hex outer, near-inscribed circle hole through: B ∖ A => OK BAD t2=true t3p=false cert=true operand=true v=35.757980049 want=35.757980049 mesh=ok
+R1 mixed hex outer, near-inscribed circle hole through: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=0.242019951 want=0.242019951 mesh=ok
+R1 mixed hex outer, near-inscribed circle hole through: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=36.242019951 want=36.242019951 mesh=ok
+R1 mixed square outer near-touching circle hole sunk: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=1.297031085 want=1.297031085 mesh=ok
+R1 mixed square outer near-touching circle hole sunk: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.432343695 want=0.432343695 mesh=ok
+R1 mixed square outer near-touching circle hole sunk: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=37.297031085 want=37.297031085 mesh=ok
+R1 mixed square outer near-touching circle hole sunk: B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=35.567656305 want=35.567656305 mesh=ok
+R1 mixed square outer near-touching circle hole sunk: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=0.432343695 want=0.432343695 mesh=ok
+R1 mixed square outer near-touching circle hole sunk: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=37.297031085 want=37.297031085 mesh=ok
+R1 mixed square outer near-touching circle hole through: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.864687390 want=0.864687390 mesh=ok
+R1 mixed square outer near-touching circle hole through: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.864687390 want=0.864687390 mesh=ok
+R1 mixed square outer near-touching circle hole through: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=36.864687390 want=36.864687390 mesh=ok
+R1 mixed square outer near-touching circle hole through: B ∖ A => OK BAD t2=true t3p=false cert=true operand=true v=35.135312610 want=35.135312610 mesh=ok
+R1 mixed square outer near-touching circle hole through: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=0.864687390 want=0.864687390 mesh=ok
+R1 mixed square outer near-touching circle hole through: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=36.864687390 want=36.864687390 mesh=ok
+R1 nested four sunk: A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(21v3) }) 
+R1 nested four sunk: A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(21v3) }) 
+R1 nested four sunk: A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(21v3) }) 
+R1 nested four sunk: B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(21v3) }) 
+R1 nested four sunk: B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(21v3) }) 
+R1 nested four sunk: B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(21v3) }) 
+R1 nested three sunk: A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(17v3) }) 
+R1 nested three sunk: A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(17v3) }) 
+R1 nested three sunk: A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(17v3) }) 
+R1 nested three sunk: B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(17v3) }) 
+R1 nested three sunk: B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(17v3) }) 
+R1 nested three sunk: B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(17v3) }) 
+R1 nested three through: A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(17v3) }) 
+R1 nested three through: A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(17v3) }) 
+R1 nested three through: A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(17v3) }) 
+R1 nested three through: B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(17v3) }) 
+R1 nested three through: B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(17v3) }) 
+R1 nested three through: B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(17v3) }) 
+R1 plug arcs=1 bore z=(0.0, 1.0) plug z=(0.0, 1.0) az=(0,0): A ∖ B => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 plug arcs=1 bore z=(0.0, 1.0) plug z=(0.0, 1.0) az=(0,0): A ∩ B => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 plug arcs=1 bore z=(0.0, 1.0) plug z=(0.0, 1.0) az=(0,0): A ∪ B => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 plug arcs=1 bore z=(0.0, 1.0) plug z=(0.0, 1.0) az=(0,0): B ∖ A => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 plug arcs=1 bore z=(0.0, 1.0) plug z=(0.0, 1.0) az=(0,0): B ∩ A => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 plug arcs=1 bore z=(0.0, 1.0) plug z=(0.0, 1.0) az=(0,0): B ∪ A => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 plug arcs=1 bore z=(0.0, 1.0) plug z=(0.0, 1.0) az=(0,3.141592653589793): A ∖ B => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 plug arcs=1 bore z=(0.0, 1.0) plug z=(0.0, 1.0) az=(0,3.141592653589793): A ∩ B => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 plug arcs=1 bore z=(0.0, 1.0) plug z=(0.0, 1.0) az=(0,3.141592653589793): A ∪ B => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 plug arcs=1 bore z=(0.0, 1.0) plug z=(0.0, 1.0) az=(0,3.141592653589793): B ∖ A => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 plug arcs=1 bore z=(0.0, 1.0) plug z=(0.0, 1.0) az=(0,3.141592653589793): B ∩ A => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 plug arcs=1 bore z=(0.0, 1.0) plug z=(0.0, 1.0) az=(0,3.141592653589793): B ∪ A => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 plug arcs=1 bore z=(0.0, 1.0) plug z=(0.25, 0.75) az=(0,0): A ∖ B => ERR CurvedPierceUnsupported { operand: A, face: FaceKey(3v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat 
+R1 plug arcs=1 bore z=(0.0, 1.0) plug z=(0.25, 0.75) az=(0,0): A ∩ B => ERR CurvedPierceUnsupported { operand: A, face: FaceKey(3v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat 
+R1 plug arcs=1 bore z=(0.0, 1.0) plug z=(0.25, 0.75) az=(0,0): A ∪ B => ERR CurvedPierceUnsupported { operand: A, face: FaceKey(3v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat 
+R1 plug arcs=1 bore z=(0.0, 1.0) plug z=(0.25, 0.75) az=(0,0): B ∖ A => ERR CurvedPierceUnsupported { operand: A, face: FaceKey(2v1), edge: EdgeKey(6v1), band: Band { zero: 1e-9, escalat 
+R1 plug arcs=1 bore z=(0.0, 1.0) plug z=(0.25, 0.75) az=(0,0): B ∩ A => ERR CurvedPierceUnsupported { operand: A, face: FaceKey(2v1), edge: EdgeKey(6v1), band: Band { zero: 1e-9, escalat 
+R1 plug arcs=1 bore z=(0.0, 1.0) plug z=(0.25, 0.75) az=(0,0): B ∪ A => ERR CurvedPierceUnsupported { operand: A, face: FaceKey(2v1), edge: EdgeKey(6v1), band: Band { zero: 1e-9, escalat 
+R1 plug arcs=1 bore z=(0.0, 1.0) plug z=(0.25, 0.75) az=(0,3.141592653589793): A ∖ B => ERR CurvedPierceUnsupported { operand: A, face: FaceKey(3v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat 
+R1 plug arcs=1 bore z=(0.0, 1.0) plug z=(0.25, 0.75) az=(0,3.141592653589793): A ∩ B => ERR CurvedPierceUnsupported { operand: A, face: FaceKey(3v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat 
+R1 plug arcs=1 bore z=(0.0, 1.0) plug z=(0.25, 0.75) az=(0,3.141592653589793): A ∪ B => ERR CurvedPierceUnsupported { operand: A, face: FaceKey(3v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat 
+R1 plug arcs=1 bore z=(0.0, 1.0) plug z=(0.25, 0.75) az=(0,3.141592653589793): B ∖ A => ERR CurvedPierceUnsupported { operand: A, face: FaceKey(2v1), edge: EdgeKey(6v1), band: Band { zero: 1e-9, escalat 
+R1 plug arcs=1 bore z=(0.0, 1.0) plug z=(0.25, 0.75) az=(0,3.141592653589793): B ∩ A => ERR CurvedPierceUnsupported { operand: A, face: FaceKey(2v1), edge: EdgeKey(6v1), band: Band { zero: 1e-9, escalat 
+R1 plug arcs=1 bore z=(0.0, 1.0) plug z=(0.25, 0.75) az=(0,3.141592653589793): B ∪ A => ERR CurvedPierceUnsupported { operand: A, face: FaceKey(2v1), edge: EdgeKey(6v1), band: Band { zero: 1e-9, escalat 
+R1 plug arcs=2 bore z=(0.0, 1.0) plug z=(0.0, 1.0) az=(0,0): A ∖ B => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 plug arcs=2 bore z=(0.0, 1.0) plug z=(0.0, 1.0) az=(0,0): A ∩ B => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 plug arcs=2 bore z=(0.0, 1.0) plug z=(0.0, 1.0) az=(0,0): A ∪ B => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 plug arcs=2 bore z=(0.0, 1.0) plug z=(0.0, 1.0) az=(0,0): B ∖ A => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 plug arcs=2 bore z=(0.0, 1.0) plug z=(0.0, 1.0) az=(0,0): B ∩ A => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 plug arcs=2 bore z=(0.0, 1.0) plug z=(0.0, 1.0) az=(0,0): B ∪ A => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 plug arcs=2 bore z=(0.0, 1.0) plug z=(0.0, 1.0) az=(0,3.141592653589793): A ∖ B => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 plug arcs=2 bore z=(0.0, 1.0) plug z=(0.0, 1.0) az=(0,3.141592653589793): A ∩ B => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 plug arcs=2 bore z=(0.0, 1.0) plug z=(0.0, 1.0) az=(0,3.141592653589793): A ∪ B => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 plug arcs=2 bore z=(0.0, 1.0) plug z=(0.0, 1.0) az=(0,3.141592653589793): B ∖ A => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 plug arcs=2 bore z=(0.0, 1.0) plug z=(0.0, 1.0) az=(0,3.141592653589793): B ∩ A => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 plug arcs=2 bore z=(0.0, 1.0) plug z=(0.0, 1.0) az=(0,3.141592653589793): B ∪ A => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
+R1 plug arcs=2 bore z=(0.0, 1.0) plug z=(0.25, 0.75) az=(0,0): A ∖ B => ERR CurvedPierceUnsupported { operand: A, face: FaceKey(7v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat 
+R1 plug arcs=2 bore z=(0.0, 1.0) plug z=(0.25, 0.75) az=(0,0): A ∩ B => ERR CurvedPierceUnsupported { operand: A, face: FaceKey(7v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat 
+R1 plug arcs=2 bore z=(0.0, 1.0) plug z=(0.25, 0.75) az=(0,0): A ∪ B => ERR CurvedPierceUnsupported { operand: A, face: FaceKey(7v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat 
+R1 plug arcs=2 bore z=(0.0, 1.0) plug z=(0.25, 0.75) az=(0,0): B ∖ A => ERR CurvedPierceUnsupported { operand: A, face: FaceKey(3v1), edge: EdgeKey(19v1), band: Band { zero: 1e-9, escala 
+R1 plug arcs=2 bore z=(0.0, 1.0) plug z=(0.25, 0.75) az=(0,0): B ∩ A => ERR CurvedPierceUnsupported { operand: A, face: FaceKey(3v1), edge: EdgeKey(19v1), band: Band { zero: 1e-9, escala 
+R1 plug arcs=2 bore z=(0.0, 1.0) plug z=(0.25, 0.75) az=(0,0): B ∪ A => ERR CurvedPierceUnsupported { operand: A, face: FaceKey(3v1), edge: EdgeKey(19v1), band: Band { zero: 1e-9, escala 
+R1 plug arcs=2 bore z=(0.0, 1.0) plug z=(0.25, 0.75) az=(0,3.141592653589793): A ∖ B => ERR CurvedPierceUnsupported { operand: A, face: FaceKey(7v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat 
+R1 plug arcs=2 bore z=(0.0, 1.0) plug z=(0.25, 0.75) az=(0,3.141592653589793): A ∩ B => ERR CurvedPierceUnsupported { operand: A, face: FaceKey(7v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat 
+R1 plug arcs=2 bore z=(0.0, 1.0) plug z=(0.25, 0.75) az=(0,3.141592653589793): A ∪ B => ERR CurvedPierceUnsupported { operand: A, face: FaceKey(7v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat 
+R1 plug arcs=2 bore z=(0.0, 1.0) plug z=(0.25, 0.75) az=(0,3.141592653589793): B ∖ A => ERR CurvedPierceUnsupported { operand: A, face: FaceKey(3v1), edge: EdgeKey(19v1), band: Band { zero: 1e-9, escala 
+R1 plug arcs=2 bore z=(0.0, 1.0) plug z=(0.25, 0.75) az=(0,3.141592653589793): B ∩ A => ERR CurvedPierceUnsupported { operand: A, face: FaceKey(3v1), edge: EdgeKey(19v1), band: Band { zero: 1e-9, escala 
+R1 plug arcs=2 bore z=(0.0, 1.0) plug z=(0.25, 0.75) az=(0,3.141592653589793): B ∪ A => ERR CurvedPierceUnsupported { operand: A, face: FaceKey(3v1), edge: EdgeKey(19v1), band: Band { zero: 1e-9, escala 
+R1 slot s=1.571 round=false sunk: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.883572934 want=0.883572934 mesh=ok
+R1 slot s=1.571 round=false sunk: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.294524311 want=0.294524311 mesh=ok
+R1 slot s=1.571 round=false sunk: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=36.883572934 want=36.883572934 mesh=ok
+R1 slot s=1.571 round=false sunk: B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=35.705475689 want=35.705475689 mesh=ok
+R1 slot s=1.571 round=false sunk: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=0.294524311 want=0.294524311 mesh=ok
+R1 slot s=1.571 round=false sunk: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=36.883572934 want=36.883572934 mesh=ok
+R1 slot s=1.571 round=false through: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.589048623 want=0.589048623 mesh=ok
+R1 slot s=1.571 round=false through: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.589048623 want=0.589048623 mesh=ok
+R1 slot s=1.571 round=false through: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=36.589048623 want=36.589048623 mesh=ok
+R1 slot s=1.571 round=false through: B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=35.410951377 want=35.410951377 mesh=ok
+R1 slot s=1.571 round=false through: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=0.589048623 want=0.589048623 mesh=ok
+R1 slot s=1.571 round=false through: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=36.589048623 want=36.589048623 mesh=ok
+R1 slot s=1.571 round=true sunk: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.990597245 want=0.990597245 mesh=ok
+R1 slot s=1.571 round=true sunk: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.330199082 want=0.330199082 mesh=ok
+R1 slot s=1.571 round=true sunk: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=36.990597245 want=36.990597245 mesh=ok
+R1 slot s=1.571 round=true sunk: B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=35.669800918 want=35.669800918 mesh=ok
+R1 slot s=1.571 round=true sunk: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=0.330199082 want=0.330199082 mesh=ok
+R1 slot s=1.571 round=true sunk: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=36.990597245 want=36.990597245 mesh=ok
+R1 slot s=1.571 round=true through: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.660398163 want=0.660398163 mesh=ok
+R1 slot s=1.571 round=true through: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.660398163 want=0.660398163 mesh=ok
+R1 slot s=1.571 round=true through: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=36.660398163 want=36.660398163 mesh=ok
+R1 slot s=1.571 round=true through: B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=35.339601837 want=35.339601837 mesh=ok
+R1 slot s=1.571 round=true through: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=0.660398163 want=0.660398163 mesh=ok
+R1 slot s=1.571 round=true through: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=36.660398163 want=36.660398163 mesh=ok
+R1 slot s=3.142 round=false sunk: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=1.767145868 want=1.767145868 mesh=ok
+R1 slot s=3.142 round=false sunk: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.589048623 want=0.589048623 mesh=ok
+R1 slot s=3.142 round=false sunk: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=37.767145868 want=37.767145868 mesh=ok
+R1 slot s=3.142 round=false sunk: B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=35.410951377 want=35.410951377 mesh=ok
+R1 slot s=3.142 round=false sunk: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=0.589048623 want=0.589048623 mesh=ok
+R1 slot s=3.142 round=false sunk: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=37.767145868 want=37.767145868 mesh=ok
+R1 slot s=3.142 round=false through: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=1.178097245 want=1.178097245 mesh=ok
+R1 slot s=3.142 round=false through: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=1.178097245 want=1.178097245 mesh=ok
+R1 slot s=3.142 round=false through: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=37.178097245 want=37.178097245 mesh=ok
+R1 slot s=3.142 round=false through: B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=34.821902755 want=34.821902755 mesh=ok
+R1 slot s=3.142 round=false through: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=1.178097245 want=1.178097245 mesh=ok
+R1 slot s=3.142 round=false through: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=37.178097245 want=37.178097245 mesh=ok
+R1 slot s=3.142 round=true sunk: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=1.874170179 want=1.874170179 mesh=ok
+R1 slot s=3.142 round=true sunk: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.624723393 want=0.624723393 mesh=ok
+R1 slot s=3.142 round=true sunk: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=37.874170179 want=37.874170179 mesh=ok
+R1 slot s=3.142 round=true sunk: B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=35.375276607 want=35.375276607 mesh=ok
+R1 slot s=3.142 round=true sunk: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=0.624723393 want=0.624723393 mesh=ok
+R1 slot s=3.142 round=true sunk: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=37.874170179 want=37.874170179 mesh=ok
+R1 slot s=3.142 round=true through: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=1.249446786 want=1.249446786 mesh=ok
+R1 slot s=3.142 round=true through: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=1.249446786 want=1.249446786 mesh=ok
+R1 slot s=3.142 round=true through: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=37.249446786 want=37.249446786 mesh=ok
+R1 slot s=3.142 round=true through: B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=34.750553214 want=34.750553214 mesh=ok
+R1 slot s=3.142 round=true through: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=1.249446786 want=1.249446786 mesh=ok
+R1 slot s=3.142 round=true through: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=37.249446786 want=37.249446786 mesh=ok
+R1 slot s=4.712 round=false sunk: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=2.650718801 want=2.650718801 mesh=ok
+R1 slot s=4.712 round=false sunk: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.883572934 want=0.883572934 mesh=ok
+R1 slot s=4.712 round=false sunk: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=38.650718801 want=38.650718801 mesh=ok
+R1 slot s=4.712 round=false sunk: B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=35.116427066 want=35.116427066 mesh=ok
+R1 slot s=4.712 round=false sunk: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=0.883572934 want=0.883572934 mesh=ok
+R1 slot s=4.712 round=false sunk: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=38.650718801 want=38.650718801 mesh=ok
+R1 slot s=4.712 round=false through: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=1.767145868 want=1.767145868 mesh=ok
+R1 slot s=4.712 round=false through: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=1.767145868 want=1.767145868 mesh=ok
+R1 slot s=4.712 round=false through: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=37.767145868 want=37.767145868 mesh=ok
+R1 slot s=4.712 round=false through: B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=34.232854132 want=34.232854132 mesh=ok
+R1 slot s=4.712 round=false through: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=1.767145868 want=1.767145868 mesh=ok
+R1 slot s=4.712 round=false through: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=37.767145868 want=37.767145868 mesh=ok
+R1 slot s=4.712 round=true sunk: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=2.757743113 want=2.757743113 mesh=ok
+R1 slot s=4.712 round=true sunk: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.919247704 want=0.919247704 mesh=ok
+R1 slot s=4.712 round=true sunk: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=38.757743113 want=38.757743113 mesh=ok
+R1 slot s=4.712 round=true sunk: B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=35.080752296 want=35.080752296 mesh=ok
+R1 slot s=4.712 round=true sunk: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=0.919247704 want=0.919247704 mesh=ok
+R1 slot s=4.712 round=true sunk: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=38.757743113 want=38.757743113 mesh=ok
+R1 slot s=4.712 round=true through: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=1.838495408 want=1.838495408 mesh=ok
+R1 slot s=4.712 round=true through: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=1.838495408 want=1.838495408 mesh=ok
+R1 slot s=4.712 round=true through: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=37.838495408 want=37.838495408 mesh=ok
+R1 slot s=4.712 round=true through: B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=34.161504592 want=34.161504592 mesh=ok
+R1 slot s=4.712 round=true through: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=1.838495408 want=1.838495408 mesh=ok
+R1 slot s=4.712 round=true through: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=37.838495408 want=37.838495408 mesh=ok
+R1 slot s=5.969 round=false sunk: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=3.357577149 want=3.357577149 mesh=ok
+R1 slot s=5.969 round=false sunk: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=1.119192383 want=1.119192383 mesh=ok
+R1 slot s=5.969 round=false sunk: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=39.357577149 want=39.357577149 mesh=ok
+R1 slot s=5.969 round=false sunk: B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=34.880807617 want=34.880807617 mesh=ok
+R1 slot s=5.969 round=false sunk: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=1.119192383 want=1.119192383 mesh=ok
+R1 slot s=5.969 round=false sunk: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=39.357577149 want=39.357577149 mesh=ok
+R1 slot s=5.969 round=false through: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=2.238384766 want=2.238384766 mesh=ok
+R1 slot s=5.969 round=false through: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=2.238384766 want=2.238384766 mesh=ok
+R1 slot s=5.969 round=false through: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=38.238384766 want=38.238384766 mesh=ok
+R1 slot s=5.969 round=false through: B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=33.761615234 want=33.761615234 mesh=ok
+R1 slot s=5.969 round=false through: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=2.238384766 want=2.238384766 mesh=ok
+R1 slot s=5.969 round=false through: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=38.238384766 want=38.238384766 mesh=ok
+R1 slot s=5.969 round=true sunk: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=3.464601460 want=3.464601460 mesh=ok
+R1 slot s=5.969 round=true sunk: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=1.154867153 want=1.154867153 mesh=ok
+R1 slot s=5.969 round=true sunk: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=39.464601460 want=39.464601460 mesh=ok
+R1 slot s=5.969 round=true sunk: B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=34.845132847 want=34.845132847 mesh=ok
+R1 slot s=5.969 round=true sunk: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=1.154867153 want=1.154867153 mesh=ok
+R1 slot s=5.969 round=true sunk: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=39.464601460 want=39.464601460 mesh=ok
+R1 slot s=5.969 round=true through: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=2.309734307 want=2.309734307 mesh=ok
+R1 slot s=5.969 round=true through: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=2.309734307 want=2.309734307 mesh=ok
+R1 slot s=5.969 round=true through: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=38.309734307 want=38.309734307 mesh=ok
+R1 slot s=5.969 round=true through: B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=33.690265693 want=33.690265693 mesh=ok
+R1 slot s=5.969 round=true through: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=2.309734307 want=2.309734307 mesh=ok
+R1 slot s=5.969 round=true through: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=38.309734307 want=38.309734307 mesh=ok
+R1 thin ri=0.99 (0,0) sunk: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.093776541 want=0.093776541 mesh=ok
+R1 thin ri=0.99 (0,0) sunk: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.031258847 want=0.031258847 mesh=ok
+R1 thin ri=0.99 (0,0) sunk: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=36.093776541 want=36.093776541 mesh=ok
+R1 thin ri=0.99 (0,0) sunk: B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=35.968741153 want=35.968741153 mesh=ok
+R1 thin ri=0.99 (0,0) sunk: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=0.031258847 want=0.031258847 mesh=ok
+R1 thin ri=0.99 (0,0) sunk: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=36.093776541 want=36.093776541 mesh=ok
+R1 thin ri=0.99 (0,0) through: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.062517694 want=0.062517694 mesh=ok
+R1 thin ri=0.99 (0,0) through: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.062517694 want=0.062517694 mesh=ok
+R1 thin ri=0.99 (0,0) through: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=36.062517694 want=36.062517694 mesh=ok
+R1 thin ri=0.99 (0,0) through: B ∖ A => OK BAD t2=true t3p=false cert=true operand=true v=35.937482306 want=35.937482306 mesh=ok
+R1 thin ri=0.99 (0,0) through: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=0.062517694 want=0.062517694 mesh=ok
+R1 thin ri=0.99 (0,0) through: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=36.062517694 want=36.062517694 mesh=ok
+R1 thin ri=0.99 (0,3.141592653589793) sunk: A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99 (0,3.141592653589793) sunk: A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99 (0,3.141592653589793) sunk: A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99 (0,3.141592653589793) sunk: B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99 (0,3.141592653589793) sunk: B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99 (0,3.141592653589793) sunk: B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99 (0,3.141592653589793) through: A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99 (0,3.141592653589793) through: A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99 (0,3.141592653589793) through: A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99 (0,3.141592653589793) through: B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99 (0,3.141592653589793) through: B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99 (0,3.141592653589793) through: B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99 (1,4) sunk: A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99 (1,4) sunk: A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99 (1,4) sunk: A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99 (1,4) sunk: B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99 (1,4) sunk: B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99 (1,4) sunk: B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99 (1,4) through: A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99 (1,4) through: A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99 (1,4) through: A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99 (1,4) through: B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99 (1,4) through: B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99 (1,4) through: B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.999 (0,0) sunk: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.009420066 want=0.009420066 mesh=ok
+R1 thin ri=0.999 (0,0) sunk: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.003140022 want=0.003140022 mesh=ok
+R1 thin ri=0.999 (0,0) sunk: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=36.009420066 want=36.009420066 mesh=ok
+R1 thin ri=0.999 (0,0) sunk: B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=35.996859978 want=35.996859978 mesh=ok
+R1 thin ri=0.999 (0,0) sunk: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=0.003140022 want=0.003140022 mesh=ok
+R1 thin ri=0.999 (0,0) sunk: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=36.009420066 want=36.009420066 mesh=ok
+R1 thin ri=0.999 (0,0) through: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.006280044 want=0.006280044 mesh=ok
+R1 thin ri=0.999 (0,0) through: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.006280044 want=0.006280044 mesh=ok
+R1 thin ri=0.999 (0,0) through: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=36.006280044 want=36.006280044 mesh=ok
+R1 thin ri=0.999 (0,0) through: B ∖ A => OK BAD t2=true t3p=false cert=true operand=true v=35.993719956 want=35.993719956 mesh=ok
+R1 thin ri=0.999 (0,0) through: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=0.006280044 want=0.006280044 mesh=ok
+R1 thin ri=0.999 (0,0) through: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=36.006280044 want=36.006280044 mesh=ok
+R1 thin ri=0.999 (0,3.141592653589793) sunk: A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.999 (0,3.141592653589793) sunk: A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.999 (0,3.141592653589793) sunk: A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.999 (0,3.141592653589793) sunk: B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.999 (0,3.141592653589793) sunk: B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.999 (0,3.141592653589793) sunk: B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.999 (0,3.141592653589793) through: A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.999 (0,3.141592653589793) through: A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.999 (0,3.141592653589793) through: A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.999 (0,3.141592653589793) through: B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.999 (0,3.141592653589793) through: B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.999 (0,3.141592653589793) through: B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.999 (1,4) sunk: A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.999 (1,4) sunk: A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.999 (1,4) sunk: A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.999 (1,4) sunk: B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.999 (1,4) sunk: B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.999 (1,4) sunk: B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.999 (1,4) through: A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.999 (1,4) through: A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.999 (1,4) through: A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.999 (1,4) through: B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.999 (1,4) through: B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.999 (1,4) through: B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9995 (0,0) sunk: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.004711211 want=0.004711211 mesh=ok
+R1 thin ri=0.9995 (0,0) sunk: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.001570404 want=0.001570404 mesh=ok
+R1 thin ri=0.9995 (0,0) sunk: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=36.004711211 want=36.004711211 mesh=ok
+R1 thin ri=0.9995 (0,0) sunk: B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=35.998429596 want=35.998429596 mesh=ok
+R1 thin ri=0.9995 (0,0) sunk: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=0.001570404 want=0.001570404 mesh=ok
+R1 thin ri=0.9995 (0,0) sunk: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=36.004711211 want=36.004711211 mesh=ok
+R1 thin ri=0.9995 (0,0) through: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.003140807 want=0.003140807 mesh=ok
+R1 thin ri=0.9995 (0,0) through: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.003140807 want=0.003140807 mesh=ok
+R1 thin ri=0.9995 (0,0) through: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=36.003140807 want=36.003140807 mesh=ok
+R1 thin ri=0.9995 (0,0) through: B ∖ A => OK BAD t2=true t3p=false cert=true operand=true v=35.996859193 want=35.996859193 mesh=ok
+R1 thin ri=0.9995 (0,0) through: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=0.003140807 want=0.003140807 mesh=ok
+R1 thin ri=0.9995 (0,0) through: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=36.003140807 want=36.003140807 mesh=ok
+R1 thin ri=0.9995 (0,3.141592653589793) sunk: A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9995 (0,3.141592653589793) sunk: A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9995 (0,3.141592653589793) sunk: A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9995 (0,3.141592653589793) sunk: B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9995 (0,3.141592653589793) sunk: B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9995 (0,3.141592653589793) sunk: B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9995 (0,3.141592653589793) through: A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9995 (0,3.141592653589793) through: A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9995 (0,3.141592653589793) through: A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9995 (0,3.141592653589793) through: B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9995 (0,3.141592653589793) through: B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9995 (0,3.141592653589793) through: B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9995 (1,4) sunk: A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9995 (1,4) sunk: A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9995 (1,4) sunk: A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9995 (1,4) sunk: B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9995 (1,4) sunk: B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9995 (1,4) sunk: B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9995 (1,4) through: A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9995 (1,4) through: A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9995 (1,4) through: A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9995 (1,4) through: B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9995 (1,4) through: B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9995 (1,4) through: B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9999 (0,0) sunk: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.000942431 want=0.000942431 mesh=ok
+R1 thin ri=0.9999 (0,0) sunk: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.000314144 want=0.000314144 mesh=ok
+R1 thin ri=0.9999 (0,0) sunk: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=36.000942431 want=36.000942431 mesh=ok
+R1 thin ri=0.9999 (0,0) sunk: B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=35.999685856 want=35.999685856 mesh=ok
+R1 thin ri=0.9999 (0,0) sunk: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=0.000314144 want=0.000314144 mesh=ok
+R1 thin ri=0.9999 (0,0) sunk: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=36.000942431 want=36.000942431 mesh=ok
+R1 thin ri=0.9999 (0,0) through: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.000628287 want=0.000628287 mesh=ok
+R1 thin ri=0.9999 (0,0) through: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.000628287 want=0.000628287 mesh=ok
+R1 thin ri=0.9999 (0,0) through: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=36.000628287 want=36.000628287 mesh=ok
+R1 thin ri=0.9999 (0,0) through: B ∖ A => OK BAD t2=true t3p=false cert=true operand=true v=35.999371713 want=35.999371713 mesh=ok
+R1 thin ri=0.9999 (0,0) through: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=0.000628287 want=0.000628287 mesh=ok
+R1 thin ri=0.9999 (0,0) through: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=36.000628287 want=36.000628287 mesh=ok
+R1 thin ri=0.9999 (0,3.141592653589793) sunk: A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9999 (0,3.141592653589793) sunk: A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9999 (0,3.141592653589793) sunk: A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9999 (0,3.141592653589793) sunk: B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9999 (0,3.141592653589793) sunk: B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9999 (0,3.141592653589793) sunk: B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9999 (0,3.141592653589793) through: A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9999 (0,3.141592653589793) through: A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9999 (0,3.141592653589793) through: A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9999 (0,3.141592653589793) through: B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9999 (0,3.141592653589793) through: B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9999 (0,3.141592653589793) through: B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9999 (1,4) sunk: A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9999 (1,4) sunk: A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9999 (1,4) sunk: A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9999 (1,4) sunk: B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9999 (1,4) sunk: B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9999 (1,4) sunk: B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9999 (1,4) through: A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9999 (1,4) through: A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9999 (1,4) through: A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9999 (1,4) through: B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9999 (1,4) through: B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.9999 (1,4) through: B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99999 (0,0) sunk: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.000094247 want=0.000094247 mesh=ok
+R1 thin ri=0.99999 (0,0) sunk: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.000031416 want=0.000031416 mesh=ok
+R1 thin ri=0.99999 (0,0) sunk: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=36.000094247 want=36.000094247 mesh=ok
+R1 thin ri=0.99999 (0,0) sunk: B ∖ A => OK SOUND t2=true t3p=true cert=true operand=true v=35.999968584 want=35.999968584 mesh=ok
+R1 thin ri=0.99999 (0,0) sunk: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=0.000031416 want=0.000031416 mesh=ok
+R1 thin ri=0.99999 (0,0) sunk: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=36.000094247 want=36.000094247 mesh=ok
+R1 thin ri=0.99999 (0,0) through: A ∖ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.000062832 want=0.000062832 mesh=ok
+R1 thin ri=0.99999 (0,0) through: A ∩ B => OK SOUND t2=true t3p=true cert=true operand=true v=0.000062832 want=0.000062832 mesh=ok
+R1 thin ri=0.99999 (0,0) through: A ∪ B => OK SOUND t2=true t3p=true cert=true operand=true v=36.000062832 want=36.000062832 mesh=ok
+R1 thin ri=0.99999 (0,0) through: B ∖ A => OK BAD t2=true t3p=false cert=true operand=true v=35.999937168 want=35.999937168 mesh=ok
+R1 thin ri=0.99999 (0,0) through: B ∩ A => OK SOUND t2=true t3p=true cert=true operand=true v=0.000062832 want=0.000062832 mesh=ok
+R1 thin ri=0.99999 (0,0) through: B ∪ A => OK SOUND t2=true t3p=true cert=true operand=true v=36.000062832 want=36.000062832 mesh=ok
+R1 thin ri=0.99999 (0,3.141592653589793) sunk: A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99999 (0,3.141592653589793) sunk: A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99999 (0,3.141592653589793) sunk: A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99999 (0,3.141592653589793) sunk: B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99999 (0,3.141592653589793) sunk: B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99999 (0,3.141592653589793) sunk: B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99999 (0,3.141592653589793) through: A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99999 (0,3.141592653589793) through: A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99999 (0,3.141592653589793) through: A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99999 (0,3.141592653589793) through: B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99999 (0,3.141592653589793) through: B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99999 (0,3.141592653589793) through: B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99999 (1,4) sunk: A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99999 (1,4) sunk: A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99999 (1,4) sunk: A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99999 (1,4) sunk: B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99999 (1,4) sunk: B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99999 (1,4) sunk: B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99999 (1,4) through: A ∖ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99999 (1,4) through: A ∩ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99999 (1,4) through: A ∪ B => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99999 (1,4) through: B ∖ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99999 (1,4) through: B ∩ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 
+R1 thin ri=0.99999 (1,4) through: B ∪ A => ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) 

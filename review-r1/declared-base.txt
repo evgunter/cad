@@ -1,0 +1,108 @@
+R1 plug arcs=1 plug z=(0.0, 1.0) az=(0,3.141592653589793): A·B ∪ declared => OK SOUND t2=true t3p=true cert=true operand=true v=36.000000000 want=36.000000000
+R1 plug arcs=1 plug z=(0.0, 1.0) az=(0,3.141592653589793): A·B ∩ declared => EMPTY ok
+R1 plug arcs=1 plug z=(0.0, 1.0) az=(0,3.141592653589793): A·B ∖ declared => OK SOUND t2=true t3p=true cert=true operand=true v=0.785398163 want=0.785398163
+R1 plug arcs=1 plug z=(0.0, 1.0) az=(0,3.141592653589793): B·A ∪ declared => OK SOUND t2=true t3p=true cert=true operand=true v=36.000000000 want=36.000000000
+R1 plug arcs=1 plug z=(0.0, 1.0) az=(0,3.141592653589793): B·A ∩ declared => EMPTY ok
+R1 plug arcs=1 plug z=(0.0, 1.0) az=(0,3.141592653589793): B·A ∖ declared => OK SOUND t2=true t3p=true cert=true operand=true v=35.214601837 want=35.214601837
+R1 plug arcs=1 plug z=(0.25, 0.75) az=(0,3.141592653589793): A·B ∪ declared => ERR RestZipUnsupported { what: ChordEndpointRevisited }
+R1 plug arcs=1 plug z=(0.25, 0.75) az=(0,3.141592653589793): A·B ∩ declared => EMPTY ok
+R1 plug arcs=1 plug z=(0.25, 0.75) az=(0,3.141592653589793): A·B ∖ declared => OK SOUND t2=true t3p=true cert=true operand=true v=0.392699082 want=0.392699082
+R1 plug arcs=1 plug z=(0.25, 0.75) az=(0,3.141592653589793): B·A ∪ declared => ERR RestZipUnsupported { what: ChordEndpointRevisited }
+R1 plug arcs=1 plug z=(0.25, 0.75) az=(0,3.141592653589793): B·A ∩ declared => EMPTY ok
+R1 plug arcs=1 plug z=(0.25, 0.75) az=(0,3.141592653589793): B·A ∖ declared => OK SOUND t2=true t3p=true cert=true operand=true v=35.214601837 want=35.214601837
+R1 plug arcs=1 plug z=(0.0, 0.5) az=(0,3.141592653589793): A·B ∪ declared => OK SOUND t2=true t3p=true cert=true operand=true v=35.607300918 want=35.607300918
+R1 plug arcs=1 plug z=(0.0, 0.5) az=(0,3.141592653589793): A·B ∩ declared => EMPTY ok
+R1 plug arcs=1 plug z=(0.0, 0.5) az=(0,3.141592653589793): A·B ∖ declared => OK SOUND t2=true t3p=true cert=true operand=true v=0.392699082 want=0.392699082
+R1 plug arcs=1 plug z=(0.0, 0.5) az=(0,3.141592653589793): B·A ∪ declared => OK SOUND t2=true t3p=true cert=true operand=true v=35.607300918 want=35.607300918
+R1 plug arcs=1 plug z=(0.0, 0.5) az=(0,3.141592653589793): B·A ∩ declared => EMPTY ok
+R1 plug arcs=1 plug z=(0.0, 0.5) az=(0,3.141592653589793): B·A ∖ declared => OK SOUND t2=true t3p=true cert=true operand=true v=35.214601837 want=35.214601837
+R1 ring plug arcs=1 az=(0,3.141592653589793): A·B ∪ declared => ERR Join(SingleSiteSectionLoop { count: 2 })
+R1 ring plug arcs=1 az=(0,3.141592653589793): A·B ∩ declared => ERR CoincidentShell { operand: B, shell: ShellKey(2v1), orientation: Mixed }
+R1 ring plug arcs=1 az=(0,3.141592653589793): A·B ∖ declared => ERR CoincidentShell { operand: B, shell: ShellKey(2v1), orientation: Mixed }
+R1 ring plug arcs=1 az=(0,3.141592653589793): B·A ∪ declared => ERR Join(SingleSiteSectionLoop { count: 2 })
+R1 ring plug arcs=1 az=(0,3.141592653589793): B·A ∩ declared => ERR CoincidentShell { operand: A, shell: ShellKey(2v1), orientation: Mixed }
+R1 ring plug arcs=1 az=(0,3.141592653589793): B·A ∖ declared => ERR CoincidentShell { operand: A, shell: ShellKey(2v1), orientation: Mixed }
+R1 plug arcs=1 plug z=(0.0, 1.0) az=(0,0): A·B ∪ declared => ERR Join(SingleSiteSectionLoop { count: 2 })
+R1 plug arcs=1 plug z=(0.0, 1.0) az=(0,0): A·B ∩ declared => ERR CoincidentShell { operand: A, shell: ShellKey(1v1), orientation: Mixed }
+R1 plug arcs=1 plug z=(0.0, 1.0) az=(0,0): A·B ∖ declared => ERR CoincidentShell { operand: A, shell: ShellKey(1v1), orientation: Mixed }
+R1 plug arcs=1 plug z=(0.0, 1.0) az=(0,0): B·A ∪ declared => ERR Join(SingleSiteSectionLoop { count: 2 })
+R1 plug arcs=1 plug z=(0.0, 1.0) az=(0,0): B·A ∩ declared => ERR CoincidentShell { operand: B, shell: ShellKey(1v1), orientation: Mixed }
+R1 plug arcs=1 plug z=(0.0, 1.0) az=(0,0): B·A ∖ declared => ERR CoincidentShell { operand: B, shell: ShellKey(1v1), orientation: Mixed }
+R1 plug arcs=1 plug z=(0.25, 0.75) az=(0,0): A·B ∪ declared => ERR Join(SingleSiteSectionLoop { count: 2 })
+R1 plug arcs=1 plug z=(0.25, 0.75) az=(0,0): A·B ∩ declared => ERR CoincidentShell { operand: A, shell: ShellKey(1v1), orientation: Unpaired { face: FaceKey(1v1) } }
+R1 plug arcs=1 plug z=(0.25, 0.75) az=(0,0): A·B ∖ declared => ERR CoincidentShell { operand: A, shell: ShellKey(1v1), orientation: Unpaired { face: FaceKey(1v1) } }
+R1 plug arcs=1 plug z=(0.25, 0.75) az=(0,0): B·A ∪ declared => ERR Join(SingleSiteSectionLoop { count: 2 })
+R1 plug arcs=1 plug z=(0.25, 0.75) az=(0,0): B·A ∩ declared => ERR CoincidentShell { operand: B, shell: ShellKey(1v1), orientation: Unpaired { face: FaceKey(1v1) } }
+R1 plug arcs=1 plug z=(0.25, 0.75) az=(0,0): B·A ∖ declared => ERR CoincidentShell { operand: B, shell: ShellKey(1v1), orientation: Unpaired { face: FaceKey(1v1) } }
+R1 plug arcs=1 plug z=(0.0, 0.5) az=(0,0): A·B ∪ declared => ERR Join(SingleSiteSectionLoop { count: 2 })
+R1 plug arcs=1 plug z=(0.0, 0.5) az=(0,0): A·B ∩ declared => ERR CoincidentShell { operand: A, shell: ShellKey(1v1), orientation: Unpaired { face: FaceKey(1v1) } }
+R1 plug arcs=1 plug z=(0.0, 0.5) az=(0,0): A·B ∖ declared => ERR CoincidentShell { operand: A, shell: ShellKey(1v1), orientation: Unpaired { face: FaceKey(1v1) } }
+R1 plug arcs=1 plug z=(0.0, 0.5) az=(0,0): B·A ∪ declared => ERR Join(SingleSiteSectionLoop { count: 2 })
+R1 plug arcs=1 plug z=(0.0, 0.5) az=(0,0): B·A ∩ declared => ERR CoincidentShell { operand: B, shell: ShellKey(1v1), orientation: Unpaired { face: FaceKey(1v1) } }
+R1 plug arcs=1 plug z=(0.0, 0.5) az=(0,0): B·A ∖ declared => ERR CoincidentShell { operand: B, shell: ShellKey(1v1), orientation: Unpaired { face: FaceKey(1v1) } }
+R1 ring plug arcs=1 az=(0,0): A·B ∪ declared => ERR Join(SingleSiteSectionLoop { count: 2 })
+R1 ring plug arcs=1 az=(0,0): A·B ∩ declared => EMPTY ok
+R1 ring plug arcs=1 az=(0,0): A·B ∖ declared => OK SOUND t2=true t3p=true cert=true operand=true v=2.356194490 want=2.356194490
+R1 ring plug arcs=1 az=(0,0): B·A ∪ declared => ERR Join(SingleSiteSectionLoop { count: 2 })
+R1 ring plug arcs=1 az=(0,0): B·A ∩ declared => EMPTY ok
+R1 ring plug arcs=1 az=(0,0): B·A ∖ declared => OK BAD t2=true t3p=false cert=true operand=true v=33.643805510 want=33.643805510
+R1 plug arcs=2 plug z=(0.0, 1.0) az=(0,3.141592653589793): A·B ∪ declared => OK SOUND t2=true t3p=true cert=true operand=true v=36.000000000 want=36.000000000
+R1 plug arcs=2 plug z=(0.0, 1.0) az=(0,3.141592653589793): A·B ∩ declared => EMPTY ok
+R1 plug arcs=2 plug z=(0.0, 1.0) az=(0,3.141592653589793): A·B ∖ declared => OK SOUND t2=true t3p=true cert=true operand=true v=0.785398163 want=0.785398163
+R1 plug arcs=2 plug z=(0.0, 1.0) az=(0,3.141592653589793): B·A ∪ declared => OK SOUND t2=true t3p=true cert=true operand=true v=36.000000000 want=36.000000000
+R1 plug arcs=2 plug z=(0.0, 1.0) az=(0,3.141592653589793): B·A ∩ declared => EMPTY ok
+R1 plug arcs=2 plug z=(0.0, 1.0) az=(0,3.141592653589793): B·A ∖ declared => OK SOUND t2=true t3p=true cert=true operand=true v=35.214601837 want=35.214601837
+R1 plug arcs=2 plug z=(0.25, 0.75) az=(0,3.141592653589793): A·B ∪ declared => OK SOUND t2=true t3p=true cert=true operand=true v=35.607300918 want=35.607300918
+R1 plug arcs=2 plug z=(0.25, 0.75) az=(0,3.141592653589793): A·B ∩ declared => EMPTY ok
+R1 plug arcs=2 plug z=(0.25, 0.75) az=(0,3.141592653589793): A·B ∖ declared => OK SOUND t2=true t3p=true cert=true operand=true v=0.392699082 want=0.392699082
+R1 plug arcs=2 plug z=(0.25, 0.75) az=(0,3.141592653589793): B·A ∪ declared => OK SOUND t2=true t3p=true cert=true operand=true v=35.607300918 want=35.607300918
+R1 plug arcs=2 plug z=(0.25, 0.75) az=(0,3.141592653589793): B·A ∩ declared => EMPTY ok
+R1 plug arcs=2 plug z=(0.25, 0.75) az=(0,3.141592653589793): B·A ∖ declared => OK SOUND t2=true t3p=true cert=true operand=true v=35.214601837 want=35.214601837
+R1 plug arcs=2 plug z=(0.0, 0.5) az=(0,3.141592653589793): A·B ∪ declared => OK SOUND t2=true t3p=true cert=true operand=true v=35.607300918 want=35.607300918
+R1 plug arcs=2 plug z=(0.0, 0.5) az=(0,3.141592653589793): A·B ∩ declared => EMPTY ok
+R1 plug arcs=2 plug z=(0.0, 0.5) az=(0,3.141592653589793): A·B ∖ declared => OK SOUND t2=true t3p=true cert=true operand=true v=0.392699082 want=0.392699082
+R1 plug arcs=2 plug z=(0.0, 0.5) az=(0,3.141592653589793): B·A ∪ declared => OK SOUND t2=true t3p=true cert=true operand=true v=35.607300918 want=35.607300918
+R1 plug arcs=2 plug z=(0.0, 0.5) az=(0,3.141592653589793): B·A ∩ declared => EMPTY ok
+R1 plug arcs=2 plug z=(0.0, 0.5) az=(0,3.141592653589793): B·A ∖ declared => OK SOUND t2=true t3p=true cert=true operand=true v=35.214601837 want=35.214601837
+R1 ring plug arcs=2 az=(0,3.141592653589793): A·B ∪ declared => OK SOUND t2=true t3p=true cert=true operand=true v=36.000000000 want=36.000000000
+R1 ring plug arcs=2 az=(0,3.141592653589793): A·B ∩ declared => EMPTY ok
+R1 ring plug arcs=2 az=(0,3.141592653589793): A·B ∖ declared => OK SOUND t2=true t3p=true cert=true operand=true v=2.356194490 want=2.356194490
+R1 ring plug arcs=2 az=(0,3.141592653589793): B·A ∪ declared => OK SOUND t2=true t3p=true cert=true operand=true v=36.000000000 want=36.000000000
+R1 ring plug arcs=2 az=(0,3.141592653589793): B·A ∩ declared => EMPTY ok
+R1 ring plug arcs=2 az=(0,3.141592653589793): B·A ∖ declared => OK BAD t2=true t3p=false cert=true operand=true v=33.643805510 want=33.643805510
+R1 plug arcs=2 plug z=(0.0, 1.0) az=(0,0): A·B ∪ declared => OK SOUND t2=true t3p=true cert=true operand=true v=36.000000000 want=36.000000000
+R1 plug arcs=2 plug z=(0.0, 1.0) az=(0,0): A·B ∩ declared => EMPTY ok
+R1 plug arcs=2 plug z=(0.0, 1.0) az=(0,0): A·B ∖ declared => OK SOUND t2=true t3p=true cert=true operand=true v=0.785398163 want=0.785398163
+R1 plug arcs=2 plug z=(0.0, 1.0) az=(0,0): B·A ∪ declared => OK SOUND t2=true t3p=true cert=true operand=true v=36.000000000 want=36.000000000
+R1 plug arcs=2 plug z=(0.0, 1.0) az=(0,0): B·A ∩ declared => EMPTY ok
+R1 plug arcs=2 plug z=(0.0, 1.0) az=(0,0): B·A ∖ declared => OK SOUND t2=true t3p=true cert=true operand=true v=35.214601837 want=35.214601837
+R1 plug arcs=2 plug z=(0.25, 0.75) az=(0,0): A·B ∪ declared => OK SOUND t2=true t3p=true cert=true operand=true v=35.607300918 want=35.607300918
+R1 plug arcs=2 plug z=(0.25, 0.75) az=(0,0): A·B ∩ declared => EMPTY ok
+R1 plug arcs=2 plug z=(0.25, 0.75) az=(0,0): A·B ∖ declared => OK SOUND t2=true t3p=true cert=true operand=true v=0.392699082 want=0.392699082
+R1 plug arcs=2 plug z=(0.25, 0.75) az=(0,0): B·A ∪ declared => OK SOUND t2=true t3p=true cert=true operand=true v=35.607300918 want=35.607300918
+R1 plug arcs=2 plug z=(0.25, 0.75) az=(0,0): B·A ∩ declared => EMPTY ok
+R1 plug arcs=2 plug z=(0.25, 0.75) az=(0,0): B·A ∖ declared => OK SOUND t2=true t3p=true cert=true operand=true v=35.214601837 want=35.214601837
+R1 plug arcs=2 plug z=(0.0, 0.5) az=(0,0): A·B ∪ declared => OK SOUND t2=true t3p=true cert=true operand=true v=35.607300918 want=35.607300918
+R1 plug arcs=2 plug z=(0.0, 0.5) az=(0,0): A·B ∩ declared => EMPTY ok
+R1 plug arcs=2 plug z=(0.0, 0.5) az=(0,0): A·B ∖ declared => OK SOUND t2=true t3p=true cert=true operand=true v=0.392699082 want=0.392699082
+R1 plug arcs=2 plug z=(0.0, 0.5) az=(0,0): B·A ∪ declared => OK SOUND t2=true t3p=true cert=true operand=true v=35.607300918 want=35.607300918
+R1 plug arcs=2 plug z=(0.0, 0.5) az=(0,0): B·A ∩ declared => EMPTY ok
+R1 plug arcs=2 plug z=(0.0, 0.5) az=(0,0): B·A ∖ declared => OK SOUND t2=true t3p=true cert=true operand=true v=35.214601837 want=35.214601837
+R1 ring plug arcs=2 az=(0,0): A·B ∪ declared => OK SOUND t2=true t3p=true cert=true operand=true v=36.000000000 want=36.000000000
+R1 ring plug arcs=2 az=(0,0): A·B ∩ declared => EMPTY ok
+R1 ring plug arcs=2 az=(0,0): A·B ∖ declared => OK SOUND t2=true t3p=true cert=true operand=true v=2.356194490 want=2.356194490
+R1 ring plug arcs=2 az=(0,0): B·A ∪ declared => OK SOUND t2=true t3p=true cert=true operand=true v=36.000000000 want=36.000000000
+R1 ring plug arcs=2 az=(0,0): B·A ∩ declared => EMPTY ok
+R1 ring plug arcs=2 az=(0,0): B·A ∖ declared => OK BAD t2=true t3p=false cert=true operand=true v=33.643805510 want=33.643805510
+R1 identical cylinder: A·B ∪ declared => ERR FallbackExtentUnsupported { operand: A, face: FaceKey(2v1), what: "a curved face and a face of the other solid
+R1 identical cylinder: A·B ∩ declared => ERR FallbackExtentUnsupported { operand: A, face: FaceKey(2v1), what: "a curved face and a face of the other solid
+R1 identical cylinder: A·B ∖ declared => ERR FallbackExtentUnsupported { operand: A, face: FaceKey(2v1), what: "a curved face and a face of the other solid
+R1 identical cylinder: B·A ∪ declared => ERR FallbackExtentUnsupported { operand: A, face: FaceKey(2v1), what: "a curved face and a face of the other solid
+R1 identical cylinder: B·A ∩ declared => ERR FallbackExtentUnsupported { operand: A, face: FaceKey(2v1), what: "a curved face and a face of the other solid
+R1 identical cylinder: B·A ∖ declared => ERR FallbackExtentUnsupported { operand: A, face: FaceKey(2v1), what: "a curved face and a face of the other solid
+R1 identical annulus: A·B ∪ declared => ERR FallbackExtentUnsupported { operand: A, face: FaceKey(2v1), what: "a curved face and a face of the other solid
+R1 identical annulus: A·B ∩ declared => ERR FallbackExtentUnsupported { operand: A, face: FaceKey(2v1), what: "a curved face and a face of the other solid
+R1 identical annulus: A·B ∖ declared => ERR FallbackExtentUnsupported { operand: A, face: FaceKey(2v1), what: "a curved face and a face of the other solid
+R1 identical annulus: B·A ∪ declared => ERR FallbackExtentUnsupported { operand: A, face: FaceKey(2v1), what: "a curved face and a face of the other solid
+R1 identical annulus: B·A ∩ declared => ERR FallbackExtentUnsupported { operand: A, face: FaceKey(2v1), what: "a curved face and a face of the other solid
+R1 identical annulus: B·A ∖ declared => ERR FallbackExtentUnsupported { operand: A, face: FaceKey(2v1), what: "a curved face and a face of the other solid
