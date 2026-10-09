@@ -629,24 +629,26 @@ class TestBracket(unittest.TestCase):
             )
         )
         split = doc.insert(Node.split(bracket, tool))
-        offcuts = doc.insert(Node.part(doc.output(split, 0), PartSelect.split_half(SplitHalf.Above)))
-        corner = doc.insert(Node.part(doc.output(split, 1), PartSelect.split_half(SplitHalf.Below)))
+        offcuts, corner = evaluate(doc).value(split).split()
+        assert offcuts is not None and corner is not None
 
         whole = volume_of(doc, bracket)
-        off = volume_of(doc, offcuts)
+        off = offcuts.mass_properties().volume
+        kept = corner.mass_properties().volume
         self.assertAlmostEqual(off, 2 * 0.75 * ((3 - self.CUT) + 0.5), delta=1e-12)
-        self.assertAlmostEqual(off + volume_of(doc, corner), whole, delta=1e-12)
+        self.assertAlmostEqual(off + kept, whole, delta=1e-12)
 
         chords = evaluate(doc).select(
-            corner,
+            split,
             Selector.of(
-                NamePat.of_kind(EntityKind.Edge).path([SegPat.tag(SegTag.SectionEdge), SegPat.tag(SegTag.Fragment)])
+                NamePat.of_kind(EntityKind.Edge).path(
+                    [SegPat.tag(SegTag.SectionEdge).side(SplitHalf.Below), SegPat.tag(SegTag.Fragment)]
+                )
             ),
         )
         self.assertEqual(len(chords), 4, "two legs x two caps, each chord named by its ends")
 
-        kept = volume_of(doc, corner)
-        broken = doc.insert(Node.chamfer(corner, Formula.length_in(0.1, m), chords))
+        broken = doc.insert(Node.chamfer(doc.output(split, 1), Formula.length_in(0.1, m), chords))
         self.assertAlmostEqual(volume_of(doc, broken), kept - 4 * (0.1**2 / 2) * math.sqrt(2), delta=1e-12)
 
 

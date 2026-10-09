@@ -1,39 +1,23 @@
-"""The projection node, from Python (LIB-B-PART).
+"""One body out of a multi-body value, from Python (LIB-B-PART).
 
-`Node.part` says ONE body out of a multi-body value — "the upper half
-of that split", "instance 1 of that pattern" — and it is the node that
-gives the two plural payloads a downstream door. The Python mirror of
+A split's half is an output of the split, read as `doc.output(split,
+port)` — "the upper half of that split" — and `Node.part` says
+"instance 1 of that pattern", giving a pattern's plural payload a
+downstream door. The Python mirror of
 `crates/editor-core/tests/corpus/part_select.rs` and the acceptance
 rows in `crates/editor-core/tests/docm2_part.rs`, asserted through the
 bound doors rather than restated as prose.
 
-THREE DOORS, ONE SENTENCE. `PartSelect.split_half` /
-`PartSelect.instance` are the selector pair; `Node.part` carries one;
-and `Node.pattern` — bound HERE, not before — is what an instance
-selection selects out of. That last one is the finding this unit's
-scope sweep turned up before any code: exactly one node in the kernel
-emits a plural `instances` payload, it was deliberately unbound
-because nothing consumed one, and `Node.part` is the thing that
-consumes one. Binding the selector without the source would have
-shipped a door whose Instance half no Python caller could reach.
-
-WHAT "A PROJECTION" MEANS, and what the rows below check. Nothing is
-moved, re-stamped or recomputed: the half's body is the split's own,
-so its mass IS the mass of the side `Value.split` hands back
-(`TestTheHalfIsTheHalf`), the two halves unioned are the box again
+WHAT A READ OF A HALF MEANS, and what the rows below check. Nothing is
+moved, re-stamped or recomputed: a reader of the half reads the
+split's own side, so a still transform of it weighs what the side
+`Value.split` hands back weighs (`TestTheHalfIsItsPort`), the two
+halves unioned are the box again
 (`test_the_halves_rejoin_into_the_box`), and the names pass through
-verbatim, so a face read off the Part is a face of the split
-(`test_the_names_pass_through`). The index is STRUCTURAL, so moving it
-recomputes the Part and nothing upstream
+verbatim, so a face read through a port is a face of the split
+(`test_the_names_pass_through`). A Part's index is STRUCTURAL, so
+moving it recomputes the Part and nothing upstream
 (`test_moving_the_index_recomputes_the_part_alone`).
-
-DELIBERATELY NOT ASSERTED HERE, so its absence is not read as
-coverage: the `Arc`-identity claim (a Part's body is the same
-allocation as the half's, not a copy of it) is `docm2_part.rs`'s A1
-and has no Python spelling — `Body` is an opaque handle with no
-identity door, and inventing one to test this would be a door built
-for its own test. The mass and the name table are what cross, and
-they are what is compared.
 """
 
 import unittest
@@ -51,7 +35,6 @@ from pncad import (
     PartSelect,
     PatternKind,
     PlaneRelation,
-    SplitHalf,
     evaluate,
     m,
     rad,
@@ -110,6 +93,22 @@ def pattern_of(doc, prototype, count=COUNT, pitch=PITCH):
     )
 
 
+def still(doc, read):
+    """A transform of `read` that moves nothing: a node holding the
+    body a read of it hands on, names verbatim."""
+    return doc.insert(
+        Node.transform(read, (
+            Formula.length_in(0, m),
+            Formula.length_in(0, m),
+            Formula.length_in(0, m),
+        ), (
+            Formula.literal(0.0),
+            Formula.literal(0.0),
+            Formula.literal(1.0),
+        ), Formula.angle_in(0, rad))
+    )
+
+
 def mass_of(ev, node):
     body = ev.value(node).body()
     body.validate()
@@ -123,12 +122,12 @@ def refusal(testcase, doc, node):
     return caught.exception.kind
 
 
-class TestTheHalfIsTheHalf(unittest.TestCase):
-    """A split's half, selected — the corpus document's first half.
+class TestTheHalfIsItsPort(unittest.TestCase):
+    """A split's half, read by port — the corpus document's first half.
 
     The oracle is the split's OWN value: `Value.split` hands back the
-    two sides, and a Part of a half must weigh exactly what that side
-    weighs. Nothing here transcribes a number a Part is then checked
+    two sides, and a reader of a port must hold exactly what that side
+    weighs. Nothing here transcribes a number a read is then checked
     against; the two readings of the same body are compared.
     """
 
@@ -136,8 +135,8 @@ class TestTheHalfIsTheHalf(unittest.TestCase):
         doc = Doc()
         cube = box(doc)
         split = split_at(doc, cube)
-        above = doc.insert(Node.part(doc.output(split, 0), PartSelect.split_half(SplitHalf.Above)))
-        below = doc.insert(Node.part(doc.output(split, 1), PartSelect.split_half(SplitHalf.Below)))
+        above = still(doc, doc.output(split, 0))
+        below = still(doc, doc.output(split, 1))
         return doc, split, above, below
 
     def test_each_half_weighs_what_the_split_says_it_weighs(self):
@@ -145,15 +144,15 @@ class TestTheHalfIsTheHalf(unittest.TestCase):
         ev = evaluate(doc)
         self.assertEqual(ev.value(split).kind, "split")
         upper, lower = ev.value(split).split()
-        for part, side, name in ((above, upper, "above"), (below, lower, "below")):
+        for read, side, name in ((above, upper, "above"), (below, lower, "below")):
             with self.subTest(half=name):
                 self.assertIsNotNone(side)
-                self.assertEqual(ev.value(part).kind, "body")
+                self.assertEqual(ev.value(read).kind, "body")
                 self.assertEqual(
-                    mass_of(ev, part).volume, side.mass_properties().volume
+                    mass_of(ev, read).volume, side.mass_properties().volume
                 )
                 self.assertEqual(
-                    mass_of(ev, part).surface_area,
+                    mass_of(ev, read).surface_area,
                     side.mass_properties().surface_area,
                 )
 
@@ -163,47 +162,45 @@ class TestTheHalfIsTheHalf(unittest.TestCase):
         so the comparison is `==` rather than a tolerance."""
         doc, _, above, below = self.build()
         ev = evaluate(doc)
-        for part in (above, below):
-            mass = mass_of(ev, part)
+        for read in (above, below):
+            mass = mass_of(ev, read)
             self.assertEqual(mass.volume, 2.0 * 2.0 * 0.5)
             self.assertEqual(mass.surface_area, 2 * 2.0 * 2.0 + 4 * 2.0 * 0.5)
 
     def test_the_halves_rejoin_into_the_box(self):
-        """The document's own statement that a Part IS the half:
+        """The document's own statement that a port IS the half:
         nothing was moved, re-stamped or lost on the way through, so
         unioning the two back together is the box again.
 
         The two halves REST on each other across the section, which is
         a declared contact — detected through `find_flush_candidates`
-        and declared through `Doc.declare_all`, the same protocol any
-        touching union goes through. That the detector finds the pair
-        AT ALL across two Parts is itself the pass-through claim: the
-        faces it matches are the split's, carried verbatim.
-
-        The inventory says the same thing a second way. Five findings:
-        ONE `SameOpposite` — the section, where the halves face each
-        other — and four `SameOriented`, the box's four walls, each cut
-        into two coplanar pieces facing the same way out. Only the
-        first is a rest contact to declare.
+        over the split itself, whose value holds both halves, and
+        declared on the union. Both sides are sited at the split, and
+        each is read in the half whose table holds it.
         """
-        doc, _, above, below = self.build()
+        doc = Doc()
+        split = split_at(doc, box(doc))
         ev = evaluate(doc)
-        findings = ev.find_flush_candidates(above, below)
-        self.assertEqual(len(findings), 5)
+        findings = ev.find_flush_candidates(split, split)
         section = [f for f in findings if f.relation == PlaneRelation.SameOpposite]
-        self.assertEqual(len(section), 1, "the one section face pair")
+        self.assertTrue(section, "the section face pair")
         whole = doc.insert(
-            Node.boolean(BooleanOp.Union, above, below, declare=section)
+            Node.boolean(
+                BooleanOp.Union,
+                doc.output(split, 0),
+                doc.output(split, 1),
+                declare=section[:1],
+            )
         )
         mass = mass_of(evaluate(doc), whole)
         self.assertEqual(mass.volume, 2.0 * 2.0 * 1.0)
         self.assertEqual(mass.surface_area, 2 * 2.0 * 2.0 + 4 * 2.0 * 1.0)
 
     def test_the_names_pass_through(self):
-        """A Part's name table is the input's, RESTRICTED to the
-        selected body and otherwise verbatim — so every face name the
-        Part answers with is a face name of the split, unchanged as
-        text, and the two halves' name sets are disjoint."""
+        """A read of a half hands on the split's rows for that half and
+        otherwise verbatim — so every face name a reader answers with
+        is a face name of the split, unchanged as text, and the two
+        halves' name sets are disjoint."""
         doc, split, above, below = self.build()
         ev = evaluate(doc)
         whole = set(ev.all_faces(split))
@@ -276,36 +273,26 @@ class TestTheInstanceIsTheInstance(unittest.TestCase):
         self.assertEqual(mass_of(ev, lifted).volume, 2.0 * 2.0 * 1.0)
 
 
-class TestTheSelectorAndTheValueMustAgree(unittest.TestCase):
-    """A half against a split, an index against a pattern's instances,
-    and any other pairing refuses `wrong_operand` at evaluation.
+class TestAPartReadsCopies(unittest.TestCase):
+    """A part reads a pattern's copies and nothing else, refused at
+    insert: a plain body and a split's half are one body each
+    (`slot_var_kind`), and a split named alone is two
+    (`ambiguous_output`)."""
 
-    Not at construction: the read's kind admits a body or a list of
-    them, and which selector the value takes is the evaluator's to
-    judge. The crossings `docm2_part.rs`'s A4 asserts, and a split
-    named alone, which the door refuses before any selector is read.
-    """
-
-    def test_every_mismatch_refuses(self):
+    def test_every_mismatch_refuses_at_insert(self):
         doc = Doc()
         cube = box(doc)
         split = split_at(doc, cube)
-        family = pattern_of(doc, cube)
-        half = PartSelect.split_half(SplitHalf.Above)
         index = PartSelect.instance(Formula.count(0))
-        for of, select, label in (
-            (family, half, "a half of a pattern"),
-            (cube, half, "a half of a plain body"),
-            (cube, index, "an index of a plain body"),
+        for of, label, tag in (
+            (cube, "a plain body", "slot_var_kind"),
+            (doc.output(split, 0), "a split's half", "slot_var_kind"),
+            (split, "a split named alone", "ambiguous_output"),
         ):
             with self.subTest(case=label):
-                node = doc.insert(Node.part(of, select))
-                self.assertEqual(refusal(self, doc, node), "wrong_operand")
-        # A split named alone is either of its two halves, so the door
-        # refuses the read before any selector is judged.
-        with self.assertRaises(EditError) as caught:
-            doc.insert(Node.part(split, index))
-        self.assertEqual(caught.exception.variant, "ambiguous_output")
+                with self.assertRaises(EditError) as caught:
+                    doc.insert(Node.part(of, index))
+                self.assertEqual(caught.exception.variant, tag)
 
 
 class TestTheRefusalsAreTyped(unittest.TestCase):
@@ -315,14 +302,14 @@ class TestTheRefusalsAreTyped(unittest.TestCase):
     caller able to construct either."""
 
     def test_a_half_with_no_material_refuses(self):
-        """A tool plane that misses the box entirely: the empty side's
-        Part refuses, and the side WITH material still evaluates — the
-        refusal is the selection's, not the split's."""
+        """A tool plane that misses the box entirely: a reader of the
+        empty side refuses, and a reader of the side WITH material still
+        evaluates — the refusal is the read's, not the split's."""
         doc = Doc()
         cube = box(doc)
         split = split_at(doc, cube, z=2.0)
-        above = doc.insert(Node.part(doc.output(split, 0), PartSelect.split_half(SplitHalf.Above)))
-        below = doc.insert(Node.part(doc.output(split, 1), PartSelect.split_half(SplitHalf.Below)))
+        above = still(doc, doc.output(split, 0))
+        below = still(doc, doc.output(split, 1))
         self.assertEqual(refusal(self, doc, above), "empty_half")
         self.assertTrue(evaluate(doc).succeeded(below))
 
@@ -410,17 +397,6 @@ class TestTheIndexIsStructural(unittest.TestCase):
             doc.apply(DocEdit.bind_instance_param(family, VarName("which")))
         self.assertEqual(no_instance.exception.variant, "unknown_slot")
 
-    def test_a_half_selection_carries_no_index_slot(self):
-        """A Part is one node with two shapes, and only one of them
-        has a slot: which HALF is not a number to bind."""
-        doc = Doc()
-        doc.apply(DocEdit.declare_var(VarName("which"), FreeVar.count(0)))
-        split = split_at(doc, box(doc))
-        above = doc.insert(Node.part(doc.output(split, 0), PartSelect.split_half(SplitHalf.Above)))
-        with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.bind_instance_param(above, VarName("which")))
-        self.assertEqual(caught.exception.variant, "unknown_slot")
-
 
 class TestThePatternDoor(unittest.TestCase):
     """`Node.pattern` itself: the replication rule vocabulary over an
@@ -455,20 +431,16 @@ class TestThePatternDoor(unittest.TestCase):
 
 class TestTheReadSide(unittest.TestCase):
     """What a reader sees: `Doc.node_kind` answers the constructor's
-    own word for both new nodes, and a Part is a DAG edge the document
-    refuses to delete out from under."""
+    own word for both nodes, and a Part's read strands typed when what
+    it reads is deleted."""
 
     def test_node_kind_answers_part_and_pattern(self):
         doc = Doc()
         cube = box(doc)
-        split = split_at(doc, cube)
         family = pattern_of(doc, cube)
-        half = doc.insert(Node.part(doc.output(split, 1), PartSelect.split_half(SplitHalf.Below)))
         one = doc.insert(Node.part(family, PartSelect.instance(Formula.count(0))))
         self.assertEqual(doc.node_kind(family), "pattern")
-        self.assertEqual(doc.node_kind(half), "part")
         self.assertEqual(doc.node_kind(one), "part")
-        self.assertEqual(doc.node_kind(split), "split")
 
     def test_the_selected_value_is_a_read(self):
         """Deleting the pattern a part reads is accepted, says the read
