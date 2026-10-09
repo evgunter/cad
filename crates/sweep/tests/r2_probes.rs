@@ -375,4 +375,31 @@ fn r2_probe_battery() {
     six("F9 rod ending inside a pipe's bore", &rod2, &p, (2.0 * PI, 6.0 * PI, 0.0));
     let p3 = fin(pipe(1.0, 2.0, 2.0, 1.0));
     six("F9 rod ending at a pipe's bore rim", &rod2, &p3, (2.0 * PI, 3.0 * PI, 0.0));
+    // F10 a sphere-zone rim (sphere | flat top) lying in a rod's wall:
+    // the rod's whole turn is cut by the rim's plane, across its seam.
+    let a45 = core::f64::consts::FRAC_1_SQRT_2;
+    let dome = fin(sweep::test_support::dome(1.0, tol()));
+    let vdome = PI * (a45 - a45.powi(3) / 3.0) - PI * 0.25 * a45;
+    let rod_pts = [(0.0, -1.0), (a45, -1.0), (a45, 2.0), (0.0, 2.0)];
+    let rod_y = rev_y(&rod_pts);
+    let v10 = (1.5 * PI, vdome, 0.25 * PI * a45);
+    six("F10 dome rim in a rod's wall", &fin(rod_y.clone()), &dome, v10);
+    let rod_t = rigid(
+        &rod_y,
+        &Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), 0.5),
+    );
+    six("F10 dome rim in a rod's wall, rod turned", &fin(rod_t), &dome, v10);
+    // F11 a NURBS-carried seam edge lying in a face of the other: the
+    // loft prism's seam at (1, 1, z) lies in the plane x = 1, which
+    // cuts its bulging wall. Volumes unknown: read the refusal kind.
+    let loft = fin(sweep::test_support::loft_prism(tol()));
+    for (name, h) in [
+        ("x≥1", brick((1.0, 5.0), (-5.0, 5.0), (-5.0, 5.0), tol())),
+        ("x≤1", brick((-5.0, 1.0), (-5.0, 5.0), (-5.0, 5.0), tol())),
+    ] {
+        let h = fin(h);
+        line(&format!("F11 loft ∩ {name}"), topo::intersect(&loft, &h, tol()), f64::NAN);
+        line(&format!("F11 {name} ∩ loft"), topo::intersect(&h, &loft, tol()), f64::NAN);
+        line(&format!("F11 loft ∖ {name}"), topo::subtract(&loft, &h, tol()), f64::NAN);
+    }
 }
