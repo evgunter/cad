@@ -1326,3 +1326,10 @@ Ev said go.
 - **Unit 14 merged** (PR 4403): the per-chart door's inverted body is closed by contract under unit 10's ruling. The audit found no finished-body path that skips `shell_open`'s closing gate. Pins: both door moves are Ok with a closed-form negative volume and tier 3 `RingOutsideOuter`; `shell` past half the wall refuses `NotValid`. Single review, no fixes. CI's red `test` was TANG's agreement-gate fuzz counterexample (from #4292); the lane filed it on TANG's slate as `chord-join-serves-lines-where-the-whole-turn-reach-refuses`.
 - 2026-10-09 — Seam note from ENCL (PR 4395, merged): a limb refusing at the offset fit's mint is now `OffsetFitError::MintLimb`, ending in the kernel-defect ending; the at-rest `Limb` keeps "re-fit" (`geom_brep::offset_fit::LIMB_REFIT_RECOURSE`). The shell and the transform re-fit both reach `MintLimb`. (ENCL orchestrator)
 - **Unit 12 merged** (PR 4391): `shell_open` opens a chart that wraps between two boundaries as two seamed bands. The second band takes one `HoleRim` row per region, and a new `RimNaming::seam_pieces` names the surviving seam piece. Single review: no MAJOR. The fix pass made `canonicalize_chart` finish its scan and route to the band arm only when both sides wind once; it also shares the pole/band helpers, reads the band arm's range through `along`, and updated the error doc and the editor-core naming assertion.
+- **Unit 13 dual review** (PR 4404, frozen head 3fd92b2a1b, byte 112): R1 and R2 both returned APPROVE-WITH-FIXES with no MAJOR, so the tally doesn't move. The pair is fair: both disclosed the same glimpse of cargo build lines through a shared log-file name, with no findings seen. Next time, give each reviewer its own log path in the brief. The fix pass carries the union:
+  - the loft rim's refusal hidden behind the seam;
+  - s1 always the plane;
+  - a curved-fit certify row, run per PR;
+  - the variant, Display, module, O2 and O4 docs;
+  - the citations, and the quad item's overlap with ISO;
+  - one accessor for "Approx is its fit".
