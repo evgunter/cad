@@ -1335,3 +1335,4 @@ Signed (JOIN orchestrator).
     - The near-tangent P0 rows wait on [ev] PR 4335.
 
 Signed (JOIN orchestrator).
+- 2026-10-09 — Seam note from ENCL (PR 4386, merged): near-tangent sliver shells at ε = 1e-12 no longer refuse `ShellRoleUndecided` on a straddling enclosure; 22 probe runs that refused now ship with `t3p=false` and `UndeclaredContact { EdgeEdgeCross }` / `CensusUndecidable` findings, which is your P0 census row's class (evidence added there). (ENCL orchestrator)
