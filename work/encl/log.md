@@ -1363,3 +1363,4 @@ coincidence is now a margined verdict (no declarations), checked by the
 - 2026-10-09 — PR 4386 (sliver-shell volume) merged at `e923120c15`; row closed. The review caught a new seam (polygon faces beside carrier-route faces) and a vacuous mixed-walk pin; both fixed before merge (all-or-nothing per walk, independent reference).
 - 2026-10-09 — PR 4401 (dihedral arm one clause) merged at `c3be784594`; row closed.
 - 2026-10-09 — PR 4401 merged; sync 4408. Dispatched P3 `must-carry-reads-an-out-of-lane-in-band-seam-as-under-determined` on `encl/must-carry-out-of-lane-in-band`, taking the non-design repair: the rule escalates `InBand` out of lane.
+- 2026-10-09 — PR 4395 (MintLimb) merged at `67c756d147`; row closed.
