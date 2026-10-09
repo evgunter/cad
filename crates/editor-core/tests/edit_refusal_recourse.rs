@@ -124,7 +124,7 @@ fn a_count_refuses_a_definition_of_another_kind_with_a_recourse_that_gets_throug
     let (doc, _pattern) = insert(
         doc,
         Node::Pattern {
-            input: body,
+            input: body.into(),
             count: Formula::named(p("n"), Dimension::Count),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -192,7 +192,7 @@ fn forward_selection() -> (ProfileDoc, editor_core::StableName, editor_core::Sta
     let (doc, _fillet) = insert(
         doc,
         Node::Fillet {
-            target: a,
+            target: a.into(),
             radius: len(0.1),
             selection: vec![fname(b, wb.clone())],
         },
@@ -355,8 +355,8 @@ fn every_predicate_a_subtract_logs_has_words_or_a_reason() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b: m,
+            a: a.into(),
+            b: m.into(),
             declare: Vec::new(),
         },
     );

@@ -123,21 +123,21 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![bracket_loop],
         ids: Vec::new(),
     }));
     // THE DIVISION: the plate is a quarter of the arm thick.
     let thickness = Formula::div(plen("arm"), scl(4.0)).expect("Length / Scalar");
     let _body = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: thickness.clone(),
         side: ExtrudeSide::Along,
     });
 
     let bore = |r: &mut Recorder, x: f64, radius: &'static str| {
         let profile = r.insert(Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(x), len(0.5e-3)],
                 radius: plen(radius),
@@ -145,7 +145,7 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
             ids: Vec::new(),
         }));
         r.insert(Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: thickness.clone(),
             side: ExtrudeSide::Along,
         })
@@ -193,7 +193,7 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
     let measure = r.insert(Node::measure(web, refs).expect("both indices in range"));
     let nominal_web = BORE_B_X - BORE_A_X - 2.0 * BORE;
     let assertion = r.insert(Node::Assertion {
-        measure,
+        measure: measure.into(),
         bound: len(nominal_web - 5.0e-5),
         dir: editor_core::AssertionDir::AtLeast,
     });
@@ -478,7 +478,7 @@ fn collinear_walls() -> ProfileDoc {
     // not a coincidence at the nominal.
     let w = || Formula::named(VarName::from_static("w"), Dimension::Length);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(0.0), len(0.0)]),
             // The DECLARED straight continuation: `LineTo` at a zero-turn
@@ -497,7 +497,7 @@ fn collinear_walls() -> ProfileDoc {
         ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(1.0e-3),
         side: ExtrudeSide::Along,
     });

@@ -344,22 +344,28 @@ sealed: NodeId = doc.insert(Node.shell(upright, Formula.length_in(0.01, m), []))
 # The tube pair. The window is a VALUE with two spellings, and the
 # hollow kind's wall is a required Length — there is no `wall=None`
 # that quietly makes it the solid door.
-spine: NodeId = doc.insert(Node.datum_axis((
+tube_frame: NodeId = doc.insert(Node.datum_frame((
     Formula.length_in(0, m),
     Formula.length_in(0, m),
     Formula.length_in(0, m),
 ), (
+    Formula.literal(1.0),
     Formula.literal(0.0),
+    Formula.literal(0.0),
+), (
     Formula.literal(0.0),
     Formula.literal(1.0),
+    Formula.literal(0.0),
 )))
 donut: NodeId = doc.insert(
-    Node.tube(spine, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(0.2, m), TubeWindow.full(), Formula.length_in(0.05, m))
+    Node.tube(tube_frame, Formula.length_in(0.2, m), TubeWindow.full(), Formula.length_in(0.05, m))
 )
+# An operand reads a variable as well as a node: the frame's output.
+frame_out: Var | None = doc.output(tube_frame, 0)
+assert frame_out is not None
 elbow: NodeId = doc.insert(
     Node.hollow_tube(
-        spine,
-        (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+        frame_out,
         Formula.length_in(0.2, m),
         TubeWindow.arc(Formula.angle_in(0, rad), Formula.angle_in(1.5, rad)),
         Formula.length_in(0.05, m),

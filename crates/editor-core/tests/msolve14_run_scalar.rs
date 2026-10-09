@@ -92,7 +92,7 @@ fn block(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(h),
             side: ExtrudeSide::Along,
         },
@@ -277,7 +277,7 @@ fn bolted(label: &str, slab_frame: MateFrame<Formula>) -> Bolted {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: bolt,
+            input: bolt.into(),
             count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [1.0, 0.0, 0.0].map(scl),
@@ -915,9 +915,9 @@ fn run_at<T: editor_core::EvalScalar>(
 /// main and on the branch at all three ε, so no pose, role, fault or
 /// placement moved.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xfb24_d62a_e096_5136),
-    (1e-6, 0x8824_ffdd_71a4_69e0),
-    (1e-12, 0x757d_0758_64d7_c6e2),
+    (1e-9, 0xb3ce8c9530ae6ed9),
+    (1e-6, 0x3f5c2db610fb533e),
+    (1e-12, 0x5ad0ed7fe327ddb9),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, roles, faults and

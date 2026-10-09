@@ -1182,10 +1182,43 @@ impl SizedPass {
     }
 }
 
-/// What an unreadable margin may mean, appended to the decision's lever
-/// by [`MarginDiag::sized_recourse`].
+/// What an unreadable margin may mean, appended to an ending by
+/// [`noted`].
 pub const UNREADABLE_MARGIN_NOTE: &str =
     "an unreadable or collapsed margin may indicate a kernel bug worth reporting";
+
+/// **The recourse, labelled**: `Recourse: {action}`, the one spelling
+/// of the label a refusal's way through opens with.
+#[derive(Clone, Copy, Debug)]
+pub struct Recourse<A>(pub A);
+
+impl<A: fmt::Display> fmt::Display for Recourse<A> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Recourse: {}", self.0)
+    }
+}
+
+/// **An ending, then what it may mean beyond itself**: `{ending}`, then
+/// `; {note}` where one is given — the one joint between an ending and
+/// its note, for [`lever_recourse`] and `geom_brep::recourse::not_yet`.
+#[must_use]
+pub fn noted(ending: impl fmt::Display, note: Option<&str>) -> String {
+    match note {
+        Some(note) => format!("{ending}; {note}"),
+        None => ending.to_string(),
+    }
+}
+
+/// **A refusal ending in its geometry lever alone** (D4 ¶1 (i)):
+/// [`Recourse`]`(lever)`, [`noted`] where a note is given — the
+/// [`UNREADABLE_MARGIN_NOTE`] on a poisoned margin, or a sized
+/// decision's [`SizedWords::otherwise`]. The one spelling of that
+/// ending, for [`MarginDiag::sized_recourse`]'s lever-alone arms and
+/// `geom_brep::recourse`'s table.
+#[must_use]
+pub fn lever_recourse(lever: &str, note: Option<&str>) -> String {
+    noted(Recourse(lever), note)
+}
 
 /// The words a sized decision's recourse table hands
 /// [`MarginDiag::sized_recourse`]: everything but the number.
@@ -1202,24 +1235,22 @@ pub struct SizedWords<'a> {
     pub otherwise: Option<&'a str>,
 }
 
-/// **The file's declared coincidence distance ε_in** (D4 ¶1, D7), with
-/// the run's tolerance, as the import door reads a certification refusal
-/// at them. The door holds ε_in, its own number; a comparison against a
-/// reporting margin is the margin's own
-/// ([`MarginDiag::sized_recourse_in_file`],
+/// **The file's declared coincidence distance ε_in** (D4 ¶1, D7), as the
+/// import door reads a certification refusal at it. The door holds ε_in,
+/// its own number; a comparison against a reporting margin is the
+/// margin's own ([`MarginDiag::sized_recourse_in_file`],
 /// [`FileCoincidence::miss_recourse_in_file`]), and only a sentence
 /// leaves.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FileCoincidence {
     eps_in: f64,
-    tol: Tol,
 }
 
 impl FileCoincidence {
-    /// ε_in as the import door resolved it, read against the run's `tol`.
+    /// ε_in as the import door resolved it.
     #[must_use]
-    pub const fn new(eps_in: f64, tol: Tol) -> Self {
-        Self { eps_in, tol }
+    pub const fn new(eps_in: f64) -> Self {
+        Self { eps_in }
     }
 
     /// The file's declared coincidence distance, in metres.
@@ -1234,10 +1265,8 @@ impl FileCoincidence {
     /// more precisely. Beyond ε is the classifier's placement: a definite
     /// miss lies past the band, and a banded one wholly past its zero
     /// threshold. Within ε_in is the reading's farther end; where only its
-    /// nearer end lies within ε_in — or, for a definite refusal that
-    /// carries no reading, where ε_in reaches past the run's band (K·ε) —
-    /// the miss "may lie" within it. Otherwise `otherwise`, the ending the
-    /// refusal carries at rest.
+    /// nearer end lies within ε_in, the miss "may lie" within it.
+    /// Otherwise `otherwise`, the ending the refusal carries at rest.
     ///
     /// Where the miss is the file's data alone ([`MissSource::File`]), the
     /// sentence says the file's data claims agreement only to its own
@@ -1264,9 +1293,6 @@ impl FileCoincidence {
                 _ => None,
             },
             MissReading::Definite(margin) => margin.within(eps_in),
-            MissReading::DefiniteUnvalued => {
-                (eps_in >= self.tol.k() * self.tol.eps()).then_some(Within::Partly)
-            }
         };
         let Some(within) = within else {
             return otherwise.to_owned();
@@ -1317,9 +1343,6 @@ pub enum MissReading {
     Banded(MarginDiag, Band),
     /// Decided past the band, so beyond ε by the verdict.
     Definite(MarginDiag),
-    /// Decided past the band by a refusal that carries no reading of the
-    /// miss.
-    DefiniteUnvalued,
 }
 
 /// What made the two sides a residual compares: whether its miss is the
@@ -1462,15 +1485,14 @@ impl MarginDiag {
             otherwise,
         } = words;
         if self.is_invalid() {
-            return format!("Recourse: {lever}; {UNREADABLE_MARGIN_NOTE}");
+            return lever_recourse(lever, Some(UNREADABLE_MARGIN_NOTE));
         }
-        match (self.tightens_below(band, passes), otherwise) {
-            (Some(v), _) => format!(
+        match self.tightens_below(band, passes) {
+            Some(v) => format!(
                 "Recourse: {lever}, or, if this {size} is intended, tighten the tolerance below \
                  {v:e} m"
             ),
-            (None, None) => format!("Recourse: {lever}"),
-            (None, Some(note)) => format!("Recourse: {lever}; {note}"),
+            None => lever_recourse(lever, otherwise),
         }
     }
 
@@ -1878,6 +1900,48 @@ impl fmt::Display for MissingRecourse<'_> {
 #[derive(Debug, Clone, Copy)]
 pub struct IndeterminatePayload<'a>(&'a Indeterminate);
 
+/// [`Indeterminate::undecided`]'s sentence, rendered by its `Display`.
+#[derive(Debug, Clone, Copy)]
+pub struct UndecidedRefusal<'a, S, E> {
+    subject: S,
+    cause: &'a Indeterminate,
+    ending: E,
+}
+
+impl<S: fmt::Display, E: fmt::Display> fmt::Display for UndecidedRefusal<'_, S, E> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self {
+            subject,
+            cause,
+            ending,
+        } = self;
+        write!(
+            f,
+            concat!("{}", crate::undecided!(), ": {}. {}"),
+            subject,
+            cause.payload(),
+            ending
+        )
+    }
+}
+
+/// **The verdict of a decision no reading settled, as a clause**:
+/// `undecided!("whether …")` is `"whether … is undecided"`, and
+/// `undecided!()` the verdict alone. The one spelling of that word, for
+/// a sentence that carries no payload (an at-rest finding, a clause
+/// inside a longer reason) and for [`Indeterminate::undecided`]'s,
+/// which does.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! undecided {
+    () => {
+        " is undecided"
+    };
+    ($subject:expr) => {
+        concat!($subject, $crate::undecided!())
+    };
+}
+
 impl fmt::Display for IndeterminatePayload<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let (zero, escalate) = (self.0.band.zero, self.0.band.escalate);
@@ -1942,6 +2006,25 @@ impl Indeterminate {
     /// tail) — see [`IndeterminatePayload`].
     pub fn payload(&self) -> IndeterminatePayload<'_> {
         IndeterminatePayload(self)
+    }
+
+    /// **An undecided refusal's sentence** (D4 ¶1):
+    /// `{subject} is undecided: {payload}. {ending}` — the question the
+    /// decision asks, this escalation's [`Indeterminate::payload`], and
+    /// the refusal's ending, whether a decision's table composes it or
+    /// the door holds a constant one. The one spelling of that shape,
+    /// for every door's Display.
+    #[must_use]
+    pub fn undecided<S: fmt::Display, E: fmt::Display>(
+        &self,
+        subject: S,
+        ending: E,
+    ) -> UndecidedRefusal<'_, S, E> {
+        UndecidedRefusal {
+            subject,
+            cause: self,
+            ending,
+        }
     }
 
     /// **The whole ending this escalation's refusal carries** (D4 ¶1
@@ -2453,7 +2536,7 @@ mod tests {
             passes: SizedPass::Positive,
             otherwise: Some("n"),
         };
-        let at = |eps_in| FileCoincidence::new(eps_in, Tol::witness());
+        let at = |eps_in| FileCoincidence::new(eps_in);
         // Wholly at or below ε_in, the size is one the file does not
         // state; with only its nearer end there, one it may not.
         let head = |eps_in: f64, partly: bool| {
@@ -2529,14 +2612,13 @@ mod tests {
     /// **A miss within ε_in but beyond ε names the stopgap** (D4 ¶1):
     /// a banded miss past the zero threshold, or a definite one, where its
     /// reading lies within ε_in, or "may lie" within it where only its
-    /// nearer end does; a definite one with no reading "may lie" within
-    /// it where ε_in reaches past the run's band. A miss the kernel's fit
-    /// may have made keeps the kernel-bug note and claims nothing of the
-    /// file's data. Anything else keeps its at-rest ending.
+    /// nearer end does. A miss the kernel's fit may have made keeps the
+    /// kernel-bug note and claims nothing of the file's data. Anything
+    /// else keeps its at-rest ending.
     #[test]
     fn a_miss_within_eps_in_names_setting_eps_to_eps_in() {
         let band = band_1e9();
-        let file = FileCoincidence::new(1e-6, Tol::witness());
+        let file = FileCoincidence::new(1e-6);
         let file_words = |lies: &str, tail: &str| {
             format!(
                 "This miss lies beyond the tolerance and {lies} the file's declared coincidence \
@@ -2605,28 +2687,6 @@ mod tests {
                 }
             }
         }
-        let tol = Tol::witness();
-        let escalate = Band::linear(tol).unwrap().escalate();
-        let unvalued = |eps_in| {
-            FileCoincidence::new(eps_in, tol).miss_recourse_in_file(
-                MissReading::DefiniteUnvalued,
-                MissSource::Fit,
-                "AT REST",
-            )
-        };
-        let reaches = unvalued(escalate);
-        assert!(
-            reaches.contains("and may lie within")
-                && reaches.contains(&format!("set the tolerance to ε_in = {escalate:e} m;"))
-                && !reaches.contains("the file's data")
-                && reaches.ends_with("this refusal may indicate a kernel bug worth reporting"),
-            "an ε_in at the band's edge may hold a definite miss: {reaches}"
-        );
-        assert_eq!(
-            unvalued(escalate * 0.5),
-            "AT REST",
-            "an ε_in inside the band cannot hold a definite miss"
-        );
     }
 
     /// The reading renders in the formatter's own number format, and the
@@ -3233,5 +3293,33 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// **The undecided refusal's one shape**: the subject, " is
+    /// undecided: ", the payload view (never the shared tail), ". ", and
+    /// the ending as given — whatever Display each piece is.
+    #[test]
+    fn an_undecided_refusal_reads_subject_payload_and_ending() {
+        let band = band_1e9();
+        let named = (-5e-9f64)
+            .sign_within(band)
+            .expect_err("mid-band margin must be indeterminate")
+            .with_predicate("side_of_plane");
+        let text = named
+            .undecided("whether S", format_args!("Recourse: {}", "R"))
+            .to_string();
+        assert_eq!(
+            text,
+            "whether S is undecided: margin -5e-9 lies inside the ambiguity band (1e-9, 1e-8). \
+             Recourse: R"
+        );
+        let invalid = f64::NAN
+            .sign_within(band)
+            .expect_err("NaN margin must be indeterminate");
+        assert_eq!(
+            invalid.undecided(String::from("T"), "E").to_string(),
+            format!("T is undecided: {}. E", invalid.payload()),
+            "the payload view of a poisoned margin, with no shared tail"
+        );
     }
 }

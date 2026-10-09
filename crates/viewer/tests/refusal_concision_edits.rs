@@ -203,10 +203,37 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "DeleteWouldDangle",
-            EditError::DeleteWouldDangle {
-                id: s(3, "Profile"),
-                referenced_by: s(5, "Extrude"),
+            "OperandUnresolved",
+            EditError::OperandUnresolved {
+                node: s(5, "Extrude"),
+                slot: SlotId::Operand(pncad::document::OperandSlot::Profile),
+                read: pncad::document::Operand::Node(s(3, "Profile").id()),
+            },
+        ),
+        (
+            "AmbiguousOutput",
+            EditError::AmbiguousOutput {
+                input: s(3, "Split"),
+                slot: SlotId::Operand(pncad::document::OperandSlot::A),
+                ports: vec!["above", "below"],
+            },
+        ),
+        (
+            "DefinesNothing",
+            EditError::DefinesNothing {
+                input: s(3, "Assertion"),
+                slot: SlotId::Operand(pncad::document::OperandSlot::Target),
+            },
+        ),
+        (
+            "PartHalfPort",
+            EditError::PartHalfPort {
+                node: s(5, "Part"),
+                half: pncad::select::SplitHalf::Above,
+                var: Box::new(pncad::document::SpokenVar::new(
+                    pncad::document::VarId::new(0, tagged(8)),
+                    None,
+                )),
             },
         ),
         (
@@ -220,7 +247,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             "SlotDimensionMismatch",
             EditError::SlotDimensionMismatch {
                 slot: SlotId::Distance,
-                expected: Dimension::Length,
+                expected: pncad::document::SlotKind::Is(pncad::document::VarKind::Length),
                 found: Dimension::Angle,
             },
         ),
@@ -250,8 +277,8 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
                 var: Box::new(spoken_var()),
                 node: s(5, "Extrude"),
                 slot: SlotId::Distance,
-                declared: pncad::document::VarKind::Angle,
-                referenced: Dimension::Length,
+                found: pncad::document::VarKind::Angle,
+                expected: pncad::document::SlotKind::Is(pncad::document::VarKind::Length),
             },
         ),
         (
@@ -686,13 +713,6 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             EditError::FoldWouldStartPlacing {
                 node: s(3, "Gauge"),
                 mate: s(9, "Mate"),
-            },
-        ),
-        (
-            "FoldWouldDangle",
-            EditError::FoldWouldDangle {
-                node: s(3, "Gauge"),
-                referenced_by: s(5, "Datum"),
             },
         ),
         // `PlacementRuleMismatch`: every shape, each spoken with the

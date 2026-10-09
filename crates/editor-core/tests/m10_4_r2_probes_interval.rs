@@ -262,17 +262,17 @@ fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
     // share a plane bind the same id.
     let frame = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: frame,
+        frame: frame.into(),
         loops: vec![chain],
         ids: Vec::new(),
     }));
     let block = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: param("d", Dimension::Length),
         side: ExtrudeSide::Along,
     });
     let cube_profile = r.insert(Node::Profile(ProfileProgram {
-        plane: frame,
+        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(5.0, 5.0), (6.0, 5.0), (6.0, 6.0), (5.0, 6.0)])
                 .expect("finite corners"),
@@ -280,7 +280,7 @@ fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
         ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
-        profile: cube_profile,
+        profile: cube_profile.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -322,7 +322,7 @@ pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId) {
     // share a plane bind the same id.
     let frame = r.insert(fixture::xy_frame());
     let bore_p = r.insert(Node::Profile(ProfileProgram {
-        plane: frame,
+        frame: frame.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), len(0.0)],
             radius: len(0.5),
@@ -330,12 +330,12 @@ pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId) {
         ids: Vec::new(),
     }));
     let bore = r.insert(Node::Extrude {
-        profile: bore_p,
+        profile: bore_p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
     let pin_p = r.insert(Node::Profile(ProfileProgram {
-        plane: frame,
+        frame: frame.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.1), len(0.0)],
             radius: param("r", Dimension::Length),
@@ -343,7 +343,7 @@ pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId) {
         ids: Vec::new(),
     }));
     let pin = r.insert(Node::Extrude {
-        profile: pin_p,
+        profile: pin_p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -381,7 +381,7 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId
     // share a plane bind the same id.
     let frame = r.insert(fixture::xy_frame());
     let pa = r.insert(Node::Profile(ProfileProgram {
-        plane: frame,
+        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
@@ -389,12 +389,12 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId
         ids: Vec::new(),
     }));
     let a = r.insert(Node::Extrude {
-        profile: pa,
+        profile: pa.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
     let pb = r.insert(Node::Profile(ProfileProgram {
-        plane: frame,
+        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(3.0, 0.0), (4.0, 0.0), (4.0, 1.0), (3.0, 1.0)])
                 .expect("finite corners"),
@@ -402,7 +402,7 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId
         ids: Vec::new(),
     }));
     let b = r.insert(Node::Extrude {
-        profile: pb,
+        profile: pb.into(),
         distance: param("h", Dimension::Length),
         side: ExtrudeSide::Along,
     });
@@ -465,19 +465,19 @@ fn loft() -> (ProfileDoc, RecipeNodeId) {
     let (c0, z0) = section(0.0);
     let f0 = frame_at(&mut r, z0);
     let p0 = r.insert(Node::Profile(ProfileProgram {
-        plane: f0,
+        frame: f0.into(),
         loops: vec![c0],
         ids: Vec::new(),
     }));
     let (c1, z1) = section(1.0);
     let f1 = frame_at(&mut r, z1);
     let p1 = r.insert(Node::Profile(ProfileProgram {
-        plane: f1,
+        frame: f1.into(),
         loops: vec![c1],
         ids: Vec::new(),
     }));
     let loft = r.insert(Node::Loft {
-        profiles: vec![p0, p1],
+        profiles: vec![p0.into(), p1.into()],
         v_degree: Formula::count(1),
     });
     let ev = eval(&r.doc);

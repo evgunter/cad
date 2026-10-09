@@ -56,7 +56,7 @@ fn bar(label: &str) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -85,7 +85,7 @@ fn boolean_chain() -> (ProfileDoc, Vec<RecipeNodeId>) {
         let (d, block) = insert(
             d,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(3.0),
                 side: ExtrudeSide::Along,
             },
@@ -94,8 +94,8 @@ fn boolean_chain() -> (ProfileDoc, Vec<RecipeNodeId>) {
             d,
             Node::Boolean {
                 op: BooleanOp::Subtract,
-                a: body,
-                b: block,
+                a: body.into(),
+                b: block.into(),
                 declare: Vec::new(),
             },
         );
@@ -120,7 +120,13 @@ fn split_chain() -> (ProfileDoc, Vec<RecipeNodeId>) {
                 normal: [scl(1.0), scl(0.0), scl(0.0)],
             }),
         );
-        let (d, split) = insert(d, Node::Split { target: body, tool });
+        let (d, split) = insert(
+            d,
+            Node::Split {
+                target: body.into(),
+                tool: tool.into(),
+            },
+        );
         let half = if keep_below {
             SplitHalf::Below
         } else {
@@ -129,7 +135,7 @@ fn split_chain() -> (ProfileDoc, Vec<RecipeNodeId>) {
         let (d, part) = insert(
             d,
             Node::Part {
-                of: split,
+                of: editor_core::Operand::output(split, half.port()),
                 select: PartSelect::SplitHalf(half),
             },
         );

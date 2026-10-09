@@ -55,7 +55,7 @@ fn doc() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, extrude) = fixture::insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -86,7 +86,7 @@ fn a_retyped_extrude_distance_is_refused_at_both_doors() {
         &DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
-            expr: ang(1.0),
+            value: ang(1.0).into(),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -98,7 +98,13 @@ fn a_retyped_extrude_distance_is_refused_at_both_doors() {
             found,
         }) => {
             assert_eq!(slot, SlotId::Distance);
-            assert_eq!((expected, found), (Dimension::Length, Dimension::Angle));
+            assert_eq!(
+                (expected, found),
+                (
+                    editor_core::SlotKind::Is(editor_core::VarKind::Length),
+                    Dimension::Angle
+                )
+            );
         }
         other => panic!("the edit door must refuse an angle distance, got {other:?}"),
     }
@@ -114,14 +120,14 @@ fn a_retyped_extrude_distance_is_refused_at_both_doors() {
         Err(PersistError::Snapshot(SnapshotError::SlotVarKind {
             node,
             slot,
-            declared,
-            referenced,
+            found: declared,
+            expected: editor_core::SlotKind::Is(referenced),
             ..
         })) => {
             assert_eq!((node.id(), slot), (extrude, SlotId::Distance));
             assert_eq!(
                 (declared, referenced),
-                (editor_core::VarKind::Angle, Dimension::Length)
+                (editor_core::VarKind::Angle, editor_core::VarKind::Length)
             );
         }
         other => panic!("the load door must refuse an angle distance, got {other:?}"),
@@ -141,7 +147,7 @@ fn a_retyped_frame_origin_is_refused_at_both_doors() {
         &DocEdit::SetParam {
             node: frame,
             slot,
-            expr: ang(0.25),
+            value: ang(0.25).into(),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -153,7 +159,13 @@ fn a_retyped_frame_origin_is_refused_at_both_doors() {
             found,
         }) => {
             assert_eq!(refused, slot);
-            assert_eq!((expected, found), (Dimension::Length, Dimension::Angle));
+            assert_eq!(
+                (expected, found),
+                (
+                    editor_core::SlotKind::Is(editor_core::VarKind::Length),
+                    Dimension::Angle
+                )
+            );
         }
         other => panic!("the edit door must refuse an angle origin, got {other:?}"),
     }
@@ -169,14 +181,14 @@ fn a_retyped_frame_origin_is_refused_at_both_doors() {
         Err(PersistError::Snapshot(SnapshotError::SlotVarKind {
             node,
             slot: refused,
-            declared,
-            referenced,
+            found: declared,
+            expected: editor_core::SlotKind::Is(referenced),
             ..
         })) => {
             assert_eq!((node.id(), refused), (frame, slot));
             assert_eq!(
                 (declared, referenced),
-                (editor_core::VarKind::Angle, Dimension::Length)
+                (editor_core::VarKind::Angle, editor_core::VarKind::Length)
             );
         }
         other => panic!("the load door must refuse an angle origin, got {other:?}"),
@@ -207,7 +219,7 @@ fn parameterized() -> (ProfileDoc, RecipeNodeId, editor_core::VarName) {
         &DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
-            expr: editor_core::Formula::named(name.clone(), Dimension::Length),
+            value: editor_core::Formula::named(name.clone(), Dimension::Length).into(),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -230,7 +242,7 @@ fn a_slot_reading_an_undeclared_parameter_is_refused_at_both_doors() {
         &DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
-            expr: editor_core::Formula::named(missing.clone(), Dimension::Length),
+            value: editor_core::Formula::named(missing.clone(), Dimension::Length).into(),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -302,8 +314,8 @@ fn a_slot_reading_a_parameter_at_the_wrong_dimension_is_refused_at_both_doors() 
             node,
             slot,
             var,
-            declared,
-            referenced,
+            found: declared,
+            expected: editor_core::SlotKind::Is(referenced),
         })) => {
             assert_eq!(
                 (node.id(), slot, var.name()),
@@ -311,7 +323,7 @@ fn a_slot_reading_a_parameter_at_the_wrong_dimension_is_refused_at_both_doors() 
             );
             assert_eq!(
                 (declared, referenced),
-                (editor_core::VarKind::Angle, Dimension::Length)
+                (editor_core::VarKind::Angle, editor_core::VarKind::Length)
             );
         }
         other => panic!("the load door must refuse the broken pairing, got {other:?}"),

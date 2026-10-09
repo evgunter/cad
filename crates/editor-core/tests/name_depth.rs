@@ -38,7 +38,7 @@ fn chain(label: &str, k: usize) -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>)
     let (mut doc, extrude) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -49,7 +49,7 @@ fn chain(label: &str, k: usize) -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>)
         let (next, pattern) = insert(
             doc,
             Node::Pattern {
-                input,
+                input: input.into(),
                 count: editor_core::Formula::count(1),
                 kind: PatternKind::Linear {
                     direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],
@@ -102,8 +102,16 @@ fn a_chain_of_patterns_names_past_every_stack_through_every_door_on_the_smallest
             fixture::piece(&doc, extrude, 0, 0),
         );
         let deep = patterns.iter().fold(rim, |n, &p| in_copy(p, 0, n));
-        // Through the edit door.
-        let (doc, _) = insert(doc, Node::fillet(top, len(0.1), vec![deep.clone()]));
+        // Through the edit door, at the top pattern's one copy: a
+        // fillet reads one body, and a pattern's value is a list.
+        let (doc, copy) = insert(
+            doc,
+            Node::Part {
+                of: top.into(),
+                select: editor_core::PartSelect::Instance(editor_core::Formula::count(0)),
+            },
+        );
+        let (doc, _) = insert(doc, Node::fillet(copy, len(0.1), vec![deep.clone()]));
         let text = save(&doc, &[], tol).expect("the document saves");
         let loaded = load(&text, tol).expect("and loads back");
         assert_eq!(loaded.doc, doc, "the loaded document is the saved one");
@@ -167,7 +175,7 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId, StableName, StableName) {
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -294,7 +302,7 @@ fn what_nests_outside_a_name_is_refused_past_the_limit_whatever_keys_sit_beside_
     let (doc, _) = insert(
         doc,
         Node::Pattern {
-            input: extrude,
+            input: extrude.into(),
             count: editor_core::Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],

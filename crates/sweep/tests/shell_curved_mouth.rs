@@ -3,8 +3,9 @@
 //! A designated face on a periodic chart opens in its chart's own form:
 //! a chart that wraps its period through a pole becomes a seamed band
 //! (each of its faces kept, its seams cut short at the cavity's
-//! corners), and a window that does not wrap becomes a ring, as on a
-//! plane. What the readers cannot yet read about a ringed curved window
+//! corners), one that wraps between two boundaries becomes two (one at
+//! each boundary), and a window that does not wrap becomes a ring, as
+//! on a plane. What the readers cannot yet read about a ringed curved window
 //! refuses where they read it — the mesh, or tier 3's check 7 — and not
 //! in the shell op. Each built row is checked against its closed form.
 
@@ -80,6 +81,10 @@ fn a_spherical_cap_opens_to_a_seamed_band() {
     assert!(
         shelled.naming.dead.loops.contains(&rim.ring),
         "the glue's ring is absorbed into the band's outer loop"
+    );
+    assert!(
+        rim.holes.is_empty(),
+        "a band through a pole is one band, with no second band's row"
     );
     // The pole is the one vertex both seams reached in the operand.
     let pole = body
@@ -644,4 +649,323 @@ fn a_two_face_window_that_does_not_wrap_opens_to_a_ring() {
         props.volume,
         props.volume_pad
     );
+}
+
+/// The faces of `body` on a cylinder of radius `radius`, read off the
+/// stored surface.
+fn walls_of(body: &Body<f64>, radius: f64) -> Vec<FaceKey> {
+    body.faces()
+        .filter(|(_, f)| {
+            matches!(body.get_surface(f.surface),
+                Some(geom::Surface::Cylinder { radius: r, .. }) if (*r - radius).abs() < 1e-12)
+        })
+        .map(|(k, _)| k)
+        .collect()
+}
+
+/// The two boundary edges of a band face walking its seam twice: the
+/// edges its outer loop walks once.
+fn boundaries_of(body: &Body<f64>, face: FaceKey) -> Vec<topo::EdgeKey> {
+    let lk = body.get_face(face).unwrap().outer;
+    let topo::LoopBoundary::Cycle { first } = body.get_loop(lk).unwrap().boundary else {
+        panic!("a cycle")
+    };
+    let edges: Vec<_> = body
+        .loop_cycle(first)
+        .unwrap()
+        .into_iter()
+        .map(|he| body.get_half_edge(he).unwrap().edge)
+        .collect();
+    edges
+        .iter()
+        .copied()
+        .filter(|e| edges.iter().filter(|x| *x == e).count() == 1)
+        .collect()
+}
+
+/// The volume of the annulus `[r1, r2]` revolved, `h` tall.
+fn annulus(r1: f64, r2: f64, h: f64) -> f64 {
+    PI * (r2 * r2 - r1 * r1) * h
+}
+
+/// **A tube's wall wraps its period between two boundaries, and opens to
+/// two seamed bands.** Each cylinder wall of the full-revolve tube is one
+/// face walking its seam from one cap's circle to the other's; its cavity
+/// counterpart, lifted back, lies across the middle of it. The rim is a
+/// band at each end, between the wall's circle and its cavity twin: the
+/// designated face keeps the band at its seam's start under its key, and
+/// the band at the end is a new face on the same cylinder, recorded as the
+/// rim's one hole row. Neither carries a ring, both ring loops the glue
+/// made are retired, and each row's ring stands for one of the wall's two
+/// circles. Opening the outer wall extends the cavity out to `ro`, the
+/// inner wall in to `ri`; both are tier-3 valid, mesh, and match their
+/// closed forms.
+#[test]
+fn a_tubes_wall_opens_to_two_seamed_bands() {
+    let tol = Tol::witness();
+    let (ri, ro, h, t) = (0.3, 0.5, 0.4, 0.05);
+    let body = crate::common::shell_operands::tube(ri, ro, h);
+    let outer = annulus(ri, ro, h);
+    for (what, radius, cavity) in [
+        ("outer wall", ro, annulus(ri + t, ro, h - 2.0 * t)),
+        ("inner wall", ri, annulus(ri, ro - t, h - 2.0 * t)),
+    ] {
+        let wall = walls_of(&body, radius);
+        assert_eq!(
+            wall.len(),
+            1,
+            "{what}: the revolve wears the wall on one face"
+        );
+        let circles = boundaries_of(&body, wall[0]);
+        assert_eq!(
+            circles.len(),
+            2,
+            "{what}: the wall runs between two circles"
+        );
+        let shelled = open(&body, &wall, t).unwrap_or_else(|e| panic!("{what} opens: {e:?}"));
+        let cut = &shelled.body;
+        assert_eq!(topo::validate_geometric(cut, tol), Ok(()), "{what}: tier 3");
+        assert_eq!(
+            (cut.shells().count(), genus_of(cut)),
+            (1, 1),
+            "{what}: the rim fuses the cavity in, and the opened tube is genus 1"
+        );
+        let rim = &shelled.naming.rims[0];
+        let [hole] = &rim.holes[..] else {
+            panic!(
+                "{what}: one hole row for the second band, got {:?}",
+                rim.holes
+            )
+        };
+        assert_eq!(
+            rim.rim, wall[0],
+            "{what}: the designated face is the first band"
+        );
+        let mut bands = walls_of(cut, radius);
+        bands.sort();
+        let mut want = vec![wall[0], hole.face];
+        want.sort();
+        assert_eq!(
+            bands, want,
+            "{what}: the cylinder carries exactly the two bands"
+        );
+        for &band in &bands {
+            assert!(
+                cut.get_face(band).unwrap().rings.is_empty(),
+                "{what}: a seamed band carries no ring"
+            );
+        }
+        assert!(
+            shelled.naming.dead.loops.contains(&rim.ring)
+                && shelled.naming.dead.loops.contains(&hole.ring),
+            "{what}: both glue rings are absorbed into the bands' outer loops"
+        );
+        let stands_for = |rows: &[(topo::EdgeKey, topo::EdgeKey)]| -> Vec<topo::EdgeKey> {
+            rows.iter().map(|&(_, source)| source).collect()
+        };
+        let (a, b) = (stands_for(&rim.ring_edges), stands_for(&hole.ring_edges));
+        assert!(
+            a.len() == 1 && b.len() == 1 && a[0] != b[0],
+            "{what}: each row's ring stands for one circle, a different one each: {a:?}, {b:?}"
+        );
+        assert!(
+            circles.contains(&a[0]) && circles.contains(&b[0]),
+            "{what}: the rows' circles are the wall's own"
+        );
+        for (rows, band) in [(&rim.ring_edges, wall[0]), (&hole.ring_edges, hole.face)] {
+            assert!(
+                boundaries_of(cut, band).contains(&rows[0].0),
+                "{what}: each ring's twin circle bounds its own band"
+            );
+        }
+
+        let want = outer - cavity;
+        let props = topo::mass_properties(cut, tol).expect("the bands' props");
+        assert!(
+            (props.volume - want).abs() <= 1e-12 + props.volume_pad,
+            "{what}: volume: got {} (pad {}), want {want}",
+            props.volume,
+            props.volume_pad
+        );
+        for delta in [1e-2, 1e-3] {
+            mesh::tessellate(cut, delta, tol).unwrap_or_else(|e| {
+                panic!("{what}: the bands must triangulate at delta = {delta}, got {e:?}")
+            });
+        }
+    }
+}
+
+/// **A void's band wall opens to two bands of its twin.** The tube shelled
+/// sealed at `0.08` has a void `[0.38, 0.42] × [0.08, 0.32]` whose walls
+/// are bands. Designated at `t = 0.02`, the void's face dies and its
+/// dilated twin's wall, lifted back onto it, survives as the two bands;
+/// the void's wall becomes a cup opening into the gap. Volume: the outer
+/// thin wall plus that cup, the dilated void with its wall pulled back to
+/// the designated radius, less the void.
+#[test]
+fn a_voids_band_wall_opens_to_two_bands_of_its_twin() {
+    let tol = Tol::witness();
+    let (ri, ro, h, s, t) = (0.3, 0.5, 0.4, 0.08, 0.02);
+    let tube = crate::common::shell_operands::tube(ri, ro, h);
+    let hollow = topo::shell(&finished("the tube", tube, tol), s, tol)
+        .expect("the tube shells sealed")
+        .body;
+    let (vi, vo, vh) = (ri + s, ro - s, h - 2.0 * s);
+    let outer_wall = annulus(ri, ro, h) - annulus(ri + t, ro - t, h - 2.0 * t);
+    for (what, radius, dilated) in [
+        (
+            "the void's outer wall",
+            vo,
+            annulus(vi - t, vo, vh + 2.0 * t),
+        ),
+        (
+            "the void's inner wall",
+            vi,
+            annulus(vi, vo + t, vh + 2.0 * t),
+        ),
+    ] {
+        let wall = walls_of(&hollow, radius);
+        assert_eq!(wall.len(), 1, "{what}: one face");
+        let shelled = open(&hollow, &wall, t).unwrap_or_else(|e| panic!("{what} opens: {e:?}"));
+        let body = &shelled.body;
+        assert_eq!(
+            topo::validate_geometric(body, tol),
+            Ok(()),
+            "{what}: tier 3"
+        );
+        let rim = &shelled.naming.rims[0];
+        assert_eq!(rim.side, topo::RimShell::Void, "{what}: a void designation");
+        assert!(
+            body.get_face(wall[0]).is_none(),
+            "{what}: the designated face dies"
+        );
+        let [hole] = &rim.holes[..] else {
+            panic!("{what}: one hole row, got {:?}", rim.holes)
+        };
+        let mut bands = walls_of(body, radius);
+        bands.sort();
+        let mut want = vec![rim.rim, hole.face];
+        want.sort();
+        assert_eq!(
+            bands, want,
+            "{what}: the twin's two bands, on the designated radius"
+        );
+        let want = outer_wall + dilated - annulus(vi, vo, vh);
+        let props = topo::mass_properties(body, tol).expect("props");
+        assert!(
+            (props.volume - want).abs() <= 1e-12 + props.volume_pad,
+            "{what}: volume: got {} (pad {}), want {want}",
+            props.volume,
+            props.volume_pad
+        );
+        mesh::tessellate(body, 1e-2, tol)
+            .unwrap_or_else(|e| panic!("{what}: the bands triangulate, got {e:?}"));
+    }
+}
+
+/// The tube with its outer wall SPLIT along the ruling at `u = π` into
+/// two faces on one chart: a band of two branches meeting along two
+/// seams. Built through the public Euler doors, then minted.
+fn split_tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
+    let tol = Tol::witness();
+    let mut body = crate::common::shell_operands::tube(ri, ro, h);
+    let wall = walls_of(&body, ro)[0];
+    let surface = body.get_face(wall).unwrap().surface;
+    let seam = {
+        let lk = body.get_face(wall).unwrap().outer;
+        let topo::LoopBoundary::Cycle { first } = body.get_loop(lk).unwrap().boundary else {
+            panic!("a cycle")
+        };
+        let edges: Vec<_> = body
+            .loop_cycle(first)
+            .unwrap()
+            .into_iter()
+            .map(|he| body.get_half_edge(he).unwrap().edge)
+            .collect();
+        let boundaries = boundaries_of(&body, wall);
+        *edges
+            .iter()
+            .find(|e| !boundaries.contains(e))
+            .expect("the wall's seam")
+    };
+    let mut mids = Vec::new();
+    for arc in boundaries_of(&body, wall) {
+        let key = body.get_edge(arc).unwrap().curve;
+        let (t0, t1) = body
+            .get_curve_geom(key)
+            .unwrap()
+            .certified()
+            .unwrap()
+            .params();
+        mids.push(body.split_edge(arc, 0.5 * (t0 + t1), tol).unwrap().vertex);
+    }
+    let p = |b: &Body<f64>, v: topo::VertexKey| b.vertex_points().find(|(k, _)| *k == v).unwrap().1;
+    let leaving = |b: &Body<f64>, v: topo::VertexKey| {
+        let lk = b.get_face(wall).unwrap().outer;
+        let topo::LoopBoundary::Cycle { first } = b.get_loop(lk).unwrap().boundary else {
+            panic!("a cycle")
+        };
+        b.loop_cycle(first)
+            .unwrap()
+            .into_iter()
+            .find(|&he| b.get_half_edge(he).unwrap().start == v)
+            .unwrap()
+    };
+    let (he1, he2) = (leaving(&body, mids[0]), leaving(&body, mids[1]));
+    let (p1, p2) = (p(&body, mids[0]), p(&body, mids[1]));
+    body.mef(
+        topo::MefSite::Chords { he1, he2 },
+        geom_brep::EdgeCurveSpec {
+            description: geom_brep::EdgeDescriptionSpec::chart(surface),
+            carrier: geom::Curve3::Line {
+                origin: p1,
+                dir: (p2 - p1) / (p2 - p1).norm(),
+            },
+            param_start: 0.0,
+            param_end: (p2 - p1).norm(),
+        },
+        topo::FaceSurface::Inherit,
+        tol,
+    )
+    .unwrap();
+    // The seam now parts two faces, so it is no longer a wrap edge.
+    let ends = {
+        let e = body.get_edge(seam).unwrap();
+        let start = |he| body.get_half_edge(he).unwrap().start;
+        (p(&body, start(e.he_plus)), p(&body, start(e.he_minus)))
+    };
+    body.set_edge_curve(
+        seam,
+        geom_brep::EdgeCurveSpec {
+            description: geom_brep::EdgeDescriptionSpec::chart(surface),
+            carrier: geom::Curve3::Line {
+                origin: ends.0,
+                dir: (ends.1 - ends.0) / (ends.1 - ends.0).norm(),
+            },
+            param_start: 0.0,
+            param_end: (ends.1 - ends.0).norm(),
+        },
+        tol,
+    )
+    .unwrap();
+    topo::mint_pcurves(&mut body, tol).unwrap();
+    body
+}
+
+/// **A band of two branches does not open yet**: the tube's outer wall
+/// split along a second ruling wraps between its two circles as two faces
+/// meeting along two seams, and the two-band surgery cuts one seam of one
+/// face. Refused naming the shape, on the first designated face.
+#[test]
+fn a_band_of_two_branches_refuses_typed() {
+    let body = split_tube(0.3, 0.5, 0.4);
+    let wall = walls_of(&body, 0.5);
+    assert_eq!(wall.len(), 2, "the outer wall is split in two");
+    match open(&body, &wall, 0.05) {
+        Err(ShellError::OpenFaceRimNotExpressible { face, what }) => {
+            assert_eq!(face, wall[0], "the refusal names the first designated face");
+            assert!(what.contains("one face walking one seam"), "got {what:?}");
+        }
+        other => panic!("expected the band's shape refusal, got {other:?}"),
+    }
 }
