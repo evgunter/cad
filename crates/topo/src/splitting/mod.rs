@@ -342,6 +342,14 @@ pub enum SplitReduceError {
         /// shell, the shell).
         errors: Vec<ValidationError>,
     },
+    /// The operand holds a vertex the join would take, or one whose
+    /// reading lands in the sliver band (tier 3's check 11): a body every
+    /// finisher would have joined, read where its scalar runs no at-rest
+    /// gate ([`AtRestBody::gate_unverdicted`]).
+    UnjoinedOperand {
+        /// The check-11 findings, each naming its vertex.
+        errors: Vec<ValidationError>,
+    },
     /// A vertex landed in the sliver band of the plane (F6): the
     /// operand/plane pair is ill-conditioned at this ε. No snapping —
     /// resolution is an explicit repair/adoption op (D7 machinery).
@@ -469,6 +477,7 @@ impl SplitReduceError {
         match unfinished {
             Unfinished::Scaffolding(errors) => Self::ScaffoldingOperand { errors },
             Unfinished::InsideOut(errors) => Self::InsideOutOperand { errors },
+            Unfinished::Unjoined(errors) => Self::UnjoinedOperand { errors },
         }
     }
 }
@@ -536,6 +545,9 @@ impl core::fmt::Display for SplitReduceError {
             }
             Self::InsideOutOperand { .. } => {
                 write!(f, "the body {}", Unfinished::INSIDE_OUT_REFUSAL)
+            }
+            Self::UnjoinedOperand { .. } => {
+                write!(f, "the body {}", Unfinished::UNJOINED_REFUSAL)
             }
             Self::SliverVertex { diag, .. } => write!(
                 f,

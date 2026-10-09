@@ -96,7 +96,16 @@ fn dump(label: &str, body: &Body<f64>) {
 }
 
 fn shelled(label: &str, body: &Body<f64>, t: f64) -> Option<Body<f64>> {
-    match topo::shell(&finished("the operand", body.clone(), tol()), t, tol()) {
+    // A hand-split operand is construction state (tier 3's check 11):
+    // the gate's refusal is the dump's line for it.
+    let operand = match topo::AtRestBody::validate(body.clone(), tol()) {
+        Ok(operand) => operand,
+        Err(e) => {
+            println!("[dump] {label}: not at rest {e:?}");
+            return None;
+        }
+    };
+    match topo::shell(&operand, t, tol()) {
         Ok(s) => {
             dump(label, &s.body);
             Some(s.body)
@@ -351,25 +360,13 @@ fn shell7_dump_corpus() {
         "[dump] drum, seam split, operand: tier3={:?}",
         topo::validate_geometric(&drum, tol())
     );
-    match topo::shell(&finished("the operand", drum.clone(), tol()), 0.05, tol()) {
-        Ok(s) => dump("drum, seam split, unminted", &s.body),
-        Err(topo::ShellError::NotValid { errors }) => {
-            println!("[dump] drum, seam split, unminted: shell NotValid {errors:?}");
-        }
-        Err(e) => println!("[dump] drum, seam split, unminted: shell Err {e}"),
-    }
+    shelled("drum, seam split, unminted", &drum, 0.05);
     topo::mint_pcurves(&mut drum, tol()).expect("the split operand's pcurves mint");
     println!(
         "[dump] drum, seam split, operand minted: tier3={:?}",
         topo::validate_geometric(&drum, tol())
     );
-    match topo::shell(&finished("the operand", drum.clone(), tol()), 0.05, tol()) {
-        Ok(s) => dump("drum, seam split", &s.body),
-        Err(topo::ShellError::NotValid { errors }) => {
-            println!("[dump] drum, seam split: shell NotValid {errors:?}");
-        }
-        Err(e) => println!("[dump] drum, seam split: shell Err {e}"),
-    }
+    shelled("drum, seam split", &drum, 0.05);
     direct("drum, seam split, direct door", &drum, 0.05);
     // The seam-posture class past the torus: the two shapes that pass
     // the door and stop later, measured.
