@@ -103,6 +103,8 @@ mod bool6r1_probes;
 mod bool6r1_probes_interval;
 #[path = "carved_sphere_operand.rs"]
 mod carved_sphere_operand;
+#[path = "cone_join_lane.rs"]
+mod cone_join_lane;
 #[path = "cylinder_sphere_frame.rs"]
 mod cylinder_sphere_frame;
 #[path = "four_crossings_on_one_section_circle.rs"]
@@ -574,6 +576,8 @@ mod s393_start_frame_door;
 mod s49_census_jurisdiction;
 #[path = "seam_vertex_sites.rs"]
 mod seam_vertex_sites;
+#[path = "strut_cover_on_cylinder_pairs.rs"]
+mod strut_cover_on_cylinder_pairs;
 
 #[path = "run_walls_built.rs"]
 mod run_walls_built;
@@ -700,6 +704,8 @@ mod germ_circle_torus;
 mod germ_cone_apex_closure;
 #[path = "germ_cone_doors.rs"]
 mod germ_cone_doors;
+#[path = "germ_cone_section_rows.rs"]
+mod germ_cone_section_rows;
 #[path = "germ_conic_plane_roots.rs"]
 mod germ_conic_plane_roots;
 #[path = "germ_coplanar_conic.rs"]

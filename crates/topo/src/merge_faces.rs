@@ -934,7 +934,7 @@ impl core::fmt::Display for MergeCoplanarError {
             Self::DeclaredOppositeOrientation { .. } => write!(
                 f,
                 "the two declared faces face opposite ways across the edge they share. {}",
-                DECLARED_ORIENTATION.recourse(RefusedArm::SignCertain, Reading::Build)
+                DECLARED_ORIENTATION.recourse(RefusedArm::SignCertain(None), Reading::Build)
             ),
             Self::DeclaredCarrierUnsupported { pair, kind } => write!(
                 f,
@@ -968,13 +968,9 @@ impl core::fmt::Display for MergeCoplanarError {
                      winds counterclockwise about its outward normal, as tier 3 requires at rest"
                 ),
             },
-            Self::Escalated { decision, diag } => write!(
-                f,
-                "{} is undecided: {}. {}",
-                decision.subject(),
-                diag.payload(),
-                decision.ending(diag)
-            ),
+            Self::Escalated { decision, diag } => diag
+                .undecided(decision.subject(), decision.ending(diag))
+                .fmt(f),
             Self::Band { error } => write!(f, "merge_coplanar_faces: {error}"),
             Self::Pcurve { source } => write!(
                 f,
@@ -1003,8 +999,7 @@ impl core::fmt::Display for MergeCoplanarError {
                                                edge clearly cross or are clearly smooth";
                 let (question, ending) = match reading {
                     DihedralReading::Lever(geom_brep::LeverRung::Arm) => (
-                        "whether the edge is long enough, for how its faces curve, to measure \
-                         their angle",
+                        concat!("whether the edge is ", geom_brep::dihedral_arm_clause!()),
                         geom_brep::DIHEDRAL_ARM
                             .recourse(RefusedArm::Undecided(diag), Reading::Build),
                     ),
@@ -1020,8 +1015,8 @@ impl core::fmt::Display for MergeCoplanarError {
                 write!(
                     f,
                     "merge_coplanar_faces: re-describing kept face {face:?}'s boundary edge \
-                     {edge:?}, {question} is undecided: {}. {ending}",
-                    diag.payload()
+                     {edge:?}, {}",
+                    diag.undecided(question, ending)
                 )
             }
         }

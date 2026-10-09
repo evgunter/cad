@@ -2,11 +2,14 @@
 id: boolean-sector-algebra-has-no-cone-arm
 kind: issue
 title: Past the pair gate and the cone's crossing lane, every op on a cone operand refuses at sectors::sector_face: the boolean's sector algebra has no cone arm
-status: open
+status: closed
 opened: 2026-10-06
+closed: 2026-10-09
 priority: P1
 cost: H
 refs: [VERBS-CONE, 4135]
+branch: germ/cone-sector-join
+pr: 4375
 ---
 
 
@@ -82,3 +85,76 @@ island and re-homes its rings by `chord_join::path_island_winding` and
 form and pins every op at the pair gate. It goes red when this item, with
 `VERBS-CONE`, opens the gate, and then becomes the lane's first public
 row: the six ops at tiers 3 and 3′, against a slice-integral volume.
+
+## Spec (2026-10-08)
+
+`docs/GERM-CONE-SECTOR-SPEC.md` measures the whole chain on
+`c333c6ac65` and cuts the units. The chain above is short two kinds of
+door. The germ pair's section frame (`join::pair_section_frame_at`)
+stands before `bool_connect`'s dispatch. The section certificate's
+interior-loop guard and the result door's ring volume stand after the
+chord (§0.1 there). With every door given a scratch arm, the 51 bodies
+returned were all correct (§0.2 there). The second-order reading at a
+tangency, and a cone sector lying on a curved face, are held by D10
+(§2 there).
+
+## U-S1, U-S2, U-S6 (2026-10-08, `germ/cone-sector-normals`)
+
+D1 and D2 are open below the operand gate, the cone still off its
+roster:
+
+- **D2.** `face_outward_normal_at` has a cone arm. It certifies the
+  point by `geom_brep::cone_elevation` on the face's nappe, falling
+  back to the double cone where the corners reach the apex. It refuses
+  at the apex by the distance off the axis (`NormalAtError::AtConeApex`,
+  carried out as `BooleanError::NormalAtConeApex`).
+- **D2's lever.** The pierce lever is `sectors::PierceLever`, which on
+  a cone is `max(ρ − reach, 2ρ/3)`.
+- **D1.** `sectors::sector_face` lets the cone through, and a sector
+  based at the apex refuses `NormalAtConeApex`. X1 and X2 now refuse
+  under that name in all six orders.
+- **R6 (U-S6), measured.** The `NaN` was not a near-apex normal. It was
+  `geom_brep::plane_cone_section`'s `pn_axis_normal`, which levered at
+  the axial height of the plane's stored origin. The plane `x = −0.03`
+  is parallel to the axis and its origin sits level with the apex, so
+  the lever was 0 and the plane came back as a radius-0
+  `AxisNormalCircle`. That circle's zero tangent was `0/0` in
+  `chord_join::arc_leaving`. The lever now reads the apex's distance
+  off the plane. R6 refuses typed: the hyperbola (R1), at the frame.
+- **The lever, measured.** The spec's literal `ρ − reach`, decided
+  positive, refused TANG's T1 in every op: six bodies that §0.2 of the
+  spec measured correct. The `ρ` reading never decided a wrong side in
+  2·10⁵ random poses. The charge reads no further than `ρ/3` at a lever
+  of `2ρ/3`, so that is the floor. With every other door opened in
+  scratch, all 51 of §0.2's bodies still return and are correct.
+
+
+**2026-10-09, U-S1, U-S2 and U-S6 land (PR 4369).**
+- The cone face's pierce normal and sector normal answer, and both refuse typed at the apex (`NormalAtConeApex`).
+- The lever is capped at `2ρ/3`.
+- `plane_cone_section`'s axis-normal sine is levered at `max(|δ/c|·tan α, extent)`, with the circle built where the axis meets the plane. This was the single review's MAJOR: a plane along the axis just off the apex was served as a circle.
+
+U-S3 and U-S4 continue on PR 4375.
+
+## U-S3, U-S4, U-S0 (2026-10-09, `germ/cone-sector-join`)
+
+D3, D4 and D5 are open below the operand gate (PR 4375). U-S1, U-S2 and U-S6 ride
+PR 4369 (`germ/cone-sector-normals`).
+
+- **D3.** `join::pair_section_frame_at` has a plane × cone arm
+  (`pk_germ_frame`), through `geom_brep::plane_cone_section`. It reads
+  the ellipse's or circle's frame, and the generator pair as straight.
+  The apex's touching outcomes are a desync. A hyperbola or parabola
+  refuses `BooleanError::GermSectionOutsideInventory`, carrying the
+  table's `SectionError`. It is levered at the cone face's reach from
+  the reading point (`FrameExtent::Reach`).
+- **D4, D5.** `bool_connect` dispatches `(Plane, Cone)` as `PlaneWall`
+  and `(Cone, Plane)` as `WallPlane`, and `bool_planar_chord_spec`
+  admits the cone.
+- **U-S0.** `topo::join_admitting_cones` (`sweep-testing`) runs the
+  production pipeline with `Cone` on the gate's roster and stops after
+  the join. Measured through it, B4, C1 and T1 join in every op and
+  member order, each chord the closed-form section on both sides. Every
+  pose then meets D6, the interior-loop guard.
+
+**2026-10-09, closed: U-S3 and U-S4 land (PR 4375, DR-118, sequential arm).** With U-S1, U-S2 and U-S6 (PR 4369), every door of the cone's sector algebra is open below the operand gate. That covers the pierce and sector normals, the plane × cone frame, the dispatch and the planar chord, and each refuses typed at the apex and for a hyperbola or parabola. The roster flip is VERBS-CONE's U7. U-S5 (rings on a cone face in `face_flux`) is off U7's path and stays in `docs/GERM-CONE-SECTOR-SPEC.md`.

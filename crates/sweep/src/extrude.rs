@@ -1277,11 +1277,13 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                         body.set_edge_curve(strut.edge, spec, tol)?;
                     }
                     geom_brep::MustCarryDescription::Conventional => {
-                        // The surfaces under-determine the locus — a
-                        // zero-side second order, or a pair outside
-                        // the certificate's lane — so the strut
-                        // "keeps the conventional description BY THE
-                        // PREDICATE" — the sentence above.
+                        // No intrinsic tangency is demanded: a station
+                        // read the second order zero-side (the surfaces
+                        // under-determine the locus), or every station
+                        // read it positive on a pair outside the
+                        // certificate's lane, which cannot store one —
+                        // so the strut keeps the conventional
+                        // description.
                         // The conventional form is a chart IMAGE, not
                         // the scaffolding the mint left (D3's
                         // transience fence), so spelling that sentence

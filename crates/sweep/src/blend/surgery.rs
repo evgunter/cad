@@ -5235,8 +5235,10 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         };
         match verdict.description(s1, s2, witness).map_err(refused)? {
             MustCarryDescription::Intrinsic(description) => description,
-            // The surfaces under-determine the locus, so the
-            // description stays CONVENTIONAL: an image in a chart,
+            // No intrinsic tangency is demanded (a zero-side
+            // station, or an all-positive pair outside the
+            // certificate's lane), so the description stays
+            // CONVENTIONAL: an image in a chart,
             // derived by the certification door from the exact carrier
             // above. `he_plus`'s chart: the locus lies exactly in both
             // surfaces, so either is a legitimate home — the argument
@@ -5251,8 +5253,10 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
             // lane admits: a corner arc on a slim wedge, whose extent
             // is the folded lever arm, or any band under a run with
             // `K < 2`. A pair the lane REFUSES lands here too once
-            // every station has read smooth first-order (a crossing
-            // out of lane is refuted above, as in lane): the
+            // every station has read smooth first-order and the
+            // second-order walk has not escalated, including when every
+            // station reads positive (a crossing or an in-band station
+            // out of lane refuses above, as in lane): the
             // certificate cannot store an intrinsic tangency there, so
             // the conventional image is the honest description, and
             // the door derives it — `geom_brep::chart_pcurve` images a

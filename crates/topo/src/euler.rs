@@ -1546,12 +1546,14 @@ impl EulerOpError {
                 },
                 crate::split::split_param_ending(verdict.arm())
             ),
-            Self::SplitParamEscalated { diag, .. } => format!(
-                "{} is undecided: {}. {}",
-                crate::split::CROSSING_INTERIOR,
-                diag.payload(),
-                crate::split::split_param_ending(geom_brep::recourse::RefusedArm::Undecided(diag))
-            ),
+            Self::SplitParamEscalated { diag, .. } => diag
+                .undecided(
+                    crate::split::CROSSING_INTERIOR,
+                    crate::split::split_param_ending(geom_brep::recourse::RefusedArm::Undecided(
+                        diag,
+                    )),
+                )
+                .to_string(),
             Self::PcurveSplit {
                 edge,
                 half_edge,
@@ -1860,7 +1862,7 @@ pub(crate) fn every_euler_op_error_once()
             error: geom_brep::PcurveCertifyError::UnsupportedCarrier {
                 chart: geom::SurfaceKind::Torus,
                 carrier: geom::CurveKind::Nurbs,
-                class: geom_brep::UncoveredClass::SplineCarrier,
+                class: geom_brep::UncoveredClass::NoFittedClass,
             },
         },
         EulerOpError::PcurveMint {

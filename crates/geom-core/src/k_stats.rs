@@ -516,9 +516,10 @@ pub fn decide<T: Decide>(
 
 /// [`decide`], keeping the reporting margin the classifier decided on
 /// ([`Decided`]): for a decision whose refusal quotes it — a sized
-/// decision's tolerance offer (D4 ¶1 (i)). Classification and
-/// recording are [`decide`]'s; the margin is for error reporting only
-/// ([`MarginDiag`]).
+/// decision's tolerance offer (D4 ¶1 (i)), and a residual's definite
+/// miss, which the import door reads against the file's ε_in.
+/// Classification and recording are [`decide`]'s; the margin is for
+/// error reporting only ([`MarginDiag`]).
 ///
 /// # Errors
 ///

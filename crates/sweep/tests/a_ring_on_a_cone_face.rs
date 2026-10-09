@@ -33,7 +33,7 @@ fn height() -> f64 {
 
 /// The cone of base radius [`R`] at `y = 0`, apex `(0, height, 0)`, its
 /// seam meridians turned onto `±z`, then moved by `pose`.
-fn cone(pose: Affine3<f64>) -> AtRestBody<f64> {
+pub(crate) fn cone(pose: Affine3<f64>) -> AtRestBody<f64> {
     let tol = Tol::witness();
     let tri = ProfileLoop::polygon([
         Point2::new(0.0, 0.0),
@@ -61,7 +61,7 @@ fn edge_point(s: f64) -> Point3<f64> {
 /// faces' inward normals 40° and 50° off the cone's axis (turned −50°
 /// about `z`): each cuts the cone in an ellipse, the far side of one
 /// and the apex side of the other holding the lune. Moved by `pose`.
-fn wedge(s: f64, pose: Affine3<f64>) -> AtRestBody<f64> {
+pub(crate) fn wedge(s: f64, pose: Affine3<f64>) -> AtRestBody<f64> {
     let tol = Tol::witness();
     let raw = brick((0.0, 6.0), (0.0, 6.0), (-3.0, 3.0), tol);
     let turn = Affine3::rotation_about_axis(
