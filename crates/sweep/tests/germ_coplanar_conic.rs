@@ -12,12 +12,14 @@
 //!   top in the equator plane holding an arc of the outer equator (the
 //!   neighbours are the two torus faces; today every op refuses at the
 //!   join's germ frame, which has no torus × plane arm);
-//! - a tube whose outer wall is two faces meeting in a circle, the box
-//!   top in that circle's plane holding an arc of it (every op answers
-//!   its closed form; `point_in_solid` on the result refuses typed on
-//!   the notched full-turn wall,
-//!   `work/contact/a-notched-full-turn-wall-has-no-ray-trim.md`), or all
-//!   of it (today every op refuses at the join);
+//! - a tube authored with a vertex at `ρ = 1`, `y = 0` on its outer
+//!   side, which the revolve does not keep: its outer wall is one face.
+//!   The box top in that plane cuts an arc of the wall (every op
+//!   answers its closed form; `point_in_solid` on the result refuses
+//!   typed on the notched full-turn wall,
+//!   `work/contact/a-notched-full-turn-wall-has-no-ray-trim.md`), or
+//!   both walls whole, each section circle crossing its wall's one seam
+//!   once (every op answers its closed form);
 //! - a die pip whose ball is poled along `y`, so its seam meridian and
 //!   both poles lie in the cube's top face (today every op refuses at
 //!   the join's role read, `SectionLoopUndecided`).
@@ -88,8 +90,8 @@ fn equator_donut() -> Body<f64> {
     ]))
 }
 
-/// The tube `0.5 ≤ ρ ≤ 1`, `y ∈ [−1, 1]` about `y`, its outer wall
-/// authored as two faces meeting in the circle `ρ = 1`, `y = 0`.
+/// The tube `0.5 ≤ ρ ≤ 1`, `y ∈ [−1, 1]` about `y`, authored with a
+/// vertex at `(1, 0)` on its outer side; its outer wall is one face.
 fn strutted_tube() -> Body<f64> {
     revolved(ProfileLoop::polygon([
         Point2::new(0.5, -1.0),
@@ -207,7 +209,7 @@ fn fixtures() -> Vec<Fixture> {
             ],
         },
         Fixture {
-            name: "whole tube strut in the box top",
+            name: "the box top across both tube walls",
             a: fin("the strutted tube", strutted_tube()),
             b: fin("the box", boxed((-1.5, 1.5), (-2.0, 0.0), (-1.5, 1.5))),
             vol_a: 1.5 * PI,
@@ -343,9 +345,9 @@ const OUTCOMES: [&str; 15] = [
     "tube strut arc in the box top: A ∪ B: builds",
     "tube strut arc in the box top: A ∩ B: builds",
     "tube strut arc in the box top: A ∖ B: builds",
-    "whole tube strut in the box top: A ∪ B: Join",
-    "whole tube strut in the box top: A ∩ B: Join",
-    "whole tube strut in the box top: A ∖ B: Join",
+    "the box top across both tube walls: A ∪ B: builds",
+    "the box top across both tube walls: A ∩ B: builds",
+    "the box top across both tube walls: A ∖ B: builds",
     "y-poled pip on the cube's top face: A ∪ B: Join",
     "y-poled pip on the cube's top face: A ∩ B: Join",
     "y-poled pip on the cube's top face: A ∖ B: Join",
@@ -382,33 +384,4 @@ fn the_closed_forms_hold_on_the_operands() {
         (coarse - fine).abs() < 1e-5,
         "the quadrature has converged: {coarse} against {fine}"
     );
-}
-
-/// **The whole tube strut in the box top closes its section loops at one
-/// site each**: the outer circle `ρ = 1` lies in the box top with one
-/// vertex on it, and the inner wall's section circle `ρ = 0.5` crosses
-/// the wall's seam once. Each loop's two ends meet at that one vertex,
-/// and every op refuses that typed, naming the class, rather than
-/// counting the ends as unpaired.
-#[test]
-fn a_closed_section_loop_with_one_site_refuses_typed() {
-    let fx = fixtures()
-        .into_iter()
-        .find(|f| f.name == "whole tube strut in the box top")
-        .expect("the fixture exists");
-    let tol = Tol::witness();
-    for (op, r) in [
-        ("A ∪ B", topo::union(&fx.a, &fx.b, tol)),
-        ("A ∩ B", topo::intersect(&fx.a, &fx.b, tol)),
-        ("A ∖ B", topo::subtract(&fx.a, &fx.b, tol)),
-    ] {
-        let err = r.expect_err("a one-site section loop refuses");
-        assert!(
-            matches!(
-                err,
-                topo::BooleanError::Join(topo::SplitJoinError::SingleSiteSectionLoop { count: 2 })
-            ),
-            "{op}: {err:?}"
-        );
-    }
 }

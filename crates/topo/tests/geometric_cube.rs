@@ -255,7 +255,7 @@ fn dual_lane_decisions_match_f64_bit_for_bit() {
     // upgraded Intersection re-certifications.
     //
     // The dual goes through the `_structural` door, which is where every
-    // certificate compared below is produced — all ten checks run, checks
+    // certificate compared below is produced — all eleven checks run, checks
     // 7 and 10 through the closed form (the cube is planar, so it computes
     // at a dual with a zero pad; the cube's one shell skips check 10), and
     // none of them reads a certified lane. The

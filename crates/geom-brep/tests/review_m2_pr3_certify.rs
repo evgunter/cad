@@ -472,7 +472,7 @@ fn fixed_sub_epsilon_cone_arm_escalates() {
     let p = at(0.5 * eps());
     let err = classify_dihedral(&cone, &plane_through(p), p, 1.0, band()).unwrap_err();
     assert_eq!(
-        (err.rung, err.diag.predicate),
+        (err.rung(), err.diag().predicate),
         (geom_brep::LeverRung::Arm, Some("dihedral_arm_wedge"))
     );
 }
@@ -501,13 +501,13 @@ fn fixed_sub_epsilon_extent_true_corner_escalates() {
     // nonzero, and its own decided zero where the arm is exactly zero.
     let err = classify_dihedral(&floor, &wall, Point3::origin(), 0.5 * eps(), band()).unwrap_err();
     assert_eq!(
-        (err.rung, err.diag.predicate),
+        (err.rung(), err.diag().predicate),
         (geom_brep::LeverRung::Arm, Some("dihedral_arm_wedge")),
         "sub-eps extent"
     );
     let err = classify_dihedral(&floor, &wall, Point3::origin(), 0.0, band()).unwrap_err();
     assert_eq!(
-        (err.rung, err.diag.predicate),
+        (err.rung(), err.diag().predicate),
         (geom_brep::LeverRung::Arm, Some("dihedral_arm")),
         "zero extent"
     );

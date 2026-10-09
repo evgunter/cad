@@ -4,6 +4,8 @@ kind: issue
 title: No split row's join kills a split child, so SplitNaming::joined_lineage is never read
 status: open
 opened: 2026-10-08
+priority: P3
+cost: M
 ---
 
 

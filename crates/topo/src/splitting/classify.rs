@@ -242,19 +242,48 @@ pub(super) fn classify_vertices<T: Decide>(
     plane: &SplitPlane<T>,
     band: Band,
 ) -> Result<(SecondaryMap<VertexKey, PlaneSide>, Vec<VertexKey>), SplitReduceError> {
+    classify_vertices_margined(body, plane, band).map(|(sides, on, _)| (sides, on))
+}
+
+/// Each vertex's side, the ON vertices in arena order, and the margin
+/// each ON vertex was decided Zero on ([`classify_vertices_margined`]).
+pub(super) type MarginedSides = (
+    SecondaryMap<VertexKey, PlaneSide>,
+    Vec<VertexKey>,
+    SecondaryMap<VertexKey, geom_core::MarginDiag>,
+);
+
+/// [`classify_vertices`], with the margin each ON vertex was decided
+/// Zero on: the coincidence a pinch records ([`crate::coincidence`]).
+pub(super) fn classify_vertices_margined<T: Decide>(
+    body: &Body<T>,
+    plane: &SplitPlane<T>,
+    band: Band,
+) -> Result<MarginedSides, SplitReduceError> {
     let mut sides = SecondaryMap::new();
     let mut on_vertices = Vec::new();
+    let mut on_margins = SecondaryMap::new();
     for (vertex_key, p) in body.vertex_points() {
         let margin = Margin::of(crate::sector_shape::plane_offset(
             plane.origin,
             plane.normal.get(),
             p,
         ));
-        let side = match decide("split_vertex_side", margin, band) {
-            Ok(Sign::Negative) => PlaneSide::Below,
-            Ok(Sign::Positive) => PlaneSide::Above,
-            Ok(Sign::Zero) => {
+        let side = match crate::validate::decide_reported("split_vertex_side", margin, band) {
+            Ok(geom_core::Decided {
+                sign: Sign::Negative,
+                ..
+            }) => PlaneSide::Below,
+            Ok(geom_core::Decided {
+                sign: Sign::Positive,
+                ..
+            }) => PlaneSide::Above,
+            Ok(geom_core::Decided {
+                sign: Sign::Zero,
+                margin,
+            }) => {
                 on_vertices.push(vertex_key);
+                on_margins.insert(vertex_key, margin);
                 PlaneSide::On
             }
             Err(diag) => {
@@ -266,7 +295,7 @@ pub(super) fn classify_vertices<T: Decide>(
         };
         sides.insert(vertex_key, side);
     }
-    Ok((sides, on_vertices))
+    Ok((sides, on_vertices, on_margins))
 }
 
 /// Which lane finds where a carrier's span crosses a plane
