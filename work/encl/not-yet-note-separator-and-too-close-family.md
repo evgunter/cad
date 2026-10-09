@@ -2,7 +2,8 @@
 id: not-yet-note-separator-and-too-close-family
 kind: issue
 title: recourse::not_yet joins the unreadable note with ': ' and over-claims the table; the too-close-to-call sentence family parallels Indeterminate::undecided
-status: review
+status: closed
+closed: 2026-10-09
 branch: encl/not-yet-note-and-undecided-family
 pr: 4443
 opened: 2026-10-09
@@ -66,3 +67,12 @@ priority: P3
   (listed in `too-close-to-call-remainder`).
 - Item 3: `geom_core::Recourse` is the one label; `lever_recourse` and
   `editor_core::sentence` (a re-export) go through it.
+
+## Closed
+
+2026-10-09. PR 4443 merged at `070cec41da` after a full review (verdict: merge) and a small fix pass; hosted CI was green.
+- **One joint.** `geom_core::noted(ending, note)` writes the `"; "` joint. `lever_recourse`, `not_yet` and validate's not-yet copy use it, and `not_yet` moved from `": "` to `"; "`.
+- **One word.** "Too close to call at this tolerance" folded into "undecided" (`Indeterminate::undecided`, `geom_core::undecided!`) for `PropsError::Escalated` and the validate/census sentences. Ruling: D4 ¶1 (i) puts tolerance advice in the ending, decided per decision, and "undecided" is also true of a poisoned margin, where "too close" is false.
+- **One home for the label.** `geom_core::Recourse` holds the `Recourse:` label; editor-core re-exports it, and its texts are byte-identical.
+- **Not done here.** `Unsized` takes no unreadable note: D4 ¶1 never mandated one, and its endings already ask for a report. `editor-core` `mate.rs` stays out under the D10 hold.
+- **Follow-ups:** `too-close-to-call-remainder` (~47 sites, the decision-specific siblings, census's qualified not-yet spellings, and the poison→note rule at four sites) and `last-resort-on-a-poisoned-margin-offers-to-loosen-the-tolerance`.
