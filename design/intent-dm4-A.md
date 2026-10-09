@@ -217,6 +217,57 @@ is `A` on that member). B's rule holds only if the unit builds `xs[i]` as
 an operand spelling with no id of its own; then the key would have to be
 the family and the index, and the unit should say which it built.
 
+### 7. Round 4: a family member's key, and what `copy` is
+
+**Item 4: (i), sure.** The plain rule is "a name is keyed by the read it
+came through", a read being the variable the slot holds. Exceptions each
+state needs:
+
+- **(i) `xs[i]` is a definition with its own id.** None. A definition is
+  a variable (D10: "defined, by an `Expr` over other variables, by a
+  selection …"; DM3: "a definition reading the family and one `Count`
+  expression per index"), a read is of a variable, DM5 is over variables.
+  What looked special is only the rule's output: `Union[xs]` and
+  `Union[xs[0], …]` are two documents (one follows `N`), so they name
+  apart; `Union[xs, xs[0]]` is two variables, admitted, and builds as DM5
+  already says of any two variables holding one body (`A ∪ A` is `A`, the
+  rule written for `Part(Instance(0))` beside its master). Nothing is
+  added for families. Typing `xs[0]` mints an unnamed definition spoken by
+  its one slot, exactly as typing a number mints a free variable.
+- **(ii) key by the family plus the index.** Three. The key of a read of a
+  definition is the output it *reaches*, a walk the plain rule has
+  nowhere else (and the collapse this fork removes for operations). DM5
+  must walk too, to refuse `Union[xs, xs[0]]`, so a structural door check
+  becomes value-dependent: whether `xs[i]` duplicates `xs[0]` needs `i`
+  evaluated, and an index out of range is unresolved at evaluation, not
+  decidable at the door. And "duplicate" needs a new relation between a
+  family and one of its members, beyond "one variable twice".
+- **(iii) `xs[i]` an operand spelling with no id.** Two or three. The slot
+  no longer holds a `VarId` (VR4) but a read plus an index expression, so
+  the key is a compound and `From { read }` has two shapes. The index is
+  then said in the key and again in the inner `Member { (i), of }` (the
+  split's `(operation, port)` defect over again), or indexed reads strip
+  `Member` and the index lives in the key for one spelling and in the
+  inner segment for the other.
+
+(i) has the fewest, zero, and is the only one under which the key, DM5
+and VR4 keep their one sentence each. **Sure.**
+
+**Item 3: the case holds, and its motivation is current.** `X'` is a copy
+of `X` placed against `X`; under #4326 the copy takes its target's root,
+so `X` and `X'` are shapes of one space, and `Place [X, X']` reads two
+variables of one space and defines two copies whose rows are identical
+(a copy keeps its rows, N1). A name table is keyed by the name alone
+(`NameTable::insert` refuses `DuplicateName`), so one table per
+operation cannot hold them. That placement is D10 text, not yet built,
+so as evidence it is future. The built evidence is the same defect
+already compensated: a split's two halves and a pattern's N instances
+each sit in one per-node table, and the half (`SplitBody`, `SectionFace
+{ side }`, …) and the `Instance { i }` segment exist to keep that one
+table's names distinct, restating the output the variable already says.
+The split is the case to show Ev; the placement is where the compensation
+would stop working.
+
 ### Clauses changed
 
 - REFERENCES **DM4**: "Naming keys by member" → by the read; "It sits
