@@ -8,7 +8,6 @@ priority: P0
 cost: M
 blocked_on: [a-placement-is-the-bundle-of-mates, mates-declare-no-contact]
 refs: [intent-stage3-is-built, mate-offset-verified-against-the-solve-is-a-constraint-falling-back-to-an-assertion]
-needs_ev: true
 ---
 
 INTENT stage 3, PR F. Spec: `docs/INTENT-STAGE3-SPEC.md` §7.
