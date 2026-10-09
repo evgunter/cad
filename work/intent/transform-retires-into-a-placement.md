@@ -19,7 +19,7 @@ Frames enter only at placement:
 - `Extrude` loses `side`: the side is the placement's mates' to say.
 - `Node::Datum` retires.
 
-Every construction is built in coordinates of its own and placed against what its datum was related to. That is one mate plus values, and its bits move by one composition, which the migration reports.
+Every construction is built in coordinates of its own. One combined with another body is placed against that body (the combine's first operand's root) by a mate read off its geometry plus values computed from the two datums; its bits move by one composition, which the migration reports. No construction is placed against the world by this migration, so a cutter never joins the product. The last `Datum::FaceFrame` read as a frame goes with `Datum`.
 
 Nothing moves a body. `Node::Transform` and `PortKind::PlacedFrom` retire, and each use becomes a `Place`. A copy's names pass through as `Transform`'s did. `Step::Literal` retires, and A6's admission runs on evaluated pose values.
 

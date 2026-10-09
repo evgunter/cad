@@ -6,11 +6,10 @@ status: parked
 opened: 2026-10-08
 priority: P0
 cost: H
-design: true
 blocked_on: [carriers-compare-in-canonical-form, a-mate-relates-two-poses, a-mate-reads-face-variables]
 ---
 
-INTENT stage 4, PR H. Spec: `docs/INTENT-STAGE4-SPEC.md` §9. Design open: FORK-S4-5 (a mate-placed face proven through its frame vs a mate rung), reconciled with the stage 3 spec.
+INTENT stage 4, PR H. Spec: `docs/INTENT-STAGE4-SPEC.md` §9. FORK-S4-5 is settled by FORK-S3O (fork log row 96, PR 4325), below.
 
 `PoseForm` reads a placement's `Frame` variable (stage 3) instead of C's opaque chain atom, so a mate-placed face reduces equal to its partner. `compose_placed` and `GeomSource`'s `Placed` arm go.
 

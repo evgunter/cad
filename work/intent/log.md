@@ -644,7 +644,7 @@ Every one of the 67 rows parked on `intent-stage4-is-built` is released by A, B,
 `docs/INTENT-STAGE3-SPEC.md` now builds what FORK-S3P, S3O, S3M and PAT (fork log rows 95, 96, 97, 99) ratified, and its six fork sections are gone, each cited to its row. The stage is seven units:
 
 - A `poses-are-variables`: poses defined, one `Subgroup`, the revolve's 2-D line. Waits on stage 2 E.
-- B `a-placement-is-the-bundle-of-mates`: `Place` owns today's mates, the world node, gauges and the tree retire. Waits on stage 2 F.
+- B `a-placement-is-the-bundle-of-mates`: `Place` owns today's mates, the world node, gauges and the tree retire. Waits on stage 2 F and stage 4 J.
 - C `a-mate-relates-two-poses`: `{ on, to }` and values. Waits on A and B.
 - D `transform-retires-into-a-placement`: constructions read no frame; `Datum` and `Transform` retire. Cost raised to H. Waits on C.
 - E `an-operation-computes-in-a-frame-of-its-reads`: new; it replaces `each-space-computes-in-its-earliest-members-frame`, closed as superseded. Waits on D.

@@ -20,7 +20,7 @@ INTENT stage 3, PR A. Spec: `docs/INTENT-STAGE3-SPEC.md` §2. Built on FORK-S3P 
 - projected;
 - an operation's output.
 
-Pose definitions are bound mid-evaluation by `eval_pose`, which replaces `wire_datum`. `AxisInPlane` becomes `Revolve`'s 2-D axis line with an `axis: Axis` output (FORK-1b). `FaceFrame` retires: its readers read the face's plane, and a sketch on a face becomes a placement in D. `Split`'s tool reads a `Plane` of its operand's root. `PoseSymmetry` moves onto `PoseValue`, with `Point` and `Direction` arms, so one `Subgroup` serves poses and mates (#4222). Geometry is bit-equal.
+Pose definitions are bound mid-evaluation by `eval_pose`, which replaces `wire_datum`. `AxisInPlane` becomes `Revolve`'s 2-D axis line with an `axis: Axis` output (FORK-1b). `FaceFrame` retires from its plane readers, which read the face's plane. One read as a frame is a named interim until C (a frame mate) or D (a sketch on a face, with `Datum`) restates it. `Split`'s tool reads a `Plane` of its operand's root. `PoseSymmetry` moves onto `PoseValue`, with `Point` and `Direction` arms, so one `Subgroup` serves poses and mates (#4222). Geometry is bit-equal.
 
 Absolute datums survive A as the operations that define the poses constructions read. D retires them, once constructions read no frame and a placement can say where a body is.
 

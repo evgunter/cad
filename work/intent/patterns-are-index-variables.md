@@ -6,7 +6,6 @@ status: parked
 opened: 2026-10-08
 priority: P0
 cost: H
-design: true
 refs: [interference-at-rest-is-a-finding, a-placement-is-the-bundle-of-mates, intent-stage3-is-built]
 blocked_on: [transform-retires-into-a-placement, a-union-member-is-keyed-by-its-read]
 ---
