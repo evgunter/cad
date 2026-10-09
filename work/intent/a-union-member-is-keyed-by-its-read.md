@@ -4,7 +4,7 @@ kind: issue
 title: A union keys a member's names by the operation it reads, so two members read out of one operation (a split's two halves) cannot be named apart
 status: open
 opened: 2026-10-09
-priority: P2
+priority: P0
 cost: M
 needs_ev: true
 refs: [part-split-half-retires, operands-are-reads, a-name-is-scoped-by-the-variable-holding-its-body]

@@ -4,7 +4,7 @@ kind: unit
 title: A name is scoped by the variable that holds its body: name tables and the evaluator's results per output variable, and a split's roles drop the half
 status: parked
 opened: 2026-10-09
-priority: P2
+priority: P0
 cost: H
 needs_ev: true
 blocked_on: [a-union-member-is-keyed-by-its-read]
