@@ -45,10 +45,16 @@ what it found. Typing check 7's `Certified::Open` arm must go through
 that same `certified_by` (a `CertifiedSliver`), not through a second
 reading of the record.
 
-**From PR 4415's second review (NOTE-2).** The class is wider than a
-one-shell result. The witness sliver is refused only because the
-result groups it into the main lump's solid: at d = 1e-8 the binding
-shell shares solid `1v1` with the main lump. At d = 1e-7 the result is
-two solids, `[1, 1]`. So any sliver lump the pieces sort gives a solid
-of its own passes check 10 unread, the same way a one-shell result
-does: check 10 reads roles only within a solid of two or more shells.
+**From PR 4415's second review (NOTE-2).** The class is "an in-band
+shell that is the only shell of its solid", not only a one-shell result.
+Check 10 reads roles only within a solid of two or more shells.
+
+The near-tangent witness is refused because its sliver shares the main
+lump's solid (`1v1` at d = 1e-8). At d = 1e-7 the result is two solids,
+`[1, 1]`, but there the lump's role reads definite, so nothing is in
+band.
+
+The pieces sort cannot give an in-band shell a solid of its own: an
+unread role blocks the move (`PieceSortError::RoleUnread`). So the class
+is reached where the build itself leaves the sliver alone in a solid,
+as in the repro above.
