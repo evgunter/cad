@@ -8,6 +8,7 @@ priority: P2
 cost: H
 refs: [shell-of-a-lofted-body-meets-the-oblique-corner-on-a-slanted-spline-seam]
 pr: 4404
+closed: 2026-10-09
 ---
 
 Filed by the unit 9 designer pair. Once a moved cap's corner is solved
