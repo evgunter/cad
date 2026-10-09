@@ -410,7 +410,7 @@ fn falsification_battery_no_finite_bound_undercuts_truth() {
 
     // (c) out-of-domain excursion on the removable fixture: pcurve u
     // sweeps [−0.05, 1.05]; truth is the kernel's own clamped-span
-    // polynomial extension (find_span clamps identically).
+    // polynomial extension (span_at clamps identically).
     let (s3, _, c3) = iso_u();
     let kl = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let pex = (

@@ -1773,8 +1773,8 @@ mod tests {
         /// its domain carries real endpoints (`sqrt([−1, 0.01]) + 0.1` is
         /// about `[0.1, 0.2]` at `Trv`), the span window's hull refuses it as NaI,
         /// and NaI's NaN endpoints must not become a chart window — a NaN
-        /// window end lands on the first span in `span_range`, and the
-        /// derivative boxes of an arbitrary cell would then certify.
+        /// end mints no `ParamRange`, where a window landed on the first
+        /// span would certify the derivative boxes of an arbitrary cell.
         #[test]
         fn a_violated_pcurve_coordinate_cannot_certify() {
             let bad = Interval::from_bounds(-1.0, 0.01).sqrt() + iv(0.1);

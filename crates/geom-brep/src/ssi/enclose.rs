@@ -1481,13 +1481,12 @@ mod tests {
         NurbsSurface::new(ku, kv, control, weights).expect("valid patch")
     }
 
-    /// **A window with a NaN or inverted end names no region, and every
-    /// box over it is refused.** Without the window door, `f64::clamp`
-    /// passes a NaN end through and `span_range` lands it on the first
-    /// span, so a NaN window reads the first span's control block as a
-    /// certified box — a strict subset of this two-span patch's. The
-    /// ordered window beside them certifies, so the rows are about
-    /// the window and not the patch.
+    /// **A window with a NaN or inverted end names no region: it mints
+    /// no `ParamRange`, and every box over it is refused.** A NaN window
+    /// read as the first span's control block would be a certified box
+    /// that is a strict subset of this two-span patch's. The ordered
+    /// window beside them certifies, so the rows are about the window
+    /// and not the patch.
     #[test]
     fn a_nan_or_inverted_window_is_refused_rather_than_landed_on_the_first_span() {
         let s = multiplicity_2_patch();

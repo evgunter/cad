@@ -2,8 +2,9 @@
 id: props-collapse-over-lands-a-nan-window-on-the-first-span
 kind: issue
 title: props/quad.rs: Collapse::Over hands a refused bracket's NaN ends to range_hull/raw_range_hull/const_index, which land them on the first span and return a certified hull of a region nobody asked about
-status: open
+status: closed
 opened: 2026-10-01
+closed: 2026-10-09
 ---
 
 
@@ -78,3 +79,20 @@ on the NURBS slate as
 `KnotVector::span_range` documents the first-span tie-break as its
 contract (`crates/geom-core/src/spline/knots.rs`), so a door there would
 move every caller; the per-reader check is the local fix.
+
+## Closed — superseded by the NURBS locator unit, which closes the class at its source
+
+`work/nurbs/span-locator-lands-a-nan-parameter-on-the-first-span.md`'s
+Decided section takes this row's sites with it: a window is a
+`geom_core::spline::ParamRange`, which has no NaN or inverted spelling,
+and `Collapse::Over` carries one. `range_hull`, `raw_range_hull` and
+`Dir::Const`'s window arm read only ranges, so there is no window for a
+refused bracket to reach them through. All three producers named above
+mint through `ParamRange::certified` (`quad.rs`'s `certified_box`), and
+a bracket that does not certify gives them no window: the hulls they
+would have read answer refused (`refused_vec`), so `rate`, `sup_f`,
+`sup_g` and the lune terms refuse through the arithmetic over them, as
+the repair above asked. `Dir::Const`'s point arm also refuses a
+non-finite `t` now, as the `Kv` and `Raw` arms do. Pinned by
+`props::quad::tests::a_refused_bracket_mints_no_window_and_its_reading_refuses`
+and `a_nan_point_collapses_to_a_refusal_on_every_dir`.
