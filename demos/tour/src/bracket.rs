@@ -143,7 +143,7 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            plane: frame.into(),
+            frame: frame.into(),
             loops: vec![
                 LoopProgram::from_recorded(&outline(tol).program)
                     .expect("a literal recording lifts"),
@@ -213,7 +213,7 @@ fn trimmed_and_broken(doc: &Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) -
     let corner = insert(
         &mut doc,
         Node::Part {
-            of: split.into(),
+            of: pncad::document::Operand::output(split, SplitHalf::Below.port()),
             select: PartSelect::SplitHalf(SplitHalf::Below),
         },
         tol,
@@ -295,7 +295,7 @@ fn split_and_break(trimmed: &Trimmed, body: RecipeNodeId, tol: Tol) -> String {
     let offcuts = insert(
         &mut doc,
         Node::Part {
-            of: (*split).into(),
+            of: pncad::document::Operand::output(*split, SplitHalf::Above.port()),
             select: PartSelect::SplitHalf(SplitHalf::Above),
         },
         tol,

@@ -27,7 +27,7 @@ fn disc(doc: ProfileDoc, cx: f64, cy: f64, r: f64, h: f64) -> (ProfileDoc, Recip
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![LoopProgram::circle(cx, cy, r).expect("a finite circle")],
             ids: Vec::new(),
         }),
@@ -109,8 +109,9 @@ fn assert_two_bands(doc: &ProfileDoc, fillet: RecipeNodeId, what: &str) {
     );
     assert_eq!(
         n(|s| matches!(s, RoleSeg::BandFoot(_))),
-        4,
-        "{what}: a foot per rim vertex"
+        2,
+        "{what}: a host foot per band, the one its slit ends at (the other is joined away, \
+         `docs/DESIGN.md`, maximal edges)"
     );
     assert_eq!(
         n(|s| matches!(s, RoleSeg::BandSlit { .. })),
@@ -155,7 +156,7 @@ fn a_plate_holes_two_rims_fillet_in_one_node() {
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![
                 LoopProgram::polygon(fixture::square(0.0, 0.0, 1.0)).expect("a square"),
                 LoopProgram::circle(0.0, 0.0, 0.3).expect("a finite hole"),

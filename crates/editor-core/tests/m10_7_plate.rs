@@ -82,7 +82,7 @@ pub(crate) fn plate(
 
     let plane = r.insert(xy_frame());
     let plate_profile = r.insert(Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([
                 (-4.0e-3, -2.0e-3),
@@ -102,7 +102,7 @@ pub(crate) fn plate(
 
     let hole = |r: &mut Recorder, centre: Formula, radius: &'static str| {
         let profile = r.insert(Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [centre, len(0.0)],
                 radius: param(radius),

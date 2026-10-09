@@ -1090,6 +1090,9 @@ pub fn faces_around<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<FaceKey> {
 /// direction (a) and (b) do not imply: a retirement the surgery forgets
 /// to record is invisible to both and to the census delta alike. Also:
 /// the band and blend rows together name exactly `requested`. The
+/// blend ends with the join (`BlendNaming::edge_joins`): an edge or
+/// vertex a join killed is its row there, so (c) and (d) read it as
+/// accounted for, mint or source alike. The
 /// per-row COUNTS (feet, splits, retired seam vertices) stay in the
 /// rows, because they are the fixture's, not the walk's.
 pub fn assert_naming_totality<T: Real>(
@@ -1173,7 +1176,12 @@ pub fn assert_naming_totality<T: Real>(
             "{what}: a minted vertex reused a key: {v:?}"
         );
     }
-    // (d) every mint is present.
+    // (d) every mint is present, unless the closing join killed it:
+    // its `gone` edge and its vertex are its row in `edge_joins`.
+    let joined_gone: Vec<EdgeKey> = rec.edge_joins.iter().map(|j| j.gone).collect();
+    let joined_vertex: Vec<topo::VertexKey> = rec.edge_joins.iter().map(|j| j.vertex).collect();
+    minted_edges.retain(|e| !joined_gone.contains(e));
+    minted_vertices.retain(|v| !joined_vertex.contains(v));
     for f in &minted_faces {
         assert!(
             out.body.get_face(*f).is_some(),
@@ -1250,7 +1258,7 @@ pub fn assert_naming_totality<T: Real>(
     for (k, _) in source.edges() {
         if out.body.get_edge(k).is_none() {
             assert!(
-                rec.dead.edges.contains(&k) || banded.contains(&k),
+                rec.dead.edges.contains(&k) || banded.contains(&k) || joined_gone.contains(&k),
                 "{what}: source edge {k:?} vanished with no retirement recorded"
             );
         }
@@ -1258,7 +1266,7 @@ pub fn assert_naming_totality<T: Real>(
     for (k, _) in source.vertices() {
         if out.body.get_vertex(k).is_none() {
             assert!(
-                rec.dead.vertices.contains(&k),
+                rec.dead.vertices.contains(&k) || joined_vertex.contains(&k),
                 "{what}: source vertex {k:?} vanished with no retirement recorded"
             );
         }

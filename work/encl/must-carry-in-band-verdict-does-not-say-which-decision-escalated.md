@@ -2,7 +2,8 @@
 id: must-carry-in-band-verdict-does-not-say-which-decision-escalated
 kind: issue
 title: geom-brep: MustCarryVerdict::InBand carries a station's escalation without saying whether the wedge or the second-order question escalated
-status: open
+status: dispatched
+branch: encl/sweep-must-carry-escalation
 opened: 2026-10-01
 priority: P3
 ---

@@ -194,7 +194,7 @@ fn width_slab(w: f64) -> (ProfileDoc, editor_core::VarId) {
     ]);
     let frame = r.insert(fixture::xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: frame.into(),
+        frame: frame.into(),
         loops: vec![chain],
         ids: Vec::new(),
     }));

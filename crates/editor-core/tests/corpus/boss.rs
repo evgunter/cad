@@ -29,7 +29,7 @@ pub fn document() -> CorpusDoc {
         LoopProgram::polygon([(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]).unwrap();
     let plate_plane = r.insert(xy_frame());
     let plate_p = r.insert(Node::Profile(ProfileProgram {
-        plane: plate_plane.into(),
+        frame: plate_plane.into(),
         loops: vec![plate_loop],
         ids: Vec::new(),
     }));
@@ -49,7 +49,7 @@ pub fn document() -> CorpusDoc {
     let boss_loop = LoopProgram::circle_split(1.2, 1.7, 0.35, 3, 0.0).unwrap();
     let boss_plane = r.insert(frame([0.0, 0.0, 0.3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let boss_p = r.insert(Node::Profile(ProfileProgram {
-        plane: boss_plane.into(),
+        frame: boss_plane.into(),
         loops: vec![boss_loop],
         ids: Vec::new(),
     }));

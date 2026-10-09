@@ -122,11 +122,11 @@ fn two_parts_of_one_half(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
     });
     let above = PartSelect::SplitHalf(SplitHalf::Above);
     let p = r.insert(Node::Part {
-        of: split.into(),
+        of: editor_core::Operand::output(split, SplitHalf::Above.port()),
         select: above.clone(),
     });
     let q = r.insert(Node::Part {
-        of: split.into(),
+        of: editor_core::Operand::output(split, SplitHalf::Above.port()),
         select: above,
     });
     (p, q)

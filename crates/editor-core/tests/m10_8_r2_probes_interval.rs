@@ -113,7 +113,7 @@ pub(crate) fn pad(scale: f64, tol: Tol) -> (ProfileDoc, editor_core::VarId, Reci
         ProgramStep::CloseTo,
     ]);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![pad_loop],
         ids: Vec::new(),
     }));
@@ -125,7 +125,7 @@ pub(crate) fn pad(scale: f64, tol: Tol) -> (ProfileDoc, editor_core::VarId, Reci
     });
 
     let bore_profile = r.insert(Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), len(0.0)],
             radius: plen("bore_r"),

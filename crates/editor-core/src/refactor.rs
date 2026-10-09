@@ -350,16 +350,12 @@ fn carry<E>(
                 .ok_or(RemapMiss::Input(g)),
             _ => Ok(world),
         };
-        let rd = |var: VarId| match out_map.get(&var) {
+        let rd = |slot: crate::OperandSlot, var: VarId| match out_map.get(&var) {
             Some(&carried) => Ok(carried),
             None => match source.operation_of(var) {
                 Some(input) => Err(RemapMiss::Input(input)),
                 None => Err(RemapMiss::Read {
-                    slot: node
-                        .operand_rows()
-                        .into_iter()
-                        .find_map(|(slot, read)| (read == var).then_some(slot))
-                        .unwrap_or(crate::OperandSlot::Input),
+                    slot,
                     var,
                     output: source
                         .var(var)
@@ -2065,12 +2061,12 @@ enum RemapMiss {
 /// The first [`RemapMiss`].
 fn remap_rule(
     kind: &PatternKind,
-    rd: &dyn Fn(VarId) -> Result<VarId, RemapMiss>,
+    rd: &dyn Fn(crate::OperandSlot, VarId) -> Result<VarId, RemapMiss>,
 ) -> Result<PatternKind, RemapMiss> {
     Ok(match kind {
         PatternKind::Linear { .. } | PatternKind::Explicit(_) => kind.clone(),
         PatternKind::Circular { axis, step } => PatternKind::Circular {
-            axis: rd(*axis)?,
+            axis: rd(crate::OperandSlot::Axis, *axis)?,
             step: *step,
         },
     })
@@ -2125,7 +2121,7 @@ fn remap_declared(
 fn remap_node(
     node: &Node<ProfileProgram>,
     map: &NodeMap,
-    rd: &dyn Fn(VarId) -> Result<VarId, RemapMiss>,
+    rd: &dyn Fn(crate::OperandSlot, VarId) -> Result<VarId, RemapMiss>,
     steps: &StepMap,
     regauge: &dyn Fn(Option<RecipeNodeId>) -> Result<Option<RecipeNodeId>, RemapMiss>,
 ) -> Result<Node<ProfileProgram>, RemapMiss> {
@@ -2155,11 +2151,11 @@ fn remap_node(
         // one rung down, where this arm cloned because a profile
         // referenced nothing.
         Node::Datum(crate::Datum::AxisInPlane {
-            plane,
+            frame: plane,
             origin,
             direction,
         }) => Node::Datum(crate::Datum::AxisInPlane {
-            plane: rd(*plane)?,
+            frame: rd(crate::OperandSlot::Frame, *plane)?,
             origin: *origin,
             direction: *direction,
         }),
@@ -2169,7 +2165,7 @@ fn remap_node(
         // selection.
         Node::Datum(crate::Datum::FaceFrame { at, face, spin }) => {
             Node::Datum(crate::Datum::FaceFrame {
-                at: rd(*at)?,
+                at: rd(crate::OperandSlot::At, *at)?,
                 face: nm(face)?,
                 spin: *spin,
             })
@@ -2189,7 +2185,7 @@ fn remap_node(
         // mints its own, and the names that spell them cross through
         // the step map read off that minting ([`carry`]).
         Node::Profile(p) => Node::Profile(ProfileProgram {
-            plane: rd(p.plane)?,
+            frame: rd(crate::OperandSlot::Frame, p.frame)?,
             loops: p.loops.clone(),
             ids: Vec::new(),
         }),
@@ -2198,7 +2194,7 @@ fn remap_node(
             distance,
             side,
         } => Node::Extrude {
-            profile: rd(*profile)?,
+            profile: rd(crate::OperandSlot::Profile, *profile)?,
             distance: *distance,
             side: *side,
         },
@@ -2207,8 +2203,8 @@ fn remap_node(
             axis,
             angle,
         } => Node::Revolve {
-            profile: rd(*profile)?,
-            axis: rd(*axis)?,
+            profile: rd(crate::OperandSlot::Profile, *profile)?,
+            axis: rd(crate::OperandSlot::Axis, *axis)?,
             angle: *angle,
         },
         // The two tube kinds remap the same way — one frame read, every
@@ -2221,7 +2217,7 @@ fn remap_node(
             window,
             minor_radius,
         } => Node::Tube {
-            frame: rd(*frame)?,
+            frame: rd(crate::OperandSlot::Frame, *frame)?,
             major_radius: *major_radius,
             window: window.clone(),
             minor_radius: *minor_radius,
@@ -2233,14 +2229,17 @@ fn remap_node(
             minor_radius,
             wall,
         } => Node::HollowTube {
-            frame: rd(*frame)?,
+            frame: rd(crate::OperandSlot::Frame, *frame)?,
             major_radius: *major_radius,
             window: window.clone(),
             minor_radius: *minor_radius,
             wall: *wall,
         },
         Node::Loft { profiles, v_degree } => Node::Loft {
-            profiles: profiles.iter().map(|&p| rd(p)).collect::<Result<_, _>>()?,
+            profiles: (0u32..)
+                .zip(profiles)
+                .map(|(i, &p)| rd(crate::OperandSlot::Section(i), p))
+                .collect::<Result<_, _>>()?,
             v_degree: *v_degree,
         },
         Node::Sweep {
@@ -2249,8 +2248,8 @@ fn remap_node(
             stations,
             v_degree,
         } => Node::Sweep {
-            profile: rd(*profile)?,
-            path: rd(*path)?,
+            profile: rd(crate::OperandSlot::Profile, *profile)?,
+            path: rd(crate::OperandSlot::Path, *path)?,
             stations: *stations,
             v_degree: *v_degree,
         },
@@ -2259,7 +2258,7 @@ fn remap_node(
             radius,
             selection,
         } => Node::fillet(
-            rd(*target)?,
+            rd(crate::OperandSlot::Target, *target)?,
             *radius,
             selection.iter().map(nm).collect::<Result<_, _>>()?,
         ),
@@ -2268,7 +2267,7 @@ fn remap_node(
             distance,
             selection,
         } => Node::chamfer(
-            rd(*target)?,
+            rd(crate::OperandSlot::Target, *target)?,
             *distance,
             selection.iter().map(nm).collect::<Result<_, _>>()?,
         ),
@@ -2280,41 +2279,44 @@ fn remap_node(
             thickness,
             open,
         } => Node::shell(
-            rd(*target)?,
+            rd(crate::OperandSlot::Target, *target)?,
             *thickness,
             open.iter().map(nm).collect::<Result<_, _>>()?,
         ),
         Node::Split { target, tool } => Node::Split {
-            target: rd(*target)?,
-            tool: rd(*tool)?,
+            target: rd(crate::OperandSlot::Target, *target)?,
+            tool: rd(crate::OperandSlot::Tool, *tool)?,
         },
         Node::Boolean { op, a, b, declare } => Node::Boolean {
             op: *op,
-            a: rd(*a)?,
-            b: rd(*b)?,
+            a: rd(crate::OperandSlot::A, *a)?,
+            b: rd(crate::OperandSlot::B, *b)?,
             declare: remap_declared(declare, &id, &nm)?,
         },
         Node::Union { members, declare } => Node::Union {
-            members: members.iter().map(|&m| rd(m)).collect::<Result<_, _>>()?,
+            members: (0u32..)
+                .zip(members)
+                .map(|(i, &m)| rd(crate::OperandSlot::Member(i), m))
+                .collect::<Result<_, _>>()?,
             declare: remap_declared(declare, &id, &nm)?,
         },
         Node::Transform { input, placement } => Node::Transform {
-            input: rd(*input)?,
+            input: rd(crate::OperandSlot::Input, *input)?,
             placement: placement.clone(),
         },
         Node::Pattern { input, count, kind } => Node::Pattern {
-            input: rd(*input)?,
+            input: rd(crate::OperandSlot::Input, *input)?,
             count: *count,
             kind: remap_rule(kind, rd)?,
         },
         // The selector is payload with no id in it (a half, or an
         // index expression); only the edge remaps.
         Node::Part { of, select } => Node::Part {
-            of: rd(*of)?,
+            of: rd(crate::OperandSlot::Of, *of)?,
             select: select.clone(),
         },
         Node::PlacedUnion { input, count, kind } => Node::PlacedUnion {
-            input: rd(*input)?,
+            input: rd(crate::OperandSlot::Input, *input)?,
             count: *count,
             kind: remap_rule(kind, rd)?,
         },
@@ -2363,10 +2365,6 @@ fn remap_node(
             // remapped above.
             alignment: alignment.clone(),
         },
-        // A measure's references are BOTH names and edges, so they
-        // remap through the name door exactly once — `nm` rewrites the
-        // embedded minting node id, which is what the edge is derived
-        // from.
         // Both halves remap: the NAME through the name door, and the
         // reading SITE through the id door, because a measure's site
         // is an ordinary input edge.
@@ -2380,9 +2378,10 @@ fn remap_node(
         },
         // A value reading a measure's output directly re-points as an
         // operand does, and one reading a stranded output refuses; any
-        // other value is a slot variable, carried as the bound is.
+        // other value is a slot variable, carried as the bound is. The
+        // value is no operand, so its miss names no slot of its own.
         Node::Assertion { value, bound, dir } => Node::Assertion {
-            value: match rd(*value) {
+            value: match rd(crate::OperandSlot::Input, *value) {
                 Err(RemapMiss::Read { output: false, .. }) => *value,
                 Err(RemapMiss::Read { var, .. }) => return Err(RemapMiss::PayloadRead { var }),
                 read => read?,
@@ -4282,7 +4281,9 @@ mod a_miss_two_segments_down_is_not_the_outer_name {
                 SitedRef::at_mint(name.clone()),
             )]),
         };
-        match remap_node(&node, &map(), &Ok, &StepMap::new(), &|g| Ok(g)) {
+        match remap_node(&node, &map(), &|_, var| Ok(var), &StepMap::new(), &|g| {
+            Ok(g)
+        }) {
             Err(RemapMiss::Name {
                 name: reported,
                 missing,

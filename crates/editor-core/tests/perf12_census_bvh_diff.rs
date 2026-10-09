@@ -131,7 +131,7 @@ fn torus_on_cylinder() -> ProfileDoc {
     });
     let plane = r.insert(frame([0.0, 0.0, -1.5], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let disc = r.insert(Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![LoopProgram::circle_split(0.0, 0.0, 3.0, 3, 0.0).unwrap()],
         ids: Vec::new(),
     }));
@@ -150,7 +150,7 @@ fn boss_on_plate() -> ProfileDoc {
     let mut r = Recorder::new();
     let plate_plane = r.insert(xy_frame());
     let plate = r.insert(Node::Profile(ProfileProgram {
-        plane: plate_plane.into(),
+        frame: plate_plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]).unwrap(),
         ],
@@ -163,7 +163,7 @@ fn boss_on_plate() -> ProfileDoc {
     });
     let boss_plane = r.insert(frame([0.0, 0.0, 0.8], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let boss = r.insert(Node::Profile(ProfileProgram {
-        plane: boss_plane.into(),
+        frame: boss_plane.into(),
         loops: vec![LoopProgram::circle_split(1.2, 1.7, 0.35, 3, 0.0).unwrap()],
         ids: Vec::new(),
     }));
@@ -182,7 +182,7 @@ fn tangent_cylinders() -> ProfileDoc {
     for cx in [0.0, 2.0] {
         let plane = r.insert(xy_frame());
         let disc = r.insert(Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![LoopProgram::circle_split(cx, 0.0, 1.0, 3, 0.0).unwrap()],
             ids: Vec::new(),
         }));
@@ -202,7 +202,7 @@ fn loft_with_brick() -> ProfileDoc {
     let section = |r: &mut Recorder, z: f64, pts: [(f64, f64); 4]| {
         let plane = r.insert(frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
         r.insert(Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![LoopProgram::polygon(pts).unwrap()],
             ids: Vec::new(),
         }))
@@ -216,7 +216,7 @@ fn loft_with_brick() -> ProfileDoc {
     });
     let brick_plane = r.insert(frame([0.0, 0.0, 2.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let brick = r.insert(Node::Profile(ProfileProgram {
-        plane: brick_plane.into(),
+        frame: brick_plane.into(),
         loops: vec![
             LoopProgram::polygon([(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)]).unwrap(),
         ],
@@ -238,7 +238,7 @@ fn grazing_notch() -> ProfileDoc {
     let mut r = Recorder::new();
     let l_plane = r.insert(xy_frame());
     let l = r.insert(Node::Profile(ProfileProgram {
-        plane: l_plane.into(),
+        frame: l_plane.into(),
         loops: vec![
             LoopProgram::polygon([
                 (0.0, 0.0),
@@ -259,7 +259,7 @@ fn grazing_notch() -> ProfileDoc {
     });
     let brick_plane = r.insert(frame([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let brick = r.insert(Node::Profile(ProfileProgram {
-        plane: brick_plane.into(),
+        frame: brick_plane.into(),
         loops: vec![
             LoopProgram::polygon([(1.25, 1.25), (1.75, 1.25), (1.75, 1.75), (1.25, 1.75)]).unwrap(),
         ],

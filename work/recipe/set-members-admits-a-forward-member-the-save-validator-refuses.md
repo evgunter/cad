@@ -60,7 +60,7 @@ By INTENT stage 2 unit B (`operands-are-reads`, branch
 the one dependency relation: the load door's positional `ForwardInput`
 (and `DanglingInput`) retired, and a cycle over reads refuses
 `SnapshotError::ReadCycle`; `cascade_delete_order` closes over readers
-in schedule order; `DeclaredNameNotUpstream` asks the relation (a name
-minted by the carrier, downstream of it, or after it and unread by
-it). The row is
+in schedule order; `DeclaredNameNotUpstream` asks the relation alone (a
+name minted by a node the carrier does not read, directly or through
+what it reads). The row is
 `crates/editor-core/tests/intent_s2_b_reads.rs::a_forward_member_saves_loads_and_cascades`.

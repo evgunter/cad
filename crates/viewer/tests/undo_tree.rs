@@ -210,3 +210,57 @@ fn a_replayed_history_is_the_files_log_step_for_step() {
         SlotValue::Continuous(0.03)
     );
 }
+
+/// **Undo restores a reader a delete stranded** (D10; review A's
+/// MINOR-3): deleting the plate's profile is accepted and leaves its
+/// extrude reading a variable no operation defines, refused
+/// `UnresolvedRead`; undoing the delete returns the document it started
+/// from, bit for bit, and the extrude reads its profile and builds again.
+#[test]
+fn undo_restores_a_reader_a_delete_stranded() {
+    let tol = Tol::witness();
+    let (doc, profile, extrude) = common::parametric_plate(tol);
+    let error_of = |doc: &Doc<ProfileProgram>| {
+        let evaluation: pncad::document::Evaluation<f64> = pncad::document::evaluate(
+            doc,
+            None,
+            &pncad::document::CancelToken::new(),
+            &pncad::document::EvalOptions::default(),
+            tol,
+        );
+        evaluation
+            .node_error(extrude)
+            .map(|e| format!("{:?}", e.kind))
+    };
+    assert_eq!(error_of(&doc), None, "the plate builds");
+    let mut history = History::new(doc.clone());
+    let edit = DocEdit::DeleteNode { id: profile };
+    let deleted = pncad::document::apply(&doc, &edit, tol, &pncad::document::RefusingReach)
+        .expect("a delete with a reader is accepted");
+    history.commit(edit, deleted.doc);
+    let stranded = error_of(history.doc()).unwrap_or_default();
+    assert!(
+        stranded.starts_with("UnresolvedRead"),
+        "the stranded extrude refuses typed: {stranded}"
+    );
+    assert!(
+        history.doc().upstream(extrude).is_empty(),
+        "and reads nothing live"
+    );
+
+    history.undo().expect("the delete undoes");
+    assert!(
+        history.doc().bit_eq(&doc),
+        "undo restores the document bit for bit"
+    );
+    assert_eq!(
+        history.doc().upstream(extrude),
+        vec![profile],
+        "the read is back"
+    );
+    assert_eq!(
+        error_of(history.doc()),
+        None,
+        "and the extrude builds again"
+    );
+}

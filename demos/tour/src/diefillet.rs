@@ -225,7 +225,7 @@ fn cube_node(doc: &mut Doc<ProfileProgram>, tol: Tol) -> RecipeNodeId {
     let cube_p = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: cube_plane.into(),
+            frame: cube_plane.into(),
             loops: vec![LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap()],
             ids: Vec::new(),
         }),
@@ -263,7 +263,7 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
     let axis = insert(
         doc,
         Node::Datum(Datum::AxisInPlane {
-            plane: ball_plane.into(),
+            frame: ball_plane.into(),
             origin: [len(0.0), len(0.0)],
             direction: [scl(0.0), scl(1.0)],
         }),
@@ -272,7 +272,7 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
     let ball_p = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: ball_plane.into(),
+            frame: ball_plane.into(),
             loops: vec![half_disc()],
             ids: Vec::new(),
         }),
@@ -311,7 +311,7 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
             insert(
                 doc,
                 Node::transform(
-                    ball,
+                    pncad::document::Operand::output(ball, 0),
                     pncad::document::Step::Rigid {
                         translation: p.centre.map(len),
                         axis: p.axis.map(scl),
@@ -669,7 +669,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         composed.edges().count(),
         composed.vertices().count(),
     );
-    assert_eq!((cf, ce, cv), (26 + 21 * 3, 48 + 21 * 7, 24 + 21 * 5));
+    // On each pip's planar trimline, the foot its band's slit does not
+    // reach has valence two and is joined away: one vertex and one edge.
+    assert_eq!((cf, ce, cv), (26 + 21 * 3, 48 + 21 * 6, 24 + 21 * 4));
 
     vec![
         Stop {

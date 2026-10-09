@@ -189,7 +189,7 @@ fn half(doc: ProfileDoc, of: RecipeNodeId, h: SplitHalf) -> (ProfileDoc, RecipeN
     insert(
         doc,
         Node::Part {
-            of: of.into(),
+            of: editor_core::Operand::output(of, h.port()),
             select: PartSelect::SplitHalf(h),
         },
     )

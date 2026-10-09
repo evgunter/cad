@@ -62,7 +62,7 @@ fn boss_union_doc() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>, RecipeNodeId) 
         LoopProgram::polygon([(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]).unwrap();
     let plate_plane = r.insert(xy_frame());
     let plate_p = r.insert(Node::Profile(ProfileProgram {
-        plane: plate_plane.into(),
+        frame: plate_plane.into(),
         loops: vec![plate_loop],
         ids: Vec::new(),
     }));
@@ -79,7 +79,7 @@ fn boss_union_doc() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>, RecipeNodeId) 
     // plane, so its own frame.
     let boss_plane = r.insert(frame([0.0, 0.0, 0.3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let boss_p = r.insert(Node::Profile(ProfileProgram {
-        plane: boss_plane.into(),
+        frame: boss_plane.into(),
         loops: vec![boss_loop],
         ids: Vec::new(),
     }));
@@ -208,7 +208,7 @@ fn tangent_intersection_edges_survive_save_load_at_rest() {
     ]);
     let xy_frame_1 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: xy_frame_1.into(),
+        frame: xy_frame_1.into(),
         loops: vec![lp],
         ids: Vec::new(),
     }));

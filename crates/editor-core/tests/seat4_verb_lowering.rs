@@ -72,7 +72,7 @@ fn both_blends() -> BothBlends {
     let square = LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap();
     let xy_frame_0 = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: xy_frame_0.into(),
+        frame: xy_frame_0.into(),
         loops: vec![square],
         ids: Vec::new(),
     }));
@@ -222,8 +222,8 @@ fn both_blends_evaluate_in_one_document() {
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x6790_b30d_d17a_db55u64),
-        ("die_chamfer", 0x91bc_b713_0776_021b),
+        ("die_fillet", 0xf3b484c6d0d963eeu64),
+        ("die_chamfer", 0x4cad27829bc8f14c),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -341,9 +341,9 @@ fn a_boolean_document_round_trips_byte_identical() {
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x3b7f_42f6_0941_084cu64),
-        ("heat_sink", 0x10bf_1419_bf99_a52e),
-        ("kiss_carry", 0x1833_03c8_9582_0f8b),
+        ("crossing_slots", 0x23eb8b640035b181u64),
+        ("heat_sink", 0x9c45fa006c460e8f),
+        ("kiss_carry", 0x47a3683f68ff4b94),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -408,7 +408,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
         |x0: f64| LoopProgram::polygon([(x0, 0.0), (x0 + L, 0.0), (x0 + L, L), (x0, L)]).unwrap();
     let xy_frame_1 = r.insert(xy_frame());
     let pa = r.insert(Node::Profile(ProfileProgram {
-        plane: xy_frame_1.into(),
+        frame: xy_frame_1.into(),
         loops: vec![square(0.0)],
         ids: Vec::new(),
     }));
@@ -419,7 +419,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     });
     let xy_frame_2 = r.insert(xy_frame());
     let pb = r.insert(Node::Profile(ProfileProgram {
-        plane: xy_frame_2.into(),
+        frame: xy_frame_2.into(),
         loops: vec![square(3.0)],
         ids: Vec::new(),
     }));
@@ -447,7 +447,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0xd52b_cbd2_1ab8_d37d,
+        got, 0xcf5ec896df3a904c,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

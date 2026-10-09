@@ -14,12 +14,12 @@ the name↔entity table and re-resolution is a lookup, never a match.
 |---|---|
 | N1 `StableName`, `RolePath`, `RoleSeg`, `EntityKind`; N2 `Qualifier`; N1's pass-through set as the recipe walks read it (`verbatim_edge`: the product's two-roots check and the mate member walk); how each consumer carries an entity of its input up to its own value (`lift`: the at-rest gate's lift from a mate's operand to the product) | `role.rs`; `RecipeNodeId` in `crates/editor-core/src/node.rs` |
 | N4 `NameTable`, `Entry::{Unique,Tied}`, `EntityRef` | `table.rs` |
-| N4 emission, `NamingError` | `emit.rs` (helpers, totality check), `emit_sweep.rs` (extrude/revolve/loft), `emit_topo.rs` (boolean, split, N3 merge), `emit_union.rs` (the n-ary union: member-keying in, collapse out), `emit_blend.rs` behind `emit_fillet.rs`/`emit_chamfer.rs`, `emit_shell.rs` (the shell: survivors `FromTarget`, cavity twins `Inner`, a chart's rim `Rim` of its first designated face, a hole's promoted annulus `HoleRim`, an edge its closing join made over several input edges `Merged`) |
+| N4 emission, `NamingError` | `emit.rs` (helpers, totality check), `emit_sweep.rs` (extrude/revolve/loft), `emit_topo.rs` (boolean, split, N3 merge), `emit_union.rs` (the n-ary union: member-keying in, collapse out), `emit_blend.rs` behind `emit_fillet.rs`/`emit_chamfer.rs` (an edge its closing join made over several trims, rim trims or survivors `Merged`), `emit_shell.rs` (the shell: survivors `FromTarget`, cavity twins `Inner`, a chart's rim `Rim` of its first designated face, a hole's promoted annulus `HoleRim`, an edge its closing join made over several input edges `Merged`) |
 | N1's node and profile step ids: the mint chain and mint log (`Mint`) | `crates/editor-core/src/mint.rs`; `RecipeNodeId` and `StepId` in `crates/editor-core/src/node.rs` |
 | N2 discriminators — `Borders` over the kernel's record of what a boolean discarded, `Keeps`, `Ends`, the crossing's sense and the same-sense ordinal's predicates; tie propagation | `borders.rs`, `discriminate.rs`; `defer.rs` |
 | A path's canonical form: its name-ordered positions (N3 sets, `Borders` walls, `Keeps` edges, `Ends` pairs, a junction's lines, a union seam's sides), and what ordering a union seam does to the crossings ranked along it | `canonical.rs`, which the mint, the union's collapse and every rewrite of a published name end in; `seam_pair.rs` (which seam line a rank lies on) |
 | N5 `ResolveError`, `Diagnosis`, tombstones, offers; diff engine; hit-testing; `Rebind` | `crates/editor-core/src/resolve/mod.rs`; `resolve/vdiff.rs`; `resolve/hit.rs`, `resolve/pick.rs`; `edit.rs` |
-| N6 `GeomSource` | `crates/topo/src/source.rs`; consumers `crates/topo/src/merge_faces.rs`, `crates/topo/src/boolean/plane_eq.rs` |
+| N6 a recorded cell's read and name; the walk from them to the minting node; the kernel's `GeomSource` | `crates/editor-core/src/coincide.rs` (`NamedCell`, `construction`); `crates/topo/src/source.rs`, consumers `crates/topo/src/merge_faces.rs`, `crates/topo/src/boolean/plane_eq.rs`, `crates/topo/src/boolean/carrier_eq.rs` |
 | Which node minted a named entity (`NameOrigin`); name → geometry (`denotation`, `face_frame`, ...) | `attribute.rs`; `interrogate.rs` |
 | Selectors, geometric filters, detect/declare | `select.rs`, `geompred.rs`, `flush.rs`; design in `docs/SELECT-DESIGN.md`, usage in `docs/guide/selecting.md` |
 
@@ -305,6 +305,17 @@ constituents. A split's section chords, joined, stay a chord of the face they
 cross. A join with no such reading, a chord with an operand edge's piece or
 pieces of several operand edges, is refused, not named.
 
+A blend names an edge its closing join made the same way. Each trim the blend
+mints is the image of one input edge on one support, as a cavity twin is, so
+an edge its join made over several of them is the `Merged` set of their
+images: `TrimEdge` for a trimline, `BandTrim` for a rim trim, `FromTarget`
+for a surviving input edge, kinds mixed as they come. An edge the blend
+minted outright, an end arc, a mitre, a band's slit or a remnant (`BandCut`),
+is the image of no input edge, and a join that takes one is refused. The
+split, the shell and the blend read their joins through one helper
+(`join_names.rs`), each supplying only which input edge a covered edge is
+the image of.
+
 A seam vertex cites a member edge
 whole, `FromMember(m, e)`, never a piece and never a set: the one it lies on,
 the least where several do. In a pair boolean, where an A edge and a B edge
@@ -568,18 +579,30 @@ tombstone, never a key. N3's offers ride beside the verbatim error in
 `ResolutionFailure::offers`. The automatic rebinding menu is empty: the only
 repair is `DocEdit::Rebind { from, to }`, recorded once, no alias table.
 
-**N6 — Recipe-source identity retires bit identity.** Every surface, curve and
-point description carries `GeomSource { node, expr, orient }` beside the arena; a
-transform composes into `expr` (`SourceExpr::Placed`), `revert` flips `orient`
-(`rev ∘ rev = id`). Same source is syntactic identity of the triple. Theorem:
-same `GeomSource` ⇒ bit-identical descriptions (D9); the converse is not
-claimed, so equal bits without a shared source stay unglued. The declared
-coincidence rung is this lookup (`source::surface_declaration`, whose source rung
+**N6 — A recorded cell's construction is read from the document.** A
+recorded cell is named by the read it entered the deciding operation through
+and its name there. The coincidence door walks from that read and name to the
+node that minted the entity, down the name's carry-through segments and the
+reads they name; a pass-through placement adds no name segment (N1), so the
+read, not the name, carries where the cell was placed. Two cells that reach one
+minting role through one chain of placements are one construction read twice
+(D10, Coincidence; `coincide::construction`), and a split's section face is its
+tool plane's. The door reads no stamp the kernel carries.
+
+Inside the kernel, a same-source pair is still settled by recipe-source
+identity: every surface, curve and point description carries
+`GeomSource { node, expr, orient }` beside the arena; a transform composes into
+`expr` (`SourceExpr::Placed`), `revert` flips `orient` (`rev ∘ rev = id`). Same
+source is syntactic identity of the triple. Theorem: same `GeomSource` ⇒
+bit-identical descriptions (D9); the converse is not claimed, so equal bits
+without a shared source stay unglued. The declared coincidence rung is this
+lookup (`source::surface_declaration`, whose source rung
 `source::source_declaration` is also `oriented_plane_eq`'s rung 1); the bit
-comparison survives only in the debug assertions built on `crates/topo/src/source.rs`'s
-bit witnesses (`surface_bits_witness`, `data_bits_witness`), and the gate
-`scripts/gates/bit-identity-consumer.sh` keeps the production allowlist empty.
-Identity holds per evaluation against the current document only.
+comparison survives only in the debug assertions built on
+`crates/topo/src/source.rs`'s bit witnesses (`surface_bits_witness`,
+`data_bits_witness`), and the gate `scripts/gates/bit-identity-consumer.sh`
+keeps the production allowlist empty. Identity holds per evaluation against the
+current document only.
 
 **N7 — The topology-change sites, exhaustively.** (i) structural parameter
 change, (ii) reified predicate flip, N2 discriminators included, (iii) recipe

@@ -33,7 +33,7 @@ fn disc(doc: ProfileDoc, lp: LoopProgram<Formula>, z0: f64, dz: f64) -> (Profile
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![lp],
             ids: Vec::new(),
         }),

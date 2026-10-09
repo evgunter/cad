@@ -131,7 +131,7 @@ fn stepped_shaft_sized(
     // a plane bind the same id, which is how sharing is said now.
     let frame = r.insert(fixture::xy_frame());
     let base_p = r.insert(Node::Profile(ProfileProgram {
-        plane: frame.into(),
+        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(-o, -o), (o, -o), (o, o), (-o, o)]).expect("finite corners"),
         ],
@@ -143,7 +143,7 @@ fn stepped_shaft_sized(
         side: ExtrudeSide::Along,
     });
     let boss_p = r.insert(Node::Profile(ProfileProgram {
-        plane: frame.into(),
+        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(-i, -i), (i, -i), (i, i), (-i, i)]).expect("finite corners"),
         ],
@@ -227,7 +227,7 @@ fn arc_slab(w: f64) -> (ProfileDoc, editor_core::VarId) {
     ]);
     let frame = r.insert(fixture::xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: frame.into(),
+        frame: frame.into(),
         loops: vec![chain],
         ids: Vec::new(),
     }));

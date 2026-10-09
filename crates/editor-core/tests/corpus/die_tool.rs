@@ -108,7 +108,7 @@ pub fn document() -> CorpusDoc {
         .expect("the die's square");
     let cube_plane = r.insert(xy_frame());
     let cube_p = r.insert(Node::Profile(ProfileProgram {
-        plane: cube_plane.into(),
+        frame: cube_plane.into(),
         loops: vec![square],
         ids: Vec::new(),
     }));
@@ -125,7 +125,7 @@ pub fn document() -> CorpusDoc {
     // It is minted AFTER the frame because it names it.
     let axis = r.insert(axis_in_plane(ball_plane, (0.0, 0.0), (0.0, 1.0)));
     let ball_p = r.insert(Node::Profile(ProfileProgram {
-        plane: ball_plane.into(),
+        frame: ball_plane.into(),
         loops: vec![half_disc_program()],
         ids: Vec::new(),
     }));
@@ -136,7 +136,10 @@ pub fn document() -> CorpusDoc {
     });
 
     // ---- the whole cutting tool, in ONE node ----
-    let tool = r.insert(Node::placed_union_at(ball, placements()));
+    let tool = r.insert(Node::placed_union_at(
+        editor_core::Operand::output(ball, 0),
+        placements(),
+    ));
     let pipped = r.insert(Node::Boolean {
         op: BooleanOp::Subtract,
         a: cube.into(),

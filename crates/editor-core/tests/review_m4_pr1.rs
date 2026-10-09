@@ -519,16 +519,14 @@ fn r3_referent_survives_out_of_claim_edits_bitwise() {
 #[test]
 fn r4_stablename_node_refs_escape_ref_validation() {
     use editor_core::{BooleanOp, EntityKind, Node, StableName};
-    let (doc, ids) = apply_all(
-        Doc::empty_derived("review_m4_pr1", Tol::witness()),
-        // The node the name will denote.
-        &[point_edit(len(1.0))],
-    );
+    let doc = Doc::empty_derived("review_m4_pr1", Tol::witness());
     let (doc, a) = body(doc);
     let (doc, b) = body(doc);
-    let target = ids[0];
+    // The node the name will denote: a body the boolean reads while its
+    // pairs are written (D10: a pair names what its node reads).
+    let (doc, target) = body(doc);
     // Each side is read at an operand; the name is `node`'s.
-    let pairs = |node| {
+    let pairs = |node, second| {
         let name = StableName {
             kind: EntityKind::Face,
             node,
@@ -536,26 +534,41 @@ fn r4_stablename_node_refs_escape_ref_validation() {
         };
         editor_core::declare_rest(vec![(
             SitedRef::new(a, name.clone()),
-            SitedRef::new(b, name),
+            SitedRef::new(second, name),
         )])
     };
-    let boolean = |node| Edit::InsertNode {
+    let boolean = |node, second: RecipeNodeId| Edit::InsertNode {
         node: Box::new(Node::Boolean {
             op: BooleanOp::Union,
             a: a.into(),
-            b: b.into(),
-            declare: pairs(node),
+            b: second.into(),
+            declare: pairs(node, second),
         }),
         fresh: Vec::new(),
     };
     let inserted = doc
         .apply(
-            &boolean(target),
+            &boolean(target, target),
             Tol::witness(),
             &editor_core::RefusingReach,
         )
         .unwrap();
     let boolean_id = inserted.record.minted.unwrap();
+    // Re-pointed off the target: the name is reported out of reach,
+    // never refused, and the target is now read by nothing.
+    let inserted = inserted
+        .doc
+        .apply(
+            &Edit::SetParam {
+                node: boolean_id,
+                slot: SlotId::Operand(editor_core::OperandSlot::B),
+                value: editor_core::Operand::Node(b).into(),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .unwrap();
     // (1) Delete the named node — ACCEPTED despite the live boolean.
     let after = inserted.doc.apply(
         &Edit::DeleteNode { id: target },
@@ -575,14 +588,14 @@ fn r4_stablename_node_refs_escape_ref_validation() {
     // the insert and at `SetDeclare` alike.
     let phantom = RecipeNodeId::new(0, 9999);
     let inserting = doc.apply(
-        &boolean(phantom),
+        &boolean(phantom, b),
         Tol::witness(),
         &editor_core::RefusingReach,
     );
     let setting = inserted.doc.apply(
         &Edit::SetDeclare {
             node: boolean_id,
-            pairs: pairs(phantom),
+            pairs: pairs(phantom, b),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

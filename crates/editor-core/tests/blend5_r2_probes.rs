@@ -93,7 +93,7 @@ fn filleted(profile_pts: Vec<(f64, f64)>, v: u32) -> (ProfileDoc, RecipeNodeId) 
     insert(
         doc,
         Node::Fillet {
-            target: revolve.into(),
+            target: editor_core::Operand::output(revolve, 0),
             radius: len(0.05),
             selection: vec![rim],
         },
@@ -161,8 +161,16 @@ fn the_corpus_band_trim_census_is_the_recorded_one() {
                 .iter()
                 .filter_map(|id| ev.value(*id))
                 .flat_map(|v| v.name_table.iter())
-                .filter(|(n, _)| n.path.iter().any(|s| matches!(s, RoleSeg::BandTrim { .. })))
-                .count();
+                // A joined edge's members included (the blend's closing
+                // join names two trimlines it made one by both names).
+                .map(|(n, _)| match n.path.first() {
+                    Some(RoleSeg::Merged(cs)) => cs
+                        .iter()
+                        .filter(|c| matches!(c.path.first(), Some(RoleSeg::BandTrim { .. })))
+                        .count(),
+                    _ => usize::from(n.path.iter().any(|s| matches!(s, RoleSeg::BandTrim { .. }))),
+                })
+                .sum::<usize>();
             (d.name.to_owned(), n)
         })
         .collect();

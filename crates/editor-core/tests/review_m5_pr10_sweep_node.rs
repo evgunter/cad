@@ -61,7 +61,7 @@ fn review_every_sweep_node_hits_the_one_collapsed_frontier_arm() {
         let (d, path) = insert(
             doc,
             Node::Profile(editor_core::ProfileProgram {
-                plane: path_plane.into(),
+                frame: path_plane.into(),
                 loops: path_loops,
                 ids: Vec::new(),
             }),

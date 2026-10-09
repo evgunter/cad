@@ -12,9 +12,10 @@
 //! and a reading or kill that refuses later refuses on the clone), and
 //! a body that carried pcurve rows has them re-derived, so no row is
 //! left keyed by a dead cell. A door that is not the boolean carries
-//! its refusal typed ([`JoinRefusal`]). The offset doors join over
-//! their own scope alone, on their own staging
-//! (`Body::join_edges_within`).
+//! its refusal typed ([`JoinRefusal`]). The offset doors, the split,
+//! the shell and the blend join on their own staging
+//! (`Body::join_edges_within`), the offset doors and the blend over
+//! their own scope alone.
 //!
 //! The boolean's output stages run it after the merge ([`join_stage`])
 //! and write, per join, the substitution rows that carry every contact
@@ -89,8 +90,8 @@ struct Join {
 /// took them, a later join's `gone` that was an earlier one's `kept`
 /// bringing its own cover with it. The one chase every door that
 /// carries records or names over a join reads (the boolean's
-/// [`crate::BooleanNaming::joined_edge`], the split's and the shell's
-/// emitters); an edge no join touched has no row.
+/// [`crate::BooleanNaming::joined_edge`], and the split's, the shell's
+/// and the blend's emitters); an edge no join touched has no row.
 #[must_use]
 pub fn join_covers(joins: &[EdgeJoin]) -> BTreeMap<EdgeKey, Vec<EdgeKey>> {
     let mut covers: BTreeMap<EdgeKey, Vec<EdgeKey>> = BTreeMap::new();
@@ -409,7 +410,7 @@ fn joinable<T: Decide>(
         return Ok(None);
     };
     let class = geom_brep::classify_dihedral(surf_f, surf_g, p, extent, band)
-        .map_err(|e| regularity(e.diag))?;
+        .map_err(|e| regularity(e.diag()))?;
     let regular = match (locus, class) {
         (Locus::Transverse, geom_brep::DihedralClass::Transverse) => true,
         (Locus::Tangent, geom_brep::DihedralClass::Smooth) => {
@@ -458,6 +459,26 @@ pub fn joinable_vertices<T: Decide>(
         }
     }
     Ok(out)
+}
+
+/// **Tier 3's check 11, read** (`docs/DESIGN.md`, maximal edges; Ev's
+/// PR 4251 ruling): every vertex of `body`, in vertex-arena order, that
+/// the join's own predicate takes (`Ok`) or cannot decide in `band`
+/// (`Err`). A finished body holds neither: every finisher ends with the
+/// join, and a reading in the band is a size the run's tolerance cannot
+/// tell from a regular point, which a tighter tolerance can.
+pub(crate) fn joinable_at_rest<T: Decide>(
+    body: &Body<T>,
+    band: Band,
+) -> Vec<Result<VertexKey, JoinUndecided>> {
+    let pass = Pass::of(body);
+    body.vertices()
+        .filter_map(|(w, _)| match joinable(body, w, &pass, band) {
+            Ok(Some(_)) => Some(Ok(w)),
+            Ok(None) => None,
+            Err(undecided) => Some(Err(undecided)),
+        })
+        .collect()
 }
 
 /// Joins every joinable vertex of `body` ([`Body::join_edges`]) and
@@ -636,8 +657,10 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
     }
 
     /// [`Body::join_edges`] over the vertices `within` holds, on a body
-    /// the caller has staged: the offset doors' join, which owes no
-    /// write outside the entities its call writes. Not staged itself —
+    /// the caller has staged: the join of a door that owes no write
+    /// outside the entities its call writes (the offset doors, and the
+    /// blend over the shells it carved), or of one that joins its own
+    /// fresh output in place (the split's halves, the shell). Not staged itself —
     /// a refusal past the first kill leaves `self` part-joined, for the
     /// caller to discard with its staging — and no reading outside
     /// `within` is taken, so a vertex the call does not hold can neither
@@ -649,7 +672,7 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
     /// # Errors
     ///
     /// As [`Body::join_edges`], for the vertices `within` holds.
-    pub(crate) fn join_edges_within(
+    pub fn join_edges_within(
         &mut self,
         band: Band,
         tol: Tol,

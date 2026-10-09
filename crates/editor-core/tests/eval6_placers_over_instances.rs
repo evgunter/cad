@@ -401,7 +401,7 @@ fn the_placers_admit_a_body_or_instances_and_the_boolean_one_body() {
         assert!(
             matches!(
                 &refusal,
-                EditError::AmbiguousOutput { input, slot: editor_core::SlotId::Operand(OperandSlot::Input) } if input.id() == split
+                EditError::AmbiguousOutput { input, slot: editor_core::SlotId::Operand(OperandSlot::Input), .. } if input.id() == split
             ),
             "a split named alone: {refusal:?}"
         );

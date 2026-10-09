@@ -2,13 +2,12 @@
 id: split-band-on-at-a-concave-edge-may-mint-a-pinch-from-near-coincidence
 kind: issue
 title: Split's ON verdicts at margins within ε can mint a pinch from a value coincidence, which D1 tier 3′ (i) forbids
-status: parked
+status: open
 opened: 2026-10-02
 priority: P1
 cost: M
 refs: [3856]
 design: true
-blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -109,7 +108,7 @@ that reading is overturned. Record: `analysis/design-fork/split-band-on`.)
 - **Reach past split: a separate row and a separate fork.** The boolean's
   `ContactAcc` vertex-level records come from Zero verdicts with no declaration
   (`corner_kiss_promoted`), and tier 3′ (ii) calls them "declared":
-  `work/contact/boolean-vertex-contact-records-are-inferred-from-values.md`.
+  `work/contacthold/boolean-vertex-contact-records-are-inferred-from-values.md`.
 - **Still owed beside the design:**
   1. The δ = 5e-10 arm. A Zero-decided vertex yields a chart residual of
      about 8δ that the attachment gate refuses in kernel-defect voice. Under
@@ -141,3 +140,26 @@ ways".
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: its designed fix (SplitDeclarations, the undeclared pinch refusal) is replaced by D10: a split's ON verdict that makes pieces touch is recorded at the one door and linted. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by INTENT stage 4 PR B (2026-10-08)
+
+D10's half is built. At an ON vertex whose neighbourhood leaves two or
+more runs on a side, `splitting::reduce` records a `topo::Coincidence`
+(`Relation::OnCarrier`, `DecisionSite::SplitOn`, the vertex's
+`split_vertex_side` Zero margin) on `SplitResult::coincidences`, and the
+document lints it as an `unproven-coincidence`. Row:
+`crates/topo/tests/m3_pr3_split.rs`
+`a_split_records_its_pinch_and_nothing_where_it_only_cuts` — the
+`NOTCHED` tip at `y = 1` and a tenth of ε above it each record two
+rows, and
+a transversal cut none.
+
+A document cannot yet reach a pinch split at all: the split's naming
+refuses the two tip copies as one name
+(`work/wire/a-split-through-a-pinch-names-both-tip-copies-alike.md`).
+
+What is left here is the "still owed" list above, which D10 does not
+change: (1) the δ = 5e-10 arm refusing in kernel-defect voice at the
+attachment gate, and (2) `SliverVertex`'s "within tolerance" text firing
+beyond ε. Item 3 (a scratch row for the undeclared refusal) belonged to
+the `SplitDeclarations` design D10 replaced, and lapses with it.

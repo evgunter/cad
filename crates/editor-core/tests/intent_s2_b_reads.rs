@@ -9,7 +9,7 @@
 use crate::fixture::{self, insert, len, on_frame_keeping, scl, xform};
 use crate::wire::up_to_ids;
 use editor_core::{
-    Dimension, DocEdit, EditError, Maintenance, Node, NodeErrorKind, Operand, OperandSlot,
+    Dimension, DocEdit, EditError, Formula, Maintenance, Node, NodeErrorKind, Operand, OperandSlot,
     PatternKind, ProfileDoc, RecipeNodeId, SlotId, SlotKind, Took, VarKind, apply, load, save,
 };
 use geom_core::Tol;
@@ -115,8 +115,7 @@ fn a_read_of_the_wrong_kind_refuses_at_the_door() {
 /// under a fillet is accepted and reports the fillet's `target` read
 /// stranded, beside the strands of the names the extrude minted; the
 /// fillet then refuses `UnresolvedRead` at its target. The stranded
-/// document saves and loads as itself, and undo — the document the
-/// edit started from — restores the fillet bit for bit.
+/// document saves and loads as itself, and the stranded reader deletes.
 #[test]
 fn a_delete_leaves_its_reader_unresolved_and_typed() {
     let (doc, _, extrude) = block(ProfileDoc::empty_derived("s2b-strand", Tol::witness()), 0.0);
@@ -128,7 +127,6 @@ fn a_delete_leaves_its_reader_unresolved_and_typed() {
     let (doc, fillet) = insert(doc, Node::fillet(extrude, len(0.1), edges.clone()));
     let target = doc.output(extrude, 0).expect("an extrude defines its body");
 
-    let before = doc.clone();
     let deleted = applied(&doc, DocEdit::DeleteNode { id: extrude });
     let reads: Vec<_> = deleted
         .maintenance
@@ -189,18 +187,9 @@ fn a_delete_leaves_its_reader_unresolved_and_typed() {
         "the stranded reader deletes like any node"
     );
 
-    // Undo is the document the edit started from: the door is pure, so
-    // it is untouched, and the fillet reads its target again.
-    assert!(
-        doc.bit_eq(&before),
-        "undo restores the document bit for bit"
-    );
-    let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
-    assert!(
-        ev.node_error(fillet).is_none(),
-        "{:?}",
-        ev.node_error(fillet)
-    );
+    // Undo is the viewer history's: its row is `undo_tree.rs`'s
+    // `undo_restores_a_reader_a_delete_stranded`, which deletes, undoes
+    // and evaluates the restored reader.
 }
 
 /// **A member re-pointed forward saves, loads and cascades**
@@ -298,9 +287,39 @@ fn the_slot_door_re_points_an_operand_and_reports_what_it_strands() {
         "an extrude has no target"
     );
 
-    // Acyclicity: a transform of `a`, and `a`'s profile re-pointed at
-    // nothing that reads it is fine; a union re-pointed at its own
-    // reader is a cycle.
+    // A name the re-point takes out of reach: a fillet of `a` selecting
+    // one of `a`'s edges, re-pointed at `b`, reports the edge stranded
+    // by reach and is written.
+    let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
+    let edge = editor_core::all_edges(&ev, a)
+        .into_iter()
+        .next()
+        .expect("a block has edges");
+    let (filleted, fillet) = insert(doc.clone(), Node::fillet(a, len(0.1), vec![edge.clone()]));
+    let re_pointed = applied(&filleted, set(fillet, OperandSlot::Target, b.into()));
+    assert_eq!(
+        re_pointed
+            .maintenance
+            .iter()
+            .filter_map(|row| match row {
+                Maintenance::Strand {
+                    node,
+                    name,
+                    took: Took::Reach,
+                } => Some((node.id(), name.name().clone())),
+                _ => None,
+            })
+            .collect::<Vec<_>>(),
+        vec![(fillet, edge)],
+        "the edge `a` minted is out of the fillet's reach, reported"
+    );
+    assert_eq!(
+        re_pointed.doc.upstream(fillet),
+        vec![b],
+        "and the read moved"
+    );
+
+    // Acyclicity: a union re-pointed at its own reader is a cycle.
     let (doc, union) = insert(
         doc,
         Node::Union {
@@ -496,7 +515,7 @@ fn a_split_port_read_is_its_half() {
     let (doc, part) = insert(
         doc,
         Node::Part {
-            of: split.into(),
+            of: editor_core::Operand::output(split, editor_core::SplitHalf::Above.port()),
             select: editor_core::PartSelect::SplitHalf(editor_core::SplitHalf::Above),
         },
     );
@@ -587,9 +606,53 @@ fn the_comparator_reads_reads_as_inputs_and_catches_a_re_pointed_one() {
     assert!(err.contains("Union"), "the mismatch is at the union: {err}");
 }
 
+/// **The comparator keeps a read's port** (review B's m1): a boolean
+/// reading a split's upper half and the same boolean reading its lower
+/// half are two documents to it, as they are two bodies.
+#[test]
+fn the_comparator_catches_a_read_re_pointed_from_one_port_to_another() {
+    let (doc, split, far) = split_block("s2b-comparator-port");
+    let (doc, _) = insert(
+        doc,
+        Node::Boolean {
+            op: editor_core::BooleanOp::Union,
+            a: Operand::output(split, 0),
+            b: far.into(),
+            declare: Vec::new(),
+        },
+    );
+    let new = crate::wire::wire_body(&save(&doc, &[], Tol::witness()).expect("saves"));
+    let as_inputs = up_to_ids::reads_as_inputs(&new);
+    up_to_ids::same_up_to_ids(&as_inputs, &as_inputs).expect("a document is itself");
+    let (above, below) = (
+        doc.output(split, 0).expect("the upper half").0.to_string(),
+        doc.output(split, 1).expect("the lower half").0.to_string(),
+    );
+    let mut mutant = new.clone();
+    for node in mutant["snapshot"]["nodes"]
+        .as_object_mut()
+        .expect("nodes")
+        .values_mut()
+    {
+        if let Some(a) = node.get_mut("Boolean").and_then(|b| b.get_mut("a"))
+            && a.as_str() == Some(above.as_str())
+        {
+            *a = serde_json::json!(below);
+        }
+    }
+    assert_ne!(mutant, new, "the mutant re-points the read");
+    let err = up_to_ids::same_up_to_ids(&as_inputs, &up_to_ids::reads_as_inputs(&mutant))
+        .expect_err("a read re-pointed above to below is not the same document");
+    assert!(
+        err.contains("Boolean"),
+        "the mismatch is at the boolean: {err}"
+    );
+}
+
 /// **(B, test 4, one shot) Every re-blessed document is the pre-B one
 /// up to ids, with reads in place of inputs** (and a logged `SetParam`'s
-/// formula under `value`, Q1) — its roots element for element and every
+/// formula under `value`, Q1, and a profile's and an in-plane axis's
+/// `plane` field under its one name, `frame`) — its roots element for element and every
 /// other byte, except the tube subgraph, whose
 /// anchor moved from a spine axis to a frame by design (FORK-1b) and
 /// is set aside on both sides.
@@ -614,7 +677,10 @@ fn every_re_blessed_document_is_the_pre_b_one_up_to_ids() {
         let read = |root: &std::path::Path| {
             crate::wire::wire_body(&std::fs::read_to_string(root.join(file)).expect("reads"))
         };
-        let (old, new) = (up_to_ids::set_param_writes_value(&read(&base)), read(&here));
+        let (old, new) = (
+            up_to_ids::plane_field_as_frame(&up_to_ids::set_param_writes_value(&read(&base))),
+            read(&here),
+        );
         // An edit log's reads name outputs its replay mints: the
         // replayed document's table says whose they are.
         let text = std::fs::read_to_string(here.join(file)).expect("reads");
@@ -630,4 +696,540 @@ fn every_re_blessed_document_is_the_pre_b_one_up_to_ids() {
         up_to_ids::same_up_to_ids(&old, &new).unwrap_or_else(|err| panic!("{file}: {err}"));
         println!("{file}: equal up to ids, reads as inputs");
     }
+    // Every operand family, a list member among them: the base's save of
+    // the families document, beside this build's.
+    let (old, new) = families_pair();
+    let new = up_to_ids::reads_as_inputs(&new);
+    let old = up_to_ids::plane_field_as_frame(&up_to_ids::split_halves_as_ports(&old));
+    up_to_ids::same_up_to_ids(&old, &new)
+        .unwrap_or_else(|err| panic!("the families document: {err}"));
+    println!("the families document: equal up to ids, reads as inputs");
+}
+
+/// **No door re-points an assertion's value across dimensions** (DM6;
+/// review B's M1): the insert door refuses an assertion whose angle
+/// value meets a length bound `AssertionDimension`. The value is
+/// payload (D), so no slot addresses it, and the definition it reads is
+/// the one way it re-points. That door refuses the same re-point: a
+/// definition's kind is fixed (`VarKindFixed`). The log that would carry
+/// it does not save, because it replays through that door.
+#[test]
+fn the_definition_door_refuses_an_assertion_re_pointed_across_dimensions() {
+    let mut r = fixture::Recorder::new();
+    r.push(DocEdit::DeclareVar {
+        name: editor_core::VarName::from_static("x"),
+        def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(Dimension::Length, 0.5)),
+    });
+    let measure = r.measure_of_translation("x");
+    let out = r
+        .doc
+        .output(measure, 0)
+        .expect("a measure defines its value");
+    let measured = Formula::var(out, Dimension::Length);
+    let as_angle = Formula::atan2(measured.clone(), len(1.0)).unwrap();
+    let web = r.define("web", measured);
+    let assertion = r.insert(Node::Assertion {
+        value: Formula::var(web, Dimension::Length),
+        bound: len(0.5),
+        dir: editor_core::AssertionDir::AtLeast,
+    });
+    let by_insert = refused(
+        &r.doc,
+        DocEdit::InsertNode {
+            node: Box::new(Node::Assertion {
+                value: as_angle.clone(),
+                bound: len(0.5),
+                dir: editor_core::AssertionDir::AtLeast,
+            }),
+            fresh: Vec::new(),
+        },
+    );
+    assert!(
+        matches!(
+            by_insert,
+            EditError::AssertionDimension {
+                measured: Dimension::Angle,
+                bound: Dimension::Length,
+                ..
+            }
+        ),
+        "{by_insert:?}"
+    );
+    let edit = DocEdit::DefineVar {
+        var: web.into(),
+        def: editor_core::VarDecl::Defined(as_angle),
+        fresh: Vec::new(),
+    };
+    let by_definition = refused(&r.doc, edit.clone());
+    assert!(
+        matches!(
+            &by_definition,
+            EditError::VarKindFixed {
+                var,
+                kind: VarKind::Length,
+                offered: VarKind::Angle,
+            } if var.id() == web
+        ),
+        "the definition door refuses the re-point: {by_definition:?}"
+    );
+    assert_eq!(
+        r.doc.node(assertion).and_then(|n| match n {
+            Node::Assertion { value, .. } => Some(*value),
+            _ => None,
+        }),
+        Some(web),
+        "and the assertion still reads the length"
+    );
+    let mut log = r.edits.clone();
+    log.push(edit);
+    assert!(
+        save(
+            &ProfileDoc::empty_derived("mod", Tol::witness()),
+            &log,
+            Tol::witness()
+        )
+        .is_err(),
+        "a log carrying the re-definition does not save"
+    );
+}
+
+/// A block split across its middle, and a second block clear of it: the
+/// two halves are ports 0 (above) and 1 (below) of the split.
+fn split_block(name: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    let (doc, _, target) = block(ProfileDoc::empty_derived(name, Tol::witness()), 0.0);
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(editor_core::Datum::Plane {
+            origin: [len(0.0), len(0.0), len(0.5)],
+            normal: [scl(0.0), scl(0.0), scl(1.0)],
+        }),
+    );
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: target.into(),
+            tool: plane.into(),
+        },
+    );
+    let (doc, _, far) = block(doc, 5.0);
+    (doc, split, far)
+}
+
+/// A body's vertex bits, sorted: what a stale body differs in.
+fn vertex_bits(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> Vec<[u64; 3]> {
+    let body = match ev.value(id).map(|v| &v.payload) {
+        Some(editor_core::ValuePayload::Body(b)) => b,
+        Some(editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Body {
+            body, ..
+        })) => body,
+        other => panic!("not a body: {other:?} / {:?}", ev.node_error(id)),
+    };
+    let mut bits: Vec<[u64; 3]> = body
+        .points()
+        .map(|(_, p)| p.to_array().map(f64::to_bits))
+        .collect();
+    bits.sort_unstable();
+    bits
+}
+
+/// **A read's port is in the keys** (D4, DR-59's class; review B's
+/// M2): a boolean reading a split's upper half, re-pointed at its lower
+/// half, keys apart, so evaluating the re-pointed document against the
+/// first evaluation's memo builds what a fresh evaluation builds — not
+/// the upper half's body served from the memo.
+#[test]
+fn a_port_re_point_keys_apart_and_the_memo_serves_no_stale_half() {
+    let (doc, split, far) = split_block("s2b-port-key");
+    let (doc, boolean) = insert(
+        doc,
+        Node::Boolean {
+            op: editor_core::BooleanOp::Union,
+            a: Operand::output(split, 0),
+            b: far.into(),
+            declare: Vec::new(),
+        },
+    );
+    let opts = editor_core::EvalOptions::default();
+    let cancel = editor_core::CancelToken::new();
+    let prior = editor_core::evaluate::<f64>(&doc, None, &cancel, &opts, Tol::witness());
+    let moved = applied(
+        &doc,
+        DocEdit::SetParam {
+            node: boolean,
+            slot: SlotId::Operand(OperandSlot::A),
+            value: Operand::output(split, 1).into(),
+            fresh: Vec::new(),
+        },
+    )
+    .doc;
+    let fresh = editor_core::evaluate::<f64>(&moved, None, &cancel, &opts, Tol::witness());
+    let memo = editor_core::evaluate::<f64>(&moved, Some(&prior), &cancel, &opts, Tol::witness());
+    let key = |ev: &editor_core::Evaluation<f64>| ev.value(boolean).map(|v| v.content_key);
+    assert_ne!(key(&prior), key(&fresh), "the two halves key apart");
+    assert_ne!(
+        vertex_bits(&prior, boolean),
+        vertex_bits(&fresh, boolean),
+        "and are two bodies"
+    );
+    assert_eq!(
+        vertex_bits(&memo, boolean),
+        vertex_bits(&fresh, boolean),
+        "the memo builds what a fresh evaluation builds"
+    );
+    assert_eq!(
+        format!("{:?}", memo.value(boolean).map(|v| &v.name_table)),
+        format!("{:?}", fresh.value(boolean).map(|v| &v.name_table)),
+        "and names it alike"
+    );
+}
+
+/// **DM5 is over variables** (spec §3; the orchestrator's ruling on the
+/// lane's seventh call): a split's two halves are two variables, so a
+/// union of both is admitted, and so is a pattern of a revolve's body
+/// about the revolve's own axis port (FORK-1b). One variable at two
+/// seats still refuses.
+#[test]
+fn dm5_is_over_the_variables_read() {
+    let (doc, split, _) = split_block("s2b-dm5-vars");
+    let (doc, union) = insert(
+        doc,
+        Node::Union {
+            members: vec![Operand::output(split, 0), Operand::output(split, 1)],
+            declare: Vec::new(),
+        },
+    );
+    let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
+    assert!(
+        ev.value(union).is_some(),
+        "a union of a split's two halves builds: {:?}",
+        ev.node_error(union)
+    );
+    assert!(
+        matches!(
+            fixture::insert_refused(
+                &doc,
+                Node::Union {
+                    members: vec![Operand::output(split, 0), Operand::output(split, 0)],
+                    declare: Vec::new(),
+                },
+            ),
+            EditError::DuplicateInput { .. }
+        ),
+        "one half twice is one variable read twice"
+    );
+
+    let (doc, plane, profile) = on_frame_keeping(
+        ProfileDoc::empty_derived("s2b-dm5-axis", Tol::witness()),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![fixture::square(1.5, 0.5, 0.5)],
+    );
+    let (doc, axis) = insert(doc, fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
+    let (doc, revolve) = insert(
+        doc,
+        Node::Revolve {
+            profile: profile.into(),
+            axis: axis.into(),
+            angle: fixture::ang(0.5),
+        },
+    );
+    insert(
+        doc,
+        Node::Pattern {
+            input: Operand::output(revolve, 0),
+            count: editor_core::Formula::count(3),
+            kind: PatternKind::Circular {
+                axis: Operand::output(revolve, 1),
+                step: fixture::ang(1.0),
+            },
+        },
+    );
+}
+
+/// **Every operand family in one document** (review A's MINOR-2): a
+/// union, a loft, a sweep, a linear pattern and a part of one of its
+/// instances, a transform, a split and a part of each half, a fillet, a
+/// circular pattern of a revolve's body, and an instance of a part — so
+/// the one-shot's roots and reads cover each family, a list member
+/// among them. Inserted, never evaluated: what the one-shot compares is
+/// the saved document. `pre_b_families.json` is this document as the
+/// base built it, through its own fixtures, before an operand was a
+/// read.
+pub(crate) fn families_document() -> ProfileDoc {
+    let doc = ProfileDoc::empty_derived("s2b-families", Tol::witness());
+    let (doc, plane, low) = on_frame_keeping(
+        doc,
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![fixture::square(0.5, 0.5, 0.5)],
+    );
+    let (doc, _, high) = on_frame_keeping(
+        doc,
+        [0.0, 0.0, 2.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![fixture::square(0.5, 0.5, 0.25)],
+    );
+    let (doc, body) = insert(
+        doc,
+        Node::Extrude {
+            profile: low.into(),
+            distance: len(1.0),
+            side: editor_core::ExtrudeSide::Along,
+        },
+    );
+    let (doc, loft) = insert(
+        doc,
+        Node::Loft {
+            profiles: vec![low.into(), high.into()],
+            v_degree: editor_core::Formula::count(1),
+        },
+    );
+    let (doc, sweep) = insert(
+        doc,
+        Node::Sweep {
+            profile: high.into(),
+            path: low.into(),
+            stations: editor_core::Formula::count(4),
+            v_degree: editor_core::Formula::count(3),
+        },
+    );
+    let (doc, axis) = insert(doc, fixture::axis_in_plane(plane, (3.0, 0.0), (0.0, 1.0)));
+    let (doc, revolve) = insert(
+        doc,
+        Node::Revolve {
+            profile: low.into(),
+            axis: axis.into(),
+            angle: fixture::ang(1.0),
+        },
+    );
+    let (doc, pattern) = insert(
+        doc,
+        Node::Pattern {
+            input: body.into(),
+            count: editor_core::Formula::count(3),
+            kind: PatternKind::Linear {
+                direction: [scl(1.0), scl(0.0), scl(0.0)],
+                spacing: len(2.0),
+            },
+        },
+    );
+    let (doc, _) = insert(
+        doc,
+        Node::Pattern {
+            input: Operand::output(revolve, 0),
+            count: editor_core::Formula::count(2),
+            kind: PatternKind::Circular {
+                axis: axis.into(),
+                step: fixture::ang(1.0),
+            },
+        },
+    );
+    let (doc, middle) = insert(
+        doc,
+        Node::Part {
+            of: pattern.into(),
+            select: editor_core::PartSelect::Instance(editor_core::Formula::count(1)),
+        },
+    );
+    let (doc, cut) = insert(
+        doc,
+        Node::Datum(editor_core::Datum::Plane {
+            origin: [len(0.0), len(0.0), len(0.5)],
+            normal: [scl(0.0), scl(0.0), scl(1.0)],
+        }),
+    );
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: loft.into(),
+            tool: cut.into(),
+        },
+    );
+    let half = |half: editor_core::SplitHalf| Node::Part {
+        of: Operand::output(split, half.port()),
+        select: editor_core::PartSelect::SplitHalf(half),
+    };
+    let (doc, above) = insert(doc, half(editor_core::SplitHalf::Above));
+    let (doc, below) = insert(doc, half(editor_core::SplitHalf::Below));
+    let (doc, moved) = insert(doc, xform(sweep, [0.0, 0.0, 5.0], [0.0, 0.0, 1.0], 0.0));
+    let (doc, rounded) = insert(doc, Node::fillet(body, len(0.1), Vec::new()));
+    let (doc, instance) = insert(
+        doc,
+        Node::instantiate_part(editor_core::DocRef {
+            id: editor_core::DocumentId::derive("s2b-families-part"),
+            pin: editor_core::ContentPin::of_bytes(b"s2b-families-part"),
+        }),
+    );
+    let (doc, _) = insert(
+        doc,
+        Node::Union {
+            members: vec![
+                middle.into(),
+                above.into(),
+                below.into(),
+                moved.into(),
+                rounded.into(),
+                instance.into(),
+            ],
+            declare: Vec::new(),
+        },
+    );
+    doc
+}
+
+/// `pre_b_families.json`, the base's save of [`families_document`],
+/// and this build's save of it, as JSON bodies.
+fn families_pair() -> (serde_json::Value, serde_json::Value) {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/intent_s2_b/pre_b_families.json");
+    let base = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    let text =
+        save(&families_document(), &[], Tol::witness()).expect("the families document saves");
+    (crate::wire::wire_body(&base), crate::wire::wire_body(&text))
+}
+
+/// A union of two blocks under a transform, saved: the file the load
+/// door rows below doctor.
+fn union_under_a_transform() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
+    let doc = ProfileDoc::empty_derived("s2b-load-door", Tol::witness());
+    let (doc, _, a) = block(doc, 0.0);
+    let (doc, _, b) = block(doc, 3.0);
+    let (doc, union) = insert(
+        doc,
+        Node::Union {
+            members: vec![a.into(), b.into()],
+            declare: Vec::new(),
+        },
+    );
+    let (doc, moved) = insert(doc, xform(union, [0.0, 0.0, 5.0], [0.0, 0.0, 1.0], 0.0));
+    (doc, b, union, moved)
+}
+
+/// `text` with every union member reading `from` reading `to` instead.
+fn member_re_read(text: &str, from: &str, to: &str) -> String {
+    crate::wire::doctored(text, |wire| {
+        for node in wire["snapshot"]["nodes"]
+            .as_object_mut()
+            .expect("nodes")
+            .values_mut()
+        {
+            if let Some(members) = node.get_mut("Union").and_then(|u| u.get_mut("members")) {
+                for member in members.as_array_mut().expect("a list") {
+                    if member.as_str() == Some(from) {
+                        *member = serde_json::json!(to);
+                    }
+                }
+            }
+        }
+    })
+}
+
+/// **A file whose reads close a loop refuses `ReadCycle`** (review B's
+/// m5): a union member doctored to read the output of the transform
+/// that reads the union. The load door walks the read relation, not
+/// the file's order.
+#[test]
+fn a_file_whose_reads_close_a_loop_refuses_read_cycle() {
+    let (doc, b, union, moved) = union_under_a_transform();
+    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let out = |node| doc.output(node, 0).expect("an output").0.to_string();
+    let corrupt = member_re_read(&text, &out(b), &out(moved));
+    let refusal = load(&corrupt, Tol::witness()).err();
+    assert!(
+        matches!(
+            &refusal,
+            Some(editor_core::PersistError::Snapshot(editor_core::SnapshotError::ReadCycle { at }))
+                if [union, moved].contains(&at.id())
+        ),
+        "{refusal:?}"
+    );
+}
+
+/// **A file reading a variable its mint log never minted refuses
+/// `OperandUnminted`** (review B's m5) — what a file written before an
+/// operand was a read meets, its operands spelled as node ids — with
+/// the regenerate recourse in its sentence.
+#[test]
+fn a_file_reading_an_unminted_variable_refuses_operand_unminted() {
+    let (doc, b, union, _) = union_under_a_transform();
+    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let out_b = doc.output(b, 0).expect("an output").0.to_string();
+    // The member spelled as the node id, as a pre-B file spells it.
+    let corrupt = member_re_read(&text, &out_b, &b.0.to_string());
+    let refusal = load(&corrupt, Tol::witness()).err();
+    assert!(
+        matches!(
+            &refusal,
+            Some(editor_core::PersistError::Snapshot(editor_core::SnapshotError::OperandUnminted {
+                node,
+                slot: OperandSlot::Member(1),
+                ..
+            })) if node.id() == union
+        ),
+        "{refusal:?}"
+    );
+    let said = refusal.map(|e| e.to_string()).unwrap_or_default();
+    assert!(
+        said.contains(editor_core::REGENERATE_RECOURSE),
+        "the sentence carries the regenerate recourse: {said}"
+    );
+}
+
+/// **A measure whose site is deleted refuses typed, and its dead site
+/// is no edge** (review A's MINOR-1): the delete of a block a measure
+/// reads names at is accepted, `Doc::upstream` sets the dead site aside
+/// — so no walk over the relation (the roots, the cascade, the mate
+/// solve's components) meets an id no node is — and evaluation refuses
+/// the measure `UnresolvedSite` at that site rather than a missing
+/// input. The stranded document saves and loads as itself.
+#[test]
+fn a_measure_whose_site_is_deleted_refuses_typed_and_keeps_no_dead_edge() {
+    let doc = ProfileDoc::empty_derived("s2b-dead-site", Tol::witness());
+    let (doc, _, a) = block(doc, 0.0);
+    let (doc, _, b) = block(doc, 3.0);
+    let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
+    let face = |node| {
+        editor_core::all_faces(&ev, node)
+            .into_iter()
+            .next()
+            .expect("a block has faces")
+    };
+    let (doc, measure) = fixture::measure_node(
+        &doc,
+        editor_core::MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![
+            editor_core::SitedRef::new(a, face(a)),
+            editor_core::SitedRef::new(b, face(b)),
+        ],
+    );
+    assert_eq!(
+        doc.upstream(measure),
+        vec![a, b],
+        "the measure reads at both"
+    );
+    let deleted = applied(&doc, DocEdit::DeleteNode { id: b }).doc;
+    assert_eq!(
+        deleted.upstream(measure),
+        vec![a],
+        "the dead site is no edge"
+    );
+    assert!(
+        !editor_core::cascade_delete_order(&deleted, a).contains(&b),
+        "and no walk meets it"
+    );
+    let ev = fixture::run(&deleted, &editor_core::EvalOptions::default());
+    assert!(
+        matches!(
+            ev.node_error(measure).map(|e| &e.kind),
+            Some(NodeErrorKind::UnresolvedSite { at }) if *at == b
+        ),
+        "{:?}",
+        ev.node_error(measure)
+    );
+    let text = save(&deleted, &[], Tol::witness()).expect("a stranded site saves");
+    let loaded = load(&text, Tol::witness()).expect("and loads");
+    assert!(loaded.doc.bit_eq(&deleted), "as itself");
 }

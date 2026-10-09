@@ -260,7 +260,7 @@ fn the_construction_doors_canonicalize() {
     assert_eq!(selection, &canonical, "sorted and deduplicated");
     assert!(
         editor_core::test_support::stored(&mut doc.clone(), &fillet)
-            .input_fault(|_| None)
+            .input_fault()
             .is_none(),
         "and therefore canonical"
     );
@@ -272,7 +272,7 @@ fn the_construction_doors_canonicalize() {
     assert_eq!(selection, &canonical, "sorted and deduplicated");
     assert!(
         editor_core::test_support::stored(&mut doc.clone(), &chamfer)
-            .input_fault(|_| None)
+            .input_fault()
             .is_none(),
         "and therefore canonical"
     );
@@ -294,7 +294,7 @@ fn an_empty_selection_is_canonical() {
     };
     assert!(
         editor_core::test_support::stored(&mut doc.clone(), &empty)
-            .input_fault(|_| None)
+            .input_fault()
             .is_none()
     );
     let doc = apply(
@@ -404,7 +404,7 @@ fn at_names_each_position() {
             &mut doc.clone(),
             &raw_fillet(&doc, solid, segs),
         )
-        .input_fault(|_| None)
+        .input_fault()
         {
             Some(InputFault::SelectionNotCanonical { at }) => Some(at),
             None => None,
@@ -501,7 +501,7 @@ fn a_rebind_leaves_a_canonical_selection() {
     );
     let node = doc.node(fillet).expect("the fillet is live");
     assert!(
-        node.input_fault(|_| None).is_none(),
+        node.input_fault().is_none(),
         "so the repaired node passes the predicate every door asks"
     );
 }

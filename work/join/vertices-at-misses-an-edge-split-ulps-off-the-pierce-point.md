@@ -2,12 +2,14 @@
 id: vertices-at-misses-an-edge-split-ulps-off-the-pierce-point
 kind: issue
 title: near_tangent_battery's edge placement: vertices_at's exact match misses the cube edge's split ulps off v on 324 lines
-status: open
+status: closed
 opened: 2026-10-07
 priority: P3
 cost: E
 refs: [a-near-tangent-pierce-reads-two-cones-where-its-link-holds-one]
 branch: join/battery-hygiene
+closed: 2026-10-08
+pr: 4334
 ---
 
 

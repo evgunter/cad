@@ -199,7 +199,7 @@ fn build_doc(tol: Tol) -> Recipe {
     let hub_p = insert(
         &mut doc,
         Box::new(Node::Profile(ProfileProgram {
-            plane: hub_plane.into(),
+            frame: hub_plane.into(),
             loops: vec![hub_polygon()],
             ids: Vec::new(),
         })),
@@ -217,7 +217,7 @@ fn build_doc(tol: Tol) -> Recipe {
     let blade_p = insert(
         &mut doc,
         Box::new(Node::Profile(ProfileProgram {
-            plane: blade_plane.into(),
+            frame: blade_plane.into(),
             loops: vec![blade_polygon()],
             ids: Vec::new(),
         })),

@@ -130,7 +130,7 @@ fn boss_on_widened_width_box(half: f64) -> ProfileDoc {
     let w = Formula::named(VarName::from_static("w"), Dimension::Length);
     let neg_w = Formula::neg(w.clone()).expect("a shallow negation");
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![LoopProgram::polygon_expr([
             [neg_w.clone(), len(-0.5)],
             [w.clone(), len(-0.5)],
@@ -696,7 +696,7 @@ fn revolved(r: &mut Recorder, base: RecipeNodeId) -> RecipeNodeId {
         angle: ang(std::f64::consts::PI),
     });
     r.insert(Node::Datum(Datum::FaceFrame {
-        at: rev.into(),
+        at: editor_core::Operand::output(rev, 0),
         face: fixture::fname(rev, RoleSeg::RevolveCap(MeridianEnd::End)),
         spin: ang(0.0),
     }))

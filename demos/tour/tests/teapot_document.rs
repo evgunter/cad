@@ -134,7 +134,7 @@ fn sharp_lid_in(
     let axis = insert(
         &mut doc,
         Node::Datum(Datum::AxisInPlane {
-            plane: plane.into(),
+            frame: plane.into(),
             origin: [len(0.0), len(0.0)],
             direction: [scl(0.0), scl(1.0)],
         }),
@@ -143,7 +143,7 @@ fn sharp_lid_in(
     let profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![lid_meridian(bore)],
             ids: Vec::new(),
         }),
@@ -241,7 +241,11 @@ fn rolled_lid(
 ) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let (mut doc, lid) = sharp_lid(tol);
     let sel: Vec<StableName> = vs.iter().map(|&v| rim(&doc, lid, v, tol)).collect();
-    let rolled = insert(&mut doc, Node::fillet(lid, len(roll), sel), tol);
+    let rolled = insert(
+        &mut doc,
+        Node::fillet(pncad::document::Operand::output(lid, 0), len(roll), sel),
+        tol,
+    );
     (doc, lid, rolled)
 }
 
@@ -362,7 +366,15 @@ fn one_request_builds_the_kernels_body() {
         .iter()
         .flat_map(|&v| rim_arcs(&doc, lid, v, tol))
         .collect();
-    let rolled = insert(&mut doc, Node::fillet(lid, len(ROLL), sel.clone()), tol);
+    let rolled = insert(
+        &mut doc,
+        Node::fillet(
+            pncad::document::Operand::output(lid, 0),
+            len(ROLL),
+            sel.clone(),
+        ),
+        tol,
+    );
     let ev = eval(&doc, tol);
     assert!(
         ev.node_error(rolled).is_none(),
@@ -390,8 +402,8 @@ fn one_request_builds_the_kernels_body() {
 
     assert_eq!(census(&sharp), (8, 14, 8));
     assert_eq!(bands(&kernel).len(), 3, "three rims, three torus bands");
-    assert_eq!(census(&kernel), (14, 23, 11));
-    assert_eq!(census(&doc_body), (14, 23, 11));
+    assert_eq!(census(&kernel), (12, 21, 11));
+    assert_eq!(census(&doc_body), (12, 21, 11));
     assert_eq!(
         bands(&kernel),
         bands(&doc_body),
@@ -676,7 +688,11 @@ fn a_split_carries_a_held_slits_band() {
     );
     let (mut doc, lid) = sharp_lid_in(doc, R_VENT, tol);
     let sel = vec![rim(&doc, lid, 1, tol), rim(&doc, lid, 2, tol)];
-    let rolled = insert(&mut doc, Node::fillet(lid, len(ROLL), sel), tol);
+    let rolled = insert(
+        &mut doc,
+        Node::fillet(pncad::document::Operand::output(lid, 0), len(ROLL), sel),
+        tol,
+    );
     let ev = eval(&doc, tol);
     assert!(
         ev.node_error(rolled).is_none(),

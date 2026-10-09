@@ -60,9 +60,68 @@ pub fn without_outputs(doc: &Value) -> Value {
 /// read of an output variable, in a node or an edit, spelled as the
 /// operation defining it, and an authored `{"Node": id}` as the bare
 /// id — the spelling a document had while an operand named its input
-/// node. Output variables themselves are left for [`without_outputs`].
+/// node. A read of a port past the first keeps its port, as
+/// `{"Port": [id, port]}`, so two documents reading two ports of one
+/// operation differ here as they do in what they build. Output
+/// variables themselves are left for [`without_outputs`].
 pub fn reads_as_inputs(doc: &Value) -> Value {
     reads_as_inputs_by(doc, doc)
+}
+
+/// **A pre-B part projection in the port spelling**: a part that
+/// selects the lower half of a split named the split and read its
+/// second port, so its `of` is spelled as that port
+/// ([`reads_as_inputs`]'s `{"Port": [id, 1]}`); the upper half is the
+/// first port, the bare id it already was.
+pub fn split_halves_as_ports(doc: &Value) -> Value {
+    let mut doc = doc.clone();
+    if let Some(nodes) = doc["snapshot"]["nodes"].as_object_mut() {
+        for node in nodes.values_mut() {
+            if let Some(part) = node.get_mut("Part")
+                && part["select"]["SplitHalf"] == "Below"
+                && let Some(of) = part["of"].as_str().map(str::to_owned)
+            {
+                part["of"] = port(&of, 1);
+            }
+        }
+    }
+    doc
+}
+
+/// **A pre-B document in the field's one name**: a profile's and an
+/// in-plane axis's `plane` field is `frame` since unit B (the kind the
+/// field reads, its slot, its label and its word), so a document the
+/// base saved compares with its re-blessed twin byte for byte
+/// otherwise — in the snapshot's nodes and in a log's authored ones.
+pub fn plane_field_as_frame(doc: &Value) -> Value {
+    fn rewrite(value: &mut Value) {
+        match value {
+            Value::Object(object) => {
+                for tag in ["Profile", "AxisInPlane"] {
+                    if let Some(Value::Object(fields)) = object.get_mut(tag)
+                        && let Some(frame) = fields.remove("plane")
+                    {
+                        fields.insert("frame".to_owned(), frame);
+                    }
+                }
+                object.values_mut().for_each(rewrite);
+            }
+            Value::Array(items) => items.iter_mut().for_each(rewrite),
+            Value::String(_) | Value::Null | Value::Bool(_) | Value::Number(_) => {}
+        }
+    }
+    let mut doc = doc.clone();
+    rewrite(&mut doc);
+    doc
+}
+
+/// A read of `port` of `node`, as [`reads_as_inputs`] spells it.
+fn port(node: &str, port: u64) -> Value {
+    if port == 0 {
+        Value::String(node.to_owned())
+    } else {
+        serde_json::json!({ "Port": [node, port] })
+    }
 }
 
 /// **A pre-B edit log in the one slot door's spelling** (Q1): every
@@ -94,20 +153,21 @@ pub fn set_param_writes_value(doc: &Value) -> Value {
 /// log whose own snapshot holds none.
 pub fn reads_as_inputs_by(doc: &Value, table: &Value) -> Value {
     let mut doc = doc.clone();
-    let defined_by: BTreeMap<String, String> = table["snapshot"]["vars"]
+    let defined_by: BTreeMap<String, Value> = table["snapshot"]["vars"]
         .as_object()
         .expect("a variable table")
         .iter()
         .filter_map(|(id, var)| {
-            let node = var["def"].get("Output")?.get("node")?.as_str()?;
-            Some((id.clone(), node.to_owned()))
+            let output = var["def"].get("Output")?;
+            let node = output.get("node")?.as_str()?;
+            Some((id.clone(), port(node, output.get("port")?.as_u64()?)))
         })
         .collect();
-    fn rewrite(value: &mut Value, defined_by: &BTreeMap<String, String>) {
+    fn rewrite(value: &mut Value, defined_by: &BTreeMap<String, Value>) {
         match value {
             Value::String(text) => {
-                if let Some(node) = defined_by.get(text.as_str()) {
-                    *text = node.clone();
+                if let Some(read) = defined_by.get(text.as_str()) {
+                    *value = read.clone();
                 }
             }
             Value::Object(object) => {
@@ -115,12 +175,26 @@ pub fn reads_as_inputs_by(doc: &Value, table: &Value) -> Value {
                     Some((tag, Value::String(id)))
                         if object.len() == 1 && (tag == "Node" || tag == "Var") && is_id(id) =>
                     {
-                        Some(defined_by.get(id).cloned().unwrap_or_else(|| id.clone()))
+                        Some(
+                            defined_by
+                                .get(id)
+                                .cloned()
+                                .unwrap_or_else(|| Value::String(id.clone())),
+                        )
+                    }
+                    Some((tag, Value::Object(at))) if object.len() == 1 && tag == "Output" => {
+                        match (
+                            at.get("node").and_then(Value::as_str),
+                            at.get("port").and_then(Value::as_u64),
+                        ) {
+                            (Some(node), Some(p)) if is_id(node) => Some(port(node, p)),
+                            _ => None,
+                        }
                     }
                     _ => None,
                 };
                 match read {
-                    Some(id) => *value = Value::String(id),
+                    Some(read) => *value = read,
                     None => object.values_mut().for_each(|v| rewrite(v, defined_by)),
                 }
             }

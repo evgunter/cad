@@ -393,7 +393,8 @@ fn the_unknown_variant_detail_lists_the_vocabulary_in_full() {
 /// that a document lacking every later arm loads. It is re-frozen, by
 /// today's writer, at each such break: last when an operand became a read
 /// of a variable, so its table holds the three nodes' outputs and the
-/// profile and the extrude read the outputs before them.
+/// profile and the extrude read the outputs before them, and the
+/// profile's operand field took its one name, `frame`.
 const OLDER_SHAPED: &str = concat!(
     "id: da925a30e31f7fdaa7044e3e5ba4ae17\n",
     "{\"snapshot\":{\"id\":\"da925a30e31f7fdaa7044e3e5ba4ae17\",\"mint\":{\"chain\":\"5d28910d3b",
@@ -412,7 +413,7 @@ const OLDER_SHAPED: &str = concat!(
     "575\":{\"Datum\":{\"Frame\":{\"origin\":[\"1:b639d844bab8e826\",\"2:74af9d633a64b77a\",\"3:f",
     "b5fef638c30912c\"],\"u\":[\"4:ee1d73a8dc8f8ad6\",\"5:f9047724cc168290\",\"6:2fdd1f61b8b9",
     "0439\"],\"v\":[\"7:5cdde09d996c5c61\",\"8:af949e9d2cd2d001\",\"9:135249424cb8e0e7\"]}}},\"",
-    "20:fe7be5bb524c1ab3\":{\"Profile\":{\"plane\":\"11:7b9b7a031545bc84\",\"loops\":[{\"Chain\"",
+    "20:fe7be5bb524c1ab3\":{\"Profile\":{\"frame\":\"11:7b9b7a031545bc84\",\"loops\":[{\"Chain\"",
     ":[{\"At\":[\"12:aa1a1f25549ff844\",\"13:ce0b2c4bfce400e2\"]},{\"LineTo\":{\"Point\":[\"14:8",
     "26a2b7c495117a7\",\"15:74ce4ff170398ca6\"]}},{\"LineTo\":{\"Point\":[\"16:4b36daafb7685c",
     "2b\",\"17:c9a0e5f82154ce3e\"]}},{\"LineTo\":{\"Point\":[\"18:73bc05541afded5a\",\"19:e51d8",
@@ -489,7 +490,9 @@ fn the_older_shaped_document_loads_at_the_ambient_eps() {
 /// The minimal-vocabulary bytes as today's writer wrote them before
 /// an operation defined variables (INTENT stage 2): the same three
 /// nodes, and no output in the table. A break, so they refuse typed
-/// with the regenerate recourse rather than load.
+/// with the regenerate recourse rather than load. The profile's operand
+/// field is spelled `frame`, its later name, so the bytes reach the
+/// outputs walk this row is about rather than the reader's field check.
 const PRE_OUTPUTS: &str = concat!(
     "id: 8ad37e1a750ae77132c0bf059acb322f\n",
     "{\"snapshot\":{\"id\":\"8ad37e1a750ae77132c0bf059acb322f\",\"mint\":{\"chain\":\"b4df12e4a4",
@@ -507,7 +510,7 @@ const PRE_OUTPUTS: &str = concat!(
     "um\":{\"Frame\":{\"origin\":[\"1:b639d844bab8e826\",\"2:74af9d633a64b77a\",\"3:fb5fef638c3",
     "0912c\"],\"u\":[\"4:ee1d73a8dc8f8ad6\",\"5:f9047724cc168290\",\"6:2fdd1f61b8b90439\"],\"v\"",
     ":[\"7:5cdde09d996c5c61\",\"8:af949e9d2cd2d001\",\"9:135249424cb8e0e7\"]}}},\"19:f5ee2ea",
-    "3890bdbd0\":{\"Profile\":{\"plane\":\"10:54a0180a83275575\",\"loops\":[{\"Chain\":[{\"At\":[\"",
+    "3890bdbd0\":{\"Profile\":{\"frame\":\"10:54a0180a83275575\",\"loops\":[{\"Chain\":[{\"At\":[\"",
     "11:d05826096083a72f\",\"12:3312b2f8504eeee2\"]},{\"LineTo\":{\"Point\":[\"13:67cd6e8f80d",
     "24d4e\",\"14:fd8954268d1e7222\"]}},{\"LineTo\":{\"Point\":[\"15:4e4dce13c4a56d92\",\"16:e8",
     "e5f1ea6e7306c2\"]}},{\"LineTo\":{\"Point\":[\"17:0ad5807e1b5f700c\",\"18:6d679bcadae726f",

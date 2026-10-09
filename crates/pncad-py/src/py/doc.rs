@@ -835,18 +835,19 @@ pub(crate) struct NodeId(pub(crate) d::RecipeNodeId);
 /// value.
 #[derive(FromPyObject)]
 pub(crate) enum SlotValueArg {
-    /// A node, read through its output in the slot.
+    /// A node, read through its one output.
     Node(NodeId),
     /// A variable, a formula or a value.
     Slot(super::expr::SlotArg),
 }
 
-/// **An operand as Python writes it**: a node, read at its first output
-/// (a node with two outputs of one kind refuses `ambiguous_output`), or
-/// a variable — an output by `Doc.output`, or a name's.
+/// **An operand as Python writes it**: a node, read at its one output
+/// (a node with several, a revolve or a split, refuses
+/// `ambiguous_output`: its port is read by `Doc.output`), or a variable
+/// — an output by `Doc.output`, or a name's.
 #[derive(FromPyObject, Clone, Copy)]
 pub(crate) enum OperandArg {
-    /// A node, read at its first output.
+    /// A node, read at its one output.
     Node(NodeId),
     /// A variable, read as itself.
     Var(Var),
@@ -2299,7 +2300,7 @@ impl Node {
             .collect::<PyResult<Vec<_>>>()?;
         Ok(Self {
             inner: d::Node::Profile(d::ProfileProgram {
-                plane,
+                frame: plane,
                 loops: vec![d::LoopProgram::polygon_expr(corners)],
                 ids: Vec::new(),
             }),
@@ -2332,7 +2333,7 @@ impl Node {
         let loops = loops_from_outline(py, outline)?;
         Ok(Self {
             inner: d::Node::Profile(d::ProfileProgram {
-                plane,
+                frame: plane,
                 loops,
                 ids: Vec::new(),
             }),
@@ -2618,7 +2619,7 @@ impl Node {
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Datum(d::Datum::AxisInPlane {
-                plane: plane.read(),
+                frame: plane.read(),
                 origin: [
                     slot_expr(py, d::SlotId::Origin(d::Axis3::X), &origin.0)?,
                     slot_expr(py, d::SlotId::Origin(d::Axis3::Y), &origin.1)?,

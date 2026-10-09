@@ -122,7 +122,7 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, editor_core::VarId, 
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![bracket_loop],
         ids: Vec::new(),
     }));
@@ -136,7 +136,7 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, editor_core::VarId, 
 
     let bore = |r: &mut Recorder, x: f64, radius: &'static str| {
         let profile = r.insert(Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(x), len(0.5e-3)],
                 radius: plen(radius),
@@ -475,7 +475,7 @@ fn collinear_walls() -> ProfileDoc {
     // not a coincidence at the nominal.
     let w = || Formula::named(VarName::from_static("w"), Dimension::Length);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(0.0), len(0.0)]),
             // The DECLARED straight continuation: `LineTo` at a zero-turn

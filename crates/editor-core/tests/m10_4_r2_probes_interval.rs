@@ -258,7 +258,7 @@ fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
     // share a plane bind the same id.
     let frame = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: frame.into(),
+        frame: frame.into(),
         loops: vec![chain],
         ids: Vec::new(),
     }));
@@ -268,7 +268,7 @@ fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
         side: ExtrudeSide::Along,
     });
     let cube_profile = r.insert(Node::Profile(ProfileProgram {
-        plane: frame.into(),
+        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(5.0, 5.0), (6.0, 5.0), (6.0, 6.0), (5.0, 6.0)])
                 .expect("finite corners"),
@@ -327,7 +327,7 @@ pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, VarId) {
     // share a plane bind the same id.
     let frame = r.insert(fixture::xy_frame());
     let bore_p = r.insert(Node::Profile(ProfileProgram {
-        plane: frame.into(),
+        frame: frame.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), len(0.0)],
             radius: len(0.5),
@@ -340,7 +340,7 @@ pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, VarId) {
         side: ExtrudeSide::Along,
     });
     let pin_p = r.insert(Node::Profile(ProfileProgram {
-        plane: frame.into(),
+        frame: frame.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.1), len(0.0)],
             radius: param("r", Dimension::Length),
@@ -382,7 +382,7 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, VarId, VarId) {
     // share a plane bind the same id.
     let frame = r.insert(fixture::xy_frame());
     let pa = r.insert(Node::Profile(ProfileProgram {
-        plane: frame.into(),
+        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
@@ -395,7 +395,7 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, VarId, VarId) {
         side: ExtrudeSide::Along,
     });
     let pb = r.insert(Node::Profile(ProfileProgram {
-        plane: frame.into(),
+        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(3.0, 0.0), (4.0, 0.0), (4.0, 1.0), (3.0, 1.0)])
                 .expect("finite corners"),
@@ -462,14 +462,14 @@ fn loft() -> (ProfileDoc, VarId) {
     let (c0, z0) = section(0.0);
     let f0 = frame_at(&mut r, z0);
     let p0 = r.insert(Node::Profile(ProfileProgram {
-        plane: f0.into(),
+        frame: f0.into(),
         loops: vec![c0],
         ids: Vec::new(),
     }));
     let (c1, z1) = section(1.0);
     let f1 = frame_at(&mut r, z1);
     let p1 = r.insert(Node::Profile(ProfileProgram {
-        plane: f1.into(),
+        frame: f1.into(),
         loops: vec![c1],
         ids: Vec::new(),
     }));

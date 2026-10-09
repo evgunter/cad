@@ -1277,11 +1277,13 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                         body.set_edge_curve(strut.edge, spec, tol)?;
                     }
                     geom_brep::MustCarryDescription::Conventional => {
-                        // The surfaces under-determine the locus — a
-                        // zero-side second order, or a pair outside
-                        // the certificate's lane — so the strut
-                        // "keeps the conventional description BY THE
-                        // PREDICATE" — the sentence above.
+                        // No intrinsic tangency is demanded: a station
+                        // read the second order zero-side (the surfaces
+                        // under-determine the locus), or every station
+                        // read it positive on a pair outside the
+                        // certificate's lane, which cannot store one —
+                        // so the strut keeps the conventional
+                        // description.
                         // The conventional form is a chart IMAGE, not
                         // the scaffolding the mint left (D3's
                         // transience fence), so spelling that sentence
@@ -1329,11 +1331,11 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                     }
                 }
             }
-            Err(geom_brep::LeverEscalation { diag: source, .. }) => {
+            Err(escalation) => {
                 return Err(ExtrudeError::SliverJoin {
                     loop_index,
                     vertex_index: segs[j].chord.canonical_vertex,
-                    source,
+                    source: escalation.diag(),
                 });
             }
         }
@@ -1651,10 +1653,10 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
             }
             Ok(())
         }
-        Err(geom_brep::LeverEscalation { diag: source, .. }) => Err(ExtrudeError::SliverRim {
+        Err(escalation) => Err(ExtrudeError::SliverRim {
             loop_index,
             segment_index,
-            source,
+            source: escalation.diag(),
         }),
     }
 }

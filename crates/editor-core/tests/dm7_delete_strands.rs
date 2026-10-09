@@ -293,19 +293,30 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
             SitedRef::new(fillet, f0.clone()),
         ],
     );
+    // Sited at the operands, as every pair must be, and naming the
+    // victim's walls while the boolean reads the victim (D10: a pair
+    // names what its node reads). The re-point to `other` then reports
+    // the names out of reach and never refuses them, so the delete
+    // strands them without taking an operand.
     let (doc, boolean) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a: body.into(),
-            b: other.into(),
-            // Sited at the operands, as every pair must be; the names
-            // are the victim's, minted before the boolean, so the
-            // delete strands them without taking an operand.
+            b: victim.into(),
             declare: editor_core::declare_rest(vec![(
                 SitedRef::new(body, f1.clone()),
-                SitedRef::new(other, f2.clone()),
+                SitedRef::new(victim, f2.clone()),
             )]),
+        },
+    );
+    let (doc, _) = crate::fixture::step(
+        doc,
+        DocEdit::SetParam {
+            node: boolean,
+            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::B),
+            value: editor_core::Operand::Node(other).into(),
+            fresh: Vec::new(),
         },
     );
 

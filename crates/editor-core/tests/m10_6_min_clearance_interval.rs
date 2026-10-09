@@ -107,7 +107,7 @@ fn dumbbell() -> Dumbbell {
     });
     let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon(
                 [
@@ -504,7 +504,7 @@ fn a_selection_that_is_not_a_body_or_a_face_refuses_typed() {
     let mut r = Recorder::new();
     let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),

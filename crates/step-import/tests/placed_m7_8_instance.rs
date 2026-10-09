@@ -178,6 +178,7 @@ fn offsets_beside_the_wall(body: &topo::Body<f64>, count: usize) {
                             geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
                                 limb: geom_brep::SsiLimb::OnLocus,
                                 value,
+                                ..
                             }),
                         ..
                     },

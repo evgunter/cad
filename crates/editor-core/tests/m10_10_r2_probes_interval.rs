@@ -321,7 +321,7 @@ pub(crate) fn d_tab_at(
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![outline],
         ids: Vec::new(),
     }));
@@ -332,7 +332,7 @@ pub(crate) fn d_tab_at(
         side: ExtrudeSide::Along,
     });
     let hole_profile = r.insert(Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [
                 Formula::named(VarName::from_static("hole_x"), Dimension::Length),

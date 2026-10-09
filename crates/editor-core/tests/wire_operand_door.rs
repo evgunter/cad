@@ -302,7 +302,7 @@ fn wired() -> (
         "wire_part's SplitHalf arm (a half of a plain body)",
         Owes::Refusal("split", "body"),
         Node::Part {
-            of: body.into(),
+            of: editor_core::Operand::output(body, SplitHalf::Above.port()),
             select: PartSelect::SplitHalf(SplitHalf::Above),
         },
         body,

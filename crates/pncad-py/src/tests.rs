@@ -65,7 +65,7 @@ fn xy_frame() -> pncad::document::AuthoredNode {
 fn square(plane: pncad::document::RecipeNodeId, s: f64) -> pncad::document::AuthoredNode {
     use pncad::document::{LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget};
     Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(0.0), len(0.0)]),
             ProgramStep::LineTo(ProgramTarget::Point([len(s), len(0.0)])),
@@ -1469,7 +1469,7 @@ fn resolution_status_tags_are_stable() {
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![
                 LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                     .expect("finite corners"),
@@ -2042,7 +2042,7 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
     let plane = framed.record.minted.expect("a frame id");
     let profile = DocEdit::InsertNode {
         node: Box::new(Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![square],
             ids: Vec::new(),
         })),
@@ -2391,6 +2391,7 @@ fn node_error_tags_are_the_published_words() {
         SeedPinnedSection => "seed_pinned_section",
         WrongOperand => "wrong_operand",
         UnresolvedRead => "unresolved_read",
+        UnresolvedSite => "unresolved_site",
         EmptyOperand => "empty_operand",
         ProductOperand => "product_operand",
         UnfinishedOperand => "unfinished_operand",
@@ -2927,6 +2928,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &E::AmbiguousOutput {
             input: sp(2),
             slot: SlotId::Operand(OperandSlot::Section(1)),
+            ports: vec!["above", "below"],
         },
         &["input", "slot", "index"],
     );
@@ -3438,6 +3440,7 @@ fn import_report_row_tags_are_stable() {
             NormalizationKind::SeamlessPeriodicBand,
             "seamless_periodic_band",
         ),
+        (NormalizationKind::JoinedEdges, "joined_edges"),
     ] {
         assert_eq!(normalization_kind_tag(&kind), word);
     }
@@ -3948,6 +3951,37 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
         other_root: RecipeNodeId::new(0, 4),
         other_output: 2,
     };
+    // An unproven coincidence: its two words and the residual's
+    // sentence; the cells cross on the Python value, not the payload.
+    let tool = pncad::document::NamedCell::Tool {
+        input: RecipeNodeId::new(0, 3),
+    };
+    let unproven = E::UnprovenCoincidence {
+        row: Box::new(pncad::document::NamedCoincidence {
+            cells: [tool.clone(), tool],
+            relation: pncad::document::coincidence::Relation::OnCarrier,
+            site: pncad::document::coincidence::DecisionSite::SplitOn,
+            margin: pncad::geom_core::MarginDiag::value(0.0),
+            discharge: pncad::document::coincidence::Discharge::Numeric,
+        }),
+        residual: Box::new(pncad::document::Residual {
+            constructions: [
+                Err(pncad::document::coincide::Unwalked::Absent(
+                    RecipeNodeId::new(0, 3),
+                )),
+                Err(pncad::document::coincide::Unwalked::Absent(
+                    RecipeNodeId::new(0, 3),
+                )),
+            ],
+        }),
+        recourse: pncad::document::coincide::Recourse::OneConstruction,
+    };
+    carries(&unproven, &["reason", "relation", "site"]);
+    let words = check_payload(&unproven);
+    assert_eq!(
+        (words.relation, words.site),
+        (Some("on_carrier"), Some("split_on"))
+    );
     let pair = check_payload(&separated);
     assert_eq!(pair.other_root, Some(RecipeNodeId::new(0, 4)));
     assert_eq!(pair.other_output, Some(2));
@@ -4840,12 +4874,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "spine_unsupported",
             "surgery_invariant",
             "tangential_edge",
+            "unjoined_operand",
             "unsupported_chain",
             "unsupported_corner",
             "unsupported_geometry",
             "unsupported_run_out",
         ],
-        delegates: &[],
+        delegates: &["join_refusal_tag"],
     },
     TagEntry {
         function: "boolean_error_tag",
@@ -4875,6 +4910,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "germ_edge_carrier_unsupported",
             "germ_frame_cylinder_pinch",
             "germ_frame_unsupported",
+            "germ_section_outside_inventory",
             "graft_recertify",
             "inside_out_operand",
             "invalid_declaration",
@@ -4886,6 +4922,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "non_finite_sector_chord",
             "non_manifold_result",
             "non_maximal_faces",
+            "normal_at_cone_apex",
             "nurbs_extent_unsupported",
             "pairing_mismatch",
             "pcurves",
@@ -4908,6 +4945,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "torn_component",
             "undeclared_coincidence",
             "underflowed_sector_chord",
+            "unjoined_operand",
             "unrepresentable_result",
             "unsupported_declaration_class",
             "vertex_read_twice",
@@ -4962,6 +5000,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_separated",
             "separation_unavailable",
             "stale_expectation",
+            "unproven_coincidence",
             "unsupported",
         ],
         delegates: &[],
@@ -4991,6 +5030,21 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "coincidence_relation_tag",
+        values: &[
+            "equal_angles",
+            "on_carrier",
+            "same_opposite",
+            "same_oriented",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "coincidence_rung_tag",
+        values: &["same_construction"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "corner_reason_tag",
         values: &[
             "anchor_outside_trimmed_extent",
@@ -5009,6 +5063,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "listed_with_count",
             "stepped_without_count",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "decision_site_tag",
+        values: &["battery_turn", "carrier_ladder", "plane_ladder", "split_on"],
         delegates: &[],
     },
     TagEntry {
@@ -5349,8 +5408,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "join_refusal_tag",
-        values: &["join_carrier_unsupported", "join_undecided"],
-        delegates: &["boolean_error_tag"],
+        values: &[],
+        delegates: &[
+            "boolean_error_tag",
+            "boolean_error_tag",
+            "boolean_error_tag",
+        ],
     },
     TagEntry {
         function: "label_fault_tag",
@@ -5582,6 +5645,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unfinished_operand",
             "unplaced",
             "unresolved_read",
+            "unresolved_site",
             "unschedulable_cycle",
             "verb_arity",
             "witness_bifurcation",
@@ -5646,6 +5710,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "degenerate_apex_cone",
             "edge_free_sphere",
+            "joined_edges",
             "seamless_periodic_band",
             "surface_promotion",
         ],
@@ -5665,8 +5730,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "operand_slot_tag",
         values: &[
-            "a", "at", "axis", "b", "frame", "input", "member", "of", "path", "plane", "profile",
-            "section", "target", "tool",
+            "a", "at", "axis", "b", "frame", "input", "member", "of", "path", "profile", "section",
+            "target", "tool",
         ],
         delegates: &[],
     },
@@ -6025,6 +6090,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "lift",
             "no_solid",
             "not_valid",
+            "offsets_cross",
             "open_face_chart_partial",
             "open_face_repeated",
             "open_face_rim_not_expressible",
@@ -6232,6 +6298,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "declaration_unresolved",
             "instance",
             "invalid_eps_override",
+            "join",
             "malformed_real",
             "malformed_record",
             "missing_uncertainty",
@@ -6395,6 +6462,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "half_edge_multiply_claimed",
             "half_edge_unclaimed",
             "instance_interference",
+            "join_undecided_at_rest",
+            "joinable_vertex_at_rest",
             "lamina_wedge",
             "leaked_null_face_record",
             "leaked_provenance",
@@ -6405,6 +6474,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "multiply_owned",
             "negative_volume",
             "next_prev_mismatch",
+            "no_dihedral_arm",
             "null_edge_at_rest",
             "null_face_at_rest",
             "null_scaffold_shared",
@@ -6599,13 +6669,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("inside_out_operand", 2),
     ("instance", 2),
     ("io", 2),
-    ("join", 2),
-    // One fact: the edge join's refusal (`topo::JoinRefusal`), spelled
-    // as the boolean spells it whichever door ends with the join
-    // (`join_refusal_tag`), pinned by
-    // `the_edge_joins_refusal_is_spelled_alike_at_every_door`.
-    ("join_carrier_unsupported", 2),
-    ("join_undecided", 2),
+    // Three: the join every finisher ends with refused, at a door that
+    // tags it by its stage (the boolean's, the split's, the import's).
+    ("join", 3),
     // One rule (A4's frame rule) refused in both directions across the
     // seam: a split's kept mate and an inline's host mate.
     ("mate_frame_crosses", 2),
@@ -6648,9 +6714,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // the instance's own row, and why its checked offset went unchecked.
     ("placement_refused", 2),
     ("placement_rule_mismatch", 2),
-    // A coincidence: a profile's sketch-plane operand and a promoted
-    // gauge's kind.
-    ("plane", 2),
     ("poisoned", 2),
     // The profile operand and the profile node's own evaluation class:
     // one word for the one node kind. The profile PROGRAM's slot says
@@ -6676,6 +6739,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // (`boolean_error_tag`'s doc): ONE coincidence, the same word.
     ("undeclared_coincidence", 2),
     ("underflowed_direction", 2),
+    // One fact for the boolean and the blends: the operand gate
+    // (`topo::Unfinished::Unjoined`) found a vertex tier 3's check 11
+    // refuses.
+    ("unjoined_operand", 2),
     ("unknown_node", 5),
     ("unknown_param", 3),
     ("unminted", 2),
@@ -6793,11 +6860,13 @@ fn ring_pair_words_are_the_outer_contact_words() {
 }
 
 /// **The edge join's refusal is spelled alike at every door** that ends
-/// with the join: the split's and the shell's (`join_refusal_tag`) say
-/// what the boolean says for the same arm (`boolean_error_tag`).
+/// with the join: the split's, the shell's and the blend's
+/// (`join_refusal_tag`) read the boolean's own words for the same arm
+/// (`boolean_error_tag`, which `join_refusal_tag` delegates to), pinned
+/// here as the words themselves.
 #[test]
 fn the_edge_joins_refusal_is_spelled_alike_at_every_door() {
-    use crate::tags::{boolean_error_tag, join_refusal_tag};
+    use crate::tags::join_refusal_tag;
     use pncad::geom_core::{Band, Indeterminate, MarginDiag};
     use pncad::topo::{BooleanErrorKind, JoinReading, JoinRefusal, JoinUndecided};
     let undecided = JoinRefusal::Undecided(JoinUndecided {
@@ -6816,18 +6885,9 @@ fn the_edge_joins_refusal_is_spelled_alike_at_every_door() {
     let kernel = JoinRefusal::Kernel {
         kind: BooleanErrorKind::Euler,
     };
-    assert_eq!(
-        join_refusal_tag(&undecided),
-        boolean_error_tag(BooleanErrorKind::JoinUndecided)
-    );
-    assert_eq!(
-        join_refusal_tag(&carrier),
-        boolean_error_tag(BooleanErrorKind::JoinCarrierUnsupported)
-    );
-    assert_eq!(
-        join_refusal_tag(&kernel),
-        boolean_error_tag(BooleanErrorKind::Euler)
-    );
+    assert_eq!(join_refusal_tag(&undecided), "join_undecided");
+    assert_eq!(join_refusal_tag(&carrier), "join_carrier_unsupported");
+    assert_eq!(join_refusal_tag(&kernel), "euler");
 }
 
 #[test]
@@ -7817,8 +7877,8 @@ fn read_tag_table(source: &str) -> TagTable {
 ///
 /// **What it does NOT prove, which is the more interesting half.** An
 /// inventory pins the VOCABULARY, not the MAPPING. Swap two arms'
-/// literals — `WouldCycle` returns `"delete_would_dangle"` and
-/// `DeleteWouldDangle` returns `"would_cycle"` — and this test is
+/// literals — `WouldCycle` returns `"duplicate_input"` and
+/// `DuplicateInput` returns `"would_cycle"` — and this test is
 /// perfectly green: the set of words the file speaks did not change,
 /// only which refusal says which. That failure is caught by the
 /// CONSTRUCTION pins (`readback_refusal_tags_are_stable` and its

@@ -66,10 +66,14 @@ fn plane_z(r: &mut Recorder, z: f64) -> RecipeNodeId {
 }
 
 fn part(r: &mut Recorder, of: RecipeNodeId, select: PartSelect<Formula>) -> RecipeNodeId {
-    r.insert(Node::Part {
-        of: of.into(),
-        select,
-    })
+    // A half reads its split's port; an instance reads the one output.
+    let of = match (&select, r.doc.node(of)) {
+        (PartSelect::SplitHalf(half), Some(Node::Split { .. })) => {
+            editor_core::Operand::output(of, half.port())
+        }
+        _ => of.into(),
+    };
+    r.insert(Node::Part { of, select })
 }
 
 fn half(h: SplitHalf) -> PartSelect<Formula> {
@@ -593,7 +597,7 @@ fn a4_every_refusal_is_typed() {
     assert!(
         matches!(
             &index_of_split,
-            Err(EditError::AmbiguousOutput { input, slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Of) })
+            Err(EditError::AmbiguousOutput { input, slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Of), .. })
                 if input.id() == split
         ),
         "{index_of_split:?}"

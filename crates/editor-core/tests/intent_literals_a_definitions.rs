@@ -357,7 +357,7 @@ fn a_respelled_definition_reruns_the_profile_whose_radius_reads_it() {
         let (doc, profile) = insert(
             doc,
             Node::Profile(ProfileProgram {
-                plane: plane.into(),
+                frame: plane.into(),
                 loops: vec![editor_core::LoopProgram::Circle {
                     centre: [len(0.0), len(0.0)],
                     radius,

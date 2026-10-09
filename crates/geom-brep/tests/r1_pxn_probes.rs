@@ -390,7 +390,7 @@ fn displacement_scan_finds_the_refusal_boundary_typed() {
                         "a displacement past ε certified: d={d:e} eps={eps:e}"
                     );
                 }
-                Err(PlaneNurbsRefusal::Limb { limb, value }) => {
+                Err(PlaneNurbsRefusal::Limb { limb, value, .. }) => {
                     smallest_refused = smallest_refused.min(d);
                     seen.note(&format!("{dir} limb refusal"));
                     println!("R1 scan {dir} d={d:e}: Limb {} = {value:e}", limb.name());

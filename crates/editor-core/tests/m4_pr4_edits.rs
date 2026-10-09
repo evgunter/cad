@@ -64,13 +64,16 @@ fn sited(node: RecipeNodeId) -> SitedRef {
     SitedRef::at_mint(cap(node))
 }
 
-/// Disjoint blocks A, B, C, D, plus a union `decl` of A and D whose
+/// Disjoint blocks A, B, C, D, plus a union `decl` of A, C and D whose
 /// declared pair names A's cap read at A and B's cap read at D.
 ///
-/// Every side is sited at a member and names a cap minted before the
-/// union — the rule every door that writes a pair asks. Neither B nor
-/// C is a member, so deleting either is allowed: a declared name is a
-/// reference, not a DAG edge. Whether D's table carries B's cap is the
+/// Every side is sited at a member and names a cap the union read when
+/// the pair was written — the rule every door that writes a pair asks
+/// (D10: a declaration names what its node reads). The union was
+/// inserted over A, B and D and its members then set to A, C and D: a
+/// re-point that reports B's cap out of reach and never refuses it. So
+/// B is no member, and deleting it is allowed: a declared name is a
+/// reference, not a read. Whether D's table carries B's cap is the
 /// evaluation's question (`Vanished`), not these doors'.
 struct Three {
     doc: ProfileDoc,
@@ -90,8 +93,15 @@ fn three() -> Three {
     let (doc, decl) = insert(
         doc,
         Node::Union {
-            members: vec![a.into(), d.into()],
+            members: vec![a.into(), b.into(), d.into()],
             declare: editor_core::declare_rest(vec![(sited(a), SitedRef::new(d, cap(b)))]),
+        },
+    );
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetMembers {
+            node: decl,
+            members: vec![a.into(), c.into(), d.into()],
         },
     );
     Three {

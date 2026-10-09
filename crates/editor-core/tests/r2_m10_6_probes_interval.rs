@@ -157,7 +157,7 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
     });
     let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
@@ -290,7 +290,7 @@ fn pins(d: f64, r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let plane = r_.insert(fixture::xy_frame());
     let mut pin = |cx: f64| {
         let profile = r_.insert(Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
                 radius: len(r),
@@ -387,7 +387,7 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     let plane = r.insert(fixture::xy_frame());
     let c_profile = r.insert(Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([
                 (0.0, 0.0),
@@ -413,7 +413,7 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         side: ExtrudeSide::Along,
     });
     let block_profile = r.insert(Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(2.2, 0.1), (2.8, 0.1), (2.8, 0.7), (2.2, 0.7)])
                 .expect("finite corners"),

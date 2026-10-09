@@ -137,7 +137,7 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
     let (doc, profile) = insert(
         &doc,
         Node::Profile(ProfileProgram {
-            plane: xy.into(),
+            frame: xy.into(),
             loops: vec![outer],
             ids: Vec::new(),
         }),
@@ -408,7 +408,7 @@ fn ball(doc: &editor_core::ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNod
     let (doc, p) = insert(
         &doc,
         Node::Profile(ProfileProgram {
-            plane: xy.into(),
+            frame: xy.into(),
             loops: vec![meridian],
             ids: Vec::new(),
         }),
@@ -472,7 +472,7 @@ fn cylinders(bore_r: f64, pin_r: f64, off: f64) -> (ProfileDoc, RecipeNodeId, Re
     let (doc, xy) = insert(&doc, fixture::xy_frame());
     let circle = |cx: f64, r: f64| {
         Node::Profile(ProfileProgram {
-            plane: xy.into(),
+            frame: xy.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
                 radius: len(r),
@@ -593,7 +593,7 @@ fn r1_skew_cylinder_axes_refuse_typed() {
     let (doc, p1) = insert(
         &doc,
         Node::Profile(ProfileProgram {
-            plane: xy.into(),
+            frame: xy.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(0.0), len(0.0)],
                 radius: len(0.3),
@@ -612,7 +612,7 @@ fn r1_skew_cylinder_axes_refuse_typed() {
     let (doc, p2) = insert(
         &doc,
         Node::Profile(ProfileProgram {
-            plane: yz.into(),
+            frame: yz.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(0.0), len(1.0)],
                 radius: len(0.2),
@@ -1096,7 +1096,7 @@ fn r1_own_document_web_and_flip() {
     let (doc, xy) = insert(&doc, fixture::xy_frame());
     let circle = |cx: f64| {
         Node::Profile(ProfileProgram {
-            plane: xy.into(),
+            frame: xy.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
                 radius: Formula::named(VarName::from_static("r"), Dimension::Length),
