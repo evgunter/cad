@@ -2,8 +2,9 @@
 //! runs over them: the vessel and the tube (a rectangular and an
 //! annular meridian, each revolved a full turn), the hollow box, the
 //! two-void box, the curved-mouth operands (a vessel under a spherical
-//! cap, a hemisphere or a cone; the D-section; a dome sector), and the
-//! readers that name a body's shells by the role the classifier decides.
+//! cap, a hemisphere or a cone, or over a cone; the D-section; a dome
+//! sector), and the readers that name a body's shells by the role the
+//! classifier decides.
 //!
 //! A shell row and its review twin are about THE SAME BODY only while
 //! both build it here ([`super::cavity`]'s rule): a fixture that moves
@@ -129,11 +130,47 @@ pub fn domed_vessel(r: f64, h: f64) -> Body<f64> {
     ]))
 }
 
+/// **The nearly domed vessel**: [`domed_vessel`] whose cap is a sphere
+/// of radius `r + gap`, so it meets the wall at `asin(r / (r + gap))`,
+/// short of tangent by `gap`. `declared` declares the joint tangent,
+/// which the profile accepts only while the crossing angle is within
+/// its tolerance. Returns the body, the sphere's radius and its centre
+/// height.
+pub fn nearly_domed_vessel(r: f64, h: f64, gap: f64, declared: bool) -> (Body<f64>, f64, f64) {
+    let rho = r + gap;
+    let polar = (r / rho).asin();
+    let rise = rho * (1.0 - polar.cos());
+    let meridian = bulge_loop(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(r, 0.0), 0.0),
+        (Point2::new(r, h), (polar / 4.0).tan()),
+        (Point2::new(0.0, h + rise), 0.0),
+    ]);
+    let meridian = if declared {
+        meridian.with_tangent_joints(vec![2])
+    } else {
+        meridian
+    };
+    (revolved_full(meridian), rho, h + rise - rho)
+}
+
 /// **The cone-tipped vessel**: a cylinder of radius `r` and height `h`
 /// under a cone of height `k` whose apex is on the axis.
 pub fn cone_tipped_vessel(r: f64, h: f64, k: f64) -> Body<f64> {
     revolved_about_y(
         corners(&[(0.0, 0.0), (r, 0.0), (r, h), (0.0, h + k)]),
+        Revolution::Full,
+        Tol::witness(),
+    )
+}
+
+/// **The funnel vessel**: [`cone_tipped_vessel`] stood on its tip — a
+/// cone of height `k` whose apex is on the axis at the origin, under a
+/// cylinder of radius `r` and height `h`. Its cone face lies on the
+/// opening nappe, where the tip's lies on the mirror one.
+pub fn funnel_vessel(r: f64, h: f64, k: f64) -> Body<f64> {
+    revolved_about_y(
+        corners(&[(0.0, 0.0), (r, k), (r, k + h), (0.0, k + h)]),
         Revolution::Full,
         Tol::witness(),
     )

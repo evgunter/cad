@@ -258,7 +258,11 @@ pub(super) struct SubdivisionFrame<T> {
 /// hand it: `residual`, the surface's residual (metres) at a carrier
 /// parameter carried with a running bound on its own rounding, and
 /// `f_per_metre_hi`, a CEILING on `|F| / |residual|` near the surface
-/// (where a root the band reads ON it lies).
+/// (where a root the band reads ON it lies). A caller may instead read
+/// `F` itself (in `F`'s units, the circle × torus door's quartic in m⁴)
+/// and pass a ceiling of `1`: the reading then bounds the true `|F|` at
+/// the root directly, and every "metres of residual" below reads as
+/// `F`'s units.
 ///
 /// A root located on its monotone piece is off the true one by at most
 /// `|residual(θ)| + error` metres of residual — the reading's own

@@ -548,6 +548,14 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
             bearing(70.0, 0.5, 0.1),
             bearing(45.0, 0.3, 0.15),
         ]);
+        // A pyramid with an edge opposite the saddle's valley at 90°,
+        // on the planes of the two faces beside that valley, outside
+        // their sectors, and its other two edges under the saddle.
+        let along_unread = pyr([
+            bearing(270.0, 0.5, 0.2),
+            bearing(250.0, 0.5, -0.5),
+            bearing(290.0, 0.5, -0.5),
+        ]);
         let mut scenes = vec![
             ("the arches", pick(&cone), (&arches_b, &arches)),
             ("one standing pyramid", pick(&cone), (&one_b, &one)),
@@ -708,6 +716,16 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
             (
                 "in an arch over a saddle",
                 pick(&in_hollow),
+                (&arch_saddle_b, &arch_saddle),
+            ),
+            (
+                "opposite a saddle's valley",
+                pick(&along_unread),
+                (&saddle_b, &saddle),
+            ),
+            (
+                "opposite a saddle's valley beside an arch",
+                pick(&along_unread),
                 (&arch_saddle_b, &arch_saddle),
             ),
         ];
