@@ -17,7 +17,7 @@ use crate::{ArcData, ArcSide, ProfileLoop, Step, Target, TipState, Verb};
 /// (either sign) is a line; any other bulge is an arc, finite or not,
 /// and [`crate::Profile::validate`] decides what the table is.
 pub fn bulge_loop<T: Real>(chain: Vec<(Point2<T>, T)>) -> ProfileLoop<T> {
-    ProfileLoop::from_chain(crate::lower_chain(&chain), Vec::new())
+    ProfileLoop::from_chain(crate::lower_chain(&chain))
 }
 
 /// **Every tip state some verb has a row at, plus `Closed`** (which

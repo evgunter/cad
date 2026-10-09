@@ -28,26 +28,26 @@
 //!    ε of the other segment (`circle_side` or `chord_side`, then its
 //!    span): the carriers stay within ε for ≈ √(2rε) about a tangency,
 //!    and for ≈ ε/sin φ about a crossing at angle φ.
-//! 4. **Declared tangency** (the #101 discipline) — every *joint*
+//! 4. **Tangent joints** (D1's profile tangency) — every *joint*
 //!    (adjacent-segment junction at its shared vertex) is classified by
 //!    the same carrier predicates the simplicity pass uses — the
 //!    carrier clearance margins (`carrier_line_circle`, the
 //!    `carrier_circles_*` family) are bit-identical expressions;
 //!    line/line joints reuse `chord_side` in the same expression form
 //!    on the joint's far endpoint (a carrier-identity question — no
-//!    new ε anywhere) — and reconciled with the loop's declared
-//!    [`crate::ProfileLoop::tangent_joints`]: definite tangency between
-//!    distinct carriers undeclared ⇒
-//!    [`ProfileError::UndeclaredTangency`]; a declaration that is
-//!    definitely not a tangency (a TRANSVERSAL joint) ⇒
-//!    [`ProfileError::TangencyContradicted`] (declared tangency is
-//!    verified, never trusted). A declaration on a joint whose two
-//!    segments continue on ONE carrier is honoured — identity is a fact
-//!    about carriers, tangency a fact about directions, and this check
-//!    reads the directions (Ev, in-chat, 2026-09-02; the
-//!    `same_carrier` arm that used to refuse it is retired). In-band
-//!    near-tangency escalates from the simplicity pass as it always
-//!    did; the refusal text carries the declare-or-move repair menu.
+//!    new ε anywhere). A joint classified Zero, tangent carriers or one
+//!    carrier continuing, is a tangent joint: identity is a fact about
+//!    carriers, tangency a fact about directions, and the directions
+//!    agree there (Ev, in-chat, 2026-09-02). The tangent-joint set is
+//!    derived here ([`ValidatedLoop::tangent_joints`]), from the
+//!    joints a [`ConstructedLoop`]'s constructors made and these
+//!    verdicts. A constructed joint the carriers definitely cross ⇒
+//!    [`ProfileError::TangencyContradicted`] (a construction is
+//!    verified, never trusted); a Zero joint no constructor made is
+//!    recorded as a tangency decided from values
+//!    ([`ValidatedLoop::decided_joints`]), for the
+//!    `unproven-coincidence` lint. In-band near-tangency escalates from
+//!    the simplicity pass as it always did.
 //! 5. **Containment forest** — trilean point-in-loop by ray parity
 //!    (rays through arc segments included); a grazing ray is refused and
 //!    the next candidate ray tried deterministically (Mäntylä ch. 13's
@@ -60,9 +60,8 @@
 //!
 //! `validate` is the data checker for MATERIALIZED loops. A
 //! [`crate::ProfileLoop`] is a cache — the form an intensional recipe
-//! evaluates into — and every field of it, `tangent_joints` included,
-//! arrives here as data whose author this gate does not know and does
-//! not ask about.
+//! evaluates into — and every field of it arrives here as data whose
+//! author this gate does not know and does not ask about.
 //!
 //! The [`crate::path`] lattice asks a different question. It checks
 //! AUTHORING: a declaration against the data being authored, at the
@@ -72,15 +71,17 @@
 //! They were answering different questions, and the authoring door was
 //! missing a spelling. It has it now (the continuation verbs), so a
 //! lattice-authored subdivided run reaches this gate with its zero-turn
-//! joints declared while a raw-authored one reaches it undeclared, and
-//! **both are accepted**. That is what "the two doors agree" means: not
+//! joints constructed while a raw-authored one reaches it with none, and
+//! **both are accepted**: the first's joints are verified, the
+//! second's decided and recorded. That is what "the two doors agree" means: not
 //! one rule with two answers, but two questions, each answered where it
 //! is asked.
 //!
 //! What that costs, stated: nothing here can tell a hand-written table
 //! from an emitted one that gave up its provenance, so nothing here
-//! enforces the lattice's rules — the one thing a [`ConstructedProfile`]
-//! carries is that its arcs were verified at their construction. It is
+//! enforces the lattice's rules — what a [`ConstructedProfile`]
+//! carries is that its arcs were verified at their construction, and
+//! which joints its constructors made tangent. It is
 //! not meant to. The enforcement is upstream, at the doors, and
 //! [`crate::ProfileLoop`]'s own docs are the one home for what those
 //! are — this gate re-checks whatever comes through them anyway.
@@ -413,7 +414,7 @@ impl fmt::Display for NoCornerReason {
 /// named only the first would be false at the second:
 ///
 /// - **the angle is degenerate**: the legs run smoothly into each other
-///   (recourse: declare the tangency) or reverse into a cusp (which the
+///   (recourse: construct the tangency) or reverse into a cusp (which the
 ///   kernel refuses; #131 is the tabled front door), and which of the
 ///   two is itself below the tolerance;
 /// - **the angle is real and the LEG is short**: a leg whose extent is a
@@ -439,7 +440,7 @@ impl fmt::Display for NoCornerReason {
      `test-support`; interior in every other build"
     )
 )]
-pub const FILLET_TURN_INBAND_RECOURSE: &str = "if the legs run smoothly into each other, declare the tangency (tangent_joints); \
+pub const FILLET_TURN_INBAND_RECOURSE: &str = "if the legs run smoothly into each other, construct the tangency (.tangent()); \
      if they double back, the cusp is refused; if the angle is real, give the shorter \
      leg a longer extent; otherwise move the geometry";
 
@@ -1064,43 +1065,26 @@ pub enum ProfileError {
         /// The other.
         second: SegmentRef,
     },
-    /// A declared-tangent joint index ([`crate::ProfileLoop::tangent_joints`])
-    /// is not a vertex index of its loop.
+    /// A constructed tangent joint
+    /// ([`ConstructedLoop::constructed_joints`]) is not a vertex index of
+    /// its loop.
     TangentJointOutOfRange {
         /// Index of the offending loop.
         loop_index: usize,
-        /// The declared (out-of-range) joint index.
+        /// The constructed (out-of-range) joint index.
         joint: usize,
         /// The loop's vertex count.
         count: usize,
     },
-    /// A one-segment loop (D1's full turn) declares its vertex a
-    /// tangent joint. Its vertex joins the carrier to itself, not two
-    /// segments, so there is no joint to declare.
+    /// A one-segment loop (D1's full turn) has its vertex among its
+    /// constructed tangent joints. Its vertex joins the carrier to
+    /// itself, not two segments, so there is no joint to construct.
     TangentJointOnFullTurn {
         /// Index of the offending loop.
         loop_index: usize,
     },
-    /// Adjacent segments meet tangentially at their shared vertex —
-    /// the joint's distinct carriers are in definite first-order
-    /// contact — but the joint is not declared tangent. Tangency that
-    /// numerically happens-to-hold is refused (the boolean door's
-    /// UndeclaredCoincidence, lifted to the profile door): declare the
-    /// intent or move the geometry.
-    UndeclaredTangency {
-        /// The segment arriving at the joint.
-        first: SegmentRef,
-        /// The segment leaving the joint.
-        second: SegmentRef,
-        /// The joint's vertex index (input chain of `first`'s loop) —
-        /// the index a declaration must name.
-        joint: usize,
-        /// The repair menu, rendered once at detection.
-        suggestion: String,
-    },
-    /// A joint declared tangent is definitely not: the flag is
-    /// verified, never trusted (the profile analogue of the boolean
-    /// door's DeclarationContradicted).
+    /// A joint a constructor made tangent is definitely not: a
+    /// construction is verified, never trusted.
     TangencyContradicted {
         /// The segment arriving at the joint.
         first: SegmentRef,
@@ -1210,25 +1194,13 @@ impl fmt::Display for ProfileError {
                 count,
             } => write!(
                 f,
-                "loop {loop_index} declares a tangent joint at vertex {joint}, but the \
-                 loop has only {count} vertices"
+                "loop {loop_index} has a constructed tangent joint at vertex {joint}, but \
+                 the loop has only {count} vertices"
             ),
             Self::TangentJointOnFullTurn { loop_index } => write!(
                 f,
-                "loop {loop_index} is one full-turn arc and declares a tangent joint at its \
-                 vertex, which joins the arc to itself rather than two segments. Recourse: \
-                 drop the declaration"
-            ),
-            Self::UndeclaredTangency {
-                first,
-                second,
-                joint,
-                suggestion,
-            } => write!(
-                f,
-                "{first} and {second} meet tangentially at their shared vertex \
-                 (joint {joint}) without a declaration — tangency is declared intent, \
-                 never a numerical accident; {suggestion}"
+                "loop {loop_index} is one full-turn arc with a constructed tangent joint at \
+                 its vertex, which joins the arc to itself rather than two segments"
             ),
             Self::TangencyContradicted {
                 first,
@@ -1236,10 +1208,10 @@ impl fmt::Display for ProfileError {
                 joint,
             } => write!(
                 f,
-                "joint {joint} between {first} and {second} is declared tangent, but the \
-                 carriers definitely meet transversally — remove the declaration or make \
-                 the tangency exact (the PATHS .fillet(r) door computes it); declared \
-                 tangency is verified, never trusted"
+                "joint {joint} between {first} and {second} was constructed tangent, but \
+                 the carriers definitely meet transversally — author the corner sharp or \
+                 make the tangency exact (the PATHS .fillet(r) door computes it); a \
+                 constructed tangency is verified, never trusted"
             ),
             Self::SliverLoop { loop_index } => write!(
                 f,
@@ -1418,7 +1390,33 @@ pub struct ValidatedLoop<T: Real> {
     segments: Vec<ValidatedSegment<T>>,
     tangent_joints: Vec<usize>,
     cusp_joints: Vec<usize>,
+    decided_joints: Vec<DecidedJoint>,
     role: LoopRole,
+}
+
+/// **A tangent joint no constructor made**: validation decided it from
+/// its carriers' values, and records it for the `unproven-coincidence`
+/// lint (D1, D10). It holds at the current values; whether it holds
+/// across the family is the coincidence door's question, not this
+/// crate's.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DecidedJoint {
+    /// The joint, as a canonical vertex index: the junction between
+    /// canonical segment (joint − 1 mod n) and segment joint.
+    pub joint: usize,
+    /// What the carriers do there.
+    pub carriers: JointCarriers,
+    /// The Zero margin the joint was decided on.
+    pub margin: MarginDiag,
+}
+
+/// What a decided tangent joint's two carriers do at it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum JointCarriers {
+    /// Two distinct carriers in first-order contact.
+    Tangent,
+    /// One carrier continuing through the joint.
+    Same,
 }
 
 impl<T: Real> ValidatedLoop<T> {
@@ -1445,34 +1443,42 @@ impl<T: Real> ValidatedLoop<T> {
         is_full_turn(&self.segments)
     }
 
-    /// The declared (and verified — validation refuses otherwise)
-    /// tangent joints, as **canonical** vertex indices: joint v is the
-    /// junction between segment (v − 1 mod n) and segment v. Sorted
-    /// ascending, deduplicated.
+    /// **The tangent joints**, derived here and never stored, as
+    /// **canonical** vertex indices: joint v is the junction between
+    /// segment (v − 1 mod n) and segment v. Every joint whose two
+    /// segments leave it along one line: each a constructor made
+    /// (verified — validation refuses otherwise), and each validation
+    /// decided Zero from its carriers ([`Self::decided_joints`]).
+    /// Sorted ascending, deduplicated.
     pub fn tangent_joints(&self) -> &[usize] {
         &self.tangent_joints
     }
 
-    /// **The declared joints that are CUSPS**: the subset of
+    /// **The tangent joints no constructor made**, each decided Zero
+    /// from its carriers' values ([`DecidedJoint`]), ascending by
+    /// joint: the subset of [`Self::tangent_joints`] that is a
+    /// coincidence recorded rather than a construction verified.
+    pub fn decided_joints(&self) -> &[DecidedJoint] {
+        &self.decided_joints
+    }
+
+    /// **The tangent joints that are CUSPS**: the subset of
     /// [`Self::tangent_joints`], canonical and ascending, at which the
     /// leaving segment departs along the arriving one's heading
     /// REVERSED — the `.cusp()` door's joint, or a raw-authored joint
-    /// of the same shape. The rest of the declared joints continue the
+    /// of the same shape. The rest of the tangent joints continue the
     /// heading (a smooth, G1 joint).
     ///
-    /// The declaration does not say which, so validation decides it,
-    /// once per declared joint, with the question the path door asks
-    /// of the same junction (`path_junction_side`). A swept wall pair
-    /// meeting at a cusp joint subtends material wedge 0 (2π on a hole
-    /// loop), which the at-rest gate holds legal only where the pair is
-    /// declared in `Tangent` contact — the record the sweep verbs carry
-    /// out of exactly this set.
+    /// Validation decides which, once per tangent joint, with the
+    /// question the path door asks of the same junction
+    /// (`path_junction_side`). A swept wall pair meeting at a cusp
+    /// joint subtends material wedge 0 (2π on a hole loop).
     pub fn cusp_joints(&self) -> &[usize] {
         &self.cusp_joints
     }
 
     /// **Which segment is the fillet at corner k?** — every arc
-    /// segment this loop declares TANGENT at both of its junctions, in
+    /// segment TANGENT at both of its junctions, in
     /// CANONICAL segment order.
     ///
     /// **Authored order is not always preserved, and entry `k` is not
@@ -1485,11 +1491,10 @@ impl<T: Real> ValidatedLoop<T> {
     /// self-identifying; do not index by authoring position.
     ///
     /// A corner fillet leaves exactly this shape behind: an arc that
-    /// CONTINUES both legs' headings, with both junctions declared (and
-    /// verified — validation refuses an unmet declaration). A declared
-    /// joint that reverses the heading is a cusp, not a continuation, so
-    /// an arc with a cusp at either end (an arbelos's small arcs) is not
-    /// listed. So the answer is STRUCTURAL — it reads
+    /// CONTINUES both legs' headings, with both junctions tangent. A
+    /// tangent joint that reverses the heading is a cusp, not a
+    /// continuation, so an arc with a cusp at either end (an arbelos's
+    /// small arcs) is not listed. So the answer is STRUCTURAL — it reads
     /// [`ValidatedLoop::tangent_joints`] less
     /// [`ValidatedLoop::cusp_joints`], decides nothing, and compares no
     /// floats. That is what makes it
@@ -1577,6 +1582,7 @@ impl ValidatedLoop<f64> {
             segments: self.segments.into_iter().map(|s| s.lift()).collect(),
             tangent_joints: self.tangent_joints,
             cusp_joints: self.cusp_joints,
+            decided_joints: self.decided_joints,
             role: self.role,
         }
     }
@@ -1767,9 +1773,28 @@ impl<T: Decide> Profile<T> {
     }
 }
 
+/// A loop as validation reads it: the table, and the joints its
+/// constructors made tangent — none for a table, whatever built it.
+trait LoopInput<T: Real>: Borrow<ProfileLoop<T>> {
+    /// The joints the loop's constructors made tangent.
+    fn constructed_joints(&self) -> &[usize];
+}
+
+impl<T: Real> LoopInput<T> for ProfileLoop<T> {
+    fn constructed_joints(&self) -> &[usize] {
+        &[]
+    }
+}
+
+impl<T: Real> LoopInput<T> for ConstructedLoop<T> {
+    fn constructed_joints(&self) -> &[usize] {
+        ConstructedLoop::constructed_joints(self)
+    }
+}
+
 /// [`validate_loops`] keeping the structure record it built
 /// ([`Profile::validate_recording`]).
-fn recording_loops<T: Decide, L: Borrow<ProfileLoop<T>>>(
+fn recording_loops<T: Decide, L: LoopInput<T>>(
     plane: SketchPlane<T>,
     loops_in: &[L],
     tol: Tol,
@@ -1786,7 +1811,7 @@ fn recording_loops<T: Decide, L: Borrow<ProfileLoop<T>>>(
 /// The validation of `loops` on `plane` ([`Profile::validate`]'s body),
 /// over any loop that reads as a [`ProfileLoop`]: a table, or a
 /// [`ConstructedLoop`] whose provenance its caller carries.
-fn validate_loops<T: Decide, L: Borrow<ProfileLoop<T>>>(
+fn validate_loops<T: Decide, L: LoopInput<T>>(
     plane: SketchPlane<T>,
     loops_in: &[L],
     tol: Tol,
@@ -1806,21 +1831,22 @@ fn validate_loops<T: Decide, L: Borrow<ProfileLoop<T>>>(
         // 1 + 2: arity, then per-segment degeneracy + kind
         // classification.
         let mut loop_segs: Vec<Vec<Seg<T>>> = Vec::with_capacity(loops_in.len());
-        for (li, lp) in loops_in.iter().map(Borrow::borrow).enumerate() {
+        for (li, input) in loops_in.iter().enumerate() {
+            let lp: &ProfileLoop<T> = input.borrow();
             loop_segs.push(build_loop_segs(lp, li, consistency, band)?);
-            // Declared-tangent joints must name vertices of their loop
-            // (set semantics — duplicates are harmless, order is not
-            // significant; see `ProfileLoop::tangent_joints`). Checked
-            // after the loop's structural pass so arity/degeneracy
-            // refusals keep their established precedence.
-            if let Some(&joint) = lp.tangent_joints.iter().find(|&&j| j >= lp.vertices.len()) {
+            // Constructed joints must name vertices of their loop.
+            // Checked after the loop's structural pass so
+            // arity/degeneracy refusals keep their established
+            // precedence.
+            let constructed = input.constructed_joints();
+            if let Some(&joint) = constructed.iter().find(|&&j| j >= lp.vertices.len()) {
                 return Err(ProfileError::TangentJointOutOfRange {
                     loop_index: li,
                     joint,
                     count: lp.vertices.len(),
                 });
             }
-            if is_full_turn(&lp.segments) && !lp.tangent_joints.is_empty() {
+            if is_full_turn(&lp.segments) && !constructed.is_empty() {
                 return Err(ProfileError::TangentJointOnFullTurn { loop_index: li });
             }
         }
@@ -1842,18 +1868,21 @@ fn validate_loops<T: Decide, L: Borrow<ProfileLoop<T>>>(
             }
         }
 
-        // 3b: the declared-tangency discipline (#101) — classify every
-        // joint (adjacent-segment junction) and reconcile with the
-        // loop's declarations. Runs after simplicity so in-band
-        // near-tangency escalates from the pair classification exactly
-        // as before this arm existed. Definite-Zero tangency between
-        // distinct carriers must be declared; a declaration must be
-        // definite-Zero tangency (verified, never trusted). Each
-        // declared joint's heading is decided here too: which of them
+        // 3b: the tangent joints — classify every joint
+        // (adjacent-segment junction), verify the constructed ones and
+        // record the ones decided Zero that no constructor made. Runs
+        // after simplicity so in-band near-tangency escalates from the
+        // pair classification exactly as before this arm existed. Each
+        // tangent joint's heading is decided here too: which of them
         // are cusps (INPUT indices; canonicalization remaps them).
-        let mut input_cusps: Vec<Vec<usize>> = Vec::with_capacity(loops_in.len());
-        for (li, lp) in loops_in.iter().map(Borrow::borrow).enumerate() {
-            input_cusps.push(judge_joints(lp, &loop_segs[li], li, band)?);
+        let mut input_joints: Vec<JointVerdicts> = Vec::with_capacity(loops_in.len());
+        for (li, input) in loops_in.iter().enumerate() {
+            input_joints.push(judge_joints(
+                input.constructed_joints(),
+                &loop_segs[li],
+                li,
+                band,
+            )?);
         }
 
         // Representative point per loop: the lexicographic minimum
@@ -1976,7 +2005,7 @@ fn validate_loops<T: Decide, L: Borrow<ProfileLoop<T>>>(
             let (validated, shapes) = canonicalize_loop(
                 lp,
                 &loop_segs[li],
-                &input_cusps[li],
+                &input_joints[li],
                 role,
                 li,
                 consistency,
@@ -2314,39 +2343,69 @@ fn judge_pair<T: Decide, L: Borrow<ProfileLoop<T>>>(
     Ok(())
 }
 
-/// The per-loop joint pass of the declared-tangency discipline: joint
-/// v is the junction between segment (v − 1 mod n) (arriving) and
-/// segment v (leaving) at vertex v. Each joint is classified by
+/// **A table's tangent joints**, in its own vertex indices, ascending:
+/// what validation derives for a loop no constructor built — every
+/// joint its carriers' verdicts decide Zero. Only the per-segment and
+/// joint passes run, so a loop that passes here may still refuse
+/// [`Profile::validate`]'s other checks.
+pub(crate) fn table_tangent_joints<T: Decide>(
+    lp: &ProfileLoop<T>,
+    tol: Tol,
+) -> Result<Vec<usize>, ProfileError> {
+    let band = Band::linear(tol).map_err(ProfileError::Band)?;
+    let segs = build_loop_segs(lp, 0, Consistency::Decide, band)?;
+    Ok(judge_joints(&[], &segs, 0, band)?.tangent)
+}
+
+/// One loop's joint verdicts, in INPUT indices, ascending
+/// ([`judge_joints`]); canonicalization remaps them.
+struct JointVerdicts {
+    /// Every tangent joint, constructed or decided.
+    tangent: Vec<usize>,
+    /// The tangent joints that reverse the heading.
+    cusps: Vec<usize>,
+    /// The tangent joints no constructor made, each with its verdict.
+    decided: Vec<DecidedJoint>,
+}
+
+/// The per-loop joint pass of D1's profile tangency: joint v is the
+/// junction between segment (v − 1 mod n) (arriving) and segment v
+/// (leaving) at vertex v. Each joint is classified by
 /// [`seg::joint_tangency`] (module docs list the reused carrier
-/// predicates) and reconciled with the loop's declarations:
+/// predicates):
 ///
-/// - `Tangent` undeclared ⇒ [`ProfileError::UndeclaredTangency`];
-/// - `Transversal` declared ⇒ [`ProfileError::TangencyContradicted`] (a
-///   declaration is verified, never trusted);
-/// - `SameCarrier` declared ⇒ **accepted**. Every zero-turn joint is a
-///   declared tangent joint (Ev, in-chat, 2026-09-02): identity is a
-///   fact about the carriers, tangency a fact about the directions, and
-///   the directions agree here. The arm that used to refuse it is
-///   retired — see the match below, which is the normative statement;
+/// - `Transversal` and constructed ⇒
+///   [`ProfileError::TangencyContradicted`] (a construction is
+///   verified, never trusted);
+/// - `Tangent` or `SameCarrier` ⇒ a **tangent joint**, constructed or
+///   not: every zero-turn joint is a tangent joint (Ev, in-chat,
+///   2026-09-02), identity being a fact about the carriers and
+///   tangency a fact about the directions, which agree here. One no
+///   constructor made is decided from values and recorded
+///   ([`DecidedJoint`]);
 /// - in-band / poisoned ⇒ [`ProfileError::Escalated`] at the pair site.
 ///
-/// Every declared joint that passes is then asked which way it departs
+/// Every tangent joint is then asked which way it departs
 /// ([`seg::junction_reverses`], `path_junction_side` — the question the
-/// path door asks of the same junction): the returned joints, ascending
-/// INPUT indices, are the ones that reverse the heading — the cusps.
+/// path door asks of the same junction): the ones that reverse the
+/// heading are the cusps.
 fn judge_joints<T: Decide>(
-    lp: &ProfileLoop<T>,
+    constructed: &[usize],
     segs: &[Seg<T>],
     loop_index: usize,
     band: Band,
-) -> Result<Vec<usize>, ProfileError> {
+) -> Result<JointVerdicts, ProfileError> {
     let n = segs.len();
-    let mut cusps = Vec::new();
+    let mut verdicts = JointVerdicts {
+        tangent: Vec::new(),
+        cusps: Vec::new(),
+        decided: Vec::new(),
+    };
     if is_full_turn(segs) {
         // A full turn has no joint: its vertex is its carrier
-        // continuing into itself, and a declaration there was refused
-        // with the loop's segments.
-        return Ok(cusps);
+        // continuing into itself, and a constructed joint there was
+        // refused with the loop's segments.
+        return Ok(verdicts);
     }
     for joint in 0..n {
         let prev = (joint + n - 1) % n;
@@ -2358,59 +2417,44 @@ fn judge_joints<T: Decide>(
             loop_index,
             segment_index: joint,
         };
-        let declared = lp.tangent_joints.contains(&joint);
-        let class = seg::joint_tangency(&segs[prev], &segs[joint], band)
-            .map_err(|source| ProfileError::Escalated {
-                site: EscalationSite::SegmentPair(first, second),
-                source,
-            })?
-            .class;
-        match (class, declared) {
-            (seg::JointClass::Tangent, false) => {
-                return Err(ProfileError::UndeclaredTangency {
-                    first,
-                    second,
-                    joint,
-                    suggestion: format!(
-                        "{COINCIDENCE_RECOURSE} (declare: add {joint} to loop \
-                         {loop_index}'s tangent_joints, or author the corner with the \
-                         PATHS .fillet(r) door, which declares by construction)"
-                    ),
-                });
-            }
-            (seg::JointClass::Transversal, true) => {
+        let escalated = |source| ProfileError::Escalated {
+            site: EscalationSite::SegmentPair(first, second),
+            source,
+        };
+        let reading = seg::joint_tangency(&segs[prev], &segs[joint], band).map_err(escalated)?;
+        let carriers = match reading.class {
+            seg::JointClass::Transversal if constructed.contains(&joint) => {
                 return Err(ProfileError::TangencyContradicted {
                     first,
                     second,
                     joint,
                 });
             }
-            // A declared joint whose two segments continue on ONE
-            // carrier is a declared TANGENT JOINT and nothing else
-            // (Ev, in-chat, 2026-09-02: every zero-turn joint is a
-            // declared tangent joint). The `same_carrier` arm that used
-            // to refuse it is retired: identity is a fact about the
-            // carriers, tangency is a fact about the directions, and the
-            // directions agree here.
-            (seg::JointClass::SameCarrier, true) | (seg::JointClass::Tangent, true) => {
-                let (arriving, leaving) = (&segs[prev], &segs[joint]);
-                if seg::junction_reverses(
-                    arriving.heading_at(arriving.b),
-                    leaving.heading_at(leaving.a),
-                    arriving.arm(),
-                    band,
-                )
-                .map_err(|source| ProfileError::Escalated {
-                    site: EscalationSite::SegmentPair(first, second),
-                    source,
-                })? {
-                    cusps.push(joint);
-                }
-            }
-            (seg::JointClass::Transversal | seg::JointClass::SameCarrier, false) => {}
+            seg::JointClass::Transversal => continue,
+            seg::JointClass::Tangent => JointCarriers::Tangent,
+            seg::JointClass::SameCarrier => JointCarriers::Same,
+        };
+        verdicts.tangent.push(joint);
+        if !constructed.contains(&joint) {
+            verdicts.decided.push(DecidedJoint {
+                joint,
+                carriers,
+                margin: reading.diag,
+            });
+        }
+        let (arriving, leaving) = (&segs[prev], &segs[joint]);
+        if seg::junction_reverses(
+            arriving.heading_at(arriving.b),
+            leaving.heading_at(leaving.a),
+            arriving.arm(),
+            band,
+        )
+        .map_err(escalated)?
+        {
+            verdicts.cusps.push(joint);
         }
     }
-    Ok(cusps)
+    Ok(verdicts)
 }
 
 /// Ray-parity containment of point `p` in the loop with segments
@@ -2500,7 +2544,7 @@ fn lex_min_index<T: Decide>(
 fn canonicalize_loop<T: Decide>(
     lp: &ProfileLoop<T>,
     segs: &[Seg<T>],
-    input_cusps: &[usize],
+    joints: &JointVerdicts,
     role: LoopRole,
     loop_index: usize,
     consistency: Consistency,
@@ -2533,22 +2577,35 @@ fn canonicalize_loop<T: Decide>(
     let chain = if reversed { lp.reversed() } else { lp.clone() };
     let n = chain.vertices.len();
     let (vertices, stored) = (chain.vertices, chain.segments);
-    // Declared joints: reversal already remapped them in `reversed()`,
-    // and indices are in range — validated at entry. Sorted +
-    // deduplicated: canonical.
-    let mut tangent_joints: Vec<usize> = chain.tangent_joints;
-    tangent_joints.sort_unstable();
-    tangent_joints.dedup();
-    // The cusps `judge_joints` decided on the INPUT chain, carried to
-    // the canonical one by the same reindexing `reversed()` applies to
-    // the declarations (joint j ↦ (n − j) mod n). Whether a joint
-    // reverses its heading is itself reversal-invariant — reversing the
-    // chain negates both headings — so nothing is re-decided.
-    let mut cusp_joints: Vec<usize> = input_cusps
+    // The joints `judge_joints` decided on the INPUT chain, carried to
+    // the canonical one by the reindexing `reversed()` applies (joint
+    // j ↦ (n − j) mod n). Whether a joint is tangent, and whether it
+    // reverses its heading, are reversal-invariant — reversing the
+    // chain negates both headings — so nothing is re-decided. Sorted:
+    // canonical.
+    let canonical = |j: usize| {
+        if reversed {
+            crate::reversed_joint(j, n)
+        } else {
+            j
+        }
+    };
+    let canonical_set = |input: &[usize]| {
+        let mut set: Vec<usize> = input.iter().map(|&j| canonical(j)).collect();
+        set.sort_unstable();
+        set
+    };
+    let tangent_joints = canonical_set(&joints.tangent);
+    let cusp_joints = canonical_set(&joints.cusps);
+    let mut decided_joints: Vec<DecidedJoint> = joints
+        .decided
         .iter()
-        .map(|&j| if reversed { (n - j) % n } else { j })
+        .map(|d| DecidedJoint {
+            joint: canonical(d.joint),
+            ..*d
+        })
         .collect();
-    cusp_joints.sort_unstable();
+    decided_joints.sort_unstable_by_key(|d| d.joint);
 
     // Re-derive classified segments on the canonical chain. The
     // classifications are reversal/rotation-symmetric (distances are
@@ -2645,6 +2702,7 @@ fn canonicalize_loop<T: Decide>(
             segments,
             tangent_joints,
             cusp_joints,
+            decided_joints,
             role,
         },
         LoopPermutation {

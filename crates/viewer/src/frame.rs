@@ -2324,6 +2324,9 @@ fn coincidence_cells(finding: &CheckFinding, by: Speaker<'_>) -> Vec<(String, Se
                 (by.name(name).to_string(), select)
             }
             NamedCell::Tool { input } => (by.node(*input).to_string(), Selection::Node(*input)),
+            NamedCell::Piece { profile, .. } => {
+                (by.node(*profile).to_string(), Selection::Node(*profile))
+            }
         })
         .collect()
 }

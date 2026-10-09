@@ -166,7 +166,7 @@
 //!     .fillet(r, tol)?.at(Point2::new(-1.0, 0.0), tol)?.angle(south, tol)?
 //!     .fillet(r, tol)?.to(Start, tol)?;
 //! assert_eq!(square.loop_.vertices().len(), 8);
-//! assert_eq!(square.loop_.tangent_joints().len(), 8);
+//! assert_eq!(square.loop_.constructed_joints().len(), 8);
 //! // The chain also RECORDED itself: the program replays to the same
 //! // loop, bit for bit (profiles-as-programs v2 — see [`program`]).
 //! assert_eq!(square.program.len(), 13);
@@ -2361,6 +2361,8 @@ pub struct Core<T: Real> {
     /// leaving it, `None` for a line (and for the chain's last vertex
     /// until its segment is set).
     verts: Vec<(Point2<T>, Option<BuiltArc<T>>)>,
+    /// The joints the chain's constructors made tangent
+    /// ([`ConstructedLoop::constructed_joints`]).
     tangent: Vec<usize>,
     start_pos: Option<Point2<T>>,
     start_ang: Option<Dir<T>>,
@@ -2759,11 +2761,14 @@ impl<T: Real> Core<T> {
         let structure = self.take_structure();
         let structure = structure.into_record(spans, radii, pieces);
         structure.check_role_lists(&self.program);
+        let mut joints = core::mem::take(&mut self.tangent);
+        joints.sort_unstable();
+        joints.dedup();
         ClosedLoop {
-            loop_: ConstructedLoop(ProfileLoop::from_chain(
-                self.stored_chain(Some(tol)),
-                self.tangent,
-            )),
+            loop_: ConstructedLoop {
+                loop_: ProfileLoop::from_chain(self.stored_chain(Some(tol))),
+                joints,
+            },
             program: self.program,
             structure,
         }
@@ -3068,9 +3073,7 @@ fn junction_check<T: Decide>(
 /// declared tangent joint** (Ev, in-chat, 2026-09-02): whether the
 /// seam's two sides ride one carrier or two, a declared zero-turn joint
 /// is tangent, so there is nothing here to ask about carriers and
-/// nothing to sort. What the data gate still owns is the UNDECLARED
-/// case in a materialized loop
-/// ([`crate::ProfileError::UndeclaredTangency`]).
+/// nothing to sort.
 ///
 /// The datum is `sin` of the turn — dimensionless — so comparing it
 /// against a LENGTH tolerance is a category error until an arm says
@@ -3415,11 +3418,12 @@ impl<T: Decide> Core<T> {
     /// form that stopped being the arc the resolver computed is read
     /// at that joint even where the outgoing one is skipped.
     ///
-    /// What an undeclared joint CAN do is come back `Tangent` and draw
-    /// `UndeclaredTangency` from validation; that is a claim about the
-    /// declaration set rather than about the stored form, it is the
-    /// same at every scalar and tolerance, and `rejections.rs` is where
-    /// it is refused. The skip below is that boundary, not an oversight.
+    /// What an undeclared joint CAN do is come back `Tangent` at
+    /// validation, which records it as a tangency decided from values;
+    /// that is a fact about the stored form's carriers rather than a
+    /// disagreement with a construction, so it is validation's and not
+    /// this reading's. The skip below is that boundary, not an
+    /// oversight.
     fn fillets_carry_their_tangency(&self, tol: Tol) -> Result<(), PathError<T>> {
         let band = linear_band(tol)?;
         let n = self.verts.len();
@@ -4177,7 +4181,7 @@ fn circle_loop<T: Real>(
             (start, Segment::Arc(arc.arc))
         })
         .collect();
-    ProfileLoop::from_chain(chain, Vec::new())
+    ProfileLoop::from_chain(chain)
 }
 
 impl<T: Decide, A: AngMarker> PartialPath<T, NoPos, A> {
@@ -5955,7 +5959,7 @@ mod fillet_stored_form {
     use crate::path::verbs::Center;
     use crate::seg::{self, JointClass, Seg, SegIssue, SegKind};
     use crate::sugar::ArcSweep;
-    use crate::{Profile, ProfileLoop, SketchPlane};
+    use crate::{ConstructedProfile, SketchPlane};
     use geom_core::Arc2;
 
     /// The fillet radius every corner below is rounded with.
@@ -5989,7 +5993,7 @@ mod fillet_stored_form {
     /// carrier its fillet arc ends tangent to, and a name for the table.
     struct Corner {
         name: &'static str,
-        build: fn(f64) -> Result<ProfileLoop<f64>, PathError<f64>>,
+        build: fn(f64) -> Result<ConstructedLoop<f64>, PathError<f64>>,
         arrival: fn(f64) -> Arrival,
     }
 
@@ -6054,10 +6058,10 @@ mod fillet_stored_form {
 
     /// The stored fillet arc of a door-built loop: the segment whose two
     /// joints the door both declared tangent.
-    fn fillet_index(lp: &ProfileLoop<f64>) -> Option<usize> {
+    fn fillet_index(lp: &ConstructedLoop<f64>) -> Option<usize> {
         let vs = lp.vertices();
         let n = vs.len();
-        let declared = lp.tangent_joints();
+        let declared = lp.constructed_joints();
         (0..n).find(|&i| {
             declared.contains(&i)
                 && declared.contains(&((i + 1) % n))
@@ -6068,7 +6072,7 @@ mod fillet_stored_form {
     /// What the door emitted for one turn and what the validator reads
     /// back out of it: one table row, and the door's own tangency
     /// margins at both joints for the assertion above the table.
-    fn row(lp: &ProfileLoop<f64>, arrival: Arrival, theta: f64, tol: Tol) -> (String, [f64; 2]) {
+    fn row(lp: &ConstructedLoop<f64>, arrival: Arrival, theta: f64, tol: Tol) -> (String, [f64; 2]) {
         let band = match Band::linear(tol) {
             Ok(b) => b,
             Err(e) => return (format!("| {theta:e} | band: {e} |"), [0.0; 2]),
@@ -6079,7 +6083,7 @@ mod fillet_stored_form {
             return (
                 format!(
                     "| {theta:e} | no joint-declared arc: n = {n}, declared = {:?}, segments = {:?} |",
-                    lp.tangent_joints(),
+                    lp.constructed_joints(),
                     lp.segments()
                 ),
                 [0.0; 2],
@@ -6096,7 +6100,7 @@ mod fillet_stored_form {
                 )
             })
             .collect();
-        let validates = match Profile::new(SketchPlane::xy(), vec![lp.clone()]).validate(tol) {
+        let validates = match ConstructedProfile::new(SketchPlane::xy(), vec![lp.clone()]).validate(tol) {
             Ok(_) => "ok".to_string(),
             Err(e) => format!("REFUSED: {}", short(&e.to_string())),
         };
@@ -6162,7 +6166,7 @@ mod fillet_stored_form {
     /// The item's line × line bend: the incoming ray runs east from the
     /// origin, the corner sits at (4, 0), the arrival leaves it at
     /// `theta`, anchored three units along.
-    fn line_line(theta: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+    fn line_line(theta: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
         let anchor = Point2::new(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
         Open.at(Point2::new(0.0, 0.0))
             .angle(0.0, Tol::witness())?
@@ -6171,7 +6175,7 @@ mod fillet_stored_form {
             .angle(theta, Tol::witness())?
             .line(1.0, Tol::witness())?
             .line_to(Start, Tol::witness())
-            .map(|c| c.loop_.into_loop())
+            .map(|c| c.loop_)
     }
 
     /// The line × arc corner's arrival circle: radius 2, counterclockwise
@@ -6182,7 +6186,7 @@ mod fillet_stored_form {
 
     /// A line × arc corner turning by `theta`: the east ray from the
     /// origin meets that circle at (4, 0) and the fillet closes along it.
-    fn line_arc(theta: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+    fn line_arc(theta: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
         let c = line_arc_centre(theta);
         let start = c + Vec2::new(2.0 * theta.cos(), 2.0 * theta.sin());
         Open.at(start)
@@ -6197,14 +6201,14 @@ mod fillet_stored_form {
                 },
                 Tol::witness(),
             )
-            .map(|c| c.loop_.into_loop())
+            .map(|c| c.loop_)
     }
 
     /// An arc × arc corner turning by `theta`: two radius-2 circles about
     /// (−θ, 0) and (θ, 0) cross at (0, √(4 − θ²)), where their tangents
     /// are an angle θ apart — the vesica of the arc × arc fixtures, with
     /// its corner opened out to a shallow turn.
-    fn arc_arc(theta: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+    fn arc_arc(theta: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
         Open.arc_fillet_arc(
             Center {
                 c: Point2::new(-theta, 0.0),
@@ -6220,7 +6224,7 @@ mod fillet_stored_form {
             Tol::witness(),
         )?
         .line_to(Start, Tol::witness())
-        .map(|c| c.loop_.into_loop())
+        .map(|c| c.loop_)
     }
 
     fn corners() -> [Corner; 3] {
@@ -6308,13 +6312,11 @@ mod fillet_stored_form {
                         }
                         // The door's promise: nothing it builds carries
                         // a declared tangency validation refuses.
-                        if let Err(e) = Profile::new(SketchPlane::xy(), vec![lp]).validate(tol) {
+                        if let Err(e) =
+                            ConstructedProfile::new(SketchPlane::xy(), vec![lp]).validate(tol)
+                        {
                             assert!(
-                                !matches!(
-                                    e,
-                                    crate::ProfileError::TangencyContradicted { .. }
-                                        | crate::ProfileError::UndeclaredTangency { .. }
-                                ),
+                                !matches!(e, crate::ProfileError::TangencyContradicted { .. }),
                                 "{}, turn {theta:e}: the door built a loop validation refuses \
                                  for its declared tangency: {e}",
                                 corner.name

@@ -72,26 +72,23 @@
 //!   derives nesting from containment and canonicalizes traversal
 //!   internally (outers counterclockwise, holes clockwise, in sketch
 //!   coordinates). No winding errors exist.
-//! - **Tangency is declared intent, verified — never inferred (the
-//!   #101 discipline).** A *joint* (the junction of two adjacent
-//!   segments at their shared vertex) whose two **distinct** carriers
-//!   meet tangentially must be declared in
-//!   [`ProfileLoop::tangent_joints`]; validation refuses undeclared
-//!   definite tangency ([`ProfileError::UndeclaredTangency`]) and
-//!   contradicted declarations ([`ProfileError::TangencyContradicted`])
-//!   alike. Same-carrier continuation (collinear lines, cocircular
-//!   arcs — e.g. the minimal two-arc circle's joints) is carrier
-//!   identity: legal undeclared, and **legal declared too** — every
-//!   zero-turn joint is a declared tangent joint (Ev, in-chat,
-//!   2026-09-02), because identity is a fact about the carriers and
-//!   tangency a fact about the directions, which agree there. Free arcs
-//!   whose joints are definitely transversal (secant carriers) remain
-//!   legal undeclared — declaration marks *tangency*, not arc-ness. The
-//!   authoring path is the PATHS lattice ([`path`]): `.fillet(r)`
-//!   computes tangent geometry exactly and the continuation verbs
-//!   declare the zero-turn joints they mint, both by construction.
-//!   [`ProfileLoop::tangent_joints`] is the field that carries the
-//!   result, and a fixture's way of writing one by hand.
+//! - **Tangency is constructed or decided, never stored (D1).** A
+//!   *joint* (the junction of two adjacent segments at their shared
+//!   vertex) is a tangent joint when its two segments leave it along
+//!   one line: a fillet, a tangent continuation, `.cusp()`'s reversal,
+//!   or two segments on one carrier. Every zero-turn joint is a tangent
+//!   joint (Ev, in-chat, 2026-09-02): identity is a fact about the
+//!   carriers and tangency a fact about the directions, which agree
+//!   there. The [`path`] lattice's constructors make tangent joints
+//!   exactly, and validation verifies each one, never trusting it
+//!   ([`ProfileError::TangencyContradicted`]); they ride the lattice's
+//!   result ([`ConstructedLoop::constructed_joints`]), not the loop. A
+//!   joint no constructor made is a tangent joint all the same when
+//!   validation decides its carriers' margin Zero, and it is recorded
+//!   for the `unproven-coincidence` lint
+//!   ([`ValidatedLoop::decided_joints`]). The set is derived at
+//!   validation ([`ValidatedLoop::tangent_joints`]); a [`ProfileLoop`]
+//!   stores none.
 //! - **The sketch plane is a frame, and validation never reads it.**
 //!   [`SketchPlane`] holds one [`geom_core::OrthoFrame`] and nothing
 //!   else: profile (x, y) ↦ origin + x·u + y·v, its placement map
@@ -205,9 +202,10 @@ pub use validate::{
     UNNAMED_DECISION, fillet_recourse_for, shared_clause_only,
 };
 pub use validate::{
-    ArcCheck, BlendArc, ConstructedProfile, ContactKind, EscalationSite, FilletLeg,
-    FilletLegCarrier, LoopRole, NoCornerReason, ProfileError, SegmentKind, SegmentRef,
-    ValidatedLoop, ValidatedProfile, ValidatedSegment, decision_subject, is_full_turn,
+    ArcCheck, BlendArc, ConstructedProfile, ContactKind, DecidedJoint, EscalationSite, FilletLeg,
+    FilletLegCarrier, JointCarriers, LoopRole, NoCornerReason, ProfileError, SegmentKind,
+    SegmentRef, ValidatedLoop, ValidatedProfile, ValidatedSegment, decision_subject,
+    is_full_turn,
 };
 
 /// One segment of a loop in its canonical form: a carrier plus a signed
@@ -393,8 +391,8 @@ fn is_exact_zero<T: Real>(b: T) -> bool {
 /// reach it:
 ///
 /// - **the authoring door** — the [`path`] lattice's emission layer.
-///   It classifies every junction and declares every tangency as the
-///   chain is written, lowers each segment in its authored mode, and
+///   It classifies every junction as the chain is written, lowers each
+///   segment in its authored mode, and
 ///   hands the crate's private constructor (`ProfileLoop::from_chain`)
 ///   the (vertex, segment) chain. The only door on the presented
 ///   surface.
@@ -421,7 +419,7 @@ fn is_exact_zero<T: Real>(b: T) -> bool {
 ///
 /// **Sealed at the crate boundary.** The fields are private and read
 /// back through [`vertices`](Self::vertices) /
-/// [`tangent_joints`](Self::tangent_joints), so outside this crate
+/// [`segments`](Self::segments), so outside this crate
 /// there is no route around those three. Naming the type, reading it,
 /// and matching on error payloads all still work; spelling one from a
 /// vertex table does not. The seal is a CRATE boundary, not a module
@@ -438,7 +436,6 @@ fn is_exact_zero<T: Real>(b: T) -> bool {
 /// let _: ProfileLoop<f64> = ProfileLoop {
 ///     vertices: Vec::<Point2<f64>>::new(),
 ///     segments: Vec::<Segment<f64>>::new(),
-///     tangent_joints: Vec::new(),
 /// };
 /// ```
 ///
@@ -459,7 +456,6 @@ fn is_exact_zero<T: Real>(b: T) -> bool {
 ///     .line_to(Start, tol)?
 ///     .into();
 /// assert_eq!(square.vertices().len(), 4);
-/// assert!(square.tangent_joints().is_empty());
 /// # Ok::<(), profile::PathError<f64>>(())
 /// ```
 #[derive(Clone, Debug)]
@@ -469,9 +465,6 @@ pub struct ProfileLoop<T: Real> {
     vertices: Vec<Point2<T>>,
     /// The canonical segments, segment `k` leaving vertex `k`.
     segments: Vec<Segment<T>>,
-    /// Declared-tangent joints, as vertex indices — see
-    /// [`ProfileLoop::tangent_joints`] for the normative semantics.
-    tangent_joints: Vec<usize>,
 }
 
 /// Spells the raw door at a given VISIBILITY, so that the trait ITEM's
@@ -533,8 +526,7 @@ macro_rules! raw_door {
         )]
         $vis trait RawLoop<T: Real>: Sized {
             /// Builds a loop from its canonical form, verbatim: each
-            /// vertex paired with the [`Segment`] leaving it, with no
-            /// declared-tangent joints.
+            /// vertex paired with the [`Segment`] leaving it.
             ///
             /// Nothing is lowered and nothing is checked, so a fixture
             /// can write any table the stored form can hold — a
@@ -551,22 +543,11 @@ macro_rules! raw_door {
             /// edge — polygon sugar.
             #[cfg(any(test, feature = "test-support"))]
             fn polygon(points: impl IntoIterator<Item = Point2<T>>) -> Self;
-
-            /// The same loop with its **declared-tangent joints** set
-            /// to the given vertex indices (see
-            /// [`ProfileLoop::tangent_joints`] for what a declaration
-            /// means and how validation verifies it).
-            ///
-            /// A fixture declares by hand; the [`path`](crate::path)
-            /// lattice declares by construction, which is what makes it
-            /// the authoring door.
-            #[cfg(any(test, feature = "test-support"))]
-            fn with_tangent_joints(self, tangent_joints: Vec<usize>) -> Self;
         }
 
         impl<T: Real> RawLoop<T> for ProfileLoop<T> {
             fn new(chain: impl IntoIterator<Item = (Point2<T>, Segment<T>)>) -> Self {
-                Self::from_chain(chain, Vec::new())
+                Self::from_chain(chain)
             }
 
             #[cfg(any(test, feature = "test-support"))]
@@ -574,11 +555,6 @@ macro_rules! raw_door {
                 <Self as RawLoop<T>>::new(points.into_iter().map(|pos| (pos, Segment::Line)))
             }
 
-            #[cfg(any(test, feature = "test-support"))]
-            fn with_tangent_joints(mut self, tangent_joints: Vec<usize>) -> Self {
-                self.tangent_joints = tangent_joints;
-                self
-            }
         }
     };
 }
@@ -602,7 +578,7 @@ impl<T: Real> ProfileLoop<T> {
     /// [`Vec2::map`](geom_core::Vec2::map),
     /// [`Affine3::map`](geom_core::Affine3::map),
     /// [`SketchPlane::map`] — a fixed tuple of scalars), `map_scalar` wherever the lift has structure to carry,
-    /// which here is the vertex count and the joint index set. One name per operation, on the type it lifts. It
+    /// which here is the vertex count. One name per operation, on the type it lifts. It
     /// takes `&self` where a leaf takes `self`, because a loop owns its
     /// `Vec`s and its caller holds a borrow.
     ///
@@ -611,8 +587,7 @@ impl<T: Real> ProfileLoop<T> {
     /// validated profile — and an evaluation at another scalar needs the
     /// same table in that scalar's arithmetic. Every stored field
     /// travels through `f` and nothing is derived: the positions, each
-    /// segment's kind, an arc's carrier and sweep ([`Arc2::map`]) and
-    /// the declared tangent joints. The carrier's consistency with its
+    /// segment's kind, and an arc's carrier and sweep ([`Arc2::map`]). The carrier's consistency with its
     /// vertices is re-verified in the evaluation scalar by
     /// [`Profile::validate`], so nothing is taken on trust by crossing.
     ///
@@ -636,7 +611,6 @@ impl<T: Real> ProfileLoop<T> {
                     };
                     (pos.map(&f), segment)
                 }),
-            self.tangent_joints.clone(),
         )
     }
 
@@ -646,16 +620,9 @@ impl<T: Real> ProfileLoop<T> {
     /// [`Self::map_scalar`], [`Self::reversed`] and the lift's
     /// re-seaming all build through it; none of them derives a segment
     /// from its vertices here.
-    pub(crate) fn from_chain(
-        chain: impl IntoIterator<Item = (Point2<T>, Segment<T>)>,
-        tangent_joints: Vec<usize>,
-    ) -> Self {
+    pub(crate) fn from_chain(chain: impl IntoIterator<Item = (Point2<T>, Segment<T>)>) -> Self {
         let (vertices, segments) = chain.into_iter().unzip();
-        Self {
-            vertices,
-            segments,
-            tangent_joints,
-        }
+        Self { vertices, segments }
     }
 }
 
@@ -676,58 +643,6 @@ impl<T: Real> ProfileLoop<T> {
         &self.segments
     }
 
-    /// **Declared-tangent joints** (the #101 discipline): vertex
-    /// indices whose *joint* — the junction between the segment
-    /// arriving at that vertex and the segment leaving it — is declared
-    /// tangent (first-order carrier contact between two *distinct*
-    /// carriers).
-    ///
-    /// Semantics, normative:
-    /// - A declaration is **intent, verified — never trusted**:
-    ///   validation checks the joint's carrier-tangency margin is
-    ///   definite Zero and refuses
-    ///   [`ProfileError::TangencyContradicted`] otherwise.
-    /// - Conversely, a joint whose carriers *are* definitely tangent
-    ///   **must** be declared: undeclared exact tangency is refused as
-    ///   [`ProfileError::UndeclaredTangency`] (relying on tangency that
-    ///   numerically happens-to-hold is the pattern the boolean door's
-    ///   UndeclaredCoincidence retired; lifted here to the profile
-    ///   door).
-    /// - **Carrier identity is not a reason for anything** (Ev,
-    ///   in-chat, 2026-09-02): a zero-turn joint is a tangent joint
-    ///   whatever the carriers do, so a declaration on a collinear
-    ///   line/line or cocircular arc/arc joint is honoured, not
-    ///   contradicted. Identity is a fact about carriers, tangency a
-    ///   fact about directions, and this rule reads the directions.
-    /// - Duplicate indices are harmless (set semantics); an
-    ///   out-of-range index is a typed validation error. Order is not
-    ///   significant.
-    ///
-    /// **This list is `validate`'s question, and it is not the
-    /// lattice's.** The lattice checks AUTHORING — declarations
-    /// against authored data, at the moment a verb is written — and
-    /// `validate` checks the MATERIALIZED TABLE, where
-    /// `tangent_joints` is data like any other field. Two questions,
-    /// never one rule with two answers; `validate`'s module header
-    /// carries the full statement.
-    ///
-    /// The [`path`] lattice declares by construction (`.fillet(r)`
-    /// computes the tangent geometry exactly; the continuation verbs
-    /// declare the zero-turn joint they mint), which is what makes it
-    /// the authoring door. The fixture door declares by hand instead;
-    /// see [`ProfileLoop`]'s own docs for why the two are not
-    /// alternatives.
-    ///
-    /// The fixture door is not linked here on purpose: in a shipped
-    /// build it is a crate-private item, and a doc link on the
-    /// PRESENTED surface may only name what that surface has.
-    ///
-    /// [`ProfileError::TangencyContradicted`]: validate::ProfileError::TangencyContradicted
-    /// [`ProfileError::UndeclaredTangency`]: validate::ProfileError::UndeclaredTangency
-    pub fn tangent_joints(&self) -> &[usize] {
-        &self.tangent_joints
-    }
-
     /// The reversed chain: the same locus traversed the other way.
     ///
     /// Reindexing: the reversed chain visits `v0, v(n−1), v(n−2), …,
@@ -739,11 +654,8 @@ impl<T: Real> ProfileLoop<T> {
     ///
     /// `reversed ∘ reversed` is the identity bit-exactly (the
     /// reindexing round-trips and IEEE negation is exact) — under test.
-    ///
-    /// Declared-tangent joints travel with their vertex: joint j maps
-    /// to (n − j) mod n, the reversed chain's index of the same
-    /// geometric junction (an involution, so the round-trip is exact
-    /// elementwise).
+    /// Joint j of the chain is joint (n − j) mod n of the reversed one
+    /// ([`reversed_joint`]).
     #[must_use]
     pub fn reversed(&self) -> Self {
         let n = self.vertices.len();
@@ -757,15 +669,17 @@ impl<T: Real> ProfileLoop<T> {
             };
             (self.vertices[(n - k) % n], segment)
         });
-        // Out-of-range indices (garbage data) pass through untouched —
-        // total code; validation refuses them typed.
-        let tangent_joints = self
-            .tangent_joints
-            .iter()
-            .map(|&j| if j < n { (n - j) % n } else { j })
-            .collect();
-        Self::from_chain(chain, tangent_joints)
+        Self::from_chain(chain)
     }
+}
+
+/// **Joint `j` of an `n`-vertex chain, in the chain reversed**: the
+/// same geometric junction, at index (n − j) mod n. An involution. An
+/// out-of-range index passes through untouched, so code carrying one
+/// stays total and validation refuses it typed.
+#[must_use]
+pub(crate) fn reversed_joint(j: usize, n: usize) -> usize {
+    if j < n { (n - j) % n } else { j }
 }
 
 /// The rigid placement of a sketch plane in 3-space: profile (x, y) ↦
@@ -1165,7 +1079,7 @@ mod lowering_tests {
     /// bit.
     #[test]
     fn reversal_negates_the_sweep_and_keeps_the_carrier() {
-        let lp = ProfileLoop::from_chain(lower_chain(&discriminating()), Vec::new());
+        let lp = ProfileLoop::from_chain(lower_chain(&discriminating()));
         let bits = |l: &ProfileLoop<f64>| format!("{:?}", (l.vertices(), l.segments()));
         check_reversal(&lp, &lp.reversed());
         assert_eq!(bits(&lp.reversed().reversed()), bits(&lp), "an involution");
@@ -1191,7 +1105,7 @@ mod lowering_tests {
                 Segment::Line => (pos, segment),
             })
             .collect();
-        let lp = ProfileLoop::from_chain(nudged, Vec::new());
+        let lp = ProfileLoop::from_chain(nudged);
         let lifted = lp.map_scalar(Interval::from_f64);
         for (k, (f, i)) in lp.segments().iter().zip(lifted.segments()).enumerate() {
             match (f, i) {

@@ -6934,10 +6934,11 @@ class Coincidence:
 
     `cells` are `(node, name)` pairs: the input node whose table names
     the cell, and the name there (the opaque text the materializers
-    answer with); the plane a split cuts with is `(node, None)`.
-    `relation` is `same_oriented`, `same_opposite`, `on_carrier` or
-    `equal_angles`; `site` is `plane_ladder`, `carrier_ladder`,
-    `split_on` or `battery_turn`. `rung` is the door's rung that proved
+    answer with); the plane a split cuts with is `(node, None)`, and a
+    profile's own piece is `(profile, piece)`. `relation` is
+    `same_oriented`, `same_opposite`, `on_carrier`, `equal_angles`,
+    `tangent` or `cusp`; `site` is `plane_ladder`, `carrier_ladder`,
+    `split_on`, `battery_turn` or `profile_junction`. `rung` is the door's rung that proved
     it structural (`same_construction`), or `None`, and then `residual` says
     what separates the two constructions."""
 

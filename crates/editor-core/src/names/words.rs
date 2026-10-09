@@ -731,7 +731,7 @@ fn role_np(role: PieceRole) -> String {
 /// which circle. A leg is its step's only piece, so the step alone says
 /// it (`loop 0 step 2`); a fillet's pieces say which (`the arc of loop
 /// 0 step 2`).
-fn piece(e: &ProfileEdgeRef, feature: RecipeNodeId, by: Speaker<'_>) -> String {
+pub(crate) fn piece(e: &ProfileEdgeRef, feature: RecipeNodeId, by: Speaker<'_>) -> String {
     match e {
         ProfileEdgeRef::Piece { step, role } => {
             let step = match by.step(*step) {

@@ -20,7 +20,9 @@
 //! carrier closed forms for the containment forest's parity test.
 
 use geom_core::k_stats::{decide, decide_reported};
-use geom_core::{Arc2, Band, Decide, Indeterminate, Margin, MarginDiag, Point2, Real, Sign, Vec2};
+use geom_core::{
+    Arc2, Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point2, Real, Sign, Vec2,
+};
 
 use crate::Segment;
 use crate::validate::ArcCheck;
@@ -628,8 +630,20 @@ fn check_carrier<T: Decide>(
 /// neither read nor render would be a second value to keep in step
 /// with the first.
 fn chord_side<T: Decide>(s: &Seg<T>, q: Point2<T>, band: Band) -> Result<(Sign, T), Indeterminate> {
+    chord_side_reported(s, q, band).map(|(decided, margin)| (decided.sign, margin))
+}
+
+/// [`chord_side`], keeping the reading its classifier decided on.
+fn chord_side_reported<T: Decide>(
+    s: &Seg<T>,
+    q: Point2<T>,
+    band: Band,
+) -> Result<(Decided, T), Indeterminate> {
     let margin = s.unit.perp_dot(q - s.a);
-    Ok((decide("chord_side", Margin::of(margin), band)?, margin))
+    Ok((
+        decide_reported("chord_side", Margin::of(margin), band)?,
+        margin,
+    ))
 }
 
 /// **`circle_side`** — which side of an arc's carrier circle a point
@@ -739,6 +753,8 @@ pub(crate) struct JointReading<T: Real> {
     pub predicate: &'static str,
     /// The margin that predicate classified, meters.
     pub margin: T,
+    /// The reading that predicate's classifier decided on.
+    pub diag: MarginDiag,
     /// The largest magnitude the margin's arithmetic passes through —
     /// the carrier radii, and the COORDINATES the centres and anchors
     /// are given in. Both matter and for the same reason: a coordinate
@@ -862,14 +878,15 @@ pub(crate) fn joint_tangency<T: Decide>(
             // is carrier identity (collinearity). The shared vertex is
             // on both carriers, so identity ⟺ the far endpoint of one
             // lies on the other's carrier line.
-            let (side, margin) = chord_side(prev, next.b, band)?;
+            let (side, margin) = chord_side_reported(prev, next.b, band)?;
             Ok(JointReading {
-                class: match side {
+                class: match side.sign {
                     Sign::Zero => JointClass::SameCarrier,
                     Sign::Positive | Sign::Negative => JointClass::Transversal,
                 },
                 predicate: "chord_side",
                 margin,
+                diag: side.margin,
                 scale: reach(next.b).max(reach(prev.a)),
             })
         }
@@ -879,20 +896,25 @@ pub(crate) fn joint_tangency<T: Decide>(
             let d = g1.arc.centre.distance(g2.arc.centre);
             let dr = (g1.arc.radius - g2.arc.radius).abs();
             let identity = d + dr;
-            match decide("carrier_circles_identity", Margin::of(identity), band)? {
+            let same = decide_reported("carrier_circles_identity", Margin::of(identity), band)?;
+            match same.sign {
                 Sign::Zero | Sign::Negative => Ok(JointReading {
                     class: JointClass::SameCarrier,
                     predicate: "carrier_circles_identity",
                     margin: identity,
+                    diag: same.margin,
                     scale: circles_scale(g1, g2),
                 }),
                 Sign::Positive => {
                     let external = d - (g1.arc.radius + g2.arc.radius);
-                    match decide("carrier_circles_external", Margin::of(external), band)? {
+                    let outside =
+                        decide_reported("carrier_circles_external", Margin::of(external), band)?;
+                    match outside.sign {
                         Sign::Zero => Ok(JointReading {
                             class: JointClass::Tangent,
                             predicate: "carrier_circles_external",
                             margin: external,
+                            diag: outside.margin,
                             scale: circles_scale(g1, g2),
                         }),
                         // Positive external clearance (disjoint) is
@@ -902,16 +924,18 @@ pub(crate) fn joint_tangency<T: Decide>(
                             class: JointClass::Transversal,
                             predicate: "carrier_circles_external",
                             margin: external,
+                            diag: outside.margin,
                             scale: circles_scale(g1, g2),
                         }),
                         Sign::Negative => {
                             let internal = d - dr;
+                            let inside = decide_reported(
+                                "carrier_circles_internal",
+                                Margin::of(internal),
+                                band,
+                            )?;
                             Ok(JointReading {
-                                class: match decide(
-                                    "carrier_circles_internal",
-                                    Margin::of(internal),
-                                    band,
-                                )? {
+                                class: match inside.sign {
                                     Sign::Zero => JointClass::Tangent,
                                     Sign::Positive => JointClass::Transversal,
                                     // Nested carriers: unreachable with a
@@ -920,6 +944,7 @@ pub(crate) fn joint_tangency<T: Decide>(
                                 },
                                 predicate: "carrier_circles_internal",
                                 margin: internal,
+                                diag: inside.margin,
                                 scale: circles_scale(g1, g2),
                             })
                         }
@@ -971,8 +996,9 @@ fn line_circle_joint<T: Decide>(
     band: Band,
 ) -> Result<JointReading<T>, Indeterminate> {
     let (margin, scale) = carrier_line_circle_margin(line.unit, line.a, g);
+    let decided = decide_reported("carrier_line_circle", Margin::of(margin), band)?;
     Ok(JointReading {
-        class: match decide("carrier_line_circle", Margin::of(margin), band)? {
+        class: match decided.sign {
             Sign::Zero => JointClass::Tangent,
             Sign::Positive => JointClass::Transversal,
             // A definitely-disjoint carrier pair cannot share a vertex —
@@ -981,6 +1007,7 @@ fn line_circle_joint<T: Decide>(
         },
         predicate: "carrier_line_circle",
         margin,
+        diag: decided.margin,
         scale,
     })
 }

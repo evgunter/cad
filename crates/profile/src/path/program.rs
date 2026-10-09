@@ -1856,7 +1856,7 @@ transition_table! {
                     // ladder, nothing discrete to record but the one
                     // step's reach, which is the whole loop.
                     structure: ReplayStructure::carrier(loop_.vertices.len())?,
-                    loop_: ConstructedLoop(loop_),
+                    loop_: ConstructedLoop::carrier(loop_),
                     program: vec![Step::Circle { centre, radius }],
                 })
                 .inspect(|closed| closed.structure.check_role_lists(&closed.program))
@@ -1916,7 +1916,7 @@ transition_table! {
                     // fillet resolution anywhere in the form, and the
                     // one step reaches every subdivision.
                     structure: ReplayStructure::carrier(loop_.vertices.len())?,
-                    loop_: ConstructedLoop(loop_),
+                    loop_: ConstructedLoop::carrier(loop_),
                     program: vec![Step::CircleSplit {
                         centre,
                         radius,
@@ -2831,39 +2831,76 @@ pub fn replay_guided<T: ArcCarrierScalar>(
     Ok(closed.loop_)
 }
 
-/// A loop the path lattice constructed: the loop, and the fact that
-/// every arc in it was verified at its construction, at this scalar
-/// (D1) — each by the mode's one conversion that built it, which
-/// registers the endpoint identities its algebra proves and decides
-/// the rest inline (a `Center` arc's `path_arc_center_equidistant`, a
-/// fillet's offset tangency or exact fit).
+/// A loop the path lattice constructed: the loop, the fact that every
+/// arc in it was verified at its construction, at this scalar (D1) —
+/// each by the mode's one conversion that built it, which registers the
+/// endpoint identities its algebra proves and decides the rest inline
+/// (a `Center` arc's `path_arc_center_equidistant`, a fillet's offset
+/// tangency or exact fit) — and the joints its constructors made
+/// tangent ([`Self::constructed_joints`]).
 ///
 /// Minted only at the lattice's closing — a chain's `finish` and the
 /// `circle` and `circle_split` forms — which the builder and every
 /// replay ([`replay`], [`replay_recording`], [`replay_guided`]) go
-/// through; the field is private to the `path` module. It is the loop
+/// through; the fields are private to the `path` module. It is the loop
 /// [`crate::ConstructedProfile`] is built from, so a table cannot reach
-/// the validation that consumes that fact. It reads as its loop
+/// the validation that consumes those facts. It reads as its loop
 /// ([`Deref`](core::ops::Deref)), and gives the provenance up only by
 /// [`ConstructedLoop::into_loop`].
 #[derive(Clone, Debug)]
-pub struct ConstructedLoop<T: Real>(pub(in crate::path) ProfileLoop<T>);
+pub struct ConstructedLoop<T: Real> {
+    pub(in crate::path) loop_: ProfileLoop<T>,
+    pub(in crate::path) joints: Vec<usize>,
+}
 
 impl<T: Real> ConstructedLoop<T> {
+    /// A closed carrier's loop (`circle`, `circle_split`): every vertex
+    /// is a subdivision of the one carrier the form constructs, so
+    /// every joint is constructed, and tangent.
+    pub(in crate::path) fn carrier(loop_: ProfileLoop<T>) -> Self {
+        let n = loop_.vertices().len();
+        // A full turn's one vertex joins the carrier to itself: no joint.
+        let joints = if n < 2 { Vec::new() } else { (0..n).collect() };
+        Self { loop_, joints }
+    }
+
     /// The loop.
     pub fn as_loop(&self) -> &ProfileLoop<T> {
-        &self.0
+        &self.loop_
+    }
+
+    /// **The joints this loop's constructors made tangent**, as vertex
+    /// indices, ascending: a fillet's two, a tangent continuation's or
+    /// `.cusp()`'s one, a declared seam arrival's joint 0, and every
+    /// joint of a closed carrier. Validation verifies each
+    /// ([`crate::ProfileError::TangencyContradicted`]) and records
+    /// none: a constructed tangency is not decided from values.
+    pub fn constructed_joints(&self) -> &[usize] {
+        &self.joints
     }
 
     /// The loop, giving up the provenance.
     pub fn into_loop(self) -> ProfileLoop<T> {
-        self.0
+        self.loop_
+    }
+}
+
+/// **The fixture door for a constructed loop**: a table read as if the
+/// lattice had built it, its constructors having made `joints` tangent.
+/// It exists for the rows that pin what validation does with a
+/// constructor's joint the geometry contradicts, which the lattice
+/// itself never builds. Absent from every shipped build.
+#[cfg(any(test, feature = "test-support"))]
+impl<T: Real> ConstructedLoop<T> {
+    /// The fixture (type docs).
+    pub fn fixture(loop_: ProfileLoop<T>, joints: Vec<usize>) -> Self {
+        Self { loop_, joints }
     }
 }
 
 impl<T: Real> core::borrow::Borrow<ProfileLoop<T>> for ConstructedLoop<T> {
     fn borrow(&self) -> &ProfileLoop<T> {
-        &self.0
+        &self.loop_
     }
 }
 
@@ -2871,7 +2908,7 @@ impl<T: Real> core::ops::Deref for ConstructedLoop<T> {
     type Target = ProfileLoop<T>;
 
     fn deref(&self) -> &ProfileLoop<T> {
-        &self.0
+        &self.loop_
     }
 }
 

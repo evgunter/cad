@@ -62,6 +62,14 @@ pub enum Relation {
     /// The two cells make equal angles with a third (an isosceles
     /// turn, whose mitre lands on that third edge).
     EqualAngles,
+    /// The two cells meet in first-order contact: they leave their
+    /// common point along one line, the same way round (`aligned`, a
+    /// smooth joint) or reversed (a cusp).
+    Tangent {
+        /// Whether the second continues the first's heading rather
+        /// than reversing it.
+        aligned: bool,
+    },
 }
 
 /// The decision a row was recorded at: a closed set, one per site
@@ -79,6 +87,9 @@ pub enum DecisionSite {
     SplitOn,
     /// The blend battery's isosceles turn (`fillet3_turn_isosceles`).
     BatteryTurn,
+    /// A profile's junction no constructor made, its carriers' margin
+    /// decided Zero (`profile`'s joint pass).
+    ProfileJunction,
 }
 
 /// **How a row's Zero was discharged.** Every row a lane records today

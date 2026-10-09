@@ -5020,10 +5020,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "coincidence_relation_tag",
         values: &[
+            "cusp",
             "equal_angles",
             "on_carrier",
             "same_opposite",
             "same_oriented",
+            "tangent",
         ],
         delegates: &[],
     },
@@ -5055,7 +5057,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "decision_site_tag",
-        values: &["battery_turn", "carrier_ladder", "plane_ladder", "split_on"],
+        values: &[
+            "battery_turn",
+            "carrier_ladder",
+            "plane_ladder",
+            "profile_junction",
+            "split_on",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5873,7 +5881,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "tangent_joint_on_full_turn",
             "tangent_joint_out_of_range",
             "tangential_contact",
-            "undeclared_tangency",
         ],
         delegates: &[],
     },
