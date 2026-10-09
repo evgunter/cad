@@ -1,0 +1,16 @@
+drop: test result: FAILED. 2474 passed; 5 failed; 81 ignored; 0 measured; 0 filtered out; finished in 94.72s
+    an_annular_tube_through_a_plate::an_annulus_through_the_plate_builds
+    an_annular_tube_through_a_plate::an_off_centre_annulus_builds
+    an_annular_tube_through_a_plate::the_annulus_builds_at_every_witness_azimuth_pair
+    an_annular_tube_through_a_plate::the_annulus_builds_at_random_azimuth_pairs
+    an_annular_tube_through_a_plate::two_nested_annuli_build
+oneside: test result: FAILED. 2474 passed; 5 failed; 81 ignored; 0 measured; 0 filtered out; finished in 95.59s
+    an_annular_tube_through_a_plate::an_annulus_through_the_plate_builds
+    an_annular_tube_through_a_plate::an_off_centre_annulus_builds
+    an_annular_tube_through_a_plate::the_annulus_builds_at_every_witness_azimuth_pair
+    an_annular_tube_through_a_plate::the_annulus_builds_at_random_azimuth_pairs
+    an_annular_tube_through_a_plate::two_nested_annuli_build
+otherside: test result: ok. 2479 passed; 0 failed; 81 ignored; 0 measured; 0 filtered out; finished in 92.96s
+k2: test result: FAILED. 2478 passed; 1 failed; 81 ignored; 0 measured; 0 filtered out; finished in 95.09s
+    an_annular_tube_through_a_plate::two_nested_annuli_build
+first: test result: ok. 2479 passed; 0 failed; 81 ignored; 0 measured; 0 filtered out; finished in 94.93s

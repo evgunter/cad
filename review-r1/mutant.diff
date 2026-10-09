@@ -1,0 +1,61 @@
+diff --git a/crates/topo/src/stands.rs b/crates/topo/src/stands.rs
+index 0ff4718e..205bf685 100644
+--- a/crates/topo/src/stands.rs
++++ b/crates/topo/src/stands.rs
+@@ -275,16 +275,33 @@ fn face_interior_point<T: Decide>(
+         .iter()
+         .enumerate()
+         .flat_map(|(i, &a)| vertices[i + 1..].iter().map(move |&b| chord_midpoint(a, b)));
++    let mutm = std::env::var("CAD_R1_MUT").unwrap_or_default();
++    if mutm == "first" {
++        for q in across_edges(body, face, normal)? {
++            if certified_in_face(body, face, normal, q, band)? {
++                return Ok(Some(q));
++            }
++        }
++    }
+     for q in triples.chain(chords) {
+         if certified_in_face(body, face, normal, q, band)? {
+             return Ok(Some(q));
+         }
+     }
+-    for q in across_edges(body, face, normal)? {
++    if mutm == "drop" {
++        return Ok(None);
++    }
++    for (i, q) in across_edges(body, face, normal)?.into_iter().enumerate() {
+         if certified_in_face(body, face, normal, q, band)? {
++            if mutm == "log" {
++                eprintln!("R1ACROSS [{}] face={face:?} cand#{i} q={q:?}", std::thread::current().name().unwrap_or("?"));
++            }
+             return Ok(Some(q));
+         }
+     }
++    if mutm == "log" {
++        eprintln!("R1ACROSS-NONE [{}] face={face:?}", std::thread::current().name().unwrap_or("?"));
++    }
+     Ok(None)
+ }
+ 
+@@ -323,11 +340,19 @@ fn across_edges<T: Decide>(
+         feet.push((m, normal.cross(tangent).normalize(), reach));
+     }
+     let mut out = Vec::new();
+-    for k in 1..=ACROSS_HALVINGS {
++    let mutm = std::env::var("CAD_R1_MUT").unwrap_or_default();
++    let halvings = if mutm == "k2" { 2 } else { ACROSS_HALVINGS };
++    for k in 1..=halvings {
+         let scale = T::from_f64(0.5f64.powi(k));
+         for &(m, across, reach) in &feet {
+             let step = across * (reach * scale);
+-            out.extend([m + step, m - step]);
++            if mutm == "oneside" {
++                out.push(m + step);
++            } else if mutm == "otherside" {
++                out.push(m - step);
++            } else {
++                out.extend([m + step, m - step]);
++            }
+         }
+     }
+     Ok(out)
