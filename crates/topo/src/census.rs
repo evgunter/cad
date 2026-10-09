@@ -2122,7 +2122,7 @@ fn boundary_crossings<T: Decide>(
             Ok(lp) => lp,
             Err(err) => {
                 let r = match ContainError::from(err) {
-                    ContainError::Escalated(cause) => CrossRefusal::Escalated(vec![cause]),
+                    ContainError::Escalated { diag, .. } => CrossRefusal::Escalated(vec![diag]),
                     other => CrossRefusal::Unsupported(other),
                 };
                 refused(r, errors);
@@ -2351,7 +2351,7 @@ fn conic_crossings<T: Decide>(
             // A root of the carrier read off it, or an arc read as no
             // conic: the arc is not what its loop says it is.
             Ok(EdgeContact::Off | EdgeContact::Unread) => return Err(unreadable()),
-            Err(cause) => return Err(CrossRefusal::Escalated(vec![cause])),
+            Err(cause) => return Err(CrossRefusal::Escalated(vec![cause.diag])),
         }
     }
     Ok(out)
