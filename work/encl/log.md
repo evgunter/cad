@@ -1377,3 +1377,5 @@ coincidence is now a margined verdict (no declarations), checked by the
 - 2026-10-09 — Dispatched P3 `rim-wedge-walks-the-second-order-stations-by-hand` (`encl/rim-wedge-one-walk`): `second_order_walk` takes its stations, and `MaterialStations` gets one home shared by tier 3 and the rim. `rim_wedge.rs` is shared ground: no live unit, and HONE's and CLEAVE's open rows on it are not dispatched. Announced on their logs.
 - 2026-10-09 — PR 4427 (limb margins) merged at `e3646226c0`; row closed. This completes the sign-certain series: `DefiniteUnvalued` is retired. Seam notes are posted on ssiarith, ssiedge, ssimarch, iso, pcert and pctail.
 - 2026-10-09 — Dispatched P3 E `analytic-rung3-tube-not-one-arc-has-no-import-door-ending` (`encl/rung3-tube-door-ending`).
+- 2026-10-09 — PR 4432 (rung-3 tube door ending) was reviewed: merge. A small fix pass is out (a stronger guard, docs, PR body). Filed `refusal-endings-are-hand-written-twice-per-door` (P3 M) from its S2.
+- 2026-10-09 — PR 4432 (rung-3 tube door ending) merged at `510a375cf2`; row closed. PR 4433 (rim wedge through the one walk) is open and under full review.
