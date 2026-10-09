@@ -670,6 +670,45 @@ pub enum SectionError {
     Spiric(SpiricInvalid),
 }
 
+/// A plane×cone section outside the conic inventory by decision (R1):
+/// the curve [`SectionError::outside_conic`] reads off the table's
+/// refusal.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OutsideConic {
+    /// The plane lies parallel to a generator.
+    Parabola,
+    /// The plane meets both nappes.
+    Hyperbola,
+}
+
+const PLANE_CONE: &str = "plane×cone";
+
+const PARABOLA_WHY: &str = "the plane lies parallel to a generator, so the section is a \
+                            PARABOLA — outside the conic inventory by decision (R1), not by \
+                            omission";
+
+const HYPERBOLA_WHY: &str = "the plane meets both nappes, so the section is a HYPERBOLA — \
+                             outside the conic inventory by decision (R1), not by omission";
+
+impl SectionError {
+    /// The conic outside the inventory this refusal is
+    /// [`plane_cone_section`]'s naming of, if it is one.
+    #[must_use]
+    pub fn outside_conic(&self) -> Option<OutsideConic> {
+        match self {
+            Self::RoutesToGeneralRung {
+                pair: PLANE_CONE,
+                why: PARABOLA_WHY,
+            } => Some(OutsideConic::Parabola),
+            Self::RoutesToGeneralRung {
+                pair: PLANE_CONE,
+                why: HYPERBOLA_WHY,
+            } => Some(OutsideConic::Hyperbola),
+            _ => None,
+        }
+    }
+}
+
 impl From<EllipseInvalid> for SectionError {
     fn from(e: EllipseInvalid) -> Self {
         Self::Carrier(e)
@@ -690,15 +729,14 @@ impl core::fmt::Display for SectionError {
                 f,
                 "the two surfaces' configuration is ill-conditioned at this tolerance: {diag}"
             ),
-            Self::RadiusEscalated { radius, diag } => write!(
-                f,
-                "{} is undecided: {}. {}",
-                radius.subject(),
-                diag.payload(),
-                radius
-                    .sized()
-                    .recourse(RefusedArm::Undecided(diag), Reading::Build)
-            ),
+            Self::RadiusEscalated { radius, diag } => diag
+                .undecided(
+                    radius.subject(),
+                    radius
+                        .sized()
+                        .recourse(RefusedArm::Undecided(diag), Reading::Build),
+                )
+                .fmt(f),
             Self::RoutesToGeneralRung { pair, why } => write!(f, "the {pair} section: {why}"),
             Self::RadiusDeclarationContradicted => write!(
                 f,
@@ -2074,10 +2112,13 @@ pub enum PlaneConeSection<T: Real> {
 ///    [`PlaneConeSection::ApexLinePair`], Zero ⇒
 ///    [`PlaneConeSection::ApexTangentLine`], Negative ⇒
 ///    [`PlaneConeSection::ApexPoint`].
-/// 3. `pn_axis_normal` — margin `‖axis×normal‖·arm`, arm the would-be
-///    circle radius `|h|·tan α` (h the apex-to-plane distance along
-///    the axis): Zero ⇒ [`PlaneConeSection::AxisNormalCircle`];
-///    definite ⇒ step 4.
+/// 3. `pn_axis_normal` — margin `‖axis×normal‖·arm`, arm the larger of
+///    the would-be circle's radius `|δ/c|·tan α` (δ the apex's distance
+///    from the plane, `c = axis·normal`) and `extent`, the reach over
+///    which the circle stands in for the section; neither depends on
+///    where the plane's origin sits. Zero ⇒
+///    [`PlaneConeSection::AxisNormalCircle`], built where the axis meets
+///    the plane; definite ⇒ step 4.
 /// 4. `pn_conic_type` — the same margin `D`, metered at `extent`, off
 ///    the apex: Negative ⇒ the plane meets every generator once and the
 ///    section is [`PlaneConeSection::TiltedEllipse`] through the ellipse
@@ -2208,14 +2249,28 @@ pub fn plane_cone_section<T: Decide>(
         }
         Sign::Positive | Sign::Negative => {
             // Apex definitely off the plane: axis-normal circle, else
-            // the conic the tilt makes.
-            let h = (q - apex).dot(a);
-            let rim_r = h.abs() * (sin_a / cos_a);
-            match decide("pn_axis_normal", Margin::levered(s, rim_r), band)
+            // the conic the tilt makes. A Zero here stands the circle in
+            // for the plane's true section, so the tilt's sine is levered
+            // at the longest reach over which that stand-in is read: the
+            // circle's own radius, and the extent the conic type is
+            // metered at. Tilting the plane by `s` about the circle's
+            // centre moves it by at most `s` times the reach, so a Zero
+            // at the larger of the two keeps every point the section is
+            // read at within the zero band. Both are read off the plane's
+            // NORMAL, never its stored origin: a plane along the axis
+            // (`s = 1`) reads definite at the extent wherever its origin
+            // sits, however close it passes the apex.
+            //
+            // The circle is built where the axis meets the plane, at
+            // `t = −δ/c` from the apex (`c` is ±1 within the band here).
+            let t = (T::zero() - apex_gap) / c;
+            let rim_r = t.abs() * (sin_a / cos_a);
+            let arm = rim_r.max(extent);
+            match decide("pn_axis_normal", Margin::levered(s, arm), band)
                 .map_err(SectionError::Escalated)?
             {
                 Sign::Zero => Ok(PlaneConeSection::AxisNormalCircle(Curve3::Circle {
-                    center: apex + a * h,
+                    center: apex + a * t,
                     axis: a,
                     radius: rim_r,
                     u_ref: cone_u,
@@ -2238,16 +2293,12 @@ pub fn plane_cone_section<T: Decide>(
                             Ok(PlaneConeSection::TiltedEllipse(e))
                         }
                         Sign::Zero => Err(SectionError::RoutesToGeneralRung {
-                            pair: "plane×cone",
-                            why: "the plane lies parallel to a generator, so the section \
-                                  is a PARABOLA — outside the conic inventory by decision \
-                                  (R1), not by omission",
+                            pair: PLANE_CONE,
+                            why: PARABOLA_WHY,
                         }),
                         Sign::Positive => Err(SectionError::RoutesToGeneralRung {
-                            pair: "plane×cone",
-                            why: "the plane meets both nappes, so the section is a \
-                                  HYPERBOLA — outside the conic inventory by decision \
-                                  (R1), not by omission",
+                            pair: PLANE_CONE,
+                            why: HYPERBOLA_WHY,
                         }),
                     }
                 }

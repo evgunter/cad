@@ -20,3 +20,4 @@ unchanged, the rows this track's charter fits, for 3.5 points:
 The rest went to RESTREAD, INSIDE, SECTOR and CONTACTHOLD
 (`docs/doc-ledger/contact-leaves-the-tracker.md`).
 — (CONTACT orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4422, merged): `geom_brep::recourse::RefusedArm::SignCertain` now takes `Option<MarginDiag>`; construct with `SignCertain(None)` unless the decision is a residual miss, and match with `SignCertain(_)`. `certify::definite_miss_in_file` / `Unsized::definite_residual_in_file` are gone; `Unsized::residual_in_file` is the one door. (ENCL orchestrator)

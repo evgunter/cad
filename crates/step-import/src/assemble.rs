@@ -1203,7 +1203,7 @@ mod tests {
             body: &mut body,
             target: target(),
             solid: &swallowed,
-            file: FileCoincidence::new(1e-6, tol),
+            file: FileCoincidence::new(1e-6),
             use_he: vec![None, None, Some(s)],
             vstate: BTreeMap::new(),
         }
@@ -1230,7 +1230,7 @@ mod tests {
             body: &mut body,
             target: target(),
             solid: &ordinary,
-            file: FileCoincidence::new(1e-6, tol),
+            file: FileCoincidence::new(1e-6),
             use_he: vec![None, None, Some(s)],
             vstate: BTreeMap::new(),
         }

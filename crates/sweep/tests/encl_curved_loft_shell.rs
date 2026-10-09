@@ -360,6 +360,7 @@ fn shelling_the_vase_refuses_at_its_rims_certificate() {
                     geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
                         limb: geom_brep::ssi::SsiLimb::HullSup,
                         value,
+                        ..
                     }),
                 ..
             },
@@ -464,6 +465,7 @@ fn a_tilted_caps_marched_rim_refuses_at_its_certificate() {
             geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
                 limb: geom_brep::ssi::SsiLimb::HullSup,
                 value,
+                ..
             }) => {
                 assert!(
                     micrometres.contains(value) && *value > 10.0 * eps,

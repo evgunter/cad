@@ -63,6 +63,23 @@ The P3 re-anchor rows (`reanchor-does-not-extend-…`,
 `per-chart-door-transports-a-torus-rim-…` follow; the two unpriced
 rows are priced before they are dispatched.
 
+then, as units:
+
+13. **A fitted wall's section is its fit's** — `a-fitted-wall-has-no-section-with-a-moved-cap`
+    (P2, H): decided 2026-10-08 (the item's `## Decided`). C5 routes
+    `(Plane, Approx)` over `approx.fit()`, the edge stores the `Approx`
+    key, and nothing is composed into its bound. Lofts then stop at the
+    wall–wall seams. Dual review.
+14. **The per-chart door's inverted body** — `the-per-chart-door-adopts-an-inverted-body`
+    (P2, M): unit 10's `## Decided` already rules that the doors are
+    construction steps, finished only through `AtRestBody::validate`.
+    What is owed is the check that every caller adopting the door's
+    result passes that gate, and pins showing the frustum and tube
+    moves refuse there. Single review.
+
+After 13, re-measure and price `a-wall-seam-between-two-fits-has-no-section`
+(P2, H) before dispatching it.
+
 Units 8 and 10 run in parallel (different files); unit 9's measure
 runs beside them.
 

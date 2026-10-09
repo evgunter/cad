@@ -2,10 +2,11 @@
 id: the-per-chart-door-adopts-an-inverted-body
 kind: issue
 title: the per-chart offset door adopts an inverted body: tier 2 does not read orientation, so a move through a neighbour returns Ok with negative volume
-status: open
+status: dispatched
 opened: 2026-10-08
 priority: P2
 cost: M
+branch: shell/inverted-body-at-rest
 ---
 
 
