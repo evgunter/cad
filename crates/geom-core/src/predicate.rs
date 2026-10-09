@@ -1183,9 +1183,23 @@ impl SizedPass {
 }
 
 /// What an unreadable margin may mean, appended to the decision's lever
-/// by [`MarginDiag::sized_recourse`].
+/// by [`lever_recourse`].
 pub const UNREADABLE_MARGIN_NOTE: &str =
     "an unreadable or collapsed margin may indicate a kernel bug worth reporting";
+
+/// **A refusal ending in its geometry lever alone** (D4 ¶1 (i)):
+/// `Recourse: {lever}`, then `; {note}` where one is given — the
+/// [`UNREADABLE_MARGIN_NOTE`] on a poisoned margin, or a sized
+/// decision's [`SizedWords::otherwise`]. The one spelling of that
+/// ending, for [`MarginDiag::sized_recourse`]'s lever-alone arms and
+/// `geom_brep::recourse`'s table.
+#[must_use]
+pub fn lever_recourse(lever: &str, note: Option<&str>) -> String {
+    match note {
+        Some(note) => format!("Recourse: {lever}; {note}"),
+        None => format!("Recourse: {lever}"),
+    }
+}
 
 /// The words a sized decision's recourse table hands
 /// [`MarginDiag::sized_recourse`]: everything but the number.
@@ -1462,15 +1476,14 @@ impl MarginDiag {
             otherwise,
         } = words;
         if self.is_invalid() {
-            return format!("Recourse: {lever}; {UNREADABLE_MARGIN_NOTE}");
+            return lever_recourse(lever, Some(UNREADABLE_MARGIN_NOTE));
         }
-        match (self.tightens_below(band, passes), otherwise) {
-            (Some(v), _) => format!(
+        match self.tightens_below(band, passes) {
+            Some(v) => format!(
                 "Recourse: {lever}, or, if this {size} is intended, tighten the tolerance below \
                  {v:e} m"
             ),
-            (None, None) => format!("Recourse: {lever}"),
-            (None, Some(note)) => format!("Recourse: {lever}; {note}"),
+            None => lever_recourse(lever, otherwise),
         }
     }
 
@@ -1878,6 +1891,25 @@ impl fmt::Display for MissingRecourse<'_> {
 #[derive(Debug, Clone, Copy)]
 pub struct IndeterminatePayload<'a>(&'a Indeterminate);
 
+/// [`Indeterminate::undecided`]'s sentence, rendered by its `Display`.
+#[derive(Debug, Clone, Copy)]
+pub struct UndecidedRefusal<'a, S, E> {
+    subject: S,
+    cause: &'a Indeterminate,
+    ending: E,
+}
+
+impl<S: fmt::Display, E: fmt::Display> fmt::Display for UndecidedRefusal<'_, S, E> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self {
+            subject,
+            cause,
+            ending,
+        } = self;
+        write!(f, "{subject} is undecided: {}. {ending}", cause.payload())
+    }
+}
+
 impl fmt::Display for IndeterminatePayload<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let (zero, escalate) = (self.0.band.zero, self.0.band.escalate);
@@ -1942,6 +1974,25 @@ impl Indeterminate {
     /// tail) — see [`IndeterminatePayload`].
     pub fn payload(&self) -> IndeterminatePayload<'_> {
         IndeterminatePayload(self)
+    }
+
+    /// **An undecided refusal's sentence** (D4 ¶1):
+    /// `{subject} is undecided: {payload}. {ending}` — the question the
+    /// decision asks, this escalation's [`Indeterminate::payload`], and
+    /// the refusal's ending, whether a decision's table composes it or
+    /// the door holds a constant one. The one spelling of that shape,
+    /// for every door's Display.
+    #[must_use]
+    pub fn undecided<S: fmt::Display, E: fmt::Display>(
+        &self,
+        subject: S,
+        ending: E,
+    ) -> UndecidedRefusal<'_, S, E> {
+        UndecidedRefusal {
+            subject,
+            cause: self,
+            ending,
+        }
     }
 
     /// **The whole ending this escalation's refusal carries** (D4 ¶1
@@ -3233,5 +3284,33 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// **The undecided refusal's one shape**: the subject, " is
+    /// undecided: ", the payload view (never the shared tail), ". ", and
+    /// the ending as given — whatever Display each piece is.
+    #[test]
+    fn an_undecided_refusal_reads_subject_payload_and_ending() {
+        let band = band_1e9();
+        let named = (-5e-9f64)
+            .sign_within(band)
+            .expect_err("mid-band margin must be indeterminate")
+            .with_predicate("side_of_plane");
+        let text = named
+            .undecided("whether S", format_args!("Recourse: {}", "R"))
+            .to_string();
+        assert_eq!(
+            text,
+            "whether S is undecided: margin -5e-9 lies inside the ambiguity band (1e-9, 1e-8). \
+             Recourse: R"
+        );
+        let invalid = f64::NAN
+            .sign_within(band)
+            .expect_err("NaN margin must be indeterminate");
+        assert_eq!(
+            invalid.undecided(String::from("T"), "E").to_string(),
+            format!("T is undecided: {}. E", invalid.payload()),
+            "the payload view of a poisoned margin, with no shared tail"
+        );
     }
 }
