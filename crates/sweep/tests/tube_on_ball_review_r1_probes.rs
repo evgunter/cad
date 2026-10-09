@@ -165,7 +165,11 @@ fn tube_on_ball_r1_family_cones() {
     let up = |r0: f64, r1: f64, y1: f64| {
         let y0 = (2.0 - r0 * r0).sqrt();
         if r1 == 0.0 {
-            (rev_y(&[(0.0, y0), (r0, y0), (0.0, y1)]), frustum(r0, 0.0, y1 - y0), y0)
+            (
+                rev_y(&[(0.0, y0), (r0, y0), (0.0, y1)]),
+                frustum(r0, 0.0, y1 - y0),
+                y0,
+            )
         } else {
             (
                 rev_y(&[(0.0, y0), (r0, y0), (r1, y1), (0.0, y1)]),
@@ -183,7 +187,11 @@ fn tube_on_ball_r1_family_cones() {
     ] {
         let (c, vc, y0) = up(r0, r1, y1);
         // The steep cone lies inside the ball but for its rim.
-        let vab = if name.contains("steeper") { vc } else { cap(r, r - y0) };
+        let vab = if name.contains("steeper") {
+            vc
+        } else {
+            cap(r, r - y0)
+        };
         six(name, &c, &b, (vc, vb, vab));
     }
     // Downward frustum: rim (1, −1) to (0.5, −3).
@@ -218,16 +226,29 @@ fn tube_on_ball_r1_family_two_tubes() {
             (1.0, 1.0)
         };
         let (vo, co) = (PI * a0 * a0 * 2.0, cap(r, r - z0));
-        println!("R1 two/{name} first union => {}", outcome(topo::union(&b, &up, t), vb + vt - c, t));
+        println!(
+            "R1 two/{name} first union => {}",
+            outcome(topo::union(&b, &up, t), vb + vt - c, t)
+        );
         let Ok(BooleanResult::Body(u)) = topo::union(&b, &up, t) else {
             continue;
         };
         let u = u.body;
-        six(&format!("two/{name} (ball∪up) vs other"), &u, &other, (vb + vt - c, vo, co));
+        six(
+            &format!("two/{name} (ball∪up) vs other"),
+            &u,
+            &other,
+            (vb + vt - c, vo, co),
+        );
         let s = topo::subtract(&b, &up, t);
         if let Ok(BooleanResult::Body(s)) = s {
             let s = s.body;
-            six(&format!("two/{name} (ball∖up) vs other"), &s, &other, (vb - c, vo, co));
+            six(
+                &format!("two/{name} (ball∖up) vs other"),
+                &s,
+                &other,
+                (vb - c, vo, co),
+            );
         }
     }
 }
@@ -279,7 +300,12 @@ fn tube_on_ball_r1_family_plane() {
         };
         let vh = slab(-r, c);
         let tb = tube(1.0, 1.0, 2.0, 0.0, turn);
-        six(&format!("plane/{name}"), &tb, &half, (2.0 * PI, vh, slab(1.0, c)));
+        six(
+            &format!("plane/{name}"),
+            &tb,
+            &half,
+            (2.0 * PI, vh, slab(1.0, c)),
+        );
     }
 }
 
@@ -298,7 +324,12 @@ fn tube_on_ball_r1_family_holders() {
     // y = 1 lies inside it.
     let cone_w = rev_y(&[(0.0, 1.0), (1.0, 1.0), (2.0, 3.0), (0.0, 3.0)]);
     let vcw = PI * 2.0 * (1.0 + 2.0 + 4.0) / 3.0;
-    six("holder/cone rim on cylinder", &cone_w, &cyl, (vcw, 2.5 * PI, 1.5 * PI));
+    six(
+        "holder/cone rim on cylinder",
+        &cone_w,
+        &cyl,
+        (vcw, 2.5 * PI, 1.5 * PI),
+    );
     // The cone r = y over y ∈ [0, 2] (apex at the origin); a tube of
     // radius 1 over y ∈ [1, 3] has its rim on it, inside it to y = 2.
     let cone = rev_y(&[(0.0, 0.0), (2.0, 2.0), (0.0, 2.0)]);
@@ -344,7 +375,11 @@ fn tube_on_ball_r1_family_holders() {
         "holder/tube on a torus (outer 45°)",
         &tube_y(2.0 + s, s, s + 2.0),
         &torus,
-        (PI * (2.0 + s).powi(2) * 2.0, tor_v, 2.0 * PI * 2.0 * (PI / 4.0 - 0.5)),
+        (
+            PI * (2.0 + s).powi(2) * 2.0,
+            tor_v,
+            2.0 * PI * 2.0 * (PI / 4.0 - 0.5),
+        ),
     );
     let _ = FRAC_PI_2;
 }
@@ -372,7 +407,12 @@ fn tube_on_ball_r1_family_line_edges() {
     let bx = finished("box", brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), t), t);
     // The box's edge x = y = 0 on the wall, the face y = 0 tangent to it
     // along that edge: they touch in the line alone.
-    six("line/tangent face", &cyl(0.0, -1.0, 1.0), &bx, (3.0 * PI, 4.0, 0.0));
+    six(
+        "line/tangent face",
+        &cyl(0.0, -1.0, 1.0),
+        &bx,
+        (3.0 * PI, 4.0, 0.0),
+    );
     // The wall through the box's corner edge, both faces crossing it.
     let h = 0.5_f64.sqrt();
     six(
@@ -381,4 +421,89 @@ fn tube_on_ball_r1_family_line_edges() {
         &bx,
         (3.0 * PI * 0.5, 4.0, PI / 4.0 + 0.5),
     );
+}
+
+/// Probe: the aux planes `AuxDatum::EdgePlane` mints for the witness's
+/// rim pieces — one per split edge (its doc: "the pieces of one split
+/// edge share it"), or one per piece. Prints every plane surface of each
+/// result at the rim's height and every edge described against one.
+#[test]
+#[ignore = "review probe; --ignored --nocapture"]
+fn tube_on_ball_r1_aux_planes() {
+    let t = tol();
+    let b = ball_z(SQRT_2);
+    for (turn, name) in [(0.0, "turn 0"), (0.4, "turn 0.4")] {
+        let tb = tube(1.0, 1.0, 2.0, 0.0, turn);
+        for (op, r) in [
+            ("A∪B", topo::union(&tb, &b, t)),
+            ("A∩B", topo::intersect(&tb, &b, t)),
+            ("B∖A", topo::subtract(&b, &tb, t)),
+            ("A∖B", topo::subtract(&tb, &b, t)),
+        ] {
+            let Ok(BooleanResult::Body(bb)) = r else {
+                println!("R1AUX {name} {op}: no body");
+                continue;
+            };
+            let body = &bb.body;
+            let planes: Vec<_> = body
+                .surfaces()
+                .filter_map(|(k, s)| match *s {
+                    geom::Surface::Plane { origin, normal, .. }
+                        if (origin.z - 1.0).abs() < 1e-9 && normal.z.abs() > 0.999 =>
+                    {
+                        Some(k)
+                    }
+                    _ => None,
+                })
+                .collect();
+            let mut described = Vec::new();
+            for (e, ed) in body.edges() {
+                let Some(c) = body
+                    .get_curve_geom(ed.curve)
+                    .and_then(topo::CurveGeom::certified)
+                else {
+                    continue;
+                };
+                if let geom_brep::EdgeDescription::Intersection { s1, s2, .. } = c.description() {
+                    for s in [s1, s2] {
+                        if planes.contains(s) {
+                            described.push((e, *s));
+                        }
+                    }
+                }
+            }
+            let used: std::collections::BTreeSet<_> = described.iter().map(|d| d.1).collect();
+            println!(
+                "R1AUX {name} {op}: z=1 planes {} ({planes:?}); edges described against them {}; distinct planes used {}",
+                planes.len(),
+                described.len(),
+                used.len()
+            );
+        }
+    }
+}
+
+/// Family 7: a one-sided along-edge germ on a pair that HAS a conic
+/// frame — the ball's seam meridians lie in `y = 0`, so a brick face in
+/// that plane holds them (plane × sphere, a circle frame), and the
+/// frame is now read off the meridian edge instead of the pair. The
+/// brick keeps `y ≥ d`; at `d = 0` that is half the ball, and in band
+/// it is too.
+#[test]
+#[ignore = "review probe; --ignored --nocapture"]
+fn tube_on_ball_r1_family_seam_plane() {
+    let t = tol();
+    let r = SQRT_2;
+    let b = ball_z(r);
+    for d in [0.0, 1e-12, -1e-12, 1e-6] {
+        let k = finished("brick", brick((-5.0, 5.0), (d, 5.0), (-5.0, 5.0), t), t);
+        // The ball's part at y ≥ d: a cap of height r − d.
+        let vab = cap(r, r - d);
+        six(
+            &format!("seam-plane d={d:e}"),
+            &b,
+            &k,
+            (ball_v(r), 10.0 * 10.0 * (5.0 - d), vab),
+        );
+    }
 }

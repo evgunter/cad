@@ -1,5 +1,3 @@
-
-running 6 tests
 R1 frustum narrowing A∪B => ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(3v1), kind: Cone, other_face: F 
 R1 frustum narrowing B∪A => ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(3v1), kind: Cone, other_face: F 
 R1 frustum narrowing A∩B => ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, o 
@@ -54,7 +52,6 @@ R1 holder/frustum rim on cone A∩B => ERR CurvedPairUnsupported { op: Some(Inte
 R1 holder/frustum rim on cone B∩A => ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, o 
 R1 holder/frustum rim on cone A∖B => ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, ot 
 R1 holder/frustum rim on cone B∖A => ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, ot 
-test tube_on_ball_review_r1_probes::tube_on_ball_r1_family_cones ... ok
 R1 holder/coaxial tubes overlapping A∪B => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
 R1 holder/coaxial tubes overlapping B∪A => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
 R1 holder/coaxial tubes overlapping A∩B => ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba 
@@ -73,7 +70,6 @@ R1 holder/tube on a torus (outer 45°) A∩B => ERR GermFrameUnsupported { a_fac
 R1 holder/tube on a torus (outer 45°) B∩A => ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Torus, b_face: FaceKey(3v1), b_kind: Cylinder } 
 R1 holder/tube on a torus (outer 45°) A∖B => ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Cylinder, b_face: FaceKey(3v1), b_kind: Torus } 
 R1 holder/tube on a torus (outer 45°) B∖A => ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Torus, b_face: FaceKey(3v1), b_kind: Cylinder } 
-test tube_on_ball_review_r1_probes::tube_on_ball_r1_family_holders ... ok
 R1 line/crossing faces A∪B => OK SOUND t2=true t3p=true cert=true operand=true v=7.426990817 want=7.426990817 mesh=refused UnsupportedCurvedShape { face: FaceKey(3v1), source: NotIsoRectangl
 R1 line/crossing faces B∪A => OK SOUND t2=true t3p=true cert=true operand=true v=7.426990817 want=7.426990817 mesh=refused UnsupportedCurvedShape { face: FaceKey(1v3), source: NotIsoRectangl
 R1 line/crossing faces A∩B => OK BAD t2=true t3p=false cert=true operand=true v=1.285398163 want=1.285398163 mesh=ok
@@ -86,7 +82,6 @@ R1 plane/x≥0 B∩A => ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind:
 R1 plane/x≥0 A∖B => ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Cylinder, b_face: FaceKey(2v1), b_kind: Sphere } 
 R1 plane/x≥0 B∖A => ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Sphere, b_face: FaceKey(3v1), b_kind: Cylinder } 
 R1 line/crossing faces B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=2.714601837 want=2.714601837 mesh=ok
-test tube_on_ball_review_r1_probes::tube_on_ball_r1_family_line_edges ... ok
 R1 tube a=1 len=2 tilt=0.000 turn=0 d=0e0 A∪B => ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Cylinder, b_face: FaceKey(2v1), b_kind: Sphere } 
 R1 tube a=1 len=2 tilt=0.000 turn=0 d=0e0 B∪A => ERR GermFrameUnsupported { a_face: FaceKey(1v1), a_kind: Sphere, b_face: FaceKey(4v1), b_kind: Cylinder } 
 R1 tube a=1 len=2 tilt=0.000 turn=0 d=0e0 A∩B => ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Cylinder, b_face: FaceKey(2v1), b_kind: Sphere } 
@@ -225,11 +220,9 @@ R1 plane/x≥0, tube turned 0.4 A∩B => ERR GermFrameUnsupported { a_face: Face
 R1 plane/x≥0, tube turned 0.4 B∩A => ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Sphere, b_face: FaceKey(3v1), b_kind: Cylinder } 
 R1 plane/x≥0, tube turned 0.4 A∖B => ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Cylinder, b_face: FaceKey(2v1), b_kind: Sphere } 
 R1 plane/x≥0, tube turned 0.4 B∖A => ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Sphere, b_face: FaceKey(3v1), b_kind: Cylinder } 
-test tube_on_ball_review_r1_probes::tube_on_ball_r1_family_plane ... ok
 R1 two/down first union => ERR GermFrameUnsupported { a_face: FaceKey(1v1), a_kind: Sphere, b_face: FaceKey(4v1), b_kind: Cylinder }
 R1 two/down turned first union => ERR GermFrameUnsupported { a_face: FaceKey(1v1), a_kind: Sphere, b_face: FaceKey(4v1), b_kind: Cylinder }
 R1 two/askew first union => ERR GermFrameUnsupported { a_face: FaceKey(1v1), a_kind: Sphere, b_face: FaceKey(4v1), b_kind: Cylinder }
-test tube_on_ball_review_r1_probes::tube_on_ball_r1_family_two_tubes ... ok
 R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-6 A∪B => OK SOUND t2=true t3p=true cert=true operand=true v=17.443020122 want=17.443020122 mesh=ok
 R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-6 B∪A => OK SOUND t2=true t3p=true cert=true operand=true v=17.443020122 want=17.443020122 mesh=ok
 R1 tube a=1 len=2 tilt=0.000 turn=0 d=1e-6 A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=0.687853020 want=0.687853020 mesh=ok
@@ -242,7 +235,27 @@ R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-6 A∩B => ERR GermFrameUnsupported { 
 R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-6 B∩A => ERR GermFrameUnsupported { a_face: FaceKey(1v1), a_kind: Sphere, b_face: FaceKey(4v1), b_kind: Cylinder } 
 R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-6 A∖B => ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Cylinder, b_face: FaceKey(2v1), b_kind: Sphere } 
 R1 tube a=1 len=2 tilt=0.000 turn=0 d=-1e-6 B∖A => ERR GermFrameUnsupported { a_face: FaceKey(1v1), a_kind: Sphere, b_face: FaceKey(4v1), b_kind: Cylinder } 
-test tube_on_ball_review_r1_probes::tube_on_ball_r1_family_tubes ... ok
-
-test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 2575 filtered out; finished in 0.27s
-
+R1 seam-plane d=0e0 A∪B => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=0e0 B∪A => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=0e0 A∩B => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=0e0 B∩A => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=0e0 A∖B => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=0e0 B∖A => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=1e-12 A∪B => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=1e-12 B∪A => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=1e-12 A∩B => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=1e-12 B∩A => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=1e-12 A∖B => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=1e-12 B∖A => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=-1e-12 A∪B => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=-1e-12 B∪A => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=-1e-12 A∩B => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=-1e-12 B∩A => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=-1e-12 A∖B => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=-1e-12 B∖A => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=1e-6 A∪B => OK SOUND t2=true t3p=true cert=true operand=true v=505.923750201 want=505.923750201 mesh=ok
+R1 seam-plane d=1e-6 B∪A => OK SOUND t2=true t3p=true cert=true operand=true v=505.923750201 want=505.923750201 mesh=ok
+R1 seam-plane d=1e-6 A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=5.923837634 want=5.923837634 mesh=ok
+R1 seam-plane d=1e-6 B∩A => OK SOUND t2=true t3p=true cert=true operand=true v=5.923837634 want=5.923837634 mesh=ok
+R1 seam-plane d=1e-6 A∖B => OK SOUND t2=true t3p=true cert=true operand=true v=5.923850201 want=5.923850201 mesh=ok
+R1 seam-plane d=1e-6 B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=494.076062366 want=494.076062366 mesh=ok

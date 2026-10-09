@@ -1,0 +1,10 @@
+test a_tube_ending_on_a_ball::a_rim_inside_one_ball_face_holes_it ... FAILED
+test a_tube_ending_on_a_ball::a_tilted_tube_builds_at_its_closed_form ... FAILED
+test a_tube_ending_on_a_ball::every_op_builds_at_its_closed_form ... FAILED
+test a_tube_ending_on_a_ball::the_witness_brackets_its_closed_forms_at_the_certified_scalar ... FAILED
+test cone_join_lane::the_rings_island_on_the_cone_face_winds_by_the_sections_curve ... FAILED
+test cone_join_lane::the_slabs_chords_are_its_faces_circles_on_both_sides ... FAILED
+test cone_join_lane::the_tilted_planes_chords_are_its_ellipse_in_both_member_orders ... FAILED
+test germ_circle_torus::the_lily_stem_glue_is_past_the_circle_torus_pairs ... FAILED
+test mate7a_r1_probes::p1_wall1_passes_the_gate_and_the_crossing_layer_and_stops_at_the_join ... FAILED
+test result: FAILED. 2489 passed; 9 failed; 83 ignored; 0 measured; 0 filtered out; finished in 85.04s

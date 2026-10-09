@@ -1,0 +1,24 @@
+R1 seam-plane d=0e0 A∪B => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=0e0 B∪A => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=0e0 A∩B => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=0e0 B∩A => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=0e0 A∖B => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=0e0 B∖A => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=1e-12 A∪B => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=1e-12 B∪A => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=1e-12 A∩B => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=1e-12 B∩A => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=1e-12 A∖B => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=1e-12 B∖A => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=-1e-12 A∪B => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=-1e-12 B∪A => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=-1e-12 A∩B => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=-1e-12 B∩A => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=-1e-12 A∖B => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=-1e-12 B∖A => ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) 
+R1 seam-plane d=1e-6 A∪B => OK SOUND t2=true t3p=true cert=true operand=true v=505.923750201 want=505.923750201 mesh=ok
+R1 seam-plane d=1e-6 B∪A => OK SOUND t2=true t3p=true cert=true operand=true v=505.923750201 want=505.923750201 mesh=ok
+R1 seam-plane d=1e-6 A∩B => OK SOUND t2=true t3p=true cert=true operand=true v=5.923837634 want=5.923837634 mesh=ok
+R1 seam-plane d=1e-6 B∩A => OK SOUND t2=true t3p=true cert=true operand=true v=5.923837634 want=5.923837634 mesh=ok
+R1 seam-plane d=1e-6 A∖B => OK SOUND t2=true t3p=true cert=true operand=true v=5.923850201 want=5.923850201 mesh=ok
+R1 seam-plane d=1e-6 B∖A => OK SOUND t2=true t3p=true cert=true operand=true v=494.076062366 want=494.076062366 mesh=ok

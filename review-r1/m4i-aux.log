@@ -1,0 +1,38 @@
+
+running 1 test
+R1AUXMINT datum=EdgePlane { on: A, curve: CurveKey(4v3) } key=SurfaceKey(1v3) new=true
+R1AUXMINT datum=EdgePlane { on: A, curve: CurveKey(5v3) } key=SurfaceKey(3v1) new=true
+R1AUXMINT datum=EdgePlane { on: A, curve: CurveKey(4v3) } key=SurfaceKey(1v3) new=true
+R1AUXMINT datum=EdgePlane { on: A, curve: CurveKey(5v3) } key=SurfaceKey(3v1) new=true
+R1AUXMINT datum=EdgePlane { on: B, curve: CurveKey(5v3) } key=SurfaceKey(1v3) new=true
+R1AUXMINT datum=EdgePlane { on: B, curve: CurveKey(4v3) } key=SurfaceKey(3v1) new=true
+R1AUXMINT datum=EdgePlane { on: A, curve: CurveKey(4v3) } key=SurfaceKey(1v3) new=true
+R1AUXMINT datum=EdgePlane { on: A, curve: CurveKey(5v3) } key=SurfaceKey(3v1) new=true
+R1AUX turn 0 A∪B: z=1 planes 0 ([]); edges described against them 0; distinct planes used 0
+R1AUX turn 0 A∩B: z=1 planes 1 ([SurfaceKey(2v1)]); edges described against them 2; distinct planes used 1
+R1AUX turn 0 B∖A: z=1 planes 1 ([SurfaceKey(4v1)]); edges described against them 2; distinct planes used 1
+R1AUX turn 0 A∖B: z=1 planes 0 ([]); edges described against them 0; distinct planes used 0
+R1AUXMINT datum=EdgePlane { on: A, curve: CurveKey(8v1) } key=SurfaceKey(1v3) new=true
+R1AUXMINT datum=EdgePlane { on: A, curve: CurveKey(9v1) } key=SurfaceKey(3v1) new=true
+R1AUXMINT datum=EdgePlane { on: A, curve: CurveKey(4v5) } key=SurfaceKey(4v1) new=true
+R1AUXMINT datum=EdgePlane { on: A, curve: CurveKey(6v3) } key=SurfaceKey(5v1) new=true
+R1AUXMINT datum=EdgePlane { on: A, curve: CurveKey(8v1) } key=SurfaceKey(1v3) new=true
+R1AUXMINT datum=EdgePlane { on: A, curve: CurveKey(9v1) } key=SurfaceKey(3v1) new=true
+R1AUXMINT datum=EdgePlane { on: A, curve: CurveKey(4v5) } key=SurfaceKey(4v1) new=true
+R1AUXMINT datum=EdgePlane { on: A, curve: CurveKey(6v3) } key=SurfaceKey(5v1) new=true
+R1AUXMINT datum=EdgePlane { on: B, curve: CurveKey(8v1) } key=SurfaceKey(1v3) new=true
+R1AUXMINT datum=EdgePlane { on: B, curve: CurveKey(9v1) } key=SurfaceKey(3v1) new=true
+R1AUXMINT datum=EdgePlane { on: B, curve: CurveKey(5v5) } key=SurfaceKey(4v1) new=true
+R1AUXMINT datum=EdgePlane { on: B, curve: CurveKey(6v3) } key=SurfaceKey(5v1) new=true
+R1AUXMINT datum=EdgePlane { on: A, curve: CurveKey(8v1) } key=SurfaceKey(1v3) new=true
+R1AUXMINT datum=EdgePlane { on: A, curve: CurveKey(9v1) } key=SurfaceKey(3v1) new=true
+R1AUXMINT datum=EdgePlane { on: A, curve: CurveKey(4v5) } key=SurfaceKey(4v1) new=true
+R1AUXMINT datum=EdgePlane { on: A, curve: CurveKey(6v3) } key=SurfaceKey(5v1) new=true
+R1AUX turn 0.4 A∪B: z=1 planes 0 ([]); edges described against them 0; distinct planes used 0
+R1AUX turn 0.4 A∩B: z=1 planes 1 ([SurfaceKey(2v1)]); edges described against them 2; distinct planes used 1
+R1AUX turn 0.4 B∖A: z=1 planes 1 ([SurfaceKey(6v1)]); edges described against them 2; distinct planes used 1
+R1AUX turn 0.4 A∖B: z=1 planes 0 ([]); edges described against them 0; distinct planes used 0
+test tube_on_ball_review_r1_probes::tube_on_ball_r1_aux_planes ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2581 filtered out; finished in 0.05s
+
