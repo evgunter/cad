@@ -222,9 +222,10 @@ pub enum RefusedArm<'a> {
 
 impl RefusedArm<'_> {
     /// Whether the arm's margin could not be read: the test [`not_yet`]
-    /// and [`LeverOnly`] add the unreadable-margin note on (a sized
-    /// decision's reporting margin reads its own). A straddle is two
-    /// readable bounds, and a sign-certain arm was read.
+    /// and [`LeverOnly`] add the unreadable-margin note on. A sized
+    /// decision does not use it: [`MarginDiag::sized_recourse`] tests
+    /// the margin itself. A straddle is two readable bounds, and a
+    /// sign-certain arm was read.
     fn unreadable(self) -> bool {
         match self {
             Self::Undecided(cause) => cause.margin.is_invalid(),

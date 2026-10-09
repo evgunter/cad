@@ -391,7 +391,7 @@ use geom_brep::{
     CertCheck, CertifyError, DihedralClass, MaterialPairing, MaterialWedge, classify_dihedral,
     classify_material_pairing,
 };
-use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol};
+use geom_core::{Band, BandError, Decide, Indeterminate, Margin, NOT_YET_ENDING, Real, Sign, Tol};
 use slotmap::{Key, SecondaryMap};
 
 use crate::attach::Named;
@@ -2449,9 +2449,6 @@ const SEPARATION: SizedDecision = SizedDecision {
 /// is the shared ending that names the file too.
 const DEFECT: &str = geom_core::KERNEL_OR_FILE_DEFECT_ENDING;
 
-/// The ending for a shape the kernel cannot check yet.
-const NOT_YET: &str = geom_core::NOT_YET_ENDING;
-
 /// The recourse for a tolerance that forms no usable band.
 const TOLERANCE: &str = "Recourse: set a finite, positive tolerance";
 
@@ -2495,7 +2492,7 @@ fn own_close(margin: &geom_core::MarginDiag, lever: &'static str) -> &'static st
 /// it, and for a poisoned margin what that may mean.
 fn unnamed(margin: &geom_core::MarginDiag) -> Cow<'static, str> {
     geom_core::noted(
-        NOT_YET,
+        NOT_YET_ENDING,
         margin.is_invalid().then_some(UNREADABLE_MARGIN_NOTE),
     )
     .into()
@@ -2753,7 +2750,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::TangentCertificateUnsupported
             | CertifyError::PlaneNurbs(P::FootPointInconclusive { .. } | P::Unsupported { .. })
             | CertifyError::AnalyticRung3(A::NoOffsetBound { .. } | A::Unsupported { .. }) => {
-                NOT_YET
+                NOT_YET_ENDING
             }
             CertifyError::Band(_) => TOLERANCE,
             CertifyError::NurbsLaneNotSupplied => {
@@ -3011,7 +3008,7 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
             | P::NotOneChartBranch { .. }
             | P::QuadratureUnsupported { .. } => reading(
                 "the kernel cannot yet measure a face of this kind",
-                NOT_YET.into(),
+                NOT_YET_ENDING.into(),
                 false,
             ),
             // An edge that does not lie on its own face's surface: a
@@ -3048,7 +3045,7 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
         },
         M::RingOnCurvedFace { .. } => reading(
             "the kernel cannot yet measure a curved face with a hole",
-            NOT_YET.into(),
+            NOT_YET_ENDING.into(),
             false,
         ),
         M::Corrupt { .. } | M::NullScaffoldEdge { .. } => {
@@ -3078,15 +3075,15 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
         // or general image: unminted, or uncovered by every lane yet.
         M::UncertifiedImage { .. } => (
             "a face's boundary has no certified description yet",
-            NOT_YET,
+            NOT_YET_ENDING,
         ),
         M::OuterSpansPeriod | M::LoopWraps { .. } => (
             "the face wraps all the way round its surface, which the kernel cannot yet map",
-            NOT_YET,
+            NOT_YET_ENDING,
         ),
         M::Escalated { cause, .. } => return (CLOSE, unnamed(&cause.margin)),
         // Never produced at rest: only the face description raises it.
-        M::JointWithoutRoom { .. } => (CLOSE, NOT_YET),
+        M::JointWithoutRoom { .. } => (CLOSE, NOT_YET_ENDING),
         M::Band(b) => (classify_band(b), TOLERANCE),
         // A null edge at rest is tier 2's finding, and a row stored on
         // one of its halves is the producer's.
@@ -3112,7 +3109,7 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                 | C::IsoUnsupported { .. }
                 | C::ChartWindingUnsupported
                 | C::BranchOutOfReach
-                | C::FittedMateMissing => (KIND, NOT_YET),
+                | C::FittedMateMissing => (KIND, NOT_YET_ENDING),
                 C::PlaceholderChart => (
                     geom::PLACEHOLDER_SURFACE,
                     crate::pcurves::PLACEHOLDER_RECOURSE,
@@ -3175,7 +3172,7 @@ fn classify_contain(e: &ContainError) -> (Cow<'static, str>, Cow<'static, str>) 
         ),
         ContainError::LoopUnreadable(_) => (UNWALKABLE.into(), DEFECT.into()),
         ContainError::Curved(e) => classify_point_in_solid(e),
-        ContainError::Uncrossable(u) => (uncrossable(u), NOT_YET.into()),
+        ContainError::Uncrossable(u) => (uncrossable(u), NOT_YET_ENDING.into()),
     }
 }
 
@@ -3243,7 +3240,7 @@ fn classify_point_in_solid(
         S::RayExhausted | S::Loop(L::RayExhausted { .. }) => (GRAZED.into(), MOVE_GEOMETRY.into()),
         S::Loop(L::CorruptLoop { .. }) => (UNWALKABLE.into(), DEFECT.into()),
         S::Loop(L::Uncrossable(u)) | S::EdgeCarrierUnsupported { cause: u, .. } => {
-            (uncrossable(u), NOT_YET.into())
+            (uncrossable(u), NOT_YET_ENDING.into())
         }
         S::Loop(L::OffPlane(o)) => (
             match o.cause {
@@ -3279,7 +3276,7 @@ fn classify_point_in_solid(
         S::VolumeUncertified => (
             "a solid's volume cannot be certified, so which side of it is inside cannot be read"
                 .into(),
-            NOT_YET.into(),
+            NOT_YET_ENDING.into(),
         ),
         S::KindUnsupported { kind, .. } => (
             format!(
@@ -3287,14 +3284,14 @@ fn classify_point_in_solid(
                 crate::boolean::kind_word(*kind)
             )
             .into(),
-            NOT_YET.into(),
+            NOT_YET_ENDING.into(),
         ),
         S::PartialSphereFace { .. }
         | S::PartialConeFace { .. }
         | S::PartialTorusFace { .. }
         | S::WallOutlineUnsupported { .. } => (
             "a curved face's trim is one the check cannot yet read".into(),
-            NOT_YET.into(),
+            NOT_YET_ENDING.into(),
         ),
     }
 }
@@ -3304,11 +3301,11 @@ fn classify_chart_region(e: &ChartRegionError) -> (&'static str, &'static str) {
         ChartRegionError::ChartDivergence { .. } => (
             "the two faces lie on separately described surfaces, which the check cannot \
              compare",
-            NOT_YET,
+            NOT_YET_ENDING,
         ),
         ChartRegionError::NonPlanarTrim { .. } => (
             "a face's boundary is curved in a way the check cannot yet measure",
-            NOT_YET,
+            NOT_YET_ENDING,
         ),
         // Where a round surface's seam falls is set by the part's
         // placement, so turning a part about its axis moves the seam
@@ -3371,7 +3368,7 @@ fn classify_contact_lane(e: &ContactRefusal) -> (&'static str, &'static str) {
         ),
         ContactRefusal::NotCertifiable { .. } => (
             "the kernel cannot yet check a contact between faces of these kinds",
-            NOT_YET,
+            NOT_YET_ENDING,
         ),
     }
 }
@@ -11027,9 +11024,9 @@ mod tests {
             face,
             kind: geom::SurfaceKind::Nurbs,
         });
-        assert_eq!(spline.1, super::NOT_YET);
+        assert_eq!(spline.1, super::NOT_YET_ENDING);
         assert!(spline.0.contains("spline (NURBS) surface"), "{}", spline.0);
-        assert_eq!(read(S::VolumeUncertified).1, super::NOT_YET);
+        assert_eq!(read(S::VolumeUncertified).1, super::NOT_YET_ENDING);
         for e in [
             S::PartialSphereFace { face },
             S::PartialConeFace { face },
@@ -11040,7 +11037,7 @@ mod tests {
                 read(e.clone()),
                 (
                     "a curved face's trim is one the check cannot yet read".into(),
-                    super::NOT_YET.into()
+                    super::NOT_YET_ENDING.into()
                 ),
                 "{e:?}"
             );

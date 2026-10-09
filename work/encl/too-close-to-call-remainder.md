@@ -61,3 +61,39 @@ Route each through `Indeterminate::undecided` (payload in the
 sentence) or `geom_core::undecided!` (static clause), one crate per
 PR, re-baselining the texts each moves; drop `"too close to call"`
 from `DECISION_PHRASES` with the last one.
+
+## Also in this family (from the review of PR 4443)
+
+- **Decision-specific "at this tolerance" verdicts.** `topo::validate`
+  `certify_undecided`'s `ParamSpan` ("its length is too close to zero
+  to decide at this tolerance"), `Transversality` ("its faces meet too
+  nearly tangentially to decide at this tolerance") and
+  `TangentSecondOrder | TangentTube` ("… curve apart too little to
+  decide where it runs at this tolerance"), and `topo::census`
+  `Undecided::TouchPieceInBand` ("… too nearly in line to trace at this
+  tolerance"); and `topo::validate`'s `"{} is undecided at this
+  tolerance"` (`close_to_boundary`), the folded word still carrying
+  the qualifier. Same argument as the fold: D4 ¶1 (i) puts the tolerance
+  offer in the ending, conditional and valued where a smaller ε decides
+  the margin, and on a poisoned margin "at this tolerance" is false
+  where "undecided" is true.
+- **`topo::census` `Undecided`'s qualified not-yet endings.** Its
+  Display spells `NOT_YET_ENDING` by hand, qualified, at about eight
+  arms: "There is no way through yet for this shape", "… for a designed
+  resting contact", "… for this declared contact", "… for a designed
+  resting fit". The arms are `&'static str`, which a `const` cannot be
+  `concat!`ed into, so `NOT_YET_ENDING` needs a hidden literal macro
+  beside `kernel_defect_ending!` (the constant defined through it). The
+  tail "for a designed resting contact; otherwise move them until their
+  bounding boxes no longer overlap" is written four times there and
+  wants one spelling too.
+- **The poison→note rule has three or four homes.** "A margin that
+  could not be read adds `UNREADABLE_MARGIN_NOTE`" is decided at
+  `geom_brep::recourse::not_yet`, `LeverOnly::recourse`,
+  `topo::validate` `unnamed` and `MarginDiag::sized_recourse`'s
+  `Reading::Invalid` arm. `unnamed` still re-implements `not_yet` from a
+  bare `MarginDiag` (it routes through `geom_core::noted`, but the
+  `is_invalid` test is its own), and `the_not_yet_ending_is_one_spelling`
+  exists only to reconcile the two. Give the rule one home (say a
+  `MarginDiag`-level "note on an unreadable margin" both read) and
+  delete the reconciling test.
