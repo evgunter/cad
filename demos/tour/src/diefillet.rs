@@ -669,9 +669,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         composed.edges().count(),
         composed.vertices().count(),
     );
-    // Each pip fillet adds three faces, seven edges and five vertices,
-    // and blend surgery's closing join merges one edge pair per fillet
-    // (one vertex and one edge each).
+    // On each pip's planar trimline, the foot its band's slit does not
+    // reach has valence two and is joined away: one vertex and one edge.
     assert_eq!((cf, ce, cv), (26 + 21 * 3, 48 + 21 * 6, 24 + 21 * 4));
 
     vec![

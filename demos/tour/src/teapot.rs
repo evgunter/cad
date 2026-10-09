@@ -1714,18 +1714,21 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     //
     // Each band's own census delta is asserted here, one rim at a
     // time, so the one-request total below is the sum of THESE deltas
-    // and not a mix that happens to sum to it. A band over its two
-    // half-arcs adds (+2, +3, +1); blend surgery's closing join then
-    // merges the rim's two trimline half-arcs into one circle (one
-    // vertex and one edge) on the flange and the knob, and leaves the
-    // dome's foot (sphere x cone) unjoined.
-    for ((what, answer, census), joins) in per_rim_answers(tol).into_iter().zip([1, 0, 1]) {
+    // and not a mix that happens to reach it. A band adds a face, two
+    // trimline feet and their edges; on a whole planar disc the foot the
+    // slit does not reach has valence two, so the blend's closing join
+    // takes it (+1, +2, +1). On a half-wall every foot sits on a seam
+    // meridian and stays (+2, +3, +1).
+    for ((what, answer, census), want) in
+        per_rim_answers(tol)
+            .into_iter()
+            .zip([(9, 16, 9), (10, 17, 9), (9, 16, 9)])
+    {
         println!("   {what}: {answer}");
         assert_eq!(
             census,
-            Some((10 - joins, 17 - joins, 9)),
-            "{what}, rolled alone, is one band over its two half-arcs: the sharp 8/14/8 \
-             plus (+2, +3, +1), less {joins} joined trimline pair(s)"
+            Some(want),
+            "{what}, rolled alone, is one band over its two half-arcs on the sharp 8/14/8"
         );
     }
     // THREE rims, THREE DIFFERENT coaxial arms. The lid is
@@ -1746,8 +1749,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             rolled.faces().count(),
         ),
         (12, 21, 11),
-        "three bands, each over a rim's two half-arcs and each its own rim's census \
-         delta above: +2 vertices, +3 edges, +1 face, less the two joined trimline pairs"
+        "three bands, each over a rim's two half-arcs, each the delta it adds alone"
     );
     let bands = band_faces(&ev, r.lid);
     assert_eq!(bands.len(), 3, "three rims, three bands");

@@ -69,7 +69,9 @@
 
 mod classify;
 pub mod containment;
-pub(crate) use classify::{ConicPlaneMeet, PlaneCrossingLane, plane_crossing_lane};
+pub(crate) use classify::{
+    ConicPlaneMeet, PlaneCrossingLane, conic_plane_candidates, plane_crossing_lane,
+};
 pub use classify::{ConicRootFault, CrossingDecision};
 pub(crate) mod finish;
 mod insert;
@@ -99,8 +101,8 @@ use slotmap::SecondaryMap;
 
 pub use crate::chord_join::{ConicCrossingsCase, SplitJoinError};
 pub use containment::{
-    LoopContainment, OffPlane, OffPlaneCause, PointInLoopError, Uncrossable, UncrossableCarrier,
-    point_in_loop,
+    Escalation, LoopContainment, LoopDecision, OffPlane, OffPlaneCause, PointInLoopError,
+    Uncrossable, UncrossableCarrier, point_in_loop,
 };
 pub use finish::{SplitFinishError, SplitNaming, SplitPart, SplitResult};
 pub use neighborhood::classify_neighborhood;

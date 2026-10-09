@@ -390,8 +390,6 @@ fn one_request_builds_the_kernels_body() {
 
     assert_eq!(census(&sharp), (8, 14, 8));
     assert_eq!(bands(&kernel).len(), 3, "three rims, three torus bands");
-    // Blend surgery's closing join merges two rim trimline half-arc
-    // pairs into whole circles: one vertex and one edge each.
     assert_eq!(census(&kernel), (12, 21, 11));
     assert_eq!(census(&doc_body), (12, 21, 11));
     assert_eq!(
