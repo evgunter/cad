@@ -317,16 +317,19 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      typed `CensusUnsupported`, never samples. Every comparison is a
      named Q1 trilean; indeterminates surface as typed
      `CensusEscalated`, never a silent skip.
-   - A census finding is a decision about the gap between two cells
-     (two edges, an edge and a face, a vertex and a face), never between
-     the infinite lines or planes they lie on; only a Zero gap is then
-     classified (crossing, overlap, on-face) and backed. Two cells that
-     share a vertex or a point key meet there by construction, so the
-     gap that tells them apart is the one at the far end of the shorter
-     cell: its length times the sine of the angle between them (D4 ¶1's
-     d = r·θ, with the cell's own length as the arm). Near the shared
-     point every pair of cells is within the band, whatever the angle;
-     that neighbourhood is not a coincidence.
+   - A census finding decides one number per pair of cells (two edges,
+     an edge and a face, a vertex and a face): the minimum distance
+     between the cells themselves, never between the infinite lines or
+     planes they lie on, signed where a face gives a side. Only that
+     number has to be definite; only a Zero is then classified (crossing,
+     overlap, on-face) and backed. Two cells that share a vertex or a
+     point key are at distance zero there by construction, so for them
+     the question is whether they meet anywhere else: their distance
+     grows away from the shared point, and is read at the far end of the
+     shorter cell, its length times the sine of the angle between them
+     (D4 ¶1's d = r·θ, with the cell's own length as the arm). Near the
+     shared point every pair of cells is within the band, whatever the
+     angle; that neighbourhood is not a coincidence.
    - Certification runs **both directions and never scans-to-bless in
      either**: a census finding with no backing record is never
      silently blessed ((iii) below); a record with no geometric witness
