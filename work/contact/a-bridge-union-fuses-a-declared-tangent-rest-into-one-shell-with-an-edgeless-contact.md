@@ -2,11 +2,12 @@
 id: a-bridge-union-fuses-a-declared-tangent-rest-into-one-shell-with-an-edgeless-contact
 kind: issue
 title: A union bridging a declared plane-to-cylinder Tangent rest fuses its two shells into one whose wall touches the face interior along a line no edge carries, and both at-rest gates pass it
-status: open
+status: parked
 opened: 2026-10-03
 priority: P1
 cost: M
 refs: [tier-3-passes-a-curved-wall-touching-a-plane-face-interior-along-a-line, 3987]
+blocked_on: [declared-pairs-retire]
 ---
 
 
@@ -78,3 +79,7 @@ so this chain no longer reaches the bridge. The reproducers in
 that step 2 is ordinary topology once step 1 is right. One route is not
 measured: `CarriedVf { class: Tangent }` records on an operand the
 union door did not produce (a hand-built or `graft_disjoint` body).
+
+## Parked on the D10 hold (2026-10-08)
+
+Step 1 now refuses `TangentSlitArmUnbuilt` (`boolean/mod.rs`); the one route left is a carried `CarriedVf{Tangent}` record, which `declared-pairs-retire` deletes. Likely closes at release. (CONTACT close-out triage; `work/contact/log.md`.)

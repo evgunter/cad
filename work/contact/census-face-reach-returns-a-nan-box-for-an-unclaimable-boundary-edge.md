@@ -4,6 +4,8 @@ kind: issue
 title: census::face_reach returns a NaN-ended Some for a cylinder or cone face with an unclaimable boundary edge, against its own None contract
 status: open
 opened: 2026-10-02
+priority: P3
+cost: E
 ---
 
 ## What

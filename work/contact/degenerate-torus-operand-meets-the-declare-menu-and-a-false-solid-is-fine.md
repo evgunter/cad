@@ -4,6 +4,8 @@ kind: issue
 title: contact: a torus operand outside the ring convention reaches the Boolean's front door as CurvedPierceUnsupported's declare menu or Containment's 'the solid itself is fine'
 status: open
 opened: 2026-09-30
+priority: P3
+cost: M
 ---
 
 
