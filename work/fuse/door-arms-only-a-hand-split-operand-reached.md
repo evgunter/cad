@@ -64,6 +64,17 @@ retire or needs a witness no hand split supplies.
   leave, which is the join's real work; only the operand-borne case is
   gone.
 
+- **The boolean's dual result gate's check 11**
+  (`crates/topo/src/boolean/ops.rs`, `structural_gate`): no boolean
+  output reaches it. The output stage ends with the join, which takes
+  every vertex the same predicate reads, and nothing between the join
+  and the gate makes a vertex (`sort_into_pieces` only sorts faces into
+  solids). It is the output's postcondition, kept as the gate the
+  `f64` path's tier 3 is; its witness is a hand-split body handed to
+  the gate directly
+  (`boolean::ops::tests::at_a_dual_the_result_gate_refuses_a_joinable_vertex`).
+  Not on the remove list.
+
 **The remove-or-keep list** is the blend's joined-band arm (with its
 naming in `emit_blend.rs` and the joint arm of the clearance screen),
 and, if no at-rest witness turns up, the half-band gate on a support

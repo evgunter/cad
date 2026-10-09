@@ -5317,6 +5317,44 @@ mod tests {
         assert_eq!(kept.outcome(), crate::AtRestOutcome::NotRunAtThisScalar);
     }
 
+    /// **At a dual the result gate asks check 11 too.** No boolean
+    /// output reaches this arm: the output stage ends with the join,
+    /// which takes every vertex the same predicate reads, and nothing
+    /// between the join and the gate makes a vertex (`sort_into_pieces`
+    /// only sorts faces into solids). So the arm is the output's
+    /// postcondition, witnessed here on the described box with one edge
+    /// split by hand: the gate refuses it with exactly the split vertex,
+    /// and the box passes once joined.
+    #[test]
+    fn at_a_dual_the_result_gate_refuses_a_joinable_vertex() {
+        use geom_core::{Dual64, Real};
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body =
+            crate::test_support_fixtures::brick::<Dual64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let (edge, curve) = body.edges().next().map(|(k, d)| (k, d.curve)).unwrap();
+        let (t0, t1) = body
+            .get_curve_geom(curve)
+            .and_then(crate::CurveGeom::certified)
+            .unwrap()
+            .params();
+        let split = body
+            .split_edge(edge, (t0 + t1) * Dual64::from_f64(0.5), tol)
+            .unwrap()
+            .vertex;
+        let Err(BooleanError::ResultInvalid { errors }) = gate(body.clone(), band, tol) else {
+            panic!("a split vertex is no output's");
+        };
+        assert_eq!(
+            errors,
+            vec![crate::ValidationError::JoinableVertexAtRest { vertex: split }]
+        );
+        let joins = body.join_edges(band, tol).expect("the split edge joins back");
+        assert_eq!(joins.len(), 1, "the split vertex, joined");
+        let kept = gate(body, band, tol).expect("the joined box passes");
+        assert_eq!(kept.outcome(), crate::AtRestOutcome::NotRunAtThisScalar);
+    }
+
     /// The gate's fence is check 2's: on tier-2-valid bodies,
     /// `scaffolds_at_rest` is exactly the `ScaffoldAtRest` findings of
     /// `validate_geometric`, in the same order. An undescribed box has
