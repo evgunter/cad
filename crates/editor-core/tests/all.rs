@@ -759,6 +759,8 @@ mod intent_literals_b_door;
 mod intent_literals_c_slots;
 #[path = "intent_literals_d_constants.rs"]
 mod intent_literals_d_constants;
+#[path = "intent_part_split_half.rs"]
+mod intent_part_split_half;
 #[path = "intent_s2_a_outputs.rs"]
 mod intent_s2_a_outputs;
 #[path = "intent_s2_b_reads.rs"]

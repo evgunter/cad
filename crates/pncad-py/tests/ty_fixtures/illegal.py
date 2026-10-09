@@ -267,12 +267,10 @@ Node.placed_union(solid, 5 * m, PatternKind.linear((Formula.literal(1.0), Formul
 # The narrowed count edit takes a VarName, never bare text.
 DocEdit.bind_count_param(solid, "fins")  # ty: error
 
-# LIB-B-PART. A HALF IS NOT AN INSTANCE, and this is the pair of lines
-# that says so: the two arms of one selector take different types, and
-# neither accepts the other's, so the confusion the kernel refuses at
-# evaluation is refused here at authoring.
+# LIB-B-PART. A HALF IS NOT AN INSTANCE: a split's half is its output,
+# never a selector.
 PartSelect.instance(SplitHalf.Above)  # ty: error
-PartSelect.split_half(0)  # ty: error
+PartSelect.split_half(SplitHalf.Above)  # ty: error
 
 # The selector is a VALUE with its own type: a bare half is not one,
 # any more than a `Frame` is a `PatternKind`.

@@ -37,7 +37,7 @@ chamfer, told apart by the minting node), `InPart`, pattern `Instance { i, of }`
 with `i` recipe-structural. Role arguments are themselves names; profile locators
 (`ProfileEdgeRef`, `ProfileVertexRef`) name a profile piece by the id its step
 was minted with, never by its position (below). Names contain no floats and no arena keys; a pass-through op (Transform,
-split-intact entity, a `Part`'s projection of one half or one instance) adds no
+split-intact entity, a read of a split's half, a `Part`'s projection of one instance) adds no
 segment, so `node` stays the original minter. Names are document-local;
 assembly wrapping is `ASSEMBLY.md`'s.
 
@@ -408,7 +408,7 @@ an arena key.
 **A tie's candidates keep their identity.** The node that mints an
 `Entry::Tied` row numbers its candidates, and the number belongs to the row: a
 tied row holds (candidate, entity) pairs, and a row that narrows to one
-candidate (a `Part`'s projection of the half that holds it, a split's
+candidate (a read of the split half that holds it, a split's
 pass-through of the uncut one, a divider that crosses one candidate and leaves
 the other whole) is a `Unique` row that keeps its candidate. A divider is a
 discriminator among a tie's candidates like any other: the divided candidate's

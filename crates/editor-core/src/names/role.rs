@@ -1766,7 +1766,7 @@ pub(crate) enum VerbatimEdge<'a> {
     /// The one body of `of` that `select` names, projected: a
     /// [`Node::Part`](crate::node::Node::Part).
     Selected {
-        /// The read of the split half or the pattern.
+        /// The read of the pattern's copies.
         of: crate::VarId,
         /// Which body of it.
         select: &'a crate::node::PartSelect,

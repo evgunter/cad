@@ -60,7 +60,7 @@ use crate::doc::Doc;
 use crate::expr::EvalError;
 use crate::ident::Mispaired;
 use crate::names::{NameTable, NamingError, SegTag};
-use crate::node::{RecipeNodeId, SlotId, StableName};
+use crate::node::{PartSelect, RecipeNodeId, SlotId, StableName};
 use crate::program::ProfileProgram;
 use geom_core::Tol;
 
@@ -5956,7 +5956,12 @@ where
             stations: _,
             v_degree: _,
         }
-        | Node::Split { target: _, tool: _ } => {}
+        | Node::Split { target: _, tool: _ }
+        // The index is a slot, fed with the resolved slots below.
+        | Node::Part {
+            of: _,
+            select: PartSelect::Instance(_),
+        } => {}
         // The chain's shape (`feed_placement_shape` says why).
         Node::Transform {
             input: _,

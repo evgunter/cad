@@ -108,7 +108,6 @@ from pncad import (
     Selector,
     Severity,
     SketchPlane,
-    SplitHalf,
     Start,
     AuthoredStep,
     Piece,
@@ -538,16 +537,14 @@ listed_group: NodeId = doc.insert(Node.placed_union_at(plate, [here, turned]))
 count_bound: DocEdit = DocEdit.bind_count_param(fin_group, VarName("fins"))
 
 # LIB-B-PART: the same rule vocabulary over an UNFUSED family, and the
-# projection that takes one body back out of it. The selector is one
-# type with two constructors, and each takes what its arm holds — a
-# `SplitHalf` for the half, a plain `int` for the index (the
-# structural-slot exception `placed_union`'s count already rides).
+# projection that takes one body back out of it, by a count index (the
+# structural-slot exception `placed_union`'s count already rides). A
+# split's half is its output, read by port.
 family: NodeId = doc.insert(Node.pattern(plate, Formula.count(5), stepped))
 by_index: PartSelect = PartSelect.instance(Formula.count(2))
 one_copy: NodeId = doc.insert(Node.part(family, by_index))
 cut: NodeId = doc.insert(Node.split(plate, spin_axis))
-by_half: PartSelect = PartSelect.split_half(SplitHalf.Above)
-upper_half: NodeId = doc.insert(Node.part(cut, by_half))
+upper_half: Var | None = doc.output(cut, 0)
 # The index is a STRUCTURAL slot of its own, so it has a door of its
 # own beside the count's.
 index_bound: DocEdit = DocEdit.bind_instance_param(one_copy, VarName("which"))

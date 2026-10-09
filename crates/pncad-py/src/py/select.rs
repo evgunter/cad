@@ -316,11 +316,6 @@ pub(crate) enum SplitHalf {
 
 impl SplitHalf {
     /// The kernel half this mirrors.
-    ///
-    /// ONE mapping, two callers: the side vocabulary a selector
-    /// pattern takes, and the projection `PartSelect.split_half`
-    /// authors. A second copy would be a second answer to "which half
-    /// is Above".
     pub(crate) fn to_kernel(self) -> s::SplitHalf {
         match self {
             Self::Above => s::SplitHalf::Above,

@@ -1911,15 +1911,9 @@ const fn _binds_every_kernel_side(kernel: d::ExtrudeSide) -> ExtrudeSide {
     }
 }
 
-/// **Which body of a multi-body value a `Node.part` selects**: the
-/// named half of a split, or one instance of a pattern by index.
-///
-/// One class for the two because the node is one sentence — "this
-/// body, out of those" — and the VALUE decides which arm is
-/// well-typed: a half against a split, an index against a pattern's
-/// instances. Any other pairing refuses typed at `evaluate`
-/// (`wrong_operand`), never here, because which value a node id
-/// carries is not known until the document runs.
+/// **Which copy of a pattern a `Node.part` selects**, by index. A
+/// split's halves need no selector: each is an output of the split,
+/// read as `doc.output(split, port)`.
 ///
 /// The shape is `PatternKind`'s: a frozen value class of static
 /// constructors, one per kernel arm, spelled in snake case.
@@ -1929,19 +1923,6 @@ pub(crate) struct PartSelect(pub(crate) d::PartSelect<d::Formula>);
 
 #[pymethods]
 impl PartSelect {
-    /// The named half of a `Node.split` value.
-    ///
-    /// `Above` is the material on the tool plane's normal side and
-    /// `Below` the other — the same two words `SegPat.side` takes, and
-    /// the same output-body order `Value.split`'s tuple is in. A half
-    /// the cut left with no material refuses at `evaluate`
-    /// (`empty_half`), which is a statement about the geometry rather
-    /// than about the selection.
-    #[staticmethod]
-    fn split_half(half: super::select::SplitHalf) -> Self {
-        Self(d::PartSelect::SplitHalf(half.to_kernel()))
-    }
-
     /// The `index`-th instance of a `Node.pattern` value, counting
     /// from zero.
     ///
@@ -3096,29 +3077,20 @@ impl Node {
         })
     }
 
-    /// **The projection**: ONE body out of a multi-body value — "the
-    /// upper half of that split", "instance 3 of that pattern".
+    /// **The projection**: ONE body out of a pattern's copies —
+    /// "instance 3 of that pattern".
     ///
-    /// A projection, not an operation. The selected body is the half's
-    /// or the instance's OWN, and the node's name table is the input's
+    /// A projection, not an operation. The selected body is the
+    /// instance's OWN, and the node's name table is the input's
     /// restricted to that body with every name verbatim, so a selector
-    /// already spelled against that half or that instance resolves
-    /// here unchanged and a `Value.mass_properties` read matches the
-    /// side read straight off `Value.split` / `Value.bodies`.
+    /// already spelled against that instance resolves here unchanged
+    /// and a `Value.mass_properties` read matches the body read
+    /// straight off `Value.bodies`.
     ///
-    /// `of` is the split or pattern node whose value is read, and
-    /// `select` says which body (`PartSelect.split_half` /
-    /// `PartSelect.instance`). This is a NODE rather than a selector
-    /// argument on every consumer: one meaning, one node, and every
-    /// downstream door keeps the operand shape it has.
-    ///
-    /// Refuses typed at `evaluate`, never here — which body a node id
-    /// carries is not known until the document runs: `wrong_operand`
-    /// when the selector and the value disagree in kind (a half asked
-    /// of a pattern, an index asked of a split, either asked of a
-    /// plain body), `empty_half` when the cut left that side with no
-    /// material, and `instance_out_of_range` for an index outside
-    /// `0 .. count`.
+    /// `of` reads the copies (a list of bodies), and `select` says
+    /// which one (`PartSelect.instance`). Reading anything else
+    /// refuses at insert (`slot_var_kind`). An index outside
+    /// `0 .. count` refuses at `evaluate` (`instance_out_of_range`).
     #[staticmethod]
     fn part(of: OperandArg, select: &PartSelect) -> Self {
         Self {

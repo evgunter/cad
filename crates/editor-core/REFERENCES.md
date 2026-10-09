@@ -121,15 +121,17 @@ is stored. `select_where` filters on `SurfaceKind` exactly
 ## DM3 — One body of a `Bodies` is picked by index; a split's halves are ports
 
 A `Split` defines two `Body` outputs, `above` and `below` (the port index is
-`SplitHalf::output_body`'s), read like any other output; DM3's split-half
-projection retires. One body of a `Bodies` value (a pattern's copies) is
-picked by an operation that reads the `Bodies` and a `Count` index and
-defines one `Body`; an index at or beyond the count refuses typed at
-evaluation. Names pass through unchanged, as `Transform`'s do (`role.rs`):
-the picked body keeps the pattern's `Instance { i, of }` names, and a split
-half keeps its `SplitBody(half)` names, so every downstream selector spells
-what it already spells. A body seat reading a `Bodies`, a profile or a
-split as a whole refuses by kind at the door (`SlotVarKind`).
+`SplitHalf::output_body`'s), read like any other output: a read of a port
+is that half, its body and its rows of the split's table. One body of a
+`Bodies` value (a pattern's copies) is picked by `Part`, which reads the
+`Bodies` and a `Count` index and defines one `Body`; an index at or beyond
+the count refuses typed at evaluation. Names pass through unchanged, as
+`Transform`'s do (`role.rs`): the picked body keeps the pattern's
+`Instance { i, of }` names, and a split half keeps its `SplitBody(half)`
+names, so every downstream selector spells what it already spells. A body
+seat reading a `Bodies`, a profile or a split as a whole refuses by kind at
+the door (`SlotVarKind`, or `AmbiguousOutput` for a split named alone), and
+so does a `Part` reading anything but a `Bodies`.
 
 ## DM4 — Flat operators before splice: an n-ary union
 
@@ -334,7 +336,7 @@ Distinctness is over the variables read, and only those (D10: a read is
 of a variable): two outputs of one operation are two variables, so a
 union of a split's two halves, or a revolve's body patterned about its own
 axis port, is admitted. Two distinct nodes that
-evaluate to one body — two `Part`s selecting one half of a split, or
+evaluate to one body — two `Part`s picking one copy of a pattern, or
 `Part(Instance(0))` beside its master — meet DM5, and the boolean answers
 them as it answers any operands whose shells coincide by structure or by
 declaration: `A ∪ A` and `A ∩ A` are `A`, and `A − A` is the typed empty

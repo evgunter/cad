@@ -412,12 +412,6 @@ impl ProductError {
                 let placed = by.node(*placed);
                 let what = match select {
                     None => format!("{placed}'s body"),
-                    Some(crate::node::PartSelect::SplitHalf(SplitHalf::Above)) => {
-                        format!("the above half of {placed}")
-                    }
-                    Some(crate::node::PartSelect::SplitHalf(SplitHalf::Below)) => {
-                        format!("the below half of {placed}")
-                    }
                     Some(crate::node::PartSelect::Instance(i)) => {
                         format!(
                             "instance `{}` of {placed}",
@@ -1256,7 +1250,6 @@ fn placed_under_two_roots<P>(doc: &Doc<P>) -> Option<ProductError> {
         (Some(PartSelect::Instance(a)), Some(PartSelect::Instance(b))) => {
             a == b || written(*a).bit_eq(&written(*b))
         }
-        (Some(a), Some(b)) => a == b,
         _ => true,
     };
     let mut seen: std::collections::HashMap<

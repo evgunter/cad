@@ -242,8 +242,7 @@ pub(super) fn walk<'r, P>(
             // contributes no `RolePath` segment; a `Part` selecting an
             // instance moves nothing at all and carries every name
             // VERBATIM. Anything else — a boolean, a split's intact
-            // pass-through, a `Part` naming a split HALF — is a
-            // different body, not this one placed. (A union is the
+            // pass-through — is a different body, not this one placed. (A union is the
             // head of every name it carries, so the walk meets it
             // below, at the head.)
             match doc.node(at).and_then(crate::names::verbatim_edge) {
@@ -268,14 +267,7 @@ pub(super) fn walk<'r, P>(
                     part = Some(at);
                     at = doc.operation_of(of).ok_or(at)?;
                 }
-                Some(
-                    VerbatimEdge::Selected {
-                        select: PartSelect::SplitHalf(_),
-                        ..
-                    }
-                    | VerbatimEdge::Intact,
-                )
-                | None => return Err(at),
+                Some(VerbatimEdge::Intact) | None => return Err(at),
             }
             continue;
         }
