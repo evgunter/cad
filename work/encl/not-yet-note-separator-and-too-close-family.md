@@ -4,6 +4,7 @@ kind: issue
 title: recourse::not_yet joins the unreadable note with ': ' and over-claims the table; the too-close-to-call sentence family parallels Indeterminate::undecided
 status: review
 branch: encl/not-yet-note-and-undecided-family
+pr: 4443
 opened: 2026-10-09
 priority: P3
 ---
