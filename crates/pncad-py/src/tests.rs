@@ -4900,6 +4900,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "germ_edge_carrier_unsupported",
             "germ_frame_cylinder_pinch",
             "germ_frame_unsupported",
+            "germ_section_outside_inventory",
             "graft_recertify",
             "inside_out_operand",
             "invalid_declaration",

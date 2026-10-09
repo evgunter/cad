@@ -313,6 +313,35 @@ impl OffsetLimb {
             Self::HullSup => "limb 2 (control-hull sup bound)",
         }
     }
+
+    /// What the limb measures, as a refusal names it.
+    fn measured(self) -> &'static str {
+        match self {
+            Self::OnLocus => "sampled error",
+            Self::HullSup => "certified error bound",
+        }
+    }
+}
+
+/// The at-rest limb's one recourse ([`OffsetFitError::Limb`]).
+pub const LIMB_REFIT_RECOURSE: &str = "Recourse: re-fit the offset at this tolerance";
+
+/// A limb's measurement against its tolerance, as a refusal states it:
+/// a NaN bound is no number of metres.
+struct Against {
+    bound: f64,
+    tolerance: f64,
+}
+
+impl core::fmt::Display for Against {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self { bound, tolerance } = self;
+        if bound.is_nan() {
+            write!(f, "is not a number, against a tolerance of {tolerance} m")
+        } else {
+            write!(f, "is {bound} m against a tolerance of {tolerance} m")
+        }
+    }
 }
 
 /// **The smallest bound the refinement loop reached**, and the grid it
@@ -666,6 +695,25 @@ pub enum OffsetFitError {
         /// The tolerance it was classified against.
         tolerance: f64,
     },
+    /// A certificate limb refused on the fit the mint itself just
+    /// made, at [`OffsetLimb::OnLocus`]: a round's sampled residual
+    /// came out NaN inside the fit loop, or the mint's certification
+    /// sampled the accepted fit above the tolerance its hull bound
+    /// already held (the loop accepts on the bound, and limb 1 only
+    /// steers it). [`OffsetLimb::HullSup`] is not reached: the mint's
+    /// certification is the loop's measure on the same fit, so it
+    /// re-derives the bound the loop accepted. The face passed the door
+    /// meters, the fit was interpolated from finite samples, and nothing
+    /// is stored yet, so re-fitting is the call that refused: a kernel
+    /// finding, told apart from [`Self::Limb`] by its door.
+    MintLimb {
+        /// Which limb.
+        limb: OffsetLimb,
+        /// The bound that limb measured, in metres.
+        bound: f64,
+        /// The tolerance it was classified against.
+        tolerance: f64,
+    },
     /// Raising a degree-1 base direction to degree 2 refused. The
     /// certifying composite needs each direction's derived knot vector,
     /// which a degree-1 direction does not have, so it is built on the
@@ -856,12 +904,26 @@ impl core::fmt::Display for OffsetFitError {
                 tolerance,
             } => write!(
                 f,
-                "a stored offset surface does not hold to the tolerance: its {} is {bound} m \
-                 against a tolerance of {tolerance} m. Recourse: re-fit the offset at this \
-                 tolerance",
-                match limb {
-                    OffsetLimb::OnLocus => "sampled error",
-                    OffsetLimb::HullSup => "certified error bound",
+                "a stored offset surface does not hold to the tolerance: its {} {}. \
+                 {LIMB_REFIT_RECOURSE}",
+                limb.measured(),
+                Against {
+                    bound: *bound,
+                    tolerance: *tolerance
+                }
+            ),
+            Self::MintLimb {
+                limb,
+                bound,
+                tolerance,
+            } => write!(
+                f,
+                "the offset surface the door just fitted does not certify: its {} {}, which a \
+                 surface its own refinement accepted never gives. {KERNEL_DEFECT_ENDING}",
+                limb.measured(),
+                Against {
+                    bound: *bound,
+                    tolerance: *tolerance
                 }
             ),
             // The carrier's own prose is not rendered: its repairs are
@@ -1033,7 +1095,7 @@ pub fn fit_offset(
 /// [`OffsetFitError::RefinementStalled`] each carrying the last grid's
 /// bound and the smallest any round reached, and
 /// [`OffsetFitError::BoundNotFinite`] carrying that smallest finite
-/// bound, or none; and [`OffsetFitError::Limb`] at
+/// bound, or none; and [`OffsetFitError::MintLimb`] at
 /// [`OffsetLimb::OnLocus`] when a round's sampled residual is NaN.
 #[doc(hidden)]
 pub fn fit_offset_at(
@@ -1079,18 +1141,7 @@ pub fn fit_offset_at(
                 grid,
             });
         }
-        // Limb 1 steers and does not gate the mint, but a certificate
-        // never carries a poisoned field. Not pinned: the fit is
-        // interpolated from finite data (`NonFiniteSample` refuses
-        // the rest), and no fixture is known whose fit then samples
-        // NaN; `certify_offset_at` is the door a planted one reaches.
-        if report.on_locus_max.is_nan() {
-            return Err(OffsetFitError::Limb {
-                limb: OffsetLimb::OnLocus,
-                bound: report.on_locus_max,
-                tolerance,
-            });
-        }
+        nan_residual_at(report.on_locus_max, tolerance)?;
         if report.hull_sup <= tolerance {
             #[allow(clippy::cast_possible_truncation)]
             let cert = OffsetCertificate {
@@ -1399,8 +1450,9 @@ pub fn offset_point(base: &NurbsSurface<f64>, d: f64, u: f64, v: f64) -> Option<
 /// # Errors
 ///
 /// [`OffsetFitError`]: everything [`fit_offset`] refuses
-/// ([`OffsetFitError::Band`] included), plus [`certify_offset`]'s limb
-/// classifications. A rational fit takes
+/// ([`OffsetFitError::Band`] included), plus [`certify_offset`]'s
+/// refusals on the fresh fit, a limb's as [`OffsetFitError::MintLimb`].
+/// A rational fit takes
 /// the same path as a polynomial one — the composite is weighted, so
 /// rationality is not a refusal cause.
 pub fn approx_offset_surface(
@@ -1436,10 +1488,29 @@ pub fn approx_offset_surface_at(
     .map(Surface::Approx)
 }
 
+/// [`fit_offset_at`]'s per-round guard, against its chosen target.
+/// Limb 1 steers and does not gate the mint, but a certificate never
+/// carries a poisoned field: a round whose sampled residual is NaN
+/// refuses as the mint's. No fixture reaches it, since the fit is
+/// interpolated from finite data ([`OffsetFitError::NonFiniteSample`]
+/// refuses the rest).
+fn nan_residual_at(on_locus_max: f64, tolerance: f64) -> Result<(), OffsetFitError> {
+    if on_locus_max.is_nan() {
+        return Err(OffsetFitError::MintLimb {
+            limb: OffsetLimb::OnLocus,
+            bound: on_locus_max,
+            tolerance,
+        });
+    }
+    Ok(())
+}
+
 /// The storage step both mint forms share: the spec from the base, `d`
 /// and the loop's fit, certified by `certifier` on the STORED triple,
 /// with the loop's `rounds` carried
-/// ([`geom::OffsetCertificate::carrying_rounds`]).
+/// ([`geom::OffsetCertificate::carrying_rounds`]). A limb refusing
+/// the fit the loop just accepted is the mint's own
+/// ([`OffsetFitError::MintLimb`]).
 fn mint(
     base: std::sync::Arc<NurbsSurface<f64>>,
     d: f64,
@@ -1456,7 +1527,20 @@ fn mint(
         fit,
     };
     let approx = geom::ApproxSurface::certify(spec, |description, fit, window| {
-        certifier(description, fit, window).map(|cert| cert.carrying_rounds(loop_cert.rounds))
+        certifier(description, fit, window)
+            .map(|cert| cert.carrying_rounds(loop_cert.rounds))
+            .map_err(|e| match e {
+                OffsetFitError::Limb {
+                    limb,
+                    bound,
+                    tolerance,
+                } => OffsetFitError::MintLimb {
+                    limb,
+                    bound,
+                    tolerance,
+                },
+                other => other,
+            })
     })?;
     Ok(std::sync::Arc::new(approx))
 }
@@ -2802,6 +2886,72 @@ mod tests {
         assert!(worst5 >= 1.0, "the cap grid's widest cell gain is {worst5}");
     }
 
+    /// **A limb refusing at the mint is the mint's.** The certifier
+    /// `mint` runs on the loop's accepted fit is planted to refuse at
+    /// limb 1, which the shipped certifier does only on a sample above
+    /// the bound the loop accepted; the refusal leaves as `MintLimb`
+    /// with its payload, and every other refusal passes through as it
+    /// came.
+    #[test]
+    fn a_limb_refusing_the_fresh_fit_is_the_mints() {
+        use super::{OffsetFitError, OffsetLimb, fit_offset_at, mint};
+        let base = std::sync::Arc::new(bowed_patch());
+        let band = Band::linear(Tol::witness()).unwrap();
+        let fitted = fit_offset_at(&base, 0.05, 1e-3, band).unwrap();
+        let limb = OffsetFitError::Limb {
+            limb: OffsetLimb::OnLocus,
+            bound: 2e-3,
+            tolerance: 1e-3,
+        };
+        let refused = mint(
+            std::sync::Arc::clone(&base),
+            0.05,
+            fitted.clone(),
+            |_, _, _| Err(limb.clone()),
+        )
+        .unwrap_err();
+        assert_eq!(
+            refused,
+            OffsetFitError::MintLimb {
+                limb: OffsetLimb::OnLocus,
+                bound: 2e-3,
+                tolerance: 1e-3,
+            },
+            "the mint's limb left as the at-rest one"
+        );
+        let other = OffsetFitError::WindowUnsupported {
+            window: geom::ApproxWindow {
+                u: (0.25, 0.75),
+                v: (0.25, 0.75),
+            },
+        };
+        let passed = mint(base, 0.05, fitted, |_, _, _| Err(other.clone())).unwrap_err();
+        assert_eq!(passed, other, "a non-limb refusal was rerouted");
+    }
+
+    /// **The loop's NaN residual is the mint's.** The guard the fit loop
+    /// runs on every round's sampled residual refuses a NaN as
+    /// `MintLimb` at limb 1 carrying the poison, and passes every
+    /// number, an infinite one included (the hull bound decides those).
+    #[test]
+    fn a_nan_residual_in_the_fit_loop_is_the_mints() {
+        use super::{OffsetFitError, OffsetLimb, nan_residual_at};
+        match nan_residual_at(f64::NAN, 1e-3) {
+            Err(OffsetFitError::MintLimb {
+                limb: OffsetLimb::OnLocus,
+                bound,
+                tolerance,
+            }) => {
+                assert!(bound.is_nan(), "the poison was not carried: {bound}");
+                assert_eq!(tolerance, 1e-3, "the tolerance was not carried");
+            }
+            other => panic!("a NaN residual did not refuse as the mint's: {other:?}"),
+        }
+        for r in [0.0, 2e-3, f64::INFINITY] {
+            assert_eq!(nan_residual_at(r, 1e-3), Ok(()), "{r} refused");
+        }
+    }
+
     /// The bowed integral patch `topo`'s `Approx` fixture offsets.
     fn bowed_patch() -> geom::NurbsSurface<f64> {
         const BOW: f64 = 1.5e-2;
@@ -3361,20 +3511,37 @@ mod recourse_tests {
                 bound: 2e-9,
                 tolerance: 1e-9,
             },
+            OffsetFitError::MintLimb {
+                limb: OffsetLimb::OnLocus,
+                bound: f64::NAN,
+                tolerance: 1e-9,
+            },
+            OffsetFitError::MintLimb {
+                limb: OffsetLimb::OnLocus,
+                bound: 2e-9,
+                tolerance: 1e-9,
+            },
+            OffsetFitError::Limb {
+                limb: OffsetLimb::OnLocus,
+                bound: f64::NAN,
+                tolerance: 1e-9,
+            },
             OffsetFitError::Elevation(elevations[0].clone()),
             OffsetFitError::Elevation(elevations[1].clone()),
             OffsetFitError::Band(bands[0]),
             OffsetFitError::Band(bands[1]),
         ];
-        // Fourteen variants; `BudgetExhausted` is rendered at both of
+        // Fifteen variants; `BudgetExhausted` is rendered at both of
         // its `LastRound` readings, which are two different
         // sentences, `BoundNotFinite` at both of its `best`
         // cases, which are two different messages sending the caller
-        // to two different repairs, `Limb` at both limbs,
-        // which the message names in two different words, and
+        // to two different repairs, `Limb` at both limbs, which the
+        // message names in two different words, and at a NaN bound,
+        // which it names as no number, `MintLimb` at its limb's NaN and
+        // finite bounds, and
         // `Elevation` at both weights `check_weights` refuses, and
         // `Band` at both arms `Band::linear` can return.
-        assert_eq!(arms.len(), 19, "an arm was added without a row here");
+        assert_eq!(arms.len(), 22, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.to_string();
             let delegated = match arm {
@@ -3417,6 +3584,24 @@ mod recourse_tests {
                     "not the shared kernel-defect ending: {msg}"
                 );
             }
+            // The at-rest limb's repair is the re-fit; at the mint the
+            // re-fit is the call that refused, so the report instead.
+            match arm {
+                OffsetFitError::Limb { .. } => assert!(
+                    msg.starts_with("a stored offset surface does not hold to the tolerance")
+                        && msg.ends_with(super::LIMB_REFIT_RECOURSE),
+                    "the at-rest limb lost its re-fit: {msg}"
+                ),
+                OffsetFitError::MintLimb { .. } => assert!(
+                    !msg.contains("stored")
+                        && !msg.contains("Recourse")
+                        && msg.ends_with(geom_core::KERNEL_DEFECT_ENDING),
+                    "the mint's limb is not the report: {msg}"
+                ),
+                _ => {}
+            }
+            // A NaN bound is no number of metres, at rest or at the mint.
+            assert!(!msg.contains("NaN"), "a NaN rendered as metres: {msg}");
             if let OffsetFitError::Band(band) = arm {
                 assert!(
                     !msg.contains(&band.to_string()),
