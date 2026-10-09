@@ -54,7 +54,7 @@ fn poly(p: &[(f64, f64)]) -> ProfileLoop<f64> {
 /// counterclockwise: two lines and two half-circle arcs.
 fn stadium(c: (f64, f64), a: f64, r: f64) -> ProfileLoop<f64> {
     let p = |x: f64, y: f64| Point2::new(c.0 + x, c.1 + y);
-    RawLoop::new(vec![
+    <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
         (p(-a, -r), Segment::Line),
         (
             p(a, -r),
@@ -74,6 +74,7 @@ fn stadium(c: (f64, f64), a: f64, r: f64) -> ProfileLoop<f64> {
             }),
         ),
     ])
+    .with_tangent_joints(vec![0, 1, 2, 3])
 }
 
 fn prism(loops: Vec<ProfileLoop<f64>>, z: (f64, f64)) -> Body<f64> {
@@ -227,7 +228,7 @@ fn nested(what: &str, parts: &[&[(f64, f64)]], z: (f64, f64)) -> Vec<String> {
         });
     }
     let v = (area * (z.1 - z.0), 36.0, area * (z.1.min(1.0) - z.0.max(0.0)));
-    run(what, acc.unwrap(), plate(), v).1
+    run(&format!("{what} z{z:?}"), acc.unwrap(), plate(), v).1
 }
 
 /// Three, four, five and six nested one-segment circles, neighbours
@@ -310,12 +311,13 @@ fn r2_slotted_region() {
         let a = 0.9;
         let r = 0.5;
         let p = |x: f64, y: f64| Point2::new(x, y);
-        RawLoop::new(vec![
+        <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
             (p(-a, -r), Segment::Arc(Arc2 { centre: p(-a, 0.0), radius: r, sweep: -PI })),
             (p(-a, r), Segment::Line),
             (p(a, r), Segment::Arc(Arc2 { centre: p(a, 0.0), radius: r, sweep: -PI })),
             (p(a, -r), Segment::Line),
         ])
+        .with_tangent_joints(vec![0, 1, 2, 3])
     };
     let loops = vec![stadium((0.0, 0.0), 1.0, 0.6), inner];
     for z in [(0.5, 2.5), (-0.5, 1.5)] {
@@ -365,4 +367,38 @@ fn r2_flush_caps_on_plate() {
         ));
     }
     check(w);
+}
+
+/// Past the reach: a ring thinner than `L/4096` beside every edge
+/// (r 1 and 0.9995; the outer edge's `L` is 4, so its shortest step is
+/// 4/4096 ≈ 9.8e-4 > 5e-4). Measured, not asserted beyond "no wrong
+/// body": what each op does at the cliff.
+#[test]
+fn r2_ring_thinner_than_the_last_step() {
+    let mut w = Vec::new();
+    for ri in [0.9995, 0.9999] {
+        let area = PI * (1.0 - ri * ri);
+        for (ao, ai) in [(0.0, 0.0), (0.0, PI)] {
+            w.extend(tube_vs_plate(
+                &format!("thinner ri={ri} ({ao},{ai})"),
+                annulus((0.0, 0.0), 1.0, ao, ri, ai),
+                area,
+                (0.5, 2.5),
+            ));
+        }
+    }
+    check(w);
+}
+
+/// What tier 3′ says about the two-solids-in-a-bore results: the cause,
+/// printed (the PR names it `CensusUndecidable`).
+#[test]
+fn r2_t3p_cause_of_the_bore_results() {
+    let fin = |w, b| topo::test_support::finished(w, b, tol());
+    let t = fin("t", prism(annulus((0.0, 0.0), 1.0, 0.0, 0.999, PI), (-0.5, 1.5)));
+    let p = fin("p", plate());
+    let r = topo::subtract(&p, &t, tol()).unwrap();
+    let bb = r.body().unwrap();
+    let e = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol());
+    eprintln!("R2T3P thin through B∖A: {:.300}", format!("{e:?}"));
 }
