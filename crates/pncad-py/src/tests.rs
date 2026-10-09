@@ -5117,6 +5117,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "label_unchanged",
             "mate_refused",
             "measure_malformed",
+            "measures_world_copy",
             "meta_non_finite",
             "meta_not_set",
             "meta_unversioned",
@@ -6164,6 +6165,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "label_on_missing_node",
             "mate_alignment",
             "measure_refs",
+            "measures_world_copy",
             "metadata_unversioned",
             "mint_log_order",
             "name_on_missing_var",
@@ -6214,6 +6216,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "part_name_reaches_remainder",
             "placing_mate_left",
             "remainder_edit",
+            "remainder_read_uncarried",
             "severed_edge",
             "severed_gauge",
             "split_pin",
@@ -6656,6 +6659,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // seam: a split's kept mate and an inline's host mate.
     ("mate_frame_crosses", 2),
     ("measure_malformed", 2),
+    // One fact at the edit and load doors: a measure sited at a world
+    // placement.
+    ("measures_world_copy", 2),
     // A split's and an inline's refusal of a name on a dropped step: one
     // fact (`editor_core::refactor::Unmapped::Step`), one word.
     ("name_on_dropped_step", 2),

@@ -1105,6 +1105,7 @@ test_utils::f6_variants! {
         SlotVarKind,
         PartHalfPort,
         ReadsWorldCopy,
+        MeasuresWorldCopy,
         ReadCycle,
         WitnessSite,
         WitnessOnMissingNode,
@@ -1244,6 +1245,13 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 placement: absent(9),
             },
             vec!["reads the world copy", "construction never reads the world"],
+        ),
+        (
+            SnapshotError::MeasuresWorldCopy {
+                node: node(),
+                placement: absent(9),
+            },
+            vec!["is sited at", "only the product and export read"],
         ),
         (
             SnapshotError::ReadCycle { at: absent(9) },

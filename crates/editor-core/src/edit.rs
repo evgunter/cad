@@ -1232,9 +1232,54 @@ fn lower_operand<P: crate::ProfilePayload>(
     check_read(doc, spoken, slot, var, half, expected, unresolved)
 }
 
+/// **What is wrong with a live operand read, if anything**: the one rule
+/// the edit doors ([`check_read`]) and the load door ask, in one order —
+/// a kind the seat does not admit, a part over a split reading the half
+/// it does not select, then a read of a world placement's copy (D10:
+/// construction never reads the world).
+pub(crate) enum ReadFault {
+    /// The variable's kind is not the seat's.
+    Kind,
+    /// A part over a split reads the other half.
+    PartHalfPort(crate::SplitHalf),
+    /// The variable is this world placement's copy.
+    WorldCopy(RecipeNodeId),
+}
+
+/// [`ReadFault`]'s predicate over the live `held` variable a seat of
+/// kind `expected` reads; `half` is the half a part over a split selects.
+pub(crate) fn read_fault<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    held: &crate::Var,
+    half: Option<crate::SplitHalf>,
+    expected: crate::SlotKind,
+) -> Option<ReadFault> {
+    if !expected.admits(held) {
+        return Some(ReadFault::Kind);
+    }
+    let (from, port) = held.def().output()?;
+    match (half, doc.node(from)) {
+        (Some(half), Some(Node::Split { .. })) if u32::from(port) != half.output_body() => {
+            Some(ReadFault::PartHalfPort(half))
+        }
+        (_, Some(Node::PlaceInWorld { .. })) => Some(ReadFault::WorldCopy(from)),
+        _ => None,
+    }
+}
+
+/// **The world placement a site `at` would read the copy of**, if any:
+/// a measure site there reads the pose, which only the gather and export
+/// read. The edit doors refuse it ([`EditError::MeasuresWorldCopy`]) and
+/// so does the load door.
+pub(crate) fn world_copy_site<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    at: RecipeNodeId,
+) -> Option<RecipeNodeId> {
+    matches!(doc.node(at), Some(Node::PlaceInWorld { .. })).then_some(at)
+}
+
 /// [`lower_operand`]'s checks of the variable an operand resolved to:
-/// live, of a kind the seat admits, and for a part over a split the
-/// half it selects.
+/// live, then [`read_fault`].
 fn check_read<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     spoken: &impl Fn() -> SpokenNode,
@@ -1247,36 +1292,26 @@ fn check_read<P: crate::ProfilePayload>(
     let Some(held) = doc.var(var) else {
         return Err(unresolved());
     };
-    if !expected.admits(held) {
-        return Err(EditError::SlotVarKind {
+    match read_fault(doc, held, half, expected) {
+        None => Ok(var),
+        Some(ReadFault::Kind) => Err(EditError::SlotVarKind {
             var: Box::new(doc.spoken_var(var)),
             node: spoken(),
             slot,
             found: held.kind(),
             expected,
-        });
-    }
-    if let Some(half) = half
-        && let Some((split, port)) = held.def().output()
-        && matches!(doc.node(split), Some(Node::Split { .. }))
-        && u32::from(port) != half.output_body()
-    {
-        return Err(EditError::PartHalfPort {
+        }),
+        Some(ReadFault::PartHalfPort(half)) => Err(EditError::PartHalfPort {
             node: spoken(),
             half,
             var: Box::new(doc.spoken_var(var)),
-        });
-    }
-    if let Some((placement, _)) = held.def().output()
-        && matches!(doc.node(placement), Some(Node::PlaceInWorld { .. }))
-    {
-        return Err(EditError::ReadsWorldCopy {
+        }),
+        Some(ReadFault::WorldCopy(placement)) => Err(EditError::ReadsWorldCopy {
             node: spoken(),
             slot,
             placement: doc.spoken(placement),
-        });
+        }),
     }
-    Ok(var)
 }
 
 /// **One formula lowered into `doc` as a slot's**, outside any edit:
@@ -1737,6 +1772,13 @@ pub enum EditError {
         /// The slot.
         slot: SlotId,
         /// The placement whose copy it reads.
+        placement: SpokenNode,
+    },
+    /// A measure is sited at a world placement, so its value would read
+    /// the placement's pose, which only the gather and export read.
+    /// Measuring between placed copies is stage 3's to design.
+    MeasuresWorldCopy {
+        /// The placement it is sited at.
         placement: SpokenNode,
     },
     /// The recipe graph would contain a cycle (defensive: insertion
@@ -3049,6 +3091,7 @@ impl EditError {
                 *node = node.respoken(doc);
                 *placement = placement.respoken(doc);
             }
+            Self::MeasuresWorldCopy { placement } => *placement = placement.respoken(doc),
             Self::AmbiguousOutput { input, slot: _ } | Self::DefinesNothing { input, slot: _ } => {
                 *input = input.respoken(doc);
             }
@@ -3348,6 +3391,17 @@ impl EditError {
                      never reads the world"
                 )?;
                 tail.recourse(f, format_args!("read the body {placement} reads"))
+            }
+            Self::MeasuresWorldCopy { placement } => {
+                write!(
+                    f,
+                    "a measure is sited at {placement}, whose copy only the product and \
+                     export read"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("site the measure at the body {placement} reads"),
+                )
             }
             Self::UnknownSlot { id, slot } => {
                 write!(f, "{id} has no slot {}", slot.label())?;
@@ -5426,6 +5480,15 @@ fn check_payload_refs<P: crate::ProfilePayload>(
                 at: SpokenNode::absent(at),
             });
         }
+    }
+    if let Some(placement) = node
+        .measure_sites()
+        .into_iter()
+        .find_map(|at| world_copy_site(new, at))
+    {
+        return Err(EditError::MeasuresWorldCopy {
+            placement: doc.spoken(placement),
+        });
     }
     Ok(())
 }

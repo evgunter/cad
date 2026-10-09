@@ -611,6 +611,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::DefinesNothing { .. } => "defines_nothing",
         EditError::PartHalfPort { .. } => "part_half_port",
         EditError::ReadsWorldCopy { .. } => "reads_world_copy",
+        EditError::MeasuresWorldCopy { .. } => "measures_world_copy",
         EditError::UnknownSlot { .. } => "unknown_slot",
         EditError::SlotDimensionMismatch { .. } => "slot_dimension_mismatch",
         EditError::StructuralSlotNeedsStructuralEdit { .. } => {
@@ -1314,6 +1315,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::DefinesNothing { .. } => None,
         EditError::PartHalfPort { .. } => None,
         EditError::ReadsWorldCopy { .. } => None,
+        EditError::MeasuresWorldCopy { .. } => None,
         EditError::UnknownSlot { .. } => None,
         EditError::SlotDimensionMismatch { .. } => None,
         EditError::StructuralSlotNeedsStructuralEdit { .. } => None,
@@ -2055,6 +2057,7 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::OperandUnminted { .. } => "operand_unminted",
         SnapshotError::PartHalfPort { .. } => "part_half_port",
         SnapshotError::ReadsWorldCopy { .. } => "reads_world_copy",
+        SnapshotError::MeasuresWorldCopy { .. } => "measures_world_copy",
         SnapshotError::ReadCycle { .. } => "read_cycle",
         SnapshotError::WitnessSite { .. } => "witness_site",
         SnapshotError::WitnessOnMissingNode { .. } => "witness_on_missing_node",

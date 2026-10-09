@@ -897,3 +897,78 @@ fn inline_keeps_both_copies_of_an_instance_placed_twice() {
         other => panic!("a two-body part placed twice refuses: {other:?}"),
     }
 }
+
+/// **No measure is sited at a world placement.** A distance between two
+/// copies' end caps, read at the placements, would move with the pose,
+/// which only the gather and export read: the edit door refuses it
+/// naming the placement, and a file holding such a site refuses at
+/// load. Measuring between placed copies is stage 3's to design.
+///
+/// Red if the site is admitted: the review's probe measured `0.0` with
+/// the copy at `dz = 0` and `2.0` at `dz = 2`.
+#[test]
+fn no_measure_is_sited_at_a_world_placement_at_the_door_or_at_load() {
+    let doc = ProfileDoc::empty_derived("intent-c-measure-copy", Tol::witness());
+    let (doc, a) = block(doc, 0.0);
+    let (doc, b) = block(doc, 3.0);
+    let (doc, p) = place(doc, a);
+    let (doc, q) = place(doc, b);
+    let measure = |sites: [(RecipeNodeId, StableName); 2]| {
+        Node::measure(
+            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+            sites
+                .into_iter()
+                .map(|(at, name)| SitedRef::new(at, name))
+                .collect(),
+        )
+        .expect("a distance over two sites")
+    };
+    let at_copies = measure([
+        (p, cap(a, CapEnd::End).in_copy(p)),
+        (q, cap(b, CapEnd::End).in_copy(q)),
+    ]);
+    match doc.apply(
+        &DocEdit::InsertNode {
+            node: Box::new(at_copies),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    ) {
+        Err(editor_core::EditError::MeasuresWorldCopy { placement }) => {
+            assert_eq!(placement.id(), p, "the refusal names the first placement");
+        }
+        Err(other) => panic!("refused otherwise: {other}"),
+        Ok(_) => panic!("a measure sited at a placement was admitted"),
+    }
+
+    // The same site on the wire: a measure at the bodies, its first
+    // site moved onto the placement.
+    let (doc, _) = insert(
+        doc,
+        measure([(a, cap(a, CapEnd::End)), (b, cap(b, CapEnd::End))]),
+    );
+    let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
+    let wire = |id| serde_json::to_string(&id).expect("an id serializes");
+    let measure_at = text
+        .find("\"Measure\"")
+        .expect("the measure is on the wire");
+    let site = format!("\"at\": {}", wire(a));
+    let offset = measure_at + text[measure_at..].find(&site).expect("its first site");
+    let forged = format!(
+        "{}\"at\": {}{}",
+        &text[..offset],
+        wire(p),
+        &text[offset + site.len()..]
+    );
+    match editor_core::persist::load(&forged, Tol::witness()) {
+        Err(error) => {
+            let said = error.to_string();
+            assert!(
+                said.contains("whose copy only the product and export read"),
+                "the load names the site: {said}"
+            );
+        }
+        Ok(_) => panic!("a file whose measure is sited at a placement loads"),
+    }
+}

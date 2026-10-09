@@ -706,40 +706,51 @@ fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
             } => Some(*half),
             _ => None,
         };
-        node.operand_rows().into_iter().find_map(|(slot, var)| {
-            if !snapshot.has_minted_var(var) {
-                return Some(SnapshotError::OperandUnminted {
-                    node: snapshot.spoken(id),
-                    slot,
-                    var: snapshot.spoken_var(var),
-                });
-            }
-            let held = snapshot.var(var)?;
-            if !slot.kind().admits(held) {
-                return Some(SnapshotError::SlotVarKind {
-                    node: snapshot.spoken(id),
-                    slot: SlotId::Operand(slot),
-                    var: Box::new(snapshot.spoken_var(var)),
-                    found: held.kind(),
-                    expected: slot.kind(),
-                });
-            }
-            let (from, port) = held.def().output()?;
-            if matches!(snapshot.node(from), Some(Node::PlaceInWorld { .. })) {
-                return Some(SnapshotError::ReadsWorldCopy {
-                    node: snapshot.spoken(id),
-                    slot: SlotId::Operand(slot),
-                    placement: snapshot.spoken(from),
-                });
-            }
-            (half.is_some_and(|half| u32::from(port) != half.output_body())
-                && matches!(snapshot.node(from), Some(Node::Split { .. })))
-            .then(|| SnapshotError::PartHalfPort {
-                node: snapshot.spoken(id),
-                half: half.unwrap_or(crate::SplitHalf::Above),
-                var: Box::new(snapshot.spoken_var(var)),
+        node.operand_rows()
+            .into_iter()
+            .find_map(|(slot, var)| {
+                if !snapshot.has_minted_var(var) {
+                    return Some(SnapshotError::OperandUnminted {
+                        node: snapshot.spoken(id),
+                        slot,
+                        var: snapshot.spoken_var(var),
+                    });
+                }
+                let held = snapshot.var(var)?;
+                Some(
+                    match crate::edit::read_fault(snapshot, held, half, slot.kind())? {
+                        crate::edit::ReadFault::Kind => SnapshotError::SlotVarKind {
+                            node: snapshot.spoken(id),
+                            slot: SlotId::Operand(slot),
+                            var: Box::new(snapshot.spoken_var(var)),
+                            found: held.kind(),
+                            expected: slot.kind(),
+                        },
+                        crate::edit::ReadFault::PartHalfPort(half) => SnapshotError::PartHalfPort {
+                            node: snapshot.spoken(id),
+                            half,
+                            var: Box::new(snapshot.spoken_var(var)),
+                        },
+                        crate::edit::ReadFault::WorldCopy(placement) => {
+                            SnapshotError::ReadsWorldCopy {
+                                node: snapshot.spoken(id),
+                                slot: SlotId::Operand(slot),
+                                placement: snapshot.spoken(placement),
+                            }
+                        }
+                    },
+                )
             })
-        })
+            .or_else(|| {
+                let placement = node
+                    .measure_sites()
+                    .into_iter()
+                    .find_map(|at| crate::edit::world_copy_site(snapshot, at))?;
+                Some(SnapshotError::MeasuresWorldCopy {
+                    node: snapshot.spoken(id),
+                    placement: snapshot.spoken(placement),
+                })
+            })
     })
 }
 
@@ -1120,6 +1131,14 @@ pub enum SnapshotError {
         /// The slot.
         slot: SlotId,
         /// The placement whose copy it reads.
+        placement: SpokenNode,
+    },
+    /// A measure is sited at a world placement — the edit doors'
+    /// [`crate::EditError::MeasuresWorldCopy`].
+    MeasuresWorldCopy {
+        /// The measure.
+        node: SpokenNode,
+        /// The placement it is sited at.
         placement: SpokenNode,
     },
     /// The nodes' reads close a loop ([`crate::Doc::upstream`]): no edit
@@ -1516,6 +1535,10 @@ impl core::fmt::Display for SnapshotError {
             Self::PartHalfPort { node, half, var } => {
                 write!(f, "{node} selects the {} half but reads {var}", half.name())
             }
+            Self::MeasuresWorldCopy { node, placement } => write!(
+                f,
+                "{node} is sited at {placement}, whose copy only the product and export read"
+            ),
             Self::ReadsWorldCopy {
                 node,
                 slot,
@@ -2193,6 +2216,7 @@ mod tests {
             OperandUnminted,
             PartHalfPort,
             ReadsWorldCopy,
+            MeasuresWorldCopy,
             ReadCycle,
             WitnessSite,
             WitnessOnMissingNode,
@@ -2254,7 +2278,8 @@ mod tests {
             SnapshotError::PayloadVarKind { .. } => Walk::PayloadRead,
             SnapshotError::OperandUnminted { .. }
             | SnapshotError::PartHalfPort { .. }
-            | SnapshotError::ReadsWorldCopy { .. } => Walk::OperandRead,
+            | SnapshotError::ReadsWorldCopy { .. }
+            | SnapshotError::MeasuresWorldCopy { .. } => Walk::OperandRead,
             SnapshotError::AnonymousVarUnread { .. } => Walk::AnonymousVar,
             SnapshotError::DefinitionReadsUnmintedVar { .. }
             | SnapshotError::DefinitionVarKind { .. } => Walk::DefinitionRead,
@@ -2356,6 +2381,10 @@ mod tests {
             SnapshotError::ReadsWorldCopy {
                 node: node(),
                 slot: SlotId::Operand(crate::OperandSlot::A),
+                placement: node(),
+            },
+            SnapshotError::MeasuresWorldCopy {
+                node: node(),
                 placement: node(),
             },
             SnapshotError::ReadCycle { at: at(9) },

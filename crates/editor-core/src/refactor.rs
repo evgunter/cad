@@ -1832,6 +1832,7 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::DefinesNothing { .. }
             | EditError::PartHalfPort { .. }
             | EditError::ReadsWorldCopy { .. }
+            | EditError::MeasuresWorldCopy { .. }
             | EditError::UnknownSlot { .. }
             | EditError::SlotDimensionMismatch { .. }
             | EditError::StructuralSlotNeedsStructuralEdit { .. }

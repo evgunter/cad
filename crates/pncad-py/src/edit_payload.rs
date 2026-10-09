@@ -404,6 +404,10 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             node: Some(node.id()),
             ..none
         },
+        EditError::MeasuresWorldCopy { placement } => EditPayload {
+            node: Some(placement.id()),
+            ..none
+        },
         EditError::ReadsWorldCopy { node, slot, .. } => EditPayload {
             node: Some(node.id()),
             slot: Some(slot_id_tag(slot)),
