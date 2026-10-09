@@ -501,24 +501,20 @@ pub(crate) struct ShellRead {
 }
 
 impl ShellRead {
-    /// `shell` read: `None` where its selection cannot be read, and the
-    /// shell's typed refusal where its role cannot
-    /// ([`crate::props::shell_role`]).
+    /// `shell` read, or the shell's typed refusal where its role cannot
+    /// be ([`crate::props::shell_role`]).
     pub(crate) fn of<T: Decide>(
         body: &Body<T>,
         shell: ShellKey,
         band: Band,
         tol: Tol,
         quad: Option<QuadLane<T>>,
-    ) -> Option<Result<Self, ShellClassifyError>> {
-        let sel = SolidFaces::of_shell(body, shell).ok()?;
-        Some(
-            crate::props::shell_role(body, shell, band, tol, quad).map(|(role, _)| Self {
-                shell,
-                role,
-                sel: sel.with_role(role),
-            }),
-        )
+    ) -> Result<Self, ShellClassifyError> {
+        crate::props::shell_role(body, shell, band, tol, quad).map(|(role, _)| Self {
+            shell,
+            role,
+            sel: SolidFaces::of_shell(body, shell).with_role(role),
+        })
     }
 }
 
