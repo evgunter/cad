@@ -545,3 +545,42 @@ fn a_frame_handed_another_pairs_extent_is_a_desync() {
         );
     }
 }
+
+/// **Two declared-equal walls whose axes meet at a sliver of an angle
+/// escalate the circle question.** Unit walls about `y` and about `y`
+/// turned by `φ` about `z` through the origin, `φ` four band-widths clear
+/// of parallel at their radius: the table reads the axes as meeting and
+/// constructs the bisector ellipses, the one across both axes with
+/// semi-axes `1/cos(φ/2)` and `1`, an `O(φ²)` difference far inside the
+/// band. The constructor refuses `ellipse_axes_distinct`, and the frame
+/// escalates on it rather than calling it a refusal the pair cannot make.
+#[test]
+fn declared_equal_walls_meeting_at_a_sliver_escalate_the_circle_question() {
+    let b = band();
+    let phi = (4.0 * b.escalate()).asin();
+    let wall = |axis: Vec3<f64>| geom::Surface::Cylinder {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        axis,
+        radius: 1.0,
+        u_ref: Vec3::new(0.0, 0.0, 1.0),
+    };
+    let (a, c) = (
+        wall(Vec3::new(0.0, 1.0, 0.0)),
+        wall(Vec3::new(-phi.sin(), phi.cos(), 0.0)),
+    );
+    for (label, x, y) in [("a, b", &a, &c), ("b, a", &c, &a)] {
+        let got = pair_section_frame(
+            x,
+            y,
+            RadiusEvidence::Declared,
+            Point3::new(0.0, 0.0, 0.0),
+            None,
+            b,
+        );
+        assert!(
+            matches!(&got, Err(FrameError::Escalated(d)) if d.predicate == Some("ellipse_axes_distinct")),
+            "{label}: got {}",
+            shape(&got)
+        );
+    }
+}
