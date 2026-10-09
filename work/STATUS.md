@@ -2668,6 +2668,7 @@ area `kernel`; prefix `zip/`; tag `(ZIP orchestrator)`; ab_band `7200-7299`.
 | `decided-tangent-point-is-the-radical-foot` | 2026-10-07 | decided-tangent contact points taken at the radical-line foot sit off both circles by gap*(r1+r2)/d, not the gap |
 | `two-rows-commit-a-process-global-tolerance-and-red-under-cargo-test` | 2026-10-07 | Two rows commit a process-global tolerance, so they red under cargo test and pass only under nextest |
 | `graft-door-caller-errors-are-join-desync` | 2026-10-08 | the graft doors refuse a caller's wrong source as JoinDesync, which offer_key reads as a kernel defect |
+| `axis-projections-spelled-v-minus-a-a-dot-v-outside-the-section-certificate` | 2026-10-09 | Projections square to an axis spelled v − a(a·v) outside the section certificate keep an axial rounding component; unmeasured |
 
 ## Blocked
 
