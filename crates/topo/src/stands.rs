@@ -9,7 +9,7 @@
 //! it and does not read it yet: the census's cross-solid material probe
 //! (`census::sweep_cross_solid_backstop`), which reads vertices only and
 //! refuses where all of them touch
-//! (`work/contact/the-census-material-probe-reads-only-vertices-so-a-flush-nested-solid-is-undecided.md`).
+//! (`work/inside/the-census-material-probe-reads-only-vertices-so-a-flush-nested-solid-is-undecided.md`).
 //! Each asks it
 //! under the premise that the complex crosses no surface it is probed
 //! against, so it meets one only where it lies ON it, every point of it
