@@ -218,3 +218,30 @@ migration, gathered by `union`", dropping "through `InFrame` poses" and "within 
 `Direction`'s first reader is `translate`" → "the `Linear` `Direction` slot has no successor: a row's direction is the
 freedom a `Plane` mate leaves"; Unchecked requirement → the narrowed form above; Sequencing's "#4326's `Pattern`
 sentence" → the Operations wording above.
+
+## Round 5 (does `Mirror` read a plane?)
+
+**1. No, `Mirror { body }` does not hold (likely).** The premise is right for the image alone: reflections about any two
+planes differ by a rigid motion, so for a chiral twin that goes to another space the plane carries no shape, exactly as the
+extrude's side does, and one convention would suffice. It is wrong for the image **fused to its source**, which is what
+mirror is for in part modelling: `union(body, image)` depends on the plane, since the plane is the seam. With
+`Mirror { body }` the image is a root of its own, so fusing it needs a placement: a `Plane` mate (flipped) on the seam face
+and three values. Reflection across that face fixes everything in the plane, so the right values are constants, but which
+constants (zero, or a half-turn spin) depends on the fixed reflecting plane of the image's own coordinates and on which
+reference direction the spin chart reads, a convention the person has to know and a fudged invariant. The plane says it
+without a number.
+
+**2. The case: the symmetric part.** `union(body, Mirror { body, plane })` is one construction in one root; the seam is the
+plane's face read twice, the same construction, so the glue is structural with nothing more said and the census proves
+nothing. Round 4's `face` was too narrow: the plane is any `Plane` pose whose reads reach the body's root alone, a face
+read as a plane usually, or a plane constructed from the body's own geometry (through its axis) for a body with no planar
+face; S3P's root rule is the whole restriction, and "no construction reads a frame from elsewhere" is kept. The image lives
+in its source's root; a chiral twin elsewhere is a placement of a copy of it, where the plane is shape-free and harmless.
+
+**3. Text (for `Mirror { body, plane }`).** D10 Repetition: "`Mirror { body, plane }` is a construction defining a new `Body`
+in its source's root, the plane a `Plane` pose whose reads reach that root alone (a face read as a plane, or a plane
+constructed from the body's geometry); a reflection is not a pose, so the image is not a copy and every pose is proper. A
+symmetric part is `union(body, Mirror { body, plane })`, one construction whose seam is the plane's face read twice; a
+chiral twin elsewhere is a placement of the image, and there the plane carries no shape." MIRROR P4: replace "Mirror is the
+construction `Mirror { body, plane }`, defining a new `Body`: a reflection is not a pose, so no pose is improper" with the
+same two sentences, and keep "P1–P3 and P6 are that construction's design".
