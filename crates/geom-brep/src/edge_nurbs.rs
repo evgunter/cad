@@ -909,6 +909,18 @@ impl AnalyticRung3Refusal {
             .map(|(check, arm)| recourse(check, arm, reading))
     }
 
+    /// The ending this refusal gives at the STEP import door
+    /// ([`recourse_in_file`]), as [`AnalyticRung3Refusal::ending`] gives
+    /// it at rest.
+    #[must_use]
+    pub fn ending_in_file(&self, file: FileCoincidence) -> Option<String> {
+        if let Self::TubeNotOneArc { cause, .. } = *self {
+            return Some(cause.ending_in_file(crate::ssi::OneArcDoor::AtRest, file));
+        }
+        self.decision()
+            .map(|(check, arm)| recourse_in_file(check, arm, file))
+    }
+
     /// The decision this refusal is a refused arm of, and which arm.
     #[must_use]
     pub fn decision(&self) -> Option<(CertCheck, RefusedArm<'_>)> {

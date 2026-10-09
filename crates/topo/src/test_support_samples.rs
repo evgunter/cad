@@ -1658,3 +1658,30 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
     ));
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use geom_brep::recourse::Reading;
+    use geom_core::FileCoincidence;
+
+    /// **Every certification refusal ends at both doors or at neither**
+    /// (D4 ¶1: one recourse per decision, wherever it is read): a variant
+    /// whose at-rest ending is special-cased must have its import-door
+    /// twin. The roster is [`super::certify_errors`], which
+    /// `nested_coverage_gaps` holds to every `CertifyError`,
+    /// `PlaneNurbsRefusal` and `AnalyticRung3Refusal` variant. Red where
+    /// one door gives an ending the other drops.
+    #[test]
+    fn every_certify_refusal_ends_alike_at_rest_and_at_the_import_door() {
+        let file = FileCoincidence::new(1e-6);
+        let split: Vec<String> = super::certify_errors()
+            .iter()
+            .filter(|e| e.ending(Reading::AtRest).is_some() != e.ending_in_file(file).is_some())
+            .map(|e| format!("{e:?}"))
+            .collect();
+        assert!(
+            split.is_empty(),
+            "one door ends, the other does not: {split:#?}"
+        );
+    }
+}

@@ -732,12 +732,13 @@ impl CertifyError {
     /// with the file's ε_in words. `None` as [`CertifyError::ending`].
     #[must_use]
     pub fn ending_in_file(&self, file: FileCoincidence) -> Option<String> {
-        match *self {
-            Self::PlaneNurbs(ref refusal) => refusal.ending_in_file(file),
-            _ => self
-                .decision()
-                .map(|(check, arm)| recourse_in_file(check, arm, file)),
+        match self {
+            Self::PlaneNurbs(refusal) => return refusal.ending_in_file(file),
+            Self::AnalyticRung3(refusal) => return refusal.ending_in_file(file),
+            _ => {}
         }
+        self.decision()
+            .map(|(check, arm)| recourse_in_file(check, arm, file))
     }
 
     /// The payload and, where its decision gives one, the ending read at
