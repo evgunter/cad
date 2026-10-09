@@ -268,6 +268,51 @@ table's names distinct, restating the output the variable already says.
 The split is the case to show Ev; the placement is where the compensation
 would stop working.
 
+### 8. Round 5: B's three departures, and (iii) in B's shape
+
+**I move to (iii), likely.** `xs[i]` is a read of the family variable at
+`Count` expressions, not a variable; its key is `xs`, the index said once
+in `Member { (i), of }`; `Union[xs]` and `Union[xs[0], …]` name alike.
+
+**1. A shape defined by a definition.** True of (i): `xs[i]` would be a
+`Body` variable defined by no operation, against D10's "the shapes …
+which only an operation defines", and it would be the one shape with a
+name table that no operation minted (the member's rows, carried through
+a definition). It is a departure, and in D10's own text. DM3's "a
+definition reading the family" and D10's "`xs[i, j]` reads one member"
+were ratified together and disagree here; D10 governs where a companion
+clause disagrees, and its two sentences are consistent with each other
+under (iii) only. The final state keeps D10's wording and changes DM3's
+to "a read of the family at one `Count` expression per index".
+
+**2. Two spellings of one member read.** Yes, and Ev would see it: inside
+a per-`k` reader, `union(xs)` and `union(xs[k])` read the same member,
+and under (i) the second keys by a definition's id while the first keys
+by `xs`, so one thing gets two names depending on whether the author
+wrote the index the evaluation already supplies. Under (iii) both are the
+read of `xs` at `k` and name alike. This is the departure in the layer
+this fork is about, and it decides it for me.
+
+**3. `Union[xs, xs[0]]`.** Under (i) a syntactic duplicate escapes DM5 by
+being wrapped in a definition, and builds `A ∪ A`; the door's check is
+dodged by a spelling. Under (iii) it is one member read twice and refuses
+at the door, which needs DM5 to say one thing more: a read of a family is
+a read of each member. The tail B lists is not optional: `xs[i]` and
+`xs[j]` landing on one member at the current values would give two rows
+one name (`From { read: xs, of: Member { (v), … } }`), so the evaluation
+must refuse it typed, in the class DM3 already keeps there (an index out
+of range). State it as DM5's evaluation-time arm, forced by the key.
+
+**My objection to (iii), against B's shape.** Withdrawn but for VR4. B
+keys by `xs` alone and the index lives only in `Member`, so there is no
+compound key and no doubled index. What remains: a slot holds a read with
+its index expressions, not a bare `VarId`, so VR4 changes by one clause
+("a read of a family carries one `Count` expression per index") and the
+operand machinery (`Operand`, lowering, persistence, `upstream`, the
+keys) carries the index. That is cost; the per-`k` implicit read already
+is "the family at an index", with the index supplied by the evaluation
+instead of the slot, so (iii) gives the explicit spelling the same shape.
+
 ### Clauses changed
 
 - REFERENCES **DM4**: "Naming keys by member" → by the read; "It sits
