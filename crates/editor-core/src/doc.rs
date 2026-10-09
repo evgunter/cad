@@ -1235,7 +1235,11 @@ impl<P> Doc<P> {
             }
         }
         for var in self.vars.keys() {
-            for read in self.definition_reads(*var).into_iter().collect::<BTreeSet<_>>() {
+            for read in self
+                .definition_reads(*var)
+                .into_iter()
+                .collect::<BTreeSet<_>>()
+            {
                 *readers.entry(read).or_default() += 1;
             }
         }

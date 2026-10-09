@@ -10,7 +10,8 @@
 use crate::common;
 use editor_core::ExtrudeSide;
 use pncad::document::{
-    Dimension, Doc, DocEdit, EditError, FreeVar, Node, ProfileProgram, RecipeNodeId, SlotId, VarId, VarName,
+    Dimension, Doc, DocEdit, EditError, FreeVar, Node, ProfileProgram, RecipeNodeId, SlotId, VarId,
+    VarName,
 };
 use pncad::geom_core::Tol;
 use viewer::props::{self, SlotValue};

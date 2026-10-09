@@ -18,9 +18,9 @@ use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::persist::SnapshotError;
 use editor_core::{
     CancelToken, Datum, Dimension, Distribution, DocEdit, DocumentId, EditError, EvalOptions,
-    Evaluation, ExtrudeSide, Formula, FreeValue, FreeVar, FreshEntry, LoopProgram, Maintenance, Node,
-    PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, SplitError, VarDecl, VarId,
-    VarName, apply, evaluate, load, save, split,
+    Evaluation, ExtrudeSide, Formula, FreeValue, FreeVar, FreshEntry, LoopProgram, Maintenance,
+    Node, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, SplitError, VarDecl,
+    VarId, VarName, apply, evaluate, load, save, split,
 };
 use geom_brep::RadiusEvidence;
 use geom_core::Tol;
@@ -855,10 +855,7 @@ fn an_edit_at_a_path_keeps_a_fresh_entrys_read() {
             .with_distribution(Some(Distribution::Normal { sigma: 0.001 }))
             .expect("a length takes a normal"),
     );
-    let applied = step(
-        &doc,
-        point([twice, len(0.0), len(0.0)], vec![spread]),
-    );
+    let applied = step(&doc, point([twice, len(0.0), len(0.0)], vec![spread]));
     let node = applied.record.minted.expect("the point");
     let [entry] = applied.record.fresh[..] else {
         panic!("one entry minted: {:?}", applied.record.fresh)

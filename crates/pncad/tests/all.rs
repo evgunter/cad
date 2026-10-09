@@ -7117,7 +7117,10 @@ fn a_facade_slot_shares_an_unnamed_variable_only_once_it_is_named() {
     )
     .expect("a typed point");
     let a = first.record.minted.expect("minted");
-    let x = first.doc.slot(a, SlotId::Origin(Axis3::X)).expect("a reads x");
+    let x = first
+        .doc
+        .slot(a, SlotId::Origin(Axis3::X))
+        .expect("a reads x");
     let second = point(Formula::var(x, Dimension::Length));
     match apply(&first.doc, &second) {
         Err(EditError::SharedVarNeedsName { var }) => assert_eq!(var.id(), x),

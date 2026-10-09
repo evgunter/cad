@@ -156,7 +156,11 @@ fn a_definition_is_a_reader() {
     let reads = reads.expect("k is defined");
     assert_eq!(reads.len(), 2, "k reads its entry twice");
     assert_eq!(reads[0], reads[1]);
-    assert_eq!(doc.var_name(reads[0].0), None, "and the entry stays unnamed");
+    assert_eq!(
+        doc.var_name(reads[0].0),
+        None,
+        "and the entry stays unnamed"
+    );
 }
 
 /// **Clearing the name of a shared variable** refuses, speaking it by
@@ -236,7 +240,11 @@ fn an_output_two_operations_read_needs_no_name() {
     let (doc, _) = insert(doc, Node::fillet(cube, len(0.125), edges.clone()));
     let (doc, _) = insert(doc, Node::chamfer(cube, len(0.125), edges));
     let body = doc.read_of_node(cube).expect("the extrude's body");
-    assert_eq!(doc.var_name(body), None, "the premise: the output is unnamed");
+    assert_eq!(
+        doc.var_name(body),
+        None,
+        "the premise: the output is unnamed"
+    );
     assert_eq!(doc.reader_counts()[&body], 2);
     assert!(doc.shared_unnamed_vars().is_empty());
 }

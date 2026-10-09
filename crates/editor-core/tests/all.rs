@@ -196,10 +196,10 @@ mod eval6_placers_over_instances_interval;
 mod eval9_nominal_in_the_key;
 #[path = "fix_loop_polygon_expr.rs"]
 mod fix_loop_polygon_expr;
-#[path = "fork7_shared_is_named.rs"]
-mod fork7_shared_is_named;
 #[path = "fix_pattern_mate_crossing.rs"]
 mod fix_pattern_mate_crossing;
+#[path = "fork7_shared_is_named.rs"]
+mod fork7_shared_is_named;
 #[path = "reach_slab_cut_sector_side.rs"]
 mod reach_slab_cut_sector_side;
 #[path = "refusal_concision.rs"]

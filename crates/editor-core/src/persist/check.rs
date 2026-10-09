@@ -2261,8 +2261,9 @@ mod tests {
             SnapshotError::OperandUnminted { .. } | SnapshotError::PartHalfPort { .. } => {
                 Walk::OperandRead
             }
-            SnapshotError::AnonymousVarUnread { .. }
-            | SnapshotError::SharedVarNeedsName { .. } => Walk::UnnamedReader,
+            SnapshotError::AnonymousVarUnread { .. } | SnapshotError::SharedVarNeedsName { .. } => {
+                Walk::UnnamedReader
+            }
             SnapshotError::DefinitionReadsUnmintedVar { .. }
             | SnapshotError::DefinitionVarKind { .. } => Walk::DefinitionRead,
             SnapshotError::DefinitionCycle { .. } | SnapshotError::DefinitionTooLarge { .. } => {
