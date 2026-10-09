@@ -196,6 +196,72 @@ fn a_shaft_off_the_bores_seam_is_built_by_the_join() {
     unions_both_ways(&c, &p, h, "the join's row");
 }
 
+/// **The zip carries the declaration door's rows** (D10): the union
+/// the join refuses and the declared-REST zip builds records each
+/// declared bore × peg-wall `Rest` once, in declaration order, as
+/// `SameOpposite` at the carrier ladder, its cells the two declared
+/// faces of their operands. In both operand orders.
+#[test]
+fn the_zips_union_records_each_declared_rest_at_the_carrier_ladder() {
+    let (c, (_, y0, h)) = (collar(), SPANS[0]);
+    let p = shaft(60.0, y0, h);
+    let tol = Tol::witness();
+    let join = topo::test_support::boolean_join_refusal(
+        BooleanOp::Union,
+        &c,
+        &p,
+        &wall_decls(&c, &p),
+        tol,
+    );
+    assert!(
+        matches!(join, Ok(Some(_))),
+        "the premise: the join refuses, so the zip builds it, got {join:?}"
+    );
+    let (c, p) = (
+        sweep::test_support::finished("the collar", c, tol),
+        sweep::test_support::finished("the shaft", p, tol),
+    );
+    for (order, a, b) in [("collar ∪ shaft", &c, &p), ("shaft ∪ collar", &p, &c)] {
+        let decls = wall_decls(a, b);
+        let rests: Vec<_> = decls
+            .coincident_faces
+            .iter()
+            .filter(|d| d.class == topo::BooleanCoincidence::Contact(topo::ContactClass::Rest))
+            .map(|d| {
+                [
+                    topo::RowCell::face(topo::Operand::A, d.a),
+                    topo::RowCell::face(topo::Operand::B, d.b),
+                ]
+            })
+            .collect();
+        assert_eq!(
+            rests.len(),
+            3,
+            "{order}: the bore against three wall thirds"
+        );
+        let bb = match topo::union_with(a, b, &decls, tol) {
+            Ok(BooleanResult::Body(bb)) => bb,
+            other => panic!("{order}: the mate does not union: {:?}", other.err()),
+        };
+        let curved: Vec<_> = bb
+            .coincidences
+            .iter()
+            .filter(|r| r.site == topo::DecisionSite::CarrierLadder)
+            .collect();
+        assert_eq!(
+            curved.iter().map(|r| r.cells).collect::<Vec<_>>(),
+            rests,
+            "{order}: one row per declared Rest, in declaration order"
+        );
+        assert!(
+            curved
+                .iter()
+                .all(|r| r.relation == topo::Relation::SameOpposite),
+            "{order}: {curved:?}"
+        );
+    }
+}
+
 /// The collar with its bore split into two full-turn faces by the
 /// circle at `y = 1.5`: the circle is an edge between two faces of ONE
 /// carrier, so no other face of the collar meets it.

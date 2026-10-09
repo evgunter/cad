@@ -63,11 +63,12 @@
 
 use std::collections::BTreeMap;
 
-use topo::{Body, HalfEdgeKey, LoopKey, MefSite, MekrSite, MevSite, VertexKey};
+use topo::{Body, FaceKey, HalfEdgeKey, LoopKey, MefSite, MekrSite, MevSite, VertexKey};
 
 use crate::adopt;
 use crate::entities::SolidSpec;
 use crate::error::StepImportError;
+use crate::{FaceCensus, NormalizationKind, StructureNormalization};
 use geom_core::{FileCoincidence, Tol};
 
 /// The absolute offset, along +x, that mints a temporary strut's far
@@ -828,7 +829,7 @@ fn assemble_solid(
     solid: &SolidSpec,
     tol: Tol,
     file: FileCoincidence,
-) -> Result<(), StepImportError> {
+) -> Result<BTreeMap<FaceKey, u64>, StepImportError> {
     let target = Target::build(solid)?;
     // Root: the first non-self-loop edge's start vertex (so the seed
     // grows by `mev`), else the first edge's vertex (an all-self-loop
@@ -914,7 +915,13 @@ fn assemble_solid(
         })
         .collect::<Result<_, _>>()?;
     let assembled = Assembled { target, use_he };
-    adopt::finish(body, solid, &assembled, tol, file)
+    // Each body face's `ADVANCED_FACE`: the join the build ends with
+    // reports against the file's faces.
+    let keys = adopt::finish(body, solid, &assembled, tol, file)?;
+    Ok(keys
+        .into_iter()
+        .zip(solid.faces.iter().map(|f| f.id))
+        .collect())
 }
 
 /// The assembly proper: one `MANIFOLD_SOLID_BREP` into a body of its
@@ -931,7 +938,7 @@ pub(crate) fn build_one_solid(
     solid: &SolidSpec,
     tol: Tol,
     file: FileCoincidence,
-) -> Result<Body<f64>, StepImportError> {
+) -> Result<(Body<f64>, Vec<StructureNormalization>), StepImportError> {
     let mut body = Body::new();
     // The import IS a door: it runs the operator sequence a foreign
     // file describes, and D1's whole-body tier-1 postcondition is paid
@@ -940,10 +947,69 @@ pub(crate) fn build_one_solid(
     // it used to cost one per mint. The guard owns the borrow, so a
     // refusal part-way closes the scope by dropping it.
     let mut door = body.begin_surgery();
-    assemble_solid(&mut door, solid, tol, file)?;
+    let faces = assemble_solid(&mut door, solid, tol, file)?;
     topo::mint_pcurves(&mut door, tol).map_err(|source| StepImportError::Pcurves { source })?;
     door.sweep_and_close();
-    Ok(body)
+    let joins = join(&mut body, solid.id, &faces, tol)?;
+    Ok((body, joins))
+}
+
+/// **The import ends with the join** every finisher ends with
+/// (`docs/DESIGN.md`, maximal edges; Ev's PR 4251 ruling): where the
+/// file stops an edge at a vertex the next edge runs on through along
+/// the same carrier, the kernel joins the two. Each join is reported,
+/// never silent, as a [`NormalizationKind::JoinedEdges`] record keyed
+/// by the least `ADVANCED_FACE` the joined edge bounds.
+///
+/// A file finer than the run can state such a vertex inside the band
+/// (the halfcap files: a split vertex 1e-8 m off a pole, read at the
+/// default ε), and the join refuses that typed, with the tighten-ε
+/// recourse, rather than guessing.
+fn join(
+    body: &mut Body<f64>,
+    solid: u64,
+    faces: &BTreeMap<FaceKey, u64>,
+    tol: Tol,
+) -> Result<Vec<StructureNormalization>, StepImportError> {
+    let refused = |refusal: &topo::BooleanError| StepImportError::Join {
+        solid,
+        refusal: topo::JoinRefusal::of(refusal),
+    };
+    // A tolerance that makes no band (an ε within K of `f64::MAX`) cannot
+    // read whether a vertex is joinable, so the join refuses here rather
+    // than leave one unread for the gate behind it.
+    let band = geom_core::Band::linear(tol).map_err(|e| refused(&topo::BooleanError::Band(e)))?;
+    let joins = body.join_edges(band, tol).map_err(|e| refused(&e))?;
+    joins
+        .iter()
+        .map(|j| {
+            let face = body
+                .get_edge(j.kept)
+                .into_iter()
+                .flat_map(|e| [e.he_plus, e.he_minus])
+                .filter_map(|h| body.face_of_half_edge(h))
+                .filter_map(|f| faces.get(&f).copied())
+                .min()
+                .ok_or(StepImportError::Topology {
+                    id: solid,
+                    what: "internal: a joined edge bounds no assembled face",
+                })?;
+            Ok(StructureNormalization {
+                face,
+                kind: NormalizationKind::JoinedEdges,
+                file_census: FaceCensus {
+                    faces: 0,
+                    edges: 2,
+                    vertices: 1,
+                },
+                kernel_census: FaceCensus {
+                    faces: 0,
+                    edges: 1,
+                    vertices: 0,
+                },
+            })
+        })
+        .collect()
 }
 
 #[cfg(test)]

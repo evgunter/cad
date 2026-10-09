@@ -2000,50 +2000,6 @@ fn outer_cycle<T: Decide>(
     Ok(Some(body.loop_walk(first).closed("loop", first)))
 }
 
-/// **Is a walk's chart polygon its own bounding box?** Every image is a
-/// chart segment on the cone's two iso families — a rim holds `v`, a
-/// generator holds `u` — so the lifted boundary, closed by the segment
-/// from its last exit to its first entry (the apex jump, when the walk
-/// was closed there), is a rectilinear chart polygon. Such a polygon is
-/// its bounding box exactly when its enclosed area is the box's; an L or
-/// a notch has strictly less, and every one of them has the same hull,
-/// so a window read off the hull would cover the notch. `None` for an
-/// empty walk.
-pub(crate) fn chart_box_defect<T: Real>(images: &[AzimuthImage<T>]) -> Option<ChartBox<T>> {
-    let (first, last) = (images.first()?, images.last()?);
-    let u = azimuth_hull(images)?;
-    let mut v = (first.v.0, first.v.0);
-    let mut twice = T::zero();
-    let closing = [(last.exit, last.v.1, first.entry, first.v.0)];
-    for (u0, v0, u1, v1) in images
-        .iter()
-        .map(|i| (i.entry, i.v.0, i.exit, i.v.1))
-        .chain(closing)
-    {
-        v = (v.0.min(v0).min(v1), v.1.max(v0).max(v1));
-        twice = twice + (u0 * v1 - u1 * v0);
-    }
-    let area = twice.abs() / T::from_f64(2.0);
-    Some(ChartBox {
-        u,
-        v,
-        defect: (u.1 - u.0) * (v.1 - v.0) - area,
-    })
-}
-
-/// A walk's chart bounding box, and how far its polygon falls short of
-/// it ([`chart_box_defect`]).
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct ChartBox<T: Real> {
-    /// The azimuth window.
-    pub(crate) u: (T, T),
-    /// The second coordinate's window.
-    pub(crate) v: (T, T),
-    /// The box's area less the polygon's: zero exactly when the polygon
-    /// is the box.
-    pub(crate) defect: T,
-}
-
 /// What the apex closure makes of a cone face's outer cycle.
 #[derive(Clone, Debug)]
 pub(crate) enum ApexClosure<T: Real> {
@@ -2773,9 +2729,9 @@ pub(crate) fn path_island_winding<T: Decide>(
 /// `Ellipse`, `Spiric` and NURBS ones
 /// (`work/restfront/check-9-meeting-arms-silent-off-a-plane-and-on-ellipse-spiric-nurbs-edges.md`).
 /// Under it, which decided reading is taken changes nothing.
-fn first_decided<R, E>(
-    readings: impl IntoIterator<Item = Result<Result<Option<R>, Indeterminate>, E>>,
-) -> Result<Result<Option<R>, Indeterminate>, E> {
+fn first_decided<R, D, E>(
+    readings: impl IntoIterator<Item = Result<Result<Option<R>, D>, E>>,
+) -> Result<Result<Option<R>, D>, E> {
     let mut escalated = None;
     for reading in readings {
         match reading? {
@@ -3551,16 +3507,13 @@ fn ring_side<T: Decide>(
         Ok(LoopContainment::In) => Ok(Ok(Some(RingSide::In))),
         Ok(LoopContainment::Out) => Ok(Ok(Some(RingSide::Out))),
         Ok(LoopContainment::OnBoundary) => Ok(Ok(None)),
-        Err(PointInLoopError::Escalated { diag, .. }) => Ok(Err(diag)),
+        Err(e @ PointInLoopError::Escalated { .. }) => Ok(Err(e)),
         Err(e) => Err(SplitJoinError::from(e)),
     };
     match first_decided(ring_vertices(body, ring)?.into_iter().map(read))? {
         Ok(Some(side)) => Ok(side),
         Ok(None) => Ok(RingSide::OnRun),
-        Err(diag) => Err(SplitJoinError::RingHoming(PointInLoopError::Escalated {
-            r#loop: run,
-            diag,
-        })),
+        Err(e) => Err(SplitJoinError::RingHoming(e)),
     }
 }
 

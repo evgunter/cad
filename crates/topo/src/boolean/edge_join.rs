@@ -461,6 +461,26 @@ pub fn joinable_vertices<T: Decide>(
     Ok(out)
 }
 
+/// **Tier 3's check 11, read** (`docs/DESIGN.md`, maximal edges; Ev's
+/// PR 4251 ruling): every vertex of `body`, in vertex-arena order, that
+/// the join's own predicate takes (`Ok`) or cannot decide in `band`
+/// (`Err`). A finished body holds neither: every finisher ends with the
+/// join, and a reading in the band is a size the run's tolerance cannot
+/// tell from a regular point, which a tighter tolerance can.
+pub(crate) fn joinable_at_rest<T: Decide>(
+    body: &Body<T>,
+    band: Band,
+) -> Vec<Result<VertexKey, JoinUndecided>> {
+    let pass = Pass::of(body);
+    body.vertices()
+        .filter_map(|(w, _)| match joinable(body, w, &pass, band) {
+            Ok(Some(_)) => Some(Ok(w)),
+            Ok(None) => None,
+            Err(undecided) => Some(Err(undecided)),
+        })
+        .collect()
+}
+
 /// Joins every joinable vertex of `body` ([`Body::join_edges`]) and
 /// writes each join's substitution rows into `desc` (`w → kept`,
 /// `gone → kept`, and where the join leaves a conventional vertex, that

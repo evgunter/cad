@@ -2,10 +2,11 @@
 id: contact-tangent-relation-decides-offsets-and-tilt-per-sample
 kind: issue
 title: check whether contact_verify's tangent relation decides the offsets and the tilt one at a time
-status: open
+status: parked
 opened: 2026-10-07
 priority: P3
 cost: M
+blocked_on: [booleans-glue-on-zero]
 ---
 
 ## What
@@ -23,3 +24,7 @@ jet certificate, which may already cover the sum by design.
 Trace whether a sample whose offset and tilt each read just inside
 the band reaches a served tangency; if it does, decide their sum
 (`decide_across` in `crates/geom-brep/src/intersect.rs`).
+
+## Parked on the D10 hold (2026-10-08)
+
+The declared-tangency verifier (`tangent_locus_relation`) is rewired to run on verdicts when booleans glue on Zero. (CONTACT close-out triage; `work/contact/log.md`.)

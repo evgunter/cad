@@ -87,7 +87,7 @@ Why this order:
 Each intermediate state is a whole representation:
 
 - after A, the declared union is built by the join alone, and declarations are unchanged;
-- after B, every coincidence the kernel decides from values today (declared glue, the split's pinch, the mitre) is recorded and linted, and nothing builds differently;
+- after B, the coincidences the kernel decides from values at the declared one-carrier rung (declared `Rest` and continuation glue), the split's pinch and the mitre are recorded and linted, and nothing builds differently. Still unrecorded after B, each with the unit that records it: declared `Tangent` and `Seam` glue (E, `booleans-glue-on-zero`); a boolean's vertex fusions decided by a margin (E, `value-decided-vertex-fusions-are-recorded-with-the-undeclared-glue`); an n-ary union's declared pair within one member (`a-unions-same-member-declared-pair-records-no-row`, after B); the blend battery's G1 and coaxiality verdicts (`the-blends-g1-and-coaxiality-verdicts-are-unrecorded-coincidences`); every `ContactRecords` row citing its decision (B2, `contact-records-cite-their-decision`);
 - after E, nothing needs a declaration: a declared and an undeclared scene build the same body, and the declaration only adds a contradiction check;
 - after F, the only ways to say a coincidence are a construction and (stage 5) an assertion;
 - after G, the profile stores no tangency;
@@ -213,8 +213,7 @@ This is the build order the zip row states (`work/intent/the-declared-rest-zip-r
 - `topo/src/coincidence.rs`: `Coincidence`, `CellPair`, `Relation` and `DecisionSite` per §1, and `Coincidences` (a `Vec` with a graft remap, written the way `remap_contacts` is).
 - **Emission at every value decision that already glues, merges or touches.** B adds no glue; it records what is already decided. The sites:
   - **The declared rung of the plane and carrier ladders** (`plane_eq.rs`, `carrier_eq.rs:379` `pair_door_verdict`). A declaration's verification is a value decision ("declared is intent plus non-contradiction"), so a declared glue is recorded and linted like any other.
-  - **The merge.** `merge_coplanar_faces_declared` (`merge_faces.rs:1626`): one row per absorbed face, as `SameOriented` against the kept face.
-  - **Vertex fusions and covered pairs.** `BooleanNaming::vertex_merges` and `covered` (`ops.rs:230`, `:307`) when the pair was decided by a margin and not by key identity.
+  - **Not the merge's or the covered pairs' own rows.** Every cross-operand pair `merge_coplanar_faces_declared` glues, and every covered pair a margin decided, is a declared one-carrier pair the declaration door already recorded, so each is one decision and one row. A vertex fusion (`BooleanNaming::vertex_merges`) decided by a margin is a coincidence too; E records it, with the margin threaded out of `reduce.rs` (`intent/value-decided-vertex-fusions-are-recorded-with-the-undeclared-glue`).
   - **The split's pinch.** `splitting/classify.rs:256`'s `Ok(Sign::Zero) => On` arm where the vertex's orbit has two or more runs on one side (D1: "one that would make pieces of one result touch"). Also the conic `ConicPlaneMeet::Parallel` arm (`:508`, `:521`).
   - **The blend battery.** `DecidedCoincidence::IsoscelesTurn` (`battery.rs:2033`) becomes a `Coincidence` row with `Relation::EqualAngles`, carried on `Blended` (`build.rs:85`). This closes `value-decided-coincidences-have-no-recording-door`.
 - **Not emitted:**
