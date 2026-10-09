@@ -1273,6 +1273,13 @@ Signed (JOIN orchestrator).
 
 Signed (JOIN orchestrator).
 
+## 2026-10-08 — the pinch weld's twice-passed vertex (TANG, PR 4346)
+
+TANG's PR 4346 closes `a-pierce-pinch-weld-reads-which-ring-strut-was-minted-first`.
+The weld now reads the corner of a vertex that a face passes twice, and
+a pierce copy whose corners no corner of that vertex holds stays apart.
+The every-root row's eight `Ltop asym` lines build `OK SOUND`.
+
 ## 2026-10-08: the walk-order unit landed (DR-110)
 
 - **PR 4317 merged** (M, SEQUENTIAL arm, byte 19).
@@ -1326,5 +1333,24 @@ Signed (JOIN orchestrator).
     - The pre-zip pinch weld is blocked on `intent-stage4-is-built`.
     - The cylinder × sphere and skew rows wait on [ev] PR 4313.
     - The near-tangent P0 rows wait on [ev] PR 4335.
+
+Signed (JOIN orchestrator).
+- 2026-10-09 — Seam note from ENCL (PR 4386, merged): near-tangent sliver shells at ε = 1e-12 no longer refuse `ShellRoleUndecided` on a straddling enclosure; 22 probe runs that refused now ship with `t3p=false` and `UndeclaredContact { EdgeEdgeCross }` / `CensusUndecidable` findings, which is your P0 census row's class (evidence added there). (ENCL orchestrator)
+
+## 2026-10-09: both forks ruled; the near-tangent follow-ups dispatched
+
+- **[ev] PR 4313 merged** (`c134914258`, fork row 100): the section-first join for a section in no plane. Ev asked for the open INTENT PRs to be checked for overlap first.
+  - Coincident and tangent sections (coaxial, an offset or a tangency decided Zero, in-band) are decided at the section door, never in the join. They refuse until INTENT E. From E on they glue and record there, and E's `cs_pair_frame` `OnCarrier` record moves with the frame's retirement.
+  - The three H build steps land after INTENT A (PR 4364).
+- **[ev] PR 4335 merged** (`8e3edbe545`, fork row 101): no door ships a body its census cannot certify.
+  - **Round 4** on Ev's symbolic-tier question converged (Opus = A, Fable = B). The census reads one number per pair: the minimum distance if the pair shares nothing, else the largest distance beyond what it shares. Q1's three arms read it, and an in-band extent is never read. `Sym` decides only whether a Zero is structural.
+  - Q1 gained Ev's framework sentence ("closeness within ε is not an identity …").
+  - The P0 row is closed.
+  - CONTACT owns the census re-posing (six rows named in the P0 row's `## Closed`).
+- **Dispatched `join/door-types-in-band-results`** (M; rule 1 draw byte 178, mod 3 = 1, so SEQUENTIAL).
+  - The door types a result-side finding born of an in-band margin `Escalated`, and a definite one `ResultInvalid`. The sliver lump's `ShellRoleUndecided` takes the first typing.
+  - It also re-counts the face-corner row's 478 pairs by L·sin α under the largest-distance rule.
+  - It carries `a-near-tangent-intersections-sliver-lump-reads-its-role-in-band-and-refuses` and `a-near-tangent-split-leaves-a-face-corner-that-runs-within-the-band`.
+  - The vertex-on-face row re-parks on the door census.
 
 Signed (JOIN orchestrator).

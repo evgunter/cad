@@ -1546,12 +1546,14 @@ impl EulerOpError {
                 },
                 crate::split::split_param_ending(verdict.arm())
             ),
-            Self::SplitParamEscalated { diag, .. } => format!(
-                "{} is undecided: {}. {}",
-                crate::split::CROSSING_INTERIOR,
-                diag.payload(),
-                crate::split::split_param_ending(geom_brep::recourse::RefusedArm::Undecided(diag))
-            ),
+            Self::SplitParamEscalated { diag, .. } => diag
+                .undecided(
+                    crate::split::CROSSING_INTERIOR,
+                    crate::split::split_param_ending(geom_brep::recourse::RefusedArm::Undecided(
+                        diag,
+                    )),
+                )
+                .to_string(),
             Self::PcurveSplit {
                 edge,
                 half_edge,
@@ -1860,7 +1862,7 @@ pub(crate) fn every_euler_op_error_once()
             error: geom_brep::PcurveCertifyError::UnsupportedCarrier {
                 chart: geom::SurfaceKind::Torus,
                 carrier: geom::CurveKind::Nurbs,
-                class: geom_brep::UncoveredClass::SplineCarrier,
+                class: geom_brep::UncoveredClass::NoFittedClass,
             },
         },
         EulerOpError::PcurveMint {
@@ -5839,19 +5841,35 @@ mod tests {
                 )
             })
             .unwrap();
-        // Both checks run before the pcurve pass (check 8), whose
-        // reading of the pillow's rowless spline face comes last.
+        // Both checks run before the pcurve pass (check 8). The pillow
+        // reads its rowless spline face as unminted, an image derivable
+        // for every edge; the split's circle has none on the spline
+        // chart, so the pass's reading of that face is the circle's
+        // refusal instead.
         let at = expected
             .iter()
             .position(|e| matches!(e, crate::ValidationError::Pcurve { .. }))
             .unwrap_or(expected.len());
+        let spline_half = [created.he_plus, created.he_minus]
+            .into_iter()
+            .find(|he| body.face_of_half_edge(*he) != Some(plane_face))
+            .unwrap();
         expected.splice(
-            at..at,
+            at..,
             [
                 crate::ValidationError::ScaffoldAtRest { edge: created.edge },
                 crate::ValidationError::PlanarBoundaryResidual {
                     face: plane_face,
                     edge: created.edge,
+                },
+                crate::ValidationError::Pcurve {
+                    finding: crate::PcurveMintError::Certify {
+                        half_edge: spline_half,
+                        error: geom_brep::PcurveCertifyError::IsoUnsupported {
+                            what: "the carrier's start point lies on neither chart boundary — \
+                                   not a boundary iso of this face's chart",
+                        },
+                    },
                 },
             ],
         );

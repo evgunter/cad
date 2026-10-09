@@ -22,7 +22,7 @@ parameter, clamped to the knot domain. On a closed carrier:
 | seed → target | Newton ends | refusal | truth |
 |---|---|---|---|
 | 0.99 → 0.02 (across the seam) | clamped at 1.0, gap 0.116 | `ReanchorPastCarrierEnd` | the target is ON the carrier |
-| 0.6 → 0.1 | stagnates at the distance MAXIMUM, gap 2.0 | `ReanchorOffCarrier` | the target is ON the carrier |
+| 0.6 → 0.1 | stagnates at the distance MAXIMUM, gap 2.0 | `ReanchorOffCarrier` (since retired: the read now names `VertexDisagreement`) | the target is ON the carrier |
 
 Both refuse typed, so neither builds a wrong body. Both moves are far
 larger than an offset makes, so no shell reaches them today. The
@@ -34,6 +34,7 @@ move a spline end.
 A closed (or periodic) spline carrier needs the re-anchor to try the
 seam's other side before refusing — the spline analogue of the circle
 arm's anchored branch — or a refusal of its own that says the foot
-was read from one side. `ReanchorOffCarrier`'s docs already say the
-spline case means "off the carrier, or on a stretch the old parameter
-does not lead to".
+was read from one side. The retired `ReanchorOffCarrier`'s docs said
+the spline case meant "off the carrier, or on a stretch the old
+parameter does not lead to"; its successor here, `VertexDisagreement`,
+says only that the point read is not the corner.

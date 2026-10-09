@@ -2,12 +2,13 @@
 id: near-tangent-boolean-results-ship-with-an-escalated-tier-3-census
 kind: issue
 title: Near-tangent booleans ship results whose tier-3′ census escalates: 139 runs on main, 72 more built by PR 4026 at 26 poses
-status: open
+status: closed
 opened: 2026-10-04
 priority: P0
 cost: H
 refs: [3987, two-copies-of-a-pierce-carry-edges-that-run-within-the-band]
 branch: join/near-tangent-census-measure
+closed: 2026-10-09
 ---
 
 
@@ -312,3 +313,39 @@ the design pass:
 - ENCL: `the-role-reads-certified-volume-enclosure-straddles-zero-on-a-sliver-shell`.
 - CLEAVE: `near-tangent-pierce-poses-reach-three-classification-invariants`
   (345 runs, outside this row's question).
+
+## More runs reach this row (ENCL, branch `encl/shell-volume-local-origin`)
+
+ENCL's fix for
+`work/encl/the-role-reads-certified-volume-enclosure-straddles-zero-on-a-sliver-shell`
+lets a near-tangent ∩'s sliver lump read its role at ε = 1e-12. Over the
+probe's 23 040 runs at `NT_D=±1e-8,±1e-9,±1e-10,±1e-11`, the 74 runs
+that refused `ShellRoleUndecided` on a straddling enclosure now build.
+52 of them are sound. 22 ship with a correct volume, tier 2 and the
+certificate, but tier 3′ does not certify them (`t3p=false`). Every one
+has an `UndeclaredContact { EdgeEdgeCross }` finding; 12 also have
+`CensusUndecidable`, and one a `CensusEscalated`. They are on vee300 (7), asym
+(6), w345 (4), notch307 (3) and shallow200 (2), at d = 1e-9 (13),
+1e-10 (8) and −1e-9 (1).
+
+## The shape to give
+
+No door ships a body its census cannot certify. Each question has one owner. The three DESIGN.md additions on this branch state them: Q1's conditioning premise, tier 3′'s census clause, and D10's "Booleans" clause.
+
+- **The census (CONTACT), one unit.** Each pair predicate decides the gap between the two closed cells beyond what they share structurally, through formulas whose f64 error is a few ulp at the model's extent. That retires every b-arith and b-proxy escalation above, along with the 845 definite false `EdgeEdgeCross` findings at ε = 1e-12. Two edges leaving one vertex are told apart by their angle levered at the shorter edge, so a thin corner passes when its far ends are definitely apart: the witness `notch307 nt e0 a3 d1e-8 pc S` has its far ends 8.9e-8 apart, about 9 Kε. The five class-b CONTACT rows, `pair_edge_edge`'s missing shared-point rung, and `ee_cross_spans`' unguarded division are one re-posing.
+- **The split (JOIN).** Every reading is a Q1 trilean and refuses `Escalated` in band. The w345 vertex 9.55e-9 off a face is not such a reading. PR 4338 logged every decision on the four poses, and every one was definite. The vertex is a pierce 3.69e-8 along a 345° bottom edge, against the wedge's *own* 0° side face, which meets that edge only at the corner. Their gap, r·sin 15°, is a composed quantity no split reading compares. So the door gate catches it, as it catches the sliver lump (`a-near-tangent-vertex-lands-within-the-band-of-a-face-and-ships-unrecorded`).
+- **The door.** The finished-body gate decides "no in-band pair or shell" on the result alone, because definite readings can compose into an in-band quantity no reading compared. The sliver lump is the witness: every cut is definite, and its V/A is in band. A finding born of an in-band margin refuses as the operands' ill-conditioning (`Escalated`); a definite finding is a kernel defect (`ResultInvalid`). The lump's `ShellRoleUndecided` takes the first typing now. Census escalations take it when the parked `boolean-door-runs-the-census-over-its-result` lands. This class does not join that row's blockers.
+- **Nothing is glued.** No "certified sliver" state and no shipped-uncertified state exist.
+- **What it rests on.** The typing is honest only where every margin the gate reads meets the conditioning premise. ENCL's world-origin volume (`the-role-reads-certified-volume-enclosure-straddles-zero-on-a-sliver-shell`) is a conditioning defect under it.
+
+**Re-dispositions once this lands.**
+- **`a-near-tangent-split-leaves-a-face-corner-that-runs-within-the-band`:** a legal needle under the lever rule, unless a pair's far-end gap is itself in band. Count the 478 pairs by sin α × the shorter length.
+- **The lump row:** closes as `Escalated` at the gate.
+- **The vertex-on-face row:** a composed pair (PR 4338). It moves to the door's typing unit.
+
+## Closed (2026-10-09)
+
+Ev ruled on the shape above in PR 4335 (fork row 101). The question is answered, and the work belongs to the owners it names:
+- **The census re-posing:** CONTACT. It takes one number per pair (the minimum distance if the pair shares nothing, else the largest distance beyond what it shares) through well-conditioned formulas. These rows carry it: `the-census-crossing-lane-misplaces-a-shared-points-crossing-on-a-near-collinear-pair`, `the-census-parallel-test-reads-two-edges-through-one-point-end-to-end-as-a-near-parallel-pair`, `the-census-crossing-lane-escalates-a-line-gap-where-the-segments-lie-far-apart`, `the-census-edge-face-lane-escalates-a-plane-residual-at-an-end-far-outside-the-face`, `the-census-edge-face-cut-escalates-a-line-gap-at-a-boundary-vertex-beyond-the-edge` and `the-census-edge-edge-collinear-lane-reads-the-offset-at-the-long-edges-start`.
+- **The door's typing:** JOIN. `a-near-tangent-intersections-sliver-lump-reads-its-role-in-band-and-refuses` now carries the unit, branch `join/door-types-in-band-results`, together with the face-corner re-count.
+- **The composed vertex-on-face pair:** `a-near-tangent-vertex-lands-within-the-band-of-a-face-and-ships-unrecorded`. It is parked on the door census (`boolean-door-runs-the-census-over-its-result`).
