@@ -530,12 +530,7 @@ impl core::fmt::Display for SplitReduceError {
                     || format!("Recourse: {SPLIT_COINCIDENCE_RECOURSE}"),
                     |decision| decision.ending_of(&diag),
                 );
-                write!(
-                    f,
-                    "{} is undecided: {}. {ending}",
-                    fault.subject(),
-                    diag.payload()
-                )
+                diag.undecided(fault.subject(), ending).fmt(f)
             }
             Self::TangencyUnsupported { .. } => write!(
                 f,

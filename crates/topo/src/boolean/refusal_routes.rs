@@ -38,9 +38,9 @@
 
 use geom_brep::LeverRung;
 use geom_brep::recourse::{
-    Classified, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized,
+    Classified, LeverOnly, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized,
 };
-use geom_core::{Indeterminate, UNREADABLE_MARGIN_NOTE};
+use geom_core::Indeterminate;
 
 use crate::boolean::ContainDecision;
 use crate::splitting::Escalation;
@@ -1358,7 +1358,7 @@ impl Ending {
         let arm = RefusedArm::Undecided(diag);
         match self {
             Self::Sized(decision) => decision.recourse(arm, Reading::Build),
-            Self::Lever(lever, passes) => passes.recourse(lever, diag),
+            Self::Lever(lever, passes) => passes.decision(lever).recourse(arm),
             Self::Frontier(what) => format!("{what}. {}", geom_core::NOT_YET_ENDING),
             Self::Unsized(decision) => decision.recourse(arm, Reading::Build),
             Self::Placement(decision, escalation) => decision.lever_ending(escalation, diag),
@@ -1404,16 +1404,13 @@ enum LeverPass {
 }
 
 impl LeverPass {
-    /// The ending on `diag`: the lever, with the unreadable-margin note
-    /// on a poisoned margin, and never the tolerance, for the reason the
-    /// pass set gives (no length to tighten below, or no one sign set a
-    /// smaller tolerance would decide the margin into).
-    fn recourse(self, lever: &str, diag: &Indeterminate) -> String {
-        if diag.margin.is_invalid() {
-            format!("Recourse: {lever}; {UNREADABLE_MARGIN_NOTE}")
-        } else {
-            format!("Recourse: {lever}")
-        }
+    /// The decision a lever-alone ending reads: the lever on every arm,
+    /// with the unreadable-margin note on a poisoned margin, and never
+    /// the tolerance, for the reason the pass set gives (no length to
+    /// tighten below, or no one sign set a smaller tolerance would
+    /// decide the margin into).
+    const fn decision(self, lever: &'static str) -> LeverOnly {
+        LeverOnly { lever }
     }
 }
 
@@ -1781,9 +1778,8 @@ impl BooleanDecision {
     /// one ending the verdict gives.
     #[must_use]
     pub(crate) fn render(self, diag: &Indeterminate) -> String {
-        let (subject, payload) = (self.subject(), diag.payload());
-        let ending = self.ending(diag).recourse(diag);
-        format!("{subject} is undecided: {payload}. {ending}")
+        diag.undecided(self.subject(), self.ending(diag).recourse(diag))
+            .to_string()
     }
 }
 
@@ -1801,6 +1797,7 @@ pub(in crate::boolean) mod tests {
     use crate::merge_faces::MergeCoplanarError;
     use crate::sector_shape::SectorRungKind;
     use crate::splitting::SplitReduceError;
+    use geom_core::UNREADABLE_MARGIN_NOTE;
     use geom_core::{Band, KERNEL_DEFECT_ENDING, MarginDiag, Point3, Tol, Vec3};
     use strum::IntoEnumIterator as _;
     use test_utils::refusal::{recourse_markers, stage_prefixes, subjectless_escalations};

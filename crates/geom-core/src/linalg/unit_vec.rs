@@ -176,13 +176,12 @@ impl core::fmt::Display for UnitVec3Error {
             // A direction's length has no declaration object at any
             // door that mints this witness, so the payload renders
             // under the levers those doors do have.
-            Self::Escalated(source) => write!(
-                f,
-                "{} is undecided: {}. Recourse: {}",
-                crate::predicate::DIRECTION_LENGTH_SUBJECT,
-                source.payload(),
-                crate::predicate::NO_DECLARATION_RECOURSE
-            ),
+            Self::Escalated(source) => source
+                .undecided(
+                    crate::predicate::DIRECTION_LENGTH_SUBJECT,
+                    format_args!("Recourse: {}", crate::predicate::NO_DECLARATION_RECOURSE),
+                )
+                .fmt(f),
         }
     }
 }
@@ -214,12 +213,12 @@ impl core::fmt::Display for LeveredUnitError {
             Self::Arm(None) => f.write_str(
                 "the arm a direction's length is levered by is not a positive finite length",
             ),
-            Self::Arm(Some(source)) => write!(
-                f,
-                "the arm a direction's length is levered by is undecided: {}. Recourse: {}",
-                source.payload(),
-                crate::predicate::NO_DECLARATION_RECOURSE
-            ),
+            Self::Arm(Some(source)) => source
+                .undecided(
+                    "the arm a direction's length is levered by",
+                    format_args!("Recourse: {}", crate::predicate::NO_DECLARATION_RECOURSE),
+                )
+                .fmt(f),
             Self::Direction(e) => e.fmt(f),
         }
     }

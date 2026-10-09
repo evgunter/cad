@@ -1935,12 +1935,12 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                     // coincidence one, which advises declaring a
                     // coincidence at a joint this caller never
                     // authored.
-                    return write!(
-                        f,
-                        "the fillet at this corner is undecided: {payload}. Recourse: \
-                         {recourse}",
-                        payload = source.payload()
-                    );
+                    return source
+                        .undecided(
+                            "the fillet at this corner",
+                            format_args!("Recourse: {recourse}"),
+                        )
+                        .fmt(f);
                 }
                 match source.predicate {
                     Some("path_continuation_target_offset") => write!(
@@ -2000,12 +2000,12 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                         | "carrier_circles_identity"
                         | "carrier_circles_external"
                         | "carrier_circles_internal",
-                    ) => write!(
-                        f,
-                        "the fillet arc about to be stored is undecided: {payload}. \
-                     Recourse: {FILLET_STORED_FORM_INBAND_RECOURSE}",
-                        payload = source.payload()
-                    ),
+                    ) => source
+                        .undecided(
+                            "the fillet arc about to be stored",
+                            format_args!("Recourse: {FILLET_STORED_FORM_INBAND_RECOURSE}"),
+                        )
+                        .fmt(f),
                     // The junction keys keep the full `Indeterminate`
                     // Display, shared recourse and all: at a junction
                     // "declare the coincidence" is exactly the right advice,
