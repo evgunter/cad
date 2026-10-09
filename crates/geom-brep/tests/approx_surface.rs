@@ -484,10 +484,12 @@ fn a_rigid_map_of_an_offset_is_the_offset_of_the_rigid_map() {
 // Dispositions that answer for the kind structurally
 // ---------------------------------------------------------------------
 
-/// `Approx` is its own [`geom::SurfaceKind`] — not the kind its
-/// fit is — and every pair the routing table names for it is refused.
+/// `Approx` is its own [`geom::SurfaceKind`] — not the kind its fit
+/// is — and the routing table routes each of its pairs as the fit's
+/// kind does: plane×Approx is the plane×NURBS arm, every other pair
+/// the unimplemented NURBS arm its fit would take.
 #[test]
-fn approx_is_its_own_kind_and_every_pair_refuses() {
+fn approx_is_its_own_kind_and_routes_as_its_fit() {
     use geom::SurfaceKind;
     use geom_brep::intersect::route;
     let s = approx_offset_surface_at(Arc::new(bowed()), 0.05, 1e-6, band()).unwrap();
@@ -502,11 +504,20 @@ fn approx_is_its_own_kind_and_every_pair_refuses() {
         SurfaceKind::Nurbs,
         SurfaceKind::Approx,
     ] {
+        let fit_kind = |k| match k {
+            SurfaceKind::Approx => SurfaceKind::Nurbs,
+            k => k,
+        };
         for (a, b) in [(SurfaceKind::Approx, other), (other, SurfaceKind::Approx)] {
-            assert!(
-                !route(a, b).implemented,
-                "{a:?} x {b:?} must refuse: an SSI claim about a fit is not one about the \
-                 described surface"
+            assert_eq!(
+                route(a, b),
+                route(fit_kind(a), fit_kind(b)),
+                "{a:?} x {b:?} routes as its fit's kind does"
+            );
+            assert_eq!(
+                route(a, b).implemented,
+                other == SurfaceKind::Plane,
+                "{a:?} x {b:?}: only the plane pair is implemented"
             );
         }
     }

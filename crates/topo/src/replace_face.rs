@@ -2005,30 +2005,25 @@ fn plan_edge<T: Decide>(
         });
     }
 
-    // Past the fit's own rows, a fitted face's boundary has nowhere to
-    // go: every remaining lane transports a carrier off the chart that
-    // is supposed to hold it.
+    // Past the fit's own rows, a fitted face keeps only the edges it
+    // meets a DISTINCT held surface along, each derived below as the
+    // section of the fit with that surface; every other lane transports
+    // a carrier off the chart that is supposed to hold it.
     if matches!(new_surface, Surface::Approx(_)) {
-        return Err(ReplaceFaceError::FittedBoundaryUnsupported {
-            edge,
-            // The pre-collapse refusal "a mapped rim (a v-row is not
-            // an `IsoCurve`)" is GONE with the taxonomy that made it:
-            // a rim is a chart image like any other, and a u-const one
-            // takes the exact-row lane above whatever minted it. What
-            // is left refuses on GEOMETRY — the fit's rows run u-const
-            // — rather than on which variant the description was.
-            what: match description {
-                EdgeDescription::Chart(ref c) if c.surface == old_key => {
-                    "a curve on this face's fit that does not run along its fitted rows"
-                }
-                EdgeDescription::Chart(_) => "a curve drawn on a neighbour's surface",
-                EdgeDescription::Intersection { .. }
-                | EdgeDescription::TangentIntersection { .. } => {
-                    "the meeting curve with an untouched neighbour"
-                }
-                EdgeDescription::Scaffold(_) => "a curve still under construction",
-            },
-        });
+        let what = match description {
+            EdgeDescription::Chart(ref c) if c.surface == old_key => {
+                Some("a curve on this face's fit that does not run along its fitted rows")
+            }
+            EdgeDescription::Scaffold(_) => Some("a curve still under construction"),
+            EdgeDescription::Chart(_)
+            | EdgeDescription::Intersection { .. }
+            | EdgeDescription::TangentIntersection { .. } => {
+                (sides[0] == sides[1]).then_some("a seam the fitted face shares with itself")
+            }
+        };
+        if let Some(what) = what {
+            return Err(ReplaceFaceError::FittedBoundaryUnsupported { edge, what });
+        }
     }
 
     // **Between the moved surface and a distinct held one, the edge is
@@ -2395,25 +2390,44 @@ fn derive_edge<T: Decide>(
         });
     }
     let esc = |source| ReplaceFaceError::Escalated { source };
-    let section = match (new_surface, held) {
-        (Surface::Plane { .. }, Surface::Nurbs(wall)) => {
+    // A fitted surface is its fit as a section operand.
+    let spline = |s: &Surface<T>| match s {
+        Surface::Nurbs(wall) => Some(Arc::clone(wall)),
+        Surface::Approx(a) => Some(Arc::new(a.fit().clone())),
+        _ => None,
+    };
+    let plane_wall = match (new_surface, held) {
+        (plane @ Surface::Plane { .. }, wall) | (wall, plane @ Surface::Plane { .. }) => {
+            spline(wall).map(|wall| (plane, wall))
+        }
+        _ => None,
+    };
+    let section = match plane_wall {
+        Some((plane, wall)) => {
             let lane = section_lane.ok_or(ReplaceFaceError::NurbsLaneUnsupported {
                 edge,
                 scalar: T::NAME,
             })?;
-            lane.section(new_surface, wall, old, (t0, t1), extent, band)
+            lane.section(plane, &wall, old, (t0, t1), extent, band)
                 .map_err(esc)?
                 .map(|c| Curve3::Nurbs(Arc::new(c)))
         }
-        _ => crate::offset_derive::section_closed(new_surface, held, old, (t0, t1), extent, band)
-            .map_err(esc)?,
+        None => {
+            crate::offset_derive::section_closed(new_surface, held, old, (t0, t1), extent, band)
+                .map_err(esc)?
+        }
     };
     let (carrier, refused) = match section {
         Ok(carrier) => (carrier, None),
         Err(verdict) => (old.clone(), Some(refused(verdict))),
     };
+    // The held surface keeps its seat; a fitted face's section with a
+    // plane names the plane first.
     let (s1, s2) = match *description {
         EdgeDescription::Intersection { s2, .. } if s2 == old_key => (other_key, old_key),
+        _ if matches!(new_surface, Surface::Approx(_)) && matches!(held, Surface::Plane { .. }) => {
+            (other_key, old_key)
+        }
         _ => (old_key, other_key),
     };
     let witness = carrier.mid_point(t0, t1);

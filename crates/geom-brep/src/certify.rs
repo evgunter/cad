@@ -2184,9 +2184,10 @@ fn run_checks<T: Decide>(
         return Err(CertifyError::Unimplemented);
     }
     // `Approx` refuses here with `Nurbs`, and for the same reason: the
-    // descriptions this resolver serves (`Intersection`, `Seam`) state
-    // their residual through the IMPLICIT form, which a spline
-    // stand-in does not have. Admitting one would meter poison.
+    // descriptions this resolver serves state their residual through
+    // the IMPLICIT form, which a spline does not have. Admitting one
+    // would meter poison. A plane × spline `Intersection`, fitted or
+    // not, never reaches it: `plane_nurbs_pair` takes that pair first.
     let resolve = |key: SurfaceKey| -> Result<Surface<T>, CertifyError> {
         let s = surfaces(key).ok_or(CertifyError::UnresolvedSurface { key })?;
         if matches!(s, Surface::Nurbs(_) | Surface::Approx(_)) {
@@ -2271,10 +2272,10 @@ fn run_checks<T: Decide>(
                 return Err(CertifyError::IntersectionSameSurface { key: s1 });
             }
             // The plane × NURBS lane (M7-8) is tried FIRST, because it
-            // is the only reading under which a described `Nurbs`
-            // operand certifies at all: `resolve` below refuses one
-            // typed. The pairing must be exactly one PLANE and one
-            // described NURBS wall — a NURBS × NURBS `Intersection` has
+            // is the only reading under which a described `Nurbs` or a
+            // fitted `Approx` operand certifies at all: `resolve` below
+            // refuses one typed. The pairing must be exactly one PLANE
+            // and one such wall — a NURBS × NURBS `Intersection` has
             // no certificate (the C5 table's general rung), and its
             // refusal is `Unimplemented`. The pair with no lane in hand
             // is refused here, before any other check of the edge.
@@ -3030,7 +3031,10 @@ fn run_checks<T: Decide>(
 
 /// The plane × NURBS pairing, in either order: exactly one PLANE and
 /// exactly one **described** NURBS wall (the mvfs placeholder is a
-/// mid-surgery "no description yet" fact, never an operand).
+/// mid-surgery "no description yet" fact, never an operand), or one
+/// fitted (`Approx`) wall, which is its fit here: the fit's distance
+/// from its description is the face's claim, re-derived per face at
+/// rest, and the edge's limbs are measured against the fit alone.
 ///
 /// `None` for every other pair, which then takes the analytic path and
 /// its existing refusals verbatim.
@@ -3039,10 +3043,14 @@ fn plane_nurbs_pair<T: Real>(
     s2: Option<Surface<T>>,
 ) -> Option<(Surface<T>, std::sync::Arc<geom::NurbsSurface<T>>)> {
     let (a, b) = (s1?, s2?);
-    let described = |n: &std::sync::Arc<geom::NurbsSurface<T>>| !n.is_placeholder();
+    let wall = |s: &Surface<T>| match s {
+        Surface::Nurbs(n) if !n.is_placeholder() => Some(n.clone()),
+        Surface::Approx(f) => Some(std::sync::Arc::new(f.fit().clone())),
+        _ => None,
+    };
     match (&a, &b) {
-        (Surface::Plane { .. }, Surface::Nurbs(n)) if described(n) => Some((a.clone(), n.clone())),
-        (Surface::Nurbs(n), Surface::Plane { .. }) if described(n) => Some((b.clone(), n.clone())),
+        (Surface::Plane { .. }, s) => Some((a.clone(), wall(s)?)),
+        (s, Surface::Plane { .. }) => Some((b.clone(), wall(s)?)),
         _ => None,
     }
 }
