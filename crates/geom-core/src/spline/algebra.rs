@@ -750,6 +750,14 @@ pub fn domain_grid_points(kv: &KnotVector, pieces: usize) -> Vec<f64> {
 pub fn range_grid_points(lo: f64, hi: f64, pieces: usize, mandatory: &[f64]) -> Vec<f64> {
     #[allow(clippy::cast_precision_loss)]
     let clearance = (hi - lo).abs() / pieces as f64 * GRID_CLEARANCE;
+    // REVIEW PROBE (delta review of PR 4438, never for merge): mutate the
+    // clearance from the environment. PROBE_F=<f> replaces the fraction;
+    // PROBE_ULPS=<n> restores the retired ulp rule `|hi − lo|·(n·ε)`.
+    let clearance = match (std::env::var("PROBE_F"), std::env::var("PROBE_ULPS")) {
+        (Ok(f), _) => (hi - lo).abs() / pieces as f64 * f.parse::<f64>().expect("PROBE_F"),
+        (_, Ok(n)) => (hi - lo).abs() * (n.parse::<f64>().expect("PROBE_ULPS") * f64::EPSILON),
+        _ => clearance,
+    };
     (1..pieces)
         .filter_map(|k| {
             #[allow(clippy::cast_precision_loss)]

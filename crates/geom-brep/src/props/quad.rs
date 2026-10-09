@@ -7025,6 +7025,29 @@ mod tests {
     /// point's rounding over `g` — an excess decaying as `1/g`, so a
     /// skip rule that clears too little goes red at the first offset
     /// past its clearance.
+    /// REVIEW PROBE (delta review of PR 4438): the flux/area width at a
+    /// knot `g` above `1/16`, for `g` from 1 ulp to past the clearance.
+    /// Run under `PROBE_F` settings to compare grid point kept vs dropped.
+    #[test]
+    #[ignore = "review probe"]
+    fn review_probe_excess_law() {
+        let on = quarter_cylinder_split_at(0.0625);
+        println!("on-grid: flux {:.6e} area {:.6e}", on.flux.width(), on.area.width());
+        let c = 1.0 / 4096.0;
+        for g in [
+            2e-15, 1e-14, 1e-13, 1e-12, 1e-11, 1e-10, 1e-9, 1e-8, 1e-7, 1e-6, 1e-5, 1e-4,
+            0.5 * c, c, 1.001 * c, 1.01 * c, 1.1 * c, 2.0 * c,
+        ] {
+            let b = quarter_cylinder_split_at(0.0625 + g);
+            println!(
+                "g {g:.4e}: flux {:.6e} area {:.6e}  flux-on {:+.3e}",
+                b.flux.width(),
+                b.area.width(),
+                b.flux.width() - on.flux.width()
+            );
+        }
+    }
+
     #[test]
     fn the_refine_grid_enclosure_has_no_cliff_at_any_knot_offset() {
         let truth = core::f64::consts::PI;
