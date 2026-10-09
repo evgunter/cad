@@ -2,12 +2,13 @@
 id: a-sphere-crossing-a-sphere-face-off-every-edge-refuses-spheres-meet
 kind: issue
 title: Two spheres crossing in a circle no edge reaches refuse SpheresMeet: a ball whose seam lies inside another ball's face, plain or carved
-status: open
+status: closed
 opened: 2026-10-05
 priority: P1
 cost: H
 refs: [a-ring-on-a-sphere-face-has-no-island-winding, 4046]
 branch: join/sphere-pair-whole-circle
+closed: 2026-10-09
 ---
 
 Found by the dual review of PR 4046 (`reach/carved-sphere-classify`,

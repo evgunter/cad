@@ -2,10 +2,11 @@
 id: annular-one-segment-tube-through-a-plate-refuses-section-loop-undecided
 kind: issue
 title: An annular one-segment tube through a plate, its two wrap edges at different azimuths, refuses SectionLoopUndecided: both region faces of the inner loop's null face have every witness on the tube
-status: open
+status: dispatched
 opened: 2026-10-08
 priority: P1
 cost: H
+branch: join/annular-tube-roles
 ---
 
 Found by the PR 4345 dual review (r2 MINOR 5, the `F3 annulus` probe on
