@@ -16,7 +16,7 @@ use core::f64::consts::PI;
 use crate::common::bulge;
 use crate::common::shell_operands::vessel;
 use geom_core::{Point2, Tol, Vec2};
-use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::finished;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, ShellError};
@@ -263,8 +263,7 @@ fn the_axial_door_names_its_own_boundary() {
                 (core::f64::consts::FRAC_PI_2 / 4.0).tan(),
             ),
             (Point2::new(0.0, h + r), 0.0),
-        ])
-        .with_tangent_joints(vec![2]),
+        ]),
         Revolution::Full,
     );
     let e = topo::shell(&finished("the operand", dome.clone(), tol), T, tol)

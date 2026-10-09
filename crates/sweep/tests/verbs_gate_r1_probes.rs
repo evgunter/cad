@@ -29,7 +29,7 @@
 use core::f64::consts::PI;
 
 use geom_core::{Point2, Point3, Tol, Vec3};
-use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::{brick, finished};
 use topo::{Body, BooleanError};
 
@@ -78,7 +78,7 @@ fn vase_with_caps(sphere: bool) -> Body<f64> {
     } else {
         0.0 // straight generator: a cone with its apex on the axis
     };
-    let mut lp = bulge_loop(vec![
+    let lp = bulge_loop(vec![
         (Point2::new(0.0, 0.0), cap),   // bottom cap → (0.5, 0.5)
         (Point2::new(0.5, 0.5), 0.0),   // wall → (0.5, 1.0)
         (Point2::new(0.5, 1.0), BULGE), // torus arc → (0.5, 1.5)
@@ -86,9 +86,7 @@ fn vase_with_caps(sphere: bool) -> Body<f64> {
         (Point2::new(0.5, 2.0), cap),   // top cap → (0, 2.5)
         (Point2::new(0.0, 2.5), 0.0),   // axis seam → start
     ]);
-    if sphere {
-        lp = lp.with_tangent_joints(vec![1, 4]);
-    }
+
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();

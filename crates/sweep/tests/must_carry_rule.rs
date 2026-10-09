@@ -58,7 +58,7 @@ use geom_brep::{
     must_carry_over_edge,
 };
 use geom_core::{Band, ErrorTextReading, Point2, Point3, Tol, Vec2, Vec3};
-use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::Body;
@@ -125,8 +125,7 @@ fn filleted_block(h: f64) -> Result<Body<f64>, ExtrudeError> {
         (Point2::new(q, 1.0), b),
         (Point2::new(0.0, 1.0 - q), 0.0),
         (Point2::new(0.0, q), b),
-    ])
-    .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]);
+    ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the filleted block is a valid profile");
@@ -177,8 +176,7 @@ fn bored_ring(r_bore: f64) -> Result<Body<f64>, sweep::RevolveError> {
         (Point2::new(outer, -h), 0.0),
         (shoulder, bulge),
         (Point2::new(r_bore, 0.0), 0.0),
-    ])
-    .with_tangent_joints(vec![3]);
+    ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the bored ring is a valid profile");
@@ -877,8 +875,7 @@ fn a_filleted_block_spends_the_rules_stations_once_per_smooth_strut() {
         (p2(q, 1.0), b),
         (p2(0.0, 1.0 - q), zero),
         (p2(0.0, q), b),
-    ])
-    .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]);
+    ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the filleted block is a valid profile");

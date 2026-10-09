@@ -6072,7 +6072,12 @@ mod fillet_stored_form {
     /// What the door emitted for one turn and what the validator reads
     /// back out of it: one table row, and the door's own tangency
     /// margins at both joints for the assertion above the table.
-    fn row(lp: &ConstructedLoop<f64>, arrival: Arrival, theta: f64, tol: Tol) -> (String, [f64; 2]) {
+    fn row(
+        lp: &ConstructedLoop<f64>,
+        arrival: Arrival,
+        theta: f64,
+        tol: Tol,
+    ) -> (String, [f64; 2]) {
         let band = match Band::linear(tol) {
             Ok(b) => b,
             Err(e) => return (format!("| {theta:e} | band: {e} |"), [0.0; 2]),
@@ -6100,10 +6105,11 @@ mod fillet_stored_form {
                 )
             })
             .collect();
-        let validates = match ConstructedProfile::new(SketchPlane::xy(), vec![lp.clone()]).validate(tol) {
-            Ok(_) => "ok".to_string(),
-            Err(e) => format!("REFUSED: {}", short(&e.to_string())),
-        };
+        let validates =
+            match ConstructedProfile::new(SketchPlane::xy(), vec![lp.clone()]).validate(tol) {
+                Ok(_) => "ok".to_string(),
+                Err(e) => format!("REFUSED: {}", short(&e.to_string())),
+            };
         // The stored sweep's quarter tangent: the sagitta's lever, as
         // validation reads it.
         let bulge = match lp.segments()[s] {

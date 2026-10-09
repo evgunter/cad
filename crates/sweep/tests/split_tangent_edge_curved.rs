@@ -830,7 +830,6 @@ fn a_concave_graze_of_a_filleted_hole_refuses() {
 /// crosses the caps' rims.
 #[test]
 fn a_concave_graze_of_a_cove_refuses() {
-    use profile::RawLoop;
     let q = (std::f64::consts::PI / 8.0).tan();
     let lp = bulge_loop(vec![
         (Point2::new(0.0, 0.0), 0.0),
@@ -840,8 +839,7 @@ fn a_concave_graze_of_a_cove_refuses() {
         (Point2::new(1.0, 1.5), 0.0),
         (Point2::new(1.0, 3.0), 0.0),
         (Point2::new(0.0, 3.0), 0.0),
-    ])
-    .with_tangent_joints(vec![3, 4]);
+    ]);
     let body = extruded_loops(vec![lp]);
     for phi in [3.3, 3.6, 4.0, 4.2, 4.5] {
         let n = unit(phi);
@@ -861,7 +859,6 @@ fn a_concave_graze_of_a_cove_refuses() {
 /// convex wall beside it would land with its material.
 #[test]
 fn a_concave_wall_beside_a_convex_one_refuses_its_knife_edge() {
-    use profile::RawLoop;
     let q = (std::f64::consts::PI / 8.0).tan();
     let lp = bulge_loop(vec![
         (Point2::new(-1.0, 0.0), 0.0),
@@ -869,8 +866,7 @@ fn a_concave_wall_beside_a_convex_one_refuses_its_knife_edge() {
         (Point2::new(1.0, 1.0), -q),
         (Point2::new(0.0, 2.0), 0.0),
         (Point2::new(-1.0, 2.0), 0.0),
-    ])
-    .with_tangent_joints(vec![2]);
+    ]);
     let body = extruded_loops(vec![lp]);
     let operand = sweep::test_support::finished("the ogee", body.clone(), Tol::witness());
     for s in [1.0, -1.0] {

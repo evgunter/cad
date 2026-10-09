@@ -31,7 +31,7 @@
 
 use geom_core::{Point2, Tol, Vec2};
 use profile::test_support::bulge_loop;
-use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane};
 use sweep::test_support::{block, brick, corners, revolved_about_y};
 use sweep::{ExtrudeSide, Extrusion, Revolution, RevolveAxis};
 use topo::{Body, ShellKey, ShellRole, SolidKey};
@@ -121,15 +121,12 @@ pub fn hollow_capped_vessel() -> (Body<f64>, Vec<topo::FaceKey>, f64) {
 /// **The domed vessel**: a cylinder of radius `r` and height `h` under
 /// a hemisphere of the same radius, tangent to the wall at the equator.
 pub fn domed_vessel(r: f64, h: f64) -> Body<f64> {
-    revolved_full(
-        bulge_loop(vec![
-            (Point2::new(0.0, 0.0), 0.0),
-            (Point2::new(r, 0.0), 0.0),
-            (Point2::new(r, h), core::f64::consts::FRAC_PI_8.tan()),
-            (Point2::new(0.0, h + r), 0.0),
-        ])
-        .with_tangent_joints(vec![2]),
-    )
+    revolved_full(bulge_loop(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(r, 0.0), 0.0),
+        (Point2::new(r, h), core::f64::consts::FRAC_PI_8.tan()),
+        (Point2::new(0.0, h + r), 0.0),
+    ]))
 }
 
 /// **The cone-tipped vessel**: a cylinder of radius `r` and height `h`

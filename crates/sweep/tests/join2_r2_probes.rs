@@ -10,7 +10,6 @@
 
 use super::common::differential::outcome;
 use geom_core::{Point2, Point3, Tol, Vec3};
-use profile::RawLoop;
 use sweep::test_support::{corners, extruded, prism_on, sketch_at, sketch_from_axes};
 use topo::{Body, BooleanDeclarations, BooleanError, BooleanOp};
 
@@ -44,24 +43,11 @@ fn bulge_area(v: &[((f64, f64), f64)]) -> f64 {
 }
 
 fn plate(v: &[((f64, f64), f64)], z0: f64) -> Body<f64> {
-    let n = v.len();
     let verts = v
         .iter()
         .map(|&((x, y), b)| (Point2::new(x, y), b))
         .collect();
-    // A fillet arc's two ends are declared-tangent joints.
-    let mut joints: Vec<usize> = Vec::new();
-    for (k, &(_, b)) in v.iter().enumerate() {
-        if b != 0.0 {
-            for j in [k, (k + 1) % n] {
-                if !joints.contains(&j) {
-                    joints.push(j);
-                }
-            }
-        }
-    }
-    joints.sort_unstable();
-    let lp = profile::test_support::bulge_loop(verts).with_tangent_joints(joints);
+    let lp = profile::test_support::bulge_loop(verts);
     extruded(sketch_at(z0), vec![lp], 1.0, tol())
 }
 

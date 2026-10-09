@@ -332,8 +332,8 @@ fn lift_seamed(loop_: &ProfileLoop<f64>, tol: Tol) -> Result<Seamed, LiftRefusal
             return Err(LiftRefusal::NonFinite { vertex: i });
         }
     }
-    let tangent = crate::validate::table_tangent_joints(loop_, tol)
-        .map_err(LiftRefusal::Unclassified)?;
+    let tangent =
+        crate::validate::table_tangent_joints(loop_, tol).map_err(LiftRefusal::Unclassified)?;
 
     // The closed-carrier forms first: a loop that IS a carrier has no
     // seam to author, and `circle`/`circle_split` say so in one step.

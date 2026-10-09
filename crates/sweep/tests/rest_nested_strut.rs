@@ -12,7 +12,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Tol};
-use profile::RawLoop;
 use profile::test_support::bulge_loop;
 use sweep::test_support::{extruded, sketch_at};
 use topo::{
@@ -27,23 +26,13 @@ fn tol() -> Tol {
 /// tan(π/8): a quarter-circle's bulge.
 const Q: f64 = 0.414_213_562_373_095_03;
 
-/// The prism over `pts` (`(x, y, bulge)`) over z ∈ [z0, z0 + 1], every
-/// joint where an arc meets a line declared tangent.
+/// The prism over `pts` (`(x, y, bulge)`) over z ∈ [z0, z0 + 1].
 fn prism(pts: &[(f64, f64, f64)], z0: f64) -> AtRestBody<f64> {
-    let n = pts.len();
-    let joints = (0..n)
-        .filter(|&i| (pts[(i + n - 1) % n].2 == Q) != (pts[i].2 == Q))
-        .collect();
     let chain = pts
         .iter()
         .map(|&(x, y, b)| (Point2::new(x, y), b))
         .collect();
-    let body: Body<f64> = extruded(
-        sketch_at(z0),
-        vec![bulge_loop(chain).with_tangent_joints(joints)],
-        1.0,
-        tol(),
-    );
+    let body: Body<f64> = extruded(sketch_at(z0), vec![bulge_loop(chain)], 1.0, tol());
     sweep::test_support::finished("an operand", body, tol())
 }
 
