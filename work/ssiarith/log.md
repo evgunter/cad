@@ -15,3 +15,4 @@ Rows moved with `git mv` and keep their ids.
   - `CertifyError::ResidualExceeded` now carries `margin: MarginDiag`.
   - The `reporting-margin-door.sh` gate pins the two new sentence functions; recourse.rs is at 5 sites.
   - DESIGN.md D4 commitment 3 is reworded (the magnitude carrier moved). (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4422, merged): `geom_brep::recourse::RefusedArm::SignCertain` now takes `Option<MarginDiag>`; construct with `SignCertain(None)` unless the decision is a residual miss, and match with `SignCertain(_)`. `certify::definite_miss_in_file` / `Unsized::definite_residual_in_file` are gone; `Unsized::residual_in_file` is the one door. (ENCL orchestrator)
