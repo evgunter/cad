@@ -5,7 +5,9 @@
 # cylinder, sphere, torus), every carrier a line or a circle, meeting
 # along TANGENT trimlines; the bands' slit meridians are Seam edges.
 #
-# Kernel counts are 89 faces / 195 edges / 129 vertices. OCC keeps
+# Kernel counts are 89 faces / 174 edges / 108 vertices: each band's
+# two host trimlines meet at the host foot its slit does not reach,
+# and the blend's closing join makes them one edge (maximal edges). OCC keeps
 # the faces and vertices and splits periodic carriers at their seams
 # (the filleted_die/ball/donut accounting), so its edge count exceeds
 # the kernel's. The volume is the Pappus closed form
@@ -20,13 +22,13 @@
 KERNEL_SOLIDS=1
 KERNEL_SHELLS=1
 KERNEL_FACES=89
-KERNEL_EDGES=195
-KERNEL_VERTICES=129
+KERNEL_EDGES=174
+KERNEL_VERTICES=108
 KERNEL_VOLUME_MM3=952914984.0146472
 KERNEL_VOLUME_PAD_MM3=0.0
 EXPECT_SOLIDS=1
 EXPECT_SHELLS=1
 EXPECT_FACES=89
-EXPECT_EDGES=245
-EXPECT_VERTICES=129
+EXPECT_EDGES=224
+EXPECT_VERTICES=108
 EXPECT_VOLUME_MM3=952914984

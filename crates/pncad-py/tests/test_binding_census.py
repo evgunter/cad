@@ -3997,6 +3997,7 @@ MEMBERS_BOUND_AS = {
     "ValidationError::PlanarBoundaryResidual": "ValidationFinding.variant",
     "ValidationError::PlanarBoundaryEscalated": "ValidationFinding.variant",
     "ValidationError::SliverDihedral": "ValidationFinding.variant",
+    "ValidationError::NoDihedralArm": "ValidationFinding.variant",
     "ValidationError::TransverseNotIntrinsic": "ValidationFinding.variant",
     "ValidationError::ScaffoldAtRest": "ValidationFinding.variant",
     "ValidationError::TangentNotIntrinsic": "ValidationFinding.variant",

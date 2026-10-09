@@ -49,6 +49,9 @@ is not ATREST's territory and this note is not a claim on it.
 
 Signed: (ATREST orchestrator)
 
+**Seam note (CONTACT-11, 2026-09-29).** `chord_join::chart_box_defect` and `ChartBox` are deleted; the cone and torus trims decide their box through `solid_contain::chart_polygon_box` instead, and nothing else called them.
+
+Signed: (CONTACT-11 implementer)
 ## Announced seam from TOPO (2026-09-24)
 
 TOPO's `kevs-fan-merge-needs-a-re-describing-kill-door` (branch
@@ -914,5 +917,6 @@ and `germ-takes-the-span-bounded-face-reach-alone` (parked on D10's
 declared path); the sweep's siblings went to SHELF, CLEAVE (two) and
 REACH.
 - 2026-10-08: filed `split-cyl-ellipse-quarter-bound-overshoots-the-tilt-at-the-band-edge` (P3), the two ellipse-bounded split_cyl servings against the truth that PR 4292's fix pass 2 measured (shared with main).
+- 2026-10-08: closed `a-torus-meridian-lying-on-a-torus-is-unsettled` (PR 4343): the circle × torus door's meridian rung (`bool_circle_torus_meridian`); the lily's chain now stops at the graze in both orders. Filed `roots/an-oblique-cone-section-reads-a-zero-floor` (P2) and `hone/a-villarceau-circle-lying-on-a-torus-is-unsettled` (P3) from the F ≡ 0 sweep.
 - 2026-10-08: closed `a-turned-hemisphere-keeps-the-crossing-layers-door`. It already built on main, by PR 4123's sphere azimuth reach (bisected). Rows pin six turns and two spun poses, and the near-aligned window. Filed `a-covered-line-ending-just-off-the-face-keeps-the-door` (P3, parked on D10): the covered line rung's door within about `2e-4` of aligned.
 - 2026-10-08: closed `a-rim-offset-half-the-zero-band-builds-in-one-member-order-only`. Both orders already build on main, since PR 3759 (PR 3812's envelope restatement; bisected). The old envelope read the rim offset twice, so half a band sat on its flip. Rows pin both orders at eleven offsets and three ε. Filed `pcurve-envelope-terms-sum-the-cos-and-sin-coefficients-of-a-deviation` on PCERT; evidence added to REACHHOLD's tight-volume-bound row and CLEAVE's in-span lever row.

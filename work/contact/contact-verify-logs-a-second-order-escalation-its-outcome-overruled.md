@@ -2,10 +2,11 @@
 id: contact-verify-logs-a-second-order-escalation-its-outcome-overruled
 kind: issue
 title: contact_verify's tangency ladder leaves its early second-order escalation on the node log when a definite parallelism defect refuses, or a declaration bridges it
-status: open
+status: parked
 opened: 2026-09-28
 priority: P3
 cost: M
+blocked_on: [booleans-glue-on-zero]
 ---
 
 
@@ -65,3 +66,7 @@ overrules it, or once the parallel reading's own escalation becomes the
 refusal. A red-first row brackets `tangent_locus_relation` at `Interval` on
 a pair whose second-order enclosure is in band and whose defect is
 definite, then asserts that the log is empty.
+
+## Parked on the D10 hold (2026-10-08)
+
+Its bridged-by-declaration arm is declared contact. (CONTACT close-out triage; `work/contact/log.md`.)

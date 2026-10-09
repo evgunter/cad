@@ -1530,8 +1530,10 @@ pub fn tube_error_tag(err: &TubeError) -> &'static str {
 /// it passed on, so one refusal has one spelling whichever door met it.
 pub fn join_refusal_tag(refusal: &JoinRefusal) -> &'static str {
     match refusal {
-        JoinRefusal::Undecided(_) => "join_undecided",
-        JoinRefusal::CarrierUnsupported { .. } => "join_carrier_unsupported",
+        JoinRefusal::Undecided(_) => boolean_error_tag(BooleanErrorKind::JoinUndecided),
+        JoinRefusal::CarrierUnsupported { .. } => {
+            boolean_error_tag(BooleanErrorKind::JoinCarrierUnsupported)
+        }
         JoinRefusal::Kernel { kind } => boolean_error_tag(*kind),
     }
 }
@@ -1590,6 +1592,7 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::RingClearance { .. } => "ring_clearance",
         BlendError::Certify { .. } => "certify",
         BlendError::Op { .. } => "op",
+        BlendError::Join { refusal } => join_refusal_tag(refusal),
     }
 }
 
@@ -3118,6 +3121,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::PlanarBoundaryResidual { .. } => "planar_boundary_residual",
         ValidationError::PlanarBoundaryEscalated { .. } => "planar_boundary_escalated",
         ValidationError::SliverDihedral { .. } => "sliver_dihedral",
+        ValidationError::NoDihedralArm { .. } => "no_dihedral_arm",
         ValidationError::TransverseNotIntrinsic { .. } => "transverse_not_intrinsic",
         ValidationError::ScaffoldAtRest { .. } => "scaffold_at_rest",
         ValidationError::TangentNotIntrinsic { .. } => "tangent_not_intrinsic",
