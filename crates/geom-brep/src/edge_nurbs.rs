@@ -1556,6 +1556,29 @@ mod tests {
         assert!((slope - near).abs() < 1e-12, "1 ulp above 1/16: {near:e}");
     }
 
+    /// REVIEW PROBE (PR 4438): knot offsets from `1/16`, `+` side.
+    fn review_offsets() -> Vec<(String, f64)> {
+        let g = 0.0625f64;
+        let mut v = vec![("on".to_string(), g)];
+        for n in [1u64, 8, 9, 64, 128, 129, 130, 256, 1000, 1_000_000] {
+            v.push((format!("+{n} bits"), f64::from_bits(g.to_bits() + n)));
+        }
+        for d in [1e-14, 1e-13, 1e-12, 1e-11, 1e-10, 1e-9, 1e-7, 1e-5, 1e-3] {
+            v.push((format!("+{d:e} abs"), g + d));
+        }
+        v.push(("far 0.07".to_string(), 0.07));
+        v
+    }
+
+    /// REVIEW PROBE (PR 4438): chart speed vs knot offset.
+    #[test]
+    #[ignore = "review probe"]
+    fn review_probe_wall_speed_vs_offset() {
+        for (label, k) in review_offsets() {
+            println!("EDGEPROBE {label:>14} speed={:.6e}", bent_wall_speed(k));
+        }
+    }
+
     /// An exact rational: `n / d`, `d > 0`, for the oracle below.
     #[derive(Clone, Debug)]
     struct Q {

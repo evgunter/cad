@@ -7055,6 +7055,34 @@ mod tests {
         );
     }
 
+    /// REVIEW PROBE (PR 4438): knot offsets from `1/16`, `+` side.
+    fn review_offsets() -> Vec<(String, f64)> {
+        let g = 0.0625f64;
+        let mut v = vec![("on".to_string(), g)];
+        for n in [1u64, 8, 9, 64, 128, 129, 130, 256, 1000, 1_000_000] {
+            v.push((format!("+{n} bits"), f64::from_bits(g.to_bits() + n)));
+        }
+        for d in [1e-14, 1e-13, 1e-12, 1e-11, 1e-10, 1e-9, 1e-7, 1e-5, 1e-3] {
+            v.push((format!("+{d:e} abs"), g + d));
+        }
+        v.push(("far 0.07".to_string(), 0.07));
+        v
+    }
+
+    /// REVIEW PROBE (PR 4438): round-0 width vs knot offset.
+    #[test]
+    #[ignore = "review probe"]
+    fn review_probe_quad_width_vs_offset() {
+        for (label, k) in review_offsets() {
+            let b = quarter_cylinder_split_at(k);
+            println!(
+                "QUADPROBE {label:>14} k={k:.17e} flux_w={:.4e} area_w={:.4e}",
+                b.flux.width(),
+                b.area.width()
+            );
+        }
+    }
+
     /// `refine_dir` has no "already fine enough" cut-off: a vector
     /// with more control points than the grid has spans still takes
     /// every grid point it lacks. The interior knots are the odd

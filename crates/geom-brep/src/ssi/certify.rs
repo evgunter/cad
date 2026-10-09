@@ -1976,6 +1976,50 @@ mod tests {
         }
     }
 
+    /// REVIEW PROBE (PR 4438): box-chain axis error vs knot offset.
+    #[test]
+    #[ignore = "review probe"]
+    #[allow(clippy::unwrap_used)]
+    fn review_probe_box_axis_vs_offset() {
+        use geom_core::spline::KnotVector;
+        use geom_core::{Bounds, Point3};
+        let leg = [0.9, 0.1, 0.3];
+        let norm = leg.iter().map(|x| x * x).sum::<f64>().sqrt();
+        let g = 0.0625f64;
+        let mut ks = vec![("on".to_string(), g)];
+        for n in [1u64, 8, 9, 64, 128, 129, 130, 256, 1000, 1_000_000] {
+            ks.push((format!("+{n} bits"), f64::from_bits(g.to_bits() + n)));
+        }
+        for d in [1e-14, 1e-13, 1e-12, 1e-11, 1e-10, 1e-9, 1e-7, 1e-5, 1e-3] {
+            ks.push((format!("+{d:e} abs"), g + d));
+        }
+        for (label, k) in ks {
+            let kv = KnotVector::clamped(vec![0.0, 0.0, k, 1.0, 1.0], 1).unwrap();
+            let control = vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(leg[0], leg[1], leg[2]),
+                Point3::new(1.0, 1.0, 1.0),
+            ];
+            let curve = geom::NurbsCurve3::new(kv, control, vec![1.0; 3]).unwrap();
+            let chain = super::box_chain(&curve);
+            let mut worst = 0.0f64;
+            let mut n = 0;
+            for (b, axis) in chain.iter().filter(|(b, _)| b.x.hi() <= leg[0]) {
+                let _ = b;
+                n += 1;
+                let off = (axis.x - leg[0] / norm)
+                    .abs()
+                    .max((axis.y - leg[1] / norm).abs())
+                    .max((axis.z - leg[2] / norm).abs());
+                worst = worst.max(off);
+            }
+            println!(
+                "CERTPROBE {label:>14} boxes={} first_leg={n} worst_axis_off={worst:.4e}",
+                chain.len()
+            );
+        }
+    }
+
     /// `chart_breaks` skips a grid point beside a knot of either curve:
     /// a carrier knot one ulp above `2/32` drops `2/32`, a pcurve knot
     /// one ulp below `12/32` drops `12/32`, and every other 32nd stays.
