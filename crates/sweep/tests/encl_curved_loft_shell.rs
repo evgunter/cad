@@ -407,9 +407,11 @@ fn tilted_top_prism() -> Body<f64> {
 
 /// The march arm builds nothing yet: the moved tilted cap's section of
 /// each polynomial wall is certified by the march, and the plane ×
-/// NURBS edge certificate refuses it at its limb 2 by a few
-/// micrometres, though the marched branch lies on both surfaces to
-/// ~5e-11 (`work/ssiedge/plane-nurbs-limb-two-refuses-a-non-row-section.md`).
+/// NURBS edge certificate's limb 2 measures it a few micrometres off,
+/// though the marched branch lies on both surfaces to ~5e-11
+/// (`work/ssiedge/plane-nurbs-limb-two-refuses-a-non-row-section.md`).
+/// The gap is a length, not a multiple of ε, so which verdict it earns
+/// is ε's: past the band it refuses, inside the band it escalates.
 #[test]
 fn a_tilted_caps_marched_rim_refuses_at_its_certificate() {
     let body = tilted_top_prism();
@@ -423,29 +425,41 @@ fn a_tilted_caps_marched_rim_refuses_at_its_certificate() {
         })
         .map(|(k, _)| k)
         .expect("the tilted top cap");
+    // The march's own tolerance is ε's, so the gap moves with it (about
+    // 3.1e-6 to 3.7e-6 at d = -0.05 and 1.4e-5 to 1.5e-5 at d = -0.2
+    // over ε in [1e-12, 1e-6]); it stays micrometres.
+    let eps = Tol::witness().eps();
+    let micrometres = 1e-6..1e-4;
     for d in [-0.05, -0.2] {
         let mut moved = body.clone();
         let e = topo::replace_face_offset(&mut moved, cap, d, Tol::witness())
             .expect_err("the marched rim does not certify");
         let ReplaceFaceError::Op {
-            error:
-                topo::EulerOpError::RechartFalsifies {
-                    error:
-                        geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
-                            limb: geom_brep::ssi::SsiLimb::HullSup,
-                            value,
-                        }),
-                    ..
-                },
+            error: topo::EulerOpError::RechartFalsifies { error, .. },
             ..
         } = &e
         else {
-            panic!("d {d}: expected the marched rim's limb-2 refusal, got {e}");
+            panic!("d {d}: expected the marched rim's certificate to refuse, got {e}");
         };
-        assert!(
-            *value > 1e3 * Tol::witness().eps(),
-            "d {d}: limb 2 is far past the band, not at its edge: {value:e}"
-        );
+        match error {
+            geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
+                limb: geom_brep::ssi::SsiLimb::HullSup,
+                value,
+            }) => {
+                assert!(
+                    micrometres.contains(value) && *value > 10.0 * eps,
+                    "eps {eps:e}, d {d}: limb 2 refused at {value:e}"
+                );
+            }
+            geom_brep::CertifyError::Escalated { check, .. } => {
+                assert_eq!(*check, geom_brep::ssi::SsiLimb::HullSup.check());
+                assert!(
+                    10.0 * eps > micrometres.start,
+                    "eps {eps:e}, d {d}: limb 2 escalated with no micrometre in the band"
+                );
+            }
+            _ => panic!("eps {eps:e}, d {d}: expected limb 2 to answer, got {e}"),
+        }
     }
 }
 
