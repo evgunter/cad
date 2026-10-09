@@ -130,6 +130,44 @@ sugar inside a stored name: two spellings of one key, and giving an
 operation a second output would re-key every name through it. **Not
 worth one. Sure.**
 
+### 5. N, S or F (Ev: binary under the hood with n-ary as sugar; or a stored fold)
+
+**Recommend N. Sure against S; likely against F**, which is N's data under
+a word that says the wrong thing, plus one temptation. "Binary under the
+hood" is already N: the kernel's pair verb is its only boolean, and the
+list node is the one place that folds it, after the pairwise pass.
+
+| | **N** `Union[a,b,c]`, `Intersect[…]`, `Subtract{from,tool}` | **S** binary nodes, n-ary as sugar | **F** `fold(op, [a,b,c])` |
+|---|---|---|---|
+| stored; one way for a∪b∪c? | the list in the author's order; one | a chain `∪(∪(a,b),c)`: for three members, two shapes and the orders; the sugar picks one and the document shows a tree the author did not write; not one | op and list, N's data; one |
+| names | `From { read, of }`, depth one whatever the position; remove or reorder re-keys nothing | DM4's original defect verbatim: `From{u2, From{u1, From{a,…}}}`, depth is position; removing `b` deletes `u1` and re-points `u2`, renaming every downstream frozen selection (the die's pips) | as N |
+| #4323's one-pass verdicts, lineage | the pass over the list's pairs; the fold reads one verdict per carrier pair through lineage | each node sees one pair, accumulation against member, so `b`–`c` is judged at `u2` on pieces at their extent, "the main way refusals depended on order after E" (#4323); or the kernel recognises a chain as one union, and then what is stored and what is computed disagree | as N |
+| `SetMembers`, delete one | the list without it | no node to set; delete is a splice, the inference DM6 forbids, or a façade rewrite of the chain, with each node's `declare` re-sited until stage 4 F | as N |
+| what intersect's glue keeps | the earliest member's description, the list being the author's order (#4323) | the leftmost leaf's, reached through the chain's shape | as N |
+
+**F's own questions.** `fold(∪, [a,b,c])` is `Union[a,b,c]` with the op
+as a field; it differs only in what the word claims. The kernel does
+accumulate the body in list order, a real fold of the pair verb, but what
+it *decides* is over the members (#4323: one verdict per carrier pair
+before the fold, names over the finished body, three-member rows by
+member cells), and DM4 now says so in those words. Ev's ruling on #4323
+was that what is order-dependent be said, not hidden; "fold" says the
+opposite, making the accumulation strategy the meaning. N says both: the
+list is the author's order, the meaning is the set. So F is honest about
+the bits and not about the semantics; calling it a fold is not honest.
+`fold(−, [a,b,c])` is `(a−b)−c = a−(b∪c)` set-wise, and its first element
+is `from`: a seat named by its position, index 0, the defect class D10
+removed, and a list whose order means something under `−` and nothing
+under `∪`. What the kernel computes is the same three pairwise verdicts
+(`b`–`c` among them, the tools' union in all but name), then two cuts;
+`subtract(a, union[tools])` says that and `fold(−)` hides it. A fold over
+a family is `union` reading a family with `union` demoted to sugar; one
+spelling either way, and #4341's case against `map` (a domain restated at
+every step, membership said twice) does not touch a fold, which has no
+domain of its own. Names and `SetMembers` are N's. **If the op-as-field
+shape appeals, N can be one variant `Combine { op: Union | Intersect,
+members }`; not named fold, not admitting `−`.** Likely.
+
 ### Clauses changed
 
 - REFERENCES **DM4**: "Naming keys by member" → by the read; "It sits
