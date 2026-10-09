@@ -154,7 +154,7 @@ pub fn v3<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
 /// let square: ConstructedLoop<f64> =
 ///     polygon(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], tol)?;
 /// assert_eq!(square.vertices().len(), 4);
-/// assert!(square.tangent_joints().is_empty());
+/// assert!(square.constructed_joints().is_empty());
 ///
 /// // Three corners is the minimum a closed chain of straight legs
 /// // can bound anything with.

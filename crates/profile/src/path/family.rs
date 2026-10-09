@@ -93,7 +93,7 @@
 //!     .toward(-4.1, 0.3, tol)?
 //!     .line(1.0, tol)?
 //!     .line_to(Start, tol)?;
-//! assert!(boss.loop_.tangent_joints().len() >= 4);
+//! assert!(boss.loop_.constructed_joints().len() >= 4);
 //! # Ok(())
 //! # }
 //! ```
