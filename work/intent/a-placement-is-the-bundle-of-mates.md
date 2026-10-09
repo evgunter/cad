@@ -49,14 +49,14 @@ expressions in it (FORK-PAT). The world is one frame among many that cannot be d
 placements and export alone; the product is every copy whose space
 reaches it (Ev: one relation for the whole product is a style, placing
 one body against the world and the rest against it, not a rule). An
-instance defines no `frame` port. Ev chooses between two shapes, and
-this unit builds the recommended one meanwhile: `Place { shapes, mates
-}` reads a list of shapes of one space, and the instance keeps FORK-1's
-one `Body` port per copy in the part's world, all of its targets' space (an instance is a
-placement, FORK-S3P); a re-pin that adds a world copy mints a port no
-`Place` reads yet, and the maintenance report names it. The alternative
-is `Place` reading one shape, with the instance defining `bodies:
-Bodies` whose members are named by the part's world placements. Stage 2 C ships
+instance defines no `frame` port. `Place { shapes, constraints }`
+reads a list of shapes of one space, as `union` reads its operands (a
+list of reads, not a list literal), and the instance keeps FORK-1's one
+output per world placement of the part, keyed by that placement's node
+id and a family under the part's own index where that placement is one
+(FORK-S3M round 9, both designers); a re-pin that adds a world copy
+mints a port no `Place` reads yet, and the maintenance report names it.
+Stage 2 C ships
 one whole-world `body` port in the meantime
 (`an-instance-defines-one-body-per-part-placement`). A10's rewrite
 lands with this unit.

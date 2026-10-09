@@ -1251,15 +1251,17 @@ its lift to a 3-D pose is how it leaves.
 **Operations.** A node is an operation: it reads variables and defines
 the variables its signature states, a fixed list of named, typed ports
 set by its variant (a split defines two bodies; a revolve its body and its axis; an instance of a part
-is a placement, defining one `Body` variable per copy in the part's
-world, all of its targets' space), possibly none: an assertion defines
+is a placement, defining one output per world placement of the part,
+named by that placement and a family where that placement is one, all
+of its targets' space), possibly none: an assertion defines
 none, and a mate or a value is a constraint of a placement, not an operation. Reading is the only dependency; nothing consumes anything,
 so an operand stays a first-class value after a boolean reads it. The
 product is every copy whose space reaches the world, in placement
 order; the world is one frame among many that cannot be deleted, and a
 body enters the product by a placement of a copy against it or against
-what is related to it. A placement is an operation reading shapes of one
-space and a bundle of constraints, and defining a copy of each shape under
+what is related to it. A placement is an operation reading a list of shapes of
+one space, as a union reads its operands (a list of reads, not a list
+literal), and a bundle of constraints, and defining a copy of each shape under
 the one rigid motion its constraints pin; building, combining or placing
 shapes adds nothing to the product, and a body appears only as a copy
 whose space reaches the world. Nothing
