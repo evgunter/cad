@@ -78,6 +78,8 @@ mod carrier_touch;
 mod circle_roots;
 mod circle_torus;
 pub(crate) mod combine;
+#[cfg(test)]
+mod cone_frame_rows;
 mod conic_quadric;
 pub mod contact_verify;
 // The conic rows' shared test oracles (test builds only).
@@ -2673,6 +2675,26 @@ pub enum BooleanError {
         /// Its kind — the B half of the germ pair.
         b_kind: geom::SurfaceKind,
     },
+    /// **A germ pair whose section is a conic outside the inventory by
+    /// decision**: a plane cutting a cone face in a parabola (parallel to
+    /// a generator) or a hyperbola (meeting both nappes). Neither curve is
+    /// in the conic inventory (`geom_brep`'s C1/C5, ruling R1), so the
+    /// pair is refused, not missing an arm: `section` is the table's own
+    /// refusal, naming the conic.
+    GermSectionOutsideInventory {
+        /// The A-side germ face.
+        a_face: FaceKey,
+        /// Its kind.
+        a_kind: geom::SurfaceKind,
+        /// The B-side germ face.
+        b_face: FaceKey,
+        /// Its kind.
+        b_kind: geom::SurfaceKind,
+        /// The conic.
+        conic: geom_brep::OutsideConic,
+        /// The section table's refusal, naming the conic.
+        section: geom_brep::SectionError,
+    },
     /// **A germ pair of two cylinder walls whose axes definitely
     /// INTERSECT** — the frame dispatch's named sub-case of "no
     /// frame", and the door the intersecting equal-radius family
@@ -3052,6 +3074,8 @@ pub enum BooleanErrorKind {
     SpheresMeet,
     /// [`BooleanError::GermFrameUnsupported`].
     GermFrameUnsupported,
+    /// [`BooleanError::GermSectionOutsideInventory`].
+    GermSectionOutsideInventory,
     /// [`BooleanError::GermFrameCylinderPinch`].
     GermFrameCylinderPinch,
     /// [`BooleanError::Euler`].
@@ -3277,6 +3301,9 @@ impl BooleanError {
             Self::FallbackExtentUnsupported { .. } => BooleanErrorKind::FallbackExtentUnsupported,
             Self::SpheresMeet { .. } => BooleanErrorKind::SpheresMeet,
             Self::GermFrameUnsupported { .. } => BooleanErrorKind::GermFrameUnsupported,
+            Self::GermSectionOutsideInventory { .. } => {
+                BooleanErrorKind::GermSectionOutsideInventory
+            }
             Self::GermFrameCylinderPinch { .. } => BooleanErrorKind::GermFrameCylinderPinch,
             Self::Euler(_) => BooleanErrorKind::Euler,
             Self::Pcurves { .. } => BooleanErrorKind::Pcurves,
@@ -3609,6 +3636,17 @@ impl core::fmt::Display for BooleanError {
                 kind_word(*a_kind),
                 kind_word(*b_kind),
                 meeting_recourse(kind_word(*a_kind)),
+            ),
+            Self::GermSectionOutsideInventory { conic, .. } => write!(
+                f,
+                "a flat face of one part cuts a cone face of the other along a curve \
+                 that never closes ({}), which the Boolean does not build. Recourse: \
+                 tilt the parts so the flat face cuts the cone all the way round, or \
+                 keep it clear of the cone face",
+                match conic {
+                    geom_brep::OutsideConic::Parabola => "a parabola",
+                    geom_brep::OutsideConic::Hyperbola => "a hyperbola",
+                },
             ),
             // True for BOTH radius cases: the raise site refuses on the
             // axis relation alone when no radius evidence exists, so the
@@ -4090,6 +4128,7 @@ pub fn boolean_reduce_declared<T: Decide + Bounds + crate::props::AtRestPolicy>(
         b_operand,
         decls,
         SweepStrategy::Realized,
+        reduce::boolean_arm_exists,
         tol,
     )
 }
@@ -4286,6 +4325,66 @@ pub fn section_report_admitting_cones(
     .collect())
 }
 
+/// **The pipeline through its join with `Cone` on the operand gate's
+/// roster**: the production sequence (`ops::through_the_join`) stopped
+/// after the join, as [`sweep_split_admitting_cones`] stops after the
+/// sweep, so the cone's join arms are read on whole poses while the
+/// public gate still refuses the cone. `None` where the pipeline answers
+/// without a join. Undeclared and realized; `sweep-testing` only.
+///
+/// # Errors
+///
+/// The pipeline's refusal on the way through its join.
+#[cfg(feature = "sweep-testing")]
+pub fn join_admitting_cones(
+    op: BooleanOp,
+    a_operand: &Body<f64>,
+    b_operand: &Body<f64>,
+    tol: Tol,
+) -> Result<Option<ConeJoin>, BooleanError> {
+    fn roster(s: &geom::Surface<f64>) -> bool {
+        reduce::boolean_arm_exists(s) || matches!(s, geom::Surface::Cone { .. })
+    }
+    Ok(
+        match ops::through_the_join(
+            op,
+            a_operand,
+            b_operand,
+            &BooleanDeclarations::none(),
+            ops::JoinSweep {
+                strategy: SweepStrategy::Realized,
+                roster,
+            },
+            true,
+            tol,
+        )? {
+            ops::Joined::Answered(_) => None,
+            ops::Joined::Connected {
+                red,
+                interior_loops,
+                ..
+            } => Some(ConeJoin {
+                a: red.a,
+                b: red.b,
+                interior_loops,
+            }),
+        },
+    )
+}
+
+/// [`join_admitting_cones`]' product.
+#[cfg(feature = "sweep-testing")]
+#[derive(Debug)]
+pub struct ConeJoin {
+    /// The A operand as the join leaves it.
+    pub a: Body<f64>,
+    /// The B operand as the join leaves it.
+    pub b: Body<f64>,
+    /// The interior-loop guard's verdict, which the pipeline raises on
+    /// the built body and this door does not.
+    pub interior_loops: Result<(), BooleanError>,
+}
+
 /// **The sweep's contact records and the split operands' sizes** under
 /// `strategy`: what both sweep directions recorded, and the
 /// `[A vertices, A edges, B vertices, B edges]` they leave. The pruning
@@ -4365,7 +4464,10 @@ pub(crate) fn through_the_join(
             a,
             b,
             &BooleanDeclarations::none(),
-            SweepStrategy::Realized,
+            ops::JoinSweep {
+                strategy: SweepStrategy::Realized,
+                roster: reduce::boolean_arm_exists,
+            },
             true,
             tol,
         )? {
@@ -4411,7 +4513,15 @@ pub(crate) fn join_refusal(
     tol: Tol,
 ) -> Result<Option<BooleanError>, BooleanError> {
     let band = Band::linear(tol)?;
-    let mut red = boolean_reduce_declared_strategy(op, a, b, decls, SweepStrategy::Realized, tol)?;
+    let mut red = boolean_reduce_declared_strategy(
+        op,
+        a,
+        b,
+        decls,
+        SweepStrategy::Realized,
+        reduce::boolean_arm_exists,
+        tol,
+    )?;
     if red.null_pairs.is_empty() {
         return Ok(None);
     }
@@ -4449,12 +4559,17 @@ pub type SegmentSites = (usize, Vec<[Point3<f64>; 2]>);
 /// the idealized/realized door (PERF-PLAN §4.4): production always
 /// runs `Realized`; the differential suite runs both and pins
 /// bit-equality. Reached via [`boolean_op_with`] for full ops.
+///
+/// `roster` is the operand gate's face-kind roster: production reads
+/// [`reduce::boolean_arm_exists`], and a test door admits a kind whose
+/// arms are landing below the gate (`join_admitting_cones`).
 pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a_operand: &Body<T>,
     b_operand: &Body<T>,
     decls: &BooleanDeclarations,
     strategy: SweepStrategy,
+    roster: fn(&geom::Surface<T>) -> bool,
     tol: Tol,
 ) -> Result<BooleanReduction<T>, BooleanError> {
     let band = Band::linear(tol)?;
@@ -4468,13 +4583,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         });
     }
     let declared = DeclaredPairs::build(decls, verified, a_operand, b_operand, band)?;
-    reduce::gate_operand_pairs(
-        a_operand,
-        b_operand,
-        &declared,
-        band,
-        reduce::boolean_arm_exists,
-    )?;
+    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band, roster)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
     // The scan is `Decide`-only; its boxes are built here, at the
@@ -6769,6 +6878,17 @@ mod tests {
                 b_face: face,
                 b_kind: geom::SurfaceKind::Torus,
             },
+            BooleanError::GermSectionOutsideInventory {
+                a_face: face,
+                a_kind: geom::SurfaceKind::Plane,
+                b_face: face,
+                b_kind: geom::SurfaceKind::Cone,
+                conic: geom_brep::OutsideConic::Hyperbola,
+                section: geom_brep::SectionError::RoutesToGeneralRung {
+                    pair: "plane×cone",
+                    why: "a hyperbola",
+                },
+            },
             BooleanError::GermFrameCylinderPinch {
                 a_face: face,
                 b_face: face,
@@ -6902,6 +7022,7 @@ mod tests {
                 BooleanErrorKind::FallbackExtentUnsupported => "FallbackExtentUnsupported",
                 BooleanErrorKind::SpheresMeet => "SpheresMeet",
                 BooleanErrorKind::GermFrameUnsupported => "GermFrameUnsupported",
+                BooleanErrorKind::GermSectionOutsideInventory => "GermSectionOutsideInventory",
                 BooleanErrorKind::GermFrameCylinderPinch => "GermFrameCylinderPinch",
                 BooleanErrorKind::Euler => "Euler",
                 BooleanErrorKind::Pcurves => "Pcurves",

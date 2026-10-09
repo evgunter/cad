@@ -2,8 +2,9 @@
 id: boolean-sector-algebra-has-no-cone-arm
 kind: issue
 title: Past the pair gate and the cone's crossing lane, every op on a cone operand refuses at sectors::sector_face: the boolean's sector algebra has no cone arm
-status: open
+status: closed
 opened: 2026-10-06
+closed: 2026-10-09
 priority: P1
 cost: H
 refs: [VERBS-CONE, 4135]
@@ -134,3 +135,26 @@ roster:
 - `plane_cone_section`'s axis-normal sine is levered at `max(|δ/c|·tan α, extent)`, with the circle built where the axis meets the plane. This was the single review's MAJOR: a plane along the axis just off the apex was served as a circle.
 
 U-S3 and U-S4 continue on PR 4375.
+
+## U-S3, U-S4, U-S0 (2026-10-09, `germ/cone-sector-join`)
+
+D3, D4 and D5 are open below the operand gate (PR 4375). U-S1, U-S2 and U-S6 ride
+PR 4369 (`germ/cone-sector-normals`).
+
+- **D3.** `join::pair_section_frame_at` has a plane × cone arm
+  (`pk_germ_frame`), through `geom_brep::plane_cone_section`. It reads
+  the ellipse's or circle's frame, and the generator pair as straight.
+  The apex's touching outcomes are a desync. A hyperbola or parabola
+  refuses `BooleanError::GermSectionOutsideInventory`, carrying the
+  table's `SectionError`. It is levered at the cone face's reach from
+  the reading point (`FrameExtent::Reach`).
+- **D4, D5.** `bool_connect` dispatches `(Plane, Cone)` as `PlaneWall`
+  and `(Cone, Plane)` as `WallPlane`, and `bool_planar_chord_spec`
+  admits the cone.
+- **U-S0.** `topo::join_admitting_cones` (`sweep-testing`) runs the
+  production pipeline with `Cone` on the gate's roster and stops after
+  the join. Measured through it, B4, C1 and T1 join in every op and
+  member order, each chord the closed-form section on both sides. Every
+  pose then meets D6, the interior-loop guard.
+
+**2026-10-09, closed: U-S3 and U-S4 land (PR 4375, DR-118, sequential arm).** With U-S1, U-S2 and U-S6 (PR 4369), every door of the cone's sector algebra is open below the operand gate. That covers the pierce and sector normals, the plane × cone frame, the dispatch and the planar chord, and each refuses typed at the apex and for a hyperbola or parabola. The roster flip is VERBS-CONE's U7. U-S5 (rings on a cone face in `face_flux`) is off U7's path and stays in `docs/GERM-CONE-SECTOR-SPEC.md`.
