@@ -96,110 +96,74 @@ gate.**
 
 ## The claims
 
-- **C1. No tangency is stored: holds.**
-  - `ProfileLoop` is `{vertices, segments}`.
-  - The only joint list is `ConstructedLoop.joints`. The lowering writes
-    it from the verbs (`Core::finish`, `ConstructedLoop::carrier`); the
-    only other writer is the `fixture` door, which is cfg
-    `test`/`test-support`, and no shipped crate enables that.
-  - `LoopCanonical.tangent_joints` is a derived per-evaluation record.
-  - Nothing serializes either. `"tangent_joints"` survives only in the
-    pre-program `bool13_goldens`.
-  - Grep over `crates/*/src`. Sure.
-- **C2. Holds for the profile node's f64 lane.**
-  - M3 (drop the record) reds 9 rows.
-  - M8 (drop the `wire.rs` emission) reds the `coincidence_door` row.
-  - M2 (record constructed joints too) reds 18.
-  - `TangencyContradicted` still verifies (M1).
-  - Library callers that validate a raw `ProfileLoop` (`sweep::skin`)
-    hold `decided_joints` but reach no door.
-  - The interval and guided lanes were not exercised. Likely.
+- **C1. Holds.** `ProfileLoop` is `{vertices, segments}`. The only joint
+  list is `ConstructedLoop.joints`, written from the verbs
+  (`Core::finish`, `ConstructedLoop::carrier`) or by the `fixture` door,
+  which is cfg `test`/`test-support` and enabled by no shipped crate.
+  `LoopCanonical.tangent_joints` is a derived per-evaluation record.
+  Nothing serializes either; `"tangent_joints"` survives only in the
+  pre-program `bool13_goldens`. Grep over `crates/*/src`. Sure.
+- **C2. Holds for the profile node's f64 lane.** M3 (drop the record) reds
+  9 rows, M8 (drop the `wire.rs` emission) reds the `coincidence_door`
+  row, M2 (record constructed joints too) reds 18, and
+  `TangencyContradicted` still verifies (M1). Library callers that
+  validate a raw `ProfileLoop` (`sweep::skin`) hold `decided_joints` but
+  reach no door. The interval and guided lanes were not exercised. Likely.
 - **C3. Bit-equal: holds.** Three pins checked against a base build:
-  1. **`fillet_stored_tangency` dump** (`CAD_DUMP_FILLETS=1`), diffed line
-     by line at ε default (48 → 50 lines) and 1e-12 (40 → 42):
-     - 0 verdict moves and 0 vertex or arc-bit moves at both ε;
-     - 5 joint lists only re-ordered (each sorted-equal);
-     - 2 rows added, `shared coverage corpus 14/15` (the circle forms).
-  2. **`lift_census` printout, base vs head:**
-     - every common row has identical class, steps, seam and worst-ulp;
-     - `unequal_split` (REFUSED → ValueEqual) and `collinear_run`
-       (WALL → BitIdentical) moved as stated;
-     - `half_disc_undeclared` folded into `half_disc` with the same
-       figures;
-     - the tallies match: Bits 5 → 6, Value 7 → 7.
-  3. **The refusal count:** 34 → 32 (NOTE-2).
-  Sure.
-- **C4. Holds.**
-  - The retired variant, its tag and its concision entry are gone.
-  - `TangencyContradicted`: M1 reds 4 rows.
-  - `TangentJointOutOfRange`: M4 reds 2.
-  - `TangentJointOnFullTurn`: M5 reds `one_segment_loop`.
-  - `JunctionTangent`/`SeamTangent`: not mutated.
-  - Sure.
-- **C6. Holds except:**
-  - MINOR-1;
-  - the `.pyi` and `checks.rs` relation docstrings, which do not say a
-    profile junction can be `same_oriented`.
-
-  Otherwise:
-  - the tags (`tangent`, `cusp`, `profile_junction`) match `topo`;
-  - README V5/V6 and DS-Q6 match the code;
-  - the filed P3 `lift-same-carrier-repair-is-reached-by-no-row` is
-    accurate, since the census diff shows both former reachers now lift.
-
-  Sure.
-- **C7. The rows bite.**
-
-| Mutant | Change | Result |
-|---|---|---|
-| M1 | no `TangencyContradicted` | 4 red |
-| M2 | record constructed joints | 18 red |
-| M3 | no record | 9 red |
-| M4 | no range check | 2 red |
-| M5 | no full-turn check | 1 red |
-| M6 | ask the heading question on same-carrier joints | 7 red (m10/sym K-stream) |
-| M7 | `Same` → `Tangent` | **survives** |
-| M8 | no emission | 1 red |
+  1. The **`fillet_stored_tangency` dump** (`CAD_DUMP_FILLETS=1`), diffed
+     line by line at ε default (48 → 50 lines) and 1e-12 (40 → 42): 0
+     verdict moves and 0 vertex or arc-bit moves at both ε; 5 joint lists
+     only re-ordered (each sorted-equal); 2 rows added, `shared coverage
+     corpus 14/15` (the circle forms).
+  2. The **`lift_census` printout**: every common row has identical class,
+     steps, seam and worst-ulp. `unequal_split` (REFUSED → ValueEqual) and
+     `collinear_run` (WALL → BitIdentical) moved as stated;
+     `half_disc_undeclared` folded into `half_disc` with the same figures;
+     the tallies match (Bits 5 → 6, Value 7 → 7).
+  3. The **refusal count**: 34 → 32 (NOTE-2). Sure.
+- **C4. Holds.** The variant, its tag and its concision entry are gone.
+  `TangencyContradicted`: M1 reds 4 rows. `TangentJointOutOfRange`: M4
+  reds 2. `TangentJointOnFullTurn`: M5 reds `one_segment_loop`.
+  `JunctionTangent`/`SeamTangent`: not mutated. Sure.
+- **C6. Holds except** MINOR-1, and the `.pyi`/`checks.rs` relation
+  docstrings, which do not say a profile junction can be `same_oriented`.
+  The tags match `topo`; README V5/V6 and DS-Q6 match the code; the filed
+  P3 `lift-same-carrier-repair-is-reached-by-no-row` is accurate. Sure.
+- **C7. The rows bite.** M1 no `TangencyContradicted`: 4 red. M2 record
+  constructed joints: 18. M3 no record: 9. M4 no range check: 2. M5 no
+  full-turn check: 1. M6 ask the heading question on same-carrier joints:
+  7 (m10/sym K-stream). **M7 `Same` → `Tangent`: survives.** M8 no
+  emission: 1.
 
 ## The rulings
 
-1. **Right.** `ConstructedLoop` carrying the constructed joints is the
-   spec's "derived at lowering from the constructors". Sure.
-2. **Right.** The `LoopCanonical` record is a per-evaluation decision
-   record that guided lanes compare (`TangentJoints`/`CuspJoints` flips).
+1. **Right**: the spec's "derived at lowering from the constructors".
+   Sure.
+2. **Right**: a per-evaluation decision record that guided lanes compare
+   (`TangentJoints`/`CuspJoints` flips). Likely.
+3. **The set is right** (D1). **The recorded name is not the one the PR
+   claims**: `SameOriented`, not `Tangent{aligned:true}` (MINOR-1). On the
+   merits `SameOriented` is arguably better, since a continuation is not a
+   tangency between two carriers. Pick one, state it, pin it (MINOR-2).
+   Sure.
+4. **Right**: a circle's subdivision vertices are its construction, and
+   the verification still runs. Sure.
+5. **Right**: pinned by `an_arc_extension_leaves_no_joint_to_decide`.
    Likely.
-3. **Same-carrier joints in the set: right** (D1). **Recorded under a
-   name other than the one the PR claims:** `SameOriented`, not
-   `Tangent{aligned:true}` (MINOR-1). On the merits a continuation is not
-   a tangency between two carriers, so `SameOriented` is arguably better.
-   Either way, pick one, state it in the spec or README, and pin it
-   (MINOR-2). Sure.
-4. **Right.** A circle's subdivision vertices are its construction. The
-   verification still runs, and without this every circle would report a
-   finding. Sure.
-5. **Right.** Pinned by `an_arc_extension_leaves_no_joint_to_decide`.
-   Likely.
-6. **Right on its merits, not only for the pins.**
-   - A same-carrier reversal never reaches the joint pass. Probes
-     `r1_same_carrier_reversal` and `r1_cocircular_reversal` are refused
-     by the simplicity pass (`NonSimple … Overlap`, "endpoint contact").
-   - M6 shows that asking only adds K-stream decisions (+2
-     `path_junction_side` per circle), with no verdict or refusal change.
-   - Caveat: main asked this question for lattice continuations, and those
-     decisions are dropped too. No pin saw them.
-   - Sure.
-7. **Honest.**
-   - Lattice indices are in range by construction: `Core.tangent` holds
-     vertex indices, and `carrier` uses `0..n`, empty when n < 2.
-   - The only other source is `fixture`, which no shipped build carries.
-   - Sure.
+6. **Right on its merits, not only for the pins.** Probes
+   `r1_same_carrier_reversal` and `r1_cocircular_reversal` are refused by
+   simplicity first (`NonSimple … Overlap`, "endpoint contact"). M6 shows
+   that asking only adds K-stream decisions (+2 `path_junction_side` per
+   circle). Caveat: main asked the question for lattice continuations, and
+   those decisions are dropped too; no pin saw them. Sure.
+7. **Honest.** `Core.tangent` holds vertex indices, `carrier` uses `0..n`
+   (empty when n < 2), and the only other source is `fixture`. Sure.
 8. **Right.** Unsure about one edge: `prove` treats two equal `Piece`
    cells as `SameConstruction`, so a decided junction inside one piece ref
    would be silently proven. I found no verb that does this outside its
    own constructed joints. Not exercised.
-9. **Right.** Evidence under C3. The now-unreached repair is filed (P3).
-   Sure.
-10. **Right in substance.** The "auto-record" label is wrong (NOTE-4).
+9. **Right.** Evidence under C3; the unreached repair is filed (P3). Sure.
+10. **Right in substance**; the "auto-record" label is wrong (NOTE-4).
     Likely.
 
 ## Style
@@ -239,27 +203,17 @@ gate.**
 
 ## Exercised, and not
 
-**Exercised by execution** (private target dirs `tgt-r1` for the head,
-`tgt-mut` for mutants, `tgt-base` for the base):
+**Exercised by execution**, with private target dirs (`tgt-r1` head,
+`tgt-mut` mutants, `tgt-base` base):
+- the slow set (`--profile default`) over `profile` and `editor-core`, at
+  ε default and at `CAD_TOLERANCE_EPS=1e-12`: 3494/3495 at each. The one
+  red in both,
+  `name_words_rows::a_large_table_of_names_alike_at_no_citation_is_said_in_bounded_time`
+  (12–14 s), fails identically at the **base** on this machine (14.0 s),
+  so it is not this PR's;
+- the C3 dump and census diffs; mutants M1–M8; the three probes.
 
-- **The slow set** (`--profile default`) over `profile` and `editor-core`:
-  - ε default: 3494/3495;
-  - `CAD_TOLERANCE_EPS=1e-12`: 3494/3495.
-  - The one red in both is
-    `name_words_rows::a_large_table_of_names_alike_at_no_citation_is_said_in_bounded_time`
-    (12–14 s). It fails identically at the **base** on this machine
-    (14.0 s), so it is not this PR's.
-- **C3:** the dump and census diffs.
-- **C7:** M1–M8.
-- **Probes:** two same-carrier reversals, and a lattice-built same-carrier
-  decided joint.
-
-**Not exercised:**
-
-- sweep, mesh, stl, pncad, viewer, the Python suite and the tour;
-- the interval and guided lanes for a decided joint;
-- the `JunctionTangent`/`SeamTangent` mutants;
-- ruling 8's equal-piece edge.
-
-The probes stay in a scratch worktree. Nothing was pushed to the PR
-branch.
+**Not exercised:** sweep, mesh, stl, pncad, viewer, the Python suite and
+the tour; the interval and guided lanes for a decided joint; the
+`JunctionTangent`/`SeamTangent` mutants; ruling 8's edge. The probes stay
+in a scratch worktree. Nothing was pushed to the PR branch.
