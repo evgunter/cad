@@ -617,7 +617,18 @@ fn boolean_door<T: Decide + Bounds + crate::props::AtRestPolicy>(
         super::reduce::gate_unverdicted_operand(body, operand, band, tol)?;
     }
     let (a, b) = (one_solid(a)?, one_solid(b)?);
-    boolean_op_recut(op, &a, &b, decls, strategy, true, tol)
+    boolean_op_recut(
+        op,
+        &a,
+        &b,
+        decls,
+        JoinSweep {
+            strategy,
+            roster: super::reduce::boolean_arm_exists,
+        },
+        true,
+        tol,
+    )
 }
 
 /// `body` as the pipeline reads an operand: as is when it holds at most
@@ -636,35 +647,25 @@ fn one_solid<T: Decide>(body: &Body<T>) -> Result<std::borrow::Cow<'_, Body<T>>,
 /// no-crossings sphere RE-CUT (M5 S13) may still run: the re-entry
 /// pass sets `recut = false`, so a re-cut that surfaces no crossings
 /// is a loud invariant failure rather than a loop.
-fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
+pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
-    strategy: SweepStrategy,
+    sweep: JoinSweep<T>,
     recut: bool,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     let band = Band::linear(tol)?;
-    let (red, connected, interior_loops) = match through_the_join(
-        op,
-        a,
-        b,
-        decls,
-        JoinSweep {
-            strategy,
-            roster: super::reduce::boolean_arm_exists,
-        },
-        recut,
-        tol,
-    )? {
-        Joined::Answered(result) => return Ok(*result),
-        Joined::Connected {
-            red,
-            connected,
-            interior_loops,
-        } => (*red, *connected, interior_loops),
-    };
+    let (red, connected, interior_loops) =
+        match through_the_join(op, a, b, decls, sweep, recut, tol)? {
+            Joined::Answered(result) => return Ok(*result),
+            Joined::Connected {
+                red,
+                connected,
+                interior_loops,
+            } => (*red, *connected, interior_loops),
+        };
     let contacts = red.contacts.clone();
     let reduction_contacts = red.contacts.clone();
     let coincidences = red.coincidences.clone();
@@ -816,6 +817,7 @@ pub(super) enum Joined<T: Real> {
 /// How [`through_the_join`]'s reduction sweeps: its strategy, and the
 /// operand gate's face-kind roster
 /// ([`super::boolean_reduce_declared_strategy`]).
+#[derive(Clone, Copy)]
 pub(super) struct JoinSweep<T: geom_core::Real> {
     /// The sweep strategy.
     pub(super) strategy: SweepStrategy,
@@ -899,7 +901,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
             // entity's key (`splitting::finish`'s `carve`), so those
             // names still hold on `a2` and `b2`.
             apply_cut_ins(&mut a2, &mut b2, &recuts.cut_in, band, tol)?;
-            return boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)
+            return boolean_op_recut(op, &a2, &b2, decls, sweep, false, tol)
                 .map(|result| Joined::Answered(Box::new(result)));
         }
         // The curved kinds the extent scan leaves: every torus,
