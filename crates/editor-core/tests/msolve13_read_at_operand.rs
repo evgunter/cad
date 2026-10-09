@@ -46,7 +46,7 @@ fn box_part(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(h),
             side: ExtrudeSide::Along,
         },
@@ -200,7 +200,7 @@ fn fused(s: &Scene, at_t1: impl Fn(RecipeNodeId, RecipeNodeId) -> SitedFace) -> 
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: vec![t1, t2],
+            members: vec![t1.into(), t2.into()],
             declare: Vec::new(),
         },
     );
@@ -357,7 +357,7 @@ fn a2_two_spellings_through_a_union_fold_into_one_pair() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: vec![t1, t2],
+            members: vec![t1.into(), t2.into()],
             declare: Vec::new(),
         },
     );
@@ -408,7 +408,7 @@ fn a2_a_part_and_its_pattern_naming_one_copy_fold_into_one_pair() {
     let (doc, pattern) = insert(
         s.doc.clone(),
         Node::Pattern {
-            input: s.top,
+            input: s.top.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
@@ -419,7 +419,7 @@ fn a2_a_part_and_its_pattern_naming_one_copy_fold_into_one_pair() {
     let (doc, part) = insert(
         doc,
         Node::Part {
-            of: pattern,
+            of: pattern.into(),
             select: PartSelect::Instance(Formula::count(1)),
         },
     );
@@ -478,7 +478,7 @@ fn local_block(doc: ProfileDoc, at: [f64; 3], w: f64, h: f64) -> (ProfileDoc, Re
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(h),
             side: ExtrudeSide::Along,
         },
@@ -509,8 +509,8 @@ fn a_pair_boolean_above_the_operand_carries_the_face() {
         doc,
         Node::Boolean {
             op: editor_core::BooleanOp::Union,
-            a: t1,
-            b: far,
+            a: t1.into(),
+            b: far.into(),
             declare: Vec::new(),
         },
     );
@@ -549,7 +549,7 @@ fn vanished_names_the_consumer_that_lost_the_face_not_a_reading_datum() {
     let (doc, datum) = insert(
         doc,
         Node::Datum(editor_core::Datum::FaceFrame {
-            at: t1,
+            at: t1.into(),
             face: in_part(s.top, s.top_body, CapEnd::End),
             spin: fixture::ang(0.0),
         }),
@@ -559,8 +559,8 @@ fn vanished_names_the_consumer_that_lost_the_face_not_a_reading_datum() {
         doc,
         Node::Boolean {
             op: editor_core::BooleanOp::Intersect,
-            a: t1,
-            b: far,
+            a: t1.into(),
+            b: far.into(),
             declare: Vec::new(),
         },
     );
@@ -601,7 +601,7 @@ fn a_chamfer_above_the_operand_carries_the_face_it_trims() {
     let (doc, chamfer) = insert(
         doc,
         Node::Chamfer {
-            target: t1,
+            target: t1.into(),
             distance: len(0.1),
             selection: edges,
         },
@@ -625,7 +625,7 @@ fn a_shell_above_the_operand_carries_a_survivor_and_loses_an_opened_face() {
         insert(
             doc0.clone(),
             Node::Shell {
-                target: t1,
+                target: t1.into(),
                 thickness: len(0.1),
                 open: vec![open],
             },
@@ -664,7 +664,7 @@ fn a_part_above_a_union_refuses_at_evaluation_before_the_gate_reads_it() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: vec![t1, far],
+            members: vec![t1.into(), far.into()],
             declare: Vec::new(),
         },
     );
@@ -672,7 +672,7 @@ fn a_part_above_a_union_refuses_at_evaluation_before_the_gate_reads_it() {
     let (doc, part) = insert(
         doc,
         Node::Part {
-            of: moved,
+            of: moved.into(),
             select: PartSelect::Instance(Formula::count(0)),
         },
     );

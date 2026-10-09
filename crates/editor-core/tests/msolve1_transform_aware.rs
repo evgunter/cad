@@ -47,7 +47,7 @@ fn slab(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(h),
             side: ExtrudeSide::Along,
         },
@@ -67,7 +67,7 @@ fn block(label: &str, h: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(h),
             side: ExtrudeSide::Along,
         },
@@ -406,7 +406,7 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
         let (doc, pattern) = insert(
             doc,
             Node::Pattern {
-                input: xf,
+                input: xf.into(),
                 count: Formula::count(3),
                 // Spaced wide enough that copies 0 and 2 clear the
                 // slab entirely: the row is about the copy the mate
@@ -469,7 +469,7 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
         let (doc, pattern) = insert(
             doc,
             Node::Pattern {
-                input: top,
+                input: top.into(),
                 count: Formula::count(3),
                 kind: PatternKind::Linear {
                     direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -693,7 +693,7 @@ fn two_operands(label: &str, extra_lift: f64) -> (ProfileDoc, EvalOptions, [Reci
     let (doc, _) = insert(
         doc,
         Node::Union {
-            members: vec![x1, x2],
+            members: vec![x1.into(), x2.into()],
             declare: Vec::new(),
         },
     );
@@ -1095,7 +1095,7 @@ fn a10_a_nested_pattern_head_is_a_member() {
     let (doc, inner) = insert(
         doc,
         Node::Pattern {
-            input: top,
+            input: top.into(),
             count: Formula::count(3),
             kind: rule([1.0, 0.0, 0.0]),
         },
@@ -1103,7 +1103,7 @@ fn a10_a_nested_pattern_head_is_a_member() {
     let (doc, outer) = insert(
         doc,
         Node::Pattern {
-            input: inner,
+            input: inner.into(),
             count: Formula::count(2),
             kind: rule([0.0, 1.0, 0.0]),
         },
@@ -1246,7 +1246,7 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
     let (doc, local) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -1298,7 +1298,8 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
         panic!("the `b` operand still names a transform");
     };
     assert_eq!(
-        *input, b.name.node,
+        out.remainder.operation_of(*input),
+        Some(b.name.node),
         "over the very instance the name is headed at"
     );
     assert_eq!(
@@ -1433,7 +1434,7 @@ fn severed_operand_scene(
     let (doc, local) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -1492,7 +1493,7 @@ fn a11_a_transform_between_two_patterns_composes_outer_t_inner() {
     let (doc, inner) = insert(
         doc,
         Node::Pattern {
-            input: top,
+            input: top.into(),
             count: Formula::count(3),
             kind: rule([1.0, 0.0, 0.0], 5.0),
         },
@@ -1502,7 +1503,7 @@ fn a11_a_transform_between_two_patterns_composes_outer_t_inner() {
     let (doc, outer) = insert(
         doc,
         Node::Pattern {
-            input: t,
+            input: t.into(),
             count: Formula::count(2),
             kind: rule([0.0, 1.0, 0.0], 20.0),
         },
@@ -1595,7 +1596,7 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCas
     let (doc, inner) = insert(
         doc,
         Node::Pattern {
-            input: top,
+            input: top.into(),
             count: Formula::count(3),
             kind: rule([1.0, 0.0, 0.0]),
         },
@@ -1603,7 +1604,7 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCas
     let (doc, outer) = insert(
         doc,
         Node::Pattern {
-            input: inner,
+            input: inner.into(),
             count: Formula::count(2),
             kind: rule([0.0, 1.0, 0.0]),
         },
@@ -1616,7 +1617,7 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCas
     let (doc, part) = insert(
         doc,
         Node::Part {
-            of,
+            of: of.into(),
             select: editor_core::PartSelect::Instance(Formula::count(k)),
         },
     );

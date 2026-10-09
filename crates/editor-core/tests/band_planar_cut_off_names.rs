@@ -69,7 +69,7 @@ fn a_cut_off_is_named_by_its_end_arcs_and_feet() {
     let (doc, the_box) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -143,7 +143,7 @@ fn an_oblique_cut_off_is_named_by_its_elliptic_end_arcs_and_feet() {
     let (doc, prism) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },

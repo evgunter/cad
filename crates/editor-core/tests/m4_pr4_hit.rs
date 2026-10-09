@@ -145,7 +145,7 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
         insert(
             doc,
             Node::Extrude {
-                profile: p,
+                profile: p.into(),
                 distance: len(1.0),
                 side: ExtrudeSide::Along,
             },
@@ -162,7 +162,7 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
         insert(
             doc,
             Node::Extrude {
-                profile: p,
+                profile: p.into(),
                 distance: len(1.0),
                 side: ExtrudeSide::Along,
             },
@@ -173,8 +173,8 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: decl,
         },
     );
@@ -189,8 +189,8 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
     let (doc, _split) = insert(
         doc,
         Node::Split {
-            target: u,
-            tool: plane,
+            target: u.into(),
+            tool: plane.into(),
         },
     );
     // A partial revolve (bands, meridians, wedge caps).
@@ -207,8 +207,8 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
     let (doc, _rev) = insert(
         doc,
         Node::Revolve {
-            profile: rp,
-            axis,
+            profile: rp.into(),
+            axis: axis.into(),
             angle: ang(std::f64::consts::FRAC_PI_2),
         },
     );
@@ -216,7 +216,7 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
     let (doc, _pat) = insert(
         doc,
         Node::Pattern {
-            input: u,
+            input: u.into(),
             count: editor_core::Formula::count(3),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(0.0), scl(0.0), scl(1.0)],
@@ -250,7 +250,7 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
     let (doc, ext) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(0.0), // degenerate: the extrude fails,
             side: ExtrudeSide::Along,
         },
@@ -258,7 +258,7 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
     let (doc, ext2) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -267,8 +267,8 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: ext,
-            b: ext2,
+            a: ext.into(),
+            b: ext2.into(),
             declare: Vec::new(),
         },
     );

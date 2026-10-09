@@ -1286,8 +1286,10 @@ axis = doc.insert(Node.datum_axis_in_plane(frame, (
     Formula.literal(1.0),
 )))
 ball = doc.insert(Node.revolve(doc.insert(Node.profile(half, plane=frame)), axis, Formula.angle_in(2 * math.pi, rad)))
+# A revolve defines two outputs, its body and its axis, so a read of
+# it names which: `doc.output(ball, 0)` is the body.
 pip = doc.insert(
-    Node.transform(ball, (
+    Node.transform(doc.output(ball, 0), (
         Formula.length_in(0.5, m),
         Formula.length_in(0.5, m),
         Formula.length_in(1.0 + R - H, m),
@@ -1392,11 +1394,11 @@ except EvaluationError as refusal:
 ### Tubes: a ring from its intent, and the same ring with a wall
 
 A tube is authored from what you MEAN by it, not from a section
-profile you sweep yourself. `Node.tube(spine, u_ref, major_radius,
-window, minor_radius)` takes five things: `spine` is a
-`Node.datum_axis` whose origin is the ring's centre and whose
-direction is the axis the section turns about; `u_ref` is the
-reference direction the window's angles are measured from;
+profile you sweep yourself. `Node.tube(frame, major_radius, window,
+minor_radius)` takes four things: `frame` is a `Node.datum_frame`
+whose origin is the ring's centre, whose normal (`u x v`) is the axis
+the section turns about, and whose `u` is the reference direction the
+window's angles are measured from;
 `major_radius` is the centre-line radius, `minor_radius` the section's;
 and `window` is `TubeWindow.full()` for the whole ring or
 `TubeWindow.arc(t0, t1)` for an elbow of it. Every number is STORED
@@ -1419,20 +1421,25 @@ R, OUTER, WALL = 2.0, 0.5, 0.125
 T0, T1 = 0.0, 1.5
 
 doc = Doc()
-# The spine: centre at the origin, section turning about +z.
-spine = doc.insert(Node.datum_axis((
+# The frame: centre at the origin, section turning about +z, angles
+# measured from +x.
+frame = doc.insert(Node.datum_frame((
     Formula.length_in(0, m),
     Formula.length_in(0, m),
     Formula.length_in(0, m),
 ), (
+    Formula.literal(1.0),
     Formula.literal(0.0),
+    Formula.literal(0.0),
+), (
     Formula.literal(0.0),
     Formula.literal(1.0),
+    Formula.literal(0.0),
 )))
 
 # The solid ring. Pappus meters it: V = 2 pi^2 R r^2.
 ring = doc.insert(
-    Node.tube(spine, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(R, m), TubeWindow.full(), Formula.length_in(OUTER, m))
+    Node.tube(frame, Formula.length_in(R, m), TubeWindow.full(), Formula.length_in(OUTER, m))
 )
 solid = evaluate(doc).value(ring).body()
 solid.validate()
@@ -1442,7 +1449,7 @@ assert abs(solid.mass_properties().volume - 2 * math.pi**2 * R * OUTER**2) < 1e-
 inner = OUTER - WALL
 torus = doc.insert(
     Node.hollow_tube(
-        spine, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(R, m), TubeWindow.full(), Formula.length_in(OUTER, m), Formula.length_in(WALL, m)
+        frame, Formula.length_in(R, m), TubeWindow.full(), Formula.length_in(OUTER, m), Formula.length_in(WALL, m)
     )
 )
 walled = evaluate(doc).value(torus).body()
@@ -1454,8 +1461,7 @@ assert abs(walled.mass_properties().volume - want) < 1e-9
 # volume is the annulus swept through the window's angle.
 elbow = doc.insert(
     Node.hollow_tube(
-        spine,
-        (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+        frame,
         Formula.length_in(R, m),
         TubeWindow.arc(Formula.angle_in(T0, rad), Formula.angle_in(T1, rad)),
         Formula.length_in(OUTER, m),
@@ -1471,7 +1477,7 @@ assert abs(body.mass_properties().volume - (T1 - T0) * R * annulus) < 1e-9
 # is exactly the bore, which is only true if each node reached its own
 # kernel door.
 open_ring = doc.insert(
-    Node.tube(spine, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(R, m), TubeWindow.arc(Formula.angle_in(T0, rad), Formula.angle_in(T1, rad)), Formula.length_in(OUTER, m))
+    Node.tube(frame, Formula.length_in(R, m), TubeWindow.arc(Formula.angle_in(T0, rad), Formula.angle_in(T1, rad)), Formula.length_in(OUTER, m))
 )
 ev = evaluate(doc)
 bore = (T1 - T0) * R * math.pi * inner**2
@@ -1657,9 +1663,9 @@ ring = doc.insert(
 def piece(leg):
     return doc.piece(profile, 0, leg.step.leg)
 
-cup = doc.insert(Node.shell(ring, Formula.length_in(T, m), [band(ring, piece(top))]))
+cup = doc.insert(Node.shell(doc.output(ring, 0), Formula.length_in(T, m), [band(ring, piece(top))]))
 rolled = doc.insert(
-    Node.fillet(ring, Formula.length_in(T, m), [band_rim(ring, piece(top)), band_rim(ring, piece(section))])
+    Node.fillet(doc.output(ring, 0), Formula.length_in(T, m), [band_rim(ring, piece(top)), band_rim(ring, piece(section))])
 )
 
 ev = evaluate(doc)
@@ -1729,13 +1735,13 @@ doc = next;
 let (next, profile) = insert(
     &doc,
     Node::Profile(ProfileProgram {
-        plane: frame,
+        frame: frame.into(),
         loops: vec![outline, hole],
         ids: Vec::new(),
     }),
 );
 doc = next;
-let (next, plate) = insert(&doc, Node::Extrude { profile, distance: len(0.5), side: ExtrudeSide::Along });
+let (next, plate) = insert(&doc, Node::Extrude { profile: profile.into(), distance: len(0.5), side: ExtrudeSide::Along });
 doc = next;
 
 let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
@@ -1774,16 +1780,16 @@ use pncad::prelude::*;
 # let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("a scalar");
 # let (next, frame) = insert(&doc, Node::Datum(Datum::Frame { origin: [len(0.0), len(0.0), len(0.0)], u: [scl(1.0), scl(0.0), scl(0.0)], v: [scl(0.0), scl(1.0), scl(0.0)] }));
 # doc = next;
-# let (next, profile) = insert(&doc, Node::Profile(ProfileProgram { plane: frame, loops: vec![outline, hole], ids: Vec::new() }));
+# let (next, profile) = insert(&doc, Node::Profile(ProfileProgram { frame: frame.into(), loops: vec![outline, hole], ids: Vec::new() }));
 # doc = next;
-# let (next, plate) = insert(&doc, Node::Extrude { profile, distance: len(0.5), side: ExtrudeSide::Along });
+# let (next, plate) = insert(&doc, Node::Extrude { profile: profile.into(), distance: len(0.5), side: ExtrudeSide::Along });
 # doc = next;
 # let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
 // Make the plate twice as thick.
 let thicker = apply(&doc, &DocEdit::SetParam {
     node: plate,
     slot: SlotId::Distance,
-    expr: len(1.0),
+    value: len(1.0).into(),
     fresh: Vec::new(),
 }, tol, &pncad::document::RefusingReach)?.doc;
 
@@ -1890,12 +1896,12 @@ let (next, base_frame) = insert(&doc, Node::Datum(Datum::Frame {
 }));
 doc = next;
 let (next, profile) = insert(&doc, Node::Profile(ProfileProgram {
-    plane: base_frame,
+    frame: base_frame.into(),
     loops: vec![outline, hole(1.0, 1.0), hole(2.2, 1.0)],
     ids: Vec::new(),
 }));
 doc = next;
-let (next, plate) = insert(&doc, Node::Extrude { profile, distance: lit(0.5), side: ExtrudeSide::Along });
+let (next, plate) = insert(&doc, Node::Extrude { profile: profile.into(), distance: lit(0.5), side: ExtrudeSide::Along });
 doc = next;
 
 // A plain tab on its own branch — parametrically inert, there so the
@@ -1907,7 +1913,7 @@ let (next, tab_frame) = insert(&doc, Node::Datum(Datum::Frame {
 }));
 doc = next;
 let (next, tab_p) = insert(&doc, Node::Profile(ProfileProgram {
-    plane: tab_frame,
+    frame: tab_frame.into(),
     loops: vec![
         LoopProgram::polygon([(3.5, 1.75), (4.5, 1.75), (4.5, 2.5), (3.5, 2.5)])
             .expect("finite corners"),
@@ -1915,12 +1921,12 @@ let (next, tab_p) = insert(&doc, Node::Profile(ProfileProgram {
     ids: Vec::new(),
 }));
 doc = next;
-let (next, tab) = insert(&doc, Node::Extrude { profile: tab_p, distance: lit(0.25), side: ExtrudeSide::Along });
+let (next, tab) = insert(&doc, Node::Extrude { profile: tab_p.into(), distance: lit(0.25), side: ExtrudeSide::Along });
 doc = next;
 let (next, solid) = insert(&doc, Node::Boolean {
     op: BooleanOp::Union,
-    a: plate,
-    b: tab,
+    a: plate.into(),
+    b: tab.into(),
     declare: Vec::new(),
 });
 doc = next;

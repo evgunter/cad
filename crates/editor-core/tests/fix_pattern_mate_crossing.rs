@@ -59,7 +59,7 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -144,7 +144,7 @@ fn four_legs(
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
+            input: leg.into(),
             count: Formula::count(4),
             kind: linear(2.0),
         },
@@ -360,7 +360,7 @@ fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing()
     let (doc, inner) = insert(
         doc,
         Node::Pattern {
-            input: leg,
+            input: leg.into(),
             count: Formula::count(2),
             kind: linear(2.0),
         },
@@ -368,7 +368,7 @@ fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing()
     let (doc, outer) = insert(
         doc,
         Node::Pattern {
-            input: inner,
+            input: inner.into(),
             count: Formula::count(2),
             kind: linear(5.0),
         },

@@ -64,7 +64,7 @@ fn box_at(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(height),
             side: ExtrudeSide::Along,
         },
@@ -191,8 +191,8 @@ fn detect_declare_boolean_round_trip() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: base,
-            b: top,
+            a: base.into(),
+            b: top.into(),
             declare: Vec::new(),
         },
     );
@@ -352,8 +352,8 @@ fn undeclared_union(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     )
@@ -396,7 +396,7 @@ fn tilted_in_band_pairs_pin_the_verification_arm() {
         let (doc, tilted) = insert(
             doc,
             Node::Extrude {
-                profile: p,
+                profile: p.into(),
                 distance: len(0.5),
                 side: ExtrudeSide::Along,
             },

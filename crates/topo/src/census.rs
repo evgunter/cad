@@ -3620,9 +3620,12 @@ impl Undecided {
                  meet without overlapping, or not at all"
             }
             Self::TouchInBand => {
-                "they touch, and whether they overlap there is too close to call at this \
-                 tolerance. There is no way through yet for a designed resting contact; \
-                 otherwise move them until their bounding boxes no longer overlap"
+                concat!(
+                    "they touch, and ",
+                    geom_core::undecided!("whether they overlap there"),
+                    ". There is no way through yet for a designed resting contact; otherwise \
+                     move them until their bounding boxes no longer overlap"
+                )
             }
             Self::TouchPieceInBand => {
                 "they touch where a face of one, seen from the touch, has corners or edges \

@@ -124,12 +124,12 @@ pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
     let plane = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![rod_loop(false)],
         ids: Vec::new(),
     }));
     let rod = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(ROD_L),
         side: ExtrudeSide::Along,
     });
@@ -157,7 +157,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: rod,
             slot: SlotId::Distance,
-            expr: len(L_BUMPED),
+            value: len(L_BUMPED).into(),
             fresh: Vec::new(),
         },
         bump_root: rod,

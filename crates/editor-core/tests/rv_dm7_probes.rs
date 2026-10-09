@@ -53,7 +53,7 @@ fn rv_a_self_naming_carrier_reports_nothing_when_it_is_deleted() {
     let doc = ProfileDoc::empty_derived("rv_self_naming", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let node = Node::Fillet {
-        target: body,
+        target: body.into(),
         radius: len(0.1),
         selection: vec![fname(body, wall(&doc, body, 0))],
     };
