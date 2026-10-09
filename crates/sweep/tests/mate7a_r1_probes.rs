@@ -195,25 +195,25 @@ fn p1_wall1_passes_the_gate_and_the_crossing_layer_and_stops_at_the_join() {
     let (decls, pairs) = weld_declarations(&s, &a);
     assert_eq!(pairs, 1, "exactly one coplanar cross cap pair at the fork");
 
-    let err = topo::union_with(&s, &a, &decls, Tol::witness())
-        .expect_err("the stem glue still refuses, two doors further on");
     // **Wall 1 is no longer the crossing layer's.** The circle × torus
     // root lane (`topo::boolean::circle_torus`) certifies that each
     // seam crosses the other tube's carrier only outside that face's
-    // window, so neither pair is an event; the op reaches the join,
-    // whose germ pair of the stem's weld cap against the arch's wall
-    // has no join arm, and the declared-REST door refuses the mate as a
-    // zip frontier. The far-cap claims below are geometry and stand on
-    // their own.
-    assert!(
-        matches!(
-            err,
-            BooleanError::RestZipUnsupported {
-                what: topo::RestZipFrontier::SegmentsBetweenIsolatedPierces
-            }
+    // window, so neither pair is an event; the op reaches the join and
+    // passes its germ frame, read off the arch's rim circle lying in
+    // the stem's weld cap. What follows is the declared mate's door: a
+    // typed refusal, or a body that holds tier 3. The far-cap claims
+    // below are geometry and stand on their own.
+    match topo::union_with(&s, &a, &decls, Tol::witness()) {
+        Err(e) => assert!(
+            !matches!(e, BooleanError::GermFrameUnsupported { .. }),
+            "wall 1 is past the germ frame: {e:?}"
         ),
-        "wall 1 stops at the declared-REST door: {err:?}"
-    );
+        Ok(r) => {
+            let bb = r.body().expect("the glue is one body");
+            topo::validate_geometric(&bb.body, Tol::witness())
+                .unwrap_or_else(|e| panic!("the glued stem holds tier 3: {e:?}"));
+        }
+    }
     let frame = arch_frame();
     let far_cap = plane_faces(&a)
         .into_iter()

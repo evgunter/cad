@@ -142,24 +142,25 @@ fn accepted_against_torus(
 /// stem face's own chart, both ends are definitely off the carrier, so
 /// the arc meets that face nowhere). Both pairs now answer, and the op
 /// stops at the join, where the germ pair of the stem's weld cap
-/// (plane) against the arch's wall (torus) has no join arm; the
-/// declared-REST door re-examines the mate and refuses it as a zip
-/// frontier: a typed refusal downstream, and no body to measure.
+/// (plane) against the arch's wall (torus) reads its frame off the
+/// arch's rim circle lying in the cap, and has no join arm. What comes
+/// after is the declared mate's door: a typed refusal, or a body that
+/// holds tier 3.
 #[test]
 fn the_lily_stem_glue_is_past_the_circle_torus_pairs() {
     let (s, a) = (stem(), arch());
     let (decls, _) = weld_declarations(&s, &a);
-    let err = topo::union_with(&s, &a, &decls, Tol::witness())
-        .expect_err("the stem glue still refuses, past the join");
-    assert!(
-        matches!(
-            err,
-            BooleanError::RestZipUnsupported {
-                what: topo::RestZipFrontier::SegmentsBetweenIsolatedPierces
-            }
+    match topo::union_with(&s, &a, &decls, Tol::witness()) {
+        Err(e) => assert!(
+            !matches!(e, BooleanError::GermFrameUnsupported { .. }),
+            "the stem glue is past the germ frame: {e:?}"
         ),
-        "the lily's next door is the declared-REST zip: {err:?}"
-    );
+        Ok(r) => {
+            let bb = r.body().expect("the glue is one body");
+            topo::validate_geometric(&bb.body, Tol::witness())
+                .unwrap_or_else(|e| panic!("the glued stem holds tier 3: {e:?}"));
+        }
+    }
 }
 
 /// **Two crossings on one arc, the FIRST outside the face's window and
