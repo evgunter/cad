@@ -2,7 +2,8 @@
 id: offset-fit-on-locus-fold-drops-a-nan-sample
 kind: issue
 title: offset fit folds its on-locus samples with f64::max, so a NaN sample never reaches the limb-1 guard
-status: review
+status: closed
+closed: 2026-10-09
 pr: 4367
 branch: encl/offset-fit-nan-fold
 opened: 2026-10-01
@@ -47,3 +48,12 @@ the limb-1 guard then refuses the NaN that arrives. `hull_sup`'s fold
 beside it reads `cell_bound`, which maps every non-finite to
 `INFINITY`, so it cannot see a NaN; it takes `max_bound` too, for one
 policy.
+
+## Closed
+
+2026-10-09. PR 4367 merged at `53c0a00cc4` after a review (APPROVE-WITH-FIXES) and a fix pass; hosted CI green.
+- The limb-1 folds and `hull_sup` use `max_bound`.
+- `patch_regularity`'s sup fold was a live sibling, also fixed.
+- `cell_bound` and the measurement row share `Composite::cell_terms`.
+- `fit_offset_at` refuses a NaN `on_locus_max` before minting.
+- The pin `a_nan_sample_refuses_at_the_on_locus_limb` reaches the bug through `certify_offset_at` with a NaN control point.
