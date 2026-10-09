@@ -698,7 +698,7 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
     - Lane A (Opus) found four blockers. The dual operand gate lacked check 11, and a probe showed a hand-split `Body<Dual64>` passed it into a union. The other three: stale tier-3 docs, a dead-arms row without priority and cost, and dropped `shell7_seam_corner` assertions.
     - Lane B (Fable) found nothing blocking. Its probe found 0 door outputs holding a joinable vertex and 0 at-rest findings passed by a gate; check 11 costs 3.15% of the tier-3 battery. Two mutants survived, and both now have witnesses: the undecided arm turned to pass (the cleave row now pins it), and the dual result gate's check 11 (an in-gate row; the dead-arms issue records that no output reaches it).
   - **Main breaks on the way:**
-    - census.rs: #4363 and #4372 crossed. FUSE's #4379 was closed as a duplicate of #4378.
+    - census.rs: #4363 and #4372 crossed. #4381 fixed it on main. FUSE's #4379 was closed in favour of #4378, which carries the same fix.
     - the offset_fit endpoint census, since #4367. D ported #4378's row.
   - **Step 3 of the 3881 build order is done.** Steps 1, 2 and 4 landed earlier.
 - 2026-10-09 — `demo-tour-red-on-main-after-blend-surgery-closing-join` closes. PR 4374 re-baselined the tour's die and teapot pins for C's closing join, #4374's demos (tour + wild) job ran green, and the teapot row passes on main.
