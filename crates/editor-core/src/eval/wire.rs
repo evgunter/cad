@@ -238,15 +238,20 @@ where
         + crate::mate::SolveScalar,
 {
     use crate::OperandSlot as O;
-    let read = results;
-    let projected = split_ports_projected(node, &reads_of(node), doc, results)?;
-    let results = projected.as_ref().unwrap_or(results);
+    let unprojected = results;
     // A boolean's or a union's operands are projected one by one: two
     // ports of one split are two bodies, which one map keyed by the
-    // split cannot hold.
-    let own = |vars: &[crate::VarId]| {
+    // split cannot hold. Every other node reads at most one body.
+    let per_operand = matches!(node, Node::Boolean { .. } | Node::Union { .. });
+    let projected = if per_operand {
+        None
+    } else {
+        split_ports_projected(node, &reads_of(node), doc, results)?
+    };
+    let results = projected.as_ref().unwrap_or(results);
+    let project_each = |vars: &[crate::VarId]| {
         vars.iter()
-            .map(|&var| split_ports_projected(node, &[var], doc, read))
+            .map(|&var| split_ports_projected(node, &[var], doc, unprojected))
             .collect::<Result<Vec<_>, _>>()
     };
     // An operand reads an output; the op reads the operation's value.
@@ -354,8 +359,8 @@ where
             tol,
         ),
         Node::Boolean { op, a, b, declare } => {
-            let own = own(&[*a, *b])?;
-            let [ra, rb] = [&own[0], &own[1]].map(|p| p.as_ref().unwrap_or(read));
+            let each = project_each(&[*a, *b])?;
+            let [ra, rb] = [&each[0], &each[1]].map(|p| p.as_ref().unwrap_or(unprojected));
             wire_boolean(
                 &crate::verbs::boolean::boolean(),
                 id,
@@ -369,8 +374,11 @@ where
             )
         }
         Node::Union { members, declare } => {
-            let own = own(members)?;
-            let each: Vec<&Results<T>> = own.iter().map(|p| p.as_ref().unwrap_or(read)).collect();
+            let projected = project_each(members)?;
+            let each: Vec<&Results<T>> = projected
+                .iter()
+                .map(|p| p.as_ref().unwrap_or(unprojected))
+                .collect();
             wire_union(
                 &crate::verbs::boolean::boolean(),
                 id,

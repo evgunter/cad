@@ -2733,9 +2733,10 @@ impl crate::spoken::Say for NodeErrorKind {
             ),
             Self::DeclareSiteNotAnOperand { at } => write!(
                 f,
-                "a declared entity is sited at {}, which is not the one operand of this \
-                 node whose table holds it — site each side at the member (or the boolean \
-                 operand) whose table holds it",
+                "a declared entity is sited at {}, and no one operand of this node read \
+                 there holds it — site each side at the member (or the boolean operand) whose \
+                 table holds it; the two halves of one split share their site, so a side \
+                 between them names an entity only one half holds",
                 by.node(*at)
             ),
             Self::DeclareUnsupportedPair { kinds, .. } => write!(
