@@ -69,6 +69,8 @@ mod a_ruling_lying_on_a_wall;
 mod a_swept_cusp_is_legal_at_rest;
 #[path = "an_annular_tube_through_a_plate.rs"]
 mod an_annular_tube_through_a_plate;
+#[path = "annular_tube_review_r2_probes.rs"]
+mod annular_tube_review_r2_probes;
 #[path = "at_rest_pcurve_faces.rs"]
 mod at_rest_pcurve_faces;
 #[path = "band_subdivided_side_walls.rs"]
