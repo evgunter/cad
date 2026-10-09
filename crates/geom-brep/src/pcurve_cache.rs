@@ -2754,7 +2754,7 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         // Only a marching door refines; the refusal it could not answer
         // is the certificate's, and reads as it.
         E::RefinementExhausted { refusal, .. } => return ssi_refusal(*refusal),
-        E::CertificateLimb { limb, value } => (
+        E::CertificateLimb { limb, value, .. } => (
             Some(limb),
             "a certificate limb exceeded ε",
             Some(FittedMagnitude::LimbResidual(value)),

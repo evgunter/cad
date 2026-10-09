@@ -80,7 +80,8 @@ use geom_core::predicate::KERNEL_OR_FILE_DEFECT_ENDING;
 use geom_core::spline::algebra::{GridSkip, domain_grid_points};
 use geom_core::spline::{KnotVector, KnotVectorIssue, SplineError};
 use geom_core::{
-    Band, Bounds, Decide, FileCoincidence, Indeterminate, Point2, Point3, Readable, Real, Vec3,
+    Band, Bounds, Decide, Decided, FileCoincidence, Indeterminate, MarginDiag, Point2, Point3,
+    Readable, Real, Sign, Vec3,
 };
 
 use crate::certify::{
@@ -166,6 +167,10 @@ pub enum PlaneNurbsRefusal {
         limb: SsiLimb,
         /// The measured bound, in meters.
         value: f64,
+        /// What the classifier saw of the miss, for error reporting only
+        /// ([`MarginDiag`]): it rides [`PlaneNurbsRefusal::decision`]'s
+        /// sign-certain arm to the import door's words on a definite miss.
+        margin: MarginDiag,
     },
     /// The uniqueness tube's transversality is not certified clear of
     /// the zero band — a genuine sliver of the operand pair along the
@@ -363,7 +368,9 @@ impl PlaneNurbsRefusal {
             Self::TransversalityEscalated { cause, .. } => {
                 (CertCheck::Transversality, RefusedArm::Undecided(cause))
             }
-            Self::Limb { limb, .. } => (limb.check(), RefusedArm::SignCertain(None)),
+            Self::Limb { limb, margin, .. } => {
+                (limb.check(), RefusedArm::SignCertain(Some(*margin)))
+            }
             // The tube's margin is the lane's transversality over the
             // chain (`ssi_tube_transversality`), and this refusal is its
             // decided verdict.
@@ -412,7 +419,7 @@ impl core::fmt::Display for PlaneNurbsRefusal {
             ),
             Self::PcurveFit => write!(f, "{PCURVE_FIT_REFUSAL}. {KERNEL_OR_FILE_DEFECT_ENDING}"),
             Self::CarrierDomain(refusal) => write!(f, "{refusal}"),
-            Self::Limb { limb, value } => write!(
+            Self::Limb { limb, value, .. } => write!(
                 f,
                 "{} measured {value:e} m against the run tolerance — the declared carrier \
                  is not on both surfaces",
@@ -675,13 +682,17 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         let offset =
             crate::pcurve_cache::projected::net_offset_sup(carrier, params, operand, band, lane)
                 .map_err(|e| AnalyticRung3Refusal::of_offset(kind, e))?;
-        match crate::dihedral::decide("ssi_hull_sup", geom_core::Margin::of(offset), band) {
-            Ok(geom_core::Sign::Zero) => {}
-            Ok(geom_core::Sign::Positive | geom_core::Sign::Negative) => {
+        match crate::dihedral::decide_reported("ssi_hull_sup", geom_core::Margin::of(offset), band)
+        {
+            Ok(Decided {
+                sign: Sign::Zero, ..
+            }) => {}
+            Ok(Decided { margin, .. }) => {
                 return Err(AnalyticRung3Refusal::Limb {
                     operand: kind,
                     limb: SsiLimb::HullSup,
                     value: offset.hi(),
+                    margin,
                 });
             }
             Err(cause) => {
@@ -801,6 +812,10 @@ pub enum AnalyticRung3Refusal {
         limb: SsiLimb,
         /// The measured bound, in metres.
         value: f64,
+        /// What the classifier saw of the miss, for error reporting only
+        /// ([`MarginDiag`]): it rides [`AnalyticRung3Refusal::decision`]'s
+        /// sign-certain arm to the import door's words on a definite miss.
+        margin: MarginDiag,
     },
     /// A limb's margin escalated.
     Escalated {
@@ -898,7 +913,9 @@ impl AnalyticRung3Refusal {
     #[must_use]
     pub fn decision(&self) -> Option<(CertCheck, RefusedArm<'_>)> {
         Some(match self {
-            Self::Limb { limb, .. } => (limb.check(), RefusedArm::SignCertain(None)),
+            Self::Limb { limb, margin, .. } => {
+                (limb.check(), RefusedArm::SignCertain(Some(*margin)))
+            }
             Self::Escalated { limb, cause, .. } => (limb.check(), RefusedArm::Undecided(cause)),
             Self::TubeStraddles { verdict, .. } => (CertCheck::Transversality, verdict.arm()),
             Self::NoOffsetBound { .. } | Self::TubeNotOneArc { .. } | Self::Unsupported { .. } => {
@@ -915,6 +932,7 @@ impl core::fmt::Display for AnalyticRung3Refusal {
                 operand,
                 limb,
                 value,
+                ..
             } => write!(
                 f,
                 "{} measured {value:e} m from the {} against the run tolerance — the \
@@ -1201,7 +1219,15 @@ fn on_carrier_domain<T: Real>(
 /// The SSI refusal, in this lane's vocabulary.
 fn refusal(e: SsiError) -> PlaneNurbsRefusal {
     match e {
-        SsiError::CertificateLimb { limb, value } => PlaneNurbsRefusal::Limb { limb, value },
+        SsiError::CertificateLimb {
+            limb,
+            value,
+            margin,
+        } => PlaneNurbsRefusal::Limb {
+            limb,
+            value,
+            margin,
+        },
         SsiError::TubeStraddles { verdict, boxes } => {
             PlaneNurbsRefusal::TubeStraddles { verdict, boxes }
         }
@@ -1307,7 +1333,7 @@ mod tests {
                 terminal_sliver: false,
             }),
         };
-        let file = |eps_in| FileCoincidence::new(eps_in, geom_core::Tol::witness());
+        let file = |eps_in| FileCoincidence::new(eps_in);
         let within = refusal(5e-9).ending_in_file(file(1e-6)).unwrap();
         assert!(
             within.starts_with(

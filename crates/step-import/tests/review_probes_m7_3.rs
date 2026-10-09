@@ -88,7 +88,7 @@ fn probe_refit_seam_refuses_typed() {
             // stage would mean the seam was adopted and something
             // downstream objected — a different fact, and not this
             // probe's.
-            let step_import::StepImportError::Adoption { attempts, .. } = &e else {
+            let step_import::StepImportError::Adoption { attempts, file, .. } = &e else {
                 panic!("the plant must be caught at ADOPTION, not downstream: {msg}");
             };
             let measured = attempts.iter().find_map(|a| match a.refusal {
@@ -108,6 +108,21 @@ fn probe_refit_seam_refuses_typed() {
                 measured > eps && measured < 1e-6,
                 "the refusal's own number explains it: on-locus residual {measured:e} m \
                  past ε_in {eps:e}, and of the plant's own order ({PLANT:e} m)"
+            );
+            // The import door reads the limb's own miss against the
+            // file's ε_in: past it, no stopgap is named and the refusal
+            // ends at rest, at every tolerance it refuses at.
+            assert!(
+                measured > file.eps_in(),
+                "the plant is past the file's ε_in {:e}: {measured:e}",
+                file.eps_in()
+            );
+            assert!(
+                msg.contains(
+                    "the declared carrier is not on both surfaces. There is no way through: this \
+                     is a kernel defect or a damaged file; report it"
+                ),
+                "a miss past ε_in ends at rest at the import door: {msg}"
             );
         }
         Ok(StepImport::Solid { body, .. }) => {

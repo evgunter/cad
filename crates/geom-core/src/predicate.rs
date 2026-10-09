@@ -1216,9 +1216,8 @@ pub struct SizedWords<'a> {
     pub otherwise: Option<&'a str>,
 }
 
-/// **The file's declared coincidence distance ε_in** (D4 ¶1, D7), with
-/// the run's tolerance, as the import door reads a certification refusal
-/// at them. The door holds ε_in, its own number; a comparison against a
+/// **The file's declared coincidence distance ε_in** (D4 ¶1, D7), as the
+/// import door reads a certification refusal at it. The door holds ε_in, its own number; a comparison against a
 /// reporting margin is the margin's own
 /// ([`MarginDiag::sized_recourse_in_file`],
 /// [`FileCoincidence::miss_recourse_in_file`]), and only a sentence
@@ -1226,14 +1225,13 @@ pub struct SizedWords<'a> {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FileCoincidence {
     eps_in: f64,
-    tol: Tol,
 }
 
 impl FileCoincidence {
-    /// ε_in as the import door resolved it, read against the run's `tol`.
+    /// ε_in as the import door resolved it.
     #[must_use]
-    pub const fn new(eps_in: f64, tol: Tol) -> Self {
-        Self { eps_in, tol }
+    pub const fn new(eps_in: f64) -> Self {
+        Self { eps_in }
     }
 
     /// The file's declared coincidence distance, in metres.
@@ -1248,9 +1246,7 @@ impl FileCoincidence {
     /// more precisely. Beyond ε is the classifier's placement: a definite
     /// miss lies past the band, and a banded one wholly past its zero
     /// threshold. Within ε_in is the reading's farther end; where only its
-    /// nearer end lies within ε_in — or, for a definite refusal that
-    /// carries no reading, where ε_in reaches past the run's band (K·ε) —
-    /// the miss "may lie" within it. Otherwise `otherwise`, the ending the
+    /// nearer end lies within ε_in, the miss "may lie" within it. Otherwise `otherwise`, the ending the
     /// refusal carries at rest.
     ///
     /// Where the miss is the file's data alone ([`MissSource::File`]), the
@@ -1278,9 +1274,6 @@ impl FileCoincidence {
                 _ => None,
             },
             MissReading::Definite(margin) => margin.within(eps_in),
-            MissReading::DefiniteUnvalued => {
-                (eps_in >= self.tol.k() * self.tol.eps()).then_some(Within::Partly)
-            }
         };
         let Some(within) = within else {
             return otherwise.to_owned();
@@ -1331,9 +1324,6 @@ pub enum MissReading {
     Banded(MarginDiag, Band),
     /// Decided past the band, so beyond ε by the verdict.
     Definite(MarginDiag),
-    /// Decided past the band by a refusal that carries no reading of the
-    /// miss.
-    DefiniteUnvalued,
 }
 
 /// What made the two sides a residual compares: whether its miss is the
@@ -2504,7 +2494,7 @@ mod tests {
             passes: SizedPass::Positive,
             otherwise: Some("n"),
         };
-        let at = |eps_in| FileCoincidence::new(eps_in, Tol::witness());
+        let at = |eps_in| FileCoincidence::new(eps_in);
         // Wholly at or below ε_in, the size is one the file does not
         // state; with only its nearer end there, one it may not.
         let head = |eps_in: f64, partly: bool| {
@@ -2580,14 +2570,13 @@ mod tests {
     /// **A miss within ε_in but beyond ε names the stopgap** (D4 ¶1):
     /// a banded miss past the zero threshold, or a definite one, where its
     /// reading lies within ε_in, or "may lie" within it where only its
-    /// nearer end does; a definite one with no reading "may lie" within
-    /// it where ε_in reaches past the run's band. A miss the kernel's fit
+    /// nearer end does. A miss the kernel's fit
     /// may have made keeps the kernel-bug note and claims nothing of the
     /// file's data. Anything else keeps its at-rest ending.
     #[test]
     fn a_miss_within_eps_in_names_setting_eps_to_eps_in() {
         let band = band_1e9();
-        let file = FileCoincidence::new(1e-6, Tol::witness());
+        let file = FileCoincidence::new(1e-6);
         let file_words = |lies: &str, tail: &str| {
             format!(
                 "This miss lies beyond the tolerance and {lies} the file's declared coincidence \
@@ -2656,28 +2645,6 @@ mod tests {
                 }
             }
         }
-        let tol = Tol::witness();
-        let escalate = Band::linear(tol).unwrap().escalate();
-        let unvalued = |eps_in| {
-            FileCoincidence::new(eps_in, tol).miss_recourse_in_file(
-                MissReading::DefiniteUnvalued,
-                MissSource::Fit,
-                "AT REST",
-            )
-        };
-        let reaches = unvalued(escalate);
-        assert!(
-            reaches.contains("and may lie within")
-                && reaches.contains(&format!("set the tolerance to ε_in = {escalate:e} m;"))
-                && !reaches.contains("the file's data")
-                && reaches.ends_with("this refusal may indicate a kernel bug worth reporting"),
-            "an ε_in at the band's edge may hold a definite miss: {reaches}"
-        );
-        assert_eq!(
-            unvalued(escalate * 0.5),
-            "AT REST",
-            "an ε_in inside the band cannot hold a definite miss"
-        );
     }
 
     /// The reading renders in the formatter's own number format, and the

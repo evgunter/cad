@@ -4916,6 +4916,7 @@ mod tests {
         let limb = P::Limb {
             limb: crate::ssi::SsiLimb::OnLocus,
             value: 2e-8,
+            margin: MarginDiag::value(2e-8),
         };
         let unavailable = CertifyError::ChartImageUnavailable {
             chart: geom::SurfaceKind::Cone,
@@ -5224,8 +5225,8 @@ mod tests {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let tol = geom_core::Tol::witness();
         let run = Band::linear(tol).unwrap();
-        let wide = FileCoincidence::new(run.escalate().max(1e-6), tol);
-        let narrow = FileCoincidence::new((run.escalate() * 0.5).min(1e-10), tol);
+        let wide = FileCoincidence::new(run.escalate().max(1e-6));
+        let narrow = FileCoincidence::new((run.escalate() * 0.5).min(1e-10));
         // Each undecided margin, and whether it is a miss within the wide
         // ε_in and beyond the band's zero threshold.
         let causes = [
@@ -5354,7 +5355,7 @@ mod tests {
     /// kernel-bug note rather than vouching for the file's data.
     #[test]
     fn a_definite_miss_at_the_import_door_reads_its_own_value() {
-        let file = FileCoincidence::new(1e-6, geom_core::Tol::witness());
+        let file = FileCoincidence::new(1e-6);
         let exceeded = |check, m| CertifyError::ResidualExceeded {
             check,
             sample: 0,
@@ -5417,7 +5418,7 @@ mod tests {
     #[test]
     fn the_collapsed_arm_gates_read_the_import_door() {
         let band = Band::new(1e-9, 1e-8).unwrap();
-        let file = FileCoincidence::new(1e-6, geom_core::Tol::witness());
+        let file = FileCoincidence::new(1e-6);
         let verdict = Refused::Zero(Classified {
             margin: MarginDiag::value(5e-10),
             band,
