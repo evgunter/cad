@@ -29,10 +29,10 @@
 //! moves; a residue remains, ≈6e-13 m on the
 //! near-ε reproduction and not scaling with the residual, so an edge
 //! certified within that width of ε can still refuse, typed
-//! [`TransformError::Certify`]. An `Approx` face's `hull_sup` is
-//! assembled from control hulls in the ambient frame, so it can
-//! re-derive above ε for a face certified near it; that face is
-//! re-fitted (see `map_approx`).
+//! [`TransformError::Certify`]. An `Approx` face's `hull_sup` reads its
+//! vector upper bounds from coefficient norms, but its lower bounds are
+//! box-assembled in the ambient frame, so it can re-derive above ε for
+//! a face certified near it; that face is re-fitted (see `map_approx`).
 //!
 //! # What maps how
 //!
@@ -466,9 +466,10 @@ fn map_surface<T: Decide + crate::props::AtRestPolicy>(
 /// certifies, a fresh fit of the mapped description where it does not.
 ///
 /// The image is a pair by the composition law (module docs), but its
-/// certificate is re-derived, never carried: `hull_sup` is assembled
-/// from ambient-frame control hulls and moves under a rotation
-/// (`geom-brep`'s composition-law row pins that it does). The fit loop
+/// certificate is re-derived, never carried: `hull_sup`'s lower bounds
+/// (the regularity floor and the floors on `‖E‖`) are assembled from
+/// ambient-frame control hulls and move under a rotation (`geom-brep`'s
+/// composition-law row pins that it does). The fit loop
 /// stops at the first round that certifies, so a sound face can sit
 /// within that drift of ε and its image re-derive above it.
 ///

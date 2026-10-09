@@ -1689,6 +1689,14 @@ pub enum BlendError {
         /// The operator's typed refusal.
         source: topo::EulerOpError,
     },
+    /// **The join the blend ends with refused**
+    /// (`Body::join_edges_within`, scoped to the shells the surgery
+    /// carved; `docs/DESIGN.md`, maximal edges), typed and keyless; it
+    /// words its own recourse.
+    Join {
+        /// Why the join refused.
+        refusal: topo::JoinRefusal,
+    },
 }
 
 impl From<BandError> for BlendError {
@@ -1912,6 +1920,7 @@ impl fmt::Display for BlendError {
             Self::Op { site, source } => {
                 write!(f, "assembly refused at {site} — {source}")
             }
+            Self::Join { refusal } => write!(f, "{refusal}"),
         }
     }
 }
@@ -2053,6 +2062,8 @@ mod recourse_tests {
             BlendError::SurgeryInvariant { .. } => Recourse::None,
             BlendError::Certify { .. } => Recourse::None,
             BlendError::Op { .. } => Recourse::None,
+            // The join's refusal carries its own ending.
+            BlendError::Join { .. } => Recourse::None,
         }
     }
 
@@ -2205,6 +2216,12 @@ mod recourse_tests {
             BlendError::Op {
                 site: "strut mev",
                 source: topo::EulerOpError::DescriptionNotAdjacent { edge: None },
+            },
+            BlendError::Join {
+                refusal: topo::JoinRefusal::CarrierUnsupported {
+                    carrier: geom::CurveKind::Nurbs,
+                    closed: false,
+                },
             },
         ];
         seeds.extend(BlendDecision::ALL.map(|decision| BlendError::Escalated {
