@@ -2,7 +2,8 @@
 id: refused-arm-sign-certain-carries-no-margin
 kind: issue
 title: geom-brep: RefusedArm::SignCertain carries no reporting margin, so a definite residual miss reaches the import door by a parallel definite_*_in_file route
-status: open
+status: dispatched
+branch: encl/sign-certain-arm-margin
 opened: 2026-10-08
 priority: P3
 cost: M
