@@ -1293,8 +1293,7 @@ the whole family, naming the index; a read whose index leaves the
 range is unresolved and typed, never re-pointed. A member's names are
 `Member { (i, j), of }`, keyed by the index variables' ids and the
 integers. Copies of one body are built once and mapped; a construction
-through a different frame per member is built per member, since
-equivariance is audited per site (D9 convention 4). A mirror image is
+whose own inputs differ per member is built per member. A mirror image is
 not a copy, because a reflection is not a pose: `Mirror { body, plane }`
 is a construction defining a new `Body`, and every pose is proper.
 Linear, circular, grid and bolt-circle patterns and mirroring are the
