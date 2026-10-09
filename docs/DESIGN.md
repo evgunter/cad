@@ -1325,7 +1325,9 @@ relation, so a chain of blocks each built on its neighbour's floor
 closes into a loop, and a brick laid across two of them sits on both,
 with nothing more said. A computed value never re-enters the
 evaluation as a constant; a numerical routine's output enters as one
-opaque symbol per call.
+opaque symbol per call. The symbolic tier decides only this: whether a
+Zero is structural. A margin in the sliver band is not decided by it,
+since the band is indeterminate under exact arithmetic too (Q1).
 Coaxiality is one `Axis` read twice, directly or as projections of
 one construction; tangency is constructed (a
 sketch may read another surface's trace in its plane and continue
@@ -1732,10 +1734,7 @@ Cross-milestone commitments; each binds at the layer named.
   from two others; cells are one only by topology (a Zero glued them)
   or by structure (D10), and both are transitive. A body is valid when
   every question its topology poses decides definite, or Zero and
-  recorded. Each such question is one number per pair of cells (tier
-  3′'s census clause), never the extent of a stretch where they lie
-  within the band. The symbolic tier does not decide a margin in the
-  band: it answers only whether a Zero is structural.
+  recorded.
 - At `T = Interval` an indeterminate predicate aborts the operation:
   predicates return `Result<Sign, Indeterminate>` (the trichotomy is
   the primitive; bool predicates are projections) and construction code
