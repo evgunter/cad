@@ -221,23 +221,25 @@ placements only.
 
 ## Battery
 
-All rows were run locally on `0b78a0c35`, the commit before this
-body's own (the body is the only change since), with
-`CARGO_TARGET_DIR` set to this lane's own directory.
+All checks ran locally with this lane's own `CARGO_TARGET_DIR`. The full
+battery ran on `704cabedb`. The one commit after it, `79bde7a3a`, adds
+a test-only type alias for clippy; on it, fmt, clippy and the
+crossing-cuts rows were re-run.
 
-| Check | Result |
-|---|---|
-| `cargo fmt --all --check` | ok |
-| topo + sweep, default ε (1e-9) | 5091 run, 5091 passed |
-| topo + sweep, `CAD_TOLERANCE_EPS=1e-6` | 5091 run, 5091 passed |
-| topo + sweep, `CAD_TOLERANCE_EPS=1e-12` | 5091 run, 5090 passed. 1 red: `parallel_cylinder_join::a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings`, which is pre-existing and tracked (`work/tint/tipped-rod-join-escalates-at-1e-12.md`); its boolean refuses before the census runs |
-| editor-core, all (slow set included) | 2910 run, 2910 passed |
-| test-utils | 89 run, 89 passed |
-| clippy `--workspace --exclude viewer --all-targets --all-features -D warnings` | ok |
-| clippy `-p pncad-py --features python` | ok |
-| `scripts/gates/*.sh`, payload-rung sweep, `work.py lint` | ok |
-| python lint (`check-python-lint.py`) | SKIPPED locally: this box has ruff 0.15.8 and CI pins 0.16.1. The diff touches no Python file. |
-| Python suite (maturin wheel, unittest) | 950 tests, OK |
+| Check | Commit | Result |
+|---|---|---|
+| `cargo fmt --all --check` | `79bde7a3a` | ok |
+| topo + sweep, default ε (1e-9) | `704cabedb` | 5148 run, 5148 passed |
+| topo + sweep, `CAD_TOLERANCE_EPS=1e-6` | `704cabedb` | 5148 run, 5148 passed |
+| topo + sweep, `CAD_TOLERANCE_EPS=1e-12` | `704cabedb` | 5148 run, 5147 passed. 1 red: `parallel_cylinder_join::a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings`, red on main and tracked (`work/tint/tipped-rod-join-escalates-at-1e-12.md`) |
+| editor-core, all (slow set included) | `704cabedb` | 2918 run, 2918 passed |
+| test-utils | `704cabedb` | 89 run, 89 passed |
+| clippy `--workspace --exclude viewer --all-targets --all-features -D warnings` | `79bde7a3a` | ok (red on `704cabedb`: `type_complexity` in a test helper, fixed by the alias) |
+| clippy `-p pncad-py --features python` | `704cabedb` | ok |
+| `scripts/gates/*.sh`, payload-rung sweep, `work.py lint` | `704cabedb` | ok |
+| python lint, ruff 0.16.1 (the CI's pin, installed locally) | `704cabedb` | ok, 85 files |
+| Python suite (maturin wheel, unittest) | `704cabedb` | 950 tests, OK |
+| crossing-cuts rows (`test(/crossing_cuts/)`) | `79bde7a3a` | 15/15 passed |
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
