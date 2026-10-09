@@ -2,7 +2,8 @@
 id: the-role-reads-certified-volume-enclosure-straddles-zero-on-a-sliver-shell
 kind: issue
 title: The role read's certified volume enclosure on a sliver shell is 1e-9 to 5e-7 wide in V/A at ε = 1e-12, straddling zero where the point reading is about 30 bands positive
-status: review
+status: closed
+closed: 2026-10-09
 opened: 2026-10-08
 priority: P2
 cost: M
@@ -56,3 +57,18 @@ body's span. Then check that the enclosure decides at d ≥ 1e-10 under
 ε = 1e-12. `volume-door-reads-a-tiny-valid-boolean-result-wrong`
 (CONTACT, closed by PR 3977) is the same absolute-error class on the
 point door.
+
+## Closed
+
+2026-10-09. PR 4386 merged at `e923120c15`. It had a full soundness review and a delta re-review, with two fix passes. Hosted CI was green.
+
+**The cause.** It was not the origin: PR 3977 already recentres. Line edges' carrier-end evaluation widened the enclosure. Worse, the ulp gaps between consecutive carrier ends moved the fan's value by length × lever × gap.
+
+**The fix.** A walk whose every face is a plane bounded by lines is read as the polygons of its vertex points (`props::shell_polygons` → `quad_lane::polygon_face_about`), an exactly closed polyhedron. Any other walk keeps main's route bit for bit. This is pinned against an independent per-face closed-form reference on an off-grid prism.
+
+**Results.** The witness `notch307 nt e0 a0 d1e-9` goes from refused to `OK SOUND`. Over the 23 040-run probe: 74 straddling refusals became 0, and in-band refusals hold. 22 runs now ship with JOIN P0 census findings; that is designed behaviour.
+
+**Follow-ups:**
+- TALLY `a-fan-over-carrier-ends-reads-an-ulp-gap-at-the-faces-length-times-its-lever` (P2)
+- TALLY `the-polygon-routes-width-on-a-long-face-in-a-general-orientation-is-l-cubed-ulps` (P3)
+- TINT `test-support-has-no-exact-dyadic-decoder-so-seven-tests-carry-their-own` (P3)
