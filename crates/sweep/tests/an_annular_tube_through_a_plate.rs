@@ -101,7 +101,7 @@ fn plate() -> Body<f64> {
 /// but for a run `t3` names, whose result fails tier 3′ and nothing
 /// else: it is two solids, one in the other's bore, which the census's
 /// cross-solid backstop cannot separate
-/// (`work/contact/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
+/// (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
 fn every_op(what: &str, tube: Body<f64>, area: f64, z: (f64, f64), t3: &[&str]) {
     let (va, vb, vab) = (
         area * (z.1 - z.0),
