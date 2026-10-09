@@ -173,3 +173,48 @@ its index tuple outer-first, `xs[i, j]` the member read, `Member { (i, j), of }`
 dependent bound (pairs `j within k`) and the tuple's order, so nesting adds a second shape, `[[K]]`, for the same family
 and a flattening rule in every list reader. A grid of cutters is then one `union` over one family, which was A's reason
 for nesting, and it comes for free from flatness rather than from a special case in the union.
+
+## Round 4 (alignment with the settled FORK-S3M and FORK-S3P text)
+
+**1. #4341's text.** D10 Repetition says nothing about how an index enters a placement, which is the gap. The work item
+fills it the old way: its Migration writes `rotate(seat, axis, scalar(k)·step)` and `translate(seat, dir, scalar(k)·spacing)`,
+target poses constructed to carry the number, which is the retired `Offset` target in another spelling; its Evaluation and
+MIRROR P4 say "a construction through a different frame per member", which S3P now forbids ("no construction reads a
+frame"); and `Mirror { body, plane }` reads a pose, which S3P says no construction does. S3M's own sentence, "`Pattern` is a
+placement of several copies, one per member of a pose family read off geometry", is the one to retire: there is no pose
+family, only values. My round-1 `rotate`/`translate` pose constructions leave the vocabulary with it.
+
+**2. Yes (sure).** A pattern is a placement whose reads reach an index, and the index enters through the two constraint
+forms that exist and no third: as a **value**, a slide or spin that is a `Length` or `Angle` expression over `k`, or through a
+**mate** whose target is a member of another family. Ring: `Axis` mate, `Plane` mate, `spin = scalar(k)·turn/N`. Row: two
+`Plane` mates, `slide = scalar(k)·pitch`. Grid: one `Plane` mate, `slide = scalar(i)·p` on one freedom, `scalar(j)·q` on the
+other, spin `0`. Helix: `Axis` mate, both a slide and a spin over `k`. Bolts into holes: `bolt.axis ≡ holes[k].axis`. Copy `0`
+has spin `0`, "the two bodies' own coordinates agree", which is Ev's "0 is always valid" said per member, and
+`(N−1)·turn/N + turn/N = turn` is exact, so the ring closes structurally with no rotation matrix anywhere: #4341's
+"unchecked requirement" narrows to the spin value's chart reducing modulo a turn. Q5 moves with S3M: the pips are one
+cutter body placed 21 times (`Plane` mate to the face, slides `±a`, spin `0`), then `subtract(cube, union(copies))`, not 21
+constructions; "built per member" survives only for a construction whose scalar inputs read `k` (`depth = scalar(k)·d`).
+
+**3. Mirror changes in one word; names and helpers in what they write.** `Mirror { body, face }`: the plane is a face of
+its own body (S3P: a face reads as a plane), the image is built in the body's own coordinates like a fillet is, and where it
+sits is a placement; a "mirror across the assembly's plane" helper places the image against the targets' mirror-image
+faces, which exist only when the targets are symmetric, and that is a true statement, not a loss. `Member { (i, j), of }`
+is unchanged. The helpers write mates and values, never a pose, and the recogniser matches a placement under an index
+whose values are affine in it.
+
+**Exact text.** D10 Operations (S3M's sentence) → "A pattern is a placement whose reads reach an index (Repetition): one
+copy per value, the index entering as a value or through a mate's target." D10 Repetition, after "there is no pattern
+operation.": "An index enters a placement as a value, a slide or spin that is a `Length` or `Angle` expression over it, or
+through a mate whose target is a member of another family; no pose is constructed from an index, and nothing else carries
+one." Its "a construction whose own inputs differ per member is built per member" → "a construction whose scalar inputs
+read an index is built per member; no construction reads a frame". Its `Mirror { body, plane }` sentence → "`Mirror { body,
+face }` is a construction defining a new `Body` in its body's own coordinates, reading one of its own faces as the plane;
+where the image sits is a placement; every pose is proper." MIRROR P4: the same two substitutions. Work item: Evaluation
+and Mirror bullets as above; Façade bullet adds "the helpers write mates and values: `circular_pattern` an `Axis` mate, a
+`Plane` mate and `spin = scalar(k)·turn/N`; `linear_pattern` two `Plane` mates and `slide = scalar(k)·pitch`"; Migration
+replaces the `rotate`/`translate` lines with those forms, and `PlacedUnion(Explicit(frames))` → "one placement per frame,
+a `Plane` mate against the face with the frame's in-plane offsets as slides and spin, read off the stored frame once at
+migration, gathered by `union`", dropping "through `InFrame` poses" and "within rounding for constructions"; Sites' "
+`Direction`'s first reader is `translate`" → "the `Linear` `Direction` slot has no successor: a row's direction is the
+freedom a `Plane` mate leaves"; Unchecked requirement → the narrowed form above; Sequencing's "#4326's `Pattern`
+sentence" → the Operations wording above.
