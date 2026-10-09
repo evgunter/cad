@@ -102,3 +102,9 @@ parallel-axis cones, non-coaxial tori and splines stay R-reach. Cone ×
 plane is decided on the aperture margin alone, never on the apex's
 offset (a Zero offset does not bound the ellipse). The roster stays
 closed until U7.
+
+**2026-10-09, U4 lands (PR 4352).** The cone rows ship with the near-axis
+offset taken through `square_to` at every arm (the dual pair's bilateral
+MAJOR, DR-113). The witness is checked against the plane's carrier, and
+the search samples down into the band. Still owed before U7: the cone
+sector units U-S1..U-S4 (`docs/GERM-CONE-SECTOR-SPEC.md`).
