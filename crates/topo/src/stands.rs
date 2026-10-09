@@ -373,10 +373,10 @@ fn line_meetings<T: Decide>(
         let r = m - center;
         let (x0, y0) = (r.dot(u) / a, r.dot(v) / b);
         let (xw, yw) = (w.dot(u) / a, w.dot(v) / b);
-        let qa = xw * xw + yw * yw;
+        let qa = xw.powi(2) + yw.powi(2);
         let qb = (x0 * xw + y0 * yw) * T::from_f64(2.0);
-        let qc = x0 * x0 + y0 * y0 - T::one();
-        let root = (qb * qb - qa * qc * T::from_f64(4.0)).max(T::zero()).sqrt();
+        let qc = x0.powi(2) + y0.powi(2) - T::one();
+        let root = (qb.powi(2) - qa * qc * T::from_f64(4.0)).max(T::zero()).sqrt();
         let twice = qa * T::from_f64(2.0);
         vec![(-qb - root) / twice, (-qb + root) / twice]
     };
