@@ -678,6 +678,45 @@ pub enum SectionError {
     Spiric(SpiricInvalid),
 }
 
+/// A plane×cone section outside the conic inventory by decision (R1):
+/// the curve [`SectionError::outside_conic`] reads off the table's
+/// refusal.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OutsideConic {
+    /// The plane lies parallel to a generator.
+    Parabola,
+    /// The plane meets both nappes.
+    Hyperbola,
+}
+
+const PLANE_CONE: &str = "plane×cone";
+
+const PARABOLA_WHY: &str = "the plane lies parallel to a generator, so the section is a \
+                            PARABOLA — outside the conic inventory by decision (R1), not by \
+                            omission";
+
+const HYPERBOLA_WHY: &str = "the plane meets both nappes, so the section is a HYPERBOLA — \
+                             outside the conic inventory by decision (R1), not by omission";
+
+impl SectionError {
+    /// The conic outside the inventory this refusal is
+    /// [`plane_cone_section`]'s naming of, if it is one.
+    #[must_use]
+    pub fn outside_conic(&self) -> Option<OutsideConic> {
+        match self {
+            Self::RoutesToGeneralRung {
+                pair: PLANE_CONE,
+                why: PARABOLA_WHY,
+            } => Some(OutsideConic::Parabola),
+            Self::RoutesToGeneralRung {
+                pair: PLANE_CONE,
+                why: HYPERBOLA_WHY,
+            } => Some(OutsideConic::Hyperbola),
+            _ => None,
+        }
+    }
+}
+
 impl From<EllipseInvalid> for SectionError {
     fn from(e: EllipseInvalid) -> Self {
         Self::Carrier(e)
@@ -2263,16 +2302,12 @@ pub fn plane_cone_section<T: Decide>(
                             Ok(PlaneConeSection::TiltedEllipse(e))
                         }
                         Sign::Zero => Err(SectionError::RoutesToGeneralRung {
-                            pair: "plane×cone",
-                            why: "the plane lies parallel to a generator, so the section \
-                                  is a PARABOLA — outside the conic inventory by decision \
-                                  (R1), not by omission",
+                            pair: PLANE_CONE,
+                            why: PARABOLA_WHY,
                         }),
                         Sign::Positive => Err(SectionError::RoutesToGeneralRung {
-                            pair: "plane×cone",
-                            why: "the plane meets both nappes, so the section is a \
-                                  HYPERBOLA — outside the conic inventory by decision \
-                                  (R1), not by omission",
+                            pair: PLANE_CONE,
+                            why: HYPERBOLA_WHY,
                         }),
                     }
                 }
