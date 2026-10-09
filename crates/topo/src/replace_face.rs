@@ -1947,16 +1947,16 @@ fn plan_edge<T: Decide>(
         // storing a row the neighbour's own lane will reject.
         let (fa, fb) = crate::readback::edge_sides_of(body, edge, edge_data).faces();
         let other = if group.contains(&fa) { fb } else { fa };
-        if !group.contains(&other)
-            && matches!(
-                body.face_surface_linked(other, proven(&body.faces, other, EntityId::Face)),
-                Surface::Nurbs(_) | Surface::Approx(_)
-            )
-        {
-            return Err(ReplaceFaceError::FittedBoundaryUnsupported {
-                edge,
-                what: "a seam shared with another fitted face",
-            });
+        if !group.contains(&other) {
+            let what =
+                match body.face_surface_linked(other, proven(&body.faces, other, EntityId::Face)) {
+                    Surface::Nurbs(_) => Some("a row of this fit shared with a spline face"),
+                    Surface::Approx(_) => Some("a row of this fit shared with another fitted face"),
+                    _ => None,
+                };
+            if let Some(what) = what {
+                return Err(ReplaceFaceError::FittedBoundaryUnsupported { edge, what });
+            }
         }
         // The extraction itself lives in `geom_brep::nurbs_iso`, beside
         // `boundary_iso_u` and its asserting rows: the door's lane is

@@ -764,8 +764,8 @@ thin solids keep their two), and the invariant is closure, not genus
 inverted cavity walls at edge re-attachment. A fitted face's edge with a
 plane is their section over the fit (C5); its other boundary refuses:
 `Approx` against anything but a plane (`NeighborPairUnroutable`, naming
-`Approx`), a seam shared with another fitted face
-(`FittedBoundaryUnsupported`), a section outside the fit's window (the
+`Approx`), a row of the fit shared with a spline or another fitted
+face (`FittedBoundaryUnsupported`), a section outside the fit's window (the
 section's own verdict), and a scalar with no fit or section lane
 (`ApproxLaneUnsupported`, `NurbsLaneUnsupported`).
 

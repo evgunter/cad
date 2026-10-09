@@ -23,3 +23,24 @@ an exhaustiveness and seeding story — or a measured reason the seam can
 be read another way. Before pricing, re-measure the 2026-09-25 rows the
 designers cited: the twisted loft's wall fit failing the default ε
 (4.14e-9 achieved) and the vase's interior-knot crease gate.
+
+## Measured
+
+2026-10-09, after plane × `Approx` routed over the fit
+(`a-fitted-wall-has-no-section-with-a-moved-cap`). The twisted loft never
+reaches `NeighborPairUnroutable(Nurbs, Nurbs)`:
+
+- at ε = 1e-9 (the default) and 1e-12 the first wall's offset fit refuses
+  before any edge (`Fit { BudgetExhausted }`, best bound 4.12e-9 m on a
+  (27, 17) grid);
+- at ε = 1e-6 the wall's rims with the caps derive, and its seam with the
+  next wall refuses at the iso-row arm's guard, ahead of routing:
+  `FittedBoundaryUnsupported { what: "a row of this fit shared with a
+  spline face" }` (`crates/topo/src/replace_face.rs:1953`). The seam is a
+  row of the moving wall's own fit, and the neighbour is the unmoved NURBS
+  wall, so in `shell` the pair is never two fits.
+
+Pinned in `crates/sweep/tests/encl_curved_loft_shell.rs`,
+`shelling_the_curved_loft_refuses_at_a_walls_fit`, and in
+`crates/sweep/tests/offd_r1_probes.rs`,
+`the_fitted_obstruction_holds_on_a_curved_fit`.

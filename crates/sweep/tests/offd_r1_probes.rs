@@ -476,21 +476,22 @@ const CURVED_FIT_REACH: f64 = 1e-13;
 
 #[test]
 fn the_fitted_obstruction_holds_on_a_curved_fit() {
-    // Both fixtures' spline walls are bounded by rims described in a
-    // NEIGHBOUR's chart (the cap plane they lie in), so both land on
-    // the same leg — and the row says so by name rather than by
-    // membership.
+    // Both fixtures' spline walls meet their caps along rims the door
+    // derives as the cap plane's section of the fit, and the next wall
+    // along a seam that is one of this fit's rows, shared with an
+    // unmoved spline face: both land on that leg, named rather than
+    // matched by membership.
     for (name, mut body, leg, curved) in [
         (
             "planar prism",
             prism(),
-            "a curve drawn on a neighbour's surface",
+            "a row of this fit shared with a spline face",
             false,
         ),
         (
             "twisted loft",
             twisted_loft(0.3),
-            "a curve drawn on a neighbour's surface",
+            "a row of this fit shared with a spline face",
             true,
         ),
     ] {
