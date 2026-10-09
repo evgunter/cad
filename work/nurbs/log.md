@@ -154,3 +154,27 @@ This was a move. The refusal texts gained recourses, and the
 `topo/src/pcurves.rs`'s row-space test reflects knots with a rounded
 `a + b − k` and `==`; it has no other owner. Tier: the orchestrator's
 read. (NURBS orchestrator)
+
+## 2026-10-09 — PR 4438 review: the ulp clearance narrows the class without closing it
+
+Single FULL review, verdict APPROVE-WITH-FIXES, and it raised one MAJOR. I adjudicated it real.
+- `SLIVER_CLEARANCE_ULPS` is 8 ulps of the DOMAIN width, which is 128 knot-ulps at 1/16.
+- A knot 129 bits to about 1e-13 from a grid point still costs up to 47× the flux width. The excess goes as ≈1.7e-15/gap, and the ssi box-chain axis error is 1.2e-3.
+- Enclosures stay sound; the defect is width.
+
+**Ruling: the clearance becomes a fraction of the grid spacing, at every production grid site.** Grid points are optional refinement, so skipping one costs at most a sliver of extra span width. That makes this a dominant-argument choice, so no designers.
+
+Other adjudications:
+- `GridSkip` collapses if every site then takes one value.
+- New rows sweep the knot offset across the whole range, so a cliff anywhere goes red.
+- Filed in the fix pass:
+  - the kernel's own hairline mints (`sweep/src/skin.rs` knot union, the certify composite's break merge);
+  - the `refined`/`chart_breaks` grid duplication.
+
+The fix pass runs on hosted CI only, because of disk (below).
+
+**Friction (two findings).**
+1. PR 4439's `test` job took 21 min against the 15-min bar. It is a 6-file move in geom-core and geom, so the change filter likely selected most of the suite.
+2. This 4-core container has 252 GB but a far smaller per-session writable allowance. Two live lanes hold 17 GB of targets, and one reviewer's local battery hit a full disk (a Bus error at link).
+
+Each lane that builds locally costs 1–10 GB. From here, heavy lanes run CI-only, or in their own cloud sessions (orchestration-model memory, 2026-10-02). (NURBS orchestrator)
