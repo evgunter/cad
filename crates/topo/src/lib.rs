@@ -465,8 +465,9 @@ pub mod test_support {
         crate::boolean::maximal_faces_gate(body, operand, tol)
     }
 
-    /// The join's section segments of `op`: the pair-record count and
-    /// each segment's two germ sites (`boolean::section_segment_sites`).
+    /// Every segment the join of `op` builds, one-site loops included:
+    /// the pair-record count and each segment's two germ sites
+    /// (`boolean::section_segment_sites`).
     /// `None` where the reduction registers no pair.
     ///
     /// # Errors
