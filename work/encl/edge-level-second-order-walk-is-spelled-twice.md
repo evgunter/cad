@@ -2,7 +2,8 @@
 id: edge-level-second-order-walk-is-spelled-twice
 kind: issue
 title: the edge-level second-order walk is spelled twice, in must_carry_over_edge and inline in tier 3's check 4, kept in step only by prose
-status: review
+status: closed
+closed: 2026-10-09
 branch: encl/second-order-walk-one-home
 pr: 4423
 priority: P3
@@ -49,3 +50,11 @@ answer; it removes the second spelling.
   `crates/topo/src/boolean/reduce.rs`, and they need reading before
   this row is scoped.
 
+## Closed
+
+2026-10-09. PR 4423 merged at `c981d151cb` after a full review and a fix pass; hosted CI was green.
+- **`geom_brep::interior_stations`** is the one home of the station schedule. **`geom_brep::second_order_walk`** is the one home of the per-station reading and the one `"tangent_second_order"` decision. Both are doc-hidden.
+- **`must_carry_over_edge`** descends through the walker with the no-op hook. Tier 3's check 4 descends through it with `MaterialStations` (`Break = Indeterminate`) and pushes `SliverDihedral` at one site.
+- **Neither answer moved:** the editor-core k-stream is byte-identical to base at the default ε.
+- **Pins:** the one-family table, the hook stop and order rows, and a source scan of `validate.rs`. The scan reads source, so the merge also ledgers `tier3_tests.rs` in `test-utils`'s `reader_census`; that row turned hosted CI red until the ledger line was added.
+- **Not routed:** `contact_verify::tangent_locus_relation` (its own predicate and schedule). The rim wedge is the row `rim-wedge-walks-the-second-order-stations-by-hand`.
