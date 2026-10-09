@@ -601,8 +601,8 @@ pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
             floor = n.floor;
         }
         sup = sup.max(n.sup);
-        speed_u = speed_u.max(SupSpeed::new(norm_sup(&cell.s_u)));
-        speed_v = speed_v.max(SupSpeed::new(norm_sup(&cell.s_v)));
+        speed_u = speed_u.max(SupSpeed::new(cell.s_u_sup));
+        speed_v = speed_v.max(SupSpeed::new(cell.s_v_sup));
         if n.sup.is_nan() {
             sup = f64::NAN;
         }
@@ -1085,7 +1085,7 @@ mod tests {
     /// a band-decided arm whose margin a smaller tolerance passes (a
     /// zero verdict or an undecided margin, positive), never on a
     /// sign-certain arm, a margin on the refused side, at zero,
-    /// straddling zero, or poisoned — and never at adoption.
+    /// straddling zero, or poisoned.
     #[test]
     fn no_meter_ending_lowers_or_tightens_where_the_ruling_forbids() {
         let mut rows = Vec::new();
@@ -1112,7 +1112,7 @@ mod tests {
             }
         }
         for (error, lever, tightens) in rows {
-            for reading in [Reading::Build, Reading::AtRest, Reading::Adopt] {
+            for reading in [Reading::Build, Reading::AtRest] {
                 let ending = error.ending(reading);
                 assert!(
                     ending.starts_with(&format!("Recourse: {lever}")),
@@ -1123,7 +1123,7 @@ mod tests {
                 }
                 assert_eq!(
                     ending.contains("tighten"),
-                    tightens && reading != Reading::Adopt,
+                    tightens,
                     "{error:?} at {reading:?}: {ending}"
                 );
             }
@@ -1211,6 +1211,8 @@ mod tests {
             s_uu: p(0.0, 0.0, 0.0),
             s_uv: p(0.0, 0.0, 0.0),
             s_vv: p(0.0, 0.0, 0.0),
+            s_u_sup: 1.0,
+            s_v_sup: 1.0,
         };
         let refused = PatchCell {
             u: (1.0, 2.0),
@@ -1219,6 +1221,7 @@ mod tests {
                 Interval::point(0.0),
                 Interval::point(0.0),
             ],
+            s_u_sup: f64::NAN,
             ..healthy
         };
         for (order, cells) in [

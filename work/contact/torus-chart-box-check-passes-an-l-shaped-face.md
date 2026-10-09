@@ -2,8 +2,12 @@
 id: torus-chart-box-check-passes-an-l-shaped-face
 kind: issue
 title: bool_torus_chart_box compares total variation to twice the span, which an L-shaped (orthogonally convex) face also satisfies, so the torus trim can serve an L its bounding box
-status: open
+status: closed
 opened: 2026-09-29
+priority: P1
+cost: M
+parent: CONTACT-11
+closed: 2026-10-08
 ---
 
 
@@ -25,11 +29,20 @@ steps are `2, 0, −1, 0, −1, 0`, total 4 = 2·2, and its `v` steps are
 over-covers the notch `(1,2) × (1,2)`. Only a notch that breaks
 monotonicity (a U) is caught.
 
-## The fix, as the cone took it
+## The fix: a linear test in metres, shared with the cone
 
-Compare the polygon's shoelace area with its bounding box's
-(`chord_join::chart_box_defect`, `bool_cone_chart_box`). A rectilinear
-polygon equals its box exactly when the areas agree. The cone's rows are
-`section_cert_rows.rs` `an_l_shaped_cone_face_refuses_rather_than_trim_by_its_hull`;
-a torus L built the same way (Euler ops on a torus sheet: parallels and
-meridians) is the red row this needs.
+The area test the cone carried (`chart_box_defect`, the polygon's
+shoelace area against its box's) is unsound as a Zero verdict. A notch
+`s` metres on a side changes the area by about `s²`, so the margin
+divided back to a length is quadratic in the notch. A small notch reads
+Zero ("the face is its box"), and the door answers `In` at a point
+`s/2` from the face. One decade up, it escalates where it should refuse.
+
+The test both trims now share (`solid_contain::chart_polygon_box`):
+every side of the rectilinear chart polygon lies on a side of its
+bounding box. Each side's distance is crossed to metres by an upper
+bound on its channel's rate (`SupSpeed`, `Margin::metered_sup`), so a
+notch's inner sides read at their own metric distance, linear in the
+notch. The rows are in `section_cert_rows.rs`: the small-notch rows on
+four rings and two frusta, the smallest-notch row that pins the arms'
+direction, the walk-gap row, and the rectangle rows.

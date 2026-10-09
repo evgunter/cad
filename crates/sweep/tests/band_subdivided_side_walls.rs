@@ -509,11 +509,13 @@ fn split_rim_blends_as_one_band() {
         Ok(()),
         "fillet: tier 3"
     );
-    // The plain cube's 26 faces, 48 edges and 24 vertices, plus each
-    // joint's two feet, each splitting one trimline.
+    // The plain cube's 26 faces, 48 edges and 24 vertices: each joint's
+    // two feet split one trimline, and the blend's closing join
+    // (`docs/DESIGN.md`, maximal edges) takes each back, the trimline
+    // one edge again.
     assert_eq!(f.body.faces().count(), 26, "fillet: faces");
-    assert_eq!(f.body.edges().count(), 52, "fillet: edges");
-    assert_eq!(f.body.vertices().count(), 28, "fillet: vertices");
+    assert_eq!(f.body.edges().count(), 48, "fillet: edges");
+    assert_eq!(f.body.vertices().count(), 24, "fillet: vertices");
     assert_eq!(
         f.blend_faces.len(),
         12,
@@ -567,9 +569,10 @@ fn split_rim_blends_as_one_band() {
         Ok(()),
         "chamfer: tier 3"
     );
+    // The fillet's counts: the joints' trimlines joined back.
     assert_eq!(c.body.faces().count(), 26, "chamfer: faces");
-    assert_eq!(c.body.edges().count(), 52, "chamfer: edges");
-    assert_eq!(c.body.vertices().count(), 28, "chamfer: vertices");
+    assert_eq!(c.body.edges().count(), 48, "chamfer: edges");
+    assert_eq!(c.body.vertices().count(), 24, "chamfer: vertices");
     let want = oracles::chamfered_cube_volume(2.0, R);
     let got = volume(&c.body, t);
     assert!(

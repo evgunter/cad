@@ -110,7 +110,7 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
         // the executed witness on this file's own records. If a gate
         // change ever re-exposes the ladder here, the state must be
         // re-measured, not re-derived from this comment.
-        Err(StepImportError::Adoption { id, attempts }) => {
+        Err(StepImportError::Adoption { id, attempts, .. }) => {
             panic!(
                 "the D7 ladder does not refuse dm1 at any band (#388 retired \
                  the polyline gap): #{id}, {} candidate(s)",
@@ -314,7 +314,7 @@ fn l_bracket_only(text: &str) -> String {
 fn the_l_bracket_alone_adopts_its_reversed_slit() {
     let text = l_bracket_only(&dm1());
     match import_step(&text, &ImportOptions::default(), Tol::witness()) {
-        Err(StepImportError::Adoption { id, attempts }) => panic!(
+        Err(StepImportError::Adoption { id, attempts, .. }) => panic!(
             "the polyline gap must stay retired: edge #{id} refused with {} candidate(s)",
             attempts.len()
         ),

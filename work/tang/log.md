@@ -49,6 +49,9 @@ is not ATREST's territory and this note is not a claim on it.
 
 Signed: (ATREST orchestrator)
 
+**Seam note (CONTACT-11, 2026-09-29).** `chord_join::chart_box_defect` and `ChartBox` are deleted; the cone and torus trims decide their box through `solid_contain::chart_polygon_box` instead, and nothing else called them.
+
+Signed: (CONTACT-11 implementer)
 ## Announced seam from TOPO (2026-09-24)
 
 TOPO's `kevs-fan-merge-needs-a-re-describing-kill-door` (branch

@@ -2,10 +2,11 @@
 id: a-notched-full-turn-wall-has-no-ray-trim
 kind: issue
 title: point_in_solid refuses at bool_wall_trim_period on a full-turn cylinder wall notched by a cut: the ray trim's cosine window needs a sub-period face
-status: open
+status: closed
 opened: 2026-10-03
 priority: P2
 cost: M
+closed: 2026-10-08
 ---
 
 
@@ -38,3 +39,7 @@ although the face is not the whole band.
 A ray trim for a full-turn wall face that is not a plain band (the
 notch's own outline read against the height window), with the
 fixture's witnesses agreeing on set membership.
+
+## Closed as a duplicate (2026-10-08)
+
+The same lane and the same fix as `revolved-tube-wall-refuses-bool-wall-trim-period`, which carries it.
