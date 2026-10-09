@@ -3,6 +3,7 @@
 //! deterministic f64 lane. Raw `f64` comparisons are legal throughout
 //! this file (structure selection, never a topology decision).
 
+use crate::exact::two_sum;
 use crate::readable::Readable;
 use core::num::NonZeroUsize;
 
@@ -189,6 +190,102 @@ impl core::fmt::Display for KnotVectorIssue {
         }
     }
 }
+
+/// Why [`KnotVector::mirror_symmetric`] refuses: the vector is not its
+/// own reflection about its domain, or the reflection cannot be
+/// computed.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum KnotMirrorError {
+    /// The reflection `lo + hi` overflows to an infinity, so the domain
+    /// names no reflection and the test is not defined on it.
+    ///
+    /// Without the guard the arithmetic would not go WRONG: an
+    /// overflowing head carries a NaN residual, a NaN compares equal to
+    /// nothing, and the scan would refuse at index 0 with an
+    /// [`Self::AsymmetricPair`] naming the clamp pair — a true verdict
+    /// with a misleading reason, since that pair is the one pair the
+    /// scan is guaranteed to hold. The guard names the DOMAIN's defect
+    /// instead of an innocent pair. It also refuses a vector that IS
+    /// its own reflection in ℝ but whose `lo + hi` overflows: the test
+    /// that would admit it cannot be run.
+    ///
+    /// The same NaN residual settles the per-pair case the guard does
+    /// not cover. A pair whose own head overflows while `lo + hi` stays
+    /// finite is necessarily asymmetric — its real sum exceeds the
+    /// finite `lo + hi` — and its NaN residual refuses it, which is the
+    /// right answer for the right reason.
+    ReflectionNotFinite {
+        /// The domain's start.
+        lo: f64,
+        /// The domain's end.
+        hi: f64,
+    },
+    /// Knots `index` and `mirror_index` do not sum to `lo + hi`, so the
+    /// vector is not its own reflection.
+    AsymmetricPair {
+        /// The lower index of the offending pair.
+        index: usize,
+        /// Its partner, `m − index`, where `m` is the last knot index.
+        mirror_index: usize,
+        /// The knot at `index`.
+        knot: f64,
+        /// The knot at `mirror_index`.
+        mirror_knot: f64,
+        /// The domain's start.
+        lo: f64,
+        /// The domain's end.
+        hi: f64,
+    },
+}
+
+impl core::fmt::Display for KnotMirrorError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            KnotMirrorError::ReflectionNotFinite { lo, hi } => write!(
+                f,
+                "knot mirror: the domain [{}, {}] has no finite reflection sum, so whether \
+                 the vector is its own reflection cannot be decided. Recourse: re-express \
+                 the vector on a domain whose ends sum finitely and ask on that",
+                Readable(*lo),
+                Readable(*hi)
+            ),
+            KnotMirrorError::AsymmetricPair {
+                index,
+                mirror_index,
+                knot,
+                mirror_knot: _,
+                lo,
+                hi,
+            } if index == mirror_index => write!(
+                f,
+                "knot mirror: the middle knot {index} ({}) is not the midpoint of [{}, {}]. \
+                 Recourse: supply the midpoint there",
+                Readable(*knot),
+                Readable(*lo),
+                Readable(*hi)
+            ),
+            KnotMirrorError::AsymmetricPair {
+                index,
+                mirror_index,
+                knot,
+                mirror_knot,
+                lo,
+                hi,
+            } => write!(
+                f,
+                "knot mirror: knots {index} and {mirror_index} ({}, {}) do not sum to {} \
+                 exactly. Recourse: supply partners whose sum is exactly that; dyadic \
+                 fractions of the domain mirror exactly, while decimal pairs such as \
+                 0.1 and 0.9 round apart",
+                Readable(*knot),
+                Readable(*mirror_knot),
+                Readable(lo + hi)
+            ),
+        }
+    }
+}
+
+impl core::error::Error for KnotMirrorError {}
 
 /// A validated **clamped** knot vector with its degree — the structural
 /// half of every B-spline/NURBS entity (knots and degree are `f64`/
@@ -645,6 +742,85 @@ impl KnotVector {
             .chain(core::iter::repeat_n(hi, p + 1))
             .collect();
         Self::clamped(knots, p)
+    }
+
+    /// Refuses unless this vector is its own reflection about its
+    /// domain: `k_i + k_{m−i} = lo + hi` in ℝ for every `i`, with `m`
+    /// the last knot index. Reflecting a knot vector (`k ↦ lo + hi − k`
+    /// with the order reversed) carries each basis function to its
+    /// mirror partner, so on a vector that passes, a net read backwards
+    /// over the SAME knots is the original reparameterized by
+    /// `t ↦ lo + hi − t`.
+    ///
+    /// # What the symmetric vectors actually are
+    ///
+    /// "Symmetric" means symmetric AFTER decimal-to-binary rounding,
+    /// which is narrower than it reads: an interior pair a user types
+    /// as mirrored — thirds, `0.1/0.9`, `0.2/0.8`, `0.3/0.7`,
+    /// `0.45/0.55` — has a real sum that misses `lo + hi` by one 2Sum
+    /// residual (±5.55e−17, or half that for `0.1/0.9`) and REFUSES,
+    /// while `0.4/0.6` and every dyadic pair accept.
+    ///
+    /// # Why the test is exact, and why the clamp runs never trip it
+    ///
+    /// The condition is an identity between REAL numbers, and
+    /// `fl(k_i + k_{m−i}) == fl(lo + hi)` does not decide it: on
+    /// `lo = 0`, `hi = 1` the pair `(½, ½ + 2⁻⁵³)` rounds to `1.0` and
+    /// would pass while reflecting an ulp away from its partner. So the
+    /// two sums are compared AS EXACT SUMS — each held as a rounded
+    /// head plus its exact residual ([`two_sum`]) and both components
+    /// compared under IEEE equality, which is equality of the real sums
+    /// and nothing weaker. (IEEE equality, not bit equality: `-0.0`
+    /// equals `0.0`, so a vector carrying a `-0.0` where its partner
+    /// carries `0.0` is accepted as the symmetric vector it really is.)
+    /// Every step is one correctly-rounded binary64 operation, so the
+    /// verdict is a function of the knots' bits alone: the same answer
+    /// on every target and at every optimization level. The one case
+    /// the arithmetic cannot decide is a `lo + hi` that overflows, and
+    /// that is refused rather than answered.
+    ///
+    /// Knots are finite by construction; a NaN or infinite knot would
+    /// in any case give a residual that compares equal to nothing, so
+    /// the test would refuse it rather than admit it.
+    ///
+    /// The clamped ends never trip it. [`Self::domain`] reads `lo` and
+    /// `hi` off `knots[p]` and `knots[m − p]`, and the end runs are
+    /// equal under `==` (the comparison [`Self::clamped`] ran), so for
+    /// every `i ≤ p` the pair `(k_i, k_{m−i})` equals `(lo, hi)` in
+    /// value and the test compares a value against itself. Only the
+    /// interior can refuse.
+    ///
+    /// # Errors
+    ///
+    /// [`KnotMirrorError::ReflectionNotFinite`] when `lo + hi`
+    /// overflows; otherwise [`KnotMirrorError::AsymmetricPair`] naming
+    /// the first pair, from the outside in, whose exact sum misses.
+    ///
+    /// [`two_sum`]: crate::exact::two_sum
+    pub fn mirror_symmetric(&self) -> Result<(), KnotMirrorError> {
+        let (lo, hi) = self.domain();
+        let reflection = two_sum(lo, hi);
+        if !reflection.0.is_finite() {
+            return Err(KnotMirrorError::ReflectionNotFinite { lo, hi });
+        }
+        let k = &self.knots;
+        let m = k.len() - 1;
+        for index in 0..=m / 2 {
+            let mirror_index = m - index;
+            // Indexing justified: index ≤ m/2 ≤ m and mirror_index ≤ m.
+            let (knot, mirror_knot) = (k[index], k[mirror_index]);
+            if two_sum(knot, mirror_knot) != reflection {
+                return Err(KnotMirrorError::AsymmetricPair {
+                    index,
+                    mirror_index,
+                    knot,
+                    mirror_knot,
+                    lo,
+                    hi,
+                });
+            }
+        }
+        Ok(())
     }
 
     /// The index of the first (nonempty) span: `degree`.
@@ -1484,6 +1660,142 @@ mod tests {
             assert!(
                 RECOURSE_WORDS.iter().any(|w| msg.contains(w)),
                 "no recourse in: {msg}"
+            );
+        }
+    }
+
+    /// The test decides the REAL identity, not the rounded one. This
+    /// vector's interior pair sums to `1 + 2⁻⁵³`, which rounds to
+    /// exactly `lo + hi` — a comparison of rounded sums would admit it.
+    #[test]
+    fn a_pair_whose_rounded_sum_hits_the_midline_still_refuses() {
+        let half_up = f64::from_bits(0.5f64.to_bits() + 1);
+        assert_eq!(
+            0.5 + half_up,
+            0.0 + 1.0,
+            "the rounded sums agree, so only an exact test can tell these apart"
+        );
+        assert_ne!(half_up, 0.5, "the partner really is an ulp off the midline");
+        let e = kv(&[0.0, 0.0, 0.0, 0.5, half_up, 1.0, 1.0, 1.0], 2)
+            .mirror_symmetric()
+            .unwrap_err();
+        assert_eq!(
+            e,
+            KnotMirrorError::AsymmetricPair {
+                index: 3,
+                mirror_index: 4,
+                knot: 0.5,
+                mirror_knot: half_up,
+                lo: 0.0,
+                hi: 1.0,
+            },
+            "an exact-sum test refuses what a rounded-sum test would admit"
+        );
+        assert!(
+            e.to_string().contains("do not sum to 1 exactly."),
+            "the message states the reflection it wanted, evaluated: {e}"
+        );
+    }
+
+    /// A self-paired middle knot is compared against itself, and its
+    /// refusal reads as a midpoint claim rather than as a pair that does
+    /// not sum to itself. The midpoint is accepted.
+    #[test]
+    fn a_self_paired_knot_refuses_as_a_midpoint() {
+        assert_eq!(
+            kv(&[0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).mirror_symmetric(),
+            Ok(()),
+            "the middle knot is the midpoint"
+        );
+        let e = kv(&[0.0, 0.0, 0.0, 0.25, 1.0, 1.0, 1.0], 2)
+            .mirror_symmetric()
+            .unwrap_err();
+        assert_eq!(
+            e,
+            KnotMirrorError::AsymmetricPair {
+                index: 3,
+                mirror_index: 3,
+                knot: 0.25,
+                mirror_knot: 0.25,
+                lo: 0.0,
+                hi: 1.0,
+            }
+        );
+        assert!(
+            e.to_string().starts_with(
+                "knot mirror: the middle knot 3 (0.25) is not the midpoint of [0, 1]."
+            ),
+            "{e}"
+        );
+    }
+
+    /// A domain whose reflection overflows is refused rather than
+    /// answered. Without the guard the scan would not pass vacuously —
+    /// the overflowing head's residual is a NaN and compares equal to
+    /// nothing — it would refuse at index 0 and blame the clamp pair;
+    /// the guard names the domain's defect instead.
+    #[test]
+    fn a_domain_with_no_finite_reflection_refuses() {
+        let (lo, hi): (f64, f64) = (1e308, 1.5e308);
+        assert!(!(lo + hi).is_finite(), "the fixture's reflection overflows");
+        assert!(
+            two_sum(lo, hi).1.is_nan(),
+            "so the residual is a NaN, and an unguarded scan would refuse at index 0"
+        );
+        let e = kv(&[lo, lo, lo, hi, hi, hi], 2)
+            .mirror_symmetric()
+            .unwrap_err();
+        assert_eq!(
+            e,
+            KnotMirrorError::ReflectionNotFinite { lo, hi },
+            "the test refuses a reflection it cannot compute"
+        );
+        assert!(
+            e.to_string().starts_with(
+                "knot mirror: the domain [1e308, 1.5e308] has no finite reflection sum"
+            ),
+            "the refusal names a domain at the ceiling of the range readably: {e}"
+        );
+        // And it refuses a vector that IS its own reflection in ℝ, for
+        // the same reason: the test that would admit it cannot be run.
+        assert_eq!(
+            kv(&[lo, lo, lo, 1.25e308, hi, hi, hi], 2).mirror_symmetric(),
+            Err(KnotMirrorError::ReflectionNotFinite { lo, hi }),
+            "a genuinely symmetric vector whose lo + hi overflows is refused too"
+        );
+    }
+
+    /// Every [`KnotMirrorError`] rendering names exactly one labelled
+    /// repair, like the module's other refusals.
+    #[test]
+    fn every_knot_mirror_error_arm_names_a_recourse() {
+        let pair = |index, mirror_index| KnotMirrorError::AsymmetricPair {
+            index,
+            mirror_index,
+            knot: 0.25,
+            mirror_knot: 0.5,
+            lo: 0.0,
+            hi: 1.0,
+        };
+        let arms = [
+            KnotMirrorError::ReflectionNotFinite {
+                lo: 1e308,
+                hi: 1.5e308,
+            },
+            pair(3, 3),
+            pair(3, 4),
+        ];
+        for arm in &arms {
+            let text = arm.to_string();
+            assert_eq!(
+                test_utils::refusal::recourse_markers(&text),
+                1,
+                "not exactly one labelled repair: {text}"
+            );
+            let lower = text.to_lowercase();
+            assert!(
+                ["supply", "re-express"].iter().any(|w| lower.contains(w)),
+                "no recourse in: {text}"
             );
         }
     }

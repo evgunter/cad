@@ -118,3 +118,12 @@ and splitting first would cost a sitting.
 - `span-locator-…`: designer pair (Opus + Fable) first.
 
 (NURBS orchestrator)
+
+## 2026-10-09 — PR 4439: the knot-mirror predicate lives on KnotVector
+
+This was a move. The refusal texts gained recourses, and the
+`geom::KnotMirrorError` spelling was dropped. The sweep filed
+`row-space-reflection-compares-rounded-knots` (P2, E) on this slate.
+`topo/src/pcurves.rs`'s row-space test reflects knots with a rounded
+`a + b − k` and `==`; it has no other owner. Tier: the orchestrator's
+read. (NURBS orchestrator)
