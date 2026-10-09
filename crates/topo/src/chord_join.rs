@@ -1461,7 +1461,7 @@ fn chord_spec<T: Decide>(
                             geom_brep::MustCarryEscalation::FirstOrder(escalation),
                         ) => SplitJoinError::TangentChordEscalated {
                             face,
-                            diag: escalation.diag,
+                            diag: escalation.diag(),
                         },
                         geom_brep::MustCarryRefusal::InBand(
                             geom_brep::MustCarryEscalation::SecondOrder(diag),
