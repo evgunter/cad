@@ -108,17 +108,19 @@ impl Unsized {
     /// as a stopgap, beside re-exporting the file more precisely
     /// ([`FileCoincidence::miss_recourse_in_file`]). A residual passes
     /// only at zero, so its refused margin is a miss, on the sign-certain
-    /// arm too where that arm carries its reading.
+    /// arm too, which every residual refusal carries its reading on.
     #[must_use]
     pub fn residual_in_file(self, arm: RefusedArm<'_>, file: FileCoincidence) -> String {
         let miss = match arm {
             RefusedArm::Undecided(cause) => MissReading::Banded(cause.margin, cause.band),
             RefusedArm::Zero(Classified { margin, band }) => MissReading::Banded(margin, band),
             RefusedArm::SignCertain(Some(margin)) => MissReading::Definite(margin),
-            RefusedArm::SignCertain(None) => MissReading::DefiniteUnvalued,
-            // A straddle carries no single reading of the miss to compare
-            // with the file's coincidence distance: it ends at rest.
-            RefusedArm::Straddle => return self.recourse(arm, Reading::AtRest),
+            // A straddle, or a sign-certain arm without its reading,
+            // carries no single reading of the miss to compare with the
+            // file's coincidence distance: it ends at rest.
+            RefusedArm::SignCertain(None) | RefusedArm::Straddle => {
+                return self.recourse(arm, Reading::AtRest);
+            }
         };
         let source = match self {
             Self::Defect => MissSource::File,
@@ -483,7 +485,7 @@ mod tests {
                         stored,
                         at_zero,
                     };
-                    let file = FileCoincidence::new(2e-9, geom_core::Tol::witness());
+                    let file = FileCoincidence::new(2e-9);
                     for reading in [Some(Reading::Build), Some(Reading::AtRest), None] {
                         let end = |arm: RefusedArm<'_>| match reading {
                             Some(reading) => decision.recourse(arm, reading),
@@ -588,7 +590,7 @@ mod tests {
             "Recourse: L; at rest"
         );
         let in_file = |arm: RefusedArm<'_>, eps_in| {
-            decision.recourse_in_file(arm, FileCoincidence::new(eps_in, geom_core::Tol::witness()))
+            decision.recourse_in_file(arm, FileCoincidence::new(eps_in))
         };
         let zero_in_file = |eps_in| {
             in_file(
@@ -637,11 +639,12 @@ mod tests {
 
     /// **A residual's sign-certain arm is read by the margin it carries**
     /// at the import door: a definite miss within ε_in says it lies
-    /// within, where the arm with no reading can only say it may.
+    /// within, and an arm with no reading compares nothing with ε_in and
+    /// ends at rest.
     #[test]
     fn a_sign_certain_residual_reads_its_carried_margin_at_the_import_door() {
         let tol = geom_core::Tol::witness();
-        let file = FileCoincidence::new(1e3 * tol.eps(), tol);
+        let file = FileCoincidence::new(1e3 * tol.eps());
         let miss = MarginDiag::value(1e2 * tol.eps());
         for residual in [Unsized::Defect, Unsized::LastResort] {
             let valued = residual.residual_in_file(RefusedArm::SignCertain(Some(miss)), file);
@@ -650,9 +653,10 @@ mod tests {
                 valued.starts_with("This miss lies beyond the tolerance and within the file's"),
                 "{residual:?}: {valued}"
             );
-            assert!(
-                unvalued.contains("may lie within the file's"),
-                "{residual:?}: {unvalued}"
+            assert_eq!(
+                unvalued,
+                residual.recourse(RefusedArm::SignCertain(None), Reading::AtRest),
+                "{residual:?}"
             );
         }
     }
