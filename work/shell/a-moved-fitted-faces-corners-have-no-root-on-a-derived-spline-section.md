@@ -7,6 +7,7 @@ opened: 2026-10-09
 priority: P2
 refs: [a-fitted-wall-has-no-section-with-a-moved-cap]
 pr: 4472
+closed: 2026-10-09
 ---
 
 Found by the unit that routed plane × `Approx` over the fit
@@ -47,7 +48,10 @@ section from the section's domain end at that corner (the seeds
 end within ε of the plane as the root. The fit is still not rooted along
 a held edge. A fitted cap wider than its face moves and builds
 (`encl_curved_loft_shell.rs`,
-`a_moved_fitted_cap_stands_its_corners_on_the_held_sides`); what stops
+`a_moved_fitted_cap_stands_its_corners_on_the_held_sides`), and so does
+a curved one at ε = 1e-6 (`a_moved_curved_fitted_cap_builds_where_its_fit_certifies`),
+which re-opens ENCL's
+`a-rigid-map-can-still-refuse-a-sound-approx-face-at-its-edges-or-meters`; what stops
 the rest is filed: `a-plane-section-along-a-fits-window-edge-proves-no-one-arc`
 (SSIEDGE, the whole-fit cap's recertify),
 `a-fitted-cap-cut-by-planes-has-a-sub-range-trim-image` (QUAD, its

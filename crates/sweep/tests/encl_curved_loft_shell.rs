@@ -805,3 +805,82 @@ fn a_moved_fitted_cap_stands_its_corners_on_the_held_sides() {
         );
     }
 }
+
+/// **A curved fitted cap moves where its fit certifies.** The unit
+/// box's cap is swapped for a biquadratic NURBS bump over `[-1, 3]²`
+/// (its middle control point raised 0.1 above `z = 1`) and moved by
+/// `±0.05`. Where ε is looser than the offset fit reaches (about
+/// 2.4e-9 m in its round budget) the move builds: its corners are the
+/// side planes' roots along the plane × fit sections, tier 3 refuses the
+/// cap's volume alone
+/// (`work/quad/a-fitted-cap-cut-by-planes-has-a-sub-range-trim-image.md`),
+/// and the moved body maps rigidly. Tighter, the fit refuses first.
+#[test]
+fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies() {
+    use crate::common::approx::{top_face, unit_box};
+    use std::sync::Arc;
+    let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2)
+        .expect("a clamped quadratic knot vector");
+    let mut control = Vec::new();
+    for x in [-1.0, 1.0, 3.0] {
+        for y in [-1.0, 1.0, 3.0] {
+            let bump = if x == 1.0 && y == 1.0 { 0.1 } else { 0.0 };
+            control.push(geom_core::Point3::new(x, y, 1.0 + bump));
+        }
+    }
+    let patch =
+        geom::NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 9]).expect("a biquadratic bump");
+    let eps = Tol::witness().eps();
+    for d in [0.05, -0.05] {
+        let mut body = unit_box();
+        let cap = top_face(&body);
+        // Lifts RechartStrandsDescriptions: the cap's chart is the lane under test; its edges are not.
+        body.set_face_surface_unvouched_for_tests(
+            cap,
+            topo::FaceSurface::New {
+                surface: geom::Surface::Nurbs(Arc::new(patch.clone())),
+                sense: true,
+            },
+        )
+        .expect("the cap takes a NURBS surface");
+        let moved = topo::replace_face_offset(&mut body, cap, d, Tol::witness());
+        if eps < 2e-9 {
+            assert!(
+                matches!(
+                    moved,
+                    Err(ReplaceFaceError::Fit {
+                        error: geom_brep::OffsetFitError::BudgetExhausted { .. },
+                        ..
+                    })
+                ),
+                "eps {eps:e}, d = {d}: expected the cap's fit to exhaust its budget, got {moved:?}"
+            );
+            continue;
+        }
+        moved.unwrap_or_else(|e| panic!("eps {eps:e}, d = {d}: the curved fitted cap moves: {e}"));
+        let refusals = topo::validate_geometric(&body, Tol::witness())
+            .expect_err("the fitted cap's quadrature is not built");
+        assert!(
+            matches!(
+                refusals.as_slice(),
+                [topo::ValidationError::VolumeUncomputable {
+                    source: topo::MassPropsError::Face {
+                        face,
+                        source: geom_brep::PropsError::QuadratureUnsupported { what },
+                        ..
+                    },
+                    ..
+                }] if *face == cap
+                    && what.starts_with("a General trim image whose carrier interval is not its own knot domain")
+            ),
+            "eps {eps:e}, d = {d}: expected only the fitted cap's quadrature refusal, got {refusals:?}"
+        );
+        let rigid = geom_core::Affine3::rotation_about_axis(
+            geom_core::Point3::new(0.3, -0.2, 0.1),
+            Vec3::new(0.0, 0.0, 1.0),
+            0.7,
+        );
+        topo::transform_rigid(&body, &rigid, Tol::witness())
+            .unwrap_or_else(|e| panic!("eps {eps:e}, d = {d}: the moved body maps rigidly: {e}"));
+    }
+}
