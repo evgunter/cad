@@ -34,6 +34,6 @@
 - `work/issues/an-ellipse-span-...md` "A note for JOIN": the argument that the old fallback never shipped a body rests on the certifier's meter staying conservative. It is unguarded, which the PR body admits. Confidence: likely.
 - Q6: row 2 is "pinned by a debug assertion, not a row", and that deviation is disclosed with no schedule. If the invariant is ever broken, no row exists to show it. Confidence: likely.
 
-Probes: `review-probes/pr4396-probes.patch` (forced-lane logging, the steep-ellipse logger, the non-convex family) and `review-probes/margin2.py`.
+Probes: `review-probes/pr4396-probes.patch` (forced-lane logging, the old-vs-new sign probe, the steep-ellipse logger, the non-convex family; mutants M1-M4 are scripted in `mutants.py`) and `review-probes/margin2.py`.
 
 REVIEW COMPLETE

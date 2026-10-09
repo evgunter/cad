@@ -99,10 +99,23 @@ index ea7af6b8..9d564919 100644
 +    }
 +}
 diff --git a/crates/topo/src/boolean/join.rs b/crates/topo/src/boolean/join.rs
-index de5eeaa5..bed6bb55 100644
+index de5eeaa5..33ecad2e 100644
 --- a/crates/topo/src/boolean/join.rs
 +++ b/crates/topo/src/boolean/join.rs
-@@ -2766,7 +2766,9 @@ fn choose_roles<T: Decide>(
+@@ -1343,6 +1343,12 @@ fn turned_past<T: geom_core::Real>(from: Turn<T>, p: geom_core::Point3<T>) -> Ma
+     let u = from.site - from.center;
+     let radial = u - from.axis * from.axis.dot(u);
+     let normal = from.axis.cross(radial);
++    {
++        let old = normal.dot(p - from.center) * from.sense / radial.norm();
++        let new = normal.dot(p - from.site) * from.sense / normal.dot(from.tangent).abs();
++        let sinpsi = normal.dot(from.tangent).abs() / radial.norm();
++        eprintln!("SIGNPROBE {:?} {:?} {:?}", sinpsi, old, new);
++    }
+     Margin::levered_inv(
+         normal.dot(p - from.site) * from.sense,
+         normal.dot(from.tangent).abs(),
+@@ -2766,7 +2772,9 @@ fn choose_roles<T: Decide>(
              _ => false,
          };
          if across {
@@ -113,7 +126,7 @@ index de5eeaa5..bed6bb55 100644
                  Capture::Clean => Ok(RoleLane::Decided((x, y))),
                  Capture::RingHeld | Capture::Separates => Err(desync(
                      "a match across its segment's edge separates a loose scaffolding pair",
-@@ -2850,7 +2852,11 @@ fn ring_order<T: Decide>(
+@@ -2850,7 +2858,11 @@ fn ring_order<T: Decide>(
      ccw: bool,
  ) -> Result<(HalfEdgeKey, HalfEdgeKey), BooleanError> {
      let (h1, h2) = if ccw { (ea, ra) } else { (ra, ea) };
