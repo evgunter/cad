@@ -66,3 +66,25 @@ ball (`ball(1) ∩ |y| ≤ 0.6`) against a slab toward latitude 10°
 `a_slab_tilted_across_the_lens_seams_builds`,
 `a_slab_cutting_a_cap_off_a_banded_ball_builds`, which stop at the
 tiers and the volume through `assert_solid` for that reason).
+
+## Evidence (2026-10-09, JOIN `join/sphere-pair-whole-circle`, PR 4344)
+
+Two spheres crossing in a circle no edge reaches are re-cut by the
+extent scan's sphere arm. A closed ball is re-charted with its pole on
+the centre line, so the circle is a latitude of its chart and the
+result meshes. A trimmed face, or a closed ball crossed along two
+non-parallel axes, is cut along a meridian through the circle instead.
+That circle lies tilted against the face's chart, and every result
+holding such a face refuses here (`NotIsoRectangle`) on every op in
+both orders, though it builds sound to its closed form:
+
+- the lens union of two unit balls against `ball(0.3)` crossing one of
+  its trimmed faces;
+- two trimmed balls;
+- a trimmed ball cut beside its pole;
+- a small ball crossing both faces of a two-sphere lens;
+- a unit ball crossed by two partners along non-parallel axes.
+
+These are the `Tilted` and `Lumps` rows of
+`crates/sweep/tests/spheres_crossing_off_every_edge.rs`. They go green
+here when this lane lands.
