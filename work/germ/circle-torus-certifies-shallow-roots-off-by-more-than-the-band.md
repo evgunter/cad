@@ -4,7 +4,7 @@ kind: issue
 title: The circle x torus door certifies shallow-crossing roots up to 166 K-eps along the carrier from the truth at eps 1e-12: its subdivision passes no root-slack meter
 status: closed
 opened: 2026-10-08
-closed: 2026-10-08
+closed: 2026-10-09
 branch: germ/circle-torus-outside-band
 pr: 4357
 priority: P0
