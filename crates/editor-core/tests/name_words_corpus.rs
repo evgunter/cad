@@ -78,9 +78,16 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// body's under the placement, said "the world copy of …", four words
 /// over the body's own. The p99s rise by those four words and the
 /// totals by the copies' names; the p50s and the maxima held.
+///
+/// Merged with main's blend change (`d5a518b1b2`, the die's blend ends
+/// with the join), which on main moved the full p99 97 → 98 and the
+/// total down: the die's names are said once more each as their copy's,
+/// so its longer names weigh twice in the tail and the full p99 reads
+/// 106. The total fell by twice main's drop; the p50s, the scoped row
+/// and the maxima held.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
     ("scoped faces", [16, 38, 38, 49_844]),
-    ("full", [19, 101, 181, 367_390]),
+    ("full", [19, 106, 181, 365_724]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -105,7 +112,8 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// INTENT stage 2 PR C: the words that moved are the copies' names, new
 /// with the placements ("the world copy of …"), and the node tags of
 /// the placements; no name a document held before says another word.
-const SAID_DIGEST: u64 = 0x5504_789e_fe7d_1447;
+/// Re-taken merged with main's blend change, whose die names it says.
+const SAID_DIGEST: u64 = 0x103d_5735_924f_211b;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

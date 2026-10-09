@@ -921,8 +921,8 @@ fn run_at<T: editor_core::EvalScalar>(
 /// placement's copy. The id-free rows held.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
     (1e-9, 0xd990_dfd6_ae82_6190),
-    (1e-6, 0xd248_17ed_3993_bb6d),
-    (1e-12, 0x6667_3577_a606_0292),
+    (1e-6, 0xa569_1fea_927b_069a),
+    (1e-12, 0xcc6d_951f_f897_0e1d),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, roles, faults and
