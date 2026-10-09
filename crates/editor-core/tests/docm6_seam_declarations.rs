@@ -56,7 +56,7 @@ fn block_part(label: &str, w: f64, d: f64, h: f64) -> (ProfileDoc, RecipeNodeId)
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(h),
             side: ExtrudeSide::Along,
         },
@@ -1152,8 +1152,8 @@ fn union_with_far_cube(
         doc,
         Node::Boolean {
             op: editor_core::BooleanOp::Union,
-            a,
-            b: far,
+            a: a.into(),
+            b: far.into(),
             declare: Vec::new(),
         },
     )
@@ -1209,7 +1209,7 @@ fn a_transformed_product_still_refuses() {
     let (doc, moved) = insert(
         doc,
         Node::Transform {
-            input: instance,
+            input: instance.into(),
             placement: editor_core::Placement::literal(&Frame::translation([0.0, 10.0, 0.0])),
         },
     );
@@ -1230,7 +1230,7 @@ fn a_placed_union_of_a_product_refuses() {
     let (doc, group) = insert(
         doc,
         Node::PlacedUnion {
-            input: instance,
+            input: instance.into(),
             count: None,
             kind: editor_core::PatternKind::Explicit(vec![
                 Frame::IDENTITY,
@@ -1254,7 +1254,7 @@ fn a_face_frame_on_a_product_evaluates() {
     let (doc, datum) = insert(
         doc,
         Node::Datum(editor_core::Datum::FaceFrame {
-            at: instance,
+            at: instance.into(),
             face: wrap(instance, in_part(cubes[1], cube_body, CapEnd::End)),
             spin: fixture::ang(0.0),
         }),

@@ -143,7 +143,10 @@ fn probe_census_pair_e2e() {
                     assert_unified(&msg, recourse_for(&e));
                     // The margin is developer detail: it survives in the
                     // payload, and the sentence says what it means.
-                    assert!(msg.contains("too close to call at this tolerance"), "{msg}");
+                    assert!(
+                        msg.contains("whether two parts of the body touch is undecided"),
+                        "{msg}"
+                    );
                     assert!(
                         format!("{e:?}").contains("Value(")
                             || format!("{e:?}").contains("Enclosure"),

@@ -137,18 +137,18 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
         ProgramStep::TangentArcTo(ProgramTarget::StartArriving),
     ]);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![outline],
         ids: Vec::new(),
     }));
     let thickness = len(1.0e-3);
     let body = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: thickness.clone(),
         side: ExtrudeSide::Along,
     });
     let bore_profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(HALF_L), len(0.0)],
             radius: plen("bore_r"),
@@ -156,7 +156,7 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
         ids: Vec::new(),
     }));
     let bore = r.insert(Node::Extrude {
-        profile: bore_profile,
+        profile: bore_profile.into(),
         distance: thickness,
         side: ExtrudeSide::Along,
     });
@@ -191,7 +191,7 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
     let wall = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
     let measure = r.insert(Node::measure(wall, refs).expect("both indices in range"));
     let assertion = r.insert(Node::Assertion {
-        measure,
+        measure: measure.into(),
         bound: len(0.5e-3),
         dir: editor_core::AssertionDir::AtLeast,
     });

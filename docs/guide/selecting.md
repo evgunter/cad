@@ -78,10 +78,10 @@ let (next, frame) = insert(
 doc = next;
 let (next, profile) = insert(
     &doc,
-    Node::Profile(ProfileProgram { plane: frame, loops: vec![square], ids: Vec::new() }),
+    Node::Profile(ProfileProgram { frame: frame.into(), loops: vec![square], ids: Vec::new() }),
 );
 doc = next;
-let (next, cube) = insert(&doc, Node::Extrude { profile, distance: len(1.0), side: ExtrudeSide::Along });
+let (next, cube) = insert(&doc, Node::Extrude { profile: profile.into(), distance: len(1.0), side: ExtrudeSide::Along });
 doc = next;
 // The datum the position rule is written against — one argument,
 // and the rule now moves WITH the part.
@@ -194,13 +194,13 @@ let (next, frame) = insert(
 doc = next;
 let (next, profile) = insert(
     &doc,
-    Node::Profile(ProfileProgram { plane: frame, loops: vec![square], ids: Vec::new() }),
+    Node::Profile(ProfileProgram { frame: frame.into(), loops: vec![square], ids: Vec::new() }),
 );
 doc = next;
 let (next, cube) = insert(
     &doc,
     Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: Formula::literal(1.0, Dimension::Length).expect("a length"),
         side: ExtrudeSide::Along,
     },
@@ -364,13 +364,13 @@ let (next, frame) = insert(
 doc = next;
 let (next, profile) = insert(
     &doc,
-    Node::Profile(ProfileProgram { plane: frame, loops: vec![square], ids: Vec::new() }),
+    Node::Profile(ProfileProgram { frame: frame.into(), loops: vec![square], ids: Vec::new() }),
 );
 doc = next;
 let (next, cube) = insert(
     &doc,
     Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: Formula::literal(1.0, Dimension::Length).expect("a length"),
         side: ExtrudeSide::Along,
     },
@@ -452,8 +452,8 @@ let frame_at = |z: f64| {
     })
 };
 // v4: the profile payload is its PROGRAM, drawn on a frame NODE.
-let footprint = |x0: f64, y0: f64, x1: f64, y1: f64, plane| ProfileProgram {
-    plane,
+let footprint = |x0: f64, y0: f64, x1: f64, y1: f64, plane: RecipeNodeId| ProfileProgram {
+    frame: plane.into(),
     loops: vec![
         LoopProgram::polygon([(x0, y0), (x1, y0), (x1, y1), (x0, y1)])
             .expect("finite corners"),
@@ -467,16 +467,16 @@ let footprint = |x0: f64, y0: f64, x1: f64, y1: f64, plane| ProfileProgram {
 let doc = Doc::<ProfileProgram>::empty_derived("select-example", tol);
 let (doc, ground) = insert(&doc, frame_at(0.0));
 let (doc, pf1) = insert(&doc, Node::Profile(footprint(0.0, 0.0, 1.0, 1.0, ground)));
-let (doc, base) = insert(&doc, Node::Extrude { profile: pf1, distance: len(1.0), side: ExtrudeSide::Along });
+let (doc, base) = insert(&doc, Node::Extrude { profile: pf1.into(), distance: len(1.0), side: ExtrudeSide::Along });
 let (doc, cap) = insert(&doc, frame_at(1.0));
 let (doc, pf2) = insert(&doc, Node::Profile(footprint(0.25, 0.25, 0.75, 0.75, cap)));
-let (doc, block) = insert(&doc, Node::Extrude { profile: pf2, distance: len(0.5), side: ExtrudeSide::Along });
+let (doc, block) = insert(&doc, Node::Extrude { profile: pf2.into(), distance: len(0.5), side: ExtrudeSide::Along });
 
 // Undeclared, the union refuses — coincidence is never inferred
 // from values (the coincidence ladder).
 let (doc, uni) = insert(
     &doc,
-    Node::Boolean { op: BooleanOp::Union, a: base, b: block, declare: Vec::new() },
+    Node::Boolean { op: BooleanOp::Union, a: base.into(), b: block.into(), declare: Vec::new() },
 );
 let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
 let Some(NodeResult::Failed(e)) = ev.nodes.get(&uni) else {

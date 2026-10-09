@@ -107,7 +107,7 @@ fn circle_on_frame(
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(0.0), len(0.0)],
                 radius,
@@ -125,7 +125,7 @@ fn cylinder(doc: ProfileDoc, radius: Formula) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(2.0 * H),
             side: ExtrudeSide::Along,
         },
@@ -174,12 +174,12 @@ fn both_sweeps() -> BothSweeps {
     let square_loop = LoopProgram::polygon(square(0.0, 0.0, 0.5)).unwrap();
     let frame = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: frame,
+        frame: frame.into(),
         loops: vec![square_loop],
         ids: Vec::new(),
     }));
     let extruded = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -187,14 +187,14 @@ fn both_sweeps() -> BothSweeps {
     // its own frame, spun about an axis written in that same frame.
     let rev_frame = r.insert(xy_frame());
     let rev_profile = r.insert(Node::Profile(ProfileProgram {
-        plane: rev_frame,
+        frame: rev_frame.into(),
         loops: vec![LoopProgram::polygon(square(0.0, -2.0, 0.5)).unwrap()],
         ids: Vec::new(),
     }));
     let axis = r.insert(axis_in_plane(rev_frame, (0.0, 0.0), (1.0, 0.0)));
     let revolved = r.insert(Node::Revolve {
-        profile: rev_profile,
-        axis,
+        profile: rev_profile.into(),
+        axis: axis.into(),
         angle: ang(PI / 2.0),
     });
     BothSweeps {
@@ -327,11 +327,11 @@ fn both_sweeps_evaluate_in_one_document() {
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x75fa_b29e_bd61_ff55),
-        ("corner_table", 0x2051_6917_f360_a869),
-        ("cut_cylinder", 0x1dcb_d2be_97b6_5546),
-        ("boss_union", 0x829f_3b09_3668_192e),
-        ("kitchen_sink", 0x4baa_5973_ef17_d5a2),
+        ("die", 0xe819f496ce33fb3d),
+        ("corner_table", 0x9ff2be4edc3c4682),
+        ("cut_cylinder", 0x5d0713f286ea8bd4),
+        ("boss_union", 0xb1abd9871b0e6705),
+        ("kitchen_sink", 0xc2abf71ebbda8055),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
@@ -482,7 +482,7 @@ fn a_polygon_profile_attaches_nothing() {
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![LoopProgram::polygon(square(0.0, 0.0, 0.5)).unwrap()],
             ids: Vec::new(),
         }),
@@ -490,7 +490,7 @@ fn a_polygon_profile_attaches_nothing() {
     let (doc, cube) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -526,7 +526,7 @@ fn a_revolved_circle_sources_its_minor_radius_only() {
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(0.0), len(-3.0)],
                 radius: param("r"),
@@ -538,8 +538,8 @@ fn a_revolved_circle_sources_its_minor_radius_only() {
     let (doc, torus) = insert(
         doc,
         Node::Revolve {
-            profile,
-            axis,
+            profile: profile.into(),
+            axis: axis.into(),
             angle: ang(2.0 * PI),
         },
     );
@@ -597,7 +597,7 @@ fn a_revolve_over_an_on_axis_edge_attaches_by_position() {
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
         }),
@@ -606,8 +606,8 @@ fn a_revolve_over_an_on_axis_edge_attaches_by_position() {
     let (doc, solid) = insert(
         doc,
         Node::Revolve {
-            profile,
-            axis,
+            profile: profile.into(),
+            axis: axis.into(),
             angle: ang(2.0 * PI),
         },
     );
@@ -722,7 +722,7 @@ fn extruded(
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops,
             ids: Vec::new(),
         }),
@@ -730,7 +730,7 @@ fn extruded(
     let (doc, body) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(2.0 * H),
             side: ExtrudeSide::Along,
         },
@@ -936,7 +936,7 @@ fn the_memo_never_serves_a_stale_sweep_token() {
                 step: 0,
                 arg: StepArg::Radius,
             },
-            expr: len(R),
+            value: len(R).into(),
             fresh: Vec::new(),
         },
     );
@@ -1122,7 +1122,7 @@ fn a_chain_arcs_radius_reaches_its_wall_and_its_spelling_moves_the_key() {
                 step: ARC_STEP,
                 arg: StepArg::CarrierRadius,
             },
-            expr: len(R),
+            value: len(R).into(),
             fresh: Vec::new(),
         },
     );
@@ -1369,8 +1369,8 @@ fn one_declared_radius_reaches_the_germ_from_a_document() {
         doc,
         Node::Boolean {
             op: editor_core::BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );

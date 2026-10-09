@@ -55,7 +55,7 @@ fn slab(doc: ProfileDoc, cx: f64, h: f64, z0: f64, dz: f64) -> (ProfileDoc, Reci
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -72,8 +72,8 @@ fn disjoint_union() -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     )
@@ -89,8 +89,8 @@ fn voided() -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     )
@@ -224,8 +224,8 @@ fn annihilated() -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Boolean {
             op: BooleanOp::Intersect,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     )
@@ -364,8 +364,8 @@ fn in_band_void_shell_escalates_with_its_valued_ending() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -374,8 +374,8 @@ fn in_band_void_shell_escalates_with_its_valued_ending() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: hollow,
-            b: c,
+            a: hollow.into(),
+            b: c.into(),
             declare: Vec::new(),
         },
     );
@@ -644,7 +644,7 @@ fn separation_off_is_visibly_skipped_and_independent() {
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -812,8 +812,8 @@ fn washer() -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Revolve {
-            profile: p,
-            axis,
+            profile: p.into(),
+            axis: axis.into(),
             angle: ang(std::f64::consts::TAU),
         },
     )

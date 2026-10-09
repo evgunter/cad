@@ -33,7 +33,7 @@ fn build(
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
         }),
@@ -41,7 +41,7 @@ fn build(
     let (doc, ex) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side,
         },
@@ -196,7 +196,7 @@ fn run_names_agree_across_scalar_types() {
         let (doc, p) = insert(
             doc,
             Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops: vec![LoopProgram::Chain(steps)],
                 ids: Vec::new(),
             }),
@@ -209,8 +209,8 @@ fn run_names_agree_across_scalar_types() {
             insert(
                 doc,
                 Node::Revolve {
-                    profile: p,
-                    axis,
+                    profile: p.into(),
+                    axis: axis.into(),
                     angle: crate::fixture::ang(std::f64::consts::TAU),
                 },
             )
@@ -218,7 +218,7 @@ fn run_names_agree_across_scalar_types() {
             insert(
                 doc,
                 Node::Extrude {
-                    profile: p,
+                    profile: p.into(),
                     distance: len(1.0),
                     side: ExtrudeSide::Against,
                 },

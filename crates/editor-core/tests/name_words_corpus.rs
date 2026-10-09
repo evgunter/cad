@@ -99,7 +99,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// The blend's closing join moved it: the two rim-filleting documents'
 /// joined host trimlines say the set of both trim names, and their
 /// joined-away feet and trimlines say nothing.
-const SAID_DIGEST: u64 = 0xef69_a279_1947_2db8;
+const SAID_DIGEST: u64 = 0xc67dee5894fd87e5;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
@@ -523,7 +523,7 @@ fn refusals(
 
 fn extrude(r: &mut Recorder, profile: RecipeNodeId, distance: f64) -> RecipeNodeId {
     r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(distance),
         side: ExtrudeSide::Along,
     })
@@ -536,8 +536,8 @@ fn moved(r: &mut Recorder, input: RecipeNodeId, by: [f64; 3]) -> RecipeNodeId {
 fn boolean(r: &mut Recorder, op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) -> RecipeNodeId {
     r.insert(Node::Boolean {
         op,
-        a,
-        b,
+        a: a.into(),
+        b: b.into(),
         declare: Vec::new(),
     })
 }
@@ -616,7 +616,10 @@ fn documents_outside_the_corpus_read_apart_too() {
         origin: [len(0.0), len(0.5), len(0.0)],
         normal: [scl(0.0), scl(1.0), scl(0.0)],
     }));
-    r.insert(Node::Split { target: cut, tool });
+    r.insert(Node::Split {
+        target: cut.into(),
+        tool: tool.into(),
+    });
     docs.push(("pattern and split".to_owned(), r.doc.clone()));
 
     let mut r = Recorder::new();
@@ -643,7 +646,7 @@ fn documents_outside_the_corpus_read_apart_too() {
         let block = extrude(&mut r, block, 1.0);
         let plane = r.insert(fixture::frame([0.0, 0.0, 0.75], XY.0, XY.1));
         let pin = r.insert(Node::Profile(editor_core::ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![editor_core::LoopProgram::circle(0.5, 0.5, 0.2).expect("a circle")],
             ids: Vec::new(),
         }));
@@ -707,7 +710,7 @@ fn respoken_after_a_dropped_step() {
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![rod_loop(false)],
             ids: Vec::new(),
         }),
@@ -715,7 +718,7 @@ fn respoken_after_a_dropped_step() {
     let (doc, rod) = fixture::insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: fixture::len(2.0),
             side: editor_core::ExtrudeSide::Along,
         },

@@ -299,8 +299,8 @@ fn fused_pair(tag: &str, tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, R
         &mut doc,
         pncad::document::Node::Boolean {
             op: pncad::document::BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
         tol,
@@ -378,7 +378,7 @@ fn a_fused_instances_refusal_lists_the_others_in_document_order() {
         let union = common::insert_into(
             &mut doc,
             pncad::document::Node::Union {
-                members: members.clone(),
+                members: members.clone().into_iter().map(Into::into).collect(),
                 declare: Vec::new(),
             },
             tol,

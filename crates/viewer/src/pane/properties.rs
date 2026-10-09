@@ -186,10 +186,7 @@ impl ViewerBehavior<'_> {
     /// probing its range. A profile the editor cannot hold (an argument
     /// already driven) shows its refusal and the rows open.
     fn feature_rows_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, groups: &[SlotGroup]) {
-        let profile = admits(
-            self.session.committed_doc().node(node),
-            NodeKindWanted::Profile,
-        );
+        let profile = admits(self.session.committed_doc(), node, NodeKindWanted::Profile);
         if profile && self.edit_profile_ui(ui, node) {
             egui::CollapsingHeader::new("arguments")
                 .id_salt(("profile_arguments", node.0))

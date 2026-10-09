@@ -124,7 +124,7 @@ fn measures(half: f64, theta: f64) -> Result<f64, String> {
         let (next, profile) = mint(
             &doc,
             Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops: vec![square.clone()],
                 ids: Vec::new(),
             }),
@@ -133,7 +133,7 @@ fn measures(half: f64, theta: f64) -> Result<f64, String> {
         let (next, prism) = mint(
             &doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(THICKNESS),
                 side: ExtrudeSide::Along,
             },

@@ -2532,7 +2532,7 @@ mod tests {
         let (doc, _) = inserted(
             &doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(SIDE),
                 side: pncad::document::ExtrudeSide::Along,
             },

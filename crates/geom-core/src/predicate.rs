@@ -1182,23 +1182,42 @@ impl SizedPass {
     }
 }
 
-/// What an unreadable margin may mean, appended to the decision's lever
-/// by [`lever_recourse`].
+/// What an unreadable margin may mean, appended to an ending by
+/// [`noted`].
 pub const UNREADABLE_MARGIN_NOTE: &str =
     "an unreadable or collapsed margin may indicate a kernel bug worth reporting";
 
+/// **The recourse, labelled**: `Recourse: {action}`, the one spelling
+/// of the label a refusal's way through opens with.
+#[derive(Clone, Copy, Debug)]
+pub struct Recourse<A>(pub A);
+
+impl<A: fmt::Display> fmt::Display for Recourse<A> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Recourse: {}", self.0)
+    }
+}
+
+/// **An ending, then what it may mean beyond itself**: `{ending}`, then
+/// `; {note}` where one is given — the one joint between an ending and
+/// its note, for [`lever_recourse`] and `geom_brep::recourse::not_yet`.
+#[must_use]
+pub fn noted(ending: impl fmt::Display, note: Option<&str>) -> String {
+    match note {
+        Some(note) => format!("{ending}; {note}"),
+        None => ending.to_string(),
+    }
+}
+
 /// **A refusal ending in its geometry lever alone** (D4 ¶1 (i)):
-/// `Recourse: {lever}`, then `; {note}` where one is given — the
+/// [`Recourse`]`(lever)`, [`noted`] where a note is given — the
 /// [`UNREADABLE_MARGIN_NOTE`] on a poisoned margin, or a sized
 /// decision's [`SizedWords::otherwise`]. The one spelling of that
 /// ending, for [`MarginDiag::sized_recourse`]'s lever-alone arms and
 /// `geom_brep::recourse`'s table.
 #[must_use]
 pub fn lever_recourse(lever: &str, note: Option<&str>) -> String {
-    match note {
-        Some(note) => format!("Recourse: {lever}; {note}"),
-        None => format!("Recourse: {lever}"),
-    }
+    noted(Recourse(lever), note)
 }
 
 /// The words a sized decision's recourse table hands
@@ -1919,8 +1938,31 @@ impl<S: fmt::Display, E: fmt::Display> fmt::Display for UndecidedRefusal<'_, S, 
             cause,
             ending,
         } = self;
-        write!(f, "{subject} is undecided: {}. {ending}", cause.payload())
+        write!(
+            f,
+            concat!("{}", crate::undecided!(), ": {}. {}"),
+            subject,
+            cause.payload(),
+            ending
+        )
     }
+}
+
+/// **The verdict of a decision no reading settled, as a clause**:
+/// `undecided!("whether …")` is `"whether … is undecided"`, and
+/// `undecided!()` the verdict alone. The one spelling of that word, for
+/// a sentence that carries no payload (an at-rest finding, a clause
+/// inside a longer reason) and for [`Indeterminate::undecided`]'s,
+/// which does.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! undecided {
+    () => {
+        " is undecided"
+    };
+    ($subject:expr) => {
+        concat!($subject, $crate::undecided!())
+    };
 }
 
 impl fmt::Display for IndeterminatePayload<'_> {

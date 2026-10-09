@@ -84,7 +84,7 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
     let (doc, a) = insert(
         doc,
         Node::Extrude {
-            profile: pa,
+            profile: pa.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -99,7 +99,7 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
     let (doc, b) = insert(
         doc,
         Node::Extrude {
-            profile: pb,
+            profile: pb.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -115,8 +115,8 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: x,
-            b: y,
+            a: x.into(),
+            b: y.into(),
             declare: decl,
         },
     );
@@ -169,7 +169,7 @@ fn delete_and_reinsert_identical_node_recomputes() {
     let (doc, e_old) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -183,7 +183,7 @@ fn delete_and_reinsert_identical_node_recomputes() {
     let (doc, e_new) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -203,7 +203,7 @@ fn delete_and_reinsert_identical_node_recomputes() {
 }
 
 /// R4: a diamond whose BOTH mid ancestors fail — `through` must be
-/// deterministic (first blocking input in Node::inputs() order) and
+/// deterministic (first blocking input in `Doc::upstream` order) and
 /// identical across the sequential and parallel schedules; every
 /// `through` must land on a Failed entry.
 #[test]
@@ -221,7 +221,7 @@ fn diamond_with_two_failed_ancestors_has_deterministic_through() {
     let (doc, fa) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: bad(),
             side: ExtrudeSide::Along,
         },
@@ -229,7 +229,7 @@ fn diamond_with_two_failed_ancestors_has_deterministic_through() {
     let (doc, fb) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: bad(),
             side: ExtrudeSide::Along,
         },
@@ -238,8 +238,8 @@ fn diamond_with_two_failed_ancestors_has_deterministic_through() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: fa,
-            b: fb,
+            a: fa.into(),
+            b: fb.into(),
             declare: Vec::new(),
         },
     );
@@ -263,7 +263,7 @@ fn diamond_with_two_failed_ancestors_has_deterministic_through() {
                 "extrude {id:?} must fail typed (parallel={parallel})"
             );
         }
-        // through = FIRST blocking input in inputs() order = fa.
+        // through = FIRST blocking input in upstream order = fa.
         match ev.nodes.get(&join) {
             Some(NodeResult::Poisoned { through }) => {
                 assert_eq!(*through, fa, "parallel={parallel}")
@@ -367,7 +367,7 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, base) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -393,8 +393,8 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: t1,
-            b: t2,
+            a: t1.into(),
+            b: t2.into(),
             declare: Vec::new(),
         },
     );
@@ -409,10 +409,10 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: base,
+            input: base.into(),
             count: Formula::count(4),
             kind: editor_core::PatternKind::Circular {
-                axis: ax,
+                axis: ax.into(),
                 step: ang(std::f64::consts::FRAC_PI_2),
             },
         },
@@ -435,8 +435,8 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, rev) = insert(
         doc,
         Node::Revolve {
-            profile: rp,
-            axis: rax,
+            profile: rp.into(),
+            axis: rax.into(),
             angle: ang(std::f64::consts::PI),
         },
     );
@@ -451,15 +451,15 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, sp) = insert(
         doc,
         Node::Split {
-            target: u,
-            tool: pl,
+            target: u.into(),
+            tool: pl.into(),
         },
     );
     // Poisoned subgraph: failing extrude + a dependent subtract.
     let (doc, bad) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: Formula::div(len(1.0), scl(0.0)).unwrap(),
             side: ExtrudeSide::Along,
         },
@@ -468,8 +468,8 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: u,
-            b: bad,
+            a: u.into(),
+            b: bad.into(),
             declare: Vec::new(),
         },
     );
@@ -594,8 +594,8 @@ fn revolve_doc(angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, rev) = insert(
         doc,
         Node::Revolve {
-            profile: rp,
-            axis: rax,
+            profile: rp.into(),
+            axis: rax.into(),
             angle: ang(angle),
         },
     );
@@ -699,7 +699,7 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
         let (doc, cube) = insert(
             doc,
             Node::Extrude {
-                profile: cp,
+                profile: cp.into(),
                 distance: len(2.0),
                 side: ExtrudeSide::Along,
             },
@@ -714,7 +714,7 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
         let (doc, pip) = insert(
             doc,
             Node::Extrude {
-                profile: pp,
+                profile: pp.into(),
                 distance: len(0.125),
                 side: ExtrudeSide::Against,
             },
@@ -757,8 +757,8 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
             doc,
             Node::Boolean {
                 op: BooleanOp::Subtract,
-                a: cube,
-                b: tr,
+                a: cube.into(),
+                b: tr.into(),
                 declare: decl,
             },
         );
@@ -789,34 +789,34 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
     );
 }
 
-/// R6: the refusal doors — every wrong wiring is a TYPED per-node
-/// failure, never a panic and never a silent guess.
+/// R6: the refusal doors — every wrong wiring is a TYPED refusal, at
+/// the edit door where the read's kind decides it and per node where
+/// its value does, never a panic and never a silent guess.
 #[test]
 fn wire_doors_refuse_typed() {
     let (doc, ids) = rich_doc();
     let (p, base, u, ax, pat) = (ids[0], ids[1], ids[4], ids[5], ids[6]);
-    // Instances fed to a boolean: WrongOperand (their flag #5).
-    let (d, bad_bool) = insert(
-        doc.clone(),
+    // Instances fed to a boolean (their flag #5): a boolean reads one
+    // body, so the door refuses the kind.
+    let refusal = crate::fixture::insert_refused(
+        &doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: u,
-            b: pat,
+            a: u.into(),
+            b: pat.into(),
             declare: Vec::new(),
         },
     );
-    let ev = run(&d, None, false);
-    match ev.nodes.get(&bad_bool) {
-        Some(NodeResult::Failed(e)) => match &e.kind {
-            NodeErrorKind::WrongOperand {
-                expected, found, ..
-            } => {
-                assert_eq!((*expected, *found), ("body", "instances"));
+    assert!(
+        matches!(
+            refusal,
+            editor_core::EditError::SlotVarKind {
+                found: editor_core::VarKind::Bodies,
+                ..
             }
-            other => panic!("expected WrongOperand, got {other:?}"),
-        },
-        other => panic!("expected Failed, got {other:?}"),
-    }
+        ),
+        "{refusal:?}"
+    );
     // Revolve about the rich doc's `ax` — a 3-D z-axis datum. This
     // asserted `AxisNotInSketchPlane`, a decided projection finding the
     // direction out of plane. A revolve seats an axis written IN a
@@ -826,8 +826,8 @@ fn wire_doors_refuse_typed() {
     let (d, bad_rev) = insert(
         doc.clone(),
         Node::Revolve {
-            profile: p,
-            axis: ax,
+            profile: p.into(),
+            axis: ax.into(),
             angle: ang(1.0),
         },
     );
@@ -842,33 +842,33 @@ fn wire_doors_refuse_typed() {
         }
         other => panic!("expected Failed, got {other:?}"),
     }
-    // Split by an axis datum: WrongOperand (needs a plane).
-    let (d, bad_split) = insert(
-        doc.clone(),
+    // Split by an axis datum: the tool reads a plane, so the door
+    // refuses the kind.
+    let refusal = crate::fixture::insert_refused(
+        &doc,
         Node::Split {
-            target: u,
-            tool: ax,
+            target: u.into(),
+            tool: ax.into(),
         },
     );
-    let ev = run(&d, None, false);
-    match ev.nodes.get(&bad_split) {
-        Some(NodeResult::Failed(e)) => {
-            assert!(
-                matches!(e.kind, NodeErrorKind::WrongOperand { .. }),
-                "got {:?}",
-                e.kind
-            );
-        }
-        other => panic!("expected Failed, got {other:?}"),
-    }
+    assert!(
+        matches!(
+            refusal,
+            editor_core::EditError::SlotVarKind {
+                found: editor_core::VarKind::Axis,
+                ..
+            }
+        ),
+        "{refusal:?}"
+    );
     // Pattern count 0: NonPositiveCount.
     let (d, bad_pat) = insert(
         doc.clone(),
         Node::Pattern {
-            input: base,
+            input: base.into(),
             count: Formula::count(0),
             kind: editor_core::PatternKind::Circular {
-                axis: ax,
+                axis: ax.into(),
                 step: ang(1.0),
             },
         },
@@ -969,7 +969,7 @@ fn interval_memo_reuses_and_invalidates_like_f64() {
         DocEdit::SetParam {
             node: extrude_id,
             slot: SlotId::Distance,
-            expr: len(1.75),
+            value: len(1.75).into(),
             fresh: Vec::new(),
         },
     );
@@ -996,7 +996,7 @@ fn edit_back_restores_bit_identical_bodies() {
         DocEdit::SetParam {
             node: d.pz_transform,
             slot: SlotId::Translation(editor_core::Axis3::X),
-            expr: len(1.25),
+            value: len(1.25).into(),
             fresh: Vec::new(),
         },
     );
@@ -1013,7 +1013,7 @@ fn edit_back_restores_bit_identical_bodies() {
         DocEdit::SetParam {
             node: d.pz_transform,
             slot: SlotId::Translation(editor_core::Axis3::X),
-            expr: len(1.0),
+            value: len(1.0).into(),
             fresh: Vec::new(),
         },
     );

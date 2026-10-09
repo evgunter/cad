@@ -30,6 +30,10 @@ impl editor_core::ProfilePayload for FakeProfile {
     fn lower<E>(
         authored: &Self,
         _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::VarId, E>,
+        _: &mut dyn FnMut(
+            editor_core::OperandSlot,
+            &editor_core::Operand,
+        ) -> Result<editor_core::VarId, E>,
     ) -> Result<Self, E> {
         Ok(authored.clone())
     }
@@ -71,7 +75,7 @@ fn extrude(doc: &TDoc, profile: RecipeNodeId) -> (TDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(0.01),
             side: ExtrudeSide::Along,
         },
@@ -89,8 +93,8 @@ fn fork() -> (TDoc, [RecipeNodeId; 4]) {
         radius: len(0.001),
         selection: Vec::new(),
     };
-    let (doc, left) = insert(&doc, fillet(body));
-    let (doc, right) = insert(&doc, fillet(body));
+    let (doc, left) = insert(&doc, fillet(body.into()));
+    let (doc, right) = insert(&doc, fillet(body.into()));
     (doc, [profile, body, left, right])
 }
 
@@ -164,41 +168,40 @@ fn an_absent_node_has_an_empty_cascade() {
     );
 }
 
-/// The refusal a user can still meet says which way the reference
-/// runs and what to do about it — bare ids and the word "dangle" told
-/// them neither.
+/// **Deleting a read node is accepted, and says what it stranded**
+/// (D10): the extrude still reads the deleted profile's output, typed
+/// and unresolved, and the delete reports that read by its node and
+/// operand; nothing is re-pointed. The cascade above is the
+/// convenience that takes the readers too.
 #[test]
-fn the_dangle_refusal_states_the_remedy() {
+fn deleting_a_read_node_strands_its_reader_and_reports_it() {
     let (doc, [profile, body, ..]) = fork();
-    let refusal = apply(
+    let read = doc.output(profile, 0).expect("the profile's output");
+    let applied = apply(
         &doc,
         &TEdit::DeleteNode { id: profile },
         Tol::witness(),
         &editor_core::RefusingReach,
     )
-    .unwrap_err();
+    .expect("a read node deletes");
     assert_eq!(
-        refusal,
-        EditError::DeleteWouldDangle {
-            id: doc.spoken(profile),
-            referenced_by: doc.spoken(body),
-        }
+        applied.maintenance,
+        vec![editor_core::Maintenance::StrandedRead {
+            node: doc.spoken(body),
+            slot: editor_core::OperandSlot::Profile,
+            var: doc.spoken_var(read),
+        }],
+        "the one reader of the profile's output is reported, by its operand"
     );
-    let sentence = refusal.to_string();
-    assert!(
-        sentence.contains(&format!(
-            "{} is still an input to {}",
-            doc.spoken(profile),
-            doc.spoken(body)
-        )),
-        "the direction of the reference is stated: {sentence}"
+    assert_eq!(
+        applied.doc.node(body).map(|n| n.operand_rows()),
+        Some(vec![(editor_core::OperandSlot::Profile, read)]),
+        "the extrude keeps the read it had, unresolved"
     );
+    assert_eq!(applied.doc.operation_of(read), None);
+    let sentence = applied.maintenance[0].to_string();
     assert!(
-        sentence.contains(&format!("delete {} first", doc.spoken(body))),
-        "and the immediate remedy: {sentence}"
-    );
-    assert!(
-        sentence.contains("everything downstream of it"),
-        "and the cascade: {sentence}"
+        sentence.contains(&format!("{}'s profile reads", doc.spoken(body))),
+        "the reader and its operand are stated: {sentence}"
     );
 }

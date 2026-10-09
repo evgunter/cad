@@ -38,7 +38,7 @@ fn half_turn_doc() -> ProfileDoc {
     let (doc, block) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
