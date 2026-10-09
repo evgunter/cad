@@ -111,7 +111,7 @@ pub enum RoundMargin {
 /// the refusals the certificate locates. `None` for every other.
 pub(crate) fn limb_reading(error: &SsiError) -> Option<(SsiLimb, RoundMargin)> {
     match error {
-        SsiError::CertificateLimb { limb, value } => Some((*limb, RoundMargin::Over(*value))),
+        SsiError::CertificateLimb { limb, value, .. } => Some((*limb, RoundMargin::Over(*value))),
         SsiError::CertificateEscalated { limb, cause } => {
             Some((*limb, RoundMargin::InBand(cause.margin)))
         }
@@ -377,7 +377,7 @@ where
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod tests {
-    use geom_core::Band;
+    use geom_core::{Band, MarginDiag};
 
     use super::{
         BranchBound, Limbs, Located, RefineStop, RefusedRound, RoundMargin, SsiError, SsiLimb,
@@ -409,6 +409,7 @@ mod tests {
             error: SsiError::CertificateLimb {
                 limb: SsiLimb::HullSup,
                 value,
+                margin: MarginDiag::value(value),
             },
             at: Some(Box::new(Spans {
                 limb: SsiLimb::HullSup,

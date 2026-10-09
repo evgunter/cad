@@ -131,7 +131,8 @@ use geom::{Collocation, Curve3, FitError, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::Bounds;
 use geom_core::{
-    Band, FileCoincidence, Indeterminate, Margin, NOT_YET_ENDING, Point3, Real, SizedPass,
+    Band, FileCoincidence, Indeterminate, Margin, MarginDiag, NOT_YET_ENDING, Point3, Real,
+    SizedPass,
 };
 
 use crate::certify::CertCheck;
@@ -448,8 +449,13 @@ pub enum SsiError {
     CertificateLimb {
         /// Which limb.
         limb: SsiLimb,
-        /// The offending value, in meters.
+        /// The offending value, in meters: the refinement driver's
+        /// round margin ([`RoundMargin::Over`]).
         value: f64,
+        /// What the classifier saw of the miss, for error reporting only
+        /// ([`MarginDiag`]): the import door's words on a definite miss
+        /// ([`crate::recourse::Unsized::residual_in_file`]).
+        margin: MarginDiag,
     },
     /// Limb 3 never ran: the tube ladder is EMPTY. Every rung radius
     /// `SSI_TUBE_RADIUS_MAX·extent / 2^k` sits below the ladder floor
@@ -908,7 +914,7 @@ impl core::fmt::Display for SsiError {
                  (cos φ = {cos_phi:e} over {arc_length:e} m of arc) — the candidate \
                  locus cusps or crosses itself, which is a degenerate operand pair"
             ),
-            Self::CertificateLimb { limb, value } => write!(
+            Self::CertificateLimb { limb, value, .. } => write!(
                 f,
                 "ssi: the fitted carrier failed {} at {value:e} m — the cache is not \
                  within tolerance of the locus it claims",
@@ -3082,6 +3088,7 @@ mod ending_tests {
             Some(Box::new(SsiError::CertificateLimb {
                 limb: SsiLimb::OnLocus,
                 value: 3e-9,
+                margin: MarginDiag::value(3e-9),
             }))
         };
         for (bounded_by, limb, lever) in [
@@ -3288,7 +3295,11 @@ mod ending_tests {
     #[test]
     fn a_definite_limb_refusal_ends_by_its_limb() {
         for limb in [SsiLimb::OnLocus, SsiLimb::HullSup] {
-            let refusal = SsiError::CertificateLimb { limb, value: 3e-9 };
+            let refusal = SsiError::CertificateLimb {
+                limb,
+                value: 3e-9,
+                margin: MarginDiag::value(3e-9),
+            };
             assert_eq!(
                 refusal.ending(Reading::Build),
                 KERNEL_LIMIT_RECOURSE,
@@ -3382,6 +3393,7 @@ mod ending_tests {
             refusal: Box::new(SsiError::CertificateLimb {
                 limb: SsiLimb::HullSup,
                 value: last,
+                margin: MarginDiag::value(last),
             }),
             earlier: vec![
                 RefusedRound {
@@ -3458,6 +3470,7 @@ mod ending_tests {
             refusal: Box::new(SsiError::CertificateLimb {
                 limb: SsiLimb::HullSup,
                 value: 1.17e-14,
+                margin: MarginDiag::value(1.17e-14),
             }),
             earlier: Vec::new(),
         };
@@ -3501,6 +3514,7 @@ mod ending_tests {
                 refusal: Box::new(SsiError::CertificateLimb {
                     limb: SsiLimb::HullSup,
                     value: 2.4e-9,
+                    margin: MarginDiag::value(2.4e-9),
                 }),
                 earlier: (0..earlier)
                     .map(|_| RefusedRound {
@@ -3886,6 +3900,7 @@ mod ending_tests {
                     refusal: Box::new(SsiError::CertificateLimb {
                         limb: SsiLimb::HullSup,
                         value: 2.4e-9,
+                        margin: MarginDiag::value(2.4e-9),
                     }),
                     earlier: vec![RefusedRound {
                         samples: 346,
@@ -3904,6 +3919,7 @@ mod ending_tests {
                     refusal: Box::new(SsiError::CertificateLimb {
                         limb: SsiLimb::HullSup,
                         value: 2.15e-11,
+                        margin: MarginDiag::value(2.15e-11),
                     }),
                     earlier: vec![RefusedRound {
                         samples: 10_337,
@@ -3990,6 +4006,7 @@ mod ending_tests {
                 SsiError::CertificateLimb {
                     limb: SsiLimb::HullSup,
                     value: 3e-9,
+                    margin: MarginDiag::value(3e-9),
                 },
             ),
             (
@@ -4148,6 +4165,7 @@ mod ending_tests {
                     limb: Some(Box::new(SsiError::CertificateLimb {
                         limb: SsiLimb::OnLocus,
                         value: 3e-9,
+                        margin: MarginDiag::value(3e-9),
                     })),
                     verdict: BandVerdict::Undecided(cause(MarginDiag::value(6e-9))),
                     bounded_by: super::BranchBound::Wall,
@@ -4178,6 +4196,7 @@ mod ending_tests {
                     limb: Box::new(SsiError::CertificateLimb {
                         limb: SsiLimb::OnLocus,
                         value: 3e-9,
+                        margin: MarginDiag::value(3e-9),
                     }),
                 },
             ),

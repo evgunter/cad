@@ -2,8 +2,10 @@
 id: plane-nurbs-limb-refusal-carries-no-reporting-margin-for-the-import-door
 kind: issue
 title: geom-brep: the plane x NURBS certificate limb's definite refusal carries its miss as a bare f64, so the import door can only say the miss "may lie" within ε_in
-status: dispatched
+status: closed
+closed: 2026-10-09
 branch: encl/limb-refusal-margin
+pr: 4427
 opened: 2026-10-08
 priority: P3
 cost: M
@@ -45,3 +47,13 @@ Other readers of `CertificateLimb`'s payload:
 1. Switch those five sites, and the analytic rung-3 lane's `decide("ssi_hull_sup", …)` in `edge_nurbs.rs`, to `decide_reported`. Carry `margin: MarginDiag` on `SsiError::CertificateLimb`, `PlaneNurbsRefusal::Limb` and `AnalyticRung3Refusal::Limb`. Keep `value` if `refine.rs`'s round margin still needs it.
 2. Have `PlaneNurbsRefusal::decision` and `AnalyticRung3Refusal::decision` hand the limb's definite arm its margin, `RefusedArm::SignCertain(Some(margin))`, as `CertifyError::decision` does for `ResidualExceeded`. `Unsized::residual_in_file` reads it from there.
 3. Once no definite residual refusal at the door is unvalued, `MissReading::DefiniteUnvalued` and its hedge sentence go.
+
+## Closed
+
+2026-10-09. PR 4427 merged at `e3646226c0` after a full review (verdict: merge) and a small fix pass; hosted CI was green.
+- **Both limbs carry their margin.** The PlaneNurbs limb's five `CertificateLimb` mints and the AnalyticRung3 hull limb now decide through `decide_reported` and carry `margin: MarginDiag`. Their `decision()` hands `SignCertain(Some(margin))`. No control flow reads it (Bounds clause 2); the margin-door gate counts are unchanged.
+- **`MissReading::DefiniteUnvalued` and its K·ε hedge are retired.** `FileCoincidence::new(eps_in)` now takes one argument.
+- **Texts moved only at the import door, for definite limb misses:**
+  - a miss within ε_in reads "lies within";
+  - a miss past ε_in gets the at-rest kernel-defect ending (`review_probes_m7_3::probe_refit_seam_refuses_typed` at 1e-12).
+- **Follow-ups:** `hull-sup-limb-reads-its-bound-as-the-miss-at-the-import-door` (design) and `analytic-rung3-tube-not-one-arc-has-no-import-door-ending`.
