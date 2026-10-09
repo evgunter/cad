@@ -46,3 +46,7 @@ That the solid cylinder does not show this suggests the bore wall
 confirmed: read the face at `FaceKey(5v1)` and its azimuth window
 first.
 
+
+## CONTACT close-out triage (2026-10-08)
+
+It absorbs the closed duplicate `a-notched-full-turn-wall-has-no-ray-trim`: the same full-turn-wall window guard (`narrower_than_period`, `solid_contain.rs`). Its witness is in `germ_coplanar_conic.rs`, and the fix carries it as a row.
