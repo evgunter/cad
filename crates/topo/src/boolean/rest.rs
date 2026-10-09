@@ -464,6 +464,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         kind: BooleanResultKind::Seamed,
         contacts,
         naming,
+        coincidences: red.coincidences,
     })))
 }
 
@@ -809,7 +810,7 @@ pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierD
 /// [`face_oriented_source`], and the pair's consumed extent through
 /// [`pair_extent`]: a declared verdict that bridges is one whose
 /// displacement stays in band at every point of both faces
-/// ([`super::carrier_eq::pair_door_verdict`]). One door for the
+/// ([`super::carrier_eq::pair_door_reading`]). One door for the
 /// verify-at-use site and the detector's candidate-generation mode.
 ///
 /// # Errors
@@ -854,6 +855,28 @@ pub fn carrier_pair_verdict<T: Decide>(
     declared: bool,
     band: Band,
 ) -> Result<Result<(CarrierRelation, crate::contact::ContactVerdict), CarrierEqError>, PairUnread> {
+    Ok(carrier_pair_reading(a, fa, b, fb, declared, band)?.map(|(rel, verdict, _)| (rel, verdict)))
+}
+
+/// [`carrier_pair_verdict`] with the declared reading's margin
+/// ([`super::carrier_eq::CarrierReading`]), which the declaration door
+/// records.
+///
+/// # Errors
+///
+/// As [`carrier_pair_relation`].
+///
+/// # Panics
+///
+/// As [`carrier_pair_relation`].
+pub(crate) fn carrier_pair_reading<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    declared: bool,
+    band: Band,
+) -> Result<Result<super::carrier_eq::CarrierReading, CarrierEqError>, PairUnread> {
     let ca = face_carrier(a, fa).ok_or(PairUnread::OutsideInventory)?;
     let cb = face_carrier(b, fb).ok_or(PairUnread::OutsideInventory)?;
     let extent = pair_extent(a, fa, b, fb, band).map_err(PairUnread::Extent)?;
@@ -863,7 +886,7 @@ pub fn carrier_pair_verdict<T: Decide>(
         s2: gb.as_ref(),
         declared,
     };
-    Ok(super::carrier_eq::pair_door_verdict(
+    Ok(super::carrier_eq::pair_door_reading(
         &ca,
         &cb,
         id,

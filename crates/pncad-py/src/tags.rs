@@ -2992,6 +2992,39 @@ pub fn check_evidence_tag(evidence: &CheckEvidence) -> &'static str {
         CheckEvidence::ChartCoherence { .. } => "chart_coherence",
         CheckEvidence::ChartCoherenceUnexamined { .. } => "chart_coherence_unexamined",
         CheckEvidence::ChartCoherenceUnavailable => "chart_coherence_unavailable",
+        CheckEvidence::UnprovenCoincidence { .. } => "unproven_coincidence",
+    }
+}
+
+/// The stable tag for what a coincidence row decided between its two
+/// cells ([`pncad::document::coincidence::Relation`]).
+pub fn coincidence_relation_tag(relation: pncad::document::coincidence::Relation) -> &'static str {
+    use pncad::document::coincidence::Relation as R;
+    match relation {
+        R::SameOriented => "same_oriented",
+        R::SameOpposite => "same_opposite",
+        R::OnCarrier => "on_carrier",
+        R::EqualAngles => "equal_angles",
+    }
+}
+
+/// The stable tag for where a coincidence row was decided
+/// ([`pncad::document::coincidence::DecisionSite`]).
+pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'static str {
+    use pncad::document::coincidence::DecisionSite as S;
+    match site {
+        S::PlaneLadder => "plane_ladder",
+        S::CarrierLadder => "carrier_ladder",
+        S::SplitOn => "split_on",
+        S::BatteryTurn => "battery_turn",
+    }
+}
+
+/// The stable tag for the rung of the coincidence door that proved a
+/// row ([`pncad::document::Rung`]).
+pub fn coincidence_rung_tag(rung: pncad::document::Rung) -> &'static str {
+    match rung {
+        pncad::document::Rung::SameConstruction => "same_construction",
     }
 }
 

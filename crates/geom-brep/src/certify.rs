@@ -259,7 +259,7 @@ impl core::fmt::Display for CertCheck {
             Self::WitnessSurface2 => "the witness point's residual against surface 2",
             Self::WitnessMidpoint => "the witness-midpoint residual",
             Self::Transversality => "the transversality margin",
-            Self::TransversalityArm => "the edge's length for the angle between its faces",
+            Self::TransversalityArm => "the length its faces' angle is measured over",
             Self::TangentPlanes => "the surfaces' tangent planes",
             Self::TangentParallel => "the normal-parallelism defect",
             Self::TangentSecondOrder => "the second-order margin",
@@ -564,7 +564,7 @@ impl core::fmt::Display for CertifyError {
             Self::ArmCollapsed { sample, .. } => write!(
                 f,
                 "at sample {sample} the edge is not long enough, for how its faces curve, to \
-                 measure the angle between them at this tolerance"
+                 measure their angle"
             ),
             Self::WindingExceeded => write!(
                 f,
@@ -2608,16 +2608,13 @@ fn run_checks<T: Decide>(
                             if let Some(verdict) = escalation.collapsed_arm() {
                                 return Err(CertifyError::ArmCollapsed { sample: i, verdict });
                             }
-                            let crate::LeverEscalation {
-                                rung, diag: cause, ..
-                            } = escalation;
                             return Err(CertifyError::Escalated {
-                                check: match rung {
+                                check: match escalation.rung() {
                                     crate::LeverRung::Arm => CertCheck::TransversalityArm,
                                     crate::LeverRung::Reading => CertCheck::Transversality,
                                 },
                                 sample: i,
-                                cause,
+                                cause: escalation.diag(),
                             });
                         }
                         Err(WedgeEscalation::NoTangentPlane(cause)) => {
@@ -5456,10 +5453,10 @@ mod tests {
         let text = err.render(Reading::Build);
         assert_eq!(
             text,
-            "at sample 4 the edge is not long enough, for how its faces curve, to measure the \
-             angle between them at this tolerance. Recourse: move the geometry so that edge is \
-             clearly longer, and its faces curve less tightly there; a face curving to a point \
-             there, as a cone at its apex, leaves no angle to measure",
+            "at sample 4 the edge is not long enough, for how its faces curve, to measure their \
+             angle. Recourse: move the geometry so that edge is clearly longer and no face curves \
+             tightly there; an edge of no length, or a face curving to a point as a cone does, \
+             leaves no angle to measure",
         );
     }
 
@@ -5549,11 +5546,11 @@ mod tests {
             };
             let arm = render(CertCheck::TransversalityArm);
             assert!(
-                arm.contains("the edge's length for the angle between its faces")
+                arm.contains("the length its faces' angle is measured over")
                     && arm.ends_with(&format!(
-                        "Recourse: move the geometry so that edge is clearly longer, and its \
-                         faces curve less tightly there, or, if this length or the gap its faces \
-                         open is intended, tighten the tolerance below {below} m"
+                        "Recourse: move the geometry so that edge is clearly longer and no face \
+                         curves tightly there, or, if this length or the gap its faces open is \
+                         intended, tighten the tolerance below {below} m"
                     )),
                 "{arm}"
             );

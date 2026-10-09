@@ -2,10 +2,12 @@
 id: demo-tour-red-on-main-after-blend-surgery-closing-join
 kind: issue
 title: demo-tour is red on main since PR 4353: blend surgery's closing join removes a vertex and edge per fillet, and the tour's teapot and die censuses were not re-baselined
-status: open
+status: closed
 opened: 2026-10-09
 priority: P0
 cost: E
+closed: 2026-10-09
+pr: 4374
 ---
 
 Filed by the SHELL orchestrator, 2026-10-09; found on SHELL's PR 4356,
@@ -28,3 +30,7 @@ its own cargo root, whose CI job its change filter skipped.
 SHELL's PR 4356 ports the re-baseline (after checking the joins are the
 trimline/foot pairs). Owed here: confirm, and close once main carries it.
 
+
+## Closed
+
+2026-10-09, PR 4374 (FUSE, `fuse/tour-pins-follow-the-blend-join`): the teapot and die pins re-baselined to the closing join, the same numbers SHELL's PR 4356 ported after checking the joins (the teapot's trimline half-arcs, one per pip fillet on the die).
