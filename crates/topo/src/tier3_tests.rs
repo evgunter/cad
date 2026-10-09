@@ -2410,10 +2410,11 @@ fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
         arm,
     };
     let stations = || crate::validate::MaterialStations::new(&plane, true, &plane, true, band);
-    let finding = |cause| ValidationError::SliverDihedral {
+    // Check 4's one push of a stop.
+    let finding = |stop: crate::validate::MaterialStop| ValidationError::SliverDihedral {
         edge,
-        check: crate::validate::WedgeCheck::MaterialSide,
-        cause,
+        check: stop.check,
+        cause: stop.cause,
     };
     let lead = "which side of an edge the material of its two smoothly meeting faces lies on \
                 is undecided. Recourse: move the geometry so that edge is clearly longer and no \
@@ -2423,31 +2424,42 @@ fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
         ("decided zero", 5e-10, Some(Sign::Zero), "5e-11 m"),
         ("in band", 5e-9, None, "5e-10 m"),
     ] {
-        let ControlFlow::Break(cause) = stations().before_decision(&station(arm, 1.0)) else {
+        let ControlFlow::Break(stop) = stations().before_decision(&station(arm, 1.0)) else {
             panic!("{label}: a pairing at arm {arm:e} stops the walk");
         };
         assert_eq!(
-            (cause.predicate, cause.margin.rejected_sign()),
+            (stop.cause.predicate, stop.cause.margin.rejected_sign()),
             (Some("material_wedge_side"), sign),
             "{label}: the pairing stops with its decided margin"
         );
         assert_eq!(
-            finding(cause).to_string(),
+            finding(stop).to_string(),
             format!("{lead} {below}"),
             "{label}: check 4 ends the pairing as its decision"
         );
     }
-    let ControlFlow::Break(cause) = stations().after_positive(&station(1.0, 0.0)) else {
+    let ControlFlow::Break(stop) = stations().after_positive(&station(1.0, 0.0)) else {
         panic!("a zero cusp-side margin stops the walk");
     };
     assert_eq!(
         (
-            cause.predicate,
-            cause.margin.rejected_sign(),
-            cause.margin == MarginDiag::INVALID
+            stop.cause.predicate,
+            stop.cause.margin.rejected_sign(),
+            stop.cause.margin == MarginDiag::INVALID
         ),
         (Some("material_cusp_side"), Some(Sign::Zero), false),
         "the cusp side stops with its gate's decided Zero, not a hand-minted poison"
+    );
+    // Its magnitude decided positive one decision before, so the Zero
+    // contradicts it: the defect ending, as a split's.
+    assert_eq!(
+        finding(stop).to_string(),
+        format!(
+            "which side of an edge the material of its two smoothly meeting faces lies on could \
+             not be read consistently along it. {}",
+            geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+        ),
+        "the cusp side's contradiction ends as a defect"
     );
 }
 

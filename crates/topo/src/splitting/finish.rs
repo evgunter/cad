@@ -221,13 +221,21 @@ pub enum SplitFinishError {
     Band(geom_core::BandError),
     /// Describing a section-boundary edge escalated on the angle
     /// between its two faces — the dihedral at its witness or at a
-    /// station of the must-carry rule, or a curved wall's material
-    /// pairing: indeterminate geometry at the section boundary refuses
-    /// typed, never guesses a description.
+    /// station of the must-carry rule: indeterminate geometry at the
+    /// section boundary refuses typed, never guesses a description.
     DescribeEscalated {
         /// The section-boundary edge.
         edge: EdgeKey,
         /// The deciding reading's diagnostic.
+        diag: geom_core::Indeterminate,
+    },
+    /// A curved wall smooth against the section at an edge refused its
+    /// material pairing ([`geom_brep::MATERIAL_PAIRING`]): in band, or
+    /// decided zero over an arm too short to read a side.
+    DescribeSideEscalated {
+        /// The section-boundary edge.
+        edge: EdgeKey,
+        /// The pairing's diagnostic, with the margin it decided.
         diag: geom_core::Indeterminate,
     },
     /// A smooth section-boundary edge's second order escalated at a
@@ -337,6 +345,13 @@ impl core::fmt::Display for SplitFinishError {
                 diag.payload(),
                 super::SPLIT_COINCIDENCE_RECOURSE
             ),
+            Self::DescribeSideEscalated { diag, .. } => diag
+                .undecided(
+                    "which side of an edge along the cut the material of its two smoothly \
+                     meeting faces lies on",
+                    geom_brep::material_pairing_recourse(diag, geom_brep::recourse::Reading::Build),
+                )
+                .fmt(f),
             Self::DescribeBendEscalated { diag, .. } => write!(
                 f,
                 "whether two faces touching along the cut curve apart there or share their \
@@ -759,7 +774,8 @@ fn section_plane_restatements<T: Decide>(
 /// ([`SplitFinishError::KnifeEdge`]). The rule's refusals are this
 /// op's: a station in band first-order
 /// ([`SplitFinishError::DescribeEscalated`], as the witness's dihedral
-/// and the pairing escalate) or second-order
+/// escalates; [`SplitFinishError::DescribeSideEscalated`], as the
+/// pairing refuses) or second-order
 /// ([`SplitFinishError::DescribeBendEscalated`]), and a station that
 /// reads the edge a corner ([`SplitFinishError::SmoothJoinRefuted`]).
 ///
@@ -838,7 +854,7 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                             geom_brep::folded_lever_arm(surf_self, surf_other, witness, arm),
                             band,
                         )
-                        .map_err(|diag| SplitFinishError::DescribeEscalated { edge, diag })?;
+                        .map_err(|diag| SplitFinishError::DescribeSideEscalated { edge, diag })?;
                         if pairing == geom_brep::MaterialPairing::Opposed {
                             return Err(SplitFinishError::KnifeEdge(KnifeEdge {
                                 wall: other_face,
@@ -1481,6 +1497,71 @@ mod smooth_arm_rows {
                 assert_eq!(refused, edge, "the refusal names the mixed edge");
             }
             other => panic!("a smooth-at-the-witness corner refuses typed, got {other:?}"),
+        }
+    }
+
+    /// **A refused material pairing ends as the pairing.** The
+    /// neighbour is a unit cylinder along the edge, tilted about it so
+    /// its normal leans `tilt` off the section's; at `K = 1.2 < √2` a
+    /// band of `(0.75, 0.9)` reads the 45° lean smooth with its pairing
+    /// margin `cos 45°` decided zero, and the 30° lean smooth with
+    /// `cos 30°` in band. Both are an arm too short to read a side over,
+    /// and end in its lever with the tolerance the margin gives.
+    #[test]
+    fn a_refused_pairing_ends_as_the_pairing_decision() {
+        let band = Band::new(0.75, 0.9).unwrap();
+        for (label, tilt, decided_zero) in
+            [("decided zero", 45.0_f64, true), ("in band", 30.0, false)]
+        {
+            let SectionEdge {
+                mut body,
+                face,
+                edge,
+                s_other,
+                mid,
+                along,
+                ..
+            } = section_edge();
+            let (sin, cos) = tilt.to_radians().sin_cos();
+            let lean = Vec3::unit_z() * cos + Vec3::unit_z().cross(along) * sin;
+            body.surfaces[s_other] = Surface::Cylinder {
+                origin: mid - lean,
+                axis: along,
+                radius: 1.0,
+                u_ref: lean,
+            };
+            let refusal = super::describe_section_boundary(&mut body, face, band, tol())
+                .expect_err("a refused pairing refuses the split");
+            let text = refusal.to_string();
+            assert!(
+                text.starts_with(
+                    "which side of an edge along the cut the material of its two smoothly \
+                     meeting faces lies on is undecided: "
+                ),
+                "{label}: the refusal names the pairing, got {text}"
+            );
+            assert!(
+                text.contains(
+                    ". Recourse: move the geometry so that edge is clearly longer and no face \
+                     curves tightly there, or, if this length is intended, tighten the \
+                     tolerance below "
+                ),
+                "{label}: the pairing's lever with its tolerance, got {text}"
+            );
+            match refusal {
+                SplitFinishError::DescribeSideEscalated {
+                    edge: refused,
+                    diag,
+                } => {
+                    assert_eq!(refused, edge, "{label}: the refusal names the edge");
+                    assert_eq!(
+                        diag.margin.rejected_sign().is_some(),
+                        decided_zero,
+                        "{label}: the margin keeps the gate's verdict"
+                    );
+                }
+                other => panic!("{label}: expected the pairing's refusal, got {other:?}"),
+            }
         }
     }
 
