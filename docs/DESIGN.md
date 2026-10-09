@@ -1728,6 +1728,14 @@ Cross-milestone commitments; each binds at the layer named.
   defect, re-posed or certified, never covered by K. Interval replay
   does not rescue it: its enclosure lands in the band, which is
   terminal.
+  Closeness within ε is not an identity. No decision is inferred
+  from two others; cells are one only by topology (a Zero glued them)
+  or by structure (D10), and both are transitive. A body is valid when
+  every question its topology poses decides definite, or Zero and
+  recorded. Each such question is one number per pair of cells (tier
+  3′'s census clause), never the extent of a stretch where they lie
+  within the band. The symbolic tier does not decide a margin in the
+  band: it answers only whether a Zero is structural.
 - At `T = Interval` an indeterminate predicate aborts the operation:
   predicates return `Result<Sign, Indeterminate>` (the trichotomy is
   the primitive; bool predicates are projections) and construction code
