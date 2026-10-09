@@ -2,12 +2,13 @@
 id: a-plane-across-a-one-face-wall-meets-its-wrap-edge-once
 kind: issue
 title: A transverse plane across a one-face closed wall meets its wrap edge at one point, and the join refuses SingleSiteSectionLoop; not a coincidence, so not held by D10
-status: open
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: H
 branch: join/wrap-edge-section-loop
 pr: 4345
+closed: 2026-10-09
 ---
 
 
