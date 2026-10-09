@@ -352,40 +352,222 @@ fn the_tilted_planes_chords_are_its_ellipse_in_both_member_orders() {
     }
 }
 
+/// T1's two cutting planes, closed form: the box's faces at its edge
+/// through `s·(0.5, 1.5)` from the apex (`s = 0.6`), the faces `x = 0`
+/// and `y = 0` of the brick turned −50° about `z`.
+fn t1_planes() -> [(Point3<f64>, Vec3<f64>); 2] {
+    let h = 1.2 / std::f64::consts::FRAC_PI_6.tan();
+    let edge = Point3::new(0.5 * 0.6, h - 1.5 * 0.6, 0.0);
+    let t = 50f64.to_radians();
+    [
+        (edge, Vec3::new(t.cos(), -t.sin(), 0.0)),
+        (edge, Vec3::new(t.sin(), t.cos(), 0.0)),
+    ]
+}
+
+/// Whether `chord` is cut from `cone` by the plane `(q, n)`.
+fn cut_by_plane(chord: &Chord, cone: &Surface<f64>, (q, n): (Point3<f64>, Vec3<f64>)) -> bool {
+    cut_by(chord, cone).is_some_and(|(o, m)| {
+        m.normalize().cross(n).norm() < 1e-12 && (o - q).dot(n).abs() < 1e-12
+    })
+}
+
+/// The point of an ellipse carrier at its angle parameter `t`, and the
+/// parameter of a point on it.
+fn ellipse_at(e: &Curve3<f64>, t: f64) -> Point3<f64> {
+    let Curve3::Ellipse {
+        center,
+        axis,
+        major,
+        minor,
+        u_ref,
+    } = e
+    else {
+        panic!("an ellipse")
+    };
+    *center + *u_ref * (major * t.cos()) + axis.cross(*u_ref) * (minor * t.sin())
+}
+
+fn ellipse_param(e: &Curve3<f64>, p: Point3<f64>) -> f64 {
+    let Curve3::Ellipse {
+        center,
+        axis,
+        major,
+        minor,
+        u_ref,
+    } = e
+    else {
+        panic!("an ellipse")
+    };
+    let w = p - *center;
+    (w.dot(axis.cross(*u_ref)) / minor).atan2(w.dot(*u_ref) / major)
+}
+
+/// `cone`'s outward normal at (the foot on it of) `p`, for a solid on
+/// the axis side of the wall: off the axis and against it by the
+/// half-angle.
+fn cone_outward(cone: &Surface<f64>, p: Point3<f64>) -> Vec3<f64> {
+    let &Surface::Cone {
+        apex,
+        axis,
+        half_angle,
+        ..
+    } = cone
+    else {
+        panic!("a cone")
+    };
+    let d = p - apex;
+    let radial = (d - axis * d.dot(axis)).normalize();
+    radial * half_angle.cos() - axis * half_angle.sin()
+}
+
+/// Where a lune loop stands on its face ([`lune_loops`]).
+#[derive(Debug, PartialEq)]
+enum LuneRole {
+    /// The face's only loop.
+    Island,
+    /// A ring of a face whose outer loop is not a lune.
+    Ring,
+    /// A loop of a face every loop of which is a lune: the join's
+    /// scaffolding between two copies of the lune.
+    Scaffolding,
+}
+
+/// Every loop of a face on `cone` in `body` whose edges are all ellipse
+/// chords cut by one of `planes`: where it stands on its face, and how
+/// it winds about the cone's outward normal (the signed area of its
+/// vertices and arc midpoints, in loop order, along the normal at their
+/// centroid: positive is counter-clockwise).
+fn lune_loops(
+    body: &Body<f64>,
+    cone: &Surface<f64>,
+    planes: &[(Point3<f64>, Vec3<f64>)],
+) -> Vec<(LuneRole, f64)> {
+    let points: std::collections::HashMap<_, _> = body.vertex_points().collect();
+    let mut found = Vec::new();
+    for (_, face) in body.faces() {
+        if !body
+            .get_surface(face.surface)
+            .is_some_and(|s| same_cone(s, cone))
+        {
+            continue;
+        }
+        let mut on_face = Vec::new();
+        for &lp in std::iter::once(&face.outer).chain(&face.rings) {
+            let topo::LoopBoundary::Cycle { first } = body.get_loop(lp).unwrap().boundary else {
+                on_face.push((lp, None));
+                continue;
+            };
+            let mut polygon = Vec::new();
+            let mut all_lune = true;
+            for he in body.loop_cycle(first).unwrap() {
+                let half = body.get_half_edge(he).unwrap();
+                let edge = body.get_edge(half.edge).unwrap();
+                let geom = body.get_curve_geom(edge.curve).and_then(|c| c.certified());
+                let Some(c) = geom else {
+                    all_lune = false;
+                    break;
+                };
+                let carrier = c.carrier();
+                let EdgeDescription::Intersection { s1, s2, .. } = c.description() else {
+                    all_lune = false;
+                    break;
+                };
+                let chord = Chord {
+                    carrier: carrier.clone(),
+                    surfaces: [*s1, *s2].map(|s| body.get_surface(s).unwrap().clone()),
+                };
+                if !matches!(carrier, Curve3::Ellipse { .. })
+                    || !planes.iter().any(|&pl| cut_by_plane(&chord, cone, pl))
+                {
+                    all_lune = false;
+                    break;
+                }
+                let start = |h: topo::HalfEdgeKey| points[&body.get_half_edge(h).unwrap().start];
+                let (t0, t1) = (
+                    ellipse_param(carrier, start(edge.he_plus)),
+                    ellipse_param(carrier, start(edge.he_minus)),
+                );
+                let sweep = (t1 - t0).rem_euclid(std::f64::consts::TAU);
+                polygon.push(points[&half.start]);
+                polygon.push(ellipse_at(carrier, t0 + sweep / 2.0));
+            }
+            if !all_lune {
+                on_face.push((lp, None));
+                continue;
+            }
+            let n = polygon.len() as f64;
+            let centroid = polygon
+                .iter()
+                .fold(Point3::origin(), |acc, p| acc + (*p - Point3::origin()) / n);
+            let area = (0..polygon.len()).fold(Vec3::new(0.0, 0.0, 0.0), |acc, i| {
+                let (a, b) = (polygon[i], polygon[(i + 1) % polygon.len()]);
+                acc + (a - centroid).cross(b - centroid)
+            });
+            on_face.push((lp, Some(area.dot(cone_outward(cone, centroid)))));
+        }
+        let every = on_face.iter().all(|(_, w)| w.is_some());
+        for (lp, winding) in on_face {
+            let Some(winding) = winding else { continue };
+            let role = if every && face.rings.is_empty() {
+                LuneRole::Island
+            } else if every {
+                LuneRole::Scaffolding
+            } else {
+                assert_ne!(lp, face.outer, "a lune outer loop on a face with other loops");
+                LuneRole::Ring
+            };
+            found.push((role, winding));
+        }
+    }
+    found
+}
+
 /// **T1's ring: the cone face's island winds by the segment's curve.**
 /// TANG's box edge pierces the π/6 cone's wall twice, and the box's two
-/// faces at it cut the cone in two ellipses whose arcs bound a lune: a
-/// ring on the cone face, which the join's ring lane closes by the
-/// section's own curve (`RingClosure::Wall` on a cone). In every op and
-/// member order the join connects, and every chord the cone and a box
-/// face carry is that face's ellipse, on both sides.
+/// faces at it ([`t1_planes`], closed form) cut the cone in two ellipses
+/// whose arcs bound a lune: a ring on the cone face, which the join's
+/// ring lane closes by the section's own curve (`RingClosure::Wall` on a
+/// cone). In every op and member order the join connects, every chord
+/// the cone and either face carry is that face's Dandelin ellipse, on
+/// both sides, and each face carries one. On the cone's side the lune is
+/// two loops: the island face's only loop, counter-clockwise about the
+/// cone's outward normal, and the ring the remainder holds, clockwise.
 #[test]
 fn the_rings_island_on_the_cone_face_winds_by_the_sections_curve() {
     let c = crate::a_ring_on_a_cone_face::cone(Affine3::identity());
     let x = crate::a_ring_on_a_cone_face::wedge(0.6, Affine3::identity());
     let cone = cone_of(&c);
-    // The box faces at the edge, as the box carries them.
-    let cutting: Vec<(Point3<f64>, Vec3<f64>)> =
-        conic_chords(&joined("T1, probe", &c, &x, OPS[0]).1)
-            .iter()
-            .filter_map(|ch| cut_by(ch, &cone))
-            .collect();
-    assert!(
-        !cutting.is_empty(),
-        "T1: the box's chords name its cutting faces"
-    );
+    let planes = t1_planes();
     for op in OPS {
         let label = format!("T1, {op:?}");
         let (cone_side, box_side) = joined(&label, &c, &x, op);
-        for &(q, n) in &cutting {
-            assert_section_chords(
-                &format!("{label}, the cone's side"),
-                &cone_side,
-                &cone,
-                q,
-                n,
-            );
-            assert_section_chords(&format!("{label}, the box's side"), &box_side, &cone, q, n);
+        for (side, body) in [("the cone's side", &cone_side), ("the box's side", &box_side)] {
+            for (i, &(q, n)) in planes.iter().enumerate() {
+                let label = format!("{label}, {side}, face {i}");
+                assert_section_chords(&label, body, &cone, q, n);
+                for ch in conic_chords(body)
+                    .iter()
+                    .filter(|ch| cut_by_plane(ch, &cone, (q, n)))
+                {
+                    assert!(
+                        matches!(ch.carrier, Curve3::Ellipse { .. }),
+                        "{label}: the chord is an ellipse, got {:?}",
+                        ch.carrier
+                    );
+                }
+            }
         }
+        let lune = lune_loops(&cone_side, &cone, &planes);
+        let winding = |role| {
+            let of: Vec<f64> = lune.iter().filter(|l| l.0 == role).map(|l| l.1).collect();
+            assert_eq!(of.len(), 1, "{label}: one {role:?} lune loop, got {lune:?}");
+            of[0]
+        };
+        assert!(
+            winding(LuneRole::Island) > 0.0 && winding(LuneRole::Ring) < 0.0,
+            "{label}: the island's only loop winds counter-clockwise about the cone's outward \
+             normal and the ring its remainder holds clockwise, got {lune:?}"
+        );
     }
 }
