@@ -3736,13 +3736,10 @@ impl SolidFaces {
     /// A key the body does not hold selects no face, which the probe
     /// answers [`PointInSolidError::ZeroVolumeBody`].
     pub(crate) fn of_shell<T: Decide>(body: &Body<T>, shell: crate::entity::ShellKey) -> Self {
+        let live: Vec<_> = body.faces().filter(|(_, d)| d.shell == shell).collect();
         Self {
-            faces: body
-                .faces()
-                .filter(|(_, d)| d.shell == shell)
-                .map(|(k, _)| k)
-                .collect(),
-            charts: ChartGroups::of_shell(body, shell),
+            faces: live.iter().map(|&(k, _)| k).collect(),
+            charts: ChartGroups::of_live(live),
             at_infinity: None,
         }
     }
