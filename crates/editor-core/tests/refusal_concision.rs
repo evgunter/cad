@@ -384,6 +384,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                 a_kind: SurfaceKind::Plane,
                 b_face: face,
                 b_kind: SurfaceKind::Cone,
+                conic: geom_brep::OutsideConic::Hyperbola,
                 section: geom_brep::SectionError::RoutesToGeneralRung {
                     pair: "plane×cone",
                     why: "the plane meets both nappes, so the section is a HYPERBOLA",

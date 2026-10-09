@@ -1731,7 +1731,7 @@ fn germ_section_frame<T: Decide>(
 ///
 /// A face pair with no boundary vertices.
 #[allow(clippy::type_complexity)] // (reading point, span) — one reading
-fn frame_reading<T: Decide>(
+pub(super) fn frame_reading<T: Decide>(
     sa: &geom::Surface<T>,
     sb: &geom::Surface<T>,
     on_a: Vec<geom_core::Point3<T>>,
@@ -1808,7 +1808,7 @@ pub(super) enum FrameExtent<T> {
 /// # Errors
 ///
 /// A wall whose outer loop is a lone vertex, which has no extent.
-fn frame_extent<T: Decide>(
+pub(super) fn frame_extent<T: Decide>(
     (sa, body_a, face_a): (&geom::Surface<T>, &Body<T>, FaceKey),
     (sb, body_b, face_b): (&geom::Surface<T>, &Body<T>, FaceKey),
     at: geom_core::Point3<T>,
@@ -1829,7 +1829,7 @@ fn frame_extent<T: Decide>(
         }
         _ => return Ok(span.map_or(FrameExtent::Radii, FrameExtent::Span)),
     };
-    let lone = |_| "a germ wall's outer loop is a lone vertex";
+    let lone = |_| LONE_WALL;
     let (below, above) =
         crate::splitting::rules::face_axial_range(body, face, at, axis).map_err(lone)?;
     let across = crate::splitting::rules::face_reach_from(body, face, at).map_err(lone)?;
@@ -1842,6 +1842,9 @@ fn frame_extent<T: Decide>(
     })
 }
 
+/// [`frame_extent`]'s refusal: a wall with no extent to lever at.
+const LONE_WALL: &str = "a germ wall's outer loop is a lone vertex";
+
 /// [`frame_extent`]'s plane×cone arm: the cone face's reach from `at`.
 fn cone_reach<T: Decide>(
     body: &Body<T>,
@@ -1850,7 +1853,7 @@ fn cone_reach<T: Decide>(
 ) -> Result<FrameExtent<T>, &'static str> {
     crate::splitting::rules::face_reach_from(body, face, at)
         .map(FrameExtent::Reach)
-        .map_err(|_| "a germ wall's outer loop is a lone vertex")
+        .map_err(|_| LONE_WALL)
 }
 
 /// **The rulings lane's chords are rulings**: each wall's split lane,
@@ -2005,13 +2008,16 @@ pub(super) fn frame_refusal<T: geom_core::Real>(
             b_face: b.0,
             evidence,
         },
-        FrameError::OutsideInventory(section) => BooleanError::GermSectionOutsideInventory {
-            a_face: a.0,
-            a_kind: a.1.kind(),
-            b_face: b.0,
-            b_kind: b.1.kind(),
-            section,
-        },
+        FrameError::OutsideInventory { conic, section } => {
+            BooleanError::GermSectionOutsideInventory {
+                a_face: a.0,
+                a_kind: a.1.kind(),
+                b_face: b.0,
+                b_kind: b.1.kind(),
+                conic,
+                section,
+            }
+        }
     }
 }
 
@@ -2052,9 +2058,13 @@ pub(super) enum FrameError {
         /// parameter-identity channel.
         evidence: geom_brep::RadiusEvidence,
     },
-    /// The section is a conic outside the inventory by decision (R1):
-    /// the table's refusal, which names it.
-    OutsideInventory(geom_brep::SectionError),
+    /// The section is a conic outside the inventory by decision (R1).
+    OutsideInventory {
+        /// The conic.
+        conic: geom_brep::OutsideConic,
+        /// The table's refusal, which names it.
+        section: geom_brep::SectionError,
+    },
 }
 
 /// **The pair-general section-frame dispatch**, keyed on the germ
@@ -2183,8 +2193,8 @@ pub(super) fn pair_section_frame_at<T: Decide>(
         // classification first ([`cs_pair_frame`], unreadable here
         // yet), then the transverse frame for a pose off the axis
         // ([`cs_transverse_frame`]).
-        (Sf::Plane { .. }, Sf::Cone { .. }) => return pk_germ_frame(sa, sb, at, extent, band),
-        (Sf::Cone { .. }, Sf::Plane { .. }) => return pk_germ_frame(sb, sa, at, extent, band),
+        (Sf::Plane { .. }, Sf::Cone { .. }) => return pk_germ_frame(sa, sb, extent, band),
+        (Sf::Cone { .. }, Sf::Plane { .. }) => return pk_germ_frame(sb, sa, extent, band),
         (Sf::Cylinder { .. }, Sf::Sphere { .. }) => return cs_germ_frame(sa, sb, band),
         (Sf::Sphere { .. }, Sf::Cylinder { .. }) => return cs_germ_frame(sb, sa, band),
         // The ONE structurally straight pair: a plane×plane section is
@@ -2225,9 +2235,8 @@ pub(super) fn pair_section_frame_at<T: Decide>(
         ) => {
             let lever = match extent {
                 FrameExtent::Span(l) => l.max(r1.max(*r2)),
-                FrameExtent::Radii | FrameExtent::Wall { .. } | FrameExtent::Reach(_) => {
-                    r1.max(*r2)
-                }
+                FrameExtent::Radii | FrameExtent::Wall { .. } => r1.max(*r2),
+                FrameExtent::Reach(_) => return Err(FrameError::Desync(CONE_REACH_ELSEWHERE)),
             };
             let reach = geom_brep::Reach::Measured { at, lever };
             match geom_brep::cylinder_axes_parallel(&reach, (*o1, *a1), (*o2, *a2), band) {
@@ -2278,14 +2287,13 @@ pub(super) fn pair_section_frame_at<T: Decide>(
             };
             crate::chord_join::agreed_section(read(across), read(round), band)
         }
-        FrameExtent::Radii | FrameExtent::Span(_) | FrameExtent::Reach(_) => {
-            geom_brep::plane_cylinder_section(
-                plane_s,
-                cyl_s,
-                &geom_brep::Reach::Measured { at, lever: radius },
-                band,
-            )
-        }
+        FrameExtent::Radii | FrameExtent::Span(_) => geom_brep::plane_cylinder_section(
+            plane_s,
+            cyl_s,
+            &geom_brep::Reach::Measured { at, lever: radius },
+            band,
+        ),
+        FrameExtent::Reach(_) => return Err(FrameError::Desync(CONE_REACH_ELSEWHERE)),
     };
     match section {
         Ok(geom_brep::PlaneCylinderSection::Rim(geom::Curve3::Circle { center, axis, .. }))
@@ -2301,10 +2309,27 @@ pub(super) fn pair_section_frame_at<T: Decide>(
         Ok(_) => Err(FrameError::Desync(
             "germ pair's section classification is not a locus",
         )),
-        Err(geom_brep::SectionError::Escalated(diag)) => Err(FrameError::Escalated(diag)),
-        Err(_) => Err(FrameError::Desync(
-            "germ pair's section refused at match time",
-        )),
+        Err(e) => Err(section_refusal(e)),
+    }
+}
+
+/// [`FrameExtent::Reach`] handed to a cylinder pair: only a cone face's
+/// frame is levered at it ([`frame_extent`]).
+const CONE_REACH_ELSEWHERE: &str = "a cone face's reach levered a pair with no cone";
+
+/// A germ pair's section refusal that is not the table's verdict on the
+/// pair's locus: an undecided degeneracy, or a carrier the conic
+/// constructor could not tell from a circle (the table's classifier read
+/// the tilt as definite, `ellipse_axes_distinct` read the semi-axes as
+/// equal or in the band), escalates; anything else is a desync.
+fn section_refusal(e: geom_brep::SectionError) -> FrameError {
+    use geom::EllipseInvalid as Ei;
+    match e {
+        geom_brep::SectionError::Escalated(diag)
+        | geom_brep::SectionError::Carrier(Ei::Escalated(diag) | Ei::CircularAxes(diag)) => {
+            FrameError::Escalated(diag)
+        }
+        _ => FrameError::Desync("germ pair's section refused at match time"),
     }
 }
 
@@ -2317,21 +2342,20 @@ pub(super) fn pair_section_frame_at<T: Decide>(
 /// decision (R1), and its refusal carries the table's own naming of the
 /// conic ([`FrameError::OutsideInventory`]).
 ///
-/// Levered at the cone face's reach from `at` ([`FrameExtent::Reach`]),
-/// or, for a pair handed without its faces, at `at`'s distance from the
-/// apex.
+/// Levered at the cone face's reach from the reading point
+/// ([`FrameExtent::Reach`], the only extent [`frame_extent`] hands a
+/// plane×cone pair); any other extent is a desync.
 #[allow(clippy::type_complexity)] // (conic center, conic axis) — one frame tuple
 fn pk_germ_frame<T: Decide>(
     plane: &geom::Surface<T>,
     cone: &geom::Surface<T>,
-    at: geom_core::Point3<T>,
     extent: FrameExtent<T>,
     band: Band,
 ) -> Result<Option<(geom_core::Point3<T>, geom_core::Vec3<T>)>, FrameError> {
-    let lever = match (extent, cone) {
-        (FrameExtent::Reach(reach), _) => reach,
-        (_, geom::Surface::Cone { apex, .. }) => (at - *apex).norm(),
-        _ => return Err(FrameError::Desync("a plane×cone frame was handed no cone")),
+    let FrameExtent::Reach(lever) = extent else {
+        return Err(FrameError::Desync(
+            "a plane×cone frame was levered at no cone face's reach",
+        ));
     };
     match geom_brep::plane_cone_section(plane, cone, lever, band) {
         Ok(
@@ -2354,13 +2378,16 @@ fn pk_germ_frame<T: Decide>(
         Ok(_) => Err(FrameError::Desync(
             "plane×cone classification carried a carrier its conic is not",
         )),
-        Err(geom_brep::SectionError::Escalated(diag)) => Err(FrameError::Escalated(diag)),
-        Err(e @ geom_brep::SectionError::RoutesToGeneralRung { .. }) => {
-            Err(FrameError::OutsideInventory(e))
-        }
-        Err(_) => Err(FrameError::Desync(
-            "germ pair's section refused at match time",
-        )),
+        Err(e @ geom_brep::SectionError::RoutesToGeneralRung { .. }) => match e.outside_conic() {
+            Some(conic) => Err(FrameError::OutsideInventory {
+                conic,
+                section: e,
+            }),
+            None => Err(FrameError::Desync(
+                "the plane×cone table routed a pair to the general rung naming no conic",
+            )),
+        },
+        Err(e) => Err(section_refusal(e)),
     }
 }
 
@@ -4807,7 +4834,7 @@ mod frame_dispatch_tests {
             Err(FrameError::Escalated(_)) => "an escalation",
             Err(FrameError::RadiusEscalated { .. }) => "a radius escalation",
             Err(FrameError::IntersectingCylinderAxes { .. }) => "the cylinder pinch",
-            Err(FrameError::OutsideInventory(_)) => "a conic outside the inventory",
+            Err(FrameError::OutsideInventory { .. }) => "a conic outside the inventory",
         }
     }
 

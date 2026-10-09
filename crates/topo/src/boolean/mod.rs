@@ -2690,6 +2690,8 @@ pub enum BooleanError {
         b_face: FaceKey,
         /// Its kind.
         b_kind: geom::SurfaceKind,
+        /// The conic.
+        conic: geom_brep::OutsideConic,
         /// The section table's refusal, naming the conic.
         section: geom_brep::SectionError,
     },
@@ -3635,12 +3637,16 @@ impl core::fmt::Display for BooleanError {
                 kind_word(*b_kind),
                 meeting_recourse(kind_word(*a_kind)),
             ),
-            Self::GermSectionOutsideInventory { .. } => write!(
+            Self::GermSectionOutsideInventory { conic, .. } => write!(
                 f,
                 "a flat face of one part cuts a cone face of the other along a curve \
-                 that never closes (a parabola or a hyperbola), which the Boolean does \
-                 not build. Recourse: tilt the parts so the flat face cuts the cone all \
-                 the way round, or keep it clear of the cone face",
+                 that never closes ({}), which the Boolean does not build. Recourse: \
+                 tilt the parts so the flat face cuts the cone all the way round, or \
+                 keep it clear of the cone face",
+                match conic {
+                    geom_brep::OutsideConic::Parabola => "a parabola",
+                    geom_brep::OutsideConic::Hyperbola => "a hyperbola",
+                },
             ),
             // True for BOTH radius cases: the raise site refuses on the
             // axis relation alone when no radius evidence exists, so the
@@ -4298,7 +4304,10 @@ pub fn join_admitting_cones(
             a_operand,
             b_operand,
             &BooleanDeclarations::none(),
-            (SweepStrategy::Realized, roster),
+            ops::JoinSweep {
+                strategy: SweepStrategy::Realized,
+                roster,
+            },
             true,
             tol,
         )? {
@@ -4408,7 +4417,10 @@ pub(crate) fn through_the_join(
             a,
             b,
             &BooleanDeclarations::none(),
-            (SweepStrategy::Realized, reduce::boolean_arm_exists),
+            ops::JoinSweep {
+                strategy: SweepStrategy::Realized,
+                roster: reduce::boolean_arm_exists,
+            },
             true,
             tol,
         )? {
@@ -6824,6 +6836,7 @@ mod tests {
                 a_kind: geom::SurfaceKind::Plane,
                 b_face: face,
                 b_kind: geom::SurfaceKind::Cone,
+                conic: geom_brep::OutsideConic::Hyperbola,
                 section: geom_brep::SectionError::RoutesToGeneralRung {
                     pair: "plane×cone",
                     why: "a hyperbola",

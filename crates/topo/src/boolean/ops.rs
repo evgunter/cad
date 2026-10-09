@@ -651,7 +651,10 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         a,
         b,
         decls,
-        (strategy, super::reduce::boolean_arm_exists),
+        JoinSweep {
+            strategy,
+            roster: super::reduce::boolean_arm_exists,
+        },
         recut,
         tol,
     )? {
@@ -810,6 +813,16 @@ pub(super) enum Joined<T: Real> {
     },
 }
 
+/// How [`through_the_join`]'s reduction sweeps: its strategy, and the
+/// operand gate's face-kind roster
+/// ([`super::boolean_reduce_declared_strategy`]).
+pub(super) struct JoinSweep<T: geom_core::Real> {
+    /// The sweep strategy.
+    pub(super) strategy: SweepStrategy,
+    /// The face kinds the operand gate admits.
+    pub(super) roster: fn(&geom::Surface<T>) -> bool,
+}
+
 /// **The pipeline through its join**: the reduction, then the
 /// no-crossings path where there is no null pair, and otherwise the
 /// join, with the declared-REST door behind a join that refuses.
@@ -821,17 +834,17 @@ pub(super) enum Joined<T: Real> {
 ///
 /// The reduction's, the no-crossings path's and the join's refusals.
 ///
-/// The sweep strategy travels with the operand gate's face-kind roster
-/// ([`super::boolean_reduce_declared_strategy`]).
+/// The reduction sweeps as `sweep` says ([`JoinSweep`]).
 pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
-    (strategy, roster): (SweepStrategy, fn(&geom::Surface<T>) -> bool),
+    sweep: JoinSweep<T>,
     recut: bool,
     tol: Tol,
 ) -> Result<Joined<T>, BooleanError> {
+    let JoinSweep { strategy, roster } = sweep;
     let band = Band::linear(tol)?;
     let mut red = super::boolean_reduce_declared_strategy(op, a, b, decls, strategy, roster, tol)?;
 
@@ -6551,10 +6564,10 @@ mod tests {
                 &a,
                 &b,
                 &decls,
-                (
-                    SweepStrategy::Realized,
-                    crate::boolean::reduce::boolean_arm_exists,
-                ),
+                super::JoinSweep {
+                    strategy: SweepStrategy::Realized,
+                    roster: crate::boolean::reduce::boolean_arm_exists,
+                },
                 true,
                 tol,
             )
