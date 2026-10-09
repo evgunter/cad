@@ -103,18 +103,34 @@ use crate::recourse::{AtZero, SizedDecision, SizedPass, StoredDefinite};
 /// the wedge an angle. Its margin is the wedge the arm meters,
 /// `sin θ · arm` (the arm's own where that wedge reads zero at the
 /// tolerance deciding the arm), so the tolerance it offers decides the
-/// arm and the wedge both. An arm of no length is sound geometry the
-/// metering reaches (a cone's apex), which its zero note says.
+/// arm and the wedge both. Its zero note names both ways the arm reaches
+/// no length: the edge's extent (an edge of none) and a face's radius
+/// (a cone's apex).
 pub const DIHEDRAL_ARM: SizedDecision = SizedDecision {
-    lever: "move the geometry so that edge is clearly longer, and its faces curve less tightly \
-            there",
+    lever: "move the geometry so that edge is clearly longer and no face curves tightly there",
     size: "length or the gap its faces open",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Contradiction,
     at_zero: Some(AtZero::same(
-        "a face curving to a point there, as a cone at its apex, leaves no angle to measure",
+        "an edge of no length, or a face curving to a point as a cone does, leaves no angle to \
+         measure",
     )),
 };
+
+/// The clause [`DIHEDRAL_ARM`] decides, of an edge: every door that asks
+/// it, or answers that the arm is not there, composes its sentence
+/// around this one spelling, so the decision is told in one shape
+/// (D4 ¶1 (iv)).
+pub const DIHEDRAL_ARM_CLAUSE: &str = crate::dihedral_arm_clause!();
+
+/// [`DIHEDRAL_ARM_CLAUSE`] as a literal, for `concat!`.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! dihedral_arm_clause {
+    () => {
+        "long enough, for how its faces curve, to measure their angle"
+    };
+}
 
 /// A definite dihedral classification (the indeterminate outcome is the
 /// typed [`Indeterminate`] error — the sliver escalation, D4 ¶3).
@@ -282,9 +298,7 @@ pub(crate) fn wedge_decided<T: Decide>(
     // The collapsed-arm gate (module docs): the wedge margin is only
     // meaningful through a definitely-positive arm.
     decide_positive("dihedral_arm", Margin::of(arm), band).map_err(|gate| {
-        WedgeEscalation::Lever(
-            LeverEscalation::arm(gate).with_diag(at_wedge(gate, arm, sin_theta, band)),
-        )
+        WedgeEscalation::Lever(at_wedge(LeverEscalation::arm(gate), arm, sin_theta, band))
     })?;
     let margin = Margin::levered(sin_theta, arm);
     // The cause of an invalid margin, read only once the decision has
@@ -318,7 +332,9 @@ pub(crate) fn wedge_decided<T: Decide>(
 
 /// **The arm gate's escalation, quoted at the wedge it meters**: the arm
 /// is in band or decided zero, and the reading it meters is the wedge
-/// `sin θ · arm`, no longer than the arm. A tolerance that decides the
+/// `sin θ · arm`, no longer than the arm up to the in-band excess of the
+/// gradients' quotient over one (which
+/// [`LeverEscalation::quoting_reading`] guards). A tolerance that decides the
 /// arm but leaves that wedge in band reads no class, so the escalation
 /// carries the wedge's own margin, through the arm gate's funnel
 /// (`"dihedral_arm_wedge"`), and the tolerance it offers decides both.
@@ -329,22 +345,29 @@ pub(crate) fn wedge_decided<T: Decide>(
 /// seam, whose own value would offer a tolerance many decades below the
 /// one that already decides the seam. An arm no smaller tolerance
 /// decides positive — poisoned, decided negative, or a zero on the
-/// negative side — keeps its own too: there is no tolerance to quote.
-fn at_wedge<T: Decide>(gate: Indeterminate, arm: T, sin_theta: T, band: Band) -> Indeterminate {
+/// negative side — keeps its own too: there is no tolerance to quote
+/// ([`LeverEscalation::re_quotes`]).
+fn at_wedge<T: Decide>(
+    escalation: LeverEscalation,
+    arm: T,
+    sin_theta: T,
+    band: Band,
+) -> LeverEscalation {
     let wedge = sin_theta * arm;
     // `arm / wedge` is finite unless the wedge is exactly zero, or poison
     // (a gradient the arm's decided zero leaves unread, at a cone's apex).
-    if !gate.offers_tolerance()
+    if !escalation.re_quotes()
         || !geom_core::is_finite_length(arm / wedge)
         || wedge_reads_zero_at_the_arm(sin_theta, band)
     {
-        return gate;
+        return escalation;
     }
     match decide_positive("dihedral_arm_wedge", Margin::of(wedge.abs()), band) {
-        Err(diag) => diag,
-        // Unreachable: the wedge is no longer than an arm that did not
-        // read positive.
-        Ok(()) => gate,
+        Err(diag) => escalation.quoting_reading(diag),
+        // Only where `sin θ`'s in-band excess over one carries the wedge
+        // past the band: the arm keeps its own margin, whose tolerance
+        // decides that wedge too.
+        Ok(()) => escalation,
     }
 }
 
@@ -739,7 +762,8 @@ impl MustCarryEscalation {
     #[must_use]
     pub const fn diag(self) -> Indeterminate {
         match self {
-            Self::FirstOrder(LeverEscalation { diag, .. }) | Self::SecondOrder(diag) => diag,
+            Self::FirstOrder(escalation) => escalation.diag(),
+            Self::SecondOrder(diag) => diag,
         }
     }
 }
@@ -956,7 +980,7 @@ mod tests {
         let wall = plane(Vec3::unit_x(), Vec3::unit_y());
         let err = classify_dihedral(&floor, &wall, Point3::origin(), mid, b).unwrap_err();
         assert_eq!(
-            (err.rung, err.diag.predicate),
+            (err.rung(), err.diag().predicate),
             (LeverRung::Arm, Some("dihedral_arm_wedge"))
         );
     }
@@ -980,9 +1004,9 @@ mod tests {
             Vec3::unit_x(),
         );
         let undecided = classify_dihedral(&floor, &leaning, Point3::origin(), arm, b).unwrap_err();
-        assert_eq!(undecided.rung, LeverRung::Arm);
+        assert_eq!(undecided.rung(), LeverRung::Arm);
         assert_eq!(
-            undecided.diag.margin.rejected_sign(),
+            undecided.diag().margin.rejected_sign(),
             Some(Sign::Zero),
             "the quoted wedge is a decided zero: {undecided:?}"
         );
@@ -1016,21 +1040,21 @@ mod tests {
         for extent in [mid, 0.5 * b.zero()] {
             let err = classify_dihedral(&floor, &leaning, Point3::origin(), extent, b).unwrap_err();
             let geom_core::ErrorTextReading::Value(m) =
-                err.diag.margin.diagnostic_f64_for_error_text()
+                err.diag().margin.diagnostic_f64_for_error_text()
             else {
                 panic!("a point margin: {err:?}");
             };
-            assert_eq!(err.rung, LeverRung::Arm);
-            assert_eq!(err.diag.predicate, Some("dihedral_arm_wedge"));
+            assert_eq!(err.rung(), LeverRung::Arm);
+            assert_eq!(err.diag().predicate, Some("dihedral_arm_wedge"));
             assert!((m - theta.sin() * extent).abs() <= 1e-6 * m, "{m:e}");
         }
         let err = classify_dihedral(&floor, &floor, Point3::origin(), mid, b).unwrap_err();
         assert_eq!(
-            (err.rung, err.diag.predicate),
+            (err.rung(), err.diag().predicate),
             (LeverRung::Arm, Some("dihedral_arm"))
         );
         assert_eq!(
-            err.diag.margin.diagnostic_f64_for_error_text(),
+            err.diag().margin.diagnostic_f64_for_error_text(),
             geom_core::ErrorTextReading::Value(mid)
         );
     }
@@ -1058,12 +1082,12 @@ mod tests {
         let quoted = |s1: &Surface<f64>, s2: &Surface<f64>, p: Point3<f64>| {
             let err = classify_dihedral(s1, s2, p, extent, b).unwrap_err();
             let geom_core::ErrorTextReading::Value(m) =
-                err.diag.margin.diagnostic_f64_for_error_text()
+                err.diag().margin.diagnostic_f64_for_error_text()
             else {
                 panic!("a point margin: {err:?}");
             };
-            assert_eq!(err.rung, LeverRung::Arm, "{err:?}");
-            (err.diag.predicate, m)
+            assert_eq!(err.rung(), LeverRung::Arm, "{err:?}");
+            (err.diag().predicate, m)
         };
         // The coincv5 review's tangent pose (`seam_tangent_noise`).
         let k = Vec3::new(0.37, -0.81, 0.45).normalize();
@@ -1218,7 +1242,7 @@ mod tests {
         let s2 = plane(n, Vec3::unit_y());
         let err = classify_dihedral(&s1, &s2, Point3::origin(), 1.0, band()).unwrap_err();
         assert_eq!(
-            (err.rung, err.diag.predicate),
+            (err.rung(), err.diag().predicate),
             (LeverRung::Reading, Some("dihedral_wedge"))
         );
     }
@@ -1265,10 +1289,10 @@ mod tests {
         let err = classify_dihedral(&cone, &s1, Point3::origin(), 1.0, band()).unwrap_err();
         assert_eq!(
             (
-                err.rung,
-                err.diag.predicate,
-                err.diag.margin.diagnostic_f64_for_error_text(),
-                err.diag.margin.rejected_sign()
+                err.rung(),
+                err.diag().predicate,
+                err.diag().margin.diagnostic_f64_for_error_text(),
+                err.diag().margin.rejected_sign()
             ),
             (
                 crate::LeverRung::Arm,
@@ -1419,7 +1443,7 @@ mod tests {
             band(),
         )
         .unwrap_err();
-        assert_eq!(err.diag.margin, geom_core::MarginDiag::INVALID);
+        assert_eq!(err.diag().margin, geom_core::MarginDiag::INVALID);
     }
 
     /// **A cylinder's gradient enclosure that reaches zero leaves no
@@ -1495,7 +1519,7 @@ mod tests {
             band(),
         );
         assert!(
-            matches!(off_locus, Err(WedgeEscalation::Lever(e)) if e.rung == LeverRung::Reading),
+            matches!(off_locus, Err(WedgeEscalation::Lever(e)) if e.rung() == LeverRung::Reading),
             "a poisoned point poisons the gradient, which is not a missing tangent plane: \
              {off_locus:?}"
         );

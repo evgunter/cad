@@ -145,6 +145,7 @@ pub mod chart_region;
 // the same rustdoc reason as the sector modules below.
 pub(crate) mod chord_join;
 pub mod coherence;
+pub mod coincidence;
 pub mod contact;
 pub mod entity;
 pub mod euler;
@@ -185,6 +186,7 @@ pub mod movefac;
 mod n2r1_probes;
 pub mod null;
 pub mod offset_axial;
+pub mod offset_derive;
 pub mod offset_nappe;
 pub(crate) mod offset_restate;
 pub mod offset_together;
@@ -464,8 +466,9 @@ pub mod test_support {
         crate::boolean::maximal_faces_gate(body, operand, tol)
     }
 
-    /// The join's section segments of `op`: the pair-record count and
-    /// each segment's two germ sites (`boolean::section_segment_sites`).
+    /// Every segment the join of `op` builds, one-site loops included:
+    /// the pair-record count and each segment's two germ sites
+    /// (`boolean::section_segment_sites`).
     /// `None` where the reduction registers no pair.
     ///
     /// # Errors
@@ -613,7 +616,7 @@ pub mod test_support {
     /// refusal's obligation (`test_utils::offer::judge_laters`).
     pub const LATER_STORIES_OWNED: &[(&str, &str)] = &[(
         "Containment",
-        "work/contact/point-in-solid-escalation-carries-no-decision.md",
+        "work/inside/point-in-solid-escalation-carries-no-decision.md",
     )];
 
     /// The offers the executed-offer census counts as run in `sweep`,
@@ -731,6 +734,24 @@ pub mod test_support {
         crate::boolean::no_crossings_certificates(a, b, tol)
     }
 
+    /// **The section pass's per-pair report on the no-crossings path**,
+    /// spelled as [`section_report`]'s: every pair the pass examines,
+    /// with no event, as `(A face, B face, outcome)`.
+    ///
+    /// # Errors
+    ///
+    /// The box builder's own errors.
+    pub fn no_crossings_section_report(
+        a: &Body<f64>,
+        b: &Body<f64>,
+        tol: geom_core::Tol,
+    ) -> Result<Vec<(crate::FaceKey, crate::FaceKey, String)>, crate::BooleanError> {
+        Ok(crate::boolean::no_crossings_section_report(a, b, tol)?
+            .into_iter()
+            .map(|p| (p.a_face, p.b_face, format!("{:?}", p.verdict)))
+            .collect())
+    }
+
     /// Does `face` describe for the section certificate's W2 — its
     /// `chart_boundary` answers, or, on a cone face, its apex closure
     /// closes? The verdict the certificate reads per face.
@@ -808,8 +829,9 @@ pub use surgery::Surgery;
 // that can hold it: upward layers RE-EXPORT these, never redefine.
 #[cfg(feature = "sweep-testing")]
 pub use boolean::{
-    PlantedDegradation, sweep_records, sweep_split_admitting_cones, sweep_traces,
-    sweep_traces_with_pad, take_shared_points,
+    ConeJoin, PlantedDegradation, join_admitting_cones, section_report_admitting_cones,
+    sweep_records, sweep_split_admitting_cones, sweep_traces, sweep_traces_with_pad,
+    take_shared_points,
 };
 #[cfg(feature = "sweep-testing")]
 pub use chord_join::face_azimuth_window_traces;
@@ -848,6 +870,7 @@ pub use coherence::{
     CoherenceCondition, CoherenceFinding, CoherenceReport, StructureRead, Unexaminable, Unexamined,
     examine_chart_coherence, gap_is_noise,
 };
+pub use coincidence::{Coincidence, DecisionSite, Discharge, Relation, RowCell};
 pub use geom::Curve3;
 pub use geom::Surface;
 pub use geom_brep::{
@@ -864,6 +887,7 @@ pub use merge_faces::{
 };
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use offset_axial::{is_axial, offset_charts_together};
+pub use offset_derive::{CornerVerdict, SectionLane, SectionVerdict};
 pub use offset_nappe::{Nappe, face_nappe, group_nappe};
 pub use offset_together::{ChartMove, offset_planes_together};
 pub use pcurves::{

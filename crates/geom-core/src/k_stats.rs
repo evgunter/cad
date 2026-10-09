@@ -134,7 +134,7 @@
 //! carries its verdicts and samples and leaves the escalation out. The
 //! tangency certificate (`geom_brep::certify`) does; `topo`'s contact
 //! ladder does not yet
-//! (`work/contact/contact-verify-logs-a-second-order-escalation-its-outcome-overruled.md`).
+//! (`work/contacthold/contact-verify-logs-a-second-order-escalation-its-outcome-overruled.md`).
 //!
 //! A predicate's own indeterminacy is produced here too. A predicate
 //! whose question is only validly posed under a condition on the margin

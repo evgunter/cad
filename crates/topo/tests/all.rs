@@ -63,6 +63,8 @@ use topo::test_support as common;
 mod fixture;
 mod probe_support;
 
+#[path = "analytic_rung3_at_rest.rs"]
+mod analytic_rung3_at_rest;
 #[path = "at_rest_pcurve_rows.rs"]
 mod at_rest_pcurve_rows;
 #[path = "axis_source_rows.rs"]
@@ -299,6 +301,8 @@ mod shell_tolerance_chain;
 mod shell_winding;
 #[path = "site_mint_scaling.rs"]
 mod site_mint_scaling;
+#[path = "sliver_shell_role.rs"]
+mod sliver_shell_role;
 #[path = "solid_separation.rs"]
 mod solid_separation;
 #[path = "sphere_twin_rows_interval.rs"]
@@ -376,3 +380,5 @@ mod review_cleave_mint_doors;
 mod spline_reanchor_rows;
 #[path = "split_tangent_edge.rs"]
 mod split_tangent_edge;
+#[path = "three_solids_on_one_line.rs"]
+mod three_solids_on_one_line;

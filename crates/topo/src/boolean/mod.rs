@@ -78,6 +78,8 @@ mod carrier_touch;
 mod circle_roots;
 mod circle_torus;
 pub(crate) mod combine;
+#[cfg(test)]
+mod cone_frame_rows;
 mod conic_quadric;
 pub mod contact_verify;
 // The conic rows' shared test oracles (test builds only).
@@ -98,12 +100,12 @@ pub(crate) mod insert;
 mod join;
 mod ops;
 pub(crate) mod section_cert;
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) use ops::no_crossings_certificates;
 pub(crate) use ops::volume_backstop;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use ops::{ChartCache, section_report};
 pub(crate) use ops::{boundary_edges, describe_edges};
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) use ops::{no_crossings_certificates, no_crossings_section_report};
 pub mod plane_eq;
 #[cfg(test)]
 mod r2_probes;
@@ -156,6 +158,9 @@ pub use contain::{
 // classification this module's own walk dispatches on.
 pub(crate) use contain::{driver_face_stale, loop_circle};
 pub use discard::{DiscardRow, HeldEdge, lineage_root};
+// Crate-internal: tier 3's check 11 reads every vertex through the
+// join's own predicate.
+pub(crate) use edge_join::joinable_at_rest;
 pub use edge_join::{
     EdgeJoin, JoinReading, JoinRefusal, JoinUndecided, is_conventional_vertex, join_covers,
     joinable_vertices, joined_edge,
@@ -222,7 +227,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_conic_face_plane_offset" => Coincide::EdgeOnPlane.subject(),
         "bool_line_cylinder_clearance" => Coincide::EdgeOnCurvedFace.subject(),
         "bool_sector_within" | "bool_flank_offset" | "bool_wedge_reflex" | "bool_cone_arc"
-        | "bool_cone_arc_span" | "bool_cone_within" | "bool_cone_facing" => {
+        | "bool_cone_arc_span" | "bool_cone_within" | "bool_cone_facing" | "bool_cone_apart" => {
             Coincide::Sectors.subject()
         }
         "bool_cone_pointed" => "whether a corner's link leans to one side of its vertex",
@@ -246,7 +251,10 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         separating::PAIR_GAP => {
             "how far apart two faces lie along a direction that turns with them"
         }
-        "bool_pierce_normal_on_chart" => BooleanDecision::PierceOnFace.subject(),
+        "bool_pierce_normal_on_chart" | "bool_pierce_normal_on_cone" => {
+            BooleanDecision::PierceOnFace.subject()
+        }
+        "bool_cone_off_axis" => "whether a point of a cone face stands clear of the cone's apex",
         // `geom`'s torus convention, which the pierce point's normal
         // reads before it differentiates the torus.
         "torus_tube_positive" => TorusConvention::Tube.subject(),
@@ -450,8 +458,9 @@ impl SideCode {
 /// - A vertex that touches a face and pairs too records each edge once,
 ///   read against the face and its partners together, or the boolean
 ///   refuses (`vtxfac::touch_classes`). A vertex in several pairs alone
-///   does the same where its partners' layering decides, and keeps each
-///   pair's rows where it does not (`vtxfac::pair_classes`).
+///   does the same where its partners' layering decides, refuses where
+///   a partner's cone reads nothing, and keeps each pair's rows where
+///   the layering leaves an edge undecided (`vtxfac::pair_classes`).
 ///
 /// `In` and `On` both lie in the other operand's closed body.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -1186,6 +1195,12 @@ pub(crate) struct VerifiedDeclarations {
     /// that read. Only a union consumes it.
     pub(crate) through_a_face:
         Option<Result<(crate::contact::DeclaredContact, Operand), BooleanError>>,
+    /// The one-carrier pairs a margin decided, one row each in
+    /// declaration order: a declaration's verification is a value
+    /// decision, so its glue is recorded like any other
+    /// ([`crate::coincidence`]). A pair the same-source rung settled is
+    /// structure and has none.
+    pub(crate) coincidences: Vec<crate::Coincidence>,
 }
 
 impl<T: Decide> DeclaredPairs<T> {
@@ -1739,6 +1754,9 @@ pub struct BooleanReduction<T: Real> {
     /// Each point where the insertion hung runs at a turned run's copy
     /// ([`HungPoint`]).
     pub(crate) hung: Vec<HungPoint>,
+    /// The coincidences the declaration door decided from values, in
+    /// operand keys ([`crate::coincidence`]).
+    pub coincidences: Vec<crate::Coincidence>,
 }
 
 /// A cross-operand face pair the coincidence ladder settled one
@@ -1957,6 +1975,22 @@ pub enum BooleanError {
         /// The band the apex distance was classified against.
         band: Band,
     },
+    /// A vertex the boolean classifies sits within the band of the APEX
+    /// of a cone face of `operand`: the cone's own apex vertex as the
+    /// corner of one of its sectors, or another operand's vertex landing
+    /// on the cone there. The face has no tangent plane at its apex, so
+    /// there is no normal to read a material side by, and the sector and
+    /// pierce lanes refuse rather than read one. The definite half: an
+    /// in-band distance off the axis refuses the same way, with no
+    /// tolerance named.
+    NormalAtConeApex {
+        /// The operand the cone face belongs to.
+        operand: Operand,
+        /// The cone face.
+        face: FaceKey,
+        /// The band the distance off the axis was classified against.
+        band: Band,
+    },
     /// The operand gate (F5) refused a spiric or spline (`Nurbs`)
     /// carrier in an INPUT operand: no crossing lane reads either kind,
     /// and the join and section lanes behind the sweep have no row for
@@ -2070,6 +2104,18 @@ pub enum BooleanError {
         operand: Operand,
         /// The validator's findings, each naming its solid (and, for a
         /// shell, the shell).
+        errors: Vec<ValidationError>,
+    },
+    /// An operand holds a vertex the join would take, or one whose
+    /// reading lands in the sliver band (tier 3's check 11,
+    /// [`ValidationError::JoinableVertexAtRest`] /
+    /// [`ValidationError::JoinUndecidedAtRest`]). A finished body holds
+    /// none; the door reads the check itself on an operand whose scalar
+    /// runs no at-rest gate (a dual), as it reads checks 7 and 10.
+    UnjoinedOperand {
+        /// The offending operand.
+        operand: Operand,
+        /// The check-11 findings, each naming its vertex.
         errors: Vec<ValidationError>,
     },
     /// F7: two adjacent faces of one operand are structurally or
@@ -2362,7 +2408,9 @@ pub enum BooleanError {
     /// first read cannot be taken with the second: it pierces two faces
     /// of the other solid, or pierces one and coincides with a vertex of
     /// it while crossing the face, or while that vertex's link does not
-    /// lie strictly on one side of the face. That other solid holds its
+    /// lie strictly on one side of the face; or, in pairs alone, a
+    /// partner's cone reads nothing beside another partner's
+    /// (`vtxfac::pair_classes`). That other solid holds its
     /// own contact at the vertex's point: two of its faces meet there in
     /// their interiors, or a vertex of it rests on one of its faces. A
     /// vertex-on-face pass hangs struts at a vertex that crosses the
@@ -2375,7 +2423,8 @@ pub enum BooleanError {
         /// sweep may have minted on one of its edges.
         vertex: VertexKey,
         /// Its first pierce, then its next read: a second pierce, or a
-        /// pair.
+        /// pair; in pairs alone, the partner whose cone reads nothing,
+        /// then one beside it.
         reads: [SectorRead; 2],
     },
     /// The result would hold a non-manifold vertex: both operands hold
@@ -2571,19 +2620,23 @@ pub enum BooleanError {
         /// The precise uncertifiable sub-configuration.
         what: &'static str,
     },
-    /// **Two sphere faces of the two solids meet** at the curved-extent
+    /// **Two sphere faces of the two solids touch** at the curved-extent
     /// scan, which runs only where the crossing layer found no edge
-    /// crossing a face: either their spheres touch within the tolerance,
-    /// the smaller inside the larger (a decided zero), at a touch the
-    /// section certificate does not certify off either face, or their
-    /// spheres cross and the certificate certifies the circle they cross
-    /// in inside both faces (its R-loop). Whatever the faces share lies
-    /// off every edge, so the join's sphere-pair arm (the radical plane,
-    /// `join::bool_connect`) had no chord to run. A crossing whose circle
-    /// the certificate cannot place refuses with the certificate's own
-    /// reason instead ([`BooleanError::FallbackExtentUnsupported`]). It is
-    /// the decided refusal of [`SphereQuestion::Nested`], and ends as
-    /// that question's escalation does ([`refusal_routes::SPHERES`]).
+    /// crossing a face: their spheres touch within the tolerance, the
+    /// smaller inside the larger (a decided zero), at a touch the section
+    /// certificate does not certify off either face. Whatever the faces
+    /// share lies off every edge, so the join's sphere-pair arm (the
+    /// radical plane, `join::bool_connect`) had no chord to run. Spheres
+    /// that cross, in a circle the certificate certifies inside both
+    /// faces (its R-loop), are not refused: each sphere is re-cut so an
+    /// edge of it reaches the circle (a closed ball re-charted with its
+    /// pole on the centre line, any other face cut along a meridian
+    /// through the circle, `ops::sphere_extent_scan`), and a crossing
+    /// whose circle the certificate cannot place refuses with the
+    /// certificate's own reason
+    /// ([`BooleanError::FallbackExtentUnsupported`]). It is the decided
+    /// refusal of [`SphereQuestion::Nested`], and ends as that question's
+    /// escalation does ([`refusal_routes::SPHERES`]).
     /// One sphere touching the other on one carrier is not asked when
     /// every face of it is a verified `Rest` against the other face:
     /// such a pair touches without overlapping (`ops::Exempt::Rest`).
@@ -2621,6 +2674,26 @@ pub enum BooleanError {
         b_face: FaceKey,
         /// Its kind — the B half of the germ pair.
         b_kind: geom::SurfaceKind,
+    },
+    /// **A germ pair whose section is a conic outside the inventory by
+    /// decision**: a plane cutting a cone face in a parabola (parallel to
+    /// a generator) or a hyperbola (meeting both nappes). Neither curve is
+    /// in the conic inventory (`geom_brep`'s C1/C5, ruling R1), so the
+    /// pair is refused, not missing an arm: `section` is the table's own
+    /// refusal, naming the conic.
+    GermSectionOutsideInventory {
+        /// The A-side germ face.
+        a_face: FaceKey,
+        /// Its kind.
+        a_kind: geom::SurfaceKind,
+        /// The B-side germ face.
+        b_face: FaceKey,
+        /// Its kind.
+        b_kind: geom::SurfaceKind,
+        /// The conic.
+        conic: geom_brep::OutsideConic,
+        /// The section table's refusal, naming the conic.
+        section: geom_brep::SectionError,
     },
     /// **A germ pair of two cylinder walls whose axes definitely
     /// INTERSECT** — the frame dispatch's named sub-case of "no
@@ -2927,6 +3000,8 @@ pub enum BooleanErrorKind {
     CurvedPierceUnsupported,
     /// [`BooleanError::CrossingAtConeApex`].
     CrossingAtConeApex,
+    /// [`BooleanError::NormalAtConeApex`].
+    NormalAtConeApex,
     /// [`BooleanError::CurvedEdgeUnsupported`].
     CurvedEdgeUnsupported,
     /// [`BooleanError::CrossingCarrierUnsupported`].
@@ -2943,6 +3018,8 @@ pub enum BooleanErrorKind {
     ScaffoldingOperand,
     /// [`BooleanError::InsideOutOperand`].
     InsideOutOperand,
+    /// [`BooleanError::UnjoinedOperand`].
+    UnjoinedOperand,
     /// [`BooleanError::NonMaximalFaces`].
     NonMaximalFaces,
     /// [`BooleanError::CoplanarNeighbours`].
@@ -2997,6 +3074,8 @@ pub enum BooleanErrorKind {
     SpheresMeet,
     /// [`BooleanError::GermFrameUnsupported`].
     GermFrameUnsupported,
+    /// [`BooleanError::GermSectionOutsideInventory`].
+    GermSectionOutsideInventory,
     /// [`BooleanError::GermFrameCylinderPinch`].
     GermFrameCylinderPinch,
     /// [`BooleanError::Euler`].
@@ -3067,6 +3146,9 @@ impl BooleanError {
             crate::validate::Unfinished::InsideOut(errors) => {
                 Self::InsideOutOperand { operand, errors }
             }
+            crate::validate::Unfinished::Unjoined(errors) => {
+                Self::UnjoinedOperand { operand, errors }
+            }
         }
     }
 
@@ -3098,9 +3180,20 @@ impl BooleanError {
         read: DeclarationRead,
         escalation: geom_brep::LeverEscalation,
     ) -> Self {
+        Self::of_lever_rung(gate, read, escalation.rung(), escalation.diag())
+    }
+
+    /// [`BooleanError::of_lever`] from its parts, for a door that carries
+    /// the rung apart from the escalation.
+    pub(crate) const fn of_lever_rung(
+        gate: refusal_routes::LeverArm,
+        read: DeclarationRead,
+        rung: geom_brep::LeverRung,
+        diag: Indeterminate,
+    ) -> Self {
         Self::Escalated {
-            decision: BooleanDecision::of_lever(gate, read, escalation.rung),
-            diag: escalation.diag,
+            decision: BooleanDecision::of_lever(gate, read, rung),
+            diag,
         }
     }
 
@@ -3142,6 +3235,11 @@ impl BooleanError {
             NormalAtError::OffSurface => Self::ClassificationInvariant {
                 what: "pierce point definitely off the pierced face's surface",
             },
+            NormalAtError::AtConeApex { band } => Self::NormalAtConeApex {
+                operand,
+                face,
+                band,
+            },
         }
     }
 
@@ -3160,6 +3258,7 @@ impl BooleanError {
             }
             Self::CurvedPierceUnsupported { .. } => BooleanErrorKind::CurvedPierceUnsupported,
             Self::CrossingAtConeApex { .. } => BooleanErrorKind::CrossingAtConeApex,
+            Self::NormalAtConeApex { .. } => BooleanErrorKind::NormalAtConeApex,
             Self::CurvedEdgeUnsupported { .. } => BooleanErrorKind::CurvedEdgeUnsupported,
             Self::CrossingCarrierUnsupported { .. } => BooleanErrorKind::CrossingCarrierUnsupported,
             Self::PointSplitCarrierUnsupported { .. } => {
@@ -3172,6 +3271,7 @@ impl BooleanError {
             Self::PointInFaceRefused { .. } => BooleanErrorKind::PointInFaceRefused,
             Self::ScaffoldingOperand { .. } => BooleanErrorKind::ScaffoldingOperand,
             Self::InsideOutOperand { .. } => BooleanErrorKind::InsideOutOperand,
+            Self::UnjoinedOperand { .. } => BooleanErrorKind::UnjoinedOperand,
             Self::NonMaximalFaces { .. } => BooleanErrorKind::NonMaximalFaces,
             Self::CoplanarNeighbours { .. } => BooleanErrorKind::CoplanarNeighbours,
             Self::NonFiniteSectorChord { .. } => BooleanErrorKind::NonFiniteSectorChord,
@@ -3201,6 +3301,9 @@ impl BooleanError {
             Self::FallbackExtentUnsupported { .. } => BooleanErrorKind::FallbackExtentUnsupported,
             Self::SpheresMeet { .. } => BooleanErrorKind::SpheresMeet,
             Self::GermFrameUnsupported { .. } => BooleanErrorKind::GermFrameUnsupported,
+            Self::GermSectionOutsideInventory { .. } => {
+                BooleanErrorKind::GermSectionOutsideInventory
+            }
             Self::GermFrameCylinderPinch { .. } => BooleanErrorKind::GermFrameCylinderPinch,
             Self::Euler(_) => BooleanErrorKind::Euler,
             Self::Pcurves { .. } => BooleanErrorKind::Pcurves,
@@ -3335,6 +3438,13 @@ impl core::fmt::Display for BooleanError {
                  Recourse: move the parts so the edge clearly passes the tip",
                 operand_word(*operand),
             ),
+            Self::NormalAtConeApex { operand, .. } => write!(
+                f,
+                "a corner of one part sits at the tip of a cone face of the {} operand, \
+                 where the face has no direction to read the other part's side by. \
+                 Recourse: move the parts so nothing meets the cone's tip",
+                operand_word(*operand),
+            ),
             Self::CurvedSectorSideUnsupported { verdict } => write!(
                 f,
                 "where an edge pierces a curved face, the Boolean cannot be sure which \
@@ -3436,6 +3546,12 @@ impl core::fmt::Display for BooleanError {
                 operand_word(*operand),
                 crate::validate::Unfinished::INSIDE_OUT_REFUSAL,
             ),
+            Self::UnjoinedOperand { operand, .. } => write!(
+                f,
+                "the {} operand {}",
+                operand_word(*operand),
+                crate::validate::Unfinished::UNJOINED_REFUSAL,
+            ),
             Self::NonMaximalFaces { operand, .. } => write!(
                 f,
                 "the {} operand has two neighbouring faces that lie on one surface, so \
@@ -3520,6 +3636,17 @@ impl core::fmt::Display for BooleanError {
                 kind_word(*a_kind),
                 kind_word(*b_kind),
                 meeting_recourse(kind_word(*a_kind)),
+            ),
+            Self::GermSectionOutsideInventory { conic, .. } => write!(
+                f,
+                "a flat face of one part cuts a cone face of the other along a curve \
+                 that never closes ({}), which the Boolean does not build. Recourse: \
+                 tilt the parts so the flat face cuts the cone all the way round, or \
+                 keep it clear of the cone face",
+                match conic {
+                    geom_brep::OutsideConic::Parabola => "a parabola",
+                    geom_brep::OutsideConic::Hyperbola => "a hyperbola",
+                },
             ),
             // True for BOTH radius cases: the raise site refuses on the
             // axis relation alone when no radius evidence exists, so the
@@ -3683,6 +3810,21 @@ impl core::fmt::Display for BooleanError {
                  several corners that only touch each other, and the result would keep \
                  them apart in a way its checks cannot read. There is no way through this \
                  in the kernel yet",
+                operand_word(*operand)
+            ),
+            Self::VertexReadTwice {
+                operand,
+                reads: [SectorRead::Pair(_), SectorRead::Pair(_)],
+                ..
+            } => write!(
+                f,
+                "a corner of the {} solid lands where two corners of the other solid meet \
+                 at one point, and one of those corners gives no side for its edges: its \
+                 faces fold onto one another, exactly or to within the input tolerance \
+                 (ε_input, K·ε), or it lies on fewer than two faces. The Boolean cannot \
+                 classify the first corner against both without it. Recourse: move the \
+                 parts so the other solid's corners do not meet at that point, or open its \
+                 folded faces apart by more than ε_input",
                 operand_word(*operand)
             ),
             Self::VertexReadTwice { operand, reads, .. } => write!(
@@ -3986,6 +4128,7 @@ pub fn boolean_reduce_declared<T: Decide + Bounds + crate::props::AtRestPolicy>(
         b_operand,
         decls,
         SweepStrategy::Realized,
+        reduce::boolean_arm_exists,
         tol,
     )
 }
@@ -4109,6 +4252,18 @@ pub fn sweep_split_admitting_cones(
     b_operand: &Body<f64>,
     tol: Tol,
 ) -> Result<(Body<f64>, Body<f64>, SweepTrace, SweepTrace), BooleanError> {
+    let (a, b, ab, ba, _) = sweep_admitting_cones(a_operand, b_operand, tol)?;
+    Ok((a, b, ab, ba))
+}
+
+/// [`sweep_split_admitting_cones`], with the contacts the sweep recorded.
+#[cfg(feature = "sweep-testing")]
+#[allow(clippy::type_complexity)] // the split operands, their traces, the contacts
+fn sweep_admitting_cones(
+    a_operand: &Body<f64>,
+    b_operand: &Body<f64>,
+    tol: Tol,
+) -> Result<(Body<f64>, Body<f64>, SweepTrace, SweepTrace, ContactRecords), BooleanError> {
     let band = Band::linear(tol)?;
     let declared = DeclaredPairs::default();
     reduce::gate_operand_pairs(a_operand, b_operand, &declared, band, |s| {
@@ -4132,7 +4287,102 @@ pub fn sweep_split_admitting_cones(
         [Some(&mut ab), Some(&mut ba)],
         tol,
     )?;
-    Ok((a, b, ab, ba))
+    Ok((a, b, ab, ba, acc.finish()))
+}
+
+/// **The section certificate on the crossings path past the cone
+/// refusal**: the sweep of [`sweep_split_admitting_cones`], its contacts
+/// read into face-pair events by the reduction's own reading
+/// (`ops::contact_face_pairs`, before any null edge exists), and every
+/// in-scope pair of `a` × `b` certified with them, as
+/// `(A face, B face, outcome)` spelled by `Debug`. The crossings path's
+/// certificate on a cone pair, until the roster admits the cone;
+/// `sweep-testing` only.
+///
+/// # Errors
+///
+/// The sweep's refusals, and the certificate's own
+/// ([`ops::section_pairs`]).
+#[cfg(feature = "sweep-testing")]
+pub fn section_report_admitting_cones(
+    a: &Body<f64>,
+    b: &Body<f64>,
+    tol: Tol,
+) -> Result<Vec<(FaceKey, FaceKey, String)>, BooleanError> {
+    let (sa, sb, _, _, contacts) = sweep_admitting_cones(a, b, tol)?;
+    let events = ops::contact_face_pairs(&sa, &sb, &contacts, &[]);
+    Ok(ops::section_pairs(
+        a,
+        b,
+        Band::linear(tol)?,
+        ops::SectionPath::Crossings,
+        ops::Exempt::Nothing,
+        |fa, fb| events.contains(&(fa, fb)),
+        false,
+    )?
+    .into_iter()
+    .map(|p| (p.a_face, p.b_face, format!("{:?}", p.verdict)))
+    .collect())
+}
+
+/// **The pipeline through its join with `Cone` on the operand gate's
+/// roster**: the production sequence (`ops::through_the_join`) stopped
+/// after the join, as [`sweep_split_admitting_cones`] stops after the
+/// sweep, so the cone's join arms are read on whole poses while the
+/// public gate still refuses the cone. `None` where the pipeline answers
+/// without a join. Undeclared and realized; `sweep-testing` only.
+///
+/// # Errors
+///
+/// The pipeline's refusal on the way through its join.
+#[cfg(feature = "sweep-testing")]
+pub fn join_admitting_cones(
+    op: BooleanOp,
+    a_operand: &Body<f64>,
+    b_operand: &Body<f64>,
+    tol: Tol,
+) -> Result<Option<ConeJoin>, BooleanError> {
+    fn roster(s: &geom::Surface<f64>) -> bool {
+        reduce::boolean_arm_exists(s) || matches!(s, geom::Surface::Cone { .. })
+    }
+    Ok(
+        match ops::through_the_join(
+            op,
+            a_operand,
+            b_operand,
+            &BooleanDeclarations::none(),
+            ops::JoinSweep {
+                strategy: SweepStrategy::Realized,
+                roster,
+            },
+            true,
+            tol,
+        )? {
+            ops::Joined::Answered(_) => None,
+            ops::Joined::Connected {
+                red,
+                interior_loops,
+                ..
+            } => Some(ConeJoin {
+                a: red.a,
+                b: red.b,
+                interior_loops,
+            }),
+        },
+    )
+}
+
+/// [`join_admitting_cones`]' product.
+#[cfg(feature = "sweep-testing")]
+#[derive(Debug)]
+pub struct ConeJoin {
+    /// The A operand as the join leaves it.
+    pub a: Body<f64>,
+    /// The B operand as the join leaves it.
+    pub b: Body<f64>,
+    /// The interior-loop guard's verdict, which the pipeline raises on
+    /// the built body and this door does not.
+    pub interior_loops: Result<(), BooleanError>,
 }
 
 /// **The sweep's contact records and the split operands' sizes** under
@@ -4214,7 +4464,10 @@ pub(crate) fn through_the_join(
             a,
             b,
             &BooleanDeclarations::none(),
-            SweepStrategy::Realized,
+            ops::JoinSweep {
+                strategy: SweepStrategy::Realized,
+                roster: reduce::boolean_arm_exists,
+            },
             true,
             tol,
         )? {
@@ -4260,7 +4513,15 @@ pub(crate) fn join_refusal(
     tol: Tol,
 ) -> Result<Option<BooleanError>, BooleanError> {
     let band = Band::linear(tol)?;
-    let mut red = boolean_reduce_declared_strategy(op, a, b, decls, SweepStrategy::Realized, tol)?;
+    let mut red = boolean_reduce_declared_strategy(
+        op,
+        a,
+        b,
+        decls,
+        SweepStrategy::Realized,
+        reduce::boolean_arm_exists,
+        tol,
+    )?;
     if red.null_pairs.is_empty() {
         return Ok(None);
     }
@@ -4270,9 +4531,9 @@ pub(crate) fn join_refusal(
     Ok(connected.err())
 }
 
-/// The join's section segments of `op` ([`join::section_segments`]):
+/// Every segment the join of `op` builds ([`join::join_segments`]):
 /// how many pair records the reduction registered, and each segment's
-/// two germ sites, read on the A clone. `None` where the reduction
+/// two germ sites, read on the A clone (a one-site loop's twice). `None` where the reduction
 /// registers no pair.
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn section_segment_sites(
@@ -4298,12 +4559,17 @@ pub type SegmentSites = (usize, Vec<[Point3<f64>; 2]>);
 /// the idealized/realized door (PERF-PLAN §4.4): production always
 /// runs `Realized`; the differential suite runs both and pins
 /// bit-equality. Reached via [`boolean_op_with`] for full ops.
+///
+/// `roster` is the operand gate's face-kind roster: production reads
+/// [`reduce::boolean_arm_exists`], and a test door admits a kind whose
+/// arms are landing below the gate (`join_admitting_cones`).
 pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a_operand: &Body<T>,
     b_operand: &Body<T>,
     decls: &BooleanDeclarations,
     strategy: SweepStrategy,
+    roster: fn(&geom::Surface<T>) -> bool,
     tol: Tol,
 ) -> Result<BooleanReduction<T>, BooleanError> {
     let band = Band::linear(tol)?;
@@ -4317,13 +4583,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         });
     }
     let declared = DeclaredPairs::build(decls, verified, a_operand, b_operand, band)?;
-    reduce::gate_operand_pairs(
-        a_operand,
-        b_operand,
-        &declared,
-        band,
-        reduce::boolean_arm_exists,
-    )?;
+    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band, roster)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
     // The scan is `Decide`-only; its boxes are built here, at the
@@ -4529,7 +4789,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         read.push(((operand, vertex), classes));
     }
     for (&key, pairs) in &paired {
-        read.push((key, vtxfac::pair_classes(pairs, band)?));
+        read.push((key, vtxfac::pair_classes(key.0, key.1, pairs, band)?));
     }
     for ((operand, vertex), classes) in read {
         let body = match operand {
@@ -4631,6 +4891,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         edge_splits,
         edge_classes,
         hung,
+        coincidences: declared.verified.coincidences.clone(),
     })
 }
 
@@ -4890,8 +5151,15 @@ fn verify_declared_contacts<T: Decide>(
                 verified.tangent.insert((fa, fb));
             }
             BooleanCoincidence::Contact(ContactClass::Rest) | BooleanCoincidence::Continuation => {
-                if verify_one_carrier_declaration(a, fa, b, fb, class, band)? {
-                    verified.one_carrier.insert((fa, fb));
+                match verify_one_carrier_declaration(a, fa, b, fb, class, band)? {
+                    OneCarrier::Unread => {}
+                    OneCarrier::Structural => {
+                        verified.one_carrier.insert((fa, fb));
+                    }
+                    OneCarrier::Decided(row) => {
+                        verified.one_carrier.insert((fa, fb));
+                        verified.coincidences.push(row);
+                    }
                 }
             }
             BooleanCoincidence::Seam => {
@@ -4947,14 +5215,28 @@ pub(super) fn sense_contradiction(
     }
 }
 
+/// **What the declaration door made of one `Rest` or continuation
+/// pair** that it did not refuse.
+enum OneCarrier {
+    /// A carrier kind the ladder cannot describe: no certificate.
+    Unread,
+    /// One carrier with the class's sense, settled by structure before
+    /// any margin was read: a certificate and no row (stage 4 spec §14
+    /// Q1).
+    Structural,
+    /// One carrier with the class's sense, decided by a margin: a
+    /// certificate and the row recording the decision.
+    Decided(crate::Coincidence),
+}
+
 /// The `Rest` and continuation half of [`verify_declared_contacts`]:
 /// the carrier ladder in its declared posture — a definitely-different
 /// carrier contradicts, an in-band residue is bridged (C4), a sliver
 /// escalates — and then the sense bit the class demands.
 ///
-/// `Ok(true)` when the ladder called the two faces ONE carrier with
-/// that sense — the certificate the crossing layer's carrier-identity
-/// rung reads, recorded once here instead of re-derived per event.
+/// One carrier with the class's sense, either way it was settled, is
+/// the certificate the crossing layer's carrier-identity rung reads,
+/// recorded once here instead of re-derived per event.
 fn verify_one_carrier_declaration<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -4962,29 +5244,49 @@ fn verify_one_carrier_declaration<T: Decide>(
     fb: FaceKey,
     class: BooleanCoincidence,
     band: Band,
-) -> Result<bool, BooleanError> {
-    let outcome = match rest::carrier_pair_relation(a, fa, b, fb, true, band) {
+) -> Result<OneCarrier, BooleanError> {
+    let outcome = match rest::carrier_pair_reading(a, fa, b, fb, true, band) {
         Ok(outcome) => outcome,
         Err(rest::PairUnread::Extent(face)) => return Err(unreadable_extent(face)),
         // A carrier kind the ladder cannot describe: `validate_
         // declarations` has already had its say about which kinds this
         // op accepts, so there is nothing left to add here — and
         // nothing for the identity rung to read.
-        Err(rest::PairUnread::OutsideInventory) => return Ok(false),
+        Err(rest::PairUnread::OutsideInventory) => return Ok(OneCarrier::Unread),
     };
     let aligned = class == BooleanCoincidence::Continuation;
+    let one = |relation, margin: Option<MarginDiag>| match margin {
+        None => OneCarrier::Structural,
+        Some(margin) => OneCarrier::Decided(crate::Coincidence {
+            cells: [
+                crate::RowCell::face(Operand::A, fa),
+                crate::RowCell::face(Operand::B, fb),
+            ],
+            relation,
+            site: declared_site(a, fa, b, fb),
+            margin,
+            discharge: crate::Discharge::Numeric,
+        }),
+    };
     match outcome {
-        Ok(carrier_eq::CarrierRelation::SameOriented) if aligned => Ok(true),
-        Ok(carrier_eq::CarrierRelation::SameOpposite) if !aligned => Ok(true),
-        Ok(
+        Ok((carrier_eq::CarrierRelation::SameOriented, _, margin)) if aligned => {
+            Ok(one(crate::Relation::SameOriented, margin))
+        }
+        Ok((carrier_eq::CarrierRelation::SameOpposite, _, margin)) if !aligned => {
+            Ok(one(crate::Relation::SameOpposite, margin))
+        }
+        Ok((
             carrier_eq::CarrierRelation::SameOriented | carrier_eq::CarrierRelation::SameOpposite,
-        ) => Err(sense_contradiction(fa, fb, class, band)),
+            ..,
+        )) => Err(sense_contradiction(fa, fb, class, band)),
         // The declared posture contradicts a definite difference, it
         // never answers `Distinct`: the same kernel-defect answer the
         // REST lane gives (`rest.rs`).
-        Ok(carrier_eq::CarrierRelation::Distinct) => Err(BooleanError::ClassificationInvariant {
-            what: "declaration door: declared rung returned Distinct instead of contradicting",
-        }),
+        Ok((carrier_eq::CarrierRelation::Distinct, ..)) => {
+            Err(BooleanError::ClassificationInvariant {
+                what: "declaration door: declared rung returned Distinct instead of contradicting",
+            })
+        }
         Err(carrier_eq::CarrierEqError::Contradicted { fact, diag }) => Err(match class {
             BooleanCoincidence::Continuation => BooleanError::ContinuationContradicted {
                 a: fa,
@@ -5026,6 +5328,27 @@ fn verify_one_carrier_declaration<T: Decide>(
             [(Operand::A, fa), (Operand::B, fb)],
             relation,
         )),
+    }
+}
+
+/// Which ladder decided a declared one-carrier pair: the plane ladder
+/// where both faces are planes, the carrier ladder otherwise.
+fn declared_site<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+) -> crate::DecisionSite {
+    let plane = |body: &Body<T>, f| {
+        matches!(
+            rest::face_carrier(body, f),
+            Some(carrier_eq::CarrierDesc::Plane { .. })
+        )
+    };
+    if plane(a, fa) && plane(b, fb) {
+        crate::DecisionSite::PlaneLadder
+    } else {
+        crate::DecisionSite::CarrierLadder
     }
 }
 
@@ -6380,6 +6703,11 @@ mod tests {
                 edge,
                 band,
             },
+            BooleanError::NormalAtConeApex {
+                operand: Operand::A,
+                face,
+                band,
+            },
             BooleanError::CurvedEdgeUnsupported {
                 operand: Operand::B,
                 edge,
@@ -6420,6 +6748,12 @@ mod tests {
                 operand: Operand::B,
                 errors: vec![ValidationError::NegativeVolume {
                     solid: crate::entity::SolidKey::default(),
+                }],
+            },
+            BooleanError::UnjoinedOperand {
+                operand: Operand::A,
+                errors: vec![ValidationError::JoinableVertexAtRest {
+                    vertex: VertexKey::default(),
                 }],
             },
             BooleanError::NonMaximalFaces {
@@ -6544,6 +6878,17 @@ mod tests {
                 b_face: face,
                 b_kind: geom::SurfaceKind::Torus,
             },
+            BooleanError::GermSectionOutsideInventory {
+                a_face: face,
+                a_kind: geom::SurfaceKind::Plane,
+                b_face: face,
+                b_kind: geom::SurfaceKind::Cone,
+                conic: geom_brep::OutsideConic::Hyperbola,
+                section: geom_brep::SectionError::RoutesToGeneralRung {
+                    pair: "plane×cone",
+                    why: "a hyperbola",
+                },
+            },
             BooleanError::GermFrameCylinderPinch {
                 a_face: face,
                 b_face: face,
@@ -6640,6 +6985,7 @@ mod tests {
                 BooleanErrorKind::CurvedSectorSideUnsupported => "CurvedSectorSideUnsupported",
                 BooleanErrorKind::CurvedPierceUnsupported => "CurvedPierceUnsupported",
                 BooleanErrorKind::CrossingAtConeApex => "CrossingAtConeApex",
+                BooleanErrorKind::NormalAtConeApex => "NormalAtConeApex",
                 BooleanErrorKind::CurvedEdgeUnsupported => "CurvedEdgeUnsupported",
                 BooleanErrorKind::CrossingCarrierUnsupported => "CrossingCarrierUnsupported",
                 BooleanErrorKind::PointSplitCarrierUnsupported => "PointSplitCarrierUnsupported",
@@ -6648,6 +6994,7 @@ mod tests {
                 BooleanErrorKind::PointInFaceRefused => "PointInFaceRefused",
                 BooleanErrorKind::ScaffoldingOperand => "ScaffoldingOperand",
                 BooleanErrorKind::InsideOutOperand => "InsideOutOperand",
+                BooleanErrorKind::UnjoinedOperand => "UnjoinedOperand",
                 BooleanErrorKind::NonMaximalFaces => "NonMaximalFaces",
                 BooleanErrorKind::CoplanarNeighbours => "CoplanarNeighbours",
                 BooleanErrorKind::NonFiniteSectorChord => "NonFiniteSectorChord",
@@ -6675,6 +7022,7 @@ mod tests {
                 BooleanErrorKind::FallbackExtentUnsupported => "FallbackExtentUnsupported",
                 BooleanErrorKind::SpheresMeet => "SpheresMeet",
                 BooleanErrorKind::GermFrameUnsupported => "GermFrameUnsupported",
+                BooleanErrorKind::GermSectionOutsideInventory => "GermSectionOutsideInventory",
                 BooleanErrorKind::GermFrameCylinderPinch => "GermFrameCylinderPinch",
                 BooleanErrorKind::Euler => "Euler",
                 BooleanErrorKind::Pcurves => "Pcurves",

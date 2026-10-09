@@ -88,7 +88,7 @@ use std::collections::HashMap;
 use geom::{
     Curve3, CurveData, DatumValue, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface, SurfaceData,
 };
-use geom_brep::{FocalImage, Pcurve, SpiricImage};
+use geom_brep::{FocalImage, FramedCarrier, Pcurve, ProjectedChart, SpiricImage};
 use geom_core::spline::KnotVector;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use topo::{Body, FaceKey};
@@ -1167,6 +1167,62 @@ impl KeyWriter {
                 self.u8(6);
                 for x in [u0, t0, v0, va, vb, vl, beta, sense] {
                     self.f64(*x);
+                }
+            }
+            Pcurve::Projected(image) => {
+                self.u8(7);
+                // The chart tag and its scalars, a second tag byte so two
+                // charts' images of one carrier never key alike.
+                match *image.chart() {
+                    ProjectedChart::Plane => self.u8(0),
+                    ProjectedChart::Cylinder => self.u8(1),
+                    ProjectedChart::Cone { sin, cos, nappe } => {
+                        self.u8(2);
+                        self.f64(sin);
+                        self.f64(cos);
+                        self.u8(match nappe {
+                            geom_brep::Nappe::Opening => 0,
+                            geom_brep::Nappe::Mirror => 1,
+                        });
+                    }
+                    ProjectedChart::Sphere => self.u8(3),
+                    ProjectedChart::Torus { major } => {
+                        self.u8(4);
+                        self.f64(major);
+                    }
+                }
+                match image.carrier() {
+                    FramedCarrier::Net(net) => {
+                        self.u8(0);
+                        self.nurbs3(net);
+                    }
+                    FramedCarrier::Circle {
+                        centre,
+                        a,
+                        b,
+                        origin,
+                        span,
+                    } => {
+                        self.u8(1);
+                        for v in [centre, a, b] {
+                            self.f64(v.x);
+                            self.f64(v.y);
+                            self.f64(v.z);
+                        }
+                        self.f64(*origin);
+                        self.f64(*span);
+                    }
+                }
+                self.knots(image.breaks());
+                for quarters in [image.azimuth(), image.tube()] {
+                    self.len(quarters.len());
+                    for &q in quarters {
+                        self.f64(f64::from(q));
+                    }
+                }
+                let (u_off, v_off, v_sign) = image.deck();
+                for x in [u_off, v_off, v_sign] {
+                    self.f64(x);
                 }
             }
         }
