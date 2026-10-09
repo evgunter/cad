@@ -201,6 +201,15 @@ enum GermLane<T: geom_core::Real> {
     /// pair's radical plane, and each side's chord is its own wall's
     /// ruling in it.
     Rulings((Point3<T>, UnitVec3<T>)),
+    /// A segment along a conic edge of the solid `on` only, lying inside
+    /// the other's face: `on`'s chord copies its edge, and the other's
+    /// is its face cut by the edge's plane, which meets that face's
+    /// carrier in the edge's conic. `curve` is the edge's.
+    EdgePlane {
+        on: Operand,
+        curve: crate::geometry::CurveKey,
+        plane: (Point3<T>, UnitVec3<T>),
+    },
 }
 
 impl<T: geom_core::Real> GermLane<T> {
@@ -212,7 +221,7 @@ impl<T: geom_core::Real> GermLane<T> {
             Self::Planar => (RingClosure::Planar, RingClosure::Planar),
             Self::PlaneWall(plane) => (RingClosure::Planar, RingClosure::Wall(plane)),
             Self::WallPlane(plane) => (RingClosure::Wall(plane), RingClosure::Planar),
-            Self::Radical(plane) | Self::Rulings(plane) => {
+            Self::Radical(plane) | Self::Rulings(plane) | Self::EdgePlane { plane, .. } => {
                 (RingClosure::Wall(plane), RingClosure::Wall(plane))
             }
         }
@@ -273,11 +282,12 @@ struct SolidJoin {
 /// What an aux surface in [`SolidJoin::aux`] is a copy of, which is
 /// what makes two chords' reads of one entry the same datum.
 ///
-/// The two shapes are kept apart because they depend on different
-/// things: a partner copy depends on the partner face's surface alone,
-/// a radical plane on BOTH spheres. Keying the radical plane by the
-/// partner face alone hands a second sphere of THIS body the first
-/// one's plane — a chord described against a plane it does not lie in.
+/// The shapes are kept apart because they depend on different things:
+/// a partner copy depends on the partner face's surface alone, a
+/// radical plane on BOTH spheres, an edge's plane on that edge's curve.
+/// Keying the radical plane by the partner face alone hands a second
+/// sphere of THIS body the first one's plane — a chord described
+/// against a plane it does not lie in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum AuxDatum {
     /// A copy of the OTHER body's germ face's surface (a partner plane
@@ -288,6 +298,12 @@ enum AuxDatum {
     Radical {
         own: crate::geometry::SurfaceKey,
         partner: crate::geometry::SurfaceKey,
+    },
+    /// The plane of a conic edge of the solid `on`, by the edge's curve:
+    /// the pieces of one split edge share it.
+    EdgePlane {
+        on: Operand,
+        curve: crate::geometry::CurveKey,
     },
 }
 
@@ -952,6 +968,33 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 kind: s.kind(),
             }
         };
+        // A segment along a conic edge of one solid, inside the other's
+        // face, has a section whatever the pair's kinds: the edge's
+        // plane. It is the lane of a pair no other arm takes.
+        let edge_lane = || -> Result<GermLane<T>, BooleanError> {
+            let (on, body, edge) = match (germ.a_locus, germ.b_locus) {
+                (super::Locus::OnEdge(e), super::Locus::InFace(_)) => (Operand::A, &red.a, e),
+                (super::Locus::InFace(_), super::Locus::OnEdge(e)) => (Operand::B, &red.b, e),
+                _ => return Err(no_arm()),
+            };
+            let key = body
+                .get_edge(edge)
+                .ok_or(desync("an OnEdge germ's edge no longer resolves"))?
+                .curve;
+            let curve = body
+                .get_curve_geom(key)
+                .and_then(crate::null::CurveGeom::certified)
+                .ok_or(desync("an OnEdge germ's edge carries no certified curve"))?;
+            match *curve.carrier() {
+                geom::Curve3::Circle { center, axis, .. }
+                | geom::Curve3::Ellipse { center, axis, .. } => Ok(GermLane::EdgePlane {
+                    on,
+                    curve: key,
+                    plane: (center, germ_normal(germ_reach(&red.a)?, center, axis)?),
+                }),
+                _ => Err(no_arm()),
+            }
+        };
         // A segment along an edge of both solids is that edge in both:
         // each solid's chord copies its own edge and no section is read
         // (the germ's two faces may share one carrier), so it takes no
@@ -1016,10 +1059,10 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                     let reach = geom_brep::Reach::Ball(germ_reach(&red.a)?);
                     match parallel_radical_plane(&ga, &gb, &reach, band)? {
                         Some(radical) => GermLane::Rulings(radical),
-                        None => return Err(no_arm()),
+                        None => edge_lane()?,
                     }
                 }
-                _ => return Err(no_arm()),
+                _ => edge_lane()?,
             })
         };
         // Role order per solid, derived independently (module docs —
@@ -1136,6 +1179,19 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                     (&curves.1, Operand::B, germ.b_face),
                 ])?;
                 curves
+            }
+            Some(GermLane::EdgePlane { on, curve, plane }) => {
+                let datum = AuxDatum::EdgePlane { on, curve };
+                match on {
+                    Operand::A => (
+                        sa.curve(&mut red.a, &plan_a, JoinLane::AlongEdge, leave_a)?,
+                        sb.split_curve(&mut red.b, &plan_b, plane, datum, leave_b)?,
+                    ),
+                    Operand::B => (
+                        sa.split_curve(&mut red.a, &plan_a, plane, datum, leave_a)?,
+                        sb.curve(&mut red.b, &plan_b, JoinLane::AlongEdge, leave_b)?,
+                    ),
+                }
             }
         };
         // The ring lane's order, wound with the curve.
@@ -1639,15 +1695,20 @@ fn germ_section_frame<T: Decide>(
     band: Band,
 ) -> Result<Option<(geom_core::Point3<T>, geom_core::Vec3<T>)>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    // A germ along an edge of both solids lies on that edge: its frame
+    // A germ along an edge of either solid lies on that edge: its frame
     // is the edge's own curve (a line is straight, a circle or an
     // ellipse turns about its centre and axis), whatever the two faces
-    // the germ was recorded against — which may share one carrier.
-    if let (super::Locus::OnEdge(edge), super::Locus::OnEdge(_)) = (germ.a_locus, germ.b_locus) {
-        let curve = red
-            .a
+    // the germ was recorded against — which may share one carrier, or
+    // meet in no conic.
+    let along = match (germ.a_locus, germ.b_locus) {
+        (super::Locus::OnEdge(edge), _) => Some((&red.a, edge)),
+        (_, super::Locus::OnEdge(edge)) => Some((&red.b, edge)),
+        _ => None,
+    };
+    if let Some((body, edge)) = along {
+        let curve = body
             .get_edge(edge)
-            .and_then(|e| red.a.get_curve_geom(e.curve))
+            .and_then(|e| body.get_curve_geom(e.curve))
             .and_then(crate::null::CurveGeom::certified)
             .ok_or(desync("an OnEdge germ's edge carries no certified curve"))?;
         return match *curve.carrier() {

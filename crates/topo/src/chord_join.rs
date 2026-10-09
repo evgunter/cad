@@ -814,10 +814,10 @@ pub(crate) enum JoinLane<'a, T: Real> {
         /// The aux wall key in THIS body (minted once, caller-cached).
         partner_key: &'a mut Option<SurfaceKey>,
     },
-    /// A section segment that is an edge of BOTH solids: its chords are
-    /// copies of that edge ([`along_edge_spec`]) and no section is
-    /// read, since the germ's face pair there may be two faces on one
-    /// carrier, with no section between them.
+    /// A section segment that is an edge of this solid: its chord is a
+    /// copy of that edge ([`along_edge_spec`]) and no section is read,
+    /// since the germ's face pair there may be two faces on one carrier,
+    /// or meet in no conic.
     AlongEdge,
 }
 
@@ -1317,8 +1317,7 @@ fn chord_spec<T: Decide>(
             JoinLane::Planar | JoinLane::Split(_) => Ok(None),
             JoinLane::AlongEdge => Err(SplitJoinError::SectionInvariant {
                 face,
-                what: "a chord along an edge of both solids asked for a section: it copies the \
-                       edge",
+                what: "a chord along an edge asked for a section: it copies the edge",
             }),
         };
     }
@@ -2812,17 +2811,20 @@ fn path_ring_side<T: Decide>(
     }
 }
 
-/// **The chord of a section segment that is an edge of BOTH solids**
-/// ([`JoinLane::AlongEdge`], `segment` naming this solid's edge): the
-/// other copy of that edge, so its curve is the edge's own, from `u1`
-/// to `u2` (the edge's endpoints' copies, at its endpoints' points) —
-/// never a section the lane would compute from the germ's face pair,
-/// which may be two faces on one carrier with no section between them.
-/// A line is the straight chord; a circle is its own arc, on the
-/// carrier reversed when the chord runs against it. `None` on every
-/// other lane: there a segment along an edge of ONE solid lies in a
-/// face of the other, whose lane computes the section the chord takes
-/// (the rod's ruling, a lens rim on a wall).
+/// **The chord of a section segment that is an edge of this solid**
+/// ([`JoinLane::AlongEdge`], `segment` naming that edge): the other
+/// copy of the edge, so its curve is the edge's own, from `u1` to `u2`
+/// (the edge's endpoints' copies, at its endpoints' points) — never a
+/// section the lane would compute from the germ's face pair, which may
+/// be two faces on one carrier, or meet in no conic. A line is the
+/// straight chord; a circle is its own arc, on the carrier reversed
+/// when the chord runs against it. The boolean takes this lane on both
+/// solids for an edge of both, and on the edge's solid alone for a
+/// conic edge of one lying in a face of the other whose pair has no
+/// section lane (a tube's rim on a ball). `None` on every other lane:
+/// there a segment along an edge of one solid lies in a face of the
+/// other, whose lane computes the section the chord takes (the rod's
+/// ruling, a lens rim on a wall).
 ///
 /// `segment`, `u1` and `u2` are keys the join carries, so one that no
 /// longer resolves refuses typed. Past them, the ends' points and the
