@@ -5,8 +5,10 @@
 **Recommendation (likely).** A name is scoped by the variable that holds
 its body. An operation that brings entities in from several shape inputs
 names each one by **the read it came through**: the variable's minted id,
-the same `VarId` the operand stores. A union and a pair boolean then share
-one segment, `From { read: VarId, of }`. That replaces `FromMember` and
+the same `VarId` the operand stores. Union and intersect become n-ary
+nodes, and subtract stays the one binary node (option N in section 2;
+binary-only nodes with n-ary sugar are rejected). All three share one
+segment, `From { read: VarId, of }`, which replaces `FromMember` and
 `FromA`/`FromB`. Since the variable already says which port, an operation
 with several outputs stops putting the port in its names: a split's names
 lose the half. `MembersShareAnOperation` goes, and `Union[split.0, split.1]`
@@ -59,23 +61,85 @@ that names the operation and not the variable is naming one level too high.
   the variable the operand already stores, and it literally repeats the
   half that the split's names carry. Rejected (*sure*).
 
-**2. The pair boolean.** Under (R), `FromA`/`FromB` are the same rule
-spelled by seat. A seat is a named field, not a position, so it is not
-wrong in the way depth was. But it is a second way to say "the input this
-came through", and nothing in a name needs the seat:
-- which operand is the target is read off the node (`b == read`);
-- the asymmetry of the pair verb (whose carrier a merge keeps) is geometry,
-  not naming;
-- `Seam`/`Crossing`/`EdgeCrossing` order their sides by name, as a union's
-  already do.
+**2. One union, n-ary union and intersect, binary subtract (Ev's
+addenda).** Recommendation: **(N)**, *likely to sure*.
 
-One rule then covers every operation that names entities by an input among
-several: **wrap in `From { read, of }`**. A one-input operation (shell,
-blend: `FromTarget`) has nothing to tell apart and keeps its marker. There
-is one gain beyond tidiness: swapping a commutative boolean's operands no
-longer renames anything. *Likely.* Related, but outside this fork: a pair
-`Boolean(Union)` beside the n-ary `Union` is two ways to say one thing, and
-should retire into `Union`. I suggest filing that as an issue.
+- **(N)**, recommended. The document stores `Union { members }`,
+  `Intersect { members }` (each two or more reads) and `Subtract { a, b }`.
+  `Boolean { op }` and `BooleanOp` retire.
+- **(S)**, rejected. The document stores only binary nodes, and the
+  façade/GUI writes the fold.
+
+For each question:
+- **A union of three.** (N): one node, `Union[a, b, c]`. (S): many chains
+  (`(a∪b)∪c`, `a∪(b∪c)`, and every order), so many ways to say one thing,
+  and the GUI's "n-ary union" is only recognised from the program, as
+  D10's pattern presets are.
+- **Names.** (N): `From { read, of }` once, whatever the count. (S): the
+  rule is still `From { read, of }`, but a chain nests it per link:
+  `From { read: ab, of: From { read: a, of } }`. Taking `b` out means
+  re-pointing the outer node to `a`, which strands every name that came
+  through the removed link. That is exactly the die's failure that DM4
+  exists to remove. Keying by read does not cure depth; only a flat node
+  does.
+- **#4323's pairwise verdicts.** (N): kept as ratified. Each member pair
+  is judged once before the fold, and the fold reads those verdicts, so
+  the result is the same in every order. (S): each link judges only its
+  two operands, so `a` and `c` meet only through `a∪b`, after `b` may have
+  covered or cut the contact. The verdicts become order-dependent, which
+  #4323 ruled out.
+- **`SetMembers` and deleting a member.** (N): one edit naming the new
+  list; the other members' names are untouched. (S): the sugar must
+  rewrite a chain of nodes, and every link above the removed one renames.
+- **What a glue keeps.** For union and intersect alike, names are defined
+  over the finished body, through the member-face parents (N2), so they
+  are order-free. A glued face keeps one member's *description*. I would
+  make that the member whose read was minted first, the rule N2's flush
+  edges already use, not the first listed. Then a member list means a
+  set, the document stores it in canonical order, and there is exactly
+  one way to say a union of three (*likely*). Today's "earlier member
+  keeps it" stays the fallback if Ev prefers that the list order be the
+  author's.
+- **Intersect specifically.** Intersect commutes, so the same pairwise
+  judgement and parent naming apply unchanged. One difference: an empty
+  fold step is a legitimate result (the typed empty body), not the kernel
+  bug it is for a union.
+- **Subtract.** It stays binary, because difference does not commute or
+  associate and nothing is a unary "not". Several tools is
+  `subtract(a, union[tools])`, the one way to say it. A list seat would
+  duplicate the union's pairwise machinery among the tools. A single tool
+  is `subtract(a, t)`. To keep one way, D10 Repetition's "`union` and
+  `subtract` read a family as their members" narrows: subtract's `b` seat
+  holds one `Body`, so a family of tools is `subtract(a, union[holes])`.
+  This changes D10's text.
+
+**The naming rule across all three.** An operation that takes in entities
+from several shape inputs wraps each in `From { read: VarId, of }`. That
+covers union members, intersect members, and subtract's `a` and `b`.
+Subtract's seats are not in names:
+- which read is the tool is read off the node;
+- the pair verb's asymmetry is geometry;
+- `Seam`, `Crossing` and `EdgeCrossing` order their sides by name, as the
+  union's already do.
+
+A one-input operation (shell, blend: `FromTarget`) has nothing to tell
+apart and keeps its marker. The DM4 sentence "It sits beside
+`Boolean(Union)`, which stays for a pair" becomes: "A union of two is
+this node; intersect is the same node over intersection; subtract is the
+one pair boolean."
+
+**Migration.**
+- Each `Boolean { Union, a, b }` becomes `Union [a, b]`, `Intersect`
+  likewise, and `Subtract` becomes `Subtract { a, b }`. The conversion is
+  literal: a chain stays a chain, because flattening is an edit that only
+  the author or the façade may make (DM6).
+- Names map `FromA`/`FromB`/`FromMember` → `From`, by one total map at
+  load. The goldens are re-baselined with the rest of section 4.
+- Façade: `a | b` writes `union([a, b])`, `a & b` writes
+  `intersect([a, b])`, and `a - b` writes `subtract`. A `|` whose left
+  operand is a union the same expression just wrote, and that nothing
+  else reads, appends to it, so `a | b | c` is one node. `union(*bodies)`
+  is the explicit spelling.
 
 **3. Composition, and saying each thing once.** The principle: *within a
 variable, a name tells apart only what that variable holds.*
@@ -122,7 +186,8 @@ in. I lean to the full answer above.
 
 **Ratified text this changes.**
 - REFERENCES DM4 "Naming keys by member": key = the read, with the
-  sentence "DM5 makes it unique" kept.
+  sentence "DM5 makes it unique" kept; DM4's "sits beside
+  `Boolean(Union)`" (above); D10 Repetition's "and `subtract`".
 - DM3 "a split half keeps its `SplitBody(half)` names".
 - DM5's parenthesis on `MembersShareAnOperation`.
 - names README N1 (the boolean group's `FromA`, `FromB`, `FromMember` →
@@ -161,5 +226,6 @@ in. I lean to the full answer above.
   whether Ev wrote or approved it. Treat it as agent text unless shown
   otherwise.
 - Not checked: how instance outputs are qualified today (`eval/parts.rs`).
-- Off-question: the pair `Boolean(Union)` duplicating `Union` (D10's "two
-  ways to say one thing"). Suggest an issue under INTENT.
+- Folded in Ev's three addenda (n-ary union/intersect, binary subtract,
+  (N) vs (S)). The intersect carrier rule (minted-first member) is my own
+  proposal: it makes a member list a set.
