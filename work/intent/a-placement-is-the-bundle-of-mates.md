@@ -44,8 +44,8 @@ placement. Nothing moves a body: `Transform` and `PlacedFrom` retire,
 each use becoming a `Place`. No construction reads a frame (FORK-S3P
 round 8), so a feature at several positions is one body placed several
 times: the die's pips are copies of one ball placed against the die's
-faces, then subtracted. `Pattern` is a `Place` of several copies over a pose
-family read off geometry. The world is one frame among many that cannot be deleted, read by
+faces, then subtracted. A pattern is a `Place` whose reads reach an index, its values
+expressions in it (FORK-PAT). The world is one frame among many that cannot be deleted, read by
 placements and export alone; the product is every copy whose space
 reaches it (Ev: one relation for the whole product is a style, placing
 one body against the world and the rest against it, not a rule). An

@@ -1267,9 +1267,9 @@ moves a body: a copy is defined by its one placement and never moved
 after, and an operation that would move one (today's `Transform`) is a
 placement. No construction reads a frame (FORK-S3P), so a feature at
 several positions is one body placed several times, each placement a
-copy. `Pattern`
-is a placement of several copies, one per member of a pose family read
-off geometry. A document with nothing related to its world has
+copy. A pattern
+is a placement whose reads reach an index (FORK-PAT): one copy per
+value, the index entering as a value or through a mate's target. A document with nothing related to its world has
 an empty product. A `Face` or `Edge`
 variable, or a set of them, is a selection of a `Body` variable by
 `StableName`: a definition, not a node, stating its body once, and the
