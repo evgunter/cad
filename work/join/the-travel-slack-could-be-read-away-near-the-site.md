@@ -37,3 +37,17 @@ agree in sign, and the conic has turned well under a quarter-turn),
 and the axis plane elsewhere. The slack is then charged only where the
 axis plane is read. `travel_rows`' 24 bands at `k = 60` then order
 instead of escalating.
+
+## A second cost: a partner at the half-turn
+
+`germ_arm` (`bool_join_arc_ahead`) reads through `travel` too, so a
+facing partner exactly at the germ's antipode, whose margin is zero,
+reads `Ahead` only where the slack is itself within the band, that is
+`cot ψ ≤ 0.5` at the germ's site. Elsewhere it escalates, at `k = 3`
+(`t = −π/4` and `−0.2`) and at `k = 10` at every angle tried, where it
+read `Ahead` before PR 4396's fix pass. Circles and `k ≤ 1.5` still
+read `Ahead`. It was not reached end to end in 108 runs (leans
+`k = 1.5`, 3 and 10). `travel_rows`'
+`a_partner_at_the_half_turn_reads_ahead_only_where_the_slack_is_in_band`
+pins it. A tangent-projection reading would not clear this one, since
+the antipode lies on the plane, so it needs its own answer.

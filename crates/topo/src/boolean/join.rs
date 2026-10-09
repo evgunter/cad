@@ -54,13 +54,12 @@
 //! attributes (`in_copy` = the loop through IN ends), and the germ
 //! facings identify halves regardless of which side was minted.
 //!
-//! # The seam-orientation discipline (PR 5.5 — the derived form of
-//! # the book's ssortnulledges / he1↔he2 crossover)
+//! # The seam-orientation discipline (the derived form of the book's
+//! # ssortnulledges / he1↔he2 crossover)
 //!
 //! Derived from the ratified conventions (outward normals, loops
 //! CCW-from-outside: a half-edge with tangent `t` on a face with
-//! normal `n` has interior to its LEFT, `n×t` pointing in), each step
-//! mirror-checked in the M3-LOG PR 5.5 record:
+//! normal `n` has interior to its LEFT, `n×t` pointing in):
 //!
 //! 1. **Required end state.** On the germ line of face pair (fA, fB),
 //!    the boundary of fA's region inside B runs `tA(in) = nA×nB`
@@ -112,10 +111,8 @@
 //!    merges, and load-bearing exactly for RING splits, where the
 //!    remainder becomes the old face's ring (a hole boundary must
 //!    anti-enclose): the run must take the CCW-winding cycle —
-//!    [`choose_roles`]' derived rule via [`ring_run_ccw`] (issue #93;
-//!    equivalent to PR 5.5's "cycle opposite the residual-material
-//!    side" wherever that probe's outer-loop anchor was sound, and
-//!    decided intrinsically so multi-polygon faces cannot cross it).
+//!    [`choose_roles`]' derived rule via [`ring_run_ccw`], decided
+//!    intrinsically so multi-polygon faces cannot cross it.
 //! 4. **Consistency theorem.** With (2) as data, (3)'s ring rule per
 //!    solid, and matching that consumes the SAME germ in both solids
 //!    ([`find_match`]'s slot lock), every completed polygon pair has
@@ -815,7 +812,7 @@ pub(super) fn segment_sites(
 }
 
 /// `bool_connect`'s product: the completed pairs plus the per-operand
-/// chord-mef fragment logs (naming emission, M4 PR 3 — `(new face,
+/// chord-mef fragment logs (naming emission — `(new face,
 /// divided-from face)` at call-time CLONE keys, A rows in the A-clone
 /// arena, B rows in the B-clone arena pre-graft).
 pub(super) struct Connected {
@@ -859,7 +856,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         a_loose.remove(ra);
         b_loose.remove(eb);
         b_loose.remove(rb);
-        // Curved germ pairs (M5 PR 9): each solid's chord lane comes
+        // Curved germ pairs: each solid's chord lane comes
         // from the germ FACE PAIR — plane×plane takes the straight-chord
         // lane with the partner's plane as its section; plane×cylinder
         // and plane×sphere (M5 S13) mint the C5 section conic on both
@@ -1025,8 +1022,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 _ => return Err(no_arm()),
             })
         };
-        // Role order per solid, derived independently (module docs —
-        // the PR 5.5 discipline): cross-solid seam orientation is
+        // Role order per solid, derived independently (module docs,
+        // the seam-orientation discipline): cross-solid seam orientation is
         // carried by the sense attributes alone; role order only
         // decides the face partition of a same-loop split, which each
         // solid resolves against its OWN geometry. A cylinder face's
@@ -1432,6 +1429,10 @@ fn travel<T: Decide>(
 /// at the germ's own azimuth (no travel) or at the half-turn, and both
 /// sort ahead of every site genuinely `Behind`; within `Ahead`,
 /// [`nearer_along`] orders a half-turn site by its turn like any other.
+/// A tie stands only where [`travel`]'s slack is itself within the band,
+/// so a partner at the half-turn reads `Ahead` on a circle and on a
+/// mild ellipse, and escalates where `cot ψ` at the germ's site makes
+/// the slack leave the band (from about `cot ψ = 0.5` on).
 ///
 /// A straight germ line has no turn to read, so every partner is
 /// `Ahead` and the order is the chord alone — the planar pairing.
@@ -2842,7 +2843,7 @@ fn loose_partners<T: Decide>(
     Ok((a_map, b_map))
 }
 
-/// Chooses the join role order for one solid (PR 5.5 — the enforced
+/// Chooses the join role order for one solid (the enforced
 /// discipline; module docs for the derivation). The three lanes:
 ///
 /// - **Different loops** (the mekr lane): a pure loop merge — role
@@ -3513,7 +3514,7 @@ mod travel_rows {
     //! axis-plane distance reads `Δ sin ψ`: 0.198Δ at `k = 10`, 0.033Δ at
     //! `k = 60`. `Δ` is in bands of the run's ε.
 
-    use super::{BooleanError, GermArm, Reach, Turn, nearer_along};
+    use super::{BooleanError, GermArm, Reach, Turn, germ_arm, nearer_along};
     use core::f64::consts::FRAC_PI_4;
     use geom_core::{Band, Point3, Tol, Vec3};
 
@@ -3598,6 +3599,36 @@ mod travel_rows {
         assert!(
             matches!(nearer_along(near, far, band()), Ok(true)),
             "circle"
+        );
+    }
+    /// **A partner at the germ's half-turn reads `Ahead` only where the
+    /// slack is within the band.** The germ at `t = −π/4` turning
+    /// clockwise, its partner at the antipode: the margin is zero, a tie,
+    /// which stands on a circle (`cot ψ` 0) and escalates at `k = 10`,
+    /// where `cot ψ` is 4.95 there.
+    #[test]
+    fn a_partner_at_the_half_turn_reads_ahead_only_where_the_slack_is_in_band() {
+        let arm = |k: f64| {
+            let (germ, dir) = at(k, -FRAC_PI_4);
+            let (site, tangent) = at(k, -FRAC_PI_4 + core::f64::consts::PI);
+            let turn = Turn {
+                center: Point3::origin(),
+                axis: Vec3::unit_z(),
+                sense: -1.0,
+                site,
+                tangent,
+            };
+            germ_arm(Some(turn), (germ, dir * -1.0), band())
+        };
+        assert!(matches!(arm(1.0), Ok(GermArm::Ahead)), "circle");
+        assert!(
+            matches!(
+                arm(10.0),
+                Err(BooleanError::Escalated { ref diag, .. })
+                    if matches!(diag.predicate, Some("bool_join_arc_slack" | "bool_join_arc_clear"))
+            ),
+            "k = 10: {:?}",
+            arm(10.0).err()
         );
     }
 }
