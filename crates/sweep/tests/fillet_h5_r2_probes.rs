@@ -408,7 +408,7 @@ fn a_curved_single_face_carrying_both_arcs_is_construction_state() {
         let dying = body.get_edge(dies).unwrap().he_plus;
         // The killed meridian's two ends are left between two arcs of
         // one rim circle each: joinable vertices (tier 3's check 11).
-        let mut ends = vec![
+        let mut ends = [
             body.get_half_edge(dying).unwrap().start,
             body.half_edge_end(dying).unwrap(),
         ];
