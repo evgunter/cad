@@ -1881,9 +1881,19 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
         (
             "lever arm",
             escalated(CertCheck::TransversalityArm, in_band),
-            "Recourse: move the geometry so that edge is clearly longer and its faces flatter \
+            "Recourse: move the geometry so that edge is clearly longer and no face curves tightly \
              there, or, if this length or the gap its faces open is intended, tighten the \
              tolerance below 5e-10 m",
+        ),
+        (
+            "lever arm, enclosure",
+            escalated(
+                CertCheck::TransversalityArm,
+                MarginDiag::enclosure(2.0e-9, 5.0e-9),
+            ),
+            "Recourse: move the geometry so that edge is clearly longer and no face curves tightly \
+             there, or, if this length or the gap its faces open is intended, tighten the \
+             tolerance below 2e-10 m",
         ),
         (
             "no lever arm",
@@ -1894,7 +1904,7 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
                     band,
                 }),
             },
-            "Recourse: move the geometry so that edge is clearly longer and its faces flatter \
+            "Recourse: move the geometry so that edge is clearly longer and no face curves tightly \
              there; an edge of no length, or a face curving to a point as a cone does, leaves no \
              angle to measure",
         ),

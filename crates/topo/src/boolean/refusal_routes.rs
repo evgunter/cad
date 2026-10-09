@@ -2246,8 +2246,8 @@ pub(in crate::boolean) mod tests {
                 "whether a seam edge is long enough, for how its faces curve, to measure their \
                  angle",
                 Ending::Sized(
-                    "Recourse: move the geometry so that edge is clearly longer and its faces \
-                     flatter there",
+                    "Recourse: move the geometry so that edge is clearly longer and no face curves \
+                     tightly there",
                     SizedPass::Positive,
                 ),
             ),

@@ -3095,7 +3095,7 @@ impl BooleanError {
         read: DeclarationRead,
         escalation: geom_brep::LeverEscalation,
     ) -> Self {
-        Self::of_lever_rung(gate, read, escalation.rung(), escalation.diag)
+        Self::of_lever_rung(gate, read, escalation.rung(), escalation.diag())
     }
 
     /// [`BooleanError::of_lever`] from its parts, for a door that carries

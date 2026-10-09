@@ -259,9 +259,7 @@ impl core::fmt::Display for CertCheck {
             Self::WitnessSurface2 => "the witness point's residual against surface 2",
             Self::WitnessMidpoint => "the witness-midpoint residual",
             Self::Transversality => "the transversality margin",
-            Self::TransversalityArm => {
-                "whether the edge is long enough, for how its faces curve, to measure their angle"
-            }
+            Self::TransversalityArm => "the length its faces' angle is measured over",
             Self::TangentPlanes => "the surfaces' tangent planes",
             Self::TangentParallel => "the normal-parallelism defect",
             Self::TangentSecondOrder => "the second-order margin",
@@ -2616,7 +2614,7 @@ fn run_checks<T: Decide>(
                                     crate::LeverRung::Reading => CertCheck::Transversality,
                                 },
                                 sample: i,
-                                cause: escalation.diag,
+                                cause: escalation.diag(),
                             });
                         }
                         Err(WedgeEscalation::NoTangentPlane(cause)) => {
@@ -5456,8 +5454,8 @@ mod tests {
         assert_eq!(
             text,
             "at sample 4 the edge is not long enough, for how its faces curve, to measure their \
-             angle. Recourse: move the geometry so that edge is clearly longer and its faces \
-             flatter there; an edge of no length, or a face curving to a point as a cone does, \
+             angle. Recourse: move the geometry so that edge is clearly longer and no face curves \
+             tightly there; an edge of no length, or a face curving to a point as a cone does, \
              leaves no angle to measure",
         );
     }
@@ -5548,14 +5546,12 @@ mod tests {
             };
             let arm = render(CertCheck::TransversalityArm);
             assert!(
-                arm.contains(
-                    "whether the edge is long enough, for how its faces curve, to measure their \
-                     angle"
-                ) && arm.ends_with(&format!(
-                    "Recourse: move the geometry so that edge is clearly longer and its faces \
-                     flatter there, or, if this length or the gap its faces open is intended, \
-                     tighten the tolerance below {below} m"
-                )),
+                arm.contains("the length its faces' angle is measured over")
+                    && arm.ends_with(&format!(
+                        "Recourse: move the geometry so that edge is clearly longer and no face \
+                         curves tightly there, or, if this length or the gap its faces open is \
+                         intended, tighten the tolerance below {below} m"
+                    )),
                 "{arm}"
             );
             assert!(

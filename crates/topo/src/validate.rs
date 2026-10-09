@@ -2341,7 +2341,7 @@ fn dihedral_finding(edge: EdgeKey, escalation: geom_brep::LeverEscalation) -> Va
         None => ValidationError::SliverDihedral {
             edge,
             check: WedgeCheck::of_rung(escalation.rung()),
-            cause: escalation.diag,
+            cause: escalation.diag(),
         },
     }
 }
@@ -2766,8 +2766,8 @@ fn certify_undecided(check: CertCheck) -> &'static str {
             "its faces meet too nearly tangentially to decide at this tolerance"
         }
         CertCheck::TransversalityArm => {
-            "whether it is long enough, for how its faces curve, to measure their angle is too \
-             close to call"
+            "whether it is long enough, for how its faces curve, to measure their angle is \
+             undecided"
         }
         CertCheck::TangentPlanes => {
             "a face's tangent plane is undefined at a point of it, so there is no angle between \
@@ -10901,15 +10901,15 @@ mod tests {
                 sliver(WedgeCheck::Arm, in_band),
                 "whether an edge is long enough, for how its faces curve, to measure their \
                  angle is too close to call at this tolerance. Recourse: move the geometry so \
-                 that edge is clearly longer and its faces flatter there, or, if this length \
+                 that edge is clearly longer and no face curves tightly there, or, if this length \
                  or the gap its faces open is intended, tighten the tolerance below 5e-10 m"
                     .to_owned(),
             ),
             (
                 "wedge arm, zero band",
                 sliver(WedgeCheck::Arm, diag(MarginDiag::value(5e-10))),
-                "Recourse: move the geometry so that edge is clearly longer and its faces \
-                 flatter there, or, if this length or the gap its faces open is intended, \
+                "Recourse: move the geometry so that edge is clearly longer and no face curves \
+                 tightly there, or, if this length or the gap its faces open is intended, \
                  tighten the tolerance below 5e-11 m"
                     .to_owned(),
             ),
@@ -10923,8 +10923,8 @@ mod tests {
                     }),
                 },
                 "an edge is not long enough, for how its faces curve, to measure their angle. \
-                 Recourse: move the geometry so that edge is clearly longer and its faces \
-                 flatter there, or, if this length or the gap its faces open is intended, \
+                 Recourse: move the geometry so that edge is clearly longer and no face curves \
+                 tightly there, or, if this length or the gap its faces open is intended, \
                  tighten the tolerance below 5e-11 m"
                     .to_owned(),
             ),
@@ -10937,8 +10937,8 @@ mod tests {
                         band,
                     }),
                 },
-                "Recourse: move the geometry so that edge is clearly longer and its faces \
-                 flatter there; an edge of no length, or a face curving to a point as a cone \
+                "Recourse: move the geometry so that edge is clearly longer and no face curves \
+                 tightly there; an edge of no length, or a face curving to a point as a cone \
                  does, leaves no angle to measure"
                     .to_owned(),
             ),
@@ -11201,12 +11201,24 @@ mod tests {
     }
 
     /// **The dihedral's arm decision is told in one shape at every door**
-    /// (D4 ¶1 (iv)): certify's noun, its undecided and definite whys at
-    /// rest, check 4's undecided lead and definite finding, and the
-    /// boolean seam's subject all ask whether the edge is long enough,
-    /// for how its faces curve, to measure their angle. A definite arm
-    /// names no tolerance before its recourse: the exact zero no
-    /// tolerance decides reads it too.
+    /// (D4 ¶1 (iv)): every question or definite answer about the folded
+    /// lever arm asks whether the edge is long enough, for how its faces
+    /// curve, to measure their angle. Two halves:
+    ///
+    /// - **Rendered**, door by door: certify's undecided and definite
+    ///   whys at rest and its definite `Display`, check 4's undecided lead
+    ///   and definite finding, the boolean seam's subject, and the merge
+    ///   door's kept-boundary arm. A definite arm names no tolerance
+    ///   before its recourse: the exact zero no tolerance decides reads it
+    ///   too. Certify's [`CertCheck`] word is a noun naming the length,
+    ///   not the question, so it is held to that noun.
+    /// - **Census**, for a telling this list does not know: every string
+    ///   literal in `topo` or `geom-brep` source that says "long enough"
+    ///   of a face's angle carries the shape. Its blind spot is a telling
+    ///   worded without "long enough"; the one known is the SSI march's
+    ///   question, held apart below until
+    ///   `work/ssimarch/ssi-march-reports-a-collapsed-arm-as-too-close-to-call.md`
+    ///   lands it.
     #[test]
     fn the_dihedral_arm_is_told_in_one_shape() {
         use geom_brep::recourse::Classified;
@@ -11217,6 +11229,12 @@ mod tests {
             margin: MarginDiag::value(0.0),
             band,
         });
+        let in_band = Indeterminate {
+            margin: MarginDiag::value(5e-9),
+            band,
+            predicate: Some("dihedral_arm"),
+            terminal_sliver: false,
+        };
         let collapsed = CertifyError::ArmCollapsed {
             sample: 4,
             verdict: zero,
@@ -11225,8 +11243,13 @@ mod tests {
             edge: EdgeKey::default(),
             verdict: zero,
         };
+        let merge = crate::merge_faces::MergeCoplanarError::KeptBoundaryUndecided {
+            face: FaceKey::default(),
+            edge: EdgeKey::default(),
+            reading: crate::merge_faces::DihedralReading::Lever(geom_brep::LeverRung::Arm),
+            diag: in_band,
+        };
         let tellings = [
-            ("certify's noun", CertCheck::TransversalityArm.to_string()),
             (
                 "certify, undecided at rest",
                 certify_undecided(CertCheck::TransversalityArm).to_owned(),
@@ -11242,14 +11265,81 @@ mod tests {
                 "boolean seam",
                 crate::boolean::LeverArm::Seam.subject().to_owned(),
             ),
+            ("merge, kept boundary", merge.to_string()),
         ];
         for (door, text) in &tellings {
             assert!(text.contains(SHAPE), "{door}: {text}");
         }
-        for (door, text) in [&tellings[2], &tellings[3], &tellings[5]] {
+        for (door, text) in [&tellings[1], &tellings[2], &tellings[4]] {
             let lead = text.split("Recourse:").next().unwrap();
             assert!(!lead.contains("tolerance"), "{door}: {text}");
         }
+        assert!(
+            merge
+                .to_string()
+                .ends_with(&geom_brep::DIHEDRAL_ARM.recourse(
+                    geom_brep::recourse::RefusedArm::Undecided(&in_band),
+                    geom_brep::recourse::Reading::Build,
+                )),
+            "the merge door ends the arm as the dihedral's: {merge}"
+        );
+        assert_eq!(
+            CertCheck::TransversalityArm.to_string(),
+            "the length its faces' angle is measured over",
+            "certify's word is a noun for the length"
+        );
+        let ssi = geom_brep::SsiError::Escalated {
+            decision: geom_brep::TraceDecision::TransversalityArm,
+            cause: in_band,
+        }
+        .to_string();
+        assert!(
+            !ssi.contains(SHAPE),
+            "the SSI march now tells the arm in the shape: move it into the rendered list \
+             above and close the ssimarch row's question half: {ssi}"
+        );
+
+        use test_utils::source::{Region, keeping, rust_sources};
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let mut found = 0;
+        let mut off = Vec::new();
+        for dir in [root.join("src"), root.join("../geom-brep/src")] {
+            for path in rust_sources(&dir) {
+                let text = std::fs::read_to_string(&path).unwrap();
+                // Lexing every file is the cost; one without the word has
+                // no telling to read.
+                if !text.contains("enough") {
+                    continue;
+                }
+                let literals = keeping(&text, &[Region::Literal]);
+                let joined = literals
+                    .split("\\\n")
+                    .map(str::trim_start)
+                    .collect::<Vec<_>>()
+                    .join("");
+                for (at, _) in joined.match_indices("long enough") {
+                    let open = joined[..at].rfind('"').map_or(0, |i| i + 1);
+                    let close = joined[at..].find('"').map_or(joined.len(), |i| at + i);
+                    let literal = &joined[open..close];
+                    if !(literal.contains("angle") && literal.contains("face")) {
+                        continue;
+                    }
+                    found += 1;
+                    if !literal.contains(SHAPE) {
+                        off.push(format!("{}: {literal}", path.display()));
+                    }
+                }
+            }
+        }
+        assert!(
+            found >= tellings.len(),
+            "the census reads no telling: {found}"
+        );
+        assert!(
+            off.is_empty(),
+            "tellings off the shape:\n{}",
+            off.join("\n")
+        );
     }
 
     #[test]

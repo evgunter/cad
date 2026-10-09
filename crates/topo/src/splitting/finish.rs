@@ -872,7 +872,7 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                             geom_brep::MustCarryEscalation::FirstOrder(escalation),
                         ) => SplitFinishError::DescribeEscalated {
                             edge,
-                            diag: escalation.diag,
+                            diag: escalation.diag(),
                         },
                         geom_brep::MustCarryRefusal::InBand(
                             geom_brep::MustCarryEscalation::SecondOrder(diag),
@@ -929,8 +929,11 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                         body.set_edge_curve(edge, spec, tol)?;
                     }
                 }
-                Err(geom_brep::LeverEscalation { diag, .. }) => {
-                    return Err(SplitFinishError::DescribeEscalated { edge, diag });
+                Err(escalation) => {
+                    return Err(SplitFinishError::DescribeEscalated {
+                        edge,
+                        diag: escalation.diag(),
+                    });
                 }
             }
         }

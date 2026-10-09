@@ -579,7 +579,7 @@ fn the_rule_answers_one_pair_the_same_way_in_both_surface_orders() {
                     "{order}: the sliver is the wedge's rung, not the arm's"
                 );
                 assert_eq!(
-                    escalation.diag.predicate,
+                    escalation.diag().predicate,
                     Some("dihedral_wedge"),
                     "{order}: the sliver is the first-order wedge's escalation"
                 );
@@ -635,7 +635,7 @@ fn a_tangency_over_a_collapsed_arm_escalates_at_the_arm_in_both_orders() {
                 LeverRung::Arm,
                 "{order}, extent {extent:e}: a collapsed arm escalates at the arm rung"
             );
-            let source = escalation.diag;
+            let source = escalation.diag();
             assert_eq!(
                 source.predicate,
                 Some("dihedral_arm"),
