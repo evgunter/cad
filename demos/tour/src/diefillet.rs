@@ -669,7 +669,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         composed.edges().count(),
         composed.vertices().count(),
     );
-    assert_eq!((cf, ce, cv), (26 + 21 * 3, 48 + 21 * 7, 24 + 21 * 5));
+    // On each pip's planar trimline, the foot its band's slit does not
+    // reach has valence two and is joined away: one vertex and one edge.
+    assert_eq!((cf, ce, cv), (26 + 21 * 3, 48 + 21 * 6, 24 + 21 * 4));
 
     vec![
         Stop {
