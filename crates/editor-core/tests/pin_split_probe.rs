@@ -51,15 +51,19 @@ fn probe_pin_channels() {
             0xcbf2_9ce4_8422_2325u64,
         );
         let mut dump = String::new();
+        let mut curves_dump = String::new();
+        let (mut pts, mut surfs) = (0xcbf2_9ce4_8422_2325u64, 0xcbf2_9ce4_8422_2325u64);
         for body in bodies(&ev) {
             for (key, p) in body.points() {
                 for c in p.to_array() {
                     fnv(&mut geo, &c.to_bits().to_be_bytes());
+                    fnv(&mut pts, &c.to_bits().to_be_bytes());
                 }
                 fnv(&mut other_src, format!("{key:?}<-{:?}", body.point_source(key)).as_bytes());
             }
             for (key, curve) in body.curves() {
                 fnv(&mut geo, format!("{key:?}{curve:?}").as_bytes());
+                curves_dump += &format!("{key:?}{curve:?}\n");
                 let s = format!("{key:?}<-{:?}", body.curve_source(key));
                 fnv(&mut curve_src, s.as_bytes());
                 dump += &s;
@@ -67,6 +71,7 @@ fn probe_pin_channels() {
             }
             for (key, surface) in body.surfaces() {
                 fnv(&mut geo, format!("{key:?}{surface:?}").as_bytes());
+                fnv(&mut surfs, format!("{key:?}{surface:?}").as_bytes());
                 fnv(&mut other_src, format!("{key:?}<-{:?}", body.surface_source(key)).as_bytes());
             }
             for (key, face) in body.faces() {
@@ -81,5 +86,7 @@ fn probe_pin_channels() {
              curve sources {curve_src:#018x}"
         );
         std::fs::write(format!("{dir}/{name}.curvesrc.txt"), dump).unwrap();
+        std::fs::write(format!("{dir}/{name}.curves.txt"), curves_dump).unwrap();
+        println!("PROBE {name}: points {pts:#018x} surfaces {surfs:#018x}");
     }
 }
