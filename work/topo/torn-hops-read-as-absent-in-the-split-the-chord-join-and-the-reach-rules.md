@@ -82,6 +82,6 @@ answer `Corrupt` only for a face that does not resolve, so
 
 Residue is filed as items:
 - the census's own arena walks:
-  `work/contact/census-arena-walks-read-a-torn-record-as-absent.md`;
+  `work/sector/census-arena-walks-read-a-torn-record-as-absent.md`;
 - the typed raises this unit left for the families row:
   `torn-body-refusal-families-beyond-the-six-doors`.

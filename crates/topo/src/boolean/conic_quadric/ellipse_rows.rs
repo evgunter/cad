@@ -223,19 +223,23 @@ fn a_section_whose_projection_is_a_circle_is_a_first_harmonic() {
 /// crosses a wall about `z` near `θ = ±π/2` by `depth` (four roots)
 /// or, at a depth inside the band, grazes it. At the default band: a
 /// graze in the band is no certified answer either way, a definite
-/// depth is four certified crossings, each on the wall. The
-/// half-angle ladder alone certified a `Miss` at −1e-9 m on a 5 m
-/// wall and answered `CountDisagrees` at 1e-8 m on a 50 m wall and at
-/// 2e-8 m on a 500 m one.
+/// depth is four certified crossings, each on the wall — or, at 2e-8 m
+/// on the 50 m and 500 m walls, `Uncertain`: there the `f64`
+/// residual's rounding places the shallow roots up to 3.1e-10 and
+/// 4.5e-9 m from the true ones (the exact oracle), and the root slack,
+/// which must read inside the zero band, refuses them. The half-angle
+/// ladder alone certified a `Miss` at −1e-9 m on a 5 m wall and
+/// answered `CountDisagrees` at 1e-8 m on a 50 m wall and at 2e-8 m on
+/// a 500 m one.
 #[test]
 fn a_graze_is_read_by_its_depth() {
     let band = Band::new(1e-9, 1e-8).unwrap();
-    for (r, depth, tilt) in [
-        (5.0, -1e-9, 0.0_f64),
-        (50.0, 1e-8, 0.0),
-        (500.0, 2e-8, 0.0),
-        (50.0, 2e-8, 0.3),
-        (5.0, 5e-6, 0.3),
+    for (r, depth, tilt, placed) in [
+        (5.0, -1e-9, 0.0_f64, false),
+        (50.0, 1e-8, 0.0, false),
+        (500.0, 2e-8, 0.0, false),
+        (50.0, 2e-8, 0.3, false),
+        (5.0, 5e-6, 0.3, true),
     ] {
         let label = format!("wall r {r}, depth {depth}, tilt {tilt}");
         let e = ellipse(
@@ -251,6 +255,13 @@ fn a_graze_is_read_by_its_depth() {
             assert!(
                 matches!(got, Ok(CircleRoots::Uncertain) | Err(_)),
                 "{label}: a graze in the band, got {got:?}"
+            );
+            continue;
+        }
+        if !placed {
+            assert!(
+                matches!(got, Ok(CircleRoots::Uncertain)),
+                "{label}: roots the band cannot place refuse on their slack, got {got:?}"
             );
             continue;
         }

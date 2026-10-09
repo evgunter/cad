@@ -128,10 +128,10 @@ fn volume(b: &AtRestBody<f64>) -> f64 {
 /// (`work/wire/a-boolean-drops-its-operands-own-contact-records.md`),
 /// or a touch there between two solids that the census misreads. Those
 /// are a pyramid notched by another, a saddle corner on the plate
-/// (`work/contact/a-touch-at-a-saddle-corner-refuses-unanalysed.md`),
+/// (`work/inside/a-touch-at-a-saddle-corner-refuses-unanalysed.md`),
 /// and a pyramid on a solid that touches itself there, read from its
 /// vertex alone
-/// (`work/contact/a-solid-touching-itself-at-a-vertex-reads-its-star-from-the-vertex-alone.md`).
+/// (`work/inside/a-solid-touching-itself-at-a-vertex-reads-its-star-from-the-vertex-alone.md`).
 /// [`material_holds`] reads those results right. Where `along`, a
 /// pyramid's edge lies in a face of the other's, and that edge's own
 /// contact, which no record carries, may refuse too

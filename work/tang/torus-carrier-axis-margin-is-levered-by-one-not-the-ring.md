@@ -82,7 +82,7 @@ ball. The ball is measured once, on the operands at rest
 `recl`, `vtxfac`) read it from there via `DeclaredPairs::reach_of`:
 mid-operation, a face whose boundary carries null scaffolding has no
 readable box (filed as
-`work/contact/census-face-reach-returns-a-nan-box-for-an-unclaimable-boundary-edge.md`).
+`work/restread/census-face-reach-returns-a-nan-box-for-an-unclaimable-boundary-edge.md`).
 Red-then-green rows: `rest::lever_rows` (torus, cylinder),
 `contact9_side_codes::a_declared_plane_tilt_is_read_across_the_faces`
 (10 m plane) and `locus::tests::the_axis_row_reads_the_tilt_across_the_extent`
