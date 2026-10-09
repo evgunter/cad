@@ -7,7 +7,6 @@ opened: 2026-10-08
 priority: P0
 cost: H
 design: true
-needs_ev: true
 refs: [interference-at-rest-is-a-finding, a-placement-is-the-bundle-of-mates]
 ---
 
