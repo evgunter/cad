@@ -148,8 +148,7 @@ pub mod surgery;
 use core::fmt;
 
 use geom_brep::recourse::{
-    Classified, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
-    UNREADABLE_MARGIN_NOTE,
+    Classified, LeverOnly, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
 };
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, MarginDiag, MarginKind, Sign};
 use topo::{EdgeKey, EntityId, FaceKey, VertexKey};
@@ -463,12 +462,7 @@ impl BlendDecision {
                 at_zero: None,
             }
             .recourse(arm, Reading::Build),
-            None => match arm {
-                RefusedArm::Undecided(cause) if cause.margin.is_invalid() => {
-                    format!("Recourse: {lever}; {UNREADABLE_MARGIN_NOTE}")
-                }
-                _ => format!("Recourse: {lever}"),
-            },
+            None => LeverOnly { lever }.recourse(arm),
         }
     }
 }
@@ -1874,13 +1868,12 @@ impl fmt::Display for BlendError {
             // ending is the only recourse.
             Self::Escalated {
                 decision, source, ..
-            } => write!(
-                f,
-                "{} is undecided: {}. {}",
-                decision.subject(),
-                source.payload(),
-                decision.recourse(RefusedArm::Undecided(source))
-            ),
+            } => source
+                .undecided(
+                    decision.subject(),
+                    decision.recourse(RefusedArm::Undecided(source)),
+                )
+                .fmt(f),
             Self::RepeatedEdge { .. } => write!(
                 f,
                 "the request names one edge twice. Recourse: request each edge once"

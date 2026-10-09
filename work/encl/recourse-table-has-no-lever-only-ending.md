@@ -2,8 +2,9 @@
 id: recourse-table-has-no-lever-only-ending
 kind: issue
 title: geom_brep::recourse has no lever-only ending or undecided-refusal shape, so each consumer spells both itself
-status: dispatched
+status: review
 branch: encl/recourse-lever-only
+pr: 4416
 opened: 2026-10-01
 priority: P3
 cost: E

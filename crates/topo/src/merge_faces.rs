@@ -968,13 +968,9 @@ impl core::fmt::Display for MergeCoplanarError {
                      winds counterclockwise about its outward normal, as tier 3 requires at rest"
                 ),
             },
-            Self::Escalated { decision, diag } => write!(
-                f,
-                "{} is undecided: {}. {}",
-                decision.subject(),
-                diag.payload(),
-                decision.ending(diag)
-            ),
+            Self::Escalated { decision, diag } => diag
+                .undecided(decision.subject(), decision.ending(diag))
+                .fmt(f),
             Self::Band { error } => write!(f, "merge_coplanar_faces: {error}"),
             Self::Pcurve { source } => write!(
                 f,
@@ -1019,8 +1015,8 @@ impl core::fmt::Display for MergeCoplanarError {
                 write!(
                     f,
                     "merge_coplanar_faces: re-describing kept face {face:?}'s boundary edge \
-                     {edge:?}, {question} is undecided: {}. {ending}",
-                    diag.payload()
+                     {edge:?}, {}",
+                    diag.undecided(question, ending)
                 )
             }
         }
