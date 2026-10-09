@@ -2126,6 +2126,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::CurvedBooleanUnsupported
         | BooleanErrorKind::CurvedPierceUnsupported
         | BooleanErrorKind::CrossingAtConeApex
+        | BooleanErrorKind::NormalAtConeApex
         | BooleanErrorKind::CurvedEdgeUnsupported
         | BooleanErrorKind::CrossingCarrierUnsupported
         | BooleanErrorKind::PointSplitCarrierUnsupported

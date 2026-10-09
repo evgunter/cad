@@ -1187,9 +1187,11 @@ fn has_lone_vertex<T: Real>(body: &Body<T>, face: FaceKey) -> bool {
 }
 
 /// Places a witness point in one face: `contfp` on a plane, the chart
-/// trim on a curved face. A point the trim puts definitely OFF the
-/// carrier is no verdict — the witness was built on the carrier, so
-/// that answer contradicts its construction rather than placing it.
+/// trim on a curved face. A point definitely OFF the carrier is no
+/// verdict — the witness was built on the carrier, so that answer
+/// contradicts its construction rather than placing it. The trim reads
+/// the carrier itself; `contfp` places a point's projection, so the
+/// plane's carrier is decided here first.
 pub(crate) fn place_witness<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -1198,6 +1200,15 @@ pub(crate) fn place_witness<T: Decide>(
     band: Band,
 ) -> Option<FaceContainment> {
     match *surface {
+        geom::Surface::Plane { origin, normal, .. }
+            if decide(
+                "bool_section_witness_on_plane",
+                Margin::of((p - origin).dot(normal)),
+                band,
+            ) != Ok(Sign::Zero) =>
+        {
+            None
+        }
         geom::Surface::Plane { normal, .. } => match contfp(body, face, normal, p, band) {
             Ok(at) => Some(at),
             Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
@@ -1441,9 +1452,9 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// does.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Exempt<'r> {
-    /// Every in-scope pair is classified: the test-support twins'
-    /// spelling, which no production path takes.
-    #[cfg(any(test, feature = "test-support"))]
+    /// Every in-scope pair is classified: the test-support and
+    /// sweep-testing doors' spelling, which no production path takes.
+    #[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
     Nothing,
     /// The crossings path: a DECLARED pair, whose contact is the
     /// verified carrier the declared rungs walk along its edges.
@@ -1466,7 +1477,7 @@ impl Exempt<'_> {
     /// Does this exemption answer the pair `(A face, B face)`?
     pub(crate) fn answers(self, fa: FaceKey, fb: FaceKey) -> bool {
         match self {
-            #[cfg(any(test, feature = "test-support"))]
+            #[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
             Self::Nothing => false,
             Self::Declared(decls) => declares_pair(decls, fa, fb),
             Self::Rest(pairs) => pairs.contains(&(fa, fb)),
@@ -1542,6 +1553,31 @@ pub(crate) fn section_report<T: Decide + Bounds + crate::props::AtRestPolicy>(
     )
 }
 
+/// **The section pass's per-pair report on the no-crossings path**:
+/// every pair the pass examines, with no event anywhere, whatever the
+/// crossing layer would find. The pass itself stops at the first
+/// refusal; this reads every pair.
+///
+/// # Errors
+///
+/// [`section_pairs`]'.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn no_crossings_section_report(
+    a: &Body<f64>,
+    b: &Body<f64>,
+    tol: Tol,
+) -> Result<Vec<PairVerdict>, BooleanError> {
+    section_pairs(
+        a,
+        b,
+        Band::linear(tol)?,
+        SectionPath::Fallback,
+        Exempt::Nothing,
+        |_, _| false,
+        false,
+    )
+}
+
 /// **The no-crossings path's two certificates**, run as the path runs
 /// them before the vertex probe on undeclared operands: the sphere
 /// extent scan, then — when it asks for no re-cut — the section pass.
@@ -1606,9 +1642,20 @@ fn ball_against_plane<T: Decide>(
 /// took), so every copy the vertex's null edges reach, transitively (a
 /// strut nested in another's segment hangs at its tip), is read with it.
 fn event_pairs<T: Real>(red: &BooleanReduction<T>) -> BTreeSet<(FaceKey, FaceKey)> {
-    let a_faces = faces_by_vertex(&red.a);
-    let b_faces = faces_by_vertex(&red.b);
-    let desc = Descendants::default().with_copies(Descendants::null_copies(&red.null_edges));
+    contact_face_pairs(&red.a, &red.b, &red.contacts, &red.null_edges)
+}
+
+/// [`event_pairs`] over its parts: the split operands, the sweep's
+/// contacts, and the classification's null edges (none before it runs).
+pub(crate) fn contact_face_pairs<T: Real>(
+    a: &Body<T>,
+    b: &Body<T>,
+    contacts: &ContactRecords,
+    null_edges: &[super::BoolNullEdgeRecord<T>],
+) -> BTreeSet<(FaceKey, FaceKey)> {
+    let a_faces = faces_by_vertex(a);
+    let b_faces = faces_by_vertex(b);
+    let desc = Descendants::default().with_copies(Descendants::null_copies(null_edges));
     let around = |operand: Operand, v: VertexKey| {
         let m = match operand {
             Operand::A => &a_faces,
@@ -1624,17 +1671,17 @@ fn event_pairs<T: Real>(red: &BooleanReduction<T>) -> BTreeSet<(FaceKey, FaceKey
         faces
     };
     let mut out = BTreeSet::new();
-    for c in &red.contacts.a_on_b {
+    for c in &contacts.a_on_b {
         for fa in around(Operand::A, c.vertex) {
             out.insert((fa, c.face));
         }
     }
-    for c in &red.contacts.b_on_a {
+    for c in &contacts.b_on_a {
         for fb in around(Operand::B, c.vertex) {
             out.insert((c.face, fb));
         }
     }
-    for c in &red.contacts.vv {
+    for c in &contacts.vv {
         for fa in around(Operand::A, c.a) {
             for fb in around(Operand::B, c.b) {
                 out.insert((fa, fb));

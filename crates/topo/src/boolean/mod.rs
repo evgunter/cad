@@ -98,12 +98,12 @@ pub(crate) mod insert;
 mod join;
 mod ops;
 pub(crate) mod section_cert;
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) use ops::no_crossings_certificates;
 pub(crate) use ops::volume_backstop;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use ops::{ChartCache, section_report};
 pub(crate) use ops::{boundary_edges, describe_edges};
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) use ops::{no_crossings_certificates, no_crossings_section_report};
 pub mod plane_eq;
 #[cfg(test)]
 mod r2_probes;
@@ -249,7 +249,10 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         separating::PAIR_GAP => {
             "how far apart two faces lie along a direction that turns with them"
         }
-        "bool_pierce_normal_on_chart" => BooleanDecision::PierceOnFace.subject(),
+        "bool_pierce_normal_on_chart" | "bool_pierce_normal_on_cone" => {
+            BooleanDecision::PierceOnFace.subject()
+        }
+        "bool_cone_off_axis" => "whether a point of a cone face stands clear of the cone's apex",
         // `geom`'s torus convention, which the pierce point's normal
         // reads before it differentiates the torus.
         "torus_tube_positive" => TorusConvention::Tube.subject(),
@@ -1970,6 +1973,22 @@ pub enum BooleanError {
         /// The band the apex distance was classified against.
         band: Band,
     },
+    /// A vertex the boolean classifies sits within the band of the APEX
+    /// of a cone face of `operand`: the cone's own apex vertex as the
+    /// corner of one of its sectors, or another operand's vertex landing
+    /// on the cone there. The face has no tangent plane at its apex, so
+    /// there is no normal to read a material side by, and the sector and
+    /// pierce lanes refuse rather than read one. The definite half: an
+    /// in-band distance off the axis refuses the same way, with no
+    /// tolerance named.
+    NormalAtConeApex {
+        /// The operand the cone face belongs to.
+        operand: Operand,
+        /// The cone face.
+        face: FaceKey,
+        /// The band the distance off the axis was classified against.
+        band: Band,
+    },
     /// The operand gate (F5) refused a spiric or spline (`Nurbs`)
     /// carrier in an INPUT operand: no crossing lane reads either kind,
     /// and the join and section lanes behind the sweep have no row for
@@ -2959,6 +2978,8 @@ pub enum BooleanErrorKind {
     CurvedPierceUnsupported,
     /// [`BooleanError::CrossingAtConeApex`].
     CrossingAtConeApex,
+    /// [`BooleanError::NormalAtConeApex`].
+    NormalAtConeApex,
     /// [`BooleanError::CurvedEdgeUnsupported`].
     CurvedEdgeUnsupported,
     /// [`BooleanError::CrossingCarrierUnsupported`].
@@ -3190,6 +3211,11 @@ impl BooleanError {
             NormalAtError::OffSurface => Self::ClassificationInvariant {
                 what: "pierce point definitely off the pierced face's surface",
             },
+            NormalAtError::AtConeApex { band } => Self::NormalAtConeApex {
+                operand,
+                face,
+                band,
+            },
         }
     }
 
@@ -3208,6 +3234,7 @@ impl BooleanError {
             }
             Self::CurvedPierceUnsupported { .. } => BooleanErrorKind::CurvedPierceUnsupported,
             Self::CrossingAtConeApex { .. } => BooleanErrorKind::CrossingAtConeApex,
+            Self::NormalAtConeApex { .. } => BooleanErrorKind::NormalAtConeApex,
             Self::CurvedEdgeUnsupported { .. } => BooleanErrorKind::CurvedEdgeUnsupported,
             Self::CrossingCarrierUnsupported { .. } => BooleanErrorKind::CrossingCarrierUnsupported,
             Self::PointSplitCarrierUnsupported { .. } => {
@@ -3382,6 +3409,13 @@ impl core::fmt::Display for BooleanError {
                 "an edge of the {} operand meets a cone face of the other operand at \
                  the cone's tip, where the face has no direction to cross it by. \
                  Recourse: move the parts so the edge clearly passes the tip",
+                operand_word(*operand),
+            ),
+            Self::NormalAtConeApex { operand, .. } => write!(
+                f,
+                "a corner of one part sits at the tip of a cone face of the {} operand, \
+                 where the face has no direction to read the other part's side by. \
+                 Recourse: move the parts so nothing meets the cone's tip",
                 operand_word(*operand),
             ),
             Self::CurvedSectorSideUnsupported { verdict } => write!(
@@ -4179,6 +4213,18 @@ pub fn sweep_split_admitting_cones(
     b_operand: &Body<f64>,
     tol: Tol,
 ) -> Result<(Body<f64>, Body<f64>, SweepTrace, SweepTrace), BooleanError> {
+    let (a, b, ab, ba, _) = sweep_admitting_cones(a_operand, b_operand, tol)?;
+    Ok((a, b, ab, ba))
+}
+
+/// [`sweep_split_admitting_cones`], with the contacts the sweep recorded.
+#[cfg(feature = "sweep-testing")]
+#[allow(clippy::type_complexity)] // the split operands, their traces, the contacts
+fn sweep_admitting_cones(
+    a_operand: &Body<f64>,
+    b_operand: &Body<f64>,
+    tol: Tol,
+) -> Result<(Body<f64>, Body<f64>, SweepTrace, SweepTrace, ContactRecords), BooleanError> {
     let band = Band::linear(tol)?;
     let declared = DeclaredPairs::default();
     reduce::gate_operand_pairs(a_operand, b_operand, &declared, band, |s| {
@@ -4202,7 +4248,42 @@ pub fn sweep_split_admitting_cones(
         [Some(&mut ab), Some(&mut ba)],
         tol,
     )?;
-    Ok((a, b, ab, ba))
+    Ok((a, b, ab, ba, acc.finish()))
+}
+
+/// **The section certificate on the crossings path past the cone
+/// refusal**: the sweep of [`sweep_split_admitting_cones`], its contacts
+/// read into face-pair events by the reduction's own reading
+/// (`ops::contact_face_pairs`, before any null edge exists), and every
+/// in-scope pair of `a` × `b` certified with them, as
+/// `(A face, B face, outcome)` spelled by `Debug`. The crossings path's
+/// certificate on a cone pair, until the roster admits the cone;
+/// `sweep-testing` only.
+///
+/// # Errors
+///
+/// The sweep's refusals, and the certificate's own
+/// ([`ops::section_pairs`]).
+#[cfg(feature = "sweep-testing")]
+pub fn section_report_admitting_cones(
+    a: &Body<f64>,
+    b: &Body<f64>,
+    tol: Tol,
+) -> Result<Vec<(FaceKey, FaceKey, String)>, BooleanError> {
+    let (sa, sb, _, _, contacts) = sweep_admitting_cones(a, b, tol)?;
+    let events = ops::contact_face_pairs(&sa, &sb, &contacts, &[]);
+    Ok(ops::section_pairs(
+        a,
+        b,
+        Band::linear(tol)?,
+        ops::SectionPath::Crossings,
+        ops::Exempt::Nothing,
+        |fa, fb| events.contains(&(fa, fb)),
+        false,
+    )?
+    .into_iter()
+    .map(|p| (p.a_face, p.b_face, format!("{:?}", p.verdict)))
+    .collect())
 }
 
 /// **The sweep's contact records and the split operands' sizes** under
@@ -6513,6 +6594,11 @@ mod tests {
                 edge,
                 band,
             },
+            BooleanError::NormalAtConeApex {
+                operand: Operand::A,
+                face,
+                band,
+            },
             BooleanError::CurvedEdgeUnsupported {
                 operand: Operand::B,
                 edge,
@@ -6779,6 +6865,7 @@ mod tests {
                 BooleanErrorKind::CurvedSectorSideUnsupported => "CurvedSectorSideUnsupported",
                 BooleanErrorKind::CurvedPierceUnsupported => "CurvedPierceUnsupported",
                 BooleanErrorKind::CrossingAtConeApex => "CrossingAtConeApex",
+                BooleanErrorKind::NormalAtConeApex => "NormalAtConeApex",
                 BooleanErrorKind::CurvedEdgeUnsupported => "CurvedEdgeUnsupported",
                 BooleanErrorKind::CrossingCarrierUnsupported => "CrossingCarrierUnsupported",
                 BooleanErrorKind::PointSplitCarrierUnsupported => "PointSplitCarrierUnsupported",
