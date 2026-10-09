@@ -319,6 +319,13 @@ pub enum BooleanDecision {
     /// positive margin, the conventional description on zero). Asked of
     /// the result, after every declaration was spent, so none is read.
     SeamJet,
+    /// Whether a shell of the result bounds material or a cavity, at the
+    /// finished-body gate: its volume over its area, the mean thickness
+    /// it stands for (`chk_shell_volume_sign`), either definite sign a
+    /// role. Raised only where the shell's certified reading lies wholly
+    /// in band: a shell in band of having no volume, which definite cuts
+    /// can compose, so the operands are ill-conditioned at this ε.
+    ShellRole,
     /// A question the curved-extent scan asks of a sphere face, which
     /// takes no declarations.
     Sphere(SphereQuestion),
@@ -820,6 +827,17 @@ const SEAM_WEDGE: SizedDecision = SizedDecision {
             smooth",
     size: "fold across the seam",
     passes: SizedPass::NonNegative,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
+/// Whether a shell of the result bounds material or a cavity
+/// ([`BooleanDecision::ShellRole`]): the margin is `V/A`, the shell's
+/// mean thickness, a length, and either definite sign is a role.
+const RESULT_SHELL: SizedDecision = SizedDecision {
+    lever: "move the parts so they leave no piece or cavity thinner than the tolerance",
+    size: "thickness",
+    passes: SizedPass::NonZero,
     stored: StoredDefinite::Lever,
     at_zero: None,
 };
@@ -1571,6 +1589,7 @@ impl BooleanDecision {
                 "whether the two faces touching along a seam edge curve apart there or share \
                  their curvature"
             }
+            Self::ShellRole => "whether a shell of the result bounds material or a cavity",
             Self::Sphere(question) => question.subject(),
             Self::SelfCheck(check) => check.subject(),
         }
@@ -1770,6 +1789,7 @@ impl BooleanDecision {
             Self::BisectorSide => Ending::Lever(CORNER_EDGES, LeverPass::Unmeasured),
             Self::SeamWedge => Ending::Sized(SEAM_WEDGE),
             Self::SeamJet => Ending::Sized(SEAM_JET),
+            Self::ShellRole => Ending::Sized(RESULT_SHELL),
             Self::Sphere(question) => question.ending(),
             // A broken invariant, as the check's definite refusal says.
             Self::SelfCheck(_) => Ending::Unsized(Unsized::Defect),
@@ -2015,6 +2035,7 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::BisectorSide => vec![BooleanDecision::BisectorSide],
                 BooleanDecisionKind::SeamWedge => vec![BooleanDecision::SeamWedge],
                 BooleanDecisionKind::SeamJet => vec![BooleanDecision::SeamJet],
+                BooleanDecisionKind::ShellRole => vec![BooleanDecision::ShellRole],
                 BooleanDecisionKind::Sphere => SphereQuestion::iter()
                     .map(BooleanDecision::Sphere)
                     .collect(),
@@ -2390,6 +2411,14 @@ pub(in crate::boolean) mod tests {
                     "Recourse: move the geometry so the faces touching along that seam either \
                      clearly curve apart there or clearly share their curvature",
                     SizedPass::NonNegative,
+                ),
+            ),
+            BooleanDecision::ShellRole => (
+                "whether a shell of the result bounds material or a cavity",
+                Ending::Sized(
+                    "Recourse: move the parts so they leave no piece or cavity thinner than \
+                     the tolerance",
+                    SizedPass::NonZero,
                 ),
             ),
             BooleanDecision::Sphere(SphereQuestion::AgainstPlane) => (

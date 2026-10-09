@@ -15,8 +15,8 @@
 
 use geom_core::{Point3, Tol};
 use topo::{
-    AtRestBody, BooleanDeclarations, BooleanError, ShellClassifyError, ShellRole, ValidationError,
-    classify_shells, intersect_with,
+    AtRestBody, BooleanDecision, BooleanDeclarations, BooleanError, ShellRole, classify_shells,
+    intersect_with,
 };
 
 use crate::common;
@@ -118,8 +118,9 @@ fn a_near_tangent_wedge_tens_of_bands_thick_reads_outer() {
 }
 
 /// **The in-band twin**: at `d = 1e-11` (pose `a3`) the wedge is less
-/// than a band thick, and the ∩ refuses its role on an enclosure wholly
-/// inside the sliver band, not on one straddling zero.
+/// than a band thick, and the ∩ refuses its result as the operands'
+/// ill-conditioning (D10, Booleans), on the wedge's certified enclosure
+/// wholly inside the sliver band, not on one straddling zero.
 #[test]
 fn a_near_tangent_wedge_in_band_refuses_on_an_enclosure_inside_the_band() {
     let tol = Tol::witness();
@@ -127,21 +128,16 @@ fn a_near_tangent_wedge_in_band_refuses_on_an_enclosure_inside_the_band() {
         return;
     }
     let refusal = notch307_meet(3, 1e-11, tol).map(|_| ());
-    let Err(BooleanError::ResultInvalid { errors }) = &refusal else {
-        panic!("the ∩ refuses its result, got {refusal:?}");
-    };
-    let [
-        ValidationError::ShellRoleUndecided {
-            error: ShellClassifyError::Escalated { source, .. },
-            ..
-        },
-    ] = errors.as_slice()
+    let Err(BooleanError::Escalated {
+        decision: BooleanDecision::ShellRole,
+        diag,
+    }) = &refusal
     else {
-        panic!("one shell's role is undecided, got {errors:?}");
+        panic!("the ∩ refuses its in-band shell, got {refusal:?}");
     };
     assert_eq!(
-        (source.predicate, source.terminal_sliver),
+        (diag.predicate, diag.terminal_sliver),
         (Some("positive_volume_exact"), true),
-        "the certified reading is wholly inside the sliver band: {source:?}"
+        "the certified reading is wholly inside the sliver band: {diag:?}"
     );
 }
