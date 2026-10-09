@@ -15,8 +15,9 @@ use geom_core::Tol;
 use geom_core::{Arc2, Point2, Real};
 use profile::RawLoop;
 use profile::{
-    ArcSweep, Center, ClosedLoop, CornerReason, CornerRefusal, FilletLeg, FilletLegCarrier, Open,
-    PathError, Profile, ProfileLoop, Segment, SketchPlane, Start, test_support::bulge_loop,
+    ArcSweep, Center, ClosedLoop, ConstructedLoop, CornerReason, CornerRefusal, FilletLeg,
+    FilletLegCarrier, Open, PathError, Profile, ProfileLoop, Segment, SketchPlane, Start,
+    test_support::bulge_loop,
 };
 
 /// The quarter tangent `tan(Δθ/4)` a stored segment's sweep reads as —
@@ -218,9 +219,9 @@ pub fn replayed<T: profile::ArcCarrierScalar>(
 /// embedding.
 pub fn try_replay_at<T: profile::ArcCarrierScalar>(
     program: &[profile::Step<f64>],
-) -> Result<ProfileLoop<T>, profile::ReplayError<T>> {
+) -> Result<ConstructedLoop<T>, profile::ReplayError<T>> {
     let lifted: Vec<profile::Step<T>> = program.iter().map(|s| s.map_scalar(T::from_f64)).collect();
-    profile::replay(&lifted, tol()).map(profile::ConstructedLoop::into_loop)
+    profile::replay(&lifted, tol())
 }
 
 /// A loop from `(x, y, bulge)` triples.
@@ -276,7 +277,8 @@ pub fn circle_v(cx: f64, cy: f64, r: f64) -> ProfileLoop<f64> {
 /// corners of radius `r`.
 pub fn rounded_rect(w: f64, h: f64, r: f64) -> ProfileLoop<f64> {
     let b = quarter_bulge();
-    let mut lp = chain(&[
+    // Every joint is an exact quarter-arc/side tangency.
+    chain(&[
         (r, 0.0, 0.0),
         (w - r, 0.0, b),
         (w, r, 0.0),
@@ -285,24 +287,24 @@ pub fn rounded_rect(w: f64, h: f64, r: f64) -> ProfileLoop<f64> {
         (r, h, b),
         (0.0, h - r, 0.0),
         (0.0, r, b),
-    ]);
-    // Every joint is an exact quarter-arc/side tangency — declared
-    // (the #101 discipline).
-    let n = lp.vertices().len();
-    lp = lp.with_tangent_joints((0..n).collect());
-    lp
+    ])
 }
 
 /// The demo bracket's filleted-corner shape: an L with one r = 0.5
-/// tangent fillet, authored through the PATHS algebra (which declares
-/// its two joints by construction) — the mixed declared/undeclared
-/// fixture (2 tangent joints of 7).
+/// tangent fillet, authored through the PATHS algebra (which constructs
+/// its two tangent joints) — the mixed fixture (2 tangent joints of 7),
+/// as a table ([`bracket_constructed`] keeps the provenance).
 ///
 /// The fillet's corner is never authored: the incoming ray leaves
 /// (3, 1) toward −x, the arrival side runs +y and ends at its own
 /// anchor (1, 3), and the r = 0.5 arc is inserted at the carriers'
 /// intersection, trimming both to T₁ = (1.5, 1) and T₂ = (1, 1.5).
 pub fn bracket() -> ProfileLoop<f64> {
+    bracket_constructed().into_loop()
+}
+
+/// [`bracket`], keeping the joints its fillet constructed.
+pub fn bracket_constructed() -> ConstructedLoop<f64> {
     let closed = Open
         .at(Point2::new(0.0, 0.0))
         .line_to(Point2::new(3.0, 0.0), Tol::witness())
@@ -321,7 +323,7 @@ pub fn bracket() -> ProfileLoop<f64> {
         .expect("top side")
         .line_to(Start, Tol::witness())
         .expect("the straight seam closes");
-    pinned(closed)
+    pinned_constructed(closed)
 }
 
 /// A lens (lune): a semicircular arc out and a shallower arc back —
@@ -386,14 +388,19 @@ pub fn near_tangent_hole(eps: f64) -> Profile<f64> {
 /// subset: wrap the chain's result and keep asserting whatever the test
 /// was already asserting on the loop.
 pub fn pinned(closed: ClosedLoop<f64>) -> ProfileLoop<f64> {
+    pinned_constructed(closed).into_loop()
+}
+
+/// [`pinned`], keeping the joints the chain's constructors made.
+pub fn pinned_constructed(closed: ClosedLoop<f64>) -> ConstructedLoop<f64> {
     let replayed = match profile::replay(&closed.program, Tol::witness()) {
-        Ok(lp) => lp.into_loop(),
+        Ok(lp) => lp,
         Err(e) => panic!("the recorded program refused at replay: {e}"),
     };
     assert_bit_identical(&closed.loop_, &replayed);
     assert_spans_partition(&closed);
     assert_pieces_name_one_segment_each(&closed);
-    closed.loop_.into_loop()
+    closed.loop_
 }
 
 /// **Every segment is exactly one piece, and no piece is two
@@ -647,15 +654,8 @@ pub fn assert_spans_partition(closed: &ClosedLoop<f64>) {
 }
 
 /// Bit-level loop identity: vertex count, every coordinate and bulge by
-/// `to_bits`, and the declared joints as a MULTISET.
-///
-/// Order is not semantic, so the lists are sorted — but they are NOT
-/// deduped: the two sides here come from the same emission machinery
-/// driven two ways, so a replay that declared one joint twice where the
-/// lowering declared it once is a real divergence, and deduping would
-/// hide it. (The looser set-compare belongs in `path_differential.rs`,
-/// where the two sides are the algebra and the hand builder.)
-pub fn assert_bit_identical(lowered: &ProfileLoop<f64>, replayed: &ProfileLoop<f64>) {
+/// `to_bits`, and the constructed joints.
+pub fn assert_bit_identical(lowered: &ConstructedLoop<f64>, replayed: &ConstructedLoop<f64>) {
     assert_eq!(
         lowered.vertices().len(),
         replayed.vertices().len(),
@@ -675,11 +675,11 @@ pub fn assert_bit_identical(lowered: &ProfileLoop<f64>, replayed: &ProfileLoop<f
             "segment {i}"
         );
     }
-    let mut la = lowered.tangent_joints().to_vec();
-    let mut lb = replayed.tangent_joints().to_vec();
-    la.sort_unstable();
-    lb.sort_unstable();
-    assert_eq!(la, lb, "declared tangent joints (multiset)");
+    assert_eq!(
+        lowered.constructed_joints(),
+        replayed.constructed_joints(),
+        "constructed tangent joints"
+    );
 }
 
 /// The census corpus: closed chains whose union covers every declared

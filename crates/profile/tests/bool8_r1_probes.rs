@@ -9,7 +9,7 @@
 
 use crate::common;
 
-use common::pinned;
+use common::{pinned, pinned_constructed};
 use geom_core::{Point2, Tol};
 use profile::path::{HasPos, NoAng, WithIncoming};
 use profile::{Bulge, Open, PartialPath, PathError, Profile, SketchPlane, Start};
@@ -158,10 +158,10 @@ fn probe_unequal_legs_need_not_have_a_vanishing_cross_product() {
     println!("probe: {nonzero}/{total} unequal-length leg pairs have a NONZERO cross product");
 }
 
-/// Nothing is declared and no junction is minted: `tangent_joints` is
-/// empty for an arbitrarily long continuation run, and the lowered
-/// vertex table is exactly the run's vertices (a structural
-/// subdivision, not an extra construct).
+/// No junction is minted: the lowered vertex table is exactly an
+/// arbitrarily long continuation run's vertices (a structural
+/// subdivision, not an extra construct), each joint a constructed
+/// tangent one.
 #[test]
 fn probe_no_junction_is_minted_and_nothing_is_declared() {
     let lp = Open
@@ -179,15 +179,15 @@ fn probe_no_junction_is_minted_and_nothing_is_declared() {
         .line_to(Point2::new(4.0, 3.0), Tol::witness())
         .unwrap()
         .line_to(Start, Tol::witness())
-        .map(pinned)
+        .map(pinned_constructed)
         .unwrap();
-    // Since the 2026-09-02 ruling the continuation DOES declare its
-    // own zero-turn joint; what this probe is really about — that no
-    // junction is MINTED, i.e. the vertex count — is asserted above.
+    // The continuation constructs its own zero-turn joint; what this
+    // probe is really about — that no junction is MINTED, i.e. the
+    // vertex count — is asserted above.
     assert_eq!(
-        lp.tangent_joints(),
+        lp.constructed_joints(),
         &[1, 2, 3],
-        "each continuation declares its own joint"
+        "each continuation constructs its own joint"
     );
     let v: Vec<_> = lp.vertices().iter().map(|x| (x.x, x.y)).collect();
     assert_eq!(
@@ -254,15 +254,15 @@ fn probe_the_data_gate_accepts_awkward_subdivided_runs() {
                 .line_to(away, Tol::witness())
                 .unwrap()
                 .line_to(Start, Tol::witness())
-                .map(pinned)
+                .map(pinned_constructed)
                 .unwrap();
-            // Every continuation joint is DECLARED (Ev, in-chat,
-            // 2026-09-02): the subdivisions are `1..legs.len()`, and
-            // the run's two closing junctions turn definitely.
-            let declared: Vec<usize> = lp.tangent_joints().to_vec();
+            // Every continuation joint is CONSTRUCTED: the
+            // subdivisions are `1..legs.len()`, and the run's two
+            // closing junctions turn definitely.
+            let declared: Vec<usize> = lp.constructed_joints().to_vec();
             let want: Vec<usize> = (1..legs.len()).collect();
             assert_eq!(declared, want, "legs={legs:?}");
-            Profile::new(SketchPlane::xy(), vec![lp.clone()])
+            Profile::new(SketchPlane::xy(), vec![lp.into_loop()])
                 .validate(Tol::witness())
                 .unwrap_or_else(|e| {
                     panic!("the data gate refused a lattice-authored subdivided run: dir=({dx},{dy}) legs={legs:?} err={e:?}")
@@ -422,32 +422,33 @@ fn probe_a_declared_departure_then_continuations_declares_exactly_once() {
         .line(1.0, t)
         .unwrap()
         .line_to(Start, t)
-        .map(pinned)
+        .map(pinned_constructed)
         .unwrap();
     assert_eq!(
-        lp.tangent_joints(),
+        lp.constructed_joints(),
         &[1, 2, 3],
-        "the arc/line joint AND every continuation joint are declared \
-         (Ev, in-chat, 2026-09-02); each is declared exactly once"
+        "the arc/line joint AND every continuation joint are constructed, \
+         each exactly once"
     );
-    Profile::new(SketchPlane::xy(), vec![lp])
+    Profile::new(SketchPlane::xy(), vec![lp.into_loop()])
         .validate(t)
-        .expect("declared departure + structural subdivisions is well-formed data");
+        .expect("a tangent departure + structural subdivisions is well-formed data");
 }
 
 // ==================================================================
 // Claim 4 — the carrier-blindness pin, and the MAJOR hunt: is there
-// ANY arc for which the lowered undeclared tangency ALSO passes
-// validate (a silently-accepted undeclared tangency)?
+// ANY arc for which the off-arc continuation's tangency reaches the
+// gate as a decision from values rather than a construction?
 // ==================================================================
 
 /// Sweep the arc's bulge (and so its radius and sweep angle) across
 /// four orders of magnitude and both senses, plus the leg length. Every
-/// one of these authors a line tangent to an arc with NOTHING declared.
-/// The claim is that the data gate refuses all of them. A single
-/// acceptance here is a silently-accepted undeclared tangency — MAJOR.
+/// one of these authors a line tangent to an arc by `line(len)`, which
+/// constructs the joint. The claim is that the gate verifies every one
+/// and decides none from values: a joint 1 recorded here would be a
+/// construction the lattice lost on the way to the gate.
 #[test]
-fn probe_hunt_a_silently_accepted_undeclared_tangency_off_an_arc() {
+fn probe_hunt_an_off_arc_continuation_the_gate_decides_from_values() {
     let t = Tol::witness();
     let bulges = [
         1.0, 0.5, 0.25, 0.1, 0.01, 1e-3, 1e-4, 1e-5, 1e-6, 2.0, 4.0, 10.0, -1.0, -0.5, -0.01,
@@ -456,7 +457,7 @@ fn probe_hunt_a_silently_accepted_undeclared_tangency_off_an_arc() {
     let lens = [1.0, 1e-2, 1e-4, 100.0];
     let mut accepted: Vec<(f64, f64)> = Vec::new();
     let mut authored_refused: Vec<(f64, f64)> = Vec::new();
-    let mut undeclared_at_gate: Vec<(f64, f64)> = Vec::new();
+    let mut decided_at_gate: Vec<(f64, f64)> = Vec::new();
     let mut checked = 0usize;
     for b in bulges {
         for len in lens {
@@ -469,7 +470,7 @@ fn probe_hunt_a_silently_accepted_undeclared_tangency_off_an_arc() {
             );
             let Ok(arc) = arc else { continue };
             let lp = match arc.line(len, t) {
-                Ok(c) => match c.line_to(Start, t).map(pinned) {
+                Ok(c) => match c.line_to(Start, t).map(pinned_constructed) {
                     Ok(l) => l,
                     Err(_) => {
                         authored_refused.push((b, len));
@@ -482,22 +483,24 @@ fn probe_hunt_a_silently_accepted_undeclared_tangency_off_an_arc() {
                 }
             };
             assert!(
-                lp.tangent_joints().contains(&1),
-                "the continuation DECLARES its joint, off an arc as anywhere \
-                 (Ev, in-chat, 2026-09-02)"
+                lp.constructed_joints().contains(&1),
+                "the continuation CONSTRUCTS its joint, off an arc as anywhere"
             );
             checked += 1;
-            let verdict = Profile::new(SketchPlane::xy(), vec![lp]).validate(t);
-            match verdict {
-                Ok(_) => accepted.push((b, len)),
-                // The one verdict this hunt is about. Anything else —
-                // a sliver, a non-simple loop, a degenerate segment at
-                // the extreme lengths this sweep walks — is a different
-                // fact and not this probe's subject.
-                Err(profile::ProfileError::UndeclaredTangency { .. }) => {
-                    undeclared_at_gate.push((b, len));
+            let verdict = profile::ConstructedProfile::new(SketchPlane::xy(), vec![lp]).validate(t);
+            if let Ok(vp) = verdict {
+                accepted.push((b, len));
+                // The one verdict this hunt is about. A refusal —
+                // a sliver, a non-simple loop, a degenerate segment
+                // at the extreme lengths this sweep walks — is a
+                // different fact and not this probe's subject.
+                if vp.loops()[0]
+                    .decided_joints()
+                    .iter()
+                    .any(|d| d.carriers == profile::JointCarriers::Tangent)
+                {
+                    decided_at_gate.push((b, len));
                 }
-                Err(_) => {}
             }
         }
     }
@@ -507,12 +510,10 @@ fn probe_hunt_a_silently_accepted_undeclared_tangency_off_an_arc() {
         accepted.len(),
         authored_refused.len()
     );
-    // RULED (Ev, in-chat, 2026-09-02): the continuation DECLARES the
-    // joint it mints, so no arc/line tangency reaches the gate
-    // undeclared from this door any more — which is what the hunt was
-    // looking for, inverted. The assertion above (every loop carries
-    // joint 1 in `tangent_joints`) is the door's half; this is the
-    // gate's: it never sees an undeclared one.
+    // The continuation CONSTRUCTS the joint it mints, so no arc/line
+    // tangency reaches the gate as a decision from values from this
+    // door. The assertion above (every loop constructs joint 1) is the
+    // door's half; this is the gate's: it records no such tangency.
     //
     // NOT asserted: that every one of them VALIDATES. This sweep walks
     // lengths of 1e-4 and 100 against every bulge, which makes slivers
@@ -520,9 +521,9 @@ fn probe_hunt_a_silently_accepted_undeclared_tangency_off_an_arc() {
     // not this probe's subject. {accepted} of {checked} pass, and the
     // print above carries the numbers.
     assert!(
-        undeclared_at_gate.is_empty(),
-        "MAJOR: an UNDECLARED arc/line tangency reached the data gate from a \
-         continuation that is supposed to declare it: {undeclared_at_gate:?}"
+        decided_at_gate.is_empty(),
+        "MAJOR: an arc/line tangency reached the data gate decided from values \
+         from a continuation that is supposed to construct it: {decided_at_gate:?}"
     );
     assert!(checked > 0, "the hunt must actually reach the gate");
 }

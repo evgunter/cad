@@ -217,7 +217,7 @@ fn r1_a_straight_arrival_into_an_arc_first_side_is_an_undeclared_tangency_at_the
     // that is there. Joint 0 is declared and the DATA gate accepts —
     // the finding's whole subject, an undeclared tangency reaching the
     // gate, is gone because the declaration reaches it first.
-    assert_eq!(closed.loop_.tangent_joints(), &[0]);
+    assert_eq!(closed.loop_.constructed_joints(), &[0]);
     let verdict = validate(&closed);
     println!("R1: straight arrival into an arc first side -> {verdict:?}");
     verdict.expect("the declared seam joint is what the data says it is");
@@ -240,7 +240,7 @@ fn r1_a_straight_arrival_into_an_arc_first_side_is_an_undeclared_tangency_at_the
         .unwrap()
         .line_to(Start.arrives_tangent(), t)
         .expect("a straight leg may declare a TANGENT seam joint");
-    assert_eq!(g1.loop_.tangent_joints(), &[0]);
+    assert_eq!(g1.loop_.constructed_joints(), &[0]);
     validate(&g1).expect("the declared G1 seam validates");
 }
 
@@ -278,7 +278,7 @@ fn r1_a_cocircular_declared_tangent_arrival_is_carrier_identity_the_algebra_miss
         .unwrap()
         .tangent_arc_to(Start.arrives_tangent(), t);
     let closed = closed.expect("a declared tangent joint onto one carrier is a tangent joint");
-    assert!(closed.loop_.tangent_joints().contains(&0));
+    assert!(closed.loop_.constructed_joints().contains(&0));
     let verdict = validate(&closed);
     println!("R1: cocircular declared tangent seam -> {verdict:?}");
     verdict.expect("the data gate accepts it too: the directions agree");
@@ -353,7 +353,7 @@ fn r1_the_sharp_arc_seam_is_told_to_use_a_target_it_cannot_take() {
         .expect("the message's own recourse closes the loop");
     // The seam is a declared G1 joint, so joint 0 carries the flag and
     // the gate re-checks it.
-    assert!(closed.loop_.tangent_joints().contains(&0));
+    assert!(closed.loop_.constructed_joints().contains(&0));
     validate(&closed).expect("the declared sharp-arc seam validates");
 }
 

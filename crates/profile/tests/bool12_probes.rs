@@ -24,7 +24,7 @@
 
 use crate::common;
 
-use common::pinned;
+use common::pinned_constructed;
 use geom_core::{Point2, Tol};
 use profile::{Bulge, ClosedLoop, Open, PathError, Profile, ProfileLoop, SketchPlane, Start};
 use std::f64::consts::FRAC_PI_2;
@@ -120,7 +120,7 @@ fn the_d_shape_closes_with_the_declared_straight_arrival() {
         ("forward", d_shape_forward(Closer::Declared)),
         ("reverse", d_shape_reverse(Closer::Declared)),
     ] {
-        let closed = pinned(closed.unwrap_or_else(|e| panic!("{name}: {e}")));
+        let closed = pinned_constructed(closed.unwrap_or_else(|e| panic!("{name}: {e}")));
         validate_ok(&closed);
         assert_eq!(closed.vertices().len(), 4, "{name}");
         // The seam is a declared SUBDIVISION, not a tangent joint: one
@@ -132,9 +132,9 @@ fn the_d_shape_closes_with_the_declared_straight_arrival() {
         // in-chat, 2026-09-02: every zero-turn joint is a declared
         // tangent joint). The arc's two junctions turn.
         assert!(
-            closed.tangent_joints().contains(&0),
+            closed.constructed_joints().contains(&0),
             "{name}: {:?}",
-            closed.tangent_joints()
+            closed.constructed_joints()
         );
     }
 }
@@ -210,15 +210,20 @@ fn stadium(declared: bool) -> Result<ClosedLoop<f64>, PathError<f64>> {
 
 #[test]
 fn the_stadium_closes_with_the_declared_tangent_arrival() {
-    let closed = pinned(stadium(true).expect("the declared tangent seam closes"));
+    let closed = pinned_constructed(stadium(true).expect("the declared tangent seam closes"));
     validate_ok(&closed);
     assert_eq!(closed.vertices().len(), 4);
     // Joint 0 — the seam — carries the declared flag, and the verify
     // layer above re-checked it. The three interior `.tangent()` joints
     // carry theirs.
-    let mut joints = closed.tangent_joints().to_vec();
+    let mut joints = closed.constructed_joints().to_vec();
     joints.sort_unstable();
-    assert_eq!(joints, vec![0, 1, 2, 3], "{:?}", closed.tangent_joints());
+    assert_eq!(
+        joints,
+        vec![0, 1, 2, 3],
+        "{:?}",
+        closed.constructed_joints()
+    );
 }
 
 #[test]
@@ -259,7 +264,7 @@ fn the_stadium_closes_in_the_other_direction_too() {
         .tangent()
         .tangent_arc_to(Start.arrives_tangent(), t)
         .expect("the mirrored stadium closes too");
-    let closed = pinned(closed);
+    let closed = pinned_constructed(closed);
     validate_ok(&closed);
     assert_eq!(closed.vertices().len(), 4);
 }
@@ -525,14 +530,14 @@ fn every_zero_turn_joint_is_a_declared_tangent_joint() {
     let t = Tol::witness();
     // The D-shape: the seam joint (0) declared by the target, the
     // interior subdivision (3) declared by `continue_to`.
-    let straight = pinned(d_shape_forward(Closer::Declared).unwrap());
-    assert_eq!(straight.tangent_joints(), &[0, 3]);
+    let straight = pinned_constructed(d_shape_forward(Closer::Declared).unwrap());
+    assert_eq!(straight.constructed_joints(), &[0, 3]);
     validate_ok(&straight);
 
     // The stadium: three departure tangencies plus the seam.
     let g1 = stadium(true).expect("the stadium's G1 seam");
-    assert!(g1.loop_.tangent_joints().contains(&0));
-    assert_eq!(g1.loop_.tangent_joints().len(), 4);
+    assert!(g1.loop_.constructed_joints().contains(&0));
+    assert_eq!(g1.loop_.constructed_joints().len(), 4);
 
     // The sharp arc closer takes the same token.
     let sharp = Open
@@ -561,7 +566,7 @@ fn every_zero_turn_joint_is_a_declared_tangent_joint() {
             t,
         )
         .expect("the sharp arc closer declares the seam joint");
-    assert!(sharp.loop_.tangent_joints().contains(&0));
+    assert!(sharp.loop_.constructed_joints().contains(&0));
 
     // A STRAIGHT leg declares it exactly as an arc does: what the token
     // classifies is the joint, not the leg.
@@ -581,6 +586,6 @@ fn every_zero_turn_joint_is_a_declared_tangent_joint() {
         .unwrap()
         .line_to(Start.arrives_tangent(), t)
         .expect("a straight closer declares the seam joint");
-    assert_eq!(by_line.loop_.tangent_joints(), &[0]);
+    assert_eq!(by_line.loop_.constructed_joints(), &[0]);
     validate_ok(&by_line.loop_);
 }

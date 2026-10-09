@@ -29,8 +29,8 @@ use geom_core::Tol;
 use geom_core::{Arc2, Point2};
 use profile::path::{CornerReason, CornerWindow, PathNoCornerReason};
 use profile::{
-    ArcSweep, Center, FILLET_NO_CORNER_RECOURSE, FilletLeg, FilletLegCarrier, NoCornerReason, Open,
-    PathError, Profile, ProfileLoop, Start,
+    ArcSweep, Center, ConstructedLoop, ConstructedProfile, FILLET_NO_CORNER_RECOURSE, FilletLeg,
+    FilletLegCarrier, NoCornerReason, Open, PathError, Profile, ProfileLoop, SketchPlane, Start,
 };
 
 /// √3 — the y coordinate of the crossing points of the unit-spaced
@@ -48,21 +48,20 @@ fn escalated_predicate(err: &PathError<f64>) -> &'static str {
     }
 }
 
-/// Every declared joint of `lp` must survive validation (the #101
-/// discipline: declared tangency is verified, never trusted). The
-/// algebra's declarations are asserted in the *authoring* indexing;
-/// validation re-indexes into canonical order, so only the count
-/// survives the comparison there — what matters is that both
-/// declarations verify (a contradicted one is a hard refusal).
-fn validates_with_declared_joints(lp: ProfileLoop<f64>, expected: &[usize]) -> Profile<f64> {
-    assert_eq!(lp.tangent_joints(), expected, "declared joints");
-    let p = profile(vec![lp]);
-    let vp = p
-        .clone()
+/// Every constructed joint of `lp` must survive validation (a
+/// construction is verified, never trusted). The algebra's joints are
+/// asserted in the *authoring* indexing; validation re-indexes into
+/// canonical order, so only the count survives the comparison there —
+/// what matters is that both verify (a contradicted one is a hard
+/// refusal) and that validation decides no other joint tangent.
+fn validates_with_constructed_joints(lp: ConstructedLoop<f64>, expected: &[usize]) -> Profile<f64> {
+    assert_eq!(lp.constructed_joints(), expected, "constructed joints");
+    let vp = ConstructedProfile::new(SketchPlane::xy(), vec![lp.clone()])
         .validate(tol())
         .expect("the fillet-authored loop must validate");
     assert_eq!(vp.loops()[0].tangent_joints().len(), expected.len());
-    p
+    assert!(vp.loops()[0].decided_joints().is_empty(), "nothing decided");
+    profile(vec![lp.into_loop()])
 }
 
 // ------------------------------------------- fixtures, per corner class
@@ -77,7 +76,7 @@ fn validates_with_declared_joints(lp: ProfileLoop<f64>, expected: &[usize]) -> P
 /// and the fillet CLOSES along the circle about the origin — the
 /// derived corner is (2, 0), where that ray meets that circle.
 /// Vertex chain: (0,2) → (0,0) → T1 → T2 ⤾.
-fn line_arc_internal(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+fn line_arc_internal(radius: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     Open.at(Point2::new(0.0, 2.0))
         .line_to(Point2::new(0.0, 0.0), Tol::witness())?
         .toward(2.0, 0.0, Tol::witness())?
@@ -90,7 +89,7 @@ fn line_arc_internal(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
             },
             Tol::witness(),
         )
-        .map(|closed| closed.loop_.into_loop())
+        .map(|closed| closed.loop_)
 }
 
 /// **line×arc, external tangency** (the fillet curves the other way
@@ -98,7 +97,7 @@ fn line_arc_internal(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
 /// circle centered at (3, 0), so the fillet's offset carrier is the
 /// radius R + r circle. Rotated the same way as its internal twin.
 /// Vertex chain: (3,-1) → (3,-2) → (0,-2) → (0,0) → T1 → T2 ⤾.
-fn line_arc_external(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+fn line_arc_external(radius: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     Open.at(Point2::new(3.0, -1.0))
         .line_to(Point2::new(3.0, -2.0), Tol::witness())?
         .line_to(Point2::new(0.0, -2.0), Tol::witness())?
@@ -113,7 +112,7 @@ fn line_arc_external(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
             },
             Tol::witness(),
         )
-        .map(|closed| closed.loop_.into_loop())
+        .map(|closed| closed.loop_)
 }
 
 /// **arc×line**: the incoming side is the circular one (a concave notch
@@ -122,7 +121,7 @@ fn line_arc_external(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
 /// and the ordinary far-end anchor ends the straight side at (4, 0).
 /// The derived corner is (2, 0). Vertex chain:
 /// (0,2) → T1 → T2 → (4,0) → (4,3) → (-1,3) ⤾.
-fn arc_line(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+fn arc_line(radius: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     Open.arc_fillet(
         Center {
             c: Point2::new(0.0, 0.0),
@@ -137,7 +136,7 @@ fn arc_line(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     .line_to(Point2::new(4.0, 3.0), Tol::witness())?
     .line_to(Point2::new(-1.0, 3.0), Tol::witness())?
     .line_to(Start, Tol::witness())
-    .map(|closed| closed.loop_.into_loop())
+    .map(|closed| closed.loop_)
 }
 
 /// **arc×arc, both tangencies internal**: the vesica of the two
@@ -149,7 +148,7 @@ fn arc_line(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
 /// counterclockwise, so σ·τ = +1 on both and both offset carriers are
 /// R − r circles. Authored coordinates are the raw-builder fixture's,
 /// verbatim.
-fn arc_arc_internal(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+fn arc_arc_internal(radius: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     Open.arc_fillet_arc(
         Center {
             c: Point2::new(-1.0, 0.0),
@@ -165,13 +164,13 @@ fn arc_arc_internal(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
         Tol::witness(),
     )?
     .line_to(Start, Tol::witness())
-    .map(|closed| closed.loop_.into_loop())
+    .map(|closed| closed.loop_)
 }
 
 /// **arc×arc, one internal + one external**: the same crossing circles,
 /// but the outgoing leg winds the other way, so the fillet is external
 /// to the first carrier (R + r) and internal to the second (R − r).
-fn arc_arc_mixed(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+fn arc_arc_mixed(radius: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     Open.arc_fillet_arc(
         Center {
             c: Point2::new(-1.0, 0.0),
@@ -187,13 +186,13 @@ fn arc_arc_mixed(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
         Tol::witness(),
     )?
     .line_to(Start, Tol::witness())
-    .map(|closed| closed.loop_.into_loop())
+    .map(|closed| closed.loop_)
 }
 
 /// The line×arc corner at the radius that consumes BOTH sides exactly
 /// (r = 1): no lead-in piece, no lead-out piece, no declarations — the
 /// fillet arc alone, closed straight. A half disc.
-fn exact_fit_line_arc() -> ProfileLoop<f64> {
+fn exact_fit_line_arc() -> ConstructedLoop<f64> {
     line_arc_internal(1.0).expect("the exact-fit radius constructs")
 }
 
@@ -218,7 +217,7 @@ fn line_arc_internal_validates_with_declared_tangency() {
         "T2 off the carrier by {:e}",
         (t2.x.hypot(t2.y) - 2.0).abs()
     );
-    validates_with_declared_joints(lp, &[2, 3]);
+    validates_with_constructed_joints(lp, &[2, 3]);
 }
 
 /// **A short run out on the arrival circle is the fillet's run out**:
@@ -276,7 +275,7 @@ fn line_arc_external_validates_with_declared_tangency() {
     let t2 = lp.vertices()[5];
     // On the arrival side's carrier (center (3,0), R = 1).
     assert!(((t2.x - 3.0).powi(2) + t2.y.powi(2) - 1.0).abs() < 1e-15);
-    validates_with_declared_joints(lp, &[4, 5]);
+    validates_with_constructed_joints(lp, &[4, 5]);
 }
 
 #[test]
@@ -288,7 +287,7 @@ fn arc_line_validates_with_declared_tangency() {
     assert!((t1.x.powi(2) + t1.y.powi(2) - 4.0).abs() < 1e-15);
     // T2 on the straight arrival side y = 0.
     assert!(lp.vertices()[2].y.abs() < 1e-15);
-    validates_with_declared_joints(lp, &[1, 2]);
+    validates_with_constructed_joints(lp, &[1, 2]);
 }
 
 #[test]
@@ -298,7 +297,7 @@ fn arc_arc_internal_validates_with_declared_tangency() {
     let t2 = lp.vertices()[2];
     assert!(((t1.x + 1.0).powi(2) + t1.y.powi(2) - 4.0).abs() < 1e-14);
     assert!(((t2.x - 1.0).powi(2) + t2.y.powi(2) - 4.0).abs() < 1e-14);
-    validates_with_declared_joints(lp, &[1, 2]);
+    validates_with_constructed_joints(lp, &[1, 2]);
 }
 
 #[test]
@@ -308,7 +307,7 @@ fn arc_arc_mixed_validates_with_declared_tangency() {
     let t2 = lp.vertices()[2];
     assert!(((t1.x + 1.0).powi(2) + t1.y.powi(2) - 4.0).abs() < 1e-14);
     assert!(((t2.x - 1.0).powi(2) + t2.y.powi(2) - 4.0).abs() < 1e-14);
-    validates_with_declared_joints(lp, &[1, 2]);
+    validates_with_constructed_joints(lp, &[1, 2]);
 }
 
 // ------------------------------------- the #100 bracket regression anchor
@@ -356,7 +355,7 @@ fn bracket_with_an_arc_leg_validates_and_declares() {
     // T1 sits on the incoming side's carrier.
     let t1 = lp.vertices()[1];
     assert!(((t1.x - 2.0).powi(2) + (t1.y + 2.0).powi(2) - 10.0).abs() < 1e-14);
-    validates_with_declared_joints(lp.into_loop(), &[1, 2]);
+    validates_with_constructed_joints(lp, &[1, 2]);
 }
 
 // ------------------------------------------------- the refusal taxonomy
@@ -605,8 +604,8 @@ fn an_arc_arc_radius_larger_than_both_carriers_refuses_as_the_enclosing_class() 
 /// recovered through validation's segment classification: the one
 /// radius-`r` arc. Returns (center, radius) and asserts both declared
 /// joints verified on the way.
-fn picked_fillet_circle(lp: ProfileLoop<f64>, r: f64) -> (Point2<f64>, f64) {
-    let p = validates_with_declared_joints(lp, &[1, 2]);
+fn picked_fillet_circle(lp: ConstructedLoop<f64>, r: f64) -> (Point2<f64>, f64) {
+    let p = validates_with_constructed_joints(lp, &[1, 2]);
     let vp = p.validate(tol()).expect("validates");
     vp.loops()[0]
         .segments()
@@ -633,7 +632,7 @@ fn vesica_lens(
     centre_in: Point2<f64>,
     w: ArcSweep,
     r: f64,
-) -> ProfileLoop<f64> {
+) -> ConstructedLoop<f64> {
     Open.arc_fillet_arc(
         Center {
             c: centre_in,
@@ -650,7 +649,6 @@ fn vesica_lens(
     )
     .expect("the lens constructs")
     .loop_
-    .into_loop()
 }
 
 /// The S8 ruling flips the M5 S2 refusal: with both sides long enough
@@ -734,7 +732,7 @@ fn symmetric_lens_pick_is_bit_deterministic_across_runs() {
     };
     let a = build();
     let b = build();
-    assert_eq!(a.tangent_joints(), b.tangent_joints());
+    assert_eq!(a.constructed_joints(), b.constructed_joints());
     assert_eq!(a.vertices().len(), b.vertices().len());
     for (va, vb) in a.vertices().iter().zip(b.vertices()) {
         assert_eq!(va.x.to_bits(), vb.x.to_bits());
@@ -773,7 +771,7 @@ fn ulp_perturbed_lens_pick_is_deterministic_within_the_lane() {
     };
     let a = build();
     let b = build();
-    assert_eq!(a.tangent_joints(), b.tangent_joints());
+    assert_eq!(a.constructed_joints(), b.constructed_joints());
     assert_eq!(a.vertices().len(), b.vertices().len());
     for (va, vb) in a.vertices().iter().zip(b.vertices()) {
         assert_eq!(va.x.to_bits(), vb.x.to_bits());
@@ -1113,7 +1111,7 @@ fn fillet_offset_line_circle_trio() {
     // over both (a half disc).
     let lp = exact_fit_line_arc();
     assert_eq!(lp.vertices().len(), 2, "no lead-in, no lead-out: {lp:?}");
-    profile(vec![lp])
+    profile(vec![lp.into_loop()])
         .validate(tol())
         .expect("the exact-offset fillet validates");
     // in-band: (2 − r) − r = 5ε.
@@ -1138,7 +1136,7 @@ fn fillet_offset_circles_external_trio() {
     // tangent — one candidate, exact fit on both legs.
     let lp = arc_arc_internal(1.0).expect("the tangent-offset case constructs");
     assert_eq!(lp.vertices().len(), 2, "no lead-in, no lead-out: {lp:?}");
-    profile(vec![lp])
+    profile(vec![lp.into_loop()])
         .validate(tol())
         .expect("the exact-offset arc×arc fillet validates");
     // in-band.
@@ -1154,7 +1152,7 @@ fn fillet_offset_circles_internal_trio() {
     assert!(arc_arc_mixed(0.5).is_ok());
     let lp = arc_arc_mixed(1.0).expect("the tangent-offset case constructs");
     assert_eq!(lp.vertices().len(), 2, "no lead-in, no lead-out: {lp:?}");
-    profile(vec![lp])
+    profile(vec![lp.into_loop()])
         .validate(tol())
         .expect("the internally-tangent-offset fillet validates");
     let err = arc_arc_mixed(0.5f64.mul_add(-in_band(), 1.0))
@@ -1172,7 +1170,11 @@ fn fillet_leg_fit_trio_definite_and_exact() {
     // straight-side resolution documents).
     let lp = exact_fit_line_arc();
     assert_eq!(lp.vertices().len(), 2);
-    assert!(lp.tangent_joints().is_empty(), "{:?}", lp.tangent_joints());
+    assert!(
+        lp.constructed_joints().is_empty(),
+        "{:?}",
+        lp.constructed_joints()
+    );
     // The entry anchor and the ray's origin survive verbatim; the fillet
     // arc springs off the origin and closes on the entry.
     assert!((lp.vertices()[0].y - 2.0).abs() < 1e-15);
@@ -1244,7 +1246,7 @@ type VertexBits = (u64, u64, u64);
 
 /// One pinned corner class: its name, the loop it builds, and the bits
 /// the pre-extraction build produced.
-type PinnedCase<'a> = (&'a str, ProfileLoop<f64>, &'a [VertexBits]);
+type PinnedCase<'a> = (&'a str, ConstructedLoop<f64>, &'a [VertexBits]);
 
 #[test]
 fn the_extracted_seam_reproduces_every_corner_class_bitwise() {

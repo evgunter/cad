@@ -41,13 +41,6 @@ fn rotated(lp: &ProfileLoop<f64>, r: usize) -> ProfileLoop<f64> {
         let j = (r + k) % n;
         (lp.vertices()[j], lp.segments()[j])
     }))
-    // Declared joints follow their vertex through the reindexing.
-    .with_tangent_joints(
-        lp.tangent_joints()
-            .iter()
-            .map(|&j| (j + n - r) % n)
-            .collect(),
-    )
 }
 
 /// Translates a loop rigidly (fixture plumbing): every vertex and every
@@ -66,7 +59,6 @@ fn translated(lp: &ProfileLoop<f64>, dx: f64, dy: f64) -> ProfileLoop<f64> {
             (shift(v), segment)
         },
     ))
-    .with_tangent_joints(lp.tangent_joints().to_vec())
 }
 
 /// The named fixture set (every accepting fixture with ≥ 1 loop).

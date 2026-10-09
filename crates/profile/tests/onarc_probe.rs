@@ -98,8 +98,8 @@ fn mismatched_radius_continuation() {
         dep_c.y
     );
     assert!(
-        lp.tangent_joints().contains(&anchor_idx),
-        "the constructed tangency at the anchor is declared"
+        lp.constructed_joints().contains(&anchor_idx),
+        "the tangency at the anchor is constructed"
     );
     // The defect class is gone structurally: the loop validates.
     Profile::new(SketchPlane::xy(), vec![lp.clone().into_loop()])
@@ -146,7 +146,7 @@ fn sharp_after_arc_arrival() {
     // The declared set is POPULATED on this same chain — the opening
     // fillet declares its own two joints — so the absence below is a
     // statement about a working datum rather than about an empty one.
-    let declared = lp.tangent_joints();
+    let declared = lp.constructed_joints();
     assert_eq!(
         declared.len(),
         2,

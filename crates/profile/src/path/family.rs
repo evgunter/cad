@@ -1594,10 +1594,12 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
                     Some(prev) => carriers_are_identical(prev, &derived, tol)?,
                     None => false,
                 };
-                // Both sides share the tip's tangent by construction,
-                // a new carrier or the incoming one extended alike, so
-                // the joint is a constructed tangent joint.
-                self.core.declare_last();
+                if !extends {
+                    // A new tangent carrier CONSTRUCTED at the tip:
+                    // both sides share the tip's tangent by
+                    // construction, so the joint is a real tangency.
+                    self.core.declare_last();
+                }
                 open_arc_from_tip(
                     &mut self.core,
                     PendingArc {

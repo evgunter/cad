@@ -373,8 +373,7 @@ fn holes_touching_between_tangent_arcs(under: Option<f64>) -> profile::Profile<f
         (Point2::new(-1.0, 1.0), arc(big, 1.0, down)),
         (touch, arc(small, 0.5, up)),
         (top, Segment::Line),
-    ])
-    .with_tangent_joints(vec![1, 2]);
+    ]);
     let under = match under {
         None => rect(-1.0, -1.0, 2.0, 1.0),
         Some(r) => {

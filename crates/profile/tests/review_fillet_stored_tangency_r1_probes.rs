@@ -16,7 +16,8 @@ use crate::common;
 use common::tol;
 use geom_core::{Point2, Tol};
 use profile::{
-    ArcSweep, Center, Open, PathError, Profile, ProfileError, ProfileLoop, SketchPlane, Start,
+    ArcSweep, Center, ConstructedLoop, ConstructedProfile, Open, PathError, ProfileError,
+    SketchPlane, Start,
 };
 
 const R: f64 = 0.2;
@@ -27,25 +28,21 @@ fn scale() -> f64 {
 
 const INSIDE: [f64; 5] = [0.1, 0.3, 1.0, 2.0, 4.0];
 
-fn validates(lp: ProfileLoop<f64>, t: Tol) -> Result<(), ProfileError> {
-    Profile::new(SketchPlane::xy(), vec![lp])
+fn validates(lp: ConstructedLoop<f64>, t: Tol) -> Result<(), ProfileError> {
+    ConstructedProfile::new(SketchPlane::xy(), vec![lp])
         .validate(t)
         .map(|_| ())
 }
 
 /// The one contract: the door refuses, or what it built carries no
 /// declaration validation objects to.
-fn door_output_is_honest(what: &str, built: Result<ProfileLoop<f64>, PathError<f64>>) {
+fn door_output_is_honest(what: &str, built: Result<ConstructedLoop<f64>, PathError<f64>>) {
     match built {
         Err(_) => {}
         Ok(lp) => {
             if let Err(e) = validates(lp, tol()) {
                 assert!(
-                    !matches!(
-                        e,
-                        ProfileError::TangencyContradicted { .. }
-                            | ProfileError::UndeclaredTangency { .. }
-                    ),
+                    !matches!(e, ProfileError::TangencyContradicted { .. }),
                     "{what}: the door built a loop validation refuses for its declaration: {e}"
                 );
             }
@@ -53,7 +50,7 @@ fn door_output_is_honest(what: &str, built: Result<ProfileLoop<f64>, PathError<f
     }
 }
 
-fn line_line(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+fn line_line(theta: f64, radius: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     let anchor = Point2::new(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
     Open.at(Point2::new(0.0, 0.0))
         .angle(0.0, tol())?
@@ -62,7 +59,7 @@ fn line_line(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>
         .angle(theta, tol())?
         .line(1.0, tol())?
         .line_to(Start, tol())
-        .map(|c| c.loop_.into_loop())
+        .map(|c| c.loop_)
 }
 
 // ------------------------------------------------------------------
@@ -74,7 +71,7 @@ fn line_line(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>
 /// off it, and `.fillet(r).to(Start)` rounds the seam — the emission
 /// where the arc IS the closing segment and joint 0 is the declared
 /// seam tangency.
-fn seam_bend(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+fn seam_bend(theta: f64, radius: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     // The incoming carrier crosses the entry ray 2 m BEHIND the entry
     // point, so the derived corner lies behind the arrival anchor (the
     // seam side's own fit gate) and the fillet has a corner to round.
@@ -91,7 +88,7 @@ fn seam_bend(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>
         .tangent()
         .fillet(radius, tol())?
         .to(Start, tol())
-        .map(|c| c.loop_.into_loop())
+        .map(|c| c.loop_)
 }
 
 #[test]
@@ -127,7 +124,7 @@ fn report_the_seam_fillet_window() {
 /// it, so the fillet MERGES into that leg (`extend_leg_to`) instead of
 /// pushing its own straight piece — the emission whose incoming joint
 /// is the leg's own already-declared end.
-fn fused_bend(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+fn fused_bend(theta: f64, radius: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     let anchor = Point2::new(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
     Open.at(Point2::new(0.0, 0.0))
         .angle(0.0, tol())?
@@ -138,7 +135,7 @@ fn fused_bend(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64
         .angle(theta, tol())?
         .line(1.0, tol())?
         .line_to(Start, tol())
-        .map(|c| c.loop_.into_loop())
+        .map(|c| c.loop_)
 }
 
 #[test]
@@ -164,7 +161,7 @@ fn report_the_fused_fillet_window() {
 // Two fillets in a row.
 // ------------------------------------------------------------------
 
-fn two_fillets(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+fn two_fillets(theta: f64, radius: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     let a1 = Point2::new(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
     let d2 = 2.0 * theta;
     // The second corner sits 3 m along the first fillet's outgoing ray,
@@ -181,7 +178,7 @@ fn two_fillets(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f6
         .angle(d2, tol())?
         .line(1.0, tol())?
         .line_to(Start, tol())
-        .map(|c| c.loop_.into_loop())
+        .map(|c| c.loop_)
 }
 
 #[test]
@@ -216,7 +213,7 @@ fn report_back_to_back_fillets() {
 /// An authored arc incoming, a straight arrival `theta` off its tangent
 /// at the meeting point — the `arc_fillet` door, which the unit's
 /// corpus reads only at right angles.
-fn arc_line(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+fn arc_line(theta: f64, radius: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     let arr = -std::f64::consts::FRAC_PI_2 + theta;
     let far = Point2::new(2.0 + 4.0 * arr.cos(), 4.0 * arr.sin());
     Open.arc_fillet(
@@ -232,7 +229,7 @@ fn arc_line(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>>
     .to(far, tol())?
     .line_to(Point2::new(-6.0, -6.0), tol())?
     .line_to(Start, tol())
-    .map(|c| c.loop_.into_loop())
+    .map(|c| c.loop_)
 }
 
 #[test]
@@ -271,7 +268,7 @@ fn far_bend(
     leg: f64,
     theta: f64,
     radius: f64,
-) -> Result<ProfileLoop<f64>, PathError<f64>> {
+) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     let anchor = Point2::new(shift + 4.0 + leg * theta.cos(), shift + leg * theta.sin());
     Open.at(Point2::new(shift, shift))
         .angle(0.0, tol())?
@@ -280,7 +277,7 @@ fn far_bend(
         .angle(theta, tol())?
         .line(leg, tol())?
         .line_to(Start, tol())
-        .map(|c| c.loop_.into_loop())
+        .map(|c| c.loop_)
 }
 
 #[test]
@@ -321,7 +318,7 @@ fn report_fixed_turns_against_the_committed_band() {
     }
 }
 
-fn verdict(built: Result<ProfileLoop<f64>, PathError<f64>>) -> String {
+fn verdict(built: Result<ConstructedLoop<f64>, PathError<f64>>) -> String {
     match built {
         Err(e) => format!("door refused [{:?}]: {}", e.kind(), short(&e.to_string())),
         Ok(lp) => match validates(lp, tol()) {
@@ -359,7 +356,7 @@ fn short(s: &str) -> String {
 fn the_stored_form_read_costs_a_fixed_k_count_per_fillet() {
     use geom_core::k_stats::Bracket;
     use std::collections::BTreeMap;
-    type Door = fn() -> Result<ProfileLoop<f64>, PathError<f64>>;
+    type Door = fn() -> Result<ConstructedLoop<f64>, PathError<f64>>;
     let cases: [(&str, Door); 3] = [
         ("line x line", || line_line(0.4, R)),
         ("line x arc", || {
@@ -378,7 +375,7 @@ fn the_stored_form_read_costs_a_fixed_k_count_per_fillet() {
                     },
                     tol(),
                 )
-                .map(|c| c.loop_.into_loop())
+                .map(|c| c.loop_)
         }),
         ("arc x arc", || {
             Open.arc_fillet_arc(
@@ -396,7 +393,7 @@ fn the_stored_form_read_costs_a_fixed_k_count_per_fillet() {
                 tol(),
             )?
             .line_to(Start, tol())
-            .map(|c| c.loop_.into_loop())
+            .map(|c| c.loop_)
         }),
     ];
     for (name, build) in cases {
