@@ -36,9 +36,11 @@ N2, and D10 Repetition state it:
   and `BooleanOp` leave the document.
 - **A name is scoped by the variable that holds its body** (N1, the
   scope). Built by the second unit.
-- **A family member.** `xs[i]` is a definition with its own `VarId` and
-  keys by it, with no walk; `Union[xs, xs[0]]` is admitted and builds as
-  `A ∪ A` on that member.
+- **A family member.** `xs[i]` is a read of the family `xs` at one `Count`
+  expression per index, not a variable; it keys by `xs`, the index said
+  once in `Member`; `Union[xs]` and `Union[xs[0], …]` name alike;
+  `Union[xs, xs[0]]` is a duplicate read refused at the door, and two
+  indexed reads landing on one member refuse typed at evaluation.
 
 **Unit 1 (this item): the read key and the three nodes.**
 
@@ -60,6 +62,12 @@ N2, and D10 Repetition state it:
   vertex citing the least input edge in name order (N2).
 - `SitedRef.at` becomes a `VarId` (until stage 4 F retires declarations);
   `member_site` / `site_operand` lose the "sided by table" inference.
+- The indexed read: a slot reading one member holds the family's
+  `VarId` and one `Count` variable per index (VR4), carried through
+  `Operand`, lowering, persistence, `upstream` and the keys; DM3's member
+  definition goes. DM5's door check treats a read of a family as a read of
+  each member; its evaluation-time arm refuses two indexed reads landing
+  on one member, typed, beside DM3's out-of-range index.
 - `coincide::construction` and `NamedCell::Entity` take the read, not the
   operation (needed as soon as two halves build).
 - Persist: one load-time migration. `Boolean { Union, a, b }` →

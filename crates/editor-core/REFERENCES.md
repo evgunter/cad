@@ -123,20 +123,20 @@ is stored. `select_where` filters on `SurfaceKind` exactly
 A `Split` defines two `Body` outputs, `above` and `below` (the port index is
 `SplitHalf::output_body`'s), read like any other output; DM3's split-half
 projection retires. One member of a family (D10, Repetition) is read as
-`xs[i]`, or `xs[i, j]` for a family keyed by two indices: a definition
-reading the family and one `Count` expression per index; an index outside
-the range leaves the reader unresolved and typed at evaluation, never
-re-pointed. `xs[i]` is a variable with its own `VarId`, so an operation
-reading it keys the names it carries in by that id (DM4), as it does any
-read, with no walk to the family it indexes: `Union[xs]` and `Union[xs[0],
-…, xs[N−1]]` are two documents and name differently, one following `N`
-and the other fixed, and `Union[xs, xs[0]]` reads two variables (DM5).
-Typing `xs[0]` in a slot mints an unnamed definition, as typing a number
-mints a free variable; a member two readers share is a named definition,
-`third_bolt = bolts[2]`.
-Names pass through unchanged, as `Transform`'s do (`role.rs`): the member
-keeps its `Member { (i, …), of }` names, keyed by the index variables' ids
-and the integers. A name is scoped by the variable that holds its body
+`xs[i]`, or `xs[i, j]` for a family keyed by two indices: a read of the
+family at one `Count` expression per index (VR4); an index outside the
+range leaves the reader unresolved and typed at evaluation, never
+re-pointed. `xs[i]` is not a variable: it is the read a per-`k` reader
+makes implicitly, with the index written in the slot rather than supplied
+by the evaluation. Names pass through unchanged, as `Transform`'s do
+(`role.rs`): the member keeps its `Member { (i, …), of }` names, keyed by
+the index variables' ids and the integers, and an operation reading it
+keys them by `xs` (DM4), the index said once, in `Member`. So
+`Union[xs]` and `Union[xs[0], …, xs[N−1]]` name alike, because they read
+the same things, and inside a per-`k` reader `union(xs)` and
+`union(xs[k])` are one read with one name. A member is not a named alias:
+two readers wanting one member share the family and a named `Count`. A
+name is scoped by the variable that holds its body
 (N1), so a split half's names do not spell the half: its variable says it,
 and a selection of `split.above` states its body once. A body seat
 reading a whole family, a profile or a split as a whole refuses by kind at
@@ -368,9 +368,14 @@ Distinctness is over the variables read, and only those (D10: a read is
 of a variable): two outputs of one operation are two variables, so a
 union of a split's two halves, or a revolve's body patterned about its own
 axis port, is admitted, and builds: DM4 keys a member's names by its read.
-Two distinct variables that evaluate to one body — two `Part`s selecting
-one half of a split, `Part(Instance(0))` beside its master, or `xs` and
-`xs[0]` in one union — meet DM5, and the operation answers
+A read of a family is a read of each member, so `Union[xs, xs[0]]` reads
+one member twice and is refused at the door. Two indexed reads `xs[i]`
+and `xs[j]` whose indices land on one member at the current values would
+give two rows one name, so they refuse typed at evaluation: DM5's
+evaluation-time arm, in the class of DM3's out-of-range index. Two
+distinct variables that evaluate to one body — two `Part`s selecting one
+half of a split, or `Part(Instance(0))` beside its master — meet DM5, and
+the operation answers
 them as it answers any operands whose shells coincide by structure or by
 declaration: `A ∪ A` and `A ∩ A` are `A`, and `A − A` is the typed empty
 result.
