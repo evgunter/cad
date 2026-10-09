@@ -441,8 +441,10 @@ fn null_scaffold_fail_loud_audit() {
 }
 
 /// TARGET 3: split_edge honesty on line carriers - a double split
-/// (split, then split a child) with tier 3 preserved at every step,
-/// child intervals abutting exactly, and volume unchanged bitwise.
+/// (split, then split a child) with tier 3 refusing nothing but the
+/// split vertices at every step (a split edge is construction state
+/// until the join takes it back, check 11), child intervals abutting
+/// exactly, and volume unchanged bitwise.
 #[test]
 fn split_edge_double_split_preserves_tier3_and_volume() {
     let mut cube = geometric_cube::<f64>(Tol::witness());
@@ -452,7 +454,12 @@ fn split_edge_double_split_preserves_tier3_and_volume() {
         .volume;
     let edge = cube.mevs[0].edge; // A->B, unit line, params [0, 1]
     let first = cube.body.split_edge(edge, 0.25, Tol::witness()).unwrap();
-    assert_eq!(validate_geometric(&cube.body, Tol::witness()), Ok(()));
+    assert_eq!(
+        validate_geometric(&cube.body, Tol::witness()),
+        Err(vec![ValidationError::JoinableVertexAtRest {
+            vertex: first.vertex
+        }])
+    );
     // Parent kept [t0, t]; child took [t, t1].
     let c1 = cube
         .body
@@ -475,7 +482,17 @@ fn split_edge_double_split_preserves_tier3_and_volume() {
         .body
         .split_edge(first.new_edge, 0.5, Tol::witness())
         .unwrap();
-    assert_eq!(validate_geometric(&cube.body, Tol::witness()), Ok(()));
+    assert_eq!(
+        validate_geometric(&cube.body, Tol::witness()),
+        Err(vec![
+            ValidationError::JoinableVertexAtRest {
+                vertex: first.vertex
+            },
+            ValidationError::JoinableVertexAtRest {
+                vertex: second.vertex
+            },
+        ])
+    );
     let c3 = cube
         .body
         .get_curve_geom(cube.body.get_edge(first.new_edge).unwrap().curve)
@@ -511,7 +528,13 @@ fn split_edge_intersection_witness_bitwise_remint() {
     let (t0, t1) = parent.params();
     let t = 0.3_f64; // deliberately not dyadic
     let created = cube.body.split_edge(edge, t, Tol::witness()).unwrap();
-    assert_eq!(validate_geometric(&cube.body, Tol::witness()), Ok(()));
+    // Every check but 11 passes: the split vertex is the join's.
+    assert_eq!(
+        validate_geometric(&cube.body, Tol::witness()),
+        Err(vec![ValidationError::JoinableVertexAtRest {
+            vertex: created.vertex
+        }])
+    );
     for (curve_key, (ta, tb)) in [
         (created.first_curve, (t0, t)),
         (created.second_curve, (t, t1)),
@@ -587,8 +610,14 @@ fn split_edge_interiority_band_edges() {
     assert_eq!(dump(&cube.body), before);
     // Beyond the escalation band: definitely interior, splits.
     let t_ok = 20.0 * eps;
-    cube.body.split_edge(edge, t_ok, Tol::witness()).unwrap();
-    assert_eq!(validate_geometric(&cube.body, Tol::witness()), Ok(()));
+    let split = cube.body.split_edge(edge, t_ok, Tol::witness()).unwrap();
+    // Every check but 11 passes: the split vertex is the join's.
+    assert_eq!(
+        validate_geometric(&cube.body, Tol::witness()),
+        Err(vec![ValidationError::JoinableVertexAtRest {
+            vertex: split.vertex
+        }])
+    );
 }
 
 /// The parent key survives as the FIRST child (original start → new
@@ -628,19 +657,30 @@ fn split_edge_parent_key_keeps_the_start_side() {
 
 /// TARGET 4: revert posture on a body WITH a ring and split edges (the
 /// harder inventory than the shipped plain-cube pin): bitwise
-/// involution, D9 determinism, tier-2 currency, tier 3 = exactly
-/// NegativeVolume and nothing else, volume negated bitwise.
+/// involution, D9 determinism, tier-2 currency, volume negated bitwise.
+/// The split body is construction state (check 11 names its two split
+/// vertices), so tier 3 refuses it with exactly those, and its reversal
+/// with NegativeVolume beside them.
 #[test]
 fn revert_on_split_body_involution_and_posture() {
     let mut cube = geometric_cube::<f64>(Tol::witness());
     describe_as_intersections(&mut cube.body, Tol::witness());
-    cube.body
+    let a = cube
+        .body
         .split_edge(cube.mevs[0].edge, 0.5, Tol::witness())
         .unwrap();
-    cube.body
+    let b = cube
+        .body
         .split_edge(cube.mevs[5].edge, 0.25, Tol::witness())
         .unwrap();
-    assert_eq!(validate_geometric(&cube.body, Tol::witness()), Ok(()));
+    let joinable = vec![
+        ValidationError::JoinableVertexAtRest { vertex: a.vertex },
+        ValidationError::JoinableVertexAtRest { vertex: b.vertex },
+    ];
+    assert_eq!(
+        validate_geometric(&cube.body, Tol::witness()),
+        Err(joinable.clone())
+    );
     let original = dump(&cube.body);
     let vol = topo::mass_properties(&cube.body, Tol::witness())
         .unwrap()
@@ -648,14 +688,18 @@ fn revert_on_split_body_involution_and_posture() {
     let reverted = cube.body.revert();
     // Source untouched (functional, both-results-free).
     assert_eq!(dump(&cube.body), original);
-    // Tier-2 currency; tier 3 EXACTLY NegativeVolume.
+    // Tier-2 currency; tier 3 EXACTLY NegativeVolume beside the split
+    // vertices.
     assert_eq!(validate_closed(&reverted), Ok(()));
+    let mut negative = vec![ValidationError::NegativeVolume {
+        solid: reverted.solids().next().expect("one solid").0,
+    }];
+    negative.extend(joinable);
     assert_eq!(
         validate_geometric(&reverted, Tol::witness()),
-        Err(vec![ValidationError::NegativeVolume {
-            solid: reverted.solids().next().expect("one solid").0
-        }]),
-        "tier 3 on the reverted body must fail with exactly NegativeVolume"
+        Err(negative),
+        "tier 3 on the reverted body must fail with exactly NegativeVolume and the split \
+         vertices"
     );
     let rvol = topo::mass_properties(&reverted, Tol::witness())
         .unwrap()

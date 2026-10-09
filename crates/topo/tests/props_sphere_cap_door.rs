@@ -142,14 +142,23 @@ fn cut_ball(z: f64, seed_surface: Surface<f64>, made_surface: Option<Surface<f64
 
 /// Certify at all three tiers and return the closed-form volume,
 /// asserting that no part of it came from an enclosure.
+///
+/// The rim's two half-arcs meet at two vertices nothing else does, so
+/// the body is construction state until the join takes them back into
+/// one closed edge: tier 3 refuses exactly those two vertices (check
+/// 11) and nothing else. The half-arcs stay, because their spans
+/// summing back to `2π` is part of what these rows check.
 fn certified_volume(name: &str, body: &Body<f64>) -> f64 {
     let tol = Tol::witness();
     assert_eq!(topo::validate(body), Ok(()), "{name}: tier 1");
     assert_eq!(topo::validate_closed(body), Ok(()), "{name}: tier 2");
     assert_eq!(
         topo::validate_geometric(body, tol),
-        Ok(()),
-        "{name}: tier 3"
+        Err(body
+            .vertices()
+            .map(|(vertex, _)| topo::ValidationError::JoinableVertexAtRest { vertex })
+            .collect()),
+        "{name}: tier 3 refuses the rim's two vertices and nothing else"
     );
     let props = topo::mass_properties(body, tol).unwrap_or_else(|e| panic!("{name}: {e:?}"));
     assert_eq!(props.volume_pad, 0.0, "{name}: a closed form needs no pad");
