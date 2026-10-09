@@ -1923,12 +1923,39 @@ fn the_second_order_band_has_three_outcomes_and_they_are_three_answers() {
 /// `validate::MaterialStations`; the validator takes its stations from
 /// `geom_brep::interior_stations`. So the rows that pin the walk and
 /// the hook speak for both: a loop, a `"tangent_second_order"` decide
-/// or a material read inlined back into either file reds here.
+/// or a material read inlined back into either file's production code
+/// reds here. The `#[cfg(test)]` modules are blanked first: a row there
+/// asserting a predicate name is not a second spelling.
 #[test]
 fn check_4_and_the_rim_route_their_second_order_reading_through_the_one_walk() {
+    // The code-and-literals view with every `#[cfg(test)] mod … { … }`
+    // blanked, carved on the code-only view where every bracket is real.
+    let production = |text: &str| {
+        use test_utils::source::{balanced_end, code_and_literals, code_only, skip_ws, word_at};
+        let code = code_only(text);
+        let mut kept = code_and_literals(text).into_bytes();
+        assert_eq!(code.len(), kept.len(), "the two views align byte for byte");
+        let mut from = 0;
+        while let Some(at) = code[from..].find("#[cfg(test)]").map(|i| i + from) {
+            let mut item = skip_ws(&code, at + "#[cfg(test)]".len());
+            while code[item..].starts_with("#[") {
+                let attr_end = balanced_end(&code, item + 1).expect("an attribute closes");
+                item = skip_ws(&code, attr_end + 1);
+            }
+            from = item;
+            if !word_at(&code, item, "mod") {
+                continue;
+            }
+            let open = item + code[item..].find('{').expect("a test module has a body");
+            let close = balanced_end(&code, open).expect("a test module closes");
+            kept[at..=close].fill(b' ');
+            from = close;
+        }
+        String::from_utf8(kept).expect("only ASCII spans are blanked")
+    };
     let scan = |file: &str, calls: &[(&str, usize)], spellings: &[&str]| {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(file);
-        let source = test_utils::source::code_and_literals(&std::fs::read_to_string(path).unwrap());
+        let source = production(&std::fs::read_to_string(path).unwrap());
         for &(call, count) in calls {
             assert_eq!(
                 source.matches(call).count(),

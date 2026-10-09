@@ -26,7 +26,7 @@ carries is on no frame's escalation log.
 door: it reads a side off the sign and escalates a definite `Zero`
 inside the funnel, so the `Cusp`/`Slit` match loses its third arm.
 `crates/topo/src/boolean/rim_wedge.rs` reads the same side through
-the same hook (`validate::MaterialStations::after_positive`, since
-`encl/rim-wedge-one-walk`), so this one repair covers both callers.
+the same hook (`validate::MaterialStations::after_positive`), so this
+one repair covers both callers.
 Found by the `linalg/decided-not-minted` sweep of `MarginDiag::INVALID`
 literals.
