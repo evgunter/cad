@@ -639,10 +639,11 @@ mod tests {
     /// within, where the arm with no reading can only say it may.
     #[test]
     fn a_sign_certain_residual_reads_its_carried_margin_at_the_import_door() {
-        let file = FileCoincidence::new(1e-6, geom_core::Tol::witness());
+        let tol = geom_core::Tol::witness();
+        let file = FileCoincidence::new(1e3 * tol.eps(), tol);
+        let miss = MarginDiag::value(1e2 * tol.eps());
         for residual in [Unsized::Defect, Unsized::LastResort] {
-            let valued = residual
-                .residual_in_file(RefusedArm::SignCertain(Some(MarginDiag::value(5e-7))), file);
+            let valued = residual.residual_in_file(RefusedArm::SignCertain(Some(miss)), file);
             let unvalued = residual.residual_in_file(RefusedArm::SignCertain(None), file);
             assert!(
                 valued.starts_with("This miss lies beyond the tolerance and within the file's"),
