@@ -842,17 +842,16 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         //   through a plane face — the S12 finding's
         //   poking-but-not-crossing shape — or two sphere faces cross
         //   in a circle no edge reaches): the operand is RE-CUT —
-        //   a closed group escaping through a plane is rigidly
-        //   re-charted about the escape normal (a rotation about its
-        //   own center: the same point set, seams now transverse to
-        //   the escape planes), any other escaping face is cut along
-        //   its chart's meridian through the circle ([`SphereCutIn`]),
-        //   and the pipeline re-enters once; the ordinary crossing
-        //   layer then finds the section circles and the (Plane,
-        //   Sphere) or (Sphere, Sphere) germ arm joins them exactly.
-        //   Both faces of a crossing sphere pair are cut, so the
-        //   circle lands as chords on both and neither keeps it as a
-        //   ring.
+        //   a closed group whose escapes share one axis is rigidly
+        //   re-charted onto it (a rotation about its own center: the
+        //   same point set, seams now transverse to the section
+        //   circles), any other escaping face is cut along its chart's
+        //   meridian through each circle ([`SphereCutIn`]), and the
+        //   pipeline re-enters once; the ordinary crossing layer then
+        //   finds the section circles and the (Plane, Sphere) or
+        //   (Sphere, Sphere) germ arm joins them exactly. Both spheres
+        //   of a crossing pair are re-cut, so the circle lands as
+        //   chords on both and neither keeps it as a ring.
         // - **uncertifiable** (NURBS re-gate, a trimmed group's circle
         //   the section certificate does not place inside one face,
         //   sphere faces meeting other than across a verified `Rest`,
@@ -3659,7 +3658,8 @@ struct Recuts<T: Real> {
 }
 
 /// A sphere face that a plane face's carrier (the face's group
-/// TRIMMED) or a sphere face's carrier (any group) cuts in a circle
+/// TRIMMED) or a sphere face's carrier (the group trimmed, or crossed
+/// along non-parallel axes) cuts in a circle
 /// certified inside both faces with no event (the section
 /// certificate's R-loop). The face is cut along the meridian of its own
 /// sphere's chart through the circle's centre (through a point of the
@@ -3706,8 +3706,18 @@ struct SphereRecut<T: Real> {
     radius: T,
     /// The stored polar axis (rotation source direction).
     axis: Vec3<T>,
-    /// The escape plane's normal (rotation target direction).
+    /// The escape plane's normal, or the escape circle's axis (rotation
+    /// target direction).
     align: Vec3<T>,
+    /// The stored seam direction (`u_ref`), which `seam` turns to.
+    u_ref: Vec3<T>,
+    /// Where the group escapes through a sphere: the seam direction the
+    /// re-chart turns `u_ref` to about `align`. A's group takes the first
+    /// of `align`'s orthonormal pair and B's the second, so two balls
+    /// re-charted along one centre line keep their seams in planes a
+    /// quarter turn apart, and neither seam meets the circle where the
+    /// other does.
+    seam: Option<Vec3<T>>,
 }
 
 /// The sphere extent scan's reading of a refused [`contfp`] on `face`, a
@@ -3744,7 +3754,7 @@ fn extent_scan_refusal(e: ContainError, sphere_is: Operand, face: FaceKey) -> Bo
 ///   cross or touch, and a sphere touching a plane's carrier, are asked
 ///   whether their FACES meet ([`sphere_faces_apart`]); a crossing
 ///   circle inside both faces is an escape of each sphere through the
-///   other, and both faces are cut in.
+///   other, and both are re-cut.
 /// - **Torus, cylinder and cone**: no closed-group extent exists, so
 ///   their pairs are certified per pair by the section certificate
 ///   ([`section_extent_pass`]), which runs after this scan. A sphere's
@@ -3802,7 +3812,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 center,
                 radius,
                 axis,
-                ..
+                u_ref,
             } = x_surface
             else {
                 continue;
@@ -4186,6 +4196,13 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         },
                     });
                 }
+                let seam = (!sphere_escapes.is_empty()).then(|| {
+                    let (first, second) = align.orthonormal_basis();
+                    match x_is {
+                        Operand::A => first,
+                        Operand::B => second,
+                    }
+                });
                 out.push(SphereRecut {
                     operand: x_is,
                     representative,
@@ -4193,6 +4210,8 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     radius,
                     axis,
                     align,
+                    u_ref,
+                    seam,
                 });
             }
         }
@@ -4420,6 +4439,34 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 col(Vec3::new(T::zero(), one, T::zero())),
                 col(Vec3::new(T::zero(), T::zero(), one)),
             );
+            // The spin about `align` that turns the rotated seam to
+            // `seam`, the same algebraic form on the seam directions; the
+            // sign that keeps the turn at most a quarter is either of the
+            // seam's two half-planes.
+            let linear = match r.seam {
+                None => linear,
+                Some(seam) => {
+                    let a = linear * r.u_ref;
+                    let flip = matches!(
+                        decide("bool_sphere_recut_seam", Margin::of(a.dot(seam)), band),
+                        Ok(Sign::Negative)
+                    );
+                    let b = if flip { -seam } else { seam };
+                    let k = a.cross(b);
+                    let c = a.dot(b);
+                    let kx = |v: Vec3<T>| k.cross(v);
+                    let col = |e: Vec3<T>| {
+                        let kv = kx(e);
+                        e + kv + kx(kv) / (one + c)
+                    };
+                    let spin = geom_core::Mat3::from_cols(
+                        col(Vec3::new(one, T::zero(), T::zero())),
+                        col(Vec3::new(T::zero(), one, T::zero())),
+                        col(Vec3::new(T::zero(), T::zero(), one)),
+                    );
+                    spin * linear
+                }
+            };
             let q = r.center - Point3::origin();
             let map = geom_core::Affine3::from_parts(linear, q - linear * q);
             let turned = crate::transform::transform_rigid(&ball, &map, tol)

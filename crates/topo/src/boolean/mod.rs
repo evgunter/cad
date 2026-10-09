@@ -2576,9 +2576,10 @@ pub enum BooleanError {
     /// share lies off every edge, so the join's sphere-pair arm (the
     /// radical plane, `join::bool_connect`) had no chord to run. Spheres
     /// that cross, in a circle the certificate certifies inside both
-    /// faces (its R-loop), are not refused: each face is cut along a
-    /// meridian through the circle so an edge reaches it
-    /// (`ops::apply_cut_ins`), and a crossing
+    /// faces (its R-loop), are not refused: each sphere is re-cut so an
+    /// edge of it reaches the circle (a closed ball re-charted with its
+    /// pole on the centre line, any other face cut along a meridian
+    /// through the circle, `ops::sphere_extent_scan`), and a crossing
     /// whose circle the certificate cannot place refuses with the
     /// certificate's own reason
     /// ([`BooleanError::FallbackExtentUnsupported`]). It is the decided

@@ -200,6 +200,29 @@ pub fn outcome(r: Result<BooleanResult<f64>, BooleanError>, want: f64, tol: Tol)
     }
 }
 
+/// A built body that [`outcome`] reads `SOUND` against `want` and that
+/// meshes, the mesh checked closed and consistent.
+///
+/// # Panics
+///
+/// On a refusal, an empty result, a mesh refusal or failed check, or any
+/// line but `SOUND`.
+pub fn assert_sound_and_meshed(
+    label: &str,
+    r: Result<BooleanResult<f64>, BooleanError>,
+    want: f64,
+    tol: Tol,
+) {
+    let Ok(Some(bb)) = r.as_ref().map(BooleanResult::body) else {
+        panic!("{label}: wanted a body, got {r:?}");
+    };
+    let mesh = mesh::tessellate(&bb.body, 5e-3, tol)
+        .unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}"));
+    mesh::validate::check_mesh(&mesh).unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}"));
+    let line = outcome(r, want, tol);
+    assert!(line.starts_with("OK SOUND"), "{label}: {line}");
+}
+
 /// The reflex corner's `a` profile: the 315° corner at the origin, all
 /// of `[−2, 2]²` but the wedge `0 ≤ y ≤ x`.
 pub const REFLEX_A: [(f64, f64); 6] = [

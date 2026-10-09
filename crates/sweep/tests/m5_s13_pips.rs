@@ -24,6 +24,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::operands::slab;
+use crate::common::oracles::{ball_lens, ball_volume};
 use core::f64::consts::PI;
 use sweep::ExtrudeSide;
 
@@ -310,9 +311,9 @@ fn certified_disjoint_and_contained_shells_keep_their_answers() {
 /// direction is not a depth choice: a seam great circle lies in the
 /// plane `z = c_z` with the ball's own radius, so a Z-offset seam is
 /// equidistant from the other centre all the way round and never
-/// crosses it. The scan cuts each face in along a meridian through the
-/// circle they cross in, and the re-entered pipeline joins it: the
-/// union is two balls less their lens, two caps of height 0.3.
+/// crosses it. The scan re-charts each ball with its pole on the centre
+/// line, and the re-entered pipeline joins the circle their seams now
+/// cross: the union is two balls less their lens, and it meshes.
 #[test]
 fn overlapping_sphere_pair_builds_through_the_scan() {
     let b1 = finished(
@@ -325,11 +326,12 @@ fn overlapping_sphere_pair_builds_through_the_scan() {
         ball_poled_y(1.0, Vec3::new(2.0, 2.0, 1.9), Tol::witness()),
         Tol::witness(),
     );
-    let joined = topo::union(&b1, &b2, Tol::witness()).expect("the pair is cut in and joined");
-    let lens = 2.0 * PI * 0.3_f64.powi(2) * (3.0 - 0.3) / 3.0;
-    let want = 8.0 * PI / 3.0 - lens;
-    let v = vol(&joined.body().expect("a body").body);
-    assert!((v - want).abs() < slack(), "union volume {v}, want {want}");
+    crate::common::differential::assert_sound_and_meshed(
+        "the overlapping pair's union",
+        topo::union(&b1, &b2, Tol::witness()),
+        2.0 * ball_volume(1.0) - ball_lens(1.0, 1.0, 1.4),
+        Tol::witness(),
+    );
 }
 
 /// **The scan's TRIMMED-GROUP arm, and where it actually bites.** A pip

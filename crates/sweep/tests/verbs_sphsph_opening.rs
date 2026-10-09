@@ -12,8 +12,9 @@
 //!   seam is wholly inside or wholly outside the other sphere and can
 //!   never cross it — at any depth and at any radius ratio. No crossing
 //!   is found, the containment fallback runs, and its curved-extent
-//!   scan cuts each face in along a meridian through the circle the
-//!   spheres cross in; the re-entered pipeline joins it.
+//!   scan re-charts each ball with its pole on the centre line, so the
+//!   re-entered pipeline finds the seams crossing the circle the
+//!   spheres meet in and joins it.
 //! * **Offset along X or Y.** The seam circle now meets the other
 //!   sphere, so a seam edge crosses a CURVED face and the circle ×
 //!   sphere roots pierce it. The pair reaches the join, which hands each
@@ -37,7 +38,8 @@ use sweep::test_support::finished;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{AtRestBody, BooleanError};
 
-use crate::common::oracles::lens_volume;
+use crate::common::differential::assert_sound_and_meshed;
+use crate::common::oracles::{ball_lens, ball_volume};
 
 /// A radius-`r` ball at `centre`, poles on world Y (the pip corpus's
 /// constructor chart).
@@ -129,19 +131,15 @@ fn a_nested_ball_near_tangency_offers_a_tolerance_only_short_of_it() {
         .value()
         .unwrap();
     assert!(err.to_string().ends_with(&offer(m)), "{err}");
-    let crossed = topo::union(
-        &ball_at(1.0, Vec3::new(2.0, 2.0, 0.5)),
-        &ball_at(0.5, Vec3::new(2.0, 2.0, 1.001)),
+    assert_sound_and_meshed(
+        "crossing boundaries build",
+        topo::union(
+            &ball_at(1.0, Vec3::new(2.0, 2.0, 0.5)),
+            &ball_at(0.5, Vec3::new(2.0, 2.0, 1.001)),
+            tol,
+        ),
+        ball_volume(1.0) + ball_volume(0.5) - ball_lens(1.0, 0.5, 0.501),
         tol,
-    )
-    .expect("crossing boundaries build");
-    let v = topo::mass_properties(&crossed.body().expect("a body").body, tol)
-        .unwrap()
-        .volume;
-    let want = 4.0 * PI / 3.0 * (1.0 + 0.125) - lens_volume(1.0, 0.5, 0.501);
-    assert!(
-        (v - want).abs() < 1e-9 * want,
-        "crossing boundaries build: union volume {v}, want {want}"
     );
 }
 
@@ -155,19 +153,15 @@ fn z_offset_pairs_build_through_the_curved_extent_scan() {
         (1.0, 1.1, "deep, equal radii"),
         (0.2, 1.4, "unequal radii, seam wholly inside the big ball"),
     ] {
-        let joined = topo::union(
-            &ball_at(1.0, Vec3::new(2.0, 2.0, 0.5)),
-            &ball_at(r2, Vec3::new(2.0, 2.0, z2)),
+        assert_sound_and_meshed(
+            label,
+            topo::union(
+                &ball_at(1.0, Vec3::new(2.0, 2.0, 0.5)),
+                &ball_at(r2, Vec3::new(2.0, 2.0, z2)),
+                Tol::witness(),
+            ),
+            ball_volume(1.0) + ball_volume(r2) - ball_lens(1.0, r2, z2 - 0.5),
             Tol::witness(),
-        )
-        .unwrap_or_else(|e| panic!("{label}: the union builds, got {e:?}"));
-        let v = topo::mass_properties(&joined.body().expect("a body").body, Tol::witness())
-            .unwrap()
-            .volume;
-        let want = 4.0 * PI / 3.0 * (1.0 + r2.powi(3)) - lens_volume(1.0, r2, z2 - 0.5);
-        assert!(
-            (v - want).abs() < 1e-9 * want,
-            "{label}: union volume {v}, want {want}"
         );
     }
 }

@@ -72,32 +72,51 @@ also stop small ∖ big there.
 
 ## Built (`join/sphere-pair-whole-circle`)
 
-`boolean::ops::sphere_extent_scan`'s sphere arm now cuts the circle in
+`boolean::ops::sphere_extent_scan`'s sphere arm re-cuts both spheres
 rather than refusing. Where two spheres cross in a circle the section
-certificate places inside a face of each (R-loop), each operand's
-pass cuts its own face along that face's chart meridian through the
-circle (`SphereCutIn`, `apply_cut_ins`). Closed groups are cut too: no
-re-chart, so both charts stay as built. Each pass cuts its own side, so
-an edge of each operand crosses the other's face. The re-entered
-crossing layer and the radical-plane join land the circle as chords on
-both faces, so no face carries a ring and no run stops at the FLUX
-result gate.
+certificate places inside a face of each (R-loop), each operand's pass
+serves its own sphere:
 
-The circle comes from the radical plane, `ops::sphere_pair_circle`.
-`SpheresMeet` is left for a decided-zero touch.
+- **A closed ball** is re-charted about its own centre with its pole on
+  the centre line (`apply_recuts`), where one alignment serves all its
+  escapes. Its seam meridians then cross the circle, and A's and B's
+  seams are turned a quarter turn apart about that line
+  (`SphereRecut::seam`). The result keeps two faces per sphere and
+  meshes.
+- **A trimmed face**, or a closed ball crossed along two non-parallel
+  axes, is cut along its own chart's meridian through each circle
+  (`SphereCutIn`, `apply_cut_ins`). The cut's pieces are recorded as the
+  merge stage's period-closure skip, and the face does not mesh yet
+  (`work/tess/sphere-face-bounded-by-a-tilted-circle-has-no-tessellation-lane.md`).
+- **A plane escape and a sphere escape on one closed ball along
+  different axes** refuse typed (`FallbackExtentUnsupported`). The
+  plane's re-chart would rename the faces the sphere's cut names.
 
-A closed group that a plane would re-chart and a sphere would cut
-refuses typed (`FallbackExtentUnsupported`). The re-chart's graft
-renames the face the cut names, which is the two-answers row
-`closed-sphere-escape-is-re-charted-by-rotation-beside-the-meridian-cut`.
+The circle is the pair's radical-plane section, read from
+`geom_brep::sphere_sphere_section` (`ops::sphere_pair_cut`). The cut-in
+orders the meridian's points by `r·sin` of their angular gap, which is
+linear in the arc between them, so a circle 10⁻⁵ from a pole is decided
+at the band. `SpheresMeet` is left for a decided-zero touch.
 
-Every one of these builds at tiers 3 and 3′ and at the closed form
-(`crates/sweep/tests/spheres_crossing_off_every_edge.rs`):
+Every class is pinned under every op in both orders in
+`crates/sweep/tests/spheres_crossing_off_every_edge.rs`. Each run goes
+through `differential::outcome` against the textbook lens
+(`oracles::ball_lens`) and through the mesher:
 
-- both witnesses, every op in both orders;
-- the 42-pose sweep;
-- three tilted centre lines;
-- two trimmed balls;
-- REACH's pose of a ball crossing both faces of a lens (its own face
-  is cut twice; small ∖ lens is two lumps, held to the census
-  refusal).
+- the witnesses;
+- the centre-line sweep and the near-tangent depths;
+- tilted and spun charts, and circles beside a pole;
+- trimmed balls and the multi-cut lens;
+- three-ball poses;
+- the plane-plus-sphere escapes.
+
+Two classes refuse typed and are pinned:
+
+- the plain witness at the `Interval` scalar (`Crossing(OnEdge)`: a
+  re-charted ball's seam meridian planes hold the other centre, where
+  the circle × sphere phase is degenerate);
+- `ball(50)` 2·10⁻⁶ inside external tangency, whose union reads a rim
+  in band at the result gate.
+
+The sliver that pose's intersection builds is not a legal operand,
+filed as `a-built-sliver-is-not-a-legal-operand`.
