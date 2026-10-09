@@ -1387,8 +1387,8 @@ pub(crate) fn mint<P: crate::ProfilePayload, T: Decide>(
             resolve_face(doc, evaluation, names, id, MateSide::B, b),
         ) {
             (Ok(Some(face_a)), Ok(Some(face_b))) => (face_a, face_b),
-            // A member no placement reads is not in the product: the
-            // mate states nothing about it there.
+            // A member no placement is built from is not in the
+            // product: the mate states nothing about it there.
             (Ok(None), Ok(_)) | (Ok(_), Ok(None)) => continue,
             // The `a` side answers first when both sides refuse: one
             // mate contributes one row, and which side it names is the
@@ -1499,6 +1499,9 @@ fn resolve_face<P: crate::ProfilePayload, T: Decide>(
             .is_some_and(|value| value.name_table.lookup(name).is_some())
     };
     let at = reference.at;
+    // Placed: some world placement is built from the site — reads it,
+    // or reads a body made from it (a placed boolean over it) — so the
+    // lift below finds its face in the product.
     let placed = doc
         .placements()
         .into_iter()

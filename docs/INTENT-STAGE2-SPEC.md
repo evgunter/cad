@@ -459,7 +459,7 @@ Loud census rows: `pncad-py` `tags.rs` / `surface_census` / `prose_census`, `dis
 - **B's size.** It is about 2,500 match and construction sites. Compile-driven, it is H on volume, and the `From<RecipeNodeId>` sugar is what keeps it mechanical. The real hand edits are the 37 `inputs()` callers.
 - **The schedule** (narrowed by FORK-5). In D, an observed definition is the first variable whose value exists only mid-evaluation. Only assertions read it, so `Doc::var_env` (`doc.rs:1651`) and the construction lanes are untouched. The new machinery is binding observed definitions at the assertion, per lane (Interval, Dual, Sym).
 - **Scripts and fixtures that relied on an implicit product.** After C nothing appears unless placed. Every test, demo and guide example that reads `product()` without placing must call `doc.place` (Python, Rust façade) or author a `PlaceInWorld`. The viewer's 73 `combine_ops` and 38 `creation_ops` rows are restated to read the placements their gestures author. This is the largest mechanical part of C, and the migration check (test 6) only covers regenerated files.
-- **The pose moving into the placement** (Q9). An instance on the world gauge has its offset moved into its placement's pose. One posed by mates or by a non-world gauge keeps its pose until stage 3. That is two homes for a world pose in the interim, which Ev accepted as transient (#4220, residue 3).
+- **Where a world pose lives** (Q9). C moves no offset: every instance keeps its offset, gauge or mates, and is placed at the identity (§4's migration note). The world pose of an instance therefore lives on the instance, and the `PlaceInWorld` pose holds only what a script authors, a transient home Ev accepted (#4220, residue 3) that stage 3 replaces (`a-world-gauge-instance-offset-did-not-move-into-its-placement`).
 - **E's diagnosis parity.** The four error families folding into one select error must not lose the `Diagnosis` the viewer shows. Test 16 pins it, and `refusal_concision_chains` (12 sites) will move.
 - **F and the at-rest gate.** Today the gate resolves a mate's face against the *gathered product's* name table (instance-qualified), not against the member's body. The two tables agree only when the qualifier is carried faithfully through the read. Q8 states how, and tests 19 and 22 check it.
 - **Re-blessing four times** (B, D, E, F). Each PR states which pins moved and why, and f64 digests are the guard.
@@ -531,8 +531,7 @@ Each FORK changed ratified text or turned on Ev's preference, and a designer pai
    - So there is one resolution, at the selection, and none against the product table.
    - A member no placement reads has no world copy, and the mate mints nothing.
 9. **Where a stage-2 world pose lives** (Ev's residue 3: in the placement).
-   - **Recommendation:** C's migration moves a world-gauge instance's offset into its `PlaceInWorld` pose, and the instance sits at the empty offset.
-   - An instance posed by placing mates, or by a non-world gauge, keeps that pose until stage 3, which retires gauges and makes placement the bundle of mates, and gets an identity world placement.
+   - **As built:** C moves no offset. Every instance keeps its pose (its offset, gauge or placing mates) until stage 3, which retires gauges and makes placement the bundle of mates, and gets an identity world placement (§4's migration note). Moving a world-gauge instance's offset into the `PlaceInWorld` pose would grow the home stage 3 replaces; it is filed as `a-world-gauge-instance-offset-did-not-move-into-its-placement`.
    - Moving every gauge chain now would rebuild A11 (2) one stage before it is deleted.
 
 **The consuming-model holdover audit** (`audit/intent-consuming-holdovers`), mapped to this spec:
