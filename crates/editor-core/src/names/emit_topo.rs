@@ -3452,7 +3452,9 @@ fn nurbs_chord<T: Decide>(
         return Ok(None);
     }
     let knots = nurbs.knots();
-    let (s0, s1) = (t0.locate_spans(knots), t1.locate_spans(knots));
+    let (Some(s0), Some(s1)) = (t0.locate_spans(knots), t1.locate_spans(knots)) else {
+        return Ok(None);
+    };
     let first = s0.first.first_control().min(s1.first.first_control());
     let last = s0.last.index().max(s1.last.index());
     let control = nurbs

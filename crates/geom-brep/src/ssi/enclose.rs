@@ -75,7 +75,7 @@ use geom::{NurbsSurface, Surface, SurfaceWindow};
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{div_down, max_bound, min_bound, norm_sq, norm_sup};
-use geom_core::spline::Span;
+use geom_core::spline::{ParamRange, Span};
 use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, SupSpeed, Vec3};
 
 use super::{ChartAxis, ChartSpeedRefusal, SsiError, TubeDegeneracy};
@@ -525,13 +525,13 @@ impl ChartSpeeds {
     }
 }
 
-/// A parameter window `[u0, u1] × [v0, v1]` is one when each pair is
-/// ordered. A NaN end compares false, so it is refused with an inverted
-/// pair. Every box over a window asks this before it clamps the window
-/// to the domain: a clamp turns an inverted window past a domain end
+/// The parameter window `[u0, u1] × [v0, v1]`, or `None` when either
+/// pair has a NaN end or is inverted: such a pair names no region. A
+/// box over a window is minted here, before anything clamps it to the
+/// domain, because a clamp turns an inverted window past a domain end
 /// into an ordered point.
-fn ordered_window(u0: f64, u1: f64, v0: f64, v1: f64) -> bool {
-    u0 <= u1 && v0 <= v1
+pub(crate) fn ordered_window(u0: f64, u1: f64, v0: f64, v1: f64) -> Option<(ParamRange, ParamRange)> {
+    Some((ParamRange::new(u0, u1)?, ParamRange::new(v0, v1)?))
 }
 
 /// Control-net enclosures for a NURBS chart over a parameter rectangle
@@ -591,10 +591,8 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         })
     }
 
-    /// The (span_u, span_v) cell range touched by the rectangle, with
-    /// the rectangle as clamped, or `None` for a window with a NaN or
-    /// inverted end: such a window names no region, and clamping it
-    /// would land a NaN end on the first span.
+    /// The (span_u, span_v) cell range touched by the rectangle
+    /// `u × v`, with the rectangle as clamped.
     ///
     /// The rectangle is **clamped to the knot domains** first. Callers
     /// pad windows by a tube radius, which routinely pushes them past
@@ -603,29 +601,25 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// that reaches a surface edge fail its own uniqueness tube. The
     /// clamp is sound because the objects being enclosed — a pcurve, a
     /// foot point — cannot leave the domain either.
-    fn cells(&self, u0: f64, u1: f64, v0: f64, v1: f64) -> Option<CellRange> {
-        if !ordered_window(u0, u1, v0, v1) {
-            return None;
-        }
+    fn cells(&self, u: ParamRange, v: ParamRange) -> CellRange {
         let ku = self.surface.knots_u();
         let kv = self.surface.knots_v();
-        let (ud, vd) = (ku.domain(), kv.domain());
-        let cu = (u0.clamp(ud.0, ud.1), u1.clamp(ud.0, ud.1));
-        let cv = (v0.clamp(vd.0, vd.1), v1.clamp(vd.0, vd.1));
+        let cu = u.clamp_to(ku.domain_range());
+        let cv = v.clamp_to(kv.domain_range());
         // `span_range` answers in validated spans, but a cell RANGE is
         // what this returns: the interior of the rectangle is neither
         // end, so the two ends' proofs do not cover it. The callers
         // re-derive each cell's window with `NurbsSurface::window`,
         // which is also what skips the empty spans in between — hence
         // indices here, and the pair read back out.
-        let (u_lo, u_hi) = ku.span_range(cu.0, cu.1);
-        let (v_lo, v_hi) = kv.span_range(cv.0, cv.1);
-        Some(CellRange {
+        let (u_lo, u_hi) = ku.span_range(cu);
+        let (v_lo, v_hi) = kv.span_range(cv);
+        CellRange {
             u: (u_lo.index(), u_hi.index()),
             v: (v_lo.index(), v_hi.index()),
-            clamped_u: cu,
-            clamped_v: cv,
-        })
+            clamped_u: (cu.lo(), cu.hi()),
+            clamped_v: (cv.lo(), cv.hi()),
+        }
     }
 
     /// A certified box for `∂S/∂u` (or `∂S/∂v`) over the rectangle, via
@@ -725,7 +719,8 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         meet: impl Fn(R, R) -> R,
         join: impl Fn(R, R) -> R,
     ) -> Option<R> {
-        let range = self.cells(u0, u1, v0, v1)?;
+        let (u, v) = ordered_window(u0, u1, v0, v1)?;
+        let range = self.cells(u, v);
         let mut out: Option<R> = None;
         for su in range.u.0..=range.u.1 {
             for sv in range.v.0..=range.v.1 {
@@ -763,18 +758,10 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// span cell's control hull — it **keeps shrinking below the span
     /// cell**, which is what makes the exhaustiveness subdivision
     /// terminate on a surface with few spans.
-    pub(crate) fn rect_box(&self, u0: f64, u1: f64, v0: f64, v1: f64) -> Box3 {
-        // The window door, before the clamp below: clamping an inverted
-        // window past a domain end makes it an ordered point.
-        if !ordered_window(u0, u1, v0, v1) {
-            return refused_box();
-        }
-        let (ud, vd) = (
-            self.surface.knots_u().domain(),
-            self.surface.knots_v().domain(),
-        );
-        let (u0, u1) = (u0.clamp(ud.0, ud.1), u1.clamp(ud.0, ud.1));
-        let (v0, v1) = (v0.clamp(vd.0, vd.1), v1.clamp(vd.0, vd.1));
+    pub(crate) fn rect_box(&self, u: ParamRange, v: ParamRange) -> Box3 {
+        let u = u.clamp_to(self.surface.knots_u().domain_range());
+        let v = v.clamp_to(self.surface.knots_v().domain_range());
+        let (u0, u1, v0, v1) = (u.lo(), u.hi(), v.lo(), v.hi());
         let um = 0.5 * (u0 + u1);
         let vm = 0.5 * (v0 + v1);
         let hu = 0.5 * (u1 - u0);
@@ -786,10 +773,11 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         // `eval_in_span` at the midpoint's own span rather than `eval`:
         // the parameter is a thin `f64` structure value, so its span is
         // unique and no `SpanLocate` hull is needed.
-        let c = self
-            .surface
-            .window_at(um, vm)
-            .eval_in_span(T::from_f64(um), T::from_f64(vm));
+        // Clamped into a finite domain, so the midpoint is a number.
+        let Some(win) = self.surface.window_at(um, vm) else {
+            unreachable!("a clamped window's midpoint is a number")
+        };
+        let c = win.eval_in_span(T::from_f64(um), T::from_f64(vm));
         let du = self.cell_deriv_box(u0, u1, v0, v1, true);
         let dv = self.cell_deriv_box(u0, u1, v0, v1, false);
         let ru = Interval::from_bounds(-hu, hu);
@@ -1438,7 +1426,8 @@ fn bezier_on(
         .collect()
 }
 
-fn refused_box() -> Box3 {
+/// The box every reading over a window that names no region answers.
+pub(crate) fn refused_box() -> Box3 {
     Box3 {
         x: Interval::refused(),
         y: Interval::refused(),
@@ -1505,10 +1494,12 @@ mod tests {
         let boxes = NurbsBoxes::new(&s);
         let certified = |b: Box3| b.x.is_certified() && b.y.is_certified() && b.z.is_certified();
         let all = |(u0, u1, v0, v1): (f64, f64, f64, f64)| {
+            let rect = ordered_window(u0, u1, v0, v1)
+                .map_or_else(refused_box, |(u, v)| boxes.rect_box(u, v));
             [
                 ("deriv_box u", boxes.deriv_box(u0, u1, v0, v1, true)),
                 ("deriv_box v", boxes.deriv_box(u0, u1, v0, v1, false)),
-                ("rect_box", boxes.rect_box(u0, u1, v0, v1)),
+                ("rect_box", rect),
             ]
         };
         for (which, b) in all((0.2, 0.8, 0.0, 1.0)) {
@@ -1525,24 +1516,31 @@ mod tests {
             ("inverted u", (0.8, 0.2, 0.0, 1.0)),
             ("inverted v", (0.2, 0.8, 1.0, 0.0)),
         ] {
+            assert!(
+                ordered_window(w.0, w.1, w.2, w.3).is_none(),
+                "{name}: minted a window"
+            );
             for (which, b) in all(w) {
                 assert!(!certified(b), "{name}: {which} certified {b:?}");
             }
         }
     }
 
-    /// An inverted window past a domain end clamps to an ordered point,
-    /// so the door has to come before the clamp in every box.
+    /// An inverted window past a domain end would clamp to an ordered
+    /// point, so it is refused where it is minted, before any clamp; an
+    /// ordered one past the end clamps to the end's point and boxes.
     #[test]
-    fn an_inverted_window_past_the_domain_is_refused_by_rect_box() {
+    fn an_inverted_window_past_the_domain_is_not_a_window() {
         let s = multiplicity_2_patch();
         let b = NurbsBoxes::new(&s);
-        let c = |x: Box3| x.x.is_certified() && x.y.is_certified() && x.z.is_certified();
+        assert!(ordered_window(1.5, 1.2, 0.0, 1.0).is_none(), "inverted past hi");
+        assert!(ordered_window(-0.2, -0.5, 0.0, 1.0).is_none(), "inverted past lo");
+        let (u, v) = ordered_window(1.2, 1.5, 0.0, 1.0).expect("ordered");
+        let x = b.rect_box(u, v);
         assert!(
-            !c(b.rect_box(1.5, 1.2, 0.0, 1.0)),
-            "rect_box clamps an inverted window to a point"
+            x.x.is_certified() && x.y.is_certified() && x.z.is_certified(),
+            "an ordered window past the end refused: {x:?}"
         );
-        assert!(!c(b.rect_box(-0.2, -0.5, 0.0, 1.0)));
     }
 
     /// The derivative box SKIPS an empty span cell, and the skip never
@@ -1564,7 +1562,8 @@ mod tests {
         );
         let boxes = NurbsBoxes::new(&s);
         let (u0, u1, v0, v1) = (0.2, 0.8, 0.0, 1.0);
-        let (su0, su1) = boxes.cells(u0, u1, v0, v1).expect("an ordered window").u;
+        let (u, v) = ordered_window(u0, u1, v0, v1).expect("an ordered window");
+        let (su0, su1) = boxes.cells(u, v).u;
         assert!(
             (su0..=su1).contains(&3),
             "the rectangle must straddle the empty cell, got {su0}..={su1}"

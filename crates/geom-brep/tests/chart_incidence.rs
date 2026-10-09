@@ -16,7 +16,8 @@
 use crate::shared::tol::{band, eps};
 use geom::{Curve3, Surface};
 use geom_brep::{Grazer, Pcurve, PcurveCertifyError, chart_pcurve};
-use geom_core::{Point3, Tol, Vec3};
+use geom_core::spline::KnotVector;
+use geom_core::{Interval, Point3, Real, Tol, Vec3};
 
 /// The right circular cone of half-angle `alpha` about `+z` with its
 /// apex at the origin.
@@ -297,4 +298,52 @@ fn an_in_band_move_is_never_read_off_the_cone_or_the_sphere() {
         matches!(got, Ok(Pcurve::Projected(_))),
         "a general circle moved ε/2 off the sphere: {got:?}"
     );
+}
+
+/// **A poison end of the interval locates no piece, so the projected
+/// image's box is poison.** The `Net` carrier is the sharp case: its
+/// box is built from knot values alone, so a poison end that located
+/// the first piece read a certified box of that piece for a window
+/// nobody asked about. At the interval scalar a NaI end now answers a
+/// box with nothing certified in it.
+#[test]
+fn a_projected_net_image_boxes_a_nai_end_as_poison() {
+    let lift = |x: f64| Interval::from_f64(x);
+    let carrier = Curve3::Nurbs(std::sync::Arc::new(
+        geom::NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
+            vec![
+                Point3::new(lift(0.1), lift(-0.2), lift(0.0)),
+                Point3::new(lift(0.7), lift(0.9), lift(0.0)),
+                Point3::new(lift(1.3), lift(0.2), lift(0.0)),
+                Point3::new(lift(1.6), lift(0.8), lift(0.0)),
+            ],
+            vec![1.0, 0.6, 1.0, 1.0],
+        )
+        .unwrap(),
+    ));
+    let plane = Surface::Plane {
+        origin: Point3::new(lift(0.05), lift(0.1), lift(0.0)),
+        normal: Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
+        u_ref: Vec3::new(lift(1.0), lift(0.0), lift(0.0)),
+    };
+    let image = chart_pcurve(&carrier, &plane, band()).unwrap();
+    assert!(matches!(image, Pcurve::Projected(_)), "the fixture is a projected net: {image:?}");
+    let certified = |b: geom_brep::ChartWindow<Interval>| {
+        [b.u_min, b.u_max, b.v_min, b.v_max]
+            .iter()
+            .all(|x| x.is_certified())
+    };
+    let ok = image.chart_box(lift(0.0), lift(1.0));
+    assert!(certified(ok), "CONTROL: the whole interval boxes: {ok:?}");
+    let nai = lift(f64::NAN);
+    for (name, b) in [
+        ("NaI start", image.chart_box(nai, lift(1.0))),
+        ("NaI end", image.chart_box(lift(0.0), nai)),
+    ] {
+        assert!(
+            [b.u_min, b.u_max, b.v_min, b.v_max].iter().all(|x| x.is_poison()),
+            "{name}: {b:?}"
+        );
+    }
 }

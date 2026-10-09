@@ -77,7 +77,7 @@ use geom_core::interval::max_bound;
 use geom_core::{Interval, Point3, SizedPass, SupSpeed, Vec3};
 
 use super::SsiError;
-use super::enclose::{Box3, NurbsBoxes, implicit_enclosure};
+use super::enclose::{Box3, NurbsBoxes, implicit_enclosure, ordered_window, refused_box};
 use crate::recourse::{Reading, RefusedArm, SizedDecision, StoredDefinite, defect_ending};
 
 /// The refinement floor, as a multiple of ε: a cell narrower than this
@@ -1197,7 +1197,8 @@ fn sweep_chart_plane(
 ) -> Result<(SweepTally, Vec<(f64, f64)>), SsiError> {
     let boxes = NurbsBoxes::new(surface);
     sweep(floor, duty, |cell| {
-        let b = boxes.rect_box(cell.u.0, cell.u.1, cell.v.0, cell.v.1);
+        let b = ordered_window(cell.u.0, cell.u.1, cell.v.0, cell.v.1)
+            .map_or_else(refused_box, |(u, v)| boxes.rect_box(u, v));
         let phi = Interval::point(plane_normal.x) * (b.x - Interval::point(plane_origin.x))
             + Interval::point(plane_normal.y) * (b.y - Interval::point(plane_origin.y))
             + Interval::point(plane_normal.z) * (b.z - Interval::point(plane_origin.z));

@@ -439,11 +439,15 @@ fn rotate_box<T: Real>(m: i32, x: (T, T), y: (T, T)) -> ((T, T), (T, T)) {
 /// (de Boor's recursion with the arguments taken in turn). Each control
 /// is a convex combination of the span's, so the weights stay positive.
 /// The recursion's ratios are formed in the scalar, so at an enclosure
-/// scalar the controls enclose the true restriction's.
+/// scalar the controls enclose the true restriction's. A NaN midpoint
+/// names no span, and every control is poison.
 pub(crate) fn piece_controls<T: Real>(net: &NurbsCurve3<T>, a: f64, b: f64) -> Vec<(Vec3<T>, T)> {
     let kv = net.knots();
     let p = kv.degree();
-    let span = kv.span_at(0.5 * (a + b));
+    let Some(span) = kv.span_at(0.5 * (a + b)) else {
+        let nan = T::from_f64(f64::NAN);
+        return vec![(Vec3::new(nan, nan, nan), nan); p + 1];
+    };
     let j = span.index();
     let knots = kv.knots();
     let base: Vec<(Vec3<T>, T)> = span
@@ -479,25 +483,29 @@ impl<T: SpanLocate> ProjectedImage<T> {
     /// [`Pcurve::eval`]'s arm.
     pub(super) fn eval(&self, t: T) -> Point2<T> {
         let p = self.carrier.eval(t);
-        let set = self.carrier.piece_param(t).locate_spans(&self.breaks);
-        let mut acc: Option<Point2<T>> = None;
-        for span in set.first.index()..=set.last.index() {
+        let s = self.carrier.piece_param(t);
+        // A poison parameter locates no piece: the point is poison in
+        // every channel `s` carries.
+        let Some(set) = s.locate_spans(&self.breaks) else {
+            let poison = s * T::from_f64(f64::NAN);
+            return Point2::new(poison, poison);
+        };
+        let mut acc = self.raw(p, set.first.index() - 1);
+        for span in set.first.index() + 1..=set.last.index() {
             let raw = self.raw(p, span - 1);
-            acc = Some(match acc {
-                None => raw,
-                Some(q) => Point2::new(q.x.enclosure_hull(raw.x), q.y.enclosure_hull(raw.y)),
-            });
+            acc = Point2::new(acc.x.enclosure_hull(raw.x), acc.y.enclosure_hull(raw.y));
         }
-        self.place(acc.unwrap_or_else(|| self.raw(p, 0)))
+        self.place(acc)
     }
 
-    /// The pieces `[t0, t1]` overlaps.
-    pub(crate) fn overlapped(&self, t0: T, t1: T) -> core::ops::RangeInclusive<usize> {
-        let a = self.carrier.piece_param(t0).locate_spans(&self.breaks);
-        let b = self.carrier.piece_param(t1).locate_spans(&self.breaks);
+    /// The pieces `[t0, t1]` overlaps, `lo ≤ hi`, or `None` when an
+    /// end is poison and so locates no piece.
+    pub(crate) fn overlapped(&self, t0: T, t1: T) -> Option<(usize, usize)> {
+        let a = self.carrier.piece_param(t0).locate_spans(&self.breaks)?;
+        let b = self.carrier.piece_param(t1).locate_spans(&self.breaks)?;
         let lo = a.first.index().min(b.first.index()) - 1;
         let hi = a.last.index().max(b.last.index()) - 1;
-        lo..=hi
+        Some((lo, hi))
     }
 
     /// Piece `k`'s chart-frame box, its end pieces stretched to `t0`
@@ -642,34 +650,44 @@ impl<T: SpanLocate> ProjectedImage<T> {
         }
     }
 
-    /// The hull of `windows`, placed by the deck map; an empty list
-    /// answers an inverted window.
-    fn placed_hull(&self, windows: impl Iterator<Item = ChartWindow<T>>) -> ChartWindow<T> {
-        let w = windows
-            .reduce(|o, w| ChartWindow {
-                u_min: o.u_min.min(w.u_min),
-                u_max: o.u_max.max(w.u_max),
-                v_min: o.v_min.min(w.v_min),
-                v_max: o.v_max.max(w.v_max),
-            })
-            .unwrap_or(ChartWindow {
-                u_min: T::one(),
-                u_max: -T::one(),
-                v_min: T::one(),
-                v_max: -T::one(),
-            });
+    /// The hull of `first` and `rest`, placed by the deck map.
+    fn placed_hull(
+        &self,
+        first: ChartWindow<T>,
+        rest: impl Iterator<Item = ChartWindow<T>>,
+    ) -> ChartWindow<T> {
+        let w = rest.fold(first, |o, w| ChartWindow {
+            u_min: o.u_min.min(w.u_min),
+            u_max: o.u_max.max(w.u_max),
+            v_min: o.v_min.min(w.v_min),
+            v_max: o.v_max.max(w.v_max),
+        });
         self.place_box(w)
+    }
+
+    /// The window a poison read answers: `seed` times NaN in every
+    /// bound, so poison in every channel `seed` carries.
+    fn poison_window(seed: T) -> ChartWindow<T> {
+        let poison = seed * T::from_f64(f64::NAN);
+        ChartWindow {
+            u_min: poison,
+            u_max: poison,
+            v_min: poison,
+            v_max: poison,
+        }
     }
 
     /// [`Pcurve::chart_box`]'s arm: per overlapped piece, the channel
     /// ranges over that piece's box, hulled. Restriction-monotone: a
     /// sub-span overlaps a subset of the pieces, and an end piece is
-    /// stretched only to an end it does not already contain.
+    /// stretched only to an end it does not already contain. A poison
+    /// end locates no piece, and the box is poison.
     pub(super) fn chart_box(&self, t0: T, t1: T) -> ChartWindow<T> {
-        self.placed_hull(
-            self.overlapped(t0, t1)
-                .map(|k| self.window(k, &self.frame_box(k, t0, t1))),
-        )
+        let Some((lo, hi)) = self.overlapped(t0, t1) else {
+            return Self::poison_window(t0 + t1);
+        };
+        let piece = |k| self.window(k, &self.frame_box(k, t0, t1));
+        self.placed_hull(piece(lo), (lo + 1..=hi).map(piece))
     }
 
     /// The channel ranges over `[t0, t1]` read on a cover finer than the
@@ -709,18 +727,26 @@ impl<T: SpanLocate> ProjectedImage<T> {
         }
         fine.dedup();
         let fine = breaks_vector(&fine);
-        let (lo, hi) = (
+        let (Some(lo), Some(hi)) = (
             self.carrier.piece_param(t0).locate_spans(&fine),
             self.carrier.piece_param(t1).locate_spans(&fine),
-        );
+        ) else {
+            return Self::poison_window(t0 + t1);
+        };
         let first = lo.first.index().min(hi.first.index()) - 1;
         let last = lo.last.index().max(hi.last.index()) - 1;
         let cuts = fine.knots();
-        self.placed_hull((first..=last).map(|j| {
+        let part = |j: usize| {
             let (a, b) = (cuts[j + 1], cuts[j + 2]);
-            let k = self.breaks.span_at(0.5 * (a + b)).index() - 1;
+            // The cuts are finite, so a NaN midpoint is a malformed
+            // partition; its part reads as poison.
+            let Some(span) = self.breaks.span_at(0.5 * (a + b)) else {
+                return Self::poison_window(t0 + t1);
+            };
+            let k = span.index() - 1;
             self.window(k, &self.frame_box_on(k, a, b, t0, t1))
-        }))
+        };
+        self.placed_hull(part(first), (first + 1..=last).map(part))
     }
 }
 
@@ -1338,8 +1364,12 @@ pub(super) fn net_incidence<T: Decide>(
     let mirrored: Vec<f64> = bounds.iter().rev().map(|&x| -x).collect();
     let n = hull.spans.len();
     let (parts, mirrored) = (breaks_vector(&bounds), breaks_vector(&mirrored));
-    let lower = t0.locate_spans(&parts);
-    let upper = (T::zero() - t1).locate_spans(&mirrored);
+    let (Some(lower), Some(upper)) = (
+        t0.locate_spans(&parts),
+        (T::zero() - t1).locate_spans(&mirrored),
+    ) else {
+        return Err(refuse("an end of the window is poison and meets no part"));
+    };
     let window = (lower.first.index() - 1).min(n - upper.last.index())
         ..=(lower.last.index() - 1).max(n - upper.first.index());
     for (j, span) in hull.spans.iter().enumerate() {
@@ -1542,7 +1572,10 @@ pub(super) fn projected_envelope<T: Decide>(
             },
         )
     };
-    let met: Vec<usize> = image.overlapped(t0, t1).collect();
+    let Some((lo, hi)) = image.overlapped(t0, t1) else {
+        return Err(refuse("an end of the interval is poison and meets no piece"));
+    };
+    let met: Vec<usize> = (lo..=hi).collect();
     // ---- Incidence, raw fidelity and the radial floor. ----
     let (incidence, d, rho_floor) = match (&image.carrier, carrier) {
         (FramedCarrier::Net(net), Curve3::Nurbs(c)) => {
@@ -1765,7 +1798,10 @@ pub(super) fn run_projected_checks<T: Decide>(
                 let kv = net.knots();
                 for k in 0..pieces {
                     let (a, z) = (b[k + 1], b[k + 2]);
-                    let j = kv.span_at(0.5 * (a + z)).index();
+                    let Some(span) = kv.span_at(0.5 * (a + z)) else {
+                        return Err(refuse("a piece of the image has a NaN break"));
+                    };
+                    let j = span.index();
                     if a < kv.knots()[j] || z > kv.knots()[j + 1] {
                         return Err(refuse("a piece of the image straddles a knot of the net"));
                     }

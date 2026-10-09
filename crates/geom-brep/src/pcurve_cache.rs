@@ -595,7 +595,12 @@ fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector) -> T {
     // own `sin_cos` (the same door every harmonic pcurve uses).
     let (s_q, c_q) = (h * T::from_f64(0.25)).sin_cos();
     let tan_q = s_q / c_q;
-    let set = ((t - t0) / angle).locate_spans(breaks);
+    let x = (t - t0) / angle;
+    // A poison parameter locates no span; `g` is poison in every
+    // channel `x` carries.
+    let Some(set) = x.locate_spans(breaks) else {
+        return x * T::from_f64(f64::NAN);
+    };
     let degree = breaks.degree();
     let mut acc: Option<T> = None;
     for span in set.first.index()..=set.last.index() {

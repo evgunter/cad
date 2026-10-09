@@ -499,7 +499,7 @@ fn dual_kink_convention_at_knot_follows_the_tie_break() {
 #[test]
 fn a_poison_parameter_evaluates_to_poison_in_every_channel() {
     let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
-    let ctrl64 = vec![
+    let ctrl64 = [
         Point3::new(0.0, 0.0, 0.0),
         Point3::new(1.0, 2.0, 0.0),
         Point3::new(2.0, 0.0, 0.0),
