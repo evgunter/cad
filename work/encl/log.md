@@ -1364,3 +1364,4 @@ coincidence is now a margined verdict (no declarations), checked by the
 - 2026-10-09 — PR 4401 (dihedral arm one clause) merged at `c3be784594`; row closed.
 - 2026-10-09 — PR 4401 merged; sync 4408. Dispatched P3 `must-carry-reads-an-out-of-lane-in-band-seam-as-under-determined` on `encl/must-carry-out-of-lane-in-band`, taking the non-design repair: the rule escalates `InBand` out of lane.
 - 2026-10-09 — PR 4395 (MintLimb) merged at `67c756d147`; row closed.
+- 2026-10-09 — PR 4395 merged; sync 4409. Dispatched P3 `recourse-table-has-no-lever-only-ending` (`encl/recourse-lever-only`) beside the must-carry lane.
