@@ -2,12 +2,13 @@
 id: a-near-tangent-split-leaves-a-face-corner-that-runs-within-the-band
 kind: issue
 title: A near-tangent boolean leaves a face whose corner at the pierce point is 1e-8 to 1.6e-7 rad wide, so its two edges lie within the band for 0.06 to 1.0 from it; only the census's arithmetic keeps it from passing
-status: open
+status: closed
 opened: 2026-10-08
 priority: P0
 cost: H
-design: true
 refs: [near-tangent-boolean-results-ship-with-an-escalated-tier-3-census]
+closed: 2026-10-09
+branch: join/door-types-in-band-results
 ---
 
 ## What
@@ -64,3 +65,42 @@ builds it:
 The answer governs this row, the two-copies row and the sliver lump
 (`a-near-tangent-intersections-sliver-lump-reads-its-role-in-band-and-refuses`)
 together.
+
+## Measured (door-typing unit, branch `join/door-types-in-band-results`)
+
+Under the ratified census clause (`docs/DESIGN.md`, tier 3′), two cells
+sharing a point are read by one number: their largest distance over the
+shorter cell. For straight edges that is the shorter edge's far-end gap.
+`scripts/oracles/near_tangent_census_classify.py` now prints that gap at
+60 digits for every escalated pair that shares a point, and tallies it
+zero, in band or definite.
+
+The run was `NT_DUMP=1 near_tangent_census_probe` on main `8e3edbe5`,
+ε = 1e-9:
+
+| tilts | `b-arith/sliver` pairs | gap definite | in band | zero |
+|---|---|---|---|---|
+| ±1e-5 … ±1e-9 | 305 | 305 | 0 | 0 |
+| ±3e-7, ±3e-8, ±3e-9 | 174 | 174 | 0 | 0 |
+
+- **479 pairs, every one legal.** The row's count was 478, on an older
+  main. The smallest gap is 2.010e-8, about 2 Kε. 438 of the pairs share
+  one vertex (422 on one face) and 41 share a point across two vertices.
+- **The other shared-point escalations are legal too.** All 1 063
+  `b-arith` and all 159 `b-proxy` pairs read a definite gap.
+- **Six pairs read a gap in band.** They are the `a` class `ee_parallel`
+  pairs at `w345 nt e2 a6 d−3e-8` and `a14 d3e-8`, with gap 9.552e-9 (a
+  15° corner over an edge 3.69e-8 long). They belong to
+  `a-near-tangent-vertex-lands-within-the-band-of-a-face-and-ships-unrecorded`,
+  the composed pair the door census reads (evidence added there). The
+  split takes no reading there to refuse.
+- **One census predicate is new since the measurement.** The probe now
+  escalates 133 pairs on `ef_cross_side`, which the classifier does not
+  reproduce. These are edge–face pairs, outside this row.
+
+## Closed
+
+Every corner pair this row counted is legal under the lever rule: its
+far-end gap is definite, so the split has nothing to refuse or glue.
+That the census still escalates these pairs is CONTACT's arithmetic
+(`the-census-crossing-lane-misplaces-a-shared-points-crossing-on-a-near-collinear-pair`).

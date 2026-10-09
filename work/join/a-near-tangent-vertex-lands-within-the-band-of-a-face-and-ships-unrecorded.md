@@ -116,3 +116,12 @@ question PR 4335 puts to Ev.
 Repro: patch `classify_in` to `eprintln!` name, sign and margin, then
 `NT_ONLY=w345 NT_POSE="e2 a6 " NT_D=-3e-8 cargo run -p sweep --release --example near_tangent_census_probe`
 (and `CAD_TOLERANCE_EPS=1e-12 NT_ONLY=w60 NT_POSE="e2 a12 " NT_D=1e-11`).
+
+## More evidence (door-typing unit, branch `join/door-types-in-band-results`)
+
+The census clause's one number reads this pose in band at the edge pair
+too. `near_tangent_census_classify.py`'s far-end gap gives six
+`ee_parallel` pairs at `w345 nt e2 a6 d−3e-8` and `a14 d3e-8` (ε = 1e-9).
+Each is two edges sharing the pierce vertex at 15°, the shorter 3.69e-8
+long, with far-end gap 9.552e-9, in band. It is the only shared-point
+pair in the near-tangent probe whose gap is not definite.
