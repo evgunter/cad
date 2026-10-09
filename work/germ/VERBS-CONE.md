@@ -43,7 +43,9 @@ measured consequences bank here rather than in that PR's body:
   simultaneous axial door, not about a section arm.
 - What the flag actually buys today is one door of honesty at the
   PER-CHART door: `replace_face_offset` on a coned tube's cone stops at
-  `ReanchorOffCarrier` (`d·cos α`) instead of `NeighborPairUnroutable`.
+  a corner gap (`d·cos α`, the since-retired `ReanchorOffCarrier`)
+  instead of `NeighborPairUnroutable`; the door now derives that rim
+  as the cone × coaxial cylinder section, and the offset builds.
 
 **The consumer that would make the arm load-bearing** is a caller that
 asks for the cone×cylinder RIM CURVE rather than for the pair's
@@ -105,6 +107,6 @@ closed until U7.
 
 **2026-10-09, U4 lands (PR 4352).** The cone rows ship with the near-axis
 offset taken through `square_to` at every arm (the dual pair's bilateral
-MAJOR, DR-115). The witness is checked against the plane's carrier, and
+MAJOR, DR-116). The witness is checked against the plane's carrier, and
 the search samples down into the band. Still owed before U7: the cone
 sector units U-S1..U-S4 (`docs/GERM-CONE-SECTOR-SPEC.md`).
