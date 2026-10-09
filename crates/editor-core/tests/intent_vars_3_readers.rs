@@ -17,7 +17,7 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use crate::corpus::{body_of, failures};
+use crate::corpus::failures;
 use crate::fixture::resolver::PartStore;
 use crate::fixture::round_trip::{composed, identity, same_up_to_ids};
 use crate::fixture::{desc, insert, len, on_frame, prism_edges, square};
@@ -31,7 +31,6 @@ use editor_core::{
 };
 use geom_core::predicate::{Band, Margin, Sign};
 use geom_core::{ParamSymbol, Real, Sym, SymBudget, SymRules, Tol};
-use topo::{Body, FaceKey};
 
 /// The blend radius, metres (dyadic).
 const R: f64 = 0.125;
@@ -108,18 +107,6 @@ fn eval_after(doc: &ProfileDoc, prev: Option<&Evaluation<f64>>) -> Evaluation<f6
         &EvalOptions::default(),
         Tol::witness(),
     )
-}
-
-/// One cylindrical blend carrier of `body`, in deterministic arena order.
-fn a_cylinder_face(body: &Body<f64>) -> FaceKey {
-    topo::query::all_faces(body)
-        .into_iter()
-        .find(|&f| {
-            body.get_face(f)
-                .and_then(|fd| body.get_surface(fd.surface))
-                .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }))
-        })
-        .expect("a blended cube carries quarter-cylinder blends")
 }
 
 /// The spelling the content key writes for a blend's radius.

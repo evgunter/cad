@@ -8,7 +8,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::corpus::{body_of, failures};
+use crate::corpus::failures;
 use crate::fixture::{axis_in_plane, insert, len, on_frame, on_frame_keeping, prism_edges, square};
 use editor_core::{
     CancelToken, Dimension, DimensionError, Distribution, DistributionRefusal, DocEdit, DocumentId,

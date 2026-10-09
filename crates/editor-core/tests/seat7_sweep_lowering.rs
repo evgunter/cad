@@ -487,7 +487,10 @@ fn the_memo_never_serves_a_sweep_a_stale_spelling() {
     assert!(failures(&ev3).is_empty(), "{:?}", failures(&ev3));
     let ra = cylinder_walls(body_of(&ev3, a))[0].1;
     let rb = cylinder_walls(body_of(&ev3, b))[0].1;
-    assert_eq!(ra, R, "A is the literal {R}; a memo-served A would follow `r`");
+    assert_eq!(
+        ra, R,
+        "A is the literal {R}; a memo-served A would follow `r`"
+    );
     assert_eq!(rb, 2.0 * R, "B is `r`, which moved to {}", 2.0 * R);
 }
 
@@ -627,7 +630,11 @@ fn a_chain_arcs_radius_spelling_moves_the_profiles_key() {
         "the memo-served peg is the peg"
     );
     let walls = cylinder_walls(body_of(&ev2, a));
-    assert_eq!(walls.len(), 1, "the re-spelled chain still has one arc wall");
+    assert_eq!(
+        walls.len(),
+        1,
+        "the re-spelled chain still has one arc wall"
+    );
     assert_eq!(walls[0].1, R, "the literal is the value `r` held");
 }
 

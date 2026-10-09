@@ -28,8 +28,8 @@ use editor_core::ExtrudeSide;
 
 use editor_core::{
     BooleanCoincidence, BooleanOp, BooleanValue, CancelToken, DeclareError, EditError, EvalOptions,
-    FlushRung, Node, NodeStanding, ProfileDoc, RecipeNodeId,
-    SelectRefusal, ValuePayload, declare, declare_all, evaluate, find_flush_candidates,
+    FlushRung, Node, NodeStanding, ProfileDoc, RecipeNodeId, SelectRefusal, ValuePayload, declare,
+    declare_all, evaluate, find_flush_candidates,
 };
 use topo::{PlaneRelation, mass_properties};
 
@@ -194,7 +194,11 @@ fn detect_declare_boolean_round_trip_builds_the_undeclared_body() {
         },
     );
     let ev = eval(&undeclared);
-    let bare = match &ev.value(union).expect("the undeclared union evaluates").payload {
+    let bare = match &ev
+        .value(union)
+        .expect("the undeclared union evaluates")
+        .payload
+    {
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
             let m = mass_properties(body, Tol::witness()).expect("mass properties");
             // 1³ + 0.5² · 0.5 (dyadic, exact).

@@ -1144,11 +1144,7 @@ fn an_undeclared_covered_contact_refuses_in_every_order_and_declared_fuses_where
 #[test]
 fn a_contact_b_covers_refuses_undeclared_and_is_satisfied_declared_where_b_consumed_the_face() {
     let undeclared = outcomes(&[A, B, H], &[0, 1, 2], None);
-    assert_eq!(
-        orders_that(&undeclared, "fuse").len(),
-        6,
-        "{undeclared:?}"
-    );
+    assert_eq!(orders_that(&undeclared, "fuse").len(), 6, "{undeclared:?}");
     let declared = outcomes(&[A, B, H], &[0, 1, 2], Some(2));
     assert_eq!(
         declared,

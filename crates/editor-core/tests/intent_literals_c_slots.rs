@@ -12,7 +12,7 @@
 
 use std::collections::BTreeSet;
 
-use crate::corpus::{body_of, failures};
+use crate::corpus::failures;
 use crate::fixture::{insert, len, on_frame, prism_edges, square};
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::persist::SnapshotError;
@@ -23,7 +23,6 @@ use editor_core::{
     VarName, apply, evaluate, load, save, split,
 };
 use geom_core::Tol;
-use topo::{Body, FaceKey};
 
 /// The blend radius, millimetres (dyadic in metres).
 const R_MM: f64 = 125.0;

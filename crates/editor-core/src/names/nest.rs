@@ -2332,7 +2332,8 @@ pub(super) mod tests {
                 }],
             );
             let folded = wrapped(member.clone(), DEEP, 9, RoleSeg::FromA);
-            let collapsed = super::super::emit_union::collapse_name(union, &folded).expect("it collapses");
+            let collapsed =
+                super::super::emit_union::collapse_name(union, &folded).expect("it collapses");
             assert_eq!(collapsed, member, "the descent is flattened to its foot");
         });
     }
@@ -2409,8 +2410,9 @@ pub(super) mod tests {
                     .collect(),
             )],
         );
-        let (collapsed, asked, levels) =
-            counted(|| super::super::emit_union::collapse_name(union, &merged).expect("it collapses"));
+        let (collapsed, asked, levels) = counted(|| {
+            super::super::emit_union::collapse_name(union, &merged).expect("it collapses")
+        });
         assert_eq!(
             collapsed, merged,
             "a merged face of member faces collapses to itself"

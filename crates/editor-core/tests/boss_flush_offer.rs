@@ -76,7 +76,11 @@ fn the_flush_boss_unions_declared_or_not() {
         (ev, union)
     };
     let (undeclared, union) = union_of(Vec::new());
-    let volume = match &undeclared.value(union).expect("the union evaluated").payload {
+    let volume = match &undeclared
+        .value(union)
+        .expect("the union evaluated")
+        .payload
+    {
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
             topo::mass_properties(body, Tol::witness())
                 .expect("the union measures")
@@ -94,8 +98,9 @@ fn the_flush_boss_unions_declared_or_not() {
     assert!(
         classes.contains(&BooleanCoincidence::Continuation)
             && classes.contains(&BooleanCoincidence::REST)
-            && classes.iter().all(|c| [BooleanCoincidence::Continuation, BooleanCoincidence::REST]
-                .contains(c)),
+            && classes
+                .iter()
+                .all(|c| [BooleanCoincidence::Continuation, BooleanCoincidence::REST].contains(c)),
         "the detector finds the flush walls and the resting caps: {classes:?}"
     );
     let (declared, union) = union_of(found);

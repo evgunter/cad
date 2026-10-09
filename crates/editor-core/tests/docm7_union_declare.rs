@@ -952,10 +952,7 @@ fn set_declare_on_a_live_union_edits_it_in_place() {
     assert!(!pairs.is_empty(), "the flush placements have findings");
     let applied = doc
         .apply(
-            &DocEdit::SetDeclare {
-                node: union,
-                pairs,
-            },
+            &DocEdit::SetDeclare { node: union, pairs },
             Tol::witness(),
             &editor_core::RefusingReach,
         )

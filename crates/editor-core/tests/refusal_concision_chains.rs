@@ -3444,16 +3444,12 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
     use editor_core::clearance::ClearanceRefusal;
     use editor_core::{
         BifurcationKind, BranchMarginEvidence, DirectionRefusal, EntityKind, FaceName, Implicated,
-        InterrogateError, MeasureNodeFault, PartFault, SitedRef, WitnessAge, WitnessBifurcation,
+        InterrogateError, MeasureNodeFault, PartFault, WitnessAge, WitnessBifurcation,
     };
     use geom_core::UnitVec3Error;
     use payloads::*;
     use topo::{EntityId, FaceKey, ReadbackError};
     let face = || stable(EntityKind::Face, 3);
-    let sited = |node| SitedRef {
-        at: RecipeNodeId::new(0, tagged(node)),
-        name: stable(EntityKind::Face, node),
-    };
     let mut rows = vec![
         row(
             "UnionFoldStep",

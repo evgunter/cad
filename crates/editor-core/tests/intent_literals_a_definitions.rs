@@ -29,7 +29,6 @@ use editor_core::{
 };
 use geom_core::predicate::{Band, Margin, Sign};
 use geom_core::{Bounds, Interval, Real, Sym, SymBudget, SymRules, Tol};
-use topo::{Body, FaceKey};
 
 /// The input's value, metres (dyadic, so `2·w` and `w + w` agree to
 /// the bit).
@@ -921,7 +920,10 @@ fn a_nested_definition_lowers_as_its_whole_expansion() {
     let (doc, by_formula) = filleted(doc, 4.0, times(2, "w"));
     let ev = eval_after(&doc, None);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
-    assert_eq!(radius_spelling(&doc, by_g), radius_spelling(&doc, by_formula));
+    assert_eq!(
+        radius_spelling(&doc, by_g),
+        radius_spelling(&doc, by_formula)
+    );
 }
 
 /// A variable declared BEFORE the chain it is redefined to read is
