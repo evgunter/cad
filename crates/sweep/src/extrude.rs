@@ -407,9 +407,10 @@ pub enum ExtrudeError {
     /// The dihedral classification at a profile-corner join escalated:
     /// a sliver dihedral, certifiable as neither a corner nor a smooth
     /// join (D2's ratified text — a conventional description is not an
-    /// escape hatch from ill-conditioned geometry); or, on a join read
-    /// smooth, the must-carry rule's second-order bend did, certifiable
-    /// as neither description.
+    /// escape hatch from ill-conditioned geometry). A join whose witness
+    /// read smooth lands here too when a must-carry station escalates:
+    /// its first-order arm or wedge, or its second-order bend
+    /// (its `reading`).
     SliverJoin {
         /// Canonical index of the loop.
         loop_index: usize,
@@ -421,9 +422,10 @@ pub enum ExtrudeError {
         source: Indeterminate,
     },
     /// The dihedral classification at a cap–wall rim edge escalated
-    /// during the rim upgrade pass (module docs, step 6), or the
-    /// must-carry rule's reading did on a rim it read smooth — the
-    /// rim's counterpart of [`ExtrudeError::SliverJoin`].
+    /// during the rim upgrade pass (module docs, step 6), or, on a rim
+    /// whose witness read smooth, a must-carry station's first-order arm
+    /// or wedge or its second-order bend did — the rim's counterpart of
+    /// [`ExtrudeError::SliverJoin`].
     ///
     /// Reachable from admitted inputs: the direction gates admit a tilt
     /// of up to `1/K` against a rim the profile door floors at `K·ε`,
@@ -1255,7 +1257,7 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                 // reading chose.
                 let refused = |refusal| match refusal {
                     geom_brep::MustCarryRefusal::InBand(escalation) => {
-                        let (reading, source) = crate::swept::must_carry_reading(escalation);
+                        let (reading, source) = DihedralReading::of_must_carry(escalation);
                         ExtrudeError::SliverJoin {
                             loop_index,
                             vertex_index: segs[j].chord.canonical_vertex,
@@ -1344,11 +1346,12 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                 }
             }
             Err(escalation) => {
+                let (reading, source) = DihedralReading::of_lever(escalation);
                 return Err(ExtrudeError::SliverJoin {
                     loop_index,
                     vertex_index: segs[j].chord.canonical_vertex,
-                    reading: DihedralReading::Lever(escalation.rung()),
-                    source: escalation.diag(),
+                    reading,
+                    source,
                 });
             }
         }
@@ -1641,7 +1644,7 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
         Ok(DihedralClass::Smooth) => {
             let refused = |refusal| match refusal {
                 geom_brep::MustCarryRefusal::InBand(escalation) => {
-                    let (reading, source) = crate::swept::must_carry_reading(escalation);
+                    let (reading, source) = DihedralReading::of_must_carry(escalation);
                     ExtrudeError::SliverRim {
                         loop_index,
                         segment_index,
@@ -1670,12 +1673,15 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
             }
             Ok(())
         }
-        Err(escalation) => Err(ExtrudeError::SliverRim {
-            loop_index,
-            segment_index,
-            reading: DihedralReading::Lever(escalation.rung()),
-            source: escalation.diag(),
-        }),
+        Err(escalation) => {
+            let (reading, source) = DihedralReading::of_lever(escalation);
+            Err(ExtrudeError::SliverRim {
+                loop_index,
+                segment_index,
+                reading,
+                source,
+            })
+        }
     }
 }
 
@@ -1694,7 +1700,7 @@ mod tests {
     fn a_must_carry_escalation_ends_by_the_reading_that_raised_it() {
         use crate::swept::must_carry_fixtures::{arm, second_order, wedge};
         for (escalation, bend) in [(arm(), false), (wedge(), false), (second_order(), true)] {
-            let (reading, source) = crate::swept::must_carry_reading(escalation);
+            let (reading, source) = DihedralReading::of_must_carry(escalation);
             for text in [
                 ExtrudeError::SliverJoin {
                     loop_index: 0,
@@ -1712,7 +1718,7 @@ mod tests {
                 .to_string(),
             ] {
                 assert_eq!(
-                    text.contains("is definitely smooth, but whether its faces curve apart"),
+                    text.contains("curve apart there or share their curvature is undecided: "),
                     bend,
                     "{escalation:?}: {text}"
                 );

@@ -44,3 +44,18 @@ classification and the must-carry rule's first-order stations, and `Bend` for
 the second-order one. The rung now reaches `Display`
 (`sweep::swept::sliver_text`), which still words both rungs as the wedge's
 sliver: the repair is that function's `Lever(LeverRung::Arm)` arm.
+
+**One reading for two decisions (review of PR 4450).** At the extrude and
+revolve must-carry first-order stations (arm or wedge after a witness that
+read smooth) the generic `Indeterminate` `Display` the sliver sentence ends
+in offers "tighten the tolerance below …", which is false there: a smaller
+ε reads the wedge `Transverse` and the edge refuses `SmoothJoinRefuted`. At
+the witness classification the same offer is true (either class builds).
+`DihedralReading::Lever(rung)` cannot tell the two sites apart, so one
+reading names two decisions with different pass sets. The type-level fix
+is a closed decision per reading at each site, as `sweep::blend` has
+(`BlendDecision::ContactArm`/`ContactWedge`/`ContactSecondOrder`).
+Optional companion: a closed bit on `geom_brep::LeverEscalation` saying
+whether its margin is the arm's own or the re-quoted wedge's (`at_wedge`)
+would let `ContactArm` offer the tolerance truthfully where the arm's own
+margin binds.

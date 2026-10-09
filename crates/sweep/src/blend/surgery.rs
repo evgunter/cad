@@ -5224,10 +5224,10 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         // choose.
         let refused = |refusal| match refusal {
             MustCarryRefusal::InBand(escalation) => {
-                let (decision, source) = BlendDecision::of_contact(escalation);
+                let (reading, source) = topo::DihedralReading::of_must_carry(escalation);
                 BlendError::Escalated {
                     site: BlendSite::Link { edge: link },
-                    decision,
+                    decision: BlendDecision::of_contact(reading),
                     source,
                 }
             }

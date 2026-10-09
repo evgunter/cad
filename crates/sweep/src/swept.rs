@@ -1,8 +1,8 @@
 //! The lowering every profile sweep shares: the swept-traversal record
 //! and the builder that fills it, the carrier class of one swept
 //! segment, the sketch-level quantities derived from it (apex, span,
-//! turn-signed axis), the arc material-side rule, the reading a smooth
-//! join's must-carry escalation names, the edge spec a
+//! turn-signed axis), the arc material-side rule, a sliver join's
+//! sentence, the edge spec a
 //! placed segment mints, the cap-plane point list, the cosurface
 //! decision, and the two crate-wide accessors (the classification
 //! funnel, a face's surface key).
@@ -47,8 +47,7 @@
 
 use geom::{Curve3, Surface};
 use geom_brep::{
-    EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MustCarryEscalation, NewellError,
-    SketchSegment, newell_plane,
+    EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, NewellError, SketchSegment, newell_plane,
 };
 use geom_core::{
     Affine3, Arc2, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
@@ -133,24 +132,10 @@ pub(crate) fn centre_on_material_side(canonical_turn: Sign) -> bool {
     !turn_negates(canonical_turn)
 }
 
-/// The reading of a smooth join that a must-carry station escalated, and
-/// its diagnostics: the first-order dihedral at the rung that raised
-/// it, or the second-order bend. Both verbs refuse a sliver join or rim
-/// through it, so neither tells the two apart by predicate name.
-pub(crate) fn must_carry_reading(
-    escalation: MustCarryEscalation,
-) -> (DihedralReading, Indeterminate) {
-    match escalation {
-        MustCarryEscalation::FirstOrder(lever) => {
-            (DihedralReading::Lever(lever.rung()), lever.diag())
-        }
-        MustCarryEscalation::SecondOrder(diag) => (DihedralReading::Bend, diag),
-    }
-}
-
 /// A sliver join's or rim's sentence, `what` naming the edge: a
-/// first-order reading could call it neither a corner nor smooth, a
-/// second-order one could not call how its smooth faces bend.
+/// first-order reading could call it neither a corner nor smooth; a
+/// second-order one leaves undecided whether its smooth faces bend apart,
+/// in the coincidence levers its payload's own sentence ends in.
 pub(crate) fn sliver_text(
     f: &mut core::fmt::Formatter<'_>,
     what: &str,
@@ -164,8 +149,13 @@ pub(crate) fn sliver_text(
         ),
         DihedralReading::Bend => write!(
             f,
-            "{what} is definitely smooth, but whether its faces curve apart there or share \
-             their curvature is too close to call: {source}"
+            "{}",
+            source.undecided(
+                format_args!(
+                    "whether the faces at {what} curve apart there or share their curvature"
+                ),
+                source.ending(geom_core::COINCIDENCE_RECOURSE),
+            )
         ),
     }
 }
@@ -1386,7 +1376,7 @@ mod tests {
             (second_order(), DihedralReading::Bend),
         ] {
             assert_eq!(
-                must_carry_reading(escalation),
+                DihedralReading::of_must_carry(escalation),
                 (want, escalation.diag()),
                 "{escalation:?}"
             );

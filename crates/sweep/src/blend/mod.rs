@@ -147,12 +147,12 @@ pub mod surgery;
 
 use core::fmt;
 
+use geom_brep::LeverRung;
 use geom_brep::recourse::{
     Classified, LeverOnly, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
 };
-use geom_brep::{LeverRung, MustCarryEscalation};
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, MarginDiag, MarginKind, Sign};
-use topo::{EdgeKey, EntityId, FaceKey, VertexKey};
+use topo::{DihedralReading, EdgeKey, EntityId, FaceKey, VertexKey};
 
 pub use arms::{BlendArm, CornerBall, EdgeBlend, RimBlend};
 pub use battery::{
@@ -328,19 +328,14 @@ impl BlendDecision {
         Self::MitreSection,
     ];
 
-    /// The contact-edge decision a must-carry escalation raised, and the
-    /// deciding station's diagnostics: the first-order arm or wedge by
-    /// rung, or the second-order separation.
-    pub(crate) fn of_contact(escalation: MustCarryEscalation) -> (Self, Indeterminate) {
-        match escalation {
-            MustCarryEscalation::FirstOrder(lever) => {
-                let decision = match lever.rung() {
-                    LeverRung::Arm => Self::ContactArm,
-                    LeverRung::Reading => Self::ContactWedge,
-                };
-                (decision, lever.diag())
-            }
-            MustCarryEscalation::SecondOrder(diag) => (Self::ContactSecondOrder, diag),
+    /// The contact-edge decision the reading a must-carry station
+    /// escalated asks ([`topo::DihedralReading::of_must_carry`]): the
+    /// first-order arm or wedge by rung, or the second-order separation.
+    pub(crate) const fn of_contact(reading: DihedralReading) -> Self {
+        match reading {
+            DihedralReading::Lever(LeverRung::Arm) => Self::ContactArm,
+            DihedralReading::Lever(LeverRung::Reading) => Self::ContactWedge,
+            DihedralReading::Bend => Self::ContactSecondOrder,
         }
     }
 
@@ -473,11 +468,13 @@ impl BlendDecision {
             | Self::CapTransverse
             | Self::TurnIsosceles
             | Self::MitreSection => None,
-            // A tolerance that decides the arm decides the wedge it
-            // meters too (`geom_brep`'s `at_wedge`), transverse unless
-            // the wedge reads zero there, and the surgery refuses a
-            // transverse contact edge; the escalation does not say
-            // which way its wedge reads.
+            // `geom_brep::DIHEDRAL_ARM`'s offer is withheld: a tolerance
+            // that decides the arm decides the wedge it meters too
+            // (`geom_brep`'s `at_wedge`), transverse unless the wedge
+            // reads zero there, and the surgery refuses a transverse
+            // contact edge. The escalation does not say whether its
+            // margin is the arm's own or that wedge's, so the offer
+            // would be false wherever the wedge reads nonzero.
             Self::ContactArm => None,
         }
     }
@@ -2061,7 +2058,8 @@ mod recourse_tests {
             (wedge(), BlendDecision::ContactWedge, false),
             (second_order(), BlendDecision::ContactSecondOrder, true),
         ] {
-            let (decision, source) = BlendDecision::of_contact(escalation);
+            let (reading, source) = topo::DihedralReading::of_must_carry(escalation);
+            let decision = BlendDecision::of_contact(reading);
             assert_eq!(
                 (decision, source),
                 (want, escalation.diag()),

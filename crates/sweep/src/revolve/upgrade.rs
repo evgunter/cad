@@ -149,7 +149,7 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
             // description neither reading chose.
             let refused = |refusal| match refusal {
                 MustCarryRefusal::InBand(escalation) => {
-                    let (reading, source) = crate::swept::must_carry_reading(escalation);
+                    let (reading, source) = DihedralReading::of_must_carry(escalation);
                     sliver(reading, source)
                 }
                 MustCarryRefusal::Refuted => RevolveError::SmoothJoinRefuted { edge },
@@ -191,10 +191,10 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
             }
             Ok(())
         }
-        Err(escalation) => Err(sliver(
-            DihedralReading::Lever(escalation.rung()),
-            escalation.diag(),
-        )),
+        Err(escalation) => {
+            let (reading, source) = DihedralReading::of_lever(escalation);
+            Err(sliver(reading, source))
+        }
     }
 }
 
