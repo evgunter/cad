@@ -1515,7 +1515,7 @@ fn read_containment<V>(
 ) -> Option<V> {
     match read {
         Ok(v) => Some(v),
-        Err(ContainError::Escalated(cause)) => {
+        Err(ContainError::Escalated { diag: cause, .. }) => {
             errors.push(ValidationError::CensusEscalated { cause });
             None
         }
@@ -3499,8 +3499,10 @@ pub(crate) enum Undecided {
     /// Arm 2: the contained instance has no vertex.
     NoVertex,
     /// Arm 2: the point-in-solid door could not place a vertex near
-    /// the boundary (escalated, or its loop walk escalated).
-    WitnessTooClose,
+    /// the boundary: its planar loop walk escalated on the decision
+    /// carried, or (`None`) the door escalated on a row of its own, which
+    /// it does not name.
+    WitnessTooClose(Option<crate::splitting::LoopDecision>),
     /// Arm 2: no ray the point-in-solid door cast settled — each grazed
     /// or gave nothing to read — for a vertex its pre-pass placed off the
     /// boundary.
@@ -3518,6 +3520,36 @@ pub(crate) enum Undecided {
     /// Arm 2: a flat face of an instance the door could not read in
     /// its own plane.
     OffPlane,
+}
+
+/// [`Undecided::WitnessTooClose`]'s sentence, for every decision the
+/// loop walk carries and for none: the walk's question about the corner
+/// tested (the point its subject names), and its lever, both read from
+/// [`crate::boolean::placement_subject`] and
+/// [`crate::boolean::placement_lever`]. The margin that would value a
+/// tighter tolerance stops here: `what` is a `&'static str`, so each
+/// sentence is built once and kept.
+fn witness_too_close(decision: Option<crate::splitting::LoopDecision>) -> &'static str {
+    type Sentences = Vec<(Option<crate::splitting::LoopDecision>, String)>;
+    static SENTENCES: std::sync::LazyLock<Sentences> = std::sync::LazyLock::new(|| {
+        core::iter::once(None)
+            .chain(crate::splitting::LoopDecision::ALL.map(Some))
+            .map(|decision| {
+                let carried = decision.map(Into::into);
+                let sentence = format!(
+                    "testing a corner of one against the other, {} is undecided at this \
+                     tolerance. Recourse: {}",
+                    crate::boolean::placement_subject(carried),
+                    crate::boolean::placement_lever(carried)
+                );
+                (decision, sentence)
+            })
+            .collect()
+    });
+    SENTENCES
+        .iter()
+        .find(|(d, _)| *d == decision)
+        .map_or("", |(_, sentence)| sentence.as_str())
 }
 
 impl Undecided {
@@ -3638,11 +3670,7 @@ impl Undecided {
                  yet for this shape; if they are not meant to meet, move them until their \
                  bounding boxes no longer overlap"
             }
-            Self::WitnessTooClose => {
-                "a corner of one lies too close to the other's boundary to place at this \
-                 tolerance. Recourse: move the parts until their bounding boxes no longer \
-                 overlap"
-            }
+            Self::WitnessTooClose(decision) => witness_too_close(decision),
             Self::WitnessGrazed => {
                 "a corner of one is off the other's boundary, but no test ray from it \
                  settled where it lies: each grazed that boundary or could not be read. \
@@ -3680,7 +3708,8 @@ impl Undecided {
         use crate::boolean::PointInSolidError as E;
         use crate::splitting::PointInLoopError as L;
         match e {
-            E::Escalated { .. } | E::Loop(L::Escalated { .. }) => Self::WitnessTooClose,
+            E::Escalated { .. } => Self::WitnessTooClose(None),
+            E::Loop(L::Escalated { decision, .. }) => Self::WitnessTooClose(Some(*decision)),
             E::RayExhausted | E::Loop(L::RayExhausted { .. }) => Self::WitnessGrazed,
             E::ZeroVolumeBody => Self::ZeroVolume,
             E::VolumeUncertified => Self::VolumeUncertified,
@@ -6633,6 +6662,8 @@ mod tests {
         assert_eq!(
             read(L::Escalated {
                 r#loop,
+                decision: crate::splitting::LoopDecision::Boundary,
+                escalation: crate::splitting::Escalation::Margin,
                 diag: geom_core::Indeterminate {
                     margin: geom_core::MarginDiag::value(5e-9),
                     band: Band::new(1e-9, 1e-8).expect("a well-formed band"),
@@ -6640,7 +6671,7 @@ mod tests {
                     terminal_sliver: false,
                 },
             }),
-            Undecided::WitnessTooClose.what()
+            Undecided::WitnessTooClose(Some(crate::splitting::LoopDecision::Boundary)).what()
         );
         assert_eq!(
             read(L::CorruptLoop { r#loop }),

@@ -1078,6 +1078,16 @@ successor's `keep_out` names the shared ground.
 
 Signed: (CONTACT orchestrator)
 
+## 2026-10-08 — CONTACT-10 lands
+
+- The single style review and the delta review both returned
+  APPROVE-WITH-FIXES, with no MAJOR. The unit was re-applied on top of
+  main's rework and reconciled with TOPO's PR 3493: Carrier is
+  lever-only, and the Boolean carries the walk's decision.
+- The one 1e-12 red row, `parallel_cylinder_join::a_tipped_rod…`, is
+  main's. CONTACT-11's lane confirmed it on `d00100e82`, and it is
+  filed as `work/tint/tipped-rod-join-escalates-at-1e-12`.
+- Landing as `contact/land-10`.
 ## 2026-10-08 — CONTACT-11 lands
 
 - **The review:** REQUEST-CHANGES from a single full review, then

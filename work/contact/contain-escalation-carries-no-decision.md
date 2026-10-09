@@ -2,11 +2,12 @@
 id: contain-escalation-carries-no-decision
 kind: issue
 title: topo: ContainError::Escalated and the point-in-solid refusals collapse their decisions, so their endings name the lever alone
-status: dispatched
+status: closed
 opened: 2026-09-29
 priority: P3
 cost: M
 parent: CONTACT-10
+closed: 2026-10-08
 ---
 
 
@@ -141,3 +142,28 @@ and offers the declaration. Declared, it refuses here at 1e-9 with
 margin 8.12e-9, and still says "declare the coincidence", to a pair
 already declared. That is the review's probe `zz4_w2_decl_{u,s}`,
 re-run at the fifth pass's head.
+
+## Carried (CONTACT-10, branch `contact/10-contain-endings`)
+
+The carry takes 3493's finding: each caller maps the rung, and the
+carrier rung, whose pass set is the caller's, ends on its lever alone.
+
+- **The walk's decision.** `splitting::LoopDecision { Boundary, Ray,
+  ArcSpan, Plane }` rides `PointInLoopError::Escalated`, with
+  `splitting::Escalation { Margin, Straddle, Decided }` for how the
+  reading stood. Every `invalid_margin` straddle in the conic reading
+  and the span rule is tagged, so none takes the unreadable-margin note.
+- **contfp's decision.** `boolean::ContainDecision { Loop(_), ArcEnd,
+  OneCircle, Carrier, WindowPeriod }` rides `ContainError::Escalated`.
+  - `Boundary` (size "distance") and `OneCircle` are sized on `SizedPass::AnySign`.
+  - `ArcSpan` is sized on `NonNegative`. Its site raises only a negative margin or a straddle, so it ends in its lever alone.
+  - `WindowPeriod` (size "gap", to a full turn) is sized on `Positive`.
+  - `Ray`, `Plane`, `ArcEnd` and `Carrier` are `recourse::LeverOnly`.
+  - Each lever has one source, `boolean::placement_lever`.
+- **Renderers.**
+  - `validate::classify_contain` reads it at rest.
+  - The census's `Undecided::WitnessTooClose(Option<LoopDecision>)` reads it, in its lever alone, since `what` is a `&'static str` (`work/restfront/census-undecidable-what-cannot-carry-a-valued-ending`).
+  - The Boolean reads it as `BooleanDecision::Containment { decision, escalation }`, which ends in the decision's own lever alone (`ContainDecision::lever_ending`). It offers no tolerance, because no single margin binds the operation. `None` ends in `placement_lever(None)`, also lever alone.
+- **What stays uncarried.** The point-in-solid door's own escalation, its
+  `Display`'s coincidence menu, and the later stories PR 3513's offers
+  meet. These are now `work/contact/point-in-solid-escalation-carries-no-decision`.
