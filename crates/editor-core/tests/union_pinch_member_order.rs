@@ -17,6 +17,10 @@
 //!   making a second pinch on the top, and for two blocks whose
 //!   footprints on the plate's side face are holes touching at a corner,
 //!   which join into one hole through one vertex;
+//! - three prisms touching pairwise along one vertical line, with the
+//!   plate and alone, in every member order: the line held by two
+//!   coincident edges meets the third, and folded first the three
+//!   pierce the top at one point;
 //! - the plate against the joined blocks as a pair boolean, both ways
 //!   round, so the pierced face sits on each operand side in turn;
 //! - the plate minus the joined blocks, where the pierced face is the
@@ -1019,4 +1023,147 @@ fn two_wedges_name_their_meeting_point_a_seam_of_their_legs_in_either_order() {
             ),
         }
     }
+}
+
+/// An upright prism over the triangle from (1.5, 1) to the points at the
+/// bearings `a0` and `a1` (degrees) 0.4 from it, over `z`.
+fn sector_prism(doc: ProfileDoc, a0: f64, a1: f64, z: (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
+    let at = |a: f64| {
+        let (s, c) = f64::to_radians(a).sin_cos();
+        (0.4f64.mul_add(c, MEET[0]), 0.4f64.mul_add(s, MEET[1]))
+    };
+    prism(doc, &[(MEET[0], MEET[1]), at(a0), at(a1)], z.0, z.1 - z.0)
+}
+
+/// The plate and three prisms over 50° sectors about (1.5, 1), each 70°
+/// from the next, touching pairwise along the vertical line through it.
+fn three_on_a_line(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, a) = sector_prism(doc, 0.0, 50.0, (0.5, 2.0));
+    let (doc, b) = sector_prism(doc, 120.0, 170.0, (0.47, 1.7));
+    let (doc, c) = sector_prism(doc, 240.0, 290.0, (0.44, 1.81));
+    (doc, vec![plate, a, b, c])
+}
+
+/// The plate and four prisms over 50° sectors about (1.5, 1), each 40°
+/// from the next, touching pairwise along the vertical line through it.
+fn four_on_a_line(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, a) = sector_prism(doc, 0.0, 50.0, (0.5, 2.0));
+    let (doc, b) = sector_prism(doc, 90.0, 140.0, (0.47, 1.7));
+    let (doc, c) = sector_prism(doc, 180.0, 230.0, (0.44, 1.81));
+    let (doc, d) = sector_prism(doc, 270.0, 320.0, (0.41, 1.63));
+    (doc, vec![plate, a, b, c, d])
+}
+
+/// [`four_on_a_line`] without the plate.
+fn four_prisms(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, m) = four_on_a_line(doc);
+    (doc, m[1..].to_vec())
+}
+
+/// [`three_on_a_line`] without the plate.
+fn three_prisms(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, m) = three_on_a_line(doc);
+    (doc, m[1..].to_vec())
+}
+
+/// Asserts every member order of `fixture`'s union builds one body, as
+/// [`every_order`] does, where three solids touch along one line. The
+/// contacts [`DROPPED_RECORDS`] drops are those of earlier members that
+/// the last one's do not cover, which [`every_order`]'s pairs cannot
+/// name: `dropped[i]` of them, all on the line, when member `i` folds
+/// last.
+fn every_order_on_a_line(
+    label: &str,
+    fixture: fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>),
+    counts: [usize; 3],
+    volume: f64,
+    pinch: bool,
+    dropped: &[usize],
+) {
+    let mut first: Option<Outcome> = None;
+    let n = dropped.len();
+    for order in orders(n) {
+        let (doc, m) = fixture(ProfileDoc::empty_derived("on_a_line", Tol::witness()));
+        let members: Vec<RecipeNodeId> = order.iter().map(|&i| m[i]).collect();
+        let (doc, u) = crate::fixture::union_over(doc, &members, Vec::new());
+        let what = format!("{label}, member order {order:?}");
+        let o = checked(&run(&doc), u, &what, volume);
+        assert_eq!(o.shape.counts(), counts, "{what}: faces, edges, vertices");
+        if pinch {
+            assert_eq!(at(&o.shape, top()), 1, "{what}: vertices at the pinch");
+        }
+        let refused = match &o.verdict {
+            Ok(()) => Vec::new(),
+            Err(es) => es.clone(),
+        };
+        for (kind, p) in &refused {
+            assert!(
+                kind.starts_with("UndeclaredContact")
+                    && p.is_some_and(|(x, y, _)| (x, y) == (1_500_000, 1_000_000)),
+                "{what}: 3′ refused off the line: {kind} at {p:?}"
+            );
+        }
+        assert_eq!(
+            refused.len(),
+            dropped[order[n - 1]],
+            "{what}: 3′ refused by other than the records {DROPPED_RECORDS} drops: {refused:?}"
+        );
+        if let Some(f) = &first {
+            assert_eq!(
+                o.shape, f.shape,
+                "{what}: a different body from the first order"
+            );
+            assert_eq!(o.manifold, f.manifold, "{what}: a different mesh verdict");
+        } else {
+            first = Some(o);
+        }
+    }
+    assert_eq!(
+        first.map(|f| f.manifold),
+        Some(Ok(())),
+        "{label}: check_mesh"
+    );
+}
+
+/// **Three and four solids touching along one line build one body in
+/// every member order**, with the plate and alone: the third meets the first two's
+/// coincident edges along the ray they hold, and, folded first, the
+/// three edges pierce the plate's top at one point once each.
+#[test]
+fn solids_touching_along_one_line_build_one_body_in_every_member_order() {
+    let above = 0.5 * 0.16 * 50f64.to_radians().sin();
+    every_order_on_a_line(
+        "three prisms and the plate",
+        three_on_a_line,
+        [18, 39, 24],
+        above.mul_add(1.0 + 0.7 + 0.81, 6.0),
+        true,
+        &[6, 0, 2, 0],
+    );
+    every_order_on_a_line(
+        "three prisms",
+        three_prisms,
+        [15, 27, 18],
+        above * (1.5 + 1.23 + 1.37),
+        false,
+        &[2, 2, 0],
+    );
+    every_order_on_a_line(
+        "four prisms and the plate",
+        four_on_a_line,
+        [22, 48, 29],
+        above.mul_add(1.0 + 0.7 + 0.81 + 0.63, 6.0),
+        true,
+        &[12, 0, 2, 0, 6],
+    );
+    every_order_on_a_line(
+        "four prisms",
+        four_prisms,
+        [20, 36, 24],
+        above * (1.5 + 1.23 + 1.37 + 1.22),
+        false,
+        &[6, 4, 0, 6],
+    );
 }
