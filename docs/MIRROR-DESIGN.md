@@ -122,17 +122,22 @@ equivariance impossible — the S8 rung-3 precedent. The alternative
 
 A document repeats by an index variable (D10, Repetition): what reads
 `k = index(N)` is evaluated once per value of `k`. A copy pattern is a
-placement reading an index; a feature pattern is a construction reading
+placement reading an index, its values expressions in it; a feature pattern is a construction reading
 one; neither lowers to the other, because there is one instancing
 semantics and it is the index. Copies of one body are built once and
-mapped as rigid images; a construction through a different frame per
-member is built per member, since equivariance is audited at the site
-(P3), never assumed. A hole pattern is `subtract(plate, union(cutters))`
-with `cutters` a family. Mirror is the construction
-`Mirror { body, plane }`, defining a new `Body`: a reflection is not a
-pose, so no pose is improper, and P1–P3 and P6 are that construction's
-design. A symmetric part is `union(body, Mirror { body, plane })`, and
-the linear, circular and mirror spellings are façade functions that
+mapped as rigid images; a construction whose scalar inputs read an
+index is built per member (no construction reads a frame), since
+equivariance is audited at the site (P3), never assumed. A hole pattern is `subtract(plate, union(cutters))`
+with `cutters` a family. A reflection is not a pose, so
+mirror is a construction: `Mirror { body, plane }`
+is a construction defining a new `Body` in its source's root, the
+plane a `Plane` pose whose reads reach that root alone (a face read as a
+plane, or a plane constructed from the body's geometry), and every pose
+is proper. A symmetric part is `union(body, Mirror { body, plane })`,
+one construction whose seam is the plane's face read twice; a chiral
+twin elsewhere is a placement of the image, and there the plane carries
+no shape. P1–P3 and P6 are that
+construction's design, and the linear, circular and mirror spellings are façade functions that
 write the program.
 
 ## P5 — Derivable items, adopted here

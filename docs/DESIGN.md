@@ -1281,7 +1281,12 @@ no pattern operation. A variable defined by reading `k` is, to a
 reader that reaches the same `k`, its member at the same value, and to
 every other reader the whole family: `xs[i, j]` reads one member, and
 `union` and `subtract` read a family as their members. Lockstep is one
-index read twice. Two indices meet in one reader only when one is
+index read twice. An index enters a placement as a value, a slide or a
+spin that is a `Length` or `Angle` expression over it, or through a
+mate whose target is a member of another family
+(`bolt.axis ≡ holes[k].axis`); no pose is constructed from an index, so
+an `Axis` mate with `spin = scalar(k)·turn/N` is a ring and a slide of
+`scalar(k)·pitch` a row. Two indices meet in one reader only when one is
 declared `within` the other, which is implied when its count reads the
 other; a reader of two unrelated indices refuses. `Count` arithmetic is
 exact and includes `mod`, so a relation between a ring's neighbours is
@@ -1293,9 +1298,16 @@ the whole family, naming the index; a read whose index leaves the
 range is unresolved and typed, never re-pointed. A member's names are
 `Member { (i, j), of }`, keyed by the index variables' ids and the
 integers. Copies of one body are built once and mapped; a construction
-whose own inputs differ per member is built per member. A mirror image is
-not a copy, because a reflection is not a pose: `Mirror { body, plane }`
-is a construction defining a new `Body`, and every pose is proper.
+whose scalar inputs read an index is built per member, and no
+construction reads a frame. A mirror image is not a copy, because a
+reflection is not a pose: `Mirror { body, plane }`
+is a construction defining a new `Body` in its source's root, the
+plane a `Plane` pose whose reads reach that root alone (a face read as a
+plane, or a plane constructed from the body's geometry), and every pose
+is proper. A symmetric part is `union(body, Mirror { body, plane })`,
+one construction whose seam is the plane's face read twice; a chiral
+twin elsewhere is a placement of the image, and there the plane carries
+no shape.
 Linear, circular, grid and bolt-circle patterns and mirroring are the
 façade's functions, which write this program; the document stores no
 preset, and the GUI's reading of one ("circular, 12 about A") is

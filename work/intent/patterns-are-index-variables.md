@@ -49,7 +49,11 @@ PR. This row supersedes
   integers. P5's placement-major layout (`j·M + i`) goes; the `SegPat`
   index predicate matches `Member` by tuple.
 - **Mirror.** `Mirror { body, plane }`, a construction defining a new
-  `Body` (MIRROR-DESIGN P1–P4, P6). Improper poses become
+  `Body` in its source's root, the plane a `Plane` pose whose reads
+  reach that root alone (a face read as a plane, or a plane constructed
+  from the body's geometry) (MIRROR-DESIGN P1–P4, P6). A symmetric part
+  is `union(body, Mirror { body, plane })`, its seam the plane's face
+  read twice, so the glue is structural. Improper poses become
   unrepresentable in the pose kinds rather than refused at each door
   (`Frame::admission_fault`, `EditError::ImproperPlacement`).
 - **Group boolean.** `PlacedUnion` retires; its `Separation` certificate
@@ -57,25 +61,32 @@ PR. This row supersedes
   body, visible in the reads; an uncertified pair goes through DM4's
   pairwise pass instead of refusing `PlacementsUncertified`.
 - **Evaluation.** Copies of one body are built once and mapped; a
-  construction through a different frame per member is built per member
-  (D9 convention 4: equivariance audited per site). D9 caching keys a
+  construction reads no frame, so a feature at several positions is one
+  body placed per member, and a construction is built per member only
+  when its scalar inputs read the index (D9 convention 4: equivariance
+  audited per site). D9 caching keys a
   node reading an index by its content key plus the index values.
-  Orbit structure, if a reader ever wants it, is derived from the pose
-  formula being affine in the index, never declared.
+  Orbit structure, if a reader ever wants it, is derived from a
+  placement's values being affine in the index, never declared.
 - **Façade and GUI.** `linear_pattern`, `circular_pattern`, `grid`,
-  `bolt_circle` and `mirror` write the program; `circular_pattern`
-  defaults the step to `turn/N`, minting a free `Angle` only when one is
-  typed. A display-only recogniser in the façade reads a stored program
-  back as "circular, 12 about A" for the GUI's forms
+  `bolt_circle` and `mirror` write the program, as mates and values,
+  never a pose: `circular_pattern` an `Axis` mate, a `Plane` mate and
+  `spin = scalar(k)·turn/N` (a free `Angle` step only when one is
+  typed); `linear_pattern` a mate leaving one slide and
+  `slide = scalar(k)·pitch`; `grid` a `Plane` mate and two slides over
+  `i` and `j within i`; bolts into holes `bolt.axis ≡ holes[k].axis`. A display-only recogniser in the façade, matching a placement under an
+  index whose values are affine in it, reads a stored program back as "circular, 12 about A" for the GUI's forms
   (`PatternKindChoice`, `PatternRuleSpec` become its output and input);
   no preset tag is stored.
 
 ## Unchecked requirement
 
-Ring closure is structural only if the symbolic tier (E12) carries a
-rotation by its angle expression modulo a turn, not by its matrix
-(cos(turn/12) is irrational, so a polynomial identity over ℚ in matrix
-entries does not prove `N · turn/N = turn`). Check this before the
+Two members under one `Axis` mate differ only by their spin values, so
+ring closure is an `Angle` comparison modulo a turn, not a matrix
+identity: it is structural only if the symbolic tier (E12) reduces a
+spin value's chart modulo a turn (cos(turn/12) is irrational, so a
+polynomial identity over ℚ in matrix entries does not prove
+`N · turn/N = turn`). Check this before the
 façade's full-ring default is relied on to quiet the
 `unproven-coincidence` lint.
 
@@ -102,28 +113,32 @@ façade's full-ring default is relied on to quiet the
   `part_select`.
 - Docs that follow: INTENT-STAGE2 §Pattern; INTENT-STAGE3 A
   ("explicit frames become `Frame` variables"; `Direction`'s first
-  reader is `translate`, not `PatternKind::Linear`); INTENT-STAGE5 B's
+  reader goes: a row's direction is the freedom a mate leaves, so the
+  `Linear` `Direction` slot has no successor); INTENT-STAGE5 B's
   one-node overlap sentence (an overlap between members is an at-rest
   finding between copies); ASSEMBLY A11 (5)'s member walk (its
   `Pattern` level); NAMES N1 (`Instance` → `Member`).
 
 ## Migration
 
-A one-time regenerate. `Linear` → `k = index(N)`,
-`translate(seat, dir, scalar(k)·spacing)`, `place`; `Circular` →
-`rotate(seat, axis, scalar(k)·step)`, keeping the stored step (never
-infer a full ring; the `unproven-coincidence` lint proposes `turn/N`).
-Every migrated pattern needs the anchor pose off the joined space that
-#4326 requires anyway. `PlacedUnion(Explicit(frames))` → one
-construction or placement per frame through `InFrame` poses, gathered
-by `union`. `Part { Instance(i) }` → `xs[i]`. Names and ids move
+A one-time regenerate. `Linear` → `k = index(N)` and a placement of
+the master whose mates leave one slide along the stored direction, read
+off geometry (the anchor #4326 requires), with
+`slide = scalar(k)·spacing`; `Circular` → an `Axis` mate on the stored
+axis with `spin = scalar(k)·step`, keeping the stored step (never infer
+a full ring; the `unproven-coincidence` lint proposes `turn/N`).
+`PlacedUnion(Explicit(frames))` → one placement per frame, a `Plane`
+mate against the face with the frame's in-plane offsets and spin as
+values, computed from the stored frame once at migration, gathered by
+`union`. `Part { Instance(i) }` → `xs[i]`. Names and ids move
 (`Instance` → `Member`; explicit-list members by node); geometry is
-bit-equal for copies and within rounding for constructions; re-baseline
+bit-equal for copies; re-baseline
 and say what moved.
 
 ## Sequencing
 
 After #4324 (poses are variables) and #4326 (a placement is the bundle
 of mates); replaces stage 3's `Linear` `Direction` slot. D10's
-Variables (`Bodies` as the family of `Body`) and Operations (#4326's
-`Pattern` sentence) wording follows once those land.
+Variables (`Bodies` as the family of `Body`) and Operations wording
+follows once those land; #4326 carries the `Pattern` sentence (a
+pattern is a placement whose reads reach an index).
