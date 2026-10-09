@@ -1,11 +1,11 @@
-//! **On a steep ellipse the join orders two band-apart sites by the arc
-//! between them.** A unit cylinder whose axis leans to `cos θ = 1/k` off
+//! **Two partners a dozen bands apart on a steep ellipse's flank, through
+//! the public booleans.** A unit cylinder whose axis leans to `cos θ = 1/k` off
 //! `z` meets the plane `z = 0` in an ellipse of aspect `k` (semi-axes
 //! `k` along `x`, `1` along `y`). A block `Q × [−2, 0]` has that plane
 //! for its top face, and `Q` is the rectangle `[0, k + 2] × [−2, 2]`
 //! with two notches cut up from its bottom edge to `y = −0.3`, leaving a
 //! finger between them. Both the notch nearer the ellipse's major vertex
-//! and the finger are `g` = [`GAP_BANDS`] bands wide, and they cross the
+//! and the finger are `g` = [`gap_bands`] bands wide, and they cross the
 //! ellipse's lower arc where it is flattest against its radius (`x = k/√2`).
 //!
 //! The germ where the arc enters `Q` at `(0, 1)` faces two partners
@@ -15,13 +15,19 @@
 //! `2g · sin ψ` off it, where `ψ` is the angle between the radius and
 //! the tangent: `2k/(k² + 1)` there, 0.198 at `k = 10` and 0.033 at
 //! `k = 60`. A travel margin that read that plane distance would leave
-//! the `k = 10` pose in the escalation band and tie the `k = 60` pose
-//! `Zero`, and a tie would fall back to the chord from the germ, which
-//! on the lower arc shrinks toward the far wall and picks the wrong one.
+//! the `k = 10` pose (`g` 24 bands) in the escalation band, at 9.5, and
+//! tie the `k = 60` pose (`g` 12 bands) `Zero`, at 0.8, and a tie would
+//! fall back to the chord from the germ, which on the lower arc shrinks
+//! toward the far wall and picks the wrong one.
 //! The join's travel margin reads the arc (`boolean::join`'s
-//! `turned_past`), so both poses read `2g` and pair along the walk. Each
-//! then stops at a later band-scale reading that is filed
-//! ([`stops_where_filed`]).
+//! `turned_past`), clear of the slack two sites up to ε off the conic
+//! leave it, `2ε cot ψ` (`travel`): 9.9 bands at `k = 10`, 60 at
+//! `k = 60`. So the `k = 10` pose orders its partners and stops at a
+//! later band-scale reading, which is filed, and the `k = 60` pose
+//! escalates at the travel's clearance ([`stops_where_expected`]). The
+//! finger's own two sites are `g` apart, so the `k = 10` gap clears the
+//! slack by more than the band there too. The
+//! order itself, on synthetic germs, is `boolean::join`'s `travel_rows`.
 //!
 //! The volume each op must have is the block's share of the cylinder,
 //! `∫∫_Q max(0, h(y) − x cot θ) dx dy` with `h = √(1 − y²)/sin θ`: the
@@ -36,10 +42,14 @@ use crate::common::differential::{every_op_both_orders, outcome};
 use crate::common::germ_pair;
 use geom_core::{Tol, Vec3};
 use sweep::test_support::finished;
-use topo::{AtRestBody, BooleanError, CertifyError, EulerOpError, SplitJoinError};
+use topo::{AtRestBody, BooleanError};
 
-/// The notch and finger widths, in bands of the run's ε.
-const GAP_BANDS: f64 = 12.0;
+/// The notch and finger widths, in bands of the run's ε: at `k = 10`
+/// wide enough that the finger's two sites clear the slack, at `k = 60`
+/// narrow enough that the plane distance would tie.
+fn gap_bands(k: f64) -> f64 {
+    if k == 10.0 { 24.0 } else { 12.0 }
+}
 
 /// How low the block reaches, and how high its notches are cut.
 const FLOOR: f64 = -2.0;
@@ -142,46 +152,47 @@ fn shared(k: f64, g: f64) -> f64 {
         .sum()
 }
 
-/// Where a run that does not build may stop, by `k`: the door each pose
-/// reaches after the travel order, each a filed row. With the pair order
-/// or the span meter fixed the pose moves on, and must then build.
+/// Where a run that does not build may stop, by `k`. With the pair order
+/// fixed the `k = 10` pose moves on, and must then build.
 ///
-/// - `k = 10`: the notch's two walls are parallel and `12ε` apart, and
-///   their section arcs' chords differ by `1.65ε`, so the order between
-///   the two pairs ties in band (`bool_join_nearest`;
+/// - `k = 10`, past the travel order: the notch's two walls are parallel
+///   and `24ε` apart, and their section arcs' chords differ by a few ε,
+///   so the order between the two pairs ties in band
+///   (`bool_join_nearest`;
 ///   `work/join/a-bar-through-a-ball-refuses-at-a-door-that-moves-with-scale.md`).
-/// - `k = 60`: the finger's section edge is metered at the ellipse's
-///   minor semi-axis, `12ε·√2/60` (`work/issues/an-ellipse-span-is-metered-at-its-minor-axis-and-refuses-a-flank-edge-k-times-longer-than-the-band.md`).
-fn stops_where_filed(k: f64, e: &BooleanError) -> bool {
+/// - `k = 60`, at the travel order: `24` bands of arc do not clear the
+///   sites' slack of `60` (`bool_join_arc_clear`).
+fn stops_where_expected(k: f64, e: &BooleanError) -> bool {
     match e {
         BooleanError::Escalated { diag, .. } if k == 10.0 => {
             diag.predicate == Some("bool_join_nearest")
         }
-        BooleanError::Join(SplitJoinError::Euler(EulerOpError::Certification {
-            error: CertifyError::IntervalNotForward { .. },
-        })) => k == 60.0,
+        BooleanError::Escalated { diag, .. } if k == 60.0 => {
+            diag.predicate == Some("bool_join_arc_clear")
+        }
         _ => false,
     }
 }
 
-/// **Two partners `2g` apart along a steep ellipse's flank are ordered
-/// along it**: no run refuses at `bool_join_arc_travel`, in any op or
-/// operand order, at `k = 10`, where the plane distance read `4.78`
-/// bands, or at `k = 60`, where it read `0.8` and tied. Each run builds
-/// `SOUND` at the closed form or stops where [`stops_where_filed`] says.
+/// **Every op on two partners `2g` apart along a steep ellipse's flank
+/// builds `SOUND` at the closed form or refuses where
+/// [`stops_where_expected`] says**, in both operand orders: at `k = 10`,
+/// where the plane distance read `4.78` bands and escalated, past the
+/// travel order; at `k = 60`, where it read `0.8` and tied, at the
+/// travel's clearance.
 #[test]
-fn band_apart_partners_on_a_steep_ellipse_are_ordered_along_its_arc() {
+fn band_apart_partners_on_a_steep_ellipse_build_or_stop_where_expected() {
     let tol = Tol::witness();
-    let g = GAP_BANDS * tol.eps();
     for k in [10.0, 60.0] {
+        let g = gap_bands(k) * tol.eps();
         let (a, b) = (cylinder(k), block(k, g));
         let va = PI * 2.0 * half_length(k);
         let vb = (4.0 * (k + 2.0) - (g + 1.0) * (NOTCH_TOP - FLOOR)) * -FLOOR;
         for (op, r, want) in every_op_both_orders(&a, &b, (va, vb, shared(k, g)), tol) {
             if let Err(e) = &r {
                 assert!(
-                    stops_where_filed(k, e),
-                    "k = {k}, {op}: refused where no filed row stops it: {e:?}"
+                    stops_where_expected(k, e),
+                    "k = {k}, {op}: refused where no row expects it: {e:?}"
                 );
                 continue;
             }
