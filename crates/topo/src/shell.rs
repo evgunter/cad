@@ -408,8 +408,8 @@ pub enum ShellError<T: Real> {
         /// The band constructor's typed refusal.
         error: BandError,
     },
-    /// The wall thickness is not certifiably positive: a zero or
-    /// negative wall is not a thin solid, and the ambiguity band
+    /// The wall thickness is not finite, or not certifiably positive: a
+    /// zero or negative wall is not a thin solid, and the ambiguity band
     /// escalates rather than guessing.
     Thickness {
         /// The thickness as given, echoed as data.
@@ -620,11 +620,18 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Band { error } => write!(f, "{error}"),
-            Self::Thickness { thickness } => write!(
-                f,
-                "the wall thickness ({thickness:?} m) is not certifiably positive. Recourse: \
-                 supply a positive thickness"
-            ),
+            Self::Thickness { thickness } => {
+                let (fails, supply) = if geom_core::is_finite_length(*thickness) {
+                    ("certifiably positive", "a positive")
+                } else {
+                    ("finite", "a finite")
+                };
+                write!(
+                    f,
+                    "the wall thickness ({thickness:?} m) is not {fails}. Recourse: supply \
+                     {supply} thickness"
+                )
+            }
             Self::NoSolid => write!(
                 f,
                 "the body carries no solid, so there is no material to thicken. Recourse: shell \
@@ -642,14 +649,14 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
             Self::WallClearance { gap, needed, .. } => write!(
                 f,
                 "two faces face each other across {gap:?} m of material and the two walls \
-                 need {needed:?} m, so the cavity would self-intersect. Recourse: use a \
-                 thinner wall"
+                 need {needed:?} m, so the cavity would self-intersect. Recourse: \
+                 {THINNER_WALL}"
             ),
             Self::OffsetsCross { .. } => write!(
                 f,
                 "two faces that meet at an angle have less material between them than two \
                  walls somewhere along their overlap, so their inward offsets cross and the \
-                 cavity would self-intersect. Recourse: use a thinner wall"
+                 cavity would self-intersect. Recourse: {THINNER_WALL}"
             ),
             Self::ChartSenseMixed { .. } => write!(
                 f,
@@ -741,6 +748,9 @@ impl<T: Real> std::error::Error for ShellError<T> {}
 /// arm reads as the door's own refusal.
 struct AsShelled<'a, T: Real>(&'a ReplaceFaceError<T>);
 
+/// The lever of every refusal a thinner wall answers.
+const THINNER_WALL: &str = "use a thinner wall";
+
 impl<T: Real> core::fmt::Display for AsShelled<'_, T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         use ReplaceFaceError as R;
@@ -776,7 +786,7 @@ impl<T: Real> core::fmt::Display for AsShelled<'_, T> {
             R::ApexWindow { .. } => write!(
                 f,
                 "the wall is thick enough to carry part of the cone face to or past the cone's \
-                 apex. Recourse: use a thinner wall"
+                 apex. Recourse: {THINNER_WALL}"
             ),
             R::Offset {
                 error: O::RadiusFloor { kind, realized },
@@ -793,14 +803,14 @@ impl<T: Real> core::fmt::Display for AsShelled<'_, T> {
             } => write!(
                 f,
                 "a wall this thick grows the toroidal face's tube radius to {realized_minor:?} \
-                 m, as large as its ring radius, so the face would cross itself. Recourse: use \
-                 a thinner wall"
+                 m, as large as its ring radius, so the face would cross itself. Recourse: \
+                 {THINNER_WALL}"
             ),
             R::Fit {
-                error: F::Meter(error),
+                error: fit @ F::Meter(error),
                 ..
             } if error.meter() == Meter::CurvatureHeadroom => {
-                let ending = error.ending_with_lever("use a thinner wall", Reading::Build);
+                let ending = error.ending_with_lever(THINNER_WALL, Reading::Build);
                 match error {
                     M::CurvatureHeadroom {
                         reach,
@@ -820,10 +830,9 @@ impl<T: Real> core::fmt::Display for AsShelled<'_, T> {
                         "a wall this thick is within tolerance of the face's radius of curvature \
                          on the wall's side ({reach} m), so the face's offset may fold. {ending}"
                     ),
-                    escalated => write!(
-                        f,
-                        "the offset surface cannot be fitted: {escalated}. {ending}"
-                    ),
+                    M::Escalated { .. } | M::NormalFloor { .. } => {
+                        f.write_str(&fit.render_with_lever(THINNER_WALL))
+                    }
                 }
             }
             R::Fit {
@@ -841,15 +850,15 @@ impl<T: Real> core::fmt::Display for AsShelled<'_, T> {
                  thick, so it cannot be certified to {tolerance} m. Recourse: use a thicker wall",
                 d.abs()
             ),
+            // The thickness gate passes only a finite, positive wall, and
+            // the tolerance is the run's witness.
             R::Fit {
                 error: F::InvalidRequest { d, tolerance },
                 ..
             } => write!(
                 f,
-                "the offset surface cannot be fitted for a wall {} m thick and a tolerance of \
-                 {tolerance} m. Recourse: supply a finite, positive wall thickness and a finite, \
-                 positive tolerance",
-                d.abs()
+                "the shell op asked to fit an offset of {d} m at a tolerance of {tolerance} m, \
+                 which its thickness gate and its tolerance never allow. {KERNEL_DEFECT_ENDING}"
             ),
             R::Pcurve { .. } => write!(
                 f,
@@ -1175,6 +1184,11 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
     let band = Band::linear(tol).map_err(|error| ShellError::Band { error })?;
 
     // ---- Decide: the thickness. ----
+    // An infinite wall decides positive, and no offset door can move a
+    // face by it.
+    if !geom_core::is_finite_length(thickness) {
+        return Err(ShellError::Thickness { thickness });
+    }
     match decide("shell_thickness", Margin::of(thickness), band) {
         Ok(Sign::Positive) => {}
         _ => return Err(ShellError::Thickness { thickness }),

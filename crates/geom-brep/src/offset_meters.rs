@@ -239,7 +239,9 @@ impl Meter {
 /// `Display` renders the payload alone: where a refusal is read decides
 /// its ending (D4 ¶1 (i)), so the door that reports it appends
 /// [`MeterError::ending`], or renders both through
-/// [`MeterError::render`].
+/// [`MeterError::render`]. A door whose user sets the metered size
+/// under another name reads [`MeterError::ending_with_lever`] or
+/// [`MeterError::render_with_lever`] instead.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum MeterError {
     /// `offset_normal_floor`: the patch's chart normal could not be
@@ -367,6 +369,13 @@ impl MeterError {
             ..self.meter().decision()
         }
         .recourse(self.arm(), reading)
+    }
+
+    /// [`MeterError::render`] with [`MeterError::ending_with_lever`]'s
+    /// ending.
+    #[must_use]
+    pub fn render_with_lever(&self, lever: &'static str, reading: Reading) -> String {
+        format!("{self}. {}", self.ending_with_lever(lever, reading))
     }
 
     fn arm(&self) -> RefusedArm<'_> {
@@ -676,7 +685,8 @@ pub struct PatchCollapse {
     /// Certified upper bound on the principal curvatures (1/m).
     pub kappa_hi: f64,
     /// The critical distance on the FOLDING side for this `d`'s sign,
-    /// in metres: `+∞` when the patch does not curve that way.
+    /// in metres: `+∞` when the patch does not curve that way, NaN when
+    /// a cell's curvature could not be bounded.
     pub reach: f64,
     /// `reach − |d|` — the margin the predicate classifies.
     pub headroom: f64,
@@ -826,7 +836,12 @@ pub fn patch_collapse(cells: &[PatchCell], d: f64) -> PatchCollapse {
     } else {
         (-kappa_lo).max(0.0)
     };
-    let reach = if k_fold > 0.0 {
+    // An unbounded `κ⁺` is a cell whose curvature could not be read,
+    // not a fold at zero distance: its headroom is the poisoned margin
+    // the predicate escalates on, never a sign-certain refusal.
+    let reach = if !k_fold.is_finite() {
+        f64::NAN
+    } else if k_fold > 0.0 {
         (1.0 / k_fold).next_down()
     } else {
         f64::INFINITY
@@ -985,7 +1000,8 @@ mod tests {
     /// sign-certain arm, on a margin on the refused side, and straddling
     /// zero; the report clause on a zero floor, which no tolerance
     /// resolves; and a poisoned margin keeps the lever and says what it
-    /// may mean.
+    /// may mean. Read with another lever, each ending keeps its shape
+    /// and swaps the lever alone.
     #[test]
     fn each_meter_arm_ends_in_its_decisions_recourse() {
         let straddle = MarginDiag::enclosure(-2e-9, 4e-9);
@@ -1059,7 +1075,47 @@ mod tests {
                 assert_eq!(text, format!("{error}. {want}"), "{reading:?}");
                 assert_eq!(text.matches("Recourse:").count(), 1, "{text}");
                 assert!(!text.contains(COINCIDENCE_RECOURSE), "{text}");
+                let own = match error.meter() {
+                    Meter::NormalFloor => SPLIT,
+                    Meter::CurvatureHeadroom => DISTANCE,
+                };
+                let swapped = want.replacen(own, "Recourse: pull the lever", 1);
+                assert_ne!(swapped, want, "{error:?}: the lever is not where it was");
+                assert_eq!(
+                    error.ending_with_lever("pull the lever", reading),
+                    swapped,
+                    "{error:?} at {reading:?}"
+                );
+                assert_eq!(
+                    error.render_with_lever("pull the lever", reading),
+                    format!("{error}. {swapped}"),
+                    "{error:?} at {reading:?}"
+                );
             }
+        }
+    }
+
+    /// **An unreadable curvature escalates; it is not a fold.** No cell
+    /// bounds the curvature here, so the folding side's `κ⁺` is
+    /// unbounded: the meter escalates on a poisoned margin rather than
+    /// refusing sign-certain on a reach of `−5e-324` m that no thinner
+    /// offset could clear.
+    #[test]
+    fn an_unreadable_curvature_escalates_rather_than_folding() {
+        for d in [0.1, -0.1] {
+            let coll = patch_collapse(&[], d);
+            assert!(coll.reach.is_nan(), "d = {d}: {coll:?}");
+            let verdict = offset_curvature_headroom(&coll, band());
+            assert!(
+                matches!(
+                    verdict,
+                    Err(MeterError::Escalated {
+                        meter: Meter::CurvatureHeadroom,
+                        source,
+                    }) if source.margin.is_invalid()
+                ),
+                "d = {d}: expected an escalation on a poisoned margin, got {verdict:?}"
+            );
         }
     }
 

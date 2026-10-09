@@ -4,6 +4,8 @@ kind: issue
 title: offset fit: a NaN sampled residual inside the fit loop reads as a stored surface to re-fit, which the minting op's user never stored
 status: open
 opened: 2026-10-09
+priority: P3
+cost: E
 ---
 
 
@@ -23,6 +25,11 @@ that just refused. The shell op (`crates/topo/src/shell.rs`,
 `AsShelled`, through `ReplaceFaceError::Fit`) and the transform's
 re-fit both reach it this way; the chain roster carries the row
 (`refusal_concision_chains.rs`, `offset_fit_routes`, `Limb`).
+
+`Shell/Face/Fit/Limb` at `OffsetLimb::HullSup` renders the same
+"stored … re-fit" text on the shell route, and is likely unreachable
+at the mint: `fit_offset_at` raises `Limb` only at `OnLocus`, and a
+hull bound over the tolerance there continues the loop instead.
 
 ## Repair shape
 

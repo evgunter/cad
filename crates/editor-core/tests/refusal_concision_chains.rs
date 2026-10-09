@@ -885,6 +885,7 @@ fn every_offset_fit_refusal_ends_exactly_once() {
             ),
         };
         let (routed, verdicts) = (meter_escalations(curvature), meter_verdicts(curvature));
+        let wall = (curvature == WALL).then(wall_endings);
         let ending = routed
             .iter()
             .find(|(route, _, _)| arm == format!("Meter/Escalated/{route}"))
@@ -892,6 +893,7 @@ fn every_offset_fit_refusal_ends_exactly_once() {
             .or_else(|| {
                 verdicts
                     .iter()
+                    .chain(wall.iter().flatten())
                     .find(|(row, _)| arm == *row)
                     .map(|(_, ending)| ending)
             });
@@ -918,7 +920,8 @@ fn every_offset_fit_refusal_ends_exactly_once() {
     // Both routes raise `Meter`, so every pinned ending has two rows.
     assert_eq!(
         pinned,
-        2 * (meter_escalations(DISTANCE).len() + meter_verdicts(DISTANCE).len()),
+        2 * (meter_escalations(DISTANCE).len() + meter_verdicts(DISTANCE).len())
+            + wall_endings().len(),
         "a pinned meter row went missing"
     );
 }
@@ -2080,6 +2083,20 @@ fn meter_verdicts(curvature: &str) -> [(&'static str, String); 4] {
     ]
 }
 
+/// The endings the shell route alone gives the fit's other arms about
+/// the move's length, by row: the unbounded fit's `best: None` sample
+/// names a thicker wall, and an invalid request is the op's own defect
+/// (its thickness gate and its tolerance witness never make one).
+fn wall_endings() -> [(&'static str, String); 2] {
+    [
+        (
+            "BoundNotFinite#2",
+            "Recourse: use a thicker wall".to_owned(),
+        ),
+        ("InvalidRequest", geom_core::KERNEL_DEFECT_ENDING.to_owned()),
+    ]
+}
+
 /// Every `geom_brep::OffsetFitError` arm, through each feature-tree
 /// route that can raise it.
 ///
@@ -2162,9 +2179,11 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
         );
     }
     roster.extend(
+        // The sources alone: a source does not depend on the lever,
+        // which only the endings read, per route, in the test.
         meter_escalations(DISTANCE)
             .into_iter()
-            .map(|(route, source, _)| (format!("Meter/Escalated/{route}"), source)),
+            .map(|(route, source, _ending)| (format!("Meter/Escalated/{route}"), source)),
     );
     let face = FaceKey::default();
     let mut rows = Vec::new();

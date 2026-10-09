@@ -724,14 +724,29 @@ impl From<FitError> for OffsetFitError {
     }
 }
 
+/// What [`OffsetFitError::Meter`] says before its meter's refusal.
+const METER_UNFITTED: &str = "the offset surface cannot be fitted";
+
+impl OffsetFitError {
+    /// This refusal as `Display` renders it, except that a meter's
+    /// refusal ends in [`MeterError::render_with_lever`]'s words: for a
+    /// door whose user sets the offset under another name.
+    #[must_use]
+    pub fn render_with_lever(&self, lever: &'static str) -> String {
+        match self {
+            Self::Meter(e) => format!(
+                "{METER_UNFITTED}: {}",
+                e.render_with_lever(lever, Reading::Build)
+            ),
+            other => other.to_string(),
+        }
+    }
+}
+
 impl core::fmt::Display for OffsetFitError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Meter(e) => write!(
-                f,
-                "the offset surface cannot be fitted: {}",
-                e.render(Reading::Build)
-            ),
+            Self::Meter(e) => write!(f, "{METER_UNFITTED}: {}", e.render(Reading::Build)),
             Self::PatchBound(e) => write!(f, "{e}"),
             // The carriers' own prose is not rendered: their repairs
             // are addressed to a caller supplying samples or a spline,
