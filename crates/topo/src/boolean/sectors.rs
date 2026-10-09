@@ -587,8 +587,8 @@ fn at_departure<T: Decide>(
 ) -> geom_brep::LeverEscalation {
     // `arm / departure` is finite unless the departure is exactly zero
     // (or poison).
-    if escalation.rung != geom_brep::LeverRung::Arm
-        || !escalation.diag.offers_tolerance()
+    if escalation.rung() != geom_brep::LeverRung::Arm
+        || !escalation.diag().offers_tolerance()
         || !geom_core::is_finite_length(arm / departure)
     {
         return escalation;
