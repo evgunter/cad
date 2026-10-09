@@ -10617,12 +10617,15 @@ mod tests {
             }
         }
 
+        /// A cell's two bounds, as their `y` and what sits there.
+        type CellAlongY = (f64, CutAt, f64, CutAt);
+
         /// The `y` of every cell's bounds and their kinds.
         fn cells_along_y(
             body: &Body<f64>,
             face: FaceKey,
             e: &EdgeGeo<f64>,
-        ) -> (Vec<(f64, CutAt, f64, CutAt)>, Vec<ValidationError>) {
+        ) -> (Vec<CellAlongY>, Vec<ValidationError>) {
             let geo = snapshot(body);
             let f = planar_face(&geo, face).unwrap();
             let mut errors = Vec::new();
