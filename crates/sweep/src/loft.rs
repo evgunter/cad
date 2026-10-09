@@ -17,7 +17,9 @@
 //!   re-stated as an image in the cap's own chart once the plane does
 //!   ([`crate::swept::describe_face_rim_at_rest`] — D3's transience
 //!   fence). No cap–wall dihedral is classified here: unlike extrude,
-//!   loft does not upgrade these rims to `Intersection`.
+//!   loft does not upgrade these rims to `Intersection`, because the
+//!   plane × NURBS certificate refuses many of their at-rest rows
+//!   (`work/ssiedge/plane-nurbs-certificate-refuses-at-rest-rows-of-lofts-and-sweeps.md`).
 //! - **Wall–wall seams** are the genuinely new class (item 6(iii)):
 //!   an iso image of over the wall's boundary
 //!   row (`geom_brep::boundary_iso_u` — a control-net copy, no

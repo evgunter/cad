@@ -7,7 +7,7 @@ opened: 2026-09-28
 priority: P3
 cost: M
 design: true
-blocked_on: [shell-of-a-lofted-body-meets-the-oblique-corner-on-a-slanted-spline-seam]
+blocked_on: [a-fitted-wall-has-no-section-with-a-moved-cap]
 ---
 
 

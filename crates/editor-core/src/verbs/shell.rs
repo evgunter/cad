@@ -326,10 +326,27 @@ fn fold_replace_face_error<T: Real>(
             vertex,
             gap: end(gap, Supremum),
         },
-        R::ReanchorOffCarrier { edge, gap } => R::ReanchorOffCarrier {
+        R::EdgeSection {
             edge,
-            gap: end(gap, Supremum),
+            kind,
+            other_kind,
+            verdict,
+        } => R::EdgeSection {
+            edge,
+            kind,
+            other_kind,
+            verdict,
         },
+        R::CornerSection {
+            vertex,
+            edge,
+            verdict,
+        } => R::CornerSection {
+            vertex,
+            edge,
+            verdict: fold_corner_verdict(verdict, end),
+        },
+        R::DeclaredEdgeTilted { edge } => R::DeclaredEdgeTilted { edge },
         R::ReanchorPastCarrierEnd { edge, gap } => R::ReanchorPastCarrierEnd {
             edge,
             gap: end(gap, Supremum),
@@ -404,6 +421,30 @@ fn fold_offset_error<T: Real>(
         O::NotClosedUnderOffset => O::NotClosedUnderOffset,
         O::ApproxNesting => O::ApproxNesting,
         O::Escalated { source } => O::Escalated { source },
+    }
+}
+
+/// A corner root's verdict, folded arm by arm.
+fn fold_corner_verdict<T: Real>(
+    verdict: topo::CornerVerdict<T>,
+    end: fn(T, BracketEnd) -> f64,
+) -> topo::CornerVerdict<f64> {
+    use topo::CornerVerdict as C;
+    match verdict {
+        C::Ssi(e) => C::Ssi(e),
+        // The sine as near zero as the bracket admits: the reading
+        // under which the surface grazes.
+        C::Graze { sine } => {
+            let (lo, hi) = (
+                end(sine, BracketEnd::Infimum),
+                end(sine, BracketEnd::Supremum),
+            );
+            C::Graze {
+                sine: if lo.abs() < hi.abs() { lo } else { hi },
+            }
+        }
+        C::NoRoot => C::NoRoot,
+        C::Unsupported { what } => C::Unsupported { what },
     }
 }
 
