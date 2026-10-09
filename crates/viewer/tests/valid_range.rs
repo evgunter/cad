@@ -277,7 +277,7 @@ fn the_session_probes_a_real_slots_range() {
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len_mm(0.008),
             side: ExtrudeSide::Along,
         },
@@ -568,7 +568,7 @@ fn thickness_document(tol: Tol) -> Doc<ProfileProgram> {
     common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: Formula::named(common::thickness_param(), Dimension::Length),
             side: ExtrudeSide::Along,
         },

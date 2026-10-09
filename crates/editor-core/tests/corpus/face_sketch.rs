@@ -52,7 +52,7 @@ pub fn document() -> CorpusDoc {
         ]],
     )));
     let cube = r.insert(Node::Extrude {
-        profile: box_p,
+        profile: box_p.into(),
         distance: len(BOX_H),
         side: ExtrudeSide::Along,
     });
@@ -63,7 +63,7 @@ pub fn document() -> CorpusDoc {
     // face (a non-zero spin), so the corpus rows walk the rotation
     // about the outward normal rather than the identity.
     let top = r.insert(Node::Datum(editor_core::Datum::FaceFrame {
-        at: cube,
+        at: cube.into(),
         face: fname(cube, RoleSeg::Cap(CapEnd::End)),
         spin: ang(SPIN),
     }));
@@ -81,7 +81,7 @@ pub fn document() -> CorpusDoc {
         ]],
     )));
     let boss = r.insert(Node::Extrude {
-        profile: boss_p,
+        profile: boss_p.into(),
         distance: len(BOSS_H),
         side: ExtrudeSide::Along,
     });
@@ -107,7 +107,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: cube,
             slot: SlotId::Distance,
-            expr: len(1.5),
+            value: len(1.5).into(),
             fresh: Vec::new(),
         },
         bump_root: cube,

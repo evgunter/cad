@@ -37,3 +37,13 @@ redundant on every row, and it was removed before merging.)
 One walk serves both lanes, or a row holds the two orders against each
 other on the conics both reach (a tilted ellipse on a cylinder, a
 circle on a sphere) so that a change to either goes red.
+
+## 2026-10-09 — the boolean's side now reads arc length (JOIN, PR 4396)
+
+`turned_past` now reads the arc to first order near the incumbent's
+site (`n·(p − site) / |n·t̂|`), not the plane distance. So both lanes
+now read a length along the conic: this side directly, the split
+through `sort_along`'s arc-length gap. The two are still not held
+against each other. `turned_past`'s decisions also clear a slack of
+`2ε cot ψ` for sites off the conic (`travel`), which the split's walk
+does not read.

@@ -54,7 +54,7 @@ fn part_doc(label: &str) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: fixture::len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -396,6 +396,7 @@ fn deleting_an_outers_minting_node_strands_it_on_the_instance() {
             Maintenance::Strand { node, name, .. } => Some((node.id(), name.name().clone())),
             Maintenance::OffsetCleared { .. }
             | Maintenance::StrandedAppearance { .. }
+            | Maintenance::StrandedRead { .. }
             | Maintenance::LabelDropped { .. }
             | Maintenance::AnonymousVarRemoved { .. } => None,
         })

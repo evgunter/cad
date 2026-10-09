@@ -626,7 +626,8 @@ impl<P: ProfilePayload> HoldsNodes for Doc<P> {
     }
 
     fn sole_profile(&self, feature: RecipeNodeId) -> Option<RecipeNodeId> {
-        let inputs = self.node(feature)?.inputs();
+        self.node(feature)?;
+        let inputs = self.upstream(feature);
         let mut profiles = inputs
             .iter()
             .filter(|input| matches!(self.node(**input), Some(Node::Profile(_))));

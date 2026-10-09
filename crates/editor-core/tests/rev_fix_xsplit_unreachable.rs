@@ -42,7 +42,7 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -178,7 +178,7 @@ fn three_shapes() -> ProfileDoc {
     let (doc, pa) = insert(
         doc,
         Node::Pattern {
-            input: a,
+            input: a.into(),
             count: Formula::count(3),
             kind: linear(2.0),
         },
@@ -190,7 +190,7 @@ fn three_shapes() -> ProfileDoc {
     let (doc, pc) = insert(
         doc,
         Node::Pattern {
-            input: c,
+            input: c.into(),
             count: Formula::count(2),
             kind: linear(3.0),
         },
@@ -198,7 +198,7 @@ fn three_shapes() -> ProfileDoc {
     let (doc, npc) = insert(
         doc,
         Node::Pattern {
-            input: pc,
+            input: pc.into(),
             count: Formula::count(2),
             kind: linear(7.0),
         },
@@ -246,7 +246,7 @@ fn foreign_master() -> ProfileDoc {
     let (doc, pa) = insert(
         doc,
         Node::Pattern {
-            input: a,
+            input: a.into(),
             count: Formula::count(3),
             kind: linear(2.0),
         },

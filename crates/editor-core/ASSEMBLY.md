@@ -189,7 +189,7 @@ and unbuilt `Fit { gap }`, refuses at the solve door.
 contributes a *reading edge* to the member its operand resolves to: the
 walk's minting instance, whatever the depth of the copy chain above it.
 Reading edges are recomputed by `reading_edges`, never stored, and are
-not operand edges: `inputs()` stays empty. A9's partition runs over
+not operand reads: a mate reads no operand. A9's partition runs over
 operand ∪ reading edges and A11's groups over placing mates. A mate
 places nothing in the world, so it is never in the product (A10).
 

@@ -248,7 +248,12 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
     // The plane the profile's `plane` id NAMES — a `Profile` is built
     // from a `SketchPlane`, and the node id is not one. Read from the
     // document, so this is the plane the evaluator would build too.
-    let plane = fixture::plane_of(&doc.doc, program.plane);
+    let plane = fixture::plane_of(
+        &doc.doc,
+        doc.doc
+            .operation_of(program.frame)
+            .expect("the plane read is live"),
+    );
     let (_, canonical) = profile::ConstructedProfile::new(plane, nominal_loops(&nominal))
         .validate_recording(Tol::witness())
         .expect("the nominal validates and records");

@@ -51,7 +51,7 @@ fn box_part(label: &str, half: f64, height: f64) -> ProfileDoc {
     let (doc, _) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(height),
             side: ExtrudeSide::Along,
         },
@@ -73,7 +73,10 @@ fn resized(part: ProfileDoc, half: f64, height: f64) -> ProfileDoc {
         unreachable!("found as a profile")
     };
     let ids = program.kept_in_place();
-    let loops = fixture::desc(program.plane, vec![fixture::square(0.0, 0.0, half)]).loops;
+    let plane = part
+        .operation_of(program.frame)
+        .expect("the plane read is live");
+    let loops = fixture::desc(plane, vec![fixture::square(0.0, 0.0, half)]).loops;
     let body = body_node(&part);
     let (part, _) = fixture::step(
         part,
@@ -89,7 +92,7 @@ fn resized(part: ProfileDoc, half: f64, height: f64) -> ProfileDoc {
         DocEdit::SetParam {
             node: body,
             slot: editor_core::SlotId::Distance,
-            expr: len(height),
+            value: len(height).into(),
             fresh: Vec::new(),
         },
     );
@@ -118,8 +121,8 @@ fn cylinder_part(label: &str, radius: f64, height: f64) -> ProfileDoc {
     let (doc, _) = insert(
         doc,
         Node::Revolve {
-            profile,
-            axis,
+            profile: profile.into(),
+            axis: axis.into(),
             angle: ang(std::f64::consts::TAU),
         },
     );
@@ -973,7 +976,7 @@ fn a6_only_a_mate_inserts_rider_asks_the_store() {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(Node::Union {
-                    members: vec![b, c],
+                    members: vec![b.into(), c.into()],
                     declare: Vec::new(),
                 }),
                 fresh: Vec::new(),
@@ -1209,7 +1212,7 @@ fn block(label: &str) -> ProfileDoc {
     let (doc, _) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },

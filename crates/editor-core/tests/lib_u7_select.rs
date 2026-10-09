@@ -56,7 +56,7 @@ fn box_doc() -> (ProfileDoc, RecipeNodeId) {
     fixture::insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -240,7 +240,7 @@ fn composed_ids(
         .ids()
         .iter()
         .find_map(|id| match doc.node(*id) {
-            Some(Node::Fillet { target, .. }) => Some((*id, *target)),
+            Some(Node::Fillet { target, .. }) => Some((*id, doc.operation_of(*target)?)),
             _ => None,
         })
         .expect("the composed die has a fillet node");
