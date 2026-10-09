@@ -1273,9 +1273,12 @@ reads what was written.
 **Spaces and placement.** A part has no location. A **space** is a set
 of copies related to one another; a part is born in its own space. A
 **placement** is the bundle of mates that pins one copy of a part
-relative to others: two placements of a part are two copies. A mate
-any of whose equations the bundle's other mates already fix refuses as
-an overconstraint, pinned or not, decided by subgroup algebra (A11 (1))
+relative to others: two placements of a part are two copies. Its
+constraints are mates and values on equal footing: a value sets one
+freedom the mates leave to a variable, so a bundle may fix exactly what
+its mates leave free, and a copy whose constraints leave something free
+is loose. A constraint any of whose equations the bundle's others
+already fix refuses as an overconstraint, pinned or not, decided by subgroup algebra (A11 (1))
 without measuring; where two copies meet beyond what their mates fix is
 a contact like any other, recorded and linted, and its recourse is an
 assertion. A mate places and never checks. A placed copy's frame is not
