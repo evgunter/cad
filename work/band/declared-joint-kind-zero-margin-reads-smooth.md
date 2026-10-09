@@ -44,6 +44,7 @@ The stored tangent-joint flags are gone: `ProfileLoop` holds none, and
 constructed joints a `ConstructedLoop` carries and the junction
 verdicts, recording each joint no constructor made
 (`ValidatedLoop::decided_joints`). `junction_reverses` still maps a
-`Zero` margin to "does not reverse", now for every tangent joint,
-constructed or decided, so all three bullets above stand as written and
-the row is dispatchable.
+`Zero` margin to "does not reverse", now for every tangent joint between
+two carriers, constructed or decided (a same-carrier joint is not asked:
+its retrace is refused `NonSimple` first), so all three bullets above
+stand as written and the row is dispatchable.

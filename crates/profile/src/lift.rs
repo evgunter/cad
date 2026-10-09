@@ -114,7 +114,8 @@ pub enum LiftRefusal {
     },
     /// The loop's tangent junctions could not be derived: a segment or
     /// a joint validation refuses or cannot decide, so there is no set
-    /// to spell.
+    /// to spell. The error reads the lifted loop as loop 0, the only
+    /// loop of a profile of its own, whatever loop it was elsewhere.
     Unclassified(crate::ProfileError),
     /// A same-carrier arc run reaches the SEAM. `arc_continue` has no
     /// closing form (it mints a structural subdivision vertex mid-chain
@@ -144,7 +145,11 @@ impl std::fmt::Display for LiftRefusal {
                 )
             }
             Self::Unclassified(error) => {
-                write!(f, "the loop's tangent junctions cannot be derived: {error}")
+                write!(
+                    f,
+                    "the loop's tangent junctions cannot be derived (read alone, as loop 0): \
+                     {error}"
+                )
             }
             Self::SameCarrierClose { joint } => write!(
                 f,
@@ -330,8 +335,10 @@ fn lift_seamed(loop_: &ProfileLoop<f64>, tol: Tol) -> Result<Seamed, LiftRefusal
             return Err(LiftRefusal::NonFinite { vertex: i });
         }
     }
+    // The lift reads one loop alone, as the only loop of its own
+    // profile, so a refusal names it loop 0.
     let tangent =
-        crate::validate::table_tangent_joints(loop_, tol).map_err(LiftRefusal::Unclassified)?;
+        crate::validate::table_tangent_joints(loop_, 0, tol).map_err(LiftRefusal::Unclassified)?;
 
     // The closed-carrier forms first: a loop that IS a carrier has no
     // seam to author, and `circle`/`circle_split` say so in one step.

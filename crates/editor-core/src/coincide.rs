@@ -503,7 +503,7 @@ pub(crate) fn name_junctions<T: geom_core::Real>(
             let relation = match decided.carriers {
                 profile::JointCarriers::Same => topo::Relation::SameOriented,
                 profile::JointCarriers::Tangent => topo::Relation::Tangent {
-                    aligned: lp.cusp_joints().binary_search(&joint).is_err(),
+                    aligned: !decided.reverses,
                 },
             };
             rows.push(NamedCoincidence {

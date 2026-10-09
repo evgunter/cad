@@ -630,7 +630,25 @@ fn the_corpus_stored_loops_dump_to_the_bit() {
 }
 
 /// The corpus dump's hash at the default ε row (see
-/// [`the_corpus_stored_loops_dump_to_the_bit`]).
+/// [`the_corpus_stored_loops_dump_to_the_bit`]). Re-derived when the
+/// fillet door began storing the carriers its constructions build — a
+/// fillet arc on its own centre and the authored radius, an arc side's
+/// run on the side's circle — instead of re-lowering each arc from its
+/// chord: every arc's fields moved in the last bits. No loop's verdict
+/// moved at this row or at 1e-6; at 1e-12 two loops that escalated a
+/// near-coincidence between the fillet arc and its arc neighbour now
+/// validate (`line x arc c=32 r=0.5`, `c=128 r=0.2`). Then the
+/// arc-carrier fillet's sweep took the one quarter-tangent spelling
+/// (`sugar::quarter_tan_about`), moving its last bits on every
+/// arc-carrier fillet in the corpus, and an arc side's run with an
+/// authored radius stores it as `|r|` (`shared coverage corpus 13`'s
+/// 1.9999999999999998 is 2.0); no verdict or joint moved. Then the
+/// stored tangent-joint list went (D1): each row prints the loop's
+/// constructed joints, sorted, and validates through
+/// `ConstructedProfile`, which verifies them rather than re-deciding
+/// the stored arcs' consistency; five rows' joint lists re-ordered, the
+/// two circle forms joined the corpus (`shared coverage corpus 14`,
+/// `15`), and no vertex, arc field or verdict moved.
 const GOLDEN_DEFAULT: u64 = 0xe1b3_65a1_364f_8e39;
 /// The same at `CAD_TOLERANCE_EPS=1e-6`.
 const GOLDEN_1E6: u64 = 0xcfa6_9bf8_7d3c_8213;

@@ -1407,6 +1407,9 @@ pub struct DecidedJoint {
     pub joint: usize,
     /// What the carriers do there.
     pub carriers: JointCarriers,
+    /// Whether the heading reverses there (a cusp); never on one
+    /// carrier, whose retrace the simplicity pass refuses first.
+    pub reverses: bool,
     /// The Zero margin the joint was decided on.
     pub margin: MarginDiag,
 }
@@ -2349,14 +2352,16 @@ fn judge_pair<T: Decide, L: Borrow<ProfileLoop<T>>>(
 /// what validation derives for a loop no constructor built — every
 /// joint its carriers' verdicts decide Zero. Only the per-segment and
 /// joint passes run, so a loop that passes here may still refuse
-/// [`Profile::validate`]'s other checks.
+/// [`Profile::validate`]'s other checks. A refusal names the loop as
+/// `loop_index`.
 pub(crate) fn table_tangent_joints<T: Decide>(
     lp: &ProfileLoop<T>,
+    loop_index: usize,
     tol: Tol,
 ) -> Result<Vec<usize>, ProfileError> {
     let band = Band::linear(tol).map_err(ProfileError::Band)?;
-    let segs = build_loop_segs(lp, 0, Consistency::Decide, band)?;
-    Ok(judge_joints(&[], &segs, 0, band)?.tangent)
+    let segs = build_loop_segs(lp, loop_index, Consistency::Decide, band)?;
+    Ok(judge_joints(&[], &segs, loop_index, band)?.tangent)
 }
 
 /// One loop's joint verdicts, in INPUT indices, ascending
@@ -2437,26 +2442,27 @@ fn judge_joints<T: Decide>(
             seg::JointClass::SameCarrier => JointCarriers::Same,
         };
         verdicts.tangent.push(joint);
-        if !constructed.contains(&joint) {
-            verdicts.decided.push(DecidedJoint {
-                joint,
-                carriers,
-                margin: reading.diag,
-            });
-        }
         // One carrier continuing never reverses: that would retrace the
         // carrier, an overlap the simplicity pass has already refused.
         let (arriving, leaving) = (&segs[prev], &segs[joint]);
-        if carriers == JointCarriers::Tangent
+        let reverses = carriers == JointCarriers::Tangent
             && seg::junction_reverses(
                 arriving.heading_at(arriving.b),
                 leaving.heading_at(leaving.a),
                 arriving.arm(),
                 band,
             )
-            .map_err(escalated)?
-        {
+            .map_err(escalated)?;
+        if reverses {
             verdicts.cusps.push(joint);
+        }
+        if !constructed.contains(&joint) {
+            verdicts.decided.push(DecidedJoint {
+                joint,
+                carriers,
+                reverses,
+                margin: reading.diag,
+            });
         }
     }
     Ok(verdicts)

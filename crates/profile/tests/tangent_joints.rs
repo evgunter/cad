@@ -517,28 +517,43 @@ fn the_cusp_junction_is_exact_and_the_two_carriers_oppose() {
     );
 }
 
-/// **The lattice constructs every tangent joint it builds**: each loop
-/// of the shared coverage corpus — one per verb row — that validates
-/// decides none of its joints from values. (A row authored to cover a
-/// verb may be refused for its shape; those say nothing here.)
+/// **No coverage-corpus row leaves a joint to decide**: each loop of
+/// the shared coverage corpus — one per verb row — that validates
+/// decides none of its joints from values, so no verb row's own
+/// construction leaks a tangency. The corpus has no ε-scale junction,
+/// and this says nothing about one: the lattice builds a junction its
+/// turn band reads as a corner and validation decides Zero
+/// (`coincidence_door.rs`'s profile-junction rows), and that joint is
+/// recorded. The rows refused for their shape are pinned by index, so
+/// a verb row that starts refusing reds here instead of dropping out.
 ///
-/// Red if a lattice site mints a zero-turn joint without constructing
-/// it (validation would decide that joint and record it).
+/// Red if a corpus row's construction leaves a zero-turn joint
+/// unconstructed (validation would decide and record it), or the set
+/// of refusing rows moves.
 #[test]
-fn the_lattice_constructs_every_tangent_joint_it_builds() {
-    let mut validated = 0;
+fn no_coverage_corpus_row_leaves_a_joint_to_decide() {
+    // Row 9, the two arc-mode legs, covers verbs rather than a region:
+    // its loop crosses itself.
+    const REFUSED: &[(usize, &str)] = &[(9, "NonSimple")];
+    let mut refused = Vec::new();
     for (i, closed) in common::coverage_corpus().into_iter().enumerate() {
-        let Ok(vp) = constructed(vec![closed.loop_]) else {
-            continue;
+        let vp = match constructed(vec![closed.loop_]) {
+            Ok(vp) => vp,
+            Err(e) => {
+                let said = format!("{e:?}");
+                let kind = said.split([' ', '{', '(']).next().unwrap_or("").to_owned();
+                refused.push((i, kind));
+                continue;
+            }
         };
-        validated += 1;
         assert!(
             vp.loops()[0].decided_joints().is_empty(),
             "corpus row {i}: a joint the lattice built was decided from values: {:?}",
             vp.loops()[0].decided_joints()
         );
     }
-    assert!(validated >= 10, "only {validated} corpus rows validate");
+    let refused: Vec<(usize, &str)> = refused.iter().map(|(i, k)| (*i, k.as_str())).collect();
+    assert_eq!(refused, REFUSED, "the corpus rows refused for their shape");
 }
 
 /// **Arc extension constructs no joint at the tip, and leaves none to
