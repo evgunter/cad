@@ -1,0 +1,128 @@
+diff --git a/crates/sweep/tests/a_steep_ellipse_orders_band_apart_sites_along_its_arc.rs b/crates/sweep/tests/a_steep_ellipse_orders_band_apart_sites_along_its_arc.rs
+index ea7af6b8..9d564919 100644
+--- a/crates/sweep/tests/a_steep_ellipse_orders_band_apart_sites_along_its_arc.rs
++++ b/crates/sweep/tests/a_steep_ellipse_orders_band_apart_sites_along_its_arc.rs
+@@ -190,3 +190,95 @@ fn band_apart_partners_on_a_steep_ellipse_are_ordered_along_its_arc() {
+         }
+     }
+ }
++
++/// REVIEW PROBE: log each run's outcome per k, without asserting.
++#[test]
++fn review_probe_steep_ellipse_log() {
++    let tol = Tol::witness();
++    let g = GAP_BANDS * tol.eps();
++    for k in [10.0, 60.0] {
++        let (a, b) = (cylinder(k), block(k, g));
++        let va = PI * 2.0 * half_length(k);
++        let vb = (4.0 * (k + 2.0) - (g + 1.0) * (NOTCH_TOP - FLOOR)) * -FLOOR;
++        for (op, r, want) in every_op_both_orders(&a, &b, (va, vb, shared(k, g)), tol) {
++            let s = match &r {
++                Err(e) => format!("ERR filed={} {:?}", stops_where_filed(k, e), e).chars().take(260).collect::<String>(),
++                Ok(_) => outcome(r, want, tol),
++            };
++            eprintln!("PROBE k={k} {op}: {s}");
++        }
++    }
++}
++
++/// REVIEW PROBE (claim 4): a strip of width `w` along an orthogonal or
++/// oblique polyline, as one simple polygon (corner offsets by the
++/// bisector, which is exact at right angles).
++fn strip(path: &[(f64, f64)], w: f64) -> Vec<(f64, f64)> {
++    let n = path.len();
++    let nrm = |a: (f64, f64), b: (f64, f64)| {
++        let (dx, dy) = (b.0 - a.0, b.1 - a.1);
++        let l = dx.hypot(dy);
++        (-dy / l, dx / l)
++    };
++    let mut left = Vec::new();
++    let mut right = Vec::new();
++    for i in 0..n {
++        let (nx, ny) = if i == 0 {
++            nrm(path[0], path[1])
++        } else if i == n - 1 {
++            nrm(path[n - 2], path[n - 1])
++        } else {
++            let (a, b) = (nrm(path[i - 1], path[i]), nrm(path[i], path[i + 1]));
++            let (sx, sy) = (a.0 + b.0, a.1 + b.1);
++            let d = sx * a.0 + sy * a.1;
++            (sx / d, sy / d)
++        };
++        left.push((path[i].0 + nx * w / 2.0, path[i].1 + ny * w / 2.0));
++        right.push((path[i].0 - nx * w / 2.0, path[i].1 - ny * w / 2.0));
++    }
++    right.reverse();
++    left.extend(right);
++    crate::common::differential::ccw(left)
++}
++
++#[test]
++#[ignore = "review probe"]
++fn review_probe_forced_lanes() {
++    let tol = Tol::witness();
++    let spiral = strip(
++        &[(-2.6, -2.6), (2.6, -2.6), (2.6, 2.6), (-1.6, 2.6), (-1.6, -1.6), (1.6, -1.6), (1.6, 1.6), (-0.6, 1.6), (-0.6, -0.6), (0.6, -0.6), (0.6, 0.4)],
++        0.5,
++    );
++    let serp = strip(
++        &[(-2.5, -2.5), (-2.5, 2.5), (-1.5, 2.5), (-1.5, -2.5), (-0.5, -2.5), (-0.5, 2.5), (0.5, 2.5), (0.5, -2.5), (1.5, -2.5), (1.5, 2.5), (2.5, 2.5), (2.5, -2.5)],
++        0.4,
++    );
++    let plus = crate::common::differential::ccw(vec![
++        (-0.4, -2.5), (0.4, -2.5), (0.4, -0.4), (2.5, -0.4), (2.5, 0.4), (0.4, 0.4),
++        (0.4, 2.5), (-0.4, 2.5), (-0.4, 0.4), (-2.5, 0.4), (-2.5, -0.4), (-0.4, -0.4),
++    ]);
++    let zig = strip(&[(-2.5, -2.0), (-1.5, 2.0), (-0.5, -2.0), (0.5, 2.0), (1.5, -2.0), (2.5, 2.0)], 0.35);
++    let block = finished(
++        "block",
++        topo::test_support::prism_z(&[(-4.0, -4.0), (4.0, -4.0), (4.0, 4.0), (-4.0, 4.0)], -2.0, 0.0, tol).body,
++        tol,
++    );
++    for (name, prof) in [("spiral", &spiral), ("serp", &serp), ("plus", &plus), ("zig", &zig)] {
++        let area = crate::common::differential::area(prof).abs();
++        for (depth, z0) in [("blind", -0.7), ("through", -3.0)] {
++            for deg in [0.0f64, 13.0, 45.0, 71.0] {
++                let raw = topo::test_support::prism_z(prof, z0, 1.0, tol).body;
++                let b = finished("b", crate::common::germ_pair::spin(&raw, Vec3::unit_z(), deg.to_radians()), tol);
++                let vb = area * (1.0 - z0);
++                let vab = area * (0.0 - z0.max(-2.0));
++                for (op, r, want) in every_op_both_orders(&block, &b, (128.0, vb, vab), tol) {
++                    let line = match &r {
++                        Err(e) => format!("{e:?}").chars().take(160).collect(),
++                        Ok(_) => outcome(r, want, tol),
++                    };
++                    eprintln!("POSE {name} {depth} {deg} {op}: {line}");
++                }
++            }
++        }
++    }
++}
+diff --git a/crates/topo/src/boolean/join.rs b/crates/topo/src/boolean/join.rs
+index de5eeaa5..bed6bb55 100644
+--- a/crates/topo/src/boolean/join.rs
++++ b/crates/topo/src/boolean/join.rs
+@@ -2766,7 +2766,9 @@ fn choose_roles<T: Decide>(
+             _ => false,
+         };
+         if across {
+-            return match capture_rank(body, (x, y), loose)? {
++            let cap = capture_rank(body, (x, y), loose)?;
++            eprintln!("FORCEDPROBE across {:?}", cap);
++            return match cap {
+                 Capture::Clean => Ok(RoleLane::Decided((x, y))),
+                 Capture::RingHeld | Capture::Separates => Err(desync(
+                     "a match across its segment's edge separates a loose scaffolding pair",
+@@ -2850,7 +2852,11 @@ fn ring_order<T: Decide>(
+     ccw: bool,
+ ) -> Result<(HalfEdgeKey, HalfEdgeKey), BooleanError> {
+     let (h1, h2) = if ccw { (ea, ra) } else { (ra, ea) };
+-    match capture_rank(body, (h1, h2), loose)? {
++    let cap = capture_rank(body, (h1, h2), loose)?;
++    eprintln!("FORCEDPROBE ring {:?}", cap);
++    let other = capture_rank(body, (h2, h1), loose)?;
++    eprintln!("FORCEDPROBE ring-other {:?}", other);
++    match cap {
+         Capture::Clean => Ok((h1, h2)),
+         Capture::RingHeld | Capture::Separates => Err(BooleanError::JoinDesync {
+             what: "derived ring role order separates a loose scaffolding pair",
