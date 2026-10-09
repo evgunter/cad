@@ -64,9 +64,17 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// full. A ratchet: a number that grows fails, one that shrinks lowers
 /// it. The total moves with a word said once more by every name of a
 /// kind, which the quantiles of a long tail need not.
+///
+/// The full p99 rose from 97 to 98 when the blend began ending with the
+/// join (`docs/DESIGN.md`, maximal edges; 3881 step 3, PR C): two host
+/// trimlines of a rim band the join makes one edge are said as the set
+/// of both trim names, which is longer than either. The ruling names a
+/// joined edge by the input cells it covers, so the longer name is the
+/// reading, not a regression; the total fell with the names the join
+/// took (a host foot and a trimline per band).
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
     ("scoped faces", [16, 34, 38, 38_230]),
-    ("full", [19, 97, 181, 274_184]),
+    ("full", [19, 98, 181, 273_351]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -87,7 +95,11 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// it. On that tree the ids reorder an `Ends` list the same way they
 /// reorder a `Borders` one (mint order, not digest order), and move no
 /// other word.
-const SAID_DIGEST: u64 = 0x6d1cb7b9e371bc58;
+///
+/// The blend's closing join moved it: the two rim-filleting documents'
+/// joined host trimlines say the set of both trim names, and their
+/// joined-away feet and trimlines say nothing.
+const SAID_DIGEST: u64 = 0xef69_a279_1947_2db8;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

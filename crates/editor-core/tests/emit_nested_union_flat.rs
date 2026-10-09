@@ -428,7 +428,7 @@ fn a_union_over_a_filleted_body_whose_rims_are_sets_publishes_flat_sets() {
     let (d1, fillet) = insert(
         d1,
         Node::Fillet {
-            target: u1,
+            target: u1.into(),
             radius: crate::fixture::len(0.1),
             selection: vec![corner_name],
         },
