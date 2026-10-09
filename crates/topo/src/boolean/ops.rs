@@ -207,6 +207,9 @@ pub struct BooleanBody<T: Real> {
     /// wiring facts the naming layer consumes — recorded as the
     /// pipeline runs, never reconstructed by post-hoc inspection.
     pub naming: BooleanNaming,
+    /// The coincidences the op decided from values, in decision order
+    /// and operand keys ([`crate::coincidence`]).
+    pub coincidences: Vec<crate::Coincidence>,
 }
 
 /// How one operand's keys relate to the result body's keys.
@@ -654,6 +657,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         };
     let contacts = red.contacts.clone();
     let reduction_contacts = red.contacts.clone();
+    let coincidences = red.coincidences.clone();
     let covered = red.covered.clone();
     let edge_classes = red.edge_classes.clone();
     let null_copies = super::null_copy_rows(&red.null_edges);
@@ -763,6 +767,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         kind: BooleanResultKind::Seamed,
         contacts,
         naming,
+        coincidences,
     }))
 }
 
@@ -3621,7 +3626,7 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     ));
     let kept = kept.map_err(|errors| BooleanError::ResultInvalid { errors })?;
     if kept.outcome() == crate::AtRestOutcome::NotRunAtThisScalar {
-        structural_gate(&kept)?;
+        structural_gate(&kept, band)?;
     }
     Ok(kept)
 }
@@ -3629,14 +3634,18 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
 /// The result gate where no at-rest gate ran (a dual's policy answers
 /// [`crate::AtRestOutcome::NotRunAtThisScalar`]): tiers 1 and 2, then
 /// tier 3's transience fence
-/// ([`ValidationError::ScaffoldAtRest`](crate::ValidationError::ScaffoldAtRest)),
+/// ([`ValidationError::ScaffoldAtRest`](crate::ValidationError::ScaffoldAtRest))
+/// and its check 11 in `band`
+/// ([`ValidationError::JoinableVertexAtRest`](crate::ValidationError::JoinableVertexAtRest)),
 /// which read no certification arithmetic and so answer at every
 /// scalar. An edge of the result still described as a scaffold is a
-/// construction that stopped half-way.
-pub(super) fn structural_gate<T: Real>(body: &Body<T>) -> Result<(), BooleanError> {
+/// construction that stopped half-way, and a joinable vertex one the
+/// join did not finish.
+pub(super) fn structural_gate<T: Decide>(body: &Body<T>, band: Band) -> Result<(), BooleanError> {
     validate(body).map_err(|errors| BooleanError::ResultInvalid { errors })?;
     validate_closed(body).map_err(|errors| BooleanError::ResultInvalid { errors })?;
-    let errors = scaffolds_at_rest(body);
+    let mut errors = scaffolds_at_rest(body);
+    errors.extend(crate::validate::joinable_at_rest_errors(body, band));
     if errors.is_empty() {
         Ok(())
     } else {
@@ -4981,6 +4990,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 kind,
                 contacts,
                 naming,
+                coincidences: red.coincidences.clone(),
             }))
         }
     }
@@ -5057,6 +5067,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         kind,
         contacts,
         naming,
+        coincidences: red.coincidences.clone(),
     }))
 }
 
@@ -5310,6 +5321,46 @@ mod tests {
         let described =
             crate::test_support_fixtures::brick::<Dual64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
         let kept = gate(described, band, tol).expect("the described box passes");
+        assert_eq!(kept.outcome(), crate::AtRestOutcome::NotRunAtThisScalar);
+    }
+
+    /// **At a dual the result gate asks check 11 too.** No boolean
+    /// output reaches this arm: the output stage ends with the join,
+    /// which takes every vertex the same predicate reads, and nothing
+    /// between the join and the gate makes a vertex (`sort_into_pieces`
+    /// only sorts faces into solids). So the arm is the output's
+    /// postcondition, witnessed here on the described box with one edge
+    /// split by hand: the gate refuses it with exactly the split vertex,
+    /// and the box passes once joined.
+    #[test]
+    fn at_a_dual_the_result_gate_refuses_a_joinable_vertex() {
+        use geom_core::{Dual64, Real};
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body =
+            crate::test_support_fixtures::brick::<Dual64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let (edge, curve) = body.edges().next().map(|(k, d)| (k, d.curve)).unwrap();
+        let (t0, t1) = body
+            .get_curve_geom(curve)
+            .and_then(crate::CurveGeom::certified)
+            .unwrap()
+            .params();
+        let split = body
+            .split_edge(edge, (t0 + t1) * Dual64::from_f64(0.5), tol)
+            .unwrap()
+            .vertex;
+        let Err(BooleanError::ResultInvalid { errors }) = gate(body.clone(), band, tol) else {
+            panic!("a split vertex is no output's");
+        };
+        assert_eq!(
+            errors,
+            vec![crate::ValidationError::JoinableVertexAtRest { vertex: split }]
+        );
+        let joins = body
+            .join_edges(band, tol)
+            .expect("the split edge joins back");
+        assert_eq!(joins.len(), 1, "the split vertex, joined");
+        let kept = gate(body, band, tol).expect("the joined box passes");
         assert_eq!(kept.outcome(), crate::AtRestOutcome::NotRunAtThisScalar);
     }
 

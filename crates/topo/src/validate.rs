@@ -179,13 +179,13 @@
 //! check list, gate, and the honest not-yet-checked list live on
 //! [`validate_geometric`].
 //!
-//! **The tier is two functions.** Eight of its ten checks are answerable
+//! **The tier is two functions.** Nine of its eleven checks are answerable
 //! by any deciding scalar; the +V global orientation invariant (check 7)
 //! reads a volume enclosure, and shell winding (check 10) reads each
 //! shell's role off the same kind of sign — deciding either through the
 //! certified quadrature is an act of certification rather than a
 //! measurement. So [`validate_geometric`] is a private structural phase
-//! (checks 1–6, 8 and 9) followed by the certified checks 7 and 10,
+//! (checks 1–6, 8, 9 and 11) followed by the certified checks 7 and 10,
 //! carrying the union of their bounds — a scalar without certification rights cannot
 //! write the composed call at all.
 //!
@@ -1154,6 +1154,25 @@ pub enum ValidationError {
     ScaffoldAtRest {
         /// The edge still carrying a scaffolding description.
         edge: EdgeKey,
+    },
+    /// Tier 3, check 11 (`docs/DESIGN.md`, maximal edges; Ev's PR 4251
+    /// ruling): a body at rest holds a **joinable vertex** — two edges
+    /// meeting at it lie on one carrier and are one edge, read by the
+    /// join's own predicate. Every finisher ends with the join, so a
+    /// finished body holds none; one that does was finished by a door
+    /// that skipped it, or was built by hand and is construction state.
+    JoinableVertexAtRest {
+        /// The vertex the join would take.
+        vertex: VertexKey,
+    },
+    /// Tier 3, check 11's band arm (Ev's PR 4251 ruling, decision 2):
+    /// whether a vertex is joinable reads in the sliver band, so the
+    /// run's tolerance cannot tell it from a regular point. Refused at
+    /// rest rather than exempt: the size is finer than the run, and a
+    /// tighter tolerance decides it.
+    JoinUndecidedAtRest {
+        /// The join's undecided reading at the vertex.
+        undecided: crate::boolean::JoinUndecided,
     },
     /// Tier 3, the symmetric must-carry (OQ7's two-level shape, level
     /// (ii); M5 PR 9): a **jet-determinate tangency** — every interior
@@ -3354,6 +3373,18 @@ fn classify_census_cause(cause: &CensusUnsupportedCause) -> (Cow<'static, str>, 
 // arms: those report a damaged structure, and the key is what the bug
 // report needs. A nested refusal renders through its classifier above,
 // never whole.
+impl ValidationError {
+    /// Whether this is one of tier 3's check-11 verdicts
+    /// ([`ValidationError::JoinableVertexAtRest`],
+    /// [`ValidationError::JoinUndecidedAtRest`]).
+    fn is_check_11(&self) -> bool {
+        matches!(
+            self,
+            Self::JoinableVertexAtRest { .. } | Self::JoinUndecidedAtRest { .. }
+        )
+    }
+}
+
 impl fmt::Display for ValidationError {
     #[allow(clippy::too_many_lines)] // one sentence per arm
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -3508,6 +3539,16 @@ impl fmt::Display for ValidationError {
                 f,
                 "an edge still carries the stand-in description a construction uses before \
                  its faces exist, so the operation that built it stopped half-way. {DEFECT}"
+            ),
+            Self::JoinableVertexAtRest { .. } => write!(
+                f,
+                "two edges meeting at a vertex lie on one curve and are one edge, so the \
+                 operation that finished the body did not join them. {DEFECT}"
+            ),
+            Self::JoinUndecidedAtRest { undecided } => write!(
+                f,
+                "{}",
+                crate::boolean::JoinRefusal::Undecided(undecided.clone())
             ),
             Self::TangentNotIntrinsic { .. } => write!(
                 f,
@@ -4474,6 +4515,17 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///     passes; a `Void` outside the `Outer` and a `Void` inside a `Void`
 ///     refuse. Silent where the walk or a shell's sign cannot answer
 ///     (the list below).
+/// 11. **No joinable vertex** (vertices, arena order; run whatever
+///     checks 1–10 found): no vertex is one where exactly two edges of
+///     one curve meet and nothing else does, which a finished body has
+///     joined into one edge ([`ValidationError::JoinableVertexAtRest`]),
+///     read by the join's own predicate; a vertex whose reading falls
+///     in the sliver band, so that whether the two are one edge is
+///     undecided at this ε, refuses too
+///     ([`ValidationError::JoinUndecidedAtRest`], with the tighten-ε
+///     recourse). Unlike checks 7 and 10 it gates nothing and is gated
+///     by nothing past tiers 1–2: it reads the boundary's marks, not
+///     the geometry the other checks interpret.
 ///
 /// **Coarse gate** (the pass-11 philosophy): the geometric passes run
 /// only when tiers 1–2 are clean — structural defects void geometric
@@ -4575,28 +4627,36 @@ pub(crate) fn closed_by_tier<T: Real>(
 /// # Errors
 ///
 /// A non-empty vector of every failure found: tiers 1–2 verbatim if
-/// any, else the tier-3 failures in the documented order.
+/// any, else the tier-3 failures in the documented order — checks
+/// 1–10 by number, and check 11's verdicts last, after whatever else
+/// was found (behind a certified check 7 and 10 when check 11 is all
+/// that refused, after the structural failures otherwise).
+///
 /// # The two halves, and why the entry carries both bounds
 ///
-/// Tier 3 is a battery of ten checks, eight of which any deciding
+/// Tier 3 is a battery of eleven checks, nine of which any deciding
 /// scalar can answer and two of which — check 7, the +V invariant, and
 /// check 10, shell winding, which reads each shell's role off the same
 /// kind of sign — are, through the certified quadrature, acts of
 /// CERTIFICATION. So this
 /// entry is two private functions composed:
 ///
-/// - a structural phase running checks 1–6, 8 and 9 (with check 2's
+/// - a structural phase running checks 1–6, 8, 9 and 11 (with check 2's
 ///   certified plane × NURBS lane), at every [`crate::AtRestPolicy`]
 ///   scalar;
 /// - `validate_geometric_certified`, check 7 and then check 10 through
 ///   [`crate::QuadLane::certified`], bounded on the quantity they
 ///   actually need.
 ///
-/// The entry is `structural(…)?` then certified, so its bound is the
-/// UNION and the `?` is the sequencing fact: a body that fails any
-/// structural check never reaches the volume claim — checks 8 and 9
-/// included, where the one-call battery the other doors run gates check
-/// 7 on checks 1–6 only.
+/// The entry is structural then certified, so its bound is the UNION,
+/// and the sequencing is a fact about which failures stop the volume
+/// claim: a body that fails any structural check but check 11 never
+/// reaches it — checks 8 and 9 included, where the one-call battery the
+/// other doors run gates check 7 on checks 1–6 only. A body refused by
+/// check 11 alone still has check 7 (and check 10 behind it) made: a
+/// joinable vertex is a mark on the boundary, not a fault in the
+/// geometry the volume is read off, so this door reports what the
+/// one-pass doors report.
 ///
 /// **A scalar that may not certify cannot write this call**, which is
 /// the point rather than a side effect: it is not refused here, there
@@ -4714,16 +4774,32 @@ pub fn validate_geometric_certificate<
     // body is blessed by a volume claim while its geometry went
     // unchecked. The structural phase runs without check 7, so it makes
     // no certificate of its own to return.
-    structural_via(
+    //
+    // Check 11 alone does not stop the certified half: a joinable vertex
+    // is a mark on the boundary, not a fault in the geometry the volume
+    // is read off, so a body refused for it alone still has check 7 made
+    // and reported first, as the structural doors' one pass reports it
+    // (`cleave_mint_doors::split_edge_splits_an_m7_8_edge_into_two_of_the_class_at_f64`
+    // pins both: check 7's verdict, then check 11's).
+    match structural_via(
         body,
         tol,
         StructuralPhase::BeforeCertifiedCheck7(CertifiedLanes::<T>::held().nurbs),
-    )?;
-    validate_geometric_certified(body, tol)
+    ) {
+        Ok(_) => validate_geometric_certified(body, tol),
+        Err(joinable) if joinable.iter().all(ValidationError::is_check_11) => {
+            let mut errors = validate_geometric_certified(body, tol)
+                .err()
+                .unwrap_or_default();
+            errors.extend(joinable);
+            Err(errors)
+        }
+        Err(errors) => Err(errors),
+    }
 }
 
 /// **[`validate_geometric`] holding no certified lane** — the whole
-/// ten-check battery at every [`crate::AtRestPolicy`] scalar with a
+/// eleven-check battery at every [`crate::AtRestPolicy`] scalar with a
 /// bracket, a [`Dual`](geom_core::Dual) included (the bound is the
 /// policy trait rather than bare `Decide` because check 1 reads the
 /// offset-fit seam off it and check 2's carrier lane rides as its
@@ -5497,7 +5573,7 @@ pub(crate) fn material_arm_error(
 ///
 /// **This pass makes every check in ONE call**, which is why it is not
 /// [`validate_geometric`] with a second return value: the whole
-/// ten-check battery runs in one call, check 7 included through the
+/// eleven-check battery runs in one call, check 7 included through the
 /// certified quadrature ([`crate::QuadLane::certified`]) and check 2
 /// through the certified plane × NURBS lane, so its bound names the
 /// certification right. Its `Err` is the battery's vector and differs
@@ -7113,7 +7189,37 @@ pub(crate) fn tier3_local_checks_marked<
         errors.extend(shell_winding_errors(body, band, tol, quad));
     }
 
+    // ------------------------------------------------------------------
+    // Tier 3, check 11: no joinable vertex at rest (`docs/DESIGN.md`,
+    // maximal edges; Ev's PR 4251 ruling). Read by the join's own
+    // predicate, so the check and the finishers' join cannot disagree
+    // on which vertex is joinable. Tier 2 and construction state are
+    // untouched: a merge's own output holds joinable vertices by
+    // design, and the join that follows it is what takes them. A
+    // reading in the sliver band refuses too, with the tighten-ε
+    // recourse — the size is finer than the run.
+    // ------------------------------------------------------------------
+    errors.extend(joinable_at_rest_errors(body, band));
+
     (errors, certificate)
+}
+
+/// Tier 3's check 11 on its own: a [`ValidationError::JoinableVertexAtRest`]
+/// for every vertex the join's predicate takes, and a
+/// [`ValidationError::JoinUndecidedAtRest`] for every one it reads in
+/// `band`, in vertex-arena order. Answers at every scalar the join
+/// reads at, so the dual result gate asks it too.
+pub(crate) fn joinable_at_rest_errors<T: geom_core::Decide>(
+    body: &Body<T>,
+    band: Band,
+) -> Vec<ValidationError> {
+    crate::boolean::joinable_at_rest(body, band)
+        .into_iter()
+        .map(|reading| match reading {
+            Ok(vertex) => ValidationError::JoinableVertexAtRest { vertex },
+            Err(undecided) => ValidationError::JoinUndecidedAtRest { undecided },
+        })
+        .collect()
 }
 
 /// The pairs `(i, j)`, `j < i`, of `rings` whose padded certified
@@ -8428,7 +8534,7 @@ fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core:
 /// Structure (D1):
 /// 1. Coarse-gate on tiers 1–2 (as [`validate_geometric`]).
 /// 2. All of tier 3's local checks, shared verbatim
-///    ([`tier3_local_checks`]) — the whole ten-check battery in one
+///    ([`tier3_local_checks`]) — the whole eleven-check battery in one
 ///    call, check 7 included through the certified quadrature, and its
 ///    check-7 gate is the battery-internal one (checks 1-6) rather than
 ///    [`validate_geometric`]'s composition.
@@ -8713,7 +8819,7 @@ impl<T: Real> AtRestBody<T> {
     /// Over an [`AtRestOutcome::Validated`] body the tier-1/2 gate and
     /// the battery are already known clean: [`validate_geometric`] passed
     /// on these bits, and the battery [`validate_pseudomanifold`] runs is
-    /// the same ten checks through the same lanes. The two gate check 7
+    /// the same eleven checks through the same lanes. The two gate check 7
     /// differently (the door roster's difference), and a gate only
     /// decides which refusals a failing body reports: on a body every
     /// check passes, both run every check through the lanes
@@ -8751,7 +8857,7 @@ impl<T: Real> AtRestBody<T> {
 }
 
 /// **Why an operand that carries no verdict is not a finished body** —
-/// the two promises [`AtRestBody::gate_unverdicted`] reads.
+/// the three promises [`AtRestBody::gate_unverdicted`] reads.
 #[derive(Clone, Debug)]
 pub enum Unfinished {
     /// Tier 2's findings: scaffolding at rest.
@@ -8760,6 +8866,10 @@ pub enum Unfinished {
     /// ([`ValidationError::NegativeVolume`]), or shells check 10 finds
     /// bounding negative material ([`ValidationError::ShellWinding`]).
     InsideOut(Vec<ValidationError>),
+    /// Tier 3's check 11: a vertex the join would take
+    /// ([`ValidationError::JoinableVertexAtRest`]), or one whose reading
+    /// lands in the sliver band ([`ValidationError::JoinUndecidedAtRest`]).
+    Unjoined(Vec<ValidationError>),
 }
 
 impl Unfinished {
@@ -8774,6 +8884,14 @@ impl Unfinished {
     pub const INSIDE_OUT_REFUSAL: &'static str = "is inside-out, as a whole or in one of \
         its shells, so faces there point into its material and bound negative volume, and \
         it is refused. Recourse: build it with its faces pointing outward, or revert it";
+    /// What every door refusing an operand that holds a joinable vertex
+    /// says after naming the operand: a body every finisher would have
+    /// joined, or one whose join reads in the sliver band (its finding
+    /// names the tolerance that decides it).
+    pub const UNJOINED_REFUSAL: &'static str = "holds a vertex where two edges of one curve \
+        meet and nothing else does, which a finished body has joined into one edge, so it is \
+        refused. Recourse: join its edges first, or, where the finding says whether they are \
+        one edge is undecided, follow its recourse";
 }
 
 impl<T: Real> AtRestBody<T> {
@@ -8791,7 +8909,11 @@ impl<T: Real> AtRestBody<T> {
     ///    check 7, check 10 per shell. A solid whose total it decides
     ///    definitely negative refuses, and so does a shell bounding
     ///    negative material inside a solid whose total is positive; a
-    ///    sign it leaves open passes, as tier 3 passes it.
+    ///    sign it leaves open passes, as tier 3 passes it;
+    /// 3. tier 3's check 11 (`joinable_at_rest_errors`), which reads no
+    ///    certification arithmetic and so answers at every scalar: a
+    ///    joinable vertex, or one read in the sliver band, refuses, as
+    ///    the dual result gate refuses it (`boolean::ops::structural_gate`).
     ///
     /// A total hides a sign at both levels: a body's total hides an
     /// inside-out solid, and a solid's hides an inside-out shell. So a
@@ -8818,10 +8940,14 @@ impl<T: Real> AtRestBody<T> {
             return Err(Unfinished::Scaffolding(scaffolding));
         }
         let wound = wound_negative(&self.body, band, tol, T::quad_lane());
-        if wound.is_empty() {
+        if !wound.is_empty() {
+            return Err(Unfinished::InsideOut(wound));
+        }
+        let unjoined = joinable_at_rest_errors(&self.body, band);
+        if unjoined.is_empty() {
             Ok(())
         } else {
-            Err(Unfinished::InsideOut(wound))
+            Err(Unfinished::Unjoined(unjoined))
         }
     }
 }
