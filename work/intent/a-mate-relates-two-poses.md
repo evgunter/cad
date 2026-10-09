@@ -21,21 +21,23 @@ FORK-S3-3 was weighed with FORK-S3-2 and S3-5 as FORK-S3M (fork log row
 97, PR 4326), and this unit builds on that answer. A mate is
 `{ on, to }`, two pose variables of one kind, and the kind is the
 primitive. `on` is a pose read off the copied shape's geometry and `to`
-one read off geometry of the space the copy joins (a face frame, a
-carrier's axis or centre, their offsets): there is no `FrameBase::Part`
-and no part frame to read. Today's mates written against a part frame,
-authored vectors and world-gauge offsets are absolute coordinates; the
-migration restates each over geometry where the geometry carries it,
-and otherwise drops it and names it in its report. There is no `sense` operand: the sense is
-`Flip { pose }`, a construction (an involution the door normalises to
-one side), and `Flip` has no `Point` arm. A `Frame` "opposed" becomes an
-explicit `turn/2` in an `Offset`, which retires `opposed()`'s hidden
-half-turn about `x`. Offsets read through `Offset`/`InFrame`, so a
-`turn/2` there must evaluate to an exact half-turn, or B's
-unmoved-poses check moves an ulp. A clocked coaxial (today's `Coaxial`
-plus rider, residual `Prismatic`) migrates to `Axis`–`Axis` plus
-`Direction`–`Direction` over the two reference directions, one turned by
-the clock angle. That needs `Direction`'s arm (translations and spin
-about it, dim 4) in the shared `Subgroup` in this unit; the spec's Q6
-line ("a `Plane`–`Plane` mate through the axis") pins the slide and is
-wrong.
+one read off geometry of the space the copy joins (a face's plane, a
+carrier's axis or centre, a standoff along a plane's normal): there is
+no `FrameBase::Part`, no part frame to read, and no reader of a
+carrier's reference direction (a face reads as a plane, FORK-S3P round
+10). What a mate leaves is set by values (FORK-S3M rounds 6-8), each a
+`Length` or `Angle` variable charted on the two bodies' own coordinates,
+so the `Offset` target carrying in-plane numbers retires. Today's mates
+written against a part frame, authored vectors and world-gauge offsets
+are absolute coordinates; the migration restates each as mates over
+geometry plus values, each value computed from today's pose so no bit
+moves, and otherwise drops it and names it in its report. There is no
+`sense` operand: the sense is `Flip { pose }`, a construction (an
+involution the door normalises to one side), and `Flip` has no `Point`
+arm; a `Frame` "opposed" becomes a `Flip`ped plane mate plus values,
+which retires `opposed()`'s hidden half-turn about `x`. A clocked
+coaxial (today's `Coaxial` plus rider, residual `Prismatic`) migrates
+to an `Axis`–`Axis` mate plus a slide and a spin value. That needs the
+`Cylindrical` residual's order-free chart in the shared `Subgroup` in
+this unit; the spec's Q6 line ("a `Plane`–`Plane` mate through the
+axis") pins the slide and is wrong.
