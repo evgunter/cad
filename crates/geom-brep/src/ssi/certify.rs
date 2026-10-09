@@ -115,9 +115,7 @@
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
-use geom_core::spline::algebra::{
-    GridSkip, SLIVER_CLEARANCE_ULPS, domain_grid_points, range_grid_points,
-};
+use geom_core::spline::algebra::{domain_grid_points, range_grid_points};
 use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface, tensor};
 use geom_core::{
     Band, Bounds, CertifiedEnclosure, Decide, Decided, Indeterminate, Interval, Margin, Point3,
@@ -311,14 +309,10 @@ fn refined<T: Real>(curve: &NurbsCurve3<T>) -> NurbsCurve3<T> {
     if kv.control_count() >= SSI_CERT_SPANS + kv.degree() {
         return curve.clone();
     }
-    // A grid point on or within the sliver clearance of a knot is
-    // skipped: on it, refinement would raise multiplicity; beside it, it
-    // would open a hairline span.
-    let add = domain_grid_points(
-        kv,
-        SSI_CERT_SPANS,
-        GridSkip::WithinUlps(SLIVER_CLEARANCE_ULPS),
-    );
+    // A grid point on or near a knot is skipped: on it, refinement
+    // would raise multiplicity; beside it, it would open a narrow span
+    // whose tangent is the insertion's rounding.
+    let add = domain_grid_points(kv, SSI_CERT_SPANS);
     curve.refine_knots(&add).unwrap_or_else(|_| curve.clone())
 }
 
@@ -725,11 +719,11 @@ impl Hull {
 }
 
 /// The uniform breaks limb 2's composite is cut at: the carrier
-/// domain's `SSI_CERT_SPANS` grid, minus every point within
-/// [`SLIVER_CLEARANCE_ULPS`] of an interior knot of EITHER curve. The
-/// composite merges both curves' knots into its break list, so a grid
-/// point a few ulps off either one's knot would open a hairline span
-/// beside it.
+/// domain's `SSI_CERT_SPANS` grid, minus every point within the grid's
+/// clearance ([`geom_core::spline::algebra::GRID_CLEARANCE`] of the
+/// spacing) of an interior knot of EITHER curve. The composite merges
+/// both curves' knots into its break list, so a grid point near either
+/// one's knot would open a narrow span beside it.
 fn chart_breaks(carrier: &KnotVector, pcurve: &KnotVector) -> Vec<f64> {
     let (lo, hi) = carrier.domain();
     let knots: Vec<f64> = carrier
@@ -737,13 +731,7 @@ fn chart_breaks(carrier: &KnotVector, pcurve: &KnotVector) -> Vec<f64> {
         .chain(pcurve.interior_knots())
         .map(|(k, _)| k)
         .collect();
-    range_grid_points(
-        lo,
-        hi,
-        SSI_CERT_SPANS,
-        GridSkip::WithinUlps(SLIVER_CLEARANCE_ULPS),
-        &knots,
-    )
+    range_grid_points(lo, hi, SSI_CERT_SPANS, &knots)
 }
 
 /// The box chain covering a carrier: one padded box per span of the
@@ -1922,14 +1910,15 @@ mod tests {
         geom::NurbsCurve3::new(kv, control, vec![1.0; n]).unwrap()
     }
 
-    /// `refined` inserts the DOMAIN's 32nds, skipping a grid point
-    /// within the sliver clearance of a knot: `0.5` is skipped, and so
-    /// is `2/32` beside a knot one ulp above it, while a knot `1e-9`
-    /// above `12/32` is clear of `12/32`.
+    /// `refined` inserts the DOMAIN's 32nds, a grid point skipped up
+    /// to and including `GRID_CLEARANCE` of the spacing (`2⁻¹³`) from a
+    /// knot: `0.5` is a knot, and `2/32` is skipped beside a knot
+    /// exactly `2⁻¹³` above it, while a knot one ulp further than that
+    /// above `12/32` leaves `12/32` standing.
     #[test]
-    fn refined_inserts_the_domain_grid_skipping_knots_within_the_clearance() {
-        let near = f64::from_bits(0.0625f64.to_bits() + 1);
-        let clear = 0.375 + 1e-9;
+    fn refined_skips_a_grid_point_up_to_the_clearance_from_a_knot() {
+        let near = 0.0625 + 1.0 / 8192.0;
+        let clear = (0.375 + 1.0 / 8192.0f64).next_up();
         let fine = super::refined(&carrier(&[near, clear, 0.5]));
         let mut want = vec![0.0, 0.0, 0.0, near, clear];
         want.extend((1..32).filter(|&k| k != 2).map(|k| f64::from(k) / 32.0));
@@ -1995,14 +1984,19 @@ mod tests {
         }
     }
 
-    /// `chart_breaks` skips a grid point beside a knot of either curve:
-    /// a carrier knot one ulp above `2/32` drops `2/32`, a pcurve knot
-    /// one ulp below `12/32` drops `12/32`, and every other 32nd stays.
+    /// `chart_breaks` skips a grid point up to the clearance (`2⁻¹³`,
+    /// `GRID_CLEARANCE` of the spacing) from a knot of either curve: a
+    /// carrier knot that far above `2/32` drops `2/32`, a pcurve knot
+    /// that far below `12/32` drops `12/32`, and a pcurve knot one ulp
+    /// further below `20/32` leaves it standing with every other 32nd.
     #[test]
-    fn chart_breaks_skip_a_grid_point_beside_either_curves_knot() {
-        let above = f64::from_bits(0.0625f64.to_bits() + 1);
-        let below = f64::from_bits(0.375f64.to_bits() - 1);
-        let breaks = super::chart_breaks(carrier(&[above]).knots(), carrier(&[below]).knots());
+    fn chart_breaks_skip_a_grid_point_up_to_the_clearance_from_either_curves_knot() {
+        let c = 1.0 / 8192.0;
+        let above = 0.0625 + c;
+        let below = 0.375 - c;
+        let past = (0.625 - c).next_down();
+        let breaks =
+            super::chart_breaks(carrier(&[above]).knots(), carrier(&[below, past]).knots());
         let want: Vec<f64> = (1..32)
             .filter(|&k| k != 2 && k != 12)
             .map(|k| f64::from(k) / 32.0)

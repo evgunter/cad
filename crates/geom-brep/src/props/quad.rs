@@ -151,7 +151,7 @@
 use geom_core::Bounds;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
-use geom_core::spline::algebra::{self, GridSkip, SLIVER_CLEARANCE_ULPS};
+use geom_core::spline::algebra;
 use geom_core::spline::derivative_knot_slice;
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{KnotVector, Span};
@@ -2629,11 +2629,7 @@ fn refine_dir(
         return None;
     }
     let other = if along_u { nv } else { net.len() / nv };
-    let add = algebra::domain_grid_points(
-        kv,
-        QUAD2_REFINE_SPANS,
-        GridSkip::WithinUlps(SLIVER_CLEARANCE_ULPS),
-    );
+    let add = algebra::domain_grid_points(kv, QUAD2_REFINE_SPANS);
     let plans = algebra::refine_plan_homogeneous(kv, &add).ok()?;
     // Ascending-index fold over the plan chain, then over the lines of
     // this direction (D9).
@@ -2735,8 +2731,9 @@ fn quotient_second(
 /// SPAN of a whole vector into equal pieces, so its grid restarts at
 /// every knot and a knot is a span end by construction. This grid is
 /// uniform over the RANGE `[lo, hi]`, blind to where the knots fall;
-/// the knots join it as mandatory cuts and the sliver guard arbitrates
-/// between the two sets, which the per-span schedule never has to.
+/// the knots join it as mandatory cuts and the grid's clearance
+/// arbitrates between the two sets, which the per-span schedule never
+/// has to.
 /// Even on a single-span range, where the interior grids coincide, this
 /// list also carries the range ends and the coarse block edges it owes
 /// the hull blocks' containment.
@@ -2773,29 +2770,24 @@ fn knot_aligned_cuts(lo: f64, hi: f64, pieces: usize, knots: &[f64]) -> Vec<f64>
     // invariants: they only subdivide, and a cell that is wider
     // because one was dropped is still inside one smooth piece and
     // still inside its block. So a grid point is taken only when it
-    // stands clear of every mandatory knot cut by the sliver
-    // clearance, which is what stops the cut rule minting hairline
-    // cells (and hairline coarse blocks) when a knot happens to land
-    // an ulp from a grid point. The ends ride in the mandatory set
-    // for completeness; the open-range test already keeps every grid
-    // point off them.
+    // stands clear of every mandatory cut by its grid's clearance
+    // ([`algebra::GRID_CLEARANCE`] of that grid's spacing), which is
+    // what stops the cut rule minting narrow cells (and narrow coarse
+    // blocks) when a knot lands near a grid point. The ends ride in the
+    // mandatory set for completeness; the open-range test already
+    // keeps every grid point off them.
     //
-    // The test is against the MANDATORY set alone, never against
-    // other grid points. That is what makes the block-edge list and
-    // the cell list agree by construction rather than by an argument
-    // about spacing: a block edge is also a `pieces` grid point (both
-    // grids are `lo + (hi − lo)·k/n` and `pieces` is a multiple of
-    // [`QUAD2_HULL_BLOCKS`]), and it faces the identical predicate in
-    // both calls, so it is accepted in both or dropped in both — and
-    // every cell therefore still lies inside exactly one block.
-    let skip = GridSkip::WithinUlps(SLIVER_CLEARANCE_ULPS);
+    // Every block edge is a cell cut: the block grid's own points are
+    // in this list, and the block-edge list ([`QUAD2_HULL_BLOCKS`]
+    // pieces through this same function) takes exactly the block grid
+    // points this call takes — the same grid against the same
+    // mandatory set — so every cell still lies inside one block.
     let mandatory = cuts.clone();
-    cuts.extend(algebra::range_grid_points(lo, hi, pieces, skip, &mandatory));
+    cuts.extend(algebra::range_grid_points(lo, hi, pieces, &mandatory));
     cuts.extend(algebra::range_grid_points(
         lo,
         hi,
         QUAD2_HULL_BLOCKS,
-        skip,
         &mandatory,
     ));
     cuts.sort_by(|a, b| a.partial_cmp(b).unwrap_or(core::cmp::Ordering::Equal));
@@ -2887,10 +2879,11 @@ fn block_cell_sums(cuts: &[f64], edges: &[f64]) -> Vec<(f64, f64)> {
 ///    point at `pieces` is `lo + (hi − lo)·(i/pieces)`, and at
 ///    `2·pieces` the same point is `lo + (hi − lo)·(2i/(2·pieces))`
 ///    — the same correctly rounded quotient, hence the same f64 —
-///    while the mandatory cuts (the knots, the block edges) and the
-///    sliver predicate that admits or drops a grid point are the same
-///    at every round. So every cut of round `r` is a cut of round
-///    `r + 1`, every cell of round `r + 1` lies inside a cell of
+///    while the mandatory cuts (the knots, the block edges) are the
+///    same at every round and the clearance that drops a grid point
+///    beside one ([`algebra::GRID_CLEARANCE`] of the spacing) only
+///    shrinks, so a point kept at round `r` is kept at `r + 1`. So
+///    every cut of round `r` is a cut of round `r + 1`, every cell of round `r + 1` lies inside a cell of
 ///    round `r`, and per block `Σh³` cannot grow (splitting `h` into
 ///    parts gives `Σ parts³ ≤ h³`) while `Σh` is the block's extent.
 ///    Facts 1–3 applied at round `r` bound round `r`'s width from
@@ -4037,14 +4030,10 @@ fn bezier_blocks(img: &TrimPiece, m: usize) -> Option<Vec<Vec<RPt2>>> {
         return None;
     }
     let mut breaks: Vec<f64> = kv.interior_knots().map(|(k, _)| k).collect();
-    // A uniform cut that lands on a knot is the knot; minting the
-    // hairline span between them would be arithmetic noise, and the
-    // block list would carry a box of zero width.
-    breaks.extend(algebra::domain_grid_points(
-        kv,
-        m,
-        GridSkip::WithinUlps(SLIVER_CLEARANCE_ULPS),
-    ));
+    // A uniform cut near a knot is dropped and the knot stands: the
+    // narrow span between them would carry the insertion's rounding,
+    // and the block list a box of next to no width.
+    breaks.extend(algebra::domain_grid_points(kv, m));
     breaks.sort_by(f64::total_cmp);
     breaks.dedup();
     let mut add: Vec<f64> = Vec::new();
@@ -6959,15 +6948,16 @@ mod tests {
         encloses(b.area, g_int, "Q12 area");
     }
 
-    /// `refine_dir`'s grid is the DOMAIN's sixteenths, skipped within
-    /// the sliver clearance of a knot: `0.5` is skipped, and so is
-    /// `1/16` beside a knot one ulp above it — the knot stands and no
-    /// hairline span opens. A knot `1e-9` above `3/8` is clear of it,
-    /// so both land. The expected vector is written out by hand.
+    /// `refine_dir`'s grid is the DOMAIN's sixteenths, a grid point
+    /// skipped up to and including `GRID_CLEARANCE` of the spacing
+    /// (`2⁻¹²`) from a knot: `0.5` is a knot, and `1/16` is skipped
+    /// beside a knot exactly `2⁻¹²` above it. A knot one ulp further
+    /// than that above `3/8` leaves `3/8` standing, so both land. The
+    /// expected vector is written out by hand.
     #[test]
-    fn refine_dir_inserts_the_domain_grid_skipping_knots_within_the_clearance() {
-        let near = f64::from_bits(0.0625f64.to_bits() + 1);
-        let clear = 0.375 + 1e-9;
+    fn refine_dir_skips_a_grid_point_up_to_the_clearance_from_a_knot() {
+        let near = 0.0625 + 1.0 / 4096.0;
+        let clear = (0.375 + 1.0 / 4096.0f64).next_up();
         let kv =
             KnotVector::clamped(vec![0.0, 0.0, 0.0, near, clear, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
         #[allow(clippy::cast_precision_loss)]
@@ -7087,14 +7077,14 @@ mod tests {
     }
 
     /// `bezier_blocks`' uniform breaks are the DOMAIN's `m`ths, dropped
-    /// when within the sliver guard of a knot: a knot one ulp above
-    /// `1/4` suppresses the break at `1/4` (four blocks, not five),
+    /// within `GRID_CLEARANCE` of the spacing of a knot: a knot one ulp
+    /// above `1/4` suppresses the break at `1/4` (four blocks, not five),
     /// while `1/2` and `3/4` stand. The block COUNT carries the pin:
     /// the starts' brackets (~1e-15 wide, the λ-rounding pad) cannot
     /// tell `near` from `1/4`, so they only confirm the other breaks
     /// sit where the grid puts them.
     #[test]
-    fn bezier_blocks_drops_a_uniform_break_within_the_sliver_of_a_knot() {
+    fn bezier_blocks_drops_a_uniform_break_within_the_clearance_of_a_knot() {
         let near = f64::from_bits(0.25f64.to_bits() + 1);
         let kv = KnotVector::clamped(vec![0.0, 0.0, near, 1.0, 1.0], 1).unwrap();
         let img = TrimPiece {
@@ -7147,9 +7137,10 @@ mod tests {
     /// * `pieces = 13`, no knots: the grid arithmetic. The step forms
     ///   `lo + ((hi − lo)·k)/n` and `lo + k·((hi − lo)/n)` round
     ///   `k = 2` to `0.1923076923076923`, not `0.19230769230769232`.
-    /// * `pieces = 16`, the sliver clearance's WIDTH: a knot 7·ε·width
-    ///   above the grid point `0.2875` drops it, one 9·ε·width above
-    ///   `0.5125` does not — the 8-ulp clearance sits between.
+    /// * `pieces = 16`, the clearance's WIDTH, `GRID_CLEARANCE` of the
+    ///   spacing: a knot that far above the grid point `0.2875` (it
+    ///   rounds a hair inside) drops it; one an ulp further above
+    ///   `0.5125` than that leaves it standing.
     /// * `pieces = 16` (a multiple of [`QUAD2_HULL_BLOCKS`], so every
     ///   block edge is a grid point): a knot one ulp above the grid
     ///   point `0.2125` stands and the grid point is dropped; the
@@ -7194,11 +7185,11 @@ mod tests {
                 0.7
             ]
         );
-        let unit = (hi - lo) * f64::EPSILON;
-        let inside = 0.2875 + 7.0 * unit;
-        let outside = 0.5125 + 9.0 * unit;
-        assert_eq!(inside, 0.287_500_000_000_000_9);
-        assert_eq!(outside, 0.512_500_000_000_001_2);
+        let clearance = (hi - lo) / 16.0 * algebra::GRID_CLEARANCE;
+        let inside = 0.2875 + clearance;
+        let outside = (0.5125 + clearance).next_up();
+        assert_eq!(inside, 0.287_646_484_374_999_96);
+        assert_eq!(outside, 0.512_646_484_375);
         assert_eq!(
             knot_aligned_cuts(lo, hi, 16, &[inside, outside]),
             [

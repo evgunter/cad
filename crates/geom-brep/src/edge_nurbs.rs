@@ -77,7 +77,7 @@ use core::num::NonZeroUsize;
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::predicate::KERNEL_OR_FILE_DEFECT_ENDING;
-use geom_core::spline::algebra::{GridSkip, SLIVER_CLEARANCE_ULPS, domain_grid_points};
+use geom_core::spline::algebra::domain_grid_points;
 use geom_core::spline::{KnotVector, KnotVectorIssue, SplineError};
 use geom_core::{
     Band, Bounds, Decide, Decided, FileCoincidence, Indeterminate, MarginDiag, Point2, Point3,
@@ -1187,11 +1187,7 @@ fn localized<T: Real>(wall: &NurbsSurface<T>) -> NurbsSurface<T> {
         if kv.control_count() >= PXN_WALL_SPANS + kv.degree() {
             return Vec::new();
         }
-        domain_grid_points(
-            kv,
-            PXN_WALL_SPANS,
-            GridSkip::WithinUlps(SLIVER_CLEARANCE_ULPS),
-        )
+        domain_grid_points(kv, PXN_WALL_SPANS)
     }
     let add_u = breaks(wall.knots_u());
     let add_v = breaks(wall.knots_v());
@@ -1499,16 +1495,17 @@ mod tests {
         (0..n).map(|j| f64::from(2 * j + 1) / 64.0).collect()
     }
 
-    /// `localized` inserts each direction's DOMAIN sixteenths, skipping
-    /// a grid point within the sliver clearance of a knot (`0.5`, and
-    /// `1/16` beside a knot one ulp above it; a knot `1e-9` above `3/8`
-    /// is clear of `3/8`), and leaves a direction with
+    /// `localized` inserts each direction's DOMAIN sixteenths, a grid
+    /// point skipped up to and including `GRID_CLEARANCE` of the
+    /// spacing (`2⁻¹²`) from a knot (`0.5`, and `1/16` beside a knot
+    /// exactly `2⁻¹²` above it; a knot one ulp further than that above
+    /// `3/8` leaves `3/8` standing), and leaves a direction with
     /// `PXN_WALL_SPANS + degree` control points alone while one with a
     /// control point fewer takes the grid.
     #[test]
-    fn localized_inserts_the_domain_grid_per_direction_with_its_cut_off() {
-        let near = f64::from_bits(0.0625f64.to_bits() + 1);
-        let clear = 0.375 + 1e-9;
+    fn localized_skips_a_grid_point_up_to_the_clearance_per_direction_with_its_cut_off() {
+        let near = 0.0625 + 1.0 / 4096.0;
+        let clear = (0.375 + 1.0 / 4096.0f64).next_up();
         let at = deg2(&odd64(15));
         assert_eq!(at.control_count(), PXN_WALL_SPANS + 2);
         let out = localized(&wall(deg2(&[near, clear, 0.5]), at.clone()));

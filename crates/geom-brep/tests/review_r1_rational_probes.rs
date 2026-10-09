@@ -890,9 +890,7 @@ fn probe_c0_kink_area() {
 /// with the independent evaluator.
 #[test]
 fn diag_refine_half_circle() {
-    use geom_core::spline::algebra::{
-        GridSkip, SLIVER_CLEARANCE_ULPS, domain_grid_points, refine_plan_homogeneous,
-    };
+    use geom_core::spline::algebra::{domain_grid_points, refine_plan_homogeneous};
     let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
     let pts = [(1.0, 0.0), (1.0, 1.0), (0.0, 1.0), (-1.0, 1.0), (-1.0, 0.0)];
     let ws = [1.0, W2, 1.0, W2, 1.0];
@@ -902,7 +900,7 @@ fn diag_refine_half_circle() {
         .zip(&ws)
         .map(|((x, y), w)| [x * w, y * w, *w])
         .collect();
-    let add = domain_grid_points(&kv, 16, GridSkip::WithinUlps(SLIVER_CLEARANCE_ULPS));
+    let add = domain_grid_points(&kv, 16);
     let plans = refine_plan_homogeneous(&kv, &add).unwrap();
     let mut cur_kv = kv.clone();
     for plan in &plans {
