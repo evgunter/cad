@@ -1141,7 +1141,7 @@ pub fn fit_offset_at(
                 grid,
             });
         }
-        nan_residual_guard(report.on_locus_max, tolerance)?;
+        nan_residual_at(report.on_locus_max, tolerance)?;
         if report.hull_sup <= tolerance {
             #[allow(clippy::cast_possible_truncation)]
             let cert = OffsetCertificate {
@@ -1488,12 +1488,13 @@ pub fn approx_offset_surface_at(
     .map(Surface::Approx)
 }
 
+/// [`fit_offset_at`]'s per-round guard, against its chosen target.
 /// Limb 1 steers and does not gate the mint, but a certificate never
 /// carries a poisoned field: a round whose sampled residual is NaN
 /// refuses as the mint's. No fixture reaches it, since the fit is
 /// interpolated from finite data ([`OffsetFitError::NonFiniteSample`]
 /// refuses the rest).
-fn nan_residual_guard(on_locus_max: f64, tolerance: f64) -> Result<(), OffsetFitError> {
+fn nan_residual_at(on_locus_max: f64, tolerance: f64) -> Result<(), OffsetFitError> {
     if on_locus_max.is_nan() {
         return Err(OffsetFitError::MintLimb {
             limb: OffsetLimb::OnLocus,
@@ -2934,8 +2935,8 @@ mod tests {
     /// number, an infinite one included (the hull bound decides those).
     #[test]
     fn a_nan_residual_in_the_fit_loop_is_the_mints() {
-        use super::{OffsetFitError, OffsetLimb, nan_residual_guard};
-        match nan_residual_guard(f64::NAN, 1e-3) {
+        use super::{OffsetFitError, OffsetLimb, nan_residual_at};
+        match nan_residual_at(f64::NAN, 1e-3) {
             Err(OffsetFitError::MintLimb {
                 limb: OffsetLimb::OnLocus,
                 bound,
@@ -2947,7 +2948,7 @@ mod tests {
             other => panic!("a NaN residual did not refuse as the mint's: {other:?}"),
         }
         for r in [0.0, 2e-3, f64::INFINITY] {
-            assert_eq!(nan_residual_guard(r, 1e-3), Ok(()), "{r} refused");
+            assert_eq!(nan_residual_at(r, 1e-3), Ok(()), "{r} refused");
         }
     }
 
