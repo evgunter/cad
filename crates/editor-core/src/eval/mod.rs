@@ -1433,8 +1433,7 @@ pub enum NodeErrorKind {
     /// M6), pinned in `sweep/tests/m5_pr10_frontier.rs`'s flipped
     /// rows' successor and `editor-core`'s node suites.
     ///
-    /// A named sub-frontier, never a laundered catch-all (the
-    /// `RestZipUnsupported` precedent).
+    /// A named sub-frontier, never a laundered catch-all.
     CurvedSolidFrontier {
         /// The precise missing door.
         what: &'static str,
@@ -1572,6 +1571,17 @@ pub enum NodeErrorKind {
         input: RecipeNodeId,
         /// The empty half.
         half: crate::names::SplitHalf,
+    },
+    /// A union read two of its members out of one operation — a
+    /// split's two halves. Its names key each member by the operation
+    /// it reads (DM4), so the two would carry one key; it refuses
+    /// before any fold rather than naming one member's faces as the
+    /// other's.
+    MembersShareAnOperation {
+        /// The operation both members are read out of.
+        operation: RecipeNodeId,
+        /// The two members' positions in the list, earlier first.
+        members: (u32, u32),
     },
     /// A [`crate::Node::Part`] indexed a pattern's instances outside
     /// `0..count`. A negative index lands here too — the index is
@@ -1771,12 +1781,12 @@ pub enum NodeErrorKind {
     /// table to resolve the name in. A pair boolean's arm: a union's
     /// site that is not a member is the N5 strand a later `SetMembers`
     /// leaves, and refuses as a vanished name ([`Self::DeclareResolve`]).
-    /// Every door that writes a pair refuses such a site — the edit
-    /// doors ([`crate::EditError::DeclaredSiteNotAnOperand`]) and, for a
-    /// Boolean, the load door — and a Boolean's operands never change,
-    /// so no document those doors admit reaches this arm; it stays the
-    /// evaluation's own answer to a site it cannot read rather than an
-    /// assumption the doors held.
+    /// Every door that writes a pair refuses a site no operand reads —
+    /// the edit doors ([`crate::EditError::DeclaredSiteNotAnOperand`])
+    /// and, for a Boolean, the load door. A site two operands share (a
+    /// split's two halves) is admitted there and sided here by the
+    /// table that holds the name, so a name neither half holds, or
+    /// both, lands on this arm.
     DeclareSiteNotAnOperand {
         /// The site the pair named.
         at: crate::node::RecipeNodeId,
@@ -2520,6 +2530,18 @@ impl crate::spoken::Say for NodeErrorKind {
                 },
                 by.node(*input)
             ),
+            Self::MembersShareAnOperation {
+                operation,
+                members: (i, j),
+            } => write!(
+                f,
+                "members {} and {} of this union are both read out of {}, and a union keys \
+                 each member's names by the operation it reads; join the two with a pair \
+                 boolean",
+                u64::from(*i) + 1,
+                u64::from(*j) + 1,
+                by.node(*operation)
+            ),
             Self::InstanceOutOfRange {
                 input,
                 index,
@@ -2711,9 +2733,10 @@ impl crate::spoken::Say for NodeErrorKind {
             ),
             Self::DeclareSiteNotAnOperand { at } => write!(
                 f,
-                "a declared entity is sited at {}, which is not an operand of this \
-                 node — site each side at the member (or the boolean operand) whose table \
-                 holds it",
+                "a declared entity is sited at {}, and no one operand of this node read \
+                 there holds it — site each side at the member (or the boolean operand) whose \
+                 table holds it; the two halves of one split share their site, so a side \
+                 between them names an entity only one half holds",
                 by.node(*at)
             ),
             Self::DeclareUnsupportedPair { kinds, .. } => write!(

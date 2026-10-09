@@ -103,6 +103,8 @@ pub enum NodeErrorClass {
     UnfinishedOperand,
     /// [`NodeErrorKind::EmptyHalf`].
     EmptyHalf,
+    /// [`NodeErrorKind::MembersShareAnOperation`].
+    MembersShareAnOperation,
     /// [`NodeErrorKind::InstanceOutOfRange`].
     InstanceOutOfRange,
     /// [`NodeErrorKind::DegenerateDirection`].
@@ -338,6 +340,7 @@ impl NodeErrorKind {
             Self::ProductOperand { .. } => C::ProductOperand,
             Self::UnfinishedOperand { .. } => C::UnfinishedOperand,
             Self::EmptyHalf { .. } => C::EmptyHalf,
+            Self::MembersShareAnOperation { .. } => C::MembersShareAnOperation,
             Self::InstanceOutOfRange { .. } => C::InstanceOutOfRange,
             Self::DegenerateDirection { .. } => C::DegenerateDirection,
             Self::NonFiniteDirection { .. } => C::NonFiniteDirection,
@@ -564,6 +567,7 @@ mod tests {
         ProductOperand,
         UnfinishedOperand,
         EmptyHalf,
+        MembersShareAnOperation,
         InstanceOutOfRange,
         DegenerateDirection,
         NonFiniteDirection,
@@ -832,6 +836,10 @@ mod tests {
             C::EmptyHalf => K::EmptyHalf {
                 input: n(3),
                 half: crate::SplitHalf::Above,
+            },
+            C::MembersShareAnOperation => K::MembersShareAnOperation {
+                operation: n(3),
+                members: (0, 1),
             },
             C::InstanceOutOfRange => K::InstanceOutOfRange {
                 input: n(3),

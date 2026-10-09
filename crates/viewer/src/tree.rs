@@ -1184,6 +1184,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::EmptyOperand { .. }
         | NodeErrorKind::ProductOperand { .. }
         | NodeErrorKind::EmptyHalf { .. }
+        | NodeErrorKind::MembersShareAnOperation { .. }
         | NodeErrorKind::InstanceOutOfRange { .. }
         | NodeErrorKind::AxisInDifferentPlane { .. } => None,
         // Names an id no live node holds, so there is no row to go to.

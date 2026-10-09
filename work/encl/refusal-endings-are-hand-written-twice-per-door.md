@@ -2,7 +2,8 @@
 id: refusal-endings-are-hand-written-twice-per-door
 kind: issue
 title: geom-brep: every refusal level hand-writes an ending and an ending_in_file twin, and a missing twin silences the import door
-status: open
+status: dispatched
+branch: encl/one-ending-per-door
 opened: 2026-10-09
 priority: P3
 cost: M

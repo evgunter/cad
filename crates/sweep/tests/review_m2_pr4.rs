@@ -589,8 +589,14 @@ fn survives_sliver_join_reports_canonical_index_both_directions() {
             ExtrudeError::SliverJoin {
                 loop_index,
                 vertex_index,
+                reading,
                 source,
             } => {
+                assert_eq!(
+                    reading,
+                    topo::DihedralReading::Lever(geom_brep::LeverRung::Reading),
+                    "a sliver corner is the first-order wedge's escalation"
+                );
                 assert_eq!(loop_index, 0);
                 assert_eq!(vertex_index, 1, "canonical index broken for d = {d}");
                 assert_eq!(source.predicate, Some("dihedral_wedge"));
