@@ -51,7 +51,12 @@
 //! with every other ([`ReplaceFaceError::VertexDisagreement`]). A
 //! surface grazing the edge, or meeting it nowhere near the corner,
 //! refuses by the root's own verdict
-//! ([`ReplaceFaceError::CornerSection`]).
+//! ([`ReplaceFaceError::CornerSection`]). Along a derived spline
+//! section the root is sought from the section's end at that corner,
+//! the section running with the old edge, and an end within ε of the
+//! surface is the root. A spline or fitted surface is never the one
+//! rooted, so a moved fitted face's corner stands on the held
+//! surfaces' roots along its sections.
 //!
 //! What must then be re-derived is everything the replaced chart
 //! carries:
@@ -3056,9 +3061,8 @@ struct Incident<T: Real> {
     /// elsewhere.
     carrier: Curve3<T>,
     sides: [SurfaceKey; 2],
-    /// Each end at the corner, with the parameter to seek it from:
-    /// `None` on a derived spline section, which seeks nothing.
-    ends: Vec<(bool, Option<T>)>,
+    /// Each end at the corner, with the parameter to seek it from.
+    ends: Vec<(bool, T)>,
     boundary: bool,
     extent: T,
 }
@@ -3097,6 +3101,15 @@ fn solve_corners<T: Decide>(
     };
     let extent_of = |c: &Curve3<T>, t0: T, t1: T| {
         geom_brep::edge_extent(c, t0, t1, c.eval(t0).distance(c.eval(t1)))
+    };
+    let within_eps = |gap: f64| {
+        decide(
+            "offset_vertex_agreement",
+            Margin::of(T::from_f64(tol.eps() - gap)),
+            band,
+        )
+        .map(|s| !matches!(s, Sign::Negative))
+        .map_err(esc)
     };
     let mut holds: Vec<(SurfaceKey, bool)> = Vec::new();
     let mut corners = Corners {
@@ -3160,7 +3173,6 @@ fn solve_corners<T: Decide>(
                         continue;
                     }
                     for &(is_start, seed) in &inc.ends {
-                        let Some(seed) = seed else { continue };
                         let edge = inc.edge;
                         let corner = |verdict| ReplaceFaceError::CornerSection {
                             vertex,
@@ -3176,7 +3188,15 @@ fn solve_corners<T: Decide>(
                                     })?;
                                 match lane.root(surface, spline, seed, inc.extent, band) {
                                     Ok(SplineRoot::At(t)) => T::from_f64(t),
-                                    Ok(SplineRoot::Short { near_gap, near }) => {
+                                    // The carrier's near end within ε of the
+                                    // surface is the corner: ε is what the
+                                    // corner is held to on every surface.
+                                    Ok(SplineRoot::Short {
+                                        end,
+                                        near_gap,
+                                        near: true,
+                                    }) if within_eps(near_gap)? => T::from_f64(end),
+                                    Ok(SplineRoot::Short { near_gap, near, .. }) => {
                                         return Err(if near {
                                             ReplaceFaceError::ReanchorPastCarrierEnd {
                                                 edge,
@@ -3271,7 +3291,7 @@ fn incident_edges<T: Decide>(
         if !at_start && !at_end {
             continue;
         }
-        let ends_at = |seeds: (Option<T>, Option<T>)| {
+        let ends_at = |seeds: (T, T)| {
             let mut ends = Vec::new();
             if at_start {
                 ends.push((true, seeds.0));
@@ -3291,12 +3311,19 @@ fn incident_edges<T: Decide>(
             let carrier = plan.spec.carrier.clone();
             let (t0, t1) = (plan.spec.param_start, plan.spec.param_end);
             let ends = match (&plan.ends, &carrier) {
-                (Some(_), _) => ends_at((Some(t0), Some(t1))),
-                // A derived spline section seeks no corner; an analytic
-                // one from the old corner's parameter on it.
-                (None, Curve3::Nurbs(_)) => ends_at((None, None)),
+                (Some(_), _) => ends_at((t0, t1)),
+                // A derived spline section runs with the old carrier, so
+                // each corner is sought from its own end of the section's
+                // domain — the seeds `read_ends` reads its feet from; an
+                // analytic one from the old corner's parameter on it.
+                (None, Curve3::Nurbs(spline)) => {
+                    let (lo, hi) = spline.domain();
+                    ends_at((T::from_f64(lo), T::from_f64(hi)))
+                }
                 (None, c) => {
-                    let seed = c.param_near(old_point, T::zero());
+                    let seed = c.param_near(old_point, T::zero()).unwrap_or_else(|| {
+                        unreachable!("`param_near` inverts every analytic kind")
+                    });
                     ends_at((seed, seed))
                 }
             };
@@ -3320,7 +3347,7 @@ fn incident_edges<T: Decide>(
                 edge,
                 carrier: curve.carrier().clone(),
                 sides: edge_side_keys(body, edge, edge_data),
-                ends: ends_at((Some(t0), Some(t1))),
+                ends: ends_at((t0, t1)),
                 boundary: false,
                 extent: extent_of(curve.carrier(), t0, t1),
             });

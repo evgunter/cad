@@ -106,17 +106,27 @@ fn the_f64_seam_answers_every_public_door() {
 
     // The offset door over the whole body: the mint that produces an
     // `Approx` for a kind not closed under offset. The fitted cap's
-    // edges with the box's side planes derive as their sections, and
-    // its corners then refuse: none of them meets one of the fit's own
-    // rows, and a derived spline section seeks no corner
-    // (`work/shell/a-moved-fitted-faces-corners-have-no-root-on-a-derived-spline-section.md`).
+    // edges with the box's side planes derive as their sections, its
+    // corners are the side planes' roots along them, and the body then
+    // refuses at the surface swap's re-certification: each section is
+    // the fit's own window edge, where the plane × NURBS tube proves no
+    // single arc
+    // (`work/ssiedge/a-plane-section-along-a-fits-window-edge-proves-no-one-arc.md`).
     // That refusal is named so a change to the LANE absence cannot hide
     // behind it.
-    let corner_refusal = |e: Option<&topo::ReplaceFaceError<f64>>| {
+    let recertify_refusal = |e: Option<&topo::ReplaceFaceError<f64>>| {
         matches!(
             e,
-            Some(topo::ReplaceFaceError::CornerSection {
-                verdict: topo::CornerVerdict::Unsupported { .. },
+            Some(topo::ReplaceFaceError::Op {
+                error: topo::EulerOpError::RechartFalsifies {
+                    error: geom_brep::CertifyError::PlaneNurbs(
+                        geom_brep::PlaneNurbsRefusal::TubeNotOneArc {
+                            cause: geom_brep::ssi::OneArcRefusal::Undecided(_),
+                            ..
+                        }
+                    ),
+                    ..
+                },
                 ..
             })
         )
@@ -134,7 +144,7 @@ fn the_f64_seam_answers_every_public_door() {
         .expect("the cap takes a NURBS surface");
     let fresh_moved = topo::replace_faces_offset(&mut fresh, &[cap], 0.05, Tol::witness());
     assert!(
-        corner_refusal(fresh_moved.as_ref().err()),
+        recertify_refusal(fresh_moved.as_ref().err()),
         "the `f64` mint must not report the lane's absence: {fresh_moved:?}"
     );
     let (mut single, scap) = box_with_approx_cap(d, 1e-9);
@@ -150,7 +160,7 @@ fn the_f64_seam_answers_every_public_door() {
         .expect("the cap takes a NURBS surface");
     let single_moved = topo::replace_face_offset(&mut single, scap, 0.05, Tol::witness());
     assert!(
-        corner_refusal(single_moved.as_ref().err()),
+        recertify_refusal(single_moved.as_ref().err()),
         "the single-face `f64` mint must not report the lane's absence: {single_moved:?}"
     );
 }
