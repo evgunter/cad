@@ -7,7 +7,7 @@ opened: 2026-10-08
 priority: P0
 cost: M
 refs: [near-tangent-boolean-results-ship-with-an-escalated-tier-3-census]
-blocked_on: [4335]
+blocked_on: [boolean-door-runs-the-census-over-its-result]
 ---
 
 ## What

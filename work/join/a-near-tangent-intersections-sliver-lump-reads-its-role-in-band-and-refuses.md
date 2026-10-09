@@ -5,7 +5,7 @@ title: A near-tangent intersection keeps the exact answer's sliver lump as its o
 status: closed
 opened: 2026-10-08
 priority: P0
-cost: H
+cost: M
 refs: [near-tangent-boolean-results-ship-with-an-escalated-tier-3-census]
 closed: 2026-10-09
 branch: join/door-types-in-band-results
