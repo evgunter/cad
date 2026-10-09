@@ -246,8 +246,9 @@ pub struct BlendNaming {
     pub dead: Retired,
 
     /// The joins the blend ended with (`Body::join_edges_within`, scoped
-    /// to the shells it carved), in the order made. Every row above stays as the surgery wrote it: a join's
-    /// `vertex` and `gone` are then dead, and its `kept` covers what
-    /// `gone` did besides its own (`topo::join_covers`).
+    /// to the shells it carved), in the order made. Every row above stays
+    /// as the surgery wrote it: a join's `vertex` and `gone` are then
+    /// dead, and its `kept` covers what `gone` did besides its own
+    /// (`topo::join_covers`).
     pub edge_joins: Vec<topo::EdgeJoin>,
 }

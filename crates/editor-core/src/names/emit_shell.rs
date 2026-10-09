@@ -325,11 +325,13 @@ mod tests {
     }
 
     /// The D-section (the half disc of radius 0.5 on `x ≥ 0`, extruded
-    /// 0.8 along `z`) with its half-cylinder cut in two along its middle
-    /// ruling, each wall arc split at its `x = r` point: the body, the
-    /// two wall faces, and each split arc's pieces: its two halves, or
-    /// with `quarters` each half split again at its middle.
-    fn split_d_section(quarters: bool) -> (Body<f64>, [FaceKey; 2], Vec<Vec<EdgeKey>>) {
+    /// 0.8 along `z`) with each wall arc split at its `x = r` point, or
+    /// with `quarters` each half split again at its middle, and its
+    /// half-cylinder cut along the ruling at every split: the body, the
+    /// wall faces, and each split arc's pieces. The rulings keep every
+    /// split at three edges, so the body is at rest; opening the wall's
+    /// faces merges them, and the shell's join takes the splits.
+    fn split_d_section(quarters: bool) -> (Body<f64>, Vec<FaceKey>, Vec<Vec<EdgeKey>>) {
         let tol = Tol::witness();
         let (r, h) = (0.5, 0.8);
         let half_disc = profile::test_support::bulge_loop(vec![
@@ -380,51 +382,77 @@ mod tests {
                         .and_then(topo::CurveGeom::certified)
                         .unwrap()
                         .params();
-                    pieces.push(
-                        body.split_edge(half, 0.5 * (t0 + t1), tol)
-                            .unwrap()
-                            .new_edge,
-                    );
+                    let quarter = body.split_edge(half, 0.5 * (t0 + t1), tol).unwrap();
+                    pieces.push(quarter.new_edge);
+                    mids.push(quarter.vertex);
                 }
             }
             halves.push(pieces);
         }
-        let wall = body
-            .faces()
-            .find(|(_, f)| {
-                body.get_surface(f.surface).map(geom::Surface::kind)
-                    == Some(geom::SurfaceKind::Cylinder)
-            })
-            .unwrap()
-            .0;
-        let outer = body.get_face(wall).unwrap().outer;
-        let leaving = |v: VertexKey| {
-            body.half_edges()
-                .find(|(_, h)| h.start == v && h.parent_loop == outer)
+        // A chord across the wall at every cut, between the two arcs'
+        // cuts at one azimuth, so no cut is a vertex between two edges
+        // of one circle and nothing else: the operand is at rest, and the
+        // wall is as many faces as there are chords plus one.
+        let mut wall = vec![
+            body.faces()
+                .find(|(_, f)| {
+                    body.get_surface(f.surface).map(geom::Surface::kind)
+                        == Some(geom::SurfaceKind::Cylinder)
+                })
                 .unwrap()
-                .0
-        };
-        let (he1, he2) = (leaving(mids[0]), leaving(mids[1]));
-        let surface = body.get_face(wall).unwrap().surface;
-        let (p, q) = (point(&body, mids[0]), point(&body, mids[1]));
-        let made = body
-            .mef(
-                topo::MefSite::Chords { he1, he2 },
-                geom_brep::EdgeCurveSpec {
-                    description: geom_brep::EdgeDescriptionSpec::chart(surface),
-                    carrier: geom::Curve3::Line {
-                        origin: p,
-                        dir: (q - p) / (q - p).norm(),
+                .0,
+        ];
+        let surface = body.get_face(wall[0]).unwrap().surface;
+        let (top, bottom): (Vec<VertexKey>, Vec<VertexKey>) =
+            mids.iter().partition(|&&v| point(&body, v).z > 0.5 * h);
+        for &v in &top {
+            let (p, w) = {
+                let p = point(&body, v);
+                let w = *bottom
+                    .iter()
+                    .min_by(|&&a, &&b| {
+                        let d = |u| {
+                            let q = point(&body, u);
+                            (q.x - p.x).hypot(q.y - p.y)
+                        };
+                        d(a).total_cmp(&d(b))
+                    })
+                    .unwrap();
+                (p, w)
+            };
+            let q = point(&body, w);
+            let (he1, he2) = wall
+                .iter()
+                .find_map(|&f| {
+                    let outer = body.get_face(f).unwrap().outer;
+                    let leaving = |u: VertexKey| {
+                        body.half_edges()
+                            .find(|(_, h)| h.start == u && h.parent_loop == outer)
+                            .map(|(k, _)| k)
+                    };
+                    Some((leaving(v)?, leaving(w)?))
+                })
+                .unwrap();
+            let made = body
+                .mef(
+                    topo::MefSite::Chords { he1, he2 },
+                    geom_brep::EdgeCurveSpec {
+                        description: geom_brep::EdgeDescriptionSpec::chart(surface),
+                        carrier: geom::Curve3::Line {
+                            origin: p,
+                            dir: (q - p) / (q - p).norm(),
+                        },
+                        param_start: 0.0,
+                        param_end: (q - p).norm(),
                     },
-                    param_start: 0.0,
-                    param_end: (q - p).norm(),
-                },
-                topo::FaceSurface::Inherit,
-                tol,
-            )
-            .unwrap();
+                    topo::FaceSurface::Inherit,
+                    tol,
+                )
+                .unwrap();
+            wall.push(made.face);
+        }
         topo::mint_pcurves(&mut body, tol).unwrap();
-        (body, [wall, made.face], halves)
+        (body, wall, halves)
     }
 
     /// **An edge the shell's closing join made is named by the input
@@ -509,9 +537,10 @@ mod tests {
     }
 
     /// **Joins that chain are chased whole** (`topo::join_covers`): each
-    /// arc cut at three points leaves four pieces, which the shell joins
-    /// one vertex at a time, a later join taking an edge an earlier one
-    /// kept. Each joined edge is the one flat set of its four pieces.
+    /// arc cut at three points, with a ruling at each, leaves four pieces
+    /// once the opened wall merges, which the shell joins one vertex at a
+    /// time, a later join taking an edge an earlier one kept. Each joined
+    /// edge is the one flat set of its four pieces.
     #[test]
     fn a_rim_cut_at_three_points_joins_to_the_set_of_its_four_pieces() {
         let tol = Tol::witness();

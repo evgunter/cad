@@ -227,8 +227,9 @@ minted so the host keeps its key (`lone_host_trim`); both rims of such
 an annulus are annulus rims, and carve in one call. A CURVED single face
 carrying every arc is authorable through `topo`'s `kef_describing` (a
 cylinder wall merged over one seam meridian, the other restated as its
-wrap edge), finishes, and refuses at the half-band gate on both routes
-(`fillet_h5_r2_probes::a_finished_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate`).
+wrap edge), but each rim's two arcs then meet at a vertex nothing else
+does, which tier 3 refuses at rest, so no blend door takes it
+(`fillet_h5_r2_probes::a_curved_single_face_carrying_both_arcs_is_construction_state`).
 
 **A3-3 — the genuine mid-curve run-out is named and not implemented.**
 Stopping a band part-way along a smooth rim, at a station with no
@@ -273,7 +274,8 @@ stored kinds (plane, cylinder, line, circle, ellipse).
   L): Zero builds
   the first, definite the second, the sliver band refuses. A Zero
   verdict is a coincidence decided from values, so the verdict records
-  it (`BatteryVerdict::coincidences`, D10). No ball rests at a turn,
+  it (`BatteryVerdict::coincidences`, D10), and `Blended::coincidences`
+  carries the rows to the document's coincidence door. No ball rests at a turn,
   so the mitre is G0 between the bands; it never competes with the
   patch, because the request count decides.
 
