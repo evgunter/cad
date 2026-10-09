@@ -16,7 +16,7 @@
 use geom_core::{
     Band, Decided, FileCoincidence, Indeterminate, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE,
     KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag, MissReading, MissSource, NOT_YET_ENDING, Sign,
-    SizedWords, lever_recourse,
+    SizedWords, lever_recourse, noted,
 };
 pub use geom_core::{SizedPass, UNREADABLE_MARGIN_NOTE};
 
@@ -49,24 +49,23 @@ pub fn defect_ending(reading: Reading) -> &'static str {
 /// ([`geom_core::NOT_YET_ENDING`]): nothing the user changes in the
 /// model gets through today, and nothing is wrong with what they asked
 /// for, so the sentence says so plainly rather than labelling a
-/// capability gap `Recourse:`.
-///
-/// It is the one home for that ending beside the others here, and an
-/// unreadable margin adds what it may mean as every ending in this
-/// table does — `topo::validate`'s at-rest readings compose it too, so
-/// the words are not spelled twice.
+/// capability gap `Recourse:`. A margin that could not be read adds
+/// [`UNREADABLE_MARGIN_NOTE`] after the ending's joint ([`noted`]), as
+/// [`LeverOnly`] and [`SizedDecision`] do.
 #[must_use]
 pub fn not_yet(arm: RefusedArm<'_>) -> String {
-    if arm.unreadable() {
-        format!("{NOT_YET_ENDING}: {UNREADABLE_MARGIN_NOTE}")
-    } else {
-        NOT_YET_ENDING.to_owned()
-    }
+    noted(
+        NOT_YET_ENDING,
+        arm.unreadable().then_some(UNREADABLE_MARGIN_NOTE),
+    )
 }
 
 /// A decision with no size the user chose: a residual (it passes only at
 /// zero, so a refused margin is a miss) or a form selection (it passes on
 /// any definite sign). No smaller tolerance is its recourse (D4 ¶1 (i)).
+///
+/// Its endings take no [`UNREADABLE_MARGIN_NOTE`] on a margin that could
+/// not be read: each already asks for the report the note would.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Unsized {
     /// The kernel built what it claims exactly, so a miss is a defect.
@@ -222,8 +221,9 @@ pub enum RefusedArm<'a> {
 }
 
 impl RefusedArm<'_> {
-    /// Whether the arm's margin could not be read: the one test every
-    /// ending here adds the unreadable-margin note on. A straddle is two
+    /// Whether the arm's margin could not be read: the test [`not_yet`]
+    /// and [`LeverOnly`] add the unreadable-margin note on (a sized
+    /// decision's reporting margin reads its own). A straddle is two
     /// readable bounds, and a sign-certain arm was read.
     fn unreadable(self) -> bool {
         match self {
