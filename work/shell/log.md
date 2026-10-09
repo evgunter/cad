@@ -1333,3 +1333,4 @@ Ev said go.
   - the variant, Display, module, O2 and O4 docs;
   - the citations, and the quad item's overlap with ISO;
   - one accessor for "Approx is its fit".
+- **Next cut planned** (2026-10-09): unit 15 is the moved fit's corners (P2, H, dual), dispatched after #4404. Unit 16 is the tilted read's three P3 gaps (`shell/tilted-read-gaps`; M-tier, rule-1 byte 178, sequential). The wall seam waits for a designer pair after 15.
