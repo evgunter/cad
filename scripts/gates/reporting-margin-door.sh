@@ -69,11 +69,11 @@
 #     derived `Debug` every payload carries — and parsing the text back
 #     is a door it cannot see, as obviously wrong as it is long;
 #   * a sentence asked through a public wrapper is invisible: a caller
-#     searching `geom_brep::certify::recourse_in_file`'s,
-#     `SizedDecision::recourse_in_file`'s or
-#     `topo::EulerOpError::render_in_file`'s text with `.contains(..)`
-#     reads the margin's side as surely as one asking the sentence here,
-#     under a name the list does not count;
+#     searching the import door's text (`geom_brep::certify::recourse`,
+#     `SizedDecision::recourse` or `topo::EulerOpError::render` read at
+#     `ReadAt::File`) with `.contains(..)` reads the margin's side as
+#     surely as one asking the sentence here, under a name the list does
+#     not count;
 #   * EQUALITY AGAINST A COMPARAND IT DID NOT MINT is invisible: a site
 #     holding two readings the classifier minted — `sign_within(..)?`'s
 #     or `decide_reported(..)`'s `.margin`, an escalation's — can ask
