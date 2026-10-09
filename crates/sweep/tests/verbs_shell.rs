@@ -2102,7 +2102,8 @@ fn a_re_slit_annular_caps_old_glue_reaches_check_9_through_an_outer_edge() {
 /// in closed form.**
 ///
 /// These four were the ordinal-100/101 rows that PINNED the defect:
-/// each refused `ReanchorOffCarrier` with a gap of exactly
+/// each refused at the per-chart door's transported corner (the
+/// since-retired `ReanchorOffCarrier`) with a gap of exactly
 /// `t·|cos θ|`. The law was never wrong — it was measuring a corner
 /// transported once per chart, which accumulates `Σ dᵢ·nᵢ` where an
 /// offset body needs the point satisfying every `nᵢ·x = nᵢ·oᵢ + dᵢ` at

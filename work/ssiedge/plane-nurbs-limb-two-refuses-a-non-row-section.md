@@ -1,7 +1,7 @@
 ---
-id: plane-nurbs-limb-two-refuses-every-rational-wall
+id: plane-nurbs-limb-two-refuses-a-non-row-section
 kind: issue
-title: the plane x NURBS certificate's limb 2 refuses every rational wall it is asked about, by millimetres, while the march's own certificate passes
+title: the plane x NURBS certificate's limb 2 refuses every section that is not a wall's row, by micrometres on a polynomial wall and millimetres on a rational one, while the march's own certificate passes
 status: open
 opened: 2026-10-08
 priority: P1
@@ -40,6 +40,30 @@ from `nurbs_walls` and the vase); the shipped row that reaches it is
 `encl_curved_loft_shell::shelling_the_vase_refuses_at_its_rims_certificate`,
 which refuses `RechartFalsifies { PlaneNurbs(Limb { HullSup, 4.787e-4 }) }`
 on a vase cap.
+
+## A polynomial wall too, wherever the section is not a row
+
+The dual review of PR 4351 measured the same limb on POLYNOMIAL walls.
+A straight square prism lofted to a top section tilted 0.2 rad about a
+line through its centre (four bilinear walls; `encl_curved_loft_shell`'s
+`tilted_top_prism`) has rows that are not level in the top cap's
+normal, so a moved top cap's section of a wall is no row of it and the
+section lane marches it. The marched branch lies on both surfaces to
+~5e-11 m, and limb 2 refuses:
+
+| cap moved | limb 2 |
+|---|---|
+| −0.05 | **3.743e-6 m** |
+| −0.2 | **1.386e-5 m** |
+
+`encl_curved_loft_shell::a_tilted_caps_marched_rim_refuses_at_its_certificate`
+pins it. Every section limb 2 has passed in this unit's measurements
+is a row of its wall: the image is exact there and term (a) is zero.
+So the defect reads as limb 2's bound on any image that is not exact,
+growing with the wall's curvature across the chart, and the rational
+rows above as the same bound failing even on an exact image. Until it
+certifies a marched section, SHELL's section lane builds only row
+sections.
 
 ## Why this is not `plane-nurbs-certificate-bound-does-not-refine-with-eps`
 

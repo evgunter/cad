@@ -364,6 +364,25 @@ fn the_routed_cone_reaches_past_c5_and_its_rims_stay_on_the_cylinders() {
     let face = cone_face(&body);
     topo::replace_face_offset(&mut body, face, 0.05, Tol::witness())
         .expect("the cone moves between its untouched cylinders");
+    let cone = body
+        .get_face(face)
+        .and_then(|f| body.get_surface(f.surface))
+        .cloned()
+        .expect("the moved cone");
+    let geom::Surface::Cone {
+        apex,
+        axis,
+        half_angle,
+        ..
+    } = cone
+    else {
+        panic!("the moved face is a cone")
+    };
+    let on_cone = |p: geom_core::Point3<f64>| {
+        let w = p - apex;
+        let h = w.dot(axis);
+        ((w - axis * h).norm() - h.abs() * half_angle.tan()).abs() < 1e-9
+    };
     let cylinders: Vec<f64> = body
         .faces()
         .filter_map(|(_, f)| match body.get_surface(f.surface) {
@@ -372,15 +391,12 @@ fn the_routed_cone_reaches_past_c5_and_its_rims_stay_on_the_cylinders() {
         })
         .collect();
     let mut rims = 0;
-    for he in body
-        .half_edges()
-        .map(|(he, _)| he)
-        .filter(|he| body.face_of_half_edge(*he) == Some(face))
-        .collect::<Vec<_>>()
-    {
-        let edge = body.get_half_edge(he).expect("a live half-edge").edge;
+    for (he, h) in body.half_edges() {
+        if body.face_of_half_edge(he) != Some(face) {
+            continue;
+        }
         let curve = body
-            .get_curve_geom(body.get_edge(edge).expect("a live edge").curve)
+            .get_curve_geom(body.get_edge(h.edge).expect("a live edge").curve)
             .and_then(topo::CurveGeom::certified)
             .expect("a certified rim");
         if let geom::Curve3::Circle { radius, .. } = *curve.carrier() {
@@ -388,6 +404,11 @@ fn the_routed_cone_reaches_past_c5_and_its_rims_stay_on_the_cylinders() {
                 cylinders.iter().any(|c| (c - radius).abs() < 1e-12),
                 "a rim of radius {radius} is not on an untouched cylinder {cylinders:?}"
             );
+            let (t0, t1) = curve.params();
+            for t in [t0, 0.5 * (t0 + t1), t1] {
+                let p = curve.carrier().eval(t);
+                assert!(on_cone(p), "a rim point at {p:?} is off the moved cone");
+            }
             rims += 1;
         }
     }

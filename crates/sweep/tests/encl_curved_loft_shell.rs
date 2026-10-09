@@ -167,8 +167,9 @@ fn the_curved_lofts_cap_moves_its_corners_along_the_slanted_seams() {
 }
 
 /// With its caps derived, the curved loft's shell moves on to the walls
-/// and refuses at the first one: its offset fit at the default ε, its
-/// fitted edge with the cap where the fit certifies.
+/// and refuses at the first one: its offset fit where ε is tighter than
+/// the fit reaches, its fitted edge with the cap where the fit
+/// certifies.
 #[test]
 fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
     let body = twisted_loft(0.3);
@@ -185,16 +186,32 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
         is_spline_wall(&nurbs_walls(&body), *face),
         "the refusing face is not a wall: {e}"
     );
-    // Which wall door answers first depends on ε: the fit's budget at
-    // the default ε, and at a looser one the fitted wall's own edge with
-    // the cap (a plane × fitted-surface section C5 does not route).
-    assert!(
-        matches!(
-            error.as_ref(),
-            ReplaceFaceError::Fit { .. } | ReplaceFaceError::FittedBoundaryUnsupported { .. }
-        ),
-        "expected the wall's offset fit or its fitted boundary to refuse, got {e}"
-    );
+    // Which wall door answers first depends on ε: the fit reaches about
+    // 4.1e-9 m in its round budget, so below that the fit refuses, and
+    // above it the fit certifies and the fitted wall's own edge with the
+    // cap refuses (a plane × fitted-surface section C5 does not route).
+    let eps = Tol::witness().eps();
+    if eps < 1e-8 {
+        let ReplaceFaceError::Fit {
+            error: geom_brep::OffsetFitError::BudgetExhausted { achieved, .. },
+            ..
+        } = error.as_ref()
+        else {
+            panic!("eps {eps:e}: expected the wall's fit to exhaust its budget, got {e}");
+        };
+        assert!(
+            *achieved > eps,
+            "eps {eps:e}: the fit stopped short of ε, at {achieved:e}"
+        );
+    } else {
+        assert!(
+            matches!(
+                error.as_ref(),
+                ReplaceFaceError::FittedBoundaryUnsupported { .. }
+            ),
+            "eps {eps:e}: expected the fitted wall's cap edge to refuse, got {e}"
+        );
+    }
 }
 
 /// An OUTWARD cap offset runs each seam's corner past the end of the
@@ -361,4 +378,120 @@ fn shelling_the_vase_refuses_at_its_rims_certificate() {
             .any(|f| is_spline_wall(&walls, f)),
         "the refused rim bounds a spline wall"
     );
+}
+
+/// A straight square prism lofted to a top section tilted 0.2 rad about
+/// a line through its centre: four POLYNOMIAL bilinear walls whose
+/// rows are not level in the top cap's normal, so a moved top cap's
+/// section of a wall is no row of it and the section lane marches it.
+fn tilted_top_prism() -> Body<f64> {
+    let v = |x: f64, y: f64| (geom_core::Point2::new(x, y), 0.0);
+    let square = || {
+        vec![profile::test_support::bulge_loop(vec![
+            v(0.0, 0.0),
+            v(2.0, 0.0),
+            v(2.0, 2.0),
+            v(0.0, 2.0),
+        ])]
+    };
+    let tilt = geom_core::Affine3::rotation_about_axis(
+        geom_core::Point3::new(1.0, 1.0, 1.0),
+        Vec3::unit_x(),
+        0.2,
+    ) * geom_core::Affine3::translation(Vec3::new(0.0, 0.0, 1.0));
+    let places = [geom_core::Affine3::identity(), tilt];
+    sweep::loft_body::<f64>(&[square(), square()], &places, 1, Tol::witness())
+        .expect("the tilted-top prism lofts")
+        .body
+}
+
+/// The march arm builds nothing yet: the moved tilted cap's section of
+/// each polynomial wall is certified by the march, and the plane ×
+/// NURBS edge certificate refuses it at its limb 2 by a few
+/// micrometres, though the marched branch lies on both surfaces to
+/// ~5e-11 (`work/ssiedge/plane-nurbs-limb-two-refuses-a-non-row-section.md`).
+#[test]
+fn a_tilted_caps_marched_rim_refuses_at_its_certificate() {
+    let body = tilted_top_prism();
+    let cap = body
+        .faces()
+        .find(|(_, f)| {
+            matches!(
+                body.get_surface(f.surface),
+                Some(geom::Surface::Plane { origin, .. }) if origin.z > 0.5
+            )
+        })
+        .map(|(k, _)| k)
+        .expect("the tilted top cap");
+    for d in [-0.05, -0.2] {
+        let mut moved = body.clone();
+        let e = topo::replace_face_offset(&mut moved, cap, d, Tol::witness())
+            .expect_err("the marched rim does not certify");
+        let ReplaceFaceError::Op {
+            error:
+                topo::EulerOpError::RechartFalsifies {
+                    error:
+                        geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
+                            limb: geom_brep::ssi::SsiLimb::HullSup,
+                            value,
+                        }),
+                    ..
+                },
+            ..
+        } = &e
+        else {
+            panic!("d {d}: expected the marched rim's limb-2 refusal, got {e}");
+        };
+        assert!(
+            *value > 1e3 * Tol::witness().eps(),
+            "d {d}: limb 2 is far past the band, not at its edge: {value:e}"
+        );
+    }
+}
+
+/// At `Interval`: the straight prism's cap moves through the decided
+/// shortcut (its walls carry the move onto themselves), and the curved
+/// loft's slanted rim, which only the `f64` section lane derives,
+/// refuses by name.
+#[test]
+fn at_interval_the_prism_moves_by_the_shortcut_and_a_slanted_rim_refuses_by_name() {
+    use geom_core::{Interval, Real};
+    let v = |x: f64, y: f64| (geom_core::Point2::new(x, y), 0.0);
+    let square = |turn: f64| {
+        let (s, c) = turn.sin_cos();
+        let r = |x: f64, y: f64| {
+            v(
+                1.0 + c * (x - 1.0) - s * (y - 1.0),
+                1.0 + s * (x - 1.0) + c * (y - 1.0),
+            )
+        };
+        vec![profile::test_support::bulge_loop(vec![
+            r(0.0, 0.0),
+            r(2.0, 0.0),
+            r(2.0, 2.0),
+            r(0.0, 2.0),
+        ])]
+    };
+    let places = [0.0, 1.0]
+        .iter()
+        .map(|z| geom_core::Affine3::translation(Vec3::new(0.0, 0.0, *z)))
+        .collect::<Vec<_>>();
+    let loft = |turn: f64| {
+        sweep::loft_body::<Interval>(&[square(0.0), square(turn)], &places, 1, Tol::witness())
+            .expect("the loft builds at interval")
+            .body
+    };
+    let d = <Interval as Real>::from_f64(-THICKNESS);
+    let prism = loft(0.0);
+    let mut moved = prism.clone();
+    topo::replace_face_offset(&mut moved, top_cap(&prism), d, Tol::witness())
+        .expect("the prism's cap moves through the shortcut at interval");
+    let twisted = loft(0.3);
+    let mut moved = twisted.clone();
+    let Err(ReplaceFaceError::NurbsLaneUnsupported { scalar, .. }) =
+        topo::replace_face_offset(&mut moved, top_cap(&twisted), d, Tol::witness())
+    else {
+        panic!("expected the section lane's refusal at interval");
+    };
+    assert_eq!(scalar, <Interval as Real>::NAME);
 }

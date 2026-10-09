@@ -183,7 +183,15 @@ fn zero<T: Decide>(name: &'static str, value: T, band: Band) -> Result<bool, Ind
 /// `moved` — the decided shortcut under which the moved surface's
 /// rigid image of an edge between them is their section, and a moved
 /// corner whose every held surface holds is the transported point.
-/// `extent` levers each angle into metres.
+/// Each angle is levered by the move's own length `|d|`: what a wrong
+/// shortcut costs is the transported edge standing `|d|·θ` off the held
+/// surface, so the shortcut is taken exactly where that is within the
+/// band. One lever, so the edge and its corners decide alike.
+///
+/// A hold is a route, not a claim about the body: where it is not
+/// decided (in the band, which a move of about the band's own size puts
+/// every levered angle in), the edge takes the section route, which is
+/// exact whatever the hold would have said.
 ///
 /// Per kind of move: a plane translates along its normal, held by a
 /// plane containing that normal, a cylinder along it, or a spline wall
@@ -196,20 +204,22 @@ fn zero<T: Decide>(name: &'static str, value: T, band: Band) -> Result<bool, Ind
 pub(crate) fn holds_the_move<T: Decide>(
     moved: &Surface<T>,
     held: &Surface<T>,
-    extent: T,
+    d: T,
     band: Band,
-) -> Result<bool, Indeterminate> {
-    let across = |a: Vec3<T>, b: Vec3<T>| a.cross(b).norm() * extent;
+) -> bool {
+    let zero = |name, value| held_zero(name, value, band);
+    let reach = d.abs();
+    let across = |a: Vec3<T>, b: Vec3<T>| a.cross(b).norm() * reach;
     let through = |q: Point3<T>, m: Vec3<T>, p: Point3<T>| (q - p).dot(m);
-    Ok(match (moved, held) {
+    match (moved, held) {
         (Surface::Plane { normal, .. }, Surface::Plane { normal: m, .. }) => {
-            zero("offset_holds_plane_plane", normal.dot(*m) * extent, band)?
+            zero("offset_holds_plane_plane", normal.dot(*m) * reach)
         }
         (Surface::Plane { normal, .. }, Surface::Cylinder { axis, .. }) => {
-            zero("offset_holds_plane_cylinder", across(*normal, *axis), band)?
+            zero("offset_holds_plane_cylinder", across(*normal, *axis))
         }
         (Surface::Plane { normal, .. }, Surface::Nurbs(wall)) => {
-            translates_along(wall, *normal, band)?
+            translates_along(wall, *normal, reach, band)
         }
         (
             Surface::Cylinder { origin, axis, .. },
@@ -219,9 +229,9 @@ pub(crate) fn holds_the_move<T: Decide>(
                 ..
             },
         ) => {
-            zero("offset_holds_cylinder_across", across(*m, *axis), band)?
-                || (zero("offset_holds_cylinder_along", m.dot(*axis) * extent, band)?
-                    && zero("offset_holds_cylinder_axis", through(*q, *m, *origin), band)?)
+            zero("offset_holds_cylinder_across", across(*m, *axis))
+                || (zero("offset_holds_cylinder_along", m.dot(*axis) * reach)
+                    && zero("offset_holds_cylinder_axis", through(*q, *m, *origin)))
         }
         (
             Surface::Sphere { center, .. },
@@ -230,7 +240,7 @@ pub(crate) fn holds_the_move<T: Decide>(
                 normal: m,
                 ..
             },
-        ) => zero("offset_holds_sphere_centre", through(*q, *m, *center), band)?,
+        ) => zero("offset_holds_sphere_centre", through(*q, *m, *center)),
         (
             Surface::Cone { apex, axis, .. },
             Surface::Plane {
@@ -239,8 +249,8 @@ pub(crate) fn holds_the_move<T: Decide>(
                 ..
             },
         ) => {
-            zero("offset_holds_cone_along", m.dot(*axis) * extent, band)?
-                && zero("offset_holds_cone_axis", through(*q, *m, *apex), band)?
+            zero("offset_holds_cone_along", m.dot(*axis) * reach)
+                && zero("offset_holds_cone_axis", through(*q, *m, *apex))
         }
         (
             Surface::Torus { center, axis, .. },
@@ -250,12 +260,12 @@ pub(crate) fn holds_the_move<T: Decide>(
                 ..
             },
         ) => {
-            zero("offset_holds_torus_centre", through(*q, *m, *center), band)?
-                && (zero("offset_holds_torus_along", m.dot(*axis) * extent, band)?
-                    || zero("offset_holds_torus_across", across(*m, *axis), band)?)
+            zero("offset_holds_torus_centre", through(*q, *m, *center))
+                && (zero("offset_holds_torus_along", m.dot(*axis) * reach)
+                    || zero("offset_holds_torus_across", across(*m, *axis)))
         }
         _ => false,
-    })
+    }
 }
 
 /// Whether `wall` is a translation surface along `n`:
@@ -263,34 +273,39 @@ pub(crate) fn holds_the_move<T: Decide>(
 /// exchanged), read off its net — every column's offsets from its first
 /// point are one list, parallel to `n`, and the weights do not vary
 /// along it.
-fn translates_along<T: Decide>(
-    wall: &NurbsSurface<T>,
-    n: Vec3<T>,
-    band: Band,
-) -> Result<bool, Indeterminate> {
+fn translates_along<T: Decide>(wall: &NurbsSurface<T>, n: Vec3<T>, reach: T, band: Band) -> bool {
+    let zero = |name, value| held_zero(name, value, band);
     let (nu, nv) = wall.control_counts();
     let (ctl, w) = (wall.control(), wall.weights());
     // `at(i, j)` reads the net with `j` the axis the translation runs.
-    let along = |at: &dyn Fn(usize, usize) -> usize,
-                 (ni, nj): (usize, usize)|
-     -> Result<bool, Indeterminate> {
+    let along = |at: &dyn Fn(usize, usize) -> usize, (ni, nj): (usize, usize)| -> bool {
         for i in 0..ni {
-            for j in 0..nj {
+            // `j = 0` is each column's own origin: no step to read.
+            for j in 1..nj {
                 if w[at(i, j)] != w[at(i, 0)] {
-                    return Ok(false);
+                    return false;
                 }
                 let step = ctl[at(i, j)] - ctl[at(i, 0)];
                 let first = ctl[at(0, j)] - ctl[at(0, 0)];
-                if !zero("offset_holds_wall_step", (step - first).norm(), band)?
-                    || !zero("offset_holds_wall_direction", step.cross(n).norm(), band)?
+                // The step's direction off `n`, levered by the move.
+                let off = step.cross(n).norm() * reach / step.norm();
+                if !zero("offset_holds_wall_step", (step - first).norm())
+                    || !zero("offset_holds_wall_direction", off)
                 {
-                    return Ok(false);
+                    return false;
                 }
             }
         }
-        Ok(true)
+        true
     };
-    Ok(along(&|i, j| i * nv + j, (nu, nv))? || along(&|i, j| j * nv + i, (nv, nu))?)
+    along(&|i, j| i * nv + j, (nu, nv)) || along(&|i, j| j * nv + i, (nv, nu))
+}
+
+/// `value` metres decided zero at `band`, for a hold: anything short
+/// of a decided zero, an undecided margin included, does not hold
+/// ([`holds_the_move`]).
+fn held_zero<T: Decide>(name: &'static str, value: T, band: Band) -> bool {
+    matches!(decide(name, Margin::of(value), band), Ok(Sign::Zero))
 }
 
 /// `candidate` run with `old`, or reversed: the section's sense is the

@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-08
 priority: P2
 cost: H
-refs: [plane-nurbs-limb-two-refuses-every-rational-wall, plane-nurbs-certificate-bound-does-not-refine-with-eps, ssi-limb-three-takes-the-widest-one-arc-rungs-band-verdict, shell-of-a-lofted-body-meets-the-oblique-corner-on-a-slanted-spline-seam]
+refs: [plane-nurbs-limb-two-refuses-a-non-row-section, plane-nurbs-certificate-bound-does-not-refine-with-eps, ssi-limb-three-takes-the-widest-one-arc-rungs-band-verdict, shell-of-a-lofted-body-meets-the-oblique-corner-on-a-slanted-spline-seam]
 ---
 
 

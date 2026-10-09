@@ -21,8 +21,8 @@
 //!   arm serves; offset, it no longer does, and the pair cuts a
 //!   hyperbola the arm routes to the general rung. The gate admitted it
 //!   on the kind pair and the refusal came from the corner re-anchor
-//!   downstream (`ReanchorOffCarrier`, `0.0354` m, measured before the
-//!   fix). The gate now asks the arm, and refuses the pose by the arm's
+//!   downstream (a `0.0354` m corner gap, measured before the fix, by
+//!   a refusal since retired: corners are derived by root now). The gate now asks the arm, and refuses the pose by the arm's
 //!   own grounds; an axis-normal cap, which the arm does serve, still
 //!   passes it.
 
@@ -386,8 +386,8 @@ fn wedge_caps(body: &Body<f64>) -> Vec<FaceKey> {
 /// corner is re-anchored, and the body is untouched.
 ///
 /// Red before the gate asked about the pose: the kind pair passed and
-/// the refusal was `ReanchorOffCarrier` on the generator edge, `0.0354`
-/// m of corner error — a pose admitted as served and caught by the
+/// the refusal was a corner gap on the generator edge (a refusal
+/// since retired), `0.0354` m of corner error — a pose admitted as served and caught by the
 /// next gate down.
 #[test]
 fn an_offset_wedge_cap_refuses_at_the_pose_gate() {

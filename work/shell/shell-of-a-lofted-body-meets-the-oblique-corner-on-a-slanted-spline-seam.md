@@ -161,4 +161,4 @@ building rows refused by the plane × NURBS certificate,
 The twisted loft's cap now moves and its shell refuses at the first
 wall's fit (`BudgetExhausted` 4.14e-9 vs 1e-9); the vase's at its rim's
 limb 2 (4.787e-4 m,
-`work/ssiedge/plane-nurbs-limb-two-refuses-every-rational-wall.md`).
+`work/ssiedge/plane-nurbs-limb-two-refuses-a-non-row-section.md`).

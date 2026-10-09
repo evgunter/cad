@@ -166,7 +166,10 @@ fn both_doors_mint_the_turned_offset_on_both_nappes() {
 /// and the corners its roots along the band seams, so the door builds
 /// at a `|d|` under the rim tolerance `ε/sin α` and at one a thousand
 /// times past it alike: both nappes, both signs. Its reach is the apex
-/// window's (the row below), not the rim tolerance.
+/// window read on the rims as derived — the moved apex against the
+/// window the caps put them at (the row below, and
+/// `offd_r1_probes::a_derived_rim_past_the_moved_apex_refuses_the_apex_window`)
+/// — not the rim tolerance.
 #[test]
 fn the_per_chart_doors_reach_is_not_the_rim_tolerance() {
     let tol = Tol::witness();

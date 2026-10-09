@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-08
 priority: P3
 cost: E
-refs: [plane-nurbs-limb-two-refuses-every-rational-wall]
+refs: [plane-nurbs-limb-two-refuses-a-non-row-section]
 ---
 
 

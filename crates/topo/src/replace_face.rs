@@ -165,13 +165,24 @@
 //! straddles, touches, or carries a face of the other nappe — refuses
 //! on the same variant.
 //!
+//! **That shift is where a TRANSPORTED rim lands, and a derived one need
+//! not.** A rim that is a section with a held surface stays on that
+//! surface while the apex slides, so once the boundary is derived the
+//! window is read again, off the moved cone and the carriers the face
+//! now has, and its near end must still clear the moved apex — the same
+//! predicate and the same refusal, stated on the base chart.
+//!
 //! # Discipline
 //!
 //! Every decision — the mint, the refusals, the whole boundary plan —
 //! runs read-only against the incoming body. Mutation then runs on a
 //! clone in the attach layer's order (surface, then edge descriptions,
-//! then the whole-body pcurve mint), the clone is validated once, and
-//! only a valid clone is adopted. The body is untouched on every `Err`.
+//! then the whole-body pcurve mint), the clone is validated once at
+//! tier 2 — closed, every edge certified on its charts — and only a
+//! clone that passes is adopted. The body is untouched on every `Err`.
+//! Tier 2 does not read orientation: a move that turns a face through
+//! its neighbours, inverting the body, is adopted and refused only by
+//! the at-rest validator (`work/shell/the-per-chart-door-adopts-an-inverted-body.md`).
 
 use std::sync::Arc;
 
@@ -1251,7 +1262,9 @@ struct EdgePlan<T: Real> {
 ///
 /// The body is **untouched on every `Err`**: the mint, the refusals and
 /// the whole boundary plan are decided read-only, the mutation runs on
-/// a clone, and the clone is adopted only after it validates.
+/// a clone, and the clone is adopted only after it validates at tier 2
+/// (closure and certification, not orientation: module docs,
+/// "Discipline").
 ///
 /// The door **ends with the join** (`docs/DESIGN.md`, maximal edges):
 /// the moved body is joined on the clone before it is adopted, and the
@@ -1541,6 +1554,55 @@ pub(crate) fn replace_faces_offset_staged<T: Decide + crate::props::AtRestPolicy
             // A transported edge whose corner a root placed ends there.
             let seeds = (plan.spec.param_start, plan.spec.param_end);
             read_ends(plan, &moved, Some(seeds), band, tol, T::nurbs_lane())?;
+        }
+    }
+    // ---- Decide: the apex window again, on the boundary as derived. ----
+    // The window above shifts the face's old rims by the action's own
+    // shift, which is where a TRANSPORTED rim lands. A derived rim is a
+    // section with a held surface and lands where that surface puts it,
+    // so the window is read again off the moved cone and the carriers
+    // the face now has: its near end must still clear the moved apex.
+    if let Surface::Cone {
+        apex,
+        axis,
+        half_angle,
+        ..
+    } = new_surface
+    {
+        let mut window: Option<(T, T)> = None;
+        for plan in &plans {
+            let (lo, hi) = cone_v_range(
+                &plan.spec.carrier,
+                plan.spec.param_start,
+                plan.spec.param_end,
+                apex,
+                axis,
+                half_angle.cos(),
+            );
+            window = Some(match window {
+                None => (lo, hi),
+                Some((a, b)) => (a.min(lo), b.max(hi)),
+            });
+        }
+        let (v_min, v_max) = window.ok_or(ReplaceFaceError::ApexWindowUnknown { face })?;
+        let (v_near, sense) = match nappe {
+            Nappe::Opening => (v_min, T::one()),
+            Nappe::Mirror => (v_max, -T::one()),
+        };
+        match decide("offset_apex_window", Margin::of(v_near * sense), band)
+            .map_err(|source| ReplaceFaceError::Escalated { source })?
+        {
+            Sign::Positive => {}
+            // Stated on the base chart, as the gate above states it: the
+            // moved window less the shift.
+            Sign::Zero | Sign::Negative => {
+                return Err(ReplaceFaceError::ApexWindow {
+                    face,
+                    v_min: v_min - shift,
+                    v_max: v_max - shift,
+                    shift,
+                });
+            }
         }
     }
 
@@ -1987,8 +2049,7 @@ fn plan_edge<T: Decide>(
             t1,
             old_carrier.eval(t0).distance(old_carrier.eval(t1)),
         );
-        let esc = |source| ReplaceFaceError::Escalated { source };
-        if !crate::offset_derive::holds_the_move(old_surface, held, extent, band).map_err(esc)? {
+        if !crate::offset_derive::holds_the_move(old_surface, held, d, band) {
             return derive_edge(
                 (edge, start, end, sides),
                 (curve, &description, (t0, t1)),
@@ -2309,7 +2370,18 @@ fn derive_edge<T: Decide>(
         | geom_brep::SectionError::RadiusEscalated { diag: source, .. } => {
             ReplaceFaceError::Escalated { source }
         }
-        other => unreachable!(
+        // As at `neighbour_section`: every other variant is answered
+        // inside `route_pose` and never returned.
+        other @ (geom_brep::SectionError::WrongLane { .. }
+        | geom_brep::SectionError::RadiusDeclarationContradicted
+        | geom_brep::SectionError::CoaxialDeclarationContradicted
+        | geom_brep::SectionError::DegenerateOperand { .. }
+        | geom_brep::SectionError::BeyondOperandExtent { .. }
+        | geom_brep::SectionError::CoincidentSurfaces
+        | geom_brep::SectionError::DegenerateTorus
+        | geom_brep::SectionError::RoutesToGeneralRung { .. }
+        | geom_brep::SectionError::Carrier(_)
+        | geom_brep::SectionError::Spiric(_)) => unreachable!(
             "{edge:?}: `route_pose` answers only an escalation or a misdispatch, and returned \
              {other:?}"
         ),
@@ -2931,19 +3003,6 @@ fn solve_corners<T: Decide>(
     let extent_of = |c: &Curve3<T>, t0: T, t1: T| {
         geom_brep::edge_extent(c, t0, t1, c.eval(t0).distance(c.eval(t1)))
     };
-    let lever = plans
-        .iter()
-        .map(|p| {
-            let old = body
-                .edge_curve_linked(p.edge, proven(&body.edges, p.edge, EntityId::Edge))
-                .certified()
-                .map(|c| {
-                    let (t0, t1) = c.params();
-                    extent_of(c.carrier(), t0, t1)
-                });
-            old.unwrap_or_else(T::zero)
-        })
-        .fold(T::zero(), |a, b| a.max(b));
     let mut holds: Vec<(SurfaceKey, bool)> = Vec::new();
     let mut corners = Corners {
         groups: Vec::new(),
@@ -2975,13 +3034,8 @@ fn solve_corners<T: Decide>(
             let held = match holds.iter().find(|(h, _)| *h == k) {
                 Some((_, held)) => *held,
                 None => {
-                    let held = crate::offset_derive::holds_the_move(
-                        old_surface,
-                        surface_of(k),
-                        lever,
-                        band,
-                    )
-                    .map_err(esc)?;
+                    let held =
+                        crate::offset_derive::holds_the_move(old_surface, surface_of(k), d, band);
                     holds.push((k, held));
                     held
                 }
@@ -3849,5 +3903,75 @@ mod torn_body_rows {
         assert_torn_op_panics("offset_planes_together", &mut body, &[&premise], |b| {
             crate::offset_planes_together(b, &moves, band, tol)
         });
+    }
+}
+
+/// [`read_ends`] — the check that an edge read at its corners names
+/// them, which no fixture's coherent geometry reaches.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod read_ends_rows {
+    use geom::Curve3;
+    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    use super::{EdgePlan, ReplaceFaceError, read_ends};
+    use crate::entity::{EdgeKey, VertexKey};
+    use crate::geometry::SurfaceKey;
+
+    fn plan(carrier: Curve3<f64>) -> EdgePlan<f64> {
+        EdgePlan {
+            edge: EdgeKey::default(),
+            spec: EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    s1: SurfaceKey::default(),
+                    s2: SurfaceKey::default(),
+                    witness: Point3::origin(),
+                },
+                carrier,
+                param_start: 0.0,
+                param_end: 1.0,
+            },
+            start: VertexKey::default(),
+            end: VertexKey::default(),
+            ends: None,
+            sides: [SurfaceKey::default(); 2],
+            refused: None,
+        }
+    }
+
+    /// A corner off the derived carrier: the edge and the corner
+    /// disagree, by the carrier's distance from it.
+    #[test]
+    fn a_corner_off_the_derived_carrier_is_a_disagreement() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let line = Curve3::Line {
+            origin: Point3::origin(),
+            dir: Vec3::unit_x(),
+        };
+        let off = Point3::new(0.5, 1e-3, 0.0);
+        let mut p = plan(line.clone());
+        let got = read_ends(
+            &mut p,
+            &[(VertexKey::default(), off)],
+            None,
+            band,
+            tol,
+            None,
+        );
+        let Err(ReplaceFaceError::VertexDisagreement { gap, .. }) = got else {
+            panic!("expected the corner's disagreement, got {got:?}");
+        };
+        assert!(
+            (gap - 1e-3).abs() < 1e-15,
+            "the gap is the corner's distance, {gap}"
+        );
+        // On the carrier, the same read places both ends there.
+        let on = Point3::new(0.5, 0.0, 0.0);
+        let mut p = plan(line);
+        read_ends(&mut p, &[(VertexKey::default(), on)], None, band, tol, None)
+            .expect("a corner on the carrier reads");
+        assert_eq!((p.spec.param_start, p.spec.param_end), (0.5, 0.5));
     }
 }

@@ -449,7 +449,7 @@ edge takes is `EdgeDescription::Chart { surface, pcurve, seam }`, with
 `EdgeAuthority` recording who declared the locus; that collapse and its
 fence are `docs/PCURVE-UNIFY-DESIGN.md`, not restated here. Volume and
 area read a face carrying a `General` pcurve through the trimmed
-quadrature lane (`props/quad.rs`), and tessellation through the
+quadrature lane (`crates/topo/src/props/quad_lane.rs`), and tessellation through the
 mesher's trimmed path; a rational `General` image refuses typed there.
 
 ### Dispatch
