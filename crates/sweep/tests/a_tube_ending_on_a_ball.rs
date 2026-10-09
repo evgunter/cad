@@ -181,7 +181,7 @@ fn a_rim_inside_one_ball_face_holes_it() {
 /// its rim and crosses nothing, so the no-crossings path takes it, and
 /// its extent scan cannot place the sphere's circle in a disc whose
 /// boundary it is: every op refuses there
-/// (`work/contact/a-tube-touching-a-ball-from-inside-along-its-rim-refuses-the-extent-scan.md`).
+/// (`work/inside/a-tube-touching-a-ball-from-inside-along-its-rim-refuses-the-extent-scan.md`).
 #[test]
 fn a_tube_ending_on_the_ball_from_inside_refuses_at_the_extent_scan() {
     for (label, r, _) in runs("inside", &Pose::new(1.0, -1.0, 0.0, 0.0)) {

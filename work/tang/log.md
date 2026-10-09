@@ -917,6 +917,18 @@ and `germ-takes-the-span-bounded-face-reach-alone` (parked on D10's
 declared path); the sweep's siblings went to SHELF, CLEAVE (two) and
 REACH.
 - 2026-10-08: filed `split-cyl-ellipse-quarter-bound-overshoots-the-tilt-at-the-band-edge` (P3), the two ellipse-bounded split_cyl servings against the truth that PR 4292's fix pass 2 measured (shared with main).
+
+## 2026-10-08 — a line three solids touch along (TANG implementer)
+
+`three-solids-touching-along-one-line-refuse-their-union` closes on PR
+4346. An operand holding a contact line (coincident edges on one ray)
+meets another solid's edge along it pair by pair under the edge-edge
+rule, and a pierce face welded once already joins the next pierce at
+the corner that holds it. Every order of three and four prisms on one
+line builds, in topo and through editor-core. Filed here
+`an-edge-crossing-two-wedges-about-a-contact-line-refuses`; the naming
+siblings went to WIRE and EMIT.
+
 - 2026-10-08: closed `a-torus-meridian-lying-on-a-torus-is-unsettled` (PR 4343): the circle × torus door's meridian rung (`bool_circle_torus_meridian`); the lily's chain now stops at the graze in both orders. Filed `roots/an-oblique-cone-section-reads-a-zero-floor` (P2) and `hone/a-villarceau-circle-lying-on-a-torus-is-unsettled` (P3) from the F ≡ 0 sweep.
 - 2026-10-08: closed `a-turned-hemisphere-keeps-the-crossing-layers-door`. It already built on main, by PR 4123's sphere azimuth reach (bisected). Rows pin six turns and two spun poses, and the near-aligned window. Filed `a-covered-line-ending-just-off-the-face-keeps-the-door` (P3, parked on D10): the covered line rung's door within about `2e-4` of aligned.
 - 2026-10-08: closed `pair-classes-falls-back-to-per-pair-rows-beside-a-partner-that-reads-none`. `cone_side` reads an arc lying apart from a face's sector in its plane (`sectors::apart`), so the saddle's probe 34 reads and the exact fuzz's `None` falls from 244 to 0 per seed at ε 1e-9 (0 wrong); `pair_classes` refuses `VertexReadTwice` beside a partner that still reads nothing. No suite cell reached that fallback on main; the germ oracle's two new saddle scenes did, 60 rows wrong, now 0. Filed `pair-classes-keeps-per-pair-rows-where-its-layering-is-undecided` (P2), the layering's remaining fallbacks.

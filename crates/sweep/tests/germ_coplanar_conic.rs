@@ -17,9 +17,11 @@
 //!   The box top in that plane cuts an arc of the wall (every op
 //!   answers its closed form; `point_in_solid` on the result refuses
 //!   typed on the notched full-turn wall,
-//!   `work/contact/a-notched-full-turn-wall-has-no-ray-trim.md`), or
-//!   both walls whole, each section circle crossing its wall's one seam
-//!   once (every op answers its closed form);
+//!   `work/inside/revolved-tube-wall-refuses-bool-wall-trim-period.md`,
+//!   which carries the closed duplicate
+//!   `a-notched-full-turn-wall-has-no-ray-trim`), or both walls whole,
+//!   each section circle crossing its wall's one seam once (every op
+//!   answers its closed form);
 //! - a die pip whose ball is poled along `y`, so its seam meridian and
 //!   both poles lie in the cube's top face (today every op refuses at
 //!   the join's role read, `SectionLoopUndecided`).
