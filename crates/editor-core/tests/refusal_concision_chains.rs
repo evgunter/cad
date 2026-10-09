@@ -862,7 +862,7 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
 fn every_offset_fit_refusal_ends_exactly_once() {
     let rows = offset_fit_routes();
     assert!(!rows.is_empty(), "the offset-fit roster is empty");
-    let mut pinned = 0;
+    let (mut pinned, mut mint_limbs, mut at_rest_limbs) = (0, 0, 0);
     for (name, kind) in rows {
         let text = as_the_viewer_shows_it(kind);
         assert_eq!(
@@ -910,13 +910,36 @@ fn every_offset_fit_refusal_ends_exactly_once() {
                 "{name}: a shell user sets a wall, not a distance or a side: {text}"
             );
         }
-        if arm.starts_with("Fit/") || arm.starts_with("Structure/") {
+        if arm.starts_with("Fit/") || arm.starts_with("Structure/") || arm.starts_with("MintLimb") {
             assert!(
                 text.ends_with(geom_core::KERNEL_DEFECT_ENDING),
                 "{name}: {text}"
             );
         }
+        // At rest a limb's repair is the re-fit; at the mint the re-fit
+        // is the call that refused, and nothing is stored.
+        if arm.starts_with("MintLimb") {
+            mint_limbs += 1;
+            assert!(
+                !text.contains("stored") && !text.contains("Recourse"),
+                "{name}: {text}"
+            );
+        } else if arm.starts_with("Limb") {
+            at_rest_limbs += 1;
+            assert!(
+                text.ends_with(geom_brep::offset_fit::LIMB_REFIT_RECOURSE),
+                "{name}: {text}"
+            );
+        }
     }
+    // `MintLimb` on both routes, `Limb` on the transform's alone. A
+    // count over the rows `offset_fit_routes` builds: it holds the
+    // roster's route split, not which arms the ops raise.
+    assert_eq!(
+        (mint_limbs, at_rest_limbs),
+        (4, 2),
+        "a limb row went missing"
+    );
     // Both routes raise `Meter`, so every pinned ending has two rows.
     assert_eq!(
         pinned,
@@ -2116,11 +2139,13 @@ fn wall_endings() -> [(&'static str, String); 2] {
 /// - **The shell op's face replacement** (`Shell/Face/Fit/…`): the
 ///   fit lane's mint runs the whole fit loop and then certifies, so it
 ///   raises every arm but `WindowUnsupported` (the mint certifies over
-///   the chart rectangle it fitted) and `Band` (below). The loop's own
+///   the chart rectangle it fitted), `Limb` (a limb refusing at the
+///   mint is `MintLimb`) and `Band` (below). The loop's own
 ///   terminations — `BudgetExhausted`, `SampleCapReached`, `BoundNotFinite`,
 ///   `RefinementStalled` — and the interpolation's `Fit`, `Structure`
 ///   and `NonFiniteSample` reach the user by this route and by the
-///   transform's re-fit.
+///   transform's re-fit, and so does `MintLimb`, whose re-fit is the
+///   call that refused, so it ends in the kernel-defect ending.
 /// - **The transform op** (`Transform/ApproxRecertify/…`) raises the
 ///   certifier's arms on the image — `certify_offset_over` runs the
 ///   meters and the certificate limbs on a fit it did not make, so
@@ -2163,8 +2188,8 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
     // The roster is borrowed, so its reach is checked on the roster
     // itself: a sample list that stopped carrying an arm would
     // otherwise shrink these rows silently. `BudgetExhausted`,
-    // `BoundNotFinite` and `Limb` each carry two samples (both
-    // `LastRound` readings, both `best` cases, both limbs).
+    // `BoundNotFinite`, `Limb` and `MintLimb` each carry two samples
+    // (both `LastRound` readings, both `best` cases, both limbs).
     for (arm, samples) in [
         ("Meter/NormalFloor", 2),
         ("Meter/CurvatureHeadroom", 2),
@@ -2180,6 +2205,7 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
         ("RefinementStalled", 1),
         ("WindowUnsupported", 1),
         ("Limb", 2),
+        ("MintLimb", 2),
         ("Elevation/", 1),
     ] {
         let have = roster.iter().filter(|(n, _)| n.starts_with(arm)).count();
@@ -2199,7 +2225,10 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
     let mut rows = Vec::new();
     for (arm, source) in roster {
         let transform = !matches!(source, O::Band(_));
-        if !matches!(source, O::WindowUnsupported { .. } | O::Band(_)) {
+        if !matches!(
+            source,
+            O::WindowUnsupported { .. } | O::Limb { .. } | O::Band(_)
+        ) {
             rows.push(row(
                 &format!("Shell/Face/Fit/{arm}"),
                 NodeErrorKind::Shell(Box::new(ShellError::Face {

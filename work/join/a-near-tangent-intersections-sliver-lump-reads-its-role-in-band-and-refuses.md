@@ -2,12 +2,12 @@
 id: a-near-tangent-intersections-sliver-lump-reads-its-role-in-band-and-refuses
 kind: issue
 title: A near-tangent intersection keeps the exact answer's sliver lump as its own shell; at a tilt of a few bands its V/A reads in band and the door refuses ShellRoleUndecided
-status: open
+status: dispatched
 opened: 2026-10-08
 priority: P0
-cost: H
-design: true
+cost: M
 refs: [near-tangent-boolean-results-ship-with-an-escalated-tier-3-census]
+branch: join/door-types-in-band-results
 ---
 
 ## What

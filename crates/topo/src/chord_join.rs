@@ -1585,12 +1585,12 @@ fn bool_planar_chord_spec<T: Decide>(
 ) -> Result<Option<EdgeCurveSpec<T>>, SplitJoinError> {
     if !matches!(
         wall,
-        geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. }
+        geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. } | geom::Surface::Cone { .. }
     ) {
         return Err(SplitJoinError::SectionInvariant {
             face,
-            what: "boolean planar-side germ partner is neither a cylinder nor a sphere (arm not \
-                   wired)",
+            what: "boolean planar-side germ partner is not a cylinder, a sphere or a cone (arm \
+                   not wired)",
         });
     }
     let (p_o, p_n) = match body.get_surface(plane_key) {
@@ -1629,7 +1629,7 @@ fn bool_planar_chord_spec<T: Decide>(
         SectionCase::Tangent(_) => {
             return Err(SplitJoinError::SectionInvariant {
                 face,
-                what: "tangent plane×cylinder germ pair in the boolean zip — a touching \
+                what: "tangent plane×wall germ pair in the boolean zip — a touching \
                        configuration, the typed frontier of the supported envelope",
             });
         }
