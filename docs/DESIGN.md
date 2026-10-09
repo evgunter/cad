@@ -1265,8 +1265,9 @@ shapes adds nothing to the product, and a body appears only as a copy
 whose space reaches the world. Nothing
 moves a body: a copy is defined by its one placement and never moved
 after, and an operation that would move one (today's `Transform`) is a
-placement. A placement copies a finished body; one profile read
-through several frames is several constructions, not copies. `Pattern`
+placement. No construction reads a frame (FORK-S3P), so a feature at
+several positions is one body placed several times, each placement a
+copy. `Pattern`
 is a placement of several copies, one per member of a pose family read
 off geometry. A document with nothing related to its world has
 an empty product. A `Face` or `Edge`

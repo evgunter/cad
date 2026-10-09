@@ -31,10 +31,10 @@ copy is defined is which `Place` reads it, so there is no tree, root or
 declaring role. `Place` defines no `Frame` port (FORK-S3O, row 96): a
 copy's poses are read as `Carried { copy, pose }`, keyed by the
 placement. Nothing moves a body: `Transform` and `PlacedFrom` retire,
-each use becoming a `Place`, and a profile reused at several positions
-is several constructions reading it through frames off geometry, not
-copies (the die's pips are revolves of the ball's profile on frames off
-the die's faces). `Pattern` is a `Place` of several copies over a pose
+each use becoming a `Place`. No construction reads a frame (FORK-S3P
+round 8), so a feature at several positions is one body placed several
+times: the die's pips are copies of one ball placed against the die's
+faces, then subtracted. `Pattern` is a `Place` of several copies over a pose
 family read off geometry. The world is one frame among many that cannot be deleted, read by
 placements and export alone; the product is every copy whose space
 reaches it (Ev: one relation for the whole product is a style, placing
