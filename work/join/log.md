@@ -1273,6 +1273,13 @@ Signed (JOIN orchestrator).
 
 Signed (JOIN orchestrator).
 
+## 2026-10-08 — the pinch weld's twice-passed vertex (TANG, PR 4346)
+
+TANG's PR 4346 closes `a-pierce-pinch-weld-reads-which-ring-strut-was-minted-first`.
+The weld now reads the corner of a vertex that a face passes twice, and
+a pierce copy whose corners no corner of that vertex holds stays apart.
+The every-root row's eight `Ltop asym` lines build `OK SOUND`.
+
 ## 2026-10-08: the walk-order unit landed (DR-110)
 
 - **PR 4317 merged** (M, SEQUENTIAL arm, byte 19).
