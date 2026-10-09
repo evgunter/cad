@@ -476,3 +476,39 @@ coordinate a value sets. A copy with anything free outside that symmetry is loos
   - A constraint that fixes nothing the rest leave free refuses, and so does a mate that would take a coordinate a
     variable sets.
   - A copy whose constraints leave anything free is loose and has no pose."
+
+## Round 9 — (i) vs (ii) against FORK-PAT (#4341, D10 Repetition)
+
+1. **(i)'s `shapes: [..]` is a list of reads, like a union's operands, not a list literal.**
+   - #4341's "no list literal" forbids writing a *family* as data. An irregular family is its members written out,
+     each a definition saying where it is.
+   - An operand list is something else: it names several existing variables a reader reads. `union` reads a family
+     "as its members" through one such read, and several reads beside it.
+   - `Place { shapes: [a, b] }` is the same shape of reader. It defines one copy per read, and a read that is a family
+     gives a family of copies, keyed by that family's own index.
+   - So it is not a list literal, and a union's operand list is not one either.
+2. **Yes. (ii) as I amended it (a `Bodies` keyed by the part's placement names) is a second kind of family.** #4341
+   keys every family by index tuples, `Member { (i, j), of }`. A family keyed by placement names would be a second
+   keying scheme beside it, with its own member names, reads and refusals. That weighs against (ii). It is a
+   representation stated twice (designer §4).
+3. **No. An index over the part's copy count is positional naming.**
+   - The part's world placements are written out one by one: an irregular set. Imposing `k = index(count)` on them
+     names each by position.
+   - A pin update that reorders them then re-points `bodies[1]` silently. #4341's "never re-pointed" catches only a
+     read that leaves the range, not one that lands on another body inside it. That is DM6's silent re-point, which
+     Ev rejects.
+   - An index applies only where the part's own placement is already an index family, and then it is the **part's**
+     index, carried through.
+
+**So I move back to (i), revising round 2.**
+- The instance defines one output per world placement of the part (FORK-1's ports, named by those placements). Where
+  that placement is an index family, its output is a family under the part's own index.
+- `Place` reads a list of reads in one space, exactly as `union` does.
+- This keeps one family mechanism (#4341's), names that survive a pin update, and no positional pick.
+- Placing a whole multi-body part is `Place { shapes: [inst.base, inst.clip], … }`. The GUI's "place part" writes
+  every port.
+- Cost if reversed later: low. A `Bodies` view of the ports could be added as a read without changing their names.
+
+**D10 Operations line:** "An instance of a part defines one output per world placement of the part, named by it, a
+family where that placement is one, all in one space. A placement reads a list of shapes in one space, as a union
+does, and defines one copy of each."
