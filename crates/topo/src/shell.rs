@@ -70,9 +70,9 @@
 //!    it; a body of revolution goes through
 //!    [`crate::offset_charts_together`], which solves each corner in
 //!    the meridian half-plane; anything else goes chart by chart
-//!    through [`crate::replace_faces_offset`], whose corners are
-//!    transported once per chart and whose OBLIQUE ones therefore
-//!    refuse (`ReanchorOffCarrier`) rather than build;
+//!    through [`crate::replace_faces_offset`], which derives each edge
+//!    between a moved and a held surface as their section and solves
+//!    each moved corner as a root against the surfaces meeting it;
 //! 2. that body inserted through the shared void-insertion door
 //!    ([`crate::boolean::voids::insert_hollow_voids`]) with carried evidence —
 //!    every shell of it, grafted under the operand solid its own solid
@@ -1315,20 +1315,13 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
     let mut cavity_body = body.clone();
     let mut cavity = cavity_body.begin_surgery();
     // **All-planar and AXIAL bodies move SIMULTANEOUSLY; everything
-    // else still moves chart by chart.** Composing the per-chart door over a body
-    // cannot offset an OBLIQUE junction: a corner is visited once per
-    // chart and transported rigidly each time, so it accumulates
-    // `Σ dᵢ·nᵢ` where the offset body needs the point satisfying every
-    // `nᵢ·x = nᵢ·oᵢ + dᵢ` at once. Those agree exactly when the normals
-    // are mutually perpendicular — which is why a box was always right
-    // — and diverge otherwise. `ReanchorOffCarrier` is what has been
-    // refusing the difference rather than building it, and it stays
-    // exactly where it was for every body neither branch takes — a
-    // cylinder skew to the body's own axis, a NURBS. The curved
-    // corners of a body of REVOLUTION are no longer among them, its
-    // torus walls included:
-    // `offset_charts_together` solves those in the meridian
-    // half-plane, and the branch below picks it.
+    // else moves chart by chart.** The per-chart door solves each moved
+    // corner as a root against the moved and held surfaces meeting it,
+    // so composing it over a body reaches the corner satisfying every
+    // moved surface at once where each step's section exists; the
+    // simultaneous doors solve the same corners in one step, the planar
+    // one against every moved plane and `offset_charts_together` in the
+    // meridian half-plane, and the branch below picks them.
     //
     // **The door is ONE decision PER SOLID.** A body with a box tilted
     // off a vessel's axis beside it is neither all-planar nor axial, and a
@@ -3106,12 +3099,15 @@ fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Optio
         | ReplaceFaceError::TogetherNotAxial { face, .. }
         | ReplaceFaceError::NappeStraddles { face, .. } => Some(*face),
         ReplaceFaceError::TogetherCorner { vertex, .. }
-        | ReplaceFaceError::TogetherAxialCorner { vertex, .. } => {
+        | ReplaceFaceError::TogetherAxialCorner { vertex, .. }
+        | ReplaceFaceError::CornerSection { vertex, .. }
+        | ReplaceFaceError::VertexDisagreement { vertex, .. } => {
             face_of_he(proven(&body.vertices, *vertex, EntityId::Vertex).emanating?)
         }
         ReplaceFaceError::TogetherEdgeDisagreement { edge, .. }
         | ReplaceFaceError::TogetherAxialEdge { edge, .. }
-        | ReplaceFaceError::ReanchorOffCarrier { edge, .. }
+        | ReplaceFaceError::EdgeSection { edge, .. }
+        | ReplaceFaceError::DeclaredEdgeTilted { edge }
         | ReplaceFaceError::ReanchorPastCarrierEnd { edge, .. }
         | ReplaceFaceError::ReanchorCollapse { edge, .. }
         | ReplaceFaceError::ReanchorInconclusive { edge, .. }
