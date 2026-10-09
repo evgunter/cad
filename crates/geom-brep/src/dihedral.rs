@@ -508,8 +508,10 @@ pub struct SecondOrder<T: geom_core::Real> {
 /// the first-order refutation its premise needs:
 ///
 /// - **[`MustCarryVerdict::JetDeterminate`]** — every station read
-///   `Positive`: the surfaces determine the locus along the whole
-///   edge, so prefer-intrinsic (D2/OQ7) demands the intrinsic
+///   `Positive` and the pair is inside
+///   [`crate::tangent_certificate_lane`]: the surfaces determine the
+///   locus along the whole edge and the certificate can store it, so
+///   prefer-intrinsic (D2/OQ7) demands the intrinsic
 ///   [`crate::EdgeDescription::TangentIntersection`].
 /// - **[`MustCarryVerdict::UnderDetermined`]** — every station read
 ///   was smooth first-order and definite second-order, and no
@@ -709,7 +711,8 @@ impl MustCarryVerdict {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum MustCarryVerdict {
     /// Every interior station of the certification schedule read a
-    /// definitely-positive second-order separation: the intrinsic
+    /// definitely-positive second-order separation and the pair is
+    /// inside [`crate::tangent_certificate_lane`]: the intrinsic
     /// description is demanded.
     JetDeterminate,
     /// The join is smooth first-order at every station read, and no
@@ -720,7 +723,7 @@ pub enum MustCarryVerdict {
     ///   planes): the conventional description is the honest one, by
     ///   this predicate.
     /// - The pair is outside [`crate::tangent_certificate_lane`]: every
-    ///   interior station read `Smooth` and every station read definite
+    ///   interior station read `Smooth` first-order and `Positive`
     ///   second-order, and the certificate cannot store an intrinsic
     ///   tangency there. A transverse or in-band station out of lane,
     ///   at either order, answers `Transverse` or `InBand`, exactly as
@@ -1199,7 +1202,8 @@ mod tests {
     /// band's geometric mean every station is in band, and tier 3
     /// refuses that edge `SliverDihedral` lane or not, so the rule
     /// answers `InBand`; at ten times the escalation edge every station
-    /// is definite, and the lane leaves nothing to demand.
+    /// reads `Positive` and the lane leaves nothing to demand, and at a
+    /// hundredth of the zero edge the first station reads `Zero`.
     #[test]
     fn an_out_of_lane_in_band_sagitta_escalates_and_a_definite_one_is_under_determined() {
         let b = band();
@@ -1236,15 +1240,17 @@ mod tests {
                 "order {order}: an in-band sagitta out of lane escalates, got {verdict:?}"
             );
         }
-        for (order, verdict) in verdicts(length_at(10.0 * b.escalate()))
-            .into_iter()
-            .enumerate()
-        {
-            assert_eq!(
-                verdict,
-                MustCarryVerdict::UnderDetermined,
-                "order {order}: a definite sagitta out of lane demands nothing"
-            );
+        for (label, sagitta) in [
+            ("positive", 10.0 * b.escalate()),
+            ("zero", b.zero() / 100.0),
+        ] {
+            for (order, verdict) in verdicts(length_at(sagitta)).into_iter().enumerate() {
+                assert_eq!(
+                    verdict,
+                    MustCarryVerdict::UnderDetermined,
+                    "order {order}: a definitely {label} sagitta out of lane demands nothing"
+                );
+            }
         }
     }
 
