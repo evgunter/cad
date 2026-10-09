@@ -6,6 +6,7 @@ status: review
 branch: encl/second-order-walk-one-home
 pr: 4423
 priority: P3
+cost: M
 opened: 2026-10-09
 ---
 

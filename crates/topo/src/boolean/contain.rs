@@ -292,10 +292,11 @@ impl core::fmt::Display for ContainError {
                 diag,
             } => write!(
                 f,
-                "contfp: {} is undecided: {}. {}",
-                placement_subject(*decision),
-                diag.payload(),
-                placement_ending(*decision, *escalation, diag, Reading::Build)
+                "contfp: {}",
+                diag.undecided(
+                    placement_subject(*decision),
+                    placement_ending(*decision, *escalation, diag, Reading::Build),
+                )
             ),
             Self::RayExhausted => write!(f, "contfp: {}", crate::ray_walk::NoRaySettled),
             Self::StaleFace(face) => {
