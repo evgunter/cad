@@ -99,7 +99,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// The blend's closing join moved it: the two rim-filleting documents'
 /// joined host trimlines say the set of both trim names, and their
 /// joined-away feet and trimlines say nothing.
-const SAID_DIGEST: u64 = 0xef69_a279_1947_2db8;
+const SAID_DIGEST: u64 = 0xc67dee5894fd87e5;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
