@@ -16,7 +16,7 @@ use geom_core::Real;
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
-use crate::entity::FaceKey;
+use crate::entity::{FaceKey, ShellKey};
 use crate::geometry::SurfaceKey;
 
 /// A scope's faces grouped by surface key: groups in the order their
@@ -51,6 +51,17 @@ impl ChartGroups {
     pub(crate) fn of_body<T: Real>(body: &Body<T>) -> Self {
         let mut out = Self::empty();
         for (face, data) in body.faces() {
+            out.push(data.surface, face);
+        }
+        out
+    }
+
+    /// Groups the faces of `shell`, in face-arena order: the faces are
+    /// read off the live arena with their data, as [`Self::of_body`]'s
+    /// are, so nothing can fail to resolve.
+    pub(crate) fn of_shell<T: Real>(body: &Body<T>, shell: ShellKey) -> Self {
+        let mut out = Self::empty();
+        for (face, data) in body.faces().filter(|(_, d)| d.shell == shell) {
             out.push(data.surface, face);
         }
         out

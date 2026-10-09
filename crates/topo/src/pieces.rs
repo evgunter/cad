@@ -58,7 +58,7 @@ use geom_core::{Band, Decide, Tol};
 use crate::body::Body;
 use crate::boolean::PointInSolidError;
 use crate::entity::{FaceKey, ShellKey, SolidKey};
-use crate::props::{QuadLane, ShellRole};
+use crate::props::{QuadLane, ShellClassifyError, ShellRole};
 use crate::stands::{Insides, ShellRead, witness_insides};
 
 /// Why the sort could not read which piece a shell belongs to
@@ -66,13 +66,16 @@ use crate::stands::{Insides, ShellRead, witness_insides};
 /// moves.
 #[derive(Clone, Debug)]
 pub enum PieceSortError {
-    /// The shell's role (`Outer` or `Void`) is not decided — its sign
-    /// walk refused, or its sign is still in band when the schedule
-    /// runs out — in a solid with two decided `Outer` shells, so which
-    /// piece it belongs to matters and is unknown.
+    /// The shell's role (`Outer` or `Void`) is not decided in a solid
+    /// with two decided `Outer` shells, so which piece it belongs to
+    /// matters and is unknown. The role read's refusal rides whole: it
+    /// is the shell-role decision's, with that decision's one ending,
+    /// as check 10 reports the same shell.
     RoleUnread {
         /// The shell.
         shell: ShellKey,
+        /// The role read's refusal.
+        source: ShellClassifyError,
     },
     /// Every witness of the shell ([`crate::stands`]: its vertices,
     /// edge midpoints and planar face interiors) lies on another shell,
@@ -120,16 +123,18 @@ pub enum PieceSortError {
 // can read an operand as well as a result (a split whose plane misses
 // its operand sorts the operand, which at a dual carries no verdict),
 // so a shape no verb builds may have been read from a file.
-// Every arm is one sentence and then its one ending.
+// Every arm is one sentence and then its one ending; an arm that
+// carries a refusal ends in that refusal's.
 impl core::fmt::Display for PieceSortError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let (what, ending) = match self {
-            Self::RoleUnread { .. } => (
-                "whether a shell of the body bounds material or a cavity could not be \
-                 decided, so the piece it belongs to is unknown"
-                    .to_owned(),
-                geom_core::KERNEL_LIMIT_RECOURSE,
-            ),
+            Self::RoleUnread { source, .. } => {
+                return write!(
+                    f,
+                    "whether a shell of the body bounds material or a cavity could not be \
+                     decided, so the piece it belongs to is unknown: {source}"
+                );
+            }
             Self::WitnessTouching { .. } => (
                 "every point of a shell of the body that could say where it stands lies on \
                  another shell, so the piece it belongs to could not be read"
@@ -214,9 +219,12 @@ fn pieces_of<T: Decide + crate::props::AtRestPolicy>(
     if shells.len() < 2 {
         return Ok(Vec::new());
     }
-    let read: Vec<Option<ShellRead>> = shells
+    let read: Vec<Result<ShellRead, PieceSortError>> = shells
         .iter()
-        .map(|&shell| ShellRead::of(body, shell, band, tol, quad).and_then(Result::ok))
+        .map(|&shell| {
+            ShellRead::of(body, shell, band, tol, quad)
+                .map_err(|source| PieceSortError::RoleUnread { shell, source })
+        })
         .collect();
     let decided_outers = read
         .iter()
@@ -226,11 +234,7 @@ fn pieces_of<T: Decide + crate::props::AtRestPolicy>(
     if decided_outers < 2 {
         return Ok(Vec::new());
     }
-    let reads = read
-        .into_iter()
-        .zip(shells)
-        .map(|(r, &shell)| r.ok_or(PieceSortError::RoleUnread { shell }))
-        .collect::<Result<Vec<_>, _>>()?;
+    let reads = read.into_iter().collect::<Result<Vec<_>, _>>()?;
 
     let screen = Screen::of(body, &reads, face_box);
     let mut enclosers: Vec<Option<Vec<usize>>> = vec![None; reads.len()];
@@ -519,7 +523,9 @@ mod tests {
         // The band's numbers are the run's ε; the words around them are
         // the pin.
         let text = err.to_string();
-        let (head, tail) = text.split_once(" against the ambiguity band ").expect("a band");
+        let (head, tail) = text
+            .split_once(" against the ambiguity band ")
+            .expect("a band");
         assert_eq!(
             head,
             "whether a shell of the body bounds material or a cavity could not be decided, so \
