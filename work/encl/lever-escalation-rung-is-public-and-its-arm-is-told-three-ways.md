@@ -2,7 +2,8 @@
 id: lever-escalation-rung-is-public-and-its-arm-is-told-three-ways
 kind: issue
 title: LeverEscalation's rung is public beside a private verdict, is_collapsed is dead, and the arm decision is told in three shapes
-status: review
+status: closed
+closed: 2026-10-09
 branch: encl/lever-escalation-one-shape
 pr: 4366
 opened: 2026-10-08
@@ -30,3 +31,15 @@ These are follow-ups from the delta re-review of PR 3431 at `cd9214980a`. That r
   - The note's "curving to a point" also fires on a zero extent (`dihedral.rs:114-116`).
 
   The definite arm's at-rest text is at 74 of 75 words, so any rewording must shorten.
+
+## Closed
+
+2026-10-09. PR 4366 merged at `5e0ed71933`. It went through a full review, a fix pass and an approving delta re-review; hosted CI was green.
+- `LeverEscalation`'s `rung` and `diag` are private.
+- `is_collapsed` is gone.
+- `BooleanError::of_lever_rung` is the one spelling.
+- Eight tellings, the merge door included, share "long enough, for how its faces curve, to measure their angle".
+- The lever is "clearly longer and no face curves tightly there".
+- The pin is `the_dihedral_arm_is_told_in_one_shape`.
+
+Follow-ups are in `work/encl/the-dihedral-arm-clause-is-seven-literals-held-by-a-source-census.md`.
