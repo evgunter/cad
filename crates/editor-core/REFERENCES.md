@@ -37,7 +37,7 @@ The recipe admits three reference shapes, and every node is built from them:
 
 Two precedents these clauses extend. `SitedRef { at, name }` (`node.rs`)
 pairs a DAG edge with a frozen name: `at` says which evaluated value to read,
-`name` says which entity. `Datum::AxisInPlane { plane, .. }` (`node.rs`) is
+`name` says which entity. `Datum::AxisInPlane { frame, .. }` (`node.rs`) is
 the one datum with a DAG input: its meaning comes from another node, which
 does not make the check cheaper but makes the error unrepresentable.
 

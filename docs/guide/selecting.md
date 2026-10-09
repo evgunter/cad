@@ -78,7 +78,7 @@ let (next, frame) = insert(
 doc = next;
 let (next, profile) = insert(
     &doc,
-    Node::Profile(ProfileProgram { plane: frame.into(), loops: vec![square], ids: Vec::new() }),
+    Node::Profile(ProfileProgram { frame: frame.into(), loops: vec![square], ids: Vec::new() }),
 );
 doc = next;
 let (next, cube) = insert(&doc, Node::Extrude { profile: profile.into(), distance: len(1.0), side: ExtrudeSide::Along });
@@ -194,7 +194,7 @@ let (next, frame) = insert(
 doc = next;
 let (next, profile) = insert(
     &doc,
-    Node::Profile(ProfileProgram { plane: frame.into(), loops: vec![square], ids: Vec::new() }),
+    Node::Profile(ProfileProgram { frame: frame.into(), loops: vec![square], ids: Vec::new() }),
 );
 doc = next;
 let (next, cube) = insert(
@@ -364,7 +364,7 @@ let (next, frame) = insert(
 doc = next;
 let (next, profile) = insert(
     &doc,
-    Node::Profile(ProfileProgram { plane: frame.into(), loops: vec![square], ids: Vec::new() }),
+    Node::Profile(ProfileProgram { frame: frame.into(), loops: vec![square], ids: Vec::new() }),
 );
 doc = next;
 let (next, cube) = insert(
@@ -453,7 +453,7 @@ let frame_at = |z: f64| {
 };
 // v4: the profile payload is its PROGRAM, drawn on a frame NODE.
 let footprint = |x0: f64, y0: f64, x1: f64, y1: f64, plane: RecipeNodeId| ProfileProgram {
-    plane: plane.into(),
+    frame: plane.into(),
     loops: vec![
         LoopProgram::polygon([(x0, y0), (x1, y0), (x1, y1), (x0, y1)])
             .expect("finite corners"),
