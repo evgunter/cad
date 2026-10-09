@@ -159,16 +159,19 @@ carry that cost on top of its own. So the chain goes, not the link:
   glue keeps the earlier member's description, as a pair boolean keeps
   operand A's, and a refusal raised at a fold step names the member whose
   step refused. It sits beside `Boolean(Union)`, which
-  stays for a pair, and beside `PlacedUnion`, which fuses instances of one
-  prototype and is a different sentence (`node.rs`).
+  stays for a pair. A union reads shapes already in one space and places
+  nothing: a placement defines copies, and the union reads them, so the
+  union of a pattern's copies is this node over the pattern's members.
+  `PlacedUnion` (`node.rs`) both places copies of one prototype and
+  fuses them, so it retires into those two: a placement of the copies,
+  and this union reading them.
 - **Naming keys by member, not by depth.** The emitter wraps a member's names
   in `FromMember { member: RecipeNodeId, of: Box<StableName> }`: `member` is
   the member's own node id (the edge in the list), `of` the entity's name in
   that member's table. The key is the edge, never the inner name's minting
-  node: a pass-through op contributes no segment (N1; `Transform` keeps the
-  input's rows verbatim), so two members that are transforms of one body
-  carry identical tables — the die's 21 pips are exactly that — and the inner
-  name alone cannot tell them apart. The member id can; it is data the node
+  node: a copy keeps the rows of the body it copies (N1), so two members
+  that are copies of one body carry identical tables, and the inner name
+  alone cannot tell them apart. The member id can; it is data the node
   already carries, and DM5 makes it unique within one union. No position is
   recorded, so removing a member leaves every other member's names as they
   were. The `Instance { i, of }` segment is the precedent shape, with an
@@ -178,9 +181,9 @@ carry that cost on top of its own. So the chain goes, not the link:
   inferred. It refuses typed an unknown or non-live member, a cycle
   (`WouldCycle` through the existing check), a duplicate (DM5), or fewer than
   two members. Deleting a pip is `SetMembers` without it, and the other
-  twenty rims survive. The transform stays a value, out of the product
-  because nothing places it; deleting it too is tidiness, not a
-  requirement. `Loft`'s `profiles`
+  twenty rims survive. The pip the union no longer reads is still
+  defined, and out of the product because no placement names it;
+  deleting it too is tidiness, not a requirement. `Loft`'s `profiles`
   list is the same shape and takes the same edit; nothing else in the
   vocabulary is a list.
 - The viewer's combining doors take a union seat of N body picks (not yet

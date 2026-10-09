@@ -384,7 +384,9 @@ pub enum CertifyError {
     /// metre scale to be measured by. The floor is a conservative lower
     /// bound on the carrier's speed: it reaches zero or below where the
     /// spline stalls or turns back on itself, and where the bound itself
-    /// falls short; a knot domain stored reversed reads below zero too.
+    /// falls short. The knot domain is never the cause: a
+    /// [`geom_core::spline::KnotVector`] is strictly forward by
+    /// construction, so this verdict is always the floor's.
     SpanMeterCollapsed {
         /// The metered length's verdict, with its reporting margin.
         verdict: Refused,
@@ -2482,6 +2484,12 @@ fn run_checks<T: Decide>(
         // a collapsed meter is `SpanMeterCollapsed` and an undecided one
         // escalates under `ParamSpanMeter`, while a backwards or zero
         // span is `IntervalNotForward` below.
+        //
+        // The domain needs no orientation check of its own: `KnotVector`
+        // mints only `d0 < d1` (non-decreasing knots, end runs of exactly
+        // `degree + 1`), and `d1 - d0` of two distinct finite `f64`s in
+        // that order is positive, so the sign this gate refuses is the
+        // meter's alone.
         Curve3::Nurbs(n) => {
             let meter = n.speed_lower_bound();
             let (d0, d1) = n.domain();
