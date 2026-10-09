@@ -2483,11 +2483,11 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
     // refuses on it (`projected::net_incidence`, the sector check); one
     // outside the interval is not the edge's.
     //
-    // A box's min and max over brackets read their endpoints, and a
-    // bracket that does not certify carries ordinary ones: the box would
-    // read as certified. So a piece or part reads NaN for its bounds
-    // whenever a control whose support meets it does not certify (`ok`
-    // false), through the same two reads.
+    // A net with a control that does not certify is corrupt, and it
+    // refuses wherever that control's support reaches: a piece or part
+    // reads NaN for every bound (`ok` false), through the same two
+    // reads, whichever channel the control's refusal sits in — not only
+    // where a box the bound is read off carries it.
     let lower = |v: geom_core::Interval, ok: bool| {
         if ok && v.is_certified() {
             v.lo()

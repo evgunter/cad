@@ -1691,13 +1691,12 @@ fn an_uncertified_sector_bound_escalates() {
     }
 }
 
-/// **The hull lane reads an uncertified bracket as one that escalates**
-/// (behaviour, through the lane, at the `f64` lane's scalar). The torus
-/// spline's stored net with one control's coordinate poison, which the
-/// lane's crossing into certification arithmetic refuses: the piece it
-/// lies on escalates its sector check at the scalar, rather than reading
-/// a box whose min and max dropped the refusal, or a bound standing in
-/// for it, as clearing the sector.
+/// **A corrupt net escalates its sector wherever the bad control's
+/// support reaches** (behaviour, through the lane, at the `f64` lane's
+/// scalar). The torus spline's stored net with one control's coordinate
+/// poison, which the lane's crossing into certification arithmetic
+/// refuses: the piece it lies on escalates its sector check, whichever
+/// channel the poison sits in.
 #[test]
 fn the_hull_lane_reads_an_uncertified_control_as_escalating() {
     use super::super::projected::hull_sector;
@@ -1714,6 +1713,47 @@ fn the_hull_lane_reads_an_uncertified_control_as_escalating() {
     image.carrier = FramedCarrier::Net(Arc::new(corrupt.clone()));
     let twin = super::super::orthonormal_chart(&torus);
     let hull = lane.projected_hull(&image, &corrupt, &twin).unwrap();
+    let got = hull_sector(&hull.pieces[0], 0, &image.chart, b);
+    assert!(
+        matches!(
+            got,
+            Err(PcurveCertifyError::Escalated {
+                check: PcurveCheck::Sector,
+                ..
+            })
+        ),
+        "{got:?}"
+    );
+}
+
+/// **A corrupt net escalates the azimuth sector off the torus**
+/// (behaviour, through the lane, at the `f64` lane's scalar). The
+/// cylinder spline's stored net with one control poison in every
+/// coordinate: the piece it lies on reads no tube channel, so its
+/// azimuth bound alone must escalate, not clear the sector.
+#[test]
+fn a_corrupt_net_escalates_the_azimuth_sector_on_a_cylinder() {
+    use super::super::projected::hull_sector;
+    let b = band();
+    let lane = crate::FittedLane::<f64>::certified();
+    let cylinder = Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let c = quarter_off_past_half(0.0);
+    let mut image = project(&c, None, &cylinder, b).unwrap();
+    let FramedCarrier::Net(net) = &image.carrier else {
+        unreachable!("a spline carrier")
+    };
+    let mut control = net.control().to_vec();
+    control[1] = Point3::new(f64::NAN, f64::NAN, f64::NAN);
+    let corrupt = NurbsCurve3::new(net.knots().clone(), control, net.weights().to_vec()).unwrap();
+    image.carrier = FramedCarrier::Net(Arc::new(corrupt.clone()));
+    let twin = super::super::orthonormal_chart(&cylinder);
+    let hull = lane.projected_hull(&image, &corrupt, &twin).unwrap();
+    assert!(hull.pieces[0].x_lo.is_nan(), "{:?}", hull.pieces[0]);
     let got = hull_sector(&hull.pieces[0], 0, &image.chart, b);
     assert!(
         matches!(
