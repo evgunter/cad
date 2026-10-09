@@ -317,14 +317,16 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      typed `CensusUnsupported`, never samples. Every comparison is a
      named Q1 trilean; indeterminates surface as typed
      `CensusEscalated`, never a silent skip.
-   - A census finding is a decision between two cells, levered at
-     their extent. Each pair predicate decides the gap between the two
-     closed cells beyond what they share structurally, never between
-     their carriers; only a Zero gap is then classified (crossing,
-     overlap, on-face) and backed. Two cells sharing a vertex or a
-     point key are told apart by their angle at that point, levered at
-     the shorter cell: the in-band neighbourhood every corner has is not
-     a coincidence.
+   - A census finding is a decision about the gap between two cells
+     (two edges, an edge and a face, a vertex and a face), never between
+     the infinite lines or planes they lie on; only a Zero gap is then
+     classified (crossing, overlap, on-face) and backed. Two cells that
+     share a vertex or a point key meet there by construction, so the
+     gap that tells them apart is the one at the far end of the shorter
+     cell: its length times the sine of the angle between them (D4 ¶1's
+     d = r·θ, with the cell's own length as the arm). Near the shared
+     point every pair of cells is within the band, whatever the angle;
+     that neighbourhood is not a coincidence.
    - Certification runs **both directions and never scans-to-bless in
      either**: a census finding with no backing record is never
      silently blessed ((iii) below); a record with no geometric witness
