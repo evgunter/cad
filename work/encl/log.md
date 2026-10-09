@@ -1387,3 +1387,4 @@ coincidence is now a margined verdict (no declarations), checked by the
 - 2026-10-09 — PR 4443 (noted joint, undecided word, Recourse label) merged at `070cec41da`; row closed. Seam notes are posted on flux, restfront, restread and tally.
 - 2026-10-09 — Dispatched P3 E `last-resort-on-a-poisoned-margin-offers-to-loosen-the-tolerance` (`encl/poisoned-last-resort`).
 - 2026-10-09 — PR 4453 (poisoned last resort) merged; row closed. The lane filed `piece-sort-offers-to-loosen-the-tolerance-on-a-poisoned-role`. Main's editor-core `lib_g17` crossing (SHELL 4391 × INTENT 4342) has fixes open as JOIN's 4451 and 4452; I ported 4451's fix into PR 4450 and posted a comment there.
+- 2026-10-09 — Dispatched P3 `refusal-endings-are-hand-written-twice-per-door` (`encl/one-ending-per-door`).
