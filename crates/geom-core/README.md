@@ -49,7 +49,7 @@ clause:
   from. A door taking `(structure, proof)` has two arguments nothing
   relates; a door taking only the proof has nothing to relate.
 - **The mints are `&self`, and they are the only ones.**
-  `KnotVector::{span, span_at, span_range}` for a `Span`;
+  `KnotVector::{span, span_at, span_of, span_range}` for a `Span`;
   `KnotVector::with_coeffs` for a `SplineCoeffs` and
   `KnotVector::with_rational_coeffs` for a `RationalCoeffs`, each
   pair's `{span, span_at}` for its window;

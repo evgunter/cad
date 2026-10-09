@@ -367,7 +367,7 @@ impl InteriorKnot {
 ///
 /// **Branded to its knot vector by the borrow.** The fields are
 /// private and the only constructors are [`KnotVector::span`]
-/// (checked) and [`KnotVector::span_at`] (`None` only at NaN), so an index invalid
+/// (checked) and [`KnotVector::span_of`] (total over a [`Param`]), so an index invalid
 /// for the vector it names is not a representable state — and neither
 /// is a span held beside a *different* vector: every door that
 /// consumes a `Span` reads its knots through the span
@@ -871,8 +871,9 @@ impl KnotVector {
 
     /// The validated [`Span`] at `index`, or `None` when the index is
     /// out of range or names an **empty** span (interior knot
-    /// multiplicity). This and [`KnotVector::span_at`] are the only
-    /// ways to obtain a `Span`.
+    /// multiplicity). This and the locators ([`KnotVector::span_of`],
+    /// and [`KnotVector::span_at`] and [`KnotVector::span_range`] over
+    /// it) are the only ways to obtain a `Span`.
     pub fn span(&self, index: usize) -> Option<Span<'_>> {
         if index < self.first_span() || index > self.last_span() || !self.span_is_nonempty(index) {
             return None;

@@ -186,6 +186,39 @@ fn nurbs_vector_area<T: SpanLocate>(
 mod tests {
     use super::*;
 
+    /// A poison end locates no span, so the NURBS area is poison in every
+    /// channel the ends carry — at `Dual` the derivative channel too,
+    /// where a bare `from_f64(NaN)` would be a dual constant whose
+    /// derivative reads as a zero.
+    #[test]
+    fn a_poison_end_integrates_to_poison_in_every_dual_channel() {
+        use geom_core::Dual64;
+        use geom_core::spline::KnotVector;
+        let c = |x: f64, y: f64| {
+            Point3::new(
+                Dual64::constant(x),
+                Dual64::constant(y),
+                Dual64::constant(0.0),
+            )
+        };
+        let curve = NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
+            vec![c(0.0, 0.0), c(1.0, 2.0), c(2.0, 0.0), c(3.0, 1.0)],
+            vec![1.0; 4],
+        )
+        .unwrap();
+        let a = nurbs_vector_area(
+            &curve,
+            Dual64::variable(f64::NAN),
+            Dual64::constant(1.0),
+            c(0.0, 0.0),
+        )
+        .unwrap();
+        for v in [a.x, a.y, a.z] {
+            assert!(v.value.is_nan() && v.deriv.is_nan(), "{a:?}");
+        }
+    }
+
     fn line_edge(a: Point3<f64>, b: Point3<f64>, forward: bool) -> LoopEdge<f64> {
         let d = b - a;
         let len = d.norm();

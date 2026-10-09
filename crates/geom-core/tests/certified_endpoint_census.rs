@@ -298,14 +298,12 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/pcurve_cache.rs", 2, 2, ""),
     (
         "crates/geom-brep/src/props/quad.rs",
-        16,
+        12,
         7,
-        "of the remaining 9, 5 are safe by construction: `cos_step`/`sin_step` and the \
-         two half-angle clamps build from `pt` of a finite f64 with nonzero exact \
-         divisors, so no operand can leave a domain (argued at each). The other 4 are \
-         `ParamRange` ends (`raw_range_hull`'s and `Dir::Const`'s window arm), a \
-         parameter range and no bracket — blind spot 1. Every other read goes through \
-         `lo_or_refuse`/`hi_or_refuse`/`mid`, which are the guarded ones",
+        "the remaining 5 are safe by construction: `cos_step`/`sin_step` and the two \
+         half-angle clamps build from `pt` of a finite f64 with nonzero exact divisors, \
+         so no operand can leave a domain (argued at each). Every other read goes \
+         through `lo_or_refuse`/`hi_or_refuse`/`mid`, which are the guarded ones",
     ),
     (
         "crates/geom-brep/src/ssi.rs",
@@ -332,7 +330,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",
-        20,
+        17,
         15,
         "`Box3`'s disjointness, containment, centre, split, reach meet and intersection all refuse \
          by name, and \
@@ -340,9 +338,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          hull by name before reading its lower end, `s_offsets` asks it of each weight step it \
          reads, and `transverse_readings` of the `φ` range whose ends it reads. The 2 that do \
          not ask are `Centred::of`'s centre and radius, whose one caller, `pair_norm_sup`, \
-         refuses every term and offset by name before any is centred. The other 3 are \
-         `ParamRange` ends in `cells` and `rect_box`, a parameter window and no bracket \
-         — blind spot 1",
+         refuses every term and offset by name before any is centred",
     ),
     ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),
     (
@@ -381,7 +377,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
         "the reads that serve a door, each refusing first: `narrowed_to` (the one body of \
          `clamped_to` and `meet`), `width` and `mag`",
     ),
-    ("crates/geom-core/src/spline/compose/tensor.rs", 6, 6, ""),
+    ("crates/geom-core/src/spline/compose/tensor.rs", 4, 4, ""),
     (
         "crates/geom-core/src/sym/signed.rs",
         13,

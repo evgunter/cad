@@ -10270,3 +10270,26 @@ mod iso_family {
         ));
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod iso_arc_poison {
+    use super::*;
+    use geom_core::Dual64;
+
+    /// A poison parameter locates no span, so the iso arc's chart
+    /// parameter is poison in every channel it carries — at `Dual` the
+    /// derivative channel too, where a bare `from_f64(NaN)` would be a
+    /// dual constant whose derivative reads as a zero.
+    #[test]
+    fn a_poison_parameter_is_poison_in_every_dual_channel() {
+        let breaks = KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap();
+        let g = iso_arc_g(
+            Dual64::variable(f64::NAN),
+            Dual64::constant(0.0),
+            Dual64::constant(1.0),
+            &breaks,
+        );
+        assert!(g.value.is_nan() && g.deriv.is_nan(), "{g:?}");
+    }
+}

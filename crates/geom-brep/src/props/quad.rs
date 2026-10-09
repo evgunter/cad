@@ -7356,8 +7356,86 @@ mod tests {
             assert!(certified_box(bad, good).is_none(), "{name} u: minted a box");
             assert!(certified_box(good, bad).is_none(), "{name} v: minted a box");
         }
-        // What the box readers answer in its place.
-        assert!(refused_vec().iter().all(|c| !c.is_certified()));
+    }
+
+    /// `[0, 0]` decorated `Trv`: `sqrt([−1, 0])`, a bracket whose ends
+    /// are an exact point and which does not certify. A producer that
+    /// read its bracket instead of minting through `certified` would
+    /// see an ordinary point.
+    fn trv_zero() -> Interval {
+        let x = Interval::from_bounds(-1.0, 0.0).sqrt();
+        assert!(
+            !x.is_certified() && x.lo() == 0.0 && x.hi() == 0.0,
+            "fixture: {x:?}"
+        );
+        x
+    }
+
+    /// **A Trv bracket driven through `piece_monotone` does not certify
+    /// a monotone piece.** On the flat chart every window's derivative
+    /// hull is the same exact constant, so the control row certifies the
+    /// straight chord. With one `Trv` coordinate the block box refuses
+    /// (`Certification::hull` refuses an uncertified operand, so a box
+    /// over several points is certified or NaI, never `Trv`), no window
+    /// is minted, and the rate is the refused one.
+    #[test]
+    fn a_trv_block_does_not_certify_a_piece_monotone() {
+        let (ku, kvv, control, _) = flat_chart(3.0);
+        let s = PatchGrid::base(&ku, &kvv, &control);
+        let (su, sv) = (s.deriv_u(), s.deriv_v());
+        let band = Band::linear(Tol::witness()).unwrap();
+        // The `Trv` rides on the LAST point, so the first step's advance
+        // is certified and the row reads the rate, not the span.
+        let block = |end: Interval| vec![(pt(0.0), pt(0.5)), (pt(0.5), pt(0.5)), (pt(1.0), end)];
+        let control_row = piece_monotone::<f64>(
+            &block(pt(0.5)),
+            (0.0, 0.5),
+            (1.0, 0.5),
+            su.as_ref(),
+            sv.as_ref(),
+            band,
+        );
+        assert!(
+            matches!(control_row, Ok(Sign::Positive)),
+            "CONTROL: a straight chord on the flat chart is monotone: {control_row:?}"
+        );
+        let trv = trv_zero() + pt(0.5);
+        let got = piece_monotone::<f64>(
+            &block(trv),
+            (0.0, 0.5),
+            (1.0, 0.5),
+            su.as_ref(),
+            sv.as_ref(),
+            band,
+        );
+        assert!(
+            !matches!(got, Ok(Sign::Positive)),
+            "a Trv block certified a monotone piece: {got:?}"
+        );
+    }
+
+    /// **A Trv bracket driven through the trimmed lane does not
+    /// converge.** One chord endpoint is a `Trv` `[0, 0]`, Q1's loop
+    /// otherwise. The trim box over the endpoints is NaI (a hull refuses
+    /// an uncertified operand), so it mints no window and the pads it
+    /// bounds refuse; the lane answers no converged bound.
+    #[test]
+    fn a_trv_trim_endpoint_does_not_converge_the_trimmed_lane() {
+        let c = 3.0;
+        let (ku, kvv, control, w) = flat_chart(c);
+        let trv = trv_zero();
+        let mut first = iso((0.0, 0.0), (1.0, 0.0));
+        first.a = (trv, pt(0.0));
+        let chords = vec![
+            first,
+            iso((1.0, 0.0), (1.0, 1.0)),
+            general(&[(1.0, 1.0), (0.5, 0.5), (0.0, 0.0)], 1e-3),
+        ];
+        let got = trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE);
+        assert!(
+            !matches!(got, Ok(RoundOutcome::Converged(_))),
+            "a Trv trim endpoint converged: {got:?}"
+        );
     }
 
     /// **A NaN point locates no span on any `Dir`**: the `Const` point

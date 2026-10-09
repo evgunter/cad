@@ -329,7 +329,7 @@ fn a_projected_net_image_boxes_a_nai_end_as_poison() {
     };
     let image = chart_pcurve(&carrier, &plane, band()).unwrap();
     assert!(
-        matches!(image, Pcurve::Projected(_)),
+        matches!(&image, Pcurve::Projected(p) if matches!(p.carrier(), geom_brep::FramedCarrier::Net(_))),
         "the fixture is a projected net: {image:?}"
     );
     let certified = |b: geom_brep::ChartWindow<Interval>| {
@@ -351,4 +351,47 @@ fn a_projected_net_image_boxes_a_nai_end_as_poison() {
             "{name}: {b:?}"
         );
     }
+}
+
+/// **The projected image answers a poison parameter with poison in
+/// every channel it carries.** At `Dual` that includes the derivative
+/// channel, where a bare `from_f64(NaN)` would be a dual constant whose
+/// derivative reads as a zero: the point (`ProjectedImage::eval`) and
+/// the box (`chart_box`'s poison window) are both checked.
+#[test]
+fn a_projected_image_answers_a_poison_dual_parameter_with_poison_in_every_channel() {
+    use geom_core::Dual64;
+    let lift = Dual64::constant;
+    let carrier = Curve3::Nurbs(std::sync::Arc::new(
+        geom::NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
+            vec![
+                Point3::new(lift(0.1), lift(-0.2), lift(0.0)),
+                Point3::new(lift(0.7), lift(0.9), lift(0.0)),
+                Point3::new(lift(1.3), lift(0.2), lift(0.0)),
+                Point3::new(lift(1.6), lift(0.8), lift(0.0)),
+            ],
+            vec![1.0, 0.6, 1.0, 1.0],
+        )
+        .unwrap(),
+    ));
+    let plane = Surface::Plane {
+        origin: Point3::new(lift(0.05), lift(0.1), lift(0.0)),
+        normal: Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
+        u_ref: Vec3::new(lift(1.0), lift(0.0), lift(0.0)),
+    };
+    let image = chart_pcurve(&carrier, &plane, band()).unwrap();
+    assert!(
+        matches!(&image, Pcurve::Projected(p) if matches!(p.carrier(), geom_brep::FramedCarrier::Net(_))),
+        "the fixture is a projected net: {image:?}"
+    );
+    let poison = |x: Dual64| x.value.is_nan() && x.deriv.is_nan();
+    let t = Dual64::variable(f64::NAN);
+    let p = image.eval(t);
+    assert!(poison(p.x) && poison(p.y), "eval: {p:?}");
+    let b = image.chart_box(t, lift(1.0));
+    assert!(
+        [b.u_min, b.u_max, b.v_min, b.v_max].into_iter().all(poison),
+        "chart_box: {b:?}"
+    );
 }
