@@ -10,83 +10,65 @@ this head with the same census and the same contact-record counts, at tiers 2/3/
 volume. The 60 unions main refused that the branch now builds are all sound. No refusal turned into a
 silent wrong body. The pins hold at all three ε. The three new mechanisms each have a killing mutant.
 
-The fixes are not about soundness:
-- **Test gap.** The half-open rule and the one-period seam shift are unbitten: on every fixture, any
-  non-bailing treatment of a row end at the ray gives the same answer (MINOR-1).
-- **Stale text.** A visible tour caption and several comments still describe the deleted zip (MINOR-2).
-- **PR description.** It credits this branch with the torus peg-in-socket result, which main's own join
-  already gives at the base (MINOR-3).
+The fixes are not about soundness: the half-open rule and the seam shift are unbitten by any row (MINOR-1);
+a visible tour caption and several comments still describe the deleted zip (MINOR-2); the PR credits this
+branch with the torus peg-in-socket result, which main's own join already gives at the base (MINOR-3).
 
 ## Method (all execution, private CARGO_TARGET_DIRs)
 
 - **Baseline, clean head, default ε.** topo + sweep + editor-core, `--profile default`: **8043/8044**. The one
   failure is the timing row `name_words_rows::a_large_table_…_in_bounded_time`.
-- **Instrumented head**, one worktree, own target dir. It logs `across_tangent` moves (old and new sector
-  faces, normal·normal, raw, kept and freshly recomputed `pair_codes`, loci) and `chart_ring_side`
-  events (zero row ends, along-ray rows, full window, seam shift, verdict). It also carries a probe at
-  `boolean_op_with` on every declared f64 union: an operand fingerprint (sorted vertex bits plus face and
-  edge counts), the result's kind, volume, f/e/v/s, contact counts per kind, and tiers 2/3/3′ on the
-  result's own contacts. The instrumentation only reads.
-  - topo + sweep, `--profile default`: **5126/5126 at default, 5126/5126 at 1e-6, 5125/5126 at 1e-12**.
-  - The 1e-12 failure is `parallel_cylinder_join::a_tipped_rod_whose_origin_is_stored_far…`. It fails
-    identically on the base (run), as the PR says (`work/tint/tipped-rod-join-escalates-at-1e-12.md`).
+- **Instrumented head** (read-only logging): `across_tangent` moves (sector faces, normal·normal, raw, kept
+  and freshly recomputed `pair_codes`, loci), `chart_ring_side` events (zero ends, along-ray rows, full
+  window, seam shift, verdict), and a probe at `boolean_op_with` on every declared f64 union: an operand
+  fingerprint (sorted vertex bits, face and edge counts), kind, volume, f/e/v/s, contact counts, tiers 2/3/3′.
+  topo + sweep, `--profile default`: **5126/5126 at default, 5126/5126 at 1e-6, 5125/5126 at 1e-12**; the
+  1e-12 failure, `parallel_cylinder_join::a_tipped_rod_…`, fails identically on the base (run; filed in `tint/`).
 - **editor-core on the clean head**: **2917/2918 at 1e-6 and 2917/2918 at 1e-12** (the timing row only, both times).
 - **Main (the base) with the same probe** over topo + sweep at default ε: 5133/5133. The zip door built
   **125** unions (the PR measured 125), all from sweep; topo reaches it 0 times.
-- **Mutants**, in their own worktree and target dir, over a 186-test filter. The filter holds every suite the
-  instrumentation saw reach `across_tangent` or `chart_ring_side`, plus the spec's zip suites. The
-  unmutated control is 186/186.
-- **Process note.** My first attempt shared one target dir across worktrees. Cargo gives a workspace member
-  the same artifact hash whatever path it is built from, so the trees overwrote each other's binaries (a
-  backtrace showed the wrong tree's source). I discarded every result from that period except the baseline,
-  which ran before any worktree existed, and redid all of it with one target dir per tree. Worth knowing
-  for other lanes that use worktrees.
+- **Mutants** in their own tree, over a 186-test filter holding every suite the logs saw reach
+  `across_tangent` or `chart_ring_side`, plus the spec's zip suites; the unmutated control is 186/186.
+- **Process note.** A first attempt shared one target dir across worktrees; cargo hashes a workspace member
+  the same from any path, so the trees overwrote each other's binaries. Everything from that period except
+  the baseline (run before any worktree existed) was discarded and redone with one target dir per tree.
 
 ## Claims
 
 **C1, soundness: not falsified.** The probes are matched by operand fingerprint, not by call ordinal, so
 a test diverging earlier does not end the pairing as it did for the PR's ordinal pairing.
 - **All 125 zip-built unions (not 74) find their twin on the branch** at default ε: 125/125.
-  - f, e, v and shells are identical.
-  - The contact counts (`vv`, `a_on_b`, `b_on_a`, `ve`, `ee`, `curves`, `patches`) are identical.
-  - t2, t3 and t3′ pass.
-  - Volume max relative difference: 4.66e-16.
-  - The same holds against the branch's 1e-6 and 1e-12 runs (still against main's default-ε run).
+  f, e, v, shells and the contact counts (`vv`, `a_on_b`, `b_on_a`, `ve`, `ee`, `curves`, `patches`) are
+  identical; t2, t3 and t3′ pass; volume max relative difference 4.66e-16. The same holds against the
+  branch's 1e-6 and 1e-12 runs (compared with main's default-ε run).
 - **Inputs main refused and the branch builds: 61 with matched operands**.
   - What main refused with: `Join` 45 (tangent `SectionInvariant` and `Euler(NotSameFace)`),
     `ResultInvalid` 8 (the dip, `RingOutsideOuter`), `RestZipUnsupported` 7 (`SegmentsBetweenIsolatedPierces`
     5, `PinchApex` 2), and one probe-pairing artifact (below).
   - **All 60 real ones pass t2, t3 and t3′**, with volume in [max(va,vb), va+vb]. The two operand orders
     agree to ≤3 ulp, and each test asserts its own closed form.
-- **No regression.** The one "BODY→ERR" row is `m9_1_contact_vocabulary::a_wrong_class_declaration…`. It
-  calls the same operands twice (once contradicting, once correct), and both trees answer the pair
-  identically, so my pool paired them crosswise.
-- **Every declared union both trees return as a body that fails t3′** is the same 9 calls on both trees
-  (`pierce_strut_at_a_pinch` ×2, `union_flush_onto_edge_contact` ×6, the pinch operand in
-  `rest_nested_strut` ×1). They are older than this PR.
-- **Every final refusal of `tangent plane×cylinder`, `NotSameFace` or `RingHomingAmbiguous` is gone at all
-  three ε** on the branch. Main shows 33 and 12 of them as final answers.
+- **No regression.** The one "BODY→ERR" row (`m9_1_contact_vocabulary::a_wrong_class_declaration…`) calls
+  the same operands twice; both trees answer the pair identically and my pool paired them crosswise.
+- **The declared unions that return a body failing t3′** are the same 9 calls on both trees
+  (`pierce_strut_at_a_pinch` ×2, `union_flush_onto_edge_contact` ×6, `rest_nested_strut`'s pinch ×1): older.
+- **No final `tangent plane×cylinder`, `NotSameFace` or `RingHomingAmbiguous` refusal remains at any ε** on
+  the branch; main shows 33 and 12 as final answers.
 
 **C2, the half-open azimuth rule and the one-period window: correct by inspection, unexercised by any row
 (MINOR-1).**
 - The rule reads a row end at the ray's azimuth as "below" (u ≤ u_p). That is the standard half-open
   crossing-number convention. Each run vertex's `u` is shared by exactly two consecutive rows and decided
   once per value, so the reading is consistent.
-- Events at default ε across topo + sweep:
-  - 134 along-ray junction rows `(Zero,Zero)`, each flanked by `(Zero,Positive)`/`(Negative,Zero)` or
-    `(Positive,Zero)`/`(Zero,Negative)` edges;
-  - 48 full windows, all in `a_blind_shaft_unions_on_and_off_the_bores_seam` (the wholly-inside span);
-  - **0 seam shifts at any of the three ε**.
+- Events at default ε across topo + sweep: 134 along-ray junction rows `(Zero,Zero)`, each flanked by
+  `(Zero,Positive)`/`(Negative,Zero)` or `(Positive,Zero)`/`(Zero,Negative)` edges; 48 full windows, all in
+  the blind-shaft row's wholly-inside span; **0 seam shifts at any of the three ε**.
 - **Every integration verdict is `Out`** (1402 + 48 full-window). `In` comes only from the chord_join unit
   rows.
-- The case each way:
-  - **Vertex exactly at the ray**: reached, but only beside an along-ray row, where the crossing lies below
-    the ring vertex either way.
-  - **A transversal or touching single-vertex crossing**: never reached.
-  - **Window of exactly one period**: reached; M4 kills it.
-  - **Just under**: the ordinary path.
-  - **Just over**: `SectionInvariant` by inspection; no row reaches it.
-  - **A vertex at the seam azimuth on the high edge**: never reached (M6 survives).
+- The case each way: **vertex exactly at the ray**, reached only beside an along-ray row, where the
+  crossing lies below the ring vertex either way; **a transversal or touching single-vertex crossing**,
+  never reached; **a window of exactly one period**, reached, and M4 kills it; **just under**, the ordinary
+  path; **just over**, `SectionInvariant` by inspection, no row reaches it; **a vertex at the seam azimuth
+  on the high edge**, never reached (M6 survives).
 
 **C3, `across_tangent` on a curved bound: not falsified.**
 - **Every move is across a crease.** 572 / 604 / 556 moves at default / 1e-6 / 1e-12. Every one has old and
@@ -115,19 +97,14 @@ a test diverging earlier does not end the pairing as it did for the PR's ordinal
 
 **C6, the rows bite: partly.**
 
-| Mutant | Result |
-|---|---|
-| M1: old bail on any zero row end | **killed** (8 rows: bore mates, mate2 r1/r2, rest_mate_every_op) |
-| M3: `across_tangent` reverted to identity | **killed** (12 rows: join2 r1/r2, reach_continuation ×2, rest_nested_strut, rest_zip_admission ×4) |
-| M4: one-period branch removed | **killed** (`a_blind_shaft_unions_on_and_off_the_bores_seam`) |
-| M7: across directions swapped | **killed** (12 rows) |
-| M9: chart verdict forced `Out` | killed **only** by the unit row `sibling_escalation_rows::a_chart_ring_vertex_escalating…` |
-| M10: parity inverted | **killed** (10 rows) |
-| M2: half-open flipped (u < u_p is below) | survives; expected, since it is an equally valid convention |
-| **M11**: any row with an end at the ray skipped entirely | **survives** |
-| **M6**: seam shift removed | **survives** |
-| **M5**: along-ray "vertex on the row" check removed | **survives** |
-| M8: neighbour-face guard dropped | survives |
+- **Killed**: M1 old bail on any zero row end (8 rows: bore mates, mate2 r1/r2, rest_mate_every_op);
+  M3 `across_tangent` reverted (12: join2 r1/r2, reach_continuation ×2, rest_nested_strut,
+  rest_zip_admission ×4); M4 one-period branch removed (the blind shaft); M7 across directions swapped (12);
+  M10 parity inverted (10); M9 verdict forced `Out`, **only** by the unit row
+  `sibling_escalation_rows::a_chart_ring_vertex_escalating…`.
+- **Survive**: M2 half-open flipped (expected: an equally valid convention); **M11** any row with an end at
+  the ray skipped entirely; **M6** seam shift removed; **M5** the along-ray "vertex on the row" check
+  removed; M8 the neighbour-face guard dropped.
 
 ## Findings
 
@@ -153,10 +130,8 @@ a test diverging earlier does not end the pairing as it did for the PR's ordinal
   names the geometry alone", though this PR deleted that row (rows 6→5).
 - `crates/topo/src/chord_join.rs:324` and `:855` (and `:1564`'s "the zip's seams") still say
   "boolean zip", where the PR rewrote the same phrase at `:1615` to "boolean join".
-- `crates/topo/tests/review_m3_pr5.rs:379` ("the M5 S1 REST zip glues the stack") and
-  `crates/topo/tests/m3_pr6_tier3prime.rs:250`, both files this PR touched.
-- `demos/tour/src/lily.rs:2273`, `demos/README.md:80`,
-  `crates/sweep/tests/pi_seam_and_kiss_through_the_boolean.rs:898`.
+- `crates/topo/tests/review_m3_pr5.rs:379` and `crates/topo/tests/m3_pr6_tier3prime.rs:250` (files this PR
+  touched), `demos/tour/src/lily.rs:2273`, `demos/README.md:80`, `pi_seam_and_kiss_through_the_boolean.rs:898`.
 - The PR's sweep patterns (`declared-REST`, `REST lane`, `rest lane`, `zip lane`, `rest.rs`, `RestZip`)
   cannot match "REST zip", "rest zip" or "boolean zip". That is what they were blind to.
 
@@ -216,31 +191,23 @@ pairs all 125, not 74. Recommend the fingerprint method for the spec's §11 row 
   Look also in `docs/KERNEL-VERBS.md` and `demos/` beyond the two named files.
 - **Q5 (sure).** `ops.rs`'s module doc now lists "a shaft in a bore, a plate on a rounded plate" as
   boundary-on-boundary unions the join builds. True and tested.
-  - `carrier_pair.rs:1-6` promises the doors and delivers them.
-  - `flush_pair_relation` still states that it has no in-tree consumer (`:27-30`), carried over verbatim. It
+  `carrier_pair.rs:1-6` promises the doors and delivers them; `flush_pair_relation` still states that it has no in-tree consumer (`:27-30`), carried over verbatim. It
     is a published door with no caller, moved without asking whether it should be.
-- **Q6 (sure).** The deviation "partner-edge chord built, then removed" is an improvement. The deviation
-  "torus beyond the spec" is mis-attributed (MINOR-3), not unscheduled.
+- **Q6 (sure).** "Partner-edge chord built, then removed" is an improvement; "torus beyond the spec" is mis-attributed (MINOR-3).
 - **Q7 (unsure).** `across_tangent` re-indexes a `PairRecord` while keeping a code tuple read against a
   different sector. I would have re-read the codes on the moved pair (`pair_codes`) and resolved the `On` as
   `recl` does, rather than carry a tuple whose positions mean something else. It works on every fixture.
 - **Q8 (likely).** I read `carrier_pair.rs` end to end. It is a verbatim move: 12 lines differ, all
   imports or the header.
-  - Its `PairExtent` and `face_witnesses` are now read by `join.rs` (germ frames) and `merge_faces.rs`
-    through `boolean::carrier_pair`.
-  - A module named for the carrier-pair verdict is host to a join and a merge helper. That is the shape
-    that drifts (a core hosted inside one of its consumers).
-  - I did not read `chord_join.rs` (≈5200 lines) whole.
+  Its `face_witnesses` and `pair_extent` are read by `join.rs` (germ frames) and `merge_faces.rs`: a module
+  named for the carrier-pair verdict hosts join and merge helpers, a core hosted in one consumer, the shape
+  that drifts. I did not read `chord_join.rs` (≈5200 lines) whole.
 
 ## Claims exercised / not
 
-- **Exercised:**
-  - C1: full differential, 125/125 plus 60 new builds.
-  - C2: event logs at all three ε, plus mutants M1, M2, M4, M5, M6, M9, M10, M11.
-  - C3: all three ε, 1732 moves, curved bound included.
-  - C4: all 7 typed refusals, plus the line kiss on both trees.
-  - C5: all three crates at all three ε.
-  - C6: 11 mutants.
+- **Exercised:** C1 (full differential, 125/125 plus 60 new builds); C2 (event logs at all three ε, mutants
+  M1, M2, M4, M5, M6, M9, M10, M11); C3 (all three ε, 1732 moves, curved bound included); C4 (all 7 typed
+  refusals, plus the line kiss on both trees); C5 (all three crates at all three ε); C6 (11 mutants).
 - **Not exercised:**
   - A constructed fixture for C2's single-vertex and just-over cases: none exists; I name the gap instead.
   - Mutant survivors over the *full* suite: the 186-test filter holds every suite the logs show reaching the
