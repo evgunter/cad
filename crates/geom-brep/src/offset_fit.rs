@@ -226,6 +226,7 @@ use geom::curves::fit::{FitError, interpolate_columns};
 use geom::surfaces::{NurbsSurface, Surface};
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
+use geom_core::interval::max_bound;
 use geom_core::spline::algebra::equal_split_points;
 use geom_core::spline::compose::patch::PatchSpans;
 use geom_core::spline::{KnotAlgebraError, KnotVector, SplineError};
@@ -1017,7 +1018,8 @@ pub fn fit_offset(
 /// [`OffsetFitError::RefinementStalled`] each carrying the last grid's
 /// bound and the smallest any round reached, and
 /// [`OffsetFitError::BoundNotFinite`] carrying that smallest finite
-/// bound, or none.
+/// bound, or none; and [`OffsetFitError::Limb`] at
+/// [`OffsetLimb::OnLocus`] when a round's sampled residual is NaN.
 #[doc(hidden)]
 pub fn fit_offset_at(
     base: &NurbsSurface<f64>,
@@ -1060,6 +1062,18 @@ pub fn fit_offset_at(
             best = Some(BestBound {
                 bound: achieved,
                 grid,
+            });
+        }
+        // Limb 1 steers and does not gate the mint, but a certificate
+        // never carries a poisoned field. Not pinned: the fit is
+        // interpolated from finite data (`NonFiniteSample` refuses
+        // the rest), and no fixture is known whose fit then samples
+        // NaN; `certify_offset_at` is the door a planted one reaches.
+        if report.on_locus_max.is_nan() {
+            return Err(OffsetFitError::Limb {
+                limb: OffsetLimb::OnLocus,
+                bound: report.on_locus_max,
+                tolerance,
             });
         }
         if report.hull_sup <= tolerance {
@@ -1773,8 +1787,8 @@ fn measure(
         for sv in 0..nv {
             let (ub, vb) = comp.cell_box(su, sv);
             let cell = comp.cell_bound(su, sv, floor, d);
-            hull_sup = hull_sup.max(cell);
-            on_locus_max = on_locus_max.max(on_locus_cell(base, fit, d, ub, vb));
+            hull_sup = max_bound(hull_sup, cell);
+            on_locus_max = max_bound(on_locus_max, on_locus_cell(base, fit, d, ub, vb));
             bounds.push((ub, vb, cell));
         }
     }
@@ -1994,8 +2008,10 @@ fn mark(params: &[f64], ranges: impl Iterator<Item = (f64, f64)>) -> Vec<bool> {
 }
 
 /// Limb 1 inside one cell: the fixed [`OFFSET_CERT_SAMPLES`]²
-/// schedule, exact residual in metres. A non-finite sample answers
-/// `f64::INFINITY`, which fails every classification.
+/// schedule, exact residual in metres. A target `offset_point` cannot
+/// answer gives `f64::INFINITY` and a NaN residual folds to NaN; limb
+/// 1's `!(on_locus_max <= tolerance)` guard in [`certify_offset_at`]
+/// refuses both.
 fn on_locus_cell(
     base: &NurbsSurface<f64>,
     fit: &NurbsSurface<f64>,
@@ -2013,7 +2029,7 @@ fn on_locus_cell(
             let Some(target) = offset_point(base, d, u, v) else {
                 return f64::INFINITY;
             };
-            m = m.max((fit.eval(u, v) - target).norm());
+            m = max_bound(m, (fit.eval(u, v) - target).norm());
         }
     }
     m
@@ -2120,6 +2136,31 @@ impl NetForm {
             Self::Spatial
         }
     }
+}
+
+/// The lower bound on `‖E‖` [`Composite::cell_bound`] runs on: the
+/// larger of [`Composite::e_floors`]' two, each a sound lower bound on
+/// the same norm.
+fn e_low_witness(mig: Interval, proj: Interval) -> f64 {
+    max_bound(mig.lo(), proj.lo())
+}
+
+/// One cell's bound, term by term (module docs): `dist + tau + t3`
+/// with `t3 = tau²/‖E‖`, and the lower bound `e_lo` on `‖E‖` it ran on.
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "production reads `bound`; the terms are the measurement row's"
+    )
+)]
+struct CellTerms {
+    dist: f64,
+    tau: f64,
+    t3: f64,
+    e_lo: f64,
+    bound: f64,
 }
 
 /// The composite's recentring origin, carried whole.
@@ -2420,15 +2461,33 @@ impl Composite {
     /// One cell's certified sup bound on `‖S_fit − (S + d·n)‖`
     /// (module docs). `f64::INFINITY` whenever a side condition is
     /// not proved — never a finite wrong answer.
-    ///
-    /// **The whole assembly stays in certification arithmetic**, with `.hi()` read
-    /// exactly once at the end: every intermediate is a
-    /// [`Interval`], so the outward rounding of each quotient,
-    /// product and sum is interval arithmetic's. An `f64` fold of enclosure endpoints
-    /// would round to nearest at each step and under-cover the real
-    /// bound by ulps, which "certified" does not permit.
-    #[allow(clippy::neg_cmp_op_on_partial_ord)]
     fn cell_bound(&self, su: usize, sv: usize, floor: f64, d: f64) -> f64 {
+        self.cell_terms(su, sv, floor, d, e_low_witness)
+            .map_or(f64::INFINITY, |t| t.bound)
+    }
+
+    /// [`Composite::cell_bound`]'s assembly, term by term, with the
+    /// lower bound on `‖E‖` read from [`Composite::e_floors`]' pair by
+    /// `e_low`. `None` whenever a side condition is not proved. The
+    /// one home of the bound's guards: production and the row that
+    /// measures the `e_low` reading both run these.
+    ///
+    /// **The whole assembly stays in certification arithmetic**, with
+    /// `.hi()` read once per term at the end: every intermediate is an
+    /// [`Interval`], so the outward rounding of each quotient,
+    /// product and sum is interval arithmetic's. An `f64` fold of
+    /// enclosure endpoints would round to nearest at each step and
+    /// under-cover the real bound by ulps, which "certified" does not
+    /// permit.
+    #[allow(clippy::neg_cmp_op_on_partial_ord)]
+    fn cell_terms(
+        &self,
+        su: usize,
+        sv: usize,
+        floor: f64,
+        d: f64,
+        e_low: impl FnOnce(Interval, Interval) -> f64,
+    ) -> Option<CellTerms> {
         // **Every refusal below is asked by name before its
         // endpoint is read.** A refusal is its decoration, so
         // a refused hull carries ordinary endpoints: `w_lo > 0.0` and
@@ -2438,7 +2497,7 @@ impl Composite {
         let w = self.w.cell_hull(su, sv);
         let w_lo = w.lo();
         if !w.is_certified() || !(w_lo > 0.0) || !w_lo.is_finite() {
-            return f64::INFINITY;
+            return None;
         }
         // `w̃ = w·w_fit`, the weight `Ẽ`, `X` and the sign witness are
         // homogeneous in. Its positivity is the rational licence's on
@@ -2446,7 +2505,7 @@ impl Composite {
         let wt = self.wt.cell_hull(su, sv);
         let wt_lo = wt.lo();
         if !wt.is_certified() || !(wt_lo > 0.0) || !wt_lo.is_finite() {
-            return f64::INFINITY;
+            return None;
         }
         // The sign witness: `sign(E·n) = sign(D)` (the denominator
         // `w·‖M̃‖` is positive), and the normal-component bound below
@@ -2459,18 +2518,14 @@ impl Composite {
                 dh.hi() < 0.0
             })
         {
-            return f64::INFINITY;
+            return None;
         }
         let abs_d = Interval::point(d.abs());
         let (e_mig_iv, e_proj_iv) = self.e_floors(su, sv);
-        // The larger of two sound lower bounds on the same norm is a
-        // sound lower bound, and the only thing either is read for is
-        // its low end — so the selection hands back that number
-        // rather than the interval it came out of.
         if !e_mig_iv.is_certified() || !e_proj_iv.is_certified() {
-            return f64::INFINITY;
+            return None;
         }
-        let e_hull_lo = e_mig_iv.lo().max(e_proj_iv.lo());
+        let e_hull_lo = e_low(e_mig_iv, e_proj_iv);
         // | ‖E‖ − |d| | = |X| / (w̃²·(‖E‖ + |d|)).
         let x_mag = Interval::from_bounds(0.0, self.x.cell_hull(su, sv).mag());
         let dist_iv = x_mag / (wt.sqr() * (Interval::point(e_hull_lo) + abs_d));
@@ -2484,40 +2539,45 @@ impl Composite {
         // norm, so their max is one too — the same `max`, spelled the
         // same way.
         if !dist_iv.is_certified() {
-            return f64::INFINITY;
+            return None;
         }
-        let e_floor = e_hull_lo.max(d.abs() - dist_iv.hi());
+        let e_floor = max_bound(e_hull_lo, d.abs() - dist_iv.hi());
         if !(e_floor > 0.0) {
-            return f64::INFINITY;
+            return None;
         }
-        let bound = dist_iv + tau_iv + tau_iv.sqr() / Interval::point(e_floor);
+        let t3 = tau_iv.sqr() / Interval::point(e_floor);
+        let bound = dist_iv + tau_iv + t3;
         if !bound.is_certified() {
-            return f64::INFINITY;
+            return None;
         }
         let hi = bound.hi();
-        if hi.is_finite() { hi } else { f64::INFINITY }
+        hi.is_finite().then(|| CellTerms {
+            dist: dist_iv.hi(),
+            tau: tau_iv.hi(),
+            t3: t3.hi(),
+            e_lo: e_hull_lo,
+            bound: hi,
+        })
     }
 }
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use super::{Composite, Refine, directional_mark, stall_verdict};
+    use super::{Composite, Refine, directional_mark, e_low_witness, stall_verdict};
     use geom_core::Bounds;
-    use geom_core::interval::certification::Certification;
-    use geom_core::interval::norm_sup;
+    use geom_core::interval::{max_bound, min_bound, norm_sup};
     use geom_core::spline::KnotVector;
-    use geom_core::{Band, Interval, Point3, Tol};
+    use geom_core::{Band, Point3, Tol};
 
     /// One cell's certificate, split into the terms the module doc
     /// names, with the lower bound on `‖E‖` selectable: `Witness`
-    /// takes the max the shipped [`Composite::cell_bound`] takes,
+    /// takes the one the shipped [`Composite::cell_bound`] takes,
     /// `Componentwise` takes the mignitude assembly alone.
     ///
-    /// Both readings come out of [`Composite::e_floors`], the same
-    /// call production makes, so the mode switches ONE expression and
-    /// re-spells none of the guards or terms around it — which is
-    /// what makes the pair a measurement of that expression rather
+    /// Both run [`Composite::cell_terms`], the assembly and guards
+    /// production runs, so the mode switches ONE expression — which
+    /// is what makes the pair a measurement of that expression rather
     /// than of a second copy of the bound.
     #[derive(Clone, Copy, PartialEq, Eq)]
     enum ELow {
@@ -2525,8 +2585,8 @@ mod tests {
         Witness,
     }
 
-    /// `(dist, tau, tau²/‖E‖, e_lo, bound)` at one cell.
-    #[allow(clippy::neg_cmp_op_on_partial_ord)]
+    /// `(dist, tau, tau²/‖E‖, e_lo, bound)` at one cell; infinite
+    /// terms and a zero `e_lo` where a side condition is not proved.
     fn decompose(
         comp: &Composite,
         su: usize,
@@ -2535,62 +2595,32 @@ mod tests {
         d: f64,
         mode: ELow,
     ) -> (f64, f64, f64, f64, f64) {
-        let unproved = (
-            f64::INFINITY,
-            f64::INFINITY,
-            f64::INFINITY,
-            0.0,
-            f64::INFINITY,
-        );
-        let w = comp.w.cell_hull(su, sv);
-        let wt = comp.wt.cell_hull(su, sv);
-        let dh = comp.dd.cell_hull(su, sv);
-        if !(w.lo() > 0.0)
-            || !(wt.lo() > 0.0)
-            || !(if d > 0.0 {
-                dh.lo() > 0.0
-            } else {
-                dh.hi() < 0.0
-            })
-        {
-            return unproved;
-        }
-        let abs_d = Interval::point(d.abs());
-        // THE one expression the two modes differ in: both readings
-        // come out of the shipped `e_floors`, and the mode chooses
-        // which of them the rest of this decomposition runs on.
-        let (e_mig_iv, e_proj_iv) = comp.e_floors(su, sv);
-        let e_hull_lo = match mode {
-            ELow::Componentwise => e_mig_iv.lo(),
-            ELow::Witness => e_mig_iv.lo().max(e_proj_iv.lo()),
+        let terms = match mode {
+            ELow::Componentwise => comp.cell_terms(su, sv, floor, d, |mig, _| mig.lo()),
+            ELow::Witness => comp.cell_terms(su, sv, floor, d, e_low_witness),
         };
-        let x_mag = Interval::from_bounds(0.0, comp.x.cell_hull(su, sv).mag());
-        let dist_iv = x_mag / (wt.sqr() * (Interval::point(e_hull_lo) + abs_d));
-        let y_mag = Interval::from_bounds(0.0, comp.y_sup(su, sv));
-        let tau_iv = y_mag / (Interval::point(floor) * wt * w.powi(3));
-        let e_floor = e_hull_lo.max(d.abs() - dist_iv.hi());
-        if !(e_floor > 0.0) {
-            return unproved;
-        }
-        let t3 = (tau_iv.sqr() / Interval::point(e_floor)).hi();
-        (
-            dist_iv.hi(),
-            tau_iv.hi(),
-            t3,
-            e_hull_lo,
-            (dist_iv + tau_iv + tau_iv.sqr() / Interval::point(e_floor)).hi(),
+        terms.map_or(
+            (
+                f64::INFINITY,
+                f64::INFINITY,
+                f64::INFINITY,
+                0.0,
+                f64::INFINITY,
+            ),
+            |t| (t.dist, t.tau, t.t3, t.e_lo, t.bound),
         )
     }
 
     /// The sup over a composite's cells under one `‖E‖` mode, with
-    /// the cell that carries it.
+    /// the cell that carries it; a NaN cell bound is taken, not passed.
+    #[allow(clippy::neg_cmp_op_on_partial_ord)]
     fn sup_cell(comp: &Composite, floor: f64, d: f64, mode: ELow) -> (usize, usize, f64) {
         let (nu, nv) = comp.x.cell_counts();
         let mut sup = (0usize, 0usize, 0.0f64);
         for su in 0..nu {
             for sv in 0..nv {
                 let b = decompose(comp, su, sv, floor, d, mode).4;
-                if b > sup.2 {
+                if !(b <= sup.2) {
                     sup = (su, sv, b);
                 }
             }
@@ -2973,8 +3003,8 @@ mod tests {
                         let m = jet.du.cross(jet.dv) * w.powi(3);
                         let e = (fit.eval(u, v) - base.eval(u, v)) * (w * weight_at(&fit, u, v));
                         let y = e.cross(m);
-                        worst_m = worst_m.max(m.norm() / m_sup);
-                        worst_y = worst_y.max(y.norm() / y_sup);
+                        worst_m = max_bound(worst_m, m.norm() / m_sup);
+                        worst_y = max_bound(worst_y, y.norm() / y_sup);
                     }
                 }
             }
@@ -3027,8 +3057,12 @@ mod tests {
                 if !definite {
                     continue;
                 }
-                let e_lo = mig_iv.lo().max(proj_iv.lo());
-                if !(e_lo > 0.0) {
+                let e_lo = e_low_witness(mig_iv, proj_iv);
+                assert!(
+                    !e_lo.is_nan(),
+                    "{name} d={d:e}: the floor on ‖E‖ is NaN at ({su},{sv})"
+                );
+                if e_lo <= 0.0 {
                     continue;
                 }
                 let (ub, vb) = comp.cell_box(su, sv);
@@ -3039,12 +3073,12 @@ mod tests {
                     for b in 0..N {
                         #[allow(clippy::cast_precision_loss)]
                         let v = vb.0 + (vb.1 - vb.0) * (b as f64) / ((N - 1) as f64);
-                        min_norm = min_norm.min((fit.eval(u, v) - base.eval(u, v)).norm());
+                        min_norm = min_bound(min_norm, (fit.eval(u, v) - base.eval(u, v)).norm());
                     }
                 }
                 checked += 1;
                 let ratio = e_lo / min_norm;
-                if ratio > worst {
+                if !(ratio <= worst) {
                     worst = ratio;
                     worst_at = (su, sv);
                 }
