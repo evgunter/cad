@@ -2,8 +2,9 @@
 id: last-resort-on-a-poisoned-margin-offers-to-loosen-the-tolerance
 kind: issue
 title: geom-brep: Unsized::LastResort on a poisoned margin advises loosening the tolerance, which no tolerance can answer
-status: dispatched
+status: review
 branch: encl/poisoned-last-resort
+pr: 4453
 opened: 2026-10-09
 priority: P3
 cost: E
