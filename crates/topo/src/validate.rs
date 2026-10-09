@@ -4778,7 +4778,9 @@ pub fn validate_geometric_certificate<
     // Check 11 alone does not stop the certified half: a joinable vertex
     // is a mark on the boundary, not a fault in the geometry the volume
     // is read off, so a body refused for it alone still has check 7 made
-    // and reported first, as the structural doors' one pass reports it.
+    // and reported first, as the structural doors' one pass reports it
+    // (`cleave_mint_doors::split_edge_splits_an_m7_8_edge_into_two_of_the_class_at_f64`
+    // pins both: check 7's verdict, then check 11's).
     match structural_via(
         body,
         tol,

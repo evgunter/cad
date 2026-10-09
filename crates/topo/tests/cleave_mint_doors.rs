@@ -70,7 +70,9 @@ fn set_edge_curve_re_describes_every_m7_8_edge_at_f64() {
 /// the reading is undecided at every ε, and the gate refuses it with the
 /// join's own words. Beside it, the minted body's one other verdict is
 /// check 7's on the wall's sub-range trim image, which the quadrature
-/// declines. This is the at-rest body whose join reading is undecided:
+/// declines: made although check 11 refused, and reported first, which
+/// is the composed door's order when check 11 is the only structural
+/// refusal (`validate_geometric_certificate`). This is the at-rest body whose join reading is undecided:
 /// a split nearer a pole or an apex refuses at the split's own readings
 /// in the same band, and the halfcap files at the import's join.
 #[test]

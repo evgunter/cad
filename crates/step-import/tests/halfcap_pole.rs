@@ -148,14 +148,14 @@ fn the_near_pole_twins_pass_at_a_tolerance_as_fine_as_the_files() {
     let status = std::process::Command::new(std::env::current_exe().expect("test exe path"))
         .args([probe.as_str(), "--exact", "--nocapture"])
         .env("CAD_TOLERANCE_EPS", "1e-10")
+        .env_remove("CAD_AMBIGUITY_K")
         .env(PROBE_OUT, &out)
         .status()
         .expect("probe spawns");
     assert!(status.success(), "the twins at ε = 1e-10 failed");
-    assert_eq!(
-        std::fs::read_to_string(&out).expect("probe wrote"),
-        "certified"
-    );
+    let verdict = std::fs::read_to_string(&out).expect("probe wrote");
+    std::fs::remove_file(&out).expect("the probe's file is removed");
+    assert_eq!(verdict, "certified");
 }
 
 /// The imported solid of fixture `name`, at the run's tolerance.

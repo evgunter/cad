@@ -5349,7 +5349,9 @@ mod tests {
             errors,
             vec![crate::ValidationError::JoinableVertexAtRest { vertex: split }]
         );
-        let joins = body.join_edges(band, tol).expect("the split edge joins back");
+        let joins = body
+            .join_edges(band, tol)
+            .expect("the split edge joins back");
         assert_eq!(joins.len(), 1, "the split vertex, joined");
         let kept = gate(body, band, tol).expect("the joined box passes");
         assert_eq!(kept.outcome(), crate::AtRestOutcome::NotRunAtThisScalar);
