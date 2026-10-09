@@ -386,3 +386,31 @@ shape's stated symmetry**, or it refuses (#4325, E5).
   pose reads it. Nothing moves a body."
 - Spaces: "A **space** is a set of bodies related by placements; nothing else, no coordinates, makes one."
 - Relied on: E1, E2, E5/Ev 4, E6, Ev 1, Ev 2. Bent: A11 (`Under` becomes loose), and my own earlier "clause" wording.
+
+## Round 7 — reconcile: I concede to one constraint kind
+
+1. **Yes, and `Value` goes.** Round 6 kept `Value` for one reason: a set of values that leaves some coordinates free
+   (a slide set, the spin free) has no coset form. That is true, but the need behind it is not real.
+   - Every **pinned** copy is reachable with mates alone: `Frame ≅ Offset(F, chain)` covers any values whatever.
+   - A partial set only distinguishes **loose** copies, and a loose copy has no pose. All that partial set changes is
+     display state, which is "never anything real" (E1).
+   - So `Value` would be a second way to say what mates say (Ev 1), and it goes.
+   - **A correction to A's summary:** a perpendicular `Plane` mate after a `Plane` mate leaves `Prismatic`, so it fixes
+     the slide **and** the spin together, not "a slide alone". That is harmless for the same reason: the copy is
+     either pinned (where the spin also had to be fixed) or loose.
+2. **Yes, `Frame ≅ F` would have equalled `Plane ≅ F` plus three zeros.** Under one kind, no zero is written, so Ev's
+   rule on zeros never arises.
+   - Several mate sets can still fold to the same coset (`Frame` vs `Plane` + `Plane` + `Direction`). That is not two
+     mechanisms. It is one mechanism with a canonical form, the fold, the same way two formulas can be equal.
+   - Where a number appears, it is a scalar variable in the target pose's definition, never a constant standing for
+     an omission.
+3. **Yes, my chart's "translate, then spin" was a chosen convention.** Ev would rightly see it as arbitrary.
+   - In A's form, each number sits in a construction the user wrote: an `Offset` along a direction read off
+     geometry, or a `Rotate` about one.
+   - The mates fold by coset intersection, which does not depend on order. So nothing is ordered by the kernel.
+
+**Final D10 sentence.** "A placement (`Place`) reads one shape and defines its copy. Each of its mates equates, modulo
+its kind's symmetry, a pose of the copy with a pose of what it joins, both read off geometry. Every number is a
+scalar variable in those poses' definitions (`Offset`, `Rotate`). A mate that fixes nothing the others leave free,
+modulo the shape's stated symmetry, refuses. A copy with anything free outside that symmetry is loose and has no
+pose: nothing reads it that needs one. Nothing moves a body."
