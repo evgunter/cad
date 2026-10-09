@@ -3548,6 +3548,10 @@ NOT_BOUND = {
 #: reach what that member is about, at that spelling. Not the same shape, not
 #: the same receiver, and nothing about semantics.
 MEMBERS_BOUND_AS = {
+    # --- a one-of subject spelled as its arms' attributes ---------
+    # A finding is about one root output or one node; Python reads the
+    # subject as three attributes, `None` for the arm it is not.
+    "CheckFinding::subject": ("CheckFinding.root", "CheckFinding.output_ix", "CheckFinding.node"),
     # --- a continuous arm spelled per dimension -------------------
     # A continuous free variable or value carries its dimension; Python
     # builds one per dimension, so the arm is the three constructors.

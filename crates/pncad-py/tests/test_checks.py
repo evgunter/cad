@@ -280,7 +280,7 @@ class TestTheRegistryVocabulary(unittest.TestCase):
         self.assertNotIn("renamed", str(report))
         full = repr(root).removeprefix("NodeId(").removesuffix(")")
         self.assertNotIn(f"root {full[:12]}", str(finding))
-        self.assertIn(f"node {full},", repr(finding))
+        self.assertIn(f"root {full},", repr(finding))
         with self.assertRaises(CheckRefusal) as caught:
             enforce_checks(report, strict)
         self.assertIn(spoken, str(caught.exception))
