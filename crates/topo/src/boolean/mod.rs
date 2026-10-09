@@ -4237,9 +4237,9 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// **The crossing sweep past the operand gate's cone refusal**: both
 /// sweep directions run with `Cone` on the pair gate's roster, undeclared,
 /// and the split operands they leave with their traces. The boolean does
-/// not admit a cone operand (`work/germ/VERBS-CONE.md`; past the gate its
-/// sector algebra has no cone arm), so this is the one door through which
-/// a finished body reaches the cone's crossing lane — a breakable knob,
+/// not admit a cone operand (`work/germ/VERBS-CONE.md`), so this door,
+/// [`join_admitting_cones`] and [`boolean_admitting_cones`] are how a
+/// finished body reaches the cone's lanes — breakable knobs,
 /// `sweep-testing` only, never production surface.
 ///
 /// # Errors
@@ -4369,6 +4369,41 @@ pub fn join_admitting_cones(
                 interior_loops,
             }),
         },
+    )
+}
+
+/// **The whole op with `Cone` on the operand gate's roster**: the
+/// production pipeline behind the front door ([`ops::boolean_op_recut`]),
+/// finished, gated and backstopped, as [`join_admitting_cones`] runs it
+/// to the join, so a cone pose's built body is read while the public
+/// gate still refuses the cone. Undeclared and realized; skips the
+/// front door's ∖/∩ revert roster, which has no cone row; `sweep-testing`
+/// only.
+///
+/// # Errors
+///
+/// The pipeline's refusals past the operand gate's cone refusal.
+#[cfg(feature = "sweep-testing")]
+pub fn boolean_admitting_cones(
+    op: BooleanOp,
+    a: &crate::AtRestBody<f64>,
+    b: &crate::AtRestBody<f64>,
+    tol: Tol,
+) -> Result<BooleanResult<f64>, BooleanError> {
+    fn roster(s: &geom::Surface<f64>) -> bool {
+        reduce::boolean_arm_exists(s) || matches!(s, geom::Surface::Cone { .. })
+    }
+    ops::boolean_op_recut(
+        op,
+        a,
+        b,
+        &BooleanDeclarations::none(),
+        ops::JoinSweep {
+            strategy: SweepStrategy::Realized,
+            roster,
+        },
+        true,
+        tol,
     )
 }
 
