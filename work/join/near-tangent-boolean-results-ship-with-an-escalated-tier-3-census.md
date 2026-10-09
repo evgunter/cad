@@ -8,7 +8,6 @@ priority: P0
 cost: H
 refs: [3987, two-copies-of-a-pierce-carry-edges-that-run-within-the-band]
 branch: join/near-tangent-census-measure
-needs_ev: true
 ---
 
 
