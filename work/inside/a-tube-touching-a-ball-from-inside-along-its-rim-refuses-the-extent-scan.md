@@ -44,6 +44,9 @@ which is contact semantics, and the D10 hold
 
 ## Witness
 
-`crates/sweep/tests/a_tube_ending_on_a_ball.rs`,
-`a_tube_ending_on_the_ball_from_inside_refuses_at_the_extent_scan`,
-pins the refusal.
+`crates/sweep/tests/a_tube_ending_on_a_ball.rs`'s probe family
+(`the_probe_family_ships_no_wrong_body`) carries these poses as
+`inside, both rims`, `inside, one rim` and `inside, one rim tilted`, at
+radii 1 and 0.7. It asserts only that they build sound or refuse typed.
+A tube that ends on a half ball from inside, its wall leaving through
+the flat face, crosses something and builds (the same family).

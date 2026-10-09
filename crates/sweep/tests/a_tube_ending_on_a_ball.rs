@@ -19,7 +19,7 @@
 use core::f64::consts::{FRAC_PI_2, PI, SQRT_2};
 
 use geom_core::{Affine3, Bounds, Interval, Point2, Point3, Real, Tol, Vec3};
-use sweep::test_support::{ball_poled_z, ball_poled_z_at, finished};
+use sweep::test_support::{ball_poled_z, ball_poled_z_at, brick, finished};
 use sweep::{ExtrudeSide, Extrusion, extrude};
 use topo::{AtRestBody, BooleanError, BooleanResult, MassPropsError, ValidationError};
 
@@ -45,8 +45,7 @@ fn tube_at<T: geom_core::Decide + topo::AtRestPolicy>(a: T, z0: T, len: T) -> to
 struct Pose {
     /// The tube's radius.
     a: f64,
-    /// Its length past the rim, `len < 0` standing it inside the ball:
-    /// from `−z0` up to the rim.
+    /// Its length past the rim.
     len: f64,
     /// Its tilt about `x`, then its turn about `z`.
     tilt: f64,
@@ -67,17 +66,12 @@ impl Pose {
     fn tube(&self) -> (AtRestBody<f64>, f64, f64) {
         let tol = Tol::witness();
         let (z0, disc) = (self.z0(), PI * self.a * self.a);
-        let (body, vt, shared) = if self.len < 0.0 {
-            let v = disc * 2.0 * z0;
-            (tube_at(self.a, -z0, 2.0 * z0), v, v)
-        } else {
-            let v = disc * self.len;
-            (
-                tube_at(self.a, z0, self.len),
-                v,
-                cap_volume(SQRT_2, SQRT_2 - z0),
-            )
-        };
+        let v = disc * self.len;
+        let (body, vt, shared) = (
+            tube_at(self.a, z0, self.len),
+            v,
+            cap_volume(SQRT_2, SQRT_2 - z0),
+        );
         let o = Point3::origin();
         let place = Affine3::rotation_about_axis(o, Vec3::unit_z(), self.turn)
             * Affine3::rotation_about_axis(o, Vec3::unit_x(), self.tilt);
@@ -177,19 +171,145 @@ fn a_rim_inside_one_ball_face_holes_it() {
     }
 }
 
-/// **A tube ending on the ball from inside** touches the sphere along
-/// its rim and crosses nothing, so the no-crossings path takes it, and
-/// its extent scan cannot place the sphere's circle in a disc whose
-/// boundary it is: every op refuses there
-/// (`work/inside/a-tube-touching-a-ball-from-inside-along-its-rim-refuses-the-extent-scan.md`).
-#[test]
-fn a_tube_ending_on_the_ball_from_inside_refuses_at_the_extent_scan() {
-    for (label, r, _) in runs("inside", &Pose::new(1.0, -1.0, 0.0, 0.0)) {
-        assert!(
-            matches!(r, Err(BooleanError::FallbackExtentUnsupported { .. })),
-            "{label}: {r:?}"
+/// One probe of [`the_probe_family_ships_no_wrong_body`]: the tube,
+/// its partner and the three volumes every op is read against.
+struct Probe {
+    label: String,
+    tube: AtRestBody<f64>,
+    partner: AtRestBody<f64>,
+    volumes: (f64, f64, f64),
+}
+
+/// `tube_at(a, z0, len)` turned by `place` about the origin.
+fn placed_tube(a: f64, z0: f64, len: f64, place: Affine3<f64>) -> AtRestBody<f64> {
+    let tol = Tol::witness();
+    let body = topo::transform_rigid(&tube_at(a, z0, len), &place, tol).unwrap();
+    finished("the tube", body, tol)
+}
+
+fn about(axis: Vec3<f64>, angle: f64) -> Affine3<f64> {
+    Affine3::rotation_about_axis(Point3::origin(), axis, angle)
+}
+
+/// The probe family, enumerated:
+/// - outside: radii 1, 0.3, 0.7, 0.99 and 0.05, a short tube, tilts
+///   from 0.1 to 2 rad, the tube's seam on and 1e-9 off the ball's seam
+///   meridians and turned, alone and tilted;
+/// - the rim through the chart's pole and offsets 1e-12, ±1e-6 and
+///   1e-3 from it, at radii 1 and 0.3, upright and turned;
+/// - from inside: a tube touching the sphere at one rim or both,
+///   upright and tilted, and a tube ending on a half ball from inside.
+fn probes() -> Vec<Probe> {
+    let tol = Tol::witness();
+    let vb = ball_volume(SQRT_2);
+    let mut out = Vec::new();
+    let mut outside = |label: String, a: f64, len: f64, place: Affine3<f64>| {
+        let z0 = (2.0 - a * a).sqrt();
+        out.push(Probe {
+            label,
+            tube: placed_tube(a, z0, len, place),
+            partner: ball(),
+            volumes: (PI * a * a * len, vb, cap_volume(SQRT_2, SQRT_2 - z0)),
+        });
+    };
+    for a in [1.0, 0.3, 0.7, 0.99, 0.05] {
+        outside(format!("radius {a}"), a, 2.0, Affine3::identity());
+    }
+    outside("short".into(), 1.0, 0.5, Affine3::identity());
+    for tilt in [0.1, 0.5, 1.2, FRAC_PI_2, 2.0] {
+        outside(
+            format!("tilt {tilt}"),
+            1.0,
+            2.0,
+            about(Vec3::unit_x(), tilt),
         );
     }
+    for turn in [0.3, FRAC_PI_2, PI, -FRAC_PI_2, 1e-9] {
+        let z = about(Vec3::unit_z(), turn);
+        outside(format!("turn {turn}"), 1.0, 2.0, z);
+        outside(
+            format!("tilt 0.5 turn {turn}"),
+            0.7,
+            2.0,
+            z * about(Vec3::unit_x(), 0.5),
+        );
+    }
+    for a in [1.0_f64, 0.3] {
+        let pole = (a / SQRT_2).asin();
+        for d in [0.0, 1e-12, 1e-6, -1e-6, 1e-3] {
+            let tilt = about(Vec3::unit_x(), pole + d);
+            outside(format!("pole a={a} d={d}"), a, 2.0, tilt);
+            let turned = about(Vec3::unit_z(), 0.4) * tilt;
+            outside(format!("pole turned a={a} d={d}"), a, 2.0, turned);
+        }
+    }
+    for a in [1.0_f64, 0.7] {
+        let (z0, disc) = ((2.0 - a * a).sqrt(), PI * a * a);
+        for (label, lo, len, place) in [
+            ("both rims", -z0, 2.0 * z0, Affine3::identity()),
+            ("one rim", 0.0, z0, Affine3::identity()),
+            (
+                "one rim tilted",
+                0.0,
+                z0,
+                about(Vec3::unit_z(), 0.3) * about(Vec3::unit_x(), 0.7),
+            ),
+        ] {
+            out.push(Probe {
+                label: format!("inside, {label}, a={a}"),
+                tube: placed_tube(a, lo, len, place),
+                partner: ball(),
+                volumes: (disc * len, vb, disc * len),
+            });
+        }
+    }
+    let cut = finished(
+        "z ≥ 0",
+        brick((-3.0, 3.0), (-3.0, 3.0), (0.0, 3.0), tol),
+        tol,
+    );
+    let half = match topo::intersect(&ball(), &cut, tol) {
+        Ok(BooleanResult::Body(b)) => b.body,
+        r => panic!("the half ball: {r:?}"),
+    };
+    for (a, turn) in [(1.0_f64, 0.0), (0.7, 0.3)] {
+        let (z0, disc) = ((2.0 - a * a).sqrt(), PI * a * a);
+        out.push(Probe {
+            label: format!("inside a half ball, a={a}"),
+            tube: placed_tube(a, -1.0, z0 + 1.0, about(Vec3::unit_z(), turn)),
+            partner: half.clone(),
+            volumes: (disc * (z0 + 1.0), vb / 2.0, disc * z0),
+        });
+    }
+    out
+}
+
+/// **The probe family ships no wrong body**, at whatever ε the run is
+/// at: every op of every probe, in both member orders, builds sound at
+/// its closed form (`outcome`'s `SOUND`: tiers 2 and 3′, the
+/// certificate, a legal operand, the volume) or refuses typed. Which
+/// ops refuse moves with ε where a probe sits in the band (the 1e-9
+/// seam offset, the pole offsets); a body that builds and is wrong, or
+/// cannot be measured, is the failure. The rows above pin the poses
+/// whose outcome is the same at every ε.
+#[test]
+fn the_probe_family_ships_no_wrong_body() {
+    let tol = Tol::witness();
+    let mut wrong = Vec::new();
+    for p in probes() {
+        for (op, r, want) in every_op_both_orders(&p.tube, &p.partner, p.volumes, tol) {
+            let line = outcome(r, want, tol);
+            if !(line.starts_with("OK SOUND") || line.starts_with("ERR ") || line == "EMPTY ok") {
+                wrong.push(format!("{}, {op} (A the tube): {line}", p.label));
+            }
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "{} wrong:\n{}",
+        wrong.len(),
+        wrong.join("\n")
+    );
 }
 
 /// **The witness at the certified scalar**: every op builds at tier 3

@@ -536,3 +536,32 @@ fn a_coaxial_seam_on_the_torus_is_placed_by_its_arc() {
         }
     }
 }
+
+/// **A planar face holding the other solid's rim is no edge-plane
+/// holder.** The arch's rim circle lies in the stem's weld cap, a
+/// plane, and the edge's plane is that face's own plane, which cuts it
+/// in no curve. So the join itself refuses on the torus, the kind with
+/// no arm, in both member orders; it does not cut the cap by its own
+/// plane. Read before the declared-REST door, which takes either
+/// refusal over (`boolean_join_refusal`).
+#[test]
+fn a_planar_face_holding_the_arch_rim_is_no_edge_plane_holder() {
+    let (s, a) = (stem(), arch());
+    let t = Tol::witness();
+    for (label, x, y) in [("stem ∪ arch", &s, &a), ("arch ∪ stem", &a, &s)] {
+        let (decls, _) = weld_declarations(x, y);
+        let refusal =
+            topo::test_support::boolean_join_refusal(topo::BooleanOp::Union, x, y, &decls, t)
+                .unwrap_or_else(|e| panic!("{label}: the reduction refused {e:?}"));
+        assert!(
+            matches!(
+                refusal,
+                Some(BooleanError::CurvedBooleanUnsupported {
+                    kind: geom::SurfaceKind::Torus,
+                    ..
+                })
+            ),
+            "{label}: the join refuses on the torus: {refusal:?}"
+        );
+    }
+}

@@ -814,10 +814,12 @@ pub(crate) enum JoinLane<'a, T: Real> {
         /// The aux wall key in THIS body (minted once, caller-cached).
         partner_key: &'a mut Option<SurfaceKey>,
     },
-    /// A section segment that is an edge of this solid: its chord is a
-    /// copy of that edge ([`along_edge_spec`]) and no section is read,
-    /// since the germ's face pair there may be two faces on one carrier,
-    /// or meet in no conic.
+    /// A section segment that is an edge of this solid: this side's
+    /// chord is a copy of that edge ([`along_edge_spec`]) and reads no
+    /// section, since the germ's face pair there may be two faces on
+    /// one carrier, or meet in no conic. Where the edge is this solid's
+    /// alone, the other solid's chord may read one (the boolean's
+    /// edge-plane lane cuts its face by the edge's plane).
     AlongEdge,
 }
 
