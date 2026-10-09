@@ -65,4 +65,4 @@ each rim with an exact-volume row that asserts tier 3′.
 
 ## Parked on the D10 hold (2026-10-08)
 
-Unsure: if the cure is a value-inferred vertex-on-face record (`reduce.rs`), the one recording door owns it; if the boolean misses the lone rim vertex, it is vertex-classification work. Measure first at release. (CONTACT close-out triage; `work/contact/log.md`.)
+Unsure: if the cure is a value-inferred vertex-on-face record (`reduce.rs`), the one recording door owns it; if the boolean misses the lone rim vertex, it is vertex-classification work. Measure first at release. (CONTACT close-out triage; CONTACT's log (`docs/doc-ledger/contact-leaves-the-tracker.md` names the SHA it is read at).)

@@ -273,7 +273,7 @@ fn check(
             );
             println!(
                 "{label}: tier 3′ cannot yet decide the two parts' curved faces apart \
-                 ({} pairs; work/contact/census-cross-solid-curved-pairs-undecidable-on-shell-results.md)",
+                 ({} pairs; work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md)",
                 errs.len()
             );
         }

@@ -1109,3 +1109,33 @@ Signed: (CONTACT orchestrator)
 - Landing as `contact/land-12`.
 
 Signed: (CONTACT orchestrator)
+
+## 2026-10-09 — CONTACT closes
+
+Ev (in chat, 2026-09-29): finish the two P0s, then close CONTACT and
+move every remaining row to two or three successor programs. Both P0
+tracks are done: CONTACT-12 merged (PR 4372) and CONTACT-13 is parked
+on the D10 hold. CONTACT-10 and -11 merged too (PRs 4363, 4368).
+
+Six rows were priced at the cut. `census-containment-escalation-drops-its-decision`
+is P2/M, `point-in-solid-escalation-carries-no-decision` P2/H,
+`contact-gate-readers-drop-the-arm-verdict-or-mint-invalid` P3/M,
+`full-turn-question-has-three-spellings` P4/E and
+`edge-face-crossing-cut-and-pass-five-decide-one-crossing-twice` P3/M.
+`census-edge-pass-reads-no-line-conic-crossing` is P3/M and parked on
+`declared-pairs-retire`: its symptom is a declared seat no declaration
+can answer, and that unit retires declared seats.
+
+That measured 99.5 points against 30, which takes four tracks of 30 at
+the least. Three successors therefore needed six rows re-homed by
+charter. Four went to REACHTAIL (copies and spellings, 8 → 13.5) and
+two to GAUGE (gate coverage, 25.5 → 29). The rest split on the
+priority seam:
+
+- RESTREAD (P0, 29.5): the census's five P0 near-band reads and the P1 census and point reads.
+- INSIDE (P1, 30): the P1 tail, every P2, and one P3 chart trim.
+- SECTOR (P3, 28.5): the P3 tail.
+
+The 21 parked rows went to CONTACTHOLD, which opens `blocked`.
+`docs/doc-ledger/contact-leaves-the-tracker.md` has the table.
+— (CONTACT orchestrator)

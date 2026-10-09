@@ -42,4 +42,4 @@ pad) and contradict on `|r| − sag`.
 
 ## Parked on the D10 hold (2026-10-08)
 
-After that unit this gate (`r.abs() - residual_sag`, `contact_verify.rs`) becomes the tangency glue decision, so that unit must carry this fix. (CONTACT close-out triage; `work/contact/log.md`.)
+After that unit this gate (`r.abs() - residual_sag`, `contact_verify.rs`) becomes the tangency glue decision, so that unit must carry this fix. (CONTACT close-out triage; CONTACT's log (`docs/doc-ledger/contact-leaves-the-tracker.md` names the SHA it is read at).)

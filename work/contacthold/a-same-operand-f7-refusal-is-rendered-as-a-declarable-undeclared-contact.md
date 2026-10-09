@@ -23,4 +23,4 @@ an operand, but hand-built and imported bodies still can.
 
 ## Parked on the D10 hold (2026-10-08)
 
-The declare menu it renders (`editor-core` `eval/wire.rs` `union_refusal`, `refusal_menu`) is deleted when booleans glue on Zero. (CONTACT close-out triage; `work/contact/log.md`.)
+The declare menu it renders (`editor-core` `eval/wire.rs` `union_refusal`, `refusal_menu`) is deleted when booleans glue on Zero. (CONTACT close-out triage; CONTACT's log (`docs/doc-ledger/contact-leaves-the-tracker.md` names the SHA it is read at).)

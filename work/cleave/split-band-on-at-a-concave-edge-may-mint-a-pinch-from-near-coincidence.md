@@ -109,7 +109,7 @@ that reading is overturned. Record: `analysis/design-fork/split-band-on`.)
 - **Reach past split: a separate row and a separate fork.** The boolean's
   `ContactAcc` vertex-level records come from Zero verdicts with no declaration
   (`corner_kiss_promoted`), and tier 3′ (ii) calls them "declared":
-  `work/contact/boolean-vertex-contact-records-are-inferred-from-values.md`.
+  `work/contacthold/boolean-vertex-contact-records-are-inferred-from-values.md`.
 - **Still owed beside the design:**
   1. The δ = 5e-10 arm. A Zero-decided vertex yields a chart residual of
      about 8δ that the attachment gate refuses in kernel-defect voice. Under

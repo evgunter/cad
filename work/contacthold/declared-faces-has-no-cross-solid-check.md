@@ -55,4 +55,4 @@ question, so the row is costed `D`.
 
 ## Parked on the D10 hold (2026-10-08)
 
-`Declared::index` reads `ContactRecords`; the census is re-backed when booleans glue on Zero. (CONTACT close-out triage; `work/contact/log.md`.)
+`Declared::index` reads `ContactRecords`; the census is re-backed when booleans glue on Zero. (CONTACT close-out triage; CONTACT's log (`docs/doc-ledger/contact-leaves-the-tracker.md` names the SHA it is read at).)

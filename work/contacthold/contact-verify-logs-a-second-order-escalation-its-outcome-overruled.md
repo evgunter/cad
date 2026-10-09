@@ -69,4 +69,4 @@ definite, then asserts that the log is empty.
 
 ## Parked on the D10 hold (2026-10-08)
 
-Its bridged-by-declaration arm is declared contact. (CONTACT close-out triage; `work/contact/log.md`.)
+Its bridged-by-declaration arm is declared contact. (CONTACT close-out triage; CONTACT's log (`docs/doc-ledger/contact-leaves-the-tracker.md` names the SHA it is read at).)

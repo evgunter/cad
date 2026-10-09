@@ -60,4 +60,4 @@ vertex copies (`copies_of`) are the same case.
 
 ## Parked on the D10 hold (2026-10-08)
 
-D10 answers its design question: a Zero coincidence is recorded at the one door and linted. Likely closes when that unit lands. (CONTACT close-out triage; `work/contact/log.md`.)
+D10 answers its design question: a Zero coincidence is recorded at the one door and linted. Likely closes when that unit lands. (CONTACT close-out triage; CONTACT's log (`docs/doc-ledger/contact-leaves-the-tracker.md` names the SHA it is read at).)

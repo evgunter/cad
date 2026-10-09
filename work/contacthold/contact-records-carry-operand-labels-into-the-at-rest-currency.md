@@ -19,4 +19,4 @@ Found by the TQUERY designer pair weighing `split-halves-have-no-contact-records
 
 ## Parked on the D10 hold (2026-10-08)
 
-`ContactRecords` is the record the one recording door replaces. (CONTACT close-out triage; `work/contact/log.md`.)
+`ContactRecords` is the record the one recording door replaces. (CONTACT close-out triage; CONTACT's log (`docs/doc-ledger/contact-leaves-the-tracker.md` names the SHA it is read at).)

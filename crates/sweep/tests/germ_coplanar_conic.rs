@@ -16,8 +16,10 @@
 //!   top in that circle's plane holding an arc of it (every op answers
 //!   its closed form; `point_in_solid` on the result refuses typed on
 //!   the notched full-turn wall,
-//!   `work/contact/a-notched-full-turn-wall-has-no-ray-trim.md`), or all
-//!   of it (today every op refuses at the join);
+//!   `work/inside/revolved-tube-wall-refuses-bool-wall-trim-period.md`,
+//!   which carries the closed duplicate
+//!   `a-notched-full-turn-wall-has-no-ray-trim`), or all of it (today
+//!   every op refuses at the join);
 //! - a die pip whose ball is poled along `y`, so its seam meridian and
 //!   both poles lie in the cube's top face (today every op refuses at
 //!   the join's role read, `SectionLoopUndecided`).

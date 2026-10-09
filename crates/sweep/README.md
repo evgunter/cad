@@ -386,7 +386,7 @@ length at the section's centroid
 band an ellipse trims, of either band, measures through the certified
 quadrature, tessellates, and takes a boolean beside or through the
 band; with an operand wholly apart the boolean's containment door
-refuses it (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`,
+refuses it (`work/restread/at-infinity-probe-measures-in-closed-form-only.md`,
 pinned in `crates/sweep/tests/band_planar_oblique_fillet.rs`). The
 CONCAVE ruled band — the material-adding side, the fill covering the region
 under the arc — is pinned through the extrude door too: a rod's section

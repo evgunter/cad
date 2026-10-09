@@ -82,4 +82,4 @@ union door did not produce (a hand-built or `graft_disjoint` body).
 
 ## Parked on the D10 hold (2026-10-08)
 
-Step 1 now refuses `TangentSlitArmUnbuilt` (`boolean/mod.rs`); the one route left is a carried `CarriedVf{Tangent}` record, which `declared-pairs-retire` deletes. Likely closes at release. (CONTACT close-out triage; `work/contact/log.md`.)
+Step 1 now refuses `TangentSlitArmUnbuilt` (`boolean/mod.rs`); the one route left is a carried `CarriedVf{Tangent}` record, which `declared-pairs-retire` deletes. Likely closes at release. (CONTACT close-out triage; CONTACT's log (`docs/doc-ledger/contact-leaves-the-tracker.md` names the SHA it is read at).)

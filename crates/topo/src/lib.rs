@@ -613,7 +613,7 @@ pub mod test_support {
     /// refusal's obligation (`test_utils::offer::judge_laters`).
     pub const LATER_STORIES_OWNED: &[(&str, &str)] = &[(
         "Containment",
-        "work/contact/point-in-solid-escalation-carries-no-decision.md",
+        "work/inside/point-in-solid-escalation-carries-no-decision.md",
     )];
 
     /// The offers the executed-offer census counts as run in `sweep`,

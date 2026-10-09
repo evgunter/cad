@@ -27,4 +27,4 @@ the band reaches a served tangency; if it does, decide their sum
 
 ## Parked on the D10 hold (2026-10-08)
 
-The declared-tangency verifier (`tangent_locus_relation`) is rewired to run on verdicts when booleans glue on Zero. (CONTACT close-out triage; `work/contact/log.md`.)
+The declared-tangency verifier (`tangent_locus_relation`) is rewired to run on verdicts when booleans glue on Zero. (CONTACT close-out triage; CONTACT's log (`docs/doc-ledger/contact-leaves-the-tracker.md` names the SHA it is read at).)

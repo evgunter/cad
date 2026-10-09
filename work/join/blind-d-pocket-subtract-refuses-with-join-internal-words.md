@@ -32,7 +32,7 @@ pocket — the two combined — refuses from both sides, each time in an
 internal payload's words rather than a frontier's. The top-face payload
 is `crates/topo/src/boolean/join.rs`'s ring-run winding decision
 (`bool_ring_run_winding` deciding `Zero`); the bottom-face payload is the
-same site `work/contact/axis-coincident-lap-trips-the-planar-join-invariant`
+same site `axis-coincident-lap-trips-the-planar-join-invariant` (closed, PR 3250)
 carries for a different pose (evidence added there).
 
 ## Diagnosed (2026-10-02, JOIN, branch `join/ring-run-winding`)

@@ -46,4 +46,4 @@ Carry the rung (or the routed decision) through `ContactRefusal` and
 
 ## Parked on the D10 hold (2026-10-08)
 
-Both doors (the Rest verify in `contact_verify.rs`, the flush offer in `flush.rs`) retire with declared pairs. (CONTACT close-out triage; `work/contact/log.md`.)
+Both doors (the Rest verify in `contact_verify.rs`, the flush offer in `flush.rs`) retire with declared pairs. (CONTACT close-out triage; CONTACT's log (`docs/doc-ledger/contact-leaves-the-tracker.md` names the SHA it is read at).)

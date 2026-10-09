@@ -36,4 +36,4 @@ blocked on JOIN-1, but cheapest once its cell type exists.
 
 ## Parked on the D10 hold (2026-10-08)
 
-It changes the shape of the `CurveContact` record, which the one recording door replaces. (CONTACT close-out triage; `work/contact/log.md`.)
+It changes the shape of the `CurveContact` record, which the one recording door replaces. (CONTACT close-out triage; CONTACT's log (`docs/doc-ledger/contact-leaves-the-tracker.md` names the SHA it is read at).)

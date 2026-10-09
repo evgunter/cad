@@ -32,4 +32,4 @@ boolean result, then the at-rest gate.
 
 ## Parked on the D10 hold (2026-10-08)
 
-Carrying records through surgery is the remap the one recording door defines. (CONTACT close-out triage; `work/contact/log.md`.)
+Carrying records through surgery is the remap the one recording door defines. (CONTACT close-out triage; CONTACT's log (`docs/doc-ledger/contact-leaves-the-tracker.md` names the SHA it is read at).)
