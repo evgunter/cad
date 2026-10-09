@@ -1253,13 +1253,15 @@ struct Reach<T: geom_core::Real> {
 }
 
 /// A conic germ line as its germ turns along it: the section's centre
-/// and axis, the germ's rotational sense (±1) and the partner site.
+/// and axis, the germ's rotational sense (±1), the partner site and the
+/// conic's unit tangent there (the germ direction recorded at it).
 #[derive(Clone, Copy)]
 struct Turn<T: geom_core::Real> {
     center: geom_core::Point3<T>,
     axis: Vec3<T>,
     sense: T,
     site: geom_core::Point3<T>,
+    tangent: Vec3<T>,
 }
 
 /// Which half-turn of its section conic a partner site lies in, seen
@@ -1281,8 +1283,9 @@ enum GermArm {
 /// where the chord is not — on an ellipse of aspect √2 or more it peaks
 /// inside the half-turn. Two sites in one half-turn are less than a
 /// half-turn apart, so the side of `best`'s axis plane `cand` lies on
-/// is the order. A straight line, and two records at one site, take the
-/// chord.
+/// is the order, and the margin reads the arc between them, so a tie is
+/// two sites within the band of each other along the conic. A straight
+/// line, and two records at one site, take the chord.
 fn nearer_along<T: Decide>(
     cand: Reach<T>,
     best: Reach<T>,
@@ -1321,18 +1324,28 @@ fn nearer<T: Decide>(cand: Reach<T>, best: Reach<T>, band: Band) -> Result<bool,
         == Sign::Negative)
 }
 
-/// **How far `p` has turned past `from`'s site**: the signed distance of
-/// `p` from the plane through the conic's axis and that site, positive
-/// on the side the germ's sense runs into. Metres — a cross product of
-/// two metre vectors projected onto the site's radius, the plane's own
-/// normal direction. A site on the axis has no such plane: the margin
-/// comes back invalid and escalates.
+/// **How far `p` has turned past `from`'s site, along the conic**: the
+/// side of the plane through the conic's axis and that site `p` lies
+/// on, positive on the side the germ's sense runs into, read as arc
+/// length. With `n = axis × radial` and `t̂` the conic's unit tangent at
+/// the site, the margin is `n·(p − site) / |n·t̂|`, the plane distance
+/// over the sine of `ψ`, the angle between radius and tangent. A point
+/// `s` along the conic reads `s (1 + ½ s κ cot ψ + O(s²))`, `κ` the
+/// curvature there; the plane distance alone reads `s sin ψ`, which
+/// falls to `2k/(k² + 1)` of `s` between the vertices of an ellipse of
+/// aspect `k`. `|n·t̂|` is the site's rotational sense
+/// (`bool_join_arc_facing`), decided nonzero before a partner is
+/// ranked, and `n·(site − c)` is zero, so reading from the site cancels
+/// nothing near it. Metres: a metre vector projected onto another,
+/// over one projected onto a unit tangent. A site on the axis has no
+/// plane: the margin comes back invalid and escalates.
 fn turned_past<T: geom_core::Real>(from: Turn<T>, p: geom_core::Point3<T>) -> Margin<T> {
     let u = from.site - from.center;
     let radial = u - from.axis * from.axis.dot(u);
+    let normal = from.axis.cross(radial);
     Margin::levered_inv(
-        from.axis.cross(radial).dot(p - from.center) * from.sense,
-        radial.norm(),
+        normal.dot(p - from.site) * from.sense,
+        normal.dot(from.tangent).abs(),
     )
 }
 
@@ -1348,14 +1361,18 @@ fn turned_past<T: geom_core::Real>(from: Turn<T>, p: geom_core::Point3<T>) -> Ma
 /// `Ahead` and the order is the chord alone — the planar pairing.
 fn germ_arm<T: Decide>(
     turn: Option<Turn<T>>,
-    p_c: geom_core::Point3<T>,
+    (p_c, dir): (geom_core::Point3<T>, Vec3<T>),
     band: Band,
 ) -> Result<GermArm, BooleanError> {
     let Some(turn) = turn else {
         return Ok(GermArm::Ahead);
     };
     let escalate = |diag| BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag);
-    let from_germ = Turn { site: p_c, ..turn };
+    let from_germ = Turn {
+        site: p_c,
+        tangent: dir,
+        ..turn
+    };
     Ok(
         match decide(
             "bool_join_arc_ahead",
@@ -1568,10 +1585,11 @@ fn partners<T: Decide>(
                 Sign::Zero => return Err(desync(RADIAL_GERM)),
             },
             site: p_e,
+            tangent: ega.dir,
         }),
     };
     Ok(Some(Reach {
-        arm: germ_arm(turn, p_c, band)?,
+        arm: germ_arm(turn, (p_c, rga.dir), band)?,
         chord: dist,
         turn,
     }))
