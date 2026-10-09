@@ -347,7 +347,7 @@ fn a_rim_crossing_reaches_the_join() {
 /// centred on the cut plane, clear of the wall and the floor, so the
 /// drum holds exactly its lower half. The classification's at-infinity
 /// probe cannot measure the cut wall in closed form
-/// (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`), so
+/// (`work/restread/at-infinity-probe-measures-in-closed-form-only.md`), so
 /// a probe ray that meets nothing is set aside and one that meets the
 /// boundary answers.
 #[test]

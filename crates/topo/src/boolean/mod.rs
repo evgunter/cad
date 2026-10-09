@@ -2599,19 +2599,23 @@ pub enum BooleanError {
         /// The precise uncertifiable sub-configuration.
         what: &'static str,
     },
-    /// **Two sphere faces of the two solids meet** at the curved-extent
+    /// **Two sphere faces of the two solids touch** at the curved-extent
     /// scan, which runs only where the crossing layer found no edge
-    /// crossing a face: either their spheres touch within the tolerance,
-    /// the smaller inside the larger (a decided zero), at a touch the
-    /// section certificate does not certify off either face, or their
-    /// spheres cross and the certificate certifies the circle they cross
-    /// in inside both faces (its R-loop). Whatever the faces share lies
-    /// off every edge, so the join's sphere-pair arm (the radical plane,
-    /// `join::bool_connect`) had no chord to run. A crossing whose circle
-    /// the certificate cannot place refuses with the certificate's own
-    /// reason instead ([`BooleanError::FallbackExtentUnsupported`]). It is
-    /// the decided refusal of [`SphereQuestion::Nested`], and ends as
-    /// that question's escalation does ([`refusal_routes::SPHERES`]).
+    /// crossing a face: their spheres touch within the tolerance, the
+    /// smaller inside the larger (a decided zero), at a touch the section
+    /// certificate does not certify off either face. Whatever the faces
+    /// share lies off every edge, so the join's sphere-pair arm (the
+    /// radical plane, `join::bool_connect`) had no chord to run. Spheres
+    /// that cross, in a circle the certificate certifies inside both
+    /// faces (its R-loop), are not refused: each sphere is re-cut so an
+    /// edge of it reaches the circle (a closed ball re-charted with its
+    /// pole on the centre line, any other face cut along a meridian
+    /// through the circle, `ops::sphere_extent_scan`), and a crossing
+    /// whose circle the certificate cannot place refuses with the
+    /// certificate's own reason
+    /// ([`BooleanError::FallbackExtentUnsupported`]). It is the decided
+    /// refusal of [`SphereQuestion::Nested`], and ends as that question's
+    /// escalation does ([`refusal_routes::SPHERES`]).
     /// One sphere touching the other on one carrier is not asked when
     /// every face of it is a verified `Rest` against the other face:
     /// such a pair touches without overlapping (`ops::Exempt::Rest`).

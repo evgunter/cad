@@ -2230,8 +2230,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
 
     // WALL 1 — RETIRED at #1081's PR-2b, and the retirement is the
     // pot above: the belly IS the arc now. What this wall pinned was
-    // the sealed hollow of a sphere-zone meridian refusing
-    // `ReanchorOffCarrier`, and it refused because `shell` moved one
+    // the sealed hollow of a sphere-zone meridian refusing at the
+    // per-chart door's moved corner (a refusal since retired: the door
+    // derives corners by root now), and it refused because `shell` moved one
     // chart at a time. The simultaneous door solves each corner
     // against every surface meeting it, so the arc ships and the
     // squared shoulders are gone from the scene entirely.
