@@ -553,3 +553,28 @@ for export."
 location; placement relates unplaced parts; the world sets coordinates. **Bent:** DM1's face-frame sketch (its frame read becomes a mate
 target), and D10's "a boolean's operands must already be in one space", which becomes a node
 shape rather than a check.
+
+## Round 9
+
+**1. Sign versus sense: the sign carries no shape for any extrude, slanted included.**
+Extruding `P` along `d` by depth `h` gives the same body as extruding along `−d`, shifted by
+`h·d`: `{p + t(−d)} + h·d = {p + (h−t)d}`. So `(a, b, −c)` is congruent to `(−a, −b, c)`. It is
+not congruent to `(a, b, c)`, but that is a different line of extrusion, not the same line with
+the other sign. The one way: the shape holds the line (a direction normalised to `c > 0`) and the
+depth, and the mate alone says which side the material goes. On a plane mate that is its sense:
+opposed for a boss outward, aligned for a cut inward. One redundancy remains, and it is not a
+slot: either of the tool's caps can be the mated face, and (start cap, opposed) and (end cap,
+opposed) place it the same way. That is two geometry reads of one relation, as two faces of one
+plane already are. A's "the sign is shape" would add a third spelling.
+
+**2. Neither ruled-out thing is needed, though dropping them has a cost.**
+- **(a)** No default world mate. A one-part document exports only copies the person placed against
+  the world, so the first export needs one authored mate; the GUI can offer it at export.
+- **(b)** No base frame.
+  - A feature is pinned by poses read off geometry: its cap plane ≅ the face (leaving `Planar`),
+    then an axis (a circle's or a revolve's) or an edge line and a vertex point ≅ target geometry.
+  - A hole: cap plane plus axis leaves spin, its declared symmetry, so it is pinned. A sphere:
+    centre ≅ point leaves rotation about the point, its symmetry, so it is pinned.
+  - The cost: `Point` and edge-line reads join the mate kinds (the spec's Q5), and "sketch on a
+    face" no longer drops the sketch's coordinates onto the face frame. A sketch's position on the
+    face is said by mates to the face's geometry, which is the intent the coordinates only implied.
