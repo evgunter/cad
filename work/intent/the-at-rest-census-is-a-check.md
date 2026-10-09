@@ -7,7 +7,6 @@ opened: 2026-10-08
 priority: P0
 cost: H
 blocked_on: [an-assertion-relates-by-equality, interference-at-rest-is-a-finding, value-decided-coincidences-have-no-recording-door, a-mate-on-a-pinned-copy-refuses]
-needs_ev: true
 ---
 
 
