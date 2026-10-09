@@ -142,9 +142,10 @@
 //! cosine antiparallel to the band — have offsets whose projected boxes
 //! meet across less than `2t`. **A planar pair tilted further** has no
 //! single gap, and is read after the offset doors run, on the cavity
-//! they built ([`moved_walls_cross`]): two non-adjacent planar faces of
-//! one solid in transversal planes must not overlap along the line
-//! their moved planes share. **What the two still cannot see** is a
+//! they built ([`moved_walls_cross`]): two planar faces of one solid in
+//! transversal planes must not overlap along the line their moved
+//! planes share, except along a moved common edge or at a shared
+//! vertex. **What the two still cannot see** is a
 //! curved wall (below) and the corner solves' own refusals, which are
 //! the offset doors'.
 //!
@@ -466,20 +467,21 @@ pub enum ShellError<T: Real> {
         /// The wall the two offsets would need, `2t`.
         needed: T,
     },
-    /// **Two moved walls meeting at an angle cross.** Two non-adjacent
-    /// planar faces of one solid that are not parallel have inward
-    /// offsets whose regions overlap along the line their moved planes
-    /// share ([`moved_walls_cross`]): somewhere between the two faces
-    /// the material is thinner than the two walls, so the cavity would
-    /// self-intersect. [`ShellError::WallClearance`] is the same
-    /// collision on a pair that faces squarely; this is the pair at an
-    /// angle, which has no single gap to report.
+    /// **Two moved walls meeting at an angle cross.** Two planar faces
+    /// of one solid that are not parallel have inward offsets whose
+    /// regions overlap along the line their moved planes share
+    /// ([`moved_walls_cross`]), away from any moved edge the two share:
+    /// somewhere between the two faces the material is thinner than the
+    /// two walls, so the cavity would self-intersect. A touch there,
+    /// other than at a shared vertex, refuses too.
+    /// [`ShellError::WallClearance`] is the same collision on a pair
+    /// that faces squarely; this is the pair at an angle, which has no
+    /// single gap to report.
     ///
     /// Lines, circles and ellipses are cut exactly, a conic at its
-    /// roots. Only an edge on another curve (a spiric or a spline) is
-    /// read as its chord plus the ball holding its arc, conservative in
-    /// the same direction as the gate: it may refuse a pair that would
-    /// have cleared, never the reverse.
+    /// roots. A spiric or spline edge is cut on its carrier to within
+    /// about the band, never short of the arc: the read may refuse a
+    /// pair whose walls clear by less than that, never the reverse.
     OffsetsCross {
         /// One of the two planar faces.
         face: FaceKey,
@@ -3991,17 +3993,19 @@ fn footprints_may_overlap<T: Decide>(
 /// offset, bounded by the corners those doors solved — the eroded
 /// footprint a concave edge extends and a convex one trims, exactly.
 ///
-/// For every pair of non-adjacent planar faces of one solid whose
-/// planes are transversal (they diverge across the pair by more than
-/// the band), both faces are cut by `L`, the line the two planes share,
-/// and the two sets of `L` they cover are compared. Two planar regions
-/// in transversal planes meet only on `L`, so the pair is clear exactly
-/// when those sets are disjoint, and the overlap of the two sets is the
-/// margin: Positive refuses [`ShellError::OffsetsCross`]. Zero, a
-/// touch, refuses too unless the two faces share a vertex, whose moved
-/// copy both faces hold by construction. A pair parallel to the band
-/// is not read: facing, it is [`wall_clearance`]'s; facing the same
-/// way, its moved planes stay parallel and cannot cross.
+/// For every pair of planar faces of one solid whose planes are
+/// transversal (they diverge across the pair by more than the band),
+/// both faces are cut by `L`, the line the two planes share, and the
+/// two sets of `L` they cover are compared. Two planar regions in
+/// transversal planes meet only on `L`, so the pair is clear exactly
+/// when those sets meet only where the two faces are joined: along a
+/// moved common edge, which lies on `L` and which both faces hold, or
+/// at a shared vertex. So the overlap of the two sets, less every
+/// moved common edge, is the margin: Positive refuses
+/// [`ShellError::OffsetsCross`], and so does Zero, a touch, unless it
+/// is at a vertex the two faces share. A pair parallel to the band is
+/// not read: facing, it is [`wall_clearance`]'s; facing the same way,
+/// its moved planes stay parallel and cannot cross.
 ///
 /// Each set is the face's region cut by `L`, by crossing parity over
 /// its boundary. Every boundary vertex is put on one side of `L` by a
@@ -4010,26 +4014,26 @@ fn footprints_may_overlap<T: Decide>(
 /// of length zero. A line edge crosses at its ends' sides. A circle or
 /// ellipse edge is split where its side of `L` is extreme and each
 /// monotone piece crosses at its own root, so a conic is cut exactly.
-/// Only an edge on another curve (a spiric or a spline) is read as its
-/// chord, with the chord of `L` through the ball holding its arc added
-/// to the set: the region between an arc and its chord lies in that
-/// ball, so the set read holds the true one. Crossings are ordered by
-/// decided comparisons, a pair the band cannot order is a tie; the
-/// overlap is then computed in `T` and decided, and an undecided side
-/// or overlap escalates rather than clearing.
+/// A spiric or spline edge is refined on its own carrier
+/// ([`ArcPiece`]): each piece crosses at its chord's ends' sides, and a
+/// piece whose ball reaches `L` adds the ball's cut, since the region
+/// between an arc and its chord lies in that ball. Pieces that reach
+/// `L` are halved until their cut is within the band, so the set read
+/// holds the true one and exceeds it by about the band. Crossings are
+/// ordered by decided comparisons, a pair the band cannot order is a
+/// tie; the overlap is then computed in `T` and decided, and an
+/// undecided vertex side, overlap or touch escalates rather than
+/// clearing.
 ///
-/// An edge-adjacent pair is not read: its moved planes share the line
-/// of its moved common edge, so its two sets always overlap along that
-/// edge, and a pair that crosses by inverting the edge refuses at the
-/// offset door's interval-forward check (module docs, on where the
-/// loud cases refuse). An adjacent pair crossing away from its common
-/// edge, with the edge itself still forward, is not ruled out here
-/// (`work/shell/tilted-read-skips-edge-adjacent-pairs-that-cross-away-from-their-edge.md`).
+/// A pair that crosses by inverting its common edge refuses at the
+/// offset door's interval-forward check before this read runs (module
+/// docs, on where the loud cases refuse); what this read adds on an
+/// adjacent pair is a crossing away from that edge.
 ///
 /// On [`shell_open`] the read runs on the closed cavity, before the rim
 /// stage lifts a designated face's counterpart back out, so a crossing
 /// within `t` of the opening is the lift's to refuse, not this gate's.
-fn moved_walls_cross<T: Decide>(
+fn moved_walls_cross<T: Decide + geom_core::Bounds>(
     cavity: &Body<T>,
     partition: &crate::offset_together::Scope,
     thickness: T,
@@ -4040,9 +4044,6 @@ fn moved_walls_cross<T: Decide>(
     for (i, a) in walls.iter().enumerate() {
         for b in &walls[i + 1..] {
             if a.solid != b.solid || boxes_apart(a, b, band) {
-                continue;
-            }
-            if face_neighbours(cavity, a.face).contains(&b.face) {
                 continue;
             }
             let cross = a.normal.cross(b.normal);
@@ -4073,24 +4074,86 @@ fn moved_walls_cross<T: Decide>(
             let p0 = q + a.normal * ((r_a - k * r_b) / det) + b.normal * ((r_b - k * r_a) / det);
             let on_a = a.cut(p0, d, band).map_err(escalated)?;
             let on_b = b.cut(p0, d, band).map_err(escalated)?;
+            let along = |p: geom_core::Point3<T>| (p - p0).dot(d);
+            let common: Vec<(T, T)> = a
+                .edges
+                .iter()
+                .filter(|e| b.edges.iter().any(|f| f.edge == e.edge))
+                .map(|e| {
+                    let (s, t) = (along(e.start.1), along(e.end.1));
+                    (s.min(t), s.max(t))
+                })
+                .collect();
+            let shared: Vec<geom_core::Point3<T>> = a
+                .edges
+                .iter()
+                .filter(|e| b.vertices.contains(&e.start.0))
+                .map(|e| e.start.1)
+                .collect();
             for &(a_lo, a_hi) in &on_a {
                 for &(b_lo, b_hi) in &on_b {
-                    let overlap = a_hi.min(b_hi) - a_lo.max(b_lo);
-                    let crosses =
-                        match decide("shell_moved_walls_overlap", Margin::of(overlap), band)
-                            .map_err(escalated)?
-                        {
-                            Sign::Positive => true,
-                            Sign::Zero => !a.vertices.iter().any(|v| b.vertices.contains(v)),
-                            Sign::Negative => false,
-                        };
-                    if crosses {
-                        return Err(ShellError::OffsetsCross {
-                            face: a.face,
-                            other: b.face,
-                            overlap: overlap.max(T::zero()),
-                            thickness,
-                        });
+                    // The overlap less every moved common edge: what is
+                    // left is where the two walls meet away from it.
+                    let mut rest = vec![(a_lo.max(b_lo), a_hi.min(b_hi))];
+                    for &(e_lo, e_hi) in &common {
+                        let mut kept = Vec::new();
+                        for (lo, hi) in rest {
+                            for piece in [(lo, hi.min(e_lo)), (lo.max(e_hi), hi)] {
+                                if !matches!(
+                                    decide(
+                                        "shell_moved_walls_overlap",
+                                        Margin::of(piece.1 - piece.0),
+                                        band
+                                    ),
+                                    Ok(Sign::Negative)
+                                ) {
+                                    kept.push(piece);
+                                }
+                            }
+                        }
+                        rest = kept;
+                    }
+                    for (lo, hi) in rest {
+                        let overlap = hi - lo;
+                        let crosses =
+                            match decide("shell_moved_walls_overlap", Margin::of(overlap), band)
+                                .map_err(escalated)?
+                            {
+                                Sign::Positive => true,
+                                // A touch is the shared vertex both
+                                // faces hold, or it is a contact.
+                                Sign::Zero => {
+                                    let touch = p0 + d * lo;
+                                    let reads: Vec<_> = shared
+                                        .iter()
+                                        .map(|&v| {
+                                            decide(
+                                                "shell_moved_walls_touch_vertex",
+                                                Margin::of((v - touch).norm()),
+                                                band,
+                                            )
+                                        })
+                                        .collect();
+                                    if reads.iter().any(|r| matches!(r, Ok(Sign::Zero))) {
+                                        false
+                                    } else if let Some(Err(e)) =
+                                        reads.into_iter().find(Result::is_err)
+                                    {
+                                        return Err(escalated(e));
+                                    } else {
+                                        true
+                                    }
+                                }
+                                Sign::Negative => false,
+                            };
+                        if crosses {
+                            return Err(ShellError::OffsetsCross {
+                                face: a.face,
+                                other: b.face,
+                                overlap: overlap.max(T::zero()),
+                                thickness,
+                            });
+                        }
                     }
                 }
             }
@@ -4107,8 +4170,7 @@ struct MovedWall<T: Real> {
     origin: geom_core::Point3<T>,
     normal: geom_core::Vec3<T>,
     /// Every boundary edge as its two ends and its carrier: a line, a
-    /// conic cut at its roots, or, for any other curve, the ball holding
-    /// its arc.
+    /// conic cut at its roots, or any other arc, cut on its own carrier.
     edges: Vec<BoundaryEdge<T>>,
     vertices: Vec<VertexKey>,
     lo: geom_core::Point3<T>,
@@ -4116,6 +4178,7 @@ struct MovedWall<T: Real> {
 }
 
 struct BoundaryEdge<T: Real> {
+    edge: EdgeKey,
     start: (VertexKey, geom_core::Point3<T>),
     end: (VertexKey, geom_core::Point3<T>),
     curve: EdgeArc<T>,
@@ -4135,8 +4198,57 @@ enum EdgeArc<T: Real> {
         from: (T, VertexKey),
         to: (T, VertexKey),
     },
-    /// Any other carrier: the ball holding its arc.
-    Ball(geom_core::Point3<T>, T),
+    /// A spiric or spline arc, run from the start vertex's carrier end.
+    Arc(ArcPiece<T>),
+}
+
+/// **A spiric or spline arc as [`MovedWall::cut`] refines it.** Each
+/// piece holds its arc, and so the region between the arc and its
+/// chord, in a ball read off the carrier ([`carrier_ball`]); a piece
+/// splits at its parameter midpoint into two that do the same.
+///
+/// [`carrier_ball`]: crate::splitting::containment::carrier_ball
+#[derive(Clone)]
+enum ArcPiece<T: Real> {
+    /// The spiric `carrier` over its parameter window.
+    Spiric(geom::Curve3<T>, (T, T)),
+    /// A clamped spline over its whole domain, so its ends are its
+    /// first and last control points.
+    Spline(geom::NurbsCurve3<T>),
+}
+
+impl<T: Decide> ArcPiece<T> {
+    /// The ball holding this piece's arc.
+    fn ball(&self) -> (geom_core::Point3<T>, T) {
+        match self {
+            Self::Spiric(carrier, window) => {
+                crate::splitting::containment::carrier_ball(carrier, *window)
+            }
+            Self::Spline(spline) => crate::splitting::containment::control_ball(spline.control()),
+        }
+        .unwrap_or_else(|| unreachable!("a spiric or a certified spline has a ball"))
+    }
+
+    /// The two halves of this piece and the carrier point between them,
+    /// or `None` once the parameter cannot be halved.
+    fn split(&self) -> Option<(Self, geom_core::Point3<T>, Self)> {
+        match self {
+            Self::Spiric(carrier, (t0, t1)) => {
+                let mid = (*t0 + *t1) * T::from_f64(0.5);
+                Some((
+                    Self::Spiric(carrier.clone(), (*t0, mid)),
+                    carrier.eval(mid),
+                    Self::Spiric(carrier.clone(), (mid, *t1)),
+                ))
+            }
+            Self::Spline(spline) => {
+                let (d0, d1) = spline.domain();
+                let (left, right) = spline.split_at(0.5 * (d0 + d1)).ok()?;
+                let mid = *right.control().first()?;
+                Some((Self::Spline(left), mid, Self::Spline(right)))
+            }
+        }
+    }
 }
 
 impl<T: Decide> MovedWall<T> {
@@ -4151,17 +4263,25 @@ impl<T: Decide> MovedWall<T> {
     ) -> Result<Vec<(T, T)>, Indeterminate> {
         let m = self.normal.cross(d);
         let mut sides: Vec<(VertexKey, bool)> = Vec::new();
-        let mut side_of = |(v, p): (VertexKey, geom_core::Point3<T>)| {
-            if let Some(&(_, s)) = sides.iter().find(|(w, _)| *w == v) {
+        // A vertex is decided once, so every edge meeting it reads the
+        // same side, and an undecided vertex escalates. A point inside an
+        // arc is a sample of the refinement's own choosing: one the band
+        // cannot place goes with the positive side, as Zero does, and the
+        // pieces either side of it reach `L`, so their balls' cut covers
+        // whatever crossing the choice moved.
+        let mut side_of = |(v, p): (Option<VertexKey>, geom_core::Point3<T>)| {
+            if let Some(&(_, s)) = sides.iter().find(|(w, _)| Some(*w) == v) {
                 return Ok(s);
             }
-            let s = !matches!(
-                decide("shell_moved_wall_side", Margin::of((p - p0).dot(m)), band)?,
-                Sign::Negative
-            );
+            let read = decide("shell_moved_wall_side", Margin::of((p - p0).dot(m)), band);
+            let Some(v) = v else {
+                return Ok(!matches!(read, Ok(Sign::Negative)));
+            };
+            let s = !matches!(read?, Sign::Negative);
             sides.push((v, s));
             Ok::<bool, Indeterminate>(s)
         };
+        let key = |(v, p): (VertexKey, geom_core::Point3<T>)| (Some(v), p);
         let mut crossings: Vec<T> = Vec::new();
         let mut out = Vec::new();
         for edge in &self.edges {
@@ -4188,7 +4308,7 @@ impl<T: Decide> MovedWall<T> {
                     .min(T::one())
                     .acos();
                 let at = |theta: T| center + u * (ru * theta.cos()) + v * (rv * theta.sin());
-                let mut ends: Vec<(T, bool)> = vec![(from.0, side_of((from.1, at(from.0)))?)];
+                let mut ends: Vec<(T, bool)> = vec![(from.0, side_of((Some(from.1), at(from.0)))?)];
                 // Parameters are compared as arc lengths on the larger
                 // semi-axis, so a split at an end within the band is
                 // the end itself.
@@ -4211,7 +4331,7 @@ impl<T: Decide> MovedWall<T> {
                     }
                     split = split + T::pi();
                 }
-                ends.push((to.0, side_of((to.1, at(to.0)))?));
+                ends.push((to.0, side_of((Some(to.1), at(to.0)))?));
                 for pair in ends.windows(2) {
                     let ((lo, s_lo), (hi, s_hi)) = (pair[0], pair[1]);
                     if s_lo == s_hi {
@@ -4225,27 +4345,62 @@ impl<T: Decide> MovedWall<T> {
                 }
                 continue;
             }
+            if let EdgeArc::Arc(ref arc) = edge.curve {
+                // Refined breadth first, so a budget spent near one
+                // crossing leaves no other coarser than its neighbours.
+                // A piece whose ball misses `L` is on one side with its
+                // chord; one that reaches it splits until its ball cuts
+                // `L` within the band, or the budget or the parameter
+                // runs out, and then adds that cut to the set. Either
+                // way the piece's chord crosses at its ends' sides.
+                let mut work = std::collections::VecDeque::from([(
+                    arc.clone(),
+                    key(edge.start),
+                    key(edge.end),
+                )]);
+                let mut splits = 0;
+                while let Some((piece, a, b)) = work.pop_front() {
+                    let (c, rho) = piece.ball();
+                    let w = c - p0;
+                    let along = w.dot(d);
+                    let perp2 = (w.dot(w) - along.powi(2)).max(T::zero());
+                    // Undecided reaches: the read only grows the set.
+                    if !matches!(
+                        decide(
+                            "shell_moved_wall_ball_reach",
+                            Margin::of(rho - perp2.sqrt()),
+                            band
+                        ),
+                        Ok(Sign::Negative)
+                    ) {
+                        let half = (rho.powi(2) - perp2).max(T::zero()).sqrt();
+                        let wide = matches!(
+                            decide("shell_moved_wall_ball_cut", Margin::of(half), band),
+                            Ok(Sign::Positive)
+                        );
+                        if wide && splits < ARC_SPLIT_BUDGET {
+                            if let Some((left, mid, right)) = piece.split() {
+                                splits += 1;
+                                work.push_back((left, a, (None, mid)));
+                                work.push_back((right, (None, mid), b));
+                                continue;
+                            }
+                        }
+                        out.push((along - half, along + half));
+                    }
+                    if side_of(a)? != side_of(b)? {
+                        let (sp, sq) = ((a.1 - p0).dot(m), (b.1 - p0).dot(m));
+                        let x = a.1 + (b.1 - a.1) * (sp / (sp - sq));
+                        crossings.push((x - p0).dot(d));
+                    }
+                }
+                continue;
+            }
             let (p, q) = (edge.start.1, edge.end.1);
-            if side_of(edge.start)? != side_of(edge.end)? {
+            if side_of(key(edge.start))? != side_of(key(edge.end))? {
                 let (sp, sq) = ((p - p0).dot(m), (q - p0).dot(m));
                 let x = p + (q - p) * (sp / (sp - sq));
                 crossings.push((x - p0).dot(d));
-            }
-            if let EdgeArc::Ball(c, rho) = edge.curve {
-                let w = c - p0;
-                let along = w.dot(d);
-                let perp2 = (w.dot(w) - along.powi(2)).max(T::zero());
-                if !matches!(
-                    decide(
-                        "shell_moved_wall_ball_reach",
-                        Margin::of(rho - perp2.sqrt()),
-                        band
-                    )?,
-                    Sign::Negative
-                ) {
-                    let half = (rho.powi(2) - perp2).max(T::zero()).sqrt();
-                    out.push((along - half, along + half));
-                }
             }
         }
         // Ordered by decided comparisons, a selection rather than a
@@ -4277,7 +4432,7 @@ impl<T: Decide> MovedWall<T> {
 /// Every planar face of the moved `cavity`, read for
 /// [`moved_walls_cross`].
 #[track_caller]
-fn moved_walls<T: Decide>(
+fn moved_walls<T: Decide + geom_core::Bounds>(
     cavity: &Body<T>,
     partition: &crate::offset_together::Scope,
 ) -> Vec<MovedWall<T>> {
@@ -4348,15 +4503,11 @@ fn moved_walls<T: Decide>(
                                 minor,
                                 u_ref,
                             } => conic(center, axis, u_ref, major, minor),
-                            _ => {
-                                let (c, rho) = crate::splitting::containment::carrier_ball(
-                                    curve.carrier(),
-                                    curve.params(),
-                                )
-                                .unwrap_or_else(|| {
-                                    unreachable!("a certified spline carrier has control points")
-                                });
-                                EdgeArc::Ball(c, rho)
+                            geom::Curve3::Spiric { .. } => {
+                                EdgeArc::Arc(ArcPiece::Spiric(curve.carrier().clone(), (t0, t1)))
+                            }
+                            geom::Curve3::Nurbs(ref spline) => {
+                                EdgeArc::Arc(ArcPiece::Spline(spline_window(spline, (t0, t1))))
                             }
                         }
                     }
@@ -4368,7 +4519,8 @@ fn moved_walls<T: Decide>(
                         let r = geom_core::Vec3::new(r, r, r);
                         points.extend([center - r, center + r]);
                     }
-                    EdgeArc::Ball(c, rho) => {
+                    EdgeArc::Arc(ref arc) => {
+                        let (c, rho) = arc.ball();
                         let r = geom_core::Vec3::new(rho, rho, rho);
                         points.extend([c - r, c + r]);
                     }
@@ -4377,7 +4529,12 @@ fn moved_walls<T: Decide>(
                 if !vertices.contains(&start.0) {
                     vertices.push(start.0);
                 }
-                edges.push(BoundaryEdge { start, end, curve });
+                edges.push(BoundaryEdge {
+                    edge: h.edge,
+                    start,
+                    end,
+                    curve,
+                });
             }
         }
         let Some((&first, rest)) = points.split_first() else {
@@ -4406,6 +4563,27 @@ fn moved_walls<T: Decide>(
         });
     }
     out
+}
+
+/// How many times [`MovedWall::cut`] may halve one arc edge for one
+/// line. A transversal crossing reaches the band in about fifty
+/// halvings; an arc lying along the line would halve without end, and
+/// its pieces past the budget are read as their balls.
+const ARC_SPLIT_BUDGET: usize = 512;
+
+/// `spline` cut down to the edge's parameter `window`, widened to the
+/// window's `f64` bracket so the piece holds the whole edge. A split the
+/// spline refuses (at or past an end of its domain) keeps that end,
+/// which holds the edge too.
+fn spline_window<T: Decide + geom_core::Bounds>(
+    spline: &geom::NurbsCurve3<T>,
+    (t0, t1): (T, T),
+) -> geom::NurbsCurve3<T> {
+    let (lo, hi) = (t0.lo().min(t1.lo()), t0.hi().max(t1.hi()));
+    let tail = spline
+        .split_at(lo)
+        .map_or_else(|_| spline.clone(), |(_, r)| r);
+    tail.split_at(hi).map_or_else(|_| tail.clone(), |(l, _)| l)
 }
 
 /// Are the two walls' boxes definitely apart on some axis? `false` on
@@ -4598,6 +4776,7 @@ mod tests {
 
         let east = (key(1), Point3::new(1.0, 0.0, 0.0));
         let disc = wall(vec![BoundaryEdge {
+            edge: EdgeKey::default(),
             start: east,
             end: east,
             curve: conic(1.0, 1.0, (0.0, east.0), (2.0 * pi, east.0)),
@@ -4616,11 +4795,13 @@ mod tests {
         let west = (key(2), Point3::new(-1.0, 0.0, 0.0));
         let half = wall(vec![
             BoundaryEdge {
+                edge: EdgeKey::default(),
                 start: east,
                 end: west,
                 curve: conic(1.0, 1.0, (0.0, east.0), (pi, west.0)),
             },
             BoundaryEdge {
+                edge: EdgeKey::default(),
                 start: west,
                 end: east,
                 curve: EdgeArc::Line,
@@ -4640,6 +4821,7 @@ mod tests {
 
         let tip = (key(3), Point3::new(2.0, 0.0, 0.0));
         let ellipse = wall(vec![BoundaryEdge {
+            edge: EdgeKey::default(),
             start: tip,
             end: tip,
             curve: conic(2.0, 1.0, (0.0, tip.0), (2.0 * pi, tip.0)),
@@ -4649,6 +4831,69 @@ mod tests {
             ellipse.cut(Point3::new(1.0, 0.0, 0.0), y, band).unwrap(),
             &[(-h, h)],
             "the ellipse at x = 1",
+        );
+    }
+
+    /// **The tilted read cuts a spline on its carrier, not its ball.**
+    /// The parabola `y = 1 − x²` as the quadratic Bézier over
+    /// `(−1, 0), (0, 2), (1, 0)`, closed by its diameter: cut by
+    /// `x = 0.5` the region covers `[0, 0.75]`. The control net's ball,
+    /// centred at `(0, 1)` with radius `√2`, would cover `[−0.32, 2.32]`;
+    /// the refined read covers the true interval to within the band at
+    /// either end. Cut by `x = 1.5` it covers nothing, though the ball
+    /// still reaches that line.
+    #[test]
+    fn the_tilted_cut_reads_a_spline_on_its_carrier() {
+        use geom_core::spline::KnotVector;
+        use geom_core::{Point3, Vec3};
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let key = |n: u64| -> VertexKey { slotmap::KeyData::from_ffi((1u64 << 32) | n).into() };
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let west = (key(1), Point3::new(-1.0, 0.0, 0.0));
+        let east = (key(2), Point3::new(1.0, 0.0, 0.0));
+        let parabola = geom::NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+            vec![west.1, Point3::new(0.0, 2.0, 0.0), east.1],
+            vec![1.0; 3],
+        )
+        .unwrap();
+        let wall = MovedWall {
+            face: FaceKey::default(),
+            solid: SolidKey::default(),
+            origin: o,
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            edges: vec![
+                BoundaryEdge {
+                    edge: EdgeKey::default(),
+                    start: west,
+                    end: east,
+                    curve: EdgeArc::Arc(ArcPiece::Spline(spline_window(&parabola, (0.0, 1.0)))),
+                },
+                BoundaryEdge {
+                    edge: EdgeKey::default(),
+                    start: east,
+                    end: west,
+                    curve: EdgeArc::Line,
+                },
+            ],
+            vertices: Vec::new(),
+            lo: o,
+            hi: o,
+        };
+        let up = Vec3::new(0.0, 1.0, 0.0);
+        let got = wall.cut(Point3::new(0.5, 0.0, 0.0), up, band).unwrap();
+        let lo = got.iter().map(|c| c.0).fold(f64::INFINITY, f64::min);
+        let hi = got.iter().map(|c| c.1).fold(f64::NEG_INFINITY, f64::max);
+        let slack = tol.k() * tol.eps();
+        assert!(
+            lo.abs() <= slack && (hi - 0.75).abs() <= slack,
+            "the parabola at x = 0.5 covers [0, 0.75], got {got:?}"
+        );
+        let past = wall.cut(Point3::new(1.5, 0.0, 0.0), up, band).unwrap();
+        assert!(
+            past.is_empty(),
+            "the parabola at x = 1.5 covers nothing, got {past:?}"
         );
     }
 
