@@ -133,6 +133,7 @@
 //! bound, which fails every `≤ ε` comparison (D4 ¶2).
 
 use super::super::knots::{KnotVector, SplineError};
+use super::super::range::{ParamRange, last_at_or_below};
 use super::{
     BernsteinSpans, ComposeError, CurveCertData, bern_mul_row, binom_row, to_bezier_spans_extra,
 };
@@ -506,9 +507,10 @@ pub fn coefficient_norm_sup(num: [&[Interval]; 3]) -> f64 {
 // ---------------------------------------------------------------------
 
 /// The cell indices of the break list `breaks` whose closed interval
-/// meets the window `[lo, hi]`, clamped so an out-of-domain window is
-/// served by the boundary cell's polynomial extension (module docs,
-/// domain posture). Returns the inclusive index range.
+/// meets `window`, clamped so an out-of-domain window is served by the
+/// boundary cell's polynomial extension (module docs, domain posture).
+/// Returns the inclusive index range. A [`ParamRange`] has no NaN or
+/// inverted spelling, so no window lands on a cell it does not name.
 ///
 /// Banked observation (PR 7b review NOTE 1, 2026-07-31): the overlap
 /// test is **closed**, so a window whose endpoint lands exactly on a
@@ -516,21 +518,19 @@ pub fn coefficient_norm_sup(num: [&[Interval]; 3]) -> f64 {
 /// single-point agreement (the two patch polynomials agree at the
 /// knot). A strict-interior test would be tighter and still sound —
 /// a future tightening, banked rather than slipped into a fix pass.
-fn cells_touched(breaks: &[f64], lo: f64, hi: f64) -> (usize, usize) {
+fn cells_touched(breaks: &[f64], window: ParamRange) -> (usize, usize) {
     let last = breaks.len() - 2;
-    let mut first_cell = last;
-    let mut last_cell = 0;
-    for cell in 0..=last {
-        if breaks[cell + 1] >= lo && breaks[cell] <= hi {
-            first_cell = first_cell.min(cell);
-            last_cell = last_cell.max(cell);
-        }
-    }
-    if first_cell > last_cell {
-        // The window misses the domain entirely: the nearest edge cell.
-        if hi < breaks[0] { (0, 0) } else { (last, last) }
-    } else {
-        (first_cell, last_cell)
+    let (lo, hi) = window.ends();
+    // The first cell whose upper break is at or above `lo` (the closed
+    // overlap), and the last whose lower break is at or below `hi`.
+    let first_cell = breaks[1..=last + 1].partition_point(|b| *b < lo.get());
+    let last_cell = last_at_or_below(&breaks[..=last], hi);
+    match last_cell {
+        // The window misses the domain below: the first cell.
+        None => (0, 0),
+        // Or above: the last cell.
+        Some(_) if first_cell > last => (last, last),
+        Some(last_cell) => (first_cell, last_cell),
     }
 }
 
@@ -665,12 +665,13 @@ pub fn surface_curve_residual(
             wc: &cw.spans[s],
         };
         let wden = row_hull(rows.wp);
-        let wu = row_hull(rows.u) / wden;
-        let wv = row_hull(rows.v) / wden;
-        if !wu.is_certified() || !wv.is_certified() {
+        let (Some(wu), Some(wv)) = (
+            ParamRange::certified(row_hull(rows.u) / wden),
+            ParamRange::certified(row_hull(rows.v) / wden),
+        ) else {
             spans.push(f64::NAN);
             continue;
-        }
+        };
         // Located in the SAME break arrays `cell_residual` indexes
         // below (`surf[0]`), not in a sibling channel's: all four
         // channels are `tensor_channel(surface.ku, surface.kv, ..)` and
@@ -679,8 +680,8 @@ pub fn surface_curve_residual(
         // indexes are one object here. `cells_touched` answers within
         // `0..=breaks.len() − 2`, which is what makes `breaks_u[su + 1]`
         // below an in-range read without a `.get`.
-        let (u0, u1) = cells_touched(&surf[0].breaks_u, wu.lo(), wu.hi());
-        let (v0, v1) = cells_touched(&surf[0].breaks_v, wv.lo(), wv.hi());
+        let (u0, u1) = cells_touched(&surf[0].breaks_u, wu);
+        let (v0, v1) = cells_touched(&surf[0].breaks_v, wv);
         // `cells_touched` always returns at least one cell.
         let cells = (u0..=u1).flat_map(|su| (v0..=v1).map(move |sv| (su, sv)));
         spans.push(
@@ -691,4 +692,56 @@ pub fn surface_curve_residual(
         );
     }
     Ok(SurfaceResidual { breaks, spans })
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod tests {
+    use super::*;
+
+    /// The cell locator against the closed-overlap scan it replaced,
+    /// over windows inside, on, straddling and outside the breaks.
+    #[test]
+    fn cells_touched_is_the_closed_overlap_clamped_to_an_edge_cell() {
+        fn scan(breaks: &[f64], lo: f64, hi: f64) -> (usize, usize) {
+            let last = breaks.len() - 2;
+            let (mut first, mut end) = (last, 0);
+            for cell in 0..=last {
+                if breaks[cell + 1] >= lo && breaks[cell] <= hi {
+                    first = first.min(cell);
+                    end = end.max(cell);
+                }
+            }
+            if first > end {
+                if hi < breaks[0] { (0, 0) } else { (last, last) }
+            } else {
+                (first, end)
+            }
+        }
+        let breaks = [0.0, 1.0, 2.0, 3.0];
+        let probes = [
+            f64::NEG_INFINITY,
+            -1.0,
+            0.0,
+            0.5,
+            1.0,
+            1.5,
+            2.0,
+            3.0,
+            4.0,
+            f64::INFINITY,
+        ];
+        for lo in probes {
+            for hi in probes {
+                let Some(w) = ParamRange::new(lo, hi) else {
+                    continue;
+                };
+                assert_eq!(
+                    cells_touched(&breaks, w),
+                    scan(&breaks, lo, hi),
+                    "[{lo}, {hi}]"
+                );
+            }
+        }
+    }
 }
