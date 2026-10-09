@@ -80,14 +80,12 @@ use geom_core::predicate::KERNEL_OR_FILE_DEFECT_ENDING;
 use geom_core::spline::algebra::{GridSkip, domain_grid_points};
 use geom_core::spline::{KnotVector, KnotVectorIssue, SplineError};
 use geom_core::{
-    Band, Bounds, Decide, Decided, FileCoincidence, Indeterminate, MarginDiag, Point2, Point3,
-    Readable, Real, Sign, Vec3,
+    Band, Bounds, Decide, Decided, Indeterminate, MarginDiag, Point2, Point3, Readable, Real, Sign,
+    Vec3,
 };
 
-use crate::certify::{
-    CERT_SAMPLES, CertCheck, recourse, recourse_in_file, schedule_fraction, schedule_param,
-};
-use crate::recourse::{Reading, Refused, RefusedArm};
+use crate::certify::{CERT_SAMPLES, CertCheck, recourse, schedule_fraction, schedule_param};
+use crate::recourse::{ReadAt, Refused, RefusedArm};
 use crate::ssi::{
     ChartSpeedRefusal, OneArcRefusal, PointLever, SsiError, SsiLimb, SsiOperand, SsiTube,
     certify_rung3,
@@ -329,7 +327,7 @@ impl core::fmt::Display for CarrierDomainRefusal {
 }
 
 impl PlaneNurbsRefusal {
-    /// The ending this refusal's decision gives it, read at `reading`
+    /// The ending this refusal's decision gives it, read at `at`
     /// ([`recourse`]), or `None` for a refusal that is no decision's
     /// refused arm. `Display` renders the payload alone, as
     /// [`crate::CertifyError`]'s does, and the door appends this.
@@ -339,24 +337,11 @@ impl PlaneNurbsRefusal {
     /// ¶1 (iv)); a certificate limb's refusal, definite or escalated,
     /// ends by its limb's decision ([`SsiLimb::check`]).
     #[must_use]
-    pub fn ending(&self, reading: Reading) -> Option<String> {
+    pub fn ending(&self, at: impl Into<ReadAt>) -> Option<String> {
         if let Self::TubeNotOneArc { cause, .. } = *self {
-            return Some(cause.ending(crate::ssi::OneArcDoor::AtRest, reading));
+            return Some(cause.ending(crate::ssi::OneArcDoor::AtRest, at));
         }
-        self.decision()
-            .map(|(check, arm)| recourse(check, arm, reading))
-    }
-
-    /// The ending this refusal gives at the STEP import door
-    /// ([`recourse_in_file`]), as [`PlaneNurbsRefusal::ending`] gives it
-    /// at rest.
-    #[must_use]
-    pub fn ending_in_file(&self, file: FileCoincidence) -> Option<String> {
-        if let Self::TubeNotOneArc { cause, .. } = *self {
-            return Some(cause.ending_in_file(crate::ssi::OneArcDoor::AtRest, file));
-        }
-        self.decision()
-            .map(|(check, arm)| recourse_in_file(check, arm, file))
+        self.decision().map(|(check, arm)| recourse(check, arm, at))
     }
 
     /// The decision this refusal is a refused arm of, and which arm
@@ -903,28 +888,15 @@ impl AnalyticRung3Refusal {
         }
     }
 
-    /// The ending this refusal's decision gives it, read at `reading`,
-    /// or `None` for a refusal that is no decision's refused arm
+    /// The ending this refusal's decision gives it, read at `at`, or
+    /// `None` for a refusal that is no decision's refused arm
     /// ([`PlaneNurbsRefusal::ending`]'s structure).
     #[must_use]
-    pub fn ending(&self, reading: Reading) -> Option<String> {
+    pub fn ending(&self, at: impl Into<ReadAt>) -> Option<String> {
         if let Self::TubeNotOneArc { cause, .. } = *self {
-            return Some(cause.ending(crate::ssi::OneArcDoor::AtRest, reading));
+            return Some(cause.ending(crate::ssi::OneArcDoor::AtRest, at));
         }
-        self.decision()
-            .map(|(check, arm)| recourse(check, arm, reading))
-    }
-
-    /// The ending this refusal gives at the STEP import door
-    /// ([`recourse_in_file`]), as [`AnalyticRung3Refusal::ending`] gives
-    /// it at rest.
-    #[must_use]
-    pub fn ending_in_file(&self, file: FileCoincidence) -> Option<String> {
-        if let Self::TubeNotOneArc { cause, .. } = *self {
-            return Some(cause.ending_in_file(crate::ssi::OneArcDoor::AtRest, file));
-        }
-        self.decision()
-            .map(|(check, arm)| recourse_in_file(check, arm, file))
+        self.decision().map(|(check, arm)| recourse(check, arm, at))
     }
 
     /// The decision this refusal is a refused arm of, and which arm.
@@ -1278,7 +1250,10 @@ fn refusal(e: SsiError) -> PlaneNurbsRefusal {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use geom_core::FileCoincidence;
     use geom_core::spline::KnotVector;
+
+    use crate::recourse::Reading;
 
     use super::*;
 
@@ -1306,7 +1281,6 @@ mod tests {
     /// the payload and ending growing past the budget.
     #[test]
     fn the_tube_not_one_arc_refusal_renders_within_the_standard() {
-        use crate::recourse::Reading;
         use crate::ssi::OneArcRefusal;
         let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
         let undecided = geom_core::k_stats::decide_positive(
@@ -1337,7 +1311,7 @@ mod tests {
     /// **Limb 3's at-rest refusal reads the file's ε_in at the import
     /// door** (D4 ¶1): an undecided one-arc clearance at or below ε_in is
     /// not offered a tolerance alone, and one past it is offered the
-    /// at-rest value. Red where `ending_in_file` reads the one-arc
+    /// at-rest value. Red where the door's `ending` reads the one-arc
     /// decision at rest, which offers "tighten below 5e-10 m" for a
     /// 5e-9 m clearance within the file's 1e-6 m.
     #[test]
@@ -1354,7 +1328,7 @@ mod tests {
             }),
         };
         let file = |eps_in| FileCoincidence::new(eps_in);
-        let within = refusal(5e-9).ending_in_file(file(1e-6)).unwrap();
+        let within = refusal(5e-9).ending(file(1e-6)).unwrap();
         assert!(
             within.starts_with(
                 "This clearance is below the file's declared coincidence distance ε_in = 1e-6 \
@@ -1367,7 +1341,7 @@ mod tests {
         );
         let past = refusal(5e-9);
         assert_eq!(
-            past.ending_in_file(file(1e-9)),
+            past.ending(file(1e-9)),
             past.ending(Reading::AtRest),
             "a clearance past ε_in reads as at rest"
         );

@@ -4,6 +4,9 @@ kind: issue
 title: A minted carrier's reference direction branches on the computing axes (orthonormal_basis), so a sketch's zero spin depends on the computing frame
 status: open
 opened: 2026-10-08
+rides_with: an-operation-computes-in-a-frame-of-its-reads
+priority: P0
+cost: M
 ---
 
 
@@ -38,3 +41,5 @@ meaning instead of being re-derived. What remains is retiring its
 readers: the `Frame` mates on a `FaceFrame` and the sketch-on-face zero
 spin (DM1). The carrier's reference may then stay a computing
 convenience.
+
+Built with stage 3 E (`an-operation-computes-in-a-frame-of-its-reads`), which closes this row. D10 as ratified says "a minted reference direction is a function of the inputs, not of the axes", and that governs this row's earlier paragraphs: the computing frame is chosen for conditioning, and the author's first operand is only its tie-break. No reader takes a carrier's reference, but a u-reference also places a seam and its names, which the frame must not move. So E re-derives each of the three sites from its inputs.
