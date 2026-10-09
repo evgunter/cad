@@ -1,0 +1,4 @@
+test cone_join_lane::the_rings_island_on_the_cone_face_winds_by_the_sections_curve ... FAILED
+test cone_join_lane::the_slabs_chords_are_its_faces_circles_on_both_sides ... FAILED
+test cone_join_lane::the_tilted_planes_chords_are_its_ellipse_in_both_member_orders ... FAILED
+test result: FAILED. 2491 passed; 3 failed; 77 ignored; 0 measured; 0 filtered out; finished in 135.71s

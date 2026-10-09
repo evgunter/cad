@@ -402,4 +402,18 @@ fn r2_probe_battery() {
         line(&format!("F11 {name} ∩ loft"), topo::intersect(&h, &loft, tol()), f64::NAN);
         line(&format!("F11 loft ∖ {name}"), topo::subtract(&loft, &h, tol()), f64::NAN);
     }
+    // F12 a pipe whose INNER rim lies on the ball: the rim is a ring of
+    // the pipe's top annulus; the pipe [1, 1.6] stands z ∈ [zb, 1], its
+    // bore meeting the sphere only along that rim.
+    for (name, zb, tilt, turn) in [
+        ("F12 pipe zb=0", 0.0, 0.0, 0.0),
+        ("F12 pipe zb=0.3", 0.3, 0.0, 0.0),
+        ("F12 pipe zb=0 turned", 0.0, 0.0, 0.7),
+        ("F12 pipe zb=0 tilted", 0.0, 0.4, 0.7),
+    ] {
+        let pp = rigid(&pipe(1.0, 1.6, zb, 1.0 - zb), &place(tilt, turn));
+        let vp = PI * (1.6 * 1.6 - 1.0) * (1.0 - zb);
+        let sh = PI * ((1.0 - zb) - (1.0 - zb.powi(3)) / 3.0);
+        six(name, &fin(pp), &ball, (vp, vball, sh));
+    }
 }

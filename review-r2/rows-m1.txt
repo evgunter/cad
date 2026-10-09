@@ -1,0 +1,7 @@
+test a_tube_ending_on_a_ball::a_tilted_tube_builds_at_its_closed_form ... FAILED
+test a_tube_ending_on_a_ball::a_rim_inside_one_ball_face_holes_it ... FAILED
+test a_tube_ending_on_a_ball::every_op_builds_at_its_closed_form ... FAILED
+test a_tube_ending_on_a_ball::the_witness_brackets_its_closed_forms_at_the_certified_scalar ... FAILED
+test germ_circle_torus::the_lily_stem_glue_is_past_the_circle_torus_pairs ... FAILED
+test mate7a_r1_probes::p1_wall1_passes_the_gate_and_the_crossing_layer_and_stops_at_the_join ... FAILED
+test result: FAILED. 59 passed; 6 failed; 2 ignored; 0 measured; 2509 filtered out; finished in 2.97s

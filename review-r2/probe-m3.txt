@@ -1,0 +1,265 @@
+R2 F1 a=1.2, A ∪ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.2, B ∪ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.2, A ∩ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.2, B ∩ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.2, A ∖ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.2, B ∖ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.4, A ∪ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.4, B ∪ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.4, A ∩ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.4, B ∩ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.4, A ∖ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.4, B ∖ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.41, A ∪ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.41, B ∪ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.41, A ∩ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.41, B ∩ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.41, A ∖ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.41, B ∖ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.414, A ∪ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.414, B ∪ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.414, A ∩ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.414, B ∩ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.414, A ∖ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.414, B ∖ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.4142, A ∪ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.4142, B ∪ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.4142, A ∩ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.4142, B ∩ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.4142, A ∖ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.4142, B ∖ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.4 tilt .3 turn .7, A ∪ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.4 tilt .3 turn .7, B ∪ A: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.4 tilt .3 turn .7, A ∩ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.4 tilt .3 turn .7, B ∩ A: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.4 tilt .3 turn .7, A ∖ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F1 a=1.4 tilt .3 turn .7, B ∖ A: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2 down a=1, A ∪ B: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2 down a=1, B ∪ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2 down a=1, A ∩ B: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2 down a=1, B ∩ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2 down a=1, A ∖ B: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2 down a=1, B ∖ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2 down a=0.5, A ∪ B: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2 down a=0.5, B ∪ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2 down a=0.5, A ∩ B: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2 down a=0.5, B ∩ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2 down a=0.5, A ∖ B: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2 down a=0.5, B ∖ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2 down a=1.4, A ∪ B: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2 down a=1.4, B ∪ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2 down a=1.4, A ∩ B: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2 down a=1.4, B ∩ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2 down a=1.4, A ∖ B: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2 down a=1.4, B ∖ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2 down tilt pi-.4 turn .7, A ∪ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2 down tilt pi-.4 turn .7, B ∪ A: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2 down tilt pi-.4 turn .7, A ∩ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2 down tilt pi-.4 turn .7, B ∩ A: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2 down tilt pi-.4 turn .7, A ∖ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2 down tilt pi-.4 turn .7, B ∖ A: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2 down turn pi/2, A ∪ B: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2 down turn pi/2, B ∪ A: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2 down turn pi/2, A ∩ B: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2 down turn pi/2, B ∩ A: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2 down turn pi/2, A ∖ B: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2 down turn pi/2, B ∖ A: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2b dz=+1e-12, A ∪ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2b dz=+1e-12, B ∪ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2b dz=+1e-12, A ∩ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2b dz=+1e-12, B ∩ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2b dz=+1e-12, A ∖ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2b dz=+1e-12, B ∖ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2b dz=-1e-12, A ∪ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2b dz=-1e-12, B ∪ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2b dz=-1e-12, A ∩ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2b dz=-1e-12, B ∩ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2b dz=-1e-12, A ∖ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2b dz=-1e-12, B ∖ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2b dz=+3e-10, A ∪ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2b dz=+3e-10, B ∪ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2b dz=+3e-10, A ∩ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2b dz=+3e-10, B ∩ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2b dz=+3e-10, A ∖ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2b dz=+3e-10, B ∖ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2b dz=-3e-10, A ∪ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2b dz=-3e-10, B ∪ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2b dz=-3e-10, A ∩ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2b dz=-3e-10, B ∩ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2b dz=-3e-10, A ∖ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2b dz=-3e-10, B ∖ A: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F2b dz=+1e-7, A ∪ B: OK SOUND t2=true t3p=true cert=true operand=true v=17.443017295 want=17.443017295 mesh=ok
+R2 F2b dz=+1e-7, B ∪ A: OK SOUND t2=true t3p=true cert=true operand=true v=17.443017295 want=17.443017295 mesh=ok
+R2 F2b dz=+1e-7, A ∩ B: OK SOUND t2=true t3p=true cert=true operand=true v=0.687855847 want=0.687855847 mesh=ok
+R2 F2b dz=+1e-7, B ∩ A: OK SOUND t2=true t3p=true cert=true operand=true v=0.687855847 want=0.687855847 mesh=ok
+R2 F2b dz=+1e-7, A ∖ B: OK SOUND t2=true t3p=true cert=true operand=true v=5.595329460 want=5.595329460 mesh=ok
+R2 F2b dz=+1e-7, B ∖ A: OK SOUND t2=true t3p=true cert=true operand=true v=11.159831988 want=11.159831988 mesh=ok
+R2 F2b dz=-1e-7, A ∪ B: ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Cylinder, b_face: FaceKey(2v1), b_kind: Sphere }
+R2 F2b dz=-1e-7, B ∪ A: ERR GermFrameUnsupported { a_face: FaceKey(1v1), a_kind: Sphere, b_face: FaceKey(4v1), b_kind: Cylinder }
+R2 F2b dz=-1e-7, A ∩ B: ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Cylinder, b_face: FaceKey(2v1), b_kind: Sphere }
+R2 F2b dz=-1e-7, B ∩ A: ERR GermFrameUnsupported { a_face: FaceKey(1v1), a_kind: Sphere, b_face: FaceKey(4v1), b_kind: Cylinder }
+R2 F2b dz=-1e-7, A ∖ B: ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Cylinder, b_face: FaceKey(2v1), b_kind: Sphere }
+R2 F2b dz=-1e-7, B ∖ A: ERR GermFrameUnsupported { a_face: FaceKey(1v1), a_kind: Sphere, b_face: FaceKey(4v1), b_kind: Cylinder }
+R2 F2b tilt .5 dz=+3e-10, A ∪ B: ERR Escalated { decision: Crossing(OnEdge), diag: Indeterminate { margin: MarginDiag(Value(1.2068305291283375e-9, 
+R2 F2b tilt .5 dz=+3e-10, B ∪ A: ERR Escalated { decision: Crossing(OnEdge), diag: Indeterminate { margin: MarginDiag(Value(-1.5984511546540297e-9,
+R2 F2b tilt .5 dz=+3e-10, A ∩ B: ERR Escalated { decision: Crossing(OnEdge), diag: Indeterminate { margin: MarginDiag(Value(1.2068305291283375e-9, 
+R2 F2b tilt .5 dz=+3e-10, B ∩ A: ERR Escalated { decision: Crossing(OnEdge), diag: Indeterminate { margin: MarginDiag(Value(-1.5984511546540297e-9,
+R2 F2b tilt .5 dz=+3e-10, A ∖ B: ERR Escalated { decision: Crossing(OnEdge), diag: Indeterminate { margin: MarginDiag(Value(1.2068305291283375e-9, 
+R2 F2b tilt .5 dz=+3e-10, B ∖ A: ERR Escalated { decision: Crossing(OnEdge), diag: Indeterminate { margin: MarginDiag(Value(-1.5984511546540297e-9,
+R2 F2b tilt .5 dz=-3e-10, A ∪ B: ERR Escalated { decision: Crossing(OnEdge), diag: Indeterminate { margin: MarginDiag(Value(-1.2068320992207962e-9,
+R2 F2b tilt .5 dz=-3e-10, B ∪ A: ERR Escalated { decision: Crossing(OnEdge), diag: Indeterminate { margin: MarginDiag(Value(1.5984539808204554e-9, 
+R2 F2b tilt .5 dz=-3e-10, A ∩ B: ERR Escalated { decision: Crossing(OnEdge), diag: Indeterminate { margin: MarginDiag(Value(-1.2068320992207962e-9,
+R2 F2b tilt .5 dz=-3e-10, B ∩ A: ERR Escalated { decision: Crossing(OnEdge), diag: Indeterminate { margin: MarginDiag(Value(1.5984539808204554e-9, 
+R2 F2b tilt .5 dz=-3e-10, A ∖ B: ERR Escalated { decision: Crossing(OnEdge), diag: Indeterminate { margin: MarginDiag(Value(-1.2068320992207962e-9,
+R2 F2b tilt .5 dz=-3e-10, B ∖ A: ERR Escalated { decision: Crossing(OnEdge), diag: Indeterminate { margin: MarginDiag(Value(1.5984539808204554e-9, 
+R2 F3 frustum widening, A ∪ B: ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(3v1), kind: Cone, other_face: F
+R2 F3 frustum widening, B ∪ A: ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(3v1), kind: Cone, other_face: F
+R2 F3 frustum widening, A ∩ B: ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, o
+R2 F3 frustum widening, B ∩ A: ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(3v1), kind: Cone, o
+R2 F3 frustum widening, A ∖ B: ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, ot
+R2 F3 frustum widening, B ∖ A: ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(3v1), kind: Cone, ot
+R2 F3 frustum widening turned, A ∪ B: ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(3v1), kind: Cone, other_face: F
+R2 F3 frustum widening turned, B ∪ A: ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(3v1), kind: Cone, other_face: F
+R2 F3 frustum widening turned, A ∩ B: ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, o
+R2 F3 frustum widening turned, B ∩ A: ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(3v1), kind: Cone, o
+R2 F3 frustum widening turned, A ∖ B: ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, ot
+R2 F3 frustum widening turned, B ∖ A: ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(3v1), kind: Cone, ot
+R2 F3 cone to apex, A ∪ B: ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(1v1), kind: Cone, other_face: F
+R2 F3 cone to apex, B ∪ A: ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(1v1), kind: Cone, other_face: F
+R2 F3 cone to apex, A ∩ B: ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(1v1), kind: Cone, o
+R2 F3 cone to apex, B ∩ A: ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(1v1), kind: Cone, o
+R2 F3 cone to apex, A ∖ B: ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(1v1), kind: Cone, ot
+R2 F3 cone to apex, B ∖ A: ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(1v1), kind: Cone, ot
+R2 F3 cone to apex turned, A ∪ B: ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(1v1), kind: Cone, other_face: F
+R2 F3 cone to apex turned, B ∪ A: ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(1v1), kind: Cone, other_face: F
+R2 F3 cone to apex turned, A ∩ B: ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(1v1), kind: Cone, o
+R2 F3 cone to apex turned, B ∩ A: ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(1v1), kind: Cone, o
+R2 F3 cone to apex turned, A ∖ B: ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(1v1), kind: Cone, ot
+R2 F3 cone to apex turned, B ∖ A: ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(1v1), kind: Cone, ot
+R2 F3 frustum narrowing slow, A ∪ B: ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(3v1), kind: Cone, other_face: F
+R2 F3 frustum narrowing slow, B ∪ A: ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(3v1), kind: Cone, other_face: F
+R2 F3 frustum narrowing slow, A ∩ B: ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, o
+R2 F3 frustum narrowing slow, B ∩ A: ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(3v1), kind: Cone, o
+R2 F3 frustum narrowing slow, A ∖ B: ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, ot
+R2 F3 frustum narrowing slow, B ∖ A: ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(3v1), kind: Cone, ot
+R2 F3 frustum narrowing slow turned, A ∪ B: ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(3v1), kind: Cone, other_face: F
+R2 F3 frustum narrowing slow turned, B ∪ A: ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(3v1), kind: Cone, other_face: F
+R2 F3 frustum narrowing slow turned, A ∩ B: ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, o
+R2 F3 frustum narrowing slow turned, B ∩ A: ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(3v1), kind: Cone, o
+R2 F3 frustum narrowing slow turned, A ∖ B: ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, ot
+R2 F3 frustum narrowing slow turned, B ∖ A: ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(3v1), kind: Cone, ot
+R2 F3 cone tangent to the ball, A ∪ B: ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(1v1), kind: Cone, other_face: F
+R2 F3 cone tangent to the ball, B ∪ A: ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(1v1), kind: Cone, other_face: F
+R2 F3 cone tangent to the ball, A ∩ B: ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(1v1), kind: Cone, o
+R2 F3 cone tangent to the ball, B ∩ A: ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(1v1), kind: Cone, o
+R2 F3 cone tangent to the ball, A ∖ B: ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(1v1), kind: Cone, ot
+R2 F3 cone tangent to the ball, B ∖ A: ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(1v1), kind: Cone, ot
+R2 F3 cone tangent to the ball turned, A ∪ B: ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(1v1), kind: Cone, other_face: F
+R2 F3 cone tangent to the ball turned, B ∪ A: ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(1v1), kind: Cone, other_face: F
+R2 F3 cone tangent to the ball turned, A ∩ B: ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(1v1), kind: Cone, o
+R2 F3 cone tangent to the ball turned, B ∩ A: ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(1v1), kind: Cone, o
+R2 F3 cone tangent to the ball turned, A ∖ B: ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(1v1), kind: Cone, ot
+R2 F3 cone tangent to the ball turned, B ∖ A: ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(1v1), kind: Cone, ot
+R2 F3 cone inside the cap, A ∪ B: ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(1v1), kind: Cone, other_face: F
+R2 F3 cone inside the cap, B ∪ A: ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(1v1), kind: Cone, other_face: F
+R2 F3 cone inside the cap, A ∩ B: ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(1v1), kind: Cone, o
+R2 F3 cone inside the cap, B ∩ A: ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(1v1), kind: Cone, o
+R2 F3 cone inside the cap, A ∖ B: ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(1v1), kind: Cone, ot
+R2 F3 cone inside the cap, B ∖ A: ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(1v1), kind: Cone, ot
+R2 F3 cone inside the cap turned, A ∪ B: ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(1v1), kind: Cone, other_face: F
+R2 F3 cone inside the cap turned, B ∪ A: ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(1v1), kind: Cone, other_face: F
+R2 F3 cone inside the cap turned, A ∩ B: ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(1v1), kind: Cone, o
+R2 F3 cone inside the cap turned, B ∩ A: ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(1v1), kind: Cone, o
+R2 F3 cone inside the cap turned, A ∖ B: ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(1v1), kind: Cone, ot
+R2 F3 cone inside the cap turned, B ∖ A: ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(1v1), kind: Cone, ot
+R2 F3 frustum downward, A ∪ B: ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(3v1), kind: Cone, other_face: F
+R2 F3 frustum downward, B ∪ A: ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(3v1), kind: Cone, other_face: F
+R2 F3 frustum downward, A ∩ B: ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, o
+R2 F3 frustum downward, B ∩ A: ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(3v1), kind: Cone, o
+R2 F3 frustum downward, A ∖ B: ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, ot
+R2 F3 frustum downward, B ∖ A: ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(3v1), kind: Cone, ot
+R2 F3 frustum downward turned, A ∪ B: ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(3v1), kind: Cone, other_face: F
+R2 F3 frustum downward turned, B ∪ A: ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(3v1), kind: Cone, other_face: F
+R2 F3 frustum downward turned, A ∩ B: ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, o
+R2 F3 frustum downward turned, B ∩ A: ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(3v1), kind: Cone, o
+R2 F3 frustum downward turned, A ∖ B: ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, ot
+R2 F3 frustum downward turned, B ∖ A: ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(3v1), kind: Cone, ot
+R2 F4 seam meridian in a cone, A ∪ B: ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(3v1), kind: Cone, other_face: F
+R2 F4 seam meridian in a cone, B ∪ A: ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(3v1), kind: Cone, other_face: F
+R2 F4 seam meridian in a cone, A ∩ B: ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, o
+R2 F4 seam meridian in a cone, B ∩ A: ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(3v1), kind: Cone, o
+R2 F4 seam meridian in a cone, A ∖ B: ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, ot
+R2 F4 seam meridian in a cone, B ∖ A: ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(3v1), kind: Cone, ot
+R2 F4 seam meridian in a cone, cone turned, A ∪ B: ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(3v1), kind: Cone, other_face: F
+R2 F4 seam meridian in a cone, cone turned, B ∪ A: ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(3v1), kind: Cone, other_face: F
+R2 F4 seam meridian in a cone, cone turned, A ∩ B: ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, o
+R2 F4 seam meridian in a cone, cone turned, B ∩ A: ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(3v1), kind: Cone, o
+R2 F4 seam meridian in a cone, cone turned, A ∖ B: ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, ot
+R2 F4 seam meridian in a cone, cone turned, B ∖ A: ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(3v1), kind: Cone, ot
+R2 F5 up+down: ball ∪ up: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F5 up+down: ball ∖ up: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F5 up+skew: ball ∪ up: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F5 up+skew: ball ∖ up: ERR Join(SectionInvariant { face: FaceKey(1v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F6 tube ∪ ball: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F6 half-ball x≥0: OK SOUND t2=true t3p=true cert=true operand=true v=5.923843918 want=5.923843918 mesh=ok
+R2 F6 tube on half-ball x≥0, A ∪ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F6 tube on half-ball x≥0, B ∪ A: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F6 tube on half-ball x≥0, A ∩ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F6 tube on half-ball x≥0, B ∩ A: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F6 tube on half-ball x≥0, A ∖ B: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F6 tube on half-ball x≥0, B ∖ A: ERR Join(SectionInvariant { face: FaceKey(2v1), what: "curved section chord outside the split/wall lane (the plane
+R2 F6 half-ball y≥0: ERR Join(SectionLoopUndecided { face: FaceKey(3v1) })
+R2 F7 inscribed square in a rod, A ∪ B: OK SOUND t2=true t3p=true cert=true operand=true v=10.283185307 want=10.283185307 mesh=ok
+R2 F7 inscribed square in a rod, B ∪ A: OK SOUND t2=true t3p=true cert=true operand=true v=10.283185307 want=10.283185307 mesh=ok
+R2 F7 inscribed square in a rod, A ∩ B: OK SOUND t2=true t3p=true cert=true operand=true v=4.000000000 want=4.000000000 mesh=ok
+R2 F7 inscribed square in a rod, B ∩ A: OK SOUND t2=true t3p=true cert=true operand=true v=4.000000000 want=4.000000000 mesh=ok
+R2 F7 inscribed square in a rod, A ∖ B: OK SOUND t2=true t3p=true cert=true operand=true v=4.000000000 want=4.000000000 mesh=ok
+R2 F7 inscribed square in a rod, B ∖ A: OK SOUND t2=true t3p=true cert=true operand=true v=2.283185307 want=2.283185307 mesh=PANIC
+R2 F7 inscribed square turned .3, A ∪ B: OK SOUND t2=true t3p=true cert=true operand=true v=10.283185307 want=10.283185307 mesh=ok
+R2 F7 inscribed square turned .3, B ∪ A: OK SOUND t2=true t3p=true cert=true operand=true v=10.283185307 want=10.283185307 mesh=ok
+R2 F7 inscribed square turned .3, A ∩ B: OK SOUND t2=true t3p=true cert=true operand=true v=4.000000000 want=4.000000000 mesh=ok
+R2 F7 inscribed square turned .3, B ∩ A: OK SOUND t2=true t3p=true cert=true operand=true v=4.000000000 want=4.000000000 mesh=ok
+R2 F7 inscribed square turned .3, A ∖ B: OK SOUND t2=true t3p=true cert=true operand=true v=4.000000000 want=4.000000000 mesh=ok
+R2 F7 inscribed square turned .3, B ∖ A: OK SOUND t2=true t3p=true cert=true operand=true v=2.283185307 want=2.283185307 mesh=PANIC
+R2 F7 frustum ∩ z≤0 half-space (seam rulings in its plane), A ∪ B: ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(3v1), kind: Cone, other_face: F
+R2 F7 frustum ∩ z≤0 half-space (seam rulings in its plane), B ∪ A: ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(3v1), kind: Cone, other_face: F
+R2 F7 frustum ∩ z≤0 half-space (seam rulings in its plane), A ∩ B: ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, o
+R2 F7 frustum ∩ z≤0 half-space (seam rulings in its plane), B ∩ A: ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(3v1), kind: Cone, o
+R2 F7 frustum ∩ z≤0 half-space (seam rulings in its plane), A ∖ B: ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(3v1), kind: Cone, ot
+R2 F7 frustum ∩ z≤0 half-space (seam rulings in its plane), B ∖ A: ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(3v1), kind: Cone, ot
+R2 F7 tube ∩ y≤0 half-space, A ∪ B: OK SOUND t2=true t3p=true cert=true operand=true v=503.141592654 want=503.141592654 mesh=ok
+R2 F7 tube ∩ y≤0 half-space, B ∪ A: OK SOUND t2=true t3p=true cert=true operand=true v=503.141592654 want=503.141592654 mesh=ok
+R2 F7 tube ∩ y≤0 half-space, A ∩ B: OK SOUND t2=true t3p=true cert=true operand=true v=3.141592654 want=3.141592654 mesh=ok
+R2 F7 tube ∩ y≤0 half-space, B ∩ A: OK SOUND t2=true t3p=true cert=true operand=true v=3.141592654 want=3.141592654 mesh=ok
+R2 F7 tube ∩ y≤0 half-space, A ∖ B: OK SOUND t2=true t3p=true cert=true operand=true v=3.141592654 want=3.141592654 mesh=ok
+R2 F7 tube ∩ y≤0 half-space, B ∖ A: OK SOUND t2=true t3p=true cert=true operand=true v=496.858407346 want=496.858407346 mesh=ok
+R2 F7 ball ∩ y≤0 half-space (seam meridians in its plane), A ∪ B: ERR Join(SectionLoopUndecided { face: FaceKey(3v1) })
+R2 F7 ball ∩ y≤0 half-space (seam meridians in its plane), B ∪ A: ERR Join(SectionLoopUndecided { face: FaceKey(3v1) })
+R2 F7 ball ∩ y≤0 half-space (seam meridians in its plane), A ∩ B: ERR Join(SectionLoopUndecided { face: FaceKey(3v1) })
+R2 F7 ball ∩ y≤0 half-space (seam meridians in its plane), B ∩ A: ERR Join(SectionLoopUndecided { face: FaceKey(3v1) })
+R2 F7 ball ∩ y≤0 half-space (seam meridians in its plane), A ∖ B: ERR Join(SectionLoopUndecided { face: FaceKey(3v1) })
+R2 F7 ball ∩ y≤0 half-space (seam meridians in its plane), B ∖ A: ERR Join(SectionLoopUndecided { face: FaceKey(3v1) })
+R2 F8 tube ending on a torus, A ∪ B: ERR GermFrameUnsupported { a_face: FaceKey(4v1), a_kind: Plane, b_face: FaceKey(3v1), b_kind: Torus }
+R2 F8 tube ending on a torus, B ∪ A: ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Torus, b_face: FaceKey(4v1), b_kind: Plane }
+R2 F8 tube ending on a torus, A ∩ B: ERR GermFrameUnsupported { a_face: FaceKey(4v1), a_kind: Plane, b_face: FaceKey(3v1), b_kind: Torus }
+R2 F8 tube ending on a torus, B ∩ A: ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Torus, b_face: FaceKey(4v1), b_kind: Plane }
+R2 F8 tube ending on a torus, A ∖ B: ERR GermFrameUnsupported { a_face: FaceKey(4v1), a_kind: Plane, b_face: FaceKey(3v1), b_kind: Torus }
+R2 F8 tube ending on a torus, B ∖ A: ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Torus, b_face: FaceKey(4v1), b_kind: Plane }
+R2 F9 rod through a pipe's bore, A ∪ B: ERR CurvedPierceUnsupported { operand: A, face: FaceKey(5v1), edge: EdgeKey(7v1), band: Band { zero: 1e-9, escalat
+R2 F9 rod through a pipe's bore, B ∪ A: ERR CurvedPierceUnsupported { operand: A, face: FaceKey(3v1), edge: EdgeKey(3v3), band: Band { zero: 1e-9, escalat
+R2 F9 rod through a pipe's bore, A ∩ B: ERR CurvedPierceUnsupported { operand: A, face: FaceKey(5v1), edge: EdgeKey(7v1), band: Band { zero: 1e-9, escalat
+R2 F9 rod through a pipe's bore, B ∩ A: ERR CurvedPierceUnsupported { operand: A, face: FaceKey(3v1), edge: EdgeKey(3v3), band: Band { zero: 1e-9, escalat
+R2 F9 rod through a pipe's bore, A ∖ B: ERR CurvedPierceUnsupported { operand: A, face: FaceKey(5v1), edge: EdgeKey(7v1), band: Band { zero: 1e-9, escalat
+R2 F9 rod through a pipe's bore, B ∖ A: ERR CurvedPierceUnsupported { operand: A, face: FaceKey(3v1), edge: EdgeKey(3v3), band: Band { zero: 1e-9, escalat
+R2 F9 rod ending inside a pipe's bore, A ∪ B: ERR CurvedPierceUnsupported { operand: A, face: FaceKey(5v1), edge: EdgeKey(5v1), band: Band { zero: 1e-9, escalat
+R2 F9 rod ending inside a pipe's bore, B ∪ A: ERR CurvedPierceUnsupported { operand: A, face: FaceKey(3v1), edge: EdgeKey(3v3), band: Band { zero: 1e-9, escalat
+R2 F9 rod ending inside a pipe's bore, A ∩ B: ERR CurvedPierceUnsupported { operand: A, face: FaceKey(5v1), edge: EdgeKey(5v1), band: Band { zero: 1e-9, escalat
+R2 F9 rod ending inside a pipe's bore, B ∩ A: ERR CurvedPierceUnsupported { operand: A, face: FaceKey(3v1), edge: EdgeKey(3v3), band: Band { zero: 1e-9, escalat
+R2 F9 rod ending inside a pipe's bore, A ∖ B: ERR CurvedPierceUnsupported { operand: A, face: FaceKey(5v1), edge: EdgeKey(5v1), band: Band { zero: 1e-9, escalat
+R2 F9 rod ending inside a pipe's bore, B ∖ A: ERR CurvedPierceUnsupported { operand: A, face: FaceKey(3v1), edge: EdgeKey(3v3), band: Band { zero: 1e-9, escalat
+R2 F9 rod ending at a pipe's bore rim, A ∪ B: ERR CurvedPierceUnsupported { operand: A, face: FaceKey(5v1), edge: EdgeKey(3v1), band: Band { zero: 1e-9, escalat
+R2 F9 rod ending at a pipe's bore rim, B ∪ A: ERR CurvedPierceUnsupported { operand: A, face: FaceKey(3v1), edge: EdgeKey(3v3), band: Band { zero: 1e-9, escalat
+R2 F9 rod ending at a pipe's bore rim, A ∩ B: ERR CurvedPierceUnsupported { operand: A, face: FaceKey(5v1), edge: EdgeKey(3v1), band: Band { zero: 1e-9, escalat
+R2 F9 rod ending at a pipe's bore rim, B ∩ A: ERR CurvedPierceUnsupported { operand: A, face: FaceKey(3v1), edge: EdgeKey(3v3), band: Band { zero: 1e-9, escalat
+R2 F9 rod ending at a pipe's bore rim, A ∖ B: ERR CurvedPierceUnsupported { operand: A, face: FaceKey(5v1), edge: EdgeKey(3v1), band: Band { zero: 1e-9, escalat
+R2 F9 rod ending at a pipe's bore rim, B ∖ A: ERR CurvedPierceUnsupported { operand: A, face: FaceKey(3v1), edge: EdgeKey(3v3), band: Band { zero: 1e-9, escalat

@@ -1,0 +1,5 @@
+test a_tube_ending_on_a_ball::a_rim_inside_one_ball_face_holes_it ... FAILED
+test a_tube_ending_on_a_ball::a_tilted_tube_builds_at_its_closed_form ... FAILED
+test a_tube_ending_on_a_ball::every_op_builds_at_its_closed_form ... FAILED
+test a_tube_ending_on_a_ball::the_witness_brackets_its_closed_forms_at_the_certified_scalar ... FAILED
+test result: FAILED. 61 passed; 4 failed; 2 ignored; 0 measured; 2509 filtered out; finished in 1.57s
