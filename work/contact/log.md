@@ -1088,5 +1088,14 @@ Signed: (CONTACT orchestrator)
   main's. CONTACT-11's lane confirmed it on `d00100e82`, and it is
   filed as `work/tint/tipped-rod-join-escalates-at-1e-12`.
 - Landing as `contact/land-10`.
+## 2026-10-08 — CONTACT-11 lands
+
+- **The review:** REQUEST-CHANGES from a single full review, then
+  APPROVE-WITH-FIXES from the delta review. The linear `SupSpeed` side
+  test replaces both the torus's variation check and the cone's area
+  check, which was quadratic. That fixes a wrong `In` in a small notch
+  of a cone face, live on main.
+- **The 1e-12 red row** is main's own: the tipped rod, filed on TINT.
+- Landing as `contact/land-11`.
 
 Signed: (CONTACT orchestrator)
