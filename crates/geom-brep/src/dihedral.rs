@@ -512,11 +512,11 @@ pub struct SecondOrder<T: geom_core::Real> {
 ///   edge, so prefer-intrinsic (D2/OQ7) demands the intrinsic
 ///   [`crate::EdgeDescription::TangentIntersection`].
 /// - **[`MustCarryVerdict::UnderDetermined`]** — every station read
-///   was smooth first-order, and no intrinsic tangency is demanded: a
-///   station's second-order separation read `Zero`/`Negative`, or the
-///   pair is outside the certificate's lane and cannot store one (see
-///   the variant). The conventional description is the honest one
-///   either way.
+///   was smooth first-order and definite second-order, and no
+///   intrinsic tangency is demanded: a station's second-order
+///   separation read `Zero`/`Negative`, or the pair is outside the
+///   certificate's lane and cannot store one (see the variant). The
+///   conventional description is the honest one either way.
 /// - **[`MustCarryVerdict::InBand`]** — a station was certifiable as
 ///   neither, carrying that station's escalation and the reading that
 ///   raised it ([`MustCarryEscalation`]): the caller refuses TYPED
@@ -552,15 +552,16 @@ pub struct SecondOrder<T: geom_core::Real> {
 /// either — and a caller that wants the jet re-reads it at the station
 /// it cares about through [`tangent_second_order`].
 ///
-/// **The lane gates the second-order reading, and only that.**
+/// **The lane gates the DEMAND, and only that.**
 /// [`crate::tangent_certificate_lane`] says whether the jet
 /// certificate can store an intrinsic tangency for this carrier over
-/// this pair, so an out-of-lane station never reaches
-/// [`tangent_second_order`]. The first-order reading is every pair's:
-/// a transverse or in-band station cannot be answered conventionally
-/// because the join there is not definitely smooth, whatever the
-/// certificate could store. An out-of-lane pair answers
-/// `UnderDetermined` only once every station has read `Smooth`.
+/// this pair, so an out-of-lane edge whose stations all read
+/// `Positive` answers `UnderDetermined`, not `JetDeterminate`. Both
+/// readings are every pair's: tier 3 refuses an in-band sagitta on
+/// every definitely-smooth edge, lane or not, so an in-band station
+/// cannot be answered conventionally whatever the certificate could
+/// store. An out-of-lane pair answers `UnderDetermined` only once every
+/// station read is `Smooth` and definite second-order.
 ///
 /// **A `Nurbs` or `Approx` surface answers `InBand` at the first
 /// station, whatever its geometry.** Neither kind has an implicit
@@ -586,8 +587,7 @@ pub struct SecondOrder<T: geom_core::Real> {
 /// that: tier 3 escalates at any first-order in-band station, so a
 /// walk that answered `Transverse` from an earlier station would leave
 /// a caller that keeps a mixed edge conventional (the boolean's seams)
-/// storing an edge tier 3 then refuses. An out-of-lane pair reads the
-/// first-order pass alone.
+/// storing an edge tier 3 then refuses.
 ///
 /// **Why the extra stations never disagree on the joins this kernel
 /// mints**, stated because it is an argument and not a licence to read
@@ -631,10 +631,6 @@ pub fn must_carry_over_edge<T: Decide>(
     if transverse {
         return MustCarryVerdict::Transverse;
     }
-    let in_lane = crate::tangent::tangent_certificate_lane(carrier, s1, s2);
-    if !in_lane {
-        return MustCarryVerdict::UnderDetermined;
-    }
     for (p, tau) in stations() {
         let reading = tangent_second_order(s1, s2, p, tau, extent, band);
         match reading.verdict.map(|d| d.sign) {
@@ -645,7 +641,11 @@ pub fn must_carry_over_edge<T: Decide>(
             }
         }
     }
-    MustCarryVerdict::JetDeterminate
+    if crate::tangent::tangent_certificate_lane(carrier, s1, s2) {
+        MustCarryVerdict::JetDeterminate
+    } else {
+        MustCarryVerdict::UnderDetermined
+    }
 }
 
 /// What a join entered as definitely smooth stores, by the must-carry
@@ -720,10 +720,11 @@ pub enum MustCarryVerdict {
     ///   planes): the conventional description is the honest one, by
     ///   this predicate.
     /// - The pair is outside [`crate::tangent_certificate_lane`]: every
-    ///   interior station read `Smooth`, and the certificate cannot
-    ///   store an intrinsic tangency there, so no station was read
-    ///   second-order. A transverse or in-band station out of lane
-    ///   answers `Transverse` or `InBand`, exactly as in lane.
+    ///   interior station read `Smooth` and every station read definite
+    ///   second-order, and the certificate cannot store an intrinsic
+    ///   tangency there. A transverse or in-band station out of lane,
+    ///   at either order, answers `Transverse` or `InBand`, exactly as
+    ///   in lane.
     UnderDetermined,
     /// A station was in-band: near-osculating geometry, certifiable as
     /// neither, carrying that station's escalation for the caller to
@@ -1186,6 +1187,65 @@ mod tests {
             MustCarryVerdict::Transverse.description(a, b, witness),
             Err(MustCarryRefusal::Refuted)
         ));
+    }
+
+    /// **The lane gates the demand, never the in-band refusal.** The
+    /// plane tangent to a 45° cone (apex at the origin, axis `z`) along
+    /// the ruling `(sin 45°, 0, cos 45°)`, over `[100, 100 + L]`: a
+    /// `Line` carrier on a cone, which
+    /// [`crate::tangent_certificate_lane`] refuses. `κ_rel` is the
+    /// cone's transverse curvature `1/t ≈ 0.01` and the folded arm is
+    /// the extent `L`, so `L` sets the sagitta `κ_rel·L²/2`: at the
+    /// band's geometric mean every station is in band, and tier 3
+    /// refuses that edge `SliverDihedral` lane or not, so the rule
+    /// answers `InBand`; at ten times the escalation edge every station
+    /// is definite, and the lane leaves nothing to demand.
+    #[test]
+    fn an_out_of_lane_in_band_sagitta_escalates_and_a_definite_one_is_under_determined() {
+        let b = band();
+        let (s, c) = std::f64::consts::FRAC_PI_4.sin_cos();
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: std::f64::consts::FRAC_PI_4,
+            u_ref: Vec3::unit_x(),
+        };
+        let ruling = Vec3::new(s, 0.0, c);
+        let tangent = plane(Vec3::new(c, 0.0, -s), ruling);
+        let carrier = geom::Curve3::Line {
+            origin: Point3::origin(),
+            dir: ruling,
+        };
+        assert!(
+            !crate::tangent_certificate_lane(&carrier, &cone, &tangent),
+            "the witness is out of lane"
+        );
+        let length_at = |sagitta: f64| (2.0 * sagitta / 0.01).sqrt();
+        let verdicts = |len: f64| {
+            [(&cone, &tangent), (&tangent, &cone)]
+                .map(|(a, z)| must_carry_over_edge(a, z, &carrier, 100.0, 100.0 + len, len, b))
+        };
+        let mean = (b.zero() * b.escalate()).sqrt();
+        for (order, verdict) in verdicts(length_at(mean)).into_iter().enumerate() {
+            assert!(
+                matches!(
+                    verdict,
+                    MustCarryVerdict::InBand(MustCarryEscalation::SecondOrder(diag))
+                        if diag.predicate == Some("tangent_second_order")
+                ),
+                "order {order}: an in-band sagitta out of lane escalates, got {verdict:?}"
+            );
+        }
+        for (order, verdict) in verdicts(length_at(10.0 * b.escalate()))
+            .into_iter()
+            .enumerate()
+        {
+            assert_eq!(
+                verdict,
+                MustCarryVerdict::UnderDetermined,
+                "order {order}: a definite sagitta out of lane demands nothing"
+            );
+        }
     }
 
     fn plane(normal: Vec3<f64>, u_ref: Vec3<f64>) -> Surface<f64> {

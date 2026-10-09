@@ -5251,8 +5251,9 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
             // lane admits: a corner arc on a slim wedge, whose extent
             // is the folded lever arm, or any band under a run with
             // `K < 2`. A pair the lane REFUSES lands here too once
-            // every station has read smooth first-order (a crossing
-            // out of lane is refuted above, as in lane): the
+            // every station has read smooth first-order and definite
+            // second-order (a crossing or an in-band station out of
+            // lane refuses above, as in lane): the
             // certificate cannot store an intrinsic tangency there, so
             // the conventional image is the honest description, and
             // the door derives it — `geom_brep::chart_pcurve` images a
