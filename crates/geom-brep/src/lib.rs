@@ -92,8 +92,9 @@ pub use description::{
 pub use dihedral::{
     DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DihedralClass, MaterialPairing, MaterialWedge,
     MustCarryDescription, MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, SecondOrder,
-    classify_dihedral, classify_material_pairing, classify_material_pairing_as, folded_lever_arm,
-    material_kappa_rel, must_carry_over_edge, tangent_second_order,
+    SecondOrderWalk, Station, StationHook, classify_dihedral, classify_material_pairing,
+    classify_material_pairing_as, folded_lever_arm, interior_stations, material_kappa_rel,
+    must_carry_over_edge, second_order_walk, tangent_second_order,
 };
 pub use edge_nurbs::{
     AnalyticRung3Refusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal,
