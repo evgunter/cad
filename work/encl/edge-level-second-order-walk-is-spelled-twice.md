@@ -2,8 +2,9 @@
 id: edge-level-second-order-walk-is-spelled-twice
 kind: issue
 title: the edge-level second-order walk is spelled twice, in must_carry_over_edge and inline in tier 3's check 4, kept in step only by prose
-status: dispatched
+status: review
 branch: encl/second-order-walk-one-home
+pr: 4423
 priority: P3
 cost: M
 opened: 2026-10-09
