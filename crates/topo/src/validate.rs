@@ -15797,9 +15797,9 @@ mod certify_escalation_rows {
             ),
             (
                 escalated(CertCheck::Surface1Residual, MarginDiag::INVALID),
-                "whether it lies where its description says is undecided. Recourse: loosen the \
-                 tolerance, as a last resort; this refusal may \
-                 indicate a kernel bug worth reporting",
+                "whether it lies where its description says is undecided. There is no way \
+                 through: this is a kernel defect or a damaged \
+                 file; report it",
             ),
             (
                 escalated(
