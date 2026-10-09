@@ -2,8 +2,9 @@
 id: boolean-sector-algebra-has-no-cone-arm
 kind: issue
 title: Past the pair gate and the cone's crossing lane, every op on a cone operand refuses at sectors::sector_face: the boolean's sector algebra has no cone arm
-status: open
+status: closed
 opened: 2026-10-06
+closed: 2026-10-09
 priority: P1
 cost: H
 refs: [VERBS-CONE, 4135]
@@ -155,3 +156,5 @@ PR 4369 (`germ/cone-sector-normals`).
   the join. Measured through it, B4, C1 and T1 join in every op and
   member order, each chord the closed-form section on both sides. Every
   pose then meets D6, the interior-loop guard.
+
+**2026-10-09, closed: U-S3 and U-S4 land (PR 4375, DR-118, sequential arm).** With U-S1, U-S2 and U-S6 (PR 4369), every door of the cone's sector algebra is open below the operand gate. That covers the pierce and sector normals, the plane × cone frame, the dispatch and the planar chord, and each refuses typed at the apex and for a hyperbola or parabola. The roster flip is VERBS-CONE's U7. U-S5 (rings on a cone face in `face_flux`) is off U7's path and stays in `docs/GERM-CONE-SECTOR-SPEC.md`.
