@@ -561,7 +561,7 @@ fn an_interior_column_intersection_mints_a_general_image() {
         cert.envelope
     );
     assert!(
-        cert.ssi.is_some(),
+        cert.ssi().is_some(),
         "and it is the FULL C2 certificate, not the closed-form lane's: {cert:?}"
     );
     // ---- The whole body, through the pass. ----

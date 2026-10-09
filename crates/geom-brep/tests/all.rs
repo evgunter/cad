@@ -52,6 +52,8 @@
 // directory carrying a `mod.rs`.
 mod shared;
 
+#[path = "analytic_rung3_certificate.rs"]
+mod analytic_rung3_certificate;
 #[path = "approx_surface.rs"]
 mod approx_surface;
 #[path = "arc_eval_anchor.rs"]
@@ -279,8 +281,6 @@ mod r2_mesh7_door_probes;
 mod span_reach_differential;
 #[path = "span_reach_hunt.rs"]
 mod span_reach_hunt;
-#[path = "sphere_circle_certificate.rs"]
-mod sphere_circle_certificate;
 #[path = "tcost_k1_budget_exit.rs"]
 mod tcost_k1_budget_exit;
 #[path = "torus_chart_guards.rs"]

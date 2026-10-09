@@ -140,8 +140,7 @@ fn sphere_pairs_tilted_against_both_charts_build_under_every_boolean() {
 /// **The equal pair at the `Interval` scalar**: enclosures throughout,
 /// the chords' departure trileans and the Gauss–Bonnet turning angles on
 /// enclosures, and every body certifies with a volume bracket around
-/// the lens closed form — at the default and the 1e-6 band; at 1e-12
-/// the pcurve mint escalates first, pinned below.
+/// the lens closed form, at every band the sweep runs.
 #[test]
 fn a_tilted_sphere_pair_builds_at_the_interval_scalar() {
     use crate::common::interval::iv;
@@ -172,28 +171,6 @@ fn a_tilted_sphere_pair_builds_at_the_interval_scalar() {
             BooleanOp::Intersect => topo::boolean::intersect(&a, &b, Tol::witness()),
             BooleanOp::Subtract => topo::boolean::subtract(&a, &b, Tol::witness()),
         };
-        // At ε 1e-12 the tilted arcs' fitted pcurve rows certify their
-        // map residual with enclosures wider than the band, and the mint
-        // escalates by name
-        // (`work/pcert/fitted-general-circle-rows-escalate-loop-continuity-at-the-interval-scalar.md`).
-        if Tol::witness().get().eps < 1e-10 {
-            let Err(topo::BooleanError::Pcurves {
-                source:
-                    topo::PcurveMintError::Certify {
-                        error: geom_brep::PcurveCertifyError::Escalated { cause, .. },
-                        ..
-                    },
-            }) = &out
-            else {
-                panic!("Interval {op:?} at eps 1e-12: expected the mint's escalation, got {out:?}");
-            };
-            assert_eq!(
-                cause.predicate,
-                Some("pcurve_map_residual"),
-                "Interval {op:?}"
-            );
-            continue;
-        }
         let out = out.unwrap_or_else(|e| panic!("Interval {op:?} refused: {e:?}"));
         let body = &out
             .body()
@@ -400,4 +377,48 @@ fn a_tilted_split_of_a_sphere_body_refuses_at_the_reduce() {
             }
         }
     }
+}
+
+/// **A section passing near a chart pole images at every band.** Two
+/// unit balls whose centre line leans `s = 0.7 + δ` toward `y`, so the
+/// radical circle passes within about `δ` of the first ball's north
+/// pole. Its rows are projected images whose pieces refine toward the
+/// pole until each piece's azimuth sector holds, so δ down to 1e-5
+/// builds and certifies whole. Through the pole (δ = 0) azimuth names
+/// no point, and the row refuses typed on the azimuth sector; splitting
+/// such an arc at the pole is the join's
+/// (`work/reach/tilted-section-through-a-chart-pole-is-not-split-at-the-pole.md`).
+#[test]
+fn a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed() {
+    let c = Vec3::new(2.0, 2.0, 0.5);
+    let pair = |d: f64| {
+        let s = 0.7 + d;
+        let lean = Vec3::new(1.4 * (1.0 - s * s).sqrt(), 1.4 * s, 0.0);
+        (ball(1.0, c), ball(1.0, c + lean))
+    };
+    let expected = 2.0 * ball_volume(1.0) - lens_volume(1.0, 1.0, 1.4);
+    for d in [1e-5, 1e-4, 3e-4] {
+        let (a, b) = pair(d);
+        let out = run(BooleanOp::Union, &a, &b)
+            .unwrap_or_else(|e| panic!("δ {d}: the near-pole section refused: {e:?}"));
+        let body = &out.body().unwrap_or_else(|| panic!("δ {d}: empty")).body;
+        assert_body(&format!("δ {d}"), body, expected);
+    }
+    let (a, b) = pair(0.0);
+    let out = run(BooleanOp::Union, &a, &b);
+    assert!(
+        matches!(
+            &out,
+            Err(topo::BooleanError::Pcurves {
+                source: topo::PcurveMintError::Certify {
+                    error: geom_brep::PcurveCertifyError::SectorRefused {
+                        channel: geom_brep::SectorChannel::Azimuth,
+                        ..
+                    },
+                    ..
+                },
+            })
+        ),
+        "δ 0: the arc through the pole refuses on its azimuth sector, got {out:?}"
+    );
 }

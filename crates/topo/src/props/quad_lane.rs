@@ -467,20 +467,18 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
             });
         };
         // The certified quadrature lane reads a chart image
-        // CHANNEL BY CHANNEL out of its harmonic form; a fitted or
-        // focal-section image has none on an ANALYTIC chart's Green
-        // reduction.
-        // Typed refusal: the fitted-boundary Green lane
-        // (`quad::bspline_green_integral`'s remaining consumer) is not
-        // wired. A sphere's general circle mints one at rest (an
-        // oblique fillet corner's octant); the props door refuses that
-        // face's spherical triangle before this lane is asked.
+        // CHANNEL BY CHANNEL out of its harmonic form; a fitted,
+        // projected or focal-section image has none on an ANALYTIC
+        // chart's Green reduction, and refuses typed. A sphere's general
+        // circle mints a projected one at rest (an oblique fillet
+        // corner's octant); the props door refuses that face's spherical
+        // triangle before this lane is asked.
         let Pcurve::Harmonic { p0, pa, pb, pl } = *image else {
             return Err(PropsError::QuadratureUnsupported {
                 what: "curved-cut face half-edge carries a pcurve with no harmonic form on \
-                       an analytic chart (a FITTED image, or a cone section's or Villarceau \
-                       circle's focal section) — its Green-form boundary integral is not \
-                       wired",
+                       an analytic chart (a FITTED or PROJECTED image, or a cone section's or \
+                       Villarceau circle's focal section) — its Green-form boundary integral \
+                       is not wired",
             });
         };
         let (t0, t1) = cache.params();
@@ -853,6 +851,13 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
                     what: "a NURBS-face half-edge carries a FOCAL-SECTION pcurve — that \
                            image certifies on a cone or torus chart only, and this chart \
                            is a spline patch",
+                });
+            }
+            Pcurve::Projected(_) => {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: "a NURBS-face half-edge carries a PROJECTED pcurve — that image \
+                           certifies on an analytic chart only, and this chart is a spline \
+                           patch",
                 });
             }
         };
