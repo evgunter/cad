@@ -1443,7 +1443,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     let (doc, above) = common::inserted(
         &doc,
         Node::Part {
-            of: split.into(),
+            of: pncad::document::Operand::output(split, SplitHalf::Above.port()),
             select: PartSelect::SplitHalf(SplitHalf::Above),
         },
         tol,
@@ -1510,7 +1510,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     let (doc, stranger) = common::inserted(
         &doc,
         Node::Datum(Datum::AxisInPlane {
-            plane: other_plane.into(),
+            frame: other_plane.into(),
             origin: [common::len(-0.01), common::len(0.0)],
             direction: [common::scl(0.0), common::scl(1.0)],
         }),

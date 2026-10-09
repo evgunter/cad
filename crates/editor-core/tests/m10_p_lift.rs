@@ -251,7 +251,7 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
     let plane = fixture::plane_of(
         &doc.doc,
         doc.doc
-            .operation_of(program.plane)
+            .operation_of(program.frame)
             .expect("the plane read is live"),
     );
     let (_, canonical) = profile::ConstructedProfile::new(plane, nominal_loops(&nominal))

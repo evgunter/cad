@@ -735,8 +735,10 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
                 document: DocumentId(1),
                 findings: vec![CheckFinding {
                     check: CheckId::Connectedness,
-                    root: RecipeNodeId::new(0, tagged(3)),
-                    output_ix: 0,
+                    subject: editor_core::FindingSubject::Output {
+                        root: RecipeNodeId::new(0, tagged(3)),
+                        output_ix: 0,
+                    },
                     evidence: CheckEvidence::Connectedness {
                         actual: 2,
                         expected: 1,
@@ -1542,8 +1544,10 @@ fn the_checks_badge_is_a_control_and_the_rest_are_labels() {
         document: DocumentId(1),
         findings: vec![CheckFinding {
             check: CheckId::Connectedness,
-            root: RecipeNodeId::new(0, tagged(3)),
-            output_ix: 0,
+            subject: editor_core::FindingSubject::Output {
+                root: RecipeNodeId::new(0, tagged(3)),
+                output_ix: 0,
+            },
             evidence: CheckEvidence::Connectedness {
                 actual: 2,
                 expected: 1,

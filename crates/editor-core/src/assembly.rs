@@ -1830,6 +1830,7 @@ fn attribute(
         | ValidationError::PlanarBoundaryResidual { .. }
         | ValidationError::PlanarBoundaryEscalated { .. }
         | ValidationError::SliverDihedral { .. }
+        | ValidationError::NoDihedralArm { .. }
         | ValidationError::TransverseNotIntrinsic { .. }
         | ValidationError::TangentNotIntrinsic { .. }
         // The material-wedge arm's refusal is a finding about an EDGE
@@ -1837,6 +1838,8 @@ fn attribute(
         // that two of its own faces osculate, which no mate names.
         | ValidationError::LaminaWedge { .. }
         | ValidationError::ScaffoldAtRest { .. }
+        | ValidationError::JoinableVertexAtRest { .. }
+        | ValidationError::JoinUndecidedAtRest { .. }
         | ValidationError::LoopRoleInverted { .. }
         | ValidationError::CurvedSenseInverted { .. }
         | ValidationError::NegativeVolume { .. }

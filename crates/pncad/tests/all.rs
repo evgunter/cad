@@ -219,8 +219,18 @@ fn step_import_payload(e: &StepImportError) {
 // it is reachable only by module path, exactly the shape that made
 // the original leak invisible.
 fn contain_payload(e: &pncad::topo::boolean::ContainError) {
-    if let pncad::topo::boolean::ContainError::Escalated(inner) = e {
-        named::<&pncad::geom_core::Indeterminate>(inner);
+    if let pncad::topo::boolean::ContainError::Escalated {
+        decision,
+        escalation,
+        diag,
+    } = e
+    {
+        if let Some(pncad::topo::boolean::ContainDecision::Loop(inner)) = decision {
+            named::<&pncad::topo::LoopDecision>(inner);
+        }
+        named::<&Option<pncad::topo::boolean::ContainDecision>>(decision);
+        named::<&pncad::topo::Escalation>(escalation);
+        named::<&pncad::geom_core::Indeterminate>(diag);
     }
 }
 
@@ -1439,9 +1449,9 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     }
 }
 
-/// Which normalization a record reports, matched EXHAUSTIVELY: a fifth
+/// Which normalization a record reports, matched EXHAUSTIVELY: a sixth
 /// kind minted kernel-side stops this compiling rather than arriving
-/// under one of these four words.
+/// under one of these five words.
 ///
 /// `SurfacePromotion` carries the discriminant the refusal side
 /// carries too, and it is read here through the same `PromotedKind`
@@ -1451,6 +1461,7 @@ fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
         NormalizationKind::EdgeFreeSphere => "edge_free_sphere",
         NormalizationKind::DegenerateApexCone => "degenerate_apex_cone",
         NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
+        NormalizationKind::JoinedEdges => "joined_edges",
         NormalizationKind::SurfacePromotion { to, residual } => {
             named::<&f64>(residual);
             match to {
@@ -2081,7 +2092,7 @@ fn xy_frame() -> pncad::document::AuthoredNode {
 fn square(plane: pncad::document::RecipeNodeId, s: f64) -> pncad::document::AuthoredNode {
     use pncad::document::{LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget};
     Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(0.0), len(0.0)]),
             ProgramStep::LineTo(ProgramTarget::Point([len(s), len(0.0)])),
@@ -2294,7 +2305,7 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![lifted],
             ids: Vec::new(),
         }),
@@ -2416,7 +2427,7 @@ fn square_at(
 ) -> pncad::document::AuthoredNode {
     use pncad::document::{LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget};
     Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(x), len(0.0)]),
             ProgramStep::LineTo(ProgramTarget::Point([len(x + s), len(0.0)])),
@@ -2683,7 +2694,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![outline, hole(1.0, 1.0), hole(2.2, 1.0)],
             ids: Vec::new(),
         }),
@@ -2709,7 +2720,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
     let (doc, tab_p) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: tab_plane.into(),
+            frame: tab_plane.into(),
             loops: vec![
                 LoopProgram::polygon([(3.5, 1.75), (4.5, 1.75), (4.5, 2.5), (3.5, 2.5)])
                     .expect("finite tab corners"),
@@ -6577,7 +6588,7 @@ mod the_hollowed_box_through_the_facade {
         let (doc, profile) = super::insert(
             doc,
             Node::Profile(ProfileProgram {
-                plane: plane.into(),
+                frame: plane.into(),
                 loops: vec![square],
                 ids: Vec::new(),
             }),

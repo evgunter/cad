@@ -83,6 +83,8 @@ pub enum NodeErrorClass {
     MissingInput,
     /// [`NodeErrorKind::UnresolvedRead`].
     UnresolvedRead,
+    /// [`NodeErrorKind::UnresolvedSite`].
+    UnresolvedSite,
     /// [`NodeErrorKind::ToleranceConflict`].
     ToleranceConflict,
     /// [`NodeErrorKind::ParamBox`].
@@ -326,6 +328,7 @@ impl NodeErrorKind {
             Self::CurvedSolidFrontier { .. } => C::CurvedSolidFrontier,
             Self::MissingInput { .. } => C::MissingInput,
             Self::UnresolvedRead { .. } => C::UnresolvedRead,
+            Self::UnresolvedSite { .. } => C::UnresolvedSite,
             Self::ToleranceConflict { .. } => C::ToleranceConflict,
             Self::ParamBox { .. } => C::ParamBox,
             Self::Seed { .. } => C::Seed,
@@ -551,6 +554,7 @@ mod tests {
         CurvedSolidFrontier,
         MissingInput,
         UnresolvedRead,
+        UnresolvedSite,
         ToleranceConflict,
         ParamBox,
         Seed,
@@ -790,6 +794,7 @@ mod tests {
                 slot: crate::OperandSlot::Target,
                 var: crate::VarId::new(3, 3),
             },
+            C::UnresolvedSite => K::UnresolvedSite { at: n(3) },
             C::ToleranceConflict => K::ToleranceConflict {
                 document_eps: 1.0e-7,
                 process_eps: 1.0e-9,

@@ -94,6 +94,9 @@ pub(crate) struct OpOut<T: Decide> {
     pub carried: Arc<crate::assembly::CarriedDeclarations>,
     /// How many parts each output body is (`NodeValue::parts`).
     pub parts: usize,
+    /// The coincidences the op decided from values, named in its
+    /// inputs' tables (`NodeValue::coincidences`).
+    pub coincidences: Arc<[crate::coincide::NamedCoincidence]>,
 }
 
 impl<T: Decide> OpOut<T> {
@@ -106,7 +109,27 @@ impl<T: Decide> OpOut<T> {
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(crate::assembly::CarriedDeclarations::default()),
             parts: 1,
+            coincidences: Arc::new([]),
         }
+    }
+
+    /// This output with coincidence rows already named.
+    fn with_coincidences(self, coincidences: Vec<crate::coincide::NamedCoincidence>) -> Self {
+        Self {
+            coincidences: coincidences.into(),
+            ..self
+        }
+    }
+
+    /// This output with the kernel's coincidence rows, named in the
+    /// op's inputs' tables.
+    fn recording(
+        self,
+        rows: &[topo::Coincidence],
+        inputs: &crate::coincide::RowInputs<'_>,
+    ) -> Result<Self, NodeErrorKind> {
+        let named = crate::coincide::name_rows(rows, inputs).map_err(NodeErrorKind::Naming)?;
+        Ok(self.with_coincidences(named))
     }
 
     /// This output, each body of it `parts` parts: a placer's or a
@@ -235,7 +258,7 @@ where
         Node::Profile(program) => Ok(OpOut::plain(
             wire_profile(
                 program,
-                at(O::Plane, program.plane)?,
+                at(O::Frame, program.frame)?,
                 results,
                 profile_pre,
                 env.lane,
@@ -581,6 +604,8 @@ where
         contacts: Arc::clone(&part.contacts),
         carried: Arc::new(carried),
         parts: part.parts,
+        // The part's own rows are its document's, read there.
+        coincidences: Arc::new([]),
     })
 }
 
@@ -1417,10 +1442,10 @@ fn wire_datum<T: Decide>(
         // Coordinates IN a frame, lifted once here. A 2-D pair lifted
         // through the frame's own axes lies in the frame by
         // construction, so there is no in-plane residual to decide.
-        Datum::AxisInPlane { plane, .. } => {
+        Datum::AxisInPlane { frame: plane, .. } => {
             let f = frame_value(
                 results,
-                super::read_at(doc, crate::OperandSlot::Plane, *plane)?,
+                super::read_at(doc, crate::OperandSlot::Frame, *plane)?,
             )?;
             let (frame_origin, u, v) = (f.origin(), f.u(), f.v());
             let plane_origin = need_point2(vals, SlotId::Origin)?;
@@ -1809,8 +1834,8 @@ fn written_against(
     id: RecipeNodeId,
 ) -> Option<RecipeNodeId> {
     match doc.node(id)? {
-        Node::Profile(p) => doc.operation_of(p.plane),
-        Node::Datum(Datum::AxisInPlane { plane, .. }) => doc.operation_of(*plane),
+        Node::Profile(p) => doc.operation_of(p.frame),
+        Node::Datum(Datum::AxisInPlane { frame: plane, .. }) => doc.operation_of(*plane),
         _ => None,
     }
 }
@@ -2075,6 +2100,12 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     }))?;
     let table = (verb.emitter)(id, target, &target_table, &out.body, &rec)
         .map_err(NodeErrorKind::Naming)?;
+    let inputs = crate::coincide::RowInputs {
+        a: (target, &target_table),
+        b: None,
+        tool: None,
+    };
+    let coincidences = out.coincidences;
     let mut body = out.body;
     stamp_minted(&mut body, id);
     // Attach-at-mint (VERB-SEAT-DESIGN P2): the size slot's expression
@@ -2098,7 +2129,7 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         )
         .map_err(NodeErrorKind::ParamSourceAttach)?;
     }
-    Ok(OpOut::plain(ValuePayload::Body(Arc::new(body)), table))
+    OpOut::plain(ValuePayload::Body(Arc::new(body)), table).recording(&coincidences, &inputs)
 }
 
 /// **The shell's lowering**, driven by the verb's correspondence
@@ -2714,6 +2745,7 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let plane = (verb.tool)(datum).ok_or_else(wrong_tool)?;
     let built = (verb.build)(plane);
     let out = built.run_split(&body, tol).map_err(verb_refused)?;
+    let coincidences = out.coincidences;
     let naming = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
     // The fresh section planes get THIS node's sources (D1) in ONE
     // index space across both halves: each half's section plane has its
@@ -2746,10 +2778,16 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         tol,
     )
     .map_err(NodeErrorKind::Naming)?;
-    Ok(
-        OpOut::plain(ValuePayload::Split { above, below }, emitted.table)
-            .grouped(Arc::new(names::FragmentGroups::minted(&emitted.groups))),
-    )
+    OpOut::plain(ValuePayload::Split { above, below }, emitted.table)
+        .grouped(Arc::new(names::FragmentGroups::minted(&emitted.groups)))
+        .recording(
+            &coincidences,
+            &crate::coincide::RowInputs {
+                a: (target, &target_table),
+                b: None,
+                tool: Some(tool),
+            },
+        )
 }
 
 /// **The projection node** (DM3): ONE body out of a split's or a
@@ -2966,7 +3004,7 @@ fn wire_boolean<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             .map_err(NodeErrorKind::Naming)?;
             let mut body = out.body.into_body();
             stamp_minted(&mut body, id);
-            Ok(OpOut::plain(
+            OpOut::plain(
                 ValuePayload::Boolean(BooleanValue::Body {
                     body: Arc::new(body),
                     kind,
@@ -2974,7 +3012,15 @@ fn wire_boolean<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 }),
                 emitted.table,
             )
-            .grouped(Arc::new(names::FragmentGroups::minted(&emitted.groups))))
+            .grouped(Arc::new(names::FragmentGroups::minted(&emitted.groups)))
+            .recording(
+                &out.coincidences,
+                &crate::coincide::RowInputs {
+                    a: (a, &a_table),
+                    b: Some((b, &b_table)),
+                    tool: None,
+                },
+            )
         }
     }
 }
@@ -3035,15 +3081,17 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // pairwise judgement and the fold. The FIRST member enters
     // member-keyed too, so every operand of every step is already in
     // this node's name space.
+    let own_tables = members
+        .iter()
+        .map(|&m| Ok(value_of(results, m)?.name_table.as_ref()))
+        .collect::<Result<Vec<&NameTable>, NodeErrorKind>>()?;
     let operands = members
         .iter()
-        .map(|&m| {
+        .zip(&own_tables)
+        .map(|(&m, own)| {
             Ok((
                 Arc::new(finished_operand(results, m, tol)?),
-                Arc::new(
-                    names::member_view(id, m, &value_of(results, m)?.name_table)
-                        .map_err(NodeErrorKind::Naming)?,
-                ),
+                Arc::new(names::member_view(id, m, own).map_err(NodeErrorKind::Naming)?),
             ))
         })
         .collect::<Result<Vec<_>, NodeErrorKind>>()?;
@@ -3063,7 +3111,7 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         })
         .collect::<Result<Vec<_>, NodeErrorKind>>()?;
     let tables: Vec<&NameTable> = operands.iter().map(|(_, t)| t.as_ref()).collect();
-    let links = judge_pairwise_contact(
+    let (links, coincidences) = judge_pairwise_contact(
         id,
         members,
         &tables,
@@ -3079,8 +3127,21 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     what: UNION_PAIR_EMPTY,
                 }));
             };
+            // The judgement's rows, named in the two members' own tables:
+            // the union's coincidences are its pairwise judgement's (#4323:
+            // the pass is the union's coincidence door, rows in member
+            // space), each pair's in the author's list order.
+            let rows = crate::coincide::name_rows(
+                &out.coincidences,
+                &crate::coincide::RowInputs {
+                    a: (members[p], own_tables[p]),
+                    b: Some((members[q], own_tables[q])),
+                    tool: None,
+                },
+            )
+            .map_err(NodeErrorKind::Naming)?;
             match out.record {
-                verbs::VerbRecord::Boolean { naming, .. } => Ok(naming),
+                verbs::VerbRecord::Boolean { naming, .. } => Ok((naming, rows)),
                 _ => Err(NodeErrorKind::Naming(names::NamingError::Emission {
                     what: verb.foreign_record,
                 })),
@@ -3206,7 +3267,8 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         id,
         &step_groups,
         &published_groups,
-    ))))
+    )))
+    .with_coincidences(coincidences))
 }
 
 /// **DM4's contact rule: every member pair is judged as its own
@@ -3223,8 +3285,12 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// independent of whether the fold fed the pair or consumed its face
 /// ([`drop_consumed`]), and tells a mistyped name from a consumed one.
 ///
-/// **The verdict depends on the members, never on their order**: pairs
-/// are visited in ascending node-id order, the lesser id as operand A.
+/// **Whether it refuses depends on the members, never on their
+/// order**: every pair that touches or carries a declaration is judged,
+/// in the author's list order (#4323: the list is the author's stated
+/// order, and nothing here sorts it away), the listed-first member as
+/// operand A. So the rows come out in that order, and where two pairs
+/// would refuse, the one the list reaches first is the one named.
 ///
 /// `judge(p, q, decls)` runs the pair verb on members `p` (operand A)
 /// and `q` (operand B) and hands back its record; this function decides
@@ -3244,11 +3310,15 @@ fn judge_pairwise_contact(
         usize,
         usize,
         BooleanDeclarations,
-    ) -> Result<topo::BooleanNaming, NodeErrorKind>,
-) -> Result<names::UnionLinks, NodeErrorKind> {
-    // The declared pairs between two DIFFERENT members, lesser node id
-    // first. `route_declarations` already sited these pairs through the
-    // same door, so a refusal here is a bug.
+    ) -> Result<
+        (topo::BooleanNaming, Vec<crate::coincide::NamedCoincidence>),
+        NodeErrorKind,
+    >,
+) -> Result<(names::UnionLinks, Vec<crate::coincide::NamedCoincidence>), NodeErrorKind> {
+    // The declared pairs between two DIFFERENT members, the member the
+    // author listed first as operand A. `route_declarations` already
+    // sited these pairs through the same door, so a refusal here is a
+    // bug.
     let site = |r: &SitedRef, reference: usize| {
         member_site(id, members, r, reference, doc).map_err(|_| {
             NodeErrorKind::Naming(names::NamingError::Emission {
@@ -3263,11 +3333,7 @@ fn judge_pairwise_contact(
         if i == j {
             continue;
         }
-        let (lo, hi) = if members[i] < members[j] {
-            (i, j)
-        } else {
-            (j, i)
-        };
+        let (lo, hi) = (i.min(j), i.max(j));
         let op = |k: usize| {
             if k == lo {
                 topo::Operand::A
@@ -3282,10 +3348,11 @@ fn judge_pairwise_contact(
         ));
     }
     let mut links = names::UnionLinks::default();
-    let mut by_id: Vec<usize> = (0..members.len()).collect();
-    by_id.sort_by_key(|&i| members[i]);
-    for (k, &p) in by_id.iter().enumerate() {
-        for &q in &by_id[k + 1..] {
+    let mut rows = Vec::new();
+    // Each pair once, in the author's list order (#4323: the list is
+    // the author's stated order; nothing here sorts it away).
+    for p in 0..members.len() {
+        for q in p + 1..members.len() {
             let pairs = between.remove(&(p, q)).unwrap_or_default();
             if pairs.is_empty() && !hulls[p].overlaps(&hulls[q]) {
                 continue;
@@ -3295,12 +3362,14 @@ fn judge_pairwise_contact(
             } else {
                 resolve_declarations(&pairs, doc, tables[p], tables[q])?
             };
+            let (naming, judged) = judge(p, q, decls)?;
             links
-                .judged(members[p], members[q], &judge(p, q, decls)?)
+                .judged(members[p], members[q], &naming)
                 .map_err(NodeErrorKind::Naming)?;
+            rows.extend(judged);
         }
     }
-    Ok(links)
+    Ok((links, rows))
 }
 
 /// A declared pair's site did not site in the pairwise judgement,
@@ -4679,7 +4748,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     // which crosses to `f64` only where the scalar IS `f64`
     // (`SectionScalar`); anywhere else it refuses typed rather than
     // placing on a fabricated point of the frame's bracket.
-    let frame = super::read_at(doc, crate::OperandSlot::Plane, program.plane)?;
+    let frame = super::read_at(doc, crate::OperandSlot::Frame, program.frame)?;
     let plane = match profile_plane_f64(results, id, frame)? {
         Some(authored) => authored,
         None => {

@@ -79,7 +79,7 @@ impl NameOrigin {
 }
 
 /// What one role segment says about the entity it names.
-pub(super) enum SegOrigin<'a> {
+pub(crate) enum SegOrigin<'a> {
     /// The entity existed in an operand; the name is its name there,
     /// and the [`CarriedAs`] says what the op did to it on the way.
     Carried(&'a StableName, CarriedAs),
@@ -92,7 +92,7 @@ pub(super) enum SegOrigin<'a> {
 /// **How an operand's entity was carried through** — the module docs'
 /// three ways, with what tells two carried copies of one entity apart.
 #[derive(Clone, Copy)]
-pub(super) enum CarriedAs {
+pub(crate) enum CarriedAs {
     /// Passed through whole from a primary operand (a boolean's `A`, a
     /// fillet's target): the body's own continuation.
     Primary,
@@ -112,7 +112,7 @@ pub(super) enum CarriedAs {
 
 /// Read the outermost segment's verdict — the whole classification,
 /// stated once (module docs).
-pub(super) fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
+pub(crate) fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
     match seg {
         // The name-free roles are the sweep, split and boolean
         // primitives: an entity born of the recipe rather than of an

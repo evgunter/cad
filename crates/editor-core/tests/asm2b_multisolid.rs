@@ -414,7 +414,7 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
 /// (the world placements are nodes of their own, and a part's names
 /// reach an instance under its placement's copy) with the volume bits
 /// and the solid count held.
-const SINGLE_SOLID_NAMES_DIGEST: u64 = 11_743_847_897_432_703_359;
+const SINGLE_SOLID_NAMES_DIGEST: u64 = 16_284_647_170_726_297_371;
 const SINGLE_SOLID_VOLUME_BITS: u64 = 4_611_686_018_427_387_904; // 2.0
 
 #[test]

@@ -215,6 +215,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             EditError::AmbiguousOutput {
                 input: s(3, "Split"),
                 slot: SlotId::Operand(pncad::document::OperandSlot::A),
+                ports: vec!["above", "below"],
             },
         ),
         (

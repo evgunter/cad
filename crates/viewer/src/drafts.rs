@@ -878,7 +878,7 @@ impl Drafts {
             };
             let frame = match doc.node(node) {
                 Some(Node::Profile(program)) => {
-                    doc.defined_by(program.plane).map(|(frame, _)| frame)
+                    doc.defined_by(program.frame).map(|(frame, _)| frame)
                 }
                 _ => None,
             };
@@ -1509,7 +1509,7 @@ mod tests {
         let (doc, profile) = inserted(
             &doc,
             Node::Profile(ProfileProgram {
-                plane: plane.into(),
+                frame: plane.into(),
                 loops: loops.clone(),
                 ids: Vec::new(),
             }),
@@ -1668,7 +1668,7 @@ mod tests {
             .profile_programs(Notation::DEFAULT)
             .expect("the default path lowers");
         let node = Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops,
             ids: Vec::new(),
         });
@@ -1785,7 +1785,7 @@ mod tests {
             .expect("finite"),
         ];
         let node = Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops,
             ids: Vec::new(),
         });

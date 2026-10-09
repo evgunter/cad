@@ -85,7 +85,7 @@ fn twin(doc: ProfileDoc, extrude: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
         panic!("{profile} is a block's profile")
     };
     let frame = doc
-        .operation_of(program.plane)
+        .operation_of(program.frame)
         .expect("the plane read is live");
     let authored = |doc: &ProfileDoc, id: RecipeNodeId| {
         doc.node(id)
@@ -96,7 +96,7 @@ fn twin(doc: ProfileDoc, extrude: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
     let (doc, frame) = insert(doc, node);
     let mut node = authored(&doc, profile);
     if let Node::Profile(program) = &mut node {
-        program.plane = frame.into();
+        program.frame = frame.into();
         program.ids = Vec::new();
     }
     let (doc, profile) = insert(doc, node);
@@ -354,6 +354,7 @@ fn ranked_reference_widens_to_the_tied_base_row() {
             fragment_groups: Arc::default(),
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(editor_core::CarriedDeclarations::default()),
+            coincidences: Arc::new([]),
             parts: 1,
             verdicts: Arc::new(vec![]),
             escalations: Arc::new(vec![]),
@@ -1508,6 +1509,7 @@ fn one_node_eval(
             fragment_groups: Arc::default(),
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(editor_core::CarriedDeclarations::default()),
+            coincidences: Arc::new([]),
             parts: 1,
             verdicts: Arc::new(vec![]),
             escalations: Arc::new(vec![]),

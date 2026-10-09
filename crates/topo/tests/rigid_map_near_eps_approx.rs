@@ -1,7 +1,8 @@
 //! **A rigid map does not refuse an `Approx` face the kernel minted.**
 //!
-//! An offset fit's `hull_sup` is a bound assembled from control-hull
-//! enclosures in the ambient frame, so a rotation moves it, and the
+//! An offset fit's `hull_sup` reads its vector upper bounds from
+//! coefficient norms, but its lower bounds and `X`'s enclosure width
+//! are assembled in the ambient frame, so a rotation moves it, and the
 //! fit loop stops at the first round that certifies, so a minted face
 //! can sit anywhere under ε. A face minted within the rotation's drift
 //! of ε therefore has an IMAGE that re-derives above ε. These rows
@@ -12,13 +13,21 @@
 //!
 //! **The subject is one shape at a scale.** Every rigid map commutes
 //! with a uniform scale about the origin, and so does the offset
-//! (`s·(S + d·n) = s·S + (s·d)·n`), so the round-0 fit of the patch
-//! scaled by `s` is the round-0 fit of the patch, scaled, and its bound
-//! is `s` times the patch's to rounding. Choosing `s` from the
-//! patch's own round-0 bound lands the minted face a fixed fraction
+//! (`s·(S + d·n) = s·S + (s·d)·n`), so every round's fit of the patch
+//! scaled by `s` is that round's fit of the patch, scaled, and its
+//! bound is `s` times the patch's to rounding. Choosing `s` from the
+//! patch's own round-[`ROUND`] bound, which is below every earlier
+//! round's, lands the minted face on that round a fixed fraction
 //! [`MARGIN`] under the run's ε at every eps row, with the same rigid
 //! drift at every row, which is what lets one row reproduce the
 //! refusal whatever ε the run committed.
+//!
+//! **The round is 2, not 0.** On the one-cell round-0 fit a rotation
+//! moves the bound by about `2e-5`, within a few times the scaling's
+//! own departure from linearity (`6e-6`), which leaves no margin both
+//! above the one and below the other. On round 2's 16 cells it moves
+//! it by up to `5.6e-4`/`7.7e-4` (`d = ±0.05`) and by as little as
+//! `−7e-5`, so a margin between those is a witness at every row.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -30,10 +39,19 @@ use geom_core::{Affine3, Band, Point3, Tol, Vec3};
 use topo::{Body, FaceKey, FaceSurface};
 
 /// How far under ε the minted face's bound is placed, as a fraction of
-/// ε. Well inside the drift the maps below produce on this shape (about
-/// half a percent), and well outside the rounding of the scaling
-/// itself (a few parts per million).
-const MARGIN: f64 = 1.0 / 512.0;
+/// ε. Inside the drift the worst maps below produce on this shape's
+/// round-[`ROUND`] fit (`5.6e-4` and more), outside the drift of the
+/// mildest ones (which is below zero), and well outside the scaling's
+/// own departure from linearity (a few parts per million).
+const MARGIN: f64 = 1.0 / 4096.0;
+
+/// The fit round the minted face certifies on (module docs).
+const ROUND: u32 = 2;
+
+/// A target the unscaled patch's round-[`ROUND`] fit meets and its
+/// earlier rounds do not (their bounds are `4.2e-11` and above, its
+/// own `1.27e-12`).
+const ROUND_TARGET: f64 = 1e-11;
 
 /// A gently bowed biquadratic patch over `[0,1]²`, scaled by `s` about
 /// the origin — a base whose offset is not a NURBS, so the fit has
@@ -58,25 +76,30 @@ fn bowed(s: f64) -> NurbsSurface<f64> {
 fn near_eps_face(d: f64) -> geom::ApproxSurface<f64> {
     let tol = Tol::witness();
     let eps = tol.eps();
-    // The unscaled patch's round-0 bound: the numeric-target door with
-    // a target every round-0 fit meets, so the loop stops there.
-    let (_, unscaled) =
-        geom_brep::offset_fit::fit_offset_at(&bowed(1.0), d, 1.0, Band::linear(tol).unwrap())
-            .unwrap();
+    // The unscaled patch's round-`ROUND` bound, through the
+    // numeric-target door.
+    let (_, unscaled) = geom_brep::offset_fit::fit_offset_at(
+        &bowed(1.0),
+        d,
+        ROUND_TARGET,
+        Band::linear(tol).unwrap(),
+    )
+    .unwrap();
     assert_eq!(
-        unscaled.rounds, 0,
-        "a target of a metre certifies at round 0"
+        unscaled.rounds, ROUND,
+        "the unscaled patch meets {ROUND_TARGET:e} on round {ROUND}"
     );
     let s = eps * (1.0 - MARGIN) / unscaled.hull_sup;
     let face = geom_brep::approx_offset_surface(Arc::new(bowed(s)), d * s, tol)
         .unwrap_or_else(|e| panic!("d = {d}: the scaled patch mints at the run's ε: {e}"));
     let c = face.certificate();
-    // The subject is what the file says it is: a round-0 face whose
-    // bound sits within twice the margin of ε. A scaled fit that
-    // refined, or landed elsewhere, makes every row below vacuous.
+    // The subject is what the file says it is: a round-`ROUND` face
+    // whose bound sits within twice the margin of ε. A scaled fit that
+    // stopped elsewhere makes every row below vacuous.
     assert!(
-        c.rounds == 0 && c.hull_sup <= eps && c.hull_sup >= eps * (1.0 - 2.0 * MARGIN),
-        "d = {d}: the minted face must sit just under ε — rounds {}, hull_sup/ε {}",
+        c.rounds == ROUND && c.hull_sup <= eps && c.hull_sup >= eps * (1.0 - 2.0 * MARGIN),
+        "d = {d}: the minted face must sit just under ε on round {ROUND} — rounds {}, \
+         hull_sup/ε {}",
         c.rounds,
         c.hull_sup / eps
     );

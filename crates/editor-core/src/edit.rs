@@ -154,7 +154,8 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// [`EditError::NameStepNeverMinted`], [`EditError::ReadSiteMissingNode`]),
     /// each site one of the node's operands
     /// ([`EditError::DeclaredSiteNotAnOperand`]), and each name minted
-    /// before the node ([`EditError::DeclaredNameNotUpstream`]). A node
+    /// by a node the declaring node reads, directly or through what it
+    /// reads ([`EditError::DeclaredNameNotUpstream`]). A node
     /// of any other kind refuses [`EditError::SetDeclareOnNonDeclaring`].
     SetDeclare {
         /// The Boolean or Union whose declaration is replaced.
@@ -1167,13 +1168,14 @@ fn lower_reads<P: crate::ProfilePayload>(
 }
 
 /// **One operand as the door writes it** (DM6): the variable `read`
-/// lowers to — a node named alone is its output in this seat, a port
+/// lowers to — a node named alone is its one output (spec Q5), a port
 /// spelled out is that port's, a variable by id or name is itself —
 /// refused unless it is live and of a kind the seat admits
-/// (`expected`). A node named alone is its first output, unless it has
-/// another of that kind ([`EditError::AmbiguousOutput`]); a part
-/// projection's selected half (`half`) names which of a split's two it
-/// reads, and a read of a split's other half refuses.
+/// (`expected`). A node with several outputs (a revolve's body and
+/// axis, a split's two halves) refuses the sugar
+/// ([`EditError::AmbiguousOutput`], naming its ports): the read spells
+/// its port. A part projection's selected half (`half`) refuses a read
+/// of the split's other half.
 fn lower_operand<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     spoken: &impl Fn() -> SpokenNode,
@@ -1189,34 +1191,32 @@ fn lower_operand<P: crate::ProfilePayload>(
     };
     let var = match read {
         crate::Operand::Node(id) => {
-            let Some(target) = doc.node(*id) else {
+            if doc.node(*id).is_none() {
                 return Err(EditError::UnresolvedInput {
                     input: SpokenNode::absent(*id),
                 });
-            };
-            let outputs = doc.outputs(*id);
-            let port = match (half, target) {
-                (Some(half), Node::Split { .. }) => usize::try_from(half.output_body())
-                    .unwrap_or_else(|_| unreachable!("a split has two ports")),
-                _ if outputs.is_empty() => {
+            }
+            match doc.outputs(*id).as_slice() {
+                [] => {
                     return Err(EditError::DefinesNothing {
                         input: doc.spoken(*id),
                         slot,
                     });
                 }
+                [one] => *one,
                 _ => {
-                    return doc.read_of_node(*id).map_or_else(
-                        || {
-                            Err(EditError::AmbiguousOutput {
-                                input: doc.spoken(*id),
-                                slot,
-                            })
-                        },
-                        |var| check_read(doc, spoken, slot, var, half, expected, unresolved),
-                    );
+                    return Err(EditError::AmbiguousOutput {
+                        input: doc.spoken(*id),
+                        slot,
+                        ports: doc
+                            .signature(*id)
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|(name, _)| name)
+                            .collect(),
+                    });
                 }
-            };
-            *outputs.get(port).ok_or_else(unresolved)?
+            }
         }
         crate::Operand::Output { node: id, port } => {
             if doc.node(*id).is_none() {
@@ -1232,41 +1232,6 @@ fn lower_operand<P: crate::ProfilePayload>(
     check_read(doc, spoken, slot, var, half, expected, unresolved)
 }
 
-/// **What is wrong with a live operand read, if anything**: the one rule
-/// the edit doors ([`check_read`]) and the load door ask, in one order —
-/// a kind the seat does not admit, a part over a split reading the half
-/// it does not select, then a read of a world placement's copy (D10:
-/// construction never reads the world).
-pub(crate) enum ReadFault {
-    /// The variable's kind is not the seat's.
-    Kind,
-    /// A part over a split reads the other half.
-    PartHalfPort(crate::SplitHalf),
-    /// The variable is this world placement's copy.
-    WorldCopy(RecipeNodeId),
-}
-
-/// [`ReadFault`]'s predicate over the live `held` variable a seat of
-/// kind `expected` reads; `half` is the half a part over a split selects.
-pub(crate) fn read_fault<P: crate::ProfilePayload>(
-    doc: &Doc<P>,
-    held: &crate::Var,
-    half: Option<crate::SplitHalf>,
-    expected: crate::SlotKind,
-) -> Option<ReadFault> {
-    if !expected.admits(held) {
-        return Some(ReadFault::Kind);
-    }
-    let (from, port) = held.def().output()?;
-    match (half, doc.node(from)) {
-        (Some(half), Some(Node::Split { .. })) if u32::from(port) != half.output_body() => {
-            Some(ReadFault::PartHalfPort(half))
-        }
-        (_, Some(Node::PlaceInWorld { .. })) => Some(ReadFault::WorldCopy(from)),
-        _ => None,
-    }
-}
-
 /// **The world placement a site `at` would read the copy of**, if any:
 /// a measure site there reads the pose, which only the gather and export
 /// read. The edit doors refuse it ([`EditError::MeasuresWorldCopy`]) and
@@ -1279,7 +1244,8 @@ pub(crate) fn world_copy_site<P: crate::ProfilePayload>(
 }
 
 /// [`lower_operand`]'s checks of the variable an operand resolved to:
-/// live, then [`read_fault`].
+/// live, and then [`Doc::read_fault`] — the load door's rule too —
+/// rendered in this module's vocabulary.
 fn check_read<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     spoken: &impl Fn() -> SpokenNode,
@@ -1292,21 +1258,21 @@ fn check_read<P: crate::ProfilePayload>(
     let Some(held) = doc.var(var) else {
         return Err(unresolved());
     };
-    match read_fault(doc, held, half, expected) {
+    match doc.read_fault(held, expected, half) {
         None => Ok(var),
-        Some(ReadFault::Kind) => Err(EditError::SlotVarKind {
+        Some(crate::doc::ReadFault::Kind { found }) => Err(EditError::SlotVarKind {
             var: Box::new(doc.spoken_var(var)),
             node: spoken(),
             slot,
-            found: held.kind(),
+            found,
             expected,
         }),
-        Some(ReadFault::PartHalfPort(half)) => Err(EditError::PartHalfPort {
+        Some(crate::doc::ReadFault::OtherHalf { half }) => Err(EditError::PartHalfPort {
             node: spoken(),
             half,
             var: Box::new(doc.spoken_var(var)),
         }),
-        Some(ReadFault::WorldCopy(placement)) => Err(EditError::ReadsWorldCopy {
+        Some(crate::doc::ReadFault::WorldCopy { placement }) => Err(EditError::ReadsWorldCopy {
             node: spoken(),
             slot,
             placement: doc.spoken(placement),
@@ -1737,13 +1703,16 @@ pub enum EditError {
         read: crate::Operand,
     },
     /// A read names a node by itself, and the node defines several
-    /// outputs the seat could read (a split's two halves): the read
+    /// outputs (a revolve's body and axis, a split's two halves): the
+    /// node-alone sugar is its one output only (spec Q5), so the read
     /// names its port ([`crate::Operand::Output`]).
     AmbiguousOutput {
         /// The node named.
         input: SpokenNode,
         /// The slot.
         slot: SlotId,
+        /// The node's ports, by name, in port order.
+        ports: Vec<&'static str>,
     },
     /// A read names a node that defines nothing to read: an
     /// assertion, a mate or a gauge.
@@ -1859,9 +1828,11 @@ pub enum EditError {
         /// The node the side is read at.
         site: SpokenNode,
     },
-    /// A declared pair's name is minted by the declaring node itself
-    /// or by a node downstream of it: a declaration names only what its
-    /// operands could hold ([`crate::DeclaredPair`]). Asked by the same
+    /// A declared pair's name is minted by a node the declaring node
+    /// does not read, directly or through what it reads — itself, a
+    /// node downstream of it, or one beside it: a declaration names
+    /// only what its operands could hold ([`crate::DeclaredPair`]),
+    /// decided by the read relation alone (D10). Asked by the same
     /// doors as [`EditError::DeclaredSiteNotAnOperand`].
     DeclaredNameNotUpstream {
         /// The node whose declaration it is.
@@ -1962,10 +1933,13 @@ pub enum EditError {
         node: SpokenNode,
         /// The reading slot.
         slot: SlotId,
-        /// The variable's kind.
+        /// The kind of the variable read.
         found: VarKind,
-        /// What the read there takes: for an expression, the kind of
-        /// the dimension it reads the variable at.
+        /// What the read there takes: at an operand, the slot's kind;
+        /// at an expression, the kind of the dimension its leaf reads
+        /// the variable at — the slot's own at the formula's root, and
+        /// the leaf's inside a function (`sin(w)` at a length slot
+        /// reads `w` as an angle).
         expected: crate::SlotKind,
     },
     /// A SLOT expression the edit writes reads a variable the document
@@ -3092,7 +3066,12 @@ impl EditError {
                 *placement = placement.respoken(doc);
             }
             Self::MeasuresWorldCopy { placement } => *placement = placement.respoken(doc),
-            Self::AmbiguousOutput { input, slot: _ } | Self::DefinesNothing { input, slot: _ } => {
+            Self::AmbiguousOutput {
+                input,
+                slot: _,
+                ports: _,
+            }
+            | Self::DefinesNothing { input, slot: _ } => {
                 *input = input.respoken(doc);
             }
             Self::AssertionTarget { node, measure }
@@ -3362,15 +3341,15 @@ impl EditError {
                     format_args!("read an output of {HELD_NODE}, by its node or its port"),
                 )
             }
-            Self::AmbiguousOutput { input, slot } => {
+            Self::AmbiguousOutput { input, slot, ports } => {
                 write!(
                     f,
-                    "{input} defines more than one output its {slot} could read"
+                    "{input} defines {} outputs ({}), so naming it alone does not say which its \
+                     {slot} reads",
+                    ports.len(),
+                    ports.join(", ")
                 )?;
-                tail.recourse(
-                    f,
-                    format_args!("name the port the {slot} reads (`Operand::Output`)"),
-                )
+                tail.recourse(f, format_args!("name the port the {slot} reads"))
             }
             Self::DefinesNothing { input, slot } => {
                 write!(f, "{input} defines nothing a {slot} could read")?;
@@ -5421,7 +5400,7 @@ fn check_node_inputs<P: crate::ProfilePayload>(
     id: RecipeNodeId,
     node: &Node<P>,
 ) -> Result<(), EditError> {
-    let Some(fault) = node.input_fault(|var| doc.operation_of(var)) else {
+    let Some(fault) = node.input_fault() else {
         return Ok(());
     };
     let subject = written(doc, id, node);
@@ -5493,7 +5472,7 @@ fn check_payload_refs<P: crate::ProfilePayload>(
     Ok(())
 }
 
-/// [`crate::node::declared_side_fault`] asked of the pairs `pairs` a
+/// [`crate::node::declared_side_fault`] asked of the sides `sides` a
 /// door writes onto `node`, refused typed. `carrier` speaks the node
 /// and `at` is its id (`None` for a node being inserted): every door
 /// that writes a pair asks this, so a pair no door admits is one no
@@ -5502,7 +5481,7 @@ fn check_declared_sides<'p, P: crate::ProfilePayload>(
     doc: &Doc<P>,
     new: &Doc<P>,
     node: &Node<P>,
-    pairs: impl IntoIterator<Item = &'p crate::DeclaredPair>,
+    sides: impl IntoIterator<Item = &'p crate::SitedRef>,
     carrier: impl Fn() -> SpokenNode,
     at: Option<RecipeNodeId>,
 ) -> Result<(), EditError> {
@@ -5513,18 +5492,19 @@ fn check_declared_sides<'p, P: crate::ProfilePayload>(
         .filter_map(|(_, read)| new.defined_by(read).map(|(site, _)| site))
         .collect();
     // A name its carrier's operands could hold is minted by a node the
-    // carrier does not itself feed — not the carrier, and not a node
-    // downstream of it — and one inserted before the carrier unless
-    // the carrier reads it (a member re-pointed forward). A node not
-    // yet inserted feeds nothing, and every live node precedes it.
-    let upstream = |minter: RecipeNodeId| {
-        at.is_none_or(|at| {
-            minter != at
-                && !crate::doc::strict_ancestors(new, minter).contains(&at)
-                && (minter < at || crate::doc::strict_ancestors(new, at).contains(&minter))
-        })
+    // carrier reads, directly or through what it reads (D10: reading is
+    // the only dependency, so no position decides it): the carrier's
+    // strict ancestors, or — for a node not yet inserted — the
+    // operations it reads and theirs.
+    let reach: std::collections::BTreeSet<RecipeNodeId> = match at {
+        Some(at) => crate::doc::strict_ancestors(new, at),
+        None => operands
+            .iter()
+            .flat_map(|&site| std::iter::once(site).chain(crate::doc::strict_ancestors(new, site)))
+            .collect(),
     };
-    match crate::node::declared_side_fault(pairs, Some(&operands), upstream) {
+    let upstream = |minter: RecipeNodeId| reach.contains(&minter);
+    match crate::node::declared_side_fault(sides, Some(&operands), upstream) {
         None => Ok(()),
         Some((side, crate::node::DeclaredSideFault::SiteNotAnOperand)) => {
             Err(EditError::DeclaredSiteNotAnOperand {
@@ -5542,10 +5522,97 @@ fn check_declared_sides<'p, P: crate::ProfilePayload>(
     }
 }
 
+/// What of a node a door writes ([`check_written_node`]).
+#[derive(Clone, Copy)]
+enum Writes {
+    /// The whole node (`InsertNode`): its payload is asked too.
+    Node,
+    /// Its reads only (the slot door at an operand): the payload it
+    /// leaves as it was is not asked again. A payload name a moved
+    /// read takes out of reach is reported, never refused
+    /// ([`Maintenance::Strand`] with [`Took::Reach`],
+    /// [`stranded_by_repoint`]), and one an earlier delete stranded
+    /// does not block the re-point that repairs its reader.
+    Reads,
+}
+
+/// **The checks every door that writes a node asks of it as it will
+/// stand** (DM6): `node` is `id`'s content after the edit, its reads
+/// lowered, judged against `new` before it is written there. One
+/// function, called by `InsertNode` of the node it mints and by the
+/// slot door ([`DocEdit::SetParam`] at an operand,
+/// [`DocEdit::SetMembers`]) of the node it rewrites, so no door admits
+/// a node another refuses:
+///
+/// - its payload's names and read sites live ([`check_payload_refs`])
+///   and its declared pairs ([`check_declared_sides`]), where the door
+///   writes the payload (`writes`);
+/// - DM5 and the list floor ([`check_node_inputs`]);
+/// - a gauge reference live and of a gauge ([`check_gauge_ref`]);
+/// - a decidable alignment, and a mate's frame offsets;
+/// - the variable every slot and payload expression reads, a measure's
+///   reference indices, and an assertion's bound against the dimension
+///   of the measure it reads ([`check_node_slots`]);
+/// - a profile program that replays under the current values.
+///
+/// Acyclicity is the document's, asked once the node is written.
+fn check_written_node<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    new: &Doc<P>,
+    id: RecipeNodeId,
+    node: &Node<P>,
+    writes: Writes,
+    tol: Tol,
+) -> Result<(), EditError> {
+    let spoken = || written(doc, id, node);
+    if let Writes::Node = writes {
+        check_payload_refs(doc, new, node)?;
+    }
+    check_node_inputs(doc, id, node)?;
+    if let Writes::Node = writes {
+        check_declared_sides(
+            doc,
+            new,
+            node,
+            crate::node::declared_sides(node.declared_pairs()),
+            spoken,
+            None,
+        )?;
+    }
+    // A gauge reference is a reading edge, as a mate's operand
+    // is: a never-live or wrong-kind one is a typo, refused here.
+    check_gauge_ref(new, id, node.gauge_ref(), spoken)?;
+    // ASM-R2a D-1, through `Node::has_non_finite_alignment` —
+    // the one place a node is asked whether its alignment datum
+    // is decidable, which the load door's walk asks too.
+    if node.has_non_finite_alignment() {
+        return Err(EditError::NonFiniteAlignment { node: spoken() });
+    }
+    // A mate's admission composes its frame offsets, so their literal
+    // steps meet the frame rule first, by the predicate the
+    // whole-document pass asks of every placement.
+    if let (Node::Mate { .. }, Some((at, fault))) = (node, node.placement_frame_fault(tol)) {
+        return Err(EditError::placement_frame(spoken(), at, fault));
+    }
+    check_node_slots(new, doc, id, node)?;
+    // The VQ9 authoring-time door (LIB-SWITCH §4d): a profile
+    // program resolves + replays + validates under the CURRENT param
+    // env, refusing typed here rather than at first evaluation.
+    if let Node::Profile(p) = node {
+        p.check(&new.var_env::<f64>(), tol).map_err(|refusal| {
+            EditError::ProfileProgramRefused {
+                node: spoken(),
+                refusal: Box::new(refusal),
+            }
+        })?;
+    }
+    Ok(())
+}
+
 /// **[`DocEdit::SetParam`] at an operand** (DM6): `read` lowered at
 /// the slot's kind — a placer's operand at the shape its output was
 /// minted with (VR3) — and written over the node's read, under every
-/// check the insert door makes of a node's reads ([`write_reads`]).
+/// check the insert door makes of a node ([`write_reads`]).
 fn set_operand<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     new: &mut Doc<P>,
@@ -5553,6 +5620,7 @@ fn set_operand<P: Clone + crate::ProfilePayload>(
     node: RecipeNodeId,
     slot: crate::OperandSlot,
     read: &crate::Operand,
+    tol: Tol,
 ) -> Result<EditRecord, EditError> {
     let Some(current) = new.nodes.get(&node) else {
         return Err(EditError::UnknownNode {
@@ -5565,13 +5633,7 @@ fn set_operand<P: Clone + crate::ProfilePayload>(
             slot: SlotId::Operand(slot),
         });
     }
-    let half = match current {
-        Node::Part {
-            select: crate::PartSelect::SplitHalf(half),
-            ..
-        } => Some(*half),
-        _ => None,
-    };
+    let half = current.selected_half();
     let expected = match (current, new.output(node, 0).and_then(|v| new.var(v))) {
         (Node::Transform { .. }, Some(output)) => crate::SlotKind::Is(output.kind()),
         _ => slot.kind(),
@@ -5584,15 +5646,15 @@ fn set_operand<P: Clone + crate::ProfilePayload>(
             *held = var;
         }
     }
-    write_reads(doc, new, reported, node, rewritten)
+    write_reads(doc, new, reported, node, rewritten, tol)
 }
 
 /// **The slot door's common half on an operand** (DM6: no edit infers
 /// a re-point): `rewritten` is the node `id` with the reads its edit
 /// named in full, each already lowered at its seat's kind
-/// ([`lower_operand`]). It passes the checks the insert door makes of a
-/// node's reads — DM5's distinctness and acyclicity over reads — and
-/// the root list follows the moved reads. The write reports, and never
+/// ([`lower_operand`]). It passes every check the insert door makes of
+/// a node ([`check_written_node`]) and acyclicity over reads, and the
+/// root list follows the moved reads. The write reports, and never
 /// refuses, the payload names it strands: a name whose minting node is
 /// no longer upstream of the node that carries it
 /// ([`Maintenance::Strand`] with [`Took::Reach`]).
@@ -5602,8 +5664,9 @@ fn write_reads<P: crate::ProfilePayload>(
     reported: &mut Vec<Maintenance>,
     id: RecipeNodeId,
     rewritten: Node<P>,
+    tol: Tol,
 ) -> Result<EditRecord, EditError> {
-    check_node_inputs(doc, id, &rewritten)?;
+    check_written_node(doc, new, id, &rewritten, Writes::Reads, tol)?;
     new.nodes.insert(id, rewritten);
     check_acyclic(new)?;
     reported.extend(stranded_by_repoint(doc, new, id));
@@ -6067,7 +6130,6 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
             found,
         });
     }
-    check_payload_refs(doc, new, node)?;
     // N1: the node's id is minted from the document's mint
     // chain, extended by the node as the edit states it, and
     // then every authored step's, from the same chain. Minting
@@ -6075,49 +6137,7 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
     // leaves the document's untouched.
     let mut mint = new.mint.clone();
     let id = mint.insert(node);
-    check_node_inputs(doc, id, node)?;
-    check_declared_sides(
-        doc,
-        new,
-        node,
-        node.declared_pairs(),
-        || SpokenNode::entering(id, node),
-        None,
-    )?;
-    // A gauge reference is a reading edge, as a mate's operand
-    // is: a never-live or wrong-kind one is a typo, refused here.
-    check_gauge_ref(new, id, node.gauge_ref(), || SpokenNode::entering(id, node))?;
-    // ASM-R2a D-1, through `Node::has_non_finite_alignment` —
-    // the one place a node is asked whether its alignment datum
-    // is decidable, which the load door's walk asks too.
-    if node.has_non_finite_alignment() {
-        return Err(EditError::NonFiniteAlignment {
-            node: SpokenNode::entering(id, node),
-        });
-    }
-    // A mate's admission below composes its frame offsets, so their
-    // literal steps meet the frame rule first, by the predicate the
-    // whole-document pass asks of every placement.
-    if let (Node::Mate { .. }, Some((at, fault))) = (node, node.placement_frame_fault(tol)) {
-        return Err(EditError::placement_frame(
-            SpokenNode::entering(id, node),
-            at,
-            fault,
-        ));
-    }
-    check_node_slots(new, doc, id, node)?;
-    // The VQ9 authoring-time door (LIB-SWITCH §4d): a profile
-    // program entering the document resolves + replays +
-    // validates under the CURRENT param env, refusing typed
-    // here rather than at first evaluation.
-    if let Node::Profile(p) = node {
-        p.check(&new.var_env::<f64>(), tol).map_err(|refusal| {
-            EditError::ProfileProgramRefused {
-                node: SpokenNode::entering(id, node),
-                refusal: Box::new(refusal),
-            }
-        })?;
-    }
+    check_written_node(doc, new, id, node, Writes::Node, tol)?;
     let entering = SpokenNode::entering(id, node);
     let mut node = node.clone();
     if let Node::Profile(p) = &mut node {
@@ -6250,7 +6270,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             if !rewritten.set_list_input(list) {
                 unreachable!("a union and a loft hold a list")
             }
-            write_reads(doc, new, reported, *node, rewritten)?
+            write_reads(doc, new, reported, *node, rewritten, tol)?
         }
         DocEdit::SetDeclare { node, pairs } => {
             let mut rewritten = match new.nodes.get(node) {
@@ -6276,7 +6296,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 doc,
                 new,
                 &rewritten,
-                pairs,
+                crate::node::declared_sides(pairs),
                 || doc.spoken(*node),
                 Some(*node),
             )?;
@@ -6404,7 +6424,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     if !fresh.is_empty() {
                         return Err(EditError::FreshUnread { index: 0 });
                     }
-                    return set_operand(doc, new, reported, *node, *operand, read);
+                    return set_operand(doc, new, reported, *node, *operand, read, tol);
                 }
                 (_, SlotValue::Formula(formula)) => std::borrow::Cow::Borrowed(formula),
                 // A read at a scalar slot is the formula of the one
@@ -6756,18 +6776,19 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     redeclared.push((id, before));
                 }
             }
-            // A rewritten declared pair is one this door writes, so it
-            // answers the rule every such door asks — of the pairs the
-            // rebind moved only, so a strand a union already held does
-            // not block an unrelated repair.
+            // A rewritten declared side is one this door writes, so it
+            // answers the rule every such door asks — of the sides the
+            // rebind moved only, so a strand a union already held, even
+            // the other side of a pair it rewrites, does not block an
+            // unrelated repair.
             for (id, before) in redeclared {
                 let Some(node) = new.nodes.get(&id) else {
                     continue;
                 };
-                let moved = node
-                    .declared_pairs()
-                    .iter()
-                    .filter(|pair| !before.contains(pair));
+                let moved = crate::node::declared_sides(node.declared_pairs())
+                    .zip(crate::node::declared_sides(&before))
+                    .filter(|(after, was)| after != was)
+                    .map(|(after, _)| after);
                 check_declared_sides(doc, new, node, moved, || doc.spoken(id), Some(id))?;
             }
             // Appearance keys are rebind sites (the attribute rides

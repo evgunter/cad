@@ -42,7 +42,7 @@ fn circle_doc(r: f64) -> ProfileDoc {
     doc.apply(
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                plane: doc.ids()[0].into(),
+                frame: doc.ids()[0].into(),
                 loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
                 ids: Vec::new(),
             })),
@@ -281,7 +281,7 @@ fn define_var_never_refuses_for_downstream_profiles() {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
-                    plane: doc.ids()[0].into(),
+                    frame: doc.ids()[0].into(),
                     loops: vec![LoopProgram::Circle {
                         centre: [len(0.0), len(0.0)],
                         radius: Formula::named(VarName::from_static("r"), Dimension::Length),
@@ -348,7 +348,7 @@ fn insert_node_checks_program_dimensions() {
         .unwrap()
         .doc;
     let bad = ProfileProgram {
-        plane: doc.ids()[0].into(),
+        frame: doc.ids()[0].into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), len(0.0)],
             // An Angle where the Radius role demands Length.
@@ -458,7 +458,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
             arg: arrival,
         };
         let mut program: ProfileNode = Node::Profile(ProfileProgram {
-            plane: doc.ids()[0].into(),
+            frame: doc.ids()[0].into(),
             loops: vec![LoopProgram::Chain(vec![
                 ProgramStep::At([len(0.0), len(0.0)]),
                 ProgramStep::ArcFilletArc {
@@ -610,7 +610,7 @@ fn datum_shapes() -> Vec<Datum<Formula>> {
             position: [len(0.0), len(0.0), len(0.0)],
         },
         Datum::AxisInPlane {
-            plane: nid(0).into(),
+            frame: nid(0).into(),
             origin: [len(0.0), len(0.0)],
             direction: [scl(1.0), scl(0.0)],
         },

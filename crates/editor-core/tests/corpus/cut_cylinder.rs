@@ -36,7 +36,7 @@ pub fn document() -> CorpusDoc {
     let disc = LoopProgram::circle(0.0, 0.0, 0.5).unwrap();
     let plane = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![disc],
         ids: Vec::new(),
     }));

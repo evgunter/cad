@@ -389,7 +389,7 @@ fn p7_a_holed_designated_face_mints_a_hole_rim() {
     .unwrap();
     let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![outer, hole],
         ids: Vec::new(),
     }));

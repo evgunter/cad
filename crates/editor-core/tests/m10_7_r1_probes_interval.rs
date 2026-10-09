@@ -395,7 +395,7 @@ fn bracket_with(
         ])
     };
     let plate_profile = r.insert(Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![plate_loop],
         ids: Vec::new(),
     }));
@@ -406,7 +406,7 @@ fn bracket_with(
     });
     let hole = |r: &mut Recorder, cx: Formula| {
         let profile = r.insert(Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [cx, len(0.0)],
                 radius: div(w(), 16.0),

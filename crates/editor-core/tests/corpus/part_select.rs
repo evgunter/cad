@@ -100,11 +100,11 @@ pub fn document() -> CorpusDoc {
         tool: tool.into(),
     });
     let above = r.insert(Node::Part {
-        of: split.into(),
+        of: editor_core::Operand::output(split, SplitHalf::Above.port()),
         select: PartSelect::SplitHalf(SplitHalf::Above),
     });
     let below = r.insert(Node::Part {
-        of: split.into(),
+        of: editor_core::Operand::output(split, SplitHalf::Below.port()),
         select: PartSelect::SplitHalf(SplitHalf::Below),
     });
     // The two halves rest on each other across the section — a

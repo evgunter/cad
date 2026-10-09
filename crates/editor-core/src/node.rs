@@ -992,11 +992,11 @@ pub enum Datum<S: Slot = crate::VarId> {
     /// always expressible here — and here it is expressible only in
     /// the ways that are legal.
     AxisInPlane {
-        /// The frame this axis lives in ([`crate::OperandSlot::Plane`]),
-        /// read exactly as a profile's plane is: the frame is the
+        /// The frame this axis lives in ([`crate::OperandSlot::Frame`]),
+        /// read exactly as a profile's frame is: the frame is the
         /// meaning of the two coordinate pairs below, so an axis
         /// without it is four numbers about nothing.
-        plane: S::Read,
+        frame: S::Read,
         /// A point on the axis, in the frame's 2-D coordinates —
         /// Length, [`SlotId::Origin`]`(X | Y)`. There is no `Z` slot:
         /// the third coordinate of a point in a plane is not a number
@@ -2989,7 +2989,7 @@ macro_rules! node_rows {
             // X and Y only: the frame supplies the third coordinate,
             // and a slot for it would be a number nobody may set.
             Node::Datum(Datum::AxisInPlane {
-                plane: _,
+                frame: _,
                 origin,
                 direction,
             }) => {
@@ -3271,15 +3271,15 @@ pub(crate) enum DeclaredSideFault {
     /// The side is read at a node that is not one of the carrier's
     /// operands, so the carrier has no table to read its name in.
     SiteNotAnOperand,
-    /// The side's name is minted by the carrier itself, by a node
-    /// downstream of it, or by a node inserted after it that it does
-    /// not read — an entity the carrier's operands cannot hold.
+    /// The side's name is minted by a node the carrier does not read,
+    /// directly or through what it reads — an entity the carrier's
+    /// operands cannot hold.
     NameNotUpstream,
 }
 
-/// **The first side of `pairs` its carrier cannot carry**, and why:
-/// the one rule the insert door, `SetDeclare`, `Rebind` and the load
-/// door ask of a declared pair ([`DeclaredPair`]).
+/// **The first of `sides` its carrier cannot carry**, and why: the one
+/// rule the insert door, `SetDeclare`, `Rebind` and the load door ask of
+/// a declared pair's sides ([`DeclaredPair`], [`declared_sides`]).
 ///
 /// `operands` are the nodes whose outputs the carrier reads, or `None`
 /// where the sites are not this caller's to judge — the load door's,
@@ -3290,19 +3290,24 @@ pub(crate) enum DeclaredSideFault {
 /// rule's to judge: the doors that write a name refuse a dead minter
 /// before they ask this.
 pub(crate) fn declared_side_fault<'p>(
-    pairs: impl IntoIterator<Item = &'p DeclaredPair>,
+    sides: impl IntoIterator<Item = &'p SitedRef>,
     operands: Option<&[RecipeNodeId]>,
     upstream: impl Fn(RecipeNodeId) -> bool,
 ) -> Option<(&'p SitedRef, DeclaredSideFault)> {
-    pairs
-        .into_iter()
-        .flat_map(|((one, two), _)| [one, two])
-        .find_map(|side| {
-            if operands.is_some_and(|operands| !operands.contains(&side.at)) {
-                return Some((side, DeclaredSideFault::SiteNotAnOperand));
-            }
-            (!upstream(side.name.node)).then_some((side, DeclaredSideFault::NameNotUpstream))
-        })
+    sides.into_iter().find_map(|side| {
+        if operands.is_some_and(|operands| !operands.contains(&side.at)) {
+            return Some((side, DeclaredSideFault::SiteNotAnOperand));
+        }
+        (!upstream(side.name.node)).then_some((side, DeclaredSideFault::NameNotUpstream))
+    })
+}
+
+/// The sides of `pairs`, in order: each pair's first side, then its
+/// second.
+pub(crate) fn declared_sides<'p>(
+    pairs: impl IntoIterator<Item = &'p DeclaredPair>,
+) -> impl Iterator<Item = &'p SitedRef> {
+    pairs.into_iter().flat_map(|((one, two), _)| [one, two])
 }
 
 /// Declared pairs that each assert the CONFORMAL class.
@@ -3441,10 +3446,10 @@ impl<P> Node<P> {
         };
         match self {
             Node::Datum(Datum::AxisInPlane {
-                plane,
+                frame: plane,
                 origin: _,
                 direction: _,
-            }) => vec![(O::Plane, *plane)],
+            }) => vec![(O::Frame, *plane)],
             Node::Datum(Datum::FaceFrame { at, face: _, spin: _ }) => vec![(O::At, *at)],
             Node::Datum(
                 Datum::Plane {
@@ -3483,7 +3488,7 @@ impl<P> Node<P> {
             // A measure's references are sited names
             // ([`Node::measure_sites`]), not operands.
             | Node::Measure { expr: _, refs: _ } => Vec::new(),
-            Node::Profile(p) => p.plane_read().map(|r| (O::Plane, r)).into_iter().collect(),
+            Node::Profile(p) => p.frame_read().map(|r| (O::Frame, r)).into_iter().collect(),
             Node::Assertion {
                 measure,
                 bound: _,
@@ -3587,43 +3592,156 @@ impl<P> Node<P> {
                 .map(|(i, r)| (at(u32::try_from(i).unwrap_or(u32::MAX)), r))
                 .collect()
         }
+        // Every field named, as `operand_rows` names it: a field added
+        // to a node does not compile until it is stated here too, so
+        // the writable twin cannot fall behind the reading one.
         match self {
-            Node::Datum(Datum::AxisInPlane { plane, .. }) => vec![(O::Plane, plane)],
-            Node::Datum(Datum::FaceFrame { at, .. }) => vec![(O::At, at)],
-            Node::Datum(_)
-            | Node::Mate { .. }
-            | Node::InstantiatePart { .. }
-            | Node::Gauge { .. }
-            | Node::Measure { .. } => Vec::new(),
+            Node::Datum(Datum::AxisInPlane {
+                frame: plane,
+                origin: _,
+                direction: _,
+            }) => vec![(O::Frame, plane)],
+            Node::Datum(Datum::FaceFrame {
+                at,
+                face: _,
+                spin: _,
+            }) => vec![(O::At, at)],
+            Node::Datum(
+                Datum::Plane {
+                    origin: _,
+                    normal: _,
+                }
+                | Datum::Axis {
+                    origin: _,
+                    direction: _,
+                }
+                | Datum::Point { position: _ }
+                | Datum::Frame {
+                    origin: _,
+                    u: _,
+                    v: _,
+                },
+            )
+            | Node::Mate {
+                a: _,
+                b: _,
+                class: _,
+                alignment: _,
+            }
+            | Node::InstantiatePart {
+                doc_ref: _,
+                interface: _,
+                gauge: _,
+                offset: _,
+            }
+            | Node::Gauge {
+                parent: _,
+                placement: _,
+            }
+            | Node::Measure { expr: _, refs: _ } => Vec::new(),
             Node::Profile(p) => p
-                .plane_read_mut()
-                .map(|r| (O::Plane, r))
+                .frame_read_mut()
+                .map(|r| (O::Frame, r))
                 .into_iter()
                 .collect(),
-            Node::Assertion { measure, .. } => vec![(O::Measure, measure)],
-            Node::Extrude { profile, .. } => vec![(O::Profile, profile)],
-            Node::Revolve { profile, axis, .. } => vec![(O::Profile, profile), (O::Axis, axis)],
-            Node::Tube { frame, .. } | Node::HollowTube { frame, .. } => vec![(O::Frame, frame)],
-            Node::Loft { profiles, .. } => listed(O::Section, profiles),
-            Node::Sweep { profile, path, .. } => vec![(O::Profile, profile), (O::Path, path)],
-            Node::Fillet { target, .. }
-            | Node::Chamfer { target, .. }
-            | Node::Shell { target, .. } => {
-                vec![(O::Target, target)]
+            Node::Assertion {
+                measure,
+                bound: _,
+                dir: _,
+            } => vec![(O::Measure, measure)],
+            Node::Extrude {
+                profile,
+                distance: _,
+                side: _,
+            } => vec![(O::Profile, profile)],
+            Node::Revolve {
+                profile,
+                axis,
+                angle: _,
+            } => vec![(O::Profile, profile), (O::Axis, axis)],
+            Node::Tube {
+                frame,
+                major_radius: _,
+                window: _,
+                minor_radius: _,
             }
+            | Node::HollowTube {
+                frame,
+                major_radius: _,
+                window: _,
+                minor_radius: _,
+                wall: _,
+            } => vec![(O::Frame, frame)],
+            Node::Loft {
+                profiles,
+                v_degree: _,
+            } => listed(O::Section, profiles),
+            Node::Sweep {
+                profile,
+                path,
+                stations: _,
+                v_degree: _,
+            } => vec![(O::Profile, profile), (O::Path, path)],
+            Node::Fillet {
+                target,
+                radius: _,
+                selection: _,
+            }
+            | Node::Chamfer {
+                target,
+                distance: _,
+                selection: _,
+            }
+            | Node::Shell {
+                target,
+                thickness: _,
+                open: _,
+            } => vec![(O::Target, target)],
             Node::Split { target, tool } => vec![(O::Target, target), (O::Tool, tool)],
-            Node::Boolean { a, b, .. } => vec![(O::A, a), (O::B, b)],
-            Node::Union { members, .. } => listed(O::Member, members),
-            Node::Transform { input, .. } => vec![(O::Input, input)],
-            Node::PlaceInWorld { body, .. } => vec![(O::Body, body)],
-            Node::Part { of, .. } => vec![(O::Of, of)],
-            Node::Pattern { input, kind, .. } | Node::PlacedUnion { input, kind, .. } => {
+            Node::Boolean {
+                op: _,
+                a,
+                b,
+                declare: _,
+            } => vec![(O::A, a), (O::B, b)],
+            Node::Union {
+                members,
+                declare: _,
+            } => listed(O::Member, members),
+            Node::Transform {
+                input,
+                placement: _,
+            } => vec![(O::Input, input)],
+            Node::PlaceInWorld { body, pose: _ } => vec![(O::Body, body)],
+            Node::Part { of, select: _ } => vec![(O::Of, of)],
+            Node::Pattern {
+                input,
+                count: _,
+                kind,
+            }
+            | Node::PlacedUnion {
+                input,
+                count: _,
+                kind,
+            } => {
                 let mut v = vec![(O::Input, input)];
-                if let PatternKind::Circular { axis, .. } = kind {
+                if let PatternKind::Circular { axis, step: _ } = kind {
                     v.push((O::Axis, axis));
                 }
                 v
             }
+        }
+    }
+
+    /// **The half a part projection over a split selects**: `None` for
+    /// every other node.
+    pub(crate) fn selected_half(&self) -> Option<crate::SplitHalf> {
+        match self {
+            Node::Part {
+                select: crate::PartSelect::SplitHalf(half),
+                ..
+            } => Some(*half),
+            _ => None,
         }
     }
 
@@ -3695,14 +3813,15 @@ impl<P> Node<P> {
     /// construction door establishes.
     ///
     /// Structural rules over the node's own content rather than a rule
-    /// per node kind, and ONE definition with three callers:
-    /// `InsertNode`,
-    /// [`crate::DocEdit::SetMembers`] on the rewritten node, and the
-    /// load door's `validate_document`. The two edit doors render it in
+    /// per node kind, and ONE definition with two callers: the edit
+    /// doors' per-node checks (`InsertNode`, and
+    /// [`crate::DocEdit::SetParam`] at an operand and
+    /// [`crate::DocEdit::SetMembers`] on the rewritten node), and the
+    /// load door's `validate_document`. The edit doors render it in
     /// [`crate::EditError`]'s vocabulary and the load door in
     /// `SnapshotError`'s, because a refusal names the door it came
     /// from — but the question is asked in exactly one place, which is
-    /// what stops the three from drifting.
+    /// what stops them from drifting.
     ///
     /// The order is deliberate. The list's floor answers first, so a
     /// one-entry list is reported as short rather than as whatever its
@@ -3716,16 +3835,17 @@ impl<P> Node<P> {
     /// EVERY node kind — not only the union, the list-input kinds and
     /// the boolean. That is wider than DM5's text, and deliberately:
     ///
-    /// - The duplicate clause is over the same input NODE: one node id
-    ///   at two seats of any kind. It is not a claim about the bodies
-    ///   those seats evaluate to. Two distinct nodes that evaluate to
-    ///   one body (two `Part`s of one split half) are admitted, and the
-    ///   boolean answers them (`A ∪ A = A`, `A − A` empty). The one kind
-    ///   that could plausibly want a repeat is
-    ///   [`Node::Measure`], and it does not: its edges come from the
-    ///   measurement's own node set, which DEDUPS before `inputs`
-    ///   returns, so a measurement over one body twice presents one
-    ///   edge here and is untouched by this rule.
+    /// - The duplicate clause is over the same VARIABLE: one variable
+    ///   read at two seats of any kind (D10: a read is of a variable).
+    ///   It is not a claim about the bodies those seats evaluate to,
+    ///   nor about the operations that define them: two outputs of one
+    ///   operation are two variables (a split's two halves in one
+    ///   union, a revolve's body patterned about its own axis), and two
+    ///   reads that evaluate to one body (two `Part`s of one split
+    ///   half) are admitted, the boolean answering them (`A ∪ A = A`,
+    ///   `A − A` empty). A measure's sited references are not reads
+    ///   ([`Node::measure_sites`]), so a measurement over one body
+    ///   twice is untouched by this rule.
     /// - The floor clause only ever fires where [`Node::list_input`]
     ///   answers `Some`, which is [`Node::Union`] and [`Node::Loft`].
     ///   For the loft this is NEW — a one-section loft was accepted
@@ -3742,14 +3862,7 @@ impl<P> Node<P> {
     ///   and there is nothing to generalize. What is general is that
     ///   each is asked HERE, so the form a construction door
     ///   establishes is the form every door admits.
-    ///
-    /// Distinctness is over the operations the reads name
-    /// (`operation_of`; a read it cannot place is its own key): two
-    /// outputs of one operation are one node reached twice.
-    pub fn input_fault(
-        &self,
-        operation_of: impl Fn(VarId) -> Option<RecipeNodeId>,
-    ) -> Option<InputFault>
+    pub fn input_fault(&self) -> Option<InputFault>
     where
         P: crate::ProfilePayload,
     {
@@ -3762,7 +3875,7 @@ impl<P> Node<P> {
         if let Some((_, input)) = self
             .operand_rows()
             .into_iter()
-            .find(|(_, input)| !seen.insert(operation_of(*input).ok_or(*input)))
+            .find(|(_, input)| !seen.insert(*input))
         {
             return Some(InputFault::Duplicate { input });
         }
@@ -4181,11 +4294,11 @@ impl<S: Slot> Datum<S> {
                 v: map_array(v, f)?,
             },
             Datum::AxisInPlane {
-                plane,
+                frame: plane,
                 origin,
                 direction,
             } => Datum::AxisInPlane {
-                plane: read(crate::OperandSlot::Plane, plane)?,
+                frame: read(crate::OperandSlot::Frame, plane)?,
                 origin: map_array(origin, f)?,
                 direction: map_array(direction, f)?,
             },

@@ -58,7 +58,7 @@ fn loft_doc(nominal: f64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, lower) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: lower_frame.into(),
+            frame: lower_frame.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [fixture::len(0.0), fixture::len(0.0)],
                 radius: Formula::named(p(), Dimension::Length),
@@ -73,7 +73,7 @@ fn loft_doc(nominal: f64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, upper) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: upper_frame.into(),
+            frame: upper_frame.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [fixture::len(0.0), fixture::len(0.0)],
                 radius: fixture::len(1.0),

@@ -157,13 +157,13 @@
 //! and said so at the end.
 //!
 //! **A door builds the operand, and `shell` reaches the refusal:** the
-//! tangency arm of [`ReplaceFaceError::TogetherAxialCorner`] (the
-//! bullet); the meridian-pair arm's parallel-caps refusal (the
-//! half-turn lune) and its tangent-or-miss refusal (the narrow 20°
-//! lune, whose moved caps' meeting line stands `t/sin 10° ≈ 0.288`
-//! from the axis, past the shrunk circle's `r − t = 0.25`) — both
-//! `torax_axial`; `TogetherNotAxial`'s oblique-plane arm;
-//! `TogetherEdgeDisagreement` (`sf2b_r1_probes`, `sf2b_r2_probes`,
+//! two-root tie of [`ReplaceFaceError::TogetherAxialCorner`] ([`tie`];
+//! the opened tangent dome's lift, `shell_curved_mouth`); the
+//! meridian-pair arm's parallel-caps refusal (the half-turn lune) and
+//! its tangent-or-miss refusal (the narrow 20° lune, whose moved caps'
+//! meeting line stands `t/sin 10° ≈ 0.288` from the axis, past the
+//! shrunk circle's `r − t = 0.25`) — both `torax_axial`;
+//! `TogetherNotAxial`'s oblique-plane arm; `TogetherEdgeDisagreement` (`sf2b_r1_probes`, `sf2b_r2_probes`,
 //! and `shell7_seam_corner`'s three-quarter-turn cone frustum); the
 //! window's no-forward-window refusal (`sf2b_r1_probes::r1p2`'s sliver
 //! wedge, whose moved meridian planes cross outside the shrunk wall,
@@ -184,6 +184,15 @@
 //! klein elbow's equator seams (`torax_axial`, `verbs_shell`,
 //! `shell7_seam_corner`, `torax_interval`) and the two-arc lune's,
 //! which certifies at the attach layer (`torax_axial`).
+//!
+//! **The near-tangent arms have door-built rows**, all on a dome over a
+//! cylinder (`shell_curved_mouth`, `sf2b_axial`): [`branch`]'s side of
+//! the foot (a cap short of tangent by `1e-12`, whose roots tie), and
+//! [`tangent_foot`] (the tangent dome, whose roots tie on the foot
+//! itself, and the tangent bullet, too ill-conditioned to solve). The
+//! profile solve's own refusal for a pair that is nearly tangent outside
+//! the band, parallel, or missing has none
+//! (`work/shell/axial-corner-nearly-tangent-refusal-has-no-row.md`).
 //!
 //! **The carried arms themselves have door-built rows**: a full tube's
 //! seam vertex (torus circle), a drum's collinear wall vertex
@@ -1395,14 +1404,22 @@ fn solve_corner<T: Decide>(
     }
 
     // ---- The profile solve: the first well-conditioned PAIR, in the
-    // order the vertex's own fan is walked. The conditioning arm is the
-    // corner's OWN edge chords — the solve amplifies each surface's ε by
-    // 1/|det|, and the question is whether that stays below a length at
-    // which this is still a corner. Levering by the offset instead would
-    // make the verdict a statement about the request wearing the words
-    // of a statement about the geometry. ----
+    // order the vertex's own fan is walked, whose branch is determined
+    // ([`branch`]: the nearest root, or on a tie the old corner's side of
+    // the pair's foot). The conditioning arm is the corner's OWN edge
+    // chords — the solve amplifies each surface's ε by 1/|det|, and the
+    // question is whether that stays below a length at which this is
+    // still a corner. Levering by the offset instead would make the
+    // verdict a statement about the request wearing the words of a
+    // statement about the geometry. A tangent pair whose roots the solve
+    // cannot tell apart — too ill-conditioned to resolve, or tied on the
+    // foot itself — names its foot ([`tangent_foot`]), the answer only
+    // when no pair resolves; a tangency the band cannot decide escalates
+    // only then too, so the outcome does not hang on the order the fan
+    // is walked. ----
     let mut solved: Option<(T, T)> = carried;
     if solved.is_none() {
+        let mut tangent: Option<Result<(T, T), ReplaceFaceError<T>>> = None;
         'pairs: for (i, a) in profiles.iter().enumerate() {
             for b in profiles.iter().skip(i + 1) {
                 let Some(det) = transversality(a, b) else {
@@ -1419,17 +1436,31 @@ fn solve_corner<T: Decide>(
                         Err(source) => return Err(ReplaceFaceError::Escalated { source }),
                     }
                 }
-                if resolvable {
-                    solved = Some(nearest(&roots(a, b, det), rho_old, h_old, vertex, band)?);
+                if resolvable && let Some(root) = branch(a, b, det, rho_old, h_old, band)? {
+                    solved = Some(root);
                     break 'pairs;
                 }
+                match tangent_foot(a, b, band) {
+                    Ok(Some(foot)) => {
+                        tangent.get_or_insert(Ok(foot));
+                    }
+                    Ok(None) if resolvable => return Err(tie(vertex)),
+                    Ok(None) => {}
+                    Err(e) => {
+                        tangent.get_or_insert(Err(e));
+                    }
+                }
             }
+        }
+        if solved.is_none() {
+            solved = tangent.transpose()?;
         }
     }
     let (rho, h) = solved.ok_or_else(|| {
         refuse(
             "no pair of the surfaces here meets transversally enough to resolve this corner \
-             against the edges that end at it — they are tangent, parallel, or they miss",
+             against the edges that end at it — they are nearly tangent, parallel, or they \
+             miss",
         )
     })?;
     match decide("offset_axial_radius", Margin::of(rho), band) {
@@ -1658,20 +1689,36 @@ fn cap_pair_corner<T: Decide>(
     };
     let det = transversality(&wall, circle)
         .unwrap_or_else(|| unreachable!("a line and a circle always have a transversality"));
+    let mut resolvable = true;
     for &arm in arms {
         match decide("offset_axial_corner", Margin::levered(det.abs(), arm), band) {
             Ok(Sign::Positive) => {}
             Ok(_) => {
-                return Err(refuse(
-                    "the moved caps' meeting line does not cross the profile circle \
-                     transversally against the edges that end here — it is tangent, or it \
-                     misses the circle",
-                ));
+                resolvable = false;
+                break;
             }
             Err(source) => return Err(ReplaceFaceError::Escalated { source }),
         }
     }
-    let (rho, h) = nearest(&roots(&wall, circle, det), rho_old, h_old, vertex, band)?;
+    let nearest_root = if resolvable {
+        branch(&wall, circle, det, rho_old, h_old, band)?
+    } else {
+        None
+    };
+    // A tangent meeting the solve cannot resolve, or whose roots tie,
+    // is answered by its foot ([`tangent_foot`]).
+    let (rho, h) = match (nearest_root, tangent_foot(&wall, circle, band)?) {
+        (Some(root), _) => root,
+        (None, Some(foot)) => foot,
+        (None, None) if resolvable => return Err(tie(vertex)),
+        (None, None) => {
+            return Err(refuse(
+                "the moved caps' meeting line does not cross the profile circle \
+                 transversally against the edges that end here — it is nearly tangent, or it \
+                 misses the circle",
+            ));
+        }
+    };
     match decide("offset_axial_radius", Margin::of(rho), band) {
         Ok(Sign::Positive) => {}
         Ok(_) => return Err(refuse("the solved corner is on or across the axis")),
@@ -1728,21 +1775,63 @@ fn transversality<T: Real>(a: &Profile<T>, b: &Profile<T>) -> Option<T> {
             // angle.
             Some(na.0 * nb.1 - na.1 * nb.0)
         }
-        (Profile::Line { n, c }, Profile::Circle { rho_c, h_c, r })
-        | (Profile::Circle { rho_c, h_c, r }, Profile::Line { n, c }) => {
+        (Profile::Line { .. }, Profile::Circle { .. })
+        | (Profile::Circle { .. }, Profile::Line { .. }) => {
             // The half-chord over the radius is the sine of the angle
             // at which the line crosses the circle, and it dies exactly
             // at tangency. Clamped at zero because a line that MISSES
             // has no crossing at all, which is the same verdict.
-            //
-            // `d` is the SIGNED distance from the circle's centre to
-            // the line, `n̂·(ρ_c, h_c) − c`: the centre's own ρ is part
-            // of that projection, and a centre on the axis is the
-            // `ρ_c = 0` case of it, not a different formula.
-            let d = n.0 * *rho_c + n.1 * *h_c - *c;
-            Some((r.powi(2) - d.powi(2)).max(T::zero()).sqrt() / *r)
+            let (r, d, _) = line_circle(a, b)?;
+            Some((r.powi(2) - d.powi(2)).max(T::zero()).sqrt() / r)
         }
         (Profile::Circle { .. }, Profile::Circle { .. }) => None,
+    }
+}
+
+/// A line–circle pair's circle radius `r`, the signed distance
+/// `d = n̂·(ρ_c, h_c) − c` from the circle's centre to the line, and the
+/// centre's foot on the line (the centre stepped back along the line's
+/// unit normal by `d`). The
+/// centre's own ρ is part of the projection, and a centre on the axis
+/// is its `ρ_c = 0` case, not a different formula. `None` for any other
+/// pair.
+fn line_circle<T: Real>(a: &Profile<T>, b: &Profile<T>) -> Option<(T, T, (T, T))> {
+    let ((Profile::Line { n, c }, Profile::Circle { rho_c, h_c, r })
+    | (Profile::Circle { rho_c, h_c, r }, Profile::Line { n, c })) = (a, b)
+    else {
+        return None;
+    };
+    let d = n.0 * *rho_c + n.1 * *h_c - *c;
+    Some((*r, d, (*rho_c - n.0 * d, *h_c - n.1 * d)))
+}
+
+/// A line–circle pair the band calls TANGENT, and its one meeting
+/// point: the foot of the circle's centre on the line. `None` for a
+/// pair that is not a line and a circle, and for one whose gap
+/// `r − |d|` (a length) is not Zero.
+///
+/// The foot is a FALLBACK, taken only where the solve cannot tell the
+/// pair's two roots apart: the conditioning meter cannot resolve the
+/// pair, or [`branch`] finds them tied with the old corner on the foot
+/// itself. A gap inside the band still leaves the roots `2√(2r·gap)`
+/// apart, which can be far outside it, and wherever a root is
+/// determined it is the corner the operand's crossing edge describes;
+/// the foot would sit `√(2r·gap)` off it, where the moved surfaces are
+/// tangent and that description does not certify. Where no root is,
+/// the foot is the corner the exact data name: the double root, and the
+/// midpoint of a split pair.
+fn tangent_foot<T: Decide>(
+    a: &Profile<T>,
+    b: &Profile<T>,
+    band: Band,
+) -> Result<Option<(T, T)>, ReplaceFaceError<T>> {
+    let Some((r, d, foot)) = line_circle(a, b) else {
+        return Ok(None);
+    };
+    match decide("offset_axial_tangency", Margin::of(r - d.abs()), band) {
+        Ok(Sign::Zero) => Ok(Some(foot)),
+        Ok(_) => Ok(None),
+        Err(source) => Err(ReplaceFaceError::Escalated { source }),
     }
 }
 
@@ -1754,14 +1843,12 @@ fn roots<T: Real>(a: &Profile<T>, b: &Profile<T>, det: T) -> Vec<(T, T)> {
             (*ca * nb.1 - na.1 * *cb) / det,
             (na.0 * *cb - *ca * nb.0) / det,
         )],
-        (Profile::Line { n, c }, Profile::Circle { rho_c, h_c, r })
-        | (Profile::Circle { rho_c, h_c, r }, Profile::Line { n, c }) => {
-            // The foot is the circle's centre stepped back along the
-            // line's unit normal by that same signed distance, so the
-            // centre's own ρ appears in both coordinates.
-            let d = n.0 * *rho_c + n.1 * *h_c - *c;
-            let half = det * *r;
-            let foot = (*rho_c - n.0 * d, *h_c - n.1 * d);
+        (Profile::Line { n, .. }, Profile::Circle { .. })
+        | (Profile::Circle { .. }, Profile::Line { n, .. }) => {
+            let Some((r, _, foot)) = line_circle(a, b) else {
+                unreachable!("a line and a circle have a foot")
+            };
+            let half = det * r;
             let dir = (-n.1, n.0);
             vec![
                 (foot.0 + dir.0 * half, foot.1 + dir.1 * half),
@@ -1772,41 +1859,82 @@ fn roots<T: Real>(a: &Profile<T>, b: &Profile<T>, det: T) -> Vec<(T, T)> {
     }
 }
 
-/// The root nearest the old corner — the branch a small offset keeps.
+/// The root nearest the old corner — the branch a small offset keeps —
+/// or `None` where two roots tie.
 ///
 /// The choice is DECIDED, not compared: two roots the same distance
 /// from the old corner are two answers, and picking one of them would
-/// be a guess. `Vertex` names the corner in the refusal.
+/// be a guess. [`branch`] decides what a tie means.
 fn nearest<T: Decide>(
     roots: &[(T, T)],
     rho: T,
     h: T,
-    vertex: VertexKey,
     band: Band,
-) -> Result<(T, T), ReplaceFaceError<T>> {
+) -> Result<Option<(T, T)>, ReplaceFaceError<T>> {
     let far = |r: (T, T)| Vec3::new(r.0 - rho, r.1 - h, T::zero()).norm();
     // Both callers hand over a line pair's one root or a line–circle
     // pair's two, whose transversality they certified first.
     let Some(&first) = roots.first() else {
-        unreachable!("{vertex:?}: a certified-transversal profile pair has a root")
+        unreachable!("a certified-transversal profile pair has a root")
     };
     let mut best = first;
     for &r in &roots[1..] {
         match decide("offset_axial_branch", Margin::of(far(r) - far(best)), band) {
             Ok(Sign::Negative) => best = r,
             Ok(Sign::Positive) => {}
-            Ok(Sign::Zero) => {
-                return Err(ReplaceFaceError::TogetherAxialCorner {
-                    vertex,
-                    surfaces: 0,
-                    what: "two solutions stand the same distance from the corner being moved, so \
-                           which one the offset keeps is not determined",
-                });
-            }
+            Ok(Sign::Zero) => return Ok(None),
             Err(source) => return Err(ReplaceFaceError::Escalated { source }),
         }
     }
-    Ok(best)
+    Ok(Some(best))
+}
+
+/// The branch a small offset keeps on a profile pair whose
+/// transversality the caller has certified: the [`nearest`] root, and
+/// where two roots tie, the one on the old corner's side of the pair's
+/// foot along the line. `None` where that side decides Zero too.
+///
+/// A tie is the shape of a pair near tangency, not of an ambiguous one:
+/// the two roots stand symmetric about the foot, and every point near
+/// the foot is nearly equidistant from them, so nearness cannot say
+/// which root continues the corner. The side can: the old corner is a
+/// point of the unmoved pair, which crossed on the same side of its own
+/// foot, and that side is a length decided like any other.
+fn branch<T: Decide>(
+    a: &Profile<T>,
+    b: &Profile<T>,
+    det: T,
+    rho: T,
+    h: T,
+    band: Band,
+) -> Result<Option<(T, T)>, ReplaceFaceError<T>> {
+    let roots = roots(a, b, det);
+    if let Some(root) = nearest(&roots, rho, h, band)? {
+        return Ok(Some(root));
+    }
+    let (Some((_, _, foot)), &[up, down]) = (line_circle(a, b), &roots[..]) else {
+        unreachable!("only a line–circle pair has two roots to tie")
+    };
+    let along = (up.0 - foot.0) * (rho - foot.0) + (up.1 - foot.1) * (h - foot.1);
+    // `det` is certified positive, so the roots stand apart and `reach`
+    // divides.
+    let reach = Vec3::new(up.0 - foot.0, up.1 - foot.1, T::zero()).norm();
+    match decide("offset_axial_branch_side", Margin::of(along / reach), band) {
+        Ok(Sign::Positive) => Ok(Some(up)),
+        Ok(Sign::Negative) => Ok(Some(down)),
+        Ok(Sign::Zero) => Ok(None),
+        Err(source) => Err(ReplaceFaceError::Escalated { source }),
+    }
+}
+
+/// Two distinct roots the same distance from the corner being moved.
+fn tie<T: Decide>(vertex: VertexKey) -> ReplaceFaceError<T> {
+    ReplaceFaceError::TogetherAxialCorner {
+        vertex,
+        surfaces: 0,
+        what: "two solutions stand the same distance from the corner being moved, so which one \
+               the offset keeps is not determined",
+    }
 }
 
 // ---------------------------------------------------------------------

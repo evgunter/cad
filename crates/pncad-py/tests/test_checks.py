@@ -111,6 +111,7 @@ class TestTheConnectednessResident(unittest.TestCase):
         self.assertEqual(finding.check, CheckId.Connectedness)
         self.assertEqual(finding.root, root)
         self.assertEqual(finding.output_ix, 0)
+        self.assertIsNone(finding.node, "a root output's finding is about no lone node")
         self.assertEqual(finding.evidence.variant, "connectedness")
         self.assertEqual(finding.evidence.actual, 2)
         self.assertEqual(finding.evidence.expected, 1)
@@ -282,7 +283,7 @@ class TestTheRegistryVocabulary(unittest.TestCase):
         self.assertNotIn("renamed", str(report))
         full = repr(root).removeprefix("NodeId(").removesuffix(")")
         self.assertNotIn(f"root {full[:12]}", str(finding))
-        self.assertIn(f"node {full},", repr(finding))
+        self.assertIn(f"root {full},", repr(finding))
         with self.assertRaises(CheckRefusal) as caught:
             enforce_checks(report, strict)
         self.assertIn(spoken, str(caught.exception))
@@ -445,6 +446,60 @@ class TestTheChecksCouldNotRun(unittest.TestCase):
         self.assertEqual(caught.exception.variant, "root_without_value")
         self.assertEqual(caught.exception.node, root)
         self.assertIsInstance(caught.exception, pncad.PncadError)
+
+
+class TestTheUnprovenCoincidenceResident(unittest.TestCase):
+    """The `unproven-coincidence` lint (D10): a plate resting flush on
+    a block, unioned under the declared `Rest` the flush detector
+    offers. The declaration is verified from values, so the union
+    records one coincidence, and the door does not prove it: the two
+    caps are two constructions. The report's rows are the evaluation's
+    unproven rows, word for word."""
+
+    def test_a_declared_rest_is_one_unproven_coincidence(self):
+        doc = Doc()
+        lower = slab(doc, 0.0, 1.0)
+        upper = slab(doc, 0.25, 0.75, 0.25, 0.75, 1.0, 1.5)
+        findings = evaluate(doc).find_flush_candidates(lower, upper)
+        glued = doc.insert(
+            Node.boolean(BooleanOp.Union, lower, upper, declare=findings)
+        )
+        ev = evaluate(doc)
+        rows = ev.coincidences(glued)
+        self.assertEqual(len(rows), 1)
+        (row,) = rows
+        self.assertEqual((row.relation, row.site), ("same_opposite", "plane_ladder"))
+        self.assertIsNone(row.rung)
+        self.assertEqual(row.residual, "the two cells are two constructions")
+        self.assertEqual([node for node, _ in row.cells], [lower, upper])
+        self.assertTrue(all(name is not None for _, name in row.cells))
+
+        cfg = ChecksConfig(
+            connectedness=Severity.Off,
+            separation=Advisory.Off,
+            unproven_coincidence=Advisory.Warn,
+        )
+        report = run_checks(doc, ev, cfg)
+        self.assertEqual(len(report.findings), 1)
+        (finding,) = report.findings
+        self.assertEqual(finding.check, CheckId.UnprovenCoincidence)
+        self.assertEqual(finding.check.kind, CheckKind.Certified)
+        self.assertEqual(finding.node, glued)
+        self.assertIsNone(finding.root)
+        self.assertIsNone(finding.output_ix)
+        evidence = finding.evidence
+        self.assertEqual(evidence.variant, "unproven_coincidence")
+        self.assertEqual(
+            (evidence.relation, evidence.site, evidence.reason),
+            (row.relation, row.site, row.residual),
+        )
+        self.assertEqual(evidence.coincidence.cells, row.cells)
+
+        off = run_checks(doc, ev, ChecksConfig(unproven_coincidence=Advisory.Off))
+        self.assertIn(CheckId.UnprovenCoincidence, off.skipped)
+        self.assertEqual(
+            [f for f in off.findings if f.check == CheckId.UnprovenCoincidence], []
+        )
 
 
 if __name__ == "__main__":

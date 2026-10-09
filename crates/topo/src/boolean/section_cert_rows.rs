@@ -25,21 +25,21 @@ use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::{Band, Point3, Tol, Vec3};
 
-fn band() -> Band {
+pub(super) fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
 
-const LEVER: f64 = 5.0;
+pub(super) const LEVER: f64 = 5.0;
 
-fn p(x: f64, y: f64, z: f64) -> Point3<f64> {
+pub(super) fn p(x: f64, y: f64, z: f64) -> Point3<f64> {
     Point3::new(x, y, z)
 }
 
-fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {
+pub(super) fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {
     Vec3::new(x, y, z)
 }
 
-fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
+pub(super) fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
     let normal = normal.normalize();
     Surface::Plane {
         origin,
@@ -48,7 +48,7 @@ fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
     }
 }
 
-fn cylinder(origin: Point3<f64>, axis: Vec3<f64>, radius: f64) -> Surface<f64> {
+pub(super) fn cylinder(origin: Point3<f64>, axis: Vec3<f64>, radius: f64) -> Surface<f64> {
     let axis = axis.normalize();
     Surface::Cylinder {
         origin,
@@ -58,7 +58,7 @@ fn cylinder(origin: Point3<f64>, axis: Vec3<f64>, radius: f64) -> Surface<f64> {
     }
 }
 
-fn sphere(center: Point3<f64>, radius: f64) -> Surface<f64> {
+pub(super) fn sphere(center: Point3<f64>, radius: f64) -> Surface<f64> {
     Surface::Sphere {
         center,
         radius,
@@ -67,7 +67,7 @@ fn sphere(center: Point3<f64>, radius: f64) -> Surface<f64> {
     }
 }
 
-fn torus(center: Point3<f64>, major: f64, minor: f64) -> Surface<f64> {
+pub(super) fn torus(center: Point3<f64>, major: f64, minor: f64) -> Surface<f64> {
     Surface::Torus {
         center,
         axis: Vec3::unit_z(),
@@ -84,7 +84,7 @@ fn donut() -> Surface<f64> {
 
 /// The rows' reach: a ball of diameter [`LEVER`] about the origin,
 /// where every row's torus and walls stand.
-fn classify(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
+pub(super) fn classify(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
     super::classify(
         f,
         g,
@@ -98,9 +98,9 @@ fn classify(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
 
 /// `(count, single, essential on F, essential on G, unbounded)`, per
 /// component.
-type Shape = (usize, bool, Vec<bool>, Vec<bool>, Vec<bool>);
+pub(super) type Shape = (usize, bool, Vec<bool>, Vec<bool>, Vec<bool>);
 
-fn shape(s: &Section<f64>) -> Shape {
+pub(super) fn shape(s: &Section<f64>) -> Shape {
     match s {
         Section::Components { parts, single } => (
             parts.len(),
@@ -114,7 +114,7 @@ fn shape(s: &Section<f64>) -> Shape {
 }
 
 /// The lone component's witness.
-fn witness(s: &Section<f64>) -> Point3<f64> {
+pub(super) fn witness(s: &Section<f64>) -> Point3<f64> {
     match s {
         Section::Components {
             parts,
@@ -127,14 +127,14 @@ fn witness(s: &Section<f64>) -> Point3<f64> {
 }
 
 /// The witness lies on both carriers.
-fn on_both(w: Point3<f64>, f: &Surface<f64>, g: &Surface<f64>) {
+pub(super) fn on_both(w: Point3<f64>, f: &Surface<f64>, g: &Surface<f64>) {
     for s in [f, g] {
         let r = geom_brep::implicit_residual(s, w);
         assert!(r.abs() < 1e-12, "witness {w:?} is {r} off {s:?}");
     }
 }
 
-fn tangent(s: &Section<f64>) -> &'static str {
+pub(super) fn tangent(s: &Section<f64>) -> &'static str {
     match s {
         Section::Tangent(name) => name,
         other => panic!("not a tangency: {other:?}"),
@@ -231,7 +231,7 @@ fn a_plane_tangent_to_the_tube_off_its_outer_half_refuses_as_a_tangency() {
 /// A length strictly inside the run's band sliver — past `zero`, short
 /// of `escalate` — where a margin decides neither way, at whatever
 /// eps the run carries.
-fn in_sliver() -> f64 {
+pub(super) fn in_sliver() -> f64 {
     let b = band();
     0.5 * (b.zero() + b.escalate())
 }
@@ -342,7 +342,8 @@ fn a_parallel_axis_cylinder_every_class() {
 
 /// **R-reach**: an oblique cylinder (the backstop's tilted rod,
 /// `union-backstop-catches-a-suspect-body-from-a-tilted-rod-in-a-half-donut`),
-/// a non-coaxial torus, and any cone.
+/// a non-coaxial torus; a cone against an oblique cylinder, a tilted
+/// cone, a parallel-axis cone, a non-coaxial torus and a spline.
 #[test]
 fn intractable_poses_refuse_on_reach() {
     let rod = cylinder(
@@ -361,10 +362,34 @@ fn intractable_poses_refuse_on_reach() {
         half_angle: 0.4,
         u_ref: Vec3::unit_x(),
     };
-    assert!(matches!(
-        classify(&cone, &plane(p(0.0, 0.0, 1.0), v(0.1, 0.0, 1.0))),
-        Section::Intractable
-    ));
+    let tilted = Surface::Cone {
+        apex: p(0.5, 0.0, -1.0),
+        axis: v(0.3, 0.0, 1.0).normalize(),
+        half_angle: 0.3,
+        u_ref: Vec3::unit_y(),
+    };
+    let beside = Surface::Cone {
+        apex: p(0.5, 0.0, -1.0),
+        axis: Vec3::unit_z(),
+        half_angle: 0.4,
+        u_ref: Vec3::unit_x(),
+    };
+    for (what, partner) in [
+        ("an oblique cylinder", rod),
+        ("a tilted cone", tilted),
+        ("a parallel-axis cone", beside),
+        ("a non-coaxial torus", torus(p(1.0, 0.0, 0.0), 2.0, 0.5)),
+        ("a spline", bump()),
+    ] {
+        assert!(
+            matches!(classify(&cone, &partner), Section::Intractable),
+            "the cone and {what}"
+        );
+        assert!(
+            matches!(classify(&partner, &cone), Section::Intractable),
+            "{what} and the cone"
+        );
+    }
 }
 
 /// A bicubic bump over `[−2, 2]²`: boundary rows in `z = 0`, the inner
@@ -1049,15 +1074,15 @@ fn lone_at(w: Point3<f64>) -> Section<f64> {
     }
 }
 
-fn at(
+pub(super) fn at(
     f: Option<FaceContainment>,
     g: Option<FaceContainment>,
 ) -> impl FnMut(Point3<f64>) -> [Option<FaceContainment>; 2] {
     move |_| [f, g]
 }
 
-const IN: Option<FaceContainment> = Some(FaceContainment::In);
-const OUT: Option<FaceContainment> = Some(FaceContainment::Out);
+pub(super) const IN: Option<FaceContainment> = Some(FaceContainment::In);
+pub(super) const OUT: Option<FaceContainment> = Some(FaceContainment::Out);
 
 /// **The no-event decision.** A lone component with no event: `Out` of
 /// either face clears (W3, whichever face); `In` both is R-loop; a
@@ -1229,7 +1254,11 @@ fn seamless_band(z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
 
 /// The verdict of every pair of `a`'s `face` against `b`'s faces on the
 /// crossings path, with no events.
-fn scan(a: &Body<f64>, face: FaceKey, b: &Body<f64>) -> Vec<Result<Vec<Cleared>, Refusal>> {
+pub(super) fn scan(
+    a: &Body<f64>,
+    face: FaceKey,
+    b: &Body<f64>,
+) -> Vec<Result<Vec<Cleared>, Refusal>> {
     ops::section_pairs(
         a,
         b,
@@ -1248,7 +1277,7 @@ fn scan(a: &Body<f64>, face: FaceKey, b: &Body<f64>) -> Vec<Result<Vec<Cleared>,
 
 /// A slab tilted by 0.2 rad about `y`, crossing the unit wall about `z`
 /// in ellipses through `z ∈ [−0.3, 0.3]`.
-fn tilted_slab() -> Body<f64> {
+pub(super) fn tilted_slab() -> Body<f64> {
     let b = brick::<f64>((-3.0, 3.0), (-3.0, 3.0), (-0.1, 0.1), Tol::witness());
     let tilt = geom_core::Affine3::rotation_about_axis(p(0.0, 0.0, 0.0), Vec3::unit_y(), 0.2);
     crate::transform::transform_rigid(&b, &tilt, Tol::witness()).unwrap()
@@ -1366,7 +1395,7 @@ fn a_lone_vertex_ring_refuses_the_pair() {
 
 /// The classification of a torus pair whose region is the ball
 /// `(centre, radius)`: the overlap box's centre and half-diagonal.
-fn classify_near(
+pub(super) fn classify_near(
     f: &Surface<f64>,
     g: &Surface<f64>,
     centre: Point3<f64>,
@@ -1434,7 +1463,11 @@ fn a_far_origin_does_not_make_a_wall_coaxial() {
 // -------------------------------------------------------------------
 
 /// The verdict of every pair of `b`'s `face` against `a`'s faces.
-fn scan_b(a: &Body<f64>, b: &Body<f64>, face: FaceKey) -> Vec<Result<Vec<Cleared>, Refusal>> {
+pub(super) fn scan_b(
+    a: &Body<f64>,
+    b: &Body<f64>,
+    face: FaceKey,
+) -> Vec<Result<Vec<Cleared>, Refusal>> {
     ops::section_pairs(
         a,
         b,
@@ -1609,7 +1642,7 @@ fn a_declaration_exempts_its_own_pair_only() {
 
 /// The unit cone about `z`, apex at the origin, half-angle π/4: the
 /// rim at `z = 1` has radius 1.
-fn unit_cone() -> Surface<f64> {
+pub(super) fn unit_cone() -> Surface<f64> {
     Surface::Cone {
         apex: p(0.0, 0.0, 0.0),
         axis: Vec3::unit_z(),
@@ -1786,7 +1819,7 @@ fn a_bow_tie_through_the_apex_twice_does_not_describe() {
 
 /// One step of a [`cone_sheet`] chain.
 #[derive(Clone, Copy)]
-enum Step {
+pub(super) enum Step {
     /// A straight edge to the point.
     Line(Point3<f64>),
     /// A rim arc at height `h` (radius `|h|`), azimuth `t0` to `t1`,
@@ -1796,29 +1829,41 @@ enum Step {
 
 /// The point at height `h` and azimuth `t` on [`unit_cone`] (either
 /// nappe: `h < 0` is the mirror one).
-fn cone_at(h: f64, t: f64) -> Point3<f64> {
+pub(super) fn cone_at(h: f64, t: f64) -> Point3<f64> {
     p(h.abs() * t.cos(), h.abs() * t.sin(), h)
 }
 
-/// **One face of the unit cone, bounded by a chain of edges from
-/// `start` closed back to it by a straight edge.** The chain is grown by
-/// `mev` from the seed vertex and closed by `mef`; the face returned is
-/// the one the chain bounds in its own order.
-fn cone_sheet(start: Point3<f64>, steps: &[Step]) -> (Body<f64>, FaceKey) {
+/// **One face of `surface`, bounded by a chain of `n` edges grown by
+/// `mev` from `start` and closed back to it by `mef`.** `step(body,
+/// key, i)` is the `i`-th edge: its end point, and its spec (`None` for
+/// a straight edge). `close(body, key, end)` is the closing edge, which
+/// runs from `start` to the chain's last vertex `end`, as `mef` states
+/// it. The face returned is the one the chain bounds in its own order.
+fn chain_sheet(
+    surface: Surface<f64>,
+    start: Point3<f64>,
+    n: usize,
+    mut step: impl FnMut(
+        &mut Body<f64>,
+        crate::geometry::SurfaceKey,
+        usize,
+    ) -> (Point3<f64>, Option<EdgeCurveSpec<f64>>),
+    close: impl FnOnce(&mut Body<f64>, crate::geometry::SurfaceKey, Point3<f64>) -> EdgeCurveSpec<f64>,
+) -> (Body<f64>, FaceKey) {
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(start, true).unwrap();
-    let cone = body
+    let key = body
         .set_face_surface(
             seed.face,
             FaceSurface::New {
-                surface: unit_cone(),
+                surface,
                 sense: true,
             },
         )
         .unwrap();
     let mut edges: Vec<crate::MevCreated> = Vec::new();
-    for &step in steps {
+    for i in 0..n {
         let site = match edges.last() {
             None => MevSite::Lone {
                 r#loop: seed.r#loop,
@@ -1828,8 +1873,39 @@ fn cone_sheet(start: Point3<f64>, steps: &[Step]) -> (Body<f64>, FaceKey) {
                 he2: e.he_minus,
             },
         };
-        edges.push(match step {
-            Step::Line(to) => body.mev_line(site, to, tol).unwrap(),
+        let (to, spec) = step(&mut body, key, i);
+        edges.push(match spec {
+            None => body.mev_line(site, to, tol).unwrap(),
+            Some(spec) => body.mev(site, to, spec, tol).unwrap(),
+        });
+    }
+    let (first, last) = (edges[0], edges[edges.len() - 1]);
+    let end = crate::readback::vertex_point(&body, last.vertex).unwrap();
+    let spec = close(&mut body, key, end);
+    let face = body
+        .mef(
+            MefSite::Chords {
+                he1: first.he_plus,
+                he2: last.he_minus,
+            },
+            spec,
+            FaceSurface::Shared { key, sense: true },
+            tol,
+        )
+        .unwrap()
+        .face;
+    (body, face)
+}
+
+/// **One face of the unit cone, bounded by a chain of [`Step`]s from
+/// `start` closed back to it by a straight edge** ([`chain_sheet`]).
+pub(super) fn cone_sheet(start: Point3<f64>, steps: &[Step]) -> (Body<f64>, FaceKey) {
+    chain_sheet(
+        unit_cone(),
+        start,
+        steps.len(),
+        |body, cone, i| match steps[i] {
+            Step::Line(to) => (to, None),
             Step::Arc(h, t0, t1) => {
                 let rim_plane = body.add_surface(plane(p(0.0, 0.0, h), Vec3::unit_z()));
                 let spec = EdgeCurveSpec {
@@ -1857,31 +1933,18 @@ fn cone_sheet(start: Point3<f64>, steps: &[Step]) -> (Body<f64>, FaceKey) {
                     param_start: if t1 > t0 { t0 } else { 0.0 },
                     param_end: if t1 > t0 { t1 } else { t0 - t1 },
                 };
-                body.mev(site, cone_at(h, t1), spec, tol).unwrap()
+                (cone_at(h, t1), Some(spec))
             }
-        });
-    }
-    let (first, last) = (edges[0], edges[edges.len() - 1]);
-    let end = crate::readback::vertex_point(&body, last.vertex).unwrap();
-    let face = body
-        .mef(
-            MefSite::Chords {
-                he1: first.he_plus,
-                he2: last.he_minus,
-            },
-            EdgeCurveSpec::line_between(start, end),
-            FaceSurface::Shared {
-                key: cone,
-                sense: true,
-            },
-            tol,
-        )
-        .unwrap()
-        .face;
-    (body, face)
+        },
+        |_, _, end| EdgeCurveSpec::line_between(start, end),
+    )
 }
 
-fn contain_at(body: &Body<f64>, face: FaceKey, q: Point3<f64>) -> Option<FaceContainment> {
+pub(super) fn contain_at(
+    body: &Body<f64>,
+    face: FaceKey,
+    q: Point3<f64>,
+) -> Option<FaceContainment> {
     crate::curved_face_containment(body, face, q, band()).unwrap()
 }
 
@@ -1889,10 +1952,10 @@ fn contain_at(body: &Body<f64>, face: FaceKey, q: Point3<f64>) -> Option<FaceCon
 /// covers `z < 1` over `[0, w]` and `z < 2` over `[w, 2w]`; the notch
 /// `1 < z < 2` over `[0, w]` has the same hull, so a window read off the
 /// hull answers `In` there. `bool_cone_chart_box` sees the notch (the
-/// polygon's area falls short of its box) and the face door answers
-/// `None`. Narrow (`w = π/8`, the nearest-branch walk's class, wrong on
-/// main too) and wide (`w = 3π/4`, the apex closure's), and one clear of
-/// the apex (the notch cut from a frustum band).
+/// notch's inner sides lie inside its box) and the face door answers
+/// `None`. Narrow (`w = π/8`, the nearest-branch walk's class) and wide
+/// (`w = 3π/4`, the apex closure's), and one clear of the apex (the
+/// notch cut from a frustum band).
 #[test]
 fn an_l_shaped_cone_face_refuses_rather_than_trim_by_its_hull() {
     let o = p(0.0, 0.0, 0.0);
@@ -1945,6 +2008,497 @@ fn an_l_shaped_cone_face_refuses_rather_than_trim_by_its_hull() {
         contain_at(&body, face, cone_at(1.5, PI / 2.0 + 0.1)),
         Some(FaceContainment::Out),
         "the rectangle trims past its window"
+    );
+}
+
+/// The face door's answer at `q`, an escalation included: the
+/// small-notch rows require a definite refusal, not an in-band one.
+fn door(
+    body: &Body<f64>,
+    face: FaceKey,
+    q: Point3<f64>,
+) -> Result<Option<FaceContainment>, crate::ContainError> {
+    crate::curved_face_containment(body, face, q, band())
+}
+
+/// The notch sizes the small-notch rows cut, in metres: three decades
+/// up from `10·K·ε`, a notch the band reads definitely, plus the sizes
+/// the review measured wherever they clear that floor. The run's ε
+/// picks the row.
+fn notch_sizes() -> Vec<f64> {
+    let tol = Tol::witness();
+    let floor = 10.0 * tol.k() * tol.eps();
+    let mut sizes: Vec<f64> = [1.0, 10.0, 100.0].iter().map(|k| k * floor).collect();
+    for s in [1e-6, 1e-5, 1e-4] {
+        if s >= floor && sizes.iter().all(|&t| (t / s).log10().abs() > 0.1) {
+            sizes.push(s);
+        }
+    }
+    sizes
+}
+
+/// The point at chart `(u, t)` on the ring torus `(R, r)` about `z`:
+/// major angle `u` from `x`, minor angle `t` from the outer equator
+/// towards `+z`.
+fn torus_at((major, minor): (f64, f64), (u, t): (f64, f64)) -> Point3<f64> {
+    let rho = major + minor * t.cos();
+    p(rho * u.cos(), rho * u.sin(), minor * t.sin())
+}
+
+/// The iso arc of the ring torus `(R, r)` from chart point `a` to chart
+/// point `b`, which share a coordinate: a parallel (a horizontal
+/// section) when they share `t`, a meridian (an axial section) when they
+/// share `u`. Either runs forward from `a` on the carrier whose `u_ref`
+/// points at `a`.
+fn torus_iso(
+    body: &mut Body<f64>,
+    torus: crate::geometry::SurfaceKey,
+    (major, minor): (f64, f64),
+    a: (f64, f64),
+    b: (f64, f64),
+) -> EdgeCurveSpec<f64> {
+    let mid = (0.5 * (a.0 + b.0), 0.5 * (a.1 + b.1));
+    let (center, axis, radius, u_ref, sweep, cut) = if a.1 == b.1 {
+        let h = minor * a.1.sin();
+        let axis = if b.0 > a.0 {
+            Vec3::unit_z()
+        } else {
+            -Vec3::unit_z()
+        };
+        (
+            p(0.0, 0.0, h),
+            axis,
+            major + minor * a.1.cos(),
+            v(a.0.cos(), a.0.sin(), 0.0),
+            (b.0 - a.0).abs(),
+            plane(p(0.0, 0.0, h), Vec3::unit_z()),
+        )
+    } else {
+        assert_eq!(a.0, b.0, "an iso arc shares a coordinate");
+        let r_hat = v(a.0.cos(), a.0.sin(), 0.0);
+        let n = r_hat.cross(Vec3::unit_z());
+        (
+            p(0.0, 0.0, 0.0) + r_hat * major,
+            if b.1 > a.1 { n } else { -n },
+            minor,
+            r_hat * a.1.cos() + Vec3::unit_z() * a.1.sin(),
+            (b.1 - a.1).abs(),
+            plane(p(0.0, 0.0, 0.0), n),
+        )
+    };
+    let cut = body.add_surface(cut);
+    EdgeCurveSpec {
+        description: EdgeDescriptionSpec::Intersection {
+            s1: torus,
+            s2: cut,
+            witness: torus_at((major, minor), mid),
+        },
+        carrier: Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        },
+        param_start: 0.0,
+        param_end: sweep,
+    }
+}
+
+/// **One face of the ring torus `(R, r)` bounded by iso arcs through
+/// the chart corners**, in order ([`chain_sheet`]): the torus face a
+/// boolean mints where parallels and meridians cut the tube.
+fn torus_sheet(ring: (f64, f64), corners: &[(f64, f64)]) -> (Body<f64>, FaceKey) {
+    chain_sheet(
+        torus(p(0.0, 0.0, 0.0), ring.0, ring.1),
+        torus_at(ring, corners[0]),
+        corners.len() - 1,
+        |body, key, i| {
+            let spec = torus_iso(body, key, ring, corners[i], corners[i + 1]);
+            (torus_at(ring, corners[i + 1]), Some(spec))
+        },
+        |body, key, _| torus_iso(body, key, ring, corners[0], corners[corners.len() - 1]),
+    )
+}
+
+/// **An L-shaped torus face refuses, never trims by its hull.** The face
+/// covers `t ∈ [−a, 0]` over `u ∈ [0, a]` and `t ∈ [−a, a]` over
+/// `u ∈ [a, 2a]`; the notch `t ∈ (0, a)` over `u ∈ (0, a)` has the same
+/// hull, and the L, monotone in both channels, the same total variation.
+/// `bool_torus_chart_box` sees the notch's sides inside the box and the
+/// face door answers `None` for the whole face. The U, notched from the
+/// middle of its top side, refuses too; the rectangle trims.
+#[test]
+fn an_l_shaped_torus_face_refuses_rather_than_trim_by_its_hull() {
+    let ring = (2.0, 0.5);
+    let a = PI / 4.0;
+    let l = [
+        (0.0, -a),
+        (2.0 * a, -a),
+        (2.0 * a, a),
+        (a, a),
+        (a, 0.0),
+        (0.0, 0.0),
+    ];
+    let notch = torus_at(ring, (0.5 * a, 0.5 * a));
+    let (body, face) = torus_sheet(ring, &l);
+    assert_eq!(contain_at(&body, face, notch), None, "the L's notch");
+    assert_eq!(
+        contain_at(&body, face, torus_at(ring, (1.5 * a, 0.5 * a))),
+        None,
+        "the L refuses as a face, its arm too"
+    );
+    let u = [
+        (0.0, -a),
+        (3.0 * a, -a),
+        (3.0 * a, a),
+        (2.0 * a, a),
+        (2.0 * a, 0.0),
+        (a, 0.0),
+        (a, a),
+        (0.0, a),
+    ];
+    let (body, face) = torus_sheet(ring, &u);
+    assert_eq!(
+        contain_at(&body, face, torus_at(ring, (1.5 * a, 0.5 * a))),
+        None,
+        "the U's notch"
+    );
+    let (body, face) = torus_sheet(ring, &[(0.0, -a), (2.0 * a, -a), (2.0 * a, a), (0.0, a)]);
+    assert_eq!(
+        contain_at(&body, face, notch),
+        Some(FaceContainment::In),
+        "the rectangle holds the point"
+    );
+    assert_eq!(
+        contain_at(&body, face, torus_at(ring, (2.5 * a, 0.5 * a))),
+        Some(FaceContainment::Out),
+        "the rectangle trims past its window"
+    );
+}
+
+/// The ring tori the small-notch rows cut: `(R, r)`, a fat and a thin
+/// tube, a near-horn one and a wide one.
+const RINGS: [(f64, f64); 4] = [(2.0, 0.5), (10.0, 0.1), (1.0, 0.9), (100.0, 1.0)];
+
+/// The chart rectangle `[0, π/2] × [−π/4, π/4]` less a `du × dv` notch
+/// cut from its top-right corner (`corner`, an L) or from the middle of
+/// its top side (a U), and the notch's centre.
+fn notched_chart(du: f64, dv: f64, corner: bool) -> (Vec<(f64, f64)>, (f64, f64)) {
+    let (w, a) = (PI / 2.0, PI / 4.0);
+    if corner {
+        (
+            vec![
+                (0.0, -a),
+                (w, -a),
+                (w, a - dv),
+                (w - du, a - dv),
+                (w - du, a),
+                (0.0, a),
+            ],
+            (w - 0.5 * du, a - 0.5 * dv),
+        )
+    } else {
+        let m = 0.5 * w;
+        (
+            vec![
+                (0.0, -a),
+                (w, -a),
+                (w, a),
+                (m + 0.5 * du, a),
+                (m + 0.5 * du, a - dv),
+                (m - 0.5 * du, a - dv),
+                (m - 0.5 * du, a),
+                (0.0, a),
+            ],
+            (m, a - 0.5 * dv),
+        )
+    }
+}
+
+/// **A small notch refuses at every size the band reads, on every
+/// ring.** Each notch is `s` metres on a side (`s/ρ` of major angle at
+/// its own parallel's radius `ρ`, `s/r` of minor angle), cut as an L
+/// and as a U from `[0, π/2] × [−π/4, π/4]`, and each is asked at its
+/// centre, which is `s/2` from the face: the answer is a definite
+/// refusal, never `In` (the hull's answer) and never an escalation (a
+/// margin that shrinks faster than the notch). Two thin notches ride
+/// along, `s` by `π/8` each way.
+#[test]
+fn a_small_notch_in_a_torus_face_refuses_at_every_size() {
+    let eps = Tol::witness().eps();
+    let mut bad = Vec::new();
+    let a = PI / 4.0;
+    for ring in RINGS {
+        let rho = ring.0 + ring.1 * a.cos();
+        for s in notch_sizes() {
+            let (du, dv) = (s / rho, s / ring.1);
+            for (what, du, dv, corner) in [
+                ("L", du, dv, true),
+                ("U", du, dv, false),
+                ("thin deep L", du, PI / 8.0, true),
+                ("thin wide L", PI / 8.0, dv, true),
+            ] {
+                let (corners, centre) = notched_chart(du, dv, corner);
+                let (body, face) = torus_sheet(ring, &corners);
+                let got = door(&body, face, torus_at(ring, centre));
+                if !matches!(got, Ok(None)) {
+                    bad.push(format!("ring {ring:?}, {what} notch {s:e} m: {got:?}"));
+                }
+            }
+        }
+    }
+    assert!(
+        bad.is_empty(),
+        "ε {eps:e}: {} cells answer other than a refusal:\n{}",
+        bad.len(),
+        bad.join("\n")
+    );
+}
+
+/// **The rectangle still trims on every ring**: `In` at its centre,
+/// `Out` a tenth of a radian past its major window.
+#[test]
+fn a_torus_rectangle_trims_on_every_ring() {
+    let a = PI / 4.0;
+    for ring in RINGS {
+        let (body, face) = torus_sheet(ring, &[(0.0, -a), (2.0 * a, -a), (2.0 * a, a), (0.0, a)]);
+        assert_eq!(
+            door(&body, face, torus_at(ring, (a, 0.0))).unwrap(),
+            Some(FaceContainment::In),
+            "ring {ring:?}: the centre"
+        );
+        assert_eq!(
+            door(&body, face, torus_at(ring, (2.0 * a + 0.1, 0.0))).unwrap(),
+            Some(FaceContainment::Out),
+            "ring {ring:?}: past the window"
+        );
+    }
+}
+
+/// **A gap anywhere in the torus walk refuses.** The rectangle
+/// `[−π/2, 0] × [−π/4, π/4]` windows; with any one of its four edges
+/// made null scaffolding (which the walk steps over), the other three
+/// still lie on the box's sides, so only the continuity check (an edge
+/// in the middle of the walk) or the closure check (the walk's first or
+/// last) can see the gap. Each answers `PartialTorusFace`.
+#[test]
+fn a_gap_in_the_torus_walk_refuses() {
+    use crate::null::{CurveGeom, NullEdge};
+    let ring = (2.0, 0.5);
+    let (w, a) = (PI / 2.0, PI / 4.0);
+    let (body, face) = torus_sheet(ring, &[(-w, -a), (0.0, -a), (0.0, a), (-w, a)]);
+    let windows = |body: &Body<f64>| {
+        super::super::solid_contain::torus_face_windows(body, face, ring.0, ring.1, band())
+    };
+    assert!(windows(&body).is_ok(), "the whole rectangle windows");
+    let crate::LoopBoundary::Cycle { first } = body
+        .get_loop(body.get_face(face).unwrap().outer)
+        .unwrap()
+        .boundary
+    else {
+        panic!("a cycle")
+    };
+    let cycle = body.loop_cycle(first).unwrap();
+    assert_eq!(cycle.len(), 4, "four edges");
+    let mut bad = Vec::new();
+    for (i, &he) in cycle.iter().enumerate() {
+        let mut gapped = body.clone();
+        let edge = gapped
+            .get_edge(gapped.get_half_edge(he).unwrap().edge)
+            .unwrap();
+        let (curve, he_plus, he_minus) = (edge.curve, edge.he_plus, edge.he_minus);
+        let ends = (
+            gapped.get_half_edge(he_plus).unwrap().start,
+            gapped.get_half_edge(he_minus).unwrap().start,
+        );
+        gapped.curves[curve] = CurveGeom::NullScaffold(NullEdge {
+            below_end: ends.0,
+            above_end: ends.1,
+        });
+        let got = windows(&gapped);
+        if !matches!(
+            got,
+            Err(super::super::solid_contain::PointInSolidError::PartialTorusFace { .. })
+        ) {
+            bad.push(format!("edge {i} of the walk skipped: {got:?}"));
+        }
+    }
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
+/// The frusta the small-notch cone rows cut: `(h0, h1)` on the unit
+/// cone.
+const FRUSTA: [(f64, f64); 2] = [(1.0, 2.0), (10.0, 20.0)];
+
+/// **A small notch in a cone face refuses at every size the band
+/// reads.** Each notch is `s` metres on a side (`s/√2` of height on the
+/// unit cone, whose slant is `h·√2`; `s/h1` of azimuth at the top
+/// rim), cut from the frustum `[h0, h1] × [0, π/4]` as an L at its
+/// top-right corner and as a U from the middle of its top rim, and from
+/// the apex sector `[0, h1] × [0, π/4]` as an L, which the apex closure
+/// walks. Each is asked at the notch's centre: a definite refusal,
+/// never `In`, never an escalation.
+#[test]
+fn a_small_notch_in_a_cone_face_refuses_at_every_size() {
+    let eps = Tol::witness().eps();
+    let mut bad = Vec::new();
+    let w = PI / 4.0;
+    for (h0, h1) in FRUSTA {
+        for s in notch_sizes() {
+            let (dh, dt) = (s / 2f64.sqrt(), s / h1);
+            let centre = cone_at(h1 - 0.5 * dh, w - 0.5 * dt);
+            let l = cone_sheet(
+                cone_at(h0, 0.0),
+                &[
+                    Step::Arc(h0, 0.0, w),
+                    Step::Line(cone_at(h1 - dh, w)),
+                    Step::Arc(h1 - dh, w, w - dt),
+                    Step::Line(cone_at(h1, w - dt)),
+                    Step::Arc(h1, w - dt, 0.0),
+                ],
+            );
+            let m = 0.5 * w;
+            let u = cone_sheet(
+                cone_at(h0, 0.0),
+                &[
+                    Step::Arc(h0, 0.0, w),
+                    Step::Line(cone_at(h1, w)),
+                    Step::Arc(h1, w, m + 0.5 * dt),
+                    Step::Line(cone_at(h1 - dh, m + 0.5 * dt)),
+                    Step::Arc(h1 - dh, m + 0.5 * dt, m - 0.5 * dt),
+                    Step::Line(cone_at(h1, m - 0.5 * dt)),
+                    Step::Arc(h1, m - 0.5 * dt, 0.0),
+                ],
+            );
+            let apex = cone_sheet(
+                p(0.0, 0.0, 0.0),
+                &[
+                    Step::Line(cone_at(h1, 0.0)),
+                    Step::Arc(h1, 0.0, w - dt),
+                    Step::Line(cone_at(h1 - dh, w - dt)),
+                    Step::Arc(h1 - dh, w - dt, w),
+                ],
+            );
+            for (what, (body, face), q) in [
+                ("L", l, centre),
+                ("U", u, cone_at(h1 - 0.5 * dh, m)),
+                ("apex L", apex, centre),
+            ] {
+                let got = door(&body, face, q);
+                if !matches!(got, Ok(None)) {
+                    bad.push(format!("frustum {h0}..{h1}, {what} notch {s:e} m: {got:?}"));
+                }
+            }
+        }
+        let (body, face) = cone_sheet(
+            cone_at(h0, 0.0),
+            &[
+                Step::Arc(h0, 0.0, w),
+                Step::Line(cone_at(h1, w)),
+                Step::Arc(h1, w, 0.0),
+            ],
+        );
+        let mid = 0.5 * (h0 + h1);
+        assert_eq!(
+            door(&body, face, cone_at(mid, 0.5 * w)).unwrap(),
+            Some(FaceContainment::In),
+            "frustum {h0}..{h1}: the rectangle holds its centre"
+        );
+        assert_eq!(
+            door(&body, face, cone_at(mid, w + 0.1)).unwrap(),
+            Some(FaceContainment::Out),
+            "frustum {h0}..{h1}: the rectangle trims past its window"
+        );
+    }
+    assert!(
+        bad.is_empty(),
+        "ε {eps:e}: {} cells answer other than a refusal:\n{}",
+        bad.len(),
+        bad.join("\n")
+    );
+}
+
+/// **The smallest notch the builders mint pins the arms' direction.**
+/// A notch `1.5·K·ε` on a side, where each arm is the exact rate: on the
+/// torus at the outer equator (a parallel's radius there is `R + r`, the
+/// major arm itself; a meridian's is `r`), and on the cone at its top
+/// rim (the azimuth arm is that rim's radius; slant is exact). The
+/// notch's inner sides are then `1.5·K·ε` from the box's in metres, past
+/// the band, so the TRIM refuses definitely (`PartialTorusFace`,
+/// `PartialConeFace`). An arm that understated its rate would bring that
+/// margin into the band (an escalation) or under it (a window), and
+/// this row reads either as a failure. The face door at the notch's
+/// centre, `0.75·K·ε` from the face, may escalate on that graze before
+/// it reaches the trim; it must never answer `In`.
+#[test]
+fn the_smallest_notch_refuses_definitely() {
+    use super::super::solid_contain::{PointInSolidError, cone_face_trim, torus_face_windows};
+    let tol = Tol::witness();
+    let s = 1.5 * tol.k() * tol.eps();
+    let mut bad = Vec::new();
+    let mut door_reads =
+        |what: String, got: Result<Option<FaceContainment>, crate::ContainError>| {
+            if matches!(got, Ok(Some(FaceContainment::In))) {
+                bad.push(format!("{what}: the door answers In"));
+            }
+        };
+    let mut trims = Vec::new();
+    for ring in RINGS {
+        let (du, dv) = (s / (ring.0 + ring.1), s / ring.1);
+        let (w, a) = (PI / 2.0, PI / 4.0);
+        let corners = [
+            (0.0, -a),
+            (w, -a),
+            (w, -dv),
+            (w - du, -dv),
+            (w - du, 0.0),
+            (0.0, 0.0),
+        ];
+        let (body, face) = torus_sheet(ring, &corners);
+        door_reads(
+            format!("ring {ring:?}"),
+            door(&body, face, torus_at(ring, (w - 0.5 * du, -0.5 * dv))),
+        );
+        let got = torus_face_windows(&body, face, ring.0, ring.1, band());
+        if !matches!(got, Err(PointInSolidError::PartialTorusFace { .. })) {
+            trims.push(format!("ring {ring:?}: the trim answers {got:?}"));
+        }
+    }
+    let w = PI / 4.0;
+    for (h0, h1) in FRUSTA {
+        let (dh, dt) = (s / 2f64.sqrt(), s / h1);
+        let (body, face) = cone_sheet(
+            cone_at(h0, 0.0),
+            &[
+                Step::Arc(h0, 0.0, w),
+                Step::Line(cone_at(h1 - dh, w)),
+                Step::Arc(h1 - dh, w, w - dt),
+                Step::Line(cone_at(h1, w - dt)),
+                Step::Arc(h1, w - dt, 0.0),
+            ],
+        );
+        door_reads(
+            format!("frustum {h0}..{h1}"),
+            door(&body, face, cone_at(h1 - 0.5 * dh, w - 0.5 * dt)),
+        );
+        let got = cone_face_trim(
+            &body,
+            face,
+            p(0.0, 0.0, 0.0),
+            Vec3::unit_z(),
+            PI / 4.0,
+            band(),
+        );
+        if !matches!(got, Err(PointInSolidError::PartialConeFace { .. })) {
+            trims.push(format!("frustum {h0}..{h1}: the trim answers {got:?}"));
+        }
+    }
+    bad.extend(trims);
+    assert!(
+        bad.is_empty(),
+        "notch {s:e} m at ε {:e}:\n{}",
+        tol.eps(),
+        bad.join("\n")
     );
 }
 

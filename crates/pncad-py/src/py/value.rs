@@ -1338,6 +1338,21 @@ impl Evaluation {
         self.inner.outcome == d::EvalOutcome::Canceled
     }
 
+    /// **The coincidences `node` decided from values** (D10), in
+    /// decision order, each with what the coincidence door decided
+    /// about it. A node with no value raises as [`Self::value`] does.
+    fn coincidences(&self, py: Python<'_>, node: &NodeId) -> PyResult<Vec<Coincidence>> {
+        self.value(py, node)?;
+        let Some(value) = self.inner.value(node.0) else {
+            return Ok(Vec::new());
+        };
+        value
+            .coincidences
+            .iter()
+            .map(|row| Coincidence::new(py, row, &d::coincide::prove(&self.doc, row)))
+            .collect()
+    }
+
     /// Whether the node produced a value.
     fn succeeded(&self, node: &NodeId) -> bool {
         self.inner.value(node.0).is_some()
@@ -2558,10 +2573,110 @@ pub(crate) fn evaluate(
     }
 }
 
+/// **One coincidence a node decided from values** (D10), with what the
+/// coincidence door decided about it.
+///
+/// Its two cells cross as `(node, name)` pairs: the input node whose
+/// table names the cell and the name there, the same opaque text the
+/// materializers answer with; a tool cell (the plane a split cuts with)
+/// has no name and crosses as `(node, None)`. `rung` names the door's
+/// rung that proved the row structural, `None` where none did, and then
+/// `residual` says what separates the two constructions, or why a
+/// cell's could not be read (`coincide::Unwalked`, said by its sentence
+/// rather than crossed as a type: nothing a Python caller does branches
+/// on which node the walk stopped at).
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone)]
+pub(crate) struct Coincidence {
+    cells: Vec<(NodeId, Option<String>)>,
+    relation: &'static str,
+    site: &'static str,
+    rung: Option<&'static str>,
+    residual: Option<String>,
+}
+
+impl Coincidence {
+    /// The row and its proof, crossed.
+    pub(crate) fn new(
+        py: Python<'_>,
+        row: &d::NamedCoincidence,
+        proof: &d::Proof,
+    ) -> PyResult<Self> {
+        let cells = row
+            .cells
+            .iter()
+            .map(|cell| match cell {
+                d::NamedCell::Entity { input, name } => {
+                    Ok((NodeId(*input), Some(super::doc::name_text(py, name)?)))
+                }
+                d::NamedCell::Tool { input } => Ok((NodeId(*input), None)),
+            })
+            .collect::<PyResult<_>>()?;
+        let (rung, residual) = match proof {
+            d::Proof::Structural(rung) => (Some(crate::tags::coincidence_rung_tag(*rung)), None),
+            d::Proof::Unproven { residual, .. } => (None, Some(residual.to_string())),
+        };
+        Ok(Self {
+            cells,
+            relation: crate::tags::coincidence_relation_tag(row.relation),
+            site: crate::tags::decision_site_tag(row.site),
+            rung,
+            residual,
+        })
+    }
+}
+
+#[pymethods]
+impl Coincidence {
+    /// The two cells decided one, as `(input node, name)` pairs; a
+    /// tool cell's name is `None`.
+    #[getter]
+    fn cells(&self) -> Vec<(NodeId, Option<String>)> {
+        self.cells.clone()
+    }
+
+    /// What was decided between them: `same_oriented`,
+    /// `same_opposite`, `on_carrier` or `equal_angles`.
+    #[getter]
+    fn relation(&self) -> &'static str {
+        self.relation
+    }
+
+    /// Where it was decided: `plane_ladder`, `carrier_ladder`,
+    /// `split_on` or `battery_turn`.
+    #[getter]
+    fn site(&self) -> &'static str {
+        self.site
+    }
+
+    /// The door's rung that proved it structural (`same_construction`), or
+    /// `None`: the door does not prove it structural.
+    #[getter]
+    fn rung(&self) -> Option<&'static str> {
+        self.rung
+    }
+
+    /// What separates the two constructions, where no rung proved it.
+    #[getter]
+    fn residual(&self) -> Option<String> {
+        self.residual.clone()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "Coincidence({}, {}, {})",
+            self.relation,
+            self.site,
+            self.rung.unwrap_or("unproven")
+        )
+    }
+}
+
 /// Register the value surface on the module.
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<CancelToken>()?;
     m.add_class::<Evaluation>()?;
+    m.add_class::<Coincidence>()?;
     m.add_class::<Value>()?;
     m.add_class::<Body>()?;
     m.add_class::<MassProperties>()?;

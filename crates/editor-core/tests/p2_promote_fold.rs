@@ -564,7 +564,7 @@ fn a_gauge_is_read_by_no_operand_and_folds_cleanly() {
         &doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Datum(editor_core::Datum::AxisInPlane {
-                plane: g.into(),
+                frame: g.into(),
                 origin: [fixture::len(0.0), fixture::len(0.0)],
                 direction: [fixture::scl(1.0), fixture::scl(0.0)],
             })),
@@ -572,7 +572,7 @@ fn a_gauge_is_read_by_no_operand_and_folds_cleanly() {
         },
     );
     assert!(
-        matches!(&err, EditError::DefinesNothing { input, slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Plane) } if input.id() == g),
+        matches!(&err, EditError::DefinesNothing { input, slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Frame) } if input.id() == g),
         "{err:?}"
     );
     let folded = fold(doc, g);

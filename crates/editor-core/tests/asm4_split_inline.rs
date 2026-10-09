@@ -1602,12 +1602,23 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
     for nested in [false, true] {
         let mut store = PartStore::default();
         let part_doc = part("asm4-min2-stranded-part", 0.0, 1.0);
-        let (part_doc, extra) = on_frame(
+        let (part_doc, extra_profile) = on_frame(
             part_doc,
             [0.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],
             [0.0, 1.0, 0.0],
             vec![square(10.0, 0.0, 0.5)],
+        );
+        // A body the union reads while its pair is written (D10: a pair
+        // names what its node reads), then drops: the re-point reports
+        // the name out of reach, and the delete strands it.
+        let (part_doc, extra) = insert(
+            part_doc,
+            Node::Extrude {
+                profile: extra_profile.into(),
+                distance: len(1.0),
+                side: ExtrudeSide::Along,
+            },
         );
         let body = part_doc.ids()[BODY_POSITION];
         let at_extra = StableName {
@@ -1638,10 +1649,10 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
                 side: ExtrudeSide::Along,
             },
         );
-        let (part_doc, _) = insert(
+        let (part_doc, union) = insert(
             part_doc,
             Node::Union {
-                members: vec![body.into(), twin.into()],
+                members: vec![body.into(), twin.into(), extra.into()],
                 // Both sides are READ at the surviving body; the
                 // stranded side's NAME derives from the extra node,
                 // which is what the delete below strands.
@@ -1649,6 +1660,13 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
                     SitedRef::new(anchor.node, stranded.clone()),
                     SitedRef::at_mint(anchor),
                 )]),
+            },
+        );
+        let (part_doc, _) = step(
+            part_doc,
+            DocEdit::SetMembers {
+                node: union,
+                members: vec![body.into(), twin.into()],
             },
         );
         let (part_doc, _) = step(part_doc, DocEdit::DeleteNode { id: extra });

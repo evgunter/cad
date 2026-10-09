@@ -229,10 +229,11 @@
 use std::path::Path;
 
 use pncad::document::{
-    ChecksReport, Doc, DocumentId, Evaluation, Maintenance, NodeErrorKind, NodeStanding,
-    ParseError, PartFault, ProductError, ProductErrorKind, ProfileProgram, RecipeNodeId,
-    ResolveFault, Said, SlotId, Speaker, VarName,
+    CheckEvidence, CheckFinding, ChecksReport, Doc, DocumentId, Evaluation, FindingSubject,
+    Maintenance, NamedCell, NodeErrorKind, NodeStanding, ParseError, PartFault, ProductError,
+    ProductErrorKind, ProfileProgram, RecipeNodeId, ResolveFault, Said, SlotId, Speaker, VarName,
 };
+use pncad::prelude::EntityKind;
 use pncad::quantity::LengthUnit;
 
 use crate::blend::BlendEvent;
@@ -249,7 +250,8 @@ use crate::scene::FittedDelta;
 use crate::scene::SceneError;
 use crate::seats::SeatEvent;
 use crate::session::{
-    AtRestBadge, DeclareOffer, OpOutcome, Outstanding, Refusal, SessionOp, VersionOffer,
+    AtRestBadge, DeclareOffer, EdgeSelection, FaceSelection, OpOutcome, Outstanding, Refusal,
+    Selection, SessionOp, VersionOffer,
 };
 use crate::tools::ToolNotice;
 use crate::vocab::{partial_mirror, vocabulary};
@@ -2281,17 +2283,54 @@ pub fn checks_badge(report: Option<&ChecksReport>) -> Option<Badge> {
     )
 }
 
-/// **One row of the Checks window**: the body a finding is about, the
-/// label of the button that selects it, and the finding's sentence.
+/// **One row of the Checks window**: the node a finding is about, the
+/// label of the button that selects it, the finding's sentence, and
+/// the cells it names that can be selected.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckRow {
-    /// The operation defining the body whose copy the finding is
-    /// about ([`crate::world::seat_of`]), which the button selects.
-    pub body: RecipeNodeId,
-    /// That operation, spoken.
+    /// The node the finding is about, which the button selects: for a
+    /// copy's finding the operation defining the body its placement
+    /// places ([`crate::world::seat_of`]), the deciding node of an
+    /// unproven coincidence.
+    pub node: RecipeNodeId,
+    /// That node, spoken.
     pub button: String,
     /// The finding, its copies spoken.
     pub sentence: String,
+    /// The cells an unproven coincidence names, each a button that
+    /// selects it: a face or an edge as itself, any other cell as the
+    /// node whose table names it. Empty for every other finding.
+    pub cells: Vec<(String, Selection)>,
+}
+
+/// An unproven coincidence's cells as the selections that show them,
+/// each with its button's label.
+fn coincidence_cells(finding: &CheckFinding, by: Speaker<'_>) -> Vec<(String, Selection)> {
+    let CheckEvidence::UnprovenCoincidence { row, .. } = &finding.evidence else {
+        return Vec::new();
+    };
+    row.cells
+        .iter()
+        .map(|cell| match cell {
+            NamedCell::Entity { input, name } => {
+                let select = match name.kind {
+                    EntityKind::Face => Selection::Face(FaceSelection {
+                        name: name.clone(),
+                        node: *input,
+                        body: 0,
+                    }),
+                    EntityKind::Edge => Selection::Edge(EdgeSelection {
+                        name: name.clone(),
+                        node: *input,
+                        body: 0,
+                    }),
+                    EntityKind::Vertex | EntityKind::Body => Selection::Node(*input),
+                };
+                (by.name(name).to_string(), select)
+            }
+            NamedCell::Tool { input } => (by.node(*input).to_string(), Selection::Node(*input)),
+        })
+        .collect()
 }
 
 /// **The Checks window's rows**, each body spoken from `landed`.
@@ -2309,11 +2348,15 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
         .findings
         .iter()
         .map(|finding| {
-            let body = crate::world::seat_of(landed, finding.root);
+            let node = match finding.subject {
+                FindingSubject::Output { root, .. } => crate::world::seat_of(landed, root),
+                FindingSubject::Node(node) => node,
+            };
             CheckRow {
-                body,
-                button: by.node(body).to_string(),
+                node,
+                button: by.node(node).to_string(),
                 sentence: Said(finding, by).to_string(),
+                cells: coincidence_cells(finding, by),
             }
         })
         .collect()

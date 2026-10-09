@@ -122,7 +122,7 @@ Each intermediate state is a whole representation:
 
 **The product is the world** (A10 as rewritten by #4220; `product.rs`):
 
-- **Representation.** `Node::PlaceInWorld { body: S /* Body */, pose: Placement<S> }` is an operation. It reads one `Body` and defines its copy as one `Body` output, the body at `pose`. The pose is the rigid chain `Transform` holds, identity by default.
+- **Representation.** `Node::PlaceInWorld { body: S /* Body */, pose: Placement<S> }` is an operation. It reads one `Body` and defines its copy as one `Body` output. The pose relates the copy to the world, and only the gather and export read it: it sets the coordinates export writes, and no body has world coordinates. It is spelled as a rigid chain of steps, identity by default.
   - The product is every copy a `PlaceInWorld` defines, in the placements' document order.
   - No list is stored, and no edit places or unplaces as a side effect.
   - Two placements of one body are two copies. A second identity placement is allowed, and the at-rest gate judges the coincident copies as interference.

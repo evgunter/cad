@@ -251,7 +251,7 @@ fn plate_spaced(
     // share a plane bind the same id.
     let frame = r.insert(fixture::xy_frame());
     let plate_profile = r.insert(Node::Profile(ProfileProgram {
-        plane: frame.into(),
+        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(-1.0, -0.5), (1.0, -0.5), (1.0, 0.5), (-1.0, 0.5)])
                 .expect("finite plate corners"),
@@ -266,7 +266,7 @@ fn plate_spaced(
     let mut holes = Vec::new();
     for cx in [-hole_x, hole_x] {
         let p = r.insert(Node::Profile(ProfileProgram {
-            plane: frame.into(),
+            frame: frame.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
                 radius: param("hole_r", Dimension::Length),
@@ -338,7 +338,7 @@ fn kink(dist: Distribution) -> (ProfileDoc, RecipeNodeId) {
     // share a plane bind the same id.
     let frame = r.insert(fixture::xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: frame.into(),
+        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
@@ -395,7 +395,7 @@ fn slab(half: f64) -> (ProfileDoc, RecipeNodeId) {
     // share a plane bind the same id.
     let frame = r.insert(fixture::xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: frame.into(),
+        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
@@ -1448,7 +1448,7 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
     // on the same plane, so they bind the same id.
     let frame = r.insert(fixture::xy_frame());
     let bore_p = r.insert(Node::Profile(ProfileProgram {
-        plane: frame.into(),
+        frame: frame.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), len(0.0)],
             radius: len(0.5),
@@ -1461,7 +1461,7 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
         side: ExtrudeSide::Along,
     });
     let pin_p = r.insert(Node::Profile(ProfileProgram {
-        plane: frame.into(),
+        frame: frame.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.1), len(0.0)],
             radius: param("r", Dimension::Length),
@@ -1580,7 +1580,7 @@ fn a_loft_section_seed_is_the_typed_valve_never_a_zero() {
     };
     let section = |plane| {
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane,
             loops: vec![LoopProgram::Chain(vec![
                 editor_core::ProgramStep::At([len(0.0), len(0.0)]),
                 editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::Point([

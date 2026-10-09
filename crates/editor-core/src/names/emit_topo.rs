@@ -282,11 +282,6 @@ pub(super) fn chord_faces<T: geom_core::Real>(
     Ok(chord_faces)
 }
 
-/// Split edges + vertices: pass-through, `SectionEdge` (chords),
-/// `SplitFragment` (crossing-cut operand edges), `CrossingVertex`,
-/// `OnToolVertex`. The edges are grouped by their parent first, the
-/// vertices named from those parents, and then several pieces of one
-/// parent qualified by their ends ([`name_edge_pieces`]).
 /// How a split names an edge its closing join made, read off the join
 /// records (`SplitNaming::edge_joins`) by the input cells the edge's
 /// cover lies along (`topo::join_covers`, each covered edge chased to
@@ -381,20 +376,13 @@ fn split_joined_readings<T: Decide>(
             }
             [_] => {} // a piece: the fragment pass names it
             several if several.iter().all(|&r| whole(r)) => {
-                let mut tied = false;
                 let mut names = Vec::with_capacity(several.len());
                 for &r in several {
                     let up = upstream_name(target_table, target_node, ent(0, EntityKey::Edge(r)))?;
-                    tied |= up.tied;
-                    names.push((*up.name).clone());
+                    names.push(((*up.name).clone(), up.tied));
                 }
-                out.insert(
-                    kept,
-                    Joined::Set {
-                        name: merged::edge_set(node, names),
-                        tied,
-                    },
-                );
+                let (name, tied) = super::join_names::joined_name(node, names);
+                out.insert(kept, Joined::Set { name, tied });
             }
             _ => {
                 return Err(bug(
@@ -407,6 +395,11 @@ fn split_joined_readings<T: Decide>(
     Ok(out)
 }
 
+/// Split edges + vertices: pass-through, `SectionEdge` (chords),
+/// `SplitFragment` (crossing-cut operand edges), `CrossingVertex`,
+/// `OnToolVertex`. The edges are grouped by their parent first, the
+/// vertices named from those parents, and then several pieces of one
+/// parent qualified by their ends ([`name_edge_pieces`]).
 #[allow(clippy::too_many_arguments)]
 fn name_split_edges_vertices<T: Decide>(
     node: RecipeNodeId,
@@ -1767,10 +1760,11 @@ fn joined_cover<T: Decide>(
     })
 }
 
-/// The name of a joined edge that lies along the operand edges `set`:
-/// `Merged` of their names, each wrapped by its side, and flat — an
-/// operand edge that is itself a set stands for its constituents (N3).
-/// Whether any of them is tied comes with it.
+/// The name of a joined edge that lies along the operand edges `set`
+/// (several, `joined_one` holding the single ones): `Merged` of their
+/// names, each wrapped by its side, and flat — an operand edge that is
+/// itself a set stands for its constituents (N3). Whether any of them
+/// is tied comes with it (`join_names::joined_name`).
 fn set_name<T: Decide>(
     node: RecipeNodeId,
     set: &[OpSide<EdgeKey>],
@@ -1778,14 +1772,12 @@ fn set_name<T: Decide>(
     b: &OperandCtx<'_, T>,
 ) -> Result<(StableName, bool), NamingError> {
     let mut names = Vec::with_capacity(set.len());
-    let mut from_tie = false;
     for &r in set {
         let (op, k) = r.of(a, b);
         let up = upstream_name(op.table, op.node, ent(0, EntityKey::Edge(k)))?;
-        from_tie |= up.tied;
-        names.push(name1(EntityKind::Edge, node, r.wrap(up.name)));
+        names.push((name1(EntityKind::Edge, node, r.wrap(up.name)), up.tied));
     }
-    Ok((merged::edge_set(node, names), from_tie))
+    Ok(super::join_names::joined_name(node, names))
 }
 
 /// The edges of a pair boolean's result that share one parent: its
@@ -4496,7 +4488,7 @@ mod split_carries_candidates {
         let (doc, profile) = ins(
             doc,
             Node::Profile(ProfileProgram {
-                plane: plane.into(),
+                frame: plane.into(),
                 loops: vec![LoopProgram::polygon(pts.iter().copied()).expect("finite")],
                 ids: Vec::new(),
             }),
@@ -4787,7 +4779,7 @@ mod crossings_rank_along_the_line {
         let (doc, profile) = ins(
             doc,
             Node::Profile(ProfileProgram {
-                plane: plane.into(),
+                frame: plane.into(),
                 loops: vec![loop_],
                 ids: Vec::new(),
             }),
@@ -5002,7 +4994,7 @@ mod nurbs_crossings_rank_by_parameter {
             let (d, profile) = ins(
                 d,
                 Node::Profile(ProfileProgram {
-                    plane: plane.into(),
+                    frame: plane.into(),
                     loops: vec![LoopProgram::polygon(square).expect("finite")],
                     ids: Vec::new(),
                 }),
@@ -5361,7 +5353,7 @@ mod edge_pieces_of_one_line_tie {
         let (doc, profile) = ins(
             doc,
             Node::Profile(ProfileProgram {
-                plane: plane.into(),
+                frame: plane.into(),
                 loops: vec![loop_],
                 ids: Vec::new(),
             }),
@@ -5642,7 +5634,8 @@ mod touch_reread_rows {
     use crate::node::{RecipeNodeId, StepId};
     use geom_core::Tol;
     use topo::test_support::meeting::{
-        PLATE, Pose, apex_pyramid, bearing, corners, mix, nest, nest_polygon, posed_box, poses,
+        PLATE, Pose, apex_pyramid, bearing, corners, mix, near_flat, nest, nest_polygon, posed_box,
+        poses,
     };
     use topo::{AtRestBody, BooleanResult, intersect, subtract, union};
 
@@ -5822,6 +5815,35 @@ mod touch_reread_rows {
                 &apex_pyramid(&quad_void, pose, t()),
                 t(),
             ));
+            // A dart, whose apex is a reflex edge: on the plate, bare,
+            // and apart from the arch in one body, a pyramid in its cone.
+            let dart = |b: f64| {
+                apex_pyramid(
+                    &[
+                        bearing(b - 30.0, 0.45, 0.5),
+                        bearing(b, 0.6, 0.5),
+                        bearing(b + 30.0, 0.45, 0.5),
+                        bearing(b, 0.5, 0.5),
+                    ],
+                    pose,
+                    t(),
+                )
+            };
+            let dart_one = built(union(&plate, &dart(60.0), t()));
+            let arch_dart = built(union(&arch, &dart(230.0), t()));
+            let in_dart = p([
+                bearing(222.0, 0.4, 0.4),
+                bearing(238.0, 0.4, 0.4),
+                bearing(230.0, 0.448, 0.4),
+            ]);
+            // A near-flat quadrilateral void buried in the block, its
+            // apex a reflex edge, and an island in it.
+            let q = near_flat(-1e-3);
+            let flat_island = built(union(
+                &built(subtract(&block, &apex_pyramid(&q, pose, t()), t())),
+                &apex_pyramid(&nest_polygon(&q, 0.6), pose, t()),
+                t(),
+            ));
             let cone = p(corners(240.0, 0.7, 0.5));
             let over = p(corners(50.0, 0.7, 0.5));
             let over_180 = p(corners(170.0, 0.7, 0.5));
@@ -5884,6 +5906,23 @@ mod touch_reread_rows {
                     "over a quad void in a bare quad arch",
                     &over,
                     &bare_quad_hollow,
+                ),
+                ("beside a dart", &cone, &dart_one),
+                ("over a dart", &over, &dart_one),
+                (
+                    "inside a bare dart beside a bare arch",
+                    &in_dart,
+                    &arch_dart,
+                ),
+                (
+                    "near-flat quad void -1e-3 buried, island, hang",
+                    &hang,
+                    &flat_island,
+                ),
+                (
+                    "near-flat quad void -1e-3 buried, island, hang_over",
+                    &hang_over,
+                    &flat_island,
                 ),
             ] {
                 named += names(label, x, y, pose);

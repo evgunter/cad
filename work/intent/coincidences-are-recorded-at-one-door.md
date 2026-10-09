@@ -1,8 +1,10 @@
 ---
 id: coincidences-are-recorded-at-one-door
 kind: issue
-title: D10 stage 4 PR B: every coincidence the kernel decides from values is a Coincidence record carried into NodeValue, each ContactRecords row citing its decision; the door coincide::prove (rung 1, the same construction read twice) and CheckId::UnprovenCoincidence
-status: open
+title: D10 stage 4 PR B: the coincidences the kernel decides from values at the declared one-carrier rung, the split's pinch and the mitre are Coincidence records carried into NodeValue (ContactRecords citing them is B2); the door coincide::prove (rung 1, the same construction read twice) and CheckId::UnprovenCoincidence
+status: review
+branch: intent/s4-b-record
+pr: 4354
 opened: 2026-10-08
 priority: P0
 cost: H
@@ -16,8 +18,8 @@ dispatchable now.
 **Provenance is the document's.** A row names each cell as the read it
 entered the deciding operation through plus its `StableName` there,
 never by a stamp the kernel carries. A name alone is not provenance (a
-pass-through placement adds no name segment, N1), so the read carries
-where the cell was placed.
+copy's cells keep the names of the body it copies, N1), so the read,
+naming the copy, says which copy a cell is a cell of.
 
 **Two record types.** A `Coincidence` is the decision: its operand
 cells, the relation, the decision site and the margin, never re-keyed.
@@ -48,9 +50,10 @@ When this unit lands, NAMES N6 reads: "**N6 — A cell's construction is
 read from the document.** A recorded cell is named by the read it
 entered the deciding operation through and its name there. The door
 reads its carrier at that name from the symbolic evaluation (D10,
-Coincidence); a pass-through placement adds no name segment (N1), so
-the read, not the name, carries where the cell was placed. The kernel
-carries no recipe provenance of a description." CONTACT-DESIGN C3's
+Coincidence). A placement is an operation that defines a copy, and the
+copy's cells keep the names of the body it copies (N1), so the read,
+naming the copy, not the name, says which copy a cell is a cell of. The
+kernel carries no recipe provenance of a description." CONTACT-DESIGN C3's
 `PatchContact` reads "backed by a `SameOpposite` decision", every
 granularity citing its backing; topo's preamble gains the decision
 beside the record.

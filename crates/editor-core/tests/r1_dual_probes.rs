@@ -502,7 +502,7 @@ fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
     let mut r = Recorder::new();
     let xy_frame_0 = r.insert(xy_frame());
     let plate = r.insert(Node::Profile(ProfileProgram {
-        plane: xy_frame_0.into(),
+        frame: xy_frame_0.into(),
         loops: vec![
             LoopProgram::polygon([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]).unwrap(),
         ],
@@ -515,7 +515,7 @@ fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
     });
     let xy_frame_1 = r.insert(xy_frame());
     let boss_profile = r.insert(Node::Profile(ProfileProgram {
-        plane: xy_frame_1.into(),
+        frame: xy_frame_1.into(),
         loops: vec![LoopProgram::circle(0.0, 0.0, 0.5).unwrap()],
         ids: Vec::new(),
     }));

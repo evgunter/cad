@@ -996,6 +996,14 @@ impl SplitHalf {
         }
     }
 
+    /// **The split's output port this half is** ([`crate::Node::outputs`]):
+    /// [`Self::output_body`], narrowed to a port — what a read of the
+    /// half names ([`crate::Operand::Output`]).
+    #[must_use]
+    pub fn port(self) -> u8 {
+        u8::try_from(self.output_body()).unwrap_or_else(|_| unreachable!("a split has two ports"))
+    }
+
     /// The half's word, which is also the split's output port it is
     /// ([`crate::Node::outputs`]).
     pub fn name(self) -> &'static str {
@@ -1976,7 +1984,7 @@ pub(crate) fn lift<P>(
             seat(*at, Lift::Dropped).into_iter().collect()
         }
         Node::Datum(Datum::AxisInPlane {
-            plane,
+            frame: plane,
             origin: _,
             direction: _,
         }) => seat(*plane, Lift::Dropped).into_iter().collect(),

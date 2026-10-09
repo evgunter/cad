@@ -807,7 +807,7 @@ fn the_checks_window_speaks_from_the_landed_document() {
     let rows = viewer::frame::check_rows(report, landed);
     let row = rows
         .iter()
-        .find(|row| row.body == big)
+        .find(|row| row.node == big)
         .expect("the two overlapping boxes are a separation finding about the big one");
     let b = tag(big.0.digest());
     assert_eq!(row.button, format!("Extrude \"big block\" ({b})"));

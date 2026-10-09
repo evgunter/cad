@@ -171,7 +171,7 @@ fn carve(
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![lp],
             ids: Vec::new(),
         }),

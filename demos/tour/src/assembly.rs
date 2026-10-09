@@ -416,7 +416,7 @@ fn prism_part(
     let profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![LoopProgram::polygon_expr([
                 [zero.clone(), zero.clone()],
                 [width.clone(), zero.clone()],

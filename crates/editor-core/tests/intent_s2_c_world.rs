@@ -30,8 +30,10 @@ const FILES: [&str; 5] = [
 
 /// Every document's product before the world, as the base gathered it
 /// over its A10 root list: the aggregate's digest word and the count
-/// of words fed. Taken by [`print_product_rows`] at the base (stage 2
-/// unit B's head, `5fed25fe7`), before any placement existed.
+/// of words fed. Taken at the base, before any placement existed: main
+/// with stage 2 unit B merged (`0811289515`), by [`print_product_rows`]'s
+/// gather over the root list there. The composed die's two rows moved
+/// from B's branch record with main's blend change (`d5a518b1b2`).
 const PRE_C: [(&str, &str); 34] = [
     ("die", "fa9ad86b30e8d844/532"),
     ("corner_table", "1b26e7ae1ba4a066/100"),
@@ -53,8 +55,8 @@ const PRE_C: [(&str, &str); 34] = [
     ("face_sketch", "c7144cb82dbe5c86/28"),
     ("part_select", "e54d217adfa64523/52"),
     ("loft_prism", "36c0de6a313e3a66/28"),
-    ("die_composed", "26837bfbed2b6372/91"),
-    ("die_composed_tour", "1ee773821965aac1/391"),
+    ("die_composed", "182b02846757307e/88"),
+    ("die_composed_tour", "ca0b8371cb38e973/328"),
     ("plate_param", "fd7b71fa51270532/88"),
     ("kiss_carry", "fabe53fd5101f503/88"),
     ("tube_ring", "c342379c65eab6d1/10"),
@@ -64,7 +66,7 @@ const PRE_C: [(&str, &str); 34] = [
     ("reshaped_rod", "128f9facfb4a7626/52"),
     (FILES[0], "8853ddff30bcec28/154"),
     (FILES[1], "1ecb739a2d22c24d/82"),
-    (FILES[2], "1ee773821965aac1/391"),
+    (FILES[2], "ca0b8371cb38e973/328"),
     (FILES[3], "07c4e18f181e9b69/16"),
     (FILES[4], "fd7b71fa51270532/88"),
 ];

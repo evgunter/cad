@@ -570,7 +570,6 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
         S::Input => "input",
         S::Of => "of",
         S::Measure => "measure",
-        S::Plane => "plane",
         S::At => "at",
         S::Body => "body",
     }
@@ -1007,6 +1006,9 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // An operand reads a variable its operation no longer defines:
         // the delete that removed it reported the strand.
         C::UnresolvedRead => "unresolved_read",
+        // A measure's site was deleted: the delete reported the names
+        // it stranded.
+        C::UnresolvedSite => "unresolved_site",
         C::EmptyOperand => "empty_operand",
         C::ProductOperand => "product_operand",
         C::UnfinishedOperand => "unfinished_operand",
@@ -1196,6 +1198,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::SeedPinnedSection { .. } => None,
         NodeErrorKind::WrongOperand { .. } => None,
         NodeErrorKind::UnresolvedRead { .. } => None,
+        NodeErrorKind::UnresolvedSite { .. } => None,
         NodeErrorKind::EmptyOperand { .. } => None,
         NodeErrorKind::ProductOperand { .. } => None,
         NodeErrorKind::UnfinishedOperand { .. } => None,
@@ -1564,8 +1567,10 @@ pub fn tube_error_tag(err: &TubeError) -> &'static str {
 /// it passed on, so one refusal has one spelling whichever door met it.
 pub fn join_refusal_tag(refusal: &JoinRefusal) -> &'static str {
     match refusal {
-        JoinRefusal::Undecided(_) => "join_undecided",
-        JoinRefusal::CarrierUnsupported { .. } => "join_carrier_unsupported",
+        JoinRefusal::Undecided(_) => boolean_error_tag(BooleanErrorKind::JoinUndecided),
+        JoinRefusal::CarrierUnsupported { .. } => {
+            boolean_error_tag(BooleanErrorKind::JoinCarrierUnsupported)
+        }
         JoinRefusal::Kernel { kind } => boolean_error_tag(*kind),
     }
 }
@@ -1620,10 +1625,12 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::BodyNotIntact { .. } => "body_not_intact",
         BlendError::ScaffoldingOperand { .. } => "scaffolding_operand",
         BlendError::InsideOutOperand { .. } => "inside_out_operand",
+        BlendError::UnjoinedOperand { .. } => "unjoined_operand",
         BlendError::SurgeryInvariant { .. } => "surgery_invariant",
         BlendError::RingClearance { .. } => "ring_clearance",
         BlendError::Certify { .. } => "certify",
         BlendError::Op { .. } => "op",
+        BlendError::Join { refusal } => join_refusal_tag(refusal),
     }
 }
 
@@ -1660,6 +1667,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::CurvedSectorSideUnsupported => "curved_sector_side_unsupported",
         BooleanErrorKind::CurvedPierceUnsupported => "curved_pierce_unsupported",
         BooleanErrorKind::CrossingAtConeApex => "crossing_at_cone_apex",
+        BooleanErrorKind::NormalAtConeApex => "normal_at_cone_apex",
         BooleanErrorKind::CurvedEdgeUnsupported => "curved_edge_unsupported",
         BooleanErrorKind::CrossingCarrierUnsupported => "crossing_carrier_unsupported",
         BooleanErrorKind::PointSplitCarrierUnsupported => "point_split_carrier_unsupported",
@@ -1668,6 +1676,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::PointInFaceRefused => "point_in_face_refused",
         BooleanErrorKind::ScaffoldingOperand => "scaffolding_operand",
         BooleanErrorKind::InsideOutOperand => "inside_out_operand",
+        BooleanErrorKind::UnjoinedOperand => "unjoined_operand",
         BooleanErrorKind::NonMaximalFaces => "non_maximal_faces",
         BooleanErrorKind::CoplanarNeighbours => "coplanar_neighbours",
         BooleanErrorKind::NonFiniteSectorChord => "non_finite_sector_chord",
@@ -1695,6 +1704,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::FallbackExtentUnsupported => "fallback_extent_unsupported",
         BooleanErrorKind::SpheresMeet => "spheres_meet",
         BooleanErrorKind::GermFrameUnsupported => "germ_frame_unsupported",
+        BooleanErrorKind::GermSectionOutsideInventory => "germ_section_outside_inventory",
         BooleanErrorKind::GermFrameCylinderPinch => "germ_frame_cylinder_pinch",
         BooleanErrorKind::Euler => "euler",
         BooleanErrorKind::Pcurves => "pcurves",
@@ -1850,6 +1860,7 @@ pub fn shell_error_tag(err: &ShellError<f64>) -> &'static str {
         ShellError::Partition { .. } => "partition",
         ShellError::WallClearance { .. } => "wall_clearance",
         ShellError::ChartSenseMixed { .. } => "chart_sense_mixed",
+        ShellError::OffsetsCross { .. } => "offsets_cross",
         ShellError::Face { .. } => "face",
         ShellError::OpenFaceStale { .. } => "open_face_stale",
         ShellError::OpenFaceRepeated { .. } => "open_face_repeated",
@@ -2194,6 +2205,7 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::WallColumnStructure { .. } => "wall_column_structure",
         StepImportError::RecognitionAmbiguous { .. } => "recognition_ambiguous",
         StepImportError::Pcurves { .. } => "pcurves",
+        StepImportError::Join { .. } => "join",
         StepImportError::Placement { .. } => "placement",
         StepImportError::Instance { .. } => "instance",
         StepImportError::TierInvalid { .. } => "tier_invalid",
@@ -2244,15 +2256,16 @@ pub fn promoted_kind_tag(kind: &PromotedKind) -> &'static str {
 /// one word whichever kind it was, and the residual that certifies it
 /// is a number rather than a spelling.
 ///
-/// The match is exhaustive, so a fifth normalization minted
+/// The match is exhaustive, so a sixth normalization minted
 /// kernel-side stops this crate compiling instead of arriving under
-/// one of these four words.
+/// one of these five words.
 pub fn normalization_kind_tag(kind: &NormalizationKind) -> &'static str {
     match kind {
         NormalizationKind::EdgeFreeSphere => "edge_free_sphere",
         NormalizationKind::DegenerateApexCone => "degenerate_apex_cone",
         NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
         NormalizationKind::SurfacePromotion { .. } => "surface_promotion",
+        NormalizationKind::JoinedEdges => "joined_edges",
     }
 }
 
@@ -3018,6 +3031,39 @@ pub fn check_evidence_tag(evidence: &CheckEvidence) -> &'static str {
         CheckEvidence::ChartCoherence { .. } => "chart_coherence",
         CheckEvidence::ChartCoherenceUnexamined { .. } => "chart_coherence_unexamined",
         CheckEvidence::ChartCoherenceUnavailable => "chart_coherence_unavailable",
+        CheckEvidence::UnprovenCoincidence { .. } => "unproven_coincidence",
+    }
+}
+
+/// The stable tag for what a coincidence row decided between its two
+/// cells ([`pncad::document::coincidence::Relation`]).
+pub fn coincidence_relation_tag(relation: pncad::document::coincidence::Relation) -> &'static str {
+    use pncad::document::coincidence::Relation as R;
+    match relation {
+        R::SameOriented => "same_oriented",
+        R::SameOpposite => "same_opposite",
+        R::OnCarrier => "on_carrier",
+        R::EqualAngles => "equal_angles",
+    }
+}
+
+/// The stable tag for where a coincidence row was decided
+/// ([`pncad::document::coincidence::DecisionSite`]).
+pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'static str {
+    use pncad::document::coincidence::DecisionSite as S;
+    match site {
+        S::PlaneLadder => "plane_ladder",
+        S::CarrierLadder => "carrier_ladder",
+        S::SplitOn => "split_on",
+        S::BatteryTurn => "battery_turn",
+    }
+}
+
+/// The stable tag for the rung of the coincidence door that proved a
+/// row ([`pncad::document::Rung`]).
+pub fn coincidence_rung_tag(rung: pncad::document::Rung) -> &'static str {
+    match rung {
+        pncad::document::Rung::SameConstruction => "same_construction",
     }
 }
 
@@ -3118,8 +3164,11 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::PlanarBoundaryResidual { .. } => "planar_boundary_residual",
         ValidationError::PlanarBoundaryEscalated { .. } => "planar_boundary_escalated",
         ValidationError::SliverDihedral { .. } => "sliver_dihedral",
+        ValidationError::NoDihedralArm { .. } => "no_dihedral_arm",
         ValidationError::TransverseNotIntrinsic { .. } => "transverse_not_intrinsic",
         ValidationError::ScaffoldAtRest { .. } => "scaffold_at_rest",
+        ValidationError::JoinableVertexAtRest { .. } => "joinable_vertex_at_rest",
+        ValidationError::JoinUndecidedAtRest { .. } => "join_undecided_at_rest",
         ValidationError::TangentNotIntrinsic { .. } => "tangent_not_intrinsic",
         ValidationError::LaminaWedge { .. } => "lamina_wedge",
         ValidationError::LoopRoleInverted { .. } => "loop_role_inverted",

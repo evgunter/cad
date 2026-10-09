@@ -447,7 +447,7 @@ fn revolved_program(doc: ProfileDoc, program: LoopProgram<Formula>) -> ProfileDo
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![program],
             ids: Vec::new(),
         }),

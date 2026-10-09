@@ -337,7 +337,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         SessionOp::EditProfile {
             node,
             base: pncad::document::ProfileProgram {
-                plane: node.into(),
+                frame: node.into(),
                 loops: vec![],
                 ids: Vec::new(),
             },

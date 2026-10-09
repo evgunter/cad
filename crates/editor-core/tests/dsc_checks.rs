@@ -113,8 +113,7 @@ fn disjoint_union_is_one_finding() {
         report.findings,
         vec![CheckFinding {
             check: CheckId::Connectedness,
-            root,
-            output_ix: 0,
+            subject: editor_core::FindingSubject::Output { root, output_ix: 0 },
             evidence: CheckEvidence::Connectedness {
                 actual: 2,
                 expected: 1,
@@ -251,8 +250,7 @@ fn stale_expectation_on_a_vanished_body() {
         report.findings,
         vec![CheckFinding {
             check: CheckId::Connectedness,
-            root,
-            output_ix: 0,
+            subject: editor_core::FindingSubject::Output { root, output_ix: 0 },
             evidence: CheckEvidence::StaleExpectation { expected: 1 },
         }]
     );
@@ -285,8 +283,10 @@ fn stale_expectation_on_a_nonexistent_root() {
         report.findings,
         vec![CheckFinding {
             check: CheckId::Connectedness,
-            root: ghost,
-            output_ix: 0,
+            subject: editor_core::FindingSubject::Output {
+                root: ghost,
+                output_ix: 0,
+            },
             evidence: CheckEvidence::StaleExpectation { expected: 1 },
         }]
     );
@@ -313,7 +313,10 @@ fn in_band_shell_escalates_typed_never_guessed() {
     // verdict — an in-band orientation is not guessed to a side (F6).
     assert_eq!(report.findings.len(), 1, "{report}");
     let finding = &report.findings[0];
-    assert_eq!((finding.root, finding.output_ix), (root, 0));
+    assert_eq!(
+        finding.subject,
+        editor_core::FindingSubject::Output { root, output_ix: 0 }
+    );
     let CheckEvidence::Escalated {
         source: ShellClassifyError::Escalated { source, .. },
     } = &finding.evidence
@@ -449,7 +452,14 @@ fn a_findings_attribution_resolves_to_its_subject() {
     let report =
         run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness()).expect("checks run");
     let finding = &report.findings[0];
-    let (body, contacts) = subject_body(&ev, finding.root, finding.output_ix)
+    let editor_core::FindingSubject::Output {
+        root: at,
+        output_ix,
+    } = finding.subject
+    else {
+        panic!("a connectedness finding is about a root output")
+    };
+    let (body, contacts) = subject_body(&ev, at, output_ix)
         .expect("the attribution resolves against the evaluation it came from");
     // The flagged body IS the disjoint union: the two shells the
     // finding counted (their grouping into solids is the kernel's
@@ -469,7 +479,7 @@ fn a_findings_attribution_resolves_to_its_subject() {
     assert_eq!(*contacts, topo::ContactRecords::default());
     // An attribution with no subject (a stale expectation's shape)
     // resolves to None, not to a wrong body.
-    assert!(subject_body(&ev, finding.root, 7).is_none());
+    assert!(subject_body(&ev, at, 7).is_none());
 }
 
 // ---------------------------------------------------------------------
@@ -512,8 +522,10 @@ fn overlapping_roots_are_one_finding_naming_both() {
         report.findings,
         vec![CheckFinding {
             check: CheckId::Separation,
-            root: a,
-            output_ix: 0,
+            subject: editor_core::FindingSubject::Output {
+                root: a,
+                output_ix: 0,
+            },
             evidence: CheckEvidence::NotSeparated {
                 other_root: b,
                 other_output: 0,
@@ -564,8 +576,10 @@ fn touching_roots_are_reported_as_uncertified_not_as_overlapping() {
         report.findings,
         vec![CheckFinding {
             check: CheckId::Separation,
-            root: a,
-            output_ix: 0,
+            subject: editor_core::FindingSubject::Output {
+                root: a,
+                output_ix: 0,
+            },
             evidence: CheckEvidence::NotSeparated {
                 other_root: b,
                 other_output: 0,
@@ -693,7 +707,10 @@ fn the_registry_order_is_every_check() {
             // `Separation`, this resident would lose every finding on
             // exactly the documents that do not gather.
             CheckId::ChartCoherence => 1,
-            CheckId::Separation => 2,
+            // Before `Separation`, for the same reason: it reads node
+            // values, never the subject.
+            CheckId::UnprovenCoincidence => 2,
+            CheckId::Separation => 3,
         };
         assert_eq!(
             CheckId::ALL[position],
@@ -703,7 +720,7 @@ fn the_registry_order_is_every_check() {
     }
     assert_eq!(
         CheckId::ALL.len(),
-        3,
+        4,
         "a variant added without a place in `ALL` is a resident the \
          registry would never gather for"
     );
@@ -844,7 +861,8 @@ fn the_chart_coherence_resident_carries_the_whole_kernel_report() {
         report
             .findings
             .iter()
-            .all(|f| f.check == CheckId::ChartCoherence && f.root == root && f.output_ix == 0),
+            .all(|f| f.check == CheckId::ChartCoherence
+                && f.subject == editor_core::FindingSubject::Output { root, output_ix: 0 }),
         "every finding is attributed to the rest body it was measured on"
     );
     assert!(
@@ -892,8 +910,10 @@ fn an_unexamined_loop_is_a_finding_never_a_skipped_check() {
         document: editor_core::DocumentId(1),
         findings: vec![CheckFinding {
             check: CheckId::ChartCoherence,
-            root: RecipeNodeId::new(0, tagged(3)),
-            output_ix: 0,
+            subject: editor_core::FindingSubject::Output {
+                root: RecipeNodeId::new(0, tagged(3)),
+                output_ix: 0,
+            },
             evidence: CheckEvidence::ChartCoherenceUnexamined {
                 unexamined: topo::Unexamined {
                     face: topo::FaceKey::default(),
@@ -940,8 +960,10 @@ fn an_unexamined_loop_is_a_finding_never_a_skipped_check() {
 fn a_coherence_measurement_renders_its_length_and_its_band() {
     let finding = CheckFinding {
         check: CheckId::ChartCoherence,
-        root: RecipeNodeId::new(0, tagged(4)),
-        output_ix: 1,
+        subject: editor_core::FindingSubject::Output {
+            root: RecipeNodeId::new(0, tagged(4)),
+            output_ix: 1,
+        },
         evidence: CheckEvidence::ChartCoherence {
             finding: topo::CoherenceFinding {
                 face: topo::FaceKey::default(),

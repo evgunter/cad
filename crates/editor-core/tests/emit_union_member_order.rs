@@ -339,7 +339,7 @@ fn a_seam_passed_through_a_split_and_cut_later_is_named() {
     let (doc, below) = insert(
         doc,
         Node::Part {
-            of: split.into(),
+            of: editor_core::Operand::output(split, SplitHalf::Below.port()),
             select: PartSelect::SplitHalf(SplitHalf::Below),
         },
     );

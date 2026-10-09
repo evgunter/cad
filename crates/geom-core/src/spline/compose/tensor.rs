@@ -448,7 +448,7 @@ fn cell_residual(surf: &[&TensorSpans; 4], su: usize, sv: usize, rows: &SpanRows
             &bern_mul_row(rows.ac[d], &n[3]),
         )
     });
-    coefficient_norm_bound(&num, &den)
+    coefficient_norm_bound([&num[0], &num[1], &num[2]], &den)
 }
 
 /// A certified upper bound on `|N(t)/D(t)|` over the span, for the
@@ -468,7 +468,13 @@ fn cell_residual(surf: &[&TensorSpans; 4], su: usize, sv: usize, rows: &SpanRows
 /// polynomial extension (module docs, domain posture) can carry the
 /// weight function to the other sign, which is as sound; a denominator
 /// whose coefficients do not share one strict sign refuses with `NaN`.
-fn coefficient_norm_bound(num: &[Vec<Interval>; 3], den: &[Interval]) -> f64 {
+///
+/// The rows must have one length; a ragged form refuses with `NaN`.
+#[must_use]
+pub fn coefficient_norm_bound(num: [&[Interval]; 3], den: &[Interval]) -> f64 {
+    if num.iter().any(|row| row.len() != den.len()) {
+        return f64::NAN;
+    }
     let positive = den.iter().all(|d| d.is_certified() && d.lo() > 0.0);
     let negative = den.iter().all(|d| d.is_certified() && d.hi() < 0.0);
     if !(positive || negative) {
@@ -482,6 +488,17 @@ fn coefficient_norm_bound(num: &[Vec<Interval>; 3], den: &[Interval]) -> f64 {
         })
         .reduce(max_bound)
         .unwrap_or(f64::NAN)
+}
+
+/// [`coefficient_norm_bound`] for a POLYNOMIAL vector form, `max_k
+/// |n_k|`: the case `D ≡ 1`, whose coefficients are all `1` in any
+/// basis that is a partition of unity (Bernstein, or the B-spline
+/// coefficients active on one knot span). The quotient by an exact `1`
+/// is exact, so this adds no rounding to the norms.
+#[must_use]
+pub fn coefficient_norm_sup(num: [&[Interval]; 3]) -> f64 {
+    let unit = vec![Interval::point(1.0); num[0].len()];
+    coefficient_norm_bound(num, &unit)
 }
 
 // ---------------------------------------------------------------------

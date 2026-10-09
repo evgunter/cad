@@ -920,7 +920,7 @@ fn run_at<T: editor_core::EvalScalar>(
 /// hashing it — moved, and the part's names reach an instance under its
 /// placement's copy. The id-free rows held.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x0949_4691_7776_8c93),
+    (1e-9, 0xd990_dfd6_ae82_6190),
     (1e-6, 0xd248_17ed_3993_bb6d),
     (1e-12, 0x6667_3577_a606_0292),
 ];

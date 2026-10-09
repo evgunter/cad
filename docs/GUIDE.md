@@ -1286,8 +1286,10 @@ axis = doc.insert(Node.datum_axis_in_plane(frame, (
     Formula.literal(1.0),
 )))
 ball = doc.insert(Node.revolve(doc.insert(Node.profile(half, plane=frame)), axis, Formula.angle_in(2 * math.pi, rad)))
+# A revolve defines two outputs, its body and its axis, so a read of
+# it names which: `doc.output(ball, 0)` is the body.
 pip = doc.insert(
-    Node.transform(ball, (
+    Node.transform(doc.output(ball, 0), (
         Formula.length_in(0.5, m),
         Formula.length_in(0.5, m),
         Formula.length_in(1.0 + R - H, m),
@@ -1661,9 +1663,9 @@ ring = doc.insert(
 def piece(leg):
     return doc.piece(profile, 0, leg.step.leg)
 
-cup = doc.insert(Node.shell(ring, Formula.length_in(T, m), [band(ring, piece(top))]))
+cup = doc.insert(Node.shell(doc.output(ring, 0), Formula.length_in(T, m), [band(ring, piece(top))]))
 rolled = doc.insert(
-    Node.fillet(ring, Formula.length_in(T, m), [band_rim(ring, piece(top)), band_rim(ring, piece(section))])
+    Node.fillet(doc.output(ring, 0), Formula.length_in(T, m), [band_rim(ring, piece(top)), band_rim(ring, piece(section))])
 )
 
 ev = evaluate(doc)
@@ -1733,7 +1735,7 @@ doc = next;
 let (next, profile) = insert(
     &doc,
     Node::Profile(ProfileProgram {
-        plane: frame.into(),
+        frame: frame.into(),
         loops: vec![outline, hole],
         ids: Vec::new(),
     }),
@@ -1778,7 +1780,7 @@ use pncad::prelude::*;
 # let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("a scalar");
 # let (next, frame) = insert(&doc, Node::Datum(Datum::Frame { origin: [len(0.0), len(0.0), len(0.0)], u: [scl(1.0), scl(0.0), scl(0.0)], v: [scl(0.0), scl(1.0), scl(0.0)] }));
 # doc = next;
-# let (next, profile) = insert(&doc, Node::Profile(ProfileProgram { plane: frame.into(), loops: vec![outline, hole], ids: Vec::new() }));
+# let (next, profile) = insert(&doc, Node::Profile(ProfileProgram { frame: frame.into(), loops: vec![outline, hole], ids: Vec::new() }));
 # doc = next;
 # let (next, plate) = insert(&doc, Node::Extrude { profile: profile.into(), distance: len(0.5), side: ExtrudeSide::Along });
 # doc = next;
@@ -1894,7 +1896,7 @@ let (next, base_frame) = insert(&doc, Node::Datum(Datum::Frame {
 }));
 doc = next;
 let (next, profile) = insert(&doc, Node::Profile(ProfileProgram {
-    plane: base_frame.into(),
+    frame: base_frame.into(),
     loops: vec![outline, hole(1.0, 1.0), hole(2.2, 1.0)],
     ids: Vec::new(),
 }));
@@ -1911,7 +1913,7 @@ let (next, tab_frame) = insert(&doc, Node::Datum(Datum::Frame {
 }));
 doc = next;
 let (next, tab_p) = insert(&doc, Node::Profile(ProfileProgram {
-    plane: tab_frame.into(),
+    frame: tab_frame.into(),
     loops: vec![
         LoopProgram::polygon([(3.5, 1.75), (4.5, 1.75), (4.5, 2.5), (3.5, 2.5)])
             .expect("finite corners"),

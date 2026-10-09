@@ -53,7 +53,7 @@ only touches keep the refusal they had.
 
 The row's own poses now pass the join and stop at the classification's
 at-infinity probe, `Containment(VolumeUncertified)` (evidence added to
-`work/contact/at-infinity-probe-measures-in-closed-form-only.md`).
+`work/restread/at-infinity-probe-measures-in-closed-form-only.md`).
 `crates/sweep/tests/parallel_cylinder_join.rs` holds eight poses against
 an uncut drum, 48 runs, SOUND at their closed-form volumes. The frame
 levers the pair's parallelism by the walls' reach (their boundary

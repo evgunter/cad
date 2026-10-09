@@ -19,10 +19,10 @@ use editor_core::Formula;
 
 use editor_core::CapEnd;
 use editor_core::{
-    Alignment, AxisSense, BooleanCoincidence, BooleanOp, ContactClass, DocEdit, DocumentId,
-    EditError, EntityKind, Evaluation, Frame, Maintenance, MateFrame, MatePrimitive, MateRole,
-    Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName,
-    apply, groups, load, product, relative_freedom_components, save,
+    Alignment, AxisSense, BooleanCoincidence, ContactClass, DocEdit, DocumentId, EditError,
+    EntityKind, Evaluation, Frame, Maintenance, MateFrame, MatePrimitive, MateRole, Node,
+    NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, apply,
+    groups, load, product, relative_freedom_components, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{FIXTURE_MATE_AXIS, door_refusal, insert, len, on_frame, run, solve, square, step};
@@ -1354,7 +1354,7 @@ fn row6f_rebind_repairs_a_mate_head_that_is_the_only_reference() {
     );
 }
 
-/// The same repair with a boolean's declared pair referencing the
+/// The same repair with a union's declared pair referencing the
 /// stranded name too: the declaration's rewrite is what makes the edit acceptable, so a
 /// mate head skipped here is skipped SILENTLY — the loud arm never
 /// fires.
@@ -1377,17 +1377,17 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
             fresh: Vec::new(),
         },
     );
-    // The boolean's operands are the instances the delete leaves; its
-    // declared pair names the one it takes, which is not an edge. The
-    // side is read at operand `ids[2]`, the instance the rebind below
-    // moves the name onto.
-    let (doc, boolean_id) = mint(
+    // The union reads all three instances, so its declared pair may name
+    // the second (D10: a declaration names what its node reads); the side
+    // is read at member `ids[2]`, the instance the rebind below moves the
+    // name onto. The member list then drops the second instance — a
+    // re-point that reports the name out of reach, never refuses it — so
+    // the delete leaves the name stranded and no read.
+    let (doc, union_id) = mint(
         doc,
         DocEdit::InsertNode {
-            node: Box::new(Node::Boolean {
-                op: BooleanOp::Union,
-                a: ids[0].into(),
-                b: ids[2].into(),
+            node: Box::new(Node::Union {
+                members: vec![ids[0].into(), ids[1].into(), ids[2].into()],
                 declare: vec![(
                     (
                         SitedRef::new(ids[2], in_part(ids[1], body, CapEnd::Start)),
@@ -1397,6 +1397,13 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
                 )],
             }),
             fresh: Vec::new(),
+        },
+    );
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetMembers {
+            node: union_id,
+            members: vec![ids[0].into(), ids[2].into()],
         },
     );
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: ids[1] });
@@ -1410,8 +1417,8 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
             &editor_core::RefusingReach,
         )
         .expect("the declared pair alone makes this a rebind site");
-    let Some(Node::Boolean { declare: pairs, .. }) = applied.doc.node(boolean_id) else {
-        panic!("the boolean is still there");
+    let Some(Node::Union { declare: pairs, .. }) = applied.doc.node(union_id) else {
+        panic!("the union is still there");
     };
     assert_eq!(
         pairs[0].0.0.name,

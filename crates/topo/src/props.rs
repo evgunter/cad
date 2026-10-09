@@ -1023,9 +1023,14 @@ fn rederived<T: Decide>(
 /// quadrature face measured again about `c`, at the round the walk
 /// reached (`quad_lane::cut_face_rounds`: a cylinder's position term
 /// taken as `(origin − c)·A⃗`, a patch's control net carried by `−c`).
-/// A plane's fan reads no carrier origin, so the planar faces sum to the
-/// volume of the closed surface their loops bound, whatever in-band
-/// distance the stored vertices stand off their planes. Taken about a
+/// A walk every face of which is a plane bounded by lines is read instead
+/// as the closed polyhedron of its vertex points ([`shell_polygons`]),
+/// whose faces sum to its volume, whatever in-band distance the vertices
+/// stand off their planes. Elsewhere a loop closes only to the rounding
+/// of its carriers' ends, and a fan reads that gap at the face's length
+/// times its lever
+/// (`work/tally/a-fan-over-carrier-ends-reads-an-ulp-gap-at-the-faces-length-times-its-lever`).
+/// Taken about a
 /// point of the body, no face's width is scaled by the body's distance
 /// from the world origin. A quadrature face whose lane refuses about `c`
 /// keeps the enclosure it was measured with less `c · A⃗`, at the
@@ -1055,6 +1060,9 @@ fn rederive<T: Decide>(
         );
     }
     let centre = corner_of(body, lane, runs)?;
+    if let Some(polygons) = shell_polygons(body, lane, runs)? {
+        return rederive_polygons(&polygons, centre, runs);
+    }
     match rederive_about(body, band, tol, lane, runs, Some(centre), tight)? {
         Some(rederived) => Ok(rederived),
         None => rederive_about(body, band, tol, lane, runs, None, tight)?.ok_or(
@@ -1152,6 +1160,102 @@ fn rederive_about<T: Decide>(
     }))
 }
 
+/// A face's loops as their vertex points, in traversal order, the outer
+/// loop first ([`vertex_rings`]).
+type Rings = Vec<Vec<Point3<Interval>>>;
+
+/// **A shell read as the polyhedron of its vertex points**: every
+/// run's face as its loops' vertex points in traversal order, lifted
+/// through `lane` ([`vertex_rings`]), or `None` where any face is not a
+/// plane bounded by lines. All or nothing: a line edge read as its
+/// vertices on one side and as its carrier's ends on the other would
+/// open a gap between the two readings.
+///
+/// The polyhedron stands off the stored solid by its vertices' distance
+/// from their faces' planes: with `δ_f` the largest over face `f`'s
+/// vertices and `|T_{f,i}|` the unsigned areas of its fan triangles,
+/// `|V_polygons − V_stored| ≤ Σ_f δ_f · Σ_i |T_{f,i}|`, plus the slivers
+/// between each edge's chord and its carrier, of order `δ²` per unit
+/// length. `Σ_i |T_{f,i}|` is the face's area where the face is convex,
+/// and more where it is not or holds a ring.
+fn shell_polygons<T: Decide>(
+    body: &Body<T>,
+    lane: QuadLane<T>,
+    runs: &[FaceRun<T>],
+) -> Result<Option<Vec<Rings>>, MassPropsError> {
+    let mut polygons = Vec::with_capacity(runs.len());
+    for run in runs {
+        let (face, surface) = resolve_face(body, run.face);
+        let loops = face_loops(body, face)?;
+        match vertex_rings(body, face, surface, &loops, lane)? {
+            Some(rings) => polygons.push(rings),
+            None => return Ok(None),
+        }
+    }
+    Ok(Some(polygons))
+}
+
+/// [`rederive`] over [`shell_polygons`]: each face's flux about `centre`
+/// ([`quad_lane::polygon_face_about`]), recentred.
+fn rederive_polygons<T: Decide>(
+    polygons: &[Rings],
+    centre: Point3<Interval>,
+    runs: &[FaceRun<T>],
+) -> Result<Rederived, MassPropsError> {
+    let (mut flux, mut area) = (Interval::zero(), Interval::zero());
+    for (rings, run) in polygons.iter().zip(runs) {
+        let c = quad_lane::polygon_face_about(rings, centre).map_err(|source| {
+            MassPropsError::Face {
+                face: run.face,
+                source,
+            }
+        })?;
+        flux = flux + c.flux;
+        area = area + c.area;
+    }
+    Ok(Rederived {
+        volume: flux / Interval::from_f64(3.0),
+        area,
+        recentred: true,
+    })
+}
+
+/// A planar face bounded by lines, as its loops' vertex points in
+/// traversal order, lifted through `lane`; `None` for any other face.
+fn vertex_rings<T: Decide>(
+    body: &Body<T>,
+    face: &crate::entity::Face,
+    surface: &Surface<T>,
+    loops: &[Vec<LoopEdge<T>>],
+    lane: QuadLane<T>,
+) -> Result<Option<Rings>, MassPropsError> {
+    let lines = loops
+        .iter()
+        .flatten()
+        .all(|e| matches!(e.carrier, geom::Curve3::Line { .. }));
+    if !matches!(surface, Surface::Plane { .. }) || !lines {
+        return Ok(None);
+    }
+    let lift = |p: Point3<T>| Point3::new((lane.lift)(p.x), (lane.lift)(p.y), (lane.lift)(p.z));
+    core::iter::once(&face.outer)
+        .chain(&face.rings)
+        .map(|&lk| {
+            loop_edges(body, lk)?
+                .1
+                .into_iter()
+                .map(|he| {
+                    body.half_edge_start_point(he)
+                        .map(lift)
+                        .ok_or(MassPropsError::Corrupt {
+                            what: "a loop's half-edge has no start point",
+                        })
+                })
+                .collect()
+        })
+        .collect::<Result<_, _>>()
+        .map(Some)
+}
+
 /// A walk's runs re-derived in interval arithmetic ([`rederive`]).
 #[derive(Clone, Copy, Debug)]
 struct Rederived {
@@ -1172,11 +1276,16 @@ struct Rederived {
 /// `min`, so a point interval), and the same point for the same geometry
 /// whatever order its faces are stored in. The centre is order-free; the
 /// value about it is not quite: a plane's flux is read from its loop's
-/// first point (`quad_lane::planar_face_about`), and where a loop's
-/// points stand off their plane two bodies storing one boundary from
-/// different first points re-derive values that differ by up to
-/// `Σ δ·|A⃗|` over those faces — within the band's metering of a sign,
-/// not of a bound read at the exact band.
+/// first point (`quad_lane::planar_face_about`,
+/// `quad_lane::polygon_face_about`), and where a loop's points stand off
+/// their plane two bodies storing one boundary from different first
+/// points re-derive values that differ by up to
+/// `Σ_f δ_f·(Σ|T^a| + Σ|T^b|)` over those faces, `|T^a|` and `|T^b|` the
+/// unsigned areas of face `f`'s fan triangles from either first point — within the
+/// band's metering of a sign, not of a bound read at the exact band. On
+/// the polygon route ([`shell_polygons`]) that is the whole difference; on
+/// the fan route the loops' gaps at their carrier ends add their own
+/// (`work/tally/a-fan-over-carrier-ends-reads-an-ulp-gap-at-the-faces-length-times-its-lever`).
 fn corner_of<T: Decide>(
     body: &Body<T>,
     lane: QuadLane<T>,
@@ -2751,7 +2860,7 @@ impl ShellClassifyError {
         let arm = match self {
             Self::Escalated { source, .. } => RefusedArm::Undecided(source),
             Self::ZeroVolume { verdict, .. } => RefusedArm::Zero(*verdict),
-            Self::Straddles { .. } => RefusedArm::SignCertain,
+            Self::Straddles { .. } => RefusedArm::SignCertain(None),
             Self::Props { .. } | Self::Band { .. } => return None,
         };
         Some(SHELL_ROLE.recourse(arm, Reading::Build))
@@ -3569,6 +3678,15 @@ pub trait AtRestPolicy: Decide {
     /// Euler door).
     fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>>;
 
+    /// **This scalar's section lane, or `None` where it is not
+    /// derived here** — the per-chart offset door's plane × spline-wall
+    /// section and the plane's root along a spline edge
+    /// ([`crate::offset_derive::SectionLane`]). Its march is written at
+    /// `f64` alone, so that arm answers `Some`; an offset whose edge or
+    /// corner needs it refuses at any other scalar by name
+    /// ([`crate::ReplaceFaceError::NurbsLaneUnsupported`]).
+    fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>>;
+
     /// **This scalar's shell door, or `None` where it may not form the
     /// call** — the ONE seam the `Some` comes from, read by the verb
     /// seat's `verbs::Verb::run_shell` and, above it, the document
@@ -3684,6 +3802,11 @@ impl AtRestPolicy for f64 {
         Some(geom_brep::NurbsLane::certified())
     }
 
+    /// The march is written here.
+    fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
+        Some(crate::offset_derive::SectionLane::f64())
+    }
+
     /// The decide-with-escalation lane certifies, so it runs the door.
     fn shell_door() -> Option<ShellDoor<Self>> {
         Some(ShellDoor::certified())
@@ -3750,6 +3873,11 @@ impl AtRestPolicy for geom_core::Probe {
         Some(geom_brep::NurbsLane::certified())
     }
 
+    /// The march is written at `f64` alone.
+    fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
+        None
+    }
+
     /// The recording scalar is `f64` with a sink attached, so it
     /// carries exactly what `f64` carries — here, the door.
     fn shell_door() -> Option<ShellDoor<Self>> {
@@ -3811,6 +3939,11 @@ impl AtRestPolicy for geom_core::interval::Interval {
     /// its brackets are what their hull bounds are made of.
     fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>> {
         Some(geom_brep::NurbsLane::certified())
+    }
+
+    /// The march is written at `f64` alone.
+    fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
+        None
     }
 
     /// The certified interval scalar runs the door: its brackets are
@@ -3884,6 +4017,11 @@ where
     /// fitted door above gives.
     fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>> {
         Some(geom_brep::NurbsLane::certified())
+    }
+
+    /// The march is written at `f64` alone.
+    fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
+        None
     }
 
     /// For the reason [`QuadLane`] gives at the symbolic tier: the
@@ -3967,6 +4105,11 @@ where
     /// are certification arithmetic, so no `Dual` can hold the lane
     /// ([`geom_brep::NurbsLane::certified`]'s bound).
     fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>> {
+        None
+    }
+
+    /// The march is written at `f64` alone.
+    fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
         None
     }
 

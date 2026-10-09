@@ -213,7 +213,7 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
     let plate_profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![
                 LoopProgram::polygon([
                     (-4.0e-3, -2.0e-3),
@@ -241,7 +241,7 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
         let profile = insert(
             doc,
             Node::Profile(ProfileProgram {
-                plane: plane.into(),
+                frame: plane.into(),
                 loops: vec![LoopProgram::Circle {
                     centre: [centre, len(0.0)],
                     radius: param(radius),

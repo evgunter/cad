@@ -712,7 +712,8 @@ mod tests {
                 source.recertify(start, end, surfaces, band),
                 Err(CertifyError::ResidualExceeded {
                     check: CertCheck::ChartResidual,
-                    sample: 1
+                    sample: 1,
+                    ..
                 })
             ),
             "the source's image is wrong on the reverted plane"

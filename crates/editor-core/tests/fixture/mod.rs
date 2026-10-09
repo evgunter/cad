@@ -489,8 +489,22 @@ pub fn insert(doc: ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId)
 /// **One copy of `body` in the world** (A10), at the identity: the
 /// document's product is the copies its placements define.
 pub fn place(doc: ProfileDoc, body: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, minted) = step(doc, DocEdit::place(body, None));
+    let read = body_read(&doc, body.into());
+    let (doc, minted) = step(doc, DocEdit::place(read, None));
     (doc, minted.unwrap())
+}
+
+/// **The body read a placement of `body` names**: a revolve named
+/// alone reads its `body` port (Q5 refuses a several-output node named
+/// alone, and a revolve's other port is its axis); any other operand as
+/// it is, so a split named alone still refuses.
+pub fn body_read(doc: &ProfileDoc, body: editor_core::Operand) -> editor_core::Operand {
+    match body {
+        editor_core::Operand::Node(id) if matches!(doc.node(id), Some(Node::Revolve { .. })) => {
+            editor_core::Operand::output(id, 0)
+        }
+        other => other,
+    }
 }
 
 /// [`place`] for each of `bodies`, in order: the document keeps only
@@ -849,7 +863,7 @@ pub fn wall_row(id: &str, loops: Vec<LoopProgram<Formula>>) -> Swept {
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops,
             ids: Vec::new(),
         }),
@@ -920,7 +934,7 @@ pub fn desc(plane: RecipeNodeId, loops: Vec<Vec<(f64, f64)>>) -> ProfileProgram<
         .map(|pts| LoopProgram::polygon(pts).expect("finite corners"))
         .collect();
     ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops,
         ids: Vec::new(),
     }
@@ -963,7 +977,7 @@ pub fn on_frame_keeping(
 /// of revolution.
 pub fn axis_in_plane(plane: RecipeNodeId, origin: (f64, f64), dir: (f64, f64)) -> AuthoredNode {
     Node::Datum(Datum::AxisInPlane {
-        plane: plane.into(),
+        frame: plane.into(),
         origin: [len(origin.0), len(origin.1)],
         direction: [scl(dir.0), scl(dir.1)],
     })
@@ -1027,7 +1041,8 @@ impl Recorder {
     /// **One copy of `body` in the world** (A10), at the identity,
     /// returning the placement.
     pub fn place(&mut self, body: impl Into<editor_core::Operand>) -> RecipeNodeId {
-        self.push(DocEdit::place(body, None))
+        let read = body_read(&self.doc, body.into());
+        self.push(DocEdit::place(read, None))
             .expect("a placement mints its node")
     }
 

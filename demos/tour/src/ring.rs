@@ -103,7 +103,7 @@
 use core::f64::consts::PI;
 
 use pncad::authoring::{p2, validated};
-use pncad::document::RefusingReach;
+use pncad::document::{Operand, RefusingReach};
 use pncad::geom_core::{Tol, Vec2};
 use pncad::prelude::{
     CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Formula, LoopProgram, MM, Node,
@@ -181,9 +181,14 @@ fn through_the_document(tol: Tol) -> Body<f64> {
 /// hands a reader exactly the recipe this scene's claim rests on.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let (doc, revolved) = document(tol);
-    apply(&doc, &DocEdit::place(revolved, None), tol, &RefusingReach)
-        .expect("the revolve places")
-        .doc
+    apply(
+        &doc,
+        &DocEdit::place(Operand::output(revolved, 0), None),
+        tol,
+        &RefusingReach,
+    )
+    .expect("the revolve places")
+    .doc
 }
 
 /// The ring's recipe and its revolve node.
@@ -222,7 +227,7 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let profile = insert(
         &mut doc,
         Box::new(Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             // Outer first, then the holes: the list IS the hole
             // vocabulary, and nothing else here mentions one.
             loops: vec![circle(RO_MM), circle(RI_MM)],
@@ -236,7 +241,7 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let axis = insert(
         &mut doc,
         Box::new(Node::Datum(Datum::AxisInPlane {
-            plane: plane.into(),
+            frame: plane.into(),
             origin: [mm(0.0), mm(0.0)],
             direction: [
                 Formula::literal(0.0, Dimension::Scalar).expect("a scalar"),

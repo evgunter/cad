@@ -250,9 +250,9 @@ fn the_load_door_speaks_the_nodes_of_the_file_it_refuses() {
     let text = save(&doc, &[], tol).expect("saves");
     let (header, body) = text.split_once('\n').expect("a header line, then the body");
     let mut v: serde_json::Value = serde_json::from_str(body).expect("the body is JSON");
-    let plane = &mut v["snapshot"]["nodes"][profile.0.to_string()]["Profile"]["plane"];
-    assert!(plane.is_string(), "the profile carries its plane");
-    *plane = serde_json::json!(doc.output(extrude, 0).expect("the extrude's body").0);
+    let frame = &mut v["snapshot"]["nodes"][profile.0.to_string()]["Profile"]["frame"];
+    assert!(frame.is_string(), "the profile carries its frame");
+    *frame = serde_json::json!(doc.output(extrude, 0).expect("the extrude's body").0);
     match load(&format!("{header}\n{v}\n"), tol) {
         Err(PersistError::Snapshot(error @ SnapshotError::SlotVarKind { .. })) => {
             let SnapshotError::SlotVarKind { node, .. } = &error else {
@@ -262,7 +262,7 @@ fn the_load_door_speaks_the_nodes_of_the_file_it_refuses() {
             let said = format!("Profile \"outline\" ({})", tag(profile.0.digest()));
             let sentence = PersistError::Snapshot(error.clone()).to_string();
             assert!(
-                sentence.contains(&format!("{said}'s plane reads")),
+                sentence.contains(&format!("{said}'s frame reads")),
                 "the sentence speaks the node with its label: {sentence}"
             );
         }
@@ -966,7 +966,7 @@ fn a_checks_report_and_its_refusal_speak_the_labelled_roots() {
         report.findings.iter().any(|finding| matches!(
             finding.evidence,
             CheckEvidence::NotSeparated { other_root, .. }
-                if finding.root == base && other_root == boss
+                if finding.subject == editor_core::FindingSubject::Output { root: base, output_ix: 0 } && other_root == boss
         )),
         "the two overlapping placements are a separation finding: {report}"
     );
@@ -1036,7 +1036,10 @@ fn a_checks_report_spoken_from_another_document_fails_loud() {
     );
     let report = run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect("the checks run");
     assert!(
-        report.findings.iter().any(|finding| finding.root == base),
+        report.findings.iter().any(|finding| matches!(
+            finding.subject,
+            editor_core::FindingSubject::Output { root, .. } if root == base
+        )),
         "a finding names the placement the other document also holds: {report}"
     );
     let _ = report.spoken(&other);

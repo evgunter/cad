@@ -84,7 +84,7 @@ fn resized(part: ProfileDoc, half: f64, height: f64) -> ProfileDoc {
     };
     let ids = program.kept_in_place();
     let plane = part
-        .operation_of(program.plane)
+        .operation_of(program.frame)
         .expect("the plane read is live");
     let loops = fixture::desc(plane, vec![fixture::square(0.0, 0.0, half)]).loops;
     let body = body_node(&part);

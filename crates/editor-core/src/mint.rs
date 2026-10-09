@@ -843,7 +843,7 @@ mod tests {
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).unwrap();
         let steps = square.authored_steps();
         let node = Node::Profile(ProfileProgram {
-            plane: crate::Operand::Node(RecipeNodeId::new(0, 0)),
+            frame: crate::Operand::Node(RecipeNodeId::new(0, 0)),
             loops: vec![square],
             ids: Vec::new(),
         });
@@ -868,10 +868,10 @@ mod tests {
         );
     }
 
-    const PIN_NODE: &str = "1:a7c5da2e0869ad7f";
-    const PIN_FIRST: &str = "2:64aae3dc037af914";
-    const PIN_LAST: &str = "6:d5bceca90d229391";
-    const PIN_CHAIN: &str = "d5bceca90d229391ee2cf183a3d9bd9044c693dd636fd6f386724383a3069597";
+    const PIN_NODE: &str = "1:3891bf6f915959d8";
+    const PIN_FIRST: &str = "2:b44f6e15ece0cab7";
+    const PIN_LAST: &str = "6:8c2dcbfc1bd2df19";
+    const PIN_CHAIN: &str = "8c2dcbfc1bd2df19e446f386e23b0310cb4485596bbc3701844ffcd33b3d94c8";
 
     const LEN: VarKind = VarKind::Length;
 

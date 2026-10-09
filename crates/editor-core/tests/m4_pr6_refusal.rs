@@ -683,7 +683,7 @@ fn program_structure_doors_refuse_typed_at_load() {
     let (doc, circle) = insert(
         doc,
         Node::Profile(editor_core::ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![editor_core::LoopProgram::circle(0.0, 0.0, 0.5).expect("finite")],
             ids: Vec::new(),
         }),
@@ -785,7 +785,7 @@ fn corrupt_program_refuses_at_the_edit_door_before_any_save() {
         xy_frame(),
     );
     let unclosed = editor_core::ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![LoopProgram::Chain(vec![ProgramStep::Tangent])],
         ids: Vec::new(),
     };

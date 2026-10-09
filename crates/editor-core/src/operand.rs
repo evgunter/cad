@@ -6,8 +6,8 @@
 //! ([`SlotKind`]).
 //!
 //! What a caller writes is an [`Operand`]: a node, which is sugar for
-//! that node's output in the seat (`Operand::Node`), a port spelled out,
-//! or a variable by id or by name. The slot door
+//! that node's one output (`Operand::Node`), a port spelled out, or a
+//! variable by id or by name. The slot door
 //! ([`crate::DocEdit::SetParam`] with a [`crate::SlotValue::Read`])
 //! lowers it to the id the document stores.
 
@@ -19,9 +19,11 @@ use crate::var::{VarId, VarKind};
 /// the read a node stores.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Operand {
-    /// A node, read through its output in this seat: its one output, or
-    /// the one output of the seat's kind. A node with several outputs a
-    /// seat could read refuses ([`crate::EditError::AmbiguousOutput`]).
+    /// A node, read through its one output (spec Q5). A node with
+    /// several outputs — a revolve's body and axis, a split's two halves
+    /// — refuses this spelling whatever the seat
+    /// ([`crate::EditError::AmbiguousOutput`], naming its ports): the
+    /// read names its port ([`Operand::Output`]).
     Node(RecipeNodeId),
     /// Port `port` of `node`'s signature.
     Output {
@@ -88,7 +90,10 @@ pub enum OperandSlot {
     Path,
     /// The axis a revolve turns about, or a circular rule's.
     Axis,
-    /// The frame a tube is built in.
+    /// The frame a tube is built in, a profile is drawn on, or an
+    /// in-plane axis is written in: the one operand kind a field of
+    /// each reads, so one slot (its field is `frame` on a tube and
+    /// `plane` on the other two).
     Frame,
     /// The body a blend, a shell or a split reshapes.
     Target,
@@ -106,9 +111,6 @@ pub enum OperandSlot {
     Of,
     /// The measure an assertion bounds.
     Measure,
-    /// The frame a profile is drawn on, or an in-plane axis is written
-    /// in.
-    Plane,
     /// The body a face frame reads its face out of.
     At,
     /// The body a world placement places.
@@ -133,7 +135,6 @@ impl OperandSlot {
             Self::Input => "input".to_owned(),
             Self::Of => "source".to_owned(),
             Self::Measure => "measure".to_owned(),
-            Self::Plane => "plane".to_owned(),
             Self::At | Self::Body => "body".to_owned(),
         }
     }
@@ -144,7 +145,7 @@ impl OperandSlot {
         match self {
             Self::Profile | Self::Section(_) | Self::Path => SlotKind::Is(VarKind::Profile),
             Self::Axis => SlotKind::Is(VarKind::Axis),
-            Self::Frame | Self::Plane => SlotKind::Is(VarKind::Frame),
+            Self::Frame => SlotKind::Is(VarKind::Frame),
             Self::Tool => SlotKind::Is(VarKind::Plane),
             Self::Target | Self::A | Self::B | Self::Member(_) | Self::At | Self::Body => {
                 SlotKind::Is(VarKind::Body)

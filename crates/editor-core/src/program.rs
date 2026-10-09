@@ -421,9 +421,8 @@ pub enum LoopProgram<S = crate::VarId> {
 /// The consequence to know when reading the rest of this crate: a
 /// profile is no longer a DAG leaf. It reads the frame's output
 /// ([`crate::Doc::upstream`]), so evaluation orders it first, poison
-/// propagates through it, the content key takes it as an upstream key
-/// rather than as inline bits, and `roots::on_insert` transfers the
-/// frame's tip when a profile reads it.
+/// propagates through it, and the content key takes it as an upstream
+/// key rather than as inline bits.
 ///
 /// # Equality is BIT equality
 ///
@@ -440,11 +439,11 @@ pub enum LoopProgram<S = crate::VarId> {
 #[serde(bound = "")]
 pub struct ProfileProgram<S: crate::expr::Slot = crate::VarId> {
     /// The frame this profile is drawn on
-    /// ([`crate::OperandSlot::Plane`]): a [`crate::Datum::Frame`]'s or
+    /// ([`crate::OperandSlot::Frame`]): a [`crate::Datum::Frame`]'s or
     /// a [`crate::Datum::FaceFrame`]'s, either of which lands the same
     /// frame value: sketch (0, 0) and the directions sketch +x and +y
     /// point.
-    pub plane: S::Read,
+    pub frame: S::Read,
     /// The loop programs.
     pub loops: Vec<LoopProgram<S>>,
     /// **Every authored step's minted id**, per loop and per step in
@@ -587,7 +586,7 @@ pub trait ProfilePayload: serde::Serialize + SlotPayload<VarId> {
         Ok(())
     }
     /// **The frame this payload is drawn ON**, if it reads one — the
-    /// profile's one operand read ([`crate::OperandSlot::Plane`]).
+    /// profile's one operand read ([`crate::OperandSlot::Frame`]).
     ///
     /// It rides the payload trait rather than [`crate::Node::Profile`]
     /// because that is where the plane lives: the variant stays a
@@ -598,12 +597,12 @@ pub trait ProfilePayload: serde::Serialize + SlotPayload<VarId> {
     ///
     /// `None` by default, which is the honest answer for `Doc<P>`'s
     /// slot-free test payloads: they carry no plane at all.
-    fn plane_read(&self) -> Option<VarId> {
+    fn frame_read(&self) -> Option<VarId> {
         None
     }
     /// [`ProfilePayload::plane_read`], writable: the read a re-point
     /// rewrites.
-    fn plane_read_mut(&mut self) -> Option<&mut VarId> {
+    fn frame_read_mut(&mut self) -> Option<&mut VarId> {
         None
     }
     /// **Every authored step's piece this program draws** under `env`
@@ -2232,8 +2231,12 @@ impl PartialEq for ProfileProgram {
     /// The frame by node identity, the slots by variable, structure
     /// structurally: a stored program holds no float of its own.
     fn eq(&self, other: &Self) -> bool {
-        let Self { plane, loops, ids } = self;
-        plane == &other.plane && loops == &other.loops && ids == &other.ids
+        let Self {
+            frame: plane,
+            loops,
+            ids,
+        } = self;
+        plane == &other.frame && loops == &other.loops && ids == &other.ids
     }
 }
 
@@ -2250,9 +2253,13 @@ where
         // functions below it match every variant by name and bind
         // every field of each, so a new loop shape is an E0004 and a
         // new field on an existing one an E0027, at each of them.
-        let Self { plane, loops, ids } = self;
         let Self {
-            plane: other_plane,
+            frame: plane,
+            loops,
+            ids,
+        } = self;
+        let Self {
+            frame: other_plane,
             loops: other_loops,
             ids: other_ids,
         } = other;
@@ -2501,7 +2508,7 @@ impl ProfilePayload for ProfileProgram {
         reader: &mut dyn FnMut(VarId, Dimension) -> crate::Formula,
     ) -> Self::Authored {
         ProfileProgram {
-            plane: crate::Operand::Var(self.plane),
+            frame: crate::Operand::Var(self.frame),
             loops: self
                 .loops
                 .iter()
@@ -2521,11 +2528,11 @@ impl ProfilePayload for ProfileProgram {
     ) -> Result<std::collections::BTreeSet<crate::ProfileEdgeRef>, ProgramRefusal> {
         Ok(self.pieces(env, tol)?.edges.into_iter().flatten().collect())
     }
-    fn plane_read(&self) -> Option<VarId> {
-        Some(self.plane)
+    fn frame_read(&self) -> Option<VarId> {
+        Some(self.frame)
     }
-    fn plane_read_mut(&mut self) -> Option<&mut VarId> {
-        Some(&mut self.plane)
+    fn frame_read_mut(&mut self) -> Option<&mut VarId> {
+        Some(&mut self.frame)
     }
     fn loops(&self) -> Option<&[LoopProgram]> {
         Some(&self.loops)
@@ -2535,7 +2542,7 @@ impl ProfilePayload for ProfileProgram {
     }
     fn with_program(&self, loops: Vec<LoopProgram>, ids: Vec<Vec<StepId>>) -> Option<Self> {
         Some(Self {
-            plane: self.plane,
+            frame: self.frame,
             loops,
             ids,
         })
@@ -2732,7 +2739,7 @@ impl<S: crate::expr::Slot> ProfileProgram<S> {
         read: &mut impl FnMut(crate::OperandSlot, &S::Read) -> Result<S2::Read, E>,
     ) -> Result<ProfileProgram<S2>, E> {
         Ok(ProfileProgram {
-            plane: read(crate::OperandSlot::Plane, &self.plane)?,
+            frame: read(crate::OperandSlot::Frame, &self.frame)?,
             loops: self
                 .loops
                 .iter()

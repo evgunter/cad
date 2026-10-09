@@ -453,7 +453,7 @@ fn frame_sharing_a_fresh_entry(seed: &str) -> (ProfileDoc, [RecipeNodeId; 3]) {
     let (doc, profile) = insert(
         frame.doc,
         Node::Profile(ProfileProgram {
-            plane: frame_id.into(),
+            frame: frame_id.into(),
             loops: vec![LoopProgram::polygon(square(0.0, 0.0, 0.5)).unwrap()],
             ids: Vec::new(),
         }),

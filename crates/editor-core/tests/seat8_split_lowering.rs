@@ -201,9 +201,9 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0xbc90_5dcb_4379_ce03u64),
-        ("part_select", 0xda66_1a19_604c_225b),
-        ("kitchen_sink", 0x820a_88cc_7ad2_8b85),
+        ("cut_cylinder", 0x9135_5b31_b169_a160u64),
+        ("part_select", 0x0f2b_e2d0_e2c1_5eff),
+        ("kitchen_sink", 0x59cd_a9f6_f2c5_f886),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -320,7 +320,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0xd422_bb18_3291_07dc,
+        got, 0x4da244313ad3855f,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }
@@ -345,11 +345,11 @@ fn error_of(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> &NodeErrorKi
 fn the_projection_reads_the_two_sided_value_by_role() {
     let (mut r, split) = cube_split_at(5.0);
     let above = r.insert(Node::Part {
-        of: split.into(),
+        of: editor_core::Operand::output(split, SplitHalf::Above.port()),
         select: PartSelect::SplitHalf(SplitHalf::Above),
     });
     let below = r.insert(Node::Part {
-        of: split.into(),
+        of: editor_core::Operand::output(split, SplitHalf::Below.port()),
         select: PartSelect::SplitHalf(SplitHalf::Below),
     });
     let ev = eval::<f64>(&r.doc);

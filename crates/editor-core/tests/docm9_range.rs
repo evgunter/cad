@@ -91,7 +91,7 @@ fn slab(depth: f64) -> ProfileDoc {
     declare(&mut r, "depth", depth);
     let f = frame(&mut r);
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: f.into(),
+        frame: f.into(),
         loops: vec![unit_square()],
         ids: Vec::new(),
     }));
@@ -118,7 +118,7 @@ fn notch(height: f64) -> ProfileDoc {
     declare(&mut r, "height", height);
     let f = frame(&mut r);
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: f.into(),
+        frame: f.into(),
         loops: vec![LoopProgram::polygon_expr([
             [len(0.0), len(0.0)],
             [len(0.5), param("height")],
@@ -156,7 +156,7 @@ fn defined_slab() -> ProfileDoc {
     declare(&mut r, "depth", 1.0);
     let f = frame(&mut r);
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: f.into(),
+        frame: f.into(),
         loops: vec![unit_square()],
         ids: Vec::new(),
     }));
@@ -172,7 +172,7 @@ fn slab_slot(depth: f64) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     let f = frame(&mut r);
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: f.into(),
+        frame: f.into(),
         loops: vec![unit_square()],
         ids: Vec::new(),
     }));
@@ -199,7 +199,7 @@ fn two_param_slab() -> ProfileDoc {
     });
     let f = frame(&mut r);
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: f.into(),
+        frame: f.into(),
         loops: vec![LoopProgram::polygon_expr([
             [len(0.0), len(0.0)],
             [param("side"), len(0.0)],
@@ -221,7 +221,7 @@ fn patterned() -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     let f = frame(&mut r);
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: f.into(),
+        frame: f.into(),
         loops: vec![unit_square()],
         ids: Vec::new(),
     }));
@@ -355,7 +355,7 @@ fn a_driven_step_certifies_within_its_turn() {
         }));
         let f = frame(&mut r);
         let p = r.insert(Node::Profile(ProfileProgram {
-            plane: f.into(),
+            frame: f.into(),
             loops: vec![unit_square()],
             ids: Vec::new(),
         }));
@@ -933,7 +933,7 @@ fn a_profile_step_argument_widens() {
     let mut r = Recorder::new();
     let f = frame(&mut r);
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: f.into(),
+        frame: f.into(),
         loops: vec![unit_square()],
         ids: Vec::new(),
     }));

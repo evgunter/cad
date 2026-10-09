@@ -68,7 +68,7 @@ fn part() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![
                 LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]).unwrap(),
             ],

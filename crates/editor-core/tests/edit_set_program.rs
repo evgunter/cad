@@ -85,7 +85,7 @@ fn rod(label: &str, creases: &[usize]) -> Rod {
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![rod_loop(false)],
             ids: Vec::new(),
         }),
@@ -906,7 +906,7 @@ fn extruded(
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops,
             ids: Vec::new(),
         }),
@@ -940,7 +940,7 @@ fn rod_log() -> (ProfileDoc, Vec<editor_core::DocEdit<ProfileProgram>>) {
         },
         DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                plane: plane.into(),
+                frame: plane.into(),
                 loops: vec![rod_loop(false)],
                 ids: Vec::new(),
             })),
@@ -1396,7 +1396,7 @@ fn extrude_of(
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops,
             ids: Vec::new(),
         }),
@@ -2270,7 +2270,7 @@ fn both_sweeps_of_a_profile_name_by_its_pieces() {
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![
                 LoopProgram::Chain(square_steps()),
                 LoopProgram::Circle {
@@ -2335,7 +2335,7 @@ fn lofted(
     let (doc, sec0) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: p0.into(),
+            frame: p0.into(),
             loops: vec![lower],
             ids: Vec::new(),
         }),
@@ -2347,7 +2347,7 @@ fn lofted(
     let (doc, sec1) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: p1.into(),
+            frame: p1.into(),
             loops: vec![upper],
             ids: Vec::new(),
         }),

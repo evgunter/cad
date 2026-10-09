@@ -2126,6 +2126,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::CurvedBooleanUnsupported
         | BooleanErrorKind::CurvedPierceUnsupported
         | BooleanErrorKind::CrossingAtConeApex
+        | BooleanErrorKind::NormalAtConeApex
         | BooleanErrorKind::CurvedEdgeUnsupported
         | BooleanErrorKind::CrossingCarrierUnsupported
         | BooleanErrorKind::PointSplitCarrierUnsupported
@@ -2134,6 +2135,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::PointInFaceRefused
         | BooleanErrorKind::ScaffoldingOperand
         | BooleanErrorKind::InsideOutOperand
+        | BooleanErrorKind::UnjoinedOperand
         | BooleanErrorKind::NonMaximalFaces
         | BooleanErrorKind::NonFiniteSectorChord
         | BooleanErrorKind::UnderflowedSectorChord
@@ -2154,6 +2156,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::NurbsExtentUnsupported
         | BooleanErrorKind::FallbackExtentUnsupported
         | BooleanErrorKind::GermFrameUnsupported
+        | BooleanErrorKind::GermSectionOutsideInventory
         | BooleanErrorKind::GermFrameCylinderPinch
         | BooleanErrorKind::RestZipUnsupported
         | BooleanErrorKind::JoinDesync
@@ -2516,7 +2519,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("join.rs", "bool_connect", "Coincide::Section", 1),
     ("join.rs", "frame_refusal", "BooleanDecision::Radius", 1),
     ("join.rs", "frame_refusal", "Coincide::Section", 1),
-    ("join.rs", "germ_arm", "Coincide::Join", 1),
     ("join.rs", "germs_face_each_other", "Coincide::Join", 1),
     ("join.rs", "nearer", "Coincide::Join", 1),
     ("join.rs", "nearer_along", "Coincide::Join", 1),
@@ -2536,12 +2538,13 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("join.rs", "rotational_sense", "SelfCheck::ArcFacing", 1),
+    ("join.rs", "travel", "Coincide::Join", 1),
     ("mod.rs", "coincidence", "BooleanDecision::Coincidence", 1),
     ("mod.rs", "decision_words", "BooleanDecision::ArcSpan", 1),
     (
         "mod.rs",
         "decision_words",
-        "BooleanDecision::Containment",
+        "BooleanDecision::CONTAINMENT_UNNAMED",
         1,
     ),
     (
@@ -2555,7 +2558,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("mod.rs", "decision_words", "Coincide::EdgeOnPlane", 1),
     ("mod.rs", "decision_words", "Coincide::Sectors", 1),
     ("mod.rs", "decision_words", "Coincide::VertexOnFace", 1),
-    ("mod.rs", "of_lever", "BooleanDecision::of_lever", 1),
+    ("mod.rs", "of_lever_rung", "BooleanDecision::of_lever", 1),
     (
         "mod.rs",
         "of_pierced_normal",
@@ -2603,6 +2606,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("ops.rs", "apply_cut_ins", "BooleanDecision::Sphere", 2),
     ("ops.rs", "apply_cut_ins", "SphereQuestion::CutIn", 2),
+    ("ops.rs", "sphere_pair_cut", "BooleanDecision::Sphere", 1),
+    ("ops.rs", "sphere_pair_cut", "SphereQuestion::CutIn", 1),
     ("ops.rs", "recut_lean", "BooleanDecision::Sphere", 1),
     ("ops.rs", "recut_lean", "SphereQuestion::RecutAlign", 1),
     ("ops.rs", "seam_refusal", "BooleanDecision::SeamJet", 1),
@@ -2735,10 +2740,17 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     (
         "reduce.rs",
         "wall_crossing",
+        "BooleanDecision::CONTAINMENT_UNNAMED",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "wall_crossing",
         "BooleanDecision::Containment",
-        2,
+        1,
     ),
     ("reduce.rs", "wall_crossing", "BooleanDecision::Crossing", 1),
+    ("sectors.rs", "arc_side", "Coincide::Sectors", 1),
     (
         "sectors.rs",
         "bisector_zero_refusal",
@@ -2746,6 +2758,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("sectors.rs", "build_sectors", "BooleanDecision::Corner", 1),
+    ("sectors.rs", "in_sector", "Coincide::Sectors", 1),
     (
         "sectors.rs",
         "direction_sense",
@@ -2771,7 +2784,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("sectors.rs", "within", "Coincide::Sectors", 1),
-    ("sphere_region.rs", "-", "BooleanDecision::Containment", 1),
+    (
+        "sphere_region.rs",
+        "-",
+        "BooleanDecision::CONTAINMENT_UNNAMED",
+        1,
+    ),
     (
         "vtxfac.rs",
         "classify_vertex_on_face",
@@ -2786,6 +2804,13 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("vtxfac.rs", "germ_order", "Coincide::Sectors", 1),
     ("vtxfac.rs", "pierce_germ_dir", "Coincide::Sectors", 1),
+    (
+        "zip.rs",
+        "one_vertex_sense",
+        "BooleanDecision::SelfCheck",
+        1,
+    ),
+    ("zip.rs", "one_vertex_sense", "SelfCheck::SeamSense", 1),
 ];
 
 // ------------------------------------------------------------------

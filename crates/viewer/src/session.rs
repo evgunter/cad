@@ -327,7 +327,7 @@ fn carry_unmoved(
         .collect();
     let old = Node::Profile(current.clone());
     let mut new = Node::Profile(ProfileProgram {
-        plane: current.plane.into(),
+        frame: current.frame.into(),
         loops,
         ids: Vec::new(),
     });
@@ -2625,7 +2625,7 @@ impl DocSession {
         };
         self.commit(DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                plane: plane.into(),
+                frame: plane.into(),
                 loops,
                 ids: Vec::new(),
             })),
@@ -2651,7 +2651,7 @@ impl DocSession {
         self.commit_run(|run| {
             let plane = run.insert(frame)?;
             run.insert(Node::Profile(ProfileProgram {
-                plane: plane.into(),
+                frame: plane.into(),
                 loops,
                 ids: Vec::new(),
             }))?;
@@ -2746,7 +2746,7 @@ impl DocSession {
         // The carried loops read each unmoved argument's variable, so
         // they are compared with the program re-authored.
         let authored = ProfileProgram {
-            plane: current.plane.into(),
+            frame: current.frame.into(),
             loops: current.loops.iter().map(LoopProgram::authored).collect(),
             ids: current.ids.clone(),
         };
@@ -3055,9 +3055,21 @@ impl DocSession {
     /// **A creation gesture's one action** (A10): the new body, and its
     /// identity world placement, so what the person made is drawn. One
     /// action, so one undo takes both.
+    ///
+    /// What is placed is the made node's first `Body` output: a revolve
+    /// defines its body and its axis, and naming it alone reads neither.
     fn create_placed(&mut self, node: AuthoredNode) -> OpOutcome {
         self.commit_run(|run| {
-            let body = run.insert(node)?;
+            let made = run.insert(node)?;
+            let doc = run.doc();
+            let body = doc
+                .outputs(made)
+                .into_iter()
+                .find(|&var| {
+                    doc.var(var)
+                        .is_some_and(|v| v.kind() == pncad::document::VarKind::Body)
+                })
+                .map_or_else(|| made.into(), Operand::from);
             run.apply(DocEdit::place(body, None))?;
             Ok(())
         })
@@ -3603,7 +3615,7 @@ mod tests {
         let outcome = session.commit_run(|run| {
             let plane = run.insert(frame())?;
             let _ = run.insert(Node::Profile(ProfileProgram {
-                plane: plane.into(),
+                frame: plane.into(),
                 loops: Vec::new(),
                 ids: Vec::new(),
             }));

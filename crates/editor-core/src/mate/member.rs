@@ -610,10 +610,23 @@ pub(super) fn check_reference<P: crate::ProfilePayload, S>(
         // evaluation judges it: an index outside it selects no copy, and
         // the `Part` fails on it in its own right.
         if !(0..i64::from(bodies)).contains(&selected) {
+            // The read the index is judged against: a `Part` whose
+            // source no live operation defines refuses that, as the
+            // evaluation refuses it, rather than naming itself.
+            let Some(input) = doc.operation_of(*of) else {
+                return Err(refused(
+                    part,
+                    NodeErrorKind::UnresolvedRead {
+                        slot: crate::OperandSlot::Of,
+                        var: *of,
+                    },
+                    PlacerRow::Silent,
+                ));
+            };
             return Err(refused(
                 part,
                 NodeErrorKind::InstanceOutOfRange {
-                    input: doc.operation_of(*of).unwrap_or(part),
+                    input,
                     index: selected,
                     count: bodies as usize,
                 },
@@ -1024,7 +1037,7 @@ mod tests {
         let (doc, profile) = ins(
             doc,
             Node::Profile(ProfileProgram {
-                plane: plane.into(),
+                frame: plane.into(),
                 loops: vec![
                     LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).unwrap(),
                 ],

@@ -2,11 +2,10 @@
 id: germ-takes-the-span-bounded-face-reach-alone
 kind: issue
 title: the germ frame and chord_join read a cylinder wall face's reach both whole-turn and span-bounded and escalate where they disagree
-status: parked
+status: open
 opened: 2026-10-08
 priority: P3
 cost: E
-blocked_on: [intent-stage4-is-built]
 ---
 
 ## What
@@ -36,3 +35,13 @@ Once the declared path is built, a section read where no declaration is carried 
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: it waits until a reading can be told value-inferred from declared, which is the stage-4 door recording every value-decided coincidence. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by INTENT stage 4 PR B (2026-10-08)
+
+The door it waited for exists: a declared pair's glue is recorded as a
+`topo::Coincidence` at the declaration door (`DecisionSite::PlaneLadder`
+or `CarrierLadder`, `boolean::verify_declared_contacts`), so a reading
+the declared path took is told from one it did not. Nothing in stage 4
+builds the fix itself: taking `face_reach_from` alone where no
+declaration is carried, and retiring `face_reach_round_from` and
+`agreed_section`, is this program's. No row proves it yet.

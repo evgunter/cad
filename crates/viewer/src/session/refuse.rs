@@ -102,7 +102,9 @@ pub fn admits(doc: &Doc<ProfileProgram>, node: RecipeNodeId, wanted: NodeKindWan
         NodeKindWanted::Instances => doc
             .read_of_node(node)
             .and_then(|read| doc.var(read))
-            .is_some_and(|var| var.kind() == pncad::document::VarKind::Bodies),
+            .is_some_and(|var| {
+                pncad::document::SlotKind::Is(pncad::document::VarKind::Bodies).admits(var)
+            }),
         NodeKindWanted::Profile
         | NodeKindWanted::Axis
         | NodeKindWanted::SketchAxis
