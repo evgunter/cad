@@ -8,7 +8,6 @@ priority: P0
 cost: H
 blocked_on: [poses-are-variables, a-mate-reads-face-variables]
 refs: [intent-stage3-is-built]
-needs_ev: true
 ---
 
 INTENT stage 3, PR B. Spec: `docs/INTENT-STAGE3-SPEC.md` §3.

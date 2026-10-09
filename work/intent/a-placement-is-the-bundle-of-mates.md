@@ -8,7 +8,6 @@ priority: P0
 cost: H
 blocked_on: [a-mate-relates-two-poses]
 refs: [intent-stage3-is-built, mate-offset-verified-against-the-solve-is-a-constraint-falling-back-to-an-assertion]
-needs_ev: true
 ---
 
 INTENT stage 3, PR C. Spec: `docs/INTENT-STAGE3-SPEC.md` §4.
