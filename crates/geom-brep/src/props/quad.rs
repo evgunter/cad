@@ -7053,6 +7053,7 @@ mod tests {
                 "knot {label}: the width left 1.25x of on-grid{table}"
             );
         }
+        panic!("TEMP-DUMP quad{table}");
     }
 
     /// `refine_dir` has no "already fine enough" cut-off: a vector

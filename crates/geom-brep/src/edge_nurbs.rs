@@ -1569,6 +1569,7 @@ mod tests {
                 "knot {label}: a span left its leg's slope{table}"
             );
         }
+        panic!("TEMP-DUMP edge{table}");
     }
 
     /// An exact rational: `n / d`, `d > 0`, for the oracle below.

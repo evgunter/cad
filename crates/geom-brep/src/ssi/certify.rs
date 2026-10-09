@@ -1982,6 +1982,7 @@ mod tests {
             assert!(*n >= 32, "knot {label}: {n} boxes{table}");
             assert!(*worst < 1e-10, "knot {label}: an axis left its leg{table}");
         }
+        panic!("TEMP-DUMP certify{table}");
     }
 
     /// `chart_breaks` skips a grid point up to the clearance (`2⁻¹³`,
