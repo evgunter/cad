@@ -88,6 +88,62 @@ pub fn split_halves_as_ports(doc: &Value) -> Value {
     doc
 }
 
+/// **A document from before a split's half was read by port, in the
+/// port spelling**: every part that selects a half is taken out
+/// ([`without_nodes`]), each read of it spelled as the port it read
+/// ([`split_halves_as_ports`]'s), and each declared side sited at it
+/// sited at its split. `doc` spells reads as inputs.
+pub fn split_half_parts_as_reads(doc: &Value) -> Value {
+    let mut doc = split_halves_as_ports(doc);
+    let mut parts: std::collections::BTreeMap<String, Value> = std::collections::BTreeMap::new();
+    if let Some(nodes) = doc["snapshot"]["nodes"].as_object() {
+        for (id, node) in nodes {
+            if let Some(part) = node.get("Part")
+                && part["select"].get("SplitHalf").is_some()
+            {
+                parts.insert(id.clone(), part["of"].clone());
+            }
+        }
+    }
+    fn site(of: &Value) -> Value {
+        match of {
+            Value::Object(port) => port["Port"][0].clone(),
+            bare => bare.clone(),
+        }
+    }
+    fn rewrite(value: &mut Value, parts: &std::collections::BTreeMap<String, Value>) {
+        match value {
+            Value::String(text) => {
+                if let Some(of) = parts.get(text.as_str()) {
+                    *value = of.clone();
+                }
+            }
+            Value::Object(object) => {
+                for (key, v) in object.iter_mut() {
+                    match v.as_str().and_then(|text| parts.get(text)) {
+                        Some(of) if key == "at" => *v = site(of),
+                        _ => rewrite(v, parts),
+                    }
+                }
+            }
+            Value::Array(items) => items.iter_mut().for_each(|v| rewrite(v, parts)),
+            _ => {}
+        }
+    }
+    if let Some(nodes) = doc["snapshot"]["nodes"].as_object_mut() {
+        for (id, node) in nodes.iter_mut() {
+            if !parts.contains_key(id) {
+                rewrite(node, &parts);
+            }
+        }
+    }
+    if let Some(edits) = doc.get_mut("edits") {
+        rewrite(edits, &parts);
+    }
+    let ids: Vec<String> = parts.into_keys().collect();
+    without_nodes(&doc, &ids)
+}
+
 /// **A pre-B document in the field's one name**: a profile's and an
 /// in-plane axis's `plane` field is `frame` since unit B (the kind the
 /// field reads, its slot, its label and its word), so a document the

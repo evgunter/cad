@@ -1770,12 +1770,12 @@ pub enum NodeErrorKind {
     /// table to resolve the name in. A pair boolean's arm: a union's
     /// site that is not a member is the N5 strand a later `SetMembers`
     /// leaves, and refuses as a vanished name ([`Self::DeclareResolve`]).
-    /// Every door that writes a pair refuses such a site — the edit
-    /// doors ([`crate::EditError::DeclaredSiteNotAnOperand`]) and, for a
-    /// Boolean, the load door — and a Boolean's operands never change,
-    /// so no document those doors admit reaches this arm; it stays the
-    /// evaluation's own answer to a site it cannot read rather than an
-    /// assumption the doors held.
+    /// Every door that writes a pair refuses a site no operand reads —
+    /// the edit doors ([`crate::EditError::DeclaredSiteNotAnOperand`])
+    /// and, for a Boolean, the load door. A site two operands share (a
+    /// split's two halves) is admitted there and sided here by the
+    /// table that holds the name, so a name neither half holds, or
+    /// both, lands on this arm.
     DeclareSiteNotAnOperand {
         /// The site the pair named.
         at: crate::node::RecipeNodeId,
@@ -2710,9 +2710,9 @@ impl crate::spoken::Say for NodeErrorKind {
             ),
             Self::DeclareSiteNotAnOperand { at } => write!(
                 f,
-                "a declared entity is sited at {}, which is not an operand of this \
-                 node — site each side at the member (or the boolean operand) whose table \
-                 holds it",
+                "a declared entity is sited at {}, which is not the one operand of this \
+                 node whose table holds it — site each side at the member (or the boolean \
+                 operand) whose table holds it",
                 by.node(*at)
             ),
             Self::DeclareUnsupportedPair { kinds, .. } => write!(

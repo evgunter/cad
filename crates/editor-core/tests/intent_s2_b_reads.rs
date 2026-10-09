@@ -487,77 +487,58 @@ fn the_slot_door_takes_a_formula_or_a_read_by_the_slots_kind() {
     ));
 }
 
-/// **A read of a split's port is that half** (FORK-1, Q2 ruled): a
-/// boolean over the split's first port builds, and is the same boolean
-/// over `Part { SplitHalf::Above }` of that split, bit for bit and name
-/// for name, up to the boolean's own id.
+/// **A read of a split's port is that half** (FORK-1): a boolean over
+/// the split's first port builds the union of the upper half and a
+/// block clear of it, its volume the half's and the block's, and every
+/// name it carries from the split is one of the upper half's rows.
 #[test]
 fn a_split_port_read_is_its_half() {
-    let (doc, _, block) = block(
-        ProfileDoc::empty_derived("s2b-split-port", Tol::witness()),
-        0.0,
-    );
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(editor_core::Datum::Plane {
-            origin: [len(0.0), len(0.0), len(0.5)],
-            normal: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-    );
-    let (doc, split) = insert(
-        doc,
-        Node::Split {
-            target: block.into(),
-            tool: plane.into(),
-        },
-    );
-    let (doc, _, other) = block_at(doc, 0.3);
-    let (doc, part) = insert(
-        doc,
-        Node::Part {
-            of: editor_core::Operand::output(split, editor_core::SplitHalf::Above.port()),
-            select: editor_core::PartSelect::SplitHalf(editor_core::SplitHalf::Above),
-        },
-    );
-    let boolean = |a: Operand| Node::Boolean {
-        op: editor_core::BooleanOp::Union,
-        a,
-        b: other.into(),
-        declare: Vec::new(),
-    };
+    let (doc, split, far) = split_block("s2b-split-port");
     let (doc, by_port) = insert(
         doc,
-        boolean(Operand::Output {
-            node: split,
-            port: 0,
-        }),
+        Node::Boolean {
+            op: editor_core::BooleanOp::Union,
+            a: Operand::output(split, editor_core::SplitHalf::Above.port()),
+            b: far.into(),
+            declare: Vec::new(),
+        },
     );
-    let (doc, by_part) = insert(doc, boolean(part.into()));
     let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
-    let (port, part) = (
-        ev.value(by_port)
-            .unwrap_or_else(|| panic!("{:?}", ev.node_error(by_port))),
-        ev.value(by_part).expect("the part spelling builds"),
+    let volume = volume_of(&ev, by_port);
+    assert!((volume - 1.5).abs() < 1e-12, "the half (0.5) and the block (1): {volume}");
+    let above_rows: Vec<editor_core::StableName> = ev
+        .value(split)
+        .expect("the split")
+        .name_table
+        .iter()
+        .filter(|(_, e)| {
+            matches!(e, editor_core::Entry::Unique(r) if r.body == editor_core::SplitHalf::Above.output_body())
+        })
+        .map(|(n, _)| n.clone())
+        .collect();
+    let carried: Vec<editor_core::StableName> = ev
+        .value(by_port)
+        .expect("the union")
+        .name_table
+        .iter()
+        .filter_map(|(n, _)| match n.path.first() {
+            Some(editor_core::RoleSeg::FromA(inner)) => Some(editor_core::StableName::clone(inner)),
+            _ => None,
+        })
+        .filter(|n| n.node == split)
+        .collect();
+    assert!(!carried.is_empty(), "the union carries the half's names");
+    assert!(
+        carried.iter().all(|n| above_rows.contains(n)),
+        "every name from the split is an upper-half row: {carried:?}"
     );
-    // Each boolean stamps its own id on what it mints; read the port
-    // spelling's as the part spelling's, and the two are one.
-    let as_part = |text: String| {
-        text.replace(&format!("{:?}", by_port.0), &format!("{:?}", by_part.0))
-            .replace(
-                &by_port.0.digest().to_string(),
-                &by_part.0.digest().to_string(),
-            )
-    };
-    assert_eq!(
-        as_part(format!("{:?}", port.payload)),
-        format!("{:?}", part.payload),
-        "one body, bit for bit"
-    );
-    assert_eq!(
-        as_part(format!("{:?}", port.name_table)),
-        format!("{:?}", part.name_table),
-        "and one name table"
-    );
+}
+
+/// The volume of a node's one body.
+fn volume_of(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> f64 {
+    topo::mass_properties(crate::corpus::body_of(ev, id), Tol::witness())
+        .expect("mass properties")
+        .volume
 }
 
 /// **The comparator reads a read as the input it names**, so a document
@@ -700,7 +681,7 @@ fn every_re_blessed_document_is_the_pre_b_one_up_to_ids() {
     // the families document, beside this build's.
     let (old, new) = families_pair();
     let new = up_to_ids::reads_as_inputs(&new);
-    let old = up_to_ids::plane_field_as_frame(&up_to_ids::split_halves_as_ports(&old));
+    let old = up_to_ids::plane_field_as_frame(&up_to_ids::split_half_parts_as_reads(&old));
     up_to_ids::same_up_to_ids(&old, &new)
         .unwrap_or_else(|err| panic!("the families document: {err}"));
     println!("the families document: equal up to ids, reads as inputs");
@@ -887,12 +868,27 @@ fn dm5_is_over_the_variables_read() {
             declare: Vec::new(),
         },
     );
+    let (doc, pair) = insert(
+        doc,
+        Node::Boolean {
+            op: editor_core::BooleanOp::Union,
+            a: Operand::output(split, 0),
+            b: Operand::output(split, 1),
+            declare: Vec::new(),
+        },
+    );
     let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
     assert!(
         ev.value(union).is_some(),
         "a union of a split's two halves builds: {:?}",
         ev.node_error(union)
     );
+    // Each operand reads its own half, so the halves rejoin into the
+    // whole block rather than one half joining itself.
+    for id in [union, pair] {
+        let volume = volume_of(&ev, id);
+        assert!((volume - 1.0).abs() < 1e-12, "the whole block: {volume}");
+    }
     assert!(
         matches!(
             fixture::insert_refused(
@@ -938,13 +934,14 @@ fn dm5_is_over_the_variables_read() {
 
 /// **Every operand family in one document** (review A's MINOR-2): a
 /// union, a loft, a sweep, a linear pattern and a part of one of its
-/// instances, a transform, a split and a part of each half, a fillet, a
+/// instances, a transform, a split read at each half, a fillet, a
 /// circular pattern of a revolve's body, and an instance of a part — so
 /// the one-shot's roots and reads cover each family, a list member
 /// among them. Inserted, never evaluated: what the one-shot compares is
 /// the saved document. `pre_b_families.json` is this document as the
 /// base built it, through its own fixtures, before an operand was a
-/// read.
+/// read, with a part of each half where it now reads each port
+/// ([`up_to_ids::split_half_parts_as_reads`]).
 pub(crate) fn families_document() -> ProfileDoc {
     let doc = ProfileDoc::empty_derived("s2b-families", Tol::witness());
     let (doc, plane, low) = on_frame_keeping(
@@ -1037,12 +1034,6 @@ pub(crate) fn families_document() -> ProfileDoc {
             tool: cut.into(),
         },
     );
-    let half = |half: editor_core::SplitHalf| Node::Part {
-        of: Operand::output(split, half.port()),
-        select: editor_core::PartSelect::SplitHalf(half),
-    };
-    let (doc, above) = insert(doc, half(editor_core::SplitHalf::Above));
-    let (doc, below) = insert(doc, half(editor_core::SplitHalf::Below));
     let (doc, moved) = insert(doc, xform(sweep, [0.0, 0.0, 5.0], [0.0, 0.0, 1.0], 0.0));
     let (doc, rounded) = insert(doc, Node::fillet(body, len(0.1), Vec::new()));
     let (doc, instance) = insert(
@@ -1057,8 +1048,8 @@ pub(crate) fn families_document() -> ProfileDoc {
         Node::Union {
             members: vec![
                 middle.into(),
-                above.into(),
-                below.into(),
+                Operand::output(split, editor_core::SplitHalf::Above.port()),
+                Operand::output(split, editor_core::SplitHalf::Below.port()),
                 moved.into(),
                 rounded.into(),
                 instance.into(),
