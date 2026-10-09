@@ -1366,3 +1366,4 @@ coincidence is now a margined verdict (no declarations), checked by the
 - 2026-10-09 — PR 4395 (MintLimb) merged at `67c756d147`; row closed.
 - 2026-10-09 — PR 4395 merged; sync 4409. Dispatched P3 `recourse-table-has-no-lever-only-ending` (`encl/recourse-lever-only`) beside the must-carry lane.
 - 2026-10-09 — Main red from GERM's 4352×4375 crossing (their P0, no PR). Dispatched `fix/cone-join-lane-guard-rows` to do the row's owed check. PR 4411 (must-carry) is reviewed with its fixes in and waits on it.
+- 2026-10-09 — Main green again: GERM fixed its own P0 in PR 4417 (09:41) while ENCL's lane worked it. The lane's independent check agreed: the cone poses build soundly or refuse typed, so re-pin to build. It closed its duplicate PR 4419 unmerged, with a bisect correction: 4352 is the cause, and 4375's branch did see it but its head was `[skip ci]`. Main merged into 4411 (`fed81e9c58`) and 4416 (`23582c303c`).
